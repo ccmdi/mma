@@ -6,6 +6,7 @@ import { errText } from "@/lib/util/format";
 import { controller, geoguessrProvider, PLUGIN_ID } from "./provider";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
+import { Notice } from "@/components/primitives/Hint";
 
 const CACHED_USER = "user";
 const kv = () => window.MMA.storage(PLUGIN_ID);
@@ -84,7 +85,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 			<Button variant="primary" disabled={busy} onClick={() => void signIn()}>
 				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
 			</Button>
-			{error && <p style={{ color: "var(--destructive-text)" }}>{error}</p>}
+			{error && <Notice tone="error">{error}</Notice>}
 		</>
 	);
 

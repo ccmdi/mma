@@ -12,10 +12,10 @@ import {
 	ConfirmDialog,
 	DialogActions,
 	DialogForm,
-	DialogHint,
 	useCloseDialog,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { Icon } from "@/components/primitives/Icon";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -194,9 +194,9 @@ function ExprSection({
 					/>
 				</span>
 			</p>
-			<DialogHint tone={error ? "error" : undefined}>
+			<Hint tone={error ? "error" : undefined}>
 				{error ? t("Invalid expression: {error}", { error }) : hint}
-			</DialogHint>
+			</Hint>
 		</>
 	);
 }

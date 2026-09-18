@@ -86,12 +86,6 @@
 }
 
 /* Region selector */
-.generator-regions__hint {
-	padding: 6px 0;
-	color: var(--text-2);
-	font-style: italic;
-}
-
 .generator-regions__controls {
 	display: flex;
 	align-items: center;

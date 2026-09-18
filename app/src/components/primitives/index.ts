@@ -21,7 +21,6 @@ export {
 	DialogActions,
 	DialogContent,
 	DialogForm,
-	DialogHint,
 	DialogTrigger,
 	PromptDialog,
 	useCloseDialog,
@@ -30,6 +29,7 @@ export {
 	type DialogSize,
 } from "./Dialog";
 export { Flag } from "./Flag";
+export { Hint, Notice } from "./Hint";
 export { HotkeyInput } from "./HotkeyInput";
 export { Icon } from "./Icon";
 export { IconButton } from "./IconButton";

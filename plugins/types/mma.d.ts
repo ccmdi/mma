@@ -5650,12 +5650,6 @@ declare function DialogActions({ start, destructive, cancel, primary, }: {
 declare function DialogForm({ onSubmit, className, ...props }: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & {
     onSubmit: () => void;
 }): react.JSX.Element;
-/** A line of secondary text inside a dialog, optionally marked as a warning or an error.
- *  @unstable */
-declare function DialogHint({ tone, children, }: {
-    tone?: "warning" | "error";
-    children?: ReactNode;
-}): react.JSX.Element;
 /** Asks the user to confirm one action, with room for extra options under the message.
  *  @unstable */
 declare function ConfirmDialog({ open, onOpenChange, title, message, confirmLabel, cancelLabel, tone, busy, size, onConfirm, children, }: DialogProps & {
@@ -5697,6 +5691,17 @@ declare function Flag({ code, height, className, }: {
     height?: number;
     className?: string;
 }): react.JSX.Element | null;
+
+/** A line of secondary text, optionally marked as a warning or an error. */
+declare function Hint({ tone, children }: {
+    tone?: "warning" | "error";
+    children?: ReactNode;
+}): react.JSX.Element;
+/** A boxed message that informs, warns, reports an error or confirms a success. */
+declare function Notice({ tone, children, }: {
+    tone: "info" | "warning" | "error" | "success";
+    children: ReactNode;
+}): react.JSX.Element;
 
 /** Click-to-record key combo input. Backspace/Delete clears, Escape cancels. @unstable */
 declare function HotkeyInput({ value, onChange, }: {
@@ -5953,8 +5958,6 @@ declare const primitives_DialogContent: typeof DialogContent;
 /** @unstable */
 declare const primitives_DialogForm: typeof DialogForm;
 /** @unstable */
-declare const primitives_DialogHint: typeof DialogHint;
-/** @unstable */
 export type primitives_DialogProps = DialogProps;
 /** @unstable */
 export type primitives_DialogSize = DialogSize;
@@ -5962,6 +5965,7 @@ declare const primitives_DialogTrigger: typeof DialogTrigger;
 declare const primitives_EmptyState: typeof EmptyState;
 declare const primitives_Field: typeof Field;
 declare const primitives_Flag: typeof Flag;
+declare const primitives_Hint: typeof Hint;
 /** @unstable */
 declare const primitives_HotkeyInput: typeof HotkeyInput;
 declare const primitives_Icon: typeof Icon;
@@ -5969,6 +5973,7 @@ declare const primitives_Icon: typeof Icon;
 declare const primitives_IconButton: typeof IconButton;
 /** @unstable */
 declare const primitives_NSelect: typeof NSelect;
+declare const primitives_Notice: typeof Notice;
 declare const primitives_ProgressRow: typeof ProgressRow;
 /** @unstable */
 declare const primitives_PromptDialog: typeof PromptDialog;
@@ -5999,7 +6004,7 @@ declare const primitives_Tooltip: typeof Tooltip;
 /** @unstable */
 declare const primitives_useCloseDialog: typeof useCloseDialog;
 declare namespace primitives {
-  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogHint as DialogHint, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_IconButton as IconButton, primitives_NSelect as NSelect, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
+  export { primitives_Bar as Bar, primitives_Button as Button, primitives_Checkbox as Checkbox, primitives_ColorPicker as ColorPicker, primitives_ConfirmButton as ConfirmButton, primitives_ConfirmDialog as ConfirmDialog, primitives_CoverageBar as CoverageBar, primitives_DatePicker as DatePicker, primitives_Dialog as Dialog, primitives_DialogActions as DialogActions, primitives_DialogContent as DialogContent, primitives_DialogForm as DialogForm, primitives_DialogTrigger as DialogTrigger, primitives_EmptyState as EmptyState, primitives_Field as Field, primitives_Flag as Flag, primitives_Hint as Hint, primitives_HotkeyInput as HotkeyInput, primitives_Icon as Icon, primitives_IconButton as IconButton, primitives_NSelect as NSelect, primitives_Notice as Notice, primitives_ProgressRow as ProgressRow, primitives_PromptDialog as PromptDialog, primitives_Radio as Radio, primitives_RgbPicker as RgbPicker, primitives_Section as Section, primitives_SegmentedControl as SegmentedControl, primitives_SelectorPicker as SelectorPicker, primitives_SettingRow as SettingRow, primitives_Sidebar as Sidebar, primitives_Slider as Slider, primitives_SuggestInput as SuggestInput, primitives_Switch as Switch, primitives_SwitchRow as SwitchRow, primitives_TagPill as TagPill, primitives_TagPillButton as TagPillButton, primitives_TextInput as TextInput, primitives_ToolBlock as ToolBlock, primitives_Tooltip as Tooltip, primitives_useCloseDialog as useCloseDialog };
   export type { primitives_DialogAction as DialogAction, primitives_DialogProps as DialogProps, primitives_DialogSize as DialogSize, primitives_SegmentedOption as SegmentedOption };
 }
 

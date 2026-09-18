@@ -11,6 +11,7 @@ import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
 import clsx from "clsx";
 import { Button } from "@/components/primitives/Button";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
+import { Hint } from "@/components/primitives/Hint";
 import { TextInput } from "@/components/primitives/TextInput";
 import { mdiClose } from "@mdi/js";
 import { t } from "@/lib/i18n";
@@ -289,18 +290,6 @@ export function DialogForm({
 	);
 }
 
-/** A line of secondary text inside a dialog, optionally marked as a warning or an error.
- *  @unstable */
-export function DialogHint({
-	tone,
-	children,
-}: {
-	tone?: "warning" | "error";
-	children?: ReactNode;
-}) {
-	return <span className={clsx("modal__hint", tone && `modal__hint--${tone}`)}>{children}</span>;
-}
-
 /** Asks the user to confirm one action, with room for extra options under the message.
  *  @unstable */
 export function ConfirmDialog({
@@ -391,7 +380,7 @@ export function PromptDialog({
 						aria-invalid={error ? true : undefined}
 						autoFocus
 					/>
-					{error !== undefined && <DialogHint tone="error">{error}</DialogHint>}
+					{error !== undefined && <Hint tone="error">{error}</Hint>}
 					{children}
 					<DialogActions cancel primary={{ label: submitLabel, disabled: !ready }} />
 				</DialogForm>

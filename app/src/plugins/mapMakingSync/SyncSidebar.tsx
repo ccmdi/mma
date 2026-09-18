@@ -9,6 +9,7 @@ import { controller } from "./controller";
 import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
+import { Notice } from "@/components/primitives/Hint";
 
 /** The shared sync sidebar, with map-making.app's API-key auth plugged into it. */
 export function SyncSidebar({ onClose }: { onClose: () => void }) {
@@ -93,7 +94,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			<Button variant="primary" type="submit" disabled={busy || !keyDraft}>
 				{busy ? t("Validating...") : t("Validate")}
 			</Button>
-			{error && <p style={{ color: "var(--destructive-text)" }}>{error}</p>}
+			{error && <Notice tone="error">{error}</Notice>}
 		</form>
 	);
 

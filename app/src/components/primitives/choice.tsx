@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Hint } from "./Hint";
 
 export interface ChoiceLabelProps {
 	/** Text shown beside the control. Clicking the text acts like clicking the control. */
@@ -24,7 +25,7 @@ export function ChoiceLabel({
 			{control}
 			<span className="choice__text">
 				{children}
-				{hint != null && <span className="choice__hint">{hint}</span>}
+				{hint != null && <Hint>{hint}</Hint>}
 			</span>
 		</label>
 	);

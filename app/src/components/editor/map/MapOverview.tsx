@@ -104,7 +104,7 @@ function RandomPickPanel() {
 				value={value}
 				onChange={(e) => setValue(e.target.value)}
 			/>
-			<span style={{ opacity: 0.6 }}>{t("of {total}", { total: fmt.format(total) })}</span>
+			<span className="text-muted">{t("of {total}", { total: fmt.format(total) })}</span>
 			<PerSelectionToggle value={perSelection} onChange={setPerSelection} />
 			<Button type="submit" disabled={!valid}>
 				{t("Pick")}
@@ -180,7 +180,7 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 				onChange={(e) => setValue(e.target.value)}
 			/>
 			{mode === "count" && (
-				<span style={{ opacity: 0.6 }}>{t("of {total}", { total: fmt.format(total) })}</span>
+				<span className="text-muted">{t("of {total}", { total: fmt.format(total) })}</span>
 			)}
 			<PerSelectionToggle value={perSelection} onChange={setPerSelection} />
 			<Button type="submit" disabled={!valid}>

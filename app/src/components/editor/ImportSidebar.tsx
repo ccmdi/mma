@@ -8,6 +8,7 @@ import { trace } from "@/lib/util/debug";
 import { ConfirmDialog } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
+import { Notice } from "@/components/primitives/Hint";
 import { TagPill } from "@/components/primitives/TagPill";
 import { tagColorFor, toggleInSet } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";
@@ -143,22 +144,24 @@ export function ImportSidebar() {
 			</div>
 
 			{preview.warnings.length > 0 && (
-				<details className="import-sidebar__section">
-					<summary>
-						{t({ one: "{n} warning", other: "{n} warnings" }, { n: preview.warnings.length })}
-					</summary>
-					<ul>
-						{preview.warnings.map((w, i) => (
-							<li key={i}>{w}</li>
-						))}
-					</ul>
-				</details>
+				<Notice tone="warning">
+					<details className="import-preview__warnings">
+						<summary>
+							{t({ one: "{n} warning", other: "{n} warnings" }, { n: preview.warnings.length })}
+						</summary>
+						<ul>
+							{preview.warnings.map((w, i) => (
+								<li key={i}>{w}</li>
+							))}
+						</ul>
+					</details>
+				</Notice>
 			)}
 
 			{error && (
-				<p className="importer__error">
+				<Notice tone="error">
 					{t("Error:")} {error}
-				</p>
+				</Notice>
 			)}
 
 			<div className="import-sidebar__actions">

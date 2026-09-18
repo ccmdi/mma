@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
+import { Notice } from "@/components/primitives/Hint";
 import {
 	useMapList,
 	createMap,
@@ -566,16 +567,18 @@ function ImportPreviewModal({
 				</ul>
 
 				{preview.warnings.length > 0 && (
-					<details className="import-preview__warnings">
-						<summary>
-							{t({ one: "{n} warning", other: "{n} warnings" }, { n: preview.warnings.length })}
-						</summary>
-						<ul>
-							{preview.warnings.map((w, i) => (
-								<li key={i}>{w}</li>
-							))}
-						</ul>
-					</details>
+					<Notice tone="warning">
+						<details className="import-preview__warnings">
+							<summary>
+								{t({ one: "{n} warning", other: "{n} warnings" }, { n: preview.warnings.length })}
+							</summary>
+							<ul>
+								{preview.warnings.map((w, i) => (
+									<li key={i}>{w}</li>
+								))}
+							</ul>
+						</details>
+					</Notice>
 				)}
 
 				<DialogActions

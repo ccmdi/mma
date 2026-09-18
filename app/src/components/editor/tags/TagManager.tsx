@@ -30,10 +30,10 @@ import {
 	DialogActions,
 	DialogContent,
 	DialogForm,
-	DialogHint,
 	PromptDialog,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { Field } from "@/components/primitives/Sidebar";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
@@ -846,9 +846,9 @@ function AddAliasDialog({
 						label={t("Target folder")}
 						hint={
 							collision ? (
-								<DialogHint tone="error">
+								<Hint tone="error">
 									{t('"{path}" already exists in the tree', { path: aliasPath })}
-								</DialogHint>
+								</Hint>
 							) : (
 								<>
 									{t("Appears as")} <strong>{aliasPath}</strong>

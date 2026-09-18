@@ -4,6 +4,7 @@ import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/p
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Flag } from "@/components/primitives/Flag";
+import { Hint } from "@/components/primitives/Hint";
 import type { Selection } from "@/bindings.gen";
 import type { GeneratorRegionMeta } from "../engine/types";
 import { useFoundRate } from "./progressSignal";
@@ -152,10 +153,10 @@ export function RegionSelector({
 	return (
 		<div className="generator-regions">
 			{polygonSelections.length === 0 && (
-				<div className="generator-regions__hint">
+				<Hint>
 					{t("Draw a polygon on the map or hold")} <Kbd>{t("Q")}</Kbd>{" "}
 					{t("+ click to select a country outline.")}
-				</div>
+				</Hint>
 			)}
 			<div className="generator-regions__controls">
 				<label className="generator-regions__target-label">

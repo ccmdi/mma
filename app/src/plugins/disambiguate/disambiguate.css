@@ -2,9 +2,6 @@
 	color: var(--text-2);
 	font-size: 0.85em;
 }
-.disambig__error {
-	color: var(--destructive-text);
-}
 .disambig__summary {
 	display: flex;
 	align-items: center;

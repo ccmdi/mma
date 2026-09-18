@@ -1020,10 +1020,39 @@ input[type="range"]:disabled {
 .choice--hint > .radio {
 	margin-top: 0.15em;
 }
-.choice__hint {
+.hint {
 	display: block;
 	color: var(--text-2);
 	font-size: 0.8125rem;
+}
+.hint--warning {
+	color: var(--warning);
+}
+.hint--error {
+	min-height: 1.25em;
+	color: var(--destructive-text);
+}
+.notice {
+	padding: 0.375rem 0.5rem;
+	border-left: 2px solid var(--notice-color);
+	border-radius: var(--radius-1);
+	background: color-mix(in srgb, var(--notice-color) 15%, transparent);
+	color: var(--text-1);
+	font-size: 0.8125rem;
+}
+.notice--info {
+	--notice-color: var(--border-strong);
+	background: var(--surface-1);
+}
+.notice--warning {
+	--notice-color: var(--warning);
+	background: var(--warning-muted);
+}
+.notice--error {
+	--notice-color: var(--destructive-text);
+}
+.notice--success {
+	--notice-color: var(--constructive);
 }
 .choice[aria-disabled="true"] {
 	opacity: var(--disabled-opacity);
@@ -1136,18 +1165,6 @@ input[type="range"]:disabled {
 }
 .modal__message {
 	margin: 0;
-}
-.modal__hint {
-	display: block;
-	color: var(--text-2);
-	font-size: 0.8125rem;
-}
-.modal__hint--warning {
-	color: var(--warning);
-}
-.modal__hint--error {
-	min-height: 1.25em;
-	color: var(--destructive-text);
 }
 .modal__actions {
 	display: flex;
@@ -1644,11 +1661,6 @@ input[type="range"]:disabled {
 	padding: 1px 6px;
 	border-radius: 3px;
 	white-space: nowrap;
-}
-.import-preview__warnings {
-	margin-top: 0.5rem;
-	font-size: 0.8rem;
-	color: var(--warning);
 }
 .import-preview__warnings ul {
 	margin: 0.25rem 0 0;
@@ -2696,10 +2708,6 @@ input[type="range"]:disabled {
 	display: flex;
 	gap: 0.5rem;
 	margin-top: auto;
-}
-.importer__error {
-	color: var(--destructive-text);
-	font-size: 0.85em;
 }
 .diff-sidebar__title-group {
 	display: flex;
@@ -3909,10 +3917,6 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 	gap: 0.375rem;
 	padding: 1px 0;
 }
-.tag-find-replace__done {
-	color: var(--constructive);
-	font-size: 0.85rem;
-}
 .edit-tag-modal__apply-color {
 	grid-column: 1 / span 2;
 	width: 100%;
@@ -4868,15 +4872,6 @@ body {
 .settings-page .color-picker__swatch {
 	width: 20px;
 	height: 20px;
-}
-.settings-popup__warning {
-	margin: 0.25rem 0;
-	padding: 0.35rem 0.5rem;
-	background: var(--warning-muted);
-	border-left: 2px solid var(--warning);
-	border-radius: 3px;
-	font-size: 0.85em;
-	color: var(--text-2);
 }
 .settings-updates__version {
 	display: inline-flex;
@@ -5937,10 +5932,6 @@ body:has([data-plugin-overlay]) .map-meta {
 .stats-nerds__table td {
 	word-break: break-all;
 }
-.stats-nerds__error {
-	margin-bottom: 0.5rem;
-	color: var(--destructive-text);
-}
 .stats-nerds__idle {
 	margin: 0;
 	font-size: 0.8125rem;
@@ -6124,11 +6115,6 @@ body:has([data-plugin-overlay]) .map-meta {
 .plugin-field__label {
 	font-size: 12px;
 	color: var(--text-2);
-}
-
-.plugin-field__hint {
-	font-size: 11px;
-	color: var(--text-3);
 }
 
 .plugin-empty {
@@ -6462,8 +6448,7 @@ div:has(> div.gmnoprint > div.gm-style-cc [title="Keyboard shortcuts"]) {
 	background: var(--surface-1);
 	color: var(--text-2);
 }
-.report-dialog__error,
-.feedback-error {
+.report-dialog__error {
 	font-size: 0.85rem;
 	line-height: 1.4;
 	color: var(--destructive-text);

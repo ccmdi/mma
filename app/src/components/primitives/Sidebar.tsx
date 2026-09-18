@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { Hint } from "@/components/primitives/Hint";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiArrowLeft, mdiChevronDown, mdiChevronRight } from "@mdi/js";
 import { t } from "@/lib/i18n";
@@ -84,7 +85,7 @@ export function Field({
 		<div className={`plugin-field${row ? " plugin-field--row" : ""}`}>
 			<span className="plugin-field__label">{label}</span>
 			{children}
-			{hint && <span className="plugin-field__hint">{hint}</span>}
+			{hint && <Hint>{hint}</Hint>}
 		</div>
 	);
 }

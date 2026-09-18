@@ -2,12 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } from "@mdi/js";
 import { TagPill } from "@/components/primitives/TagPill";
-import {
-	Dialog,
-	DialogContent,
-	DialogHint,
-	type DialogProps,
-} from "@/components/primitives/Dialog";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { EmptyState } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
@@ -369,7 +365,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					</div>
 				)}
 				{!docRef ? (
-					<DialogHint>{t("Paste a link to a Google Doc to load its headings.")}</DialogHint>
+					<Hint>{t("Paste a link to a Google Doc to load its headings.")}</Hint>
 				) : (
 					<>
 						<div className="doclink-assign__armed">
@@ -462,11 +458,11 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 									</Button>
 								</div>
 								<div className="doclink-assign__outline">
-									{loading && <DialogHint>{t("Loading document...")}</DialogHint>}
+									{loading && <Hint>{t("Loading document...")}</Hint>}
 									{error && (
-										<DialogHint tone="error">
+										<Hint tone="error">
 											{t("Couldn't load:")} {error.message}
-										</DialogHint>
+										</Hint>
 									)}
 									{shownHeadings.map((h) => {
 										const assigned = assignments.get(h.anchor) ?? [];

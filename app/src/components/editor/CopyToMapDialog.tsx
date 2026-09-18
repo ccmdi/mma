@@ -4,12 +4,8 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import { search } from "@/lib/search";
 import { log } from "@/lib/util/log";
 import { mdiEarth } from "@mdi/js";
-import {
-	Dialog,
-	DialogContent,
-	DialogHint,
-	type DialogProps,
-} from "@/components/primitives/Dialog";
+import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Button } from "@/components/primitives/Button";
@@ -112,11 +108,11 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Copy location to map (hotkeys)")} className="copy-to-map-modal-host">
 				<div className="copy-to-map-modal">
-					<DialogHint>
+					<Hint>
 						{t(
 							"Pressing an assigned key while a location is open copies that location into the map\n\t\t\t\t\t\t(duplicates are skipped).",
 						)}
-					</DialogHint>
+					</Hint>
 					{rowIds.length > 0 && (
 						<ul className="copy-to-map-modal__list">
 							{rowIds.map((id) => {

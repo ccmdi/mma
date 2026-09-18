@@ -4,9 +4,9 @@ import {
 	Dialog,
 	DialogActions,
 	DialogContent,
-	DialogHint,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -188,9 +188,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{enabledFields.length === 0 && (
-				<DialogHint>
-					{t("No enrichment fields are enabled. Turn them on in the Enrichment dialog.")}
-				</DialogHint>
+				<Hint>{t("No enrichment fields are enabled. Turn them on in the Enrichment dialog.")}</Hint>
 			)}
 			{total > 0 && enabledFields.length > 0 && (
 				<table className="bulk-operation__coverage">
@@ -212,7 +210,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 				</table>
 			)}
 			{info.missing("panoId") > 0 && (
-				<DialogHint>
+				<Hint>
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
@@ -220,7 +218,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 						},
 						{ n: info.missing("panoId") },
 					)}
-				</DialogHint>
+				</Hint>
 			)}
 			<Checkbox checked={force} onChange={(e) => setForce(e.target.checked)}>
 				{t("Re-enrich already enriched locations")}
@@ -260,13 +258,13 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 	return (
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
-			<DialogHint>
+			<Hint>
 				{t(
 					{ one: "{n} location already pinned.", other: "{n} locations already pinned." },
 					{ n: info.pinned },
 				)}
-			</DialogHint>
-			<DialogHint>
+			</Hint>
+			<Hint>
 				{t(
 					{
 						one: "{n} location has a pano ID to pin.",
@@ -274,9 +272,9 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					},
 					{ n: pinnable },
 				)}
-			</DialogHint>
+			</Hint>
 			{withoutPano > 0 && (
-				<DialogHint>
+				<Hint>
 					{resolve
 						? t(
 								{
@@ -292,7 +290,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 								},
 								{ n: withoutPano },
 							)}
-				</DialogHint>
+				</Hint>
 			)}
 			<Checkbox checked={resolve} onChange={(e) => setResolve(e.target.checked)}>
 				{t("Resolve pano IDs first")}
@@ -394,7 +392,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{clearable.length === 0 ? (
-				<DialogHint>{t("No metadata fields on this map.")}</DialogHint>
+				<Hint>{t("No metadata fields on this map.")}</Hint>
 			) : (
 				<div className="bulk-operation__field-list">
 					{clearable.map((key) => {
@@ -543,11 +541,11 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 				)}
 			</label>
 			{isNumber && (
-				<DialogHint>
+				<Hint>
 					{exprError
 						? t("Invalid expression: {error}", { error: exprError })
 						: t("Constant or expression over fields (e.g. sunAzimuth, drivingDirection, lat).")}
-				</DialogHint>
+				</Hint>
 			)}
 			<DialogActions
 				cancel
@@ -633,7 +631,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 		<div className="modal__stack">
 			<SelectorPicker ctl={picker} />
 			{info.missing("panoId") > 0 && (
-				<DialogHint>
+				<Hint>
 					{t(
 						{
 							one: "{n} without pano ID will be resolved from coordinates.",
@@ -641,7 +639,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 						},
 						{ n: info.missing("panoId") },
 					)}
-				</DialogHint>
+				</Hint>
 			)}
 			<label className="bulk-operation__option">
 				{t("Mode")}

@@ -3,6 +3,7 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import { useEvent, SELECTION_EVENTS } from "@/lib/events";
 import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import { Bar } from "@/components/primitives/Bar";
+import { Notice } from "@/components/primitives/Hint";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
@@ -189,7 +190,7 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 
 	return (
 		<Sidebar title={t("Disambiguate selections")} onBack={onClose} className="disambig">
-			{error && <div className="disambig__error">{error.message}</div>}
+			{error && <Notice tone="error">{error.message}</Notice>}
 			{!error && loading && <div className="disambig__muted">{t("Analyzing\u2026")}</div>}
 			{!error && analysis && (
 				<>

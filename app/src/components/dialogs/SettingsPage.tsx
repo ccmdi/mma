@@ -3,9 +3,9 @@ import {
 	ConfirmDialog,
 	Dialog,
 	DialogContent,
-	DialogHint,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint, Notice } from "@/components/primitives/Hint";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Slider } from "@/components/primitives/Slider";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -826,12 +826,8 @@ function BorderDetailGroup() {
 				/>
 				{(downloading || error) && (
 					<Aux>
-						{downloading && (
-							<p style={{ margin: "0.25rem 0 0", fontSize: "0.85rem", opacity: 0.7 }}>
-								{t("Downloading border data...")}
-							</p>
-						)}
-						{error && <p className="settings-popup__warning">{error}</p>}
+						{downloading && <Hint>{t("Downloading border data...")}</Hint>}
+						{error && <Notice tone="error">{error}</Notice>}
 					</Aux>
 				)}
 			</SettingsGroup>
@@ -936,9 +932,9 @@ function EditingBody() {
 				{s.geocodeProvider === "nominatim" && (
 					<>
 						<Aux>
-							<p className="settings-popup__warning">
+							<Notice tone="warning">
 								{t("Without an API key, requests may be rate-limited by Nominatim's usage policy.")}
-							</p>
+							</Notice>
 						</Aux>
 						<SettingRow
 							sub
@@ -975,9 +971,7 @@ function MapListBlock() {
 
 	return (
 		<Aux match="map list fields columns row">
-			<p className="text-muted" style={{ margin: "0.25rem 0", fontSize: "0.85rem" }}>
-				{t("Fields shown on each map row (labels are always shown)")}
-			</p>
+			<Hint>{t("Fields shown on each map row (labels are always shown)")}</Hint>
 			{Object.entries(MAP_LIST_FIELDS).map(([value, label]) => (
 				<Checkbox
 					key={value}
@@ -1260,11 +1254,11 @@ function DataBody() {
 				onConfirm={() => void apply()}
 			>
 				<code className="settings-data-path">{target}</code>
-				<DialogHint>
+				<Hint>
 					{t(
 						"Existing maps are not moved automatically. Copy them from the current folder if you want\n\t\t\t\t\t\tto keep them. The app must relaunch to apply.",
 					)}
-				</DialogHint>
+				</Hint>
 			</ConfirmDialog>
 		</Aux>
 	);
@@ -1401,7 +1395,7 @@ function FeedbackBody() {
 							})}
 						</p>
 					)}
-					{error && <p className="feedback-error">{error}</p>}
+					{error && <Notice tone="error">{error}</Notice>}
 				</Aux>
 			</SettingsGroup>
 

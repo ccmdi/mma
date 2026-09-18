@@ -1933,19 +1933,6 @@ ui.DialogForm(
 
 A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
 
-#### ui.DialogHint
-
-`unstable` · unreleased
-
-```ts
-ui.DialogHint(props: {
-  tone?: "warning" | "error";
-  children?: ReactNode;
-}): react.JSX.Element
-```
-
-A line of secondary text inside a dialog, optionally marked as a warning or an error.
-
 #### ui.DialogTrigger
 
 `unstable` · since v0.10.0
@@ -2003,6 +1990,19 @@ ui.Flag(props: {
 
 Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
 
+#### ui.Hint
+
+`stable` · unreleased
+
+```ts
+ui.Hint(props: {
+  tone?: "warning" | "error";
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A line of secondary text, optionally marked as a warning or an error.
+
 #### ui.HotkeyInput
 
 `unstable` · since v0.10.0
@@ -2054,6 +2054,19 @@ ui.IconButton(
 ```
 
 A button showing only an icon, named by its label.
+
+#### ui.Notice
+
+`stable` · unreleased
+
+```ts
+ui.Notice(props: {
+  tone: "info" | "warning" | "error" | "success";
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+A boxed message that informs, warns, reports an error or confirms a success.
 
 #### ui.NSelect
 

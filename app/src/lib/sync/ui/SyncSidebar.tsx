@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { Sidebar, Section, Field, EmptyState } from "@/components/primitives/Sidebar";
+import { Notice } from "@/components/primitives/Hint";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { Icon } from "@/components/primitives/Icon";
@@ -367,7 +368,7 @@ export function SyncSidebar({
 					<Field label={t("Linked to")} row>
 						<span>
 							{link.remoteMapName || t("(unnamed)")}{" "}
-							<span style={{ opacity: 0.6 }}>#{link.remoteMapId}</span>
+							<span className="text-muted">#{link.remoteMapId}</span>
 						</span>
 					</Field>
 					<Field label={t("Last synced")} row>
@@ -426,7 +427,7 @@ export function SyncSidebar({
 						</Button>
 					</div>
 					{status === "error" && controller.liveError() && (
-						<p style={{ color: "var(--destructive-text)" }}>{controller.liveError()}</p>
+						<Notice tone="error">{controller.liveError()}</Notice>
 					)}
 					{outcome && (
 						<p>
@@ -509,7 +510,7 @@ export function SyncSidebar({
 										}}
 									>
 										<span>{m.name || t("(unnamed)")}</span>
-										<span style={{ opacity: 0.6, whiteSpace: "nowrap" }}>
+										<span className="text-muted" style={{ whiteSpace: "nowrap" }}>
 											{m.unsupported ?? (m.locationCount !== null ? m.locationCount : "")}
 										</span>
 									</span>
@@ -560,7 +561,7 @@ export function SyncSidebar({
 				</Section>
 			)}
 
-			{error && <p style={{ color: "var(--destructive-text)" }}>{error}</p>}
+			{error && <Notice tone="error">{error}</Notice>}
 		</Sidebar>
 	);
 }

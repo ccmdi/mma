@@ -5,9 +5,9 @@ import {
 	Dialog,
 	DialogActions,
 	DialogContent,
-	DialogHint,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint, Notice } from "@/components/primitives/Hint";
 import { TextInput } from "@/components/primitives/TextInput";
 import { t } from "@/lib/i18n";
 
@@ -69,12 +69,12 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 					</label>
 					{find && (
 						<div>
-							<DialogHint>
+							<Hint>
 								{t(
 									{ one: "{n} tag will be affected:", other: "{n} tags will be affected:" },
 									{ n: matches.length },
 								)}
-							</DialogHint>
+							</Hint>
 							<ul className="tag-find-replace__list">
 								{matches.map((t) => (
 									<li key={t.id}>
@@ -90,10 +90,10 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 							</ul>
 						</div>
 					)}
-					<DialogHint tone="warning">{t("Tag renames cannot be undone.")}</DialogHint>
+					<Hint tone="warning">{t("Tag renames cannot be undone.")}</Hint>
 					{applied ? (
 						<DialogActions
-							start={<span className="tag-find-replace__done">{t("Done!")}</span>}
+							start={<Notice tone="success">{t("Done!")}</Notice>}
 							cancel={{ label: t("Close") }}
 						/>
 					) : (

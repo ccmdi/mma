@@ -35,13 +35,8 @@ import { mountSearchRadiusCursor } from "@/lib/map/searchRadiusCursor";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import {
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogForm,
-	DialogHint,
-} from "@/components/primitives/Dialog";
+import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Slider } from "@/components/primitives/Slider";
@@ -542,7 +537,7 @@ export function MapEmbed({
 							}}
 						>
 							<strong>{t("New style")}</strong>
-							<DialogHint>{t("Paste a Google Maps style JSON array below.")}</DialogHint>
+							<Hint>{t("Paste a Google Maps style JSON array below.")}</Hint>
 							<TextInput name="name" placeholder={t("Style name")} required />
 							<textarea
 								name="style"

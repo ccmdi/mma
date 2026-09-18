@@ -16,9 +16,9 @@ import {
 	DialogActions,
 	DialogContent,
 	DialogForm,
-	DialogHint,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
+import { Hint } from "@/components/primitives/Hint";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
@@ -214,7 +214,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 							{t("Location timezone")}
 						</Checkbox>
 					)}
-					{tzGap > 0 && <DialogHint>{missingTimezoneMessage(tzGap)}</DialogHint>}
+					{tzGap > 0 && <Hint>{missingTimezoneMessage(tzGap)}</Hint>}
 					{field && (
 						<div className={clsx("apply-tags__coverage", pending && "is-pending")}>
 							<span className="apply-tags__coverage-label">

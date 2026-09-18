@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ProcedureActivity } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
+import { Notice } from "@/components/primitives/Hint";
 import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnostics";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
@@ -199,7 +200,7 @@ export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t("Stats for Nerds")} className="stats-nerds" size="xl">
-				{error && <div className="stats-nerds__error">{String(error)}</div>}
+				{error && <Notice tone="error">{String(error)}</Notice>}
 				<div className="stats-nerds__columns">
 					<div className="stats-nerds__column">
 						{stats && <StatTable rows={statsRows(stats)} />}
