@@ -24,6 +24,7 @@ import { EmptyState } from "@/components/primitives/Sidebar";
 import { mdiClose } from "@mdi/js";
 import { t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
+import { Swatch } from "@/components/primitives/Swatch";
 
 /** One chip per part of a rule, colored the way its selection was when it was saved. */
 function RuleChips({ parts }: { parts: Pick<SavedPart, "label" | "color">[] }) {
@@ -31,10 +32,7 @@ function RuleChips({ parts }: { parts: Pick<SavedPart, "label" | "color">[] }) {
 		<div className="saved-selection-row__rules">
 			{parts.map((part, i) => (
 				<span key={i} className="saved-selection-row__chip">
-					<span
-						className="saved-selection-row__dot"
-						style={{ background: `rgb(${part.color[0]},${part.color[1]},${part.color[2]})` }}
-					/>
+					<Swatch color={part.color} size="sm" round />
 					{part.label}
 				</span>
 			))}

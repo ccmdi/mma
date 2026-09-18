@@ -485,17 +485,16 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 											>
 												<span className="doclink-assign__heading-text">{h.text}</span>
 												{assigned.map((tag) => (
-													<span
+													<TagPill
 														key={tag.id}
-														className="doclink-assign__chip"
-														style={{ background: tag.color, color: textColorFor(tag.color) }}
+														small
+														color={tag.color}
+														label={tag.name}
 														title={t(
 															"Assigned to {name} (click heading with this tag armed to remove)",
 															{ name: tag.name },
 														)}
-													>
-														{tag.name}
-													</span>
+													/>
 												))}
 											</button>
 										);

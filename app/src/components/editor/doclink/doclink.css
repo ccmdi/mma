@@ -383,12 +383,6 @@
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
-.doclink-assign__chip {
-	border-radius: 3px;
-	padding: 0 0.375rem;
-	font-size: 0.7rem;
-	white-space: nowrap;
-}
 
 .doclink-panel__status {
 	padding: 1rem;

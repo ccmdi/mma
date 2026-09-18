@@ -100,13 +100,6 @@
 	max-width: 120px;
 }
 
-.pivot-sidebar__swatch {
-	width: 8px;
-	height: 8px;
-	border-radius: 2px;
-	flex-shrink: 0;
-}
-
 .pivot-sidebar__cell--zero {
 	color: var(--text-3);
 }

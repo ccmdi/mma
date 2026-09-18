@@ -5,11 +5,11 @@ import { Sidebar, EmptyState } from "@/components/primitives/Sidebar";
 import { Bar } from "@/components/primitives/Bar";
 import type { Selection, ExtraFieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
-import { rgbCss } from "@/lib/util/color";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
 import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat } from "./engine";
 import "./disambiguate.css";
 import { t } from "@/lib/i18n";
+import { Swatch } from "@/components/primitives/Swatch";
 
 function badgeText(field: FieldDivergence): string {
 	if (field.format === "month") return t("Month");
@@ -75,7 +75,7 @@ function GroupCell({ field, g, color }: { field: FieldDivergence; g: GroupSummar
 	}
 	return (
 		<div className="disambig__group">
-			<span className="disambig__swatch" style={{ background: rgbCss(color) }} />
+			<Swatch color={color} size="sm" />
 			<div className="disambig__group-body">
 				{body}
 				<div className="disambig__muted disambig__coverage">
@@ -196,10 +196,7 @@ export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 					<div className="disambig__summary disambig__muted">
 						{analysis.result.groupSizes.map((n, i) => (
 							<span key={i} className="disambig__group">
-								<span
-									className="disambig__swatch"
-									style={{ background: rgbCss(analysis.colors[i] ?? [128, 128, 128]) }}
-								/>
+								<Swatch color={analysis.colors[i] ?? [128, 128, 128]} size="sm" />
 								{n}
 							</span>
 						))}

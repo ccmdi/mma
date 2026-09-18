@@ -2709,12 +2709,6 @@ input[type="range"]:disabled {
 	align-items: center;
 	gap: 0.5rem;
 }
-.diff-legend__dot {
-	width: 10px;
-	height: 10px;
-	border-radius: 50%;
-	flex: none;
-}
 .diff-legend__count {
 	margin-left: auto;
 	font-family: var(--font-mono);
@@ -3603,12 +3597,6 @@ input.date-picker__trigger.is-invalid:focus {
 	font-size: 0.75rem;
 	color: var(--text-2);
 }
-.saved-selection-row__dot {
-	width: 8px;
-	height: 8px;
-	border-radius: 50%;
-	flex-shrink: 0;
-}
 .selection-manager__toolbar {
 	margin-top: 0.5rem;
 	padding-top: 1rem;
@@ -4479,6 +4467,15 @@ body {
 	width: 1rem;
 	height: 1rem;
 	display: inline-block;
+	flex-shrink: 0;
+}
+.color-block--sm {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+}
+.color-block--round {
+	border-radius: 50%;
 }
 .gm-style > div:nth-child(8) > div:first-child {
 	margin-left: 10px !important;

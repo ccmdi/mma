@@ -54,6 +54,7 @@ import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
+import { Swatch } from "@/components/primitives/Swatch";
 
 async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
@@ -317,8 +318,7 @@ export const SelectionRow = memo(function SelectionRow({
 						if (host && map) void fitSelectionBounds(host, selection);
 					}}
 				>
-					<span className="color-block" style={{ backgroundColor: colorBlockCss }} />{" "}
-					{selectionDisplayName(selection)}
+					<Swatch color={colorBlockCss} /> {selectionDisplayName(selection)}
 				</span>
 				{isDropTarget && dropZone === "on" && (
 					<span className="selection-row__drop-hint">{drag?.altKey ? t("OR") : t("AND")}</span>

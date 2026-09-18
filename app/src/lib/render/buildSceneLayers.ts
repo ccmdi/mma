@@ -46,6 +46,11 @@ export const PERFECT_SCORE_LAYER_ID = "perfect-score";
 // Screen-pixel hit radius for "click the first vertex to close the loop" — also
 // the node's drawn radius, so the visible circle matches what's actually clickable.
 export const POLYGON_CLOSE_VERTEX_PX = 10;
+export const DIFF_COLORS: Record<"added" | "removed" | "modified", RGB> = {
+	added: [34, 197, 94],
+	removed: [239, 68, 68],
+	modified: [245, 158, 11],
+};
 export type PolyGeom = { poly: object; fill: Position[][][]; stroke: Position[][] };
 
 interface SceneContext {
@@ -83,22 +88,23 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	if (getMapState().workArea === "diff") {
 		const diff = getCommitDiffPreview();
 		if (diff) {
-			const diffLayer = (id: string, pos: Float32Array, color: RGBA) =>
+			const diffLayer = (id: string, pos: Float32Array, color: RGB, alpha: number) =>
 				new ScatterplotLayer({
 					id,
 					data: { length: pos.length / 2, attributes: { getPosition: { value: pos, size: 2 } } },
 					getRadius: 6,
 					radiusUnits: "pixels" as const,
 					radiusMinPixels: 3,
-					getFillColor: color,
+					getFillColor: [...color, alpha],
 					stroked: false,
 					pickable: false,
 				});
 			if (diff.removed.length)
-				layers.push(diffLayer("diff-removed", diff.removed, [239, 68, 68, 210]));
-			if (diff.added.length) layers.push(diffLayer("diff-added", diff.added, [34, 197, 94, 210]));
+				layers.push(diffLayer("diff-removed", diff.removed, DIFF_COLORS.removed, 210));
+			if (diff.added.length)
+				layers.push(diffLayer("diff-added", diff.added, DIFF_COLORS.added, 210));
 			if (diff.modified.length)
-				layers.push(diffLayer("diff-modified", diff.modified, [245, 158, 11, 220]));
+				layers.push(diffLayer("diff-modified", diff.modified, DIFF_COLORS.modified, 220));
 		}
 		return layers;
 	}

@@ -69,11 +69,6 @@
 .disambig__coverage {
 	margin-top: 1px;
 }
-.disambig__swatch {
-	width: 10px;
-	height: 10px;
-	border-radius: 2px;
+.disambig__group > .color-block {
 	margin-top: 3px;
-	flex-shrink: 0;
-	box-shadow: 0 0 0 1px #0002;
 }

@@ -53,6 +53,7 @@ const TAGS_FIELD_KEY = "__tags__";
 
 import type { FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { msg, t } from "@/lib/i18n";
+import { Swatch } from "@/components/primitives/Swatch";
 
 type RowDef = { label: string; color: RGB; selector: Selector };
 
@@ -491,12 +492,7 @@ function PivotTable({ data, mode, stale }: { data: PivotData; mode: ValueMode; s
 						return (
 							<tr key={idx}>
 								<td className="pivot-sidebar__row-label">
-									<span
-										className="pivot-sidebar__swatch"
-										style={{
-											background: `rgb(${row.color[0]},${row.color[1]},${row.color[2]})`,
-										}}
-									/>
+									<Swatch color={row.color} size="sm" />
 									<span className="pivot-sidebar__row-name" title={row.label}>
 										{row.label}
 									</span>
