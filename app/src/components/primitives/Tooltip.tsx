@@ -176,7 +176,7 @@ function TooltipHost() {
 	return createPortal(
 		<div
 			ref={tipRef}
-			className="tooltip"
+			className="tooltip popover-surface"
 			role="tooltip"
 			style={{ position: "fixed", top: 0, left: 0, visibility: "hidden" }}
 		>

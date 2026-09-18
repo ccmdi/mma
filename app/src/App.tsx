@@ -145,7 +145,7 @@ function AppChrome() {
 	return (
 		<>
 			{isMapList && !showSettings && !showPlugins && (
-				<div className="bottom-bar bottom-bar--left">
+				<div className="bottom-bar bottom-bar--left popover-surface">
 					<a
 						className="settings-gear"
 						href="https://discord.gg/4wPNJTuzD8"
@@ -169,10 +169,10 @@ function AppChrome() {
 			)}
 			<WelcomeDialog open={isMapList && !welcomeSeen} onDismiss={() => setWelcomeSeen(true)} />
 			{!showSettings && !showPlugins && !(map && fullscreenMap) && (
-				<div className="bottom-bar">
+				<div className="bottom-bar popover-surface">
 					<JobTray />
 					{update.version && !update.dismissed && (
-						<div className="update-pill">
+						<div className="update-pill popover-surface">
 							{update.phase === "available" && (
 								<>
 									<button className="update-pill__label" onClick={() => void installUpdate()}>

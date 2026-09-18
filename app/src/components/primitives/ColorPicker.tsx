@@ -37,7 +37,7 @@ export function ColorPicker({
 					align="start"
 					collisionPadding={8}
 				>
-					<Popover.Popup className="color-picker__popover">
+					<Popover.Popup className="color-picker__popover popover-surface">
 						<RgbPicker color={color} onChange={onChange} />
 					</Popover.Popup>
 				</Popover.Positioner>

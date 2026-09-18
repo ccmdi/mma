@@ -395,7 +395,7 @@ export function DatePicker({
 					collisionPadding={8}
 				>
 					<Popover.Popup
-						className="date-picker__popover"
+						className="date-picker__popover popover-surface"
 						initialFocus={false}
 						// Focus returned to the input re-fires onFocus, which re-opens the picker.
 						finalFocus={false}

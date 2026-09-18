@@ -338,7 +338,7 @@ export function MapTypeDropdown({ layerConfig }: { layerConfig: LayerConfig }) {
 			</button>
 			{isOpen && (
 				<div
-					className="settings-popup settings-popup--capped"
+					className="settings-popup settings-popup--capped popover-surface"
 					style={{
 						position: "absolute",
 						top: "100%",
@@ -391,7 +391,7 @@ export function MapSettingsDropdown({
 			</button>
 			{isOpen && (
 				<div
-					className="settings-popup"
+					className="settings-popup popover-surface"
 					style={{
 						position: "absolute",
 						top: "100%",

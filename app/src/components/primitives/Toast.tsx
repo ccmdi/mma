@@ -7,7 +7,7 @@ export function ToastContainer() {
 	return (
 		<div className="toast-container">
 			{entries.map((entry) => (
-				<div key={entry.id} className="toast-entry">
+				<div key={entry.id} className="toast-entry popover-surface">
 					<span>{entry.message}</span>
 				</div>
 			))}

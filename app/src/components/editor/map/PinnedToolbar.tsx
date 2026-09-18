@@ -111,7 +111,7 @@ export function PinnedToolbar({
 								/>
 								<ContextMenu.Portal>
 									<ContextMenu.Positioner className="menu-positioner">
-										<ContextMenu.Popup className="context-menu">
+										<ContextMenu.Popup className="context-menu popover-surface">
 											<ContextMenu.Item
 												className="context-menu__item"
 												onClick={() => removePinnedAt(i)}
@@ -173,7 +173,7 @@ export function PinnedToolbar({
 							</Tooltip>
 							<ContextMenu.Portal>
 								<ContextMenu.Positioner className="menu-positioner">
-									<ContextMenu.Popup className="context-menu">
+									<ContextMenu.Popup className="context-menu popover-surface">
 										{!isFirst && (
 											<ContextMenu.Item
 												className="context-menu__item"

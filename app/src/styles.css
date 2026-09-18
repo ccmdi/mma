@@ -177,14 +177,16 @@
 	clip: rect(0, 0, 0, 0);
 	position: absolute;
 }
-/* Radix Tooltip */
-.tooltip {
+/* Floating chrome: tooltips, menus, pickers, popups, toasts and the corner bar. */
+.popover-surface {
 	color: var(--text-1);
-	font-size: 13px;
 	background: var(--surface-3);
 	border: 1px solid var(--border-subtle);
 	box-shadow: var(--shadow-4);
 	border-radius: var(--radius-3);
+}
+.tooltip {
+	font-size: 13px;
 	padding: 0.5em 1em;
 	white-space: nowrap;
 	z-index: var(--z-popover);
@@ -3160,18 +3162,9 @@ input.date-picker__trigger.is-invalid:focus {
 	z-index: var(--z-popover);
 }
 .color-picker__popover {
-	background: var(--surface-3);
-	border: 1px solid var(--border-subtle);
-	box-shadow: var(--shadow-4);
-	border-radius: var(--radius-3);
 	padding: 0.5rem;
 }
 .date-picker__popover {
-	background: var(--surface-3);
-	color: var(--text-1);
-	border: 1px solid var(--border-subtle);
-	box-shadow: var(--shadow-4);
-	border-radius: var(--radius-3);
 	padding: 0.25rem;
 }
 .date-picker__popover .rdp-root {
@@ -4539,11 +4532,7 @@ body {
 	}
 }
 .settings-popup {
-	color: var(--text-1);
 	width: max-content;
-	box-shadow: var(--shadow-4);
-	background: var(--surface-3);
-	border: 1px solid var(--border-subtle);
 	border-radius: 0 0 var(--radius-3) var(--radius-3);
 	flex-direction: column;
 	padding: 0.5rem 1rem;
@@ -4597,12 +4586,7 @@ body {
 .context-menu {
 	/* The popup takes focus on open; highlighted items carry the focus cue, not this box. */
 	outline: none;
-	color: var(--text-1);
 	width: max-content;
-	box-shadow: var(--shadow-4);
-	background: var(--surface-3);
-	border: 1px solid var(--border-subtle);
-	border-radius: var(--radius-3);
 	flex-direction: column;
 	padding: 0;
 	overflow: hidden;
@@ -4723,19 +4707,16 @@ body {
 	align-items: center;
 	gap: 2px;
 	padding: 3px 6px;
-	background: var(--surface-2);
-	border: 1px solid var(--border-subtle);
 	border-right: none;
 	border-bottom: none;
-	border-top-left-radius: 8px;
+	border-radius: var(--radius-3) 0 0 0;
 }
 .bottom-bar--left {
 	right: auto;
 	left: 0;
 	border-right: 1px solid var(--border-subtle);
 	border-left: none;
-	border-top-left-radius: 0;
-	border-top-right-radius: 8px;
+	border-radius: 0 var(--radius-3) 0 0;
 }
 .bottom-bar .settings-gear {
 	padding: 4px;
@@ -4796,8 +4777,6 @@ body {
 .update-pill {
 	display: flex;
 	align-items: center;
-	background: var(--surface-3);
-	border-radius: var(--radius-1);
 	overflow: hidden;
 	opacity: 0.85;
 	transition: opacity var(--dur-fast) var(--ease-standard);
@@ -5916,14 +5895,19 @@ body:has([data-plugin-overlay]) .map-meta {
 	left: 75%;
 }
 .toast-entry {
-	background: var(--surface-3);
-	color: var(--text-1);
 	padding: 0.5rem 1rem;
-	border-radius: var(--radius-1);
 	font-size: 0.875rem;
 	white-space: nowrap;
-	border: 1px solid var(--border-subtle);
 	animation: rise-in var(--dur) var(--ease-enter);
+}
+.toast-entry--scoped {
+	position: absolute;
+	bottom: 2rem;
+	left: 50%;
+	translate: -50% 0;
+	z-index: 100;
+	pointer-events: none;
+	user-select: none;
 }
 /* Background-job pill in the corner bar, the update pill's sibling: its fill is the
    least-done job's progress; clicking pops a panel of per-job rows above the bar. */
@@ -5983,9 +5967,6 @@ body:has([data-plugin-overlay]) .map-meta {
 	gap: 2px;
 	min-width: 320px;
 	padding: 6px;
-	background: var(--surface-2);
-	border: 1px solid var(--border-subtle);
-	border-radius: 8px;
 	animation: rise-in var(--dur) var(--ease-enter);
 }
 .job-tray__row {
@@ -6002,7 +5983,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	cursor: pointer;
 }
 .job-tray__row--reveal:hover {
-	background: var(--surface-3);
+	background: var(--hover);
 }
 .job-tray__row-label {
 	flex-shrink: 0;

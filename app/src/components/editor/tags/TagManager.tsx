@@ -408,7 +408,7 @@ export function TagContextMenuContent({
 
 	return (
 		<ContextMenu.Positioner className="menu-positioner">
-			<ContextMenu.Popup className="context-menu">
+			<ContextMenu.Popup className="context-menu popover-surface">
 				<ContextMenu.Item
 					className="context-menu__item"
 					onClick={() => void removeTagFromAllLocations(tagId)}

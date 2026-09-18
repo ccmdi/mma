@@ -61,7 +61,7 @@ export function JobTray() {
 				{visible.length > 1 && <span className="job-tray__count">{visible.length}</span>}
 			</button>
 			{open && (
-				<div className="job-tray__panel">
+				<div className="job-tray__panel popover-surface">
 					{visible.map((j) => (
 						<div
 							key={j.id}

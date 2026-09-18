@@ -13,8 +13,7 @@ export function toast(message: string, duration = 2500, container?: HTMLElement)
 	if (container) {
 		const el = document.createElement("div");
 		el.textContent = message;
-		el.style.cssText =
-			"position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:.5rem 1rem;border-radius:4px;font-size:.875rem;z-index:100;pointer-events:none;user-select:none;white-space:nowrap";
+		el.className = "toast-entry toast-entry--scoped popover-surface";
 		container.appendChild(el);
 		setTimeout(() => el.remove(), duration);
 		return;

@@ -54,7 +54,7 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 
 	return (
 		<ContextMenu.Positioner className="menu-positioner">
-			<ContextMenu.Popup className="context-menu" ref={ref}>
+			<ContextMenu.Popup className="context-menu popover-surface" ref={ref}>
 				{location && (
 					<>
 						<ContextMenu.Item

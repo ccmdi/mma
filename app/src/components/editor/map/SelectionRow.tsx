@@ -356,7 +356,7 @@ export const SelectionRow = memo(function SelectionRow({
 						/>
 						<Menu.Portal>
 							<Menu.Positioner className="menu-positioner" align="end">
-								<Menu.Popup className="context-menu">
+								<Menu.Popup className="context-menu popover-surface">
 									{view === "color" ? (
 										<div style={{ padding: "0.5rem", width: "14rem" }}>
 											<RgbPicker color={selection.color} onChange={handleColorChange} />
