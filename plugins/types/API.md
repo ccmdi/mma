@@ -170,7 +170,7 @@ CameraType: {
 
 ### CapturePick
 
-`stable` · unreleased
+`stable` · since v0.11.0
 
 ```ts
 CapturePick: { readonly Newest: "newest"; readonly Oldest: "oldest" }
@@ -3113,7 +3113,7 @@ Append a new selection built from `selector`, deduplicating by key.
 
 ### all
 
-`unstable` · unreleased
+`unstable` · since v0.11.0
 
 ```ts
 all(...selectors: Selector[]): Selector
@@ -3123,7 +3123,7 @@ Locations matching every one of `selectors`; with none, every location.
 
 ### any
 
-`unstable` · unreleased
+`unstable` · since v0.11.0
 
 ```ts
 any(...selectors: Selector[]): Selector
@@ -3259,7 +3259,7 @@ Whether a predicate reads the location's clock in its own timezone. Only a range
 
 ### has
 
-`unstable` · unreleased
+`unstable` · since v0.11.0
 
 ```ts
 has(field: string): Selector
@@ -3320,7 +3320,7 @@ is already the sole visible selection, so a repeat call un-isolates (clears all 
 
 ### lacks
 
-`unstable` · unreleased
+`unstable` · since v0.11.0
 
 ```ts
 lacks(field: string): Selector
@@ -3341,7 +3341,7 @@ Order-sensitive, like the list it identifies. Key length is constant.
 
 ### not
 
-`unstable` · unreleased
+`unstable` · since v0.11.0
 
 ```ts
 not(selector: Selector): Selector
