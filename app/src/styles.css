@@ -625,7 +625,7 @@ input {
 	--warning-muted: color-mix(in srgb, var(--warning) 15%, transparent);
 
 	--hover: #ffffff0a;
-	--pressed: #ffffff14;
+	--pressed: #ffffff1a;
 	--disabled-opacity: 0.5;
 
 	--dur-fast: 100ms;
@@ -774,7 +774,7 @@ input[type="range"]:focus-visible {
 .icon-button {
 	cursor: pointer;
 	text-align: center;
-	color: var(--text-2);
+	color: var(--text-1);
 	background: 0 0;
 	border: none;
 	border-radius: 1rem;
@@ -810,7 +810,7 @@ input[type="range"]:focus-visible {
 	align-items: center;
 	justify-content: center;
 	vertical-align: middle;
-	height: 2rem;
+	height: 1.5rem;
 	min-width: 0;
 	padding: 0;
 	flex-shrink: 0;
@@ -851,7 +851,7 @@ input[type="range"]:focus-visible {
 	line-height: 1.5;
 	color: var(--text-2);
 	background: var(--pressed);
-	border: 1px solid var(--border-subtle);
+	border: 1px solid var(--border-strong);
 	border-radius: var(--radius-1);
 	padding: 0 0.4em;
 	white-space: nowrap;
@@ -3948,7 +3948,7 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 }
 .diff-counts {
 	display: inline-flex;
-	gap: 0.3em;
+	gap: 0.6em;
 	font-weight: 700;
 	white-space: nowrap;
 }
@@ -4002,6 +4002,9 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 }
 .sv-opacity-control__slider {
 	width: 6rem;
+}
+input[type="range"].slider.sv-opacity-control__slider::-webkit-slider-runnable-track {
+	background: linear-gradient(90deg, var(--accent) var(--fill, 0%), #8888884d var(--fill, 0%));
 }
 .opacity-target-toggle {
 	display: flex;

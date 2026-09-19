@@ -109,6 +109,10 @@ const LITERAL_COLORS: { selector: RegExp; why: string }[] = [
 	{ selector: block("measurement-control"), why: "text inside a white map control" },
 	{ selector: block("search-control"), why: "the geocoder keeps Google's light dropdown" },
 	{ selector: block("opacity-target-toggle"), why: "button inside a white map control" },
+	{
+		selector: /^input\[type="range"\]\.slider\.sv-opacity-control__slider(?![\w-])/,
+		why: "slider track inside a white map control",
+	},
 	{ selector: block("sv-preview-control"), why: "caption inside a white map control" },
 	{ selector: block("coordinate-control"), why: "map-making.app coordinate readout on the map" },
 	{ selector: block("tag"), why: "map-making.app tag pills: white selection outlines" },
