@@ -32,6 +32,29 @@ if (!existsSync(join(typesDir, "node_modules"))) {
 }
 export const ts = createRequire(join(typesDir, "package.json"))("typescript");
 
+// The default lib set is identical for every program built here, so it is parsed once
+// rather than once per comparison.
+const libDir = dirname(ts.getDefaultLibFilePath({ target: ts.ScriptTarget.ESNext })).toLowerCase();
+const libFiles = new Map();
+
+function createProgram(rootNames, options) {
+	const host = ts.createCompilerHost(options);
+	const read = host.getSourceFile.bind(host);
+	host.getSourceFile = (fileName, languageVersion, ...rest) => {
+		if (!fileName.toLowerCase().startsWith(libDir)) return read(fileName, languageVersion, ...rest);
+		const version =
+			typeof languageVersion === "object" ? languageVersion.languageVersion : languageVersion;
+		const key = `${fileName}:${version}`;
+		let file = libFiles.get(key);
+		if (!file) {
+			file = read(fileName, languageVersion, ...rest);
+			if (file) libFiles.set(key, file);
+		}
+		return file;
+	};
+	return ts.createProgram(rootNames, options, host);
+}
+
 const gitOk = (args) => {
 	const r = spawnSync("git", args, { cwd: pluginsDir, encoding: "utf-8" });
 	return r.status === 0 ? r.stdout.trim() : null;
@@ -57,7 +80,7 @@ function supportedTags() {
  *  it. Nested namespaces are plain object literals, so one level of recursion covers them;
  *  deeper would walk into data types (Location, MapMeta) that are not API surface. */
 export function surfaceOf(dtsPath) {
-	const program = ts.createProgram([dtsPath], {
+	const program = createProgram([dtsPath], {
 		skipLibCheck: true,
 		target: ts.ScriptTarget.ESNext,
 		moduleResolution: ts.ModuleResolutionKind.Bundler,
@@ -276,7 +299,7 @@ const leaf = (d) => {
 export function compareTypes(oldPath, newPath) {
 	const dir = dirname(newPath);
 	const spec = (p) => `./${basename(p).replace(/\.(d\.)?ts$/, "")}`;
-	const read = ts.createProgram([oldPath, newPath], PROBE_OPTS);
+	const read = createProgram([oldPath, newPath], PROBE_OPTS);
 	const checker = read.getTypeChecker();
 	const sources = new Set([read.getSourceFile(oldPath), read.getSourceFile(newPath)]);
 	const oldExports = exportedTypes(checker, read.getSourceFile(oldPath));
@@ -321,7 +344,7 @@ export function compareTypes(oldPath, newPath) {
 	const probePath = join(dir, ".probe.ts");
 	try {
 		writeFileSync(probePath, lines.join("\n"));
-		const program = ts.createProgram([probePath], PROBE_OPTS);
+		const program = createProgram([probePath], PROBE_OPTS);
 		const source = program.getSourceFile(probePath);
 		for (const d of program.getSemanticDiagnostics(source)) {
 			const owner = lineOwner.get(source.getLineAndCharacterOfPosition(d.start ?? 0).line);
