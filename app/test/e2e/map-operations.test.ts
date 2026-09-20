@@ -265,7 +265,11 @@ describe("Extra field definitions", () => {
 		const extra = await withApi(async (api) => api.getMapState().map?.extra);
 		expect(extra!.fields!.altitude.type).toBe("number");
 		expect(extra!.fields!.country.type).toBe("string");
-		expect(extra!.fields!.region.values).toEqual(["NA", "EU", "AS"]);
+		expect(extra!.fields!.region.values).toEqual([
+			{ value: "NA", label: null },
+			{ value: "EU", label: null },
+			{ value: "AS", label: null },
+		]);
 	});
 
 	it("extra field definitions persist", async () => {

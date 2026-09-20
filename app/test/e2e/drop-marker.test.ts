@@ -141,6 +141,7 @@ describe("Drop marker -- staged tags", () => {
 	before(async () => {
 		tagId = (await createTag("dropped")).id;
 		srcId = (await addLocs([srcLoc()]))[0];
+		await addLocs([createLocation({ lat: 10, lng: 10, tags: [tagId] })]);
 	});
 	afterEach(async () => {
 		await closeLocation();

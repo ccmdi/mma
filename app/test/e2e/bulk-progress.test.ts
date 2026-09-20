@@ -42,7 +42,7 @@ async function recordProgress() {
 			const next = {
 				status: root.querySelector(".bulk-operation__status")?.textContent ?? "",
 				meter: root.querySelector(".bulk-operation__meter")?.textContent ?? null,
-				bar: barValue(root.querySelector(".bulk-operation > .bar")),
+				bar: barValue(root.querySelector(".modal__stack > .bar")),
 				rows,
 			};
 			const seen = w.__bulkSamples!;

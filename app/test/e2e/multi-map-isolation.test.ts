@@ -17,9 +17,9 @@ import {
 	withApi,
 	seedLocs,
 	select,
+	tagSelector,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Selection state does not leak between maps

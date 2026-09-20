@@ -19,9 +19,9 @@ import {
 	seedLocs,
 	select,
 	selectCount,
+	tagSelector,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { tagSelector } from "@/store/selections";
 
 // =============================================================================
 // 1. Delta recovery (crash simulation)
@@ -1053,7 +1053,7 @@ describe("Selection during mutation", () => {
 		// Re-select -- should now get 40
 		const count2 = await withApi(async (api, tid) => {
 			await api.resetSelections();
-			await api.addSelections([tagSelector(tid)]);
+			await api.addSelections([api.tagSelector(tid)]);
 			return api.getMapState().selectedLocationIds.size;
 		}, tag.id);
 		expect(count2).toBe(40);

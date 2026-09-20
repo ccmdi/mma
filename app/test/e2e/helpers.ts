@@ -176,6 +176,26 @@ export async function getLocCount(): Promise<number> {
 	return withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount);
 }
 
+/** Node-side spellings of the simple selector shapes; the pinned composite carries
+ *  derived keys, so tests build it in the browser via `api.panoIdSelector`. */
+export const tagSelector = (tagId: number): Selector => ({
+	type: "Filter",
+	field: "tags",
+	test: { op: "contains", value: tagId },
+});
+
+export const untaggedSelector = (): Selector => ({
+	type: "Filter",
+	field: "tags",
+	test: { op: "nothas" },
+});
+
+export const unpannedSelector = (): Selector => ({
+	type: "Filter",
+	field: "heading",
+	test: { op: "eq", value: 0 },
+});
+
 /** Add selections to the live map. */
 export async function select(...selector: Selector[]) {
 	await withApi(async (api, p) => api.addSelections(p), selector);

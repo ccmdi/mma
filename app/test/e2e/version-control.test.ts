@@ -159,9 +159,11 @@ describe("Version control - commit message dialog", () => {
 	/** Shift+click the Commit button. The handler reads `shiftKey` off the click event,
 	 *  which a dispatched MouseEvent carries without holding a modifier across commands. */
 	async function shiftClickCommit() {
+		await browser.$("button=Commit").waitForEnabled();
 		await browser.execute(() => {
 			const btn = [...document.querySelectorAll("button")].find((b) => b.textContent === "Commit");
-			btn?.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
+			if (!btn) throw new Error("Commit button missing");
+			btn.dispatchEvent(new MouseEvent("click", { bubbles: true, shiftKey: true }));
 		});
 	}
 

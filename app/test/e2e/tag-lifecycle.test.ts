@@ -15,8 +15,8 @@ import {
 	useMap,
 	seedLocs,
 	select,
+	tagSelector,
 } from "./helpers";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Tag rename propagation

@@ -10,7 +10,6 @@ import {
 	withApi,
 	useMap,
 } from "./helpers";
-import { tagSelector } from "@/store/selections";
 
 describe("Bounds cache - empty and basic", () => {
 	useMap("E2E Bounds Empty");
@@ -250,7 +249,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only bounds are restricted to selection", async () => {
 		const bounds = await withApi(async (api, tid) => {
-			await api.addSelections([tagSelector(tid)]);
+			await api.addSelections([api.tagSelector(tid)]);
 			return api.fetchBounds(api.currentSelection());
 		}, tagId);
 

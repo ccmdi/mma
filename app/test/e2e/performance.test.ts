@@ -26,13 +26,7 @@ import {
 	type BenchmarkReport,
 	type RunBenchmarkOptions,
 } from "../perf/benchmarkHarness.ts";
-import { waitForReady, withApi } from "./helpers";
-import {
-	panoIdSelector,
-	tagSelector,
-	unpannedSelector,
-	untaggedSelector,
-} from "@/store/selections";
+import { waitForReady, withApi, tagSelector, untaggedSelector, unpannedSelector } from "./helpers";
 
 /** Every case route, mapped to the category half of its stable id. */
 const ROUTES: Record<string, string> = {
@@ -572,8 +566,10 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	await selectionCase("select-all", { type: "Everything" }, baseline);
 	await selectionCase("select-tag", tagSelector(tagId), 1);
 	await selectionCase("select-untagged", untaggedSelector(), 1);
-	await selectionCase("select-panoids", panoIdSelector(true), 1);
-	await selectionCase("select-notpanoids", panoIdSelector(false), 1);
+	const pinned = await withApi(async (api) => api.panoIdSelector(true));
+	const unpinned = await withApi(async (api) => api.panoIdSelector(false));
+	await selectionCase("select-panoids", pinned, 1);
+	await selectionCase("select-notpanoids", unpinned, 1);
 	await selectionCase("select-unpanned", unpannedSelector(), 1);
 	await selectionCase("select-duplicates", { type: "Duplicates", distance: 1 }, 0);
 
@@ -585,8 +581,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await withApi(
 					async (api, id, op) => {
 						await api.resetSelections();
-						await api.addSelections([panoIdSelector(true)]);
-						if (op !== "invert") await api.addSelections([tagSelector(id)]);
+						await api.addSelections([api.panoIdSelector(true)]);
+						if (op !== "invert") await api.addSelections([api.tagSelector(id)]);
 					},
 					tagId,
 					operation,
@@ -747,7 +743,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([tagSelector(id)]);
+				await api.addSelections([api.tagSelector(id)]);
 				if (api.getMapState().selectedLocationIds.size === 0) {
 					throw new Error("delete setup selected nothing");
 				}
@@ -797,7 +793,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([tagSelector(id)]);
+				await api.addSelections([api.tagSelector(id)]);
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				api.cancelAutosave();
 				if (!api.getMapState().canUndo) throw new Error("bulk delete is not undoable");
@@ -823,7 +819,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([tagSelector(id)]);
+				await api.addSelections([api.tagSelector(id)]);
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				await api.undo();
 				api.cancelAutosave();

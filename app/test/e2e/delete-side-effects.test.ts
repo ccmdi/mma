@@ -17,9 +17,9 @@ import {
 	useMap,
 	seedLocs,
 	select,
+	tagSelector,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Delete updates dirty count

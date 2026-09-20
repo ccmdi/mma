@@ -407,25 +407,28 @@ describe("Tag name dedup on creation", () => {
 		expect(result.b).toBe(result.c);
 	});
 
-	it("delete then re-resolve reuses the hidden tag and makes it visible", async () => {
+	it("delete then re-resolve reuses the hidden tag; a member makes it visible", async () => {
 		const result = await withApi(async (api) => {
 			const [created] = await api.createTags(["Revive"]);
 			await api.deleteTags([created.id]);
-			const tagsAfterDelete = api.getTags();
-			const hiddenAfterDelete = tagsAfterDelete[created.id]?.visible;
+			const hiddenAfterDelete = api.getTags()[created.id]?.visible;
 			const [resolved] = await api.createTags(["Revive"]);
-			const tagsAfterResolve = api.getTags();
-			const visibleAfterResolve = tagsAfterResolve[created.id]?.visible;
+			const stillDarkWhileEmpty = api.getTags()[created.id]?.visible;
+			const loc = api.createLocation({ lat: 12, lng: 12, tags: [resolved.id] });
+			await api.addLocations([loc]);
+			const visibleWithMember = api.getTags()[created.id]?.visible;
 			return {
 				originalId: created.id,
 				resolvedId: resolved.id,
 				hiddenAfterDelete,
-				visibleAfterResolve,
+				stillDarkWhileEmpty,
+				visibleWithMember,
 			};
 		});
 		expect(result.hiddenAfterDelete).toBe(false);
 		expect(result.resolvedId).toBe(result.originalId);
-		expect(result.visibleAfterResolve).toBe(true);
+		expect(result.stillDarkWhileEmpty).toBe(false);
+		expect(result.visibleWithMember).toBe(true);
 	});
 });
 
@@ -445,11 +448,14 @@ describe("Tag visibility lifecycle", () => {
 
 		const result = await withApi(async (api, id) => {
 			const before = api.getTags()[id]?.visible;
-			await api.createTags(["Phoenix"]);
+			const [revived] = await api.createTags(["Phoenix"]);
+			const loc = api.createLocation({ lat: 13, lng: 13, tags: [revived.id] });
+			await api.addLocations([loc]);
 			const after = api.getTags()[id]?.visible;
-			return { before, after };
+			return { before, after, revivedId: revived.id };
 		}, tagId);
 		expect(result.before).toBe(false);
+		expect(result.revivedId).toBe(tagId);
 		expect(result.after).toBe(true);
 	});
 
@@ -476,8 +482,10 @@ describe("Tag visibility lifecycle", () => {
 			const [tag] = await api.createTags(["Zombie"]);
 			await api.deleteTags([tag.id]);
 			const hiddenInJs = api.getTags()[tag.id]?.visible;
-			// Re-resolve (simulates typing the name in the tag input)
-			await api.createTags(["Zombie"]);
+			// Re-resolve and stage onto a location, as the tag input flow does.
+			const [revived] = await api.createTags(["Zombie"]);
+			const loc = api.createLocation({ lat: 14, lng: 14, tags: [revived.id] });
+			await api.addLocations([loc]);
 			const visibleInJs = api.getTags()[tag.id]?.visible;
 			return { hiddenInJs, visibleInJs };
 		});

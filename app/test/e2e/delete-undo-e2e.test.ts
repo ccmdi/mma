@@ -14,8 +14,8 @@ import {
 	useMap,
 	seedLocs,
 	select,
+	tagSelector,
 } from "./helpers";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Delete tagged location + undo restores tag count

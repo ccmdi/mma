@@ -12,9 +12,9 @@ import {
 	useMap,
 	seedLocs,
 	select,
+	tagSelector,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Bulk add across multiple tags — bitmap/count agreement

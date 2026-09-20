@@ -9,7 +9,6 @@ import {
 	useMap,
 	seedLocs,
 } from "./helpers";
-import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Tag reordering
@@ -96,13 +95,13 @@ describe("Tag visibility affecting selections", () => {
 	});
 
 	it("tag selection works for visible tag", async () => {
-		await withApi(async (api, tagId) => api.addSelections([tagSelector(tagId)]), visTagId);
+		await withApi(async (api, tagId) => api.addSelections([api.tagSelector(tagId)]), visTagId);
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(5);
 	});
 
 	it("deleting tag clears its selection", async () => {
-		await withApi(async (api, tagId) => api.addSelections([tagSelector(tagId)]), visTagId);
+		await withApi(async (api, tagId) => api.addSelections([api.tagSelector(tagId)]), visTagId);
 		const beforeIds = await refreshSelections();
 		expect(beforeIds.length).toBe(5);
 
