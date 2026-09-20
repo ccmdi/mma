@@ -113,6 +113,13 @@ export function panoIdOf(selector: Selector): boolean | null {
 	return key === pano.off ? false : null;
 }
 
+/** The name a selection carries of its own, when it is one the builders name. */
+function namedLabel(selector: Selector): string | undefined {
+	const { labels, types } = named();
+	if (!types.has(selector.type)) return undefined;
+	return labels.get(buildSelection(selector).key)?.();
+}
+
 let registry: {
 	labels: Map<string, () => string>;
 	types: Set<Selector["type"]>;
@@ -773,11 +780,7 @@ export function replaceSelection(
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
  *  rather than the open map's tags. */
 export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
-	const { labels, types } = named();
-	const name = types.has(sel.selector.type)
-		? labels.get(buildSelection(sel.selector).key)
-		: undefined;
-	return name?.() ?? descriptorFor(sel.selector).label(tagNames);
+	return namedLabel(sel.selector) ?? descriptorFor(sel.selector).label(tagNames);
 }
 
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;

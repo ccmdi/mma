@@ -92,7 +92,7 @@ export function savedParts(saved: SavedSelection): SavedPart[] {
 	const { selector, tagNames } = saved;
 	const parts: Selection[] =
 		selector.type === "Union"
-			? selector.selections
+			? selector.selections.map((s) => ({ ...buildSelection(s.selector), color: s.color }))
 			: [{ ...buildSelection(selector), color: saved.color }];
 	return parts.map((part) => ({
 		label: selectionDisplayName(part, tagNames),
