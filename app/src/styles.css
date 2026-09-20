@@ -4520,6 +4520,8 @@ body {
 	align-items: center;
 	gap: 2px;
 	padding: 3px 6px;
+	/* Docked chrome, not a floating popup: it recedes against the map and its chips lift off it. */
+	background: var(--surface-2);
 	border-right: none;
 	border-bottom: none;
 	border-radius: var(--radius-3) 0 0 0;
