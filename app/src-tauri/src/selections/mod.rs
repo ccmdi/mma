@@ -352,7 +352,7 @@ fn indexable_test(shape: IndexShape, test: &FilterOp) -> Option<String> {
 /// Caches column downcast refs on construction to avoid repeated downcasts.
 pub struct LocView<'a> {
     batch: Option<&'a RecordBatch>,
-    dead: &'a HashSet<u32>,
+    dead: &'a RoaringBitmap,
     patches: &'a HashMap<u32, Location>,
     adds: &'a [Location],
     // Cached column refs (from batch)
@@ -589,7 +589,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
 impl<'a> LocView<'a> {
     pub fn new(
         batch: Option<&'a RecordBatch>,
-        dead: &'a HashSet<u32>,
+        dead: &'a RoaringBitmap,
         patches: &'a HashMap<u32, Location>,
         adds: &'a [Location],
         field_indexes: Option<&'a FieldIndexes>,
@@ -645,40 +645,12 @@ impl<'a> LocView<'a> {
             .is_some()
     }
 
-    /// Postings for a filter, with the overlay folded in: dead rows dropped, and adds and
-    /// patched rows re-tested so an uncommitted edit can never leave the index stale.
+    /// Postings for a filter: every row move updates them beside the mutation and a lazy
+    /// build reads the live view, so the set is already the answer.
     fn indexed_filter(&self, field: &str, test: &FilterOp) -> Option<RoaringBitmap> {
         let index = self.field_indexes?.get(field)?;
         let key = indexable_test(index.shape, test)?;
-        let mut set = index.by_value.get(&key).cloned().unwrap_or_default();
-        if self.has_dead {
-            for &d in self.dead {
-                set.remove(d);
-            }
-        }
-        let selector = Selector::Filter {
-            field: field.to_string(),
-            test: test.clone(),
-        };
-        let mut retest = |loc: &Location| {
-            let row = RowRef {
-                inner: RowInner::Loc(loc),
-            };
-            if test_row(&row, &selector) {
-                set.insert(loc.id);
-            } else {
-                set.remove(loc.id);
-            }
-        };
-        for loc in self.adds {
-            retest(loc);
-        }
-        if self.has_patches {
-            for p in self.patches.values() {
-                retest(p);
-            }
-        }
-        Some(set)
+        Some(index.by_value.get(&key).cloned().unwrap_or_default())
     }
 
     #[allow(
@@ -696,7 +668,7 @@ impl<'a> LocView<'a> {
     /// Whether batch row `i` is alive (not in the dead set).
     #[inline]
     pub fn is_alive(&self, i: usize) -> bool {
-        !self.has_dead || !self.dead.contains(&self.batch_id(i))
+        !self.has_dead || !self.dead.contains(self.batch_id(i))
     }
 
     #[inline]

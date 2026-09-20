@@ -1483,7 +1483,7 @@ fn delta_overlay_wire_format_is_stable() {
     .unwrap();
     let restored: Overlay = rmp_serde::from_slice(&legacy).unwrap();
     assert_eq!(restored.adds, vec![l1]);
-    assert!(restored.dead.contains(&7));
+    assert!(restored.dead.contains(7));
     assert_eq!(restored.patches[&3], l3);
 }
 
@@ -1595,14 +1595,14 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
 
     // Remove it
     store.overlay_remove(slice::from_ref(&l));
-    assert!(store.overlay.dead.contains(&1));
+    assert!(store.overlay.dead.contains(1));
     assert!(!store.overlay.adds.iter().any(|l| l.id == 1));
 
     // Re-add it (overlay_add on a known batch ID goes to patches)
     store.overlay_add(vec![loc(1, 50.0, 60.0)]);
     // After re-add, it should NOT be in dead
     assert!(
-        !store.overlay.dead.contains(&1),
+        !store.overlay.dead.contains(1),
         "re-added ID should be removed from dead set"
     );
 }
@@ -1652,7 +1652,7 @@ fn overlay_consistency_remove_clears_patches() {
         !store.overlay.patches.contains_key(&1),
         "remove should clear patches for the ID"
     );
-    assert!(store.overlay.dead.contains(&1));
+    assert!(store.overlay.dead.contains(1));
 }
 
 #[test]
@@ -1991,7 +1991,7 @@ fn delta_overlay_round_trip_preserves_store_state() {
     let restored: Overlay = rmp_serde::from_slice(&bytes).unwrap();
     assert_eq!(restored.adds.len(), 1);
     assert_eq!(restored.adds[0].id, 3);
-    assert!(restored.dead.contains(&1));
+    assert!(restored.dead.contains(1));
     assert_eq!(restored.patches.len(), 1);
     assert_eq!(restored.patches[&2].heading, 180.0);
 }
@@ -2896,7 +2896,7 @@ fn an_indexed_filter_agrees_with_the_scan_it_replaces() {
 }
 
 #[test]
-fn an_index_built_before_an_edit_still_answers_correctly() {
+fn an_index_built_before_an_edit_follows_the_rows_through_it() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
     let t = tag_onto(&mut store, 7, &[1]);
     // Bake first, or every row sits in the overlay and the postings are never consulted.
@@ -2904,16 +2904,17 @@ fn an_index_built_before_an_edit_still_answers_correctly() {
     store.ensure_indexes_for(&tag_filter(t));
     assert_eq!(resolved(&store, &tag_filter(t)), vec![1]);
 
-    // A patch adds the tag to a row the postings do not have, and a remove takes away one
-    // they do. Both are overlay-only, so the index itself is untouched.
+    // A patch adds the tag to a row the postings do not have, and a removal takes away
+    // one they do. The mutation path moves the postings with the rows, so the resolve
+    // is a clone of the set, not a scan or an overlay re-test.
     set_tags(&mut store, &[t], &[], &[2]);
     let gone = store.get_loc_by_id(1).unwrap();
-    store.overlay_remove(&[gone]);
+    store.apply_undoable(vec![gone], Vec::new());
 
     assert_eq!(
         resolved(&store, &tag_filter(t)),
         vec![2],
-        "the overlay is folded in at query time"
+        "the postings follow every row move"
     );
 }
 

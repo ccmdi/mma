@@ -1065,37 +1065,66 @@ fn tag_index_matches_scan_path() {
     assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![1, 3]);
 }
 
+/// The postings as the store maintains them: built over the effective live view,
+/// overlay included, never over the base batch alone.
+fn live_tag_index(view: &LocView) -> FieldIndexes {
+    let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
+    view.for_each(|row| {
+        let id = row.id();
+        row.for_each_tag(|t| {
+            by_value
+                .entry(index_key(&serde_json::json!(t)).unwrap())
+                .or_default()
+                .insert(id);
+        });
+    });
+    let index = FieldIndex {
+        shape: IndexShape::Multi,
+        by_value,
+    };
+    HashMap::from([("tags".to_string(), index)])
+}
+
 #[test]
 fn tag_index_excludes_dead_includes_adds() {
     let mut a = loc(1, 0.0, 0.0);
     a.tags = vec![10];
     let mut b = loc(2, 0.0, 0.0);
     b.tags = vec![10];
-    let (batch, sets) = tagged_batch_and_index(&[a, b]);
+    let (batch, _) = tagged_batch_and_index(&[a, b]);
     let mut add = loc(3, 0.0, 0.0);
     add.tags = vec![10]; // overlay add carries the tag
     let fx = Fx::batch(batch).with_adds(vec![add]).with_dead([2]);
+    let sets = live_tag_index(&fx.view());
     let idx = fx.view_indexed(&sets);
     // 2 is dead -> excluded; 3 is an overlay add -> included; 1 stays.
     assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![1, 3]);
+    assert_eq!(
+        ids_of(&idx, &Selector::tag(10)),
+        ids_of(&fx.view(), &Selector::tag(10))
+    );
 }
 
 #[test]
 fn tag_index_honors_patches() {
-    // Base: loc 1 has tag 10, loc 2 has nothing. Index reflects the base.
+    // Base: loc 1 has tag 10, loc 2 has nothing.
     let mut a = loc(1, 0.0, 0.0);
     a.tags = vec![10];
     let b = loc(2, 0.0, 0.0);
-    let (batch, sets) = tagged_batch_and_index(&[a, b]);
-    // Patch: loc 1 LOSES tag 10, loc 2 GAINS tag 10 (uncommitted edits the index can't see).
+    let (batch, _) = tagged_batch_and_index(&[a, b]);
+    // Patch: loc 1 LOSES tag 10, loc 2 GAINS tag 10.
     let mut p1 = loc(1, 0.0, 0.0);
     p1.tags = vec![];
     let mut p2 = loc(2, 0.0, 0.0);
     p2.tags = vec![10];
     let fx = Fx::batch(batch).with_patch(1, p1).with_patch(2, p2);
+    let sets = live_tag_index(&fx.view());
     let idx = fx.view_indexed(&sets);
-    // Patches must override the stale index: 1 dropped, 2 added.
     assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![2]);
+    assert_eq!(
+        ids_of(&idx, &Selector::tag(10)),
+        ids_of(&fx.view(), &Selector::tag(10))
+    );
 }
 
 #[test]
@@ -2610,13 +2639,13 @@ fn build_overlay_view(
     entries: &[(u8, u8, u8)],
 ) -> (
     RecordBatch,
-    HashSet<u32>,
+    RoaringBitmap,
     HashMap<u32, Location>,
     Vec<Location>,
     Vec<(u32, Vec<u32>)>,
 ) {
     let mut base_locs = Vec::new();
-    let mut dead = HashSet::new();
+    let mut dead = RoaringBitmap::new();
     let mut patches = HashMap::new();
     let mut adds = Vec::new();
     let mut alive = Vec::new();

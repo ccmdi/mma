@@ -56,8 +56,8 @@ use tauri::ipc::InvokeError;
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 pub(crate) struct Overlay {
     pub adds: Vec<Location>,
-    #[serde(rename = "dead_ids")]
-    pub dead: HashSet<u32>,
+    #[serde(rename = "dead_ids", with = "dead_as_seq")]
+    pub dead: RoaringBitmap,
     #[serde(with = "patches_as_seq")]
     pub patches: HashMap<u32, Location>,
 }
@@ -70,7 +70,7 @@ impl Overlay {
 
     /// Apply these changes onto a plain location list read off disk.
     fn apply_to(self, locs: &mut Vec<Location>) {
-        locs.retain(|l| !self.dead.contains(&l.id));
+        locs.retain(|l| !self.dead.contains(l.id));
         for l in locs.iter_mut() {
             if let Some(p) = self.patches.get(&l.id) {
                 *l = p.clone();
@@ -336,7 +336,7 @@ impl Store {
 
     /// Look up a location by ID across patches, overlay_adds (binary search), and batch.
     pub(crate) fn get_loc_by_id(&self, id: u32) -> Option<Location> {
-        if self.overlay.dead.contains(&id) {
+        if self.overlay.dead.contains(id) {
             return None;
         }
         if let Some(patched) = self.overlay.patches.get(&id) {
@@ -386,7 +386,7 @@ impl Store {
         let mut removed_n = 0u32;
         for id in &self.overlay.dead {
             // A dead id absent from the base was added-then-removed this session: a no-op.
-            if let Some(old) = self.base_loc_by_id(*id) {
+            if let Some(old) = self.base_loc_by_id(id) {
                 removed.push(old);
                 removed_n += 1;
             }
@@ -415,7 +415,7 @@ impl Store {
                 added += 1;
             }
         }
-        let removed = self.overlay.dead.iter().filter(|&&id| in_base(id)).count() as u32;
+        let removed = self.overlay.dead.iter().filter(|&id| in_base(id)).count() as u32;
         (added, removed, modified)
     }
 
@@ -430,7 +430,7 @@ impl Store {
             if let Some(ix) = self.spatial.as_mut() {
                 ix.insert(loc.id, loc.lat, loc.lng);
             }
-            self.overlay.edit().dead.remove(&loc.id);
+            self.overlay.edit().dead.remove(loc.id);
             let in_batch = self
                 .batch
                 .as_ref()
@@ -580,7 +580,7 @@ impl Store {
         if !self.overlay.dead.is_empty() {
             let ids = col_id(&batch);
             let keep: Vec<u32> = (0..batch.num_rows())
-                .filter(|&i| !self.overlay.dead.contains(&ids.value(i)))
+                .filter(|&i| !self.overlay.dead.contains(ids.value(i)))
                 .map(|i| i as u32)
                 .collect();
             if keep.len() < batch.num_rows() {
@@ -877,6 +877,20 @@ macro_rules! selector_read {
     };
 }
 pub(crate) use selector_read;
+
+/// Dead ids ride the wire as the plain id list the set has always serialized to.
+mod dead_as_seq {
+    use roaring::RoaringBitmap;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(m: &RoaringBitmap, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_seq(m.iter())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<RoaringBitmap, D::Error> {
+        Ok(Vec::<u32>::deserialize(d)?.into_iter().collect())
+    }
+}
 
 /// Patches ride the wire as a plain list of locations, keyed back by id on the way in.
 mod patches_as_seq {

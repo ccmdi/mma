@@ -160,7 +160,7 @@ impl Store {
 
     #[inline]
     fn coords_from(overlay: &Overlay, batch: Option<&RecordBatch>, id: u32) -> Option<(f64, f64)> {
-        if overlay.dead.contains(&id) {
+        if overlay.dead.contains(id) {
             return None;
         }
         if let Some(p) = overlay.patches.get(&id) {

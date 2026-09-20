@@ -4,7 +4,8 @@ use crate::selections::{FieldIndexes, LocView};
 use crate::store::arrow;
 use crate::types::Location;
 use arrow_array::RecordBatch;
-use std::collections::{HashMap, HashSet};
+use roaring::RoaringBitmap;
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::ops::Deref;
@@ -60,7 +61,7 @@ impl Drop for TempDir {
 #[derive(Default)]
 pub(crate) struct Fx {
     pub batch: Option<RecordBatch>,
-    pub dead: HashSet<u32>,
+    pub dead: RoaringBitmap,
     pub patches: HashMap<u32, Location>,
     pub adds: Vec<Location>,
 }

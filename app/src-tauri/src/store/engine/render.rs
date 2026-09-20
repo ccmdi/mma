@@ -373,7 +373,7 @@ pub(crate) fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) 
 
         for i in 0..batch_n {
             let id = ids_col.value(i);
-            if has_dead && store.overlay.dead.contains(&id) {
+            if has_dead && store.overlay.dead.contains(id) {
                 continue;
             }
             let (lat, lng, heading) = if has_patches {

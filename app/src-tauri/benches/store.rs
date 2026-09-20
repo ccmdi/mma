@@ -272,6 +272,14 @@ fn selections(c: &mut Criterion) {
     g.bench_function(format!("{n}/resolve/intersection"), |b| {
         b.iter(|| black_box(bench::resolve_selection(&store, &composite)));
     });
+    // The enrichment shape: a large uncommitted overlay must not tax an indexed resolve.
+    let mut dirty = fx.rendered_store();
+    bench::ensure_indexes(&mut dirty, &tag_leaf);
+    bench::update_locations(&mut dirty, &fx.heading_updates(n / 2), false);
+    let dirty = dirty;
+    g.bench_function(format!("{n}/resolve/tag_dirty_overlay"), |b| {
+        b.iter(|| black_box(bench::resolve_selection(&dirty, &tag_leaf)));
+    });
     g.bench_function(format!("{n}/resolve/page_and_has"), |b| {
         b.iter(|| black_box(bench::resolve_selection(&store, &page_and_has)));
     });
