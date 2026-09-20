@@ -149,6 +149,15 @@ macro_rules! field_arrow_value {
     };
 }
 
+macro_rules! field_flag_bit {
+    (flag, $f:ident) => {
+        Some(LocationFlags::$f)
+    };
+    ($cat:ident, $f:ident) => {
+        None
+    };
+}
+
 macro_rules! expand_location_fields {
     ($({ $key:literal, $label:literal, $ty:ident, $kind:ident, $cmp:tt, $interned:ident,
          $cat:ident, $col:ident, $f:ident }),* $(,)?) => {
@@ -164,6 +173,14 @@ macro_rules! expand_location_fields {
         /// True for fields backed by a Location column rather than the `extras` blob.
         pub fn is_builtin_field(field: &str) -> bool {
             matches!(field, $($key)|*)
+        }
+
+        /// The flag bit a built-in field reads and writes as a boolean.
+        pub fn flag_field(field: &str) -> Option<LocationFlags> {
+            match field {
+                $($key => field_flag_bit!($cat, $f),)*
+                _ => None,
+            }
         }
 
         /// Resolve a field name to its JSON value from a `Location` struct. Unknown fields
@@ -224,11 +241,6 @@ pub fn optional_builtins() -> &'static [&'static str] {
 /// A flag bit as the boolean its field holds.
 fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
     serde_json::Value::Bool(flags.contains(bit))
-}
-
-/// The flag bit a built-in field reads and writes as a boolean.
-pub fn flag_field(field: &str) -> Option<LocationFlags> {
-    (field == "loadAsPanoId").then_some(LocationFlags::LOAD_AS_PANO_ID)
 }
 
 /// Core comparison dispatch. An array field answers `contains`/`has` itself and is
