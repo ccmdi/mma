@@ -3,7 +3,7 @@ import type { Tag, TagPatch } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { isVirtualLocation, isImportPreview, locId, applyLocationPatch } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import type { Location, MapMeta, FieldDef, StoreStatus } from "@/bindings.gen";
+import type { Location, MapMeta, FieldDef, StoreStatus, CountBy } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type {
@@ -399,11 +399,7 @@ export function fieldValues(selector: Selector, field: string): Promise<string[]
 }
 
 /** Group by a derived key and count. */
-export function countBy(
-	selector: Selector,
-	field: string,
-	key: KeySpec,
-): Promise<[string, number][]> {
+export function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy> {
 	return cmd.storeCountBy(selector, field, key);
 }
 

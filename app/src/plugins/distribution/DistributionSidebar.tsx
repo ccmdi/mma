@@ -48,7 +48,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 		setTotal(count);
 
 		const meta = toDistribution(
-			await countBy({ type: "Everything" }, "countryCode", { kind: "value" }),
+			(await countBy({ type: "Everything" }, "countryCode", { kind: "value" })).counts,
 			count,
 		);
 		const hasMeta = count > 0 && meta.unknown < count;

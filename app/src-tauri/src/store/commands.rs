@@ -1047,7 +1047,8 @@ pub fn store_group_by(
     ))
 }
 
-/// Group locations by a derived key, returning counts only (no member ids).
+/// Group locations by a derived key, returning counts only (no member ids) and how many
+/// distinct locations those groups cover.
 #[tauri::command]
 #[specta::specta]
 pub fn store_count_by(
@@ -1056,7 +1057,7 @@ pub fn store_count_by(
     selector: Selector,
     field: String,
     key: selections::KeySpec,
-) -> AppResult<Vec<(String, u32)>> {
+) -> AppResult<selections::CountBy> {
     selector_read!(label, state, selector, |view, set| selections::count_by(
         &view, &field, &key, set
     ))

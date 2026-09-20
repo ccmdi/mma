@@ -376,7 +376,7 @@ declare const KNOWN_FIELDS: readonly [{
 /** @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month"];
+    readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month", "array"];
     readonly needsTz: false;
 }, {
     readonly id: "year";
@@ -704,8 +704,12 @@ declare const commands$1: {
     polygonBounds: (polygon: PolygonGeometry) => Promise<[number, number, number, number] | null>;
     /**  Group by a derived key, returning `{ key, ids, bin }` per group. @unstable */
     storeGroupBy: (selector: Selector, field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /**  Group locations by a derived key, returning counts only (no member ids). @unstable */
-    storeCountBy: (selector: Selector, field: string, key: KeySpec) => Promise<[string, number][]>;
+    /**
+     *  Group locations by a derived key, returning counts only (no member ids) and how many
+     *  distinct locations those groups cover.
+     *  @unstable
+     */
+    storeCountBy: (selector: Selector, field: string, key: KeySpec) => Promise<CountBy>;
     /**  Distinct values of `field` across the selected set, sorted. @unstable */
     storeValues: (selector: Selector, field: string) => Promise<string[]>;
     /**
@@ -1261,6 +1265,15 @@ type CopyToMapResult = {
     copied: number;
     skipped: number;
     targetName: string;
+};
+/**
+ *  Group counts. A list field puts one row in several groups, so the counts do not sum to
+ *  the rows grouped.
+ */
+type CountBy = {
+    counts: ([string, number])[];
+    /**  Rows held by at least one group. */
+    covered: number;
 };
 /**  The active and default data-folder paths, plus whether a custom override is in effect. @unstable */
 type DataLocation = {
@@ -3320,7 +3333,7 @@ declare function panoIdSelector(on: boolean): Selector;
  *  recognises tag membership, so nothing else has to know its shape. @unstable */
 declare function tagIdOf(selector: Selector): number | null;
 /** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
- *  inversion (`false`), or something else (`null`). Display-only shape recognition. @unstable */
+ *  inversion (`false`), or something else (`null`). Display-only. @unstable */
 declare function panoIdOf(selector: Selector): boolean | null;
 /** Deterministic color derived from a selection key string. @unstable */
 declare function colorForKey(key: string): RGB;
@@ -3596,7 +3609,7 @@ declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
 /** Distinct values of `field`, sorted. */
 declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
 /** Group by a derived key and count. */
-declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<[string, number][]>;
+declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
 /** How many locations hold a value for each field, key-sorted. */
 declare function coverage(selector: Selector): Promise<[string, number][]>;
 /** One column per field over the selected set. `null` where a location
@@ -7586,4 +7599,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

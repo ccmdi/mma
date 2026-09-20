@@ -148,11 +148,8 @@ async function computePivot(
 			const total = await countIn(row.selector);
 			if (isTags) return { ...(await tagCounts(row)), total };
 			if (binOf) return { ...binCounts(await resolveIds(row.selector), binOf), total };
-			const pairs = await countBy(row.selector, fieldKey, key);
-			const counts = new Map(pairs);
-			let withValue = 0;
-			for (const [, n] of pairs) withValue += n;
-			return { counts, withValue, total };
+			const grouped = await countBy(row.selector, fieldKey, key);
+			return { counts: new Map(grouped.counts), withValue: grouped.covered, total };
 		}),
 	);
 

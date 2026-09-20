@@ -3059,19 +3059,90 @@ fn count_by_matches_the_group_sizes_partition_reports() {
     let fx = Fx::base(&locs);
     let view = fx.view();
 
-    let mut counts = count_by(&view, "c", &KeySpec::Value, None);
-    counts.sort();
+    let mut counted = count_by(&view, "c", &KeySpec::Value, None);
+    counted.counts.sort();
     assert_eq!(
-        counts,
+        counted.counts,
         vec![("FR".to_string(), 1u32), ("US".to_string(), 2)]
     );
+    assert_eq!(counted.covered, 3);
 
     let mut sizes: Vec<(String, u32)> = partition(&view, "c", &KeySpec::Value, None)
         .into_iter()
         .map(|g| (g.key, g.ids.len() as u32))
         .collect();
     sizes.sort();
-    assert_eq!(counts, sizes);
+    assert_eq!(counted.counts, sizes);
+}
+
+#[test]
+fn partition_value_fans_a_list_out_over_its_members() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"c": ["2015-06", "2019-08"]})),
+        loc_extra(2, serde_json::json!({"c": ["2019-08"]})),
+        loc_extra(3, serde_json::json!({"c": []})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+
+    let mut groups = partition(&view, "c", &KeySpec::Value, None);
+    groups.sort_by(|a, b| a.key.cmp(&b.key));
+    assert_eq!(
+        groups.iter().map(|g| g.key.as_str()).collect::<Vec<_>>(),
+        vec!["2015-06", "2019-08"]
+    );
+    assert_eq!(groups[0].ids, vec![1]);
+    assert_eq!(groups[1].ids, vec![1, 2]);
+}
+
+#[test]
+fn partition_value_joins_a_group_once_per_row() {
+    let locs = vec![loc_extra(1, serde_json::json!({"c": ["FR", "FR", "DE"]}))];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+
+    let mut groups = partition(&view, "c", &KeySpec::Value, None);
+    groups.sort_by(|a, b| a.key.cmp(&b.key));
+    assert_eq!(groups.len(), 2);
+    assert_eq!(groups[0].ids, vec![1]);
+    assert_eq!(groups[1].ids, vec![1]);
+}
+
+#[test]
+fn count_by_covers_a_row_once_though_its_list_spans_groups() {
+    let locs = vec![
+        loc_extra(1, serde_json::json!({"c": ["a", "b", "c"]})),
+        loc_extra(2, serde_json::json!({"c": ["a"]})),
+        loc_extra(3, serde_json::json!({"other": 1})),
+    ];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+
+    let counted = count_by(&view, "c", &KeySpec::Value, None);
+    let summed: u32 = counted.counts.iter().map(|(_, n)| n).sum();
+    assert_eq!(summed, 4);
+    assert_eq!(counted.covered, 2);
+}
+
+#[test]
+fn partition_date_parts_read_nothing_from_a_list() {
+    let locs = vec![loc_extra(
+        1,
+        serde_json::json!({"c": ["2019-08", "2020-01"]}),
+    )];
+    let fx = Fx::adds(locs);
+    let view = fx.view();
+
+    let groups = partition(
+        &view,
+        "c",
+        &KeySpec::DatePart {
+            part: DatePart::Year,
+            tz_local: false,
+        },
+        None,
+    );
+    assert!(groups.is_empty());
 }
 
 #[test]
@@ -3442,7 +3513,7 @@ fn every_projection_honours_a_named_id_list() {
     assert_eq!(ids_within(&view, set), vec![2, 3]);
     assert_eq!(distinct_values(&view, "c", set), vec!["FR"]);
     assert_eq!(
-        count_by(&view, "c", &KeySpec::Value, set),
+        count_by(&view, "c", &KeySpec::Value, set).counts,
         vec![("FR".to_string(), 2u32)]
     );
     assert_eq!(coverage(&view, set), vec![("c".to_string(), 2u32)]);

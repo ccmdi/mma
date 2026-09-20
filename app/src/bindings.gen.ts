@@ -220,8 +220,11 @@ export const commands = {
 	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
 	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
-	/**  Group locations by a derived key, returning counts only (no member ids). */
-	storeCountBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<([string, number])[]>("store_count_by", { selector, field, key }),
+	/**
+	 *  Group locations by a derived key, returning counts only (no member ids) and how many
+	 *  distinct locations those groups cover.
+	 */
+	storeCountBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<CountBy>("store_count_by", { selector, field, key }),
 	/**  Distinct values of `field` across the selected set, sorted. */
 	storeValues: (selector: Selector, field: string) => __TAURI_INVOKE<string[]>("store_values", { selector, field }),
 	/**
@@ -644,6 +647,16 @@ export type CopyToMapResult = {
 	copied: number,
 	skipped: number,
 	targetName: string,
+};
+
+/**
+ *  Group counts. A list field puts one row in several groups, so the counts do not sum to
+ *  the rows grouped.
+ */
+export type CountBy = {
+	counts: ([string, number])[],
+	/**  Rows held by at least one group. */
+	covered: number,
 };
 
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */

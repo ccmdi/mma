@@ -507,7 +507,14 @@ PLAIN_CALLS: readonly [
 PROJECTIONS: readonly [
   {
     readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month"];
+    readonly appliesTo: readonly [
+      "string",
+      "enum",
+      "boolean",
+      "number",
+      "month",
+      "array",
+    ];
     readonly needsTz: false;
   },
   {
@@ -730,7 +737,7 @@ countBy(
   selector: Selector,
   field: string,
   key: KeySpec,
-): Promise<[string, number][]>
+): Promise<CountBy>
 ```
 
 Group by a derived key and count.
@@ -3428,7 +3435,7 @@ panoIdOf(selector: Selector): boolean | null
 ```
 
 Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
-inversion (`false`), or something else (`null`). Display-only shape recognition.
+inversion (`false`), or something else (`null`). Display-only.
 
 ### panoIdSelector
 
@@ -5801,10 +5808,11 @@ cmd.storeCountBy(
   selector: Selector,
   field: string,
   key: KeySpec,
-): Promise<[string, number][]>
+): Promise<CountBy>
 ```
 
-Group locations by a derived key, returning counts only (no member ids).
+Group locations by a derived key, returning counts only (no member ids) and how many
+distinct locations those groups cover.
 
 #### cmd.storeCountryDistribution
 

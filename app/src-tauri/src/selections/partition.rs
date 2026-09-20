@@ -7,7 +7,7 @@ use crate::util::tz_offset_seconds;
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`.
 #[derive(Clone, Deserialize, specta::Type)]
@@ -67,7 +67,7 @@ pub const PROJECTIONS: &[Projection] = {
     &[
         Projection {
             id: "value",
-            applies_to: &[String, Enum, Boolean, Number, Month],
+            applies_to: &[String, Enum, Boolean, Number, Month, Array],
             needs_tz: false,
         },
         Projection {
@@ -159,6 +159,32 @@ pub(super) fn partition_numeric(
     groups
 }
 
+/// The group keys one row contributes: one per member of a list value, else at most one.
+fn row_keys(row: &RowRef<'_, '_>, field: &str, spec: &KeySpec) -> Vec<String> {
+    let keys = match spec {
+        KeySpec::Value => match row.resolve_field(field) {
+            Some(serde_json::Value::Array(members)) => {
+                members.iter().filter_map(value_key).collect()
+            }
+            v => v.as_ref().and_then(value_key).into_iter().collect(),
+        },
+        KeySpec::DatePart { part, tz_local } => {
+            let key = if *tz_local {
+                let (fv, tz) = row.resolve_field_and_tz(field);
+                date_part_key(fv.as_ref(), *part, true, tz.as_deref())
+            } else {
+                date_part_key(row.resolve_field(field).as_ref(), *part, false, None)
+            };
+            key.into_iter().collect()
+        }
+        KeySpec::NumericBin { .. } => Vec::new(),
+    };
+    let mut keys: Vec<String> = keys;
+    let mut seen = HashSet::new();
+    keys.retain(|k| !k.is_empty() && seen.insert(k.clone()));
+    keys
+}
+
 pub(super) fn partition_keyed(
     view: &LocView,
     field: &str,
@@ -169,35 +195,31 @@ pub(super) fn partition_keyed(
     let mut groups: Vec<PartitionBucket> = Vec::new();
     view.for_each_within(set, |row| {
         let id = row.id();
-        let key = match spec {
-            KeySpec::Value => row.resolve_field(field).and_then(|v| value_key(&v)),
-            KeySpec::DatePart { part, tz_local } => {
-                if *tz_local {
-                    let (fv, tz) = row.resolve_field_and_tz(field);
-                    date_part_key(fv.as_ref(), *part, true, tz.as_deref())
-                } else {
-                    date_part_key(row.resolve_field(field).as_ref(), *part, false, None)
-                }
-            }
-            KeySpec::NumericBin { .. } => None,
-        };
-        if let Some(k) = key {
-            if !k.is_empty() {
-                match index.get(&k) {
-                    Some(&i) => groups[i].ids.push(id),
-                    None => {
-                        index.insert(k.clone(), groups.len());
-                        groups.push(PartitionBucket {
-                            key: k,
-                            ids: vec![id],
-                            bin: None,
-                        });
-                    }
+        for k in row_keys(&row, field, spec) {
+            match index.get(&k) {
+                Some(&i) => groups[i].ids.push(id),
+                None => {
+                    index.insert(k.clone(), groups.len());
+                    groups.push(PartitionBucket {
+                        key: k,
+                        ids: vec![id],
+                        bin: None,
+                    });
                 }
             }
         }
     });
     groups
+}
+
+/// Group counts. A list field puts one row in several groups, so the counts do not sum to
+/// the rows grouped.
+#[derive(Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CountBy {
+    pub counts: Vec<(String, u32)>,
+    /// Rows held by at least one group.
+    pub covered: u32,
 }
 
 /// Group counts without the member ids. Delegates to `partition` so key derivation
@@ -207,11 +229,19 @@ pub fn count_by(
     field: &str,
     spec: &KeySpec,
     set: Option<&RoaringBitmap>,
-) -> Vec<(String, u32)> {
-    partition(view, field, spec, set)
-        .into_iter()
-        .map(|g| (g.key, g.ids.len() as u32))
-        .collect()
+) -> CountBy {
+    let groups = partition(view, field, spec, set);
+    let mut covered = RoaringBitmap::new();
+    for g in &groups {
+        covered.extend(g.ids.iter().copied());
+    }
+    CountBy {
+        counts: groups
+            .into_iter()
+            .map(|g| (g.key, g.ids.len() as u32))
+            .collect(),
+        covered: covered.len() as u32,
+    }
 }
 
 /// The group key for a field value, printed the way JS `String()` does: strings verbatim

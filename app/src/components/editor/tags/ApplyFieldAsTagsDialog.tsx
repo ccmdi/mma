@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { KeySpec } from "@/bindings.gen";
+import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
@@ -82,8 +82,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		void Promise.all([
 			countIn(selector),
 			coverage(selector),
-			key ? countBy(selector, field, key) : Promise.resolve([]),
-		]).then(([total, counts, groups]) => {
+			key ? countBy(selector, field, key) : Promise.resolve<CountBy>({ counts: [], covered: 0 }),
+		]).then(([total, counts, grouped]) => {
 			if (!live) return;
 			setLoaded({
 				field,
@@ -91,7 +91,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 				preview: {
 					total,
 					have: counts.find(([k]) => k === field)?.[1] ?? 0,
-					groupSizes: groups.map(([, n]) => n),
+					groups: grouped.counts.length,
+					covered: grouped.covered,
 				},
 			});
 		});
@@ -123,11 +124,9 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
+		const grouped = [...new Set(groups.flatMap((g) => g.ids))];
 		const missing = tagMissing
-			? all(
-					picker.selector,
-					not({ type: "Locations", locations: groups.flatMap((g) => g.ids), name: null }),
-				)
+			? all(picker.selector, not({ type: "Locations", locations: grouped, name: null }))
 			: null;
 		const missingCount = missing ? await countIn(missing) : 0;
 		if (groups.length === 0 && missingCount === 0) return;
