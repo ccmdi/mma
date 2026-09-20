@@ -54,7 +54,7 @@ jobs:
         working-directory: app
 
   clippy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
         with:
@@ -80,7 +80,7 @@ jobs:
         working-directory: app/src-tauri
 
   rust-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v5
         with:
