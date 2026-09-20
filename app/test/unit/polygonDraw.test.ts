@@ -198,3 +198,52 @@ describe("draw tool cleanup", () => {
 		},
 	);
 });
+
+describe("a finished draw keeps the click that ends it", () => {
+	// The engine raises its own click at the end of a claimed stroke and a third one for a
+	// double-click, both after the tool has disarmed itself. Either would otherwise pick a
+	// marker or drop a location on coverage.
+	it("consumes the click that follows a freehand stroke", () => {
+		mount();
+		arm("Freehand polygon selection");
+		down(10, 10);
+		move(200, 10);
+		move(200, 200);
+		up(200, 200);
+		expect(tryInterceptClick(0.2, 0.2)).toBe(true);
+	});
+
+	it("consumes the click that follows a rectangle drag", () => {
+		mount();
+		arm("Draw a rectangle selection");
+		down(10, 10);
+		move(200, 200);
+		up(200, 200);
+		expect(tryInterceptClick(0.2, 0.2)).toBe(true);
+	});
+
+	it("consumes the click that follows closing a polygon, and draws nothing more", () => {
+		const drawn = mount();
+		arm("Draw a polygon selection");
+		act(() => {
+			tryInterceptClick(0, 0);
+			tryInterceptClick(0, 1);
+			tryInterceptClick(1, 1);
+			tryInterceptClick(0, 0);
+		});
+		expect(drawn).toHaveLength(1);
+		expect(tryInterceptClick(0, 0)).toBe(true);
+		expect(drawn).toHaveLength(1);
+	});
+
+	it("releases the claim once a real gesture starts", () => {
+		mount();
+		arm("Freehand polygon selection");
+		down(10, 10);
+		move(200, 10);
+		move(200, 200);
+		up(200, 200);
+		down(50, 50);
+		expect(tryInterceptClick(0.05, 0.05)).toBe(false);
+	});
+});
