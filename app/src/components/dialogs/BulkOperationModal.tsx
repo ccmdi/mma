@@ -324,7 +324,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 							onReady(async ({ selector }) => {
 								const { changed, failed } = await applyFieldOp(
 									selector,
-									{ kind: "set", key: "loadAsPanoId", value: 0 },
+									{ kind: "set", key: "loadAsPanoId", value: false },
 									true,
 								);
 								return {
@@ -466,6 +466,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const effectiveKey = (creatingNew ? newKey : key).trim();
 	const def = effectiveKey ? getFieldDef(effectiveKey) : undefined;
 	const isNumber = def?.type === "number";
+	const isBool = def?.type === "boolean";
 	const enumValues = def?.type === "enum" ? declaredValues(def) : null;
 	const [exprError, setExprError] = useState<string | null>(null);
 	useEffect(() => {
@@ -481,7 +482,8 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 			live = false;
 		};
 	}, [isNumber, raw]);
-	const invalid = !effectiveKey || (isNumber && (raw.trim() === "" || exprError != null));
+	const invalid =
+		!effectiveKey || (isNumber && (raw.trim() === "" || exprError != null)) || (isBool && !raw);
 
 	return (
 		<div className="modal__stack">
@@ -523,7 +525,13 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 			)}
 			<label className="bulk-operation__option">
 				{t("Value")}
-				{enumValues ? (
+				{isBool ? (
+					<NSelect value={raw} onChange={(e) => setRaw(e.target.value)}>
+						<option value="" />
+						<option value="true">{t("True")}</option>
+						<option value="false">{t("False")}</option>
+					</NSelect>
+				) : enumValues ? (
 					<NSelect value={raw} onChange={(e) => setRaw(e.target.value)}>
 						<option value="" />
 						{enumValues.map((v) => (
@@ -557,10 +565,11 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 						const ek = effectiveKey;
 						const rv = raw;
 						const useExpr = isNumber;
+						const setValue: string | boolean = isBool ? rv === "true" : rv;
 						onReady(async ({ selector }) => {
 							const op: FieldOp = useExpr
 								? { kind: "expr", key: ek, expr: rv }
-								: { kind: "set", key: ek, value: rv };
+								: { kind: "set", key: ek, value: setValue };
 							const { changed, failed } = await applyFieldOp(selector, op, true);
 							const message =
 								t(

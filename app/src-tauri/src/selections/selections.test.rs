@@ -1176,6 +1176,22 @@ fn resolve_panoids() {
 }
 
 #[test]
+fn a_saved_flag_filter_written_as_one_resolves_after_normalizing() {
+    let mut pinned = loc(1, 0.0, 0.0);
+    pinned.flags = LocationFlags::LOAD_AS_PANO_ID;
+    let bare = loc(2, 0.0, 0.0);
+    let stored = r#"{"type":"Filter","field":"loadAsPanoId","test":{"op":"eq","value":1}}"#;
+    let selector: Selector =
+        serde_json::from_value(saved::modernize(serde_json::from_str(stored).unwrap())).unwrap();
+    for fx in [
+        Fx::adds(vec![pinned.clone(), bare.clone()]),
+        Fx::base(&[pinned, bare]),
+    ] {
+        assert_eq!(ids_of(&fx.view(), &selector), vec![1]);
+    }
+}
+
+#[test]
 fn resolve_with_dead_batch_rows() {
     let locs = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)];
     let fx = Fx::base(&locs).with_dead([2]);

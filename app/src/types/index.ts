@@ -16,24 +16,19 @@ export function createFieldDef(
 	return { label: null, values: null, comparison: null, ...over, type };
 }
 
-/** A tag: the JS view of a `tags` field value record (an open pile of display
- *  metadata) joined with its interned id and derived visibility. */
+/** A tag's display identity: name, color, sidebar order, and document links. */
 export interface Tag {
 	id: number;
 	name: string;
 	color: string;
-	/** Derived: a tag is visible exactly while some location carries it. */
+	/** True while at least one location carries the tag. */
 	visible: boolean;
 	order: number | null;
 	doclinks: string[];
 }
 
-/** Display-metadata patch for one tag. Merge semantics: null deletes the key. */
-export type ValuePatch = {
-	name?: string | null;
-	color?: string | null;
-	doclinks?: string[] | null;
-};
+/** Partial update to a tag's editable display metadata; `null` clears the field. */
+export type TagPatch = { [K in "name" | "color" | "doclinks"]?: Tag[K] | null };
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;

@@ -142,6 +142,8 @@ wire_str_enum! {
         String = "string",
         /// A number.
         Number = "number",
+        /// True or false.
+        Boolean = "boolean",
         /// A point in time.
         Date = "date",
         /// A year and month.
@@ -172,7 +174,7 @@ impl FieldType {
     /// useless for the operators they are actually queried with (`gt`/`lt`/`between`).
     pub const fn index_shape(&self) -> IndexShape {
         match self {
-            Self::Enum => IndexShape::Scalar,
+            Self::Enum | Self::Boolean => IndexShape::Scalar,
             Self::Array => IndexShape::Multi,
             Self::String | Self::Number | Self::Date | Self::Month => IndexShape::None,
         }

@@ -65,7 +65,7 @@ const filterBuilderState = new Map<
 >();
 
 function opsForType(type: string | undefined): FilterOpKind[] {
-	if (type === "enum") return EQUALITY_OPS;
+	if (type === "enum" || type === "boolean") return EQUALITY_OPS;
 	if (type === "date") return DATE_OPS;
 	if (type === "array") return ARRAY_OPS;
 	return ALL_OPS;
@@ -157,6 +157,16 @@ function FilterValueInput({
 		);
 	}
 
+	if (type === "boolean") {
+		return (
+			<NSelect value={value} onChange={(e) => onChange(e.target.value)}>
+				<option value="">--</option>
+				<option value="true">{t("True")}</option>
+				<option value="false">{t("False")}</option>
+			</NSelect>
+		);
+	}
+
 	if (type === "date" || type === "month") {
 		return (
 			<DatePicker
@@ -213,7 +223,7 @@ type FilterFormSeed = {
 /** The predicate the form's flat pieces spell: the kind, its operand(s), the clock frame. */
 export function filterTest(
 	op: FilterOpKind,
-	value: string | number | null,
+	value: string | number | boolean | null,
 	value2: string | number | undefined,
 	tzLocal: boolean,
 ): FilterOp {
@@ -303,6 +313,7 @@ export function FilterForm({
 		fieldEntry?.def.type === "number" ||
 		fieldEntry?.def.type === "date" ||
 		(fieldEntry?.def.type === "array" && !isArrayContains);
+	const isBool = fieldEntry?.def.type === "boolean";
 	const isDateLike = fieldEntry?.def.type === "date" || fieldEntry?.def.type === "month";
 	const isExactDate = fieldEntry?.def.type === "date";
 	const availableOps = opsForType(fieldEntry?.def.type);
@@ -430,6 +441,11 @@ export function FilterForm({
 	const handleAdd = () => {
 		if (!field) return;
 		if (needsValue && !value) return;
+		if (isBool) {
+			onSubmit(field, filterTest(op, needsValue ? value === "true" : null, undefined, false));
+			onClose?.();
+			return;
+		}
 		let finalOp: FilterOpKind = op;
 		if (isBetween && anyYear) finalOp = "between_anyyear";
 		if (isBetween && anyTime) finalOp = "between_anytime";

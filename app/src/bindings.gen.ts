@@ -997,12 +997,6 @@ export type KeySpec =
  *  This is the atomic unit of data in the system. Locations are stored columnar
  *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
- * 
- *  The `#[field(...)]` attributes are the field system's declaration site:
- *  `#[derive(Fields)]` (see `mma-fields`) turns them into the `location_fields!`
- *  table that `selections::filter` expands into the exported field table,
- *  `is_builtin_field`, and both resolvers - one declaration per field, checked
- *  against the struct by the compiler.
  */
 export type Location = {
 	/**
@@ -1017,7 +1011,7 @@ export type Location = {
 	zoom: number,
 	/**  The empty string means absent, the same absence a missing key has. */
 	panoId: string | null,
-	/**  See [`LocationFlags`]. Reaches the field system as declared bits, not a field. */
+	/**  The location's bits, such as whether it opens exactly its stored pano. */
 	flags: number,
 	/**
 	 *  Tag IDs applied to this location. References interned values of the `tags`

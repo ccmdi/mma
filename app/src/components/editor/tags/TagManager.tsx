@@ -7,7 +7,7 @@ import {
 	useOptimistic,
 	startTransition,
 } from "react";
-import type { Tag, ValuePatch } from "@/types";
+import type { Tag, TagPatch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
 	countIn,
@@ -65,7 +65,7 @@ import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
-type OptimisticTagPatch = ValuePatch & { order?: number };
+type OptimisticTagPatch = TagPatch & { order?: number };
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -118,7 +118,7 @@ export function TagManager() {
 			}),
 	);
 	const commitTags = useCallback(
-		(updates: Update<ValuePatch>[]) => {
+		(updates: Update<TagPatch>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
 				await updateTags(updates);
@@ -159,7 +159,7 @@ export function TagManager() {
 	// Stamp `color` onto every tag AND folder node at or under `root` (overrides existing
 	// colors, so it works even when descendants already have their own).
 	const applyColorToSubtree = (root: string, color: string) => {
-		const tagUpdates: Update<ValuePatch>[] = [];
+		const tagUpdates: Update<TagPatch>[] = [];
 		const folders = new Set<string>();
 		for (const t of tags) {
 			if (t.name !== root && !t.name.startsWith(`${root}/`)) continue;
@@ -479,7 +479,7 @@ function RenameInSelectionDialog({
 	setAliases,
 }: DialogProps & {
 	tag: { id: number; name: string };
-	commit: (updates: Update<ValuePatch>[]) => void;
+	commit: (updates: Update<TagPatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
 }) {
@@ -521,7 +521,7 @@ function EditTagDialog({
 }: DialogProps & {
 	tag: { id: number; name: string; color: string };
 	/** Routes tag updates through the optimistic overlay. */
-	commit: (updates: Update<ValuePatch>[]) => void;
+	commit: (updates: Update<TagPatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
 	/** Present for a tree folder node with descendants: lets the rename cascade down. */

@@ -217,16 +217,27 @@ fn the_prune_default_is_expressible() {
     let best = json_row(&[
         ("tagCount", json!(2)),
         ("panoId", json!("abc")),
-        ("loadAsPanoId", json!(1)),
+        ("loadAsPanoId", json!(true)),
         ("heading", json!(90)),
     ]);
     let bare = json_row(&[
         ("tagCount", json!(0)),
-        ("loadAsPanoId", json!(0)),
+        ("loadAsPanoId", json!(false)),
         ("heading", json!(0)),
     ]);
     assert_eq!(run(src, &best), Some(5.0));
     assert_eq!(run(src, &bare), Some(0.0));
+}
+
+#[test]
+fn boolean_literals_compare_against_a_boolean_field() {
+    let on = json_row(&[("loadAsPanoId", json!(true))]);
+    let off = json_row(&[("loadAsPanoId", json!(false))]);
+    assert_eq!(run("loadAsPanoId == true", &on), Some(1.0));
+    assert_eq!(run("loadAsPanoId == true", &off), Some(0.0));
+    assert_eq!(run("loadAsPanoId != false", &on), Some(1.0));
+    assert_eq!(run("if(loadAsPanoId == true, 5, 1)", &on), Some(5.0));
+    assert_eq!(run("true + false", &on), Some(1.0));
 }
 
 #[test]

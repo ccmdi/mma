@@ -171,7 +171,7 @@ describe("Bulk operations -- bulkPinToPano", () => {
 		const result = await withApi(async (api) => {
 			return await api.applyFieldOp(
 				{ type: "Everything" },
-				{ kind: "set", key: "loadAsPanoId", value: 0 },
+				{ kind: "set", key: "loadAsPanoId", value: false },
 				true,
 			);
 		});

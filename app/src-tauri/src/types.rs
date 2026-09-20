@@ -25,12 +25,6 @@ pub use raw_extra::*;
 /// This is the atomic unit of data in the system. Locations are stored columnar
 /// in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
 /// within a map and assigned by the store's monotonic allocator.
-///
-/// The `#[field(...)]` attributes are the field system's declaration site:
-/// `#[derive(Fields)]` (see `mma-fields`) turns them into the `location_fields!`
-/// table that `selections::filter` expands into the exported field table,
-/// `is_builtin_field`, and both resolvers - one declaration per field, checked
-/// against the struct by the compiler.
 #[derive(
     Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize, specta::Type, mma_fields::Fields,
 )]
@@ -58,7 +52,7 @@ pub struct Location {
     #[specta(type = Option<String>)]
     #[field(label = "Pano ID", absent_when_empty)]
     pub pano_id: Option<compact_str::CompactString>,
-    /// See [`LocationFlags`]. Reaches the field system as declared bits, not a field.
+    /// The location's bits, such as whether it opens exactly its stored pano.
     #[field(skip)]
     pub flags: LocationFlags,
     /// Tag IDs applied to this location. References interned values of the `tags`

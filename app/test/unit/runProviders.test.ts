@@ -377,7 +377,7 @@ describe("the bulk operations name their own providers", () => {
 		expect(resolve.force).toBe(false);
 		expect(JSON.stringify(resolve.select)).toContain('"loadAsPanoId"');
 		expect(h.fieldOps).toHaveLength(1);
-		expect(h.fieldOps[0].op).toEqual({ kind: "set", key: "loadAsPanoId", value: 1 });
+		expect(h.fieldOps[0].op).toEqual({ kind: "set", key: "loadAsPanoId", value: true });
 		const pinTarget = JSON.stringify(h.fieldOps[0].selector);
 		expect(pinTarget).toContain('"field":"panoId"');
 		expect(pinTarget).toContain('"op":"has"');

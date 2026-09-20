@@ -112,8 +112,9 @@ fn parse_row(
 /// `Ranked` spell it `TopK`, which ranked a bare field and dropped rows lacking it -- the
 /// drop is now the child selection's job, so the rewrite wraps the field in a `has` filter.
 /// Older rows also name selector types that were only ever field filters wearing a costume
-/// (`Tag`, `Untagged`, `Unpanned`, `PanoIds`, `NotPanoIds`). All are rewritten on read, so
-/// the row itself is never touched.
+/// (`Tag`, `Untagged`, `Unpanned`, `PanoIds`, `NotPanoIds`), and spell a flag field's value
+/// as 0 or 1 rather than a boolean. All are rewritten on read, so the row itself is never
+/// touched.
 pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
     use serde_json::Value;
     let Some(obj) = selector.as_object_mut() else {
@@ -158,6 +159,23 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
                 }
             }
             obj.insert("test".into(), Value::Object(test));
+        }
+        let on_flag = obj
+            .get("field")
+            .and_then(Value::as_str)
+            .is_some_and(|f| super::flag_field(f).is_some());
+        if on_flag {
+            if let Some(value) = obj
+                .get_mut("test")
+                .and_then(Value::as_object_mut)
+                .and_then(|t| t.get_mut("value"))
+            {
+                match value.as_f64() {
+                    Some(0.0) => *value = Value::Bool(false),
+                    Some(1.0) => *value = Value::Bool(true),
+                    _ => {}
+                }
+            }
         }
     }
     if obj.get("type").and_then(Value::as_str) == Some("TopK") {

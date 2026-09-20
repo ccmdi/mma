@@ -3,9 +3,10 @@
 //! store. Used to assign a computed value in a bulk set, and to score a location when
 //! duplicates are merged or pruned.
 //!
-//! There is no boolean type. A comparison yields 1 or 0, so a predicate is a term you
-//! can add to a score. Comparison semantics are [`compare_filter`]'s, so `>` here means
-//! what `>` means in a filter.
+//! `true` and `false` are literals a comparison can name; everywhere a number is wanted
+//! they read as 1 and 0, as does a boolean field, so a predicate is a term you can add to
+//! a score. Comparison semantics are [`compare_filter`]'s, so `>` here means what `>`
+//! means in a filter.
 
 use std::fmt::{self, Display, Formatter};
 
@@ -77,6 +78,7 @@ impl From<ExprError> for AppError {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Num(f64),
+    Bool(bool),
     Str(String),
     Field(String),
     /// `has(field)`: 1 when the field resolves to a non-null value, 0 otherwise. Never
@@ -398,7 +400,11 @@ impl Parser {
             Token::Ident(name) => {
                 self.pos += 1;
                 if !self.is_op('(') {
-                    return Ok(Expr::Field(name));
+                    return Ok(match name.as_str() {
+                        "true" => Expr::Bool(true),
+                        "false" => Expr::Bool(false),
+                        _ => Expr::Field(name),
+                    });
                 }
                 if name == "has" {
                     self.pos += 1;
@@ -483,6 +489,7 @@ pub fn eval(expr: &Expr, field: &Resolver) -> Option<f64> {
 fn operand(expr: &Expr, field: &Resolver) -> Option<serde_json::Value> {
     match expr {
         Expr::Str(text) => Some(serde_json::Value::from(text.clone())),
+        Expr::Bool(b) => Some(serde_json::Value::Bool(*b)),
         Expr::Field(name) => field(name),
         other => eval_node(other, field).map(serde_json::Value::from),
     }
@@ -491,9 +498,14 @@ fn operand(expr: &Expr, field: &Resolver) -> Option<serde_json::Value> {
 fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
     Some(match expr {
         Expr::Num(v) => *v,
+        Expr::Bool(b) => f64::from(u8::from(*b)),
         // Bare strings are comparison operands; there is nothing numeric to yield.
         Expr::Str(_) => return None,
-        Expr::Field(name) => field(name)?.as_f64()?,
+        Expr::Field(name) => {
+            let v = field(name)?;
+            v.as_bool()
+                .map_or_else(|| v.as_f64(), |b| Some(f64::from(u8::from(b))))?
+        }
         Expr::Has(name) => f64::from(u8::from(field(name).is_some())),
         Expr::Neg(arg) => -eval_node(arg, field)?,
         Expr::Bin(op, l, r) => {

@@ -85,7 +85,7 @@ export function panoIdSelector(on: boolean): Selector {
 	const pinned: Selector = {
 		type: "Intersection",
 		selections: [
-			buildSelection({ type: "Filter", field: "loadAsPanoId", test: { op: "eq", value: 1 } }),
+			buildSelection({ type: "Filter", field: "loadAsPanoId", test: { op: "eq", value: true } }),
 			buildSelection({ type: "Filter", field: "panoId", test: { op: "has" } }),
 		],
 	};
@@ -112,7 +112,10 @@ export function panoIdOf(selector: Selector): boolean | null {
 	if (selector.type !== "Intersection" || selector.selections.length !== 2) return null;
 	const [a, b] = selector.selections.map((s) => s.selector);
 	const isFlag = (s: Selector) =>
-		s.type === "Filter" && s.field === "loadAsPanoId" && s.test.op === "eq" && s.test.value === 1;
+		s.type === "Filter" &&
+		s.field === "loadAsPanoId" &&
+		s.test.op === "eq" &&
+		s.test.value === true;
 	const isHasPano = (s: Selector) =>
 		s.type === "Filter" && s.field === "panoId" && s.test.op === "has";
 	return isFlag(a) && isHasPano(b) ? true : null;

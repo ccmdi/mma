@@ -251,10 +251,10 @@ describe("buildSelection", () => {
 
 	it("pano-id selectors key as the pinned composite", () => {
 		expect(buildSelection(panoIdSelector(true)).key).toBe(
-			"(filter:loadAsPanoId:eq:1)^(filter:panoId:has:null)",
+			"(filter:loadAsPanoId:eq:true)^(filter:panoId:has:null)",
 		);
 		expect(buildSelection(panoIdSelector(false)).key).toBe(
-			"!(filter:loadAsPanoId:eq:1)^(filter:panoId:has:null)",
+			"!(filter:loadAsPanoId:eq:true)^(filter:panoId:has:null)",
 		);
 	});
 

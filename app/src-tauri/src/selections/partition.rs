@@ -67,7 +67,7 @@ pub const PROJECTIONS: &[Projection] = {
     &[
         Projection {
             id: "value",
-            applies_to: &[String, Enum, Number, Month],
+            applies_to: &[String, Enum, Boolean, Number, Month],
             needs_tz: false,
         },
         Projection {

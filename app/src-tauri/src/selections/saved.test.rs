@@ -224,3 +224,33 @@ fn a_filter_row_written_before_0_10_2_still_reads() {
         ]
     );
 }
+
+#[test]
+fn a_flag_filter_row_written_as_zero_or_one_reads_as_a_boolean() {
+    for (stored, expected) in [
+        (
+            r#"{"type":"Filter","field":"loadAsPanoId","test":{"op":"eq","value":1}}"#,
+            true,
+        ),
+        (
+            r#"{"type":"Filter","field":"loadAsPanoId","test":{"op":"eq","value":0}}"#,
+            false,
+        ),
+        (
+            r#"{"type":"Filter","field":"loadAsPanoId","op":"eq","value":1}"#,
+            true,
+        ),
+    ] {
+        let selector: Selector =
+            serde_json::from_value(modernize(serde_json::from_str(stored).unwrap())).unwrap();
+        let Selector::Filter { test, .. } = selector else {
+            panic!("not a filter");
+        };
+        assert_eq!(
+            test,
+            FilterOp::Eq {
+                value: serde_json::Value::Bool(expected)
+            }
+        );
+    }
+}

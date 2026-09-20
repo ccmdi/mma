@@ -49,7 +49,7 @@ export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Pro
 	if (runOpts.signal?.aborted) return { succeeded: 0, failed, resolved };
 	const pinned = await applyFieldOp(
 		all(selector, has("panoId")),
-		{ kind: "set", key: "loadAsPanoId", value: 1 },
+		{ kind: "set", key: "loadAsPanoId", value: true },
 		true,
 	);
 	return { succeeded: pinned.changed, failed: [...failed, ...pinned.failed], resolved };

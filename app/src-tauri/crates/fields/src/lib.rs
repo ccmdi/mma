@@ -21,7 +21,7 @@
 //!
 //! Struct-level `#[fields(...)]` declares the rows with no struct field of their own:
 //! `derived_len(key, label, of = <field>)` (a list's length as a virtual field) and
-//! `flag(key, label, bit = <CONST>)` (a `LocationFlags` bit read as a 0/1 number).
+//! `flag(key, label, bit = <CONST>)` (a `LocationFlags` bit read as a boolean).
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -187,7 +187,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
             rows.push(Row {
                 key,
                 label,
-                ty: format_ident!("Number"),
+                ty: format_ident!("{}", if is_derived { "Number" } else { "Boolean" }),
                 kind: if is_derived {
                     format_ident!("virtual_")
                 } else {

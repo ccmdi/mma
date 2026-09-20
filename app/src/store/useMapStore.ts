@@ -1,5 +1,5 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
-import type { Tag, ValuePatch } from "@/types";
+import type { Tag, TagPatch } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { isVirtualLocation, isImportPreview, locId, applyLocationPatch } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
@@ -1027,7 +1027,7 @@ export function exitPluginMode() {
 /** Patch the `tags` field's value metadata and apply the mutation it returns. */
 async function patchTagValues(patch: {
 	create?: string[];
-	update?: Update<ValuePatch>[];
+	update?: Update<TagPatch>[];
 	reorder?: number[];
 }): Promise<Tag[]> {
 	let ids: number[] = [];
@@ -1066,7 +1066,7 @@ export async function createTags(
 /** Rename or recolor tags. A rename colliding with an existing tag name
  *  (case-insensitive) merges the two: every location is remapped to the survivor
  *  (undoable) and the emptied source's metadata goes dark. */
-export async function updateTags(updates: Update<ValuePatch>[]) {
+export async function updateTags(updates: Update<TagPatch>[]) {
 	if (updates.length === 0) return;
 	await patchTagValues({ update: updates });
 	emitEvent("tag:update", updates);

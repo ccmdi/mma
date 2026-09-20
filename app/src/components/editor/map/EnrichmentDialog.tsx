@@ -38,10 +38,19 @@ import { IconButton } from "@/components/primitives/IconButton";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 type Comparison = NonNullable<FieldDef["comparison"]>;
-const FIELD_TYPES: FieldDef["type"][] = ["string", "number", "date", "month", "enum", "array"];
+const FIELD_TYPES: FieldDef["type"][] = [
+	"string",
+	"number",
+	"boolean",
+	"date",
+	"month",
+	"enum",
+	"array",
+];
 const TYPE_LABELS: Record<FieldDef["type"], string> = {
 	string: msg("Text"),
 	number: msg("Number"),
+	boolean: msg("True/false"),
 	date: msg("Date/time"),
 	month: msg("Month (YYYY-MM)"),
 	enum: msg("Enum"),

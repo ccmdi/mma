@@ -53,11 +53,13 @@ type DatePart = (typeof DatePart)[keyof typeof DatePart];
  * Type discriminant for `Location.extra` field definitions.
  * Determines how the field is displayed and filtered in the UI.
  */
-declare const ExtraFieldType: {
+declare const FieldType: {
     /** Text. */
     readonly String: "string";
     /** A number. */
     readonly Number: "number";
+    /** True or false. */
+    readonly Boolean: "boolean";
     /** A point in time. */
     readonly Date: "date";
     /** A year and month. */
@@ -67,7 +69,7 @@ declare const ExtraFieldType: {
     /** A list of values. */
     readonly Array: "array";
 };
-type ExtraFieldType = (typeof ExtraFieldType)[keyof typeof ExtraFieldType];
+type FieldType = (typeof FieldType)[keyof typeof FieldType];
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
@@ -186,17 +188,26 @@ declare const ValidationState: {
 };
 type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 declare const BUILTIN_FIELDS: readonly [{
+    readonly key: "id";
+    readonly label: "ID";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+    readonly interned: false;
+}, {
     readonly key: "lat";
     readonly label: "Latitude";
     readonly type: "number";
     readonly kind: "identity";
     readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "lng";
     readonly label: "Longitude";
     readonly type: "number";
     readonly kind: "identity";
     readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "heading";
     readonly label: "Heading";
@@ -206,54 +217,63 @@ declare const BUILTIN_FIELDS: readonly [{
         readonly type: "circular";
         readonly period: 360;
     };
+    readonly interned: false;
 }, {
     readonly key: "pitch";
     readonly label: "Pitch";
     readonly type: "number";
     readonly kind: "writable";
     readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "zoom";
     readonly label: "Zoom";
     readonly type: "number";
     readonly kind: "writable";
     readonly comparison: null;
-}, {
-    readonly key: "id";
-    readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-}, {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-}, {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "panoId";
     readonly label: "Pano ID";
     readonly type: "string";
     readonly kind: null;
     readonly comparison: null;
+    readonly interned: false;
+}, {
+    readonly key: "tags";
+    readonly label: "Tags";
+    readonly type: "array";
+    readonly kind: "writable";
+    readonly comparison: null;
+    readonly interned: true;
+}, {
+    readonly key: "createdAt";
+    readonly label: "Created";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+    readonly interned: false;
+}, {
+    readonly key: "modifiedAt";
+    readonly label: "Modified";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "tagCount";
     readonly label: "Tag count";
     readonly type: "number";
     readonly kind: "virtual";
     readonly comparison: null;
+    readonly interned: false;
 }, {
     readonly key: "loadAsPanoId";
     readonly label: "Load as pano ID";
-    readonly type: "number";
+    readonly type: "boolean";
     readonly kind: "writable";
     readonly comparison: null;
+    readonly interned: false;
 }];
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
 /** @unstable */
@@ -356,7 +376,7 @@ declare const KNOWN_FIELDS: readonly [{
 /** @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "number", "month"];
+    readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month"];
     readonly needsTz: false;
 }, {
     readonly id: "year";
@@ -400,9 +420,9 @@ declare const consts_DatePart: typeof DatePart;
 export type consts_DatePart = DatePart;
 declare const consts_EFFECT_CALLS: typeof EFFECT_CALLS;
 declare const consts_ERROR_CODES: typeof ERROR_CODES;
-declare const consts_ExtraFieldType: typeof ExtraFieldType;
+declare const consts_FieldType: typeof FieldType;
 /** @unstable */
-export type consts_ExtraFieldType = ExtraFieldType;
+export type consts_FieldType = FieldType;
 declare const consts_FirstSyncMode: typeof FirstSyncMode;
 /** @unstable */
 export type consts_FirstSyncMode = FirstSyncMode;
@@ -441,7 +461,7 @@ declare const consts_ValidationState: typeof ValidationState;
 export type consts_ValidationState = ValidationState;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
-  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_ExtraFieldType as ExtraFieldType, consts_FirstSyncMode as FirstSyncMode, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_ValidationState as ValidationState };
+  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_ValidationState as ValidationState };
 }
 
 /** Commands @unstable */
@@ -601,7 +621,7 @@ declare const commands$1: {
     /**  Deliver the result for remote API request `id`. `payload` is JSON text. @unstable */
     remoteApiRespond: (id: number, ok: boolean, payload: string) => Promise<void>;
     /**
-     *  Open a map and return its initial state (tag counts, undo/redo availability).
+     *  Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
      *  Must be called before any other store commands.
      *  @unstable
      */
@@ -723,21 +743,12 @@ declare const commands$1: {
      */
     storeNearAny: (lats: number[], lngs: number[], radiusM: number) => Promise<boolean[]>;
     /**
-     *  Create tags by name and assign them to the locations matched by `selector`.
-     *  Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
+     *  Patch an interned field's value metadata: get-or-create names, edit display
+     *  metadata, reorder. Metadata only - membership writes go through the ordinary
+     *  `listSet` field op. `tags` is the first (and so far only) interned field.
      *  @unstable
      */
-    storeCreateTags: (names: string[], selector: Selector) => Promise<CreatedTags>;
-    /**
-     *  Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
-     *  merges the two tags.
-     *  @unstable
-     */
-    storeUpdateTags: (updates: Update<TagPatch>[]) => Promise<MutationResult>;
-    /**  Remove tags and strip them from all locations that carry them. Undoable. @unstable */
-    storeDeleteTags: (tagIds: number[]) => Promise<MutationResult>;
-    /**  Set the display order of tags. Each tag's position is its index in `orderedIds`. @unstable */
-    storeReorderTags: (orderedIds: number[]) => Promise<MutationResult>;
+    storePatchFieldValues: (field: string, patch: FieldValuesPatch) => Promise<FieldValuesResult>;
     /**  Undo the last edit. @unstable */
     storeUndo: () => Promise<MutationResult>;
     /**  Redo the last undone edit. @unstable */
@@ -1173,7 +1184,7 @@ type CameraFrame = {
     heading: number;
     pitch: number;
 };
-/**  A marker removed from a render cell. @unstable */
+/**  A marker removed from a render cell. */
 type CellRemoval = {
     cell: string;
     cellIndex: number;
@@ -1219,7 +1230,7 @@ type CommitResult = {
  *  How a field's values are compared when measuring how strongly it separates
  *  groups (selection disambiguation). The only un-inferrable property a field can
  *  declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
- *  everything else is inferred from `ExtraFieldType`.
+ *  everything else is inferred from `FieldType`.
  */
 type ComparisonType = {
     type: "linear";
@@ -1250,12 +1261,6 @@ type CopyToMapResult = {
     copied: number;
     skipped: number;
     targetName: string;
-};
-/**  A create's outcome for the caller: the mutation plus the tags it named. @unstable */
-type CreatedTags = {
-    mutation: MutationResult;
-    /**  The tags the names resolved to, in the order the names were given. */
-    ids: number[];
 };
 /**  The active and default data-folder paths, plus whether a custom override is in effect. @unstable */
 type DataLocation = {
@@ -1293,7 +1298,10 @@ type DeviceCodeInfo = {
  */
 type EditorImportPreview = {
     locationCount: number;
-    tags: Tag[];
+    /**  The file's tag piles, for the preview's tag list; ids are not meaningful yet. */
+    tags: {
+        [key in string]: unknown;
+    }[];
     fields: FieldCount[];
     warnings: string[];
     /**  Temp-file path to preview positions: interleaved LE f32 `[lng, lat]` pairs. */
@@ -1327,23 +1335,33 @@ type EngineValues = {
     locationCount: number | null;
     canUndo: boolean | null;
     canRedo: boolean | null;
-    /**  Every tag's count, when any count moved. */
-    tagCounts: {
-        [key in number]: number;
+    /**
+     *  Per-value row counts, keyed by field then by index key: one complete map per
+     *  indexed field whose postings moved. Fields that did not move are absent.
+     */
+    valueCounts: {
+        [key in string]: {
+            [key in string]: number;
+        };
     } | null;
     /**
-     *  The whole registry, when any tag was created, edited, deleted, or flipped visible.
-     *  Includes soft-deleted ghosts (visible=false, kept for undo revival).
+     *  Per-value records (opaque piles), keyed by field then by interned id: one
+     *  complete map per interned field whose records changed. JS coerces piles to its
+     *  typed views (a tag) at its own boundary.
      */
-    tags: {
-        [key in number]: Tag;
+    valueMeta: {
+        [key in string]: {
+            [key in number]: {
+                [key in string]: unknown;
+            };
+        };
     } | null;
     /**
      *  The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
      *  seen for the first time, erased, or the user edited a definition.
      */
     fieldDefs: {
-        [key in string]: ExtraFieldDef;
+        [key in string]: FieldDef;
     } | null;
 };
 /**
@@ -1415,21 +1433,6 @@ type ExternalMutation = {
     mapId: string;
 } & MutationResult;
 /**
- *  Schema definition for a single `Location.extra` field. Stored in the map's
- *  `extra.fields` JSON. For enum types, `values` lists valid options and `labels`
- *  provides display names.
- */
-type ExtraFieldDef = {
-    type: ExtraFieldType;
-    label: string | null;
-    values: string[] | null;
-    labels: {
-        [key in string]: string;
-    } | null;
-    /**  How this field is compared during disambiguation. `null` infers it from the field type. */
-    comparison: ComparisonType | null;
-};
-/**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
  *  @unstable
@@ -1437,6 +1440,19 @@ type ExtraFieldDef = {
 type FieldCount = {
     key: string;
     count: number;
+};
+/**
+ *  Schema definition for a single `Location.extra` field. Stored in the map's
+ *  `extra.fields` JSON. For enumerable types, `values` declares the value space in
+ *  display order, each member carrying its own display name.
+ */
+type FieldDef = {
+    type: FieldType;
+    label: string | null;
+    /**  The declared value space, in display order. */
+    values: FieldValue[] | null;
+    /**  How this field is compared during disambiguation. `null` infers it from the field type. */
+    comparison: ComparisonType | null;
 };
 /**  A rewrite of one `extra` field across every location, computed per row. @unstable */
 type FieldOp = 
@@ -1472,14 +1488,68 @@ type FieldOp =
     kind: "expr";
     key: string;
     expr: string;
+} | 
+/**
+ *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
+ *  reads the row's current value as a set rather than replacing it, which is what
+ *  membership needs: `tags` is this op's first caller, `array` extras its second.
+ *  `add` wins for a value named in both lists, and a row already in the requested
+ *  state keeps its member order.
+ */
+{
+    kind: "listSet";
+    key: string;
+    add: unknown[];
+    remove: unknown[];
 };
-/**  The op's outcome for the caller: the mutation plus what its message needs. @unstable */
+/**  The op's outcome for the caller: the mutation plus what its message needs. */
 type FieldOpResult = {
     mutation: MutationResult;
     /**  Rows the op patched. */
     changed: number;
     /**  Rows an expression could not evaluate. */
     failed: number[];
+};
+/**
+ *  One member of an enumerable field's value space: the stored value plus its display
+ *  name. The value is the identity, so a rename is a label change and membership is
+ *  untouched.
+ */
+type FieldValue = {
+    value: string;
+    label: string | null;
+};
+/**  One batch of record edits for an interned field's values. @unstable */
+type FieldValuesPatch = {
+    /**
+     *  Seed piles to get-or-create, matched case-insensitively on their `name`.
+     *  An existing name resolves to its id and the seed is dropped; a new one is
+     *  interned as the seed.
+     */
+    create?: {
+        [key in string]: unknown;
+    }[];
+    /**
+     *  Merge patches into existing piles (null deletes a key). A patch whose `name`
+     *  collides with another record's merges the two values instead of renaming:
+     *  every row is remapped to the survivor in one undoable edit and the emptied
+     *  record goes dark.
+     */
+    update?: (Update<{
+        [key in string]: unknown;
+    }>)[];
+    /**  New display order: each id gets its index in this list as `order`. */
+    reorder?: number[] | null;
+};
+/**
+ *  The id resolved for each `create` seed in request order, plus the mutation carrying
+ *  the updated records (and any rows a merge moved). JS coerces piles to its own view;
+ *  nothing typed rides here.
+ *  @unstable
+ */
+type FieldValuesResult = {
+    resolved: number[];
+    mutation: MutationResult;
 };
 /**
  *  A filter's predicate: the operator with its operands. Single source of truth: specta
@@ -1665,11 +1735,20 @@ type Location = {
     heading: number;
     pitch: number;
     zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
     panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
     flags: number;
-    /**  Tag IDs applied to this location. References `Tag.id`. */
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
     tags: number[];
-    /**  Arbitrary key-value metadata */
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
     extra: {
         [key in string]: unknown;
     } | null;
@@ -1724,7 +1803,7 @@ type LocationPatch = {
  */
 type MapExtra = {
     fields: {
-        [key in string]: ExtraFieldDef;
+        [key in string]: FieldDef;
     } | null;
 };
 /**
@@ -1755,8 +1834,14 @@ type MapMeta = {
     settings: MapSettings;
     scoreBounds: ScoreBounds;
     extra: MapExtra;
+    /**
+     *  The map's tag value records (opaque piles keyed by id-as-string), an open-time
+     *  snapshot of the `maps.tags` column. JS coerces them to its tag view.
+     */
     tags: {
-        [key in string]: Tag;
+        [key in string]: {
+            [key in string]: unknown;
+        };
     };
     labels: string[];
     locationCount: number;
@@ -1776,7 +1861,9 @@ type MapMetaPatch_Deserialize = {
     scoreBounds?: ScoreBounds | null;
     extra?: MapExtra | null;
     tags?: {
-        [key in string]: Tag;
+        [key in string]: {
+            [key in string]: unknown;
+        };
     } | null;
     labels?: string[] | null;
 };
@@ -1793,7 +1880,9 @@ type MapMetaPatch = {
     scoreBounds: ScoreBounds | null;
     extra: MapExtra | null;
     tags: {
-        [key in string]: Tag;
+        [key in string]: {
+            [key in string]: unknown;
+        };
     } | null;
     labels: string[] | null;
 };
@@ -1853,7 +1942,7 @@ type MmUser = {
     id: number;
     username: string;
 };
-/**  What one change did to the open map. @unstable */
+/**  What one change did to the open map. */
 type MutationResult = {
     version: number;
     delta: RenderDelta;
@@ -2224,14 +2313,14 @@ type RemoteMappingRow = {
     remoteId: number;
     hash: string;
 };
-/**  Marker changes after an edit: added, updated, and removed markers. @unstable */
+/**  Marker changes after an edit: added, updated, and removed markers. */
 type RenderDelta = {
     added: RenderEntry[];
     updated: RenderPatchEntry[];
     removed: CellRemoval[];
     fullReset: boolean;
 };
-/**  A marker appended to a render cell: position, heading, and selection state. @unstable */
+/**  A marker appended to a render cell: position, heading, and selection state. */
 type RenderEntry = {
     cell: string;
     id: number;
@@ -2251,7 +2340,6 @@ type RenderEntry = {
  *  Update to an existing marker within its cell. Position and heading are `null` when
  *  unchanged; `sel` always states the row's current selection state, so a membership
  *  change with no movement is just a patch with no coordinates.
- *  @unstable
  */
 type RenderPatchEntry = {
     cell: string;
@@ -2438,7 +2526,6 @@ type SeenWriteEntry = {
  *  The index is the draw order - a later selection overdraws an earlier one - so the
  *  overlay can be ordered by it instead of by whatever order rows happen to arrive in.
  *  Every marker sits at z=0 in one deck.gl layer, so buffer order is the only z there is.
- *  @unstable
  */
 type SelPaint = {
     idx: number;
@@ -2459,7 +2546,7 @@ type SelectionInput = {
     /**  Counted, but kept out of the overlay and the selected set. */
     ghosted?: boolean;
 } & Selection;
-/**  Updated selection state after a change. `counts` gives each selection's match count. @unstable */
+/**  Updated selection state after a change. `counts` gives each selection's match count. */
 type SelectionSync = {
     /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
     counts: {
@@ -2470,9 +2557,9 @@ type SelectionSync = {
 };
 /**
  *  Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
- *  for JS interop. Simple types (Tag, Untagged, PanoIds, etc.) resolve in O(N) with
- *   parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
- *  children. Duplicates uses a grid-accelerated spatial scan.
+ *  for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
+ *  inverted index when one covers the filtered field. Composites (Intersection, Union,
+ *  Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
  */
 type Selector = {
     type: "Locations";
@@ -2483,17 +2570,6 @@ type Selector = {
 } | {
     type: "Polygon";
     polygon: PolygonGeometry;
-} | {
-    type: "Tag";
-    tagId: number;
-} | {
-    type: "Untagged";
-} | {
-    type: "Unpanned";
-} | {
-    type: "PanoIds";
-} | {
-    type: "NotPanoIds";
 } | {
     type: "Uncommitted";
 } | {
@@ -2622,27 +2698,6 @@ type SyncReconcileResult = {
     pullUpdates: PullUpdate[];
     pullDeleteIds: number[];
     mirrorLocalDeleteIds: number[];
-};
-type Tag = {
-    id: number;
-    name: string;
-    /**
-     *  Hex color string (e.g. "#3a7fc2"). Generated deterministically from
-     *  the tag name via `util::color_for_name` when not explicitly set.
-     */
-    color: string;
-    visible?: boolean;
-    /**  Display order in the sidebar tag list. `null` for tags that have never been ordered. */
-    order: number | null;
-    /**  Links into external documents (e.g. Google Docs headings), kept through import and export. */
-    doclinks?: string[];
-};
-/**  Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here. */
-type TagPatch = {
-    name?: string | null;
-    color?: string | null;
-    /**  Full replacement for the tag's doclink URLs (empty vec clears). */
-    doclinks?: string[] | null;
 };
 /**
  *  Generic `{id, patch}` update envelope, parameterized by the patch type. Specta
@@ -2830,7 +2885,21 @@ export type Rename<T, Map extends Record<string, string>> = {
 export type Variant<U, V extends U[D], D extends keyof U = "type" & keyof U> = Extract<U, Record<D, V>>;
 
 /** A field definition with every optional attribute spelled absent. */
-declare function createFieldDef(type: ExtraFieldType, over?: Partial<Omit<ExtraFieldDef, "type">>): ExtraFieldDef;
+declare function createFieldDef(type: FieldType, over?: Partial<Omit<FieldDef, "type">>): FieldDef;
+/** A tag's display identity: name, color, sidebar order, and document links. */
+export interface Tag {
+    id: number;
+    name: string;
+    color: string;
+    /** True while at least one location carries the tag. */
+    visible: boolean;
+    order: number | null;
+    doclinks: string[];
+}
+/** Partial update to a tag's editable display metadata; `null` clears the field. */
+export type TagPatch = {
+    [K in "name" | "color" | "doclinks"]?: Tag[K] | null;
+};
 /** Street View camera orientation (POV). @unstable */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
 /** A view on a specific panorama. @unstable */
@@ -2921,6 +2990,10 @@ export type types_SvCoverageType = SvCoverageType;
 /** @unstable */
 export type types_SvThickness = SvThickness;
 /** @unstable */
+export type types_Tag = Tag;
+/** @unstable */
+export type types_TagPatch = TagPatch;
+/** @unstable */
 export type types_TagSortMode = TagSortMode;
 /** @unstable */
 export type types_WorkArea = WorkArea;
@@ -2949,7 +3022,7 @@ declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare const types_setPinned: typeof setPinned;
 declare namespace types {
   export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
-  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_Tag as Tag, types_TagPatch as TagPatch, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
 /** An [r, g, b] byte tuple. */
@@ -3233,6 +3306,22 @@ declare const filterIsLocalTime: (test: FilterOp) => boolean;
 /** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
  *  operators are marked for translation. @unstable */
 declare const OP_LABELS: Record<FilterOpKind, string>;
+/** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+ *  else, so there is no tag selector to build. @unstable */
+declare const tagSelector: (tagId: number) => Selector;
+/** Locations with no tags: `tags` resolves to nothing on an untagged row. @unstable */
+declare const untaggedSelector: () => Selector;
+/** Locations whose heading was never set. @unstable */
+declare const unpannedSelector: () => Selector;
+/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
+ *  `Selector::pano_ids`), or the locations not pinned. @unstable */
+declare function panoIdSelector(on: boolean): Selector;
+/** The tag a selector names, or null when it names something else. The single place that
+ *  recognises tag membership, so nothing else has to know its shape. @unstable */
+declare function tagIdOf(selector: Selector): number | null;
+/** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
+ *  inversion (`false`), or something else (`null`). Display-only shape recognition. @unstable */
+declare function panoIdOf(selector: Selector): boolean | null;
 /** Deterministic color derived from a selection key string. @unstable */
 declare function colorForKey(key: string): RGB;
 /** Key an id list by hashing it: the same ids in the same order give the same key.
@@ -3381,6 +3470,10 @@ declare const selectionOps_locationsKey: typeof locationsKey;
 /** @unstable */
 declare const selectionOps_not: typeof not;
 /** @unstable */
+declare const selectionOps_panoIdOf: typeof panoIdOf;
+/** @unstable */
+declare const selectionOps_panoIdSelector: typeof panoIdSelector;
+/** @unstable */
 declare const selectionOps_removeFromComposite: typeof removeFromComposite;
 /** @unstable */
 declare const selectionOps_removeSelection: typeof removeSelection;
@@ -3399,6 +3492,10 @@ declare const selectionOps_setPolygonName: typeof setPolygonName;
 /** @unstable */
 declare const selectionOps_setSelectionColors: typeof setSelectionColors;
 /** @unstable */
+declare const selectionOps_tagIdOf: typeof tagIdOf;
+/** @unstable */
+declare const selectionOps_tagSelector: typeof tagSelector;
+/** @unstable */
 declare const selectionOps_toggleGhost: typeof toggleGhost;
 /** @unstable */
 declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
@@ -3407,9 +3504,13 @@ declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 /** @unstable */
 declare const selectionOps_unionSelections: typeof unionSelections;
 /** @unstable */
+declare const selectionOps_unpannedSelector: typeof unpannedSelector;
+/** @unstable */
+declare const selectionOps_untaggedSelector: typeof untaggedSelector;
+/** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_not as not, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_batch as batch, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_composeSiblings as composeSiblings, selectionOps_composeWithChild as composeWithChild, selectionOps_decomposeChild as decomposeChild, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_isolateGhostKeys as isolateGhostKeys, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_not as not, selectionOps_panoIdOf as panoIdOf, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeFromComposite as removeFromComposite, selectionOps_removeSelection as removeSelection, selectionOps_reorderSelections as reorderSelections, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_sampleIds as sampleIds, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColors as setSelectionColors, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPatch as SelectionPatch, selectionOps_SelectionState as SelectionState, selectionOps_UnaryType as UnaryType };
 }
 
@@ -3442,15 +3543,25 @@ export interface UiState {
     activePluginId: string | null;
 }
 export type MapState = UiState & EngineState;
+/** Per-tag location counts: `valueCounts.tags` re-keyed by numeric id. */
+declare const getTagCounts: () => Record<number, number>;
+/** The tag view: `valueMeta.tags` piles dressed over the counts, recomputed only when
+ *  either slice moves. A tag is visible exactly while something carries it (count > 0);
+ *  a value present in data without metadata (foreign import) shows under a derived
+ *  name/color; emptied metadata lingers dark until its name is reused. */
+declare const getTags: () => Record<number, Tag>;
 /** Reactive slice of the map state. Re-renders only when the selected value's
  *  reference changes (`Object.is`), so selectors must return state fields or
  *  memoized values, not a new value per call. */
 declare function useMapState<T>(selector: (s: MapState) => T): T;
 /** Imperative snapshot of the map state. */
 declare function getMapState(): Readonly<MapState>;
-/** Tags that exist from the user's point of view. The raw `tags` state also holds deleted tags. */
+/** Tags that exist from the user's point of view: the ones something carries. Raw
+ *  `tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
+ *  should enumerate those. */
 declare const getVisibleTags: () => Tag[];
-/** The tag with this id, including a deleted one, so an old reference still resolves to a name. */
+/** Raw by-id tag lookup — includes dark metadata ghosts so stale references
+ *  (e.g. a selection whose tag just died) still resolve to a name. */
 declare function getTag(id: number): Tag | undefined;
 /** Tag names for the given ids, skipping any that no longer resolve. */
 declare function tagIdsToNames(ids: number[]): string[];
@@ -3510,7 +3621,7 @@ declare function patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Prom
 /** `patchMapMeta` for the map open in this window. */
 declare function updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined;
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
-declare function setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>;
+declare function setMapExtraFields(fields: Record<string, FieldDef>): Promise<void>;
 /** Decode a selection bitmask and draw it on the map. @unstable */
 declare function emitBitmask(bytes: number[]): void;
 /** Run a mutation, apply its result to the map, and schedule a save. A result that wraps its
@@ -3613,24 +3724,25 @@ declare function setWorkArea(area: WorkArea): void;
 declare function setPluginMode(pluginId: string): void;
 /** Close the plugin sidebar and return to the overview. */
 declare function exitPluginMode(): void;
-/** Get-or-create tags by name. Existing tags are returned as-is; new names get
- *  auto-generated colors. Pass `selector` to assign the tags to those locations
- *  atomically. Emits `tag:add`. */
+/** Get-or-create tags by name (case-insensitive; ids are allocated by the store) and
+ *  return them in request order. Pass `selector` to also put the tags on those
+ *  locations. Emits `tag:add`. */
 declare function createTags(names: string[], selector?: Selector): Promise<Tag[]>;
-/** Rename or recolor tags. If a rename collides with an existing tag name
- *  (case-insensitive), the two tags are merged and all locations move
- *  to the surviving tag. */
+/** Rename or recolor tags. A rename colliding with an existing tag name
+ *  (case-insensitive) merges the two: every location is remapped to the survivor
+ *  (undoable) and the emptied source's metadata goes dark. */
 declare function updateTags(updates: Update<TagPatch>[]): Promise<void>;
-/** Delete tags and strip them from all locations. Undoable. Emits `tag:remove`. */
+/** Delete tags: strip them from every location in one undoable mutation. The emptied
+ *  metadata goes dark (count 0 hides it); undo restores the rows and the tags with
+ *  them. Emits `tag:remove`. */
 declare function deleteTags(tagIds: number[]): Promise<void>;
 /** Persist a new tag display order. */
 declare function reorderTags(orderedIds: number[]): Promise<void>;
-/** Add a tag to locations (skips ones that already have it). Undoable. */
-declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<void>;
-/** Remove a tag from the given locations. Undoable. */
-declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void>;
-/** Remove a tag from every location that has it. Undoable. */
-declare function removeTagFromAllLocations(tagId: number): Promise<void>;
+/** Put `add` on every location the selector resolves to and strip `remove` from them,
+ *  in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
+ *  list-valued field, so this is the same `listSet` any `array` field takes. Locations
+ *  already in the requested state are untouched; `add` wins for a tag in both lists. */
+declare function setTags(add: number[], remove: number[], selector: Selector): Promise<void> | Promise<FieldOpResult>;
 /** Undo the last edit. */
 declare function undo(): Promise<void>;
 /** Redo the last undone edit. */
@@ -3646,7 +3758,6 @@ export type store_MapState = MapState;
 export type store_UiState = UiState;
 declare const store_addLocations: typeof addLocations;
 declare const store_addSelections: typeof addSelections;
-declare const store_addTagToLocations: typeof addTagToLocations;
 /** @unstable */
 declare const store_applyFieldOp: typeof applyFieldOp;
 /** @unstable */
@@ -3680,6 +3791,8 @@ declare const store_flushSave: typeof flushSave;
 declare const store_getActiveSelections: typeof getActiveSelections;
 declare const store_getMapState: typeof getMapState;
 declare const store_getTag: typeof getTag;
+declare const store_getTagCounts: typeof getTagCounts;
+declare const store_getTags: typeof getTags;
 declare const store_getVisibleTags: typeof getVisibleTags;
 /** @unstable */
 declare const store_holdAutosave: typeof holdAutosave;
@@ -3706,8 +3819,6 @@ declare const store_redo: typeof redo;
 declare const store_removeDuplicate: typeof removeDuplicate;
 declare const store_removeLocations: typeof removeLocations;
 declare const store_removeSelections: typeof removeSelections;
-declare const store_removeTagFromAllLocations: typeof removeTagFromAllLocations;
-declare const store_removeTagFromLocations: typeof removeTagFromLocations;
 declare const store_renameField: typeof renameField;
 declare const store_reorderTags: typeof reorderTags;
 declare const store_resetSelections: typeof resetSelections;
@@ -3729,6 +3840,7 @@ declare const store_setMapExtraFields: typeof setMapExtraFields;
 declare const store_setPluginMode: typeof setPluginMode;
 /** @unstable */
 declare const store_setSelectedLocationIds: typeof setSelectedLocationIds;
+declare const store_setTags: typeof setTags;
 /** @unstable */
 declare const store_setWorkArea: typeof setWorkArea;
 declare const store_tagIdsToNames: typeof tagIdsToNames;
@@ -3740,7 +3852,7 @@ declare const store_useMapState: typeof useMapState;
 /** @unstable */
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addSelections as addSelections, store_addTagToLocations as addTagToLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_removeTagFromAllLocations as removeTagFromAllLocations, store_removeTagFromLocations as removeTagFromLocations, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addSelections as addSelections, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_renameField as renameField, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState, store_UiState as UiState };
 }
 
@@ -6043,7 +6155,7 @@ export interface EnrichFieldOption {
     defaultOff?: boolean;
 }
 /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
-declare function knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>;
+declare function knownFieldDefs(...keys: string[]): Record<string, FieldDef>;
 /** All enrichment field options (core and plugin-registered). @unstable */
 declare function getEnrichFieldOptions(): EnrichFieldOption[];
 /** Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates. */
@@ -6080,7 +6192,7 @@ export interface Provider<TCollected = unknown, TConfig = unknown> {
     /** The procedure that computes this provider's fields. @unstable */
     procedure: ProcedureSpec<TCollected, TConfig>;
     /** Extra-field keys this provider produces. @unstable */
-    fieldDefs?: Record<string, ExtraFieldDef>;
+    fieldDefs?: Record<string, FieldDef>;
     /** Core columns this provider writes (e.g. `panoId`). @unstable */
     provides?: string[];
     /** Fields this provider reads; it runs after their producers finish. @unstable */
@@ -6141,20 +6253,24 @@ declare function isListableField(key: string): boolean;
 /** All built-in field keys (excluding virtual). @unstable */
 declare function getBuiltinKeys(): string[];
 /** Register field definitions from an enrichment provider (called at activation). */
-declare function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void;
+declare function registerPluginFieldDefs(defs: Record<string, FieldDef>): void;
 /** Remove plugin field definitions by key (called when a plugin is deactivated). */
 declare function unregisterPluginFieldDefs(keys: string[]): void;
 /** Keys some location on this map carries. Same reference until the user layer moves. */
 declare const getKnownFieldKeys: () => ReadonlySet<string>;
 /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
-declare function getFieldDef(key: string): ExtraFieldDef | undefined;
+declare function getFieldDef(key: string): FieldDef | undefined;
 /** Translated display label for a field key, falling back to a sentence-cased version of the key. */
 declare function fieldLabel(key: string): string;
 /** Display label for a field value. Enum values use their translated display name. */
-declare function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string;
+declare function fieldValueLabel(def: FieldDef | undefined, value: unknown): string;
+/** The value space a field declares, as bare strings. Distinct from the store's
+ *  `fieldValues`, which reports the values actually present in the data. */
+declare function declaredValues(def: FieldDef | undefined): string[] | null;
 /** Merged view of all field definitions across all layers. */
-declare function getAllFieldDefs(): Record<string, ExtraFieldDef>;
+declare function getAllFieldDefs(): Record<string, FieldDef>;
 
+declare const fieldDefRegistry_declaredValues: typeof declaredValues;
 declare const fieldDefRegistry_fieldLabel: typeof fieldLabel;
 declare const fieldDefRegistry_fieldValueLabel: typeof fieldValueLabel;
 declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
@@ -6173,6 +6289,7 @@ declare const fieldDefRegistry_registerPluginFieldDefs: typeof registerPluginFie
 declare const fieldDefRegistry_unregisterPluginFieldDefs: typeof unregisterPluginFieldDefs;
 declare namespace fieldDefRegistry {
   export {
+    fieldDefRegistry_declaredValues as declaredValues,
     fieldDefRegistry_fieldLabel as fieldLabel,
     fieldDefRegistry_fieldValueLabel as fieldValueLabel,
     fieldDefRegistry_getAllFieldDefs as getAllFieldDefs,
@@ -6196,11 +6313,11 @@ export interface FieldProjection {
     needsTz: boolean;
 }
 /** Projections valid for a field type, in display order (first = dialog default). @unstable */
-declare function projectionsForType(type: ExtraFieldType): FieldProjection[];
+declare function projectionsForType(type: FieldType): FieldProjection[];
 /** The "Range" partition option (numeric binning). @unstable */
 declare const RANGE_ID = "range";
 /** Partition-key dropdown options for a field type. @unstable */
-declare function partitionKeyOptions(type: ExtraFieldType, rangeForDates: boolean): {
+declare function partitionKeyOptions(type: FieldType, rangeForDates: boolean): {
     id: string;
     label: string;
 }[];
@@ -7120,10 +7237,6 @@ declare function getActiveLocation(): Location | null;
 declare function getSelectedLocationIds(): SelectedIds;
 /** @deprecated v0.8.2. Read `MMA.getMapState().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
-/** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. @unstable */
-declare function getTagCounts(): {
-    [x: number]: number;
-};
 /** @deprecated v0.8.2. Read `MMA.getMapState().selections`. @unstable */
 declare function getAllSelections(): Selection[];
 /** @deprecated v0.8.2. Read `MMA.getMapState().ghostedSelections`. @unstable */
@@ -7145,14 +7258,22 @@ declare function registerEnrichmentProvider(provider: Provider): void;
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
  *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
  *  plugin-owned defs. @unstable */
-declare function setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>;
+declare function setUserFieldDefs(defs: Record<string, FieldDef>): Promise<void>;
 /** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
 declare function createPluginStorage(id: string): PluginStorage;
 /** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
 declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
 /** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
 declare function installedVersion(pluginId: string): Promise<string | null>;
+/** @deprecated v0.10.5. Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`. @unstable */
+declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<FieldOpResult>;
+/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`. @unstable */
+declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<FieldOpResult>;
+/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`. @unstable */
+declare function removeTagFromAllLocations(tagId: number): Promise<void> | Promise<FieldOpResult>;
 
+/** @unstable */
+declare const legacy_addTagToLocations: typeof addTagToLocations;
 /** @unstable */
 declare const legacy_createPluginStorage: typeof createPluginStorage;
 /** @unstable */
@@ -7182,13 +7303,15 @@ declare const legacy_getSelectedLocationIds: typeof getSelectedLocationIds;
 /** @unstable */
 declare const legacy_getSelections: typeof getSelections;
 /** @unstable */
-declare const legacy_getTagCounts: typeof getTagCounts;
-/** @unstable */
 declare const legacy_getWorkArea: typeof getWorkArea;
 /** @unstable */
 declare const legacy_installedVersion: typeof installedVersion;
 /** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
+/** @unstable */
+declare const legacy_removeTagFromAllLocations: typeof removeTagFromAllLocations;
+/** @unstable */
+declare const legacy_removeTagFromLocations: typeof removeTagFromLocations;
 /** @unstable */
 declare const legacy_request: typeof request;
 /** @unstable */
@@ -7197,6 +7320,7 @@ declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
+    legacy_addTagToLocations as addTagToLocations,
     legacy_createPluginStorage as createPluginStorage,
     legacy_fetchAllLocations as fetchAllLocations,
     legacy_fetchLocation as fetchLocation,
@@ -7211,10 +7335,11 @@ declare namespace legacy {
     legacy_getGoogleMap as getGoogleMap,
     legacy_getSelectedLocationIds as getSelectedLocationIds,
     legacy_getSelections as getSelections,
-    legacy_getTagCounts as getTagCounts,
     legacy_getWorkArea as getWorkArea,
     legacy_installedVersion as installedVersion,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
+    legacy_removeTagFromAllLocations as removeTagFromAllLocations,
+    legacy_removeTagFromLocations as removeTagFromLocations,
     legacy_request as request,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_waitForGoogleMap as waitForGoogleMap,
@@ -7460,5 +7585,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, ExtraFieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
-export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CreatedTags, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, ExtraFieldDef, FieldCount, FieldOp, FieldOpResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Tag, TagPatch, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MergeWinner, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, Sink, VIRTUAL_FLAGS, ValidationState, commands$1 as commands, events };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, CellRemoval, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RenderDelta, RenderEntry, RenderPatchEntry, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SaveResult, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, SelPaint, Selection, SelectionInput, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncPatch, SyncReconcileResult, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

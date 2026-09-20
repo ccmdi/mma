@@ -2855,6 +2855,7 @@ fn tag_filter(tag_id: u32) -> Selector {
 fn only_enumerable_types_are_indexable() {
     use crate::store::maps::FieldType;
     assert_eq!(FieldType::Enum.index_shape(), IndexShape::Scalar);
+    assert_eq!(FieldType::Boolean.index_shape(), IndexShape::Scalar);
     assert_eq!(FieldType::Array.index_shape(), IndexShape::Multi);
     for t in [
         FieldType::String,
@@ -2951,6 +2952,43 @@ fn a_range_operator_is_not_an_index_lookup() {
         },
     };
     assert_eq!(resolved(&store, &ranged), vec![1]);
+}
+
+fn flag_filter(on: bool) -> Selector {
+    Selector::Filter {
+        field: "loadAsPanoId".into(),
+        test: selections::FilterOp::Eq {
+            value: serde_json::json!(on),
+        },
+    }
+}
+
+#[test]
+fn a_boolean_field_answers_from_the_postings_over_stored_and_overlay_rows() {
+    let mut store = setup_store_with(&[
+        Location {
+            flags: LocationFlags::LOAD_AS_PANO_ID,
+            ..loc(1, 10.0, 20.0)
+        },
+        loc(2, 10.1, 20.1),
+    ]);
+    store.bake_overlay();
+    store.overlay_add(vec![
+        Location {
+            flags: LocationFlags::LOAD_AS_PANO_ID,
+            ..loc(3, 10.2, 20.2)
+        },
+        loc(4, 10.3, 20.3),
+    ]);
+    store.ensure_indexes_for(&flag_filter(true));
+
+    assert_eq!(store.index_shape_of("loadAsPanoId"), IndexShape::Scalar);
+    assert_eq!(
+        store.value_counts("loadAsPanoId").get("true").copied(),
+        Some(2)
+    );
+    assert_eq!(resolved(&store, &flag_filter(true)), vec![1, 3]);
+    assert_eq!(resolved(&store, &flag_filter(false)), vec![2, 4]);
 }
 
 // -----------------------------------------------------------------------
@@ -4892,23 +4930,29 @@ fn set_op_toggles_a_flag_field_bit_and_keeps_the_others() {
             ..loc(2, 1.0, 1.0)
         },
     ];
-    let on = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(1)));
+    let on = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(true)));
     assert_eq!(on.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
     assert_eq!(
         on[0].patch.flags,
         Some((informational | LocationFlags::LOAD_AS_PANO_ID).bits())
     );
     assert!(on[0].patch.extra.is_none());
-    let off = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(0)));
+    let off = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(false)));
     assert_eq!(off.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2]);
     assert_eq!(off[0].patch.flags, Some(0));
 }
 
 #[test]
-fn a_flag_field_takes_only_zero_or_one() {
+fn a_flag_field_takes_only_true_or_false() {
     let locs = [loc(1, 1.0, 1.0), loc_with_extra(2, r#"{"a":1}"#)];
-    let err = plan_err(&locs, &set_op("loadAsPanoId", serde_json::json!(2)));
-    assert!(err.contains("takes 0 or 1"), "{err}");
+    for value in [
+        serde_json::json!(2),
+        serde_json::json!(1),
+        serde_json::json!("true"),
+    ] {
+        let err = plan_err(&locs, &set_op("loadAsPanoId", value));
+        assert!(err.contains("takes true or false"), "{err}");
+    }
     let out = plan_full(&locs, &expr_op("loadAsPanoId", "id * 2"));
     assert_eq!(out.failed, vec![1, 2]);
     assert!(out.updates.is_empty());
@@ -5151,6 +5195,29 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
     .unwrap();
     assert_eq!(out.changed, 1);
     assert_eq!(out.failed, vec![2, 3]);
+}
+
+#[test]
+fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
+    let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
+    for on in [true, false] {
+        let out = apply_field_op(
+            &mut store,
+            &Selector::Everything,
+            &set_op("loadAsPanoId", serde_json::json!(on)),
+            false,
+        )
+        .unwrap();
+        assert_eq!(out.changed, 1);
+        assert_eq!(
+            store
+                .get_loc_by_id(1)
+                .unwrap()
+                .flags
+                .contains(LocationFlags::LOAD_AS_PANO_ID),
+            on
+        );
+    }
 }
 
 #[test]

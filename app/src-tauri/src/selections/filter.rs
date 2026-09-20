@@ -221,13 +221,12 @@ pub fn optional_builtins() -> &'static [&'static str] {
     })
 }
 
-/// Flags read as 0/1 numbers: the expression language has no booleans, so a flag term
-/// adds itself to a score directly.
+/// A flag bit as the boolean its field holds.
 fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
-    serde_json::json!(u8::from(flags.contains(bit)))
+    serde_json::Value::Bool(flags.contains(bit))
 }
 
-/// The flag bit a built-in field reads and writes as 0/1.
+/// The flag bit a built-in field reads and writes as a boolean.
 pub fn flag_field(field: &str) -> Option<LocationFlags> {
     (field == "loadAsPanoId").then_some(LocationFlags::LOAD_AS_PANO_ID)
 }

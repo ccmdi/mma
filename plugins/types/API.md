@@ -68,11 +68,20 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 ```ts
 BUILTIN_FIELDS: readonly [
   {
+    readonly key: "id";
+    readonly label: "ID";
+    readonly type: "number";
+    readonly kind: "identity";
+    readonly comparison: null;
+    readonly interned: false;
+  },
+  {
     readonly key: "lat";
     readonly label: "Latitude";
     readonly type: "number";
     readonly kind: "identity";
     readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "lng";
@@ -80,6 +89,7 @@ BUILTIN_FIELDS: readonly [
     readonly type: "number";
     readonly kind: "identity";
     readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "heading";
@@ -87,6 +97,7 @@ BUILTIN_FIELDS: readonly [
     readonly type: "number";
     readonly kind: "writable";
     readonly comparison: { readonly type: "circular"; readonly period: 360 };
+    readonly interned: false;
   },
   {
     readonly key: "pitch";
@@ -94,6 +105,7 @@ BUILTIN_FIELDS: readonly [
     readonly type: "number";
     readonly kind: "writable";
     readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "zoom";
@@ -101,27 +113,7 @@ BUILTIN_FIELDS: readonly [
     readonly type: "number";
     readonly kind: "writable";
     readonly comparison: null;
-  },
-  {
-    readonly key: "id";
-    readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-  },
-  {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-  },
-  {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "panoId";
@@ -129,6 +121,31 @@ BUILTIN_FIELDS: readonly [
     readonly type: "string";
     readonly kind: null;
     readonly comparison: null;
+    readonly interned: false;
+  },
+  {
+    readonly key: "tags";
+    readonly label: "Tags";
+    readonly type: "array";
+    readonly kind: "writable";
+    readonly comparison: null;
+    readonly interned: true;
+  },
+  {
+    readonly key: "createdAt";
+    readonly label: "Created";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+    readonly interned: false;
+  },
+  {
+    readonly key: "modifiedAt";
+    readonly label: "Modified";
+    readonly type: "date";
+    readonly kind: null;
+    readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "tagCount";
@@ -136,13 +153,15 @@ BUILTIN_FIELDS: readonly [
     readonly type: "number";
     readonly kind: "virtual";
     readonly comparison: null;
+    readonly interned: false;
   },
   {
     readonly key: "loadAsPanoId";
     readonly label: "Load as pano ID";
-    readonly type: "number";
+    readonly type: "boolean";
     readonly kind: "writable";
     readonly comparison: null;
+    readonly interned: false;
   },
 ]
 ```
@@ -244,16 +263,18 @@ ERROR_CODES: readonly [
 ]
 ```
 
-### ExtraFieldType
+### FieldType
 
-`stable` · since v0.11.0
+`stable` · unreleased
 
 ```ts
-ExtraFieldType: {
+FieldType: {
   /** Text. */
   String: "string";
   /** A number. */
   Number: "number";
+  /** True or false. */
+  Boolean: "boolean";
   /** A point in time. */
   Date: "date";
   /** A year and month. */
@@ -486,7 +507,7 @@ PLAIN_CALLS: readonly [
 PROJECTIONS: readonly [
   {
     readonly id: "value";
-    readonly appliesTo: readonly ["string", "enum", "number", "month"];
+    readonly appliesTo: readonly ["string", "enum", "boolean", "number", "month"];
     readonly needsTz: false;
   },
   {
@@ -622,16 +643,6 @@ addSelections(selectors: Selector[]): Promise<void>
 
 Add selectors to the active selection list.
 
-### addTagToLocations
-
-`stable` · since v0.4.0
-
-```ts
-addTagToLocations(tagId: number, locationIds: number[]): Promise<void>
-```
-
-Add a tag to locations (skips ones that already have it). Undoable.
-
 ### applyFieldOp
 
 `unstable` · since v0.10.0
@@ -752,9 +763,9 @@ How many locations hold a value for each field, key-sorted.
 createTags(names: string[], selector?: Selector): Promise<Tag[]>
 ```
 
-Get-or-create tags by name. Existing tags are returned as-is; new names get
-auto-generated colors. Pass `selector` to assign the tags to those locations
-atomically. Emits `tag:add`.
+Get-or-create tags by name (case-insensitive; ids are allocated by the store) and
+return them in request order. Pass `selector` to also put the tags on those
+locations. Emits `tag:add`.
 
 ### currentSelection
 
@@ -784,7 +795,9 @@ Delete extra-field `key` from every location, its definition, and references.
 deleteTags(tagIds: number[]): Promise<void>
 ```
 
-Delete tags and strip them from all locations. Undoable. Emits `tag:remove`.
+Delete tags: strip them from every location in one undoable mutation. The emptied
+metadata goes dark (count 0 hides it); undo restores the rows and the tags with
+them. Emits `tag:remove`.
 
 ### discardOpenMap
 
@@ -910,7 +923,31 @@ Imperative snapshot of the map state.
 getTag(id: number): Tag | undefined
 ```
 
-The tag with this id, including a deleted one, so an old reference still resolves to a name.
+Raw by-id tag lookup — includes dark metadata ghosts so stale references
+(e.g. a selection whose tag just died) still resolve to a name.
+
+### getTagCounts
+
+`stable` · since v0.4.0
+
+```ts
+getTagCounts(): Record<number, number>
+```
+
+Per-tag location counts: `valueCounts.tags` re-keyed by numeric id.
+
+### getTags
+
+`stable` · unreleased
+
+```ts
+getTags(): Record<number, Tag>
+```
+
+The tag view: `valueMeta.tags` piles dressed over the counts, recomputed only when
+either slice moves. A tag is visible exactly while something carries it (count > 0);
+a value present in data without metadata (foreign import) shows under a derived
+name/color; emptied metadata lingers dark until its name is reused.
 
 ### getVisibleTags
 
@@ -920,7 +957,9 @@ The tag with this id, including a deleted one, so an old reference still resolve
 getVisibleTags(): Tag[]
 ```
 
-Tags that exist from the user's point of view. The raw `tags` state also holds deleted tags.
+Tags that exist from the user's point of view: the ones something carries. Raw
+`tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
+should enumerate those.
 
 ### holdAutosave
 
@@ -1097,26 +1136,6 @@ removeSelections(keys: string[]): Promise<void>
 
 Drop selections by key.
 
-### removeTagFromAllLocations
-
-`stable` · since v0.4.0
-
-```ts
-removeTagFromAllLocations(tagId: number): Promise<void>
-```
-
-Remove a tag from every location that has it. Undoable.
-
-### removeTagFromLocations
-
-`stable` · since v0.4.0
-
-```ts
-removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void>
-```
-
-Remove a tag from the given locations. Undoable.
-
 ### renameField
 
 `stable` · since v0.5.1
@@ -1276,7 +1295,7 @@ with 2+ locations within 2m opens the duplicate-resolution panel instead.
 `stable` · since v0.4.0
 
 ```ts
-setMapExtraFields(fields: Record<string, ExtraFieldDef>): Promise<void>
+setMapExtraFields(fields: Record<string, FieldDef>): Promise<void>
 ```
 
 Replace the map's extra-field definitions (types/labels for `Location.extra` keys).
@@ -1300,6 +1319,23 @@ setSelectedLocationIds(ids: SelectedIds): void
 ```
 
 Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
+
+### setTags
+
+`stable` · unreleased
+
+```ts
+setTags(
+  add: number[],
+  remove: number[],
+  selector: Selector,
+): Promise<void> | Promise<FieldOpResult>
+```
+
+Put `add` on every location the selector resolves to and strip `remove` from them,
+in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
+list-valued field, so this is the same `listSet` any `array` field takes. Locations
+already in the requested state are untouched; `add` wins for a tag in both lists.
 
 ### setWorkArea
 
@@ -1377,9 +1413,9 @@ updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined
 updateTags(updates: Update<TagPatch>[]): Promise<void>
 ```
 
-Rename or recolor tags. If a rename collides with an existing tag name
-(case-insensitive), the two tags are merged and all locations move
-to the surviving tag.
+Rename or recolor tags. A rename colliding with an existing tag name
+(case-insensitive) merges the two: every location is remapped to the survivor
+(undoable) and the emptied source's metadata goes dark.
 
 ### useMapState
 
@@ -2457,7 +2493,7 @@ True when `key` is in the given enrichment set (or in the default set when null)
 `stable` · since v0.10.3
 
 ```ts
-knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef>
+knownFieldDefs(...keys: string[]): Record<string, FieldDef>
 ```
 
 Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
@@ -2498,6 +2534,17 @@ Remove fields transitively derived from `changed` from an `extra` record.
 
 ## FieldDefRegistry
 
+### declaredValues
+
+`stable` · unreleased
+
+```ts
+declaredValues(def: FieldDef | undefined): string[] | null
+```
+
+The value space a field declares, as bare strings. Distinct from the store's
+`fieldValues`, which reports the values actually present in the data.
+
 ### fieldLabel
 
 `stable` · since v0.10.3
@@ -2513,7 +2560,7 @@ Translated display label for a field key, falling back to a sentence-cased versi
 `stable` · since v0.10.3
 
 ```ts
-fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string
+fieldValueLabel(def: FieldDef | undefined, value: unknown): string
 ```
 
 Display label for a field value. Enum values use their translated display name.
@@ -2523,7 +2570,7 @@ Display label for a field value. Enum values use their translated display name.
 `stable` · since v0.5.0
 
 ```ts
-getAllFieldDefs(): Record<string, ExtraFieldDef>
+getAllFieldDefs(): Record<string, FieldDef>
 ```
 
 Merged view of all field definitions across all layers.
@@ -2543,7 +2590,7 @@ All built-in field keys (excluding virtual).
 `stable` · since v0.5.0
 
 ```ts
-getFieldDef(key: string): ExtraFieldDef | undefined
+getFieldDef(key: string): FieldDef | undefined
 ```
 
 Look up metadata for a field key. Returns `undefined` if no layer declares it.
@@ -2603,7 +2650,7 @@ True when the field can be bulk-edited.
 `stable` · since v0.10.3
 
 ```ts
-registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>): void
+registerPluginFieldDefs(defs: Record<string, FieldDef>): void
 ```
 
 Register field definitions from an enrichment provider (called at activation).
@@ -2951,9 +2998,9 @@ Convert a Bounds object to a [south, west, north, east] tuple.
 
 ```ts
 createFieldDef(
-  type: ExtraFieldType,
-  over?: Partial<Omit<ExtraFieldDef, "type">>,
-): ExtraFieldDef
+  type: FieldType,
+  over?: Partial<Omit<FieldDef, "type">>,
+): FieldDef
 ```
 
 A field definition with every optional attribute spelled absent.
@@ -3372,6 +3419,28 @@ OP_LABELS: Record<
 >
 ```
 
+### panoIdOf
+
+`unstable` · unreleased
+
+```ts
+panoIdOf(selector: Selector): boolean | null
+```
+
+Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
+inversion (`false`), or something else (`null`). Display-only shape recognition.
+
+### panoIdSelector
+
+`unstable` · unreleased
+
+```ts
+panoIdSelector(on: boolean): Selector
+```
+
+Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
+`Selector::pano_ids`), or the locations not pinned.
+
 ### removeFromComposite
 
 `unstable` · since v0.10.3
@@ -3468,11 +3537,6 @@ SELECTIONS: {
   Locations: SelectionDescriptor<"Locations">;
   Everything: SelectionDescriptor<"Everything">;
   Polygon: SelectionDescriptor<"Polygon">;
-  Tag: SelectionDescriptor<"Tag">;
-  Untagged: SelectionDescriptor<"Untagged">;
-  Unpanned: SelectionDescriptor<"Unpanned">;
-  PanoIds: SelectionDescriptor<"PanoIds">;
-  NotPanoIds: SelectionDescriptor<"NotPanoIds">;
   Uncommitted: SelectionDescriptor<"Uncommitted">;
   Manual: SelectionDescriptor<"Manual">;
   Duplicates: SelectionDescriptor<"Duplicates">;
@@ -3510,6 +3574,28 @@ setSelectionColors(entries: Selection[]): (current: Selection[]) => Selection[]
 ```
 
 Update the colors of selections by matching keys from `entries`.
+
+### tagIdOf
+
+`unstable` · unreleased
+
+```ts
+tagIdOf(selector: Selector): number | null
+```
+
+The tag a selector names, or null when it names something else. The single place that
+recognises tag membership, so nothing else has to know its shape.
+
+### tagSelector
+
+`unstable` · unreleased
+
+```ts
+tagSelector(tagId: number): Selector
+```
+
+Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+else, so there is no tag selector to build.
 
 ### toggleGhost
 
@@ -3565,6 +3651,26 @@ unionSelections(
 ```
 
 Merge the targeted selections (or all, when `keys` is null) into a single Union.
+
+### unpannedSelector
+
+`unstable` · unreleased
+
+```ts
+unpannedSelector(): Selector
+```
+
+Locations whose heading was never set.
+
+### untaggedSelector
+
+`unstable` · unreleased
+
+```ts
+untaggedSelector(): Selector
+```
+
+Locations with no tags: `tags` resolves to nothing on an untagged row.
 
 ### withChildren
 
@@ -5735,17 +5841,6 @@ cmd.storeCreateMap(name: string, folder: string | null): Promise<MapMeta>
 
 Create a new empty map with default settings. Returns the full metadata.
 
-#### cmd.storeCreateTags
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeCreateTags(names: string[], selector: Selector): Promise<CreatedTags>
-```
-
-Create tags by name and assign them to the locations matched by `selector`.
-Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
-
 #### cmd.storeDbStats
 
 `unstable` · since v0.4.0
@@ -5785,16 +5880,6 @@ cmd.storeDeleteSavedSelection(id: string): Promise<null>
 ```
 
 Delete a saved selection rule by `id`.
-
-#### cmd.storeDeleteTags
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeDeleteTags(tagIds: number[]): Promise<MutationResult>
-```
-
-Remove tags and strip them from all locations that carry them. Undoable.
 
 #### cmd.storeDuplicateGroups
 
@@ -6070,8 +6155,23 @@ Batch form for probing many coordinates at once.
 cmd.storeOpenMap(mapId: string): Promise<StoreStatus>
 ```
 
-Open a map and return its initial state (tag counts, undo/redo availability).
+Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
 Must be called before any other store commands.
+
+#### cmd.storePatchFieldValues
+
+`unstable` · unreleased
+
+```ts
+cmd.storePatchFieldValues(
+  field: string,
+  patch: FieldValuesPatch,
+): Promise<FieldValuesResult>
+```
+
+Patch an interned field's value metadata: get-or-create names, edit display
+metadata, reorder. Metadata only - membership writes go through the ordinary
+`listSet` field op. `tags` is the first (and so far only) interned field.
 
 #### cmd.storePruneDuplicates
 
@@ -6117,16 +6217,6 @@ cmd.storeRenameFolder(from: string, to: string): Promise<null>
 ```
 
 Rename a folder across all maps that reference it.
-
-#### cmd.storeReorderTags
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeReorderTags(orderedIds: number[]): Promise<MutationResult>
-```
-
-Set the display order of tags. Each tag's position is its index in `orderedIds`.
 
 #### cmd.storeResolve
 
@@ -6419,17 +6509,6 @@ cmd.storeUpdateMapMeta(
 
 Apply a partial update to a map's metadata. Omitted fields are left unchanged.
 Returns a mutation result when the open map's field definitions changed.
-
-#### cmd.storeUpdateTags
-
-`unstable` · since v0.6.7
-
-```ts
-cmd.storeUpdateTags(updates: Update<TagPatch>[]): Promise<MutationResult>
-```
-
-Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
-merges the two tags.
 
 #### cmd.storeUploadAbort
 
@@ -6914,7 +6993,7 @@ The keys a field can be grouped by.
 
 ```ts
 partitionKeyOptions(
-  type: ExtraFieldType,
+  type: FieldType,
   rangeForDates: boolean,
 ): {
   id: string;
@@ -6929,7 +7008,7 @@ Partition-key dropdown options for a field type.
 `unstable` · since v0.10.3
 
 ```ts
-projectionsForType(type: ExtraFieldType): FieldProjection[]
+projectionsForType(type: FieldType): FieldProjection[]
 ```
 
 Projections valid for a field type, in display order (first = dialog default).
@@ -7623,7 +7702,7 @@ exactDateProvider: {
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
   /** Extra-field keys this provider produces. */
-  fieldDefs: Record<string, ExtraFieldDef> | undefined;
+  fieldDefs: Record<string, FieldDef> | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7646,7 +7725,7 @@ panoResolveProvider: {
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<{ panoId: string }, PanoResolveConfig>;
   /** Extra-field keys this provider produces. */
-  fieldDefs: Record<string, ExtraFieldDef> | undefined;
+  fieldDefs: Record<string, FieldDef> | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7669,7 +7748,7 @@ subdivisionProvider: {
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
   /** Extra-field keys this provider produces. */
-  fieldDefs: Record<string, ExtraFieldDef> | undefined;
+  fieldDefs: Record<string, FieldDef> | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7692,7 +7771,7 @@ svMetaProvider: {
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
   /** Extra-field keys this provider produces. */
-  fieldDefs: Record<string, ExtraFieldDef> | undefined;
+  fieldDefs: Record<string, FieldDef> | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7715,7 +7794,7 @@ timezoneProvider: {
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
   /** Extra-field keys this provider produces. */
-  fieldDefs: Record<string, ExtraFieldDef> | undefined;
+  fieldDefs: Record<string, FieldDef> | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -8336,6 +8415,19 @@ Copy of `set` with `value` toggled, or forced on/off by `on`.
 
 Shims for removed APIs.
 
+### addTagToLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+addTagToLocations(
+  tagId: number,
+  locationIds: number[],
+): Promise<void> | Promise<FieldOpResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`.
+
 ### createPluginStorage
 
 `unstable` · `deprecated` · since v0.10.3
@@ -8476,18 +8568,6 @@ getSelections(): Selection[]
 
 **Deprecated in v0.8.2.** Use `MMA.getActiveSelections()`.
 
-### getTagCounts
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getTagCounts(): {
-  [x: number]: number;
-}
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().tagCounts`.
-
 ### getWorkArea
 
 `unstable` · `deprecated` · since v0.4.0
@@ -8518,6 +8598,29 @@ registerEnrichmentProvider(provider: Provider): void
 
 **Deprecated in v0.10.2.** Use `MMA.registerProvider()`.
 
+### removeTagFromAllLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+removeTagFromAllLocations(tagId: number): Promise<void> | Promise<FieldOpResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`.
+
+### removeTagFromLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+removeTagFromLocations(
+  tagId: number,
+  locationIds: number[],
+): Promise<void> | Promise<FieldOpResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`.
+
 ### request
 
 `unstable` · `deprecated` · since v0.10.3
@@ -8538,7 +8641,7 @@ request<T>(
 `unstable` · `deprecated` · since v0.10.3
 
 ```ts
-setUserFieldDefs(defs: Record<string, ExtraFieldDef>): Promise<void>
+setUserFieldDefs(defs: Record<string, FieldDef>): Promise<void>
 ```
 
 **Deprecated in v0.10.5.** The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);

@@ -263,7 +263,7 @@ impl Selector {
             Selector::Filter {
                 field: "loadAsPanoId".into(),
                 test: FilterOp::Eq {
-                    value: serde_json::json!(1),
+                    value: serde_json::json!(true),
                 },
             },
             Selector::has("panoId"),
