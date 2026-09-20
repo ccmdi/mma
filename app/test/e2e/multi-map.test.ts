@@ -78,7 +78,7 @@ describe("Multi-map isolation", () => {
 
 		await openMap(mapBId);
 		const hasTags = await withApi(async (api) => {
-			const tagNames = Object.values(api.getMapState().tags).map((t: any) => t.name);
+			const tagNames = Object.values(api.getTags()).map((t: any) => t.name);
 			return tagNames.includes("MapA-Only");
 		});
 		expect(hasTags).toBe(false);

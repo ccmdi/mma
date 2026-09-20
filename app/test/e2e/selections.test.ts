@@ -9,6 +9,12 @@ import {
 	seedLocs,
 	selectCount,
 } from "./helpers";
+import {
+	panoIdSelector,
+	tagSelector,
+	unpannedSelector,
+	untaggedSelector,
+} from "@/store/selections";
 
 describe("Selections - basic types", () => {
 	useMap("E2E Selections");
@@ -47,7 +53,7 @@ describe("Selections - basic types", () => {
 
 	it("selectPanoIds selects locations with LoadAsPanoId flag", async () => {
 		const result = await withApi(async (api) => {
-			await api.addSelections([{ type: "PanoIds" }]);
+			await api.addSelections([panoIdSelector(true)]);
 			const sels = api.getActiveSelections();
 			return { count: api.getMapState().selectedLocationIds.size, selCount: sels.length };
 		});
@@ -56,14 +62,14 @@ describe("Selections - basic types", () => {
 	});
 
 	it("selectNotPanoIds selects locations without LoadAsPanoId flag", async () => {
-		const result = await selectCount({ type: "NotPanoIds" });
+		const result = await selectCount(panoIdSelector(false));
 		expect(result).toBe(150);
 	});
 
 	it("PanoIds + NotPanoIds = Everything", async () => {
 		const result = await withApi(async (api) => {
-			await api.addSelections([{ type: "PanoIds" }]);
-			await api.addSelections([{ type: "NotPanoIds" }]);
+			await api.addSelections([panoIdSelector(true)]);
+			await api.addSelections([panoIdSelector(false)]);
 			return api.getMapState().selectedLocationIds.size;
 		});
 		expect(result).toBe(200);
@@ -72,14 +78,14 @@ describe("Selections - basic types", () => {
 	// --- Untagged ---
 
 	it("selectUntagged selects locations with no tags", async () => {
-		const result = await selectCount({ type: "Untagged" });
+		const result = await selectCount(untaggedSelector());
 		expect(result).toBe(80); // indices 120-199 have no tags
 	});
 
 	// --- Unpanned ---
 
 	it("selectUnpanned selects locations with heading=0", async () => {
-		const result = await selectCount({ type: "Unpanned" });
+		const result = await selectCount(unpannedSelector());
 		// All 200 seeded locations have heading=0
 		expect(result).toBe(200);
 	});
@@ -87,12 +93,12 @@ describe("Selections - basic types", () => {
 	// --- Tag selection ---
 
 	it("selectTag selects locations with specific tag", async () => {
-		const result = await selectCount({ type: "Tag", tagId: tagRedId });
+		const result = await selectCount(tagSelector(tagRedId));
 		expect(result).toBe(60);
 	});
 
 	it("selectTag for nonexistent tag selects none", async () => {
-		const result = await selectCount({ type: "Tag", tagId: 999999 });
+		const result = await selectCount(tagSelector(999999));
 		expect(result).toBe(0);
 	});
 
@@ -185,8 +191,8 @@ describe("Selection operations", () => {
 
 	it("intersection of two selections", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.addSelections([{ type: "PanoIds" }]); // 30 (flags=1)
-			await api.addSelections([{ type: "Tag", tagId: tagId }]); // 50 (indices 0-49)
+			await api.addSelections([panoIdSelector(true)]); // 30 (flags=1)
+			await api.addSelections([tagSelector(tagId)]); // 50 (indices 0-49)
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
 			await api.applySelectionUpdate(api.intersectSelections());
 			const sels = api.getActiveSelections();
@@ -197,8 +203,8 @@ describe("Selection operations", () => {
 
 	it("union of two selections", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.addSelections([{ type: "PanoIds" }]); // 30
-			await api.addSelections([{ type: "Tag", tagId: tagId }]); // 50
+			await api.addSelections([panoIdSelector(true)]); // 30
+			await api.addSelections([tagSelector(tagId)]); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
 			await api.applySelectionUpdate(api.unionSelections());
 			return api.getMapState().selectedLocationIds.size;
@@ -208,7 +214,7 @@ describe("Selection operations", () => {
 
 	it("invert selection", async () => {
 		const result = await withApi(async (api) => {
-			await api.addSelections([{ type: "PanoIds" }]); // 30
+			await api.addSelections([panoIdSelector(true)]); // 30
 			await api.applySelectionUpdate(api.invertSelections()); // 100 - 30 = 70
 			return api.getMapState().selectedLocationIds.size;
 		});
@@ -217,8 +223,8 @@ describe("Selection operations", () => {
 
 	it("remove selection by key", async () => {
 		const result = await withApi(async (api, tagId: number) => {
-			await api.addSelections([{ type: "PanoIds" }]);
-			await api.addSelections([{ type: "Tag", tagId: tagId }]);
+			await api.addSelections([panoIdSelector(true)]);
+			await api.addSelections([tagSelector(tagId)]);
 			const before = api.getActiveSelections().length;
 			const key = api.getActiveSelections()[0].key;
 			await api.removeSelections([key]);
@@ -231,9 +237,9 @@ describe("Selection operations", () => {
 
 	it("resetSelections clears all", async () => {
 		await withApi(async (api, tagId: number) => {
-			await api.addSelections([{ type: "PanoIds" }]);
-			await api.addSelections([{ type: "Tag", tagId: tagId }]);
-			await api.addSelections([{ type: "Untagged" }]);
+			await api.addSelections([panoIdSelector(true)]);
+			await api.addSelections([tagSelector(tagId)]);
+			await api.addSelections([untaggedSelector()]);
 		}, tagAId);
 
 		const result = await withApi(async (api) => {
@@ -277,13 +283,13 @@ describe("Selection correctness after mutations", () => {
 		const locsToFlag = [];
 		for (let i = 0; i < 5; i++) locsToFlag.push(await getLoc(locIds[i]));
 		const result = await withApi(async (api, locs) => {
-			await api.addSelections([{ type: "PanoIds" }]);
+			await api.addSelections([panoIdSelector(true)]);
 			const before = api.getMapState().selectedLocationIds.size;
 			for (const l of locs) {
 				await api.updateLocations([{ id: l.id, patch: { flags: 1 } }]);
 			}
 			await api.resetSelections();
-			await api.addSelections([{ type: "PanoIds" }]);
+			await api.addSelections([panoIdSelector(true)]);
 			const after = api.getMapState().selectedLocationIds.size;
 			return { before, after };
 		}, locsToFlag);
@@ -324,7 +330,7 @@ describe("Selection correctness after mutations", () => {
 		const loc0 = await getLoc(locIds[0]);
 		await withApi(async (api, loc) => {
 			await api.resetSelections();
-			await api.addSelections([{ type: "PanoIds" }]);
+			await api.addSelections([panoIdSelector(true)]);
 			await api.updateLocations([{ id: loc.id, patch: { flags: 0 } }]);
 		}, loc0);
 
@@ -348,7 +354,7 @@ describe("Selection correctness after mutations", () => {
 				await api.resetSelections();
 				await api.updateLocations([{ id: l0.id, patch: { tags: [tagId] } }]);
 				await api.updateLocations([{ id: l1.id, patch: { tags: [tagId] } }]);
-				await api.addSelections([{ type: "Tag", tagId: tagId }]);
+				await api.addSelections([tagSelector(tagId)]);
 			},
 			tagLoc0,
 			tagLoc1,

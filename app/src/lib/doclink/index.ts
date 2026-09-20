@@ -1,5 +1,5 @@
-import type { Tag } from "@/bindings.gen";
 import { gdocProvider } from "@/lib/doclink/gdoc";
+import type { Tag } from "@/types";
 
 /** A parsed doclink: which provider, which document, where inside it. */
 export interface DocRef {

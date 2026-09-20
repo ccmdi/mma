@@ -192,7 +192,7 @@ const plainProvider: Provider = {
 	id: "prov",
 	label: "Prov",
 	fieldDefs: {
-		altitude: { type: "number", label: "Altitude", values: null, labels: null, comparison: null },
+		altitude: { type: "number", label: "Altitude", values: null, comparison: null },
 	},
 	procedure: { entry: "res://p.js", batch: { mode: "chunk", size: 10 } },
 };
@@ -375,7 +375,7 @@ describe("the bulk operations name their own providers", () => {
 		// The closest pano can be a photosphere, and a bulk pin must never relocate rows onto one.
 		expect(resolve.config).toBe(JSON.stringify({ sources: [2] }));
 		expect(resolve.force).toBe(false);
-		expect(JSON.stringify(resolve.select)).toContain('"NotPanoIds"');
+		expect(JSON.stringify(resolve.select)).toContain('"loadAsPanoId"');
 		expect(h.fieldOps).toHaveLength(1);
 		expect(h.fieldOps[0].op).toEqual({ kind: "set", key: "loadAsPanoId", value: 1 });
 		const pinTarget = JSON.stringify(h.fieldOps[0].selector);
@@ -389,7 +389,15 @@ describe("the bulk operations name their own providers", () => {
 		const resolve = h.decls[0];
 		expect(resolve.config).toBe(JSON.stringify({ sources: [2], capture: "newest" }));
 		expect(resolve.force).toBe(true);
-		expect(JSON.stringify(resolve.select)).toContain('"NotPanoIds"');
+		expect(JSON.stringify(resolve.select)).toContain('"loadAsPanoId"');
+	});
+
+	it("without force the resolve only sees rows that are not already pinned", async () => {
+		await bulkPinToPano({ type: "Everything" });
+		const json = JSON.stringify(h.decls[0].select);
+		expect(json).toContain('"Invert"');
+		expect(json).toContain('"loadAsPanoId"');
+		expect(json).toContain('"has"');
 	});
 
 	it("force re-resolves already pinned rows too", async () => {
@@ -519,7 +527,7 @@ describe("the query surface", () => {
 			label: "Labelled",
 			procedure: { entry: "res://procedures/labelled.js", batch: { mode: "perRow" } },
 			fieldDefs: {
-				labelledField: { type: "string", label: "L", values: null, labels: null, comparison: null },
+				labelledField: { type: "string", label: "L", values: null, comparison: null },
 			},
 		});
 		h.queryAnswer = () => Promise.resolve('["\u00a9 2019","\u00a9 2022"]');

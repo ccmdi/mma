@@ -9,6 +9,7 @@ import {
 	useMap,
 	seedLocs,
 } from "./helpers";
+import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Tag reordering
@@ -32,7 +33,7 @@ describe("Tag reordering", () => {
 		const result = await withApi(
 			async (api, id1, id2, id3) => {
 				await api.reorderTags([id3, id1, id2]);
-				const tags = api.getMapState().tags as any;
+				const tags = api.getTags() as any;
 				return {
 					order1: tags[String(id1)]?.order,
 					order2: tags[String(id2)]?.order,
@@ -55,7 +56,7 @@ describe("Tag reordering", () => {
 
 		const result = await withApi(
 			async (api, id1, id2, id3) => {
-				const tags = api.getMapState().tags as any;
+				const tags = api.getTags() as any;
 				return {
 					order1: tags[String(id1)]?.order,
 					order2: tags[String(id2)]?.order,
@@ -95,19 +96,13 @@ describe("Tag visibility affecting selections", () => {
 	});
 
 	it("tag selection works for visible tag", async () => {
-		await withApi(
-			async (api, tagId) => api.addSelections([{ type: "Tag", tagId: tagId }]),
-			visTagId,
-		);
+		await withApi(async (api, tagId) => api.addSelections([tagSelector(tagId)]), visTagId);
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(5);
 	});
 
 	it("deleting tag clears its selection", async () => {
-		await withApi(
-			async (api, tagId) => api.addSelections([{ type: "Tag", tagId: tagId }]),
-			visTagId,
-		);
+		await withApi(async (api, tagId) => api.addSelections([tagSelector(tagId)]), visTagId);
 		const beforeIds = await refreshSelections();
 		expect(beforeIds.length).toBe(5);
 
@@ -140,7 +135,7 @@ describe("Bulk tag add", () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.addSelections([{ type: "Everything" }]);
 			await api.addTagToLocations(tagId, [...api.getMapState().selectedLocationIds]);
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, bulkTagId);
 		expect(result).toBe(20);
@@ -162,7 +157,7 @@ describe("Bulk tag add", () => {
 
 	it("tag count updates correctly after bulk add", async () => {
 		const count = await withApi(async (api, tagId) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, bulkTagId);
 		expect(count).toBe(20);
@@ -177,7 +172,7 @@ describe("Bulk tag add", () => {
 		}, newTag.id);
 
 		const beforeCount = await withApi(async (api, tagId) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, newTag.id);
 		expect(beforeCount).toBe(20);
@@ -185,7 +180,7 @@ describe("Bulk tag add", () => {
 		await withApi(async (api) => api.undo());
 
 		const afterCount = await withApi(async (api, tagId) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, newTag.id);
 		expect(afterCount).toBe(0);
@@ -225,7 +220,7 @@ describe("Tag deletion cascade", () => {
 
 	it("tag count is zero after deletion", async () => {
 		const count = await withApi(async (api, tagId) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, delTagId);
 		expect(count).toBe(0);
@@ -250,7 +245,7 @@ describe("Tag color update", () => {
 		}, colorTagId);
 
 		const color = await withApi(async (api, tagId) => {
-			return (api.getMapState().tags as any)[String(tagId)]?.color;
+			return (api.getTags() as any)[String(tagId)]?.color;
 		}, colorTagId);
 		expect(color).toBe("#ff0000");
 	});
@@ -265,7 +260,7 @@ describe("Tag color update", () => {
 		await openMap(map.id);
 
 		const color = await withApi(async (api, tagId) => {
-			return (api.getMapState().tags as any)[String(tagId)]?.color;
+			return (api.getTags() as any)[String(tagId)]?.color;
 		}, colorTagId);
 		expect(color).toBe("#00ff00");
 	});

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Location, Tag } from "@/bindings.gen";
+import type { Tag } from "@/types";
+import type { Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import { mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 

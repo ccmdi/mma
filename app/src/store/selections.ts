@@ -1,6 +1,7 @@
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
-import type { FilterOp, PolygonGeometry, Tag } from "@/bindings.gen";
+import type { FilterOp, PolygonGeometry } from "@/bindings.gen";
+import type { Tag } from "@/types";
 import { getVisibleTags, getTag } from "@/store/useMapStore";
 import { hslToRgb, type RGB } from "@/lib/util/color";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
@@ -14,7 +15,6 @@ import { t, msg } from "@/lib/i18n";
 import { shortestUniqueSuffixes } from "@/components/editor/tags/tagTreeRange";
 
 import type { Selection, Selector } from "@/bindings.gen";
-
 export interface SelectionState {
 	selections: Selection[];
 	ghosted: ReadonlySet<string>;
@@ -56,6 +56,67 @@ export const OP_LABELS: Record<FilterOpKind, string> = {
 	contains: msg("contains"),
 	notcontains: msg("does not contain"),
 };
+
+/** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+ *  else, so there is no tag selector to build. */
+export const tagSelector = (tagId: number): Selector => ({
+	type: "Filter",
+	field: "tags",
+	test: { op: "contains", value: tagId },
+});
+
+/** Locations with no tags: `tags` resolves to nothing on an untagged row. */
+export const untaggedSelector = (): Selector => ({
+	type: "Filter",
+	field: "tags",
+	test: { op: "nothas" },
+});
+
+/** Locations whose heading was never set. */
+export const unpannedSelector = (): Selector => ({
+	type: "Filter",
+	field: "heading",
+	test: { op: "eq", value: 0 },
+});
+
+/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
+ *  `Selector::pano_ids`), or the locations not pinned. */
+export function panoIdSelector(on: boolean): Selector {
+	const pinned: Selector = {
+		type: "Intersection",
+		selections: [
+			buildSelection({ type: "Filter", field: "loadAsPanoId", test: { op: "eq", value: 1 } }),
+			buildSelection({ type: "Filter", field: "panoId", test: { op: "has" } }),
+		],
+	};
+	return on ? pinned : { type: "Invert", selections: [buildSelection(pinned)] };
+}
+
+/** The tag a selector names, or null when it names something else. The single place that
+ *  recognises tag membership, so nothing else has to know its shape. */
+export function tagIdOf(selector: Selector): number | null {
+	return selector.type === "Filter" &&
+		selector.field === "tags" &&
+		selector.test.op === "contains" &&
+		typeof selector.test.value === "number"
+		? selector.test.value
+		: null;
+}
+
+/** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
+ *  inversion (`false`), or something else (`null`). Display-only shape recognition. */
+export function panoIdOf(selector: Selector): boolean | null {
+	if (selector.type === "Invert" && selector.selections.length === 1) {
+		return panoIdOf(selector.selections[0].selector) === true ? false : null;
+	}
+	if (selector.type !== "Intersection" || selector.selections.length !== 2) return null;
+	const [a, b] = selector.selections.map((s) => s.selector);
+	const isFlag = (s: Selector) =>
+		s.type === "Filter" && s.field === "loadAsPanoId" && s.test.op === "eq" && s.test.value === 1;
+	const isHasPano = (s: Selector) =>
+		s.type === "Filter" && s.field === "panoId" && s.test.op === "has";
+	return isFlag(a) && isHasPano(b) ? true : null;
+}
 
 /** Deterministic color derived from a selection key string. */
 export function colorForKey(key: string): RGB {
@@ -162,26 +223,6 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 			return polygonColorMode === "fixed" ? polygonColor : null;
 		},
 	},
-	Tag: {
-		key: (s) => `tag:${s.tagId}`,
-		label: (s, tagNames) => t("Tag: {name}", { name: tagDisplayName(s.tagId, tagNames) }),
-	},
-	Untagged: {
-		key: () => "untagged",
-		label: () => t("Untagged"),
-	},
-	Unpanned: {
-		key: () => "unpanned",
-		label: () => t("Unpanned"),
-	},
-	PanoIds: {
-		key: () => "panoids",
-		label: () => t("Pano ID locations"),
-	},
-	NotPanoIds: {
-		key: () => "notpanoids",
-		label: () => t("Coordinate locations"),
-	},
 	Uncommitted: {
 		key: () => "uncommitted",
 		label: () => t("Uncommitted"),
@@ -209,7 +250,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	},
 	Intersection: {
 		key: (s) => s.selections.map((c) => `(${c.key})`).join("^"),
-		label: () => t("Intersection"),
+		label: (s) => (panoIdOf(s) === true ? t("Pano ID locations") : t("Intersection")),
 	},
 	Union: {
 		key: (s) => s.selections.map((c) => `(${c.key})`).join("|"),
@@ -218,7 +259,9 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	Invert: {
 		key: (s) => `!${s.selections[0].key}`,
 		label: (s, tagNames) =>
-			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
+			panoIdOf(s) === false
+				? t("Coordinate locations")
+				: t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
 	},
 	Filter: {
 		key: (s) => {
@@ -227,10 +270,14 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 			const frame = filterIsLocalTime(t) ? ":local" : "";
 			return `filter:${s.field}:${t.op}:${operands.map(String).join(":")}${frame}`;
 		},
-		label: (p) => {
+		label: (p, tagNames) => {
 			const fieldDef = getFieldDef(p.field);
 			const fieldLabel = fieldDef?.label ? t(fieldDef.label) : p.field;
 			const test = p.test;
+			const tagId = tagIdOf(p);
+			if (tagId != null) return t("Tag: {name}", { name: tagDisplayName(tagId, tagNames) });
+			if (p.field === "tags" && test.op === "nothas") return t("Untagged");
+			if (p.field === "heading" && test.op === "eq" && test.value === 0) return t("Unpanned");
 			if (test.op === "has") return t("has {field}", { field: fieldLabel });
 			if (test.op === "nothas") return t("missing {field}", { field: fieldLabel });
 			const fmtMD = (v: unknown) => {

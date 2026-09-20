@@ -19,6 +19,7 @@ import {
 	select,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
+import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Delete updates dirty count
@@ -156,7 +157,7 @@ describe("Delete syncs with selections", () => {
 	});
 
 	it("tag selection count decreases when tagged location is deleted", async () => {
-		await select({ type: "Tag", tagId });
+		await select(tagSelector(tagId));
 		const before = await refreshSelections();
 		expect(before.length).toBe(5);
 
@@ -198,7 +199,7 @@ describe("Delete updates tag counts", () => {
 	});
 	it("tag count starts correct", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(8);
@@ -210,7 +211,7 @@ describe("Delete updates tag counts", () => {
 		}, locIds[0]);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(7);
@@ -223,7 +224,7 @@ describe("Delete updates tag counts", () => {
 		}, toDelete);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);

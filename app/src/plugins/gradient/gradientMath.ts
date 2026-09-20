@@ -1,4 +1,4 @@
-import type { ExtraFieldDef, KeySpec, PartitionBucket, Selection } from "@/bindings.gen";
+import type { FieldDef, KeySpec, PartitionBucket, Selection } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
 import { partitionLabel } from "@/lib/util/format";
@@ -20,7 +20,7 @@ export function gradientColor(stops: RGB[], t: number): RGB {
 	return lerp(stops[i], stops[Math.min(i + 1, stops.length - 1)], segment - i);
 }
 
-export function isNumericField(def: ExtraFieldDef | undefined): boolean {
+export function isNumericField(def: FieldDef | undefined): boolean {
 	if (!def) return false;
 	return def.type === "number" || def.type === "date";
 }

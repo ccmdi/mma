@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFieldDef } from "@/types";
+import { tagSelector } from "@/store/selections";
 import type { KeySpec, PartitionBucket, Selection, Selector } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
@@ -22,11 +23,12 @@ import {
 	getMapState,
 	partition,
 	resolveIds,
+	getTags,
 } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
 import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import type { ExtraFieldDef } from "@/bindings.gen";
+import type { FieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
@@ -110,7 +112,7 @@ function binCounts(ids: number[], binOf: Map<number, string>) {
 async function computePivot(
 	rowSource: RowSource,
 	fieldKey: string,
-	fieldDef: ExtraFieldDef | undefined,
+	fieldDef: FieldDef | undefined,
 	bucketCount: number | null,
 ): Promise<PivotData | null> {
 	const map = getMapState().map;
@@ -120,7 +122,7 @@ async function computePivot(
 	if (rowDefs.length === 0) return null;
 
 	const isTags = fieldKey === TAGS_FIELD_KEY;
-	const tagMap = getMapState().tags;
+	const tagMap = getTags();
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
 	// Numeric fields bucket into a histogram; resolveBucketCount arbitrates between the
@@ -159,7 +161,7 @@ async function computePivot(
 	if (buckets) {
 		columns = buckets.map((g) => g.key);
 	} else if (!isTags && fieldDef?.values && fieldDef.values.length > 0) {
-		columns = [...fieldDef.values];
+		columns = fieldDef.values.map((v) => v.value);
 	} else {
 		const seen = new Set<string>();
 		for (const r of perRow) for (const col of r.counts.keys()) seen.add(col);
@@ -184,7 +186,9 @@ async function computePivot(
 		pivotRows.reduce((sum, r) => sum + (r.counts.get(col) ?? 0), 0),
 	);
 
-	const extraLabels = fieldDef?.labels ?? {};
+	const extraLabels = Object.fromEntries(
+		(fieldDef?.values ?? []).flatMap((v) => (v.label ? [[v.value, v.label]] : [])),
+	);
 	const columnLabels = columns.map((c) => {
 		if (c === NA_KEY) return t("N/A");
 		if (isTags) return tagMap[Number(c)]?.name ?? t("Tag {id}", { id: c });
@@ -195,7 +199,7 @@ async function computePivot(
 	// selections, buckets to `between` filters, plain values to `eq` filters.
 	const columnProps: (Selector | null)[] = columns.map((col, i) => {
 		if (col === NA_KEY) return null;
-		if (isTags) return { type: "Tag", tagId: Number(col) };
+		if (isTags) return tagSelector(Number(col));
 		if (buckets) {
 			const bin = buckets[i]?.bin;
 			if (!bin) return null;

@@ -13,14 +13,14 @@ import { getMapState } from "@/store/useMapStore";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { createFieldDef } from "@/types";
 import { BUILTIN_FIELDS, CLEARABLE_BUILTINS } from "@/bindings.consts";
-import type { ExtraFieldDef } from "@/bindings.gen";
+import type { FieldDef } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 
 // Field kind: identity (position), virtual (derived), term (expression-only),
 // writable (bulk-editable), or undefined (read-only, listable).
 type FieldKind = NonNullable<(typeof BUILTIN_FIELDS)[number]["kind"]>;
 
-interface RegistryFieldDef extends ExtraFieldDef {
+interface RegistryFieldDef extends FieldDef {
 	kind?: FieldKind;
 }
 
@@ -65,9 +65,9 @@ export function getBuiltinKeys(): string[] {
 	return Object.keys(FIELDS).filter(isBuiltinField);
 }
 
-let pluginDefs: Record<string, ExtraFieldDef> = {};
+let pluginDefs: Record<string, FieldDef> = {};
 /** Register field definitions from an enrichment provider (called at activation). */
-export function registerPluginFieldDefs(defs: Record<string, ExtraFieldDef>) {
+export function registerPluginFieldDefs(defs: Record<string, FieldDef>) {
 	pluginDefs = { ...pluginDefs, ...defs };
 	emit("fields:changed");
 }
@@ -88,23 +88,19 @@ export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
 );
 
 // Compose two layers per-attribute: the higher layer wins when non-null.
-function mergeDef(
-	user: ExtraFieldDef | undefined,
-	plugin: ExtraFieldDef | undefined,
-): ExtraFieldDef | undefined {
+function mergeDef(user: FieldDef | undefined, plugin: FieldDef | undefined): FieldDef | undefined {
 	if (!user) return plugin;
 	if (!plugin) return user;
 	return {
 		type: user.type,
 		label: user.label ?? plugin.label,
 		values: user.values ?? plugin.values,
-		labels: user.labels ?? plugin.labels,
 		comparison: user.comparison ?? plugin.comparison,
 	};
 }
 
 /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
-export function getFieldDef(key: string): ExtraFieldDef | undefined {
+export function getFieldDef(key: string): FieldDef | undefined {
 	return mergeDef(mergeDef(getMapState().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
@@ -120,15 +116,21 @@ export function fieldLabel(key: string): string {
 }
 
 /** Display label for a field value. Enum values use their translated display name. */
-export function fieldValueLabel(def: ExtraFieldDef | undefined, value: unknown): string {
+export function fieldValueLabel(def: FieldDef | undefined, value: unknown): string {
 	const raw = String(value);
-	const label = def?.type === "enum" ? def.labels?.[raw] : undefined;
+	const label = def?.values?.find((v) => v.value === raw)?.label;
 	return label ? t(label) : raw;
 }
 
+/** The value space a field declares, as bare strings. Distinct from the store's
+ *  `fieldValues`, which reports the values actually present in the data. */
+export function declaredValues(def: FieldDef | undefined): string[] | null {
+	return def?.values?.map((v) => v.value) ?? null;
+}
+
 /** Merged view of all field definitions across all layers. */
-export function getAllFieldDefs(): Record<string, ExtraFieldDef> {
-	const out: Record<string, ExtraFieldDef> = {};
+export function getAllFieldDefs(): Record<string, FieldDef> {
+	const out: Record<string, FieldDef> = {};
 	const allKeys = new Set([
 		...Object.keys(FIELDS),
 		...Object.keys(pluginDefs),

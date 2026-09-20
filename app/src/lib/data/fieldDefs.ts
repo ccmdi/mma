@@ -1,5 +1,5 @@
 import { KNOWN_FIELDS } from "@/bindings.consts";
-import type { BatchMode, ExtraFieldDef, ProcedureDecl, ProviderDecl } from "@/bindings.gen";
+import type { BatchMode, FieldDef, ProcedureDecl, ProviderDecl } from "@/bindings.gen";
 import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { log } from "@/lib/util/log";
@@ -20,16 +20,21 @@ const coreFieldOptions: EnrichFieldOption[] = KNOWN_FIELDS.map((f) => ({
 const pluginFieldOptions: EnrichFieldOption[] = [];
 
 /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
-export function knownFieldDefs(...keys: string[]): Record<string, ExtraFieldDef> {
-	const out: Record<string, ExtraFieldDef> = {};
+export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
+	const out: Record<string, FieldDef> = {};
 	for (const key of keys) {
 		const f = KNOWN_FIELDS.find((k) => k.key === key);
 		if (!f) continue;
 		out[key] = {
 			type: f.type,
 			label: f.label,
-			values: f.values.length > 0 ? [...f.values] : null,
-			labels: f.labels.length > 0 ? Object.fromEntries(f.labels) : null,
+			values:
+				f.values.length > 0
+					? f.values.map((v) => ({
+							value: v,
+							label: f.labels.find(([k]) => k === v)?.[1] ?? null,
+						}))
+					: null,
 			comparison: f.circularPeriod != null ? { type: "circular", period: f.circularPeriod } : null,
 		};
 	}
@@ -96,7 +101,7 @@ export interface Provider<TCollected = unknown, TConfig = unknown> {
 	/** The procedure that computes this provider's fields. */
 	procedure: ProcedureSpec<TCollected, TConfig>;
 	/** Extra-field keys this provider produces. */
-	fieldDefs?: Record<string, ExtraFieldDef>;
+	fieldDefs?: Record<string, FieldDef>;
 	/** Core columns this provider writes (e.g. `panoId`). */
 	provides?: string[];
 	/** Fields this provider reads; it runs after their producers finish. */

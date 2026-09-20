@@ -1167,7 +1167,7 @@ pub(crate) fn run_all(
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<u32> = ctx.rows.with_store(|store| {
-        let view = store.loc_view();
+        let view = store.view_for(&decl.select);
         let set = narrow(&view, &decl.select);
         Ok(ids_within(&view, set.as_ref()))
     })?;

@@ -12,6 +12,8 @@ use std::thread;
 use std::time::Instant;
 use tauri::plugin::TauriPlugin;
 
+mod types;
+
 mod io;
 mod net;
 mod plugins;
@@ -24,7 +26,6 @@ mod sv;
 mod sync;
 #[cfg(test)]
 mod test_util;
-mod types;
 mod util;
 
 #[cfg(feature = "web-serve")]
@@ -181,10 +182,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_country_distribution,
             store::commands::store_find_nearby,
             store::commands::store_near_any,
-            store::commands::store_create_tags,
-            store::commands::store_update_tags,
-            store::commands::store_delete_tags,
-            store::commands::store_reorder_tags,
+            store::commands::store_patch_field_values,
             store::commands::store_undo,
             store::commands::store_redo,
             store::commands::store_commit_diff,
@@ -331,7 +329,7 @@ fn wire_string_enums() -> [(&'static str, TsConst); 10] {
         ("CameraType", store::maps::CameraType::ts_const()),
         ("CapturePick", store::maps::CapturePick::ts_const()),
         ("DatePart", selections::DatePart::ts_const()),
-        ("ExtraFieldType", store::maps::ExtraFieldType::ts_const()),
+        ("FieldType", store::maps::FieldType::ts_const()),
         ("FirstSyncMode", sync::FirstSyncMode::ts_const().unstable()),
         ("IssueState", net::github::IssueState::ts_const().unstable()),
         ("MergeWinner", store::engine::MergeWinner::ts_const()),

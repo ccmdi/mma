@@ -1,10 +1,9 @@
 //! Shared fixtures for the `*.test.rs` modules.
 
-use crate::selections::LocView;
+use crate::selections::{FieldIndexes, LocView};
 use crate::store::arrow;
 use crate::types::Location;
 use arrow_array::RecordBatch;
-use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::env;
 use std::fs;
@@ -106,18 +105,18 @@ impl Fx {
         self.view_with(None)
     }
 
-    /// View backed by a `tag_id -> members` index.
-    pub(crate) fn view_indexed<'a>(&'a self, sets: &'a HashMap<u32, RoaringBitmap>) -> LocView<'a> {
-        self.view_with(Some(sets))
+    /// View backed by field indexes, the way the store hands them to `resolve`.
+    pub(crate) fn view_indexed<'a>(&'a self, indexes: &'a FieldIndexes) -> LocView<'a> {
+        self.view_with(Some(indexes))
     }
 
-    fn view_with<'a>(&'a self, sets: Option<&'a HashMap<u32, RoaringBitmap>>) -> LocView<'a> {
+    fn view_with<'a>(&'a self, indexes: Option<&'a FieldIndexes>) -> LocView<'a> {
         LocView::new(
             self.batch.as_ref(),
             &self.dead,
             &self.patches,
             &self.adds,
-            sets,
+            indexes,
         )
     }
 }

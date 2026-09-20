@@ -12,6 +12,7 @@ import {
 	addLocations,
 	createTags,
 	useMapState,
+	getTagCounts,
 } from "@/store/useMapStore";
 import { sortTagsByMode } from "@/lib/util/util";
 import { useHotkey } from "@/lib/hooks/useHotkey";
@@ -192,11 +193,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 
 	const quicktagSlot = (idx: number) => {
 		if (!location || !getMapState().map) return;
-		const tags = sortTagsByMode(
-			getVisibleTags(),
-			getSettings().tagSortMode,
-			getMapState().tagCounts,
-		);
+		const tags = sortTagsByMode(getVisibleTags(), getSettings().tagSortMode, getTagCounts());
 		if (idx >= tags.length) return;
 		const tag = tags[idx];
 		const has = pendingTags.includes(tag.name);

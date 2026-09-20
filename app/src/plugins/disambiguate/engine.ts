@@ -3,7 +3,7 @@
 // Works on per-group columns (one value per row per field) fetched from the store;
 // no location ever reaches JS. Pure; tested in disambiguate.test.ts.
 
-import type { ExtraFieldDef, ComparisonType } from "@/bindings.gen";
+import type { FieldDef, ComparisonType } from "@/bindings.gen";
 import { createFieldDef } from "@/types";
 import {
 	getFieldDef,
@@ -96,7 +96,7 @@ export function soleGroup(masks: Set<number>[], id: number): number | null | "ov
 /** The columns an analysis needs: the writable built-ins, every declared field, every
  *  key present on the rows, and the tags. */
 export function analysisColumns(
-	fieldDefs: Record<string, ExtraFieldDef>,
+	fieldDefs: Record<string, FieldDef>,
 	presentKeys: Iterable<string>,
 ): string[] {
 	const keys = new Set<string>(getBuiltinKeys().filter(isWritableField));
@@ -122,7 +122,7 @@ function emptyGroup(n: number, present: number): GroupSummary {
 
 /** Resolve how a field is compared. An explicit `comparison` on the def wins;
  *  otherwise inferred from `type`. */
-export function resolvedComparison(def: ExtraFieldDef | undefined): ComparisonType {
+export function resolvedComparison(def: FieldDef | undefined): ComparisonType {
 	if (def?.comparison) return def.comparison;
 	switch (def?.type) {
 		case "number":
@@ -135,7 +135,7 @@ export function resolvedComparison(def: ExtraFieldDef | undefined): ComparisonTy
 }
 
 /** Infer a field type from a sample value: numbers -> number, `YYYY-MM` -> month, else string. */
-function inferFieldType(value: unknown): ExtraFieldDef["type"] {
+function inferFieldType(value: unknown): FieldDef["type"] {
 	if (typeof value === "number") return "number";
 	if (typeof value === "string" && /^\d{4}-\d{2}$/.test(value)) return "month";
 	return "string";
@@ -147,7 +147,7 @@ function column(group: GroupColumns, key: string): unknown[] {
 
 /** Synthetic def for an undeclared key, from the first present value (so an
  *  undeclared numeric field isn't mistaken for categorical). */
-function sampleDef(key: string, groups: GroupColumns[]): ExtraFieldDef | undefined {
+function sampleDef(key: string, groups: GroupColumns[]): FieldDef | undefined {
 	for (const g of groups) {
 		const v = column(g, key).find((x) => x != null);
 		if (v != null) return createFieldDef(inferFieldType(v));
@@ -190,7 +190,7 @@ function numericField(
 	groups: GroupColumns[],
 	groupSizes: number[],
 	comparison: ComparisonType,
-	def: ExtraFieldDef | undefined,
+	def: FieldDef | undefined,
 ): FieldDivergence {
 	const perGroup: number[][] = groups.map((g) =>
 		column(g, key)
@@ -242,7 +242,7 @@ function finishCategorical(
 	label: string,
 	perGroup: Map<string, number>[],
 	groupSizes: number[],
-	def: ExtraFieldDef | undefined,
+	def: FieldDef | undefined,
 ): FieldDivergence {
 	const present = perGroup.map((m) => m.values().reduce((a, b) => a + b, 0));
 	const valueScore = cramersV(perGroup);
@@ -284,7 +284,7 @@ function categoricalField(
 	key: string,
 	groups: GroupColumns[],
 	groupSizes: number[],
-	def: ExtraFieldDef | undefined,
+	def: FieldDef | undefined,
 ): FieldDivergence {
 	const perGroup = groups.map((g) => countValues(column(g, key).map(categoryValue)));
 	return finishCategorical(key, fieldLabel(key), perGroup, groupSizes, def);
@@ -315,7 +315,7 @@ function sortKey(f: FieldDivergence): number {
 /** Rank the fields present in `groups` by how strongly they separate the groups. */
 export function computeDivergence(
 	groups: GroupColumns[],
-	fieldDefs: Record<string, ExtraFieldDef>,
+	fieldDefs: Record<string, FieldDef>,
 	tagNames: Record<number, string>,
 ): DisambiguateResult {
 	const groupSizes = groups.map((g) => g.size);

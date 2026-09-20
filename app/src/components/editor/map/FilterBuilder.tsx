@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
-import type { Selection, FilterOp, ExtraFieldDef } from "@/bindings.gen";
+import type { Selection, FilterOp, FieldDef } from "@/bindings.gen";
 import { OP_LABELS, filterIsLocalTime, type FilterOpKind } from "@/store/selections";
 import { NSelect } from "@/components/primitives/NSelect";
 import {
@@ -10,6 +10,7 @@ import {
 	getFieldDef,
 	isListableField,
 	getKnownFieldKeys,
+	declaredValues,
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
@@ -73,7 +74,7 @@ function opsForType(type: string | undefined): FilterOpKind[] {
 export interface FieldEntry {
 	key: string;
 	label: string;
-	def: ExtraFieldDef;
+	def: FieldDef;
 }
 
 export function useExtraFieldKeys(): FieldEntry[] {
@@ -99,15 +100,16 @@ export function useExtraFieldKeys(): FieldEntry[] {
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");
 
-function useEnumValues(fieldKey: string | undefined, def: ExtraFieldDef | undefined): string[] {
+function useEnumValues(fieldKey: string | undefined, def: FieldDef | undefined): string[] {
 	const [values, setValues] = useState<string[]>([]);
 	useEffect(() => {
 		if (def?.type !== "enum") {
 			setValues([]);
 			return;
 		}
-		if (def.values) {
-			setValues(def.values);
+		const declared = declaredValues(def);
+		if (declared) {
+			setValues(declared);
 			return;
 		}
 		if (fieldKey === "timezone") {

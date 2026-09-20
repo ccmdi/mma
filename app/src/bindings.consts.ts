@@ -45,7 +45,7 @@ export type DatePart = (typeof DatePart)[keyof typeof DatePart];
  * Type discriminant for `Location.extra` field definitions.
  * Determines how the field is displayed and filtered in the UI.
  */
-export const ExtraFieldType = {
+export const FieldType = {
 	/** Text. */
 	String: "string",
 	/** A number. */
@@ -59,7 +59,7 @@ export const ExtraFieldType = {
 	/** A list of values. */
 	Array: "array",
 } as const;
-export type ExtraFieldType = (typeof ExtraFieldType)[keyof typeof ExtraFieldType];
+export type FieldType = (typeof FieldType)[keyof typeof FieldType];
 
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
@@ -185,7 +185,7 @@ export const ValidationState = {
 } as const;
 export type ValidationState = (typeof ValidationState)[keyof typeof ValidationState];
 
-export const BUILTIN_FIELDS = [{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0}},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null},{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null},{"key":"loadAsPanoId","label":"Load as pano ID","type":"number","kind":"writable","comparison":null}] as const;
+export const BUILTIN_FIELDS = [{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0},"interned":false},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null,"interned":false},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null,"interned":false},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null,"interned":false},{"key":"tags","label":"Tags","type":"array","kind":"writable","comparison":null,"interned":true},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null,"interned":false},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null,"interned":false},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null,"interned":false},{"key":"loadAsPanoId","label":"Load as pano ID","type":"number","kind":"writable","comparison":null,"interned":false}] as const;
 
 export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
 

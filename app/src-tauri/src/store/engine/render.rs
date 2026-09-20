@@ -504,8 +504,8 @@ impl Store {
             full_reset: changes.full_reset,
         };
 
-        for &id in &changes.removed {
-            if let Some(removal) = self.cell_remove_render(id) {
+        for loc in &changes.removed {
+            if let Some(removal) = self.cell_remove_render(loc.id) {
                 delta.removed.push(removal);
             }
         }

@@ -1,5 +1,5 @@
 import type { Selector } from "@/bindings.gen";
-import type { ExtraFieldType } from "@/bindings.consts";
+import type { FieldType } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { countIn } from "@/store/useMapStore";
@@ -17,7 +17,7 @@ export function useTimezone(lat: number, lng: number, enabled: boolean): string 
 export async function countMissingTimezone(
 	selector: Selector,
 	field: string,
-	fieldType: ExtraFieldType,
+	fieldType: FieldType,
 	tzLocal: boolean,
 ): Promise<number> {
 	if (!tzLocal || fieldType !== "date") return 0;

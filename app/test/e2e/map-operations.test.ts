@@ -246,7 +246,14 @@ describe("Extra field definitions", () => {
 		const defs = {
 			altitude: createFieldDef("number", { label: "Altitude (m)" }),
 			country: createFieldDef("string", { label: "Country" }),
-			region: createFieldDef("enum", { label: "Region", values: ["NA", "EU", "AS"] }),
+			region: createFieldDef("enum", {
+				label: "Region",
+				values: [
+					{ value: "NA", label: null },
+					{ value: "EU", label: null },
+					{ value: "AS", label: null },
+				],
+			}),
 		};
 		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};

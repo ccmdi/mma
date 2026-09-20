@@ -1,8 +1,8 @@
 import { schemeBase } from "@/lib/util/util";
+import type { Tag } from "@/types";
 import { isOfficialPano } from "@/lib/sv/panoId";
 import { isPinned, type PanoView } from "@/types";
-import type { Location, Tag } from "@/bindings.gen";
-
+import type { Location } from "@/bindings.gen";
 /** View the link should open at. */
 export type MapsPanoView = PanoView & Pick<Location, "lat" | "lng">;
 

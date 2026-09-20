@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import type { Location, Tag } from "@/bindings.gen";
+import type { Tag } from "@/types";
+import type { Location } from "@/bindings.gen";
 import { createTags } from "@/store/useMapStore";
 import { locDate } from "@/lib/util/format";
 import { errText } from "@/lib/util/format";
@@ -15,7 +16,7 @@ function serializeActive(active: Location): string {
 	const { id: _id, createdAt: _createdAt, modifiedAt: _modifiedAt, ...editable } = active;
 	const map = MMA.getMapState().map;
 	const display = map
-		? { ...editable, tags: tagIdsToNames(editable.tags, MMA.getMapState().tags) }
+		? { ...editable, tags: tagIdsToNames(editable.tags, MMA.getTags()) }
 		: editable;
 	return JSON.stringify(display, null, 2);
 }

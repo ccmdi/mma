@@ -3,18 +3,20 @@
 
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
+import { tagSelector } from "@/store/selections";
 import {
 	getMapState,
 	getActiveSelections,
 	fetchLocations,
 	coverage,
 	setMapExtraFields,
+	setTags,
 } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
 import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
-import type { ExtraFieldDef, Selector } from "@/bindings.gen";
+import type { FieldDef, Selector } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
 export function getGoogleMap(): google.maps.Map | null {
@@ -49,11 +51,6 @@ export function getSelectedLocationIds() {
 /** @deprecated v0.8.2. Read `MMA.getMapState().workArea`. */
 export function getWorkArea() {
 	return getMapState().workArea;
-}
-
-/** @deprecated v0.8.2. Read `MMA.getMapState().tagCounts`. */
-export function getTagCounts() {
-	return getMapState().tagCounts;
 }
 
 /** @deprecated v0.8.2. Read `MMA.getMapState().selections`. */
@@ -104,7 +101,7 @@ export function registerEnrichmentProvider(provider: Provider): void {
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
  *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
  *  plugin-owned defs. */
-export function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
+export function setUserFieldDefs(defs: Record<string, FieldDef>) {
 	return setMapExtraFields(defs);
 }
 
@@ -126,4 +123,19 @@ export function request<T>(
 /** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. */
 export function installedVersion(pluginId: string) {
 	return sidecar.installedVersion(pluginId);
+}
+
+/** @deprecated v0.10.5. Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`. */
+export function addTagToLocations(tagId: number, locationIds: number[]) {
+	return setTags([tagId], [], { type: "Locations", locations: locationIds, name: null });
+}
+
+/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`. */
+export function removeTagFromLocations(tagId: number, locationIds: number[]) {
+	return setTags([], [tagId], { type: "Locations", locations: locationIds, name: null });
+}
+
+/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`. */
+export function removeTagFromAllLocations(tagId: number) {
+	return setTags([], [tagId], tagSelector(tagId));
 }

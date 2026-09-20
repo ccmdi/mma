@@ -7,7 +7,6 @@
 
 use crate::types::{AppError, AppResult};
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 use std::ops::Deref;
 use std::sync::{Mutex, OnceLock};
 
@@ -17,7 +16,7 @@ pub use mutations::*;
 pub use persist::*;
 pub use query::*;
 pub use render::*;
-pub use tags::*;
+pub use values::*;
 
 use roaring::RoaringBitmap;
 
@@ -90,12 +89,21 @@ pub struct Store {
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
     /// The map's extra-field registry, mirroring `maps.extra.fields` on disk.
-    pub(crate) field_defs: Tracked<HashMap<String, maps::ExtraFieldDef>>,
+    pub(crate) field_defs: Tracked<HashMap<String, maps::FieldDef>>,
 
     pub(crate) overlay: Tracked<Overlay>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
-    pub(crate) tags: TagState,
+    /// Records for interned field values (`values.rs`), keyed by field: opaque piles
+    /// this engine never reads a shape into. `tags` is the only interned field today;
+    /// loaded on open, persisted write-through.
+    pub(crate) value_meta: HashMap<String, Tracked<HashMap<u32, ValueRecord>>>,
+    /// Lazy inverted indexes over enumerable fields, built on the first query that could
+    /// use one and keyed by field. Postings snapshot the live view at build time; the
+    /// overlay is folded in at query time, and `finish_mutation` moves changed rows
+    /// through them, so a value's count is its postings' cardinality with no separate
+    /// counter to keep in step.
+    pub(crate) field_indexes: selections::FieldIndexes,
     pub(crate) edits: Tracked<EditStacks>,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
@@ -147,12 +155,8 @@ impl Store {
                 ids: RoaringBitmap::new(),
                 active_id: None,
             },
-            tags: TagState {
-                all: Tracked::default(),
-                counts: Touched::default(),
-                next_id: 1,
-                sets: HashMap::new(),
-            },
+            value_meta: HashMap::new(),
+            field_indexes: selections::FieldIndexes::default(),
             edits: Tracked::default(),
             bounds: None,
             spatial: None,
@@ -170,26 +174,37 @@ impl Store {
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
         self.edits.ship();
-        self.tags.all.ship();
         self.field_defs.ship();
+        let value_counts = Some(self.eager_value_counts());
+        let value_meta = Some(
+            self.value_meta
+                .iter_mut()
+                .map(|(field, meta)| {
+                    meta.ship();
+                    (field.clone(), (**meta).clone())
+                })
+                .collect(),
+        );
         StoreStatus {
             version: self.version,
             values: EngineValues {
                 location_count: Some(*self.alive_count),
                 can_undo: Some(!self.edits.undo.is_empty()),
                 can_redo: Some(!self.edits.redo.is_empty()),
-                tag_counts: Some(self.tag_counts()),
-                tags: Some((*self.tags.all).clone()),
+                value_counts,
+                value_meta,
                 field_defs: Some((*self.field_defs).clone()),
             },
         }
     }
 
-    fn tag_counts(&self) -> HashMap<u32, usize> {
-        self.tags
-            .all
-            .keys()
-            .map(|&id| (id, self.tag_count(id)))
+    /// Per-value counts for every field indexed unconditionally (the enumerable
+    /// builtins) - the open-time full picture JS derives its views from.
+    fn eager_value_counts(&mut self) -> HashMap<String, HashMap<String, usize>> {
+        selections::BUILTIN_FIELDS
+            .iter()
+            .filter(|f| f.field_type.index_shape() != maps::IndexShape::None)
+            .map(|f| (f.key.to_string(), self.value_counts(f.key)))
             .collect()
     }
 
@@ -214,8 +229,32 @@ impl Store {
         self.bump();
         self.update_bounds(changes, before);
 
-        // A metadata-only mutation (tag rename, reorder, a create with nothing to assign)
-        // moves no rows, so there is no membership to re-test and no delta to derive.
+        // The indexes are a projection of the changeset like the render delta is: postings
+        // follow the rows here, so no mutation path can move a row past its counts. A bulk
+        // reset drops them instead; the next query rebuilds from the live view.
+        let moved_fields = if changes.full_reset {
+            self.field_indexes.clear();
+            selections::BUILTIN_FIELDS
+                .iter()
+                .filter(|f| f.field_type.index_shape() != maps::IndexShape::None)
+                .map(|f| f.key.to_string())
+                .collect()
+        } else {
+            let removed: Vec<&Location> = changes
+                .removed
+                .iter()
+                .chain(changes.updated.iter().map(|(o, _)| o))
+                .collect();
+            let added: Vec<&Location> = changes
+                .added
+                .iter()
+                .chain(changes.updated.iter().map(|(_, n)| n))
+                .collect();
+            self.reindex(&removed, &added)
+        };
+
+        // A metadata-only mutation (a value rename or reorder, a create with nothing to
+        // assign) moves no rows, so there is no membership to re-test and no delta to derive.
         let has_selections = !changes.is_empty() && !self.selections.resolved.is_empty();
         let full_resolve = has_selections
             && (changes.full_reset
@@ -257,21 +296,20 @@ impl Store {
             None
         };
 
-        // A tag is visible exactly while something carries it.
-        let touched = self.tags.counts.drain_touched();
-        for &tag_id in &touched {
-            let should = self.tag_count(tag_id) > 0;
-            if self
-                .tags
-                .all
-                .get(&tag_id)
-                .is_some_and(|t| t.visible != should)
-            {
-                self.tags.all.edit().get_mut(&tag_id).unwrap().visible = should;
-            }
-        }
-        let tag_counts = (!touched.is_empty()).then(|| self.tag_counts());
-        let tags = self.tags.all.take_changed();
+        let value_counts = (!moved_fields.is_empty()).then(|| {
+            moved_fields
+                .iter()
+                .map(|f| (f.clone(), self.value_counts(f)))
+                .collect()
+        });
+        let value_meta = {
+            let changed: HashMap<String, HashMap<u32, ValueRecord>> = self
+                .value_meta
+                .iter_mut()
+                .filter_map(|(field, meta)| meta.take_changed().map(|m| (field.clone(), m)))
+                .collect();
+            (!changed.is_empty()).then_some(changed)
+        };
         let field_defs = self.field_defs.take_changed();
 
         let mut result = MutationResult {
@@ -279,8 +317,8 @@ impl Store {
             delta,
             selection_sync,
             values: EngineValues {
-                tag_counts,
-                tags,
+                value_counts,
+                value_meta,
                 field_defs,
                 ..Default::default()
             },
@@ -473,30 +511,7 @@ impl Store {
     /// non-None fields from the patch, and writes back to overlay_adds or overlay_patches.
     fn overlay_update(&mut self, id: u32, patch: &LocationPatch) -> Option<(Location, Location)> {
         let old = self.get_loc_by_id(id)?;
-        let mut loc = old.clone();
-        apply_patch!(loc, patch; lat, lng, heading, pitch, zoom, created_at, modified_at);
-        apply_patch!(clone loc, patch; pano_id, tags);
-        if let Some(v) = patch.flags {
-            loc.flags = LocationFlags::from_bits_retain(v);
-        }
-        if let Some(ref v) = patch.extra {
-            // JSON Merge Patch (RFC 7386)
-            loc.extra = match v {
-                None => None,
-                Some(p) => {
-                    let mut m = loc.extra.as_ref().map(RawExtra::to_map).unwrap_or_default();
-                    for (k, val) in p.to_map() {
-                        if val.is_null() {
-                            m.remove(&k);
-                        } else {
-                            m.insert(k, val);
-                        }
-                    }
-                    RawExtra::from_map(&m)
-                }
-            };
-        }
-        let loc = self.overlay_write(id, loc, &old);
+        let loc = self.overlay_write(id, patched(&old, patch), &old);
         Some((old, loc))
     }
 
@@ -557,6 +572,7 @@ impl Store {
             let b = arrow::locations_to_batch(&self.overlay.adds);
             self.clear_overlay();
             self.batch = Some(b);
+            self.field_indexes.clear();
             return;
         };
 
@@ -606,6 +622,7 @@ impl Store {
             "batch IDs must be strictly sorted after bake"
         );
         self.batch = Some(batch);
+        self.field_indexes.clear();
         self.clear_overlay();
     }
 }
@@ -767,11 +784,6 @@ impl<T> Tracked<T> {
         &mut self.value
     }
 
-    /// An edit with nothing to write: the value is unchanged but must ship and save again.
-    pub(crate) fn touch(&mut self) {
-        self.rev += 1;
-    }
-
     pub(crate) fn replace(&mut self, value: T) {
         self.value = value;
         self.rev += 1;
@@ -827,44 +839,6 @@ impl<T> Deref for Tracked<T> {
     }
 }
 
-/// A map that remembers which keys were written since the last drain. The only `&mut`
-/// into an entry is [`Touched::edit`], so a moved entry cannot fail to be announced.
-#[derive(Debug, Default)]
-pub(crate) struct Touched<K, V> {
-    map: HashMap<K, V>,
-    touched: HashSet<K>,
-}
-
-impl<K: Eq + Hash + Copy, V: Default> Touched<K, V> {
-    pub(crate) fn new(map: HashMap<K, V>) -> Self {
-        Self {
-            map,
-            touched: HashSet::new(),
-        }
-    }
-
-    pub(crate) fn edit(&mut self, key: K) -> &mut V {
-        self.touched.insert(key);
-        self.map.entry(key).or_default()
-    }
-
-    /// Announce a key without writing it (a tag that sits at zero still needs a look).
-    pub(crate) fn touch(&mut self, key: K) {
-        self.touched.insert(key);
-    }
-
-    pub(crate) fn drain_touched(&mut self) -> HashSet<K> {
-        mem::take(&mut self.touched)
-    }
-}
-
-impl<K, V> Deref for Touched<K, V> {
-    type Target = HashMap<K, V>;
-    fn deref(&self) -> &HashMap<K, V> {
-        &self.map
-    }
-}
-
 /// Lightweight status for polling: count, version, and whether unsaved changes exist.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -878,11 +852,12 @@ pub struct SummaryResult {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// One read through a selector: resolve once, then project.
+/// One read through a selector: `view_for` (indexes, then the view), resolve once,
+/// then project.
 macro_rules! selector_read {
     ($label:ident, $state:ident, $selector:ident, |$view:ident, $set:ident| $body:expr) => {
         with_store!($label, $state, |store| {
-            let $view = store.loc_view();
+            let $view = store.view_for(&$selector);
             let resolved = selections::narrow(&$view, &$selector);
             let $set = resolved.as_ref();
             Ok($body)
@@ -893,7 +868,7 @@ macro_rules! selector_read {
     ($label:ident, $state:ident, $selector:ident, store: |$store:ident, $set:ident| $body:expr) => {
         with_store!($label, $state, |$store| {
             let resolved = {
-                let view = $store.loc_view();
+                let view = $store.view_for(&$selector);
                 selections::narrow(&view, &$selector)
             };
             let $set = resolved.as_ref();
@@ -929,6 +904,7 @@ mod persist;
 mod query;
 mod render;
 mod tags;
+mod values;
 
 #[cfg(test)]
 #[path = "engine.test.rs"]
@@ -938,23 +914,69 @@ mod tests;
 #[path = "engine.bench.rs"]
 pub mod bench;
 
+/// Apply a patch to a location. The single definition of what a `LocationPatch` means:
+/// absent fields are unchanged, `Some(None)` nulls a nullable column, and `extra` is a
+/// JSON Merge Patch (RFC 7386) where a null value deletes its key.
+pub(crate) fn patched(old: &Location, patch: &LocationPatch) -> Location {
+    let mut loc = old.clone();
+    apply_patch!(loc, patch; lat, lng, heading, pitch, zoom, created_at, modified_at);
+    apply_patch!(clone loc, patch; pano_id, tags);
+    if let Some(v) = patch.flags {
+        loc.flags = LocationFlags::from_bits_retain(v);
+    }
+    if let Some(ref v) = patch.extra {
+        loc.extra = match v {
+            None => None,
+            Some(p) => {
+                let mut m = loc.extra.as_ref().map(RawExtra::to_map).unwrap_or_default();
+                for (k, val) in p.to_map() {
+                    if val.is_null() {
+                        m.remove(&k);
+                    } else {
+                        m.insert(k, val);
+                    }
+                }
+                RawExtra::from_map(&m)
+            }
+        };
+    }
+    loc
+}
+
 /// The engine's own write on every real change to a row.
 fn touch(loc: &mut Location) {
     loc.modified_at = Some(util::now_unix());
 }
 
-/// The nullable built-in columns a bulk clear can empty: the optional ones that stay empty
-/// through `touch`. Probed, not declared, so a column the engine starts writing is refused
-/// the same day.
+/// The built-in columns a bulk clear can actually empty. Probed by running the real
+/// thing: write null through the real patch path and see whether the field is gone
+/// afterwards. That catches both failure modes at once -- a column the engine refills
+/// through `touch`, and one whose patch field cannot express null at all (a plain
+/// `Option<T>` reads null as "unchanged", so the delete would report rows changed and
+/// do nothing).
 pub fn clearable_builtins() -> &'static [&'static str] {
     static KEYS: OnceLock<Vec<&'static str>> = OnceLock::new();
     KEYS.get_or_init(|| {
-        let mut probe = Location::default();
-        touch(&mut probe);
         selections::optional_builtins()
             .iter()
             .copied()
-            .filter(|key| selections::resolve_field_loc(&probe, key).is_none())
+            .filter(|key| {
+                let populated = Location {
+                    pano_id: Some("p".into()),
+                    tags: vec![1],
+                    modified_at: Some(1),
+                    ..Location::default()
+                };
+                let mut assignments = serde_json::Map::new();
+                assignments.insert((*key).to_string(), serde_json::Value::Null);
+                let Ok(patch) = assign_patch(&assignments, populated.flags) else {
+                    return false;
+                };
+                let mut cleared = patched(&populated, &patch);
+                touch(&mut cleared);
+                selections::resolve_field_loc(&populated, key).is_some()
+                    && selections::resolve_field_loc(&cleared, key).is_none()
+            })
             .collect()
     })
 }

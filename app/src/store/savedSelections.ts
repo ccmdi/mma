@@ -4,7 +4,14 @@
 
 import type { SavedSelection, SavedSelectionInfo, Selection, Selector } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
-import { buildSelection, childSelections, selectionDisplayName, withChildren } from "./selections";
+import {
+	buildSelection,
+	childSelections,
+	selectionDisplayName,
+	tagIdOf,
+	tagSelector,
+	withChildren,
+} from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
 import { bridgeAcrossWindows, emit, useEventValue } from "@/lib/events";
@@ -30,9 +37,10 @@ export function isSaveable(selector: Selector): boolean {
 
 /** The name of every `Tag` leaf in the tree, keyed by id. */
 function captureTagNames(selector: Selector, out: Record<number, string> = {}) {
-	if (selector.type === "Tag") {
-		const tag = getTag(selector.tagId);
-		if (tag) out[selector.tagId] = tag.name;
+	const tagId = tagIdOf(selector);
+	if (tagId != null) {
+		const tag = getTag(tagId);
+		if (tag) out[tagId] = tag.name;
 	} else {
 		for (const child of childSelections(selector)) captureTagNames(child.selector, out);
 	}
@@ -52,11 +60,11 @@ function resolveTagByName(tagName: string): number | null {
  *  saved under, and one whose name is gone here selects nothing. Composites are rebuilt
  *  so their keys follow the remapped ids; per-child colors survive. */
 function remap(selector: Selector, tagNames: Record<number, string>): Selector {
-	if (selector.type === "Tag") {
-		const name = tagNames[selector.tagId];
-		const id =
-			name != null ? resolveTagByName(name) : getTag(selector.tagId) ? selector.tagId : null;
-		return id === null ? NOTHING : { type: "Tag", tagId: id };
+	const tagId = tagIdOf(selector);
+	if (tagId != null) {
+		const name = tagNames[tagId];
+		const id = name != null ? resolveTagByName(name) : getTag(tagId) ? tagId : null;
+		return id === null ? NOTHING : tagSelector(id);
 	}
 	const children = childSelections(selector);
 	if (children.length === 0) return selector;

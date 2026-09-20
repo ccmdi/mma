@@ -2,7 +2,7 @@
 
 import { invoke as __TAURI_INVOKE } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
-import type { CameraType, CapturePick, DatePart, ExtraFieldType, FirstSyncMode, IssueState, MergeWinner, RateCost, ResolutionSide, Sink } from "./bindings.consts";
+import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MergeWinner, RateCost, ResolutionSide, Sink } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
@@ -146,7 +146,7 @@ export const commands = {
 	/**  Deliver the result for remote API request `id`. `payload` is JSON text. */
 	remoteApiRespond: (id: number, ok: boolean, payload: string) => __TAURI_INVOKE<void>("remote_api_respond", { id, ok, payload }),
 	/**
-	 *  Open a map and return its initial state (tag counts, undo/redo availability).
+	 *  Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
 	 *  Must be called before any other store commands.
 	 */
 	storeOpenMap: (mapId: string) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId }).then((v) => (({...v,values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
@@ -255,19 +255,11 @@ export const commands = {
 	 */
 	storeNearAny: (lats: number[], lngs: number[], radiusM: number) => __TAURI_INVOKE<boolean[]>("store_near_any", { lats: lats.map(i=>i), lngs: lngs.map(i=>i), radiusM }),
 	/**
-	 *  Create tags by name and assign them to the locations matched by `selector`.
-	 *  Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
+	 *  Patch an interned field's value metadata: get-or-create names, edit display
+	 *  metadata, reorder. Metadata only - membership writes go through the ordinary
+	 *  `listSet` field op. `tags` is the first (and so far only) interned field.
 	 */
-	storeCreateTags: (names: string[], selector: Selector) => __TAURI_INVOKE<CreatedTags>("store_create_tags", { names, selector }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
-	/**
-	 *  Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
-	 *  merges the two tags.
-	 */
-	storeUpdateTags: (updates: Update<TagPatch>[]) => __TAURI_INVOKE<MutationResult>("store_update_tags", { updates }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Remove tags and strip them from all locations that carry them. Undoable. */
-	storeDeleteTags: (tagIds: number[]) => __TAURI_INVOKE<MutationResult>("store_delete_tags", { tagIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
-	/**  Set the display order of tags. Each tag's position is its index in `orderedIds`. */
-	storeReorderTags: (orderedIds: number[]) => __TAURI_INVOKE<MutationResult>("store_reorder_tags", { orderedIds }).then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
+	storePatchFieldValues: (field: string, patch: FieldValuesPatch) => __TAURI_INVOKE<FieldValuesResult>("store_patch_field_values", { field, patch }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  Undo the last edit. */
 	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo").then((v) => (({...v,delta:({...v.delta,added:v.delta.added.map(i=>i),updated:v.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.values,fieldDefs:v.values.fieldDefs==null?v.values.fieldDefs:Object.fromEntries(Object.entries(v.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})}) as typeof v)),
 	/**  Redo the last undone edit. */
@@ -627,7 +619,7 @@ export type CommitResult = {
  *  How a field's values are compared when measuring how strongly it separates
  *  groups (selection disambiguation). The only un-inferrable property a field can
  *  declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
- *  everything else is inferred from `ExtraFieldType`.
+ *  everything else is inferred from `FieldType`.
  */
 export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
 
@@ -652,13 +644,6 @@ export type CopyToMapResult = {
 	copied: number,
 	skipped: number,
 	targetName: string,
-};
-
-/**  A create's outcome for the caller: the mutation plus the tags it named. */
-export type CreatedTags = {
-	mutation: MutationResult,
-	/**  The tags the names resolved to, in the order the names were given. */
-	ids: number[],
 };
 
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */
@@ -700,7 +685,8 @@ export type DeviceCodeInfo = {
  */
 export type EditorImportPreview = {
 	locationCount: number,
-	tags: Tag[],
+	/**  The file's tag piles, for the preview's tag list; ids are not meaningful yet. */
+	tags: { [key in string]: unknown }[],
 	fields: FieldCount[],
 	warnings: string[],
 	/**  Temp-file path to preview positions: interleaved LE f32 `[lng, lat]` pairs. */
@@ -733,18 +719,22 @@ export type EngineValues = {
 	locationCount: number | null,
 	canUndo: boolean | null,
 	canRedo: boolean | null,
-	/**  Every tag's count, when any count moved. */
-	tagCounts: { [key in number]: number } | null,
 	/**
-	 *  The whole registry, when any tag was created, edited, deleted, or flipped visible.
-	 *  Includes soft-deleted ghosts (visible=false, kept for undo revival).
+	 *  Per-value row counts, keyed by field then by index key: one complete map per
+	 *  indexed field whose postings moved. Fields that did not move are absent.
 	 */
-	tags: { [key in number]: Tag } | null,
+	valueCounts: { [key in string]: { [key in string]: number } } | null,
+	/**
+	 *  Per-value records (opaque piles), keyed by field then by interned id: one
+	 *  complete map per interned field whose records changed. JS coerces piles to its
+	 *  typed views (a tag) at its own boundary.
+	 */
+	valueMeta: { [key in string]: { [key in number]: { [key in string]: unknown } } } | null,
 	/**
 	 *  The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
 	 *  seen for the first time, erased, or the user edited a definition.
 	 */
-	fieldDefs: { [key in string]: ExtraFieldDef } | null,
+	fieldDefs: { [key in string]: FieldDef } | null,
 };
 
 /**
@@ -785,27 +775,26 @@ export type ExternalMutation = {
 } & MutationResult;
 
 /**
- *  Schema definition for a single `Location.extra` field. Stored in the map's
- *  `extra.fields` JSON. For enum types, `values` lists valid options and `labels`
- *  provides display names.
- */
-export type ExtraFieldDef = {
-	type: ExtraFieldType,
-	label: string | null,
-	values: string[] | null,
-	labels: { [key in string]: string } | null,
-	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
-	comparison: ComparisonType | null,
-};
-
-
-/**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
  */
 export type FieldCount = {
 	key: string,
 	count: number,
+};
+
+/**
+ *  Schema definition for a single `Location.extra` field. Stored in the map's
+ *  `extra.fields` JSON. For enumerable types, `values` declares the value space in
+ *  display order, each member carrying its own display name.
+ */
+export type FieldDef = {
+	type: FieldType,
+	label: string | null,
+	/**  The declared value space, in display order. */
+	values: FieldValue[] | null,
+	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
+	comparison: ComparisonType | null,
 };
 
 /**  A rewrite of one `extra` field across every location, computed per row. */
@@ -826,7 +815,15 @@ export type FieldOp =
  *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
  *  missing or non-numeric field, a non-finite result) is reported back by id.
  */
-{ kind: "expr"; key: string; expr: string };
+{ kind: "expr"; key: string; expr: string } | 
+/**
+ *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
+ *  reads the row's current value as a set rather than replacing it, which is what
+ *  membership needs: `tags` is this op's first caller, `array` extras its second.
+ *  `add` wins for a value named in both lists, and a row already in the requested
+ *  state keeps its member order.
+ */
+{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
 
 /**  The op's outcome for the caller: the mutation plus what its message needs. */
 export type FieldOpResult = {
@@ -835,6 +832,46 @@ export type FieldOpResult = {
 	changed: number,
 	/**  Rows an expression could not evaluate. */
 	failed: number[],
+};
+
+
+/**
+ *  One member of an enumerable field's value space: the stored value plus its display
+ *  name. The value is the identity, so a rename is a label change and membership is
+ *  untouched.
+ */
+export type FieldValue = {
+	value: string,
+	label: string | null,
+};
+
+/**  One batch of record edits for an interned field's values. */
+export type FieldValuesPatch = {
+	/**
+	 *  Seed piles to get-or-create, matched case-insensitively on their `name`.
+	 *  An existing name resolves to its id and the seed is dropped; a new one is
+	 *  interned as the seed.
+	 */
+	create?: { [key in string]: unknown }[],
+	/**
+	 *  Merge patches into existing piles (null deletes a key). A patch whose `name`
+	 *  collides with another record's merges the two values instead of renaming:
+	 *  every row is remapped to the survivor in one undoable edit and the emptied
+	 *  record goes dark.
+	 */
+	update?: (Update<{ [key in string]: unknown }>)[],
+	/**  New display order: each id gets its index in this list as `order`. */
+	reorder?: number[] | null,
+};
+
+/**
+ *  The id resolved for each `create` seed in request order, plus the mutation carrying
+ *  the updated records (and any rows a merge moved). JS coerces piles to its own view;
+ *  nothing typed rides here.
+ */
+export type FieldValuesResult = {
+	resolved: number[],
+	mutation: MutationResult,
 };
 
 /**
@@ -960,6 +997,12 @@ export type KeySpec =
  *  This is the atomic unit of data in the system. Locations are stored columnar
  *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
+ * 
+ *  The `#[field(...)]` attributes are the field system's declaration site:
+ *  `#[derive(Fields)]` (see `mma-fields`) turns them into the `location_fields!`
+ *  table that `selections::filter` expands into the exported field table,
+ *  `is_builtin_field`, and both resolvers - one declaration per field, checked
+ *  against the struct by the compiler.
  */
 export type Location = {
 	/**
@@ -972,11 +1015,20 @@ export type Location = {
 	heading: number,
 	pitch: number,
 	zoom: number,
+	/**  The empty string means absent, the same absence a missing key has. */
 	panoId: string | null,
+	/**  See [`LocationFlags`]. Reaches the field system as declared bits, not a field. */
 	flags: number,
-	/**  Tag IDs applied to this location. References `Tag.id`. */
+	/**
+	 *  Tag IDs applied to this location. References interned values of the `tags`
+	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+	 *  `Nothas` on an absent field.
+	 */
 	tags: number[],
-	/**  Arbitrary key-value metadata */
+	/**
+	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+	 *  name past the builtins.
+	 */
 	extra: { [key in string]: unknown } | null,
 	/**  Unix timestamp (seconds) */
 	createdAt: number,
@@ -1027,7 +1079,7 @@ export type LocationPatch = {
  *  but structured as an object to allow future extensions.
  */
 export type MapExtra = {
-	fields: { [key in string]: ExtraFieldDef } | null,
+	fields: { [key in string]: FieldDef } | null,
 };
 
 /**
@@ -1054,7 +1106,11 @@ export type MapMeta = {
 	settings: MapSettings,
 	scoreBounds: ScoreBounds,
 	extra: MapExtra,
-	tags: { [key in string]: Tag },
+	/**
+	 *  The map's tag value records (opaque piles keyed by id-as-string), an open-time
+	 *  snapshot of the `maps.tags` column. JS coerces them to its tag view.
+	 */
+	tags: { [key in string]: { [key in string]: unknown } },
 	labels: string[],
 	locationCount: number,
 	createdAt: string,
@@ -1074,7 +1130,7 @@ export type MapMetaPatch_Deserialize = {
 	settings?: MapSettings | null,
 	scoreBounds?: ScoreBounds | null,
 	extra?: MapExtra | null,
-	tags?: { [key in string]: Tag } | null,
+	tags?: { [key in string]: { [key in string]: unknown } } | null,
 	labels?: string[] | null,
 };
 
@@ -1089,7 +1145,7 @@ export type MapMetaPatch = {
 	settings: MapSettings | null,
 	scoreBounds: ScoreBounds | null,
 	extra: MapExtra | null,
-	tags: { [key in string]: Tag } | null,
+	tags: { [key in string]: { [key in string]: unknown } } | null,
 	labels: string[] | null,
 };
 
@@ -1782,11 +1838,11 @@ export type SelectionSync = {
 
 /**
  *  Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
- *  for JS interop. Simple types (Tag, Untagged, PanoIds, etc.) resolve in O(N) with
- *   parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
- *  children. Duplicates uses a grid-accelerated spatial scan.
+ *  for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
+ *  inverted index when one covers the filtered field. Composites (Intersection, Union,
+ *  Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Tag"; tagId: number } | { type: "Untagged" } | { type: "Unpanned" } | { type: "PanoIds" } | { type: "NotPanoIds" } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
+export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "ValidationState"; locations: number[]; state: number } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
  *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
  *  a ranked root in rank order, where every other selector answers ascending. With no
@@ -1883,29 +1939,6 @@ export type SyncReconcileResult = {
 	pullUpdates: PullUpdate[],
 	pullDeleteIds: number[],
 	mirrorLocalDeleteIds: number[],
-};
-
-export type Tag = {
-	id: number,
-	name: string,
-	/**
-	 *  Hex color string (e.g. "#3a7fc2"). Generated deterministically from
-	 *  the tag name via `util::color_for_name` when not explicitly set.
-	 */
-	color: string,
-	visible?: boolean,
-	/**  Display order in the sidebar tag list. `null` for tags that have never been ordered. */
-	order: number | null,
-	/**  Links into external documents (e.g. Google Docs headings), kept through import and export. */
-	doclinks?: string[],
-};
-
-/**  Patchable fields of a `Tag`. Subset by design: id/visible aren't editable here. */
-export type TagPatch = {
-	name?: string | null,
-	color?: string | null,
-	/**  Full replacement for the tag's doclink URLs (empty vec clears). */
-	doclinks?: string[] | null,
 };
 
 /**

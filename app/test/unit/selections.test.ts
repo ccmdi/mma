@@ -2,37 +2,41 @@
 import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
-	colorForKey,
-	buildSelection,
 	addSelection,
-	removeSelection,
-	intersectSelections,
-	unionSelections,
-	invertSelections,
-	toggleManualSelection,
-	selectionDisplayName,
-	displayTagName,
-	SELECTIONS,
-	reorderSelections,
-	composeSelections,
-	decomposeChild,
-	removeFromComposite,
-	composeSiblings,
-	composeWithChild,
-	replaceSelection,
-	sampleIds,
-	isolateGhostKeys,
-	rewriteSelectionFields,
-	toggleGhost,
-	toggleGhostAll,
-	childSelections,
-	withChildren,
-	locationsKey,
 	all,
 	any,
-	not,
+	buildSelection,
+	childSelections,
+	colorForKey,
+	composeSelections,
+	composeSiblings,
+	composeWithChild,
+	decomposeChild,
+	displayTagName,
 	has,
+	intersectSelections,
+	invertSelections,
+	isolateGhostKeys,
 	lacks,
+	locationsKey,
+	not,
+	panoIdSelector,
+	removeFromComposite,
+	removeSelection,
+	reorderSelections,
+	replaceSelection,
+	rewriteSelectionFields,
+	sampleIds,
+	selectionDisplayName,
+	SELECTIONS,
+	tagSelector,
+	toggleGhost,
+	toggleGhostAll,
+	toggleManualSelection,
+	unionSelections,
+	unpannedSelector,
+	untaggedSelector,
+	withChildren,
 } from "@/store/selections";
 import { ValidationState } from "@/bindings.consts";
 import type { PolygonGeometry } from "@/bindings.gen";
@@ -139,7 +143,9 @@ describe("polygon color mode", () => {
 	it("fixed does not affect non-polygon selections", () => {
 		setSetting("polygonColorMode", "fixed");
 		setSetting("polygonColor", [1, 2, 3]);
-		expect(buildSelection({ type: "Untagged" }).color).toEqual(colorForKey("untagged"));
+		expect(buildSelection(untaggedSelector()).color).toEqual(
+			colorForKey(buildSelection(untaggedSelector()).key),
+		);
 	});
 });
 
@@ -229,24 +235,27 @@ describe("buildSelection", () => {
 		expect(sel.key).toBe("everything");
 	});
 
-	it("Tag gets key with tagId", () => {
-		const sel = buildSelection({ type: "Tag", tagId: 42 });
-		expect(sel.key).toBe("tag:42");
+	// The shapes that used to be their own selector types are keyed as what they are: an
+	// ordinary field filter. Nothing reads a `tag:` prefix any more.
+	it("a tag is keyed as membership in the tags field", () => {
+		expect(buildSelection(tagSelector(42)).key).toBe("filter:tags:contains:42");
 	});
 
-	it("Untagged gets correct key", () => {
-		const sel = buildSelection({ type: "Untagged" });
-		expect(sel.key).toBe("untagged");
+	it("untagged is keyed as the absent tags field", () => {
+		expect(buildSelection(untaggedSelector()).key).toBe("filter:tags:nothas:null");
 	});
 
-	it("Unpanned gets correct key", () => {
-		const sel = buildSelection({ type: "Unpanned" });
-		expect(sel.key).toBe("unpanned");
+	it("unpanned is keyed as a heading filter", () => {
+		expect(buildSelection(unpannedSelector()).key).toBe("filter:heading:eq:0");
 	});
 
-	it("PanoIds / NotPanoIds get correct keys", () => {
-		expect(buildSelection({ type: "PanoIds" }).key).toBe("panoids");
-		expect(buildSelection({ type: "NotPanoIds" }).key).toBe("notpanoids");
+	it("pano-id selectors key as the pinned composite", () => {
+		expect(buildSelection(panoIdSelector(true)).key).toBe(
+			"(filter:loadAsPanoId:eq:1)^(filter:panoId:has:null)",
+		);
+		expect(buildSelection(panoIdSelector(false)).key).toBe(
+			"!(filter:loadAsPanoId:eq:1)^(filter:panoId:has:null)",
+		);
 	});
 
 	it("Manual gets correct key", () => {
@@ -280,14 +289,14 @@ describe("buildSelection", () => {
 });
 
 describe("selector combinators", () => {
-	const tag = (tagId: number) => ({ type: "Tag" as const, tagId });
+	const tag = tagSelector;
 	const types = (sel: { selections: { selector: { type: string } }[] }) =>
 		sel.selections.map((c) => c.selector.type);
 
 	it("all intersects, flattening nested intersections and dropping Everything", () => {
 		const out = all(all(tag(1), tag(2)), { type: "Everything" }, has("x"));
 		expect(out.type).toBe("Intersection");
-		expect(types(out as any)).toEqual(["Tag", "Tag", "Filter"]);
+		expect(types(out as any)).toEqual(["Filter", "Filter", "Filter"]);
 	});
 
 	it("all of nothing is Everything, and of one is that one", () => {
@@ -298,7 +307,7 @@ describe("selector combinators", () => {
 	it("any unions, flattening nested unions and deduplicating by key", () => {
 		const out = any(any(tag(1), tag(2)), tag(1));
 		expect(out.type).toBe("Union");
-		expect(types(out as any)).toEqual(["Tag", "Tag"]);
+		expect(types(out as any)).toEqual(["Filter", "Filter"]);
 		expect(any(tag(3))).toEqual(tag(3));
 	});
 
@@ -338,8 +347,8 @@ describe("addSelection / removeSelection", () => {
 	});
 
 	it("removeSelection decomposes composite on remove", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const composite = buildSelection({ type: "Intersection", selections: [s1, s2] });
 		const result = removeSelection(composite.key)([composite]);
 		expect(result).toHaveLength(2);
@@ -348,25 +357,25 @@ describe("addSelection / removeSelection", () => {
 
 describe("intersectSelections", () => {
 	it("creates intersection of two selections", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = intersectSelections(null)([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Intersection");
 	});
 
 	it("does nothing with fewer than 2 selections", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(tagSelector(9));
 		const result = intersectSelections(null)([s1]);
 		expect(result).toHaveLength(1);
-		expect(result[0].selector.type).toBe("PanoIds");
+		expect(result[0].selector.type).toBe("Filter");
 	});
 
 	it("flattens nested intersections", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const inter = intersectSelections(null)([s1, s2]);
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s3 = buildSelection(unpannedSelector());
 		const result = intersectSelections(null)([...inter, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { type: "Intersection"; selections: any[] }).selections;
@@ -376,18 +385,18 @@ describe("intersectSelections", () => {
 
 describe("unionSelections", () => {
 	it("creates union of two selections", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = unionSelections(null)([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Union");
 	});
 
 	it("flattens nested unions", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const union = unionSelections(null)([s1, s2]);
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s3 = buildSelection(unpannedSelector());
 		const result = unionSelections(null)([...union, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { type: "Union"; selections: any[] }).selections;
@@ -397,23 +406,23 @@ describe("unionSelections", () => {
 
 describe("invertSelections", () => {
 	it("wraps a single selection in Invert", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(tagSelector(9));
 		const result = invertSelections(null)([s1]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Invert");
 	});
 
 	it("double invert unwraps back to original", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(tagSelector(9));
 		const inverted = invertSelections(null)([s1]);
 		const result = invertSelections(null)(inverted);
 		expect(result).toHaveLength(1);
-		expect(result[0].selector.type).toBe("PanoIds");
+		expect(result[0].selector.type).toBe("Filter");
 	});
 
 	it("inverts a nested child in place, leaving the parent group intact", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const union = buildSelection({ type: "Union", selections: [s1, s2] });
 		const result = invertSelections([s1.key])([union]);
 		expect(result).toHaveLength(1);
@@ -426,8 +435,8 @@ describe("invertSelections", () => {
 	});
 
 	it("toggles a nested invert back off without collapsing the group", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const union = buildSelection({ type: "Union", selections: [s1, s2] });
 		const inverted = invertSelections([s1.key])([union]);
 		const invertedChild = (inverted[0].selector as { selections: any[] }).selections.find(
@@ -473,17 +482,17 @@ describe("toggleManualSelection", () => {
 
 describe("reorderSelections", () => {
 	it("moves selection before target", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
+		const s3 = buildSelection(unpannedSelector());
 		const result = reorderSelections(s3.key, s1.key, "before")([s1, s2, s3]);
 		expect(result.map((s) => s.key)).toEqual([s3.key, s1.key, s2.key]);
 	});
 
 	it("moves selection after target", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
+		const s3 = buildSelection(unpannedSelector());
 		const result = reorderSelections(s1.key, s3.key, "after")([s1, s2, s3]);
 		expect(result.map((s) => s.key)).toEqual([s2.key, s3.key, s1.key]);
 	});
@@ -499,8 +508,7 @@ describe("selectionDisplayName", () => {
 			height: createFieldDef("number", { label: "Altitude" }),
 			cam: createFieldDef("enum", {
 				label: "Camera type",
-				values: ["gen4"],
-				labels: { gen4: "Gen 4" },
+				values: [{ value: "gen4", label: "Gen 4" }],
 			}),
 			month: createFieldDef("month", { label: "Image date" }),
 			exact: createFieldDef("date", { label: "Exact date" }),
@@ -517,12 +525,12 @@ describe("selectionDisplayName", () => {
 
 	it("returns tag name for Tag selection", () => {
 		h.tags = { 42: { id: 42, name: "My Tag", color: "#f00", visible: true } };
-		const sel = buildSelection({ type: "Tag", tagId: 42 });
+		const sel = buildSelection(tagSelector(42));
 		expect(selectionDisplayName(sel)).toBe("Tag: My Tag");
 	});
 
 	it("falls back to tag ID if tag not found", () => {
-		const sel = buildSelection({ type: "Tag", tagId: 999 });
+		const sel = buildSelection(tagSelector(999));
 		expect(selectionDisplayName(sel)).toBe("Tag: 999");
 	});
 
@@ -686,8 +694,10 @@ describe("selectionDisplayName", () => {
 		setUserFieldDefs({
 			myCustomField: createFieldDef("enum", {
 				label: "Custom",
-				values: ["a", "b"],
-				labels: { a: "Alpha", b: "Beta" },
+				values: [
+					{ value: "a", label: "Alpha" },
+					{ value: "b", label: "Beta" },
+				],
 			}),
 		});
 		const sel = buildSelection({
@@ -778,23 +788,23 @@ describe("selectionDisplayName", () => {
 	});
 
 	it("display name for Intersection", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(panoIdSelector(true));
+		const s2 = buildSelection(untaggedSelector());
 		const inter = intersectSelections(null)([s1, s2]);
 		expect(selectionDisplayName(inter[0])).toBe("Intersection");
 	});
 
 	it("display name for Union", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(panoIdSelector(true));
+		const s2 = buildSelection(untaggedSelector());
 		const union = unionSelections(null)([s1, s2]);
 		expect(selectionDisplayName(union[0])).toBe("Union");
 	});
 
 	it("display name for Invert includes child name", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(panoIdSelector(true));
 		const inverted = invertSelections(null)([s1]);
-		expect(selectionDisplayName(inverted[0])).toBe("Invert: Pano ID locations");
+		expect(selectionDisplayName(inverted[0])).toBe("Coordinate locations");
 	});
 });
 
@@ -840,22 +850,22 @@ describe("SELECTIONS.locations", () => {
 
 describe("reorderSelections edge cases", () => {
 	it("returns unchanged when from key not found", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = reorderSelections("nonexistent", s2.key, "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
 
 	it("returns unchanged when to key not found", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = reorderSelections(s1.key, "nonexistent", "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
 
 	it("returns unchanged when from and to are the same", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = reorderSelections(s1.key, s1.key, "before")([s1, s2]);
 		expect(result.map((s) => s.key)).toEqual([s1.key, s2.key]);
 	});
@@ -863,26 +873,26 @@ describe("reorderSelections edge cases", () => {
 
 describe("composeSelections", () => {
 	it("drag onto drop creates intersection", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = composeSelections(s2.key, s1.key, "Intersection")([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Intersection");
 	});
 
 	it("drag onto drop creates union", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const result = composeSelections(s2.key, s1.key, "Union")([s1, s2]);
 		expect(result).toHaveLength(1);
 		expect(result[0].selector.type).toBe("Union");
 	});
 
 	it("drag onto existing composite adds as child", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const composed = composeSelections(s2.key, s1.key, "Intersection")([s1, s2]);
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s3 = buildSelection(unpannedSelector());
 		const result = composeSelections(s3.key, composed[0].key, "Intersection")([...composed, s3]);
 		expect(result).toHaveLength(1);
 		const children = (result[0].selector as { selections: any[] }).selections;
@@ -890,13 +900,13 @@ describe("composeSelections", () => {
 	});
 
 	it("returns unchanged if drag equals drop", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(tagSelector(9));
 		const result = composeSelections(s1.key, s1.key, "Intersection")([s1]);
 		expect(result).toEqual([s1]);
 	});
 
 	it("returns unchanged if key not found", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
+		const s1 = buildSelection(tagSelector(9));
 		const result = composeSelections("nonexistent", s1.key, "Intersection")([s1]);
 		expect(result).toEqual([s1]);
 	});
@@ -904,9 +914,9 @@ describe("composeSelections", () => {
 
 describe("composeSiblings / composeWithChild preserve the Invert wrapper", () => {
 	const invertedGroup = () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
-		const c = buildSelection({ type: "Unpanned" });
+		const a = buildSelection(tagSelector(9));
+		const b = buildSelection(untaggedSelector());
+		const c = buildSelection(unpannedSelector());
 		const group = buildSelection({ type: "Union", selections: [a, b, c] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
 		return { a, b, c, inv };
@@ -923,7 +933,7 @@ describe("composeSiblings / composeWithChild preserve the Invert wrapper", () =>
 
 	it("composeWithChild keeps Invert when nesting a top-level selection onto a child", () => {
 		const { a, inv } = invertedGroup();
-		const drag = buildSelection({ type: "Tag", tagId: 7 });
+		const drag = buildSelection(tagSelector(7));
 		const result = composeWithChild([inv, drag], drag.key, inv.key, a.key, "Intersection");
 		expect(result.some((s) => s.selector.type === "Invert")).toBe(true);
 		const invResult = result.find((s) => s.selector.type === "Invert")!;
@@ -933,9 +943,9 @@ describe("composeSiblings / composeWithChild preserve the Invert wrapper", () =>
 
 describe("decomposeChild", () => {
 	it("extracts a child from a composite", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
+		const s3 = buildSelection(unpannedSelector());
 		const composed = composeSelections(
 			s3.key,
 			composeSelections(s2.key, s1.key, "Intersection")([s1, s2])[0].key,
@@ -947,24 +957,24 @@ describe("decomposeChild", () => {
 	});
 
 	it("extracts a nested group without leaking its children into the parent", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
-		const c = buildSelection({ type: "Unpanned" });
+		const a = buildSelection(tagSelector(9));
+		const b = buildSelection(untaggedSelector());
+		const c = buildSelection(unpannedSelector());
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union, c] });
 
 		const result = decomposeChild(parent.key, union.key)([parent]);
 
 		// Parent had two children, so it collapses to the one left: C. The Union comes out whole.
-		expect(result.map((s) => s.selector.type)).toEqual(["Unpanned", "Union"]);
+		expect(result.map((s) => s.selector.type)).toEqual(["Filter", "Union"]);
 		expect((result[1].selector as { selections: any[] }).selections.map((s: any) => s.key)).toEqual(
 			[a.key, b.key],
 		);
 	});
 
 	it("drops the parent when its only child is extracted", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
+		const a = buildSelection(tagSelector(9));
+		const b = buildSelection(untaggedSelector());
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union] });
 
@@ -977,9 +987,9 @@ describe("decomposeChild", () => {
 
 describe("removeFromComposite", () => {
 	it("removes a child and reduces composite", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
+		const s3 = buildSelection(unpannedSelector());
 		let sels = [s1, s2, s3];
 		sels = composeSelections(s2.key, s1.key, "Intersection")(sels);
 		sels = composeSelections(s3.key, sels[0].key, "Intersection")([...sels, s3]);
@@ -993,9 +1003,9 @@ describe("removeFromComposite", () => {
 	// Deleting a nested group ungroups it: its children stay behind in the parent. Deliberate,
 	// and the one place a removal is allowed to keep the removed node's children.
 	it("ungroups a nested group into the parent", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
-		const c = buildSelection({ type: "Unpanned" });
+		const a = buildSelection(tagSelector(9));
+		const b = buildSelection(untaggedSelector());
+		const c = buildSelection(unpannedSelector());
 		const union = buildSelection({ type: "Union", selections: [a, b] });
 		const parent = buildSelection({ type: "Intersection", selections: [union, c] });
 
@@ -1009,8 +1019,8 @@ describe("removeFromComposite", () => {
 	});
 
 	it("removes a composite that has no children left", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
+		const a = buildSelection(tagSelector(9));
+		const b = buildSelection(untaggedSelector());
 		const inner = buildSelection({ type: "Union", selections: [a, b] });
 		const outer = buildSelection({ type: "Intersection", selections: [inner] });
 
@@ -1022,9 +1032,9 @@ describe("removeFromComposite", () => {
 	});
 
 	it("preserves the Invert wrapper when removing a child from an inverted group", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
-		const s3 = buildSelection({ type: "Unpanned" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
+		const s3 = buildSelection(unpannedSelector());
 		const group = buildSelection({ type: "Intersection", selections: [s1, s2, s3] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
 		const result = removeFromComposite(inv.key, s1.key)([inv]);
@@ -1037,8 +1047,8 @@ describe("removeFromComposite", () => {
 	});
 
 	it("keeps Invert when the inverted group collapses to a single child", () => {
-		const s1 = buildSelection({ type: "PanoIds" });
-		const s2 = buildSelection({ type: "Untagged" });
+		const s1 = buildSelection(tagSelector(9));
+		const s2 = buildSelection(untaggedSelector());
 		const group = buildSelection({ type: "Intersection", selections: [s1, s2] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
 		const result = removeFromComposite(inv.key, s1.key)([inv]);
@@ -1067,7 +1077,7 @@ describe("replaceSelection", () => {
 
 	it("preserves the Invert wrapper when editing a child of an inverted group", () => {
 		const a = buildSelection(filterA);
-		const b = buildSelection({ type: "Untagged" });
+		const b = buildSelection(untaggedSelector());
 		const group = buildSelection({ type: "Union", selections: [a, b] });
 		const inv = buildSelection({ type: "Invert", selections: [group] });
 		const result = replaceSelection([inv], a.key, filterAEdited);
@@ -1082,7 +1092,7 @@ describe("replaceSelection", () => {
 
 	it("replaces a child inside a composite and rebuilds the parent key", () => {
 		const a = buildSelection(filterA);
-		const b = buildSelection({ type: "Untagged" });
+		const b = buildSelection(untaggedSelector());
 		const composed = intersectSelections(null)([a, b]); // [Intersection(a,b)]
 		const parent = composed[0];
 		const result = replaceSelection(composed, a.key, filterAEdited);
@@ -1131,7 +1141,7 @@ describe("replaceSelection", () => {
 	});
 
 	it("merges recursively when an edit makes two groups identical", () => {
-		const shared = buildSelection({ type: "PanoIds" });
+		const shared = buildSelection(tagSelector(9));
 		const b = buildSelection(filterA);
 		const c = buildSelection(filterAEdited);
 		const g1 = intersectSelections(null)([shared, b])[0]; // Intersection(shared, b)
@@ -1240,11 +1250,11 @@ describe("rewriteSelectionFields", () => {
 	});
 
 	it("collapses a group to its sole survivor when a child is deleted", () => {
-		const tag = buildSelection({ type: "Tag", tagId: 1 });
+		const tag = buildSelection(tagSelector(1));
 		const union = buildSelection({ type: "Union", selections: [filter("a"), tag] });
 		const out = rewriteSelectionFields("a", null)([union]);
 		expect(out).toHaveLength(1);
-		expect(out[0].selector.type).toBe("Tag");
+		expect(out[0].selector.type).toBe("Filter");
 	});
 });
 
@@ -1269,21 +1279,21 @@ describe("toggleGhost", () => {
 
 describe("toggleGhostAll", () => {
 	it("ghosts every selection when none are ghosted", () => {
-		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const sels = [buildSelection(panoIdSelector(true)), buildSelection(untaggedSelector())];
 		const patch = toggleGhostAll()(sels, new Set());
 		expect(patch.ghosted!.size).toBe(2);
 		for (const s of sels) expect(patch.ghosted!.has(s.key)).toBe(true);
 	});
 
 	it("clears all ghosts when every selection is ghosted", () => {
-		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const sels = [buildSelection(panoIdSelector(true)), buildSelection(untaggedSelector())];
 		const allKeys = new Set(sels.map((s) => s.key));
 		const patch = toggleGhostAll()(sels, allKeys);
 		expect(patch.ghosted!.size).toBe(0);
 	});
 
 	it("adds missing keys when only some are ghosted", () => {
-		const sels = [buildSelection({ type: "PanoIds" }), buildSelection({ type: "Untagged" })];
+		const sels = [buildSelection(panoIdSelector(true)), buildSelection(untaggedSelector())];
 		const partial = new Set([sels[0].key]);
 		const patch = toggleGhostAll()(sels, partial);
 		expect(patch.ghosted!.size).toBe(2);
@@ -1308,7 +1318,7 @@ describe("Ranked selector key derivation", () => {
 	});
 
 	it("key includes inner selection key when present", () => {
-		const inner = buildSelection({ type: "Untagged" });
+		const inner = buildSelection(untaggedSelector());
 		const sel = buildSelection({
 			type: "Ranked",
 			selection: inner,
@@ -1366,20 +1376,20 @@ describe("Ranked selector key derivation", () => {
 
 describe("childSelections", () => {
 	it("returns selections array for Intersection", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
+		const a = buildSelection(panoIdSelector(true));
+		const b = buildSelection(untaggedSelector());
 		const sel = { type: "Intersection" as const, selections: [a, b] };
 		expect(childSelections(sel)).toEqual([a, b]);
 	});
 
 	it("returns selections array for Union", () => {
-		const a = buildSelection({ type: "PanoIds" });
+		const a = buildSelection(panoIdSelector(true));
 		const sel = { type: "Union" as const, selections: [a] };
 		expect(childSelections(sel)).toEqual([a]);
 	});
 
 	it("returns single-element array for Ranked with selection", () => {
-		const inner = buildSelection({ type: "Untagged" });
+		const inner = buildSelection(untaggedSelector());
 		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: 5, ascending: true };
 		expect(childSelections(sel)).toEqual([inner]);
 	});
@@ -1397,8 +1407,8 @@ describe("childSelections", () => {
 
 	it("returns empty array for leaf selectors", () => {
 		expect(childSelections({ type: "Everything" })).toEqual([]);
-		expect(childSelections({ type: "Tag", tagId: 1 })).toEqual([]);
-		expect(childSelections({ type: "Untagged" })).toEqual([]);
+		expect(childSelections(tagSelector(1))).toEqual([]);
+		expect(childSelections(untaggedSelector())).toEqual([]);
 		expect(childSelections({ type: "Duplicates", distance: 10 })).toEqual([]);
 		expect(childSelections({ type: "Filter", field: "x", test: { op: "has" } })).toEqual([]);
 	});
@@ -1406,30 +1416,30 @@ describe("childSelections", () => {
 
 describe("withChildren", () => {
 	it("replaces children in Intersection", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
+		const a = buildSelection(panoIdSelector(true));
+		const b = buildSelection(untaggedSelector());
 		const sel = { type: "Intersection" as const, selections: [a] };
 		const result = withChildren(sel, [a, b]);
 		expect((result as { selections: unknown[] }).selections).toEqual([a, b]);
 	});
 
 	it("replaces children in Union", () => {
-		const a = buildSelection({ type: "PanoIds" });
+		const a = buildSelection(panoIdSelector(true));
 		const sel = { type: "Union" as const, selections: [a] };
 		const result = withChildren(sel, []);
 		expect((result as { selections: unknown[] }).selections).toEqual([]);
 	});
 
 	it("replaces the optional selection in Ranked", () => {
-		const inner = buildSelection({ type: "Untagged" });
-		const replacement = buildSelection({ type: "PanoIds" });
+		const inner = buildSelection(untaggedSelector());
+		const replacement = buildSelection(panoIdSelector(true));
 		const sel = { type: "Ranked" as const, selection: inner, expr: "lat", k: 5, ascending: true };
 		const result = withChildren(sel, [replacement]);
 		expect((result as { selection: unknown }).selection).toBe(replacement);
 	});
 
 	it("sets selection to null when children is empty for Ranked", () => {
-		const inner = buildSelection({ type: "Untagged" });
+		const inner = buildSelection(untaggedSelector());
 		const sel = {
 			type: "Ranked" as const,
 			selection: inner,
@@ -1447,8 +1457,8 @@ describe("withChildren", () => {
 	});
 
 	it("roundtrips: withChildren(sel, childSelections(sel)) preserves shape", () => {
-		const a = buildSelection({ type: "PanoIds" });
-		const b = buildSelection({ type: "Untagged" });
+		const a = buildSelection(panoIdSelector(true));
+		const b = buildSelection(untaggedSelector());
 		const intersection = { type: "Intersection" as const, selections: [a, b] };
 		const result = withChildren(intersection, childSelections(intersection));
 		expect((result as { selections: unknown[] }).selections).toEqual([a, b]);

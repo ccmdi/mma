@@ -1,20 +1,39 @@
 import type {
-	ExtraFieldDef,
+	FieldDef,
 	Location,
 	LocationPatch_Deserialize as LocationPatch,
 } from "@/bindings.gen";
-import type { ExtraFieldType } from "@/bindings.consts";
+import type { FieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
 import { LocationFlag } from "@/bindings.consts";
 
 /** A field definition with every optional attribute spelled absent. */
 export function createFieldDef(
-	type: ExtraFieldType,
-	over: Partial<Omit<ExtraFieldDef, "type">> = {},
-): ExtraFieldDef {
-	return { label: null, values: null, labels: null, comparison: null, ...over, type };
+	type: FieldType,
+	over: Partial<Omit<FieldDef, "type">> = {},
+): FieldDef {
+	return { label: null, values: null, comparison: null, ...over, type };
 }
+
+/** A tag: the JS view of a `tags` field value record (an open pile of display
+ *  metadata) joined with its interned id and derived visibility. */
+export interface Tag {
+	id: number;
+	name: string;
+	color: string;
+	/** Derived: a tag is visible exactly while some location carries it. */
+	visible: boolean;
+	order: number | null;
+	doclinks: string[];
+}
+
+/** Display-metadata patch for one tag. Merge semantics: null deletes the key. */
+export type ValuePatch = {
+	name?: string | null;
+	color?: string | null;
+	doclinks?: string[] | null;
+};
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;

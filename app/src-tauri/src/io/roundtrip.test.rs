@@ -5,7 +5,8 @@
 
 use super::parse::{parse_csv, parse_single_json};
 use crate::io::export::{csv_document, export_document, geojson_document, CoordOpts};
-use crate::types::{Location, LocationFlags, RawExtra, Tag};
+use crate::store::engine::{self, record_name, record_order, ValueRecord};
+use crate::types::{Location, LocationFlags, RawExtra};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -13,7 +14,7 @@ struct Fixture {
     name: &'static str,
     map_name: &'static str,
     locations: Vec<Location>,
-    tags: Vec<Tag>,
+    tags: Vec<(u32, ValueRecord)>,
     fields: Option<Value>,
 }
 
@@ -55,15 +56,23 @@ fn with_tags(mut l: Location, tags: &[u32]) -> Location {
     l
 }
 
-fn tag(id: u32, name: &str, color: &str, order: Option<u32>, doclinks: &[&str]) -> Tag {
-    Tag {
-        id,
-        name: name.into(),
-        color: color.into(),
-        visible: true,
-        order,
-        doclinks: doclinks.iter().map(|s| (*s).to_string()).collect(),
+fn tag(
+    id: u32,
+    name: &str,
+    color: &str,
+    order: Option<u32>,
+    doclinks: &[&str],
+) -> (u32, ValueRecord) {
+    let mut rec = ValueRecord::new();
+    rec.insert("name".into(), name.into());
+    rec.insert("color".into(), color.into());
+    if let Some(o) = order {
+        rec.insert("order".into(), o.into());
     }
+    if !doclinks.is_empty() {
+        rec.insert("doclinks".into(), json!(doclinks));
+    }
+    (id, rec)
 }
 
 fn catalog() -> Vec<Fixture> {
@@ -196,27 +205,33 @@ fn view(l: &Location, names: &HashMap<u32, String>) -> Value {
     })
 }
 
-fn names(tags: &[Tag]) -> HashMap<u32, String> {
-    tags.iter().map(|t| (t.id, t.name.clone())).collect()
+fn names(tags: &[(u32, ValueRecord)]) -> HashMap<u32, String> {
+    tags.iter()
+        .map(|(id, rec)| (*id, record_name(rec).unwrap_or_default().to_string()))
+        .collect()
 }
 
-/// `{id: Tag}`, the store's tag table as the export commands receive it.
-fn tags_json(tags: &[Tag]) -> String {
+/// `{id: record}`, the store's tag table as the export commands receive it.
+fn tags_json(tags: &[(u32, ValueRecord)]) -> String {
     let m: serde_json::Map<String, Value> = tags
         .iter()
-        .map(|t| (t.id.to_string(), serde_json::to_value(t).unwrap()))
+        .map(|(id, rec)| (id.to_string(), Value::Object(rec.clone())))
         .collect();
     Value::Object(m).to_string()
 }
 
 /// A tag as the export carries it: color, order and doclinks under its name. `visible` is
 /// not carried, by design.
-fn tag_view(tags: &[Tag]) -> HashMap<String, Value> {
+fn tag_view(tags: &[(u32, ValueRecord)]) -> HashMap<String, Value> {
     tags.iter()
-        .map(|t| {
+        .map(|(_, rec)| {
             (
-                t.name.clone(),
-                json!({ "color": t.color, "order": t.order, "doclinks": t.doclinks }),
+                record_name(rec).unwrap_or_default().to_string(),
+                json!({
+                    "color": rec.get("color").cloned().unwrap_or(Value::Null),
+                    "order": rec.get("order").cloned().unwrap_or(Value::Null),
+                    "doclinks": rec.get("doclinks").cloned().unwrap_or_else(|| json!([])),
+                }),
             )
         })
         .collect()

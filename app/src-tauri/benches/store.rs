@@ -133,7 +133,7 @@ fn noop_updates(c: &mut Criterion) {
                     app.sync_selections(vec![SelectionInput {
                         selection: Selection {
                             key: "tag:3".into(),
-                            selector: Selector::Tag { tag_id: 3 },
+                            selector: Selector::tag(3),
                             color: [255, 0, 0],
                         },
                         ghosted: false,
@@ -223,22 +223,26 @@ fn row_ops(c: &mut Criterion) {
 fn selections(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
-    let store = fx.rendered_store();
+    let mut store = fx.rendered_store();
     let app = bench::BenchApp::new();
     app.set_store(fx.rendered_store());
 
-    let tag_leaf = Selector::Tag { tag_id: 3 };
+    let tag_leaf = Selector::tag(3);
+    // The app ensures indexes at the selector entry points; match it, so the resolve
+    // benches measure the postings path a live sync actually takes.
+    bench::ensure_indexes(&mut store, &tag_leaf);
+    let store = store;
     let composite = Selector::Intersection {
         selections: vec![
             Selection {
                 key: "tag:1".into(),
                 color: [255, 0, 0],
-                selector: Selector::Tag { tag_id: 1 },
+                selector: Selector::tag(1),
             },
             Selection {
                 key: "tag:2".into(),
                 color: [0, 255, 0],
-                selector: Selector::Tag { tag_id: 2 },
+                selector: Selector::tag(2),
             },
         ],
     };

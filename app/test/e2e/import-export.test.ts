@@ -54,7 +54,7 @@ describe("JSON import/export round-trip", () => {
 				exportExtras: true,
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getMapState().tags),
+				tagsJson: JSON.stringify(api.getTags()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -102,7 +102,7 @@ describe("JSON import/export round-trip", () => {
 				exportExtras: true,
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getMapState().tags),
+				tagsJson: JSON.stringify(api.getTags()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -130,7 +130,7 @@ describe("JSON import/export round-trip", () => {
 				exportExtras: true,
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getMapState().tags),
+				tagsJson: JSON.stringify(api.getTags()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -155,7 +155,7 @@ describe("JSON import/export round-trip", () => {
 				exportExtras: true,
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getMapState().tags),
+				tagsJson: JSON.stringify(api.getTags()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -242,7 +242,7 @@ describe("GeoJSON export", () => {
 		const result = await withApi(async (api) => {
 			const path = await api.cmd.storeExportGeojson(
 				{ type: "Everything" },
-				JSON.stringify(api.getMapState().tags),
+				JSON.stringify(api.getTags()),
 			);
 			const res = await fetch(api.mmaBufUrl(path));
 			const geojson = await res.text();

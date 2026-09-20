@@ -43,12 +43,12 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
                 Selection {
                     key: "tag:4".into(),
                     color: [1, 2, 3],
-                    selector: Selector::Tag { tag_id: 4 },
+                    selector: Selector::tag(4),
                 },
                 Selection {
                     key: "untagged".into(),
                     color: [4, 5, 6],
-                    selector: Selector::Untagged,
+                    selector: Selector::untagged(),
                 },
             ],
         },
@@ -67,10 +67,10 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     match &got.selector {
         Selector::Union { selections } => {
             assert_eq!(selections.len(), 2);
-            assert!(matches!(
-                selections[0].selector,
-                Selector::Tag { tag_id: 4 }
-            ));
+            assert_eq!(
+                serde_json::to_value(&selections[0].selector).unwrap(),
+                serde_json::to_value(Selector::tag(4)).unwrap()
+            );
             assert_eq!(selections[0].color, [1, 2, 3]);
         }
         _ => panic!("expected a Union"),
@@ -83,7 +83,7 @@ fn delete_removes_only_the_named_rule() {
     let a = create(
         &conn,
         "a".into(),
-        Selector::Untagged,
+        Selector::untagged(),
         HashMap::new(),
         [0; 3],
     )
@@ -91,7 +91,7 @@ fn delete_removes_only_the_named_rule() {
     create(
         &conn,
         "b".into(),
-        Selector::Unpanned,
+        Selector::unpanned(),
         HashMap::new(),
         [0; 3],
     )
@@ -107,7 +107,7 @@ fn an_unreadable_row_is_skipped_not_fatal() {
     create(
         &conn,
         "good".into(),
-        Selector::Untagged,
+        Selector::untagged(),
         HashMap::new(),
         [0; 3],
     )
@@ -154,7 +154,7 @@ fn get_ignores_ids_that_are_not_there() {
     let a = create(
         &conn,
         "a".into(),
-        Selector::Untagged,
+        Selector::untagged(),
         HashMap::new(),
         [0; 3],
     )

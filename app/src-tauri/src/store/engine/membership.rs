@@ -150,7 +150,7 @@ impl Store {
         let drop_ids: HashSet<u32> = changes
             .removed
             .iter()
-            .copied()
+            .map(|l| l.id)
             .chain(changes.updated.iter().map(|(_, n)| n.id))
             .collect();
         // Paint before the mutation, snapshotted while the sets still reflect it. Paint is
@@ -225,7 +225,7 @@ impl Store {
             .collect();
         let ghosted: Vec<bool> = self.selections.resolved.iter().map(|r| r.ghosted).collect();
         let (loc_sets, node_counts) = {
-            let view = self.loc_view();
+            let view = self.view_for_all(sels.iter().map(|s| &s.selector));
             selections::resolve_forest(&view, &sels)
         };
         self.selections.node_counts = node_counts;

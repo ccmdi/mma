@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import { tagSelector } from "@/store/selections";
 import type { PolygonGeometry, Selector } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({
@@ -66,7 +67,7 @@ describe("polygonsAt", () => {
 	});
 
 	it("ignores non-polygon selections and misses", async () => {
-		h.selections = [square("a", 0, 0), { key: "t", selector: { type: "Tag", tagId: 1 } }];
+		h.selections = [square("a", 0, 0), { key: "t", selector: tagSelector(1) }];
 		expect(await polygonsAt(50, 50)).toEqual([]);
 		expect(await polygonsAt(1, 1)).toEqual(["a"]);
 	});

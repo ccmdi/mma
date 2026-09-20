@@ -736,11 +736,16 @@ pub async fn sync_reconcile(
             t.elapsed().as_secs_f64()
         );
         let names: HashMap<u32, String> = store
-            .tags
-            .all
-            .iter()
-            .map(|(&id, t)| (id, t.name.clone()))
-            .collect();
+            .value_meta
+            .get("tags")
+            .map(|meta| {
+                meta.iter()
+                    .filter_map(|(&id, rec)| {
+                        crate::store::engine::record_name(rec).map(|n| (id, n.to_string()))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         (pins, names)
     };
     let resolutions = resolutions.unwrap_or_default();

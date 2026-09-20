@@ -9,6 +9,7 @@ import {
 	createContext,
 	useContext,
 } from "react";
+import type { Tag } from "@/types";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
@@ -40,7 +41,7 @@ import {
 	type TagTreeExpansionIntent,
 } from "./tagTreeRange";
 import type { TagSortMode } from "@/types";
-import type { Tag, VirtualTag } from "@/bindings.gen";
+import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";

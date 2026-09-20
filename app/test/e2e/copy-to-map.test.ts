@@ -110,8 +110,8 @@ describe("Copy to a closed map", () => {
 
 		await openMap(tgt);
 		const locs = await getAllLocs();
-		const tags = Object.values(await withApi((api) => api.getMapState().tags));
-		const tagCounts = await withApi((api) => api.getMapState().tagCounts);
+		const tags = Object.values(await withApi((api) => api.getTags()));
+		const tagCounts = await withApi((api) => api.getTagCounts());
 
 		// "Shared" reconciled to the target's existing tag (no duplicate created).
 		expect(tags.filter((t) => t.name === "Shared").length).toBe(1);

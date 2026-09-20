@@ -1,7 +1,7 @@
 //! Field filters: the built-in field table and value comparison rules.
 
 use super::*;
-use crate::store::maps::{ComparisonType, ExtraFieldType};
+use crate::store::maps::{ComparisonType, FieldType};
 use crate::types::Location;
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use arrow_array::Array;
@@ -29,26 +29,136 @@ pub struct BuiltinField {
     pub key: &'static str,
     pub label: &'static str,
     #[serde(rename = "type")]
-    pub field_type: ExtraFieldType,
+    pub field_type: FieldType,
     pub kind: Option<BuiltinFieldKind>,
     pub comparison: Option<ComparisonType>,
+    /// The field's values are ids the store allocates, wearing per-value display
+    /// metadata (`store_patch_field_values`). Tags are the first such field.
+    pub interned: bool,
 }
 
-/// Single source of truth for the built-in field vocabulary: the exported table, the two
-/// per-row resolvers, and the "is this a column, not an extras key" test all expand from
-/// one list. Match arms are literal-keyed, so resolution stays allocation-free.
-macro_rules! builtin_fields {
-    ($(
-        $key:literal, $label:literal, $ty:expr, $kind:expr, $cmp:expr,
-        |$l:ident| $loc_expr:expr,
-        |$v:ident, $i:ident| $arrow_expr:expr;
-    )*) => {
+// The field vocabulary is declared once, on the `Location` struct (`#[derive(Fields)]`,
+// see `mma-fields`): `location_fields!` hands the declared table to the callback below,
+// which expands it into the exported field table, `is_builtin_field`, and both
+// resolvers. The helper macros translate each row's tokens; resolver bodies are chosen
+// by the row's category, so a quirk is a declared category, never a one-off closure.
+
+macro_rules! field_kind {
+    (identity) => {
+        Some(BuiltinFieldKind::Identity)
+    };
+    (virtual_) => {
+        Some(BuiltinFieldKind::Virtual)
+    };
+    (writable) => {
+        Some(BuiltinFieldKind::Writable)
+    };
+    (readonly) => {
+        None
+    };
+}
+
+macro_rules! field_cmp {
+    (none) => {
+        None
+    };
+    ((circular $p:literal)) => {
+        Some(ComparisonType::Circular { period: $p })
+    };
+}
+
+macro_rules! field_interned {
+    (interned) => {
+        true
+    };
+    (not_interned) => {
+        false
+    };
+}
+
+/// A field's value off a `Location`, by category. `None` is absence.
+macro_rules! field_loc_value {
+    (f64, $l:ident, $f:ident) => {
+        Some(serde_json::json!($l.$f))
+    };
+    (u32, $l:ident, $f:ident) => {
+        Some(serde_json::json!($l.$f))
+    };
+    (date_u32, $l:ident, $f:ident) => {
+        Some(serde_json::json!($l.$f as f64))
+    };
+    (opt_date_u32, $l:ident, $f:ident) => {
+        $l.$f.map(|ts| serde_json::json!(ts as f64))
+    };
+    (opt_str_empty, $l:ident, $f:ident) => {
+        $l.$f
+            .as_deref()
+            .filter(|p| !p.is_empty())
+            .map(|p| serde_json::json!(p))
+    };
+    (u32_list_empty, $l:ident, $f:ident) => {
+        (!$l.$f.is_empty()).then(|| serde_json::json!($l.$f))
+    };
+    (len_of, $l:ident, $f:ident) => {
+        Some(serde_json::json!($l.$f.len()))
+    };
+    (flag, $l:ident, $f:ident) => {
+        Some(flag_value($l.flags, LocationFlags::$f))
+    };
+}
+
+/// The same value off the Arrow columns, via `LocView`'s cached refs.
+macro_rules! field_arrow_value {
+    (f64, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.map(|c| serde_json::json!(c.value($i)))
+    };
+    (u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.map(|c| serde_json::json!(c.value($i)))
+    };
+    (date_u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.map(|c| serde_json::json!(c.value($i) as f64))
+    };
+    (opt_date_u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c
+            .and_then(|c| (!c.is_null($i)).then(|| serde_json::json!(c.value($i) as f64)))
+    };
+    (opt_str_empty, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.and_then(|c| {
+            (!c.is_null($i) && !c.value($i).is_empty()).then(|| serde_json::json!(c.value($i)))
+        })
+    };
+    (u32_list_empty, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.and_then(|c| {
+            let list = c.value($i);
+            let ids = list.as_any().downcast_ref::<UInt32Array>().unwrap();
+            (!ids.is_empty()).then(|| {
+                serde_json::json!((0..ids.len()).map(|k| ids.value(k)).collect::<Vec<_>>())
+            })
+        })
+    };
+    (len_of, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.map(|c| serde_json::json!(c.value($i).len()))
+    };
+    (flag, $v:ident, $i:ident, $c:ident, $f:ident) => {
+        $v.$c.map(|c| {
+            flag_value(
+                LocationFlags::from_bits_retain(c.value($i)),
+                LocationFlags::$f,
+            )
+        })
+    };
+}
+
+macro_rules! expand_location_fields {
+    ($({ $key:literal, $label:literal, $ty:ident, $kind:ident, $cmp:tt, $interned:ident,
+         $cat:ident, $col:ident, $f:ident }),* $(,)?) => {
         pub const BUILTIN_FIELDS: &[BuiltinField] = &[$(BuiltinField {
             key: $key,
             label: $label,
-            field_type: $ty,
-            kind: $kind,
-            comparison: $cmp,
+            field_type: FieldType::$ty,
+            kind: field_kind!($kind),
+            comparison: field_cmp!($cmp),
+            interned: field_interned!($interned),
         }),*];
 
         /// True for fields backed by a Location column rather than the `extras` blob.
@@ -56,34 +166,12 @@ macro_rules! builtin_fields {
             matches!(field, $($key)|*)
         }
 
-        /// True for the built-in fields a bulk set may assign.
-        pub fn is_writable_builtin(field: &str) -> bool {
-            BUILTIN_FIELDS
-                .iter()
-                .any(|f| f.key == field && matches!(f.kind, Some(BuiltinFieldKind::Writable)))
-        }
-
-        /// The columns a row can lack, derived from the resolvers rather than declared
-        /// beside them: a default location holds every always-present field, so whatever
-        /// it answers `None` for is a column an op may clear.
-        pub fn optional_builtins() -> &'static [&'static str] {
-            static KEYS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-            KEYS.get_or_init(|| {
-                let empty = Location::default();
-                BUILTIN_FIELDS
-                    .iter()
-                    .filter(|f| resolve_field_loc(&empty, f.key).is_none())
-                    .map(|f| f.key)
-                    .collect()
-            })
-        }
-
         /// Resolve a field name to its JSON value from a `Location` struct. Unknown fields
         /// fall through to `loc.extra`. `None` is the one meaning of absence: a builtin
         /// without a value and an `extra` key holding JSON null both resolve to it.
         pub(crate) fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
             match field {
-                $($key => { let $l = loc; $loc_expr })*
+                $($key => field_loc_value!($cat, loc, $f),)*
                 _ => loc.extra.as_ref().and_then(|e| e.get(field)).filter(|v| !v.is_null()),
             }
         }
@@ -92,7 +180,7 @@ macro_rules! builtin_fields {
         /// materializing a full `Location`). Falls through to `extras` JSON otherwise.
         pub(super) fn resolve_field_arrow(view: &LocView, idx: usize, field: &str) -> Option<serde_json::Value> {
             match field {
-                $($key => { let ($v, $i) = (view, idx); $arrow_expr })*
+                $($key => field_arrow_value!($cat, view, idx, $col, $f),)*
                 _ => {
                     let extras = view.extras?;
                     if extras.is_null(idx) {
@@ -107,46 +195,30 @@ macro_rules! builtin_fields {
     };
 }
 
-builtin_fields! {
-    "lat", "Latitude", ExtraFieldType::Number, Some(BuiltinFieldKind::Identity), None,
-        |l| Some(serde_json::json!(l.lat)),
-        |v, i| v.lats.map(|c| serde_json::json!(c.value(i)));
-    "lng", "Longitude", ExtraFieldType::Number, Some(BuiltinFieldKind::Identity), None,
-        |l| Some(serde_json::json!(l.lng)),
-        |v, i| v.lngs.map(|c| serde_json::json!(c.value(i)));
-    "heading", "Heading", ExtraFieldType::Number, Some(BuiltinFieldKind::Writable),
-        Some(ComparisonType::Circular { period: 360.0 }),
-        |l| Some(serde_json::json!(l.heading)),
-        |v, i| v.headings.map(|c| serde_json::json!(c.value(i)));
-    "pitch", "Pitch", ExtraFieldType::Number, Some(BuiltinFieldKind::Writable), None,
-        |l| Some(serde_json::json!(l.pitch)),
-        |v, i| v.pitches.map(|c| serde_json::json!(c.value(i)));
-    "zoom", "Zoom", ExtraFieldType::Number, Some(BuiltinFieldKind::Writable), None,
-        |l| Some(serde_json::json!(l.zoom)),
-        |v, i| v.zooms.map(|c| serde_json::json!(c.value(i)));
-    "id", "ID", ExtraFieldType::Number, Some(BuiltinFieldKind::Identity), None,
-        |l| Some(serde_json::json!(l.id)),
-        |v, i| v.ids.map(|c| serde_json::json!(c.value(i)));
-    "createdAt", "Created", ExtraFieldType::Date, None, None,
-        |l| Some(serde_json::json!(l.created_at as f64)),
-        |v, i| v.created_ats.map(|c| serde_json::json!(c.value(i) as f64));
-    "modifiedAt", "Modified", ExtraFieldType::Date, None, None,
-        |l| l.modified_at.map(|ts| serde_json::json!(ts as f64)),
-        |v, i| v.modified_ats.and_then(|c| {
-            (!c.is_null(i)).then(|| serde_json::json!(c.value(i) as f64))
-        });
-    "panoId", "Pano ID", ExtraFieldType::String, None, None,
-        |l| l.pano_id.as_deref().filter(|p| !p.is_empty()).map(|p| serde_json::json!(p)),
-        |v, i| v.pano_ids.and_then(|c| {
-            (!c.is_null(i) && !c.value(i).is_empty()).then(|| serde_json::json!(c.value(i)))
-        });
-    "tagCount", "Tag count", ExtraFieldType::Number, Some(BuiltinFieldKind::Virtual), None,
-        |l| Some(serde_json::json!(l.tags.len())),
-        |v, i| v.tags.map(|c| serde_json::json!(c.value(i).len()));
-    "loadAsPanoId", "Load as pano ID", ExtraFieldType::Number, Some(BuiltinFieldKind::Writable), None,
-        |l| Some(flag_value(l.flags, LocationFlags::LOAD_AS_PANO_ID)),
-        |v, i| v.flags.map(|c| flag_value(LocationFlags::from_bits_retain(c.value(i)),
-            LocationFlags::LOAD_AS_PANO_ID));
+use crate::types::location_fields;
+location_fields!(expand_location_fields);
+
+/// True for the built-in columns a bulk set may assign (`heading`, `pitch`, `zoom`, `tags`).
+pub fn is_writable_builtin(field: &str) -> bool {
+    BUILTIN_FIELDS
+        .iter()
+        .any(|f| f.key == field && matches!(f.kind, Some(BuiltinFieldKind::Writable)))
+}
+
+/// The columns a row can lack, derived from the resolvers rather than declared
+/// beside them: a default location holds every always-present field, so whatever
+/// it answers `None` for is a column an op may clear.
+pub fn optional_builtins() -> &'static [&'static str] {
+    use std::sync::OnceLock;
+    static KEYS: OnceLock<Vec<&'static str>> = OnceLock::new();
+    KEYS.get_or_init(|| {
+        let empty = Location::default();
+        BUILTIN_FIELDS
+            .iter()
+            .filter(|f| resolve_field_loc(&empty, f.key).is_none())
+            .map(|f| f.key)
+            .collect()
+    })
 }
 
 /// Flags read as 0/1 numbers: the expression language has no booleans, so a flag term

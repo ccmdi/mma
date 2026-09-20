@@ -6,11 +6,11 @@ use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selection, Selector};
 use crate::store::arrow::empty_batch;
 use crate::store::commands::rows_file_path;
+use crate::store::maps::IndexShape;
 use crate::test_util::Fx;
 use crate::test_util::TempDir;
 use crate::test_util::{loc, patch};
 use crate::types::RawExtra;
-use crate::types::Tag;
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
@@ -32,13 +32,20 @@ fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
     }
 }
 
-/// Member count for a registered tag, `None` when the tag isn't in the registry.
-fn tag_count(store: &Store, id: u32) -> Option<usize> {
-    store
-        .tags
-        .all
-        .contains_key(&id)
-        .then(|| store.tag_count(id))
+/// Rows carrying tag `id`, off the postings.
+fn tag_count(store: &mut Store, id: u32) -> usize {
+    store.value_count("tags", &id.to_string())
+}
+
+/// Replay an edit the way store_undo/store_redo do: `finish_mutation` over the
+/// changeset is what moves the postings.
+fn edit_and_finish(store: &mut Store, entry: &EditEntry, forward: bool) {
+    let changes = if forward {
+        store.apply_edit_forward(entry)
+    } else {
+        store.apply_edit_reverse(entry)
+    };
+    store.finish_mutation(&changes);
 }
 
 fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
@@ -54,7 +61,6 @@ fn setup_store_with(locs: &[Location]) -> Store {
     store.map_id = Some(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed)));
     store.batch = Some(empty_batch());
     for l in locs {
-        store.add_tag_counts(slice::from_ref(l));
         store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
@@ -299,7 +305,7 @@ fn overlay_update_noop_on_patched_row_stays_a_noop() {
 #[test]
 fn collect_everything() {
     let locs = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)];
-    let store = setup_store_with(&locs);
+    let mut store = setup_store_with(&locs);
     let all = store.collect(&Selector::Everything);
     assert_eq!(all.len(), 2);
 }
@@ -309,7 +315,7 @@ fn named_id_ordering_is_consumer_defined() {
     // Pins the documented divergence on `Selector::Locations`: `collect` honours the
     // caller's order and duplicates, set projections sort and dedup.
     let locs = vec![loc(3, 0.0, 0.0), loc(7, 1.0, 1.0)];
-    let store = setup_store_with(&locs);
+    let mut store = setup_store_with(&locs);
     let selector = Selector::Locations {
         locations: vec![7, 3, 3],
         name: None,
@@ -356,7 +362,7 @@ fn bake_skips_empty_overlay() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     store.bake_overlay();
     let rows_before = store.batch.as_ref().unwrap().num_rows();
-    store.overlay.touch(); // stale flag with no content must not re-bake
+    store.overlay.edit(); // stale flag with no content must not re-bake
     store.bake_overlay();
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), rows_before);
 }
@@ -408,9 +414,9 @@ fn commit_diff_add_then_remove_is_noop() {
 fn tag_counts_after_add() {
     let l1 = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
-    let store = setup_store_with(&[l1, l2]);
-    assert_eq!(tag_count(&store, 10), Some(2));
-    assert_eq!(tag_count(&store, 20), Some(1));
+    let mut store = setup_store_with(&[l1, l2]);
+    assert_eq!(tag_count(&mut store, 10), 2);
+    assert_eq!(tag_count(&mut store, 20), 1);
 }
 
 #[test]
@@ -418,17 +424,29 @@ fn tag_counts_after_remove() {
     let l1 = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let l2 = loc_with_tags(2, 1.0, 1.0, vec![10]);
     let mut store = setup_store_with(&[l1.clone(), l2]);
-    store.remove_tag_counts(&[l1]);
-    assert_eq!(tag_count(&store, 10), Some(1));
-    assert_eq!(tag_count(&store, 20), Some(0));
+    assert_eq!(
+        tag_count(&mut store, 10),
+        2,
+        "postings built before the edit"
+    );
+    store.overlay_remove(slice::from_ref(&l1));
+    store.finish_mutation(&ChangeSet {
+        removed: vec![l1],
+        ..Default::default()
+    });
+    assert_eq!(tag_count(&mut store, 10), 1);
+    assert_eq!(tag_count(&mut store, 20), 0);
 }
 
 #[test]
-fn tag_counts_saturate_at_zero() {
+fn removing_a_row_the_index_never_had_is_a_no_op() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    store.remove_tag_counts(&[l]);
-    assert_eq!(tag_count(&store, 10), None);
+    store.finish_mutation(&ChangeSet {
+        removed: vec![l],
+        ..Default::default()
+    });
+    assert_eq!(tag_count(&mut store, 10), 0, "and no member is invented");
 }
 
 // -----------------------------------------------------------------------
@@ -537,28 +555,28 @@ fn redo_stack_cleared_on_new_edit() {
 fn tag_counts_correct_after_undo_add() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10, 20]);
     let mut store = setup_store_with(slice::from_ref(&l));
-    assert_eq!(tag_count(&store, 10), Some(1));
+    assert_eq!(tag_count(&mut store, 10), 1);
 
     let entry = EditEntry {
         created: vec![l],
         removed: vec![],
     };
-    store.apply_edit_reverse(&entry);
-    assert_eq!(tag_count(&store, 10), Some(0));
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(tag_count(&mut store, 10), 0);
 }
 
 #[test]
 fn tag_counts_correct_after_undo_remove() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    assert_eq!(tag_count(&store, 10), None);
+    assert_eq!(tag_count(&mut store, 10), 0);
 
     let entry = EditEntry {
         created: vec![],
         removed: vec![l],
     };
-    store.apply_edit_reverse(&entry);
-    assert_eq!(tag_count(&store, 10), Some(1));
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(tag_count(&mut store, 10), 1);
 }
 
 #[test]
@@ -566,19 +584,17 @@ fn tag_counts_correct_after_undo_tag_change() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![20]);
     let mut store = setup_store_with(slice::from_ref(&new));
-    store.tags.counts = Touched::default();
-    store.add_tag_counts(slice::from_ref(&new));
-    assert_eq!(tag_count(&store, 20), Some(1));
-    assert_eq!(tag_count(&store, 10), None);
+    assert_eq!(tag_count(&mut store, 20), 1);
+    assert_eq!(tag_count(&mut store, 10), 0);
 
     let entry = EditEntry {
         created: vec![new],
         removed: vec![old],
     };
-    store.apply_edit_reverse(&entry);
+    edit_and_finish(&mut store, &entry, false);
 
-    assert_eq!(tag_count(&store, 10), Some(1));
-    assert_eq!(tag_count(&store, 20), Some(0));
+    assert_eq!(tag_count(&mut store, 10), 1);
+    assert_eq!(tag_count(&mut store, 20), 0);
 }
 
 #[test]
@@ -590,11 +606,11 @@ fn tag_counts_survive_undo_redo_cycle() {
         removed: vec![],
     };
 
-    store.apply_edit_reverse(&entry);
-    assert_eq!(tag_count(&store, 10), Some(0));
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(tag_count(&mut store, 10), 0);
 
-    store.apply_edit_forward(&entry);
-    assert_eq!(tag_count(&store, 10), Some(1));
+    edit_and_finish(&mut store, &entry, true);
+    assert_eq!(tag_count(&mut store, 10), 1);
 }
 
 // -----------------------------------------------------------------------
@@ -625,7 +641,7 @@ fn delta_has_removed_entry_for_deleted_location() {
     };
     let delta = store.apply_edit_forward(&entry);
     assert_eq!(delta.removed.len(), 1);
-    assert_eq!(delta.removed[0], 1);
+    assert_eq!(delta.removed[0].id, 1);
     assert_eq!(delta.added.len(), 0);
 }
 
@@ -805,11 +821,6 @@ fn finish_mutation_reports_correct_state() {
         Some(false),
         "stack change ships both flags"
     );
-    // Setup added tagged locations, so this first mutation ships counts.
-    assert_eq!(
-        result.values.tag_counts.as_ref().unwrap().get(&10),
-        Some(&1)
-    );
     assert_eq!(result.version, 1);
 
     // Nothing moved since: the next result reports none of it again.
@@ -843,23 +854,19 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
 }
 
 #[test]
-fn tag_counts_shipped_only_when_changed() {
+fn value_counts_shipped_only_when_postings_move() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(slice::from_ref(&l));
 
-    // Setup's add_tag_counts left counts dirty: first mutation ships them once.
+    // A mutation that moves no rows ships no counts.
     let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.values.tag_counts.is_some());
+    assert!(result.values.value_counts.is_none());
 
-    // A mutation that touches no tags must not ship counts.
-    let result = store.finish_mutation(&ChangeSet::default());
-    assert!(result.values.tag_counts.is_none());
-
-    // A tag-touching edit ships fresh counts again.
-    let changes = store.apply_edit(slice::from_ref(&l), &[]);
+    // A tag-touching edit ships fresh counts.
+    let changes = store.apply_edit(vec![l.clone()], Vec::new());
     let result = store.finish_mutation(&changes);
     assert_eq!(
-        result.values.tag_counts.as_ref().unwrap().get(&10),
+        result.values.value_counts.as_ref().unwrap()["tags"].get("10"),
         Some(&0)
     );
 }
@@ -908,7 +915,7 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     store.bump();
     store.update_bounds(
         &ChangeSet {
-            removed: vec![2],
+            removed: vec![loc(2, 10.0, 10.0)],
             ..Default::default()
         },
         before,
@@ -982,14 +989,6 @@ fn alloc_id_increments() {
     let mut store = Store::new();
     let a = store.alloc_id();
     let b = store.alloc_id();
-    assert_eq!(b, a + 1);
-}
-
-#[test]
-fn alloc_tag_id_increments() {
-    let mut store = Store::new();
-    let a = store.alloc_tag_id();
-    let b = store.alloc_tag_id();
     assert_eq!(b, a + 1);
 }
 
@@ -1238,13 +1237,13 @@ fn multiple_undo_redo_cycles_consistent() {
     };
 
     for _ in 0..5 {
-        store.apply_edit_forward(&entry);
+        edit_and_finish(&mut store, &entry, true);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![20]);
-        assert_eq!(tag_count(&store, 20), Some(1));
+        assert_eq!(tag_count(&mut store, 20), 1);
 
-        store.apply_edit_reverse(&entry);
+        edit_and_finish(&mut store, &entry, false);
         assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10]);
-        assert_eq!(tag_count(&store, 10), Some(1));
+        assert_eq!(tag_count(&mut store, 10), 1);
     }
 }
 
@@ -1589,17 +1588,6 @@ fn ids_are_never_reused() {
 }
 
 #[test]
-fn tag_ids_are_never_reused() {
-    let mut store = Store::new();
-    let mut seen = HashSet::new();
-    for _ in 0..1000 {
-        let id = store.alloc_tag_id();
-        assert!(!seen.contains(&id), "Tag ID {id} was reused");
-        seen.insert(id);
-    }
-}
-
-#[test]
 fn overlay_consistency_no_id_in_both_dead_and_adds() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
@@ -1917,18 +1905,18 @@ fn tag_counts_correct_after_bulk_add_then_undo() {
         .map(|i| loc_with_tags(i, i as f64, 0.0, vec![5]))
         .collect();
     let mut store = setup_store_with(&locs);
-    assert_eq!(tag_count(&store, 5), Some(10));
+    assert_eq!(tag_count(&mut store, 5), 10);
 
     let entry = EditEntry {
         created: locs.clone(),
         removed: vec![],
     };
-    store.apply_edit_reverse(&entry);
-    assert_eq!(tag_count(&store, 5), Some(0));
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(tag_count(&mut store, 5), 0);
     assert_eq!(*store.alive_count, 0);
 
-    store.apply_edit_forward(&entry);
-    assert_eq!(tag_count(&store, 5), Some(10));
+    edit_and_finish(&mut store, &entry, true);
+    assert_eq!(tag_count(&mut store, 5), 10);
     assert_eq!(*store.alive_count, 10);
 }
 
@@ -1938,20 +1926,18 @@ fn tag_counts_correct_after_tag_reassignment_undo() {
     let old = loc_with_tags(1, 0.0, 0.0, vec![5]);
     let new = loc_with_tags(1, 0.0, 0.0, vec![5, 10]);
     let mut store = setup_store_with(slice::from_ref(&new));
-    store.tags.counts = Touched::default();
-    store.add_tag_counts(slice::from_ref(&new));
-    assert_eq!(tag_count(&store, 5), Some(1));
-    assert_eq!(tag_count(&store, 10), Some(1));
+    assert_eq!(tag_count(&mut store, 5), 1);
+    assert_eq!(tag_count(&mut store, 10), 1);
 
     let entry = EditEntry {
         created: vec![new],
         removed: vec![old],
     };
-    store.apply_edit_reverse(&entry);
-    assert_eq!(tag_count(&store, 5), Some(1), "tag 5 should still be 1");
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(tag_count(&mut store, 5), 1, "tag 5 should still be 1");
     assert_eq!(
-        tag_count(&store, 10),
-        Some(0),
+        tag_count(&mut store, 10),
+        0,
         "tag 10 should be 0 after undo"
     );
 }
@@ -2535,152 +2521,436 @@ fn manager_remove_preserves_other() {
 }
 
 // -----------------------------------------------------------------------
-// Store::create_tags: create-and-assign in one mutation
+// Interned value records: the one Rust-side owner (values.rs)
 // -----------------------------------------------------------------------
 
+/// A create seed: a pile with just a name.
+fn seed(name: &str) -> ValueRecord {
+    let mut rec = ValueRecord::new();
+    rec.insert("name".into(), name.into());
+    rec
+}
+
+fn creates(names: &[&str]) -> FieldValuesPatch {
+    FieldValuesPatch {
+        create: names.iter().map(|n| seed(n)).collect(),
+        ..Default::default()
+    }
+}
+
 #[test]
-fn create_tags_with_locations_never_leaves_the_tag_at_zero() {
+fn patch_field_values_interns_names_with_server_side_ids_above_the_data_floor() {
+    // Rows already carry tag id 7 with no metadata (foreign import); a fresh name must
+    // allocate above it, and an existing name must be reused case-insensitively.
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    let urban = store
+        .patch_field_values("tags", &creates(&["Urban"]))
+        .unwrap()
+        .resolved[0];
+    assert!(urban > 7, "fresh id lands above the data's max");
+
+    let r = store
+        .patch_field_values("tags", &creates(&["URBAN", "Rural"]))
+        .unwrap();
+    assert_eq!(r.resolved[0], urban, "case-insensitive reuse");
+    assert!(r.resolved[1] > urban);
+    assert!(
+        r.mutation
+            .values
+            .value_meta
+            .as_ref()
+            .is_some_and(|m| m["tags"].contains_key(&r.resolved[1])),
+        "the reconciled records ship on the same result"
+    );
+}
+
+#[test]
+fn patch_field_values_updates_and_reorders_records() {
+    let mut store = setup_store_with(&[]);
+    let ids = store
+        .patch_field_values("tags", &creates(&["A", "B"]))
+        .unwrap()
+        .resolved;
+
+    let mut patch = ValueRecord::new();
+    patch.insert("name".into(), "Alpha".into());
+    patch.insert("color".into(), "#123456".into());
+    let r = store
+        .patch_field_values(
+            "tags",
+            &FieldValuesPatch {
+                update: vec![Update { id: ids[0], patch }],
+                reorder: Some(vec![ids[1], ids[0]]),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let meta = &r.mutation.values.value_meta.unwrap()["tags"];
+    assert_eq!(record_name(&meta[&ids[0]]), Some("Alpha"));
+    assert_eq!(meta[&ids[0]]["color"], "#123456");
+    assert_eq!(record_order(&meta[&ids[1]]), Some(0));
+    assert_eq!(record_order(&meta[&ids[0]]), Some(1));
+}
+
+#[test]
+fn patch_field_values_null_deletes_a_pile_key_but_never_the_name() {
+    let mut store = setup_store_with(&[]);
+    let id = store
+        .patch_field_values("tags", &creates(&["A"]))
+        .unwrap()
+        .resolved[0];
+    let mut patch = ValueRecord::new();
+    patch.insert("color".into(), serde_json::Value::Null);
+    patch.insert("name".into(), serde_json::Value::Null);
+    store
+        .patch_field_values(
+            "tags",
+            &FieldValuesPatch {
+                update: vec![Update { id, patch }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    let meta = store.value_meta.get("tags").unwrap();
+    assert!(!meta[&id].contains_key("color"), "null deletes the key");
+    assert_eq!(
+        record_name(&meta[&id]),
+        Some("A"),
+        "identity never goes blank"
+    );
+}
+
+#[test]
+fn patch_field_values_rename_collision_merges_rows_in_one_undoable_edit() {
+    // Renaming A to "b" while B exists is a merge: every row carrying A is remapped to
+    // B in one edit, A's record goes dark (count 0), and undo restores the rows.
+    let mut store = setup_store_with(&[
+        loc_with_tags(1, 0.0, 0.0, vec![]),
+        loc_with_tags(2, 1.0, 1.0, vec![]),
+    ]);
+    let ids = store
+        .patch_field_values("tags", &creates(&["A", "B"]))
+        .unwrap()
+        .resolved;
+    let (a, b) = (ids[0], ids[1]);
+    tag_onto(&mut store, a, &[1, 2]);
+    tag_onto(&mut store, b, &[2]);
+
+    let mut patch = ValueRecord::new();
+    patch.insert("name".into(), "b".into());
+    store
+        .patch_field_values(
+            "tags",
+            &FieldValuesPatch {
+                update: vec![Update { id: a, patch }],
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![b]);
+    assert_eq!(
+        record_name(&store.value_meta.get("tags").unwrap()[&a]),
+        Some("A"),
+        "the emptied record keeps its name, dark"
+    );
+
+    let entry = store.edits.edit().undo.pop().unwrap();
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![a]);
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![a, b]);
+}
+
+#[test]
+fn patch_field_values_rejects_a_field_that_does_not_intern() {
+    let mut store = setup_store_with(&[]);
+    assert!(store
+        .patch_field_values("panoId", &FieldValuesPatch::default())
+        .is_err());
+}
+
+#[test]
+fn patch_field_values_rejects_a_nameless_create_seed() {
+    let mut store = setup_store_with(&[]);
+    assert!(store
+        .patch_field_values(
+            "tags",
+            &FieldValuesPatch {
+                create: vec![ValueRecord::new()],
+                ..Default::default()
+            }
+        )
+        .is_err());
+}
+
+// -----------------------------------------------------------------------
+// Tag membership through the generic list op: `tags` is an ordinary array field
+// -----------------------------------------------------------------------
+
+/// Put tag `t` onto `ids` through the generic list op, and hand it back.
+fn tag_onto(store: &mut Store, t: u32, ids: &[u32]) -> u32 {
+    if !ids.is_empty() {
+        set_tags(store, &[t], &[], ids);
+    }
+    t
+}
+
+#[test]
+fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
 
-    let result = store.create_tags(&["field".to_string()], &[1, 2]);
+    let result = set_tags(&mut store, &[7], &[], &[1, 2]);
 
-    let tag = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "field")
-        .expect("tag created");
-    assert_eq!(
-        store.tag_count(tag.id),
-        2,
-        "the count is right in the same mutation"
-    );
-    assert!(
-        tag.visible,
-        "and it is not flipped invisible for being empty"
-    );
+    assert_eq!(tag_count(&mut store, 7), 2);
     for id in [1, 2] {
-        assert!(store.get_loc_by_id(id).unwrap().tags.contains(&tag.id));
+        assert!(store.get_loc_by_id(id).unwrap().tags.contains(&7));
     }
     assert_eq!(
-        result.mutation.values.tag_counts.unwrap().get(&tag.id),
+        result.values.value_counts.unwrap()["tags"].get("7"),
         Some(&2),
         "the same mutation reports the count to JS"
     );
 }
 
 #[test]
-fn create_tags_without_locations_only_creates() {
+fn stripping_the_last_member_reports_a_zero_count() {
+    // Count 0 is the signal the frontend derives "this tag has emptied" from, so the
+    // mutation that empties a value must say so rather than dropping the entry.
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    tag_onto(&mut store, 7, &[1]);
 
-    store.create_tags(&["solo".to_string()], &[]);
+    let result = set_tags(&mut store, &[], &[7], &[1]);
 
-    let tag = store.tags.all.values().find(|t| t.name == "solo").unwrap();
-    assert_eq!(store.tag_count(tag.id), 0);
-    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+    assert_eq!(tag_count(&mut store, 7), 0);
+    assert_eq!(
+        result.values.value_counts.unwrap()["tags"].get("7"),
+        Some(&0)
+    );
 }
 
-#[test]
-fn create_tags_answers_with_the_ids_in_the_order_named() {
-    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.create_tags(&["old".to_string()], &[]);
-    let old = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "old")
-        .unwrap()
-        .id;
-
-    let created = store.create_tags(&["new".to_string(), "OLD".to_string()], &[]);
-    let new = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "new")
-        .unwrap()
-        .id;
-    assert_eq!(created.ids, vec![new, old]);
-}
-
-#[test]
-fn an_empty_tag_survives_an_unrelated_mutation() {
-    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)]);
-    store.create_tags(&["empty".to_string()], &[]);
-    let tag_id = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "empty")
-        .unwrap()
-        .id;
-    assert!(store.tags.all[&tag_id].visible, "visible on creation");
-
-    // Move an unrelated location. Visibility is re-derived only for tags this touched.
-    let old = store.get_loc_by_id(2).unwrap();
-    let moved = Location {
-        lat: 31.0,
-        ..old.clone()
+/// Membership write through the generic field op: `tags` is an ordinary list-valued
+/// field, so it goes through the same `ListSet` any `array` field would.
+fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> MutationResult {
+    let op = FieldOp::ListSet {
+        key: "tags".into(),
+        add: add.iter().map(|&i| serde_json::json!(i)).collect(),
+        remove: remove.iter().map(|&i| serde_json::json!(i)).collect(),
     };
-    store.finish_mutation(&ChangeSet {
-        updated: vec![(old, moved)],
-        ..Default::default()
-    });
+    let selector = Selector::Locations {
+        locations: ids.to_vec(),
+        name: None,
+    };
+    apply_field_op(store, &selector, &op, true)
+        .unwrap()
+        .mutation
+}
 
-    assert!(
-        store.tags.all[&tag_id].visible,
-        "an unrelated edit must not hide a tag that is merely empty"
+#[test]
+fn set_tags_strips_a_tag_and_drops_its_count() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
+    let t = tag_onto(&mut store, 7, &[1, 2]);
+
+    let result = set_tags(&mut store, &[], &[t], &[1]);
+
+    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![t]);
+    assert_eq!(
+        store.value_count("tags", &(t as f64).to_string()),
+        1,
+        "only the stripped row leaves the tag"
+    );
+    assert_eq!(
+        result.values.value_counts.unwrap()["tags"].get("7"),
+        Some(&1)
     );
 }
 
 #[test]
-fn losing_its_last_location_still_hides_a_tag() {
-    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.create_tags(&["fading".to_string()], &[1]);
-    let tag_id = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "fading")
-        .unwrap()
-        .id;
-    assert!(store.tags.all[&tag_id].visible);
+fn set_tags_lets_add_win_over_remove_and_never_churns_the_row_that_had_it() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
+    let t = tag_onto(&mut store, 7, &[1]);
 
-    // Strip it back off: the tag IS touched, so visibility is re-derived and it hides.
-    let old = store.get_loc_by_id(1).unwrap();
-    let untagged = Location {
-        tags: vec![],
-        ..old.clone()
-    };
-    store.remove_tag_counts(slice::from_ref(&old));
-    store.add_tag_counts(slice::from_ref(&untagged));
-    store.finish_mutation(&ChangeSet {
-        updated: vec![(old, untagged)],
-        ..Default::default()
-    });
+    set_tags(&mut store, &[t], &[t], &[1, 2]);
 
-    assert_eq!(store.tag_count(tag_id), 0);
-    assert!(!store.tags.all[&tag_id].visible);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![t]);
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![t], "add wins");
+    assert_eq!(store.value_count("tags", &(t as f64).to_string()), 2);
+
+    let entry = store.edits.edit().undo.pop().unwrap();
+    assert_eq!(
+        entry.created.iter().map(|l| l.id).collect::<Vec<_>>(),
+        vec![2],
+        "row 1 already had it, so it is not stripped and re-added"
+    );
 }
 
 #[test]
-fn create_tags_is_idempotent_against_locations_that_already_have_the_tag() {
+fn set_tags_adds_and_removes_in_one_pass() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.create_tags(&["dup".to_string()], &[1]);
-    let tag_id = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "dup")
+    let old = tag_onto(&mut store, 7, &[1]);
+    let new = 8;
+
+    set_tags(&mut store, &[new], &[old], &[1]);
+
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![new]);
+    assert_eq!(store.value_count("tags", &(old as f64).to_string()), 0);
+    assert_eq!(store.value_count("tags", &(new as f64).to_string()), 1);
+}
+
+#[test]
+fn set_tags_records_no_update_for_a_row_already_in_the_requested_state() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+    let undo_len = store.edits.undo.len();
+
+    set_tags(&mut store, &[t], &[], &[1]);
+
+    assert_eq!(
+        store.edits.undo.len(),
+        undo_len,
+        "no row moved, so no undo entry"
+    );
+    assert_eq!(
+        store.value_count("tags", &(t as f64).to_string()),
+        1,
+        "and the count is not double-added"
+    );
+}
+
+#[test]
+fn set_tags_undo_restores_membership() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+
+    set_tags(&mut store, &[], &[t], &[1]);
+    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+
+    let entry = store.edits.edit().undo.pop().unwrap();
+    edit_and_finish(&mut store, &entry, false);
+
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![t]);
+    assert_eq!(tag_count(&mut store, t), 1);
+}
+
+// -----------------------------------------------------------------------
+// Field indexes: enumerable types get one, nothing else does
+// -----------------------------------------------------------------------
+
+/// Ids a selector resolves to, in order.
+fn resolved(store: &Store, sel: &Selector) -> Vec<u32> {
+    selections::resolve(&store.loc_view(), sel).iter().collect()
+}
+
+fn tag_filter(tag_id: u32) -> Selector {
+    Selector::Filter {
+        field: "tags".into(),
+        test: selections::FilterOp::Contains {
+            value: serde_json::json!(tag_id),
+        },
+    }
+}
+
+#[test]
+fn only_enumerable_types_are_indexable() {
+    use crate::store::maps::FieldType;
+    assert_eq!(FieldType::Enum.index_shape(), IndexShape::Scalar);
+    assert_eq!(FieldType::Array.index_shape(), IndexShape::Multi);
+    for t in [
+        FieldType::String,
+        FieldType::Number,
+        FieldType::Date,
+        FieldType::Month,
+    ] {
+        assert_eq!(t.index_shape(), IndexShape::None, "unbounded value space");
+    }
+}
+
+#[test]
+fn tags_is_indexed_because_it_is_an_array_field_not_because_it_is_tags() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+
+    assert_eq!(store.index_shape_of("tags"), IndexShape::Multi);
+    assert_eq!(store.index_shape_of("panoId"), IndexShape::None);
+
+    store.ensure_indexes_for(&tag_filter(t));
+    assert!(store.field_indexes.contains_key("tags"));
+    assert!(
+        !store.field_indexes.contains_key("panoId"),
+        "an unbounded field is never indexed"
+    );
+}
+
+#[test]
+fn an_indexed_filter_agrees_with_the_scan_it_replaces() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1), loc(3, 10.2, 20.2)]);
+    let t = tag_onto(&mut store, 7, &[1, 3]);
+    let scanned = resolved(&store, &Selector::tag(t));
+
+    store.ensure_indexes_for(&tag_filter(t));
+
+    assert_eq!(resolved(&store, &tag_filter(t)), scanned);
+    assert_eq!(scanned, vec![1, 3]);
+}
+
+#[test]
+fn an_index_built_before_an_edit_still_answers_correctly() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+    // Bake first, or every row sits in the overlay and the postings are never consulted.
+    store.bake_overlay();
+    store.ensure_indexes_for(&tag_filter(t));
+    assert_eq!(resolved(&store, &tag_filter(t)), vec![1]);
+
+    // A patch adds the tag to a row the postings do not have, and a remove takes away one
+    // they do. Both are overlay-only, so the index itself is untouched.
+    set_tags(&mut store, &[t], &[], &[2]);
+    let gone = store.get_loc_by_id(1).unwrap();
+    store.overlay_remove(&[gone]);
+
+    assert_eq!(
+        resolved(&store, &tag_filter(t)),
+        vec![2],
+        "the overlay is folded in at query time"
+    );
+}
+
+#[test]
+fn the_filter_answer_comes_from_the_postings() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+    store.bake_overlay();
+    store.ensure_indexes_for(&tag_filter(t));
+
+    // Poison the postings. A resolve that still scanned would be unaffected; this one is
+    // not, which is what makes the index load-bearing rather than decorative.
+    store
+        .field_indexes
+        .get_mut("tags")
         .unwrap()
-        .id;
+        .by_value
+        .insert((t as f64).to_string(), [2u32].into_iter().collect());
 
-    // Same name, same location: no second copy of the tag, no double count.
-    store.create_tags(&["DUP".to_string()], &[1]);
+    assert_eq!(resolved(&store, &tag_filter(t)), vec![2]);
+}
 
-    assert_eq!(store.tags.counts.values().filter(|&&c| c > 0).count(), 1);
-    assert_eq!(store.tag_count(tag_id), 1);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![tag_id]);
+#[test]
+fn a_range_operator_is_not_an_index_lookup() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    let t = tag_onto(&mut store, 7, &[1]);
+    store.ensure_indexes_for(&tag_filter(t));
+
+    // `tags` is indexed, but `gt` is not a postings lookup: it must still scan, and the
+    // scan must still be correct.
+    let ranged = Selector::Filter {
+        field: "tagCount".into(),
+        test: selections::FilterOp::Gt {
+            value: serde_json::json!(0),
+            tz_local: false,
+        },
+    };
+    assert_eq!(resolved(&store, &ranged), vec![1]);
 }
 
 // -----------------------------------------------------------------------
@@ -2692,7 +2962,7 @@ fn add_tag_selection(store: &mut Store, tag_id: u32, color: [u8; 3]) {
         sel: Selection {
             key: format!("tag:{tag_id}"),
             color,
-            selector: Selector::Tag { tag_id },
+            selector: Selector::tag(tag_id),
         },
         set: RoaringBitmap::new(),
         ghosted: false,
@@ -2732,8 +3002,6 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
 #[test]
 fn a_full_resolve_counts_a_ghosted_selection_and_keeps_it_out_of_the_selected_set() {
     let mut store = setup_store_with(&[loc_with_tags(1, 10.0, 20.0, vec![1, 2])]);
-    insert_tag(&mut store, 1, 1);
-    insert_tag(&mut store, 2, 1);
     add_tag_selection(&mut store, 1, [255, 0, 0]);
     store.selections.resolved[0].ghosted = true;
     add_tag_selection(&mut store, 2, [0, 255, 0]);
@@ -2790,114 +3058,12 @@ fn bitmask_cell_chars(buf: &[u8]) -> Vec<char> {
     chars
 }
 
-#[test]
-fn tag_patch_applies_set_fields_only() {
-    let mut tag = Tag {
-        id: 1,
-        name: "A".into(),
-        color: "#ff0000".into(),
-        visible: true,
-        order: None,
-        doclinks: vec!["https://old".into()],
-    };
-    // Unset fields untouched; blank name ignored.
-    apply_tag_patch(
-        &mut tag,
-        &TagPatch {
-            name: Some("  ".into()),
-            ..Default::default()
-        },
-    );
-    assert_eq!(tag.name, "A");
-    assert_eq!(tag.doclinks, vec!["https://old".to_string()]);
-
-    // doclinks is a full replacement; empty vec clears.
-    apply_tag_patch(
-        &mut tag,
-        &TagPatch {
-            doclinks: Some(vec!["https://a".into(), "https://b".into()]),
-            ..Default::default()
-        },
-    );
-    assert_eq!(tag.doclinks.len(), 2);
-    apply_tag_patch(
-        &mut tag,
-        &TagPatch {
-            doclinks: Some(Vec::new()),
-            ..Default::default()
-        },
-    );
-    assert!(tag.doclinks.is_empty());
-    assert_eq!(tag.name, "A");
-}
-
-fn registry_tag(id: u32, visible: bool) -> Tag {
-    Tag {
-        id,
-        name: format!("tag{id}"),
-        color: "#ff0000".into(),
-        visible,
-        order: None,
-        doclinks: Vec::new(),
-    }
-}
-
-// Issue #122: commit checkout rewrites the base Arrow file but not the SQLite tag
-// registry, so a tag soft-deleted after the target commit stays visible=false even
-// though the restored locations reference it. Open-time reconciliation revives it.
-#[test]
-fn reconcile_revives_soft_deleted_tag_with_members() {
-    let mut tags = HashMap::from([
-        (1, registry_tag(1, false)), // ghost, but locations reference it again
-        (2, registry_tag(2, true)),  // live
-        (3, registry_tag(3, false)), // ghost with no members
-    ]);
-    let counts = HashMap::from([(1, 2usize), (2, 5)]);
-
-    let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &counts);
-
-    assert!(healed, "revived tag must be flagged for persistence");
-    assert_eq!(max_tag_id, 3);
-    assert!(tags[&1].visible);
-    assert!(tags[&2].visible);
-    assert!(
-        !tags[&3].visible,
-        "memberless ghost stays soft-deleted for undo revival"
-    );
-}
-
-#[test]
-fn reconcile_clean_registry_needs_no_persist() {
-    let mut tags = HashMap::from([
-        (1, registry_tag(1, true)),
-        (2, registry_tag(2, true)), // created but unassigned; stays visible
-    ]);
-    let counts = HashMap::from([(1, 3usize), (5, 1)]);
-
-    let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &counts);
-
-    assert!(!healed, "no desync, so open must not dirty the registry");
-    assert_eq!(max_tag_id, 5);
-    assert!(tags[&2].visible);
-    let placeholder = &tags[&5];
-    assert!(placeholder.visible);
-    assert_eq!(placeholder.name, "Tag 5");
-}
-
-/// Insert tag `id` with `count` members so selection resolution can see it.
+/// Add `count` extra rows carrying tag `id`, so selection resolution can see it.
 fn insert_tag(store: &mut Store, id: u32, count: usize) {
-    store.tags.all.edit().insert(
-        id,
-        Tag {
-            id,
-            name: format!("tag{id}"),
-            color: "#ff0000".into(),
-            visible: true,
-            order: None,
-            doclinks: Vec::new(),
-        },
-    );
-    *store.tags.counts.edit(id) = count;
+    let locs: Vec<Location> = (0..count)
+        .map(|i| loc_with_tags(10_000 + id * 100 + i as u32, 0.0, 0.0, vec![id]))
+        .collect();
+    store.overlay_add(locs);
 }
 
 #[test]
@@ -2968,17 +3134,6 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
 fn membership_delta_reports_gained_on_tag_add() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
     let mut store = setup_store_with(slice::from_ref(&l1));
-    store.tags.all.edit().insert(
-        1,
-        Tag {
-            id: 1,
-            name: "A".into(),
-            color: "#ff0000".into(),
-            visible: true,
-            order: None,
-            doclinks: Vec::new(),
-        },
-    );
     add_tag_selection(&mut store, 1, [255, 0, 0]);
 
     // Add tag 1 to location 1
@@ -3049,7 +3204,7 @@ fn removed_selected_location_leaves_no_patch() {
     store.resolve_selection_membership();
 
     let result = store.finish_mutation(&ChangeSet {
-        removed: vec![1],
+        removed: vec![loc_with_tags(1, 10.0, 20.0, vec![1])],
         ..Default::default()
     });
 
@@ -3117,17 +3272,6 @@ fn leaving_winning_selection_restates_survivors_paint() {
 fn membership_delta_no_patch_when_nothing_changed() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(slice::from_ref(&l1));
-    store.tags.all.edit().insert(
-        1,
-        Tag {
-            id: 1,
-            name: "A".into(),
-            color: "#ff0000".into(),
-            visible: true,
-            order: None,
-            doclinks: Vec::new(),
-        },
-    );
     add_tag_selection(&mut store, 1, [255, 0, 0]);
     // Resolve initial membership
     store.resolve_selection_membership();
@@ -3200,27 +3344,6 @@ fn selected_row_moving_across_cells_ships_as_one_move() {
     );
     let from = added.moved_from.as_ref().expect("carries the vacated slot");
     assert_eq!(from.id, 1);
-}
-
-#[test]
-fn touched_zero_member_tag_is_hidden_by_finish_mutation() {
-    // A tag with no members produces an empty changeset, so update_tag_counts never marks
-    // it touched; store_delete_tags marks it directly. This pins the mechanism it relies
-    // on: a touched count-0 tag gets visible=false and the result ships tags.
-    let mut store = setup_store_with(&[]);
-    insert_tag(&mut store, 1, 0);
-    store.tags.counts.touch(1);
-
-    let result = store.finish_mutation(&ChangeSet::default());
-
-    assert!(
-        !store.tags.all[&1].visible,
-        "touched zero-member tag must be hidden"
-    );
-    assert!(
-        result.values.tags.is_some(),
-        "the visibility flip must ship tags so JS sees it"
-    );
 }
 
 // -----------------------------------------------------------------------
@@ -3610,98 +3733,78 @@ fn copy_dedup_empty_pano_treated_as_panoless() {
 }
 
 // -----------------------------------------------------------------------
-// Tag reconciliation core (reconcile_tags_by_name) — shared by import + copy
+// Value reconciliation core (reconcile_values_by_name) — shared by import + copy
 // -----------------------------------------------------------------------
 
-fn tag(id: u32, name: &str, color: &str) -> Tag {
-    Tag {
-        id,
-        name: name.into(),
-        color: color.into(),
-        visible: true,
-        order: None,
-        doclinks: Vec::new(),
-    }
+fn tag(id: u32, name: &str, color: &str) -> (u32, ValueRecord) {
+    let mut rec = seed(name);
+    rec.insert("color".into(), color.into());
+    (id, rec)
 }
 
 #[test]
-fn reconcile_tags_match_by_name_case_insensitive() {
-    let mut target_tags: HashMap<u32, Tag> =
-        [(3, tag(3, "rural", "#222222"))].into_iter().collect();
-    let mut next = 4;
-    let (remap, changed) =
-        reconcile_tags_by_name(&[tag(7, "Rural", "#111111")], &mut target_tags, &mut next);
+fn reconcile_values_match_by_name_case_insensitive() {
+    let mut target: HashMap<u32, ValueRecord> = [tag(3, "rural", "#222222")].into_iter().collect();
+    let (remap, changed) = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
     assert_eq!(remap.get(&7), Some(&3));
     assert!(!changed, "pure match mutates nothing");
-    assert_eq!(next, 4);
-    assert_eq!(target_tags.len(), 1);
-    // The existing target tag keeps its own color.
-    assert_eq!(target_tags.get(&3).unwrap().color, "#222222");
+    assert_eq!(target.len(), 1);
+    // The existing target record keeps its own color.
+    assert_eq!(target.get(&3).unwrap()["color"], "#222222");
 }
 
 #[test]
-fn reconcile_tags_create_missing_with_source_color() {
-    let mut target_tags: HashMap<u32, Tag> = Default::default();
-    let mut next = 10;
+fn reconcile_values_create_missing_with_source_pile() {
+    let mut target: HashMap<u32, ValueRecord> = Default::default();
     let (remap, changed) =
-        reconcile_tags_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target_tags, &mut next);
+        reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
     assert!(changed);
     assert_eq!(remap.get(&7), Some(&10));
-    assert_eq!(next, 11);
-    let new_tag = target_tags.get(&10).unwrap();
-    assert_eq!(new_tag.name, "Trekker");
-    assert_eq!(new_tag.color, "#abcdef");
+    let rec = target.get(&10).unwrap();
+    assert_eq!(record_name(rec), Some("Trekker"));
+    assert_eq!(rec["color"], "#abcdef");
 }
 
 #[test]
-fn reconcile_tags_doclinks_claimed_when_target_empty() {
-    let mut target_tags: HashMap<u32, Tag> =
-        [(3, tag(3, "rural", "#222222"))].into_iter().collect();
-    let mut next = 4;
-    let source = Tag {
-        doclinks: vec!["https://docs.google.com/document/d/x/edit#heading=h.abc".into()],
-        ..tag(7, "Rural", "#111111")
-    };
-    let (_, changed) =
-        reconcile_tags_by_name(slice::from_ref(&source), &mut target_tags, &mut next);
-    assert!(changed, "doclink adoption must mark tags as changed");
-    assert_eq!(target_tags.get(&3).unwrap().doclinks, source.doclinks);
-}
-
-#[test]
-fn reconcile_tags_doclinks_never_overwrite_existing() {
-    let mut target_tags: HashMap<u32, Tag> = [(
-        3,
-        Tag {
-            doclinks: vec!["https://docs.google.com/document/d/kept/edit#heading=h.kept".into()],
-            ..tag(3, "rural", "#222222")
-        },
-    )]
-    .into_iter()
-    .collect();
-    let mut next = 4;
-    let source = Tag {
-        doclinks: vec!["https://docs.google.com/document/d/new/edit#heading=h.new".into()],
-        ..tag(7, "Rural", "#111111")
-    };
-    let (_, changed) = reconcile_tags_by_name(&[source], &mut target_tags, &mut next);
-    assert!(!changed, "no adoption means no tag change");
-    assert_eq!(
-        target_tags.get(&3).unwrap().doclinks,
-        vec!["https://docs.google.com/document/d/kept/edit#heading=h.kept".to_string()]
+fn reconcile_values_pile_keys_claimed_when_target_lacks_them() {
+    let mut target: HashMap<u32, ValueRecord> = [tag(3, "rural", "#222222")].into_iter().collect();
+    let (id, mut rec) = tag(7, "Rural", "#111111");
+    rec.insert(
+        "doclinks".into(),
+        serde_json::json!(["https://docs.google.com/document/d/x/edit#heading=h.abc"]),
     );
+    let (_, changed) = reconcile_values_by_name(&[(id, rec.clone())], &mut target, 0);
+    assert!(changed, "key adoption must mark the records as changed");
+    assert_eq!(target.get(&3).unwrap()["doclinks"], rec["doclinks"]);
 }
 
 #[test]
-fn reconcile_tags_dedupes_same_name_within_batch() {
-    let mut target_tags: HashMap<u32, Tag> = Default::default();
-    let mut next = 1;
-    let (remap, _) = reconcile_tags_by_name(
+fn reconcile_values_pile_keys_never_overwrite_existing() {
+    let kept = serde_json::json!(["https://docs.google.com/document/d/kept/edit#heading=h.kept"]);
+    let mut target: HashMap<u32, ValueRecord> = {
+        let (id, mut rec) = tag(3, "rural", "#222222");
+        rec.insert("doclinks".into(), kept.clone());
+        [(id, rec)].into_iter().collect()
+    };
+    let (id, mut rec) = tag(7, "Rural", "#222222");
+    rec.insert(
+        "doclinks".into(),
+        serde_json::json!(["https://docs.google.com/document/d/new/edit#heading=h.new"]),
+    );
+    let (_, changed) = reconcile_values_by_name(&[(id, rec)], &mut target, 0);
+    assert!(!changed, "no adoption means no record change");
+    assert_eq!(target.get(&3).unwrap()["doclinks"], kept);
+}
+
+#[test]
+fn reconcile_values_dedupes_same_name_within_batch() {
+    let mut target: HashMap<u32, ValueRecord> = Default::default();
+    let (remap, _) = reconcile_values_by_name(
         &[tag(7, "urban", "#111111"), tag(8, "Urban", "#222222")],
-        &mut target_tags,
-        &mut next,
+        &mut target,
+        0,
     );
-    assert_eq!(target_tags.len(), 1);
+    assert_eq!(target.len(), 1);
     assert_eq!(remap.get(&7), remap.get(&8));
 }
 
@@ -3757,7 +3860,7 @@ fn overlay_update_back_to_base_clears_patch() {
 // -----------------------------------------------------------------------
 
 /// Brute-force reference: ids of alive locations within radius, sorted.
-fn brute_nearby(store: &Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
+fn brute_nearby(store: &mut Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
     let mut out: Vec<u32> = store
         .collect(&Selector::Everything)
         .iter()
@@ -3790,7 +3893,7 @@ fn spatial_matches_brute_force_across_mutations() {
     for r in [0.0, 2.0, 50.0, 1000.0] {
         assert_eq!(
             indexed_nearby(&mut store, base.0, base.1, r),
-            brute_nearby(&store, base.0, base.1, r),
+            brute_nearby(&mut store, base.0, base.1, r),
             "radius {r}"
         );
     }
@@ -3804,7 +3907,7 @@ fn spatial_matches_brute_force_across_mutations() {
     for r in [0.0, 2.0, 50.0, 1000.0] {
         assert_eq!(
             indexed_nearby(&mut store, base.0, base.1, r),
-            brute_nearby(&store, base.0, base.1, r),
+            brute_nearby(&mut store, base.0, base.1, r),
             "radius {r} after mutations"
         );
     }
@@ -4353,17 +4456,18 @@ fn location_aggregates_include_effective_tag_membership() {
     store.overlay_remove(&[base[1].clone()]);
     store.overlay_add(vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])]);
 
-    let LocationAggregates {
-        alive,
-        tag_counts,
-        tag_sets,
-        bounds,
-    } = store.scan_locations();
+    let LocationAggregates { alive, bounds } = store.scan_locations();
 
     assert_eq!(alive, 2);
-    assert_eq!(tag_counts, HashMap::from([(1, 1), (2, 2)]));
-    assert_eq!(tag_sets[&1].iter().collect::<Vec<_>>(), vec![3]);
-    assert_eq!(tag_sets[&2].iter().collect::<Vec<_>>(), vec![1, 3]);
+    assert_eq!(
+        store.value_counts("tags"),
+        HashMap::from([("1".into(), 1), ("2".into(), 2)]),
+        "counts are the postings, derived on demand"
+    );
+    // Membership itself is the `tags` field index, resolved through the ordinary filter.
+    store.ensure_indexes_for(&Selector::tag(2));
+    assert_eq!(resolved(&store, &Selector::tag(1)), vec![3]);
+    assert_eq!(resolved(&store, &Selector::tag(2)), vec![1, 3]);
     assert_eq!(
         bounds.map(BoundsAcc::resolve),
         Some([-10.0, -5.0, 20.0, 10.0])
@@ -4429,7 +4533,6 @@ fn apply_model_op(
                 removed: vec![],
             });
             store.edits.edit().redo.clear();
-            store.add_tag_counts(slice::from_ref(&l));
             store.overlay_add(vec![l.clone()]);
             model.insert(id, l);
             let pos = alive_ids.partition_point(|&x| x < id);
@@ -4442,7 +4545,6 @@ fn apply_model_op(
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
             let l = store.get_loc_by_id(id).unwrap();
-            store.remove_tag_counts(slice::from_ref(&l));
             store.overlay_remove(slice::from_ref(&l));
             store.push_undo(EditEntry {
                 created: vec![],
@@ -4465,8 +4567,7 @@ fn apply_model_op(
             let old = store.get_loc_by_id(id).unwrap();
             store.overlay_update(id, &patch!(heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
-            store.remove_tag_counts(slice::from_ref(&old));
-            store.add_tag_counts(slice::from_ref(&new_loc));
+            store.reindex(&[&old], &[&new_loc]);
             store.record_update_undo([(old, new_loc.clone())]);
             model.insert(id, new_loc);
         }
@@ -4485,7 +4586,7 @@ fn model_snapshot(model: &BTreeMap<u32, Location>) -> Vec<Location> {
     v
 }
 
-fn store_snapshot(store: &Store) -> Vec<Location> {
+fn store_snapshot(store: &mut Store) -> Vec<Location> {
     let mut v = store.collect(&Selector::Everything);
     v.sort_by_key(|l| l.id);
     for l in &mut v {
@@ -4525,13 +4626,13 @@ proptest::proptest! {
         for _ in 0..pushed {
             press_undo(&mut store);
         }
-        proptest::prop_assert_eq!(store_snapshot(&store), initial_snapshot.clone(), "full undo did not reach initial state");
+        proptest::prop_assert_eq!(store_snapshot(&mut store), initial_snapshot.clone(), "full undo did not reach initial state");
         proptest::prop_assert_eq!(*store.alive_count, initial.len());
 
         for _ in 0..pushed {
             press_redo(&mut store);
         }
-        proptest::prop_assert_eq!(store_snapshot(&store), final_snapshot.clone(), "full redo did not reach final state");
+        proptest::prop_assert_eq!(store_snapshot(&mut store), final_snapshot.clone(), "full redo did not reach final state");
         proptest::prop_assert_eq!(*store.alive_count, model.len());
 
         // Interleaved: undo k then redo k, starting from the final state above, must
@@ -4543,7 +4644,7 @@ proptest::proptest! {
         for _ in 0..k {
             press_redo(&mut store);
         }
-        proptest::prop_assert_eq!(store_snapshot(&store), final_snapshot, "interleaved undo/redo(k) did not land on final state");
+        proptest::prop_assert_eq!(store_snapshot(&mut store), final_snapshot, "interleaved undo/redo(k) did not land on final state");
         proptest::prop_assert_eq!(*store.alive_count, model.len());
     }
 }
@@ -4552,7 +4653,7 @@ proptest::proptest! {
 // plan_field_op: the map-wide `extra` rewrites, previously planned in JS
 // ---------------------------------------------------------------------------
 
-fn def_of(key: &str) -> maps::ExtraFieldDef {
+fn def_of(key: &str) -> maps::FieldDef {
     maps::auto_register_field_defs(
         |_| false,
         &[&raw_extra(&format!(r#"{{"{key}":1}}"#)).unwrap()],
@@ -5123,7 +5224,7 @@ fn field_op_round_trip_rename_reannounces_the_key() {
 
 #[test]
 fn collect_honours_each_selector_shape() {
-    let store = setup_store_with(&[loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)]);
+    let mut store = setup_store_with(&[loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)]);
     let ids = |locs: Vec<Location>| locs.iter().map(|l| l.id).collect::<Vec<u32>>();
 
     assert_eq!(ids(store.collect(&Selector::Everything)), vec![1, 2, 3]);

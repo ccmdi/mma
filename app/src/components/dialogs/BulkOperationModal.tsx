@@ -23,7 +23,7 @@ import {
 	coverage,
 	getMapState,
 } from "@/store/useMapStore";
-import { addSelection, all, batch as batchOp } from "@/store/selections";
+import { addSelection, all, batch as batchOp, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector, FieldOp } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -34,6 +34,7 @@ import {
 	getAllFieldDefs,
 	isClearableField,
 	isWritableField,
+	declaredValues,
 } from "@/lib/data/fieldDefRegistry";
 import { cmd } from "@/lib/commands";
 import { useMapSetting } from "@/store/useMapSetting";
@@ -105,7 +106,7 @@ interface SetupProps {
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 	const [total, pinned, counts] = await Promise.all([
 		countIn(selector),
-		countIn(all(selector, { type: "PanoIds" })),
+		countIn(all(selector, panoIdSelector(true))),
 		coverage(selector),
 	]);
 	const have = new Map(counts);
@@ -465,7 +466,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 	const effectiveKey = (creatingNew ? newKey : key).trim();
 	const def = effectiveKey ? getFieldDef(effectiveKey) : undefined;
 	const isNumber = def?.type === "number";
-	const enumValues = def?.type === "enum" ? def.values : null;
+	const enumValues = def?.type === "enum" ? declaredValues(def) : null;
 	const [exprError, setExprError] = useState<string | null>(null);
 	useEffect(() => {
 		if (!isNumber || raw.trim() === "") {

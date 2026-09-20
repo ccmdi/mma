@@ -3,6 +3,7 @@ import { useMapState, getVisibleTags } from "@/store/useMapStore";
 import { getImportStaging, confirmImport, cancelImport } from "@/store/importStaging";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
+import { colorForName } from "@/lib/util/color";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { ConfirmDialog } from "@/components/primitives/Dialog";
@@ -99,9 +100,11 @@ export function ImportSidebar() {
 			{preview.tags.length > 0 && (
 				<Section title={t("Tags in file")}>
 					<ul className="tag-list">
-						{preview.tags.map((t) => (
-							<TagPill as="li" key={t.id} small color={t.color} label={t.name} />
-						))}
+						{preview.tags.map((rec, i) => {
+							const name = typeof rec.name === "string" ? rec.name : "";
+							const color = typeof rec.color === "string" ? rec.color : colorForName(name);
+							return <TagPill as="li" key={name || i} small color={color} label={name} />;
+						})}
 					</ul>
 				</Section>
 			)}

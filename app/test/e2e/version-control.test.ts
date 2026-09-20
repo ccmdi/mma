@@ -136,7 +136,7 @@ describe("Version control - checkout revives soft-deleted tags", () => {
 		await withApi(async (api, id) => api.removeLocations(new Set([id])), locId);
 		await withApi(async (api) => api.commitMap("v2: loc deleted"));
 
-		const tag = await withApi(async (api, tid) => api.getMapState().tags[tid], tagId);
+		const tag = await withApi(async (api, tid) => api.getTags()[tid], tagId);
 		expect(tag?.visible).toBe(false);
 	});
 
@@ -144,8 +144,7 @@ describe("Version control - checkout revives soft-deleted tags", () => {
 		await withApi(async (api, cid) => api.checkoutCommit(cid), taggedCommitId);
 
 		const { visible, count } = await withApi(async (api, tid) => {
-			const s = api.getMapState();
-			return { visible: s.tags[tid]?.visible, count: s.tagCounts[tid] ?? 0 };
+			return { visible: api.getTags()[tid]?.visible, count: api.getTagCounts()[tid] ?? 0 };
 		}, tagId);
 		expect(visible).toBe(true);
 		expect(count).toBe(1);

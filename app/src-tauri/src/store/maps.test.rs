@@ -114,11 +114,11 @@ fn map_key_binding_wire_format_round_trip() {
 fn infer_number() {
     assert!(matches!(
         infer_field_type(&serde_json::json!(42)),
-        ExtraFieldType::Number
+        FieldType::Number
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!(2.75)),
-        ExtraFieldType::Number
+        FieldType::Number
     ));
 }
 
@@ -126,11 +126,11 @@ fn infer_number() {
 fn infer_month() {
     assert!(matches!(
         infer_field_type(&serde_json::json!("2023-05")),
-        ExtraFieldType::Month
+        FieldType::Month
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("1999-12")),
-        ExtraFieldType::Month
+        FieldType::Month
     ));
 }
 
@@ -138,27 +138,27 @@ fn infer_month() {
 fn infer_not_month() {
     assert!(matches!(
         infer_field_type(&serde_json::json!("2023-5")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("hello")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("2023-123")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("9999-99")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("2023-00")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("2023-13")),
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
@@ -166,11 +166,11 @@ fn infer_not_month() {
 fn infer_string_fallback() {
     assert!(matches!(
         infer_field_type(&serde_json::json!("hello")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!(true)),
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
@@ -192,19 +192,19 @@ fn known_enrichment_keys() {
 fn known_field_types() {
     assert!(matches!(
         known_field_def("altitude").unwrap().field_type,
-        ExtraFieldType::Number
+        FieldType::Number
     ));
     assert!(matches!(
         known_field_def("imageDate").unwrap().field_type,
-        ExtraFieldType::Month
+        FieldType::Month
     ));
     assert!(matches!(
         known_field_def("datetime").unwrap().field_type,
-        ExtraFieldType::Date
+        FieldType::Date
     ));
     assert!(matches!(
         known_field_def("cameraType").unwrap().field_type,
-        ExtraFieldType::Enum
+        FieldType::Enum
     ));
 }
 
@@ -230,7 +230,7 @@ fn auto_register_known_key() {
         auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"altitude": 500}"#)]).unwrap();
     assert_eq!(result.len(), 1);
     let def = &result["altitude"];
-    assert!(matches!(def.field_type, ExtraFieldType::Number));
+    assert!(matches!(def.field_type, FieldType::Number));
     assert_eq!(def.label.as_deref(), Some("Altitude"));
 }
 
@@ -241,7 +241,7 @@ fn auto_register_unknown_number() {
         auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"plumbus": 1}"#)]).unwrap();
     assert_eq!(result.len(), 1);
     let def = &result["plumbus"];
-    assert!(matches!(def.field_type, ExtraFieldType::Number));
+    assert!(matches!(def.field_type, FieldType::Number));
     assert!(def.label.is_none());
 }
 
@@ -250,10 +250,7 @@ fn auto_register_unknown_string() {
     let known: HashSet<String> = HashSet::new();
     let result =
         auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"region": "EU"}"#)]).unwrap();
-    assert!(matches!(
-        result["region"].field_type,
-        ExtraFieldType::String
-    ));
+    assert!(matches!(result["region"].field_type, FieldType::String));
 }
 
 #[test]
@@ -262,10 +259,7 @@ fn auto_register_unknown_month() {
     let result =
         auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"captured": "2024-03"}"#)])
             .unwrap();
-    assert!(matches!(
-        result["captured"].field_type,
-        ExtraFieldType::Month
-    ));
+    assert!(matches!(result["captured"].field_type, FieldType::Month));
 }
 
 #[test]
@@ -278,10 +272,7 @@ fn auto_register_mixed() {
     // countryCode is new but in known_field_def → gets label
     assert_eq!(result["countryCode"].label.as_deref(), Some("Country code"));
     // plumbus is unknown → inferred as Number, no label
-    assert!(matches!(
-        result["plumbus"].field_type,
-        ExtraFieldType::Number
-    ));
+    assert!(matches!(result["plumbus"].field_type, FieldType::Number));
     assert!(result["plumbus"].label.is_none());
 }
 
@@ -322,24 +313,37 @@ fn for_each_field_skips_nested_and_handles_specials() {
 fn camera_type_has_enum_values() {
     let def = known_field_def("cameraType").unwrap();
     let values = def.values.unwrap();
-    assert!(values.contains(&"gen1".to_string()));
-    assert!(values.contains(&"tripod".to_string()));
-    assert!(values.contains(&"trekker".to_string()));
-    let labels = def.labels.unwrap();
-    assert_eq!(labels.get("gen1").unwrap(), "Gen 1");
-    // every offered value is labelled
-    assert_eq!(labels.len(), values.len());
+    let by_value = |v: &str| values.iter().find(|fv| fv.value == v);
+    assert!(by_value("gen1").is_some());
+    assert!(by_value("tripod").is_some());
+    assert!(by_value("trekker").is_some());
+    assert_eq!(by_value("gen1").unwrap().label.as_deref(), Some("Gen 1"));
+    // every offered value carries its own label
+    assert!(values.iter().all(|v| v.label.is_some()));
+}
+
+#[test]
+fn a_legacy_def_folds_its_labels_map_into_its_values() {
+    let extra = MapExtra::from_json(
+        r#"{"fields":{"cam":{"type":"enum","label":"Camera","values":["gen1","gen2"],"labels":{"gen1":"Gen 1"}}}}"#,
+    );
+    let values = extra.fields.unwrap()["cam"].values.clone().unwrap();
+    assert_eq!(values.len(), 2);
+    assert_eq!(values[0].value, "gen1");
+    assert_eq!(values[1].value, "gen2");
+    assert!(values[1].label.is_none(), "an unlabelled value stays bare");
+    assert_eq!(values[0].label.as_deref(), Some("Gen 1"));
 }
 
 #[test]
 fn infer_array() {
     assert!(matches!(
         infer_field_type(&serde_json::json!([1, 2, 3])),
-        ExtraFieldType::Array
+        FieldType::Array
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!([])),
-        ExtraFieldType::Array
+        FieldType::Array
     ));
 }
 
@@ -347,11 +351,11 @@ fn infer_array() {
 fn infer_object_and_null() {
     assert!(matches!(
         infer_field_type(&serde_json::json!({"a": 1})),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::Value::Null),
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
@@ -359,7 +363,7 @@ fn infer_object_and_null() {
 fn infer_month_wrong_dash_position_is_string() {
     assert!(matches!(
         infer_field_type(&serde_json::json!("2024/06")),
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
@@ -367,18 +371,18 @@ fn infer_month_wrong_dash_position_is_string() {
 fn infer_month_wrong_length_is_string() {
     assert!(matches!(
         infer_field_type(&serde_json::json!("202-06")),
-        ExtraFieldType::String
+        FieldType::String
     ));
     assert!(matches!(
         infer_field_type(&serde_json::json!("20244-06")),
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
 #[test]
 fn driving_direction_is_circular_360() {
     let def = known_field_def("drivingDirection").unwrap();
-    assert!(matches!(def.field_type, ExtraFieldType::Number));
+    assert!(matches!(def.field_type, FieldType::Number));
     assert!(matches!(
         def.comparison,
         Some(ComparisonType::Circular { period }) if period == 360.0
@@ -389,7 +393,7 @@ fn driving_direction_is_circular_360() {
 fn coverage_dates_is_array() {
     assert!(matches!(
         known_field_def("coverageDates").unwrap().field_type,
-        ExtraFieldType::Array
+        FieldType::Array
     ));
 }
 
@@ -397,16 +401,15 @@ fn coverage_dates_is_array() {
 fn uploader_name_is_string() {
     assert!(matches!(
         known_field_def("uploaderName").unwrap().field_type,
-        ExtraFieldType::String
+        FieldType::String
     ));
 }
 
 #[test]
 fn timezone_is_enum_without_values() {
     let def = known_field_def("timezone").unwrap();
-    assert!(matches!(def.field_type, ExtraFieldType::Enum));
+    assert!(matches!(def.field_type, FieldType::Enum));
     assert!(def.values.is_none());
-    assert!(def.labels.is_none());
 }
 
 #[test]
@@ -425,7 +428,7 @@ fn auto_register_intra_call_dedup_first_value_wins_for_inference() {
         &[&raw(r#"{"foo": 5}"#), &raw(r#"{"foo": "2024-01"}"#)],
     )
     .unwrap();
-    assert!(matches!(result["foo"].field_type, ExtraFieldType::Number));
+    assert!(matches!(result["foo"].field_type, FieldType::Number));
 }
 
 #[test]
@@ -437,10 +440,7 @@ fn auto_register_curated_beats_inference_for_string_value() {
         &[&raw(r#"{"altitude": "not a number"}"#)],
     )
     .unwrap();
-    assert!(matches!(
-        result["altitude"].field_type,
-        ExtraFieldType::Number
-    ));
+    assert!(matches!(result["altitude"].field_type, FieldType::Number));
     assert_eq!(result["altitude"].label.as_deref(), Some("Altitude"));
 }
 
@@ -523,10 +523,7 @@ fn persist_field_defs_inserts_missing() {
         .unwrap();
     let extra: MapExtra = serde_json::from_str(&extra_str).unwrap();
     let fields = extra.fields.unwrap();
-    assert!(matches!(
-        fields["altitude"].field_type,
-        ExtraFieldType::Number
-    ));
+    assert!(matches!(fields["altitude"].field_type, FieldType::Number));
 }
 
 #[test]

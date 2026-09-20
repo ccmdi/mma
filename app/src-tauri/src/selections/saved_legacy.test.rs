@@ -1,5 +1,5 @@
 use super::*;
-use crate::selections::Selector;
+use crate::selections::{FilterOp, Selector};
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -92,9 +92,12 @@ fn import_captures_every_tag_name_under_a_distinct_id() {
     };
     let ids: Vec<u32> = selections
         .iter()
-        .map(|s| match s.selector {
-            Selector::Tag { tag_id } => tag_id,
-            _ => panic!("expected Tag leaves"),
+        .map(|s| match &s.selector {
+            Selector::Filter { field, test } if field == "tags" => match test {
+                FilterOp::Contains { value } => value.as_u64().unwrap() as u32,
+                _ => panic!("expected a tag membership leaf"),
+            },
+            _ => panic!("expected tag leaves"),
         })
         .collect();
     // The same name reuses its id; a different name never collides with it.
@@ -128,7 +131,6 @@ fn import_skips_rules_with_no_items() {
 
 #[test]
 fn import_reads_flat_filters_and_drops_an_item_it_cannot_read() {
-    use crate::selections::FilterOp;
     let mut conn = setup();
     let legacy = r#"[
         {"id":"f","name":"high","createdAt":1700000000000,"items":[
@@ -161,6 +163,9 @@ fn import_reads_flat_filters_and_drops_an_item_it_cannot_read() {
         }
     );
     assert!(matches!(by_name("area"), Some(Selector::Polygon { .. })));
-    assert!(matches!(by_name("mixed"), Some(Selector::Untagged)));
+    assert_eq!(
+        by_name("mixed").map(|s| serde_json::to_value(s).unwrap()),
+        Some(serde_json::to_value(Selector::untagged()).unwrap())
+    );
     assert!(by_name("unreadable").is_none());
 }

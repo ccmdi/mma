@@ -20,10 +20,9 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { openMap, mutate, getMapState } from "@/store/useMapStore";
+import { openMap, mutate, getMapState, getTags, getTagCounts } from "@/store/useMapStore";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import type { MutationResult, Tag } from "@/bindings.gen";
-
+import type { MutationResult } from "@/bindings.gen";
 const result = (
 	values: Partial<MutationResult["values"]> = {},
 	over: Partial<MutationResult> = {},
@@ -35,8 +34,8 @@ const result = (
 		locationCount: null,
 		canUndo: null,
 		canRedo: null,
-		tagCounts: null,
-		tags: null,
+		valueCounts: null,
+		valueMeta: null,
 		fieldDefs: null,
 		...values,
 	},
@@ -50,11 +49,12 @@ beforeEach(async () => {
 describe("applyMutation merge semantics", () => {
 	it("null fields are skipped: untouched slices keep their reference", async () => {
 		const before = getMapState();
+		const tagsBefore = getTags();
+		const countsBefore = getTagCounts();
 		await mutate(() => Promise.resolve(result()));
-		const after = getMapState();
-		expect(after.tagCounts).toBe(before.tagCounts);
-		expect(after.tags).toBe(before.tags);
-		expect(after.map).toBe(before.map);
+		expect(getTagCounts()).toBe(countsBefore);
+		expect(getTags()).toBe(tagsBefore);
+		expect(getMapState().map).toBe(before.map);
 	});
 
 	it("present scalars replace, absent ones hold", async () => {
@@ -73,16 +73,21 @@ describe("applyMutation merge semantics", () => {
 	});
 
 	it("present fields replace their slice; a tag change never re-mints the map", async () => {
-		const tags: Record<number, Tag> = {
-			1: { id: 1, name: "red", color: "#ff0000", visible: true, order: null },
-			2: { id: 2, name: "blue", color: "#0000ff", visible: true, order: null },
-		};
 		const mapBefore = getMapState().map;
-		await mutate(() => Promise.resolve(result({ tags, tagCounts: { 1: 5, 2: 0 } })));
-		const s = getMapState();
-		expect(s.tags).toBe(tags);
-		expect(s.tagCounts).toEqual({ 1: 5, 2: 0 });
-		expect(s.map).toBe(mapBefore);
+		await mutate(() =>
+			Promise.resolve(
+				result({
+					valueMeta: {
+						tags: { 1: { name: "red", color: "#ff0000" }, 2: { name: "blue", color: "#0000ff" } },
+					},
+					valueCounts: { tags: { 1: 5, 2: 0 } },
+				}),
+			),
+		);
+		expect(getTags()[1]).toMatchObject({ id: 1, name: "red", color: "#ff0000", visible: true });
+		expect(getTags()[2].visible).toBe(false);
+		expect(getTagCounts()).toEqual({ 1: 5, 2: 0 });
+		expect(getMapState().map).toBe(mapBefore);
 	});
 
 	// The field registry ships whole when it changed; the known-key set is its key set

@@ -50,17 +50,17 @@ describe("Staged (chunked) location adds", () => {
 
 	it("commits as one undoable mutation with correct tag counts", async () => {
 		const r = await withApi(async (api, tag: number) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			const before = { count: api.getMapState().locationCount, tag: counts?.[tag] ?? 0 };
 			await api.undo();
 			const after = {
 				count: api.getMapState().locationCount,
-				tag: api.getMapState().tagCounts?.[tag] ?? 0,
+				tag: api.getTagCounts()?.[tag] ?? 0,
 			};
 			await api.redo();
 			const redone = {
 				count: api.getMapState().locationCount,
-				tag: api.getMapState().tagCounts?.[tag] ?? 0,
+				tag: api.getTagCounts()?.[tag] ?? 0,
 			};
 			return { before, after, redone };
 		}, tagId);

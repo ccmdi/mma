@@ -68,6 +68,8 @@ import {
 	deleteTags,
 	getActiveSelections,
 	removeLocations,
+	getTags,
+	getTagCounts,
 } from "./useMapStore";
 import { hasCommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
@@ -78,6 +80,7 @@ import { downloadBlob } from "@/lib/util/util";
 import { toggleSeenOverlay } from "@/lib/seen/seenOverlay";
 import { selectReviewedHistory } from "@/lib/review/review";
 import { openDialog } from "./dialogBus";
+import { panoIdSelector, tagIdOf, unpannedSelector, untaggedSelector } from "@/store/selections";
 import { msg } from "@/lib/i18n";
 
 const requiresMap = () => getMapState().map !== null;
@@ -203,25 +206,25 @@ const COMMANDS = {
 		icon: mdiTagOffOutline,
 		group: msg("Selections"),
 		aliases: ["find untagged", "missing tags"],
-		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Untagged" }])),
+		execute: () => applySelectionUpdate(batch(addSelection)([untaggedSelector()])),
 	},
 	"select-unpanned": {
 		label: msg("Select unpanned locations"),
 		icon: mdiCompassOffOutline,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "Unpanned" }])),
+		execute: () => applySelectionUpdate(batch(addSelection)([unpannedSelector()])),
 	},
 	"select-panoid": {
 		label: msg("Select Pano ID locations"),
 		icon: mdiImageOutline,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "PanoIds" }])),
+		execute: () => applySelectionUpdate(batch(addSelection)([panoIdSelector(true)])),
 	},
 	"select-no-panoid": {
 		label: msg("Select non-Pano ID locations"),
 		icon: mdiImageOffOutline,
 		group: msg("Selections"),
-		execute: () => applySelectionUpdate(batch(addSelection)([{ type: "NotPanoIds" }])),
+		execute: () => applySelectionUpdate(batch(addSelection)([panoIdSelector(false)])),
 	},
 	"select-uncommitted": {
 		label: msg("Select uncommitted locations"),
@@ -441,11 +444,11 @@ const COMMANDS = {
 		execute: async () => {
 			await deleteTags(
 				getActiveSelections()
-					.filter((s) => s.selector.type === "Tag")
-					.map((s) => (s.selector as { type: "Tag"; tagId: number }).tagId),
+					.map((s) => tagIdOf(s.selector))
+					.filter((id): id is number => id != null),
 			);
 		},
-		enabled: () => getActiveSelections().some((s) => s.selector.type === "Tag"),
+		enabled: () => getActiveSelections().some((s) => tagIdOf(s.selector) != null),
 	},
 	"tag-download-csv": {
 		label: msg("Download tag counts as CSV"),
@@ -454,9 +457,9 @@ const COMMANDS = {
 		execute: () => {
 			const map = getMapState().map;
 			if (!map) return;
-			const counts = getMapState().tagCounts;
+			const counts = getTagCounts();
 			const rows = Object.entries(counts)
-				.map(([id, count]) => ({ name: getMapState().tags[Number(id)]?.name ?? id, count }))
+				.map(([id, count]) => ({ name: getTags()[Number(id)]?.name ?? id, count }))
 				.sort((a, b) => b.count - a.count);
 			const csv =
 				"name,count\n" + rows.map((r) => `"${r.name.replace(/"/g, '""')}",${r.count}`).join("\n");

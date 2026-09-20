@@ -1,4 +1,5 @@
-import type { Tag, VirtualTag } from "@/bindings.gen";
+import type { VirtualTag } from "@/bindings.gen";
+import type { Tag } from "@/types";
 import type { TagSortMode } from "@/types";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";

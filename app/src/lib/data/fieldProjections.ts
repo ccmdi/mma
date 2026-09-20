@@ -1,5 +1,5 @@
 import { PROJECTIONS } from "@/bindings.consts";
-import type { ExtraFieldType } from "@/bindings.consts";
+import type { FieldType } from "@/bindings.consts";
 import { msg } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
 
@@ -23,8 +23,8 @@ export interface FieldProjection {
 }
 
 /** Projections valid for a field type, in display order (first = dialog default). */
-export function projectionsForType(type: ExtraFieldType): FieldProjection[] {
-	return PROJECTIONS.filter((p) => (p.appliesTo as readonly ExtraFieldType[]).includes(type)).map(
+export function projectionsForType(type: FieldType): FieldProjection[] {
+	return PROJECTIONS.filter((p) => (p.appliesTo as readonly FieldType[]).includes(type)).map(
 		(p) => ({
 			id: p.id,
 			label: projectionLabel(p.id),
@@ -45,7 +45,7 @@ export const RANGE_ID = "range";
 
 /** Partition-key dropdown options for a field type. */
 export function partitionKeyOptions(
-	type: ExtraFieldType,
+	type: FieldType,
 	rangeForDates: boolean,
 ): { id: string; label: string }[] {
 	const projs = projectionsForType(type).map((p) => ({ id: p.id, label: p.label }));

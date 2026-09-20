@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::types::Location;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::time::Instant;
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
@@ -67,32 +67,28 @@ impl Store {
         true
     }
 
-    /// Core edit primitive: atomically remove then create locations, updating tags, overlay,
-    /// and render cells. Undo/redo swap the arguments. O(R + C) where R = removed, C = created.
-    pub(super) fn apply_edit(&mut self, remove: &[Location], create: &[Location]) -> ChangeSet {
+    /// Core edit primitive: atomically remove then create locations in the overlay.
+    /// Undo/redo swap the arguments. O(R + C) where R = removed, C = created.
+    /// The changeset takes ownership of the rows - removed rows move through it without
+    /// a clone (they left the store), and `apply_undoable` moves them back out into the
+    /// undo entry after `finish_mutation` has projected them.
+    pub(super) fn apply_edit(&mut self, remove: Vec<Location>, create: Vec<Location>) -> ChangeSet {
         let t0 = Instant::now();
-        let create_ids: HashSet<u32> = create.iter().map(|l| l.id).collect();
-        let remove_by_id: HashMap<u32, &Location> = remove.iter().map(|l| (l.id, l)).collect();
 
-        self.remove_tag_counts(remove);
-        self.overlay_remove(remove);
-        self.add_tag_counts(create);
-        self.overlay_add(create.to_vec());
+        self.overlay_remove(&remove);
+        self.overlay_add(create.clone());
 
         // Categorize: same-id remove+create is an update; the rest are pure add/remove.
         let mut changes = ChangeSet::default();
-        for loc in remove {
-            if !create_ids.contains(&loc.id) {
-                changes.removed.push(loc.id);
-            }
-        }
+        let mut removed_by_id: HashMap<u32, Location> =
+            remove.into_iter().map(|l| (l.id, l)).collect();
         for loc in create {
-            if let Some(old) = remove_by_id.get(&loc.id) {
-                changes.updated.push(((*old).clone(), loc.clone()));
-            } else {
-                changes.added.push(loc.clone());
+            match removed_by_id.remove(&loc.id) {
+                Some(old) => changes.updated.push((old, loc)),
+                None => changes.added.push(loc),
             }
         }
+        changes.removed = removed_by_id.into_values().collect();
 
         log::debug!(
             "[apply_edit] +{} ~{} -{} in {}ms",
@@ -105,14 +101,16 @@ impl Store {
     }
 
     pub(crate) fn apply_edit_forward(&mut self, entry: &EditEntry) -> ChangeSet {
-        self.apply_edit(&entry.removed, &entry.created)
+        self.apply_edit(entry.removed.clone(), entry.created.clone())
     }
 
     pub(crate) fn apply_edit_reverse(&mut self, entry: &EditEntry) -> ChangeSet {
-        self.apply_edit(&entry.created, &entry.removed)
+        self.apply_edit(entry.created.clone(), entry.removed.clone())
     }
 
-    /// Apply an edit, record undo, clear redo, finish mutation. No-op when both sides empty.
+    /// Apply an edit, finish the mutation, then record undo by moving the rows back out
+    /// of the changeset (the report step ships the stack change on the same result).
+    /// No-op when both sides are empty.
     pub(crate) fn apply_undoable(
         &mut self,
         remove: Vec<Location>,
@@ -121,13 +119,26 @@ impl Store {
         if remove.is_empty() && create.is_empty() {
             return self.finish_mutation(&ChangeSet::default());
         }
-        let changes = self.apply_edit(&remove, &create);
+        let changes = self.apply_edit(remove, create);
+        let mut result = self.finish_mutation(&changes);
+        let ChangeSet {
+            added,
+            removed,
+            updated,
+            ..
+        } = changes;
+        let (mut created, mut removed_rows) = (added, removed);
+        for (old, new) in updated {
+            removed_rows.push(old);
+            created.push(new);
+        }
         self.push_undo(EditEntry {
-            created: create,
-            removed: remove,
+            created,
+            removed: removed_rows,
         });
         self.edits.edit().redo.clear();
-        self.finish_mutation(&changes)
+        self.report(&mut result);
+        result
     }
 
     /// Push an edit onto the undo stack, capping at MAX_UNDO_ENTRIES. O(1) amortized.

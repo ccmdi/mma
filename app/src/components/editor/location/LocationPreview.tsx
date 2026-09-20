@@ -1,4 +1,5 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
+import type { Tag } from "@/types";
 import { createLocation, extraPatch, isImportPreview, isSeenPreview, setPinned } from "@/types";
 import { VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
@@ -6,7 +7,6 @@ import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
-import type { Tag } from "@/bindings.gen";
 import {
 	useMapState,
 	updateLocations,
@@ -16,6 +16,7 @@ import {
 	createTags,
 	setActiveLocation,
 	getVisibleTags,
+	getTagCounts,
 } from "@/store/useMapStore";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
@@ -78,7 +79,7 @@ const TagEditor = memo(function TagEditor({
 }) {
 	const [tagInput, setTagInput] = useState("");
 	const visibleTags = useMapState(getVisibleTags);
-	const tagCounts = useMapState((s) => s.tagCounts);
+	const tagCounts = useMapState(() => getTagCounts());
 	const tagSortMode = useSetting("tagSortMode");
 	const suggestionLimit = useSetting("tagSuggestionLimit");
 

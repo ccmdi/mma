@@ -1,7 +1,7 @@
 //! Global saved selection rules.
 //!
-//! A saved rule is one `Selector` tree plus the names its `Tag` leaves carried at save
-//! time. Tag ids are map-local, so JS resolves them through the names at apply time; the
+//! A saved rule is one `Selector` tree plus the names its tag-membership leaves carried
+//! at save time. Tag ids are map-local, so JS resolves them through the names at apply time; the
 //! tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::Selector;
@@ -111,12 +111,30 @@ fn parse_row(
 /// beside `field`); since then the predicate is one `test` object. Rows written before
 /// `Ranked` spell it `TopK`, which ranked a bare field and dropped rows lacking it -- the
 /// drop is now the child selection's job, so the rewrite wraps the field in a `has` filter.
-/// Both are rewritten on read, so the row itself is never touched.
+/// Older rows also name selector types that were only ever field filters wearing a costume
+/// (`Tag`, `Untagged`, `Unpanned`, `PanoIds`, `NotPanoIds`). All are rewritten on read, so
+/// the row itself is never touched.
 pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
     use serde_json::Value;
     let Some(obj) = selector.as_object_mut() else {
         return selector;
     };
+    if let Some(ty) = obj.get("type").and_then(Value::as_str) {
+        let folded = match ty {
+            "Tag" => obj
+                .get("tagId")
+                .and_then(Value::as_u64)
+                .map(|id| Selector::tag(id as u32)),
+            "Untagged" => Some(Selector::untagged()),
+            "Unpanned" => Some(Selector::unpanned()),
+            "PanoIds" => Some(Selector::pano_ids(true)),
+            "NotPanoIds" => Some(Selector::pano_ids(false)),
+            _ => None,
+        };
+        if let Some(f) = folded {
+            return serde_json::to_value(f).unwrap_or(Value::Null);
+        }
+    }
     if obj.get("type").and_then(Value::as_str) == Some("Filter") {
         if let Some(Value::String(op)) = obj.remove("op") {
             let value = obj.remove("value").unwrap_or(Value::Null);

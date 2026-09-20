@@ -7,6 +7,7 @@ import {
 	closeDuplicates,
 	removeDuplicate,
 	removeLocations,
+	getTags,
 } from "@/store/useMapStore";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -71,7 +72,7 @@ function DuplicateItem({
 
 export default function SameLocation() {
 	const locations = useMapState((s) => s.duplicateLocations);
-	const tagMap = useMapState((s) => s.tags);
+	const tagMap = useMapState(() => getTags());
 
 	const [selected, setSelected] = useState<Set<number>>(() => new Set());
 

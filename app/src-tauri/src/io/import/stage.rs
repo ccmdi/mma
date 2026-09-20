@@ -3,12 +3,12 @@
 use super::*;
 use crate::store::engine;
 use crate::store::engine::with_store;
+use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
 use crate::store::maps;
 use crate::types::AppResult;
 use crate::types::RawExtra;
-use crate::types::{Location, LocationFlags, Tag};
-use crate::util::color_for_name;
+use crate::types::{Location, LocationFlags};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -35,7 +35,9 @@ pub struct FieldCount {
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportPreview {
     pub location_count: u32,
-    pub tags: Vec<Tag>,
+    /// The file's tag piles, for the preview's tag list; ids are not meaningful yet.
+    #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
+    pub tags: Vec<ValueRecord>,
     pub fields: Vec<FieldCount>,
     pub warnings: Vec<String>,
     /// Temp-file path to preview positions: interleaved LE f32 `[lng, lat]` pairs.
@@ -127,7 +129,7 @@ pub(super) fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview>
 
     let preview = EditorImportPreview {
         location_count: n as u32,
-        tags: parsed.tags.clone(),
+        tags: parsed.tags.iter().map(|(_, r)| r.clone()).collect(),
         fields,
         warnings: parsed.warnings.clone(),
         preview_positions_path: path.to_string_lossy().into_owned(),
@@ -223,13 +225,12 @@ pub struct EditorImportResult {
 }
 
 /// Insert pre-deduped copied locations (cross-map copy) through the same path
-/// as editor import: tag reconcile, id alloc, counts, field defs, undo entry,
-/// and render cell registration. `tags` are the source tag defs referenced by
-/// `locations`.
+/// as editor import: tag reconcile, id alloc, field defs, undo entry, and render
+/// cell registration. `tags` are the source tag defs referenced by `locations`.
 pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
     locations: Vec<Location>,
-    tags: Vec<Tag>,
+    tags: Vec<(u32, ValueRecord)>,
 ) -> AppResult<engine::MutationResult> {
     let mut parsed = ParsedMap {
         locations,
@@ -245,8 +246,8 @@ pub(crate) fn add_copied_to_store(
 /// Larger imports skip the undo entry; the caller autocommits them instead, so the
 /// baseline advances through the normal commit path rather than diverging silently.
 ///
-/// Tag reconciliation, render cell registration, and extra-field auto-registration
-/// happen regardless of size.
+/// Tag reconciliation (against the store-owned metadata, `values.rs`), render cell
+/// registration, and extra-field auto-registration happen regardless of size.
 pub(super) fn add_parsed_to_store(
     store: &mut engine::Store,
     parsed: &mut ParsedMap,
@@ -254,54 +255,11 @@ pub(super) fn add_parsed_to_store(
 ) -> AppResult<engine::MutationResult> {
     let _t = Instant::now();
     let n = parsed.locations.len();
-    let tag_id_remap = {
-        let tags = &mut store.tags;
-        let (remap, _) =
-            engine::reconcile_tags_by_name(&parsed.tags, tags.all.edit(), &mut tags.next_id);
-        remap
-    };
-
+    store.reconcile_incoming_tags(&parsed.tags, bulk_tag, &mut parsed.locations);
     for loc in &mut parsed.locations {
         loc.id = store.alloc_id();
-        loc.tags = loc
-            .tags
-            .iter()
-            .filter_map(|&old| tag_id_remap.get(&old).copied())
-            .collect();
     }
     let t_reconcile = _t.elapsed();
-
-    // Find-or-create the bulk tag (case-insensitive) and apply it to every location.
-    if let Some(name) = bulk_tag.map(str::trim).filter(|n| !n.is_empty()) {
-        let tag_id = store
-            .tags
-            .all
-            .values()
-            .find(|t| t.name.eq_ignore_ascii_case(name))
-            .map(|t| t.id)
-            .unwrap_or_else(|| {
-                let id = store.alloc_tag_id();
-                store.tags.all.edit().insert(
-                    id,
-                    Tag {
-                        id,
-                        name: name.to_string(),
-                        color: color_for_name(name),
-                        visible: true,
-                        order: None,
-                        doclinks: Vec::new(),
-                    },
-                );
-                id
-            });
-        for loc in &mut parsed.locations {
-            if !loc.tags.contains(&tag_id) {
-                loc.tags.push(tag_id);
-            }
-        }
-    }
-
-    store.add_tag_counts(&parsed.locations);
     let t_counts = _t.elapsed();
 
     // Discover new extra-field defs from the locations now, before we consume them.

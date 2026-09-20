@@ -1,9 +1,10 @@
 import { useState } from "react";
+import type { Tag } from "@/types";
 import { NSelect } from "@/components/primitives/NSelect";
 import {
 	useMapState,
 	getMapState,
-	addTagToLocations,
+	setTags,
 	createTags,
 	applySelectionUpdate,
 	getVisibleTags,
@@ -12,6 +13,7 @@ import {
 	selectSpacedFromSelection,
 	selectEvenlySpacedFromSelection,
 	currentSelection,
+	getTagCounts,
 } from "@/store/useMapStore";
 import { addSelection, batch, buildSelection, has } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
@@ -19,7 +21,6 @@ import { sortTagsByMode } from "@/lib/util/util";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { useSetting } from "@/store/settings";
 
-import type { Tag } from "@/bindings.gen";
 import { TagManager } from "@/components/editor/tags/TagManager";
 import { FilterForm, useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { ApplyFieldAsTagsDialog } from "@/components/editor/tags/ApplyFieldAsTagsDialog";
@@ -279,7 +280,7 @@ function BulkTagForm() {
 	const [bulkTagInput, setBulkTagInput] = useState("");
 	const hasSelection = useMapState((s) => s.selectedLocationIds.size > 0);
 	const visibleTags = useMapState(getVisibleTags);
-	const tagCounts = useMapState((s) => s.tagCounts);
+	const tagCounts = useMapState(() => getTagCounts());
 	const tagSortMode = useSetting("tagSortMode");
 
 	const handleBulkAddTag = async (e: React.FormEvent) => {
@@ -300,7 +301,7 @@ function BulkTagForm() {
 	const handleBulkPick = (t: Tag) => {
 		const selected = getMapState().selectedLocationIds;
 		if (selected.size === 0) return;
-		void addTagToLocations(t.id, [...selected]);
+		void setTags([t.id], [], { type: "Locations", locations: [...selected], name: null });
 		setBulkTagInput("");
 	};
 

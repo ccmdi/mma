@@ -985,9 +985,7 @@ describe("LocationPreview — tag management in preview", () => {
 	// Invariant: staged tags are a pure UI artifact. Typing a brand-new tag name
 	// must NOT create a map-level tag until the location is saved carrying it.
 	const tagNames = async () =>
-		withApi(async (api) =>
-			Object.values(api.getMapState().tags).map((t: { name: string }) => t.name),
-		);
+		withApi(async (api) => Object.values(api.getTags()).map((t: { name: string }) => t.name));
 
 	it("typing a new tag then CLOSING creates no map-level tag", async () => {
 		await openLocation(tagmgmt1Id);
@@ -1018,7 +1016,7 @@ describe("LocationPreview — tag management in preview", () => {
 
 		expect(await tagNames()).toContain("ZZStagedSave");
 		const newId = await withApi(async (api) => {
-			const t = Object.values(api.getMapState().tags).find(
+			const t = Object.values(api.getTags()).find(
 				(x: { name: string }) => x.name === "ZZStagedSave",
 			) as { id: number } | undefined;
 			return t?.id;

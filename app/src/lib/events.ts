@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import type { Tag, ValuePatch } from "@/types";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
 import { log } from "@/lib/util/log";
@@ -9,8 +10,6 @@ import type {
 	MapMeta,
 	RenderDelta,
 	Selection,
-	Tag,
-	TagPatch,
 } from "@/bindings.gen";
 import type { SelectedIds, SelCellEntry } from "@/lib/render/CellManager";
 import type { RGB } from "@/lib/util/color";
@@ -33,7 +32,7 @@ const EVENT_DEFS = {
 	"location:invalidate": event<void>(),
 	"tag:add": event<Tag[]>(),
 	"tag:remove": event<number[]>(),
-	"tag:update": event<Update<TagPatch>[]>(),
+	"tag:update": event<Update<ValuePatch>[]>(),
 	"selection:change": event<Selection[]>(),
 	"active:change": event<number | null>(),
 	"map:open": event<MapMeta>(),

@@ -1,8 +1,8 @@
 import { waitForReady, closeMap, deleteMap, withApi } from "./helpers";
+import type { Tag } from "@/types";
 import { fileURLToPath } from "url";
 import { dirname, resolve } from "path";
-import type { ImportPreviewEntry, MapMeta, Tag } from "@/bindings.gen";
-
+import type { ImportPreviewEntry, MapMeta } from "@/bindings.gen";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const FIXTURE_ZIP = resolve(__dirname, "../fixtures/mma-export-sample.zip");
@@ -122,7 +122,7 @@ describe("Rust bulk import — confirm and verify", () => {
 			const locs = await api.fetchAllLocations();
 			return {
 				locationCount: locCount,
-				tagCount: Object.keys(api.getMapState().tags).length,
+				tagCount: Object.keys(api.getTags()).length,
 				firstLat: locs[0]?.lat,
 			};
 		});
@@ -135,7 +135,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported tags have correct colors", async () => {
 		const result = await withApi(async (api) => {
-			const tags = Object.values(api.getMapState().tags);
+			const tags = Object.values(api.getTags());
 			return tags.map((t: Tag) => ({ name: t.name, color: t.color }));
 		});
 
@@ -149,7 +149,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("location tag references resolve to valid tags", async () => {
 		const result = await withApi(async (api) => {
-			const tagIds = new Set(Object.keys(api.getMapState().tags));
+			const tagIds = new Set(Object.keys(api.getTags()));
 			const locs = await api.fetchAllLocations();
 			const tagged = locs.filter((l) => l.tags.length > 0);
 			const orphaned = tagged.filter((l) => l.tags.some((id) => !tagIds.has(String(id))));

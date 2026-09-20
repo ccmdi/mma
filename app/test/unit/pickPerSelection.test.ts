@@ -17,11 +17,17 @@ vi.mock("@/lib/commands", async () => {
 		2: [4, 5, 6, 7, 8],
 		3: [11, 12, 13, 14, 15],
 	};
-	type TestSelector = { type: string; tagId?: number; selections?: { selector: TestSelector }[] };
-	// Tag leaves resolve against byTag; a Union is the set union of its children -- which is
-	// what "the current selection" now is, rather than a sentinel Rust reads back.
+	type TestSelector = {
+		type: string;
+		field?: string;
+		test?: { op: string; value?: unknown };
+		selections?: { selector: TestSelector }[];
+	};
+	// A tag leaf is a `tags` membership filter; a Union is the set union of its children --
+	// which is what "the current selection" now is, rather than a sentinel Rust reads back.
 	const poolOf = (selector: TestSelector): number[] => {
-		if (selector.type === "Tag") return byTag[selector.tagId ?? 0] ?? [];
+		if (selector.type === "Filter" && selector.field === "tags")
+			return byTag[Number(selector.test?.value ?? 0)] ?? [];
 		if (selector.selections)
 			return [...new Set(selector.selections.flatMap((c) => poolOf(c.selector)))];
 		return [];
@@ -66,7 +72,7 @@ import {
 	selectEvenlySpacedFromSelection,
 	getMapState,
 } from "@/store/useMapStore";
-import { addSelection, batch } from "@/store/selections";
+import { addSelection, batch, buildSelection, tagSelector } from "@/store/selections";
 
 async function addSelections(selectors: import("@/bindings.gen").Selector[]) {
 	await applySelectionUpdate(batch(addSelection)(selectors));
@@ -99,10 +105,7 @@ beforeEach(async () => {
 
 describe("random pick, per selection", () => {
 	it("caps each selection separately instead of the union", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 3 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(3)]);
 
 		const picked = await selectRandomFromSelection(2, true);
 
@@ -113,10 +116,7 @@ describe("random pick, per selection", () => {
 	});
 
 	it("unions overlapping selections without double-picking", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 2 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(2)]);
 
 		// 5 from each of two 5-id selections that share 2 ids.
 		const picked = await selectRandomFromSelection(5, true);
@@ -126,7 +126,7 @@ describe("random pick, per selection", () => {
 	});
 
 	it("falls back to the whole selection below two selections", async () => {
-		await addSelections([{ type: "Tag", tagId: 1 }]);
+		await addSelections([tagSelector(1)]);
 		const sent = unionOfActive();
 
 		const picked = await selectRandomFromSelection(2, true);
@@ -138,12 +138,9 @@ describe("random pick, per selection", () => {
 	});
 
 	it("ignores ghosted selections", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 2 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(2)]);
 		const { toggleGhost } = await import("@/store/selections");
-		await applySelectionUpdate(toggleGhost("tag:2"));
+		await applySelectionUpdate(toggleGhost(buildSelection(tagSelector(2)).key));
 		const sent = unionOfActive();
 
 		await selectRandomFromSelection(2, true);
@@ -156,27 +153,18 @@ describe("random pick, per selection", () => {
 
 describe("spaced pick, per selection", () => {
 	it("runs once per selection, scoped to that selection's props", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 2 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(2)]);
 
 		const { picked, distanceM } = await selectSpacedFromSelection({ count: 2 }, true);
 
-		expect(h.spacedSelectors).toEqual([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 2 },
-		]);
+		expect(h.spacedSelectors).toEqual([tagSelector(1), tagSelector(2)]);
 		expect(picked).toBe(4);
 		// Spacing holds only within a bucket, so a multi-bucket pick claims none.
 		expect(distanceM).toBe(0);
 	});
 
 	it("sends the whole selection tree for a whole-selection pick", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 2 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(2)]);
 
 		const sent = unionOfActive();
 
@@ -189,24 +177,18 @@ describe("spaced pick, per selection", () => {
 
 describe("evenly spaced pick, per selection", () => {
 	it("runs once per selection on its own command and claims no spacing across them", async () => {
-		await addSelections([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 3 },
-		]);
+		await addSelections([tagSelector(1), tagSelector(3)]);
 
 		const { picked, distanceM } = await selectEvenlySpacedFromSelection({ count: 2 }, true);
 
-		expect(h.evenSelectors).toEqual([
-			{ type: "Tag", tagId: 1 },
-			{ type: "Tag", tagId: 3 },
-		]);
+		expect(h.evenSelectors).toEqual([tagSelector(1), tagSelector(3)]);
 		expect(h.spacedSelectors).toEqual([]);
 		expect(picked).toBe(4);
 		expect(distanceM).toBe(0);
 	});
 
 	it("reports the spacing of a whole-selection pick", async () => {
-		await addSelections([{ type: "Tag", tagId: 1 }]);
+		await addSelections([tagSelector(1)]);
 		const sent = unionOfActive();
 
 		const { distanceM } = await selectEvenlySpacedFromSelection({ spacingM: 250 }, false);

@@ -67,7 +67,12 @@ import {
 	savedParts,
 	savedSelector,
 } from "@/store/savedSelections";
-import { buildSelection } from "@/store/selections";
+import {
+	buildSelection,
+	tagSelector,
+	unpannedSelector,
+	untaggedSelector,
+} from "@/store/selections";
 
 /** Matches nothing: what a `Tag` leaf resolves to when its saved name is gone here. */
 const NOTHING: Selector = { type: "Locations", locations: [], name: null };
@@ -113,21 +118,21 @@ describe("saved selections survive map-local renames untouched", () => {
 	};
 
 	it("a Tag leaf tracks the current map's tags by name, not by stored id", () => {
-		const saved = deepFreeze(rule({ type: "Tag", tagId: 5 }, { 5: "Japan" }));
+		const saved = deepFreeze(rule(tagSelector(5), { 5: "Japan" }));
 
 		// The name resolves to a different id here: the leaf follows the name.
 		h.tags = { 9: { id: 9, name: "japan", color: "#0f0", visible: true } };
-		expect(savedParts(saved)[0].selector).toEqual({ type: "Tag", tagId: 9 });
+		expect(savedParts(saved)[0].selector).toEqual(tagSelector(9));
 
 		// Renamed away: the rule is not rewritten, its leaf just stops matching.
 		h.tags = { 9: { id: 9, name: "Asia/Japan", color: "#0f0", visible: true } };
 		expect(savedParts(saved)[0].selector).toEqual(NOTHING);
-		expect(saved.selector).toEqual({ type: "Tag", tagId: 5 });
+		expect(saved.selector).toEqual(tagSelector(5));
 	});
 
 	it("a soft-deleted tag is never resurrected by name", () => {
 		h.tags = { 3: { id: 3, name: "Coastal", color: "#00f", visible: false } };
-		const saved = rule({ type: "Tag", tagId: 3 }, { 3: "Coastal" });
+		const saved = rule(tagSelector(3), { 3: "Coastal" });
 		expect(savedParts(saved)[0].selector).toEqual(NOTHING);
 	});
 
@@ -136,17 +141,14 @@ describe("saved selections survive map-local renames untouched", () => {
 		const saved = rule(
 			{
 				type: "Intersection",
-				selections: [sel({ type: "Tag", tagId: 7 }), sel({ type: "Tag", tagId: 8 })],
+				selections: [sel(tagSelector(7)), sel(tagSelector(8))],
 			},
 			{ 7: "Valid", 8: "Gone" },
 		);
 		const resolved = savedParts(saved)[0].selector;
 		expect(resolved.type).toBe("Intersection");
 		if (resolved.type !== "Intersection") return;
-		expect(resolved.selections.map((c) => c.selector)).toEqual([
-			{ type: "Tag", tagId: 1 },
-			NOTHING,
-		]);
+		expect(resolved.selections.map((c) => c.selector)).toEqual([tagSelector(1), NOTHING]);
 	});
 
 	it("a Filter rule outlives its field's deletion in the current map", () => {
@@ -161,7 +163,7 @@ describe("saved selections survive map-local renames untouched", () => {
 	});
 
 	it("labels a missing tag with the name it was saved under", () => {
-		const saved = rule({ type: "Tag", tagId: 5 }, { 5: "Japan" });
+		const saved = rule(tagSelector(5), { 5: "Japan" });
 		expect(savedParts(saved)[0].label).toBe("Tag: Japan");
 	});
 });
@@ -173,7 +175,7 @@ describe("saved selections survive map-local renames untouched", () => {
 describe("isSaveable", () => {
 	it("accepts portable leaves", () => {
 		expect(isSaveable({ type: "Everything" })).toBe(true);
-		expect(isSaveable({ type: "Tag", tagId: 1 })).toBe(true);
+		expect(isSaveable(tagSelector(1))).toBe(true);
 		expect(isSaveable({ type: "Duplicates", distance: 50 })).toBe(true);
 	});
 
@@ -196,7 +198,7 @@ describe("isSaveable", () => {
 		const nested: Selector = {
 			type: "Union",
 			selections: [
-				sel({ type: "Untagged" }),
+				sel(untaggedSelector()),
 				sel({ type: "Intersection", selections: [sel(reviewed)] }),
 			],
 		};
@@ -228,11 +230,6 @@ describe("Selector coverage", () => {
 				properties: { name: "P" },
 			},
 		},
-		Tag: { type: "Tag", tagId: 1 },
-		Untagged: { type: "Untagged" },
-		Unpanned: { type: "Unpanned" },
-		PanoIds: { type: "PanoIds" },
-		NotPanoIds: { type: "NotPanoIds" },
 		Uncommitted: { type: "Uncommitted" },
 		Manual: { type: "Manual", locations: [1] },
 		Duplicates: { type: "Duplicates", distance: 25 },
@@ -297,11 +294,11 @@ describe("Selector coverage", () => {
 			sessionId: "session-1",
 			mode: "unreviewed",
 		};
-		expect(await saveCurrentSelections("mixed", [sel(reviewed), sel({ type: "Untagged" })])).toBe(
+		expect(await saveCurrentSelections("mixed", [sel(reviewed), sel(untaggedSelector())])).toBe(
 			true,
 		);
 		expect(JSON.stringify(h.rows)).not.toContain("session-1");
-		expect(h.rows[0].selector).toEqual({ type: "Untagged" });
+		expect(h.rows[0].selector).toEqual(untaggedSelector());
 	});
 });
 
@@ -312,12 +309,10 @@ describe("Selector coverage", () => {
 describe("saveCurrentSelections", () => {
 	it("stores one selection as itself and its tag names beside it", async () => {
 		h.tags = { 4: { id: 4, name: "Japan", color: "#f00", visible: true } };
-		expect(await saveCurrentSelections("japan", [sel({ type: "Tag", tagId: 4 }, [9, 9, 9])])).toBe(
-			true,
-		);
+		expect(await saveCurrentSelections("japan", [sel(tagSelector(4), [9, 9, 9])])).toBe(true);
 		expect(h.rows[0]).toMatchObject({
 			name: "japan",
-			selector: { type: "Tag", tagId: 4 },
+			selector: tagSelector(4),
 			tagNames: { 4: "Japan" },
 			color: [9, 9, 9],
 		});
@@ -325,11 +320,11 @@ describe("saveCurrentSelections", () => {
 
 	it("unions several selections into one rule, keeping their colors", async () => {
 		await saveCurrentSelections("two", [
-			sel({ type: "Untagged" }, [1, 1, 1]),
-			sel({ type: "Unpanned" }, [2, 2, 2]),
+			sel(untaggedSelector(), [1, 1, 1]),
+			sel(unpannedSelector(), [2, 2, 2]),
 		]);
 		const parts = savedParts(h.rows[0]);
-		expect(parts.map((p) => p.selector.type)).toEqual(["Untagged", "Unpanned"]);
+		expect(parts.map((p) => p.selector.type)).toEqual(["Filter", "Filter"]);
 		expect(parts.map((p) => p.color)).toEqual([
 			[1, 1, 1],
 			[2, 2, 2],
@@ -344,7 +339,7 @@ describe("saveCurrentSelections", () => {
 		await saveCurrentSelections("nested", [
 			sel({
 				type: "Intersection",
-				selections: [sel({ type: "Tag", tagId: 1 }), sel({ type: "Tag", tagId: 2 })],
+				selections: [sel(tagSelector(1)), sel(tagSelector(2))],
 			}),
 		]);
 		expect(h.rows[0].tagNames).toEqual({ 1: "A", 2: "B" });
@@ -362,24 +357,24 @@ describe("applySavedSelection", () => {
 	it("adds one selection per saved part", () => {
 		h.tags = { 9: { id: 9, name: "Japan", color: "#f00", visible: true } };
 		const saved = rule(
-			{ type: "Union", selections: [sel({ type: "Tag", tagId: 5 }), sel({ type: "Untagged" })] },
+			{ type: "Union", selections: [sel(tagSelector(5)), sel(untaggedSelector())] },
 			{ 5: "Japan" },
 		);
 		expect(applySavedSelection(saved)).toBe(2);
-		expect(h.added[0]).toEqual([{ type: "Tag", tagId: 9 }, { type: "Untagged" }]);
+		expect(h.added[0]).toEqual([tagSelector(9), untaggedSelector()]);
 	});
 
 	it("adds a non-union rule as a single selection", () => {
-		expect(applySavedSelection(rule({ type: "Untagged" }))).toBe(1);
-		expect(h.added[0]).toEqual([{ type: "Untagged" }]);
+		expect(applySavedSelection(rule(untaggedSelector()))).toBe(1);
+		expect(h.added[0]).toEqual([untaggedSelector()]);
 	});
 });
 
 describe("the index and the bodies", () => {
 	it("follows saves and deletes", async () => {
 		expect(getSavedSelectionIndex()).toEqual([]);
-		await saveCurrentSelections("a", [sel({ type: "Untagged" })]);
-		await saveCurrentSelections("b", [sel({ type: "Unpanned" })]);
+		await saveCurrentSelections("a", [sel(untaggedSelector())]);
+		await saveCurrentSelections("b", [sel(unpannedSelector())]);
 		expect(getSavedSelectionIndex().map((s) => s.name)).toEqual(["a", "b"]);
 
 		await deleteSavedSelection(getSavedSelectionIndex()[0].id);
@@ -387,7 +382,7 @@ describe("the index and the bodies", () => {
 	});
 
 	it("never reads a body just to list the rules", async () => {
-		h.rows = [rule({ type: "Untagged" })];
+		h.rows = [rule(untaggedSelector())];
 		await loadAllSavedSelections();
 		h.calls = [];
 
@@ -396,7 +391,7 @@ describe("the index and the bodies", () => {
 	});
 
 	it("fetches a body once and reuses it", async () => {
-		h.rows = [rule({ type: "Untagged" })];
+		h.rows = [rule(untaggedSelector())];
 		await loadSavedSelections(["s1"]);
 		await loadSavedSelections(["s1"]);
 		expect(h.calls.filter((c) => c.startsWith("get:"))).toEqual(["get:s1"]);
@@ -411,19 +406,19 @@ describe("the index and the bodies", () => {
 
 describe("savedSelector", () => {
 	it("matches nothing until the body arrives, then resolves it", async () => {
-		h.rows = [rule({ type: "Untagged" })];
+		h.rows = [rule(untaggedSelector())];
 		// First read only knows the id: it starts the fetch and matches nothing meanwhile.
 		expect(savedSelector("s1")).toEqual(NOTHING);
 		await loadSavedSelections(["s1"]);
-		expect(savedSelector("s1")).toEqual({ type: "Untagged" });
+		expect(savedSelector("s1")).toEqual(untaggedSelector());
 	});
 
 	it("is the whole rule as one resolved Selector", async () => {
-		await saveCurrentSelections("two", [sel({ type: "Untagged" }), sel({ type: "Unpanned" })]);
+		await saveCurrentSelections("two", [sel(untaggedSelector()), sel(unpannedSelector())]);
 		const selector = savedSelector(getSavedSelectionIndex()[0].id);
 		expect(selector.type).toBe("Union");
 		if (selector.type !== "Union") return;
-		expect(selector.selections.map((c) => c.selector.type)).toEqual(["Untagged", "Unpanned"]);
+		expect(selector.selections.map((c) => c.selector.type)).toEqual(["Filter", "Filter"]);
 	});
 
 	it("matches nothing for an unknown id", () => {

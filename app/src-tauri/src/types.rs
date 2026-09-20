@@ -4,11 +4,6 @@
 //! Arrow IPC on disk, JSON over IPC to the JS frontend, and used throughout the
 //! store, import, and selection engines.
 
-/// A user-defined label that can be applied to any number of locations.
-///
-/// Tags are stored in `MapMeta` and referenced by id in each `Location.tags`.
-/// Member counts are not part of the tag record: `TagState.counts` owns them and
-/// `StoreStatus.tag_counts` is the only channel that ships them.
 use rmp_serde::decode;
 use rmp_serde::encode;
 use specta::datatype::DataType;
@@ -25,55 +20,69 @@ use zip::result::ZipError;
 
 pub use raw_extra::*;
 
-#[derive(serde::Deserialize, serde::Serialize, Clone, Debug, specta::Type)]
-pub struct Tag {
-    pub id: u32,
-    pub name: String,
-    /// Hex color string (e.g. "#3a7fc2"). Generated deterministically from
-    /// the tag name via `util::color_for_name` when not explicitly set.
-    pub color: String,
-    #[serde(default = "default_visible")]
-    pub visible: bool,
-    /// Display order in the sidebar tag list. `null` for tags that have never been ordered.
-    pub order: Option<u32>,
-    /// Links into external documents (e.g. Google Docs headings), kept through import and export.
-    #[serde(default)]
-    pub doclinks: Vec<String>,
-}
-
-fn default_visible() -> bool {
-    true
-}
-
 /// A single Street View location on a map.
 ///
 /// This is the atomic unit of data in the system. Locations are stored columnar
 /// in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
 /// within a map and assigned by the store's monotonic allocator.
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize, specta::Type)]
+///
+/// The `#[field(...)]` attributes are the field system's declaration site:
+/// `#[derive(Fields)]` (see `mma-fields`) turns them into the `location_fields!`
+/// table that `selections::filter` expands into the exported field table,
+/// `is_builtin_field`, and both resolvers - one declaration per field, checked
+/// against the struct by the compiler.
+#[derive(
+    Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize, specta::Type, mma_fields::Fields,
+)]
 #[serde(rename_all = "camelCase")]
+#[fields(
+    derived_len(key = "tagCount", label = "Tag count", of = tags),
+    flag(key = "loadAsPanoId", label = "Load as pano ID", bit = LOAD_AS_PANO_ID)
+)]
 pub struct Location {
     /// Monotonically increasing within a map. Zero is a sentinel meaning
     /// "not yet assigned" (used during import before IDs are allocated).
+    #[field(label = "ID", kind = identity)]
     pub id: u32,
+    #[field(label = "Latitude", kind = identity)]
     pub lat: f64,
+    #[field(label = "Longitude", kind = identity)]
     pub lng: f64,
+    #[field(label = "Heading", kind = writable, circular = 360.0)]
     pub heading: f64,
+    #[field(label = "Pitch", kind = writable, column = pitches)]
     pub pitch: f64,
+    #[field(label = "Zoom", kind = writable)]
     pub zoom: f64,
+    /// The empty string means absent, the same absence a missing key has.
     #[specta(type = Option<String>)]
+    #[field(label = "Pano ID", absent_when_empty)]
     pub pano_id: Option<compact_str::CompactString>,
+    /// See [`LocationFlags`]. Reaches the field system as declared bits, not a field.
+    #[field(skip)]
     pub flags: LocationFlags,
-    /// Tag IDs applied to this location. References `Tag.id`.
+    /// Tag IDs applied to this location. References interned values of the `tags`
+    /// field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+    /// `Nothas` on an absent field.
+    #[field(label = "Tags", kind = writable, interned, absent_when_empty, column = tags)]
     pub tags: Vec<u32>,
-    /// Arbitrary key-value metadata
+    /// Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+    /// name past the builtins.
     // Stored as raw JSON bytes; see [`RawExtra`].
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
+    #[field(skip)]
     pub extra: Option<RawExtra>,
     /// Unix timestamp (seconds)
+    #[field(label = "Created", date)]
     pub created_at: u32,
+    #[field(label = "Modified", date)]
     pub modified_at: Option<u32>,
 }
+#[allow(
+    clippy::single_component_path_imports,
+    reason = "lifts the derive-emitted macro into the module namespace so other modules can path-import it"
+)]
+pub(crate) use location_fields;
 
 impl Default for Location {
     fn default() -> Self {

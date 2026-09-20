@@ -3,8 +3,11 @@ import type { Selection, Selector } from "@/bindings.gen";
 import { applySelectionUpdate, getActiveSelections, getMapState } from "@/store/useMapStore";
 import {
 	addSelection,
+	buildSelection,
 	removeSelection,
 	replaceSelection,
+	tagIdOf,
+	tagSelector,
 	type SelectionPatch,
 } from "@/store/selections";
 
@@ -31,10 +34,10 @@ export function toggleTagSelections(tagIds: number[]) {
 	if (!getMapState().map || tagIds.length === 0) return;
 	void applySelectionUpdate((sels) =>
 		tagIds.reduce((result, tagId) => {
-			const key = `tag:${tagId}`;
+			const key = buildSelection(tagSelector(tagId)).key;
 			return result.some((s) => s.key === key)
 				? removeSelection(key)(result)
-				: addSelection({ type: "Tag", tagId })(result);
+				: addSelection(tagSelector(tagId))(result);
 		}, sels),
 	);
 }
@@ -46,7 +49,10 @@ export const getSelectedTagIds: () => ReadonlySet<number> = (() => {
 		() => [getMapState().selections] as const,
 		(sels) => {
 			const ids = new Set(
-				sels.flatMap((s) => (s.selector.type === "Tag" ? [s.selector.tagId] : [])),
+				sels.flatMap((s) => {
+					const id = tagIdOf(s.selector);
+					return id == null ? [] : [id];
+				}),
 			);
 			if (prev && prev.symmetricDifference(ids).size === 0) return prev;
 			prev = ids;
@@ -63,7 +69,8 @@ export const getSelectedTagIdsDeep: () => readonly number[] = memoOnRefs(
 		const out: number[] = [];
 		const walk = (list: Selection[]) => {
 			for (const s of list) {
-				if (s.selector.type === "Tag") out.push(s.selector.tagId);
+				const id = tagIdOf(s.selector);
+				if (id != null) out.push(id);
 				if ("selections" in s.selector) walk(s.selector.selections);
 			}
 		};

@@ -7,6 +7,7 @@ import {
 	useOptimistic,
 	startTransition,
 } from "react";
+import type { Tag, ValuePatch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
 	countIn,
@@ -15,16 +16,16 @@ import {
 	getActiveSelections,
 	getMapState,
 	getVisibleTags,
-	removeTagFromAllLocations,
-	removeTagFromLocations,
+	setTags,
 	reorderTags,
 	updateTags,
 	useMapState,
+	getTagCounts,
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import { all } from "@/store/selections";
 import type { TagSortMode } from "@/types";
-import type { Tag, TagPatch, Update, VirtualTag } from "@/bindings.gen";
+import type { Update, VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -58,12 +59,13 @@ import {
 	type TagMoveResult,
 } from "./tagTreeRange";
 import { t } from "@/lib/i18n";
+import { tagSelector } from "@/store/selections";
 import { matches } from "@/lib/search";
 import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
-type OptimisticTagPatch = TagPatch & { order?: number };
+type OptimisticTagPatch = ValuePatch & { order?: number };
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -73,7 +75,7 @@ const NO_ALIASES = {};
 export function TagManager() {
 	const map = useMapState((s) => s.map);
 	const selectedTagIds = useMapState(getSelectedTagIds);
-	const tagCounts = useMapState((s) => s.tagCounts);
+	const tagCounts = useMapState(() => getTagCounts());
 	const tagViewMode = useSetting("tagViewMode");
 	const [filterText, setFilterText] = useState("");
 	const sortMode = useSetting("tagSortMode");
@@ -93,7 +95,7 @@ export function TagManager() {
 	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
 	const [collapsed, setCollapsed] = useState(false);
 
-	// memoOnRefs keys this on `state.tags`, so the array identity is stable across
+	// memoOnRefs keys this on the tag view, so the array identity is stable across
 	// selection toggles (which never touch tags) and fresh on any tag mutation.
 	const storeTags = useMapState(getVisibleTags);
 
@@ -116,7 +118,7 @@ export function TagManager() {
 			}),
 	);
 	const commitTags = useCallback(
-		(updates: Update<TagPatch>[]) => {
+		(updates: Update<ValuePatch>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
 				await updateTags(updates);
@@ -157,7 +159,7 @@ export function TagManager() {
 	// Stamp `color` onto every tag AND folder node at or under `root` (overrides existing
 	// colors, so it works even when descendants already have their own).
 	const applyColorToSubtree = (root: string, color: string) => {
-		const tagUpdates: Update<TagPatch>[] = [];
+		const tagUpdates: Update<ValuePatch>[] = [];
 		const folders = new Set<string>();
 		for (const t of tags) {
 			if (t.name !== root && !t.name.startsWith(`${root}/`)) continue;
@@ -416,14 +418,14 @@ export function TagContextMenuContent({
 			setSelCount(0);
 			return;
 		}
-		void countIn(all({ type: "Tag", tagId }, currentSelection())).then(setSelCount);
+		void countIn(all(tagSelector(tagId), currentSelection())).then(setSelCount);
 	}, [tagId]);
 
 	const inSel = selCount ?? 0;
 
 	return (
 		<MenuPopup>
-			<MenuItem tone="destructive" onClick={() => void removeTagFromAllLocations(tagId)}>
+			<MenuItem tone="destructive" onClick={() => void setTags([], [tagId], tagSelector(tagId))}>
 				{t(
 					{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
 					{ n: totalCount },
@@ -432,7 +434,13 @@ export function TagContextMenuContent({
 			<MenuItem
 				tone="destructive"
 				disabled={inSel === 0}
-				onClick={() => void removeTagFromLocations(tagId, [...getMapState().selectedLocationIds])}
+				onClick={() =>
+					void setTags([], [tagId], {
+						type: "Locations",
+						locations: [...getMapState().selectedLocationIds],
+						name: null,
+					})
+				}
 			>
 				{t(
 					{
@@ -471,7 +479,7 @@ function RenameInSelectionDialog({
 	setAliases,
 }: DialogProps & {
 	tag: { id: number; name: string };
-	commit: (updates: Update<TagPatch>[]) => void;
+	commit: (updates: Update<ValuePatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
 }) {
@@ -513,7 +521,7 @@ function EditTagDialog({
 }: DialogProps & {
 	tag: { id: number; name: string; color: string };
 	/** Routes tag updates through the optimistic overlay. */
-	commit: (updates: Update<TagPatch>[]) => void;
+	commit: (updates: Update<ValuePatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
 	/** Present for a tree folder node with descendants: lets the rename cascade down. */

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { act } from "react";
+import type { Tag } from "@/types";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TagTreeView } from "@/components/editor/tags/TagTree";
-import type { Tag } from "@/bindings.gen";
 import type { TagSortMode } from "@/types";
 
 const tags: Tag[] = [

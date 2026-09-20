@@ -27,6 +27,12 @@ import {
 	type RunBenchmarkOptions,
 } from "../perf/benchmarkHarness.ts";
 import { waitForReady, withApi } from "./helpers";
+import {
+	panoIdSelector,
+	tagSelector,
+	unpannedSelector,
+	untaggedSelector,
+} from "@/store/selections";
 
 /** Every case route, mapped to the category half of its stable id. */
 const ROUTES: Record<string, string> = {
@@ -408,7 +414,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			if (helpers.some((h) => h.id <= 0)) throw new Error("helper rows got no ids");
 			await api.commitMap(`Bench fixture ${target}`);
 			await api.waitForInflightPersist();
-			const tag = Object.values(api.getMapState().tags).find((t) => t.name === "benchmark-tag");
+			const tag = Object.values(api.getTags()).find((t) => t.name === "benchmark-tag");
 			if (!tag) throw new Error("fixture is missing the benchmark-tag");
 			return { tagId: tag.id, helperIds: helpers.map((h) => h.id) };
 		},
@@ -564,11 +570,11 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		});
 
 	await selectionCase("select-all", { type: "Everything" }, baseline);
-	await selectionCase("select-tag", { type: "Tag", tagId }, 1);
-	await selectionCase("select-untagged", { type: "Untagged" }, 1);
-	await selectionCase("select-panoids", { type: "PanoIds" }, 1);
-	await selectionCase("select-notpanoids", { type: "NotPanoIds" }, 1);
-	await selectionCase("select-unpanned", { type: "Unpanned" }, 1);
+	await selectionCase("select-tag", tagSelector(tagId), 1);
+	await selectionCase("select-untagged", untaggedSelector(), 1);
+	await selectionCase("select-panoids", panoIdSelector(true), 1);
+	await selectionCase("select-notpanoids", panoIdSelector(false), 1);
+	await selectionCase("select-unpanned", unpannedSelector(), 1);
 	await selectionCase("select-duplicates", { type: "Duplicates", distance: 1 }, 0);
 
 	// Composites: two resolved leaves combined by a native set operation.
@@ -579,8 +585,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await withApi(
 					async (api, id, op) => {
 						await api.resetSelections();
-						await api.addSelections([{ type: "PanoIds" }]);
-						if (op !== "invert") await api.addSelections([{ type: "Tag", tagId: id }]);
+						await api.addSelections([panoIdSelector(true)]);
+						if (op !== "invert") await api.addSelections([tagSelector(id)]);
 					},
 					tagId,
 					operation,
@@ -741,7 +747,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([{ type: "Tag", tagId: id }]);
+				await api.addSelections([tagSelector(id)]);
 				if (api.getMapState().selectedLocationIds.size === 0) {
 					throw new Error("delete setup selected nothing");
 				}
@@ -791,7 +797,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([{ type: "Tag", tagId: id }]);
+				await api.addSelections([tagSelector(id)]);
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				api.cancelAutosave();
 				if (!api.getMapState().canUndo) throw new Error("bulk delete is not undoable");
@@ -817,7 +823,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
 				await api.resetSelections();
-				await api.addSelections([{ type: "Tag", tagId: id }]);
+				await api.addSelections([tagSelector(id)]);
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				await api.undo();
 				api.cancelAutosave();
@@ -905,7 +911,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					exportExtras: true,
 					selector: { type: "Everything" },
 					mapName: map.name,
-					tagsJson: JSON.stringify(api.getMapState().tags),
+					tagsJson: JSON.stringify(api.getTags()),
 					extraFieldsJson: map.extra?.fields ? JSON.stringify(map.extra.fields) : null,
 				};
 				const start = performance.now();

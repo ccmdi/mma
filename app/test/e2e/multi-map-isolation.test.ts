@@ -19,6 +19,7 @@ import {
 	select,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
+import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Selection state does not leak between maps
@@ -66,7 +67,7 @@ describe("Selection isolation across maps", () => {
 	it("tag selection in A does not create tag selection in B", async () => {
 		await openMap(mapAId);
 		const tag = await createTag("OnlyInA");
-		await select({ type: "Tag", tagId: tag.id });
+		await select(tagSelector(tag.id));
 		const selsA = await withApi(async (api) => api.getActiveSelections().length);
 		expect(selsA).toBeGreaterThan(0);
 		await closeMap();

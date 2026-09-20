@@ -28,7 +28,7 @@ import {
 	setMapExtraFields,
 } from "@/store/useMapStore";
 import { useMapSetting } from "@/store/useMapSetting";
-import type { ExtraFieldDef } from "@/bindings.gen";
+import type { FieldDef, FieldValue } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
 import { msg, t } from "@/lib/i18n";
@@ -37,9 +37,9 @@ import { Trans } from "@/components/primitives/Trans";
 import { IconButton } from "@/components/primitives/IconButton";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
-type Comparison = NonNullable<ExtraFieldDef["comparison"]>;
-const FIELD_TYPES: ExtraFieldDef["type"][] = ["string", "number", "date", "month", "enum", "array"];
-const TYPE_LABELS: Record<ExtraFieldDef["type"], string> = {
+type Comparison = NonNullable<FieldDef["comparison"]>;
+const FIELD_TYPES: FieldDef["type"][] = ["string", "number", "date", "month", "enum", "array"];
+const TYPE_LABELS: Record<FieldDef["type"], string> = {
 	string: msg("Text"),
 	number: msg("Number"),
 	date: msg("Date/time"),
@@ -58,7 +58,7 @@ const COMP_OPTIONS: { token: CompToken; label: string }[] = [
 ];
 const DEFAULT_PERIOD = 360;
 
-function compToToken(c: ExtraFieldDef["comparison"]): CompToken {
+function compToToken(c: FieldDef["comparison"]): CompToken {
 	if (!c) return "auto";
 	return c.type;
 }
@@ -79,10 +79,9 @@ function tokenToComp(t: CompToken, period: number): Comparison | undefined {
 interface FieldRow {
 	key: string;
 	label: string;
-	type: ExtraFieldDef["type"];
-	comparison: ExtraFieldDef["comparison"];
-	values: string[] | null;
-	labels: Record<string, string> | null;
+	type: FieldDef["type"];
+	comparison: FieldDef["comparison"];
+	values: FieldValue[] | null;
 }
 
 /** Fields that exist on this map: the only ones with a schema to edit. */
@@ -96,7 +95,6 @@ function buildRows(): FieldRow[] {
 			type: def?.type ?? "string",
 			comparison: def?.comparison ?? null,
 			values: def?.values ?? null,
-			labels: def?.labels ?? null,
 		};
 	});
 }
@@ -268,12 +266,11 @@ function FieldsTab() {
 
 	// Live commit: field defs apply on every edit (blur for text, change for selects).
 	const commitDefs = async (next: FieldRow[]) => {
-		const fields: Record<string, ExtraFieldDef> = {};
+		const fields: Record<string, FieldDef> = {};
 		for (const r of next) {
 			fields[r.key] = createFieldDef(r.type, {
 				label: r.label,
 				values: r.values,
-				labels: r.labels,
 				comparison: r.comparison,
 			});
 		}
@@ -378,7 +375,7 @@ function FieldsTab() {
 							<NSelect
 								value={row.type}
 								onChange={(e) =>
-									updateRow(row.key, { type: e.target.value as ExtraFieldDef["type"] }, true)
+									updateRow(row.key, { type: e.target.value as FieldDef["type"] }, true)
 								}
 							>
 								{FIELD_TYPES.map((ft) => (
@@ -424,10 +421,7 @@ function FieldsTab() {
 						)}
 
 						{row.type === "enum" && (
-							<EnumValues
-								row={row}
-								onCommit={(values, labels) => updateRow(row.key, { values, labels }, true)}
-							/>
+							<EnumValues row={row} onCommit={(values) => updateRow(row.key, { values }, true)} />
 						)}
 
 						<div className="fields-pane__actions">
@@ -585,16 +579,16 @@ function EnumValues({
 	onCommit,
 }: {
 	row: FieldRow;
-	onCommit: (values: string[] | null, labels: Record<string, string> | null) => void;
+	onCommit: (values: FieldValue[] | null) => void;
 }) {
 	const [draft, setDraft] = useState(() =>
-		(row.values ?? []).map((v) => ({ value: v, label: row.labels?.[v] ?? "" })),
+		(row.values ?? []).map((v) => ({ value: v.value, label: v.label ?? "" })),
 	);
 	const [candidates, setCandidates] = useState<string[]>([]);
 
 	useEffect(() => {
 		let live = true;
-		const have = new Set(row.values ?? []);
+		const have = new Set((row.values ?? []).map((v) => v.value));
 		void fieldValues({ type: "Everything" }, row.key).then((values) => {
 			if (live) setCandidates(values.filter((v) => !have.has(v)));
 		});
@@ -604,16 +598,13 @@ function EnumValues({
 	}, [row.key, row.values]);
 
 	const commit = (next: { value: string; label: string }[]) => {
-		const values: string[] = [];
-		const labels: Record<string, string> = {};
+		const values: FieldValue[] = [];
 		for (const r of next) {
 			const v = r.value.trim();
-			if (!v || values.includes(v)) continue;
-			values.push(v);
-			const l = r.label.trim();
-			if (l) labels[v] = l;
+			if (!v || values.some((x) => x.value === v)) continue;
+			values.push({ value: v, label: r.label.trim() || null });
 		}
-		onCommit(values.length > 0 ? values : null, Object.keys(labels).length > 0 ? labels : null);
+		onCommit(values.length > 0 ? values : null);
 	};
 
 	const setAt = (i: number, patch: Partial<{ value: string; label: string }>) =>

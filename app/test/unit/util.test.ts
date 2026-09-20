@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { Tag } from "@/types";
 import {
 	compareNatural,
 	sortTagsByMode,
@@ -14,14 +15,14 @@ import { colorForName } from "@/lib/util/color";
 import { relativeTime, errText } from "@/lib/util/format";
 import { cycle } from "@/types/util";
 import { MOVEMENT_CYCLE } from "@/store/settings";
-import type { Tag } from "@/bindings.gen";
-
 describe("sortTagsByMode", () => {
 	const tag = (id: number, name: string, order?: number): Tag => ({
 		id,
 		name,
 		color: "#000",
+		visible: true,
 		order: order ?? null,
+		doclinks: [],
 	});
 	const tags = [tag(1, "bravo", 2), tag(2, "alpha", 1), tag(3, "charlie")];
 	const counts = { 1: 5, 2: 1, 3: 9 };
@@ -48,7 +49,9 @@ describe("sortTagsByMode", () => {
 });
 
 describe("tagColorFor", () => {
-	const tags: Tag[] = [{ id: 1, name: "Red", color: "#ff0000", order: null }];
+	const tags: Tag[] = [
+		{ id: 1, name: "Red", color: "#ff0000", visible: true, order: null, doclinks: [] },
+	];
 
 	it("uses an existing tag's stored color, matched case-insensitively", () => {
 		expect(tagColorFor("red", tags)).toBe("#ff0000");
@@ -60,7 +63,9 @@ describe("tagColorFor", () => {
 });
 
 describe("appendTagName", () => {
-	const tags: Tag[] = [{ id: 1, name: "Urban", color: "#000", order: null }];
+	const tags: Tag[] = [
+		{ id: 1, name: "Urban", color: "#000", visible: true, order: null, doclinks: [] },
+	];
 
 	it("appends a brand-new name as typed", () => {
 		expect(appendTagName([], "Coastal", tags)).toEqual(["Coastal"]);

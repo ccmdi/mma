@@ -15,6 +15,7 @@ import {
 	seedLocs,
 	select,
 } from "./helpers";
+import { tagSelector } from "@/store/selections";
 
 // ============================================================================
 // 1. Delete tagged location + undo restores tag count
@@ -37,7 +38,7 @@ describe("Delete tagged location + undo", () => {
 		}, locIds[0]);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);
@@ -47,7 +48,7 @@ describe("Delete tagged location + undo", () => {
 		await withApi(async (api) => api.undo());
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(5);
@@ -62,7 +63,7 @@ describe("Delete tagged location + undo", () => {
 		await withApi(async (api) => api.redo());
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);
@@ -85,7 +86,7 @@ describe("Delete selected locations + undo restores selection", () => {
 		locIds = await seedLocs(8, (i) => ({ lat: i, lng: i, tags: [tagId] }));
 	});
 	it("select tag, delete 2 selected locations, selection count drops", async () => {
-		await select({ type: "Tag", tagId });
+		await select(tagSelector(tagId));
 		const before = await refreshSelections();
 		expect(before.length).toBe(8);
 
@@ -188,7 +189,7 @@ describe("Batch delete + undo data fidelity", () => {
 
 	it("tag count correct after batch delete", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(0);
@@ -217,7 +218,7 @@ describe("Batch delete + undo data fidelity", () => {
 
 	it("tag count restored after undo", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getMapState().tagCounts;
+			const counts = api.getTagCounts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(5);

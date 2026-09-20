@@ -329,7 +329,10 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		// Manually set countryCode to a custom type
 		const countryCode = createFieldDef("enum", {
 			label: "My Custom Country",
-			values: ["US", "RU"],
+			values: [
+				{ value: "US", label: null },
+				{ value: "RU", label: null },
+			],
 		});
 		await withApi(async (api, countryCode) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};

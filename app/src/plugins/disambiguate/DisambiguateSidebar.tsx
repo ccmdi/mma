@@ -7,7 +7,7 @@ import { Bar } from "@/components/primitives/Bar";
 import { Notice } from "@/components/primitives/Hint";
 import { Pill } from "@/components/primitives/Pill";
 import { Spinner } from "@/components/primitives/Spinner";
-import type { Selection, ExtraFieldDef } from "@/bindings.gen";
+import type { Selection, FieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { analysisColumns, computeDivergence, soleGroup, type GroupColumns } from "./engine";
 import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat } from "./engine";
@@ -145,9 +145,9 @@ async function analyze(): Promise<Analysis> {
 		else if (g !== null) groupIds[g].push(id);
 	}
 
-	const fieldDefs: Record<string, ExtraFieldDef> = MMA.getAllFieldDefs();
+	const fieldDefs: Record<string, FieldDef> = MMA.getAllFieldDefs();
 	const tagNames: Record<number, string> = {};
-	for (const [id, t] of Object.entries(MMA.getMapState().tags))
+	for (const [id, t] of Object.entries(MMA.getTags()))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
 	const present = await MMA.coverage({ type: "Locations", locations: unionIds, name: null });

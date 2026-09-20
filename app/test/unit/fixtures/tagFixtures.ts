@@ -1,11 +1,12 @@
 import type { TagTreeNode } from "@/components/editor/tags/tagTreeRange";
-import type { Tag } from "@/bindings.gen";
-
+import type { Tag } from "@/types";
 export const mkTag = (id: number, name: string, color = "#888888", order = id): Tag => ({
 	id,
 	name,
 	color,
+	visible: true,
 	order,
+	doclinks: [],
 });
 
 export function findNode(nodes: TagTreeNode[], path: string): TagTreeNode | null {

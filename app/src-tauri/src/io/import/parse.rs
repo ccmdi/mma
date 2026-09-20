@@ -1,10 +1,11 @@
 //! Turning a file into a `ParsedMap`: SIMD JSON object scanning, CSV, zip, tag interning.
 
+use crate::store::engine::{record_name, record_order, ValueRecord};
 use crate::store::maps::MapSettings;
 use crate::types;
 use crate::types::AppResult;
 use crate::types::RawExtra;
-use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags, Tag};
+use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags};
 use crate::util::color_for_name;
 use crate::util::now_unix;
 use memchr::memmem;
@@ -48,7 +49,8 @@ pub(super) struct ParsedMap {
     pub(super) name: String,
     pub(super) folder: Option<String>,
     pub(super) locations: Vec<Location>,
-    pub(super) tags: Vec<Tag>,
+    /// `(provisional id, pile)` pairs; ids are chunk-merge locals the store remaps.
+    pub(super) tags: Vec<(u32, ValueRecord)>,
     pub(super) fields: Option<Value>,
     pub(super) warnings: Vec<String>,
     /// Map settings carried by the import (`extra.settings`)
@@ -828,30 +830,30 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     }
     let t_merge = t0.elapsed();
 
-    let mut tags: Vec<Tag> = tags_by_name
+    let mut tags: Vec<(u32, ValueRecord)> = tags_by_name
         .into_iter()
         .map(|(name, id)| {
             let meta = tag_meta.get(&name);
+            let mut rec = ValueRecord::new();
             let color = meta
                 .and_then(|m| m.color.clone())
                 .unwrap_or_else(|| color_for_name(&name));
-            let order = meta.and_then(|m| m.order);
-            let doclinks = meta.map(|m| m.doclinks.clone()).unwrap_or_default();
-            Tag {
-                id,
-                name,
-                color,
-                visible: true,
-                order,
-                doclinks,
+            if let Some(order) = meta.and_then(|m| m.order) {
+                rec.insert("order".into(), order.into());
             }
+            if let Some(doclinks) = meta.map(|m| &m.doclinks).filter(|d| !d.is_empty()) {
+                rec.insert("doclinks".into(), serde_json::json!(doclinks));
+            }
+            rec.insert("name".into(), name.into());
+            rec.insert("color".into(), color.into());
+            (id, rec)
         })
         .collect();
-    tags.sort_by(|a, b| {
-        a.order
+    tags.sort_by(|(_, a), (_, b)| {
+        record_order(a)
             .unwrap_or(u32::MAX)
-            .cmp(&b.order.unwrap_or(u32::MAX))
-            .then_with(|| a.name.cmp(&b.name))
+            .cmp(&record_order(b).unwrap_or(u32::MAX))
+            .then_with(|| record_name(a).cmp(&record_name(b)))
     });
 
     log::debug!(
@@ -923,18 +925,17 @@ pub(super) fn merge_settings(
 }
 
 /// Rebase ordered tags to dense 1..k, keeping their relative (order, name)
-/// ordering; unordered tags stay `None`. Source order values are never stored.
-pub(super) fn renumber_ordered_tags(tags: &mut [Tag]) {
+/// ordering; unordered tags stay unordered. Source order values are never stored.
+pub(super) fn renumber_ordered_tags(tags: &mut [(u32, ValueRecord)]) {
     let mut ordered: Vec<usize> = (0..tags.len())
-        .filter(|&i| tags[i].order.is_some())
+        .filter(|&i| record_order(&tags[i].1).is_some())
         .collect();
     ordered.sort_by(|&a, &b| {
-        tags[a]
-            .order
-            .cmp(&tags[b].order)
-            .then_with(|| tags[a].name.cmp(&tags[b].name))
+        record_order(&tags[a].1)
+            .cmp(&record_order(&tags[b].1))
+            .then_with(|| record_name(&tags[a].1).cmp(&record_name(&tags[b].1)))
     });
     for (n, i) in ordered.into_iter().enumerate() {
-        tags[i].order = Some(n as u32 + 1);
+        tags[i].1.insert("order".into(), (n as u32 + 1).into());
     }
 }

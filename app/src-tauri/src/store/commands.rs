@@ -11,9 +11,9 @@ use crate::store::arrow::{col_id, schema};
 use crate::store::engine::*;
 use crate::store::maps;
 use crate::store::storage;
+use crate::types::Location;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
-use crate::types::{Location, Tag};
 use crate::util;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
@@ -48,7 +48,7 @@ pub(crate) fn rows_file_path(temp: &Path, map_id: &str) -> PathBuf {
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
-/// Open a map and return its initial state (tag counts, undo/redo availability).
+/// Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
 /// Must be called before any other store commands.
 #[tauri::command]
 #[specta::specta]
@@ -148,26 +148,15 @@ pub async fn store_open_map(
     }
     store.next_id = seed_next_id(max_id, &store.overlay.adds, &undo, &redo);
 
-    let LocationAggregates {
-        alive,
-        tag_counts,
-        tag_sets,
-        bounds,
-    } = store.scan_locations();
+    let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
     store.bounds = Some(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
         storage::set_location_count(&conn, &map_id, alive)?;
-        let mut tags = read_tags_json(&conn, &map_id);
-        let (max_tag_id, healed) = reconcile_tag_registry(&mut tags, &tag_counts);
-        store.tags.all = Tracked::new(tags);
-        store.tags.counts = Touched::new(tag_counts);
-        if healed {
-            store.tags.all.touch();
-        }
-        store.tags.next_id = max_tag_id + 1;
-        store.tags.sets = tag_sets;
+        store
+            .value_meta
+            .insert("tags".into(), Tracked::new(read_tags_json(&conn, &map_id)));
         let extra_str: String = conn
             .query_row(
                 "SELECT extra FROM maps WHERE id = ?1",
@@ -330,113 +319,19 @@ pub async fn store_apply_field_op(
     })
 }
 
-/// Rename and/or recolor tags in one batch. Renaming onto an existing name (case-insensitive)
-/// merges the two tags.
-// Batched so a folder-cascade rename lands as one render instead of one per tag.
+/// Patch an interned field's value metadata: get-or-create names, edit display
+/// metadata, reorder. Metadata only - membership writes go through the ordinary
+/// `listSet` field op. `tags` is the first (and so far only) interned field.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_update_tags(
+pub fn store_patch_field_values(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    updates: Vec<Update<TagPatch>>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
+    field: String,
+    patch: FieldValuesPatch,
+) -> AppResult<FieldValuesResult> {
     with_store!(label, state, |store| {
-        let mut all_updated: Vec<(Location, Location)> = Vec::new();
-
-        for u in &updates {
-            if !store.tags.all.contains_key(&u.id) {
-                continue;
-            }
-
-            let merge_target = u.patch.name.as_ref().and_then(|new_name| {
-                let trimmed = new_name.trim();
-                if trimmed.is_empty() {
-                    return None;
-                }
-                let lower = trimmed.to_lowercase();
-                store
-                    .tags
-                    .all
-                    .iter()
-                    .find(|(&id, t)| id != u.id && t.name.to_lowercase() == lower)
-                    .map(|(&id, _)| id)
-            });
-
-            if let Some(target_id) = merge_target {
-                let view = store.loc_view();
-                let affected = selections::resolve(&view, &Selector::Tag { tag_id: u.id });
-
-                let mut updated: Vec<(Location, Location)> =
-                    Vec::with_capacity(affected.len() as usize);
-                for loc_id in &affected {
-                    if let Some(old) = store.get_loc_by_id(loc_id) {
-                        let mut new_tags: Vec<u32> =
-                            old.tags.iter().filter(|&&t| t != u.id).copied().collect();
-                        if !new_tags.contains(&target_id) {
-                            new_tags.push(target_id);
-                        }
-                        let mut new_loc = old.clone();
-                        new_loc.tags = new_tags;
-                        updated.push((old, new_loc));
-                    }
-                }
-                all_updated.extend(store.commit_tag_update(updated).updated);
-            } else if let Some(t) = store.tags.all.edit().get_mut(&u.id) {
-                apply_tag_patch(t, &u.patch);
-            }
-        }
-        let result = store.finish_mutation(&ChangeSet {
-            updated: all_updated,
-            ..Default::default()
-        });
-        log::debug!(
-            "[cmd] store_update_tags n={} total={}ms",
-            updates.len(),
-            _t.elapsed().as_millis()
-        );
-        Ok(result)
-    })
-}
-
-/// Remove tags and strip them from all locations that carry them. Undoable.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_delete_tags(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    tag_ids: Vec<u32>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let tag_set: HashSet<u32> = tag_ids.iter().copied().collect();
-        let view = store.loc_view();
-        let mut affected_ids = HashSet::new();
-        for &tid in &tag_set {
-            affected_ids.extend(selections::resolve(&view, &Selector::Tag { tag_id: tid }));
-        }
-
-        let mut updated: Vec<(Location, Location)> = Vec::with_capacity(affected_ids.len());
-        for &id in &affected_ids {
-            if let Some(old) = store.get_loc_by_id(id) {
-                let mut new_loc = old.clone();
-                new_loc.tags.retain(|t| !tag_set.contains(t));
-                updated.push((old, new_loc));
-            }
-        }
-        log::debug!(
-            "[cmd] store_delete_tags n={} locs={} total={}ms",
-            tag_set.len(),
-            affected_ids.len(),
-            _t.elapsed().as_millis()
-        );
-        // A zero-member tag never passes through update_tag_counts, so announce it
-        // directly or finish_mutation skips the visible=false flip and the delete no-ops.
-        for &id in &tag_set {
-            store.tags.counts.touch(id);
-        }
-        let changeset = store.commit_tag_update(updated);
-        Ok(store.finish_mutation(&changeset))
+        store.patch_field_values(&field, &patch)
     })
 }
 
@@ -480,7 +375,7 @@ pub async fn store_country_distribution(
     level: String,
 ) -> AppResult<Vec<(String, u32)>> {
     let coords: Vec<(f64, f64)> = with_store!(label, state, |store| {
-        let view = store.loc_view();
+        let view = store.view_for(&selector);
         let resolved = selections::narrow(&view, &selector);
         let mut coords = Vec::new();
         view.for_each_within(resolved.as_ref(), |row| coords.push((row.lat(), row.lng())));
@@ -542,20 +437,27 @@ fn copy_to_map(
 
     let now = util::now_unix();
     let mut sources: Vec<Location> = Vec::new();
-    let mut source_tags: HashMap<u32, Tag> = HashMap::new();
-    {
+    let source_tags: HashMap<u32, ValueRecord> = {
         let src = mgr.store_for_map(&source_map_id)?;
         for mut loc in collect(src) {
             loc.created_at = now;
             loc.modified_at = Some(now);
-            for &t in &loc.tags {
-                if let Some(tag) = src.tags.all.get(&t) {
-                    source_tags.insert(t, tag.clone());
-                }
-            }
             sources.push(loc);
         }
-    }
+        let used: HashSet<u32> = sources
+            .iter()
+            .flat_map(|l| l.tags.iter().copied())
+            .collect();
+        src.value_meta
+            .get("tags")
+            .map(|meta| {
+                meta.iter()
+                    .filter(|(id, _)| used.contains(id))
+                    .map(|(&id, t)| (id, t.clone()))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
     if sources.is_empty() {
         return Ok(CopyToMapResult {
             copied: 0,
@@ -564,10 +466,10 @@ fn copy_to_map(
         });
     }
 
-    let used_tags = |fresh: &[Location]| -> Vec<Tag> {
+    let used_tags = |fresh: &[Location]| -> Vec<(u32, ValueRecord)> {
         let used: HashSet<u32> = fresh.iter().flat_map(|l| l.tags.iter().copied()).collect();
         used.iter()
-            .filter_map(|id| source_tags.get(id).cloned())
+            .filter_map(|&id| source_tags.get(&id).map(|r| (id, r.clone())))
             .collect()
     };
 
@@ -586,9 +488,6 @@ fn copy_to_map(
             let tags = used_tags(&fresh);
             let t_add = Instant::now();
             let result = import::add_copied_to_store(target, fresh, tags)?;
-            // The receiving window's autosave must flush the bumped counts even when no
-            // new tag was created.
-            target.tags.all.touch();
             log::debug!(
                 "[cmd] copy_to_map open-target scan={}ms add={}ms total={}ms",
                 scan_ms,
@@ -615,9 +514,12 @@ fn copy_to_map(
     let copied = fresh.len() as u32;
     if copied > 0 {
         let mut target_tags = read_tags_json(&conn, &target_map_id);
-        let mut next_tag = target_tags.keys().max().copied().unwrap_or(0) + 1;
-        let (remap, _) =
-            reconcile_tags_by_name(&used_tags(&fresh), &mut target_tags, &mut next_tag);
+        let data_max = existing
+            .iter()
+            .flat_map(|l| l.tags.iter().copied())
+            .max()
+            .unwrap_or(0);
+        let (remap, _) = reconcile_values_by_name(&used_tags(&fresh), &mut target_tags, data_max);
         for loc in &mut fresh {
             loc.tags = loc
                 .tags
@@ -683,54 +585,33 @@ pub async fn store_save_dirty(
 ) -> AppResult<SaveResult> {
     let _t = Instant::now();
     log::debug!("[cmd] store_save_dirty ENTER");
-    // Each snapshot carries the revision it serialized, so the store can be told exactly
+    // The snapshot carries the revision it serialized, so the store can be told exactly
     // what disk holds once the write lands, however many edits arrived meanwhile.
-    let (map_id, delta, alive, tags) = {
+    // (Value metadata is not here: it persists write-through at the edit.)
+    let (map_id, delta, alive) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
         let map_id = store.map_id.clone().ok_or("no map open")?;
-        if !store.overlay.is_unsaved() && !store.tags.all.is_unsaved() {
+        if !store.overlay.is_unsaved() {
             return Ok(SaveResult { saved_bytes: 0 });
         }
-        let delta = store
-            .overlay
-            .is_unsaved()
-            .then(|| overlay_delta_bytes(&store.overlay).map(|b| store.overlay.stamp(b)))
-            .transpose()?;
-        let tags = store
-            .tags
-            .all
-            .is_unsaved()
-            .then(|| store.tags.all.stamp(serialize_tags_json(&store.tags.all)));
-        (map_id, delta, *store.alive_count, tags)
+        let delta = overlay_delta_bytes(&store.overlay).map(|b| store.overlay.stamp(b))?;
+        (map_id, delta, *store.alive_count)
     };
 
-    let size = delta.as_ref().map_or(0, |d| d.value().len());
-    let delta_rev = delta.as_ref().map(At::rev);
-    let tags_rev = tags.as_ref().map(At::rev);
+    let size = delta.value().len();
+    let delta_rev = delta.rev();
     let map_id2 = map_id.clone();
-    task::spawn_blocking(move || {
-        persist_dirty(
-            &map_id2,
-            delta.map(At::into_value),
-            alive,
-            tags.map(At::into_value),
-        )
-    })
-    .await
-    .unwrap_or_else(|e| Err(e.into()))?;
+    task::spawn_blocking(move || persist_dirty(&map_id2, Some(delta.into_value()), alive, None))
+        .await
+        .unwrap_or_else(|e| Err(e.into()))?;
 
     // The window may have closed or switched maps during the write; the map_id check
     // stops a fresh store from being marked saved by a stale write.
     let mut mgr = state.lock()?;
     if let Ok(store) = mgr.store_for_window(&label.0) {
         if store.map_id.as_deref() == Some(map_id.as_str()) {
-            if let Some(rev) = delta_rev {
-                store.overlay.saved_at(rev);
-            }
-            if let Some(rev) = tags_rev {
-                store.tags.all.saved_at(rev);
-            }
+            store.overlay.saved_at(delta_rev);
         }
     }
 
@@ -878,44 +759,6 @@ pub fn store_commit_diff(
     with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
 }
 
-/// Create tags by name and assign them to the locations matched by `selector`.
-/// Deduplicates case-insensitively: if a tag with the same name already exists, it is reused.
-#[tauri::command]
-#[specta::specta]
-pub fn store_create_tags(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    names: Vec<String>,
-    selector: Selector,
-) -> AppResult<CreatedTags> {
-    with_store!(label, state, |store| {
-        let location_ids: Vec<u32> = {
-            let view = store.loc_view();
-            let resolved = selections::narrow(&view, &selector);
-            selections::ids_within(&view, resolved.as_ref())
-        };
-        Ok(store.create_tags(&names, &location_ids))
-    })
-}
-
-/// Set the display order of tags. Each tag's position is its index in `orderedIds`.
-#[tauri::command]
-#[specta::specta]
-pub fn store_reorder_tags(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    ordered_ids: Vec<u32>,
-) -> AppResult<MutationResult> {
-    with_store!(label, state, |store| {
-        for (i, &id) in ordered_ids.iter().enumerate() {
-            if let Some(tag) = store.tags.all.edit().get_mut(&id) {
-                tag.order = Some(i as u32);
-            }
-        }
-        Ok(store.finish_mutation(&ChangeSet::default()))
-    })
-}
-
 /// Replace all active selections and resolve them against current data. Returns
 /// per-selection counts and a bitmask for the marker overlay.
 #[tauri::command]
@@ -934,10 +777,10 @@ pub async fn store_sync_selections(
         let sels_full: Vec<Selection> = sels.iter().map(|si| si.selection.clone()).collect();
 
         // 1. Resolve the whole forest in one pass: per-selection Roaring id-sets plus
-        //    counts for every node (top-level and nested). Tag leaves hit the membership
-        //    index; composites combine natively. (Geometric leaves still scan.)
+        //    counts for every node (top-level and nested). Indexed filter leaves clone
+        //    postings; composites combine natively. (Geometric leaves still scan.)
         //    Counts cover ghosted selections too; the overlay uses the non-ghosted subset.
-        let view = store.loc_view();
+        let view = store.view_for_all(sels_full.iter().map(|s| &s.selector));
         let (sel_sets, counts) = selections::resolve_forest(&view, &sels_full);
 
         // 2. Keep every selection, ghosted flagged: a mutation recounts all of them, and

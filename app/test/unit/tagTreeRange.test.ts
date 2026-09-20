@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { Tag } from "@/types";
 import {
 	rangeToggleTagIds,
 	reorderSiblingsFlatOrder,
@@ -16,7 +17,7 @@ import {
 	type TagTreeNode,
 	type FolderColorOpts,
 } from "@/components/editor/tags/tagTreeRange";
-import type { Tag, VirtualTag } from "@/bindings.gen";
+import type { VirtualTag } from "@/bindings.gen";
 import { findNode, mkTag, segs } from "./fixtures/tagFixtures";
 
 interface N {

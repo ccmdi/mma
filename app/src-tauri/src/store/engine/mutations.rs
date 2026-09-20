@@ -9,7 +9,7 @@ use crate::store::storage;
 use crate::types::wire_str_enum;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
-use crate::types::{Location, LocationFlags, Tag};
+use crate::types::{Location, LocationFlags};
 use crate::util;
 use roaring::RoaringBitmap;
 use std::collections::BTreeSet;
@@ -23,13 +23,16 @@ use std::collections::{HashMap, HashSet};
 #[derive(Default)]
 pub struct ChangeSet {
     pub added: Vec<Location>,
-    pub removed: Vec<u32>,
+    /// Removed rows in full, not ids: `finish_mutation` reindexes off their old field
+    /// values, and the rows are already gone from the store by then. The removal path
+    /// materialized them anyway, so the changeset takes ownership instead of cloning.
+    pub removed: Vec<Location>,
     pub updated: Vec<(Location, Location)>,
     pub full_reset: bool,
 }
 
 impl ChangeSet {
-    /// No rows moved. A metadata-only mutation (tag rename, reorder) produces one of these.
+    /// No rows moved. A metadata-only mutation (value rename, reorder) produces one of these.
     pub(crate) fn is_empty(&self) -> bool {
         !self.full_reset
             && self.added.is_empty()
@@ -47,14 +50,17 @@ pub struct EngineValues {
     pub location_count: Option<usize>,
     pub can_undo: Option<bool>,
     pub can_redo: Option<bool>,
-    /// Every tag's count, when any count moved.
-    pub tag_counts: Option<HashMap<u32, usize>>,
-    /// The whole registry, when any tag was created, edited, deleted, or flipped visible.
-    /// Includes soft-deleted ghosts (visible=false, kept for undo revival).
-    pub tags: Option<HashMap<u32, Tag>>,
+    /// Per-value row counts, keyed by field then by index key: one complete map per
+    /// indexed field whose postings moved. Fields that did not move are absent.
+    pub value_counts: Option<HashMap<String, HashMap<String, usize>>>,
+    /// Per-value records (opaque piles), keyed by field then by interned id: one
+    /// complete map per interned field whose records changed. JS coerces piles to its
+    /// typed views (a tag) at its own boundary.
+    #[specta(type = Option<HashMap<String, HashMap<u32, HashMap<String, specta_typescript::Unknown>>>>)]
+    pub value_meta: Option<HashMap<String, HashMap<u32, ValueRecord>>>,
     /// The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
     /// seen for the first time, erased, or the user edited a definition.
-    pub field_defs: Option<HashMap<String, maps::ExtraFieldDef>>,
+    pub field_defs: Option<HashMap<String, maps::FieldDef>>,
 }
 
 /// What one change did to the open map.
@@ -136,7 +142,7 @@ fn auto_register_extras(store: &mut Store, extras: &[&RawExtra]) {
 
 /// Persist newly-discovered extra-field definitions to SQLite and into the store's
 /// registry. An existing definition is never overwritten, on disk or in memory.
-pub(crate) fn apply_field_defs(store: &mut Store, new_defs: HashMap<String, maps::ExtraFieldDef>) {
+pub(crate) fn apply_field_defs(store: &mut Store, new_defs: HashMap<String, maps::FieldDef>) {
     if let Some(map_id) = &store.map_id {
         if let Ok(conn) = storage::open_db() {
             let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
@@ -161,15 +167,14 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     store.apply_undoable(Vec::new(), locations)
 }
 
-/// Apply `{id, patch}` updates: overlay, tag counts, undo, extras registration. The one
-/// place a patch batch becomes a mutation -- every command that derives patches ends here.
+/// Apply `{id, patch}` updates: overlay, undo, extras registration. The one place a
+/// patch batch becomes a mutation -- every command that derives patches ends here.
 pub(crate) fn apply_updates(
     store: &mut Store,
     updates: &[Update<LocationPatch>],
     record_undo: bool,
 ) -> MutationResult {
     let mut updated: Vec<(Location, Location)> = Vec::with_capacity(updates.len());
-    let any_tags = updates.iter().any(|u| u.patch.tags.is_some());
     let any_extras = updates.iter().any(|u| u.patch.extra.is_some());
     for u in updates {
         if let Some((old, new)) = store.overlay_update(u.id, &u.patch) {
@@ -177,10 +182,6 @@ pub(crate) fn apply_updates(
                 updated.push((old, new));
             }
         }
-    }
-    if any_tags {
-        store.remove_tag_counts(updated.iter().map(|(o, _)| o));
-        store.add_tag_counts(updated.iter().map(|(_, n)| n));
     }
     let extras: Vec<RawExtra> = if any_extras {
         updated
@@ -241,6 +242,24 @@ pub enum FieldOp {
     /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
     /// missing or non-numeric field, a non-finite result) is reported back by id.
     Expr { key: String, expr: String },
+    /// Add `add` and strip `remove` from a list-valued field, per row. The only op that
+    /// reads the row's current value as a set rather than replacing it, which is what
+    /// membership needs: `tags` is this op's first caller, `array` extras its second.
+    /// `add` wins for a value named in both lists, and a row already in the requested
+    /// state keeps its member order.
+    ListSet {
+        key: String,
+        #[specta(type = Vec<specta_typescript::Unknown>)]
+        add: Vec<serde_json::Value>,
+        #[specta(type = Vec<specta_typescript::Unknown>)]
+        remove: Vec<serde_json::Value>,
+    },
+}
+
+/// Membership test that agrees with [`same_field_value`] on numbers, so an id written as
+/// `1` and one arriving as `1.0` are the same member.
+fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) -> bool {
+    haystack.iter().any(|v| same_field_value(Some(v), needle))
 }
 
 /// What a field op planned: the patches for the rows it changes, the removed keys that
@@ -250,15 +269,6 @@ pub(super) struct FieldPlan {
     pub(super) updates: Vec<Update<LocationPatch>>,
     pub(super) forget: Vec<String>,
     pub(super) failed: Vec<u32>,
-}
-
-/// A create's outcome for the caller: the mutation plus the tags it named.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CreatedTags {
-    pub mutation: MutationResult,
-    /// The tags the names resolved to, in the order the names were given.
-    pub ids: Vec<u32>,
 }
 
 /// The op's outcome for the caller: the mutation plus what its message needs.
@@ -372,7 +382,7 @@ pub(super) fn plan_field_op(
         FieldOp::Move { from, to, .. } if from != to && !to.is_empty() => vec![from.clone()],
         FieldOp::Move { .. } => return Ok(FieldPlan::default()),
         FieldOp::Delete { keys } => keys.clone(),
-        FieldOp::Set { .. } | FieldOp::Expr { .. } => Vec::new(),
+        FieldOp::Set { .. } | FieldOp::Expr { .. } | FieldOp::ListSet { .. } => Vec::new(),
     };
     let expr = match op {
         FieldOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
@@ -385,7 +395,7 @@ pub(super) fn plan_field_op(
                 return Err(AppError(format!("'{key}' takes 0 or 1, not {value}")));
             }
         }
-        FieldOp::Expr { key, .. } => check_target(key, true)?,
+        FieldOp::Expr { key, .. } | FieldOp::ListSet { key, .. } => check_target(key, true)?,
         FieldOp::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
         FieldOp::Move { from, to, .. } => {
             check_target(from, false)?;
@@ -440,6 +450,35 @@ pub(super) fn plan_field_op(
                         }
                     }
                 }
+                FieldOp::ListSet { key, add, remove } => {
+                    let current = match row.resolve_field(key) {
+                        Some(serde_json::Value::Array(a)) => a,
+                        Some(v) => vec![v],
+                        None => Vec::new(),
+                    };
+                    let mut next: Vec<serde_json::Value> = current
+                        .iter()
+                        .filter(|v| !contains_value(remove, v) || contains_value(add, v))
+                        .cloned()
+                        .collect();
+                    for v in add {
+                        if !contains_value(&next, v) {
+                            next.push(v.clone());
+                        }
+                    }
+                    if next != current {
+                        // A builtin column is non-null, so an emptied list is `[]`. An
+                        // emptied `extra` key carries nothing, so it is deleted instead.
+                        merge.insert(
+                            key.clone(),
+                            if next.is_empty() && !selections::is_builtin_field(key) {
+                                serde_json::Value::Null
+                            } else {
+                                serde_json::Value::Array(next)
+                            },
+                        );
+                    }
+                }
             }
         }
         // A removed key survives on any row this op leaves it on (unselected, or absent
@@ -481,7 +520,7 @@ pub(crate) fn apply_field_op(
     record_undo: bool,
 ) -> AppResult<FieldOpResult> {
     let plan = {
-        let view = store.loc_view();
+        let view = store.view_for(selector);
         let resolved = selections::narrow(&view, selector);
         plan_field_op(&view, resolved.as_ref(), op)?
     };

@@ -25,7 +25,7 @@ pub use crate::selections::{Selection, Selector};
 pub use crate::store::engine::{
     LocationPatch, MutationResult, RenderRequest, SelectionInput, Store, Update,
 };
-pub use crate::types::{Location, Tag};
+pub use crate::types::Location;
 
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
 /// full-size run; the default is a smoke-sized store.
@@ -96,10 +96,8 @@ pub fn one_location(seed: u64) -> Location {
 /// the base path.
 pub struct Fixture {
     pub batch: RecordBatch,
-    pub tags: HashMap<u32, Tag>,
-    pub counts: HashMap<u32, usize>,
-    pub sets: HashMap<u32, RoaringBitmap>,
-    pub field_defs: HashMap<String, maps::ExtraFieldDef>,
+    pub tags: HashMap<u32, ValueRecord>,
+    pub field_defs: HashMap<String, maps::FieldDef>,
     pub n: usize,
 }
 
@@ -110,28 +108,15 @@ impl Fixture {
 
     pub fn with_seed(n: usize, seed: u64) -> Self {
         let locs = locations(n, seed);
-        let mut tags: HashMap<u32, Tag> = HashMap::new();
-        let mut sets: HashMap<u32, RoaringBitmap> = HashMap::new();
-        let mut counts: HashMap<u32, usize> = HashMap::new();
-        for id in 1..=TAG_COUNT {
-            tags.insert(
-                id,
-                Tag {
-                    id,
-                    name: format!("tag{id}"),
-                    color: "#3a7fc2".into(),
-                    visible: true,
-                    order: Some(id),
-                    doclinks: Vec::new(),
-                },
-            );
-        }
-        for l in &locs {
-            for t in &l.tags {
-                sets.entry(*t).or_default().insert(l.id);
-                *counts.entry(*t).or_default() += 1;
-            }
-        }
+        let tags: HashMap<u32, ValueRecord> = (1..=TAG_COUNT)
+            .map(|id| {
+                let mut rec = ValueRecord::new();
+                rec.insert("name".into(), format!("tag{id}").into());
+                rec.insert("color".into(), "#3a7fc2".into());
+                rec.insert("order".into(), id.into());
+                (id, rec)
+            })
+            .collect();
         let field_defs = [
             "countryCode",
             "subdivisionCode",
@@ -143,11 +128,10 @@ impl Fixture {
         ]
         .iter()
         .map(|k| {
-            let def = maps::known_field_def(k).unwrap_or(maps::ExtraFieldDef {
-                field_type: maps::ExtraFieldType::String,
+            let def = maps::known_field_def(k).unwrap_or(maps::FieldDef {
+                field_type: maps::FieldType::String,
                 label: None,
                 values: None,
-                labels: None,
                 comparison: None,
             });
             ((*k).to_string(), def)
@@ -156,8 +140,6 @@ impl Fixture {
         Fixture {
             batch: arrow::locations_to_batch(&locs),
             tags,
-            counts,
-            sets,
             field_defs,
             n,
         }
@@ -171,10 +153,9 @@ impl Fixture {
         store.next_id = self.n as u32 + 1;
         store.alive_count = Tracked::new(self.n);
         store.field_defs = Tracked::new(self.field_defs.clone());
-        store.tags.all = Tracked::new(self.tags.clone());
-        store.tags.counts = Touched::new(self.counts.clone());
-        store.tags.sets = self.sets.clone();
-        store.tags.next_id = TAG_COUNT + 1;
+        store
+            .value_meta
+            .insert("tags".into(), Tracked::new(self.tags.clone()));
         store.bounds = None;
         store
     }
@@ -368,6 +349,11 @@ pub fn update_locations(
     apply_updates(store, updates, record_undo)
 }
 
+/// The index step every selector entry point runs before resolving.
+pub fn ensure_indexes(store: &mut Store, selector: &Selector) {
+    store.ensure_indexes_for(selector);
+}
+
 /// Resolution only, no bitmask serialization.
 pub fn resolve_selection(store: &Store, selector: &Selector) -> usize {
     let view = store.loc_view();
@@ -383,42 +369,23 @@ pub fn traverse_scope(store: &Store, set: &RoaringBitmap) -> (usize, f64) {
     (count, sum)
 }
 
-pub fn extend_tag_registry(store: &mut Store, total: u32) {
-    let tags = store.tags.all.edit();
-    for id in store.tags.next_id..=total {
-        tags.insert(
-            id,
-            Tag {
-                id,
-                name: format!("tag{id}"),
-                color: "#3a7fc2".into(),
-                visible: true,
-                order: Some(id),
-                doclinks: Vec::new(),
-            },
-        );
-    }
-    store.tags.next_id = total.saturating_add(1);
-}
-
 pub fn serialize_overlay(store: &Store) -> Vec<u8> {
     overlay_delta_bytes(&store.overlay).expect("serialize overlay")
 }
 
-/// Setup-only population of the overlay (id alloc + add + tag counts). Fixture
-/// seeding for benches that measure something downstream of adds; never the
-/// measured operation itself -- that is `BenchApp::add_locations`.
+/// Setup-only population of the overlay (id alloc + add). Fixture seeding for
+/// benches that measure something downstream of adds; never the measured
+/// operation itself -- that is `BenchApp::add_locations`.
 pub fn seed_adds(store: &mut Store, mut locs: Vec<Location>) {
     for loc in &mut locs {
         loc.id = store.alloc_id();
     }
-    store.add_tag_counts(&locs);
     for loc in locs {
         store.overlay_add(vec![loc]);
     }
 }
 
-/// The open-time O(N) pass: alive count, tag counts and sets, bounds.
+/// The open-time O(N) pass: alive count and bounds.
 pub fn scan(store: &Store) -> usize {
     store.scan_locations().alive
 }
@@ -479,9 +446,9 @@ pub fn write_arrow(path: &Path, batch: &RecordBatch) {
 }
 
 /// The in-process half of `store_open_map`: mmap the Arrow file, then rebuild the
-/// derived state (alive count, tag counts, bounds, tag membership index). The
-/// SQLite and edit-history halves are left out -- they need an app data dir.
-pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
+/// derived state (alive count, bounds, eager per-value counts). The SQLite and
+/// edit-history halves are left out -- they need an app data dir.
+pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, ValueRecord>) -> Store {
     let (batch, handle) = arrow::read_arrow_ipc_mmap(path).expect("read arrow");
     let n = batch.num_rows();
     let max_id = if n > 0 {
@@ -497,9 +464,9 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, Tag>) -> Store {
     let agg = store.scan_locations();
     store.alive_count = Tracked::new(agg.alive);
     store.bounds = Some(At::new(store.version, agg.bounds));
-    store.tags.all = Tracked::new(tags.clone());
-    store.tags.counts = Touched::new(agg.tag_counts);
-    store.tags.next_id = TAG_COUNT + 1;
-    store.tags.sets = agg.tag_sets;
+    store
+        .value_meta
+        .insert("tags".into(), Tracked::new(tags.clone()));
+    store.value_counts("tags");
     store
 }

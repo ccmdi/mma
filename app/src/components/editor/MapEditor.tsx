@@ -6,6 +6,7 @@ import {
 	mutate,
 	removeLocations,
 	discardOpenMap,
+	getTags,
 } from "@/store/useMapStore";
 import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -193,10 +194,10 @@ function SplitHandle({ onSplitChange }: { onSplitChange: (v: number) => void }) 
 
 export function MapEditor() {
 	const map = useMapState((s) => s.map);
-	const hasDoclinks = useMapState((s) => doclinkedTags(s.tags).length > 0);
+	const hasDoclinks = useMapState(() => doclinkedTags(getTags()).length > 0);
 	// Warm the doclink HTML cache once per map open, so the panel is instant.
 	const prefetchDocs = useEffectEvent(() => {
-		if (map) prefetchDoclinks(getMapState().tags);
+		if (map) prefetchDoclinks(getTags());
 	});
 	useEffect(() => prefetchDocs(), [map?.id]);
 	const workArea = useMapState((s) => s.workArea);

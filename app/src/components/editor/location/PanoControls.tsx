@@ -5,7 +5,7 @@ import { PANO_ZOOM, SV_JUMP_RADIUS, displayZoom } from "@/lib/sv/constants";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
-import { getMapState, useMapState } from "@/store/useMapStore";
+import { getMapState, useMapState, getTags } from "@/store/useMapStore";
 import { usePanoViewer } from "./PanoViewerContext";
 import { fieldLabel, fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -359,7 +359,7 @@ export const PanoControls = memo(function PanoControls({
 			const url = buildMapsUrl();
 			if (!url) return;
 			const location = getMapState().activeLocation;
-			if (!noTags && location) appendLinkTags(url, location, getMapState().tags);
+			if (!noTags && location) appendLinkTags(url, location, getTags());
 			if (!long) setCopyState("loading");
 			await copyMapsLink(url, { long });
 			setCopyState("done");

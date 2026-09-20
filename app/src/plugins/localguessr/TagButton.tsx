@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import type { Tag } from "@/bindings.gen";
+import type { Tag } from "@/types";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { TagPill } from "@/components/primitives/TagPill";

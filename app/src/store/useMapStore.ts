@@ -1,8 +1,9 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
+import type { Tag, ValuePatch } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { isVirtualLocation, isImportPreview, locId, applyLocationPatch } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import type { Location, MapMeta, Tag, ExtraFieldDef, StoreStatus } from "@/bindings.gen";
+import type { Location, MapMeta, FieldDef, StoreStatus } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type {
@@ -13,14 +14,14 @@ import type {
 } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
-import { hexToRgb, type RGB } from "@/lib/util/color";
+import { colorForName, hexToRgb, type RGB } from "@/lib/util/color";
 import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
-import type { LocationPatch_Deserialize as LocationPatch, Update, TagPatch } from "@/bindings.gen";
+import type { LocationPatch_Deserialize as LocationPatch, Update } from "@/bindings.gen";
 import type {
 	KeySpec,
 	PartitionBucket,
@@ -35,7 +36,14 @@ import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
 import type { Selection, Selector, SpacedPickResult } from "@/bindings.gen";
-import { addSelection, batch, removeSelection } from "./selections";
+import {
+	addSelection,
+	batch,
+	buildSelection,
+	removeSelection,
+	tagIdOf,
+	tagSelector,
+} from "./selections";
 import type { SelectionPatch } from "./selections";
 
 // --- Map state ---
@@ -74,8 +82,8 @@ const ENGINE_INITIAL: EngineState = {
 	locationCount: 0,
 	canUndo: false,
 	canRedo: false,
-	tagCounts: {},
-	tags: {},
+	valueCounts: {},
+	valueMeta: {},
 	fieldDefs: {},
 };
 
@@ -102,10 +110,55 @@ function setState(patch: Partial<UiState>) {
 	state = { ...state, ...patch };
 }
 
-/** Merge the engine values Rust shipped (JSON merge patch: null = unchanged). */
+/** Merge the engine values Rust shipped (JSON merge patch: null = unchanged).
+ *  `valueCounts`/`valueMeta` merge per field: each present field replaces its whole
+ *  map, absent fields keep theirs. */
 function mergeEngineValues(v: EngineValues) {
-	state = { ...state, ...Object.fromEntries(Object.entries(v).filter(([, x]) => x != null)) };
+	const { valueCounts, valueMeta, ...rest } = v;
+	state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
+	if (valueCounts) state = { ...state, valueCounts: { ...state.valueCounts, ...valueCounts } };
+	if (valueMeta) state = { ...state, valueMeta: { ...state.valueMeta, ...valueMeta } };
 }
+
+const NO_COUNTS: Record<string, number> = {};
+const NO_META: Record<number, Record<string, unknown>> = {};
+
+/** Per-tag location counts: `valueCounts.tags` re-keyed by numeric id. */
+export const getTagCounts: () => Record<number, number> = memoOnRefs(
+	() => [state.valueCounts["tags"] ?? NO_COUNTS] as const,
+	(counts) => Object.fromEntries(Object.entries(counts).map(([k, n]) => [Number(k), n])),
+);
+
+/** The tag view: `valueMeta.tags` piles dressed over the counts, recomputed only when
+ *  either slice moves. A tag is visible exactly while something carries it (count > 0);
+ *  a value present in data without metadata (foreign import) shows under a derived
+ *  name/color; emptied metadata lingers dark until its name is reused. */
+export const getTags: () => Record<number, Tag> = memoOnRefs(
+	() => [state.valueMeta["tags"] ?? NO_META, getTagCounts()] as const,
+	(meta, counts) => {
+		const out: Record<number, Tag> = {};
+		for (const [k, rec] of Object.entries(meta)) {
+			const id = Number(k);
+			const name = typeof rec.name === "string" && rec.name ? rec.name : `Tag ${id}`;
+			out[id] = {
+				id,
+				name,
+				color: typeof rec.color === "string" ? rec.color : colorForName(name),
+				visible: (counts[id] ?? 0) > 0,
+				order: typeof rec.order === "number" ? rec.order : null,
+				doclinks: Array.isArray(rec.doclinks) ? (rec.doclinks as string[]) : [],
+			};
+		}
+		for (const [k, n] of Object.entries(counts)) {
+			const id = Number(k);
+			if (n > 0 && !out[id]) {
+				const name = `Tag ${id}`;
+				out[id] = { id, name, color: colorForName(name), visible: true, order: null, doclinks: [] };
+			}
+		}
+		return out;
+	},
+);
 
 function resetEngineState() {
 	state = { ...state, ...ENGINE_INITIAL };
@@ -123,20 +176,23 @@ export function getMapState(): Readonly<MapState> {
 	return state;
 }
 
-/** Tags that exist from the user's point of view. The raw `tags` state also holds deleted tags. */
+/** Tags that exist from the user's point of view: the ones something carries. Raw
+ *  `tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
+ *  should enumerate those. */
 export const getVisibleTags: () => Tag[] = memoOnRefs(
-	() => [state.tags] as const,
+	() => [getTags()] as const,
 	(tags) => Object.values(tags).filter((t) => t.visible !== false),
 );
 
-/** The tag with this id, including a deleted one, so an old reference still resolves to a name. */
+/** Raw by-id tag lookup — includes dark metadata ghosts so stale references
+ *  (e.g. a selection whose tag just died) still resolve to a name. */
 export function getTag(id: number): Tag | undefined {
-	return state.tags[id];
+	return getTags()[id];
 }
 
 /** Tag names for the given ids, skipping any that no longer resolve. */
 export function tagIdsToNames(ids: number[]): string[] {
-	return ids.map((id) => state.tags[id]?.name).filter((n): n is string => n != null);
+	return ids.map((id) => getTags()[id]?.name).filter((n): n is string => n != null);
 }
 
 // --- Autosave ---
@@ -420,13 +476,13 @@ export function updateMapMeta(patch: MapMetaPatch) {
 }
 
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
-export async function setMapExtraFields(fields: Record<string, ExtraFieldDef>) {
+export async function setMapExtraFields(fields: Record<string, FieldDef>) {
 	if (!state.mapId || !state.map) return;
 	const current = state.map.extra ?? {};
 	return patchMapMeta(state.mapId, { extra: { ...current, fields } } as MapMetaPatch);
 }
 
-/** Keys of tag selections whose tag just died (deleted or went invisible). */
+/** Keys of tag selections whose tag just died (emptied or deleted). */
 function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>): string[] {
 	return Object.keys(oldTags)
 		.map(Number)
@@ -435,17 +491,17 @@ function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>)
 			const now = newTags[id];
 			return was && was.visible !== false && (!now || now.visible === false);
 		})
-		.map((id) => `tag:${id}`);
+		.map((id) => buildSelection(tagSelector(id)).key);
 }
 
 /** A MutationResult carries only what moved: every present field replaces its slice,
  *  every null field was untouched and keeps its reference. Announces its own writes. */
 function applyMutation(r: MutationResult) {
 	if (!state.map) return;
-	const oldTags = state.tags;
+	const oldTags = getTags();
 	mergeEngineValues(r.values);
-	if (r.values.tags)
-		void applySelectionUpdate(batch(removeSelection)(deadTagKeys(oldTags, r.values.tags)));
+	if (getTags() !== oldTags)
+		void applySelectionUpdate(batch(removeSelection)(deadTagKeys(oldTags, getTags())));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
 	emitEvent("store:changed");
 }
@@ -475,8 +531,8 @@ const EMPTY_MUTATION: MutationResult = {
 		locationCount: null,
 		canUndo: null,
 		canRedo: null,
-		tagCounts: null,
-		tags: null,
+		valueCounts: null,
+		valueMeta: null,
 		fieldDefs: null,
 	},
 };
@@ -647,8 +703,9 @@ async function migrateFieldReferences(from: string, to: string | null) {
 
 /** Resolve a selection's overlay color, substituting the live tag color for Tag selections. */
 function selectionSyncColor(s: Selection): RGB {
-	if (s.selector.type === "Tag") {
-		const tag = state.tags[s.selector.tagId];
+	const tagId = tagIdOf(s.selector);
+	if (tagId != null) {
+		const tag = getTags()[tagId];
 		if (tag) return hexToRgb(tag.color);
 	}
 	return s.color;
@@ -963,86 +1020,87 @@ export function exitPluginMode() {
 }
 
 // --- Tag CRUD ---
+// A tag operation is display metadata (`storePatchFieldValues` on the interned `tags`
+// field), row membership (the generic `listSet` field op), or both. There is no tag
+// machinery behind these; the metadata rides back on every mutation result.
 
-/** Get-or-create tags by name. Existing tags are returned as-is; new names get
- *  auto-generated colors. Pass `selector` to assign the tags to those locations
- *  atomically. Emits `tag:add`. */
+/** Patch the `tags` field's value metadata and apply the mutation it returns. */
+async function patchTagValues(patch: {
+	create?: string[];
+	update?: Update<ValuePatch>[];
+	reorder?: number[];
+}): Promise<Tag[]> {
+	let ids: number[] = [];
+	await mutate(async () => {
+		const r = await cmd.storePatchFieldValues("tags", {
+			create: (patch.create ?? []).map((name) => ({ name })),
+			update: patch.update ?? [],
+			reorder: patch.reorder ?? null,
+		});
+		ids = r.resolved;
+		return r.mutation;
+	});
+	return ids.flatMap((id) => (getTags()[id] ? [getTags()[id]] : []));
+}
+
+/** Get-or-create tags by name (case-insensitive; ids are allocated by the store) and
+ *  return them in request order. Pass `selector` to also put the tags on those
+ *  locations. Emits `tag:add`. */
 export async function createTags(
 	names: string[],
 	selector: Selector = { type: "Locations", locations: [], name: null },
 ): Promise<Tag[]> {
 	if (names.length === 0) return [];
-	const { ids } = await mutate(() => cmd.storeCreateTags(names, selector), {
-		mutation: EMPTY_MUTATION,
-		ids: [],
-	});
-	const created = ids.map((id) => state.tags[id]);
-	emitEvent("tag:add", created);
-	return created;
+	const resolved = await patchTagValues({ create: names });
+	if (!(selector.type === "Locations" && selector.locations.length === 0)) {
+		await setTags(
+			resolved.map((t) => t.id),
+			[],
+			selector,
+		);
+	}
+	emitEvent("tag:add", resolved);
+	return resolved;
 }
 
-/** Rename or recolor tags. If a rename collides with an existing tag name
- *  (case-insensitive), the two tags are merged and all locations move
- *  to the surviving tag. */
-export async function updateTags(updates: Update<TagPatch>[]) {
+/** Rename or recolor tags. A rename colliding with an existing tag name
+ *  (case-insensitive) merges the two: every location is remapped to the survivor
+ *  (undoable) and the emptied source's metadata goes dark. */
+export async function updateTags(updates: Update<ValuePatch>[]) {
 	if (updates.length === 0) return;
-	await mutate(() => cmd.storeUpdateTags(updates));
+	await patchTagValues({ update: updates });
 	emitEvent("tag:update", updates);
-	// ONLY resync on color change, everything else is resolved by Rust
+	// Only a color change needs a selection resync; names never enter the resolve.
 	const recolored = new Set(updates.filter((u) => u.patch.color != null).map((u) => u.id));
-	if (state.selections.some((s) => s.selector.type === "Tag" && recolored.has(s.selector.tagId))) {
+	if (state.selections.some((s) => recolored.has(tagIdOf(s.selector) ?? -1))) {
 		void syncSelections();
 	}
 }
 
-/** Delete tags and strip them from all locations. Undoable. Emits `tag:remove`. */
+/** Delete tags: strip them from every location in one undoable mutation. The emptied
+ *  metadata goes dark (count 0 hides it); undo restores the rows and the tags with
+ *  them. Emits `tag:remove`. */
 export async function deleteTags(tagIds: number[]) {
 	if (tagIds.length === 0) return;
-	await mutate(() => cmd.storeDeleteTags(tagIds));
+	await setTags([], tagIds, {
+		type: "Union",
+		selections: tagIds.map((id) => buildSelection(tagSelector(id))),
+	});
 	emitEvent("tag:remove", tagIds);
 }
 
 /** Persist a new tag display order. */
 export async function reorderTags(orderedIds: number[]) {
-	await mutate(() => cmd.storeReorderTags(orderedIds));
+	await patchTagValues({ reorder: orderedIds });
 }
 
-/** Fetch locations, apply a tag transform, and mutate those that changed.
- *  `transform` returns null to skip a location (no change needed). */
-async function modifyTagOnLocations(
-	tagId: number,
-	locationIds: number[],
-	transform: (tags: number[], tagId: number) => number[] | null,
-) {
-	if (locationIds.length === 0) return;
-	const locs = await fetchLocations({ type: "Locations", locations: locationIds, name: null });
-	const updates = locs.flatMap((l): Update<LocationPatch>[] => {
-		const next = transform(l.tags, tagId);
-		return next ? [{ id: l.id, patch: { tags: next } }] : [];
-	});
-	if (updates.length === 0) return;
-	await updateLocations(updates);
-}
-
-/** Add a tag to locations (skips ones that already have it). Undoable. */
-export function addTagToLocations(tagId: number, locationIds: number[]) {
-	return modifyTagOnLocations(tagId, locationIds, (tags, id) =>
-		tags.includes(id) ? null : [...tags, id],
-	);
-}
-
-/** Remove a tag from the given locations. Undoable. */
-export function removeTagFromLocations(tagId: number, locationIds: number[]) {
-	return modifyTagOnLocations(tagId, locationIds, (tags, id) =>
-		tags.includes(id) ? tags.filter((t) => t !== id) : null,
-	);
-}
-
-/** Remove a tag from every location that has it. Undoable. */
-export async function removeTagFromAllLocations(tagId: number) {
-	if (!state.map) return;
-	const allWithTag = await resolveIds({ type: "Tag", tagId });
-	if (allWithTag.length > 0) await removeTagFromLocations(tagId, allWithTag);
+/** Put `add` on every location the selector resolves to and strip `remove` from them,
+ *  in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
+ *  list-valued field, so this is the same `listSet` any `array` field takes. Locations
+ *  already in the requested state are untouched; `add` wins for a tag in both lists. */
+export function setTags(add: number[], remove: number[], selector: Selector) {
+	if (add.length === 0 && remove.length === 0) return Promise.resolve();
+	return applyFieldOp(selector, { kind: "listSet", key: "tags", add, remove }, true);
 }
 
 // --- Undo/redo ---

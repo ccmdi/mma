@@ -3,11 +3,12 @@
 use super::*;
 use crate::selections::{self, Selector};
 use crate::store::arrow::{col_lat, col_lng};
+use crate::store::maps::IndexShape;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use mma_geo::{fold_lng, HexGrid, EARTH_R_M};
 use roaring::RoaringBitmap;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
 
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
@@ -18,14 +19,7 @@ use std::time::Instant;
 /// once on map open; add new whole-map derivations here rather than scanning again.
 pub(crate) struct LocationAggregates {
     pub(crate) alive: usize,
-    pub(crate) tag_counts: HashMap<u32, usize>,
-    pub(crate) tag_sets: HashMap<u32, RoaringBitmap>,
     pub(crate) bounds: Option<BoundsAcc>,
-}
-
-struct TagAggregate {
-    count: usize,
-    ids: RoaringBitmap,
 }
 
 /// Incremental bounding-box accumulator. Tracks latitude min/max plus longitude
@@ -405,16 +399,17 @@ impl Store {
     /// A named id list binary-searches each (marker click, enrich refetch ship a handful)
     /// and keeps the caller's order and duplicates; every other selector is one scan,
     /// sorted and deduped by the bitmap. O(N) time and space.
-    pub(crate) fn collect(&self, selector: &Selector) -> Vec<Location> {
+    pub(crate) fn collect(&mut self, selector: &Selector) -> Vec<Location> {
         if let Selector::Locations { locations, .. } = selector {
             return locations
                 .iter()
                 .filter_map(|&id| self.get_loc_by_id(id))
                 .collect();
         }
-        let view = self.loc_view();
+        let alive = *self.alive_count;
+        let view = self.view_for(selector);
         let resolved = selections::narrow(&view, selector);
-        let mut locs = Vec::with_capacity(*self.alive_count);
+        let mut locs = Vec::with_capacity(alive);
         view.for_each_within(resolved.as_ref(), |row| locs.push(row.to_location()));
         locs
     }
@@ -477,50 +472,184 @@ impl Store {
         self.bounds = Some(At::new(self.version, acc));
     }
 
-    /// Single O(N) pass over all alive locations deriving every open-time
-    /// aggregate: alive count, tag counts and sets, and the bounding box. Seeding the
-    /// bbox here means the first `store_bounds` after open is an O(1) cache hit
-    /// instead of a second full scan.
+    /// Single O(N) pass over all alive locations deriving every open-time aggregate:
+    /// alive count and the bounding box. Seeding the bbox here means the first
+    /// `store_bounds` after open is an O(1) cache hit instead of a second full scan.
+    /// Per-value counts are not here: they are the field indexes' postings.
     pub(crate) fn scan_locations(&self) -> LocationAggregates {
         let view = self.loc_view();
-        let mut tags: HashMap<u32, TagAggregate> = HashMap::new();
         let mut alive = 0usize;
         let mut bounds: Option<BoundsAcc> = None;
         view.for_each(|row| {
             alive += 1;
             bounds = Some(BoundsAcc::fold(bounds, row.lat(), row.lng()));
-            let id = row.id();
-            row.for_each_tag(|tid| {
-                let tag = tags.entry(tid).or_insert_with(|| TagAggregate {
-                    count: 0,
-                    ids: RoaringBitmap::new(),
-                });
-                tag.count += 1;
-                tag.ids.insert(id);
-            });
         });
-        let mut tag_counts = HashMap::with_capacity(tags.len());
-        let mut tag_sets = HashMap::with_capacity(tags.len());
-        for (id, tag) in tags {
-            tag_counts.insert(id, tag.count);
-            tag_sets.insert(id, tag.ids);
-        }
-        LocationAggregates {
-            alive,
-            tag_counts,
-            tag_sets,
-            bounds,
-        }
+        LocationAggregates { alive, bounds }
     }
 
-    /// Construct a read-only view over all alive locations for selection resolution.
+    /// The one doorway to resolving a selector: build any indexes it leans on, then
+    /// hand the view. Scans that resolve nothing use `loc_view` directly.
+    pub(crate) fn view_for(&mut self, selector: &Selector) -> selections::LocView<'_> {
+        self.ensure_indexes_for(selector);
+        self.loc_view()
+    }
+
+    /// `view_for` over several selectors resolved against one view.
+    pub(crate) fn view_for_all<'a>(
+        &mut self,
+        selectors: impl IntoIterator<Item = &'a Selector>,
+    ) -> selections::LocView<'_> {
+        for s in selectors {
+            self.ensure_indexes_for(s);
+        }
+        self.loc_view()
+    }
+
+    /// Construct a read-only view over all alive locations. Selector resolution goes
+    /// through `view_for`; this is for scans that resolve nothing.
     pub(crate) fn loc_view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.dead,
             &self.overlay.patches,
             &self.overlay.adds,
-            Some(&self.tags.sets),
+            Some(&self.field_indexes),
         )
+    }
+
+    /// The index shape for a field key: builtins from the field table, `extra` keys from
+    /// the map's own definitions. An undeclared key is unindexable - it has no type to ask.
+    pub(crate) fn index_shape_of(&self, field: &str) -> IndexShape {
+        if let Some(f) = selections::BUILTIN_FIELDS.iter().find(|f| f.key == field) {
+            return f.field_type.index_shape();
+        }
+        self.field_defs
+            .get(field)
+            .map_or(IndexShape::None, |d| d.field_type.index_shape())
+    }
+
+    /// Build an index for every enumerable field a selector filters on. Reached through
+    /// the selector entry points (`selector_read`, `apply_field_op`, the sync path), so
+    /// resolution never meets a filterable field without its index; a no-op on every
+    /// call after the first for a given field.
+    pub(crate) fn ensure_indexes_for(&mut self, selector: &Selector) {
+        fn walk(sel: &Selector, out: &mut Vec<String>) {
+            match sel {
+                Selector::Filter { field, .. } => out.push(field.clone()),
+                Selector::Intersection { selections }
+                | Selector::Union { selections }
+                | Selector::Invert { selections } => {
+                    for s in selections {
+                        walk(&s.selector, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+        let mut fields = Vec::new();
+        walk(selector, &mut fields);
+        for field in fields {
+            let shape = self.index_shape_of(&field);
+            self.ensure_field_index(&field, shape);
+        }
+    }
+
+    /// Move the changed rows through every index that exists, so a value's count is its
+    /// postings' cardinality with no second structure to keep in step. Returns the fields
+    /// whose postings moved. Lazily-built extra indexes that were never built stay unbuilt.
+    pub(super) fn reindex(
+        &mut self,
+        removed: &[&Location],
+        added: &[&Location],
+    ) -> HashSet<String> {
+        // An enumerable builtin is always indexed: the engine reports its per-value
+        // counts, so the postings have to exist before a row moves, not on first query.
+        for f in selections::BUILTIN_FIELDS {
+            self.ensure_field_index(f.key, f.field_type.index_shape());
+        }
+        let fields: Vec<(String, IndexShape)> = self
+            .field_indexes
+            .iter()
+            .map(|(k, v)| (k.clone(), v.shape))
+            .collect();
+        let mut moved: HashSet<String> = HashSet::new();
+        for (field, shape) in fields {
+            let mut touched: Vec<(String, u32, bool)> = Vec::new();
+            for (locs, present) in [(removed, false), (added, true)] {
+                for loc in locs {
+                    let Some(v) = selections::resolve_field_loc(loc, &field) else {
+                        continue;
+                    };
+                    for key in selections::index_keys(shape, &v) {
+                        touched.push((key, loc.id, present));
+                    }
+                }
+            }
+            if touched.is_empty() {
+                continue;
+            }
+            let index = self
+                .field_indexes
+                .get_mut(&field)
+                .expect("field listed above");
+            for (key, id, present) in touched {
+                let posting = index.by_value.entry(key).or_default();
+                if present {
+                    posting.insert(id);
+                } else {
+                    posting.remove(id);
+                }
+            }
+            moved.insert(field);
+        }
+        moved
+    }
+
+    /// How many rows carry each value of `field`, straight off the postings. Builds the
+    /// index if it has none: a count is a query like any other.
+    pub(crate) fn value_counts(&mut self, field: &str) -> HashMap<String, usize> {
+        let shape = self.index_shape_of(field);
+        self.ensure_field_index(field, shape);
+        self.field_indexes
+            .get(field)
+            .map(|ix| {
+                ix.by_value
+                    .iter()
+                    .map(|(k, ids)| (k.clone(), ids.len() as usize))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// Rows carrying one value of `field`.
+    #[allow(dead_code, reason = "exercised by tests; no production caller")]
+    pub(crate) fn value_count(&mut self, field: &str, value: &str) -> usize {
+        self.value_counts(field).get(value).copied().unwrap_or(0)
+    }
+
+    /// Build the inverted index for `field` if its type is enumerable and it has none
+    /// yet. Postings snapshot the live view; `resolve` re-tests overlay rows on every
+    /// lookup and `finish_mutation` moves changed rows through, so this is paid once per
+    /// field per map open rather than once per mutation.
+    pub(crate) fn ensure_field_index(&mut self, field: &str, shape: IndexShape) {
+        if shape == IndexShape::None || self.field_indexes.contains_key(field) {
+            return;
+        }
+        let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
+        {
+            let view = self.loc_view();
+            view.for_each(|row| {
+                let Some(v) = row.resolve_field(field) else {
+                    return;
+                };
+                for key in selections::index_keys(shape, &v) {
+                    by_value.entry(key).or_default().insert(row.id());
+                }
+            });
+        }
+        self.field_indexes.insert(
+            field.to_string(),
+            selections::FieldIndex { shape, by_value },
+        );
     }
 }

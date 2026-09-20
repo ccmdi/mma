@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
+import type { Tag } from "@/types";
 import { parseDoclink, doclinkedTags, matchTagsToHeadings } from "@/lib/doclink";
 import { gdocProvider } from "@/lib/doclink/gdoc";
-import type { Tag } from "@/bindings.gen";
-
 const DOC_ID = "1wsa06GGiq1LEGwhkiPP0FKIZJqdAiue";
 
 describe("parseDoclink (gdoc)", () => {
@@ -242,7 +241,7 @@ describe("gdoc IR conversion", () => {
 });
 
 describe("doclinkedTags", () => {
-	const tag = (id: number, doclinks?: string[]): Tag => ({
+	const tag = (id: number, doclinks: string[] = []): Tag => ({
 		id,
 		name: `t${id}`,
 		color: "#fff",

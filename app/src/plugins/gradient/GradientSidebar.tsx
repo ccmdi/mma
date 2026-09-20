@@ -5,7 +5,7 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import type { KeySpec } from "@/bindings.gen";
-import type { ExtraFieldType, DatePart } from "@/bindings.consts";
+import type { FieldType, DatePart } from "@/bindings.consts";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
@@ -80,8 +80,8 @@ const gradientCss = (stops: RGB[]) =>
 		.join(", ")})`;
 
 // Gradient offers Range for numbers and dates (count bins); numeric defaults to Range.
-const gradientOptions = (type: ExtraFieldType) => partitionKeyOptions(type, true);
-function defaultProjection(type: ExtraFieldType): string {
+const gradientOptions = (type: FieldType) => partitionKeyOptions(type, true);
+function defaultProjection(type: FieldType): string {
 	return type === "number" || type === "date"
 		? RANGE_ID
 		: (gradientOptions(type)[0]?.id ?? "value");
@@ -133,7 +133,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 	const preset = PRESETS[presetIdx];
 	const stops = reversed ? [...preset.stops].reverse() : preset.stops;
 	const fieldOpt = fields.find((f) => f.key === fieldKey);
-	const fieldType = (fieldOpt?.def?.type ?? "string") as ExtraFieldType;
+	const fieldType = (fieldOpt?.def?.type ?? "string") as FieldType;
 	const projOptions = useMemo(() => gradientOptions(fieldType), [fieldType]);
 	const projectionId = projOptions.some((p) => p.id === projectionIdRaw)
 		? projectionIdRaw
@@ -220,7 +220,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 									const key = e.target.value;
 									setFieldKey(key);
 									const ft = (fields.find((f) => f.key === key)?.def?.type ??
-										"string") as ExtraFieldType;
+										"string") as FieldType;
 									const opts = gradientOptions(ft);
 									if (!opts.some((p) => p.id === projectionId))
 										setProjectionId(defaultProjection(ft));

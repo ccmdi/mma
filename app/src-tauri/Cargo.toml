@@ -86,6 +86,7 @@ vali-geo = { path = "crates/vali/vali-geo" }
 mma-geo = { path = "crates/geo" }
 mma-tz = { path = "crates/tz" }
 mma-geocode = { path = "crates/geocode" }
+mma-fields = { path = "crates/fields" }
 rquickjs = { version = "0.9", features = ["parallel"] }
 
 [target.'cfg(windows)'.dependencies]

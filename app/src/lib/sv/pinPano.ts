@@ -1,6 +1,6 @@
 import type { Selector } from "@/bindings.gen";
 import { PanoType, type CapturePick } from "@/bindings.consts";
-import { all, has } from "@/store/selections";
+import { all, has, panoIdSelector } from "@/store/selections";
 import { applyFieldOp } from "@/store/useMapStore";
 import { runProviders, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/providers";
@@ -27,7 +27,7 @@ export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Pro
 	let resolved = 0;
 	let failed: number[] = [];
 	if (resolve) {
-		const target = force ? selector : all(selector, { type: "NotPanoIds" });
+		const target = force ? selector : all(selector, panoIdSelector(false));
 		// A pin searches official coverage only: the closest pano can be a photosphere.
 		const result = await runProviders(
 			[

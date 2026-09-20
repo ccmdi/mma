@@ -1,7 +1,7 @@
 //! Grouping a set by field: key projection, date parts, numeric binning, count-by.
 
 use super::*;
-use crate::store::maps::ExtraFieldType;
+use crate::store::maps::FieldType;
 use crate::types::wire_str_enum;
 use crate::util::tz_offset_seconds;
 use chrono::{DateTime, Datelike, Timelike, Utc};
@@ -57,13 +57,13 @@ wire_str_enum! {
 #[serde(rename_all = "camelCase")]
 pub struct Projection {
     pub id: &'static str,
-    pub applies_to: &'static [ExtraFieldType],
+    pub applies_to: &'static [FieldType],
     /// Date projections read in the location's own timezone when asked to.
     pub needs_tz: bool,
 }
 
 pub const PROJECTIONS: &[Projection] = {
-    use crate::store::maps::ExtraFieldType::*;
+    use crate::store::maps::FieldType::*;
     &[
         Projection {
             id: "value",

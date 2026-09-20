@@ -5,8 +5,7 @@
 
 import type { MMA } from "@/api";
 import { createLocation } from "../../src/types";
-import type { Location, Selector, ExtraFieldDef } from "@/bindings.gen";
-
+import type { Location, Selector, FieldDef } from "@/bindings.gen";
 /**
  * Run an async function in the browser with the MMA API injected as `api`.
  * The result type is inferred from whatever the callback returns.
@@ -230,7 +229,7 @@ export async function updateMapSettings(patch: Record<string, unknown>) {
 	}, patch);
 }
 
-export async function registerFields(defs: Record<string, ExtraFieldDef>) {
+export async function registerFields(defs: Record<string, FieldDef>) {
 	await withApi(async (api, d) => {
 		const map = api.getMapState().map!;
 		const cur = map.extra?.fields ?? {};

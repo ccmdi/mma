@@ -10,7 +10,7 @@ import { useEventValue } from "@/lib/events";
 import { getContextMenuTarget } from "@/lib/map/contextMenu";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import { polygonsAt, deletePolygonsAt } from "@/lib/map/useDeletePolygon";
-import { getMapState, duplicateLocation, removeLocations } from "@/store/useMapStore";
+import { duplicateLocation, removeLocations, getTags } from "@/store/useMapStore";
 import { openDialog } from "@/store/dialogBus";
 import { mapsPanoUrl, appendLinkTags, copyMapsLink } from "@/lib/sv/mapsLink";
 import { downloadPano } from "@/lib/sv/panoDownload";
@@ -31,7 +31,7 @@ async function copyLocationLink(loc: Location) {
 		zoom: loc.zoom,
 		panoId: loc.panoId ?? "",
 	});
-	appendLinkTags(url, loc, getMapState().tags);
+	appendLinkTags(url, loc, getTags());
 	await copyMapsLink(url);
 	toast(t("Link copied"), 1500);
 }

@@ -2,25 +2,22 @@ use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
 use crate::store::engine::Store;
+use crate::store::engine::{record_name, record_order, ValueRecord};
 use crate::store::maps;
 use crate::store::maps::MapSettings;
 use crate::store::maps::VirtualTag;
 use crate::types::RawExtra;
-use crate::types::{Location, LocationFlags, Tag};
+use crate::types::{Location, LocationFlags};
 use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::time::Instant;
 
-fn tag(id: u32, name: &str) -> Tag {
-    Tag {
-        id,
-        name: name.into(),
-        color: "#000".into(),
-        visible: true,
-        order: None,
-        doclinks: Vec::new(),
-    }
+fn tag(id: u32, name: &str) -> (u32, ValueRecord) {
+    let mut rec = ValueRecord::new();
+    rec.insert("name".into(), name.into());
+    rec.insert("color".into(), "#000".into());
+    (id, rec)
 }
 
 fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
@@ -33,99 +30,103 @@ fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
 }
 
 // -----------------------------------------------------------------------
-// Tag reconciliation (shared core: engine::reconcile_tags_by_name)
-// Import-flavored coverage; the core's own tests live in location_store.test.rs.
+// Tag reconciliation (shared core: engine::reconcile_values_by_name), run against
+// the map's display metadata the way import does.
 // -----------------------------------------------------------------------
 
-/// Run the core against a store's tag table, as add_parsed_to_store does.
-fn reconcile(store: &mut Store, tags: &[Tag]) -> HashMap<u32, u32> {
-    let t = &mut store.tags;
-    engine::reconcile_tags_by_name(tags, t.all.edit(), &mut t.next_id).0
+fn reconcile(
+    meta: &mut HashMap<u32, ValueRecord>,
+    tags: &[(u32, ValueRecord)],
+) -> HashMap<u32, u32> {
+    engine::reconcile_values_by_name(tags, meta, 0).0
 }
 
-fn ordered_tag(id: u32, name: &str, order: u32) -> Tag {
-    Tag {
-        order: Some(order),
-        ..tag(id, name)
-    }
+fn ordered_tag(id: u32, name: &str, order: u32) -> (u32, ValueRecord) {
+    let (id, mut rec) = tag(id, name);
+    rec.insert("order".into(), order.into());
+    (id, rec)
 }
 
-fn store_with_tags(tags: &[Tag]) -> Store {
-    let mut store = Store::new();
-    store.map_id = Some("test".into());
-    for t in tags {
-        store.tags.all.edit().insert(t.id, t.clone());
-    }
-    store.tags.next_id = store.tags.all.keys().max().copied().unwrap_or(0) + 1;
-    store
+fn meta_with(tags: &[(u32, ValueRecord)]) -> HashMap<u32, ValueRecord> {
+    tags.iter().cloned().collect()
 }
 
 #[test]
 fn reconcile_reuses_existing_tag_by_name() {
-    let mut store = store_with_tags(&[tag(5, "Urban")]);
-    let remap = reconcile(&mut store, &[tag(1, "Urban")]);
+    let mut meta = meta_with(&[tag(5, "Urban")]);
+    let remap = reconcile(&mut meta, &[tag(1, "Urban")]);
     assert_eq!(remap[&1], 5, "import tag 1 should remap to existing tag 5");
-    assert_eq!(store.tags.all.len(), 1, "no new tag created");
+    assert_eq!(meta.len(), 1, "no new tag created");
 }
 
 #[test]
 fn reconcile_case_insensitive() {
-    let mut store = store_with_tags(&[tag(5, "Urban")]);
-    let remap = reconcile(&mut store, &[tag(1, "urban")]);
+    let mut meta = meta_with(&[tag(5, "Urban")]);
+    let remap = reconcile(&mut meta, &[tag(1, "urban")]);
     assert_eq!(remap[&1], 5);
-    assert_eq!(store.tags.all.len(), 1);
+    assert_eq!(meta.len(), 1);
 }
 
 #[test]
 fn reconcile_new_tag_gets_fresh_id() {
-    let mut store = store_with_tags(&[]);
-    let remap = reconcile(&mut store, &[tag(99, "Rural")]);
-    assert_ne!(remap[&99], 99, "new tag should get a fresh ID from store");
-    assert_eq!(store.tags.all[&remap[&99]].name, "Rural");
+    let mut meta = meta_with(&[]);
+    let remap = reconcile(&mut meta, &[tag(99, "Rural")]);
+    assert_ne!(remap[&99], 99, "new tag should get a fresh ID");
+    assert_eq!(record_name(&meta[&remap[&99]]), Some("Rural"));
+}
+
+#[test]
+fn reconcile_new_ids_land_above_the_data_floor() {
+    // Metadata is empty but the map's rows already carry tag ids up to 7 (metadata was
+    // deleted out from under them); fresh ids must not collide with those.
+    let mut meta = meta_with(&[]);
+    let (remap, changed) = engine::reconcile_values_by_name(&[tag(1, "New")], &mut meta, 7);
+    assert!(changed);
+    assert_eq!(remap[&1], 8);
 }
 
 #[test]
 fn reconcile_mixed_existing_and_new() {
-    let mut store = store_with_tags(&[tag(10, "Urban")]);
-    let remap = reconcile(&mut store, &[tag(1, "Urban"), tag(2, "Rural")]);
+    let mut meta = meta_with(&[tag(10, "Urban")]);
+    let remap = reconcile(&mut meta, &[tag(1, "Urban"), tag(2, "Rural")]);
     assert_eq!(remap[&1], 10, "Urban remaps to existing");
-    assert_eq!(store.tags.all.len(), 2, "only Rural created");
-    assert_eq!(store.tags.all[&remap[&2]].name, "Rural");
+    assert_eq!(meta.len(), 2, "only Rural created");
+    assert_eq!(record_name(&meta[&remap[&2]]), Some("Rural"));
 }
 
 #[test]
 fn reconcile_no_existing_tags() {
-    let mut store = store_with_tags(&[]);
-    let remap = reconcile(&mut store, &[tag(1, "Alpha"), tag(2, "Beta")]);
+    let mut meta = meta_with(&[]);
+    let remap = reconcile(&mut meta, &[tag(1, "Alpha"), tag(2, "Beta")]);
     assert_eq!(remap.len(), 2);
-    assert_eq!(store.tags.all.len(), 2, "both tags are new");
+    assert_eq!(meta.len(), 2, "both tags are new");
 }
 
 #[test]
 fn reconcile_all_existing() {
-    let mut store = store_with_tags(&[tag(5, "Alpha"), tag(6, "Beta")]);
-    let remap = reconcile(&mut store, &[tag(1, "Alpha"), tag(2, "Beta")]);
+    let mut meta = meta_with(&[tag(5, "Alpha"), tag(6, "Beta")]);
+    let remap = reconcile(&mut meta, &[tag(1, "Alpha"), tag(2, "Beta")]);
     assert_eq!(remap[&1], 5);
     assert_eq!(remap[&2], 6);
-    assert_eq!(store.tags.all.len(), 2, "all tags already exist");
+    assert_eq!(meta.len(), 2, "all tags already exist");
 }
 
 #[test]
 fn reconcile_duplicate_import_tags_dedup_against_each_other() {
-    let mut store = store_with_tags(&[]);
+    let mut meta = meta_with(&[]);
     // Two import tags with same name but different IDs (shouldn't happen from parse_file,
     // but the core should handle it: second one reuses the first's allocated ID)
-    let remap = reconcile(&mut store, &[tag(1, "Dup"), tag(2, "Dup")]);
+    let remap = reconcile(&mut meta, &[tag(1, "Dup"), tag(2, "Dup")]);
     assert_eq!(remap[&1], remap[&2], "both import IDs remap to same new ID");
-    assert_eq!(store.tags.all.len(), 1, "second duplicate not created");
+    assert_eq!(meta.len(), 1, "second duplicate not created");
 }
 
 #[test]
 fn reconcile_location_tags_remapped_correctly() {
-    let mut store = store_with_tags(&[tag(10, "Urban")]);
-    let remap = reconcile(&mut store, &[tag(1, "Urban"), tag(2, "Rural")]);
+    let mut meta = meta_with(&[tag(10, "Urban")]);
+    let remap = reconcile(&mut meta, &[tag(1, "Urban"), tag(2, "Rural")]);
 
-    // Apply the remap to locations (same as add_parsed_to_store does)
+    // Apply the remap to locations (same as reconcile_import_tags does)
     let mut loc = loc_with_tags(1, vec![1, 2]);
     loc.tags = loc
         .tags
@@ -144,53 +145,53 @@ fn reconcile_location_tags_remapped_correctly() {
 
 #[test]
 fn reconcile_rebases_new_ordered_tags_dense_from_one() {
-    let mut store = store_with_tags(&[]);
+    let mut meta = meta_with(&[]);
     let remap = reconcile(
-        &mut store,
+        &mut meta,
         &[
             ordered_tag(1, "Zebra", 131),
             ordered_tag(2, "Mango", 132),
             ordered_tag(3, "Apple", 133),
         ],
     );
-    assert_eq!(store.tags.all[&remap[&1]].order, Some(1));
-    assert_eq!(store.tags.all[&remap[&2]].order, Some(2));
-    assert_eq!(store.tags.all[&remap[&3]].order, Some(3));
+    assert_eq!(record_order(&meta[&remap[&1]]), Some(1));
+    assert_eq!(record_order(&meta[&remap[&2]]), Some(2));
+    assert_eq!(record_order(&meta[&remap[&3]]), Some(3));
 }
 
 #[test]
 fn reconcile_appends_new_ordered_tags_after_existing_max() {
-    let mut store = store_with_tags(&[ordered_tag(5, "Kept", 4)]);
-    let remap = reconcile(&mut store, &[ordered_tag(1, "New", 131)]);
-    assert_eq!(store.tags.all[&remap[&1]].order, Some(5));
+    let mut meta = meta_with(&[ordered_tag(5, "Kept", 4)]);
+    let remap = reconcile(&mut meta, &[ordered_tag(1, "New", 131)]);
+    assert_eq!(record_order(&meta[&remap[&1]]), Some(5));
 }
 
 #[test]
 fn reconcile_ordered_source_claims_unordered_existing() {
     // Existing same-name tag with no order (e.g. imported without app data,
     // possibly now at count 0) must adopt the incoming file's ordering.
-    let mut store = store_with_tags(&[tag(5, "Zebra"), tag(6, "Apple"), ordered_tag(7, "Kept", 2)]);
+    let mut meta = meta_with(&[tag(5, "Zebra"), tag(6, "Apple"), ordered_tag(7, "Kept", 2)]);
     reconcile(
-        &mut store,
+        &mut meta,
         &[ordered_tag(1, "Zebra", 131), ordered_tag(2, "Apple", 132)],
     );
-    assert_eq!(store.tags.all[&7].order, Some(2), "ordered tag untouched");
-    assert_eq!(store.tags.all[&5].order, Some(3), "Zebra first per file");
-    assert_eq!(store.tags.all[&6].order, Some(4), "Apple second per file");
+    assert_eq!(record_order(&meta[&7]), Some(2), "ordered tag untouched");
+    assert_eq!(record_order(&meta[&5]), Some(3), "Zebra first per file");
+    assert_eq!(record_order(&meta[&6]), Some(4), "Apple second per file");
 }
 
 #[test]
 fn reconcile_ordered_source_does_not_override_concrete_order() {
-    let mut store = store_with_tags(&[ordered_tag(5, "Urban", 2)]);
-    reconcile(&mut store, &[ordered_tag(1, "Urban", 131)]);
-    assert_eq!(store.tags.all[&5].order, Some(2));
+    let mut meta = meta_with(&[ordered_tag(5, "Urban", 2)]);
+    reconcile(&mut meta, &[ordered_tag(1, "Urban", 131)]);
+    assert_eq!(record_order(&meta[&5]), Some(2));
 }
 
 #[test]
 fn reconcile_unordered_source_tags_stay_unordered() {
-    let mut store = store_with_tags(&[]);
-    let remap = reconcile(&mut store, &[tag(1, "Bare")]);
-    assert_eq!(store.tags.all[&remap[&1]].order, None);
+    let mut meta = meta_with(&[]);
+    let remap = reconcile(&mut meta, &[tag(1, "Bare")]);
+    assert_eq!(record_order(&meta[&remap[&1]]), None);
 }
 
 #[test]
@@ -201,9 +202,9 @@ fn renumber_ordered_tags_dense_and_leaves_none() {
         ordered_tag(3, "A", 131),
     ];
     renumber_ordered_tags(&mut tags);
-    assert_eq!(tags[0].order, Some(2), "C after A");
-    assert_eq!(tags[1].order, None);
-    assert_eq!(tags[2].order, Some(1), "A first");
+    assert_eq!(record_order(&tags[0].1), Some(2), "C after A");
+    assert_eq!(record_order(&tags[1].1), None);
+    assert_eq!(record_order(&tags[2].1), Some(1), "A first");
 }
 
 /// Scan `extra` from a buffer and pull tag meta, as the parse path does internally.
@@ -427,9 +428,9 @@ fn boundaries_tag_meta_after_brace_heavy_strings() {
     let parsed = parse_single_json_mut(&mut buf);
     assert_eq!(parsed.locations.len(), 1);
     assert_eq!(parsed.tags.len(), 1);
-    assert_eq!(parsed.tags[0].name, "X");
-    assert_eq!(parsed.tags[0].order, Some(7));
-    assert_eq!(parsed.tags[0].color, "#010203");
+    assert_eq!(record_name(&parsed.tags[0].1), Some("X"));
+    assert_eq!(record_order(&parsed.tags[0].1), Some(7));
+    assert_eq!(parsed.tags[0].1["color"], "#010203");
 }
 
 /// A nameless map previews as no name at all; naming the placeholder is JS's job.
@@ -462,12 +463,12 @@ fn parsed_tags_sorted_by_order() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     assert_eq!(parsed.tags.len(), 3);
-    assert_eq!(parsed.tags[0].name, "Beta");
-    assert_eq!(parsed.tags[0].order, Some(0));
-    assert_eq!(parsed.tags[1].name, "Gamma");
-    assert_eq!(parsed.tags[1].order, Some(1));
-    assert_eq!(parsed.tags[2].name, "Alpha");
-    assert_eq!(parsed.tags[2].order, Some(2));
+    assert_eq!(record_name(&parsed.tags[0].1), Some("Beta"));
+    assert_eq!(record_order(&parsed.tags[0].1), Some(0));
+    assert_eq!(record_name(&parsed.tags[1].1), Some("Gamma"));
+    assert_eq!(record_order(&parsed.tags[1].1), Some(1));
+    assert_eq!(record_name(&parsed.tags[2].1), Some("Alpha"));
+    assert_eq!(record_order(&parsed.tags[2].1), Some(2));
 }
 
 // -----------------------------------------------------------------------
@@ -476,7 +477,7 @@ fn parsed_tags_sorted_by_order() {
 // the same semantic result the old map-building parser did.
 // -----------------------------------------------------------------------
 
-fn parse_one(json: &[u8]) -> (Location, Vec<Tag>) {
+fn parse_one(json: &[u8]) -> (Location, Vec<(u32, ValueRecord)>) {
     let mut buf = json.to_vec();
     let p = parse_single_json_mut(&mut buf);
     (
@@ -498,7 +499,10 @@ fn fast_path_strips_tags_keeps_rest() {
         "null country not folded (parity with old parser)"
     );
     assert_eq!(loc.tags.len(), 2);
-    let mut names: Vec<_> = tags.iter().map(|t| t.name.clone()).collect();
+    let mut names: Vec<_> = tags
+        .iter()
+        .map(|(_, rec)| record_name(rec).unwrap_or_default().to_string())
+        .collect();
     names.sort();
     assert_eq!(names, vec!["A", "B"]);
 }
@@ -806,55 +810,61 @@ fn staged_location_fetch_by_index() {
 // -----------------------------------------------------------------------
 
 #[test]
-fn add_copied_reconciles_tags_and_reports_counts() {
-    // Target already defines "Shared" (id 5). The copies reference the *source*
+fn copied_locations_reconcile_tags_and_report_counts() {
+    // Target metadata already defines "Shared" (id 5). The copies reference the *source*
     // map's own tag ids (1 = Shared, 2 = Unique), as a real cross-map copy would.
-    let mut store = store_with_tags(&[tag(5, "Shared")]);
-    let copies = vec![loc_with_tags(1, vec![1]), loc_with_tags(2, vec![1, 2])];
-    let source_tags = vec![tag(1, "Shared"), tag(2, "Unique")];
+    let mut store = Store::new();
+    store.map_id = Some("test".into());
+    store.value_meta.insert(
+        "tags".into(),
+        engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
+    );
+    let mut parsed = ParsedMap {
+        locations: vec![loc_with_tags(1, vec![1]), loc_with_tags(2, vec![1, 2])],
+        tags: vec![tag(1, "Shared"), tag(2, "Unique")],
+        ..Default::default()
+    };
 
-    let r = add_copied_to_store(&mut store, copies, source_tags).unwrap();
+    let r = add_parsed_to_store(&mut store, &mut parsed, None).unwrap();
 
     // Both copies landed in the target store.
     assert_eq!(r.values.location_count, Some(2));
     let stored = store.collect(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
-    // "Shared" reconciled to the target's existing id 5 (no duplicate tag created).
-    let shared: Vec<_> = store
-        .tags
-        .all
-        .values()
-        .filter(|t| t.name == "Shared")
-        .collect();
-    assert_eq!(shared.len(), 1);
-    assert_eq!(shared[0].id, 5);
-    // "Unique" created fresh, not reusing the source id.
-    let unique = store
-        .tags
-        .all
-        .values()
-        .find(|t| t.name == "Unique")
+    // "Shared" reconciled to the target's existing id 5 (no duplicate created);
+    // "Unique" got a fresh id, not the source's.
+    let meta = &store.value_meta["tags"];
+    let (unique_id, _) = meta
+        .iter()
+        .find(|(_, rec)| record_name(rec) == Some("Unique"))
         .expect("Unique created");
-    assert_ne!(unique.id, 2);
+    let unique_id = *unique_id;
+    assert_ne!(unique_id, 2);
+    assert_eq!(
+        meta.values()
+            .filter(|rec| record_name(rec) == Some("Shared"))
+            .count(),
+        1
+    );
 
     // Copies carry the reconciled *target* tag ids, not the source ids.
     let two_tag = stored.iter().find(|l| l.tags.len() == 2).unwrap();
     assert!(two_tag.tags.contains(&5));
-    assert!(two_tag.tags.contains(&unique.id));
+    assert!(two_tag.tags.contains(&unique_id));
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
-    let counts = r.values.tag_counts.as_ref().expect("import changes counts");
-    assert_eq!(counts[&5], 2);
-    assert_eq!(counts[&unique.id], 1);
+    let counts = &r.values.value_counts.as_ref().expect("import moves counts")["tags"];
+    assert_eq!(counts["5"], 2);
+    assert_eq!(counts[&unique_id.to_string()], 1);
 
-    // The new tag def is shipped on the result (the receiver needs it to render).
+    // The reconciled metadata ships on the same result (the receiver renders from it).
     assert!(r
         .values
-        .tags
+        .value_meta
         .as_ref()
-        .and_then(|m| m.get(&unique.id))
-        .is_some());
+        .and_then(|m| m.get("tags"))
+        .is_some_and(|t| t.contains_key(&unique_id)));
 }
 
 #[test]

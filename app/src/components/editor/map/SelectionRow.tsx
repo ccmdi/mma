@@ -7,6 +7,7 @@ import {
 	pruneDuplicates,
 	resolveIds,
 	useMapState,
+	getTags,
 } from "@/store/useMapStore";
 import { updateFilterSelection } from "@/store/selectionActions";
 import {
@@ -23,6 +24,7 @@ import {
 	setPolygonName,
 	setSelectionColors,
 	toggleGhost,
+	tagIdOf,
 } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
@@ -125,9 +127,9 @@ export const SelectionRow = memo(function SelectionRow({
 	inheritedGhost?: boolean;
 }) {
 	const map = useMapState((s) => s.map);
-	const tagColor = useMapState((s) => {
-		const i = innerOf(selection);
-		return i.selector.type === "Tag" ? s.tags[i.selector.tagId]?.color : undefined;
+	const tagColor = useMapState(() => {
+		const id = tagIdOf(innerOf(selection).selector);
+		return id == null ? undefined : getTags()[id]?.color;
 	});
 	const count = useMapState((s) => s.selectionCounts[selection.key] ?? 0);
 	const isTopLevel = depth === 0;
@@ -175,7 +177,9 @@ export const SelectionRow = memo(function SelectionRow({
 	const showChildren = inner.selector.type === "Intersection" || inner.selector.type === "Union";
 	const isPoly = selection.selector.type === "Polygon";
 	const colorBlockCss =
-		inner.selector.type === "Tag" ? (tagColor ?? rgbCss(selection.color)) : rgbCss(selection.color);
+		tagIdOf(inner.selector) != null
+			? (tagColor ?? rgbCss(selection.color))
+			: rgbCss(selection.color);
 
 	const handleRename = () => {
 		if (selection.selector.type !== "Polygon") return;
@@ -371,7 +375,7 @@ export const SelectionRow = memo(function SelectionRow({
 									>
 										{t("Review selection")}
 									</MenuItem>
-									{selection.selector.type !== "Tag" && (
+									{tagIdOf(selection.selector) == null && (
 										<MenuItem
 											disabled={count === 0}
 											onClick={() => {
@@ -407,7 +411,7 @@ export const SelectionRow = memo(function SelectionRow({
 											{t("Prune duplicates")}
 										</MenuItem>
 									)}
-									{selection.selector.type !== "Tag" && (
+									{tagIdOf(selection.selector) == null && (
 										<MenuItem closeOnClick={false} onClick={() => setView("color")}>
 											{t("Change color")}
 										</MenuItem>

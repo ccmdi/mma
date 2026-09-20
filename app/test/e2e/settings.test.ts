@@ -1,4 +1,5 @@
 import { waitForReady, createAndOpenMap, closeMap, deleteMap, withApi } from "./helpers";
+import { tagSelector } from "@/store/selections";
 
 describe("Settings persistence", () => {
 	let mapId: string;
@@ -91,12 +92,7 @@ describe("Saved selections", () => {
 
 	it("stores a rule with its tag-name side table and reads it back", async () => {
 		const saved = await withApi(async (api) =>
-			api.cmd.storeSaveSelection(
-				"E2E Preset",
-				{ type: "Tag", tagId: 7 },
-				{ 7: "Japan" },
-				[255, 0, 0],
-			),
+			api.cmd.storeSaveSelection("E2E Preset", tagSelector(7), { 7: "Japan" }, [255, 0, 0]),
 		);
 		created.push(saved.id);
 
@@ -112,7 +108,7 @@ describe("Saved selections", () => {
 			async (api, id) => api.cmd.storeGetSavedSelections([id]),
 			saved.id,
 		);
-		expect(body.selector).toEqual({ type: "Tag", tagId: 7 });
+		expect(body.selector).toEqual(tagSelector(7));
 		expect(body.tagNames).toEqual({ 7: "Japan" });
 	});
 

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createFieldDef } from "@/types";
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { ExtraFieldDef } from "@/bindings.gen";
+import type { FieldDef } from "@/bindings.gen";
 import {
 	getFieldDef,
 	getAllFieldDefs,
@@ -25,7 +25,7 @@ vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ fieldDefs: h.fieldDefs }),
 }));
 
-function setUserFieldDefs(defs: Record<string, ExtraFieldDef>) {
+function setUserFieldDefs(defs: Record<string, FieldDef>) {
 	h.fieldDefs = defs;
 }
 
@@ -68,11 +68,14 @@ describe("field kinds", () => {
 		}
 	});
 
-	it("writable builtins are exactly heading, pitch, zoom and the pin flag", () => {
+	it("writable builtins are the three scalar columns, tags, and the pin flag", () => {
+		// `tags` is here because it is an ordinary list-valued field, not because it is tags:
+		// it has a declared type, so it is writable and listable on the same terms as any other.
 		expect(getBuiltinKeys().filter(isWritableField).sort()).toEqual([
 			"heading",
 			"loadAsPanoId",
 			"pitch",
+			"tags",
 			"zoom",
 		]);
 	});

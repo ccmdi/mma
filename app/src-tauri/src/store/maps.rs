@@ -7,13 +7,13 @@
 
 use crate::store::engine;
 use crate::store::engine::StoreState;
+use crate::store::engine::ValueRecord;
 use crate::store::storage::{self, push_field};
 use crate::sv::schema::PanoType;
 use crate::types;
 use crate::types::wire_str_enum;
 use crate::types::AppResult;
 use crate::types::RawExtra;
-use crate::types::Tag;
 use crate::util::now_iso;
 use rusqlite::types::ToSql;
 use rusqlite::{params, Connection};
@@ -137,7 +137,7 @@ wire_str_enum! {
     /// Type discriminant for `Location.extra` field definitions.
     /// Determines how the field is displayed and filtered in the UI.
     derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)
-    pub enum ExtraFieldType {
+    pub enum FieldType {
         /// Text.
         String = "string",
         /// A number.
@@ -153,25 +153,77 @@ wire_str_enum! {
     }
 }
 
+/// How a field's values decompose into index keys, if at all. The single place that
+/// decides both *whether* a field can be indexed and *how* its postings are built.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum IndexShape {
+    /// One key per row: the value itself.
+    Scalar,
+    /// One key per member of the row's list.
+    Multi,
+    /// Not indexable.
+    None,
+}
+
+impl FieldType {
+    /// An inverted index is well-defined only over an enumerable value space: one bitmap
+    /// per distinct value, sized by cardinality rather than by row count. The unbounded
+    /// types are excluded because that bitmap is either degenerate (cardinality ~ N) or
+    /// useless for the operators they are actually queried with (`gt`/`lt`/`between`).
+    pub const fn index_shape(&self) -> IndexShape {
+        match self {
+            Self::Enum => IndexShape::Scalar,
+            Self::Array => IndexShape::Multi,
+            Self::String | Self::Number | Self::Date | Self::Month => IndexShape::None,
+        }
+    }
+}
+
 /// Schema definition for a single `Location.extra` field. Stored in the map's
-/// `extra.fields` JSON. For enum types, `values` lists valid options and `labels`
-/// provides display names.
+/// `extra.fields` JSON. For enumerable types, `values` declares the value space in
+/// display order, each member carrying its own display name.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct ExtraFieldDef {
+pub struct FieldDef {
     #[serde(rename = "type")]
-    pub field_type: ExtraFieldType,
+    pub field_type: FieldType,
     pub label: Option<String>,
-    pub values: Option<Vec<String>>,
-    pub labels: Option<HashMap<String, String>>,
+    /// The declared value space, in display order.
+    pub values: Option<Vec<FieldValue>>,
     /// How this field is compared during disambiguation. `null` infers it from the field type.
     pub comparison: Option<ComparisonType>,
+}
+
+/// One member of an enumerable field's value space: the stored value plus its display
+/// name. The value is the identity, so a rename is a label change and membership is
+/// untouched.
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct FieldValue {
+    pub value: String,
+    pub label: Option<String>,
+}
+
+impl FieldValue {
+    pub fn new(value: impl Into<String>) -> Self {
+        FieldValue {
+            value: value.into(),
+            label: None,
+        }
+    }
+
+    pub fn labelled(value: impl Into<String>, label: impl Into<String>) -> Self {
+        FieldValue {
+            label: Some(label.into()),
+            ..FieldValue::new(value)
+        }
+    }
 }
 
 /// How a field's values are compared when measuring how strongly it separates
 /// groups (selection disambiguation). The only un-inferrable property a field can
 /// declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
-/// everything else is inferred from `ExtraFieldType`.
+/// everything else is inferred from `FieldType`.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ComparisonType {
@@ -185,7 +237,38 @@ pub enum ComparisonType {
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MapExtra {
-    pub fields: Option<HashMap<String, ExtraFieldDef>>,
+    pub fields: Option<HashMap<String, FieldDef>>,
+}
+
+/// Rows written before the per-value collapse spell a field's value space as a bare string
+/// list beside a separate `labels` map. Folded here, at the one boundary persisted defs
+/// enter through, so the stored row is never touched and the wire has a single shape.
+fn modernize_field_defs(raw: &mut serde_json::Value) {
+    let Some(fields) = raw
+        .get_mut("fields")
+        .and_then(serde_json::Value::as_object_mut)
+    else {
+        return;
+    };
+    for def in fields.values_mut() {
+        let Some(obj) = def.as_object_mut() else {
+            continue;
+        };
+        let labels = obj.remove("labels").unwrap_or(serde_json::Value::Null);
+        let Some(values) = obj
+            .get_mut("values")
+            .and_then(serde_json::Value::as_array_mut)
+        else {
+            continue;
+        };
+        for v in values.iter_mut() {
+            let Some(name) = v.as_str().map(str::to_owned) else {
+                continue;
+            };
+            let label = labels.get(&name).and_then(serde_json::Value::as_str);
+            *v = serde_json::json!({ "value": name, "label": label });
+        }
+    }
 }
 
 impl MapExtra {
@@ -193,7 +276,9 @@ impl MapExtra {
     /// canonicalized keys can carry escapes and match no location, so decode them
     /// here; the next def write persists the repair. Default on invalid JSON.
     pub fn from_json(s: &str) -> Self {
-        let mut extra: MapExtra = serde_json::from_str(s).unwrap_or_default();
+        let mut raw: serde_json::Value = serde_json::from_str(s).unwrap_or_default();
+        modernize_field_defs(&mut raw);
+        let mut extra: MapExtra = serde_json::from_value(raw).unwrap_or_default();
         if let Some(fields) = extra.fields.take() {
             extra.fields = Some(
                 fields
@@ -232,7 +317,7 @@ impl Default for ScoreBounds {
 pub struct KnownField {
     pub key: &'static str,
     #[serde(rename = "type")]
-    pub field_type: ExtraFieldType,
+    pub field_type: FieldType,
     pub label: &'static str,
     pub values: &'static [&'static str],
     pub labels: &'static [(&'static str, &'static str)],
@@ -242,7 +327,7 @@ pub struct KnownField {
 }
 
 impl KnownField {
-    const fn simple(key: &'static str, field_type: ExtraFieldType, label: &'static str) -> Self {
+    const fn simple(key: &'static str, field_type: FieldType, label: &'static str) -> Self {
         Self {
             key,
             field_type,
@@ -279,11 +364,11 @@ wire_str_enum! {
 }
 
 pub static KNOWN_FIELDS: &[KnownField] = &[
-    KnownField::simple("altitude", ExtraFieldType::Number, "Altitude"),
-    KnownField::simple("countryCode", ExtraFieldType::String, "Country code"),
+    KnownField::simple("altitude", FieldType::Number, "Altitude"),
+    KnownField::simple("countryCode", FieldType::String, "Country code"),
     KnownField {
         key: "cameraType",
-        field_type: ExtraFieldType::Enum,
+        field_type: FieldType::Enum,
         label: "Camera type",
         values: CameraType::VALUES,
         labels: CameraType::LABELS,
@@ -292,69 +377,63 @@ pub static KNOWN_FIELDS: &[KnownField] = &[
     },
     KnownField {
         key: "panoType",
-        field_type: ExtraFieldType::Enum,
+        field_type: FieldType::Enum,
         label: "Pano type",
         values: PanoType::VALUES,
         labels: PanoType::LABELS,
         circular_period: None,
         default_off: false,
     },
-    KnownField::simple("imageDate", ExtraFieldType::Month, "Image date"),
-    KnownField::simple("datetime", ExtraFieldType::Date, "Exact date").off(),
-    KnownField::simple("timezone", ExtraFieldType::Enum, "Timezone").off(),
+    KnownField::simple("imageDate", FieldType::Month, "Image date"),
+    KnownField::simple("datetime", FieldType::Date, "Exact date").off(),
+    KnownField::simple("timezone", FieldType::Enum, "Timezone").off(),
     KnownField {
         key: "drivingDirection",
-        field_type: ExtraFieldType::Number,
+        field_type: FieldType::Number,
         label: "Driving direction",
         values: &[],
         labels: &[],
         circular_period: Some(360.0),
         default_off: true,
     },
-    KnownField::simple("uploaderName", ExtraFieldType::String, "Uploader").off(),
-    KnownField::simple("coverageDates", ExtraFieldType::Array, "Coverage dates").off(),
-    KnownField::simple("subdivision", ExtraFieldType::String, "Subdivision").off(),
+    KnownField::simple("uploaderName", FieldType::String, "Uploader").off(),
+    KnownField::simple("coverageDates", FieldType::Array, "Coverage dates").off(),
+    KnownField::simple("subdivision", FieldType::String, "Subdivision").off(),
 ];
 
 /// Returns a curated field definition for well-known SV metadata keys
 /// (altitude, countryCode, cameraType, etc.). Falls back to `None` for
 /// user-defined fields, which get type-inferred instead.
-pub fn known_field_def(key: &str) -> Option<ExtraFieldDef> {
+pub fn known_field_def(key: &str) -> Option<FieldDef> {
     KNOWN_FIELDS
         .iter()
         .find(|f| f.key == key)
-        .map(|f| ExtraFieldDef {
+        .map(|f| FieldDef {
             field_type: f.field_type.clone(),
             label: Some(f.label.into()),
-            values: if f.values.is_empty() {
-                None
-            } else {
-                Some(f.values.iter().map(|s| (*s).into()).collect())
-            },
-            labels: if f.labels.is_empty() {
-                None
-            } else {
-                Some(
-                    f.labels
-                        .iter()
-                        .map(|(k, v)| ((*k).into(), (*v).into()))
-                        .collect(),
-                )
-            },
+            values: (!f.values.is_empty()).then(|| {
+                f.values
+                    .iter()
+                    .map(|v| match f.labels.iter().find(|(k, _)| k == v) {
+                        Some((_, label)) => FieldValue::labelled(*v, *label),
+                        None => FieldValue::new(*v),
+                    })
+                    .collect()
+            }),
             comparison: f
                 .circular_period
                 .map(|p| ComparisonType::Circular { period: p }),
         })
 }
 
-/// Infer an `ExtraFieldType` from a sample JSON value. Numbers become `Number`,
+/// Infer an `FieldType` from a sample JSON value. Numbers become `Number`,
 /// strings matching `YYYY-MM` become `Month`, everything else becomes `String`.
-pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
+pub fn infer_field_type(value: &serde_json::Value) -> FieldType {
     if value.is_array() {
-        return ExtraFieldType::Array;
+        return FieldType::Array;
     }
     if value.is_number() {
-        return ExtraFieldType::Number;
+        return FieldType::Number;
     }
     if let Some(s) = value.as_str() {
         let b = s.as_bytes();
@@ -365,11 +444,11 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
         {
             let month = (b[5] - b'0') * 10 + (b[6] - b'0');
             if (1..=12).contains(&month) {
-                return ExtraFieldType::Month;
+                return FieldType::Month;
             }
         }
     }
-    ExtraFieldType::String
+    FieldType::String
 }
 
 /// Scan extra maps for keys not yet in `known_keys` and produce field definitions.
@@ -378,8 +457,8 @@ pub fn infer_field_type(value: &serde_json::Value) -> ExtraFieldType {
 pub fn auto_register_field_defs(
     is_known: impl Fn(&str) -> bool,
     extras: &[&RawExtra],
-) -> Option<HashMap<String, ExtraFieldDef>> {
-    let mut new_defs: HashMap<String, ExtraFieldDef> = HashMap::new();
+) -> Option<HashMap<String, FieldDef>> {
+    let mut new_defs: HashMap<String, FieldDef> = HashMap::new();
     for extra in extras {
         // Byte key-scan (no per-loc map alloc). A value is only deep-parsed for genuinely
         // new keys - the common case short-circuits on known_keys.
@@ -390,11 +469,10 @@ pub fn auto_register_field_defs(
             let def = known_field_def(key).unwrap_or_else(|| {
                 let value: serde_json::Value =
                     serde_json::from_str(raw_value).unwrap_or(serde_json::Value::Null);
-                ExtraFieldDef {
+                FieldDef {
                     field_type: infer_field_type(&value),
                     label: None,
                     values: None,
-                    labels: None,
                     comparison: None,
                 }
             });
@@ -412,7 +490,7 @@ pub fn auto_register_field_defs(
 pub fn persist_field_defs(
     conn: &Connection,
     map_id: &str,
-    new_defs: &HashMap<String, ExtraFieldDef>,
+    new_defs: &HashMap<String, FieldDef>,
 ) -> AppResult<()> {
     let extra_str: String = conn.query_row(
         "SELECT extra FROM maps WHERE id = ?1",
@@ -447,7 +525,10 @@ pub struct MapMeta {
     pub settings: MapSettings,
     pub score_bounds: ScoreBounds,
     pub extra: MapExtra,
-    pub tags: HashMap<String, Tag>,
+    /// The map's tag value records (opaque piles keyed by id-as-string), an open-time
+    /// snapshot of the `maps.tags` column. JS coerces them to its tag view.
+    #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
+    pub tags: HashMap<String, ValueRecord>,
     pub labels: Vec<String>,
     pub location_count: i64,
     pub created_at: String,
@@ -468,7 +549,8 @@ pub struct MapMetaPatch {
     pub settings: Option<MapSettings>,
     pub score_bounds: Option<ScoreBounds>,
     pub extra: Option<MapExtra>,
-    pub tags: Option<HashMap<String, Tag>>,
+    #[specta(type = Option<HashMap<String, HashMap<String, specta_typescript::Unknown>>>)]
+    pub tags: Option<HashMap<String, ValueRecord>>,
     pub labels: Option<Vec<String>>,
 }
 

@@ -1,11 +1,10 @@
-//! Everything that touches disk or SQLite for an open store: Arrow snapshots, msgpack deltas, edit history, the tag registry.
+//! Everything that touches disk or SQLite for an open store: Arrow snapshots, msgpack deltas, edit history, tag display metadata.
 
 use super::*;
 use crate::store::arrow;
 use crate::store::storage;
+use crate::types::Location;
 use crate::types::{AppError, AppResult};
-use crate::types::{Location, Tag};
-use crate::util;
 use arrow_array::RecordBatch;
 use std::collections::HashMap;
 use std::fs;
@@ -57,9 +56,6 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
         let count = *store.alive_count;
         let conn = storage::open_db()?;
         storage::set_location_count(&conn, map_id, count)?;
-        if store.tags.all.is_unsaved() {
-            write_tags_json(&conn, map_id, &store.tags.all)?;
-        }
         save_edit_history(map_id, &store.edits.undo, &store.edits.redo)?;
         log::debug!(
             "[close_map] {map_id} flushed: undo={} redo={}",
@@ -222,63 +218,57 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
     storage::set_location_count(&conn, map_id, count)?;
-    if store.tags.all.is_unsaved() {
-        write_tags_json(&conn, map_id, &store.tags.all)?;
-        store.tags.all.mark_saved();
-    }
     Ok(())
 }
 
-/// Load tags from the SQLite `maps.tags` JSON column, keyed by string ID.
-pub(crate) fn read_tags_json(conn: &rusqlite::Connection, map_id: &str) -> HashMap<u32, Tag> {
+// ---------------------------------------------------------------------------
+// Tag value records: the `maps.tags` JSON column
+// ---------------------------------------------------------------------------
+// The disk home of the `tags` field's interned-value records (`values.rs`). The engine's
+// data-side tag concept is only the id-list column on locations; the piles live here.
+// The format is the legacy per-tag object (`{"<id>": {name, color, ...}}`), so old maps
+// read as-is; `id` and `visible` inside the objects are legacy keys - identity is the
+// map key and visibility is derived - stripped on read, `id` re-injected on write so
+// older builds still parse the column.
+
+/// Load the tag records from the SQLite `maps.tags` JSON column.
+pub(crate) fn read_tags_json(
+    conn: &rusqlite::Connection,
+    map_id: &str,
+) -> HashMap<u32, ValueRecord> {
     let json: String = conn
         .query_row("SELECT tags FROM maps WHERE id = ?1", [map_id], |row| {
             row.get(0)
         })
         .unwrap_or_else(|_| "{}".into());
-    let raw: HashMap<String, Tag> = serde_json::from_str(&json).unwrap_or_default();
+    let raw: HashMap<String, ValueRecord> = serde_json::from_str(&json).unwrap_or_default();
     raw.into_iter()
-        .filter_map(|(k, v)| k.parse::<u32>().ok().map(|id| (id, v)))
+        .filter_map(|(k, mut rec)| {
+            rec.remove("id");
+            rec.remove("visible");
+            k.parse::<u32>().ok().map(|id| (id, rec))
+        })
         .collect()
 }
 
-/// Reconcile the persisted tag registry against a location scan (map open): every
-/// tag the scan found must exist and be visible -- commit checkout restores locations
-/// without reviving their soft-deleted tags, so a counted/invisible pair is always a
-/// desync. Returns (max tag id, whether any tag was revived and needs persisting).
-pub(crate) fn reconcile_tag_registry(
-    tags: &mut HashMap<u32, Tag>,
-    tag_counts: &HashMap<u32, usize>,
-) -> (u32, bool) {
-    let mut max_tag_id: u32 = tags.keys().max().copied().unwrap_or(0);
-    let mut healed = false;
-    for &tid in tag_counts.keys() {
-        max_tag_id = max_tag_id.max(tid);
-        let tag = tags.entry(tid).or_insert_with(|| Tag {
-            id: tid,
-            name: format!("Tag {tid}"),
-            color: util::color_for_name(&format!("Tag {tid}")),
-            visible: true,
-            order: None,
-            doclinks: Vec::new(),
-        });
-        healed |= !tag.visible;
-        tag.visible = true;
-    }
-    (max_tag_id, healed)
-}
-
-/// Serialize tags to JSON with string keys (SQLite stores them this way).
-pub(crate) fn serialize_tags_json(tags: &HashMap<u32, Tag>) -> String {
-    let as_str_keys: HashMap<String, &Tag> = tags.iter().map(|(k, v)| (k.to_string(), v)).collect();
+/// Serialize tag records to JSON with string keys (SQLite stores them this way).
+pub(crate) fn serialize_tags_json(tags: &HashMap<u32, ValueRecord>) -> String {
+    let as_str_keys: HashMap<String, ValueRecord> = tags
+        .iter()
+        .map(|(k, v)| {
+            let mut rec = v.clone();
+            rec.insert("id".into(), (*k).into());
+            (k.to_string(), rec)
+        })
+        .collect();
     serde_json::to_string(&as_str_keys).unwrap_or_default()
 }
 
-/// Persist tags to the SQLite `maps.tags` JSON column.
-fn write_tags_json(
+/// Persist tag records to the SQLite `maps.tags` JSON column.
+pub(crate) fn write_tags_json(
     conn: &rusqlite::Connection,
     map_id: &str,
-    tags: &HashMap<u32, Tag>,
+    tags: &HashMap<u32, ValueRecord>,
 ) -> AppResult<()> {
     let json = serialize_tags_json(tags);
     conn.execute(

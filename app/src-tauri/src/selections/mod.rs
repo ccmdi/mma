@@ -9,6 +9,7 @@ pub(crate) mod field_expr;
 pub(crate) mod saved;
 
 use crate::store::arrow;
+use crate::store::maps::IndexShape;
 use crate::types;
 use crate::types::{Location, LocationFlags};
 use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
@@ -35,9 +36,9 @@ use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 
 /// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
-/// for JS interop. Simple types (Tag, Untagged, PanoIds, etc.) resolve in O(N) with
-///  parallel batch scans. Composites (Intersection, Union, Invert) recursively resolve
-/// children. Duplicates uses a grid-accelerated spatial scan.
+/// for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
+/// inverted index when one covers the filtered field. Composites (Intersection, Union,
+/// Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
 #[derive(Clone, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "type")]
 pub enum Selector {
@@ -50,14 +51,6 @@ pub enum Selector {
     Polygon {
         polygon: PolygonGeometry,
     },
-    Tag {
-        #[serde(rename = "tagId")]
-        tag_id: u32,
-    },
-    Untagged,
-    Unpanned,
-    PanoIds,
-    NotPanoIds,
     Uncommitted,
     Manual {
         locations: Vec<u32>,
@@ -233,6 +226,55 @@ impl Selector {
         }
     }
 
+    /// Rows carrying `tag_id`. Membership on the `tags` list field, because that is all a
+    /// tag ever was: there is no tag selector.
+    pub fn tag(tag_id: u32) -> Selector {
+        Selector::Filter {
+            field: "tags".into(),
+            test: FilterOp::Contains {
+                value: serde_json::json!(tag_id),
+            },
+        }
+    }
+
+    /// Rows with no tags. `tags` resolves to nothing on an untagged row, so this is the
+    /// ordinary "field absent" test.
+    pub fn untagged() -> Selector {
+        Selector::Filter {
+            field: "tags".into(),
+            test: FilterOp::Nothas,
+        }
+    }
+
+    /// Rows whose heading was never set.
+    pub fn unpanned() -> Selector {
+        Selector::Filter {
+            field: "heading".into(),
+            test: FilterOp::Eq {
+                value: serde_json::json!(0),
+            },
+        }
+    }
+
+    /// Rows pinned to one exact pano - the flag plus a pano id, per [`RowRef::is_pinned`] -
+    /// or the rows not pinned.
+    pub fn pano_ids(on: bool) -> Selector {
+        let pinned = Selector::all([
+            Selector::Filter {
+                field: "loadAsPanoId".into(),
+                test: FilterOp::Eq {
+                    value: serde_json::json!(1),
+                },
+            },
+            Selector::has("panoId"),
+        ]);
+        if on {
+            pinned
+        } else {
+            pinned.not()
+        }
+    }
+
     /// Rows every selector keeps. Of none: no rows.
     pub fn all(selectors: impl IntoIterator<Item = Selector>) -> Selector {
         Selector::Intersection {
@@ -248,6 +290,57 @@ impl Selector {
         Selector::Invert {
             selections: vec![Selection::of(self)],
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Field indexes
+// ---------------------------------------------------------------------------
+
+/// Inverted index over one enumerable field: canonical value -> member ids. Carries its
+/// own shape so a lookup needs no second trip to the field registry, and so an `extra`
+/// field is indexed on exactly the same terms as a builtin.
+pub struct FieldIndex {
+    pub shape: IndexShape,
+    pub by_value: HashMap<String, RoaringBitmap>,
+}
+
+/// Inverted indexes by field. Built from the base batch; [`resolve`] folds the overlay in
+/// at query time, so an edit never invalidates one.
+pub type FieldIndexes = HashMap<String, FieldIndex>;
+
+/// Canonical index key for a scalar value. Numbers render through `f64` so a value written
+/// as `1` and one arriving as `1.0` land in the same bucket, matching `same_field_value`.
+pub fn index_key(v: &serde_json::Value) -> Option<String> {
+    match v {
+        serde_json::Value::Number(n) => n.as_f64().map(|f| f.to_string()),
+        serde_json::Value::String(s) => Some(s.clone()),
+        serde_json::Value::Bool(b) => Some(b.to_string()),
+        serde_json::Value::Null | serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            None
+        }
+    }
+}
+
+/// The keys one row contributes to a field's index, per the field type's [`IndexShape`].
+pub fn index_keys(shape: IndexShape, v: &serde_json::Value) -> Vec<String> {
+    match (shape, v) {
+        (IndexShape::Scalar, v) => index_key(v).into_iter().collect(),
+        (IndexShape::Multi, serde_json::Value::Array(a)) => {
+            a.iter().filter_map(index_key).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// The single key a filter can answer from an index, or `None` when the operator needs a
+/// scan. Equality on a scalar field and membership on a list field are the two the
+/// postings already are; everything else (ranges, negations, substring) is not a lookup.
+fn indexable_test(shape: IndexShape, test: &FilterOp) -> Option<String> {
+    match (shape, test) {
+        (IndexShape::Scalar, FilterOp::Eq { value }) => index_key(value),
+        (IndexShape::Multi, FilterOp::Contains { value }) => index_key(value),
+        _ => None,
     }
 }
 
@@ -278,9 +371,10 @@ pub struct LocView<'a> {
     batch_rows: usize,
     has_dead: bool,
     has_patches: bool,
-    /// Optional `tag_id -> member location ids` index. When present, a `Tag` leaf
-    /// resolves by cloning the set instead of scanning every row's tag list.
-    tag_sets: Option<&'a HashMap<u32, RoaringBitmap>>,
+    /// Optional per-field inverted indexes. When one covers the filtered field and the
+    /// operator is a lookup, a `Filter` leaf resolves by cloning postings instead of
+    /// scanning every row.
+    field_indexes: Option<&'a FieldIndexes>,
 }
 
 /// One alive location yielded by [`LocView::for_each`]. Provides uniform field
@@ -333,6 +427,10 @@ impl<'a, 'v> RowRef<'a, 'v> {
         }
     }
     #[inline]
+    #[allow(
+        dead_code,
+        reason = "completes the lat/lng/heading/pitch/zoom accessor set"
+    )]
     pub fn heading(&self) -> f64 {
         match &self.inner {
             RowInner::Base(v, i) => v.headings.unwrap().value(*i),
@@ -362,13 +460,19 @@ impl<'a, 'v> RowRef<'a, 'v> {
         }
     }
     #[inline]
+    #[allow(dead_code, reason = "is_pinned's read; kept beside it")]
     pub fn flags(&self) -> LocationFlags {
         match &self.inner {
             RowInner::Base(v, i) => LocationFlags::from_bits_retain(v.flags.unwrap().value(*i)),
             RowInner::Loc(l) => l.flags,
         }
     }
-    /// Pinned: the row always opens one exact pano.
+    /// Pinned: the row always opens one exact pano. The named form of the predicate
+    /// [`Selector::pano_ids`] expresses as a query.
+    #[allow(
+        dead_code,
+        reason = "exercised by tests; queries go through Selector::pano_ids"
+    )]
     pub fn is_pinned(&self) -> bool {
         if !self.flags().contains(LocationFlags::LOAD_AS_PANO_ID) {
             return false;
@@ -379,22 +483,6 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 !ids.is_null(*i) && !ids.value(*i).is_empty()
             }
             RowInner::Loc(l) => l.pano_id.as_deref().is_some_and(|p| !p.is_empty()),
-        }
-    }
-    pub fn has_tag(&self, tag_id: u32) -> bool {
-        match &self.inner {
-            RowInner::Base(v, i) => {
-                let list = v.tags.unwrap().value(*i);
-                let ids = list.as_any().downcast_ref::<UInt32Array>().unwrap();
-                (0..ids.len()).any(|k| ids.value(k) == tag_id)
-            }
-            RowInner::Loc(l) => l.tags.contains(&tag_id),
-        }
-    }
-    pub fn tags_empty(&self) -> bool {
-        match &self.inner {
-            RowInner::Base(v, i) => v.tags.unwrap().value(*i).is_empty(),
-            RowInner::Loc(l) => l.tags.is_empty(),
         }
     }
     pub fn for_each_tag(&self, mut f: impl FnMut(u32)) {
@@ -504,7 +592,7 @@ impl<'a> LocView<'a> {
         dead: &'a HashSet<u32>,
         patches: &'a HashMap<u32, Location>,
         adds: &'a [Location],
-        tag_sets: Option<&'a HashMap<u32, RoaringBitmap>>,
+        field_indexes: Option<&'a FieldIndexes>,
     ) -> Self {
         use crate::store::arrow::{
             col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
@@ -545,8 +633,52 @@ impl<'a> LocView<'a> {
             batch_rows,
             has_dead,
             has_patches,
-            tag_sets,
+            field_indexes,
         }
+    }
+
+    /// True when a filter is answerable from postings rather than a scan.
+    fn is_indexed(&self, field: &str, test: &FilterOp) -> bool {
+        self.field_indexes
+            .and_then(|ix| ix.get(field))
+            .and_then(|ix| indexable_test(ix.shape, test))
+            .is_some()
+    }
+
+    /// Postings for a filter, with the overlay folded in: dead rows dropped, and adds and
+    /// patched rows re-tested so an uncommitted edit can never leave the index stale.
+    fn indexed_filter(&self, field: &str, test: &FilterOp) -> Option<RoaringBitmap> {
+        let index = self.field_indexes?.get(field)?;
+        let key = indexable_test(index.shape, test)?;
+        let mut set = index.by_value.get(&key).cloned().unwrap_or_default();
+        if self.has_dead {
+            for &d in self.dead {
+                set.remove(d);
+            }
+        }
+        let selector = Selector::Filter {
+            field: field.to_string(),
+            test: test.clone(),
+        };
+        let mut retest = |loc: &Location| {
+            let row = RowRef {
+                inner: RowInner::Loc(loc),
+            };
+            if test_row(&row, &selector) {
+                set.insert(loc.id);
+            } else {
+                set.remove(loc.id);
+            }
+        };
+        for loc in self.adds {
+            retest(loc);
+        }
+        if self.has_patches {
+            for p in self.patches.values() {
+                retest(p);
+            }
+        }
+        Some(set)
     }
 
     #[allow(
@@ -704,11 +836,6 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
         | Selector::Manual { locations }
         | Selector::ValidationState { locations, .. }
         | Selector::Reviewed { locations, .. } => locations.contains(&r.id()),
-        Selector::Tag { tag_id } => r.has_tag(*tag_id),
-        Selector::Untagged => r.tags_empty(),
-        Selector::Unpanned => r.heading() == 0.0,
-        Selector::PanoIds => r.is_pinned(),
-        Selector::NotPanoIds => !r.is_pinned(),
         Selector::Uncommitted => r.is_uncommitted(),
         Selector::Polygon { polygon } => point_in_geometry(r.lng(), r.lat(), polygon),
         Selector::Filter { field, test } => {
@@ -732,41 +859,18 @@ const CHUNK_SIZE: usize = 64 * 1024;
 ///
 /// This is the primary resolve path. Composites (`Intersection`/`Union`/`Invert`)
 /// combine child bitmaps with native roaring set ops (`&`/`|`/`Sub`) - branchless,
-/// sparse-aware, no per-row scanning. A `Tag` leaf hits the membership index when
-/// present (O(1)-ish clone) instead of scanning every row's tag list. Geometric
-/// leaves (`Polygon`/`Filter`/`Duplicates`) still scan, producing a positional mask
-/// that is converted to an id set.
+/// sparse-aware, no per-row scanning. An indexed `Filter` leaf clones its postings
+/// (O(1)-ish) instead of scanning every row. Geometric leaves (`Polygon`/`Duplicates`)
+/// and unindexed filters still scan, producing a positional mask that is converted to
+/// an id set.
 pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
     match selector {
-        // Tag leaf via index: clone the precomputed member set, minus dead ids.
-        Selector::Tag { tag_id } => {
-            if let Some(idx) = view.tag_sets {
-                let mut set = idx.get(tag_id).cloned().unwrap_or_default();
-                if view.has_dead {
-                    for &d in view.dead {
-                        set.remove(d);
-                    }
-                }
-                // Overlay adds aren't in the batch-built index; fold them in by scan.
-                for loc in view.adds {
-                    if loc.tags.contains(tag_id) {
-                        set.insert(loc.id);
-                    }
-                }
-                // Patches can change a row's tags vs the indexed (base) value: re-test
-                // patched rows so the index can't go stale under uncommitted edits.
-                if view.has_patches {
-                    for p in view.patches.values() {
-                        if p.tags.contains(tag_id) {
-                            set.insert(p.id);
-                        } else {
-                            set.remove(p.id);
-                        }
-                    }
-                }
+        // Filter leaf via index: clone the postings, then fold the overlay in. Falls
+        // through to the scan when the field is unindexed or the operator is not a lookup.
+        Selector::Filter { field, test } => {
+            if let Some(set) = view.indexed_filter(field, test) {
                 return set;
             }
-            // No index: fall through to the scan path below.
         }
         Selector::Locations { locations, .. }
         | Selector::Manual { locations }
@@ -828,7 +932,7 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
 /// The rows of `within` a selector keeps. An intersection narrows each leaf to what the
 /// leaves before it left, so `page AND has(field)` costs the page, not the map. Leaves
 /// whose answer depends on rows outside the set (duplicates, top-k), the prepared
-/// polygon scan and an indexed tag resolve whole and intersect; every other leaf is
+/// polygon scan and an indexed filter resolve whole and intersect; every other leaf is
 /// tested row by row inside the set.
 pub fn resolve_within(
     view: &LocView,
@@ -859,7 +963,9 @@ pub fn resolve_within(
         Selector::Duplicates { .. } | Selector::Ranked { .. } | Selector::Polygon { .. } => {
             resolve(view, selector) & within
         }
-        Selector::Tag { .. } if view.tag_sets.is_some() => resolve(view, selector) & within,
+        Selector::Filter { field, test } if view.is_indexed(field, test) => {
+            resolve(view, selector) & within
+        }
         _ => {
             let mut set = RoaringBitmap::new();
             view.for_each_within(Some(within), |row| {

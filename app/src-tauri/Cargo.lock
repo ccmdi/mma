@@ -3145,6 +3145,7 @@ dependencies = [
  "memchr",
  "memmap2",
  "mimalloc",
+ "mma-fields",
  "mma-geo",
  "mma-geocode",
  "mma-tz",
@@ -3303,6 +3304,15 @@ dependencies = [
  "libc",
  "wasi 0.11.1+wasi-snapshot-preview1",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "mma-fields"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]

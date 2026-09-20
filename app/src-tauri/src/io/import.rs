@@ -5,6 +5,7 @@
 //! serde_json with parallel object deserialization via rayon. A two-phase
 //! preview/confirm flow lets the user inspect data before committing.
 
+use crate::store::engine;
 use crate::types::AppResult;
 use std::sync::Mutex;
 
@@ -16,7 +17,6 @@ pub use stage::*;
 use crate::util::now_iso;
 use rayon::prelude::*;
 use rusqlite::Connection;
-use serde_json::Value;
 use uuid::Uuid;
 
 use crate::store::arrow;
@@ -106,14 +106,8 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
 
     let tx = conn.unchecked_transaction()?;
 
-    // Build tags JSON for the maps row
-    let tags_json = {
-        let mut tag_map = serde_json::Map::new();
-        for tag in &map.tags {
-            tag_map.insert(tag.id.to_string(), serde_json::to_value(tag).unwrap());
-        }
-        Value::Object(tag_map).to_string()
-    };
+    // Build tags JSON for the maps row, in the persist codec's format
+    let tags_json = engine::serialize_tags_json(&map.tags.iter().cloned().collect());
 
     tx.execute(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8, ?9)",

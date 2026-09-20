@@ -1,5 +1,5 @@
-import type { Tag } from "@/bindings.gen";
 import type { TagSortMode } from "@/types";
+import type { Tag } from "@/types";
 import { colorForName } from "@/lib/util/color";
 
 /** Base URL for a custom URI scheme, platform-adjusted. */

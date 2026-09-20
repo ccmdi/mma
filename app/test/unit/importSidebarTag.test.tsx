@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
+import type { Tag } from "@/types";
 import { act } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
-import type { EditorImportPreview, Tag } from "@/bindings.gen";
-
+import type { EditorImportPreview } from "@/bindings.gen";
 // trace().end() logs through tauri-plugin-log, which needs a host.
 Object.assign(window, { __TAURI_INTERNALS__: { invoke: async () => {} } });
 

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { Tag } from "@/types";
 import clsx from "clsx";
 import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } from "@mdi/js";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -8,7 +9,7 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
-import { useMapState, updateTags } from "@/store/useMapStore";
+import { useMapState, updateTags, getTags, getTagCounts } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { useMapSetting } from "@/store/useMapSetting";
 import {
@@ -28,7 +29,6 @@ import {
 	loadExpanded,
 	type TagTreeNode,
 } from "@/components/editor/tags/tagTreeRange";
-import type { Tag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches as textMatches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -170,7 +170,7 @@ function TagLevel({ nodes, ctx }: { nodes: TagTreeNode[]; ctx: TreeCtx }) {
 }
 
 export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
-	const tagMap = useMapState((s) => s.tags);
+	const tagMap = useMapState(() => getTags());
 	const tags: Tag[] = useMemo(() => Object.values(tagMap), [tagMap]);
 
 	// Doc identity: pasted URL, prefilled from the map's first existing doclink.
@@ -191,7 +191,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 	const sortMode = useSetting("tagSortMode");
 	const folderColorMode = useSetting("tagFolderColorMode");
 	const folderColorRgb = useSetting("tagFolderColor");
-	const tagCounts = useMapState((s) => s.tagCounts);
+	const tagCounts = useMapState(() => getTagCounts());
 	const [virtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
 	const [aliases] = useMapSetting("aliases", NO_ALIASES);
 	const tree = useMemo(

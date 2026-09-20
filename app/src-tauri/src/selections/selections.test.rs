@@ -848,7 +848,7 @@ fn resolve_tag_on_adds() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(&view, &Selector::Tag { tag_id: 10 });
+    let ids = ids_of(&view, &Selector::tag(10));
     assert_eq!(ids, vec![1]);
 }
 
@@ -860,7 +860,7 @@ fn resolve_untagged() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(&view, &Selector::Untagged);
+    let ids = ids_of(&view, &Selector::untagged());
     assert_eq!(ids, vec![2]);
 }
 
@@ -1022,15 +1022,24 @@ fn resolve_reviewed_on_adds() {
 
 // Build a batch of tagged locations + the matching tag index, so the indexed Tag
 // leaf and the scan-path Tag leaf can be compared on identical data.
-fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, HashMap<u32, RoaringBitmap>) {
+/// A batch plus the `tags` field index over it. There is no tag index any more: this is the
+/// ordinary `array`-field index, built the way the store builds one.
+fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, FieldIndexes) {
     let batch = locations_to_batch(locs);
-    let mut sets: HashMap<u32, RoaringBitmap> = HashMap::new();
+    let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
     for l in locs {
         for &t in &l.tags {
-            sets.entry(t).or_default().insert(l.id);
+            by_value
+                .entry(index_key(&serde_json::json!(t)).unwrap())
+                .or_default()
+                .insert(l.id);
         }
     }
-    (batch, sets)
+    let index = FieldIndex {
+        shape: IndexShape::Multi,
+        by_value,
+    };
+    (batch, HashMap::from([("tags".to_string(), index)]))
 }
 
 #[test]
@@ -1048,12 +1057,12 @@ fn tag_index_matches_scan_path() {
     let idx = fx.view_indexed(&sets);
 
     for tag_id in [10u32, 20, 99] {
-        let s = ids_of(&scan, &Selector::Tag { tag_id });
-        let i = ids_of(&idx, &Selector::Tag { tag_id });
+        let s = ids_of(&scan, &Selector::tag(tag_id));
+        let i = ids_of(&idx, &Selector::tag(tag_id));
         assert_eq!(s, i, "tag {tag_id}: scan {s:?} != index {i:?}");
     }
     // sanity on the actual membership
-    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![1, 3]);
+    assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![1, 3]);
 }
 
 #[test]
@@ -1068,7 +1077,7 @@ fn tag_index_excludes_dead_includes_adds() {
     let fx = Fx::batch(batch).with_adds(vec![add]).with_dead([2]);
     let idx = fx.view_indexed(&sets);
     // 2 is dead -> excluded; 3 is an overlay add -> included; 1 stays.
-    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![1, 3]);
+    assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![1, 3]);
 }
 
 #[test]
@@ -1086,7 +1095,7 @@ fn tag_index_honors_patches() {
     let fx = Fx::batch(batch).with_patch(1, p1).with_patch(2, p2);
     let idx = fx.view_indexed(&sets);
     // Patches must override the stale index: 1 dropped, 2 added.
-    assert_eq!(ids_of(&idx, &Selector::Tag { tag_id: 10 }), vec![2]);
+    assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![2]);
 }
 
 #[test]
@@ -1104,12 +1113,12 @@ fn tag_index_in_composite() {
     let t10 = Selection {
         key: "t10".into(),
         color: [0, 0, 0],
-        selector: Selector::Tag { tag_id: 10 },
+        selector: Selector::tag(10),
     };
     let t20 = Selection {
         key: "t20".into(),
         color: [0, 0, 0],
-        selector: Selector::Tag { tag_id: 20 },
+        selector: Selector::tag(20),
     };
     // 10 AND 20 -> only loc 1
     let inter = ids_of(
@@ -1137,7 +1146,7 @@ fn resolve_unpanned() {
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let ids = ids_of(&view, &Selector::Unpanned);
+    let ids = ids_of(&view, &Selector::unpanned());
     assert_eq!(ids, vec![1]);
 }
 
@@ -1161,8 +1170,8 @@ fn resolve_panoids() {
         Fx::base(&[pinned, flag_only, id_only, bare]),
     ] {
         let view = fx.view();
-        assert_eq!(ids_of(&view, &Selector::PanoIds), vec![1]);
-        assert_eq!(ids_of(&view, &Selector::NotPanoIds), vec![2, 3, 4]);
+        assert_eq!(ids_of(&view, &Selector::pano_ids(true)), vec![1]);
+        assert_eq!(ids_of(&view, &Selector::pano_ids(false)), vec![2, 3, 4]);
     }
 }
 
@@ -1185,7 +1194,7 @@ fn resolve_with_patched_tags() {
     patched.tags = vec![10];
     let fx = Fx::base(&locs).with_patch(1, patched);
     let view = fx.view();
-    let ids = ids_of(&view, &Selector::Tag { tag_id: 10 });
+    let ids = ids_of(&view, &Selector::tag(10));
     assert_eq!(ids, vec![1]);
 }
 
@@ -1212,12 +1221,12 @@ fn resolve_intersection() {
             Selection {
                 key: "a".into(),
                 color: [0, 0, 0],
-                selector: Selector::Tag { tag_id: 10 },
+                selector: Selector::tag(10),
             },
             Selection {
                 key: "b".into(),
                 color: [0, 0, 0],
-                selector: Selector::PanoIds,
+                selector: Selector::pano_ids(true),
             },
         ],
     };
@@ -1241,12 +1250,12 @@ fn resolve_union() {
             Selection {
                 key: "a".into(),
                 color: [0, 0, 0],
-                selector: Selector::Tag { tag_id: 10 },
+                selector: Selector::tag(10),
             },
             Selection {
                 key: "b".into(),
                 color: [0, 0, 0],
-                selector: Selector::PanoIds,
+                selector: Selector::pano_ids(true),
             },
         ],
     };
@@ -1270,7 +1279,7 @@ fn resolve_invert() {
         selections: vec![Selection {
             key: "a".into(),
             color: [0, 0, 0],
-            selector: Selector::PanoIds,
+            selector: Selector::pano_ids(true),
         }],
     };
     let ids = ids_of(&view, &selector);
@@ -1304,12 +1313,12 @@ fn node_counts_cover_nested_children() {
                 Selection {
                     key: "a".into(),
                     color: [0, 0, 0],
-                    selector: Selector::Tag { tag_id: 10 },
+                    selector: Selector::tag(10),
                 },
                 Selection {
                     key: "b".into(),
                     color: [0, 0, 0],
-                    selector: Selector::Tag { tag_id: 20 },
+                    selector: Selector::tag(20),
                 },
             ],
         },
@@ -1339,7 +1348,7 @@ fn node_counts_invert_is_global_complement() {
             selections: vec![Selection {
                 key: "t".into(),
                 color: [0, 0, 0],
-                selector: Selector::Tag { tag_id: 10 },
+                selector: Selector::tag(10),
             }],
         },
     }];
@@ -1368,7 +1377,7 @@ fn resolve_forest_matches_individual_resolve() {
         Selection {
             key: "t10".into(),
             color: [0, 0, 0],
-            selector: Selector::Tag { tag_id: 10 },
+            selector: Selector::tag(10),
         },
         Selection {
             key: "inv".into(),
@@ -1382,12 +1391,12 @@ fn resolve_forest_matches_individual_resolve() {
                             Selection {
                                 key: "a".into(),
                                 color: [0, 0, 0],
-                                selector: Selector::Tag { tag_id: 10 },
+                                selector: Selector::tag(10),
                             },
                             Selection {
                                 key: "b".into(),
                                 color: [0, 0, 0],
-                                selector: Selector::Tag { tag_id: 20 },
+                                selector: Selector::tag(20),
                             },
                         ],
                     },
@@ -1397,7 +1406,7 @@ fn resolve_forest_matches_individual_resolve() {
         Selection {
             key: "none".into(),
             color: [0, 0, 0],
-            selector: Selector::Untagged,
+            selector: Selector::untagged(),
         },
     ];
 
@@ -2510,7 +2519,7 @@ fn to_selection(o: &OracleProps, counter: &mut u32) -> Selection {
     *counter += 1;
     let key = format!("k{counter}");
     let selector = match o {
-        OracleProps::Tag(t) => Selector::Tag { tag_id: *t },
+        OracleProps::Tag(t) => Selector::tag(*t),
         OracleProps::Manual(ids) => Selector::Manual {
             locations: ids.clone(),
         },
@@ -2773,14 +2782,14 @@ fn within_selector(t: &WithinTree) -> Selector {
             .collect()
     };
     match t {
-        WithinTree::Tag(tag_id) => Selector::Tag { tag_id: *tag_id },
+        WithinTree::Tag(tag_id) => Selector::tag(*tag_id),
         WithinTree::Manual(locations) => Selector::Manual {
             locations: locations.clone(),
         },
-        WithinTree::PanoIds => Selector::PanoIds,
-        WithinTree::NotPanoIds => Selector::NotPanoIds,
-        WithinTree::Untagged => Selector::Untagged,
-        WithinTree::Unpanned => Selector::Unpanned,
+        WithinTree::PanoIds => Selector::pano_ids(true),
+        WithinTree::NotPanoIds => Selector::pano_ids(false),
+        WithinTree::Untagged => Selector::untagged(),
+        WithinTree::Unpanned => Selector::unpanned(),
         WithinTree::CellBox(a, b) => {
             let (lat0, lat1) = (a.0.min(b.0), a.0.max(b.0));
             let (lng0, lng1) = (a.1.min(b.1), a.1.max(b.1));
@@ -3110,7 +3119,10 @@ fn columns_within_projects_one_value_per_row_per_field() {
 
 #[test]
 fn optional_builtins_are_the_columns_a_row_can_lack() {
-    assert_eq!(optional_builtins(), &["modifiedAt", "panoId"]);
+    // `tags` is here because an untagged row lacks it, which is what makes "untagged" an
+    // ordinary `Nothas` rather than its own selector. Lacking a value is not the same as
+    // being clearable, which `clearable_builtins` probes separately.
+    assert_eq!(optional_builtins(), &["panoId", "tags", "modifiedAt"]);
 }
 
 #[test]
@@ -3262,7 +3274,7 @@ fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
     let fx = pano_fx();
     let view = fx.view();
     let _none = RoaringBitmap::new();
-    let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::PanoIds]);
+    let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::pano_ids(true)]);
 
     // 1 and 5 carry a pano ID and the flag; 3 has the flag but no pano ID.
     assert_eq!(count_selector(&view, pinned.clone()), 2);
@@ -3440,7 +3452,7 @@ fn pinned_needs_the_pano_id_as_well_as_the_flag() {
         pinned(4, Some("d"), false),
     ]);
     let view = fx.view();
-    let pinned_sel = intersect(vec![pano_filter(FilterOp::Has), Selector::PanoIds]);
+    let pinned_sel = intersect(vec![pano_filter(FilterOp::Has), Selector::pano_ids(true)]);
 
     assert_eq!(ids_of(&view, &pinned_sel), vec![1]);
 
