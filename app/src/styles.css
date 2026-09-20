@@ -4526,6 +4526,12 @@ body {
 	border-bottom: none;
 	border-radius: var(--radius-3) 0 0 0;
 }
+.bottom-bar .icon-button {
+	color: var(--text-3);
+}
+.bottom-bar .icon-button:where(:hover:not(:disabled)) {
+	color: var(--text-1);
+}
 .bottom-bar--left {
 	right: auto;
 	left: 0;
