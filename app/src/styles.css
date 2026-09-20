@@ -5644,6 +5644,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	left: 75%;
 }
 .toast-entry {
+	background: var(--surface-2);
 	padding: 0.5rem 1rem;
 	font-size: 0.875rem;
 	white-space: nowrap;
