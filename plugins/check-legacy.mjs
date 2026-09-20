@@ -14,10 +14,10 @@ import { createRequire } from "node:module";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// How far back the promise reaches: the first release whose mma.d.ts carries @unstable
-// tags. Every release from here to HEAD is checked -- an API that shipped stable in any
+// How far back the promise reaches: the oldest release whose stable surface is still
+// guaranteed. Every release from here to HEAD is checked -- an API that shipped stable in any
 // of them is a promise. Raising the floor ages out every older guarantee at once.
-const SUPPORT_FLOOR = "0.11.0";
+const SUPPORT_FLOOR = "0.11.1";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
 const typesDir = join(pluginsDir, "types");
