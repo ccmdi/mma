@@ -1,3 +1,15 @@
+## v0.11.1 - 2026-09-20
+- Apply metadata as tags accepts list fields, making one tag per item and giving each location every tag its list names
+- Every search field has a clear button and clears on Escape, not just the map list's
+- Dropdowns can be focused from the keyboard, and every control shares one focus ring
+- Plugin options that apply instantly are switches; the ones that apply on run stay checkboxes
+- Third-party plugin interfaces follow the app's theme
+- The map list says when a search matches nothing
+- Fixed ending a polygon, lasso or rectangle selection over coverage opening a location
+- Fixed the editor freezing on tag selections with a large unsaved working set
+- Fixed hovering one option in a group highlighting the first one
+- Fixed the doclink spinner not spinning
+
 ## v0.11.0 - 2026-09-17
 - LocalGuessr keeps a history of finished games, with stats across rounds, countries, modes and maps
 - LocalGuessr can resume more than one unfinished game
