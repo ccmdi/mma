@@ -6,31 +6,24 @@ function list() {
 	const html = `<ul>
 		<li data-filter-folder><ul><li data-filter-name="japan" data-filter-labels="asia"></li></ul></li>
 		<li data-filter-name="france" data-filter-labels=""></li>
-		<li data-filter-no-match hidden></li>
 	</ul>`;
 	return new DOMParser().parseFromString(html, "text/html").body.firstElementChild as HTMLElement;
 }
 
-const noMatch = (ul: HTMLElement) => ul.querySelector<HTMLElement>("[data-filter-no-match]")!;
-
 describe("applyMapFilter", () => {
-	it("shows the no-match row only while a query hides every map", () => {
+	it("hides every map and folder a query misses, and restores them when it clears", () => {
 		const ul = list();
-		applyMapFilter(ul, "fra");
-		expect(noMatch(ul).hidden).toBe(true);
-
 		applyMapFilter(ul, "zzz");
-		expect(noMatch(ul).hidden).toBe(false);
 		expect(ul.querySelector<HTMLElement>("[data-filter-folder]")!.hidden).toBe(true);
+		expect(ul.querySelector<HTMLElement>('[data-filter-name="france"]')!.hidden).toBe(true);
 
 		applyMapFilter(ul, "");
-		expect(noMatch(ul).hidden).toBe(true);
-		expect(ul.querySelectorAll("[hidden]")).toHaveLength(1);
+		expect(ul.querySelectorAll("[hidden]")).toHaveLength(0);
 	});
 
-	it("counts a match inside a folder", () => {
+	it("keeps a folder whose child matches", () => {
 		const ul = list();
 		applyMapFilter(ul, "label:asia");
-		expect(noMatch(ul).hidden).toBe(true);
+		expect(ul.querySelector<HTMLElement>("[data-filter-folder]")!.hidden).toBe(false);
 	});
 });

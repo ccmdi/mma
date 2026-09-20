@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Checkbox } from "@/components/primitives/Checkbox";
-import { EmptyState } from "@/components/primitives/EmptyState";
 import { Notice } from "@/components/primitives/Hint";
 import {
 	useMapList,
@@ -1032,9 +1031,6 @@ export function MapList() {
 						/>
 					))}
 					{rootMaps.length === 0 && dragItem && <li>{t("drop map here to move out of folder")}</li>}
-					<li data-filter-no-match hidden>
-						<EmptyState compact>{t("No maps match")}</EmptyState>
-					</li>
 				</ul>
 			</section>
 			<section className="updates">

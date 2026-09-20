@@ -48,18 +48,15 @@ export function toggleLabelInQuery(query: string, label: string): string {
 	return next.join(" ");
 }
 
-/** Hides the list's map rows and folders that miss the query, and shows its no-match row when
- *  nothing is left. */
+/** Hides the list's map rows and folders that miss the query. */
 export function applyMapFilter(listEl: HTMLElement | null, query: string) {
 	if (!listEl) return;
 	const entries = listEl.querySelectorAll<HTMLElement>("[data-filter-name]");
 	const folders = listEl.querySelectorAll<HTMLElement>("[data-filter-folder]");
-	const noMatch = listEl.querySelector<HTMLElement>("[data-filter-no-match]");
 	const q = parseMapQuery(query);
 	if (q.text.length === 0 && q.labels.length === 0) {
 		for (const el of entries) el.hidden = false;
 		for (const el of folders) el.hidden = false;
-		if (noMatch) noMatch.hidden = true;
 	} else {
 		for (const el of entries) {
 			const labels = (el.dataset.filterLabels ?? "").split("\n").filter(Boolean);
@@ -68,9 +65,6 @@ export function applyMapFilter(listEl: HTMLElement | null, query: string) {
 		for (const el of folders) {
 			const hasVisible = el.querySelector<HTMLElement>("[data-filter-name]:not([hidden])") !== null;
 			el.hidden = !hasVisible;
-		}
-		if (noMatch) {
-			noMatch.hidden = listEl.querySelector("[data-filter-name]:not([hidden])") !== null;
 		}
 	}
 }
