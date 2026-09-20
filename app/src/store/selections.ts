@@ -104,21 +104,46 @@ export function tagIdOf(selector: Selector): number | null {
 }
 
 /** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
- *  inversion (`false`), or something else (`null`). Display-only shape recognition. */
+ *  inversion (`false`), or something else (`null`). Display-only. */
 export function panoIdOf(selector: Selector): boolean | null {
-	if (selector.type === "Invert" && selector.selections.length === 1) {
-		return panoIdOf(selector.selections[0].selector) === true ? false : null;
+	const { pano, types } = named();
+	if (!types.has(selector.type)) return null;
+	const key = buildSelection(selector).key;
+	if (key === pano.on) return true;
+	return key === pano.off ? false : null;
+}
+
+let registry: {
+	labels: Map<string, () => string>;
+	types: Set<Selector["type"]>;
+	pano: { on: string; off: string };
+} | null = null;
+
+/** The selections that carry a name of their own, recognised by the key their builder
+ *  derives: recognition is the builder inverted, so the shape is described once. Labels
+ *  stay thunks because the locale resolves at render. */
+function named() {
+	if (!registry) {
+		const entry = (selector: Selector, label: () => string) => ({
+			key: buildSelection(selector).key,
+			type: selector.type,
+			label,
+		});
+		const panoOn = entry(panoIdSelector(true), () => t("Pano ID locations"));
+		const panoOff = entry(panoIdSelector(false), () => t("Coordinate locations"));
+		const all = [
+			entry(untaggedSelector(), () => t("Untagged")),
+			entry(unpannedSelector(), () => t("Unpanned")),
+			panoOn,
+			panoOff,
+		];
+		registry = {
+			labels: new Map(all.map((n) => [n.key, n.label])),
+			types: new Set(all.map((n) => n.type)),
+			pano: { on: panoOn.key, off: panoOff.key },
+		};
 	}
-	if (selector.type !== "Intersection" || selector.selections.length !== 2) return null;
-	const [a, b] = selector.selections.map((s) => s.selector);
-	const isFlag = (s: Selector) =>
-		s.type === "Filter" &&
-		s.field === "loadAsPanoId" &&
-		s.test.op === "eq" &&
-		s.test.value === true;
-	const isHasPano = (s: Selector) =>
-		s.type === "Filter" && s.field === "panoId" && s.test.op === "has";
-	return isFlag(a) && isHasPano(b) ? true : null;
+	return registry;
 }
 
 /** Deterministic color derived from a selection key string. */
@@ -253,7 +278,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	},
 	Intersection: {
 		key: (s) => s.selections.map((c) => `(${c.key})`).join("^"),
-		label: (s) => (panoIdOf(s) === true ? t("Pano ID locations") : t("Intersection")),
+		label: () => t("Intersection"),
 	},
 	Union: {
 		key: (s) => s.selections.map((c) => `(${c.key})`).join("|"),
@@ -262,9 +287,7 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	Invert: {
 		key: (s) => `!${s.selections[0].key}`,
 		label: (s, tagNames) =>
-			panoIdOf(s) === false
-				? t("Coordinate locations")
-				: t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
+			t("Invert: {selection}", { selection: selectionDisplayName(s.selections[0], tagNames) }),
 	},
 	Filter: {
 		key: (s) => {
@@ -279,8 +302,6 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 			const test = p.test;
 			const tagId = tagIdOf(p);
 			if (tagId != null) return t("Tag: {name}", { name: tagDisplayName(tagId, tagNames) });
-			if (p.field === "tags" && test.op === "nothas") return t("Untagged");
-			if (p.field === "heading" && test.op === "eq" && test.value === 0) return t("Unpanned");
 			if (test.op === "has") return t("has {field}", { field: fieldLabel });
 			if (test.op === "nothas") return t("missing {field}", { field: fieldLabel });
 			const fmtMD = (v: unknown) => {
@@ -752,7 +773,11 @@ export function replaceSelection(
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
  *  rather than the open map's tags. */
 export function selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string {
-	return descriptorFor(sel.selector).label(tagNames);
+	const { labels, types } = named();
+	const name = types.has(sel.selector.type)
+		? labels.get(buildSelection(sel.selector).key)
+		: undefined;
+	return name?.() ?? descriptorFor(sel.selector).label(tagNames);
 }
 
 let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;

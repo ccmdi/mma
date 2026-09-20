@@ -806,6 +806,17 @@ describe("selectionDisplayName", () => {
 		const inverted = invertSelections(null)([s1]);
 		expect(selectionDisplayName(inverted[0])).toBe("Coordinate locations");
 	});
+
+	it("every named selection is recognised from what its builder derives", () => {
+		expect(selectionDisplayName(buildSelection(untaggedSelector()))).toBe("Untagged");
+		expect(selectionDisplayName(buildSelection(unpannedSelector()))).toBe("Unpanned");
+		expect(selectionDisplayName(buildSelection(panoIdSelector(true)))).toBe("Pano ID locations");
+	});
+
+	it("names a selection carrying a key saved before the field system", () => {
+		const stale = { ...buildSelection(panoIdSelector(true)), key: "panoids" };
+		expect(selectionDisplayName(stale)).toBe("Pano ID locations");
+	});
 });
 
 describe("displayTagName", () => {
