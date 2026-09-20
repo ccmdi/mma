@@ -2,7 +2,7 @@ import { useState } from "react";
 import { LineLayer } from "@deck.gl/layers";
 import type {
 	DeckOverlayHandle,
-	ExtraFieldDef,
+	FieldDef,
 	MapHost,
 	RGB,
 	RGBA,
@@ -31,19 +31,17 @@ const DEFAULT_COLOR: RGB = [255, 179, 0];
 const WORLD_PX = 256;
 const RAD = Math.PI / 180;
 
-const FIELDS: Record<string, ExtraFieldDef> = {
+const FIELDS: Record<string, FieldDef> = {
 	sunAzimuth: {
 		type: "number",
 		label: "Sun azimuth",
 		values: null,
-		labels: null,
 		comparison: { type: "circular", period: 360 },
 	},
 	sunAltitude: {
 		type: "number",
 		label: "Sun altitude",
 		values: null,
-		labels: null,
 		comparison: null,
 	},
 };

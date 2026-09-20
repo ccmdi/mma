@@ -1,4 +1,4 @@
-import type { ExtraFieldDef, EnrichFieldOption } from "mma-plugin-types";
+import type { FieldDef, EnrichFieldOption } from "mma-plugin-types";
 
 const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
 
@@ -18,7 +18,7 @@ const WEATHER_FIELDS: WeatherField[] = [
 	{ key: "windSpeed10m", label: "Wind speed (km/h)" },
 ];
 
-const FIELD_DEFS: Record<string, ExtraFieldDef> = Object.fromEntries(
+const FIELD_DEFS: Record<string, FieldDef> = Object.fromEntries(
 	WEATHER_FIELDS.map((f) => [
 		f.key,
 		{ type: "number", label: f.label, values: null, labels: null, comparison: null },

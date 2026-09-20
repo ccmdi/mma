@@ -74,14 +74,12 @@ var FIELDS = {
     type: "number",
     label: "Sun azimuth",
     values: null,
-    labels: null,
     comparison: { type: "circular", period: 360 }
   },
   sunAltitude: {
     type: "number",
     label: "Sun altitude",
     values: null,
-    labels: null,
     comparison: null
   }
 };

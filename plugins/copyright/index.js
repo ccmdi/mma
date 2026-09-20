@@ -7,7 +7,6 @@ var FIELD_DEFS = {
     type: "number",
     label: "Copyright year",
     values: null,
-    labels: null,
     comparison: { type: "categorical" }
   }
 };
