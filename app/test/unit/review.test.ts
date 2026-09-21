@@ -1,16 +1,27 @@
 import { describe, it, expect, vi } from "vitest";
 
 // review.ts pulls in the store graph for its side-effectful API; stub it so the
-// pure helpers (the part under test) load in isolation.
+// module loads in isolation.
+const store = vi.hoisted(() => ({ liveIds: [] as number[] }));
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ mapId: null, map: null, activeLocation: null }),
 	setActiveLocation: vi.fn(),
 	addSelections: vi.fn(),
+	applySelectionUpdate: vi.fn(),
+	resolveIds: async ({ locations }: { locations: number[] }) =>
+		locations.filter((id) => store.liveIds.includes(id)),
 	mutate: vi.fn(),
 }));
-vi.mock("@/lib/commands", () => ({ cmd: {} }));
+vi.mock("@/lib/commands", () => ({
+	cmd: { storeReviewUpdate: vi.fn(async () => {}), storeReviewDelete: vi.fn(async () => {}) },
+}));
 vi.mock("@/lib/events", () => ({ subscribe: () => () => {}, emit: vi.fn() }));
-vi.mock("@/store/selections", () => ({ selectionDisplayName: () => "x" }));
+vi.mock("@/store/selections", () => ({
+	selectionDisplayName: () => "x",
+	batch: () => () => [],
+	addSelection: vi.fn(),
+	removeSelection: vi.fn(),
+}));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import {
@@ -22,6 +33,9 @@ import {
 	isCurrentReviewed,
 	reviewedHistoryIds,
 	positionOf,
+	resumeReview,
+	getReviewSession,
+	cancelReview,
 } from "@/lib/review/review";
 import type { ReviewSession } from "@/bindings.gen";
 
@@ -76,6 +90,16 @@ describe("pruneSession (the desync invariant)", () => {
 		const s = mk([1], 1, [1]);
 		const { session } = pruneSession(s, new Set([1]));
 		expect(session).toBeNull();
+	});
+});
+
+describe("resuming a session", () => {
+	it("places the cursor where a live delete would when its location died while closed", async () => {
+		const s = mk([1, 2, 3, 4, 5], 3, [1, 2]);
+		store.liveIds = [1, 2, 4, 5];
+		await resumeReview(s);
+		expect(getReviewSession()).toEqual(pruneSession(s, new Set([3])).session);
+		cancelReview();
 	});
 });
 

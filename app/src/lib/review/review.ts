@@ -398,26 +398,22 @@ function clearProjection(id: string): void {
 
 /** Adopt a persisted session as active, pruning locations that no longer exist. */
 async function adopt(s: ReviewSession): Promise<void> {
-	let { order, reviewed, cursorId } = s;
+	let v: ReviewSession | null = s;
 	try {
 		const liveIds = new Set(
 			await resolveIds({ type: "Locations", locations: s.order, name: null }),
 		);
-		order = s.order.filter((id) => liveIds.has(id));
-		if (order.length === 0) {
-			await cmd.storeReviewDelete(s.id).catch(() => {});
-			return;
-		}
-		reviewed = s.reviewed.filter((id) => liveIds.has(id));
-		cursorId = liveIds.has(s.cursorId) ? s.cursorId : order[0];
+		v = pruneSession(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
 	} catch (e) {
 		log.error("[review] validate failed:", e);
 	}
-	const changed = order.length !== s.order.length || reviewed.length !== s.reviewed.length;
-	const v: ReviewSession = { ...s, order, reviewed, cursorId };
+	if (!v) {
+		await cmd.storeReviewDelete(s.id).catch(() => {});
+		return;
+	}
 	session = v;
 	emit("review:changed");
-	if (changed) persist(v);
+	if (v !== s) persist(v);
 	refreshProjection();
 	await gotoCursor(v);
 }
