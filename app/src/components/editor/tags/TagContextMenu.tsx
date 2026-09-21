@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Selector } from "@/bindings.gen";
+import type { Selection, Selector } from "@/bindings.gen";
 import {
 	countIn,
-	currentSelection,
 	deleteTags,
 	getActiveSelections,
-	getMapState,
 	setTags,
 	useMapState,
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
-import { all, any, tagSelector } from "@/store/selections";
+import { all, any, tagIdOf, tagSelector } from "@/store/selections";
 import { MenuItem, MenuPopup } from "@/components/primitives/Menu";
 import { t } from "@/lib/i18n";
 import { openDialog } from "@/store/dialogBus";
@@ -18,8 +16,8 @@ import { isLeafTag, menuTargetTagIds, type TagTreeNode } from "./tagTreeModel";
 
 type TagContextMenuProps = {
 	node: TagTreeNode;
-	/** Present on a tag row: move the selected locations to another name. */
-	onRenameInSelection?: () => void;
+	/** Present on a tag row: move the locations in `scope` to another name. */
+	onRenameInSelection?: (scope: Selector) => void;
 	/** Tree mode only: place this tag at a second folder path. */
 	onAddAlias?: () => void;
 	/** Tree mode only: present on an alias leaf to remove it. */
@@ -29,6 +27,16 @@ type TagContextMenuProps = {
 	/** Present on a folder row with no tags under it. */
 	onDeleteFolder?: () => void;
 };
+
+/** The live selection without the selections that pick one of `tagIds` by tag: a tag's own
+ *  selection never counts as "the selection" when editing that tag within it. */
+function selectionWithout(tagIds: readonly number[]): { type: "Union"; selections: Selection[] } {
+	const skip = new Set(tagIds);
+	return {
+		type: "Union",
+		selections: getActiveSelections().filter((s) => !skip.has(tagIdOf(s.selector) ?? -1)),
+	};
+}
 
 export function TagContextMenu(props: TagContextMenuProps) {
 	return (
@@ -57,14 +65,15 @@ function TagContextMenuItems({
 	useEffect(() => {
 		const carriers = any(...targets.map(tagSelector));
 		const own = tagId == null ? null : tagSelector(tagId);
-		const hasSelection = getActiveSelections().length > 0;
-		const inSelection = (s: Selector | null) =>
-			s && hasSelection ? countIn(all(s, currentSelection())) : Promise.resolve(0);
+		const within = (s: Selector | null, excluded: number[]) => {
+			const scope = selectionWithout(excluded);
+			return s && scope.selections.length > 0 ? countIn(all(s, scope)) : Promise.resolve(0);
+		};
 		void Promise.all([
 			countIn(carriers),
 			own ? countIn(own) : Promise.resolve(0),
-			inSelection(carriers),
-			inSelection(own),
+			within(carriers, targets),
+			within(own, tagId == null ? [] : [tagId]),
 		]).then(([total, own, inSel, ownInSel]) => setCounts({ total, own, inSel, ownInSel }));
 	}, [tagId, targets]);
 
@@ -103,13 +112,7 @@ function TagContextMenuItems({
 					<MenuItem
 						tone="destructive"
 						disabled={counts.inSel === 0}
-						onClick={() =>
-							void setTags([], targets, {
-								type: "Locations",
-								locations: [...getMapState().selectedLocationIds],
-								name: null,
-							})
-						}
+						onClick={() => void setTags([], targets, selectionWithout(targets))}
 					>
 						{multi
 							? t(
@@ -144,7 +147,10 @@ function TagContextMenuItems({
 			{!multi && (
 				<>
 					{onRenameInSelection && (
-						<MenuItem disabled={counts.ownInSel === 0} onClick={onRenameInSelection}>
+						<MenuItem
+							disabled={counts.ownInSel === 0}
+							onClick={() => onRenameInSelection(selectionWithout([tagId!]))}
+						>
 							{t(
 								{
 									one: "Rename in selection ({n} location)",

@@ -8,13 +8,16 @@ const h = vi.hoisted(() => ({
 	countIn: vi.fn(async (_s: unknown) => 0),
 	openDialog: vi.fn(),
 	selectedTagIds: new Set<number>(),
+	active: [] as import("@/bindings.gen").Selection[],
+	setTags: vi.fn(async () => {}),
 }));
 
 vi.mock("@/store/useMapStore", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/store/useMapStore")>()),
 	deleteTags: h.deleteTags,
 	countIn: h.countIn,
-	getActiveSelections: () => [],
+	getActiveSelections: () => h.active,
+	setTags: h.setTags,
 	useMapState: (sel: () => unknown) => sel(),
 }));
 
@@ -30,7 +33,7 @@ vi.mock("@/store/selectionActions", async (importOriginal) => ({
 
 import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";
 import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeModel";
-import { any, tagSelector } from "@/store/selections";
+import { all, any, buildSelection, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
 import { findNode, mkTag } from "./fixtures/tagFixtures";
 
@@ -40,6 +43,8 @@ beforeEach(() => {
 	h.countIn.mockReset();
 	h.countIn.mockResolvedValue(0);
 	h.selectedTagIds = new Set();
+	h.active = [];
+	h.setTags.mockClear();
 });
 
 const tree = buildTagTree(
@@ -150,5 +155,32 @@ describe("tag context menu", () => {
 
 		act(() => items[0].click());
 		expect(h.deleteTags).toHaveBeenCalledWith([4]);
+	});
+
+	it("never counts the targets' own selections as the selection", async () => {
+		h.selectedTagIds = new Set([4, 5, 6]);
+		h.active = [4, 5, 6].map((id) => buildSelection(tagSelector(id)));
+		h.countIn.mockResolvedValue(5);
+		const items = await openMenu(node("c"));
+		const fromSelection = items.find((i) => i.textContent?.includes("from selection"))!;
+		expect(fromSelection.textContent).toBe("Remove 3 tags from selection (0 locations)");
+		expect(fromSelection.hasAttribute("data-disabled")).toBe(true);
+	});
+
+	it("removes the targets from the rest of the selection only", async () => {
+		const polygon = buildSelection({ type: "Manual", locations: [1, 2] });
+		h.selectedTagIds = new Set([4, 5, 6]);
+		h.active = [...[4, 5, 6].map((id) => buildSelection(tagSelector(id))), polygon];
+		const carriers = any(...[4, 5, 6].map(tagSelector));
+		const scope = { type: "Union", selections: [polygon] };
+		h.countIn.mockImplementation(async (s) =>
+			JSON.stringify(s) === JSON.stringify(all(carriers, scope as never)) ? 2 : 0,
+		);
+		const items = await openMenu(node("c"));
+		const fromSelection = items.find(
+			(i) => i.textContent === "Remove 3 tags from selection (2 locations)",
+		)!;
+		act(() => fromSelection.click());
+		expect(h.setTags).toHaveBeenCalledWith([], [4, 5, 6], scope);
 	});
 });

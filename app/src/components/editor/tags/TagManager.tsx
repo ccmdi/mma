@@ -2,7 +2,6 @@ import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition 
 import type { Tag, TagPatch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
-	currentSelection,
 	deleteTags,
 	renameTagsIn,
 	getMapState,
@@ -14,7 +13,7 @@ import {
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import type { TagSortMode } from "@/types";
-import type { Update, VirtualTag } from "@/bindings.gen";
+import type { Selector, Update, VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -75,7 +74,11 @@ export function TagManager() {
 	// Parent path for a pending new declared folder ("" = root, null = dialog closed).
 	const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 	const treeRef = useRef<TagTreeHandle>(null);
-	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
+	const [renamingTag, setRenamingTag] = useState<{
+		id: number;
+		name: string;
+		scope: Selector;
+	} | null>(null);
 	const [recoloring, setRecoloring] = useState<{ tagIds: number[]; root: string | null } | null>(
 		null,
 	);
@@ -274,7 +277,7 @@ export function TagManager() {
 					aliases={aliases}
 					onEditTag={handleEditTreeTag}
 					onEditVirtual={setEditingVirtualPath}
-					onRenameTag={setRenamingTag}
+					onRenameInSelection={setRenamingTag}
 					onAddAlias={addAlias}
 					onRemoveAlias={removeAlias}
 					onReorder={commitReorder}
@@ -387,12 +390,12 @@ function RenameInSelectionDialog({
 	open,
 	onOpenChange,
 	tag,
-}: DialogProps & { tag: { id: number; name: string } }) {
+}: DialogProps & { tag: { id: number; name: string; scope: Selector } }) {
 	const [name, setName] = useState(tag.name);
 
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed && trimmed !== tag.name) void renameTagsIn([tag.id], trimmed, currentSelection());
+		if (trimmed && trimmed !== tag.name) void renameTagsIn([tag.id], trimmed, tag.scope);
 		onOpenChange(false);
 	};
 
