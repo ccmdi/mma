@@ -125,6 +125,7 @@ const LITERAL_COLORS: { selector: RegExp; why: string }[] = [
 	{ selector: block("file-drop-overlay"), why: "scrim over the editor" },
 	{ selector: block("fullscreen-minimap"), why: "drawn over the pano" },
 	{ selector: block("fullscreen-mini-location"), why: "drawn over the map" },
+	{ selector: block("scale-stepper"), why: "drawn over the minimap or the location preview" },
 	{ selector: block("fullscreen-tagbar"), why: "drawn over the pano" },
 	{ selector: block("fullscreen-geocode"), why: "drawn over the pano" },
 	{ selector: block("lg-hud"), why: "drawn over the pano" },

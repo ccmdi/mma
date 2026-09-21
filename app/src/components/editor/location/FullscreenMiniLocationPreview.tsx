@@ -1,12 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useLayoutEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { mdiMinus, mdiPlus } from "@mdi/js";
-import { useSetting, setSetting } from "@/store/settings";
-import { range, clamp } from "@/types/util";
+import { useSetting } from "@/store/settings";
+import { range } from "@/types/util";
 import { useHoverExpand } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
-import { IconButton } from "@/components/primitives/IconButton";
+import { ScaleStepper } from "./ScaleStepper";
 
 const PREVIEW_SCALE = range([0.5, 2]);
 const PREVIEW_SCALE_STEP = 0.5;
@@ -39,11 +38,6 @@ export function FullscreenMiniLocationPreview({ children }: { children: ReactNod
 		el.style.setProperty("--fs-mini-flip", "1");
 	}, [width]);
 
-	const setScale = (next: number) => {
-		const clamped = clamp(next, PREVIEW_SCALE);
-		setSetting("fullscreenMiniLocationScale", Math.round(clamped * 100) / 100);
-	};
-
 	if (!host) return null;
 
 	const sizeVars = {
@@ -62,28 +56,15 @@ export function FullscreenMiniLocationPreview({ children }: { children: ReactNod
 			{...hoverProps}
 		>
 			{children}
-			<div className="fullscreen-mini-location__size">
-				<IconButton
-					className="fullscreen-mini-location__size-btn"
-					icon={mdiMinus}
-					size={16}
-					label={t("Smaller location preview")}
-					tooltip={false}
-					overlay
-					disabled={scale <= PREVIEW_SCALE.min}
-					onClick={() => setScale(scale - PREVIEW_SCALE_STEP)}
-				/>
-				<IconButton
-					className="fullscreen-mini-location__size-btn"
-					icon={mdiPlus}
-					size={16}
-					label={t("Larger location preview")}
-					tooltip={false}
-					overlay
-					disabled={scale >= PREVIEW_SCALE.max}
-					onClick={() => setScale(scale + PREVIEW_SCALE_STEP)}
-				/>
-			</div>
+			<ScaleStepper
+				setting="fullscreenMiniLocationScale"
+				range={PREVIEW_SCALE}
+				step={PREVIEW_SCALE_STEP}
+				labels={{
+					smaller: t("Smaller location preview"),
+					larger: t("Larger location preview"),
+				}}
+			/>
 		</div>,
 		host,
 	);

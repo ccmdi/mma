@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { mdiMinus, mdiPlus } from "@mdi/js";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { useMapSurface } from "@/lib/render/useMapSurface";
-import { useSetting, setSetting } from "@/store/settings";
-import { range, clamp } from "@/types/util";
+import { useSetting } from "@/store/settings";
+import { range } from "@/types/util";
 import { useLocalStorage, getLocal } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import {
@@ -16,7 +15,7 @@ import { usePanoViewer, viewerPosition } from "./PanoViewerContext";
 import { useMapState } from "@/store/useMapStore";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
-import { IconButton } from "@/components/primitives/IconButton";
+import { ScaleStepper } from "./ScaleStepper";
 
 const MINIMAP_SCALE = range([0.5, 2]);
 const MINIMAP_SCALE_STEP = 0.25;
@@ -126,11 +125,6 @@ export function FullscreenMiniMap() {
 		});
 	}, [prefs, surface]);
 
-	const setScale = (next: number) => {
-		const clamped = clamp(next, MINIMAP_SCALE);
-		setSetting("fullscreenMinimapScale", Math.round(clamped * 100) / 100);
-	};
-
 	const sizeVars = {
 		"--fs-minimap-w": panelSize(MINIMAP_BASE_W, scale),
 		"--fs-minimap-h": panelSize(MINIMAP_BASE_H, scale),
@@ -144,28 +138,12 @@ export function FullscreenMiniMap() {
 			{...hoverProps}
 		>
 			<div ref={containerRef} className="fullscreen-minimap__map" />
-			<div className="fullscreen-minimap__size">
-				<IconButton
-					className="fullscreen-minimap__size-btn"
-					icon={mdiMinus}
-					size={16}
-					label={t("Smaller minimap")}
-					tooltip={false}
-					overlay
-					disabled={scale <= MINIMAP_SCALE.min}
-					onClick={() => setScale(scale - MINIMAP_SCALE_STEP)}
-				/>
-				<IconButton
-					className="fullscreen-minimap__size-btn"
-					icon={mdiPlus}
-					size={16}
-					label={t("Larger minimap")}
-					tooltip={false}
-					overlay
-					disabled={scale >= MINIMAP_SCALE.max}
-					onClick={() => setScale(scale + MINIMAP_SCALE_STEP)}
-				/>
-			</div>
+			<ScaleStepper
+				setting="fullscreenMinimapScale"
+				range={MINIMAP_SCALE}
+				step={MINIMAP_SCALE_STEP}
+				labels={{ smaller: t("Smaller minimap"), larger: t("Larger minimap") }}
+			/>
 		</div>
 	);
 }

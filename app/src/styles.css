@@ -5159,7 +5159,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	position: absolute;
 	inset: 0;
 }
-.fullscreen-minimap__size {
+.scale-stepper {
 	position: absolute;
 	top: 6px;
 	left: 6px;
@@ -5169,10 +5169,10 @@ body:has([data-plugin-overlay]) .map-meta {
 	opacity: 0;
 	transition: opacity var(--dur) var(--ease-standard);
 }
-.fullscreen-minimap.is-expanded .fullscreen-minimap__size {
+.is-expanded > .scale-stepper {
 	opacity: 1;
 }
-.fullscreen-minimap__size-btn {
+.scale-stepper__btn {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -5182,7 +5182,7 @@ body:has([data-plugin-overlay]) .map-meta {
 	border-radius: var(--radius-1);
 	background: rgba(30, 30, 30, 0.75);
 }
-.fullscreen-minimap__size-btn:hover:not(:disabled) {
+.scale-stepper__btn:hover:not(:disabled) {
 	background: rgba(30, 30, 30, 0.95);
 }
 
@@ -5222,33 +5222,6 @@ body:has([data-plugin-overlay]) .map-meta {
 .fullscreen-mini-location.is-expanded .fullscreen-mini-location__pano {
 	opacity: 1;
 }
-.fullscreen-mini-location__size {
-	position: absolute;
-	top: 6px;
-	left: 6px;
-	z-index: 1;
-	display: flex;
-	gap: 4px;
-	opacity: 0;
-	transition: opacity var(--dur) var(--ease-standard);
-}
-.fullscreen-mini-location.is-expanded .fullscreen-mini-location__size {
-	opacity: 1;
-}
-.fullscreen-mini-location__size-btn {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 26px;
-	height: 26px;
-	min-width: 0;
-	border-radius: var(--radius-1);
-	background: rgba(30, 30, 30, 0.75);
-}
-.fullscreen-mini-location__size-btn:hover:not(:disabled) {
-	background: rgba(30, 30, 30, 0.95);
-}
-
 /* Fullscreen bottom tray (date picker + tag bar) */
 .fullscreen-bottom-tray {
 	position: absolute;
