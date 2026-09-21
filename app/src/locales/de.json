@@ -101,10 +101,6 @@
 	"Apply saved selection": "Gespeicherte Auswahl anwenden",
 	"Apply saved selection...": "Gespeicherte Auswahl anwenden...",
 	"Apply to": "Anwenden auf",
-	"Apply to {n} tags inside": {
-		"one": "Auf {n} Tag darin anwenden",
-		"other": "Auf {n} Tags darin anwenden"
-	},
 	"Arctic": "Arktis",
 	"Are you sure?": "Sicher?",
 	"Array": "Array",
@@ -963,8 +959,14 @@
 	"Read the manual": "Handbuch lesen",
 	"Reassign": "Neu zuweisen",
 	"Recent log": "Aktuelles Protokoll",
-	"Recolor {tags} tags": "{tags} Tags umfärben",
-	"Recolor {tags} tags...": "{tags} Tags umfärben...",
+	"Recolor {n} tags": {
+		"one": "{n} Tag umfärben",
+		"other": "{n} Tags umfärben"
+	},
+	"Recolor {n} tags...": {
+		"one": "{n} Tag umfärben...",
+		"other": "{n} Tags umfärben..."
+	},
 	"Redo": "Wiederherstellen",
 	"Refresh document": "Dokument aktualisieren",
 	"Refresh panorama": "Panorama aktualisieren",
@@ -1006,6 +1008,8 @@
 	"Rename": "Umbenennen",
 	"Rename field": "Feld umbenennen",
 	"Rename folder": "Ordner umbenennen",
+	"Rename folder \"{name}\"": "Ordner \"{name}\" umbenennen",
+	"Rename folder...": "Ordner umbenennen...",
 	"Rename in selection ({n} locations)": {
 		"one": "In Auswahl umbenennen ({n} Standort)",
 		"other": "In Auswahl umbenennen ({n} Standorte)"
@@ -1014,10 +1018,6 @@
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "{from} an {n} Standort in {to} umbenennen. Das kann nicht rückgängig gemacht werden.",
 		"other": "{from} an {n} Standorten in {to} umbenennen. Das kann nicht rückgängig gemacht werden."
-	},
-	"Rename {n} tags inside": {
-		"one": "{n} Tag darin umbenennen",
-		"other": "{n} Tags darin umbenennen"
 	},
 	"Rename:": "Umbenennen:",
 	"Rendering": "Rendering",

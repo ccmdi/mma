@@ -21,7 +21,8 @@ type DialogPayloads = {
 	"bulk-op": string;
 	"plugin-modal": string;
 	"inline-panel": string;
-	"recolor-tags": number[];
+	"recolor-tags": { tagIds: number[]; root: string | null };
+	"rename-folder": string;
 };
 
 export type DialogKey = keyof DialogPayloads;

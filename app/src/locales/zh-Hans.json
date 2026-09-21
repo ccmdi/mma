@@ -95,9 +95,6 @@
 	"Apply saved selection": "应用已保存的选择",
 	"Apply saved selection...": "应用已保存的选择…",
 	"Apply to": "应用于",
-	"Apply to {n} tags inside": {
-		"other": "应用到内部 {n} 个标签"
-	},
 	"Arctic": "极地",
 	"Are you sure?": "确定吗？",
 	"Array": "数组",
@@ -939,8 +936,12 @@
 	"Read the manual": "阅读手册",
 	"Reassign": "重新分配",
 	"Recent log": "最近的日志",
-	"Recolor {tags} tags": "更改 {tags} 个标签的颜色",
-	"Recolor {tags} tags...": "更改 {tags} 个标签的颜色...",
+	"Recolor {n} tags": {
+		"other": "更改 {n} 个标签的颜色"
+	},
+	"Recolor {n} tags...": {
+		"other": "更改 {n} 个标签的颜色..."
+	},
 	"Redo": "重做",
 	"Refresh document": "刷新文档",
 	"Refresh panorama": "刷新全景",
@@ -977,15 +978,14 @@
 	"Rename": "重命名",
 	"Rename field": "重命名字段",
 	"Rename folder": "重命名文件夹",
+	"Rename folder \"{name}\"": "重命名文件夹「{name}」",
+	"Rename folder...": "重命名文件夹...",
 	"Rename in selection ({n} locations)": {
 		"other": "在选择中重命名（{n} 个位置）"
 	},
 	"Rename tag in selection": "重命名选择中的标签",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"other": "将 {from} 重命名为 {to}，影响 {n} 个位置。此操作无法撤销。"
-	},
-	"Rename {n} tags inside": {
-		"other": "重命名内部 {n} 个标签"
 	},
 	"Rename:": "重命名：",
 	"Rendering": "渲染",

@@ -107,11 +107,6 @@
 	"Apply saved selection": "Aplicar selección guardada",
 	"Apply saved selection...": "Aplicar selección guardada...",
 	"Apply to": "Aplicar a",
-	"Apply to {n} tags inside": {
-		"one": "Aplicar a {n} etiqueta dentro",
-		"many": "Aplicar a {n} etiquetas dentro",
-		"other": "Aplicar a {n} etiquetas dentro"
-	},
 	"Arctic": "Ártico",
 	"Are you sure?": "¿Seguro?",
 	"Array": "Lista",
@@ -987,8 +982,16 @@
 	"Read the manual": "Leer el manual",
 	"Reassign": "Reasignar",
 	"Recent log": "Registro reciente",
-	"Recolor {tags} tags": "Cambiar el color de {tags} etiquetas",
-	"Recolor {tags} tags...": "Cambiar el color de {tags} etiquetas...",
+	"Recolor {n} tags": {
+		"one": "Cambiar el color de {n} etiqueta",
+		"many": "Cambiar el color de {n} etiquetas",
+		"other": "Cambiar el color de {n} etiquetas"
+	},
+	"Recolor {n} tags...": {
+		"one": "Cambiar el color de {n} etiqueta...",
+		"many": "Cambiar el color de {n} etiquetas...",
+		"other": "Cambiar el color de {n} etiquetas..."
+	},
 	"Redo": "Rehacer",
 	"Refresh document": "Actualizar el documento",
 	"Refresh panorama": "Actualizar el panorama",
@@ -1035,6 +1038,8 @@
 	"Rename": "Renombrar",
 	"Rename field": "Renombrar el campo",
 	"Rename folder": "Renombrar la carpeta",
+	"Rename folder \"{name}\"": "Renombrar la carpeta \"{name}\"",
+	"Rename folder...": "Renombrar carpeta...",
 	"Rename in selection ({n} locations)": {
 		"one": "Renombrar en la selección ({n} ubicación)",
 		"many": "Renombrar en la selección ({n} ubicaciones)",
@@ -1045,11 +1050,6 @@
 		"one": "Renombrar {from} como {to} en {n} ubicación. Esta acción no se puede deshacer.",
 		"many": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer.",
 		"other": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer."
-	},
-	"Rename {n} tags inside": {
-		"one": "Renombrar {n} etiqueta dentro",
-		"many": "Renombrar {n} etiquetas dentro",
-		"other": "Renombrar {n} etiquetas dentro"
 	},
 	"Rename:": "Renombrar:",
 	"Rendering": "Renderizado",

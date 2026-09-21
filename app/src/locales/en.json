@@ -101,10 +101,6 @@
 	"Apply saved selection": "Apply saved selection",
 	"Apply saved selection...": "Apply saved selection...",
 	"Apply to": "Apply to",
-	"Apply to {n} tags inside": {
-		"one": "Apply to {n} tag inside",
-		"other": "Apply to {n} tags inside"
-	},
 	"Arctic": "Arctic",
 	"Are you sure?": "Are you sure?",
 	"Array": "Array",
@@ -963,8 +959,14 @@
 	"Read the manual": "Read the manual",
 	"Reassign": "Reassign",
 	"Recent log": "Recent log",
-	"Recolor {tags} tags": "Recolor {tags} tags",
-	"Recolor {tags} tags...": "Recolor {tags} tags...",
+	"Recolor {n} tags": {
+		"one": "Recolor {n} tag",
+		"other": "Recolor {n} tags"
+	},
+	"Recolor {n} tags...": {
+		"one": "Recolor {n} tag...",
+		"other": "Recolor {n} tags..."
+	},
 	"Redo": "Redo",
 	"Refresh document": "Refresh document",
 	"Refresh panorama": "Refresh panorama",
@@ -1006,6 +1008,8 @@
 	"Rename": "Rename",
 	"Rename field": "Rename field",
 	"Rename folder": "Rename folder",
+	"Rename folder \"{name}\"": "Rename folder \"{name}\"",
+	"Rename folder...": "Rename folder...",
 	"Rename in selection ({n} locations)": {
 		"one": "Rename in selection ({n} location)",
 		"other": "Rename in selection ({n} locations)"
@@ -1014,10 +1018,6 @@
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Rename {from} to {to} across {n} location. This cannot be undone.",
 		"other": "Rename {from} to {to} across {n} locations. This cannot be undone."
-	},
-	"Rename {n} tags inside": {
-		"one": "Rename {n} tag inside",
-		"other": "Rename {n} tags inside"
 	},
 	"Rename:": "Rename:",
 	"Rendering": "Rendering",

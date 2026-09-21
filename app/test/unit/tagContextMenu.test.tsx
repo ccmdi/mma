@@ -43,7 +43,16 @@ beforeEach(() => {
 });
 
 const tree = buildTagTree(
-	[mkTag(1, "F"), mkTag(2, "F/a"), mkTag(3, "F/b"), mkTag(4, "c"), mkTag(5, "d"), mkTag(6, "e")],
+	[
+		mkTag(1, "F"),
+		mkTag(2, "F/a"),
+		mkTag(3, "F/b"),
+		mkTag(4, "c"),
+		mkTag(5, "d"),
+		mkTag(6, "e"),
+		mkTag(7, "V/x"),
+		mkTag(8, "V/y"),
+	],
 	"default",
 	{},
 );
@@ -53,7 +62,11 @@ async function openMenu(n: TagTreeNode) {
 	await mountAsync(
 		<ContextMenu.Root open>
 			<ContextMenu.Trigger>Area</ContextMenu.Trigger>
-			<TagContextMenu node={n} onRename={() => {}} onAddAlias={() => {}} />
+			<TagContextMenu
+				node={n}
+				onRenameInSelection={n.tag ? () => {} : undefined}
+				onAddAlias={n.tag ? () => {} : undefined}
+			/>
 		</ContextMenu.Root>,
 	);
 	await act(async () => {});
@@ -109,7 +122,25 @@ describe("tag context menu", () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
 		const items = await openMenu(node("c"));
 		act(() => items.find((i) => i.textContent === "Recolor 3 tags...")!.click());
-		expect(h.openDialog).toHaveBeenCalledWith("recolor-tags", [4, 5, 6]);
+		expect(h.openDialog).toHaveBeenCalledWith("recolor-tags", { tagIds: [4, 5, 6], root: null });
+	});
+
+	it("recolors and renames a folder as a whole", async () => {
+		const items = await openMenu(node("F"));
+		act(() => items.find((i) => i.textContent === "Recolor 3 tags...")!.click());
+		expect(h.openDialog).toHaveBeenCalledWith("recolor-tags", { tagIds: [1, 2, 3], root: "F" });
+		act(() => items.find((i) => i.textContent === "Rename folder...")!.click());
+		expect(h.openDialog).toHaveBeenCalledWith("rename-folder", "F");
+	});
+
+	it("gives a folder with no tag of its own the subtree actions only", async () => {
+		const labels = (await openMenu(node("V"))).map((i) => i.textContent);
+		expect(labels).toEqual([
+			"Remove from all (0 locations)",
+			"Remove from selection (0 locations)",
+			"Recolor 2 tags...",
+			"Rename folder...",
+		]);
 	});
 
 	it("ignores the tag selection when the clicked tag is outside it", async () => {

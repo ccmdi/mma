@@ -107,11 +107,6 @@
 	"Apply saved selection": "Appliquer une sélection enregistrée",
 	"Apply saved selection...": "Appliquer une sélection enregistrée...",
 	"Apply to": "Appliquer à",
-	"Apply to {n} tags inside": {
-		"one": "Appliquer à {n} étiquette à l'intérieur",
-		"many": "Appliquer à {n} étiquettes à l'intérieur",
-		"other": "Appliquer à {n} étiquettes à l'intérieur"
-	},
 	"Arctic": "Arctique",
 	"Are you sure?": "Êtes-vous sûr ?",
 	"Array": "Tableau",
@@ -987,8 +982,16 @@
 	"Read the manual": "Lire le manuel",
 	"Reassign": "Réassigner",
 	"Recent log": "Journal récent",
-	"Recolor {tags} tags": "Recolorer {tags} tags",
-	"Recolor {tags} tags...": "Recolorer {tags} tags...",
+	"Recolor {n} tags": {
+		"one": "Recolorer {n} tag",
+		"many": "Recolorer {n} tags",
+		"other": "Recolorer {n} tags"
+	},
+	"Recolor {n} tags...": {
+		"one": "Recolorer {n} tag...",
+		"many": "Recolorer {n} tags...",
+		"other": "Recolorer {n} tags..."
+	},
 	"Redo": "Rétablir",
 	"Refresh document": "Actualiser le document",
 	"Refresh panorama": "Actualiser le panorama",
@@ -1035,6 +1038,8 @@
 	"Rename": "Renommer",
 	"Rename field": "Renommer le champ",
 	"Rename folder": "Renommer le dossier",
+	"Rename folder \"{name}\"": "Renommer le dossier \"{name}\"",
+	"Rename folder...": "Renommer le dossier...",
 	"Rename in selection ({n} locations)": {
 		"one": "Renommer dans la sélection ({n} lieu)",
 		"many": "Renommer dans la sélection ({n} lieux)",
@@ -1045,11 +1050,6 @@
 		"one": "Renommer {from} en {to} sur {n} lieu. Cette action est irréversible.",
 		"many": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible.",
 		"other": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible."
-	},
-	"Rename {n} tags inside": {
-		"one": "Renommer {n} étiquette à l'intérieur",
-		"many": "Renommer {n} étiquettes à l'intérieur",
-		"other": "Renommer {n} étiquettes à l'intérieur"
 	},
 	"Rename:": "Renommer :",
 	"Rendering": "Rendu",

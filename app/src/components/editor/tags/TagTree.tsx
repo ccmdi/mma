@@ -47,7 +47,6 @@ import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
-import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 
 type DropTarget = { path: string; position: "before" | "after" | "into" };
 
@@ -664,23 +663,19 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 						</div>
 					}
 				/>
-				{node.tag ? (
-					<TagContextMenu
-						node={node}
-						onRename={() => onRenameTag({ id: node.tag!.id, name: node.tag!.name })}
-						onAddAlias={() => onAddAlias({ id: node.tag!.id, name: node.tag!.name })}
-						onNewSubfolder={() => onNewFolder(node.fullPath)}
-					/>
-				) : (
-					<MenuPopup>
-						<MenuItem onClick={() => onNewFolder(node.fullPath)}>{t("New subfolder...")}</MenuItem>
-						{node.subtreeTagIds.length === 0 && (
-							<MenuItem tone="destructive" onClick={() => onDeleteFolder(node.fullPath)}>
-								{t("Delete folder")}
-							</MenuItem>
-						)}
-					</MenuPopup>
-				)}
+				<TagContextMenu
+					node={node}
+					onRenameInSelection={
+						node.tag ? () => onRenameTag({ id: node.tag!.id, name: node.tag!.name }) : undefined
+					}
+					onAddAlias={
+						node.tag ? () => onAddAlias({ id: node.tag!.id, name: node.tag!.name }) : undefined
+					}
+					onNewSubfolder={() => onNewFolder(node.fullPath)}
+					onDeleteFolder={
+						node.subtreeTagIds.length === 0 ? () => onDeleteFolder(node.fullPath) : undefined
+					}
+				/>
 			</ContextMenu.Root>
 			{hasChildren && isOpen && (
 				<>
@@ -869,7 +864,7 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 			/>
 			<TagContextMenu
 				node={node}
-				onRename={() => onRenameTag({ id: tag.id, name: tag.name })}
+				onRenameInSelection={() => onRenameTag({ id: tag.id, name: tag.name })}
 				onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}
 				onRemoveAlias={node.isAlias ? () => onRemoveAlias(node.fullPath) : undefined}
 			/>

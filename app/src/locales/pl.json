@@ -113,12 +113,6 @@
 	"Apply saved selection": "Zastosuj zapisane zaznaczenie",
 	"Apply saved selection...": "Zastosuj zapisane zaznaczenie...",
 	"Apply to": "Zastosuj do",
-	"Apply to {n} tags inside": {
-		"one": "Zastosuj do {n} taga w środku",
-		"few": "Zastosuj do {n} tagów w środku",
-		"many": "Zastosuj do {n} tagów w środku",
-		"other": "Zastosuj do {n} tagów w środku"
-	},
 	"Arctic": "Arktyczny",
 	"Are you sure?": "Na pewno?",
 	"Array": "Tablica",
@@ -1011,8 +1005,18 @@
 	"Read the manual": "Przeczytaj podręcznik",
 	"Reassign": "Przypisz ponownie",
 	"Recent log": "Ostatni dziennik",
-	"Recolor {tags} tags": "Zmień kolor (tagów: {tags})",
-	"Recolor {tags} tags...": "Zmień kolor (tagów: {tags})...",
+	"Recolor {n} tags": {
+		"one": "Zmień kolor {n} tagu",
+		"few": "Zmień kolor {n} tagów",
+		"many": "Zmień kolor {n} tagów",
+		"other": "Zmień kolor {n} tagów"
+	},
+	"Recolor {n} tags...": {
+		"one": "Zmień kolor {n} tagu...",
+		"few": "Zmień kolor {n} tagów...",
+		"many": "Zmień kolor {n} tagów...",
+		"other": "Zmień kolor {n} tagów..."
+	},
 	"Redo": "Ponów",
 	"Refresh document": "Odśwież dokument",
 	"Refresh panorama": "Odśwież panoramę",
@@ -1064,6 +1068,8 @@
 	"Rename": "Zmień nazwę",
 	"Rename field": "Zmień nazwę pola",
 	"Rename folder": "Zmień nazwę folderu",
+	"Rename folder \"{name}\"": "Zmień nazwę folderu \"{name}\"",
+	"Rename folder...": "Zmień nazwę folderu...",
 	"Rename in selection ({n} locations)": {
 		"one": "Zmień nazwę w zaznaczeniu ({n} lokalizacja)",
 		"few": "Zmień nazwę w zaznaczeniu ({n} lokalizacje)",
@@ -1076,12 +1082,6 @@
 		"few": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"many": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"other": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć."
-	},
-	"Rename {n} tags inside": {
-		"one": "Zmień nazwę {n} taga w środku",
-		"few": "Zmień nazwy {n} tagów w środku",
-		"many": "Zmień nazwy {n} tagów w środku",
-		"other": "Zmień nazwy {n} tagów w środku"
 	},
 	"Rename:": "Zmień nazwę:",
 	"Rendering": "Renderowanie",

@@ -95,9 +95,6 @@
 	"Apply saved selection": "保存した選択を適用",
 	"Apply saved selection...": "保存した選択を適用...",
 	"Apply to": "適用先",
-	"Apply to {n} tags inside": {
-		"other": "内部の {n} 件のタグに適用"
-	},
 	"Arctic": "アークティック",
 	"Are you sure?": "本当によろしいですか？",
 	"Array": "配列",
@@ -939,8 +936,12 @@
 	"Read the manual": "マニュアルを読む",
 	"Reassign": "再割り当て",
 	"Recent log": "最近のログ",
-	"Recolor {tags} tags": "{tags} 個のタグの色を変更",
-	"Recolor {tags} tags...": "{tags} 個のタグの色を変更...",
+	"Recolor {n} tags": {
+		"other": "{n} 個のタグの色を変更"
+	},
+	"Recolor {n} tags...": {
+		"other": "{n} 個のタグの色を変更..."
+	},
 	"Redo": "やり直し",
 	"Refresh document": "ドキュメントを更新",
 	"Refresh panorama": "パノラマを更新",
@@ -977,15 +978,14 @@
 	"Rename": "名前を変更",
 	"Rename field": "フィールド名を変更",
 	"Rename folder": "フォルダー名を変更",
+	"Rename folder \"{name}\"": "フォルダー「{name}」の名前を変更",
+	"Rename folder...": "フォルダーの名前を変更...",
 	"Rename in selection ({n} locations)": {
 		"other": "選択内で名前を変更（{n} 地点）"
 	},
 	"Rename tag in selection": "選択内のタグ名を変更",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"other": "{n} 件の地点で {from} を {to} に変更します。この操作は取り消せません。"
-	},
-	"Rename {n} tags inside": {
-		"other": "内部の {n} 件のタグの名前を変更"
 	},
 	"Rename:": "名前を変更:",
 	"Rendering": "レンダリング",

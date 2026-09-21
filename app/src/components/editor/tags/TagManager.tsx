@@ -29,7 +29,6 @@ import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
-import { Checkbox } from "@/components/primitives/Checkbox";
 import { fmt } from "@/lib/util/format";
 import { hexToHsl, hslToHex } from "@/lib/util/color";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -71,19 +70,18 @@ export function TagManager() {
 	const [virtualTags, setVirtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
 	const [aliases, setAliases] = useMapSetting("aliases", NO_ALIASES);
 	const [addingAliasFor, setAddingAliasFor] = useState<{ id: number; name: string } | null>(null);
-	// The edited node carries descendant context so the dialog can offer a cascade rename
-	// (descendantCount is 0 for every leaf, including all of flat mode).
-	const [editingTreeTag, setEditingTreeTag] = useState<{
-		tag: Tag;
-		descendantCount: number;
-	} | null>(null);
+	const [editingTag, setEditingTag] = useState<Tag | null>(null);
 	const [editingVirtualPath, setEditingVirtualPath] = useState<string | null>(null);
 	// Parent path for a pending new declared folder ("" = root, null = dialog closed).
 	const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 	const treeRef = useRef<TagTreeHandle>(null);
 	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
-	const [recoloringIds, setRecoloringIds] = useState<number[] | null>(null);
-	useDialog("recolor-tags", setRecoloringIds);
+	const [recoloring, setRecoloring] = useState<{ tagIds: number[]; root: string | null } | null>(
+		null,
+	);
+	useDialog("recolor-tags", setRecoloring);
+	const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
+	useDialog("rename-folder", setRenamingFolder);
 	const [collapsed, setCollapsed] = useState(false);
 
 	// memoOnRefs keys this on the tag view, so the array identity is stable across
@@ -147,30 +145,41 @@ export function TagManager() {
 		[addOptimisticTags, setVirtualTags, setAliases],
 	);
 
-	// Stamp `color` onto every tag AND folder node at or under `root` (overrides existing
-	// colors, so it works even when descendants already have their own).
-	const applyColorToSubtree = (root: string, color: string) => {
-		const tagUpdates: Update<TagPatch>[] = [];
-		const folders = new Set<string>();
+	// Stamp `color` onto `tagIds`, and with a `root` onto every folder node at or under it too.
+	const recolor = (tagIds: number[], root: string | null, color: string) => {
+		commitTags(tagIds.map((id) => ({ id, patch: { color } })));
+		if (root == null) return;
+		const nextVT = { ...virtualTags };
 		for (const t of tags) {
-			if (!isAtOrUnder(t.name, root)) continue;
-			tagUpdates.push({ id: t.id, patch: { color } });
 			const parts = t.name.split("/");
-			let p = "";
-			for (let i = 0; i < parts.length - 1; i++) {
-				p = p ? `${p}/${parts[i]}` : parts[i];
-				if (isAtOrUnder(p, root)) folders.add(p);
+			for (let i = 1; i < parts.length; i++) {
+				const folder = parts.slice(0, i).join("/");
+				if (isAtOrUnder(folder, root)) nextVT[folder] = { color };
 			}
 		}
-		commitTags(tagUpdates);
-		const nextVT = { ...virtualTags };
-		for (const f of folders) nextVT[f] = { color };
 		setVirtualTags(nextVT);
+	};
+	// Move folder `oldPath` and everything under it to `newPath`; `folder` replaces its own entry.
+	const renameFolder = (oldPath: string, newPath: string, folder?: VirtualTag) => {
+		const {
+			tagRenames,
+			virtualTags: nextVT,
+			aliases: nextAliases,
+		} = cascadeRename(oldPath, newPath, tags, virtualTags, aliases);
+		if (tagRenames.length)
+			commitTags(tagRenames.map((r) => ({ id: r.id, patch: { name: r.name } })));
+		if (folder) nextVT[newPath] = folder;
+		setVirtualTags(nextVT);
+		setAliases(nextAliases);
+		treeRef.current?.remapExpanded(oldPath, newPath);
+	};
+	const siblingPath = (path: string, segment: string) => {
+		const i = path.lastIndexOf("/");
+		return i === -1 ? segment : `${path.slice(0, i)}/${segment}`;
 	};
 	const addAlias = useCallback((tag: { id: number; name: string }) => setAddingAliasFor(tag), []);
 	const handleEditTreeTag = useCallback((node: TagTreeNode) => {
-		if (node.tag)
-			setEditingTreeTag({ tag: node.tag, descendantCount: node.subtreeTagIds.length - 1 });
+		if (node.tag) setEditingTag(node.tag);
 	}, []);
 	const removeAlias = useCallback(
 		(aliasPath: string) => {
@@ -276,26 +285,14 @@ export function TagManager() {
 				/>
 			</ToolBlock>
 
-			{editingTreeTag && (
+			{editingTag && (
 				<EditTagDialog
 					open
-					tag={editingTreeTag.tag}
+					tag={editingTag}
 					commit={commitTags}
 					aliases={aliases}
 					setAliases={setAliases}
-					cascade={
-						editingTreeTag.descendantCount > 0
-							? {
-									descendantCount: editingTreeTag.descendantCount,
-									tags,
-									virtualTags,
-									setVirtualTags,
-									onRenamed: (o, n) => treeRef.current?.remapExpanded(o, n),
-									onApplyColor: (color) => applyColorToSubtree(editingTreeTag.tag.name, color),
-								}
-							: undefined
-					}
-					onOpenChange={(open) => !open && setEditingTreeTag(null)}
+					onOpenChange={(open) => !open && setEditingTag(null)}
 				/>
 			)}
 
@@ -304,31 +301,11 @@ export function TagManager() {
 					open
 					path={editingVirtualPath}
 					color={virtualTags[editingVirtualPath]?.color ?? null}
-					descendantCount={tags.filter((t) => t.name.startsWith(`${editingVirtualPath}/`)).length}
 					onOpenChange={(open) => !open && setEditingVirtualPath(null)}
-					onApplyColor={(color) => {
-						applyColorToSubtree(editingVirtualPath, color);
-						setEditingVirtualPath(null);
-					}}
 					onSave={(color, newSegment) => {
-						const i = editingVirtualPath.lastIndexOf("/");
-						const parent = i === -1 ? "" : editingVirtualPath.slice(0, i);
-						const newPath = parent ? `${parent}/${newSegment}` : newSegment;
-						if (newPath !== editingVirtualPath) {
-							const {
-								tagRenames,
-								virtualTags: nextVT,
-								aliases: nextAliases,
-							} = cascadeRename(editingVirtualPath, newPath, tags, virtualTags, aliases);
-							if (tagRenames.length)
-								commitTags(tagRenames.map((r) => ({ id: r.id, patch: { name: r.name } })));
-							nextVT[newPath] = { color };
-							setVirtualTags(nextVT);
-							setAliases(nextAliases);
-							treeRef.current?.remapExpanded(editingVirtualPath, newPath);
-						} else {
-							setVirtualTags({ ...virtualTags, [editingVirtualPath]: { color } });
-						}
+						renameFolder(editingVirtualPath, siblingPath(editingVirtualPath, newSegment), {
+							color,
+						});
 						setEditingVirtualPath(null);
 					}}
 					onReset={() => {
@@ -348,16 +325,28 @@ export function TagManager() {
 				/>
 			)}
 
-			{recoloringIds && (
+			{recoloring && (
 				<RecolorTagsDialog
 					open
-					color={tags.find((t) => t.id === recoloringIds[0])?.color ?? "#888888"}
-					count={recoloringIds.length}
+					color={tags.find((t) => t.id === recoloring.tagIds[0])?.color ?? "#888888"}
+					count={recoloring.tagIds.length}
 					onSave={(color) => {
-						commitTags(recoloringIds.map((id) => ({ id, patch: { color } })));
-						setRecoloringIds(null);
+						recolor(recoloring.tagIds, recoloring.root, color);
+						setRecoloring(null);
 					}}
-					onOpenChange={(open) => !open && setRecoloringIds(null)}
+					onOpenChange={(open) => !open && setRecoloring(null)}
+				/>
+			)}
+
+			{renamingFolder != null && (
+				<RenameFolderDialog
+					open
+					path={renamingFolder}
+					onSave={(segment) => {
+						renameFolder(renamingFolder, siblingPath(renamingFolder, segment));
+						setRenamingFolder(null);
+					}}
+					onOpenChange={(open) => !open && setRenamingFolder(null)}
 				/>
 			)}
 
@@ -427,26 +416,15 @@ function EditTagDialog({
 	commit,
 	aliases,
 	setAliases,
-	cascade,
 }: DialogProps & {
 	tag: { id: number; name: string; color: string };
 	/** Routes tag updates through the optimistic overlay. */
 	commit: (updates: Update<TagPatch>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
-	/** Present for a tree folder node with descendants: lets the rename cascade down. */
-	cascade?: {
-		descendantCount: number;
-		tags: Tag[];
-		virtualTags: Record<string, VirtualTag>;
-		setVirtualTags: (v: Record<string, VirtualTag>) => void;
-		onRenamed: (oldPrefix: string, newPrefix: string) => void;
-		onApplyColor: (color: string) => void;
-	};
 }) {
 	const close = () => onOpenChange(false);
 	const [name, setName] = useState(tag.name);
-	const [cascadeOn, setCascadeOn] = useState(false);
 	const [hsl, setHsl] = useState(() => hexToHsl(tag.color));
 	const hexValue = hslToHex(hsl.h, hsl.s, hsl.l);
 	const [bindings, setBindings] = useMapSetting("keyBindings");
@@ -468,27 +446,10 @@ function EditTagDialog({
 
 	const handleSave = () => {
 		const newName = name.trim() || tag.name;
-		if (cascade && cascadeOn && newName !== tag.name) {
-			const {
-				tagRenames,
-				virtualTags: nextVT,
-				aliases: nextAliases,
-			} = cascadeRename(tag.name, newName, cascade.tags, cascade.virtualTags, aliases);
-			commit(
-				tagRenames.map((r) => ({
-					id: r.id,
-					patch: r.id === tag.id ? { name: r.name, color: hexValue } : { name: r.name },
-				})),
-			);
-			cascade.setVirtualTags(nextVT);
-			setAliases(nextAliases);
-			cascade.onRenamed(tag.name, newName);
-		} else {
-			commit([{ id: tag.id, patch: { name: newName, color: hexValue } }]);
-			if (newName !== tag.name) {
-				const synced = syncAliasSegments(aliases, [{ id: tag.id, oldName: tag.name, newName }]);
-				if (synced) setAliases(synced);
-			}
+		commit([{ id: tag.id, patch: { name: newName, color: hexValue } }]);
+		if (newName !== tag.name) {
+			const synced = syncAliasSegments(aliases, [{ id: tag.id, oldName: tag.name, newName }]);
+			if (synced) setAliases(synced);
 		}
 		const cur = bindings ?? [];
 		if ((getTagBindingKey(cur, tag.id) ?? "") !== hotkey) {
@@ -509,28 +470,8 @@ function EditTagDialog({
 							onChange={(e) => setName(e.target.value)}
 							autoFocus
 						/>
-						{cascade && (
-							<Checkbox checked={cascadeOn} onChange={(e) => setCascadeOn(e.target.checked)}>
-								{t(
-									{ one: "Rename {n} tag inside", other: "Rename {n} tags inside" },
-									{ n: cascade.descendantCount },
-								)}
-							</Checkbox>
-						)}
 					</div>
-					<TagColorFields
-						hsl={hsl}
-						onChange={setHsl}
-						applyInside={
-							cascade && {
-								count: cascade.descendantCount,
-								onApply: () => {
-									cascade.onApplyColor(hexValue);
-									close();
-								},
-							}
-						}
-					/>
+					<TagColorFields hsl={hsl} onChange={setHsl} />
 					<div className="edit-tag-modal__hotkey">
 						<span>{t("Hotkey:")}</span>
 						<HotkeyInput value={hotkey} onChange={setHotkey} />
@@ -570,12 +511,9 @@ function EditTagDialog({
 function TagColorFields({
 	hsl,
 	onChange,
-	applyInside,
 }: {
 	hsl: { h: number; s: number; l: number };
 	onChange: (hsl: { h: number; s: number; l: number }) => void;
-	/** Offers stamping the color onto the tags nested inside, when there are any. */
-	applyInside?: { count: number; onApply: () => void };
 }) {
 	return (
 		<div className="edit-tag-modal__color">
@@ -595,15 +533,29 @@ function TagColorFields({
 				color={hsl}
 				onChange={onChange}
 			/>
-			{applyInside && applyInside.count > 0 && (
-				<Button className="edit-tag-modal__apply-color" onClick={applyInside.onApply}>
-					{t(
-						{ one: "Apply to {n} tag inside", other: "Apply to {n} tags inside" },
-						{ n: applyInside.count },
-					)}
-				</Button>
-			)}
 		</div>
+	);
+}
+
+function RenameFolderDialog({
+	open,
+	onOpenChange,
+	path,
+	onSave,
+}: DialogProps & { path: string; onSave: (segment: string) => void }) {
+	const segment = leafSegment(path);
+	const [name, setName] = useState(segment);
+
+	return (
+		<PromptDialog
+			open={open}
+			onOpenChange={onOpenChange}
+			title={t('Rename folder "{name}"', { name: segment })}
+			value={name}
+			onChange={setName}
+			submitLabel={t("Rename")}
+			onSubmit={() => onSave(name.trim() || segment)}
+		/>
 	);
 }
 
@@ -618,7 +570,7 @@ function RecolorTagsDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent title={t("Recolor {tags} tags", { tags: count })}>
+			<DialogContent title={t({ one: "Recolor {n} tag", other: "Recolor {n} tags" }, { n: count })}>
 				<DialogForm onSubmit={() => onSave(hslToHex(hsl.h, hsl.s, hsl.l))}>
 					<TagColorFields hsl={hsl} onChange={setHsl} />
 					<DialogActions cancel primary={{ label: t("Save") }} />
@@ -635,16 +587,12 @@ function VirtualTagDialog({
 	onOpenChange,
 	path,
 	color,
-	descendantCount,
 	onSave,
-	onApplyColor,
 	onReset,
 }: DialogProps & {
 	path: string;
 	color: string | null;
-	descendantCount: number;
 	onSave: (color: string, newSegment: string) => void;
-	onApplyColor: (color: string) => void;
 	onReset: () => void;
 }) {
 	const [hsl, setHsl] = useState(() => hexToHsl(color ?? "#888888"));
@@ -665,11 +613,7 @@ function VirtualTagDialog({
 							autoFocus
 						/>
 					</div>
-					<TagColorFields
-						hsl={hsl}
-						onChange={setHsl}
-						applyInside={{ count: descendantCount, onApply: () => onApplyColor(hexValue) }}
-					/>
+					<TagColorFields hsl={hsl} onChange={setHsl} />
 					<DialogActions
 						destructive={{ label: t("Reset"), onClick: onReset, disabled: color == null }}
 						primary={{ label: t("Save") }}
