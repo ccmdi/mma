@@ -43,7 +43,7 @@ import {
 	type TagTreeExpansionIntent,
 } from "./tagTreeModel";
 import type { TagSortMode } from "@/types";
-import type { Selector, VirtualTag } from "@/bindings.gen";
+import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -66,7 +66,6 @@ interface TreeDragHandlers {
 interface TagTreeCallbacks {
 	onEditTag: (node: TagTreeNode) => void;
 	onEditVirtual: (fullPath: string) => void;
-	onRenameInSelection: (target: { id: number; name: string; scope: Selector }) => void;
 	onAddAlias: (tag: { id: number; name: string }) => void;
 	onRemoveAlias: (aliasPath: string) => void;
 	onNewFolder: (parentPath: string) => void;
@@ -94,7 +93,6 @@ interface TagTreeViewProps {
 	aliases: Record<string, number>;
 	onEditTag: (node: TagTreeNode) => void;
 	onEditVirtual: (fullPath: string) => void;
-	onRenameInSelection: (target: { id: number; name: string; scope: Selector }) => void;
 	onAddAlias: (tag: { id: number; name: string }) => void;
 	onRemoveAlias: (aliasPath: string) => void;
 	/** Commit a drag reorder (full DFS tag-id order). Must render the new order
@@ -122,7 +120,6 @@ export function TagTreeView({
 	aliases,
 	onEditTag,
 	onEditVirtual,
-	onRenameInSelection,
 	onAddAlias,
 	onRemoveAlias,
 	onReorder,
@@ -452,7 +449,6 @@ export function TagTreeView({
 		() => ({
 			onEditTag,
 			onEditVirtual,
-			onRenameInSelection,
 			onAddAlias,
 			onRemoveAlias,
 			onNewFolder,
@@ -464,7 +460,6 @@ export function TagTreeView({
 		[
 			onEditTag,
 			onEditVirtual,
-			onRenameInSelection,
 			onAddAlias,
 			onRemoveAlias,
 			onNewFolder,
@@ -570,7 +565,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	const {
 		onEditTag,
 		onEditVirtual,
-		onRenameInSelection,
 		onAddAlias,
 		onNewFolder,
 		onDeleteFolder,
@@ -665,11 +659,6 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 				/>
 				<TagContextMenu
 					node={node}
-					onRenameInSelection={
-						node.tag
-							? (scope) => onRenameInSelection({ id: node.tag!.id, name: node.tag!.name, scope })
-							: undefined
-					}
 					onAddAlias={
 						node.tag ? () => onAddAlias({ id: node.tag!.id, name: node.tag!.name }) : undefined
 					}
@@ -825,8 +814,7 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 	isSelected: boolean;
 	isDragging: boolean;
 }) {
-	const { onEditTag, onRenameInSelection, onAddAlias, onRemoveAlias, onRowClick, drag } =
-		useContext(TagTreeCtx);
+	const { onEditTag, onAddAlias, onRemoveAlias, onRowClick, drag } = useContext(TagTreeCtx);
 	const tag = node.tag!;
 
 	return (
@@ -866,7 +854,6 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 			/>
 			<TagContextMenu
 				node={node}
-				onRenameInSelection={(scope) => onRenameInSelection({ id: tag.id, name: tag.name, scope })}
 				onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}
 				onRemoveAlias={node.isAlias ? () => onRemoveAlias(node.fullPath) : undefined}
 			/>

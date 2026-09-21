@@ -1040,16 +1040,21 @@
 	"Rename folder": "Renommer le dossier",
 	"Rename folder \"{name}\"": "Renommer le dossier \"{name}\"",
 	"Rename folder...": "Renommer le dossier...",
+	"Rename in selection": "Renommer dans la sélection",
 	"Rename in selection ({n} locations)": {
 		"one": "Renommer dans la sélection ({n} lieu)",
 		"many": "Renommer dans la sélection ({n} lieux)",
 		"other": "Renommer dans la sélection ({n} lieux)"
 	},
-	"Rename tag in selection": "Renommer l'étiquette dans la sélection",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Renommer {from} en {to} sur {n} lieu. Cette action est irréversible.",
 		"many": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible.",
 		"other": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible."
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"one": "Renommer {tags} tags dans la sélection ({n} lieu)",
+		"many": "Renommer {tags} tags dans la sélection ({n} lieux)",
+		"other": "Renommer {tags} tags dans la sélection ({n} lieux)"
 	},
 	"Rename:": "Renommer :",
 	"Rendering": "Rendu",

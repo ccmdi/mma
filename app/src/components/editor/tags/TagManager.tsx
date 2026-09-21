@@ -74,11 +74,12 @@ export function TagManager() {
 	// Parent path for a pending new declared folder ("" = root, null = dialog closed).
 	const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 	const treeRef = useRef<TagTreeHandle>(null);
-	const [renamingTag, setRenamingTag] = useState<{
-		id: number;
+	const [renamingInSelection, setRenamingInSelection] = useState<{
+		tagIds: number[];
 		name: string;
 		scope: Selector;
 	} | null>(null);
+	useDialog("rename-in-selection", setRenamingInSelection);
 	const [recoloring, setRecoloring] = useState<{ tagIds: number[]; root: string | null } | null>(
 		null,
 	);
@@ -277,7 +278,6 @@ export function TagManager() {
 					aliases={aliases}
 					onEditTag={handleEditTreeTag}
 					onEditVirtual={setEditingVirtualPath}
-					onRenameInSelection={setRenamingTag}
 					onAddAlias={addAlias}
 					onRemoveAlias={removeAlias}
 					onReorder={commitReorder}
@@ -320,11 +320,11 @@ export function TagManager() {
 				/>
 			)}
 
-			{renamingTag && (
+			{renamingInSelection && (
 				<RenameInSelectionDialog
 					open
-					tag={renamingTag}
-					onOpenChange={(open) => !open && setRenamingTag(null)}
+					{...renamingInSelection}
+					onOpenChange={(open) => !open && setRenamingInSelection(null)}
 				/>
 			)}
 
@@ -389,13 +389,15 @@ export function TagManager() {
 function RenameInSelectionDialog({
 	open,
 	onOpenChange,
-	tag,
-}: DialogProps & { tag: { id: number; name: string; scope: Selector } }) {
-	const [name, setName] = useState(tag.name);
+	tagIds,
+	name: initialName,
+	scope,
+}: DialogProps & { tagIds: number[]; name: string; scope: Selector }) {
+	const [name, setName] = useState(initialName);
 
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed && trimmed !== tag.name) void renameTagsIn([tag.id], trimmed, tag.scope);
+		if (trimmed) void renameTagsIn(tagIds, trimmed, scope);
 		onOpenChange(false);
 	};
 
@@ -403,7 +405,7 @@ function RenameInSelectionDialog({
 		<PromptDialog
 			open={open}
 			onOpenChange={onOpenChange}
-			title={t("Rename tag in selection")}
+			title={t("Rename in selection")}
 			value={name}
 			onChange={setName}
 			submitLabel={t("Rename")}

@@ -67,11 +67,7 @@ async function openMenu(n: TagTreeNode) {
 	await mountAsync(
 		<ContextMenu.Root open>
 			<ContextMenu.Trigger>Area</ContextMenu.Trigger>
-			<TagContextMenu
-				node={n}
-				onRenameInSelection={n.tag ? () => {} : undefined}
-				onAddAlias={n.tag ? () => {} : undefined}
-			/>
+			<TagContextMenu node={n} onAddAlias={n.tag ? () => {} : undefined} />
 		</ContextMenu.Root>,
 	);
 	await act(async () => {});
@@ -116,6 +112,7 @@ describe("tag context menu", () => {
 		expect(items.map((i) => i.textContent)).toEqual([
 			"Remove 3 tags from all (9 locations)",
 			"Remove 3 tags from selection (0 locations)",
+			"Rename 3 tags in selection (0 locations)",
 			"Recolor 3 tags...",
 		]);
 
@@ -143,9 +140,24 @@ describe("tag context menu", () => {
 		expect(labels).toEqual([
 			"Remove from all (0 locations)",
 			"Remove from selection (0 locations)",
+			"Rename in selection (0 locations)",
 			"Recolor 2 tags...",
 			"Rename folder...",
 		]);
+	});
+
+	it("renames every selected tag within the rest of the selection, merging them", async () => {
+		const manual = buildSelection({ type: "Manual", locations: [1, 2] });
+		h.selectedTagIds = new Set([4, 5, 6]);
+		h.active = [...[4, 5, 6].map((id) => buildSelection(tagSelector(id))), manual];
+		h.countIn.mockResolvedValue(2);
+		const items = await openMenu(node("c"));
+		act(() => items.find((i) => i.textContent?.startsWith("Rename 3 tags in selection"))!.click());
+		expect(h.openDialog).toHaveBeenCalledWith("rename-in-selection", {
+			tagIds: [4, 5, 6],
+			name: "c",
+			scope: { type: "Union", selections: [manual] },
+		});
 	});
 
 	it("ignores the tag selection when the clicked tag is outside it", async () => {

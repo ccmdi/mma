@@ -41,7 +41,6 @@ function render(onReorder: (ids: number[]) => void, sortMode: TagSortMode = "def
 				aliases={{}}
 				onEditTag={() => {}}
 				onEditVirtual={() => {}}
-				onRenameInSelection={() => {}}
 				onAddAlias={() => {}}
 				onRemoveAlias={() => {}}
 				onReorder={onReorder}

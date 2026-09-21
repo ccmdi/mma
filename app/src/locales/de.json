@@ -1010,14 +1010,18 @@
 	"Rename folder": "Ordner umbenennen",
 	"Rename folder \"{name}\"": "Ordner \"{name}\" umbenennen",
 	"Rename folder...": "Ordner umbenennen...",
+	"Rename in selection": "In Auswahl umbenennen",
 	"Rename in selection ({n} locations)": {
 		"one": "In Auswahl umbenennen ({n} Standort)",
 		"other": "In Auswahl umbenennen ({n} Standorte)"
 	},
-	"Rename tag in selection": "Tag in Auswahl umbenennen",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "{from} an {n} Standort in {to} umbenennen. Das kann nicht rückgängig gemacht werden.",
 		"other": "{from} an {n} Standorten in {to} umbenennen. Das kann nicht rückgängig gemacht werden."
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"one": "{tags} Tags in Auswahl umbenennen ({n} Standort)",
+		"other": "{tags} Tags in Auswahl umbenennen ({n} Standorte)"
 	},
 	"Rename:": "Umbenennen:",
 	"Rendering": "Rendering",

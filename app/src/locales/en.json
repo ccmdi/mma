@@ -1010,14 +1010,18 @@
 	"Rename folder": "Rename folder",
 	"Rename folder \"{name}\"": "Rename folder \"{name}\"",
 	"Rename folder...": "Rename folder...",
+	"Rename in selection": "Rename in selection",
 	"Rename in selection ({n} locations)": {
 		"one": "Rename in selection ({n} location)",
 		"other": "Rename in selection ({n} locations)"
 	},
-	"Rename tag in selection": "Rename tag in selection",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Rename {from} to {to} across {n} location. This cannot be undone.",
 		"other": "Rename {from} to {to} across {n} locations. This cannot be undone."
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"one": "Rename {tags} tags in selection ({n} location)",
+		"other": "Rename {tags} tags in selection ({n} locations)"
 	},
 	"Rename:": "Rename:",
 	"Rendering": "Rendering",

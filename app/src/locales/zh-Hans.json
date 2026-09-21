@@ -980,12 +980,15 @@
 	"Rename folder": "重命名文件夹",
 	"Rename folder \"{name}\"": "重命名文件夹「{name}」",
 	"Rename folder...": "重命名文件夹...",
+	"Rename in selection": "在选择中重命名",
 	"Rename in selection ({n} locations)": {
 		"other": "在选择中重命名（{n} 个位置）"
 	},
-	"Rename tag in selection": "重命名选择中的标签",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"other": "将 {from} 重命名为 {to}，影响 {n} 个位置。此操作无法撤销。"
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"other": "在选择中重命名 {tags} 个标签（{n} 个位置）"
 	},
 	"Rename:": "重命名：",
 	"Rendering": "渲染",

@@ -1070,18 +1070,24 @@
 	"Rename folder": "Zmień nazwę folderu",
 	"Rename folder \"{name}\"": "Zmień nazwę folderu \"{name}\"",
 	"Rename folder...": "Zmień nazwę folderu...",
+	"Rename in selection": "Zmień nazwę w zaznaczeniu",
 	"Rename in selection ({n} locations)": {
 		"one": "Zmień nazwę w zaznaczeniu ({n} lokalizacja)",
 		"few": "Zmień nazwę w zaznaczeniu ({n} lokalizacje)",
 		"many": "Zmień nazwę w zaznaczeniu ({n} lokalizacji)",
 		"other": "Zmień nazwę w zaznaczeniu ({n} lokalizacji)"
 	},
-	"Rename tag in selection": "Zmień nazwę tagu w zaznaczeniu",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć.",
 		"few": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"many": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"other": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć."
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"one": "Zmień nazwę w zaznaczeniu (tagów: {tags}, {n} lokalizacja)",
+		"few": "Zmień nazwę w zaznaczeniu (tagów: {tags}, {n} lokalizacje)",
+		"many": "Zmień nazwę w zaznaczeniu (tagów: {tags}, {n} lokalizacji)",
+		"other": "Zmień nazwę w zaznaczeniu (tagów: {tags}, {n} lokalizacji)"
 	},
 	"Rename:": "Zmień nazwę:",
 	"Rendering": "Renderowanie",

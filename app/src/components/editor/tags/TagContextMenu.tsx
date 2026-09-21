@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Selection, Selector } from "@/bindings.gen";
+import type { Selection } from "@/bindings.gen";
 import {
 	countIn,
 	deleteTags,
@@ -16,8 +16,6 @@ import { isLeafTag, menuTargetTagIds, type TagTreeNode } from "./tagTreeModel";
 
 type TagContextMenuProps = {
 	node: TagTreeNode;
-	/** Present on a tag row: move the locations in `scope` to another name. */
-	onRenameInSelection?: (scope: Selector) => void;
 	/** Tree mode only: place this tag at a second folder path. */
 	onAddAlias?: () => void;
 	/** Tree mode only: present on an alias leaf to remove it. */
@@ -48,7 +46,6 @@ export function TagContextMenu(props: TagContextMenuProps) {
 
 function TagContextMenuItems({
 	node,
-	onRenameInSelection,
 	onAddAlias,
 	onRemoveAlias,
 	onNewSubfolder,
@@ -60,21 +57,16 @@ function TagContextMenuItems({
 	const targets = useMemo(() => menuTargetTagIds(node, selectedTagIds), [node, selectedTagIds]);
 	const subtreeSize = new Set(node.subtreeTagIds).size;
 	const multi = targets.length > subtreeSize;
-	const [counts, setCounts] = useState({ total: 0, own: 0, inSel: 0, ownInSel: 0 });
+	const [counts, setCounts] = useState({ total: 0, own: 0, inSel: 0 });
 
 	useEffect(() => {
 		const carriers = any(...targets.map(tagSelector));
-		const own = tagId == null ? null : tagSelector(tagId);
-		const within = (s: Selector | null, excluded: number[]) => {
-			const scope = selectionWithout(excluded);
-			return s && scope.selections.length > 0 ? countIn(all(s, scope)) : Promise.resolve(0);
-		};
+		const scope = selectionWithout(targets);
 		void Promise.all([
 			countIn(carriers),
-			own ? countIn(own) : Promise.resolve(0),
-			within(carriers, targets),
-			within(own, tagId == null ? [] : [tagId]),
-		]).then(([total, own, inSel, ownInSel]) => setCounts({ total, own, inSel, ownInSel }));
+			tagId == null ? 0 : countIn(tagSelector(tagId)),
+			scope.selections.length > 0 ? countIn(all(carriers, scope)) : 0,
+		]).then(([total, own, inSel]) => setCounts({ total, own, inSel }));
 	}, [tagId, targets]);
 
 	return (
@@ -130,6 +122,32 @@ function TagContextMenuItems({
 									{ n: counts.inSel },
 								)}
 					</MenuItem>
+					<MenuItem
+						disabled={counts.inSel === 0}
+						onClick={() =>
+							openDialog("rename-in-selection", {
+								tagIds: targets,
+								name: node.tag?.name ?? node.fullPath,
+								scope: selectionWithout(targets),
+							})
+						}
+					>
+						{multi
+							? t(
+									{
+										one: "Rename {tags} tags in selection ({n} location)",
+										other: "Rename {tags} tags in selection ({n} locations)",
+									},
+									{ n: counts.inSel, tags: targets.length },
+								)
+							: t(
+									{
+										one: "Rename in selection ({n} location)",
+										other: "Rename in selection ({n} locations)",
+									},
+									{ n: counts.inSel },
+								)}
+					</MenuItem>
 					{(multi || isFolder) && (
 						<MenuItem
 							onClick={() =>
@@ -146,20 +164,6 @@ function TagContextMenuItems({
 			)}
 			{!multi && (
 				<>
-					{onRenameInSelection && (
-						<MenuItem
-							disabled={counts.ownInSel === 0}
-							onClick={() => onRenameInSelection(selectionWithout([tagId!]))}
-						>
-							{t(
-								{
-									one: "Rename in selection ({n} location)",
-									other: "Rename in selection ({n} locations)",
-								},
-								{ n: counts.ownInSel },
-							)}
-						</MenuItem>
-					)}
 					{isFolder && (
 						<MenuItem onClick={() => openDialog("rename-folder", node.fullPath)}>
 							{t("Rename folder...")}

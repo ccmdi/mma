@@ -1,4 +1,5 @@
 import { useEffect, useEffectEvent, useState, type Dispatch, type SetStateAction } from "react";
+import type { Selector } from "@/bindings.gen";
 
 type DialogPayloads = {
 	commit: void;
@@ -23,6 +24,7 @@ type DialogPayloads = {
 	"inline-panel": string;
 	"recolor-tags": { tagIds: number[]; root: string | null };
 	"rename-folder": string;
+	"rename-in-selection": { tagIds: number[]; name: string; scope: Selector };
 };
 
 export type DialogKey = keyof DialogPayloads;

@@ -1040,16 +1040,21 @@
 	"Rename folder": "Renombrar la carpeta",
 	"Rename folder \"{name}\"": "Renombrar la carpeta \"{name}\"",
 	"Rename folder...": "Renombrar carpeta...",
+	"Rename in selection": "Renombrar en la selección",
 	"Rename in selection ({n} locations)": {
 		"one": "Renombrar en la selección ({n} ubicación)",
 		"many": "Renombrar en la selección ({n} ubicaciones)",
 		"other": "Renombrar en la selección ({n} ubicaciones)"
 	},
-	"Rename tag in selection": "Renombrar la etiqueta en la selección",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Renombrar {from} como {to} en {n} ubicación. Esta acción no se puede deshacer.",
 		"many": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer.",
 		"other": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer."
+	},
+	"Rename {tags} tags in selection ({n} locations)": {
+		"one": "Renombrar {tags} etiquetas en la selección ({n} ubicación)",
+		"many": "Renombrar {tags} etiquetas en la selección ({n} ubicaciones)",
+		"other": "Renombrar {tags} etiquetas en la selección ({n} ubicaciones)"
 	},
 	"Rename:": "Renombrar:",
 	"Rendering": "Renderizado",
