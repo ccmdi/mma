@@ -107,7 +107,7 @@ export function importToMap() {
 	return locs.length;
 }
 
-export async function init(): Promise<() => void> {
+export function init(): () => void {
 	const host = getMapHost();
 	if (!host) throw new Error("No map instance");
 

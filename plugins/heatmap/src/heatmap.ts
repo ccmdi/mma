@@ -214,7 +214,7 @@ async function rebuild() {
   overlay.setProps({ layers: deckLayers });
 }
 
-export async function init(): Promise<() => void> {
+export function init(): () => void {
   const host = getMapHost();
   if (!host) throw new Error("No map instance");
 

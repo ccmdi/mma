@@ -1316,7 +1316,7 @@ async function rebuild() {
   );
   overlay.setProps({ layers: deckLayers });
 }
-async function init() {
+function init() {
   const host = getMapHost();
   if (!host) throw new Error("No map instance");
   overlay = host.createDeckOverlay();
@@ -1687,17 +1687,6 @@ function GradientEditor({ gradient: g }) {
 // heatmap/src/index.tsx
 var { registerPlugin } = MMA;
 registerPlugin({
-  activate() {
-    let cancelled = false;
-    let teardown = null;
-    (async () => {
-      if (cancelled) return;
-      teardown = await init();
-    })();
-    return () => {
-      cancelled = true;
-      teardown?.();
-    };
-  },
+  activate: init,
   sidebar: HeatmapSidebar
 });

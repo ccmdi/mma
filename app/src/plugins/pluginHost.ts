@@ -34,12 +34,7 @@ export function getEnabledPlugins(): Plugin[] {
 
 /** Activate all enabled plugins. Called when a map opens. */
 export function activatePlugins() {
-	for (const plugin of getEnabledPlugins()) {
-		if (!cleanups.has(plugin.id)) {
-			const cleanup = runAsPlugin(plugin.id, () => plugin.activate());
-			if (cleanup) cleanups.set(plugin.id, cleanup);
-		}
-	}
+	for (const plugin of getEnabledPlugins()) activate(plugin);
 	emitEvent("plugins:changed");
 }
 
@@ -54,9 +49,19 @@ export function deactivatePlugins() {
 /** Activate a single plugin by id. */
 export function activatePlugin(id: string) {
 	const plugin = getPlugin(id);
-	if (!plugin || cleanups.has(id)) return;
-	const cleanup = runAsPlugin(id, () => plugin.activate());
-	if (cleanup) cleanups.set(id, cleanup);
+	if (plugin) activate(plugin);
+}
+
+// A plugin that throws while activating stays inactive without stopping the others.
+function activate(plugin: Plugin) {
+	if (cleanups.has(plugin.id)) return;
+	try {
+		const cleanup = runAsPlugin(plugin.id, () => plugin.activate());
+		if (cleanup) cleanups.set(plugin.id, cleanup);
+	} catch (e) {
+		log.error(`[plugin] activate failed for "${plugin.id}":`, e);
+		disposePlugin(plugin.id);
+	}
 }
 
 /** Deactivate a single plugin and stop its sidecar. */

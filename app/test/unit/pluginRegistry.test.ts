@@ -337,6 +337,35 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 	});
 });
 
+describe("a plugin that throws while activating", () => {
+	it("stays inactive without stopping the plugins after it", () => {
+		const after = vi.fn();
+		registerPlugin(
+			makePlugin("a-throws", "A throws", () => {
+				throw new Error("no map");
+			}),
+		);
+		registerPlugin(makePlugin("b-after", "B after", after));
+		setPluginEnabled("a-throws", true);
+		setPluginEnabled("b-after", true);
+		activatePlugins();
+		expect(after).toHaveBeenCalledOnce();
+	});
+
+	it("has what it registered before throwing torn down", () => {
+		const fieldKey = "partial_" + Math.random().toString(36).slice(2);
+		registerPlugin(
+			makePlugin("partial", "Partial", () => {
+				registerEnrichFields([{ key: fieldKey, label: "Partial" }]);
+				throw new Error("no map");
+			}),
+		);
+		setPluginEnabled("partial", true);
+		activatePlugin("partial");
+		expect(getEnrichFieldOptions().some((o) => o.key === fieldKey)).toBe(false);
+	});
+});
+
 describe("isBackgroundPlugin", () => {
 	it("is true only for a loaded plugin with no UI surface", () => {
 		registerPlugin(makePlugin("bg", "Background"));

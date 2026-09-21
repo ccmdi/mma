@@ -35,7 +35,7 @@
 		"name": "Heatmap",
 		"description": "Visualize location density as a heatmap overlay",
 		"icon": "M14,6L10.25,11L13.1,14.8L11.5,16C9.81,13.75 7,10 7,10L1,18H23L14,6Z",
-		"version": "1.2.6",
+		"version": "1.2.7",
 		"main": "index.js",
 		"minAppVersion": "0.11.1",
 		"builds": [
@@ -55,7 +55,7 @@
 		"name": "iNaturalist",
 		"description": "Search and visualize species observations from iNaturalist on the map",
 		"icon": "M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6.5A5.5,5.5 0 0,0 6.5,12A5.5,5.5 0 0,0 12,17.5A5.5,5.5 0 0,0 17.5,12A5.5,5.5 0 0,0 12,6.5M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z",
-		"version": "1.0.8",
+		"version": "1.0.9",
 		"main": "index.js",
 		"minAppVersion": "0.11.1",
 		"builds": [
