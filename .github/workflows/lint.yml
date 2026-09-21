@@ -102,6 +102,9 @@ jobs:
           workspaces: app/src-tauri
       - run: cargo test
         working-directory: app/src-tauri
+      - run: npm run gen:bindings
+        working-directory: app
+      - run: git diff --exit-code -- app/src/bindings.gen.ts app/src/bindings.consts.ts
       - run: cargo test -p mma-geo
         working-directory: app/src-tauri
       - run: cargo test --manifest-path crates/geocode/Cargo.toml
