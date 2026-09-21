@@ -86,13 +86,66 @@ fn header_str(req: &Request<Vec<u8>>, name: header::HeaderName) -> Option<&str> 
     req.headers().get(name).and_then(|v| v.to_str().ok())
 }
 
-fn path_and_query(req: &Request<Vec<u8>>) -> (String, String) {
-    let query = req
-        .uri()
-        .query()
-        .map(|q| format!("?{q}"))
-        .unwrap_or_default();
-    (req.uri().path().to_string(), query)
+/// A custom-scheme request in one shape, whether the desktop webview or the web server received it.
+#[derive(Debug, PartialEq)]
+pub(crate) struct SchemeCall {
+    method: Method,
+    path: String,
+    query: Option<String>,
+    content_type: Option<String>,
+    user_agent: Option<String>,
+    body: Vec<u8>,
+}
+
+impl SchemeCall {
+    fn from_desktop(req: &Request<Vec<u8>>) -> Self {
+        Self {
+            method: req.method().clone(),
+            path: req.uri().path().to_string(),
+            query: req.uri().query().map(str::to_string),
+            content_type: header_str(req, header::CONTENT_TYPE).map(str::to_string),
+            user_agent: header_str(req, header::USER_AGENT).map(str::to_string),
+            body: req.body().clone(),
+        }
+    }
+
+    /// The web server strips the leading slash and sends empty strings for absent parts.
+    #[cfg(any(test, feature = "web-serve"))]
+    pub(crate) fn from_web(
+        method: &str,
+        path: &str,
+        query: String,
+        content_type: String,
+        user_agent: String,
+        body: Vec<u8>,
+    ) -> Self {
+        let present = |s: String| (!s.is_empty()).then_some(s);
+        Self {
+            method: Method::from_bytes(method.as_bytes()).unwrap_or(Method::GET),
+            path: format!("/{path}"),
+            query: present(query),
+            content_type: present(content_type),
+            user_agent: present(user_agent),
+            body,
+        }
+    }
+
+    fn decoded_path(&self) -> String {
+        percent_encoding::percent_decode_str(&self.path)
+            .decode_utf8_lossy()
+            .into_owned()
+    }
+
+    fn query_suffix(&self) -> String {
+        self.query
+            .as_deref()
+            .map(|q| format!("?{q}"))
+            .unwrap_or_default()
+    }
+
+    fn id(&self) -> &str {
+        self.path.trim_start_matches('/')
+    }
 }
 
 /// Run a blocking scheme-handler body off the webview thread, on Tauri's bounded
@@ -253,81 +306,105 @@ pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
     }
 }
 
-/// Register every custom URI scheme on the Tauri builder.
-pub(crate) fn register_schemes(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
-    builder
-        .register_asynchronous_uri_scheme_protocol("mma-buf", |_ctx, req, responder| {
-            if req.method() == Method::OPTIONS {
-                return responder.respond(preflight("GET, POST, OPTIONS"));
+pub(crate) struct Scheme {
+    pub(crate) name: &'static str,
+    /// Methods a cross-origin preflight allows; schemes without one are never preflighted.
+    preflight: Option<&'static str>,
+    pub(crate) handle: fn(SchemeCall) -> Reply,
+}
+
+/// Every custom URI scheme, served the same way by the desktop app and the web server.
+pub(crate) const SCHEMES: &[Scheme] = &[
+    Scheme {
+        name: "mma-buf",
+        preflight: Some("GET, POST, OPTIONS"),
+        handle: |c| {
+            let raw = c.decoded_path();
+            if c.method == Method::POST {
+                write_upload(local_path(&raw), &c.body)
+            } else {
+                read_local(local_path(&raw))
             }
-            let raw = percent_encoding::percent_decode_str(req.uri().path())
-                .decode_utf8_lossy()
-                .into_owned();
-            let post_body = (req.method() == Method::POST).then(|| req.body().clone());
-            respond_async(responder, move || match post_body {
-                Some(body) => write_upload(local_path(&raw), &body),
-                None => read_local(local_path(&raw)),
-            });
-        })
-        .register_asynchronous_uri_scheme_protocol("mma-plugin", |_ctx, req, responder| {
-            let path = percent_encoding::percent_decode_str(req.uri().path())
-                .decode_utf8_lossy()
-                .into_owned();
-            respond_async(responder, move || user::serve_file(&path));
-        })
-        .register_asynchronous_uri_scheme_protocol("svtile", |_ctx, req, responder| {
-            let (path, query) = path_and_query(&req);
-            let url = svtile_url(&path, &query);
-            respond_async(responder, move || fetch_svtile(&url));
-        })
-        .register_asynchronous_uri_scheme_protocol("gmaps", |_ctx, req, responder| {
-            let (path, query) = path_and_query(&req);
-            let url = gmaps_url(&path, &query);
-            let method = req.method().clone();
-            let content_type = header_str(&req, header::CONTENT_TYPE)
-                .unwrap_or("application/x-www-form-urlencoded")
-                .to_string();
-            let user_agent = header_str(&req, header::USER_AGENT)
-                .unwrap_or("")
-                .to_string();
-            let body = req.body().clone();
-            respond_async(responder, move || {
-                proxy_gmaps(method, &url, content_type, user_agent, body)
-            });
-        })
-        .register_asynchronous_uri_scheme_protocol("ggapi", |_ctx, req, responder| {
-            if req.method() == Method::OPTIONS {
-                return responder.respond(preflight("GET, POST, PUT, PATCH, DELETE, OPTIONS"));
-            }
-            let path = req.uri().path().to_string();
-            let query = req.uri().query().map(str::to_string);
-            let method = req.method().clone();
-            let content_type = header_str(&req, header::CONTENT_TYPE).map(str::to_string);
-            let body = req.body().clone();
-            respond_async(responder, move || {
-                geoguessr::proxy(
-                    method,
-                    &path,
-                    query.as_deref(),
-                    content_type.as_deref(),
-                    body,
-                )
-            });
-        })
-        .register_asynchronous_uri_scheme_protocol("gdoc", |_ctx, req, responder| {
-            let doc_id = req.uri().path().trim_start_matches('/').to_string();
-            respond_async(responder, move || gdoc::fetch_gdoc(&doc_id));
-        })
-        .register_asynchronous_uri_scheme_protocol("googl", |_ctx, req, responder| {
-            let id = req.uri().path().trim_start_matches('/').to_string();
-            let mapsapp = req
-                .uri()
-                .query()
+        },
+    },
+    Scheme {
+        name: "mma-plugin",
+        preflight: None,
+        handle: |c| user::serve_file(&c.decoded_path()),
+    },
+    Scheme {
+        name: "svtile",
+        preflight: None,
+        handle: |c| fetch_svtile(&svtile_url(&c.path, &c.query_suffix())),
+    },
+    Scheme {
+        name: "gmaps",
+        preflight: None,
+        handle: |c| {
+            let url = gmaps_url(&c.path, &c.query_suffix());
+            let content_type = c
+                .content_type
+                .unwrap_or_else(|| "application/x-www-form-urlencoded".to_string());
+            proxy_gmaps(
+                c.method,
+                &url,
+                content_type,
+                c.user_agent.unwrap_or_default(),
+                c.body,
+            )
+        },
+    },
+    Scheme {
+        name: "ggapi",
+        preflight: Some("GET, POST, PUT, PATCH, DELETE, OPTIONS"),
+        handle: |c| {
+            geoguessr::proxy(
+                c.method,
+                &c.path,
+                c.query.as_deref(),
+                c.content_type.as_deref(),
+                c.body,
+            )
+        },
+    },
+    Scheme {
+        name: "gdoc",
+        preflight: None,
+        handle: |c| gdoc::fetch_gdoc(c.id()),
+    },
+    Scheme {
+        name: "googl",
+        preflight: None,
+        handle: |c| {
+            let mapsapp = c
+                .query
+                .as_deref()
                 .unwrap_or("")
                 .split('&')
                 .any(|kv| kv == "source=mapsapp");
-            respond_async(responder, move || resolve_googl(&id, mapsapp));
-        })
+            resolve_googl(c.id(), mapsapp)
+        },
+    },
+];
+
+/// Register every custom URI scheme on the Tauri builder.
+pub(crate) fn register_schemes(
+    mut builder: tauri::Builder<tauri::Wry>,
+) -> tauri::Builder<tauri::Wry> {
+    for scheme in SCHEMES {
+        builder = builder.register_asynchronous_uri_scheme_protocol(
+            scheme.name,
+            move |_ctx, req, responder| {
+                if let (Some(methods), &Method::OPTIONS) = (scheme.preflight, req.method()) {
+                    return responder.respond(preflight(methods));
+                }
+                let call = SchemeCall::from_desktop(&req);
+                let handle = scheme.handle;
+                respond_async(responder, move || handle(call));
+            },
+        );
+    }
+    builder
 }
 
 #[cfg(test)]

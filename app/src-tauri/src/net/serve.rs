@@ -5,14 +5,11 @@
 //!
 //! Gate: `--features web-serve`. Entry: the `mma-serve` bin.
 
-use std::fs;
 use tauri::http::header::CONTENT_TYPE;
 use tauri::http::Response as HttpResponse;
 use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
-use crate::net::gdoc;
-use crate::net::geoguessr;
 use crate::net::proxy;
 use crate::store::engine;
 use crate::store::storage;
@@ -62,71 +59,19 @@ fn relay(r: HttpResponse<Vec<u8>>) -> SchemeResponse {
     }
 }
 
-fn qs(query: &str) -> String {
-    if query.is_empty() {
-        String::new()
-    } else {
-        format!("?{query}")
-    }
-}
-
-/// The one app-facing hook: register each custom URI scheme handler with the
-/// plugin (same logic the desktop `register_uri_scheme_protocol` handlers use).
+/// Serve every app URI scheme through the web server.
 fn register_web_schemes() {
-    register_scheme("mma-buf", |req: SchemeRequest| {
-        let path = percent_encoding::percent_decode_str(&req.path)
-            .decode_utf8_lossy()
-            .into_owned();
-        if req.method.eq_ignore_ascii_case("POST") {
-            return relay(proxy::write_upload(&path, &req.body));
-        }
-        match fs::read(&path) {
-            Ok(data) => SchemeResponse::ok("application/octet-stream", data),
-            Err(e) => SchemeResponse::not_found(format!("file not found: {path} - {e}")),
-        }
-    });
-    register_scheme("svtile", |req: SchemeRequest| {
-        let url = format!(
-            "https://lh3.ggpht.com/jsapi2/a/b/c/{}{}",
-            req.path,
-            qs(&req.query)
-        );
-        relay(proxy::fetch_svtile(&url))
-    });
-    register_scheme("gmaps", |req: SchemeRequest| {
-        let url = format!("https://www.google.com/{}{}", req.path, qs(&req.query));
-        let method =
-            reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
-        let ct = if req.content_type.is_empty() {
-            "application/x-www-form-urlencoded".to_string()
-        } else {
-            req.content_type
-        };
-        relay(proxy::proxy_gmaps(
-            method,
-            &url,
-            ct,
-            req.user_agent,
-            req.body,
-        ))
-    });
-    register_scheme("ggapi", |req: SchemeRequest| {
-        let method =
-            reqwest::Method::from_bytes(req.method.as_bytes()).unwrap_or(reqwest::Method::GET);
-        let content_type = (!req.content_type.is_empty()).then_some(req.content_type);
-        relay(geoguessr::proxy(
-            method,
-            &req.path,
-            Some(&req.query),
-            content_type.as_deref(),
-            req.body,
-        ))
-    });
-    register_scheme("gdoc", |req: SchemeRequest| {
-        relay(gdoc::fetch_gdoc(&req.path))
-    });
-    register_scheme("googl", |req: SchemeRequest| {
-        let mapsapp = req.query.split('&').any(|kv| kv == "source=mapsapp");
-        relay(proxy::resolve_googl(&req.path, mapsapp))
-    });
+    for scheme in proxy::SCHEMES {
+        let handle = scheme.handle;
+        register_scheme(scheme.name, move |req: SchemeRequest| {
+            relay(handle(proxy::SchemeCall::from_web(
+                &req.method,
+                &req.path,
+                req.query,
+                req.content_type,
+                req.user_agent,
+                req.body,
+            )))
+        });
+    }
 }
