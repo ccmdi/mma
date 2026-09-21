@@ -59,10 +59,6 @@ fn emit(l: &Location, heading: i32, e: &str, out: &mut Vec<String>) {
             None => String::new(),
         }),
         "ArrowCount" => out.push(format!("ArrowCount-{}", g.arrow_count)),
-        _ if e.starts_with("DrivingDirectionAngle") => {
-            int_tag("DrivingDirectionAngle", g.driving_direction_angle, e, out)
-        }
-        _ if e.starts_with("Heading") => int_tag("Heading", heading, e, out),
         "DescriptionLength" => out.push(format!(
             "DescriptionLength-{}",
             g.description_length
@@ -89,53 +85,50 @@ fn emit(l: &Location, heading: i32, e: &str, out: &mut Vec<String>) {
                 .collect::<Vec<_>>()
                 .join("|")
         )),
-        _ if e.starts_with("Buildings200") => int_tag("Buildings200", o.buildings200, e, out),
-        _ if e.starts_with("Buildings100") => int_tag("Buildings100", o.buildings100, e, out),
-        _ if e.starts_with("Buildings25") => int_tag("Buildings25", o.buildings25, e, out),
-        _ if e.starts_with("Buildings10") => int_tag("Buildings10", o.buildings10, e, out),
-        _ if e.starts_with("Roads200") => int_tag("Roads200", o.roads200, e, out),
-        _ if e.starts_with("Roads100") => int_tag("Roads100", o.roads100, e, out),
-        _ if e.starts_with("Roads50") => int_tag("Roads50", o.roads50, e, out),
-        _ if e.starts_with("Roads25") => int_tag("Roads25", o.roads25, e, out),
-        _ if e.starts_with("Roads10") => int_tag("Roads10", o.roads10, e, out),
-        _ if e.starts_with("Roads0") => int_tag("Roads0", o.roads0, e, out),
-        _ if e.starts_with("Tunnels200") => int_tag("Tunnels200", o.tunnels200, e, out),
-        _ if e.starts_with("Tunnels10") => int_tag("Tunnels10", o.tunnels10, e, out),
-        _ if e.starts_with("ClosestCoast") => {
-            if let Some(v) = o.closest_coast {
-                int_tag("ClosestCoast", v, e, out);
-            }
-        }
-        _ if e.starts_with("ClosestLake") => {
-            if let Some(v) = o.closest_lake {
-                int_tag("ClosestLake", v, e, out);
-            }
-        }
-        _ if e.starts_with("ClosestRiver") => {
-            if let Some(v) = o.closest_river {
-                int_tag("ClosestRiver", v, e, out);
-            }
-        }
-        _ if e.starts_with("ClosestRailway") => {
-            if let Some(v) = o.closest_railway {
-                int_tag("ClosestRailway", v, e, out);
-            }
-        }
-        _ if e.starts_with("HighwayTypeCount") => {
-            int_tag("HighwayTypeCount", o.road_type.count_ones() as i32, e, out)
-        }
-        _ if e.starts_with("Year") => int_tag("Year", g.year, e, out),
-        _ if e.starts_with("Month") => int_tag("Month", g.month, e, out),
-        _ if e.starts_with("ResolutionHeight") => {
-            int_tag("ResolutionHeight", g.resolution_height, e, out)
-        }
         "IsResidential" => out.push(format!(
             "IsResidential-{}",
             if o.is_residential { "Yes" } else { "No" }
         )),
-        _ => {}
+        _ => {
+            if let Some((name, measure)) = INT_TAGS.iter().find(|(name, _)| e.starts_with(name)) {
+                if let Some(value) = measure(l, heading) {
+                    int_tag(name, value, e, out);
+                }
+            }
+        }
     }
 }
+type Measure = fn(&Location, i32) -> Option<i32>;
+/// Numeric tags, bare or bucketed (`Roads10-50`). First prefix match wins, so a name sits
+/// above any shorter name it starts with.
+const INT_TAGS: [(&str, Measure); 22] = [
+    ("DrivingDirectionAngle", |l, _| {
+        Some(l.google.driving_direction_angle)
+    }),
+    ("Heading", |_, heading| Some(heading)),
+    ("Buildings200", |l, _| Some(l.osm.buildings200)),
+    ("Buildings100", |l, _| Some(l.osm.buildings100)),
+    ("Buildings25", |l, _| Some(l.osm.buildings25)),
+    ("Buildings10", |l, _| Some(l.osm.buildings10)),
+    ("Roads200", |l, _| Some(l.osm.roads200)),
+    ("Roads100", |l, _| Some(l.osm.roads100)),
+    ("Roads50", |l, _| Some(l.osm.roads50)),
+    ("Roads25", |l, _| Some(l.osm.roads25)),
+    ("Roads10", |l, _| Some(l.osm.roads10)),
+    ("Roads0", |l, _| Some(l.osm.roads0)),
+    ("Tunnels200", |l, _| Some(l.osm.tunnels200)),
+    ("Tunnels10", |l, _| Some(l.osm.tunnels10)),
+    ("ClosestCoast", |l, _| l.osm.closest_coast),
+    ("ClosestLake", |l, _| l.osm.closest_lake),
+    ("ClosestRiver", |l, _| l.osm.closest_river),
+    ("ClosestRailway", |l, _| l.osm.closest_railway),
+    ("HighwayTypeCount", |l, _| {
+        Some(l.osm.road_type.count_ones() as i32)
+    }),
+    ("Year", |l, _| Some(l.google.year)),
+    ("Month", |l, _| Some(l.google.month)),
+    ("ResolutionHeight", |l, _| Some(l.google.resolution_height)),
+];
 fn int_tag(name: &str, value: i32, e: &str, out: &mut Vec<String>) {
     if e.contains('-') {
         out.push(range(name, value, &e.replace(&format!("{name}-"), ""), "").unwrap_or_default());
@@ -168,3 +161,7 @@ fn season(country_code: &str, month: i32) -> &'static str {
         _ => panic!("month {month} out of range for Season tag"),
     }
 }
+
+#[cfg(test)]
+#[path = "tags.test.rs"]
+mod tests;
