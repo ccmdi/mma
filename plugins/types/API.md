@@ -1158,6 +1158,22 @@ renameField(
 Rename extra-field `from` to `to` across all locations, its definition, and selections.
 When a location already holds `to`, `winner` decides which value survives.
 
+### renameTagsIn
+
+`stable` · unreleased
+
+```ts
+renameTagsIn(
+  tagIds: number[],
+  name: string,
+  selector: Selector,
+): Promise<void>
+```
+
+Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
+found or created, in one undoable mutation. Every other location keeps its tags, so a tag
+the selection only partly covers splits in two.
+
 ### reorderTags
 
 `stable` · since v0.4.0

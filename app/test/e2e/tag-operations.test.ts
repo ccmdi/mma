@@ -226,6 +226,54 @@ describe("Tag deletion cascade", () => {
 	});
 });
 
+describe("Rename tags within a selection", () => {
+	useMap("E2E Tag Rename In Selection");
+	let fromId: number;
+	let intoId: number;
+	let locIds: number[];
+
+	before(async () => {
+		fromId = (await createTag("From")).id;
+		intoId = (await createTag("Into")).id;
+		locIds = await seedLocs(10, (i) => ({ lat: i, lng: i, tags: i < 8 ? [fromId] : [intoId] }));
+	});
+
+	const counts = () =>
+		withApi(
+			async (api, a, b) => {
+				const c = api.getTagCounts() as any;
+				return { from: c[String(a)] ?? 0, into: c[String(b)] ?? 0 };
+			},
+			fromId,
+			intoId,
+		);
+
+	it("splits a tag, moving only the selected locations to a new name", async () => {
+		const created = await withApi(
+			async (api, a, ids) => {
+				await api.renameTagsIn([a], "Split", { type: "Locations", locations: ids, name: null });
+				const tag = Object.values(api.getTags()).find((t: any) => t.name === "Split") as any;
+				return (api.getTagCounts() as any)[String(tag.id)] ?? 0;
+			},
+			fromId,
+			locIds.slice(0, 3),
+		);
+		expect(created).toBe(3);
+		expect(await counts()).toEqual({ from: 5, into: 2 });
+	});
+
+	it("merges the selected locations into a tag that already exists", async () => {
+		await withApi(
+			async (api, a, ids) => {
+				await api.renameTagsIn([a], "Into", { type: "Locations", locations: ids, name: null });
+			},
+			fromId,
+			locIds.slice(3, 5),
+		);
+		expect(await counts()).toEqual({ from: 3, into: 4 });
+	});
+});
+
 // ============================================================================
 // 5. Tag color updates
 // ============================================================================

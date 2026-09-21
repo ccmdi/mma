@@ -2,7 +2,9 @@ import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition 
 import type { Tag, TagPatch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
+	currentSelection,
 	deleteTags,
+	renameTagsIn,
 	getMapState,
 	getVisibleTags,
 	reorderTags,
@@ -342,9 +344,6 @@ export function TagManager() {
 				<RenameInSelectionDialog
 					open
 					tag={renamingTag}
-					commit={commitTags}
-					aliases={aliases}
-					setAliases={setAliases}
 					onOpenChange={(open) => !open && setRenamingTag(null)}
 				/>
 			)}
@@ -399,26 +398,12 @@ function RenameInSelectionDialog({
 	open,
 	onOpenChange,
 	tag,
-	commit,
-	aliases,
-	setAliases,
-}: DialogProps & {
-	tag: { id: number; name: string };
-	commit: (updates: Update<TagPatch>[]) => void;
-	aliases: Record<string, number>;
-	setAliases: (v: Record<string, number>) => void;
-}) {
+}: DialogProps & { tag: { id: number; name: string } }) {
 	const [name, setName] = useState(tag.name);
 
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed !== tag.name) {
-			commit([{ id: tag.id, patch: { name: trimmed } }]);
-			const synced = syncAliasSegments(aliases, [
-				{ id: tag.id, oldName: tag.name, newName: trimmed },
-			]);
-			if (synced) setAliases(synced);
-		}
+		if (trimmed && trimmed !== tag.name) void renameTagsIn([tag.id], trimmed, currentSelection());
 		onOpenChange(false);
 	};
 

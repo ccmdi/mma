@@ -38,6 +38,8 @@ import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 import type { Selection, Selector, SpacedPickResult } from "@/bindings.gen";
 import {
 	addSelection,
+	all,
+	any,
 	batch,
 	buildSelection,
 	removeSelection,
@@ -1057,6 +1059,16 @@ export async function createTags(
 	}
 	emitEvent("tag:add", resolved);
 	return resolved;
+}
+
+/** Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
+ *  found or created, in one undoable mutation. Every other location keeps its tags, so a tag
+ *  the selection only partly covers splits in two. */
+export async function renameTagsIn(tagIds: number[], name: string, selector: Selector) {
+	const [target] = await createTags([name]);
+	const sources = tagIds.filter((id) => id !== target.id);
+	if (sources.length === 0) return;
+	await setTags([target.id], sources, all(any(...sources.map(tagSelector)), selector));
 }
 
 /** Rename or recolor tags. A rename colliding with an existing tag name
