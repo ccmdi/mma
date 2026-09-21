@@ -9,6 +9,7 @@ import {
 	useMapState,
 	getTags,
 } from "@/store/useMapStore";
+import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { updateFilterSelection } from "@/store/selectionActions";
 import {
 	batch,
@@ -159,6 +160,29 @@ export const SelectionRow = memo(function SelectionRow({
 
 	const fieldEntries = useExtraFieldKeys();
 
+	const handleMouseDown = useItemDrag((e) => {
+		if ((e.target as HTMLElement).closest("button, [role='menu']")) return null;
+		const key = selection.key;
+		const pk = parentKey ?? null;
+		const startY = e.clientY;
+		const setAlt = (altKey: boolean) => {
+			if (activeDrag) activeDrag = { ...activeDrag, altKey };
+			notifyDragListeners();
+		};
+		return {
+			onStart: (ev) => {
+				activeDrag = { key, parentKey: pk, startY, altKey: ev.altKey };
+				notifyDragListeners();
+			},
+			onMove: (ev) => setAlt(ev.altKey),
+			onKey: (ev) => setAlt(ev.altKey),
+			onEnd: () => {
+				activeDrag = null;
+				notifyDragListeners();
+			},
+		};
+	});
+
 	if (!map) return null;
 	const inner = innerOf(selection);
 	const stepFilter = (() => {
@@ -213,62 +237,6 @@ export const SelectionRow = memo(function SelectionRow({
 			new Blob([JSON.stringify(fc)], { type: "application/geo+json" }),
 			`${name}.geojson`,
 		);
-	};
-
-	const handleMouseDown = (e: React.MouseEvent) => {
-		if (e.button !== 0) return;
-		if ((e.target as HTMLElement).closest("button, [role='menu']")) return;
-		e.preventDefault();
-		const startY = e.clientY;
-		const key = selection.key;
-		const pk = parentKey ?? null;
-		let started = false;
-
-		const onMove = (me: MouseEvent) => {
-			if (!started && Math.abs(me.clientY - startY) > 4) {
-				started = true;
-				activeDrag = { key, parentKey: pk, startY, altKey: me.altKey };
-				notifyDragListeners();
-			}
-			if (started && activeDrag) {
-				activeDrag = { ...activeDrag, altKey: me.altKey };
-				notifyDragListeners();
-			}
-		};
-
-		const ac = new AbortController();
-		const onUp = () => {
-			ac.abort();
-			if (started) {
-				activeDrag = null;
-				notifyDragListeners();
-			}
-		};
-
-		const onKey = (ke: KeyboardEvent) => {
-			if (ke.key === "Escape") {
-				activeDrag = null;
-				notifyDragListeners();
-				onUp();
-				return;
-			}
-			if (activeDrag) {
-				activeDrag = { ...activeDrag, altKey: ke.altKey };
-				notifyDragListeners();
-			}
-		};
-		const onKeyUp = (ke: KeyboardEvent) => {
-			if (activeDrag) {
-				activeDrag = { ...activeDrag, altKey: ke.altKey };
-				notifyDragListeners();
-			}
-		};
-
-		const { signal } = ac;
-		window.addEventListener("mousemove", onMove, { signal });
-		window.addEventListener("mouseup", onUp, { signal });
-		window.addEventListener("keydown", onKey, { signal });
-		window.addEventListener("keyup", onKeyUp, { signal });
 	};
 
 	const handleMouseMove = (e: React.MouseEvent) => {

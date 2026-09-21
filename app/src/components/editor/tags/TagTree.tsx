@@ -21,6 +21,7 @@ import { textColorFor, rgbToHex } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
 import { toggleTagSelections } from "@/store/selectionActions";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
+import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { useSetting } from "@/store/settings";
 import { TagContextMenu } from "./TagContextMenu";
 import { rebasePath } from "@/lib/data/tagPaths";
@@ -244,19 +245,14 @@ export function TagTreeView({
 		setDropTarget(v);
 	};
 
-	const handleDragMouseDown = useStableHandler((e: React.MouseEvent, node: TagTreeNode) => {
-		draggedRef.current = false; // fresh interaction; a drag that ends off-row won't fire a click to clear it
-		if (!dragEnabled || e.button !== 0 || node.isAlias) return; // alias leaves aren't reorderable
-		if ((e.target as HTMLElement).closest("button")) return;
-		e.preventDefault(); // don't start a text selection
-		(e.currentTarget as HTMLElement).focus(); // ...which also suppresses the click's own focus
-		const startX = e.clientX;
-		const startY = e.clientY;
+	const startDrag = useItemDrag((e, node: TagTreeNode) => {
+		if (!dragEnabled || node.isAlias) return null; // alias leaves aren't reorderable
+		if ((e.target as HTMLElement).closest("button")) return null;
+		(e.currentTarget as HTMLElement).focus(); // the drag suppresses the click's own focus
 		// Grab offset within the pill, so the pickup point stays under the cursor (not the top-left corner).
 		const rect = e.currentTarget.getBoundingClientRect();
 		const grabX = e.clientX - rect.left;
 		const grabY = e.clientY - rect.top;
-		let started = false;
 		let block = new Set([node.fullPath]);
 		let multi: boolean | null = null;
 		// Ctrl is read live during the drag, so pressing/releasing it mid-gesture
@@ -272,15 +268,11 @@ export function TagTreeView({
 			setDragPaths(block);
 			setDragLeaf((prev) => (prev ? { ...prev, extra: block.size - 1 } : prev));
 		};
-		const ac = new AbortController();
-		const onMove = (me: MouseEvent) => {
-			if (!started && (Math.abs(me.clientX - startX) > 4 || Math.abs(me.clientY - startY) > 4)) {
-				started = true;
+		return {
+			onStart: () => {
 				draggedRef.current = true;
 				dragNodeRef.current = node;
-				document.body.style.userSelect = "none";
 				document.body.classList.add("mm-tag-dragging");
-				dragPosRef.current = { x: me.clientX - grabX, y: me.clientY - grabY };
 				if (isLeafTag(node)) {
 					setDragLeaf({
 						color: node.tag!.color,
@@ -289,8 +281,8 @@ export function TagTreeView({
 						extra: 0,
 					});
 				}
-			}
-			if (started) {
+			},
+			onMove: (me) => {
 				syncBlock(me);
 				dragPosRef.current = { x: me.clientX - grabX, y: me.clientY - grabY };
 				const el = previewRef.current;
@@ -298,24 +290,12 @@ export function TagTreeView({
 					el.style.left = `${dragPosRef.current.x - 4}px`;
 					el.style.top = `${dragPosRef.current.y - 4}px`;
 				}
-			}
-		};
-		const onUp = () => {
-			ac.abort();
-			document.body.style.userSelect = "";
-			document.body.classList.remove("mm-tag-dragging");
-			const dropT = dropTargetRef.current;
-			const clear = () => {
-				dragNodeRef.current = null;
-				dragBlockRef.current = null;
-				dropTargetRef.current = null;
-				setDragPaths(null);
-				setDropTarget(null);
-				setDragLeaf(null);
-			};
+			},
 			// onReorder/onMoveInto render optimistically, so clearing in the same
 			// batch settles the drop instantly with no flash back to the old slot.
-			if (started && dropT) {
+			onDrop: () => {
+				const dropT = dropTargetRef.current;
+				if (!dropT) return;
 				if (dropT.position === "into") {
 					const move = moveIntoFolder(
 						treeRef.current,
@@ -336,11 +316,22 @@ export function TagTreeView({
 					);
 					if (order) onReorder(order);
 				}
-			}
-			clear();
+			},
+			onEnd: () => {
+				document.body.classList.remove("mm-tag-dragging");
+				dragNodeRef.current = null;
+				dragBlockRef.current = null;
+				dropTargetRef.current = null;
+				setDragPaths(null);
+				setDropTarget(null);
+				setDragLeaf(null);
+			},
 		};
-		window.addEventListener("mousemove", onMove, { signal: ac.signal });
-		window.addEventListener("mouseup", onUp, { signal: ac.signal });
+	});
+
+	const handleDragMouseDown = useStableHandler((e: React.MouseEvent, node: TagTreeNode) => {
+		draggedRef.current = false; // fresh interaction; a drag that ends off-row won't fire a click to clear it
+		startDrag(e, node);
 	});
 
 	const handleDragMouseMove = useStableHandler(

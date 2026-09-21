@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
+import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Notice } from "@/components/primitives/Hint";
 import {
@@ -269,7 +270,7 @@ const MapEntry = React.memo(function MapEntry({
 }: {
 	meta: MapMeta;
 	isDragging: boolean;
-	onDragStart: (item: DragItem, e: React.PointerEvent) => void;
+	onDragStart: (e: React.MouseEvent, item: DragItem) => void;
 	onAction: (action: MapAction) => void;
 	onLabelClick: (label: string) => void;
 	fields: MapListField[];
@@ -295,11 +296,9 @@ const MapEntry = React.memo(function MapEntry({
 				tooltip={false}
 				reveal
 				draggable={false}
-				onPointerDown={(e) => {
-					if (e.button !== 0) return;
-					e.preventDefault();
-					onDragStart({ id: meta.id, folder: meta.folder, name: meta.name || "(unnamed)" }, e);
-				}}
+				onMouseDown={(e) =>
+					onDragStart(e, { id: meta.id, folder: meta.folder, name: meta.name || "(unnamed)" })
+				}
 			/>
 			<a
 				href="#"
@@ -373,7 +372,7 @@ const FolderEntry = React.memo(function FolderEntry({
 	name: string;
 	maps: MapMeta[];
 	dragId: string | null;
-	onDragStart: (item: DragItem, e: React.PointerEvent) => void;
+	onDragStart: (e: React.MouseEvent, item: DragItem) => void;
 	onMapAction: (action: MapAction) => void;
 	onFolderAction: (action: FolderAction) => void;
 	onLabelClick: (label: string) => void;
@@ -852,61 +851,50 @@ export function MapList() {
 	const handleMapAction = useCallback((action: MapAction) => setActiveAction(action), []);
 	const handleFolderAction = useCallback((action: FolderAction) => setActiveAction(action), []);
 
-	const handleDragStart = useCallback((item: DragItem, e: React.PointerEvent) => {
-		setDragItem(item);
-		document.body.style.userSelect = "none";
-
-		if (previewRef.current) {
-			previewRef.current.style.left = `${e.clientX + 12}px`;
-			previewRef.current.style.top = `${e.clientY - 12}px`;
-		}
-
-		const onMove = (ev: PointerEvent) => {
+	const handleDragStart = useItemDrag((_e, item: DragItem) => {
+		const placePreview = (ev: MouseEvent) => {
 			if (previewRef.current) {
 				previewRef.current.style.left = `${ev.clientX + 12}px`;
 				previewRef.current.style.top = `${ev.clientY - 12}px`;
 			}
-
-			const target = hitTestDropTarget(ev.clientX, ev.clientY);
-			dropRef.current = target;
-
-			if (prevHighlight.current) {
-				prevHighlight.current.classList.remove("map-list__drop");
-				prevHighlight.current = null;
-			}
-
-			if (target !== false && target !== item.folder) {
-				const selector =
-					target === null ? "[data-drop-folder='']" : `[data-drop-folder='${CSS.escape(target)}']`;
-				const el = document.querySelector<HTMLElement>(selector);
-				if (el) {
-					el.classList.add("map-list__drop");
-					prevHighlight.current = el;
+		};
+		const clearHighlight = () => {
+			prevHighlight.current?.classList.remove("map-list__drop");
+			prevHighlight.current = null;
+		};
+		return {
+			onStart: (ev) => {
+				setDragItem(item);
+				placePreview(ev);
+			},
+			onMove: (ev) => {
+				placePreview(ev);
+				const target = hitTestDropTarget(ev.clientX, ev.clientY);
+				dropRef.current = target;
+				clearHighlight();
+				if (target !== false && target !== item.folder) {
+					const selector =
+						target === null
+							? "[data-drop-folder='']"
+							: `[data-drop-folder='${CSS.escape(target)}']`;
+					const el = document.querySelector<HTMLElement>(selector);
+					if (el) {
+						el.classList.add("map-list__drop");
+						prevHighlight.current = el;
+					}
 				}
-			}
+			},
+			onDrop: () => {
+				const target = dropRef.current;
+				if (target !== false && target !== item.folder) void moveMapToFolder(item.id, target);
+			},
+			onEnd: () => {
+				clearHighlight();
+				dropRef.current = false;
+				setDragItem(null);
+			},
 		};
-
-		const drag = new AbortController();
-		const onUp = () => {
-			drag.abort();
-			document.body.style.userSelect = "";
-
-			if (prevHighlight.current) {
-				prevHighlight.current.classList.remove("map-list__drop");
-				prevHighlight.current = null;
-			}
-
-			const target = dropRef.current;
-			if (target !== false && target !== item.folder) {
-				void moveMapToFolder(item.id, target);
-			}
-			dropRef.current = false;
-			setDragItem(null);
-		};
-
-		document.addEventListener("pointermove", onMove, { signal: drag.signal });
-		document.addEventListener("pointerup", onUp, { signal: drag.signal });
-	}, []);
+	});
 
 	return (
 		<div className="page-map-list">

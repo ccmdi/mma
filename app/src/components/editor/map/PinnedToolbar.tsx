@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import clsx from "clsx";
 import { useEventValue } from "@/lib/events";
 import { useSetting } from "@/store/settings";
@@ -15,6 +15,7 @@ import { useDialog } from "@/store/dialogBus";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 import { toggleInSet } from "@/lib/util/util";
+import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
@@ -34,6 +35,22 @@ export function PinnedToolbar({
 	const [openPanels, setOpenPanels] = useState<Set<string>>(new Set());
 	const [dragIdx, setDragIdx] = useState<number | null>(null);
 	const [dropIdx, setDropIdx] = useState<number | null>(null);
+	const dropIdxRef = useRef<number | null>(null);
+	const setDrop = (i: number | null) => {
+		dropIdxRef.current = i;
+		setDropIdx(i);
+	};
+	const handleDragStart = useItemDrag((_e, i: number) => ({
+		onStart: () => setDragIdx(i),
+		onDrop: () => {
+			const to = dropIdxRef.current;
+			if (to !== null && to !== i) reorderPinned(i, to);
+		},
+		onEnd: () => {
+			setDragIdx(null);
+			setDrop(null);
+		},
+	}));
 	useEventValue("store:changed", () =>
 		pinned.map((id) => (getCommand(id)?.enabled?.() === false ? "0" : "1")).join(""),
 	);
@@ -60,37 +77,8 @@ export function PinnedToolbar({
 	if (pinned.length === 0 && !right) return null;
 	const togglePanel = (id: string) => setOpenPanels((prev) => toggleInSet(prev, id));
 
-	const handleDragStart = (i: number, e: React.MouseEvent) => {
-		if (e.button !== 0) return;
-		e.preventDefault();
-		const startX = e.clientX;
-		let started = false;
-
-		const onMove = (me: MouseEvent) => {
-			if (!started && Math.abs(me.clientX - startX) > 4) {
-				started = true;
-				setDragIdx(i);
-			}
-		};
-		const drag = new AbortController();
-		const onUp = () => {
-			drag.abort();
-			if (started) {
-				setDragIdx((di) => {
-					setDropIdx((dri) => {
-						if (di !== null && dri !== null && di !== dri) reorderPinned(di, dri);
-						return null;
-					});
-					return null;
-				});
-			}
-		};
-		window.addEventListener("mousemove", onMove, { signal: drag.signal });
-		window.addEventListener("mouseup", onUp, { signal: drag.signal });
-	};
-
 	const handleDragOver = (i: number) => {
-		if (dragIdx !== null && i !== dragIdx) setDropIdx(i);
+		if (dragIdx !== null && i !== dragIdx) setDrop(i);
 	};
 
 	return (
@@ -105,7 +93,7 @@ export function PinnedToolbar({
 										<span
 											className={`selection-manager__bar-sep${dragIdx === i ? " is-dragging" : ""}`}
 											data-drop={dropIdx === i ? "" : undefined}
-											onMouseDown={(e) => handleDragStart(i, e)}
+											onMouseDown={(e) => handleDragStart(e, i)}
 											onMouseMove={() => handleDragOver(i)}
 										/>
 									}
@@ -140,7 +128,7 @@ export function PinnedToolbar({
 							data-qa={id}
 							data-drop={dropIdx === i ? "" : undefined}
 							onClick={disabled ? undefined : handleClick}
-							onMouseDown={(e) => handleDragStart(i, e)}
+							onMouseDown={(e) => handleDragStart(e, i)}
 							onMouseMove={() => handleDragOver(i)}
 						/>
 					) : (
@@ -152,7 +140,7 @@ export function PinnedToolbar({
 							})}
 							data-drop={dropIdx === i ? "" : undefined}
 							onClick={disabled ? undefined : handleClick}
-							onMouseDown={(e) => handleDragStart(i, e)}
+							onMouseDown={(e) => handleDragStart(e, i)}
 							onMouseMove={() => handleDragOver(i)}
 						>
 							{t(command.label)}
