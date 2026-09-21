@@ -10,6 +10,7 @@ const OFFSET = 5;
 const ARROW_W = 10;
 const ARROW_H = 5;
 const MARGIN = 4;
+const OVERLAP = 1;
 
 interface Shown {
 	content: string;
@@ -80,15 +81,16 @@ function place(trigger: DOMRect, tip: DOMRect, side: Side, align: Align) {
 		y = clamp(y, MARGIN, vh - tip.height - MARGIN);
 	}
 
+	const SWAP = (ARROW_W - ARROW_H) / 2;
 	const arrowX = vertical
 		? clamp(trigger.left + trigger.width / 2 - x, ARROW_W, tip.width - ARROW_W)
 		: resolved === "left"
-			? tip.width
-			: -ARROW_H;
+			? tip.width - SWAP - OVERLAP
+			: -ARROW_H - SWAP + OVERLAP;
 	const arrowY = vertical
 		? resolved === "top"
-			? tip.height
-			: -ARROW_H
+			? tip.height - OVERLAP
+			: -ARROW_H + OVERLAP
 		: clamp(trigger.top + trigger.height / 2 - y, ARROW_W, tip.height - ARROW_W);
 
 	return { x, y, resolved, arrowX, arrowY, vertical };
@@ -166,8 +168,9 @@ function TooltipHost() {
 		if (!arrow) return;
 		const rotate =
 			resolved === "top" ? 0 : resolved === "bottom" ? 180 : resolved === "left" ? 270 : 90;
-		const ax = Math.round(arrowX - (vertical ? ARROW_W / 2 : 0));
-		const ay = Math.round(arrowY - (vertical ? 0 : ARROW_W / 2));
+		// Absolute children start at the padding box, so the surface's border offsets them.
+		const ax = Math.round(arrowX - (vertical ? ARROW_W / 2 : 0) - tip.clientLeft);
+		const ay = Math.round(arrowY - (vertical ? 0 : ARROW_W / 2) - tip.clientTop);
 		arrow.style.transform = `translate3d(${ax}px, ${ay}px, 0) rotate(${rotate}deg)`;
 	}, [shown]);
 

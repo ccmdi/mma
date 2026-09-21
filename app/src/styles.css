@@ -195,7 +195,6 @@
 }
 .tooltip__arrow {
 	fill: var(--surface-3);
-	transform: translateY(-1px);
 }
 
 :where(html) {
