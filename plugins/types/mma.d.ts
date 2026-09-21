@@ -4300,13 +4300,6 @@ declare const COMMANDS: {
         aliases: string[];
         execute: () => void;
     };
-    "delete-selected-tags": {
-        label: "Delete selected tags";
-        icon: string;
-        group: "Tags";
-        execute: () => Promise<void>;
-        enabled: () => boolean;
-    };
     "tag-download-csv": {
         label: "Download tag counts as CSV";
         icon: string;

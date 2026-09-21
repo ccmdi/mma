@@ -345,7 +345,6 @@
 	"Delete map": "Удалить карту",
 	"Delete selected": "Удалить выбранное",
 	"Delete selected locations": "Удалить выбранные локации",
-	"Delete selected tags": "Удалить выбранные теги",
 	"Delete session": "Удалить сессию",
 	"Delete style": "Удалить стиль",
 	"Delete this polygon": "Удалить этот полигон",
@@ -1041,6 +1040,18 @@
 	"Remove separator": "Убрать разделитель",
 	"Remove this document's links from every tag": "Убрать ссылки на этот документ со всех тегов",
 	"Remove value": "Удалить значение",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "Удалить из всех (тегов: {tags}, {n} локация)",
+		"few": "Удалить из всех (тегов: {tags}, {n} локации)",
+		"many": "Удалить из всех (тегов: {tags}, {n} локаций)",
+		"other": "Удалить из всех (тегов: {tags}, {n} локации)"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "Удалить из выборки (тегов: {tags}, {n} локация)",
+		"few": "Удалить из выборки (тегов: {tags}, {n} локации)",
+		"many": "Удалить из выборки (тегов: {tags}, {n} локаций)",
+		"other": "Удалить из выборки (тегов: {tags}, {n} локации)"
+	},
 	"Removed": "Удалено",
 	"Rename": "Переименовать",
 	"Rename field": "Переименовать поле",

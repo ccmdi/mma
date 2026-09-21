@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Tag } from "@/types";
 import {
 	rangeToggleTagIds,
+	menuTargetTagIds,
 	reorderSiblingsFlatOrder,
 	stepSiblingFlatOrder,
 	collectDragBlock,
@@ -27,13 +28,6 @@ interface N {
 	isAlias?: boolean;
 }
 const leaf = (path: string, id: number): N => ({ fullPath: path, tag: { id }, children: [] });
-
-const rows = [
-	{ descendantTagIds: [1] },
-	{ descendantTagIds: [2] },
-	{ descendantTagIds: [3] },
-	{ descendantTagIds: [4] },
-];
 
 describe("resolveExpandedPaths", () => {
 	const tree = buildTagTree(
@@ -113,6 +107,14 @@ describe("shortestUniqueSuffixes", () => {
 });
 
 describe("rangeToggleTagIds", () => {
+	const pick = (tree: TagTreeNode[], paths: string[]) => paths.map((p) => findNode(tree, p)!);
+	const flat = buildTagTree(
+		[mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c"), mkTag(4, "d")],
+		"default",
+		{},
+	);
+	const rows = pick(flat, ["a", "b", "c", "d"]);
+
 	it("collects rows between anchor and target, excluding the anchor", () => {
 		expect(rangeToggleTagIds(rows, 0, 2)).toEqual([2, 3]);
 	});
@@ -126,23 +128,51 @@ describe("rangeToggleTagIds", () => {
 	});
 
 	it("unions and de-dupes descendant ids across rows (parent + child overlap)", () => {
-		const nested = [
-			{ descendantTagIds: [10] },
-			{ descendantTagIds: [20, 21, 22] }, // a collapsed parent
-			{ descendantTagIds: [21] }, // child also visible elsewhere
-		];
-		expect(rangeToggleTagIds(nested, 0, 2)).toEqual([20, 21, 22]);
+		const tree = buildTagTree(
+			[mkTag(10, "x"), mkTag(20, "P"), mkTag(21, "P/a"), mkTag(22, "P/b")],
+			"default",
+			{},
+			{},
+			{ "Q/a": 21 },
+		);
+		expect(rangeToggleTagIds(pick(tree, ["x", "P", "Q"]), 0, 2)).toEqual([20, 21, 22]);
 	});
 
 	it("does not re-toggle the anchor's descendants when it's an expanded parent", () => {
-		// idx0 parent P selects 1,2,3; its child rows sit inside the range to idx3.
-		const rows = [
-			{ descendantTagIds: [1, 2, 3] }, // P (anchor)
-			{ descendantTagIds: [2] }, // P's child
-			{ descendantTagIds: [3] }, // P's child
-			{ descendantTagIds: [9] }, // unrelated node below
-		];
-		expect(rangeToggleTagIds(rows, 0, 3)).toEqual([9]);
+		const tree = buildTagTree(
+			[mkTag(1, "P"), mkTag(2, "P/a"), mkTag(3, "P/b"), mkTag(9, "z")],
+			"default",
+			{},
+		);
+		expect(rangeToggleTagIds(pick(tree, ["P", "P/a", "P/b", "z"]), 0, 3)).toEqual([9]);
+	});
+});
+
+describe("menuTargetTagIds", () => {
+	const tree = buildTagTree(
+		[mkTag(1, "F"), mkTag(2, "F/a"), mkTag(3, "F/b"), mkTag(4, "c"), mkTag(5, "d"), mkTag(6, "e")],
+		"default",
+		{},
+	);
+	const folder = findNode(tree, "F")!;
+	const leaf = findNode(tree, "c")!;
+
+	it("takes the subtree of a node outside the tag selection", () => {
+		expect(menuTargetTagIds(folder, new Set([4, 5]))).toEqual([1, 2, 3]);
+		expect(menuTargetTagIds(leaf, new Set([1, 2, 3]))).toEqual([4]);
+	});
+
+	it("takes every selected tag when the node is selected", () => {
+		expect(menuTargetTagIds(leaf, new Set([4, 5, 6]))).toEqual([4, 5, 6]);
+	});
+
+	it("keeps a selected folder's subtree even when only its own tag is selected", () => {
+		expect(menuTargetTagIds(folder, new Set([1, 5]))).toEqual([1, 5, 2, 3]);
+	});
+
+	it("names a tag once when an alias repeats it in the subtree", () => {
+		const aliased = buildTagTree([mkTag(1, "F"), mkTag(2, "F/a")], "default", {}, {}, { "F/b": 2 });
+		expect(menuTargetTagIds(findNode(aliased, "F")!, new Set())).toEqual([1, 2]);
 	});
 });
 

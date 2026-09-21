@@ -325,7 +325,6 @@
 	"Delete map": "Karte löschen",
 	"Delete selected": "Ausgewählte löschen",
 	"Delete selected locations": "Ausgewählte Standorte löschen",
-	"Delete selected tags": "Ausgewählte Tags löschen",
 	"Delete session": "Sitzung löschen",
 	"Delete style": "Stil löschen",
 	"Delete this polygon": "Dieses Polygon löschen",
@@ -989,6 +988,14 @@
 	"Remove separator": "Trenner entfernen",
 	"Remove this document's links from every tag": "Links dieses Dokuments von allen Tags entfernen",
 	"Remove value": "Wert entfernen",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "{tags} Tags von allen entfernen ({n} Standort)",
+		"other": "{tags} Tags von allen entfernen ({n} Standorte)"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "{tags} Tags aus Auswahl entfernen ({n} Standort)",
+		"other": "{tags} Tags aus Auswahl entfernen ({n} Standorte)"
+	},
 	"Removed": "Entfernt",
 	"Rename": "Umbenennen",
 	"Rename field": "Feld umbenennen",

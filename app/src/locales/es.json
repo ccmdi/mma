@@ -335,7 +335,6 @@
 	"Delete map": "Eliminar el mapa",
 	"Delete selected": "Eliminar lo seleccionado",
 	"Delete selected locations": "Eliminar las ubicaciones seleccionadas",
-	"Delete selected tags": "Eliminar las etiquetas seleccionadas",
 	"Delete session": "Eliminar la sesión",
 	"Delete style": "Eliminar el estilo",
 	"Delete this polygon": "Eliminar este polígono",
@@ -1015,6 +1014,16 @@
 	"Remove separator": "Quitar el separador",
 	"Remove this document's links from every tag": "Quitar los enlaces de este documento de todas las etiquetas",
 	"Remove value": "Quitar el valor",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "Quitar {tags} etiquetas de todas ({n} ubicación)",
+		"many": "Quitar {tags} etiquetas de todas ({n} ubicaciones)",
+		"other": "Quitar {tags} etiquetas de todas ({n} ubicaciones)"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "Quitar {tags} etiquetas de la selección ({n} ubicación)",
+		"many": "Quitar {tags} etiquetas de la selección ({n} ubicaciones)",
+		"other": "Quitar {tags} etiquetas de la selección ({n} ubicaciones)"
+	},
 	"Removed": "Quitado",
 	"Rename": "Renombrar",
 	"Rename field": "Renombrar el campo",

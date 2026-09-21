@@ -325,7 +325,6 @@
 	"Delete map": "[Ðéĺéţé ɱåƥ åéîö]",
 	"Delete selected": "[Ðéĺéţé şéĺéçţéð åéîöüå]",
 	"Delete selected locations": "[Ðéĺéţé şéĺéçţéð ĺöçåţîöñş åéîöüåéîöü]",
-	"Delete selected tags": "[Ðéĺéţé şéĺéçţéð ţåǧş åéîöüåéî]",
 	"Delete session": "[Ðéĺéţé şéşşîöñ åéîöüå]",
 	"Delete style": "[Ðéĺéţé şţýĺé åéîöü]",
 	"Delete this polygon": "[Ðéĺéţé ţĥîş ƥöĺýǧöñ åéîöüåéî]",
@@ -989,6 +988,14 @@
 	"Remove separator": "[Ŕéɱöṽé şéƥåŕåţöŕ åéîöüåé]",
 	"Remove this document's links from every tag": "[Ŕéɱöṽé ţĥîş ðöçüɱéñţ'ş ĺîñķş ƒŕöɱ éṽéŕý ţåǧ åéîöüåéîöüåéîöüåéî]",
 	"Remove value": "[Ŕéɱöṽé ṽåĺüé åéîöü]",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "[Ŕéɱöṽé {tags} ţåǧş ƒŕöɱ åĺĺ ({n} ĺöçåţîöñ) åéîöüåéîöüåéîö]",
+		"other": "[Ŕéɱöṽé {tags} ţåǧş ƒŕöɱ åĺĺ ({n} ĺöçåţîöñş) åéîöüåéîöüåéîö]"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "[Ŕéɱöṽé {tags} ţåǧş ƒŕöɱ şéĺéçţîöñ ({n} ĺöçåţîöñ) åéîöüåéîöüåéîöüå]",
+		"other": "[Ŕéɱöṽé {tags} ţåǧş ƒŕöɱ şéĺéçţîöñ ({n} ĺöçåţîöñş) åéîöüåéîöüåéîöüå]"
+	},
 	"Removed": "[Ŕéɱöṽéð åéî]",
 	"Rename": "[Ŕéñåɱé åéî]",
 	"Rename field": "[Ŕéñåɱé ƒîéĺð åéîöü]",

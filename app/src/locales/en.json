@@ -325,7 +325,6 @@
 	"Delete map": "Delete map",
 	"Delete selected": "Delete selected",
 	"Delete selected locations": "Delete selected locations",
-	"Delete selected tags": "Delete selected tags",
 	"Delete session": "Delete session",
 	"Delete style": "Delete style",
 	"Delete this polygon": "Delete this polygon",
@@ -989,6 +988,14 @@
 	"Remove separator": "Remove separator",
 	"Remove this document's links from every tag": "Remove this document's links from every tag",
 	"Remove value": "Remove value",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "Remove {tags} tags from all ({n} location)",
+		"other": "Remove {tags} tags from all ({n} locations)"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "Remove {tags} tags from selection ({n} location)",
+		"other": "Remove {tags} tags from selection ({n} locations)"
+	},
 	"Removed": "Removed",
 	"Rename": "Rename",
 	"Rename field": "Rename field",

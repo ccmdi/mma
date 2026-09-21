@@ -345,7 +345,6 @@
 	"Delete map": "Usuń mapę",
 	"Delete selected": "Usuń zaznaczone",
 	"Delete selected locations": "Usuń zaznaczone lokalizacje",
-	"Delete selected tags": "Usuń zaznaczone tagi",
 	"Delete session": "Usuń sesję",
 	"Delete style": "Usuń styl",
 	"Delete this polygon": "Usuń ten wielokąt",
@@ -1041,6 +1040,18 @@
 	"Remove separator": "Usuń separator",
 	"Remove this document's links from every tag": "Usuń linki do tego dokumentu ze wszystkich tagów",
 	"Remove value": "Usuń wartość",
+	"Remove {tags} tags from all ({n} locations)": {
+		"one": "Usuń ze wszystkich (tagów: {tags}, {n} lokalizacja)",
+		"few": "Usuń ze wszystkich (tagów: {tags}, {n} lokalizacje)",
+		"many": "Usuń ze wszystkich (tagów: {tags}, {n} lokalizacji)",
+		"other": "Usuń ze wszystkich (tagów: {tags}, {n} lokalizacji)"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"one": "Usuń z zaznaczenia (tagów: {tags}, {n} lokalizacja)",
+		"few": "Usuń z zaznaczenia (tagów: {tags}, {n} lokalizacje)",
+		"many": "Usuń z zaznaczenia (tagów: {tags}, {n} lokalizacji)",
+		"other": "Usuń z zaznaczenia (tagów: {tags}, {n} lokalizacji)"
+	},
 	"Removed": "Usunięto",
 	"Rename": "Zmień nazwę",
 	"Rename field": "Zmień nazwę pola",

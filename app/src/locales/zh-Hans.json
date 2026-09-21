@@ -315,7 +315,6 @@
 	"Delete map": "删除地图",
 	"Delete selected": "删除所选",
 	"Delete selected locations": "删除所选位置",
-	"Delete selected tags": "删除所选标签",
 	"Delete session": "删除会话",
 	"Delete style": "删除样式",
 	"Delete this polygon": "删除此多边形",
@@ -963,6 +962,12 @@
 	"Remove separator": "移除分隔符",
 	"Remove this document's links from every tag": "从所有标签移除此文档的链接",
 	"Remove value": "移除值",
+	"Remove {tags} tags from all ({n} locations)": {
+		"other": "从全部移除 {tags} 个标签（{n} 个位置）"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"other": "从选择中移除 {tags} 个标签（{n} 个位置）"
+	},
 	"Removed": "已移除",
 	"Rename": "重命名",
 	"Rename field": "重命名字段",

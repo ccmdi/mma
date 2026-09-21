@@ -315,7 +315,6 @@
 	"Delete map": "マップを削除",
 	"Delete selected": "選択項目を削除",
 	"Delete selected locations": "選択した地点を削除",
-	"Delete selected tags": "選択したタグを削除",
 	"Delete session": "セッションを削除",
 	"Delete style": "スタイルを削除",
 	"Delete this polygon": "このポリゴンを削除",
@@ -963,6 +962,12 @@
 	"Remove separator": "区切りを削除",
 	"Remove this document's links from every tag": "このドキュメントへのリンクをすべてのタグから削除",
 	"Remove value": "値を削除",
+	"Remove {tags} tags from all ({n} locations)": {
+		"other": "{tags} 個のタグをすべてから削除（{n} 地点）"
+	},
+	"Remove {tags} tags from selection ({n} locations)": {
+		"other": "{tags} 個のタグを選択から削除（{n} 地点）"
+	},
 	"Removed": "削除",
 	"Rename": "名前を変更",
 	"Rename field": "フィールド名を変更",

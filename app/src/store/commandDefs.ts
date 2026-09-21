@@ -16,7 +16,6 @@ import {
 	mdiHistory,
 	mdiEye,
 	mdiEyeOutline,
-	mdiTagRemove,
 	mdiTagMultipleOutline,
 	mdiTrashCanOutline,
 	mdiDatabaseRemoveOutline,
@@ -65,7 +64,6 @@ import {
 	applySelectionUpdate,
 	resetSelections,
 	getMapState,
-	deleteTags,
 	getActiveSelections,
 	removeLocations,
 	getTags,
@@ -80,7 +78,7 @@ import { downloadBlob } from "@/lib/util/util";
 import { toggleSeenOverlay } from "@/lib/seen/seenOverlay";
 import { selectReviewedHistory } from "@/lib/review/review";
 import { openDialog } from "./dialogBus";
-import { panoIdSelector, tagIdOf, unpannedSelector, untaggedSelector } from "@/store/selections";
+import { panoIdSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 import { msg } from "@/lib/i18n";
 
 const requiresMap = () => getMapState().map !== null;
@@ -436,19 +434,6 @@ const COMMANDS = {
 		group: msg("Bulk Operations"),
 		aliases: ["bulk download", "export panoramas", "download street view"],
 		execute: openBulkOp("downloadPanoramas"),
-	},
-	"delete-selected-tags": {
-		label: msg("Delete selected tags"),
-		icon: mdiTagRemove,
-		group: msg("Tags"),
-		execute: async () => {
-			await deleteTags(
-				getActiveSelections()
-					.map((s) => tagIdOf(s.selector))
-					.filter((id): id is number => id != null),
-			);
-		},
-		enabled: () => getActiveSelections().some((s) => tagIdOf(s.selector) != null),
 	},
 	"tag-download-csv": {
 		label: msg("Download tag counts as CSV"),

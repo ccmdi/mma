@@ -4,53 +4,89 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { ContextMenu } from "@base-ui-components/react/context-menu";
 
 const h = vi.hoisted(() => ({
-	setTags: vi.fn(async () => {}),
+	deleteTags: vi.fn(async (_ids: number[]) => {}),
 	countIn: vi.fn(async (_s: unknown) => 0),
+	selectedTagIds: new Set<number>(),
 }));
 
 vi.mock("@/store/useMapStore", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/store/useMapStore")>()),
-	setTags: h.setTags,
+	deleteTags: h.deleteTags,
 	countIn: h.countIn,
 	getActiveSelections: () => [],
+	useMapState: (sel: () => unknown) => sel(),
+}));
+
+vi.mock("@/store/selectionActions", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/store/selectionActions")>()),
+	getSelectedTagIds: () => h.selectedTagIds,
 }));
 
 import { TagContextMenuContent } from "@/components/editor/tags/TagManager";
+import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeRange";
 import { any, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
+import { findNode, mkTag } from "./fixtures/tagFixtures";
 
 beforeEach(() => {
-	h.setTags.mockClear();
-	h.countIn.mockClear();
+	h.deleteTags.mockClear();
+	h.countIn.mockReset();
+	h.countIn.mockResolvedValue(0);
+	h.selectedTagIds = new Set();
 });
 
-async function openMenu(tagId: number, subtreeTagIds: number[]) {
+const tree = buildTagTree(
+	[mkTag(1, "F"), mkTag(2, "F/a"), mkTag(3, "F/b"), mkTag(4, "c"), mkTag(5, "d"), mkTag(6, "e")],
+	"default",
+	{},
+);
+const node = (path: string) => findNode(tree, path)!;
+
+async function openMenu(n: TagTreeNode) {
 	await mountAsync(
 		<ContextMenu.Root open>
 			<ContextMenu.Trigger>Area</ContextMenu.Trigger>
-			<TagContextMenuContent tagId={tagId} subtreeTagIds={subtreeTagIds} onRename={() => {}} />
+			<TagContextMenuContent node={n} onRename={() => {}} onAddAlias={() => {}} />
 		</ContextMenu.Root>,
 	);
 	await act(async () => {});
 	return [...document.querySelectorAll<HTMLElement>(".context-menu__item")];
 }
 
+const countFor = (tagIds: number[], n: number) =>
+	h.countIn.mockImplementation(async (s) =>
+		JSON.stringify(s) === JSON.stringify(any(...tagIds.map(tagSelector))) ? n : 0,
+	);
+
 describe("tag context menu", () => {
 	it("removes a folder tag from all together with every tag under it", async () => {
-		const subtree = any(...[1, 2, 3].map(tagSelector));
-		h.countIn.mockImplementation(async (s) =>
-			JSON.stringify(s) === JSON.stringify(subtree) ? 7 : 0,
-		);
-		const [removeAll] = await openMenu(1, [1, 2, 3]);
+		countFor([1, 2, 3], 7);
+		const [removeAll] = await openMenu(node("F"));
 		expect(removeAll.textContent).toBe("Remove from all (7 locations)");
 
 		act(() => removeAll.click());
-		expect(h.setTags).toHaveBeenCalledWith([], [1, 2, 3], subtree);
+		expect(h.deleteTags).toHaveBeenCalledWith([1, 2, 3]);
 	});
 
-	it("removes a leaf tag on its own", async () => {
-		const [removeAll] = await openMenu(4, [4]);
-		act(() => removeAll.click());
-		expect(h.setTags).toHaveBeenCalledWith([], [4], tagSelector(4));
+	it("acts on every selected tag when the clicked tag is one of them", async () => {
+		h.selectedTagIds = new Set([4, 5, 6]);
+		countFor([4, 5, 6], 9);
+		const items = await openMenu(node("c"));
+		expect(items.map((i) => i.textContent)).toEqual([
+			"Remove 3 tags from all (9 locations)",
+			"Remove 3 tags from selection (0 locations)",
+		]);
+
+		act(() => items[0].click());
+		expect(h.deleteTags).toHaveBeenCalledWith([4, 5, 6]);
+	});
+
+	it("ignores the tag selection when the clicked tag is outside it", async () => {
+		h.selectedTagIds = new Set([5, 6]);
+		const items = await openMenu(node("c"));
+		expect(items.map((i) => i.textContent)).toContain("Add alias...");
+
+		act(() => items[0].click());
+		expect(h.deleteTags).toHaveBeenCalledWith([4]);
 	});
 });

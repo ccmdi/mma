@@ -279,7 +279,7 @@ export function buildTagTree(
  *  anchor's own descendants — those were selected by the anchor click, and (when the anchor
  *  is an expanded parent) its child rows sit inside the span, so toggling them would undo it. */
 export function rangeToggleTagIds(
-	rows: { descendantTagIds: number[] }[],
+	rows: TagTreeNode[],
 	anchorIdx: number,
 	targetIdx: number,
 ): number[] {
@@ -293,6 +293,13 @@ export function rangeToggleTagIds(
 		}
 	}
 	return [...ids];
+}
+
+/** Tags a context menu on `node` acts on: every selected tag when the node's own tag is
+ *  among them, otherwise just the node's subtree. A selected folder always brings its subtree. */
+export function menuTargetTagIds(node: TagTreeNode, selectedTagIds: ReadonlySet<number>): number[] {
+	if (!node.tag || !selectedTagIds.has(node.tag.id)) return [...new Set(node.descendantTagIds)];
+	return [...new Set([...selectedTagIds, ...node.descendantTagIds])];
 }
 
 /** Map each `/`-delimited name to the shortest trailing path-segment run that uniquely

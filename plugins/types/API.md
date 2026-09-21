@@ -265,7 +265,7 @@ ERROR_CODES: readonly [
 
 ### FieldType
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 FieldType: {
@@ -945,7 +945,7 @@ Per-tag location counts: `valueCounts.tags` re-keyed by numeric id.
 
 ### getTags
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 getTags(): Record<number, Tag>
@@ -1329,7 +1329,7 @@ Overwrite the selected-id set directly, bypassing selection resolution. Rarely w
 
 ### setTags
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 setTags(
@@ -1797,7 +1797,7 @@ The nested `sidecar` namespace on the plugin surface.
 
 #### ui.Bar
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.Bar(props: {
@@ -1851,7 +1851,7 @@ A color swatch that opens the picker in a popover on click.
 
 #### ui.ConfirmButton
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.ConfirmButton(
@@ -1868,7 +1868,7 @@ away disarms it.
 
 #### ui.ConfirmDialog
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.ConfirmDialog(
@@ -1892,7 +1892,7 @@ Asks the user to confirm one action, with room for extra options under the messa
 
 #### ui.CoverageBar
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.CoverageBar(props: {
@@ -1927,7 +1927,7 @@ ui.Dialog(
 
 #### ui.DialogActions
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.DialogActions(props: {
@@ -1964,7 +1964,7 @@ ui.DialogContent(
 
 #### ui.DialogForm
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.DialogForm(
@@ -2037,7 +2037,7 @@ Country flag from the bundled SVG set. Renders nothing for a missing or malforme
 
 #### ui.Hint
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.Hint(props: {
@@ -2071,7 +2071,7 @@ ui.Icon(props: IconProps): react.JSX.Element
 
 #### ui.IconButton
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.IconButton(
@@ -2102,7 +2102,7 @@ A button showing only an icon, named by its label.
 
 #### ui.Notice
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.Notice(props: {
@@ -2130,7 +2130,7 @@ A dropdown. `compact` shrinks it to fit its value; `limited` caps the height of 
 
 #### ui.ProgressRow
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.ProgressRow(props: {
@@ -2147,7 +2147,7 @@ A progress bar under its label and count, with any extra detail below it.
 
 #### ui.PromptDialog
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 ui.PromptDialog(
@@ -2287,7 +2287,7 @@ A range input whose track fills up to its value, followed by the value itself wh
 
 #### ui.Spinner
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 ui.Spinner(props: { size?: string; label?: string }): react.JSX.Element
@@ -2543,7 +2543,7 @@ Remove fields transitively derived from `changed` from an `extra` record.
 
 ### declaredValues
 
-`stable` · unreleased
+`stable` · since v0.11.1
 
 ```ts
 declaredValues(def: FieldDef | undefined): string[] | null
@@ -3428,7 +3428,7 @@ OP_LABELS: Record<
 
 ### panoIdOf
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 panoIdOf(selector: Selector): boolean | null
@@ -3439,7 +3439,7 @@ inversion (`false`), or something else (`null`). Display-only.
 
 ### panoIdSelector
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 panoIdSelector(on: boolean): Selector
@@ -3584,7 +3584,7 @@ Update the colors of selections by matching keys from `entries`.
 
 ### tagIdOf
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 tagIdOf(selector: Selector): number | null
@@ -3595,7 +3595,7 @@ recognises tag membership, so nothing else has to know its shape.
 
 ### tagSelector
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 tagSelector(tagId: number): Selector
@@ -3661,7 +3661,7 @@ Merge the targeted selections (or all, when `keys` is null) into a single Union.
 
 ### unpannedSelector
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 unpannedSelector(): Selector
@@ -3671,7 +3671,7 @@ Locations whose heading was never set.
 
 ### untaggedSelector
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 untaggedSelector(): Selector
@@ -5424,7 +5424,7 @@ under it and lets `procedureCancel` stop the query.
 
 #### cmd.procedureReserveRun
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 cmd.procedureReserveRun(): Promise<number>
@@ -6168,7 +6168,7 @@ Must be called before any other store commands.
 
 #### cmd.storePatchFieldValues
 
-`unstable` · unreleased
+`unstable` · since v0.11.1
 
 ```ts
 cmd.storePatchFieldValues(
