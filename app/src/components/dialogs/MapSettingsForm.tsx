@@ -15,7 +15,7 @@ import {
 	useCloseDialog,
 	type DialogProps,
 } from "@/components/primitives/Dialog";
-import { Hint } from "@/components/primitives/Hint";
+import { Hint, InfoButton } from "@/components/primitives/Hint";
 import { Icon } from "@/components/primitives/Icon";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -175,7 +175,10 @@ function ExprSection({
 	return (
 		<>
 			<p className="edit-map-modal__name">
-				<label htmlFor={id}>{label}</label>
+				<span className="edit-map-modal__label">
+					<label htmlFor={id}>{label}</label>
+					<InfoButton text={hint} />
+				</span>
 				<span className="edit-map-modal__expr">
 					<TextInput
 						id={id}
@@ -194,9 +197,7 @@ function ExprSection({
 					/>
 				</span>
 			</p>
-			<Hint tone={error ? "error" : undefined}>
-				{error ? t("Invalid expression: {error}", { error }) : hint}
-			</Hint>
+			{error && <Hint tone="error">{t("Invalid expression: {error}", { error })}</Hint>}
 		</>
 	);
 }
@@ -222,7 +223,7 @@ const SECTIONS: Section[] = [
 				{...p}
 				setting="duplicateScore"
 				placeholder={DEFAULT_DUPLICATE_SCORE}
-				label={t("Duplicate preference:")}
+				label={t("Duplicate preference")}
 				hint={t(
 					"Scores every duplicate; the highest is the one kept when duplicates are merged or pruned. Merging keeps all tags either way, and ties go to the oldest.",
 				)}
@@ -236,7 +237,7 @@ const SECTIONS: Section[] = [
 			<ExprSection
 				{...p}
 				setting="reviewOrder"
-				label={t("Review order:")}
+				label={t("Review order")}
 				hint={t(
 					"Scores every location; a review pass walks them highest first. Blank reviews them in the order the selection resolved.",
 				)}

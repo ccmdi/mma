@@ -188,7 +188,7 @@
 .tooltip {
 	font-size: 13px;
 	padding: 0.5em 1em;
-	white-space: nowrap;
+	max-width: 22rem;
 	z-index: var(--z-popover);
 	pointer-events: none;
 	animation: fade-in var(--dur) var(--ease-enter);
@@ -1344,6 +1344,14 @@ input[type="range"]:disabled {
 }
 .edit-map-modal p {
 	margin: 0;
+}
+.edit-map-modal__label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15rem;
+}
+.info-button {
+	color: var(--text-3);
 }
 .edit-map-modal__name {
 	grid-template-columns: 1fr 20rem;
