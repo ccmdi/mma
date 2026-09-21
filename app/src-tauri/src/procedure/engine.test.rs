@@ -703,11 +703,30 @@ fn rate_limiter_holds_the_declared_floor() {
     let t = Instant::now();
     drive(async {
         for _ in 0..6 {
-            l.acquire(1).await;
+            assert!(l.acquire(1, &|| false).await);
         }
     });
     let ms = t.elapsed().as_millis();
     assert!(ms >= 180, "6 acquires took only {ms}ms");
+}
+
+#[test]
+fn a_cancel_frees_a_request_waiting_on_the_rate_limiter() {
+    let l = RateLimiter::new(RateSpec {
+        units: 1,
+        per_ms: 10_000,
+        cost: RateCost::Request,
+    })
+    .unwrap();
+    let t = Instant::now();
+    let cancelled = || t.elapsed() > Duration::from_millis(30);
+    let paid = drive(async {
+        assert!(l.acquire(1, &cancelled).await);
+        l.acquire(1, &cancelled).await
+    });
+    assert!(!paid);
+    let ms = t.elapsed().as_millis();
+    assert!(ms < 500, "the cancelled acquire took {ms}ms");
 }
 
 #[test]

@@ -490,6 +490,8 @@ pub(crate) fn producers(list: &[ProviderDecl]) -> Vec<Vec<usize>> {
 // Rate limiting
 // ---------------------------------------------------------------------------
 
+const ABORT_POLL: Duration = Duration::from_millis(50);
+
 struct RateLimiter {
     capacity: f64,
     /// Tokens regained per millisecond.
@@ -509,11 +511,15 @@ impl RateLimiter {
         })
     }
 
-    /// Waits until `cost` tokens are available. Sleeps outside the lock so waiters
-    /// queue. A cost above capacity is clamped, otherwise it could never be paid.
-    async fn acquire(&self, cost: u32) {
+    /// Waits until `cost` tokens are available, or returns false once `aborted`. Sleeps
+    /// outside the lock so waiters queue, in steps short enough that a cancel lands fast.
+    /// A cost above capacity is clamped, otherwise it could never be paid.
+    async fn acquire(&self, cost: u32, aborted: &(dyn Fn() -> bool + Sync)) -> bool {
         let want = (cost.max(1) as f64).min(self.capacity);
         loop {
+            if aborted() {
+                return false;
+            }
             let wait = {
                 let mut st = self.state.lock().unwrap_or_else(PoisonError::into_inner);
                 let now = Instant::now();
@@ -522,11 +528,11 @@ impl RateLimiter {
                 st.1 = now;
                 if st.0 >= want {
                     st.0 -= want;
-                    return;
+                    return true;
                 }
                 Duration::from_secs_f64((want - st.0) / self.per_ms / 1000.0)
             };
-            time::sleep(wait.max(Duration::from_micros(200))).await;
+            time::sleep(wait.clamp(Duration::from_micros(200), ABORT_POLL)).await;
         }
     }
 }
@@ -585,13 +591,17 @@ impl FetchBudget {
         }
     }
 
-    /// Waits for the rate bucket, then for a slot. The slot is held until the response
-    /// lands, so `inflight` counts requests actually outstanding.
-    async fn admit(&self, cost: u32) -> Admitted<'_> {
+    /// Waits for the rate bucket, then for a slot, or answers `None` once `aborted`. The
+    /// slot is held until the response lands, so `inflight` counts requests actually
+    /// outstanding.
+    async fn admit(&self, cost: u32, aborted: &(dyn Fn() -> bool + Sync)) -> Option<Admitted<'_>> {
         if let Some(l) = &self.limiter {
             self.state.rate_waiting.fetch_add(1, Ordering::Relaxed);
-            l.acquire(cost).await;
+            let paid = l.acquire(cost, aborted).await;
             self.state.rate_waiting.fetch_sub(1, Ordering::Relaxed);
+            if !paid {
+                return None;
+            }
         }
         let slot = self
             .slots
@@ -599,10 +609,10 @@ impl FetchBudget {
             .await
             .expect("the budget semaphore is never closed");
         self.state.outstanding.fetch_add(1, Ordering::Relaxed);
-        Admitted {
+        Some(Admitted {
             _slot: slot,
             state: &self.state,
-        }
+        })
     }
 }
 
@@ -643,7 +653,9 @@ async fn fetch_one(
     let mut delay = deps.backoff;
     for attempt in 0..attempts {
         let resp = {
-            let _slot = budget.admit(cost).await;
+            let Some(_slot) = budget.admit(cost, aborted).await else {
+                return Err(AppError(CANCELLED.into()));
+            };
             // Checked holding the slot: a request that waited behind a long backlog must
             // not be sent once the run is cancelling.
             if aborted() {
