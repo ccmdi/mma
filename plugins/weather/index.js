@@ -1,5 +1,5 @@
 // weather/src/index.ts
-var { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+var { registerPlugin, registerProvider } = MMA;
 var WEATHER_FIELDS = [
   { key: "weatherCode", label: "Weather code (WMO)" },
   { key: "cloudCover", label: "Cloud cover (%)" },
@@ -16,18 +16,14 @@ var FIELD_DEFS = Object.fromEntries(
     { type: "number", label: f.label, values: null, labels: null, comparison: null }
   ])
 );
-var ENRICH_OPTIONS = WEATHER_FIELDS.map((f) => ({
-  key: f.key,
-  label: f.label,
-  defaultOff: true
-}));
 registerPlugin({
   activate() {
-    registerEnrichFields(ENRICH_OPTIONS);
     registerProvider({
       id: "weather",
       label: "Weather",
       fieldDefs: FIELD_DEFS,
+      // Weather is a metered network call, so its fields are opt-in.
+      defaultOff: true,
       requires: ["datetime"],
       procedure: {
         entry: "procedure.js",

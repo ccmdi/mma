@@ -2479,7 +2479,7 @@ Keys enriched when enrichFields is null (the default set: all options except def
 getEnrichFieldOptions(): EnrichFieldOption[]
 ```
 
-All enrichment field options (core and plugin-registered).
+All enrichment field options: the core fields, then every registered provider's own fields.
 
 ### getProviderForField
 
@@ -2520,16 +2520,6 @@ knownFieldDefs(...keys: string[]): Record<string, FieldDef>
 ```
 
 Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
-
-### registerEnrichFields
-
-`stable` · since v0.3.1
-
-```ts
-registerEnrichFields(fields: EnrichFieldOption[]): void
-```
-
-Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates.
 
 ### registerProvider
 
@@ -4708,6 +4698,16 @@ getReviewSession(): ReviewSession | null
 
 The active review session, or null.
 
+### isAtEnd
+
+`unstable` · unreleased
+
+```ts
+isAtEnd(s: ReviewSession): boolean
+```
+
+True when the cursor is on the session's last location.
+
 ### isAtStart
 
 `unstable` · since v0.5.2
@@ -4840,6 +4840,16 @@ reviewPrev(): Promise<void>
 
 Step back to the previous location in the session.
 
+### reviewSet
+
+`unstable` · unreleased
+
+```ts
+reviewSet(s: ReviewSession, mode: ReviewMode): number[]
+```
+
+The session's locations in `mode`: those reviewed, or those still to review.
+
 ### selectReviewedHistory
 
 `unstable` · since v0.6.3
@@ -4855,10 +4865,7 @@ Select every location marked reviewed across all sessions on this map.
 `unstable` · since v0.5.2
 
 ```ts
-selectReviewSet(
-  s: ReviewSession,
-  mode: "reviewed" | "unreviewed",
-): Promise<void>
+selectReviewSet(s: ReviewSession, mode: ReviewMode): Promise<void>
 ```
 
 Add a reviewed or unreviewed overlay selection for a session.
@@ -7725,8 +7732,10 @@ exactDateProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. */
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7748,8 +7757,10 @@ panoResolveProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<{ panoId: string }, PanoResolveConfig>;
-  /** Extra-field keys this provider produces. */
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7771,8 +7782,10 @@ subdivisionProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. */
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7794,8 +7807,10 @@ svMetaProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. */
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -7817,8 +7832,10 @@ timezoneProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
-  /** Extra-field keys this provider produces. */
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
   /** Core columns this provider writes (e.g. `panoId`). */
   provides: string[] | undefined;
   /** Fields this provider reads; it runs after their producers finish. */
@@ -8607,6 +8624,17 @@ installedVersion(pluginId: string): Promise<string | null>
 ```
 
 **Deprecated in v0.11.0.** Use `MMA.sidecar.installedVersion()`.
+
+### registerEnrichFields
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+registerEnrichFields(_fields: EnrichFieldOption[]): void
+```
+
+**Deprecated in v0.11.3.** A provider's `fieldDefs` are offered as enrichment options on their
+own; set `defaultOff` on the provider to make them opt-in.
 
 ### registerEnrichmentProvider
 

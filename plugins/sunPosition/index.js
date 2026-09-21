@@ -51,7 +51,6 @@ var import_layers = __toESM(require_layers());
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var {
   registerPlugin,
-  registerEnrichFields,
   registerProvider,
   waitForMapHost,
   fetchColumns,
@@ -248,10 +247,6 @@ function SunSidebar({ onClose }) {
 registerPlugin({
   sidebar: SunSidebar,
   activate() {
-    registerEnrichFields([
-      { key: "sunAzimuth", label: "Sun azimuth" },
-      { key: "sunAltitude", label: "Sun altitude" }
-    ]);
     registerProvider({
       id: PLUGIN_ID,
       label: "Sun position",

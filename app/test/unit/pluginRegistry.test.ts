@@ -22,12 +22,7 @@ import {
 import { isPluginCompatible } from "@/plugins/marketplace";
 import { emit, subscribe } from "@/lib/events";
 import { on } from "@/plugins/pluginEvents";
-import {
-	registerProvider,
-	getProviders,
-	registerEnrichFields,
-	getEnrichFieldOptions,
-} from "@/lib/data/fieldDefs";
+import { registerProvider, getProviders, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 
 function makePlugin(id: string, name: string, activate: Plugin["activate"] = vi.fn()): Plugin {
@@ -313,7 +308,6 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 		// activate() returns nothing — teardown must still happen via the registry.
 		registerPlugin(
 			makePlugin(pid, "Enrich " + sfx, () => {
-				registerEnrichFields([{ key: fieldKey, label: "WX", defaultOff: true }]);
 				registerProvider({
 					id: provId,
 					label: "WX",
@@ -356,7 +350,12 @@ describe("a plugin that throws while activating", () => {
 		const fieldKey = "partial_" + Math.random().toString(36).slice(2);
 		registerPlugin(
 			makePlugin("partial", "Partial", () => {
-				registerEnrichFields([{ key: fieldKey, label: "Partial" }]);
+				registerProvider({
+					id: "partial-provider",
+					label: "Partial",
+					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
+					fieldDefs: { [fieldKey]: createFieldDef("number", { label: "Partial" }) },
+				});
 				throw new Error("no map");
 			}),
 		);

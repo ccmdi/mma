@@ -10,7 +10,6 @@ import {
 	withoutDerivedFrom,
 	registerProvider,
 	getProviders,
-	registerEnrichFields,
 	getEnrichFieldOptions,
 	getAllEnrichKeys,
 	getDefaultEnrichKeys,
@@ -66,19 +65,34 @@ describe("registerProvider", () => {
 	});
 });
 
-describe("registerEnrichFields", () => {
-	it("adds field options for the enrichment settings UI", () => {
+describe("enrichment field options", () => {
+	const provide = (key: string, extra: { defaultOff?: boolean } = {}) =>
+		registerProvider({
+			id: "options-" + key,
+			label: "Options",
+			procedure: { ...procedure },
+			fieldDefs: { [key]: createFieldDef("number", { label: "Label of " + key }) },
+			...extra,
+		});
+
+	it("offers each provider field under its field label", () => {
 		const key = "enrichTest_" + Math.random().toString(36).slice(2);
-		registerEnrichFields([{ key, label: "Test enrichment field" }]);
-		const options = getEnrichFieldOptions();
-		expect(options.some((o) => o.key === key)).toBe(true);
+		provide(key);
+		expect(getEnrichFieldOptions()).toContainEqual(
+			expect.objectContaining({ key, label: "Label of " + key }),
+		);
+		expect(getDefaultEnrichKeys()).toContain(key);
 	});
 
-	it("does not add duplicate field options", () => {
-		const key = "enrichDedup_" + Math.random().toString(36).slice(2);
-		registerEnrichFields([{ key, label: "A" }]);
-		registerEnrichFields([{ key, label: "B" }]);
-		expect(getEnrichFieldOptions().filter((o) => o.key === key)).toHaveLength(1);
+	it("keeps a defaultOff provider's fields selectable but out of the default set", () => {
+		const key = "enrichOptIn_" + Math.random().toString(36).slice(2);
+		provide(key, { defaultOff: true });
+		expect(getAllEnrichKeys()).toContain(key);
+		expect(getDefaultEnrichKeys()).not.toContain(key);
+	});
+
+	it("lists a core field once even when a provider produces it", () => {
+		expect(getEnrichFieldOptions().filter((o) => o.key === "datetime")).toHaveLength(1);
 	});
 
 	it("includes core fields by default", () => {

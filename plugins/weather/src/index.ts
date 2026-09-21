@@ -1,6 +1,6 @@
-import type { FieldDef, EnrichFieldOption } from "mma-plugin-types";
+import type { FieldDef } from "mma-plugin-types";
 
-const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+const { registerPlugin, registerProvider } = MMA;
 
 interface WeatherField {
 	key: string;
@@ -25,20 +25,14 @@ const FIELD_DEFS: Record<string, FieldDef> = Object.fromEntries(
 	]),
 );
 
-// defaultOff: weather is a metered network call, so it must be opt-in per field.
-const ENRICH_OPTIONS: EnrichFieldOption[] = WEATHER_FIELDS.map((f) => ({
-	key: f.key,
-	label: f.label,
-	defaultOff: true,
-}));
-
 registerPlugin({
 	activate() {
-		registerEnrichFields(ENRICH_OPTIONS);
 		registerProvider({
 			id: "weather",
 			label: "Weather",
 			fieldDefs: FIELD_DEFS,
+			// Weather is a metered network call, so its fields are opt-in.
+			defaultOff: true,
 			requires: ["datetime"],
 			procedure: {
 				entry: "procedure.js",

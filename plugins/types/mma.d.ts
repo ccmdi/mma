@@ -5164,10 +5164,16 @@ declare function advance(s: ReviewSession): {
 declare function retreat(s: ReviewSession): ReviewSession | null;
 /** Position of the session cursor within its review order. @unstable */
 declare function reviewIndex(s: ReviewSession): number;
+/** @unstable */
+export type ReviewMode = "reviewed" | "unreviewed";
+/** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
+declare function reviewSet(s: ReviewSession, mode: ReviewMode): number[];
 /** Union of reviewed ids across sessions, de-duplicated. @unstable */
 declare function reviewedHistoryIds(sessions: ReviewSession[]): number[];
 /** True when the cursor is on the session's first location. @unstable */
 declare function isAtStart(s: ReviewSession): boolean;
+/** True when the cursor is on the session's last location. @unstable */
+declare function isAtEnd(s: ReviewSession): boolean;
 /** Current cursor location is in the reviewed set. @unstable */
 declare function isCurrentReviewed(s: ReviewSession): boolean;
 /** Reactive active review session, or null. @unstable */
@@ -5197,10 +5203,12 @@ declare function listSessions(status?: "active" | "done"): Promise<ReviewSession
 /** Select every location marked reviewed across all sessions on this map. @unstable */
 declare function selectReviewedHistory(): Promise<void>;
 /** Add a reviewed or unreviewed overlay selection for a session. @unstable */
-declare function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed"): Promise<void>;
+declare function selectReviewSet(s: ReviewSession, mode: ReviewMode): Promise<void>;
 
 /** @unstable */
 export type review_PruneResult = PruneResult;
+/** @unstable */
+export type review_ReviewMode = ReviewMode;
 /** @unstable */
 declare const review_advance: typeof advance;
 /** @unstable */
@@ -5211,6 +5219,8 @@ declare const review_cancelReview: typeof cancelReview;
 declare const review_deleteSession: typeof deleteSession;
 /** @unstable */
 declare const review_getReviewSession: typeof getReviewSession;
+/** @unstable */
+declare const review_isAtEnd: typeof isAtEnd;
 /** @unstable */
 declare const review_isAtStart: typeof isAtStart;
 /** @unstable */
@@ -5236,6 +5246,8 @@ declare const review_reviewNext: typeof reviewNext;
 /** @unstable */
 declare const review_reviewPrev: typeof reviewPrev;
 /** @unstable */
+declare const review_reviewSet: typeof reviewSet;
+/** @unstable */
 declare const review_reviewedHistoryIds: typeof reviewedHistoryIds;
 /** @unstable */
 declare const review_selectReviewSet: typeof selectReviewSet;
@@ -5244,8 +5256,8 @@ declare const review_selectReviewedHistory: typeof selectReviewedHistory;
 /** @unstable */
 declare const review_useReviewSession: typeof useReviewSession;
 declare namespace review {
-  export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_positionOf as positionOf, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewSet as selectReviewSet, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
-  export type { review_PruneResult as PruneResult };
+  export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtEnd as isAtEnd, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_positionOf as positionOf, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewSet as reviewSet, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewSet as selectReviewSet, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
+  export type { review_PruneResult as PruneResult, review_ReviewMode as ReviewMode };
 }
 
 /** @unstable */
@@ -6163,6 +6175,7 @@ declare namespace uiSurface {
   };
 }
 
+/** @unstable */
 export interface EnrichFieldOption {
     key: string;
     label: string;
@@ -6171,10 +6184,8 @@ export interface EnrichFieldOption {
 }
 /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
 declare function knownFieldDefs(...keys: string[]): Record<string, FieldDef>;
-/** All enrichment field options (core and plugin-registered). @unstable */
+/** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
 declare function getEnrichFieldOptions(): EnrichFieldOption[];
-/** Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates. */
-declare function registerEnrichFields(fields: EnrichFieldOption[]): void;
 /** All enrichment field keys (core and plugin-registered). @unstable */
 declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
@@ -6206,8 +6217,10 @@ export interface Provider<TCollected = unknown, TConfig = unknown> {
     label: string;
     /** The procedure that computes this provider's fields. @unstable */
     procedure: ProcedureSpec<TCollected, TConfig>;
-    /** Extra-field keys this provider produces. @unstable */
+    /** Extra-field keys this provider produces. Each is offered as an enrichment option. @unstable */
     fieldDefs?: Record<string, FieldDef>;
+    /** Leaves this provider's fields out of the default enrichment set, so users opt in. @unstable */
+    defaultOff?: boolean;
     /** Core columns this provider writes (e.g. `panoId`). @unstable */
     provides?: string[];
     /** Fields this provider reads; it runs after their producers finish. @unstable */
@@ -6248,12 +6261,11 @@ declare const fieldDefs_getProviders: typeof getProviders;
 /** @unstable */
 declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
-declare const fieldDefs_registerEnrichFields: typeof registerEnrichFields;
 declare const fieldDefs_registerProvider: typeof registerProvider;
 /** @unstable */
 declare const fieldDefs_withoutDerivedFrom: typeof withoutDerivedFrom;
 declare namespace fieldDefs {
-  export { fieldDefs_derivedFrom as derivedFrom, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerEnrichFields as registerEnrichFields, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutDerivedFrom as withoutDerivedFrom };
+  export { fieldDefs_derivedFrom as derivedFrom, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerProvider as registerProvider, fieldDefs_withoutDerivedFrom as withoutDerivedFrom };
   export type { fieldDefs_EnrichFieldOption as EnrichFieldOption, fieldDefs_ProcedureSpec as ProcedureSpec, fieldDefs_Provider as Provider };
 }
 
@@ -7270,6 +7282,9 @@ declare function fetchAllLocations(): Promise<Location[]>;
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
+/** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
+ *  own; set `defaultOff` on the provider to make them opt-in. @unstable */
+declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
  *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
  *  plugin-owned defs. @unstable */
@@ -7322,6 +7337,8 @@ declare const legacy_getWorkArea: typeof getWorkArea;
 /** @unstable */
 declare const legacy_installedVersion: typeof installedVersion;
 /** @unstable */
+declare const legacy_registerEnrichFields: typeof registerEnrichFields;
+/** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
 /** @unstable */
 declare const legacy_removeTagFromAllLocations: typeof removeTagFromAllLocations;
@@ -7352,6 +7369,7 @@ declare namespace legacy {
     legacy_getSelections as getSelections,
     legacy_getWorkArea as getWorkArea,
     legacy_installedVersion as installedVersion,
+    legacy_registerEnrichFields as registerEnrichFields,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_removeTagFromAllLocations as removeTagFromAllLocations,
     legacy_removeTagFromLocations as removeTagFromLocations,

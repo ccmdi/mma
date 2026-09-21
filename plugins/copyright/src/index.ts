@@ -1,6 +1,6 @@
 import type { FieldDef } from "mma-plugin-types";
 
-const { registerPlugin, registerEnrichFields, registerProvider } = MMA;
+const { registerPlugin, registerProvider } = MMA;
 
 const FIELD_DEFS: Record<string, FieldDef> = {
 	// Year labels are identification categories, not distances: comparison stays
@@ -15,9 +15,6 @@ const FIELD_DEFS: Record<string, FieldDef> = {
 
 registerPlugin({
 	activate() {
-		registerEnrichFields([
-			{ key: "copyrightYear", label: "Copyright year" },
-		]);
 		registerProvider({
 			id: "copyright",
 			label: "Copyright year",

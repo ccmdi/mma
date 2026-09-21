@@ -17,7 +17,7 @@ const coreFieldOptions: EnrichFieldOption[] = KNOWN_FIELDS.map((f) => ({
 	defaultOff: f.defaultOff,
 }));
 
-const pluginFieldOptions: EnrichFieldOption[] = [];
+const coreFieldKeys = new Set(coreFieldOptions.map((f) => f.key));
 
 /** Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`). */
 export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
@@ -41,22 +41,14 @@ export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
 	return out;
 }
 
-/** All enrichment field options (core and plugin-registered). @unstable */
+/** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
 export function getEnrichFieldOptions(): EnrichFieldOption[] {
-	return [...coreFieldOptions, ...pluginFieldOptions];
-}
-
-/** Offer extra fields in the enrichment UI. Unregistered when the plugin deactivates. */
-export function registerEnrichFields(fields: EnrichFieldOption[]) {
-	for (const f of fields) {
-		if (!pluginFieldOptions.some((e) => e.key === f.key)) {
-			pluginFieldOptions.push(f);
-			trackDisposable(() => {
-				const i = pluginFieldOptions.findIndex((e) => e.key === f.key);
-				if (i >= 0) pluginFieldOptions.splice(i, 1);
-			});
-		}
-	}
+	const providerOptions = providers.flatMap((p) =>
+		Object.entries(p.fieldDefs ?? {})
+			.filter(([key]) => !coreFieldKeys.has(key))
+			.map(([key, def]) => ({ key, label: def.label ?? key, defaultOff: p.defaultOff })),
+	);
+	return [...coreFieldOptions, ...providerOptions];
 }
 
 /** All enrichment field keys (core and plugin-registered). @unstable */
@@ -100,8 +92,10 @@ export interface Provider<TCollected = unknown, TConfig = unknown> {
 	label: string;
 	/** The procedure that computes this provider's fields. */
 	procedure: ProcedureSpec<TCollected, TConfig>;
-	/** Extra-field keys this provider produces. */
+	/** Extra-field keys this provider produces. Each is offered as an enrichment option. */
 	fieldDefs?: Record<string, FieldDef>;
+	/** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+	defaultOff?: boolean;
 	/** Core columns this provider writes (e.g. `panoId`). */
 	provides?: string[];
 	/** Fields this provider reads; it runs after their producers finish. */

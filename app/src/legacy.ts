@@ -13,7 +13,7 @@ import {
 	setTags,
 } from "@/store/useMapStore";
 import { cmd } from "@/lib/commands";
-import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
+import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
 import type { FieldDef, Selector } from "@/bindings.gen";
@@ -97,6 +97,10 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 export function registerEnrichmentProvider(provider: Provider): void {
 	registerProvider(provider);
 }
+
+/** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
+ *  own; set `defaultOff` on the provider to make them opt-in. */
+export function registerEnrichFields(_fields: EnrichFieldOption[]): void {}
 
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
  *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
