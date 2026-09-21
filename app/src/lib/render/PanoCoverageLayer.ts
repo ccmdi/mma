@@ -1,5 +1,6 @@
 import { CompositeLayer } from "@deck.gl/core";
 import { ScatterplotLayer } from "@deck.gl/layers";
+import { packedPositions } from "@/lib/render/packedPositions";
 import {
 	boundsToTiles,
 	fetchPanoDots,
@@ -116,7 +117,7 @@ export default class PanoCoverageLayer extends CompositeLayer<Required<_PanoCove
 		}
 		return new ScatterplotLayer({
 			id: `${this.props.id}-dots`,
-			data: { length: n, attributes: { getPosition: { value: positions, size: 2 } } },
+			data: packedPositions(positions),
 			getFillColor: color,
 			radiusUnits: scaled ? "meters" : "pixels",
 			getRadius: scaled ? 2 : 4,

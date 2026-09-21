@@ -8,6 +8,7 @@ import {
 	renderPos,
 } from "@/lib/render/markerLayer";
 import PanoCoverageLayer from "@/lib/render/PanoCoverageLayer";
+import { packedPositions } from "@/lib/render/packedPositions";
 import { getMarkerDefaultColor } from "@/lib/render/sceneStore";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { MarkerStyle } from "@/types";
@@ -32,6 +33,31 @@ import {
 } from "@/lib/sv/measure";
 import type { RGB, RGBA } from "@/lib/util/color";
 import { unwrapRing } from "@/lib/geo/geo";
+
+/** Lines drawn at a fixed on-screen width. */
+const SCREEN_LINE = {
+	widthUnits: "pixels",
+	jointRounded: true,
+	capRounded: true,
+	pickable: false,
+} as const;
+
+/** Plain dots of a fixed on-screen size. */
+const PIXEL_DOT = {
+	getRadius: 6,
+	radiusUnits: "pixels",
+	radiusMinPixels: 3,
+	stroked: false,
+	pickable: false,
+} as const;
+
+/** Outlined dots of a fixed on-screen size. */
+const OUTLINED_DOT = {
+	radiusUnits: "pixels",
+	stroked: true,
+	lineWidthUnits: "pixels",
+	pickable: false,
+} as const;
 
 function trailSegments(trail: [number, number][]) {
 	const count = trail.length - 1;
@@ -88,23 +114,21 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	if (getMapState().workArea === "diff") {
 		const diff = getCommitDiffPreview();
 		if (diff) {
-			const diffLayer = (id: string, pos: Float32Array, color: RGB, alpha: number) =>
-				new ScatterplotLayer({
-					id,
-					data: { length: pos.length / 2, attributes: { getPosition: { value: pos, size: 2 } } },
-					getRadius: 6,
-					radiusUnits: "pixels" as const,
-					radiusMinPixels: 3,
-					getFillColor: [...color, alpha],
-					stroked: false,
-					pickable: false,
-				});
-			if (diff.removed.length)
-				layers.push(diffLayer("diff-removed", diff.removed, DIFF_COLORS.removed, 210));
-			if (diff.added.length)
-				layers.push(diffLayer("diff-added", diff.added, DIFF_COLORS.added, 210));
-			if (diff.modified.length)
-				layers.push(diffLayer("diff-modified", diff.modified, DIFF_COLORS.modified, 220));
+			for (const [kind, alpha] of [
+				["removed", 210],
+				["added", 210],
+				["modified", 220],
+			] as const) {
+				if (diff[kind].length === 0) continue;
+				layers.push(
+					new ScatterplotLayer({
+						...PIXEL_DOT,
+						id: `diff-${kind}`,
+						data: packedPositions(diff[kind]),
+						getFillColor: [...DIFF_COLORS[kind], alpha],
+					}),
+				);
+			}
 		}
 		return layers;
 	}
@@ -139,14 +163,13 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				opacity: 1,
 			}),
 			new PathLayer<Position[]>({
+				...SCREEN_LINE,
 				id: `selectionPolygonStroke:${sel.key}`,
 				data: geom.stroke,
 				getPath: (d) => d,
+				capRounded: false,
 				getColor: strokeColor,
 				getWidth: 4,
-				widthUnits: "pixels",
-				jointRounded: true,
-				pickable: false,
 				opacity: 1,
 			}),
 		);
@@ -224,20 +247,13 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		(stagedActive != null && isImportPreview(stagedActive))
 	) {
 		const previewPos = getImportPreviewPositions();
-		const previewCount = previewPos.length / 2;
-		if (previewCount > 0) {
+		if (previewPos.length > 0) {
 			layers.push(
 				new ScatterplotLayer({
+					...PIXEL_DOT,
 					id: "import-preview",
-					data: {
-						length: previewCount,
-						attributes: { getPosition: { value: previewPos, size: 2 } },
-					},
-					getRadius: 6,
-					radiusUnits: "pixels",
-					radiusMinPixels: 3,
+					data: packedPositions(previewPos),
 					getFillColor: [...ctx.importPreviewColor, 200],
-					stroked: false,
 					pickable: true,
 				}),
 			);
@@ -249,33 +265,27 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		const segments = trailSegments(svTrail);
 		layers.push(
 			new PathLayer<(typeof segments)[number]>({
+				...SCREEN_LINE,
 				id: "sv-trail",
 				data: segments,
 				getPath: (d) => d.path,
 				getColor: (d) => [...ctx.svTrailColor, d.alpha],
 				getWidth: 2,
-				widthUnits: "pixels" as const,
-				jointRounded: true,
-				capRounded: true,
-				pickable: false,
 			}),
 		);
 		if (ctx.svTrailPosition) {
 			const tip = svTrail.at(-1);
 			layers.push(
 				new ScatterplotLayer({
+					...OUTLINED_DOT,
 					id: "sv-trail-position",
 					data: [tip],
 					getPosition: (d) => renderPos(d[0], d[1]),
 					getRadius: 5,
-					radiusUnits: "pixels" as const,
 					radiusMinPixels: 4,
 					getFillColor: [255, 255, 255, 220],
-					stroked: true,
-					lineWidthUnits: "pixels" as const,
 					getLineWidth: 2,
 					getLineColor: [...ctx.svTrailColor, 255],
-					pickable: false,
 				}),
 			);
 		}
@@ -350,15 +360,12 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	if (freehand && freehand.length >= 2) {
 		layers.push(
 			new PathLayer({
+				...SCREEN_LINE,
 				id: "freehand-drawing",
 				data: [unwrapRing(freehand)],
 				getPath: (d) => d,
 				getColor: [255, 255, 255, 200],
 				getWidth: 3,
-				widthUnits: "pixels" as const,
-				jointRounded: true,
-				capRounded: true,
-				pickable: false,
 			}),
 		);
 	}
@@ -368,18 +375,15 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		const closable = polygonVertices.length >= 3;
 		layers.push(
 			new ScatterplotLayer({
+				...OUTLINED_DOT,
 				id: "polygon-vertices",
 				data: polygonVertices,
 				getPosition: (d) => renderPos(d[0], d[1]),
-				radiusUnits: "pixels",
 				getRadius: (_d, { index }) => (closable && index === 0 ? POLYGON_CLOSE_VERTEX_PX : 4),
 				getFillColor: (_d, { index }) =>
 					closable && index === 0 ? [255, 255, 255, 90] : [255, 255, 255, 220],
-				stroked: true,
-				lineWidthUnits: "pixels",
 				getLineWidth: 1,
 				getLineColor: [0, 0, 0, 180],
-				pickable: false,
 			}),
 		);
 	}
@@ -388,15 +392,12 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	if (measurePoints.length >= 2) {
 		layers.push(
 			new PathLayer({
+				...SCREEN_LINE,
 				id: "measure-path",
 				data: [unwrapRing(measurePoints)],
 				getPath: (d) => d,
 				getColor: [0, 0, 0, 255],
 				getWidth: 2,
-				widthUnits: "pixels" as const,
-				jointRounded: true,
-				capRounded: true,
-				pickable: false,
 			}),
 		);
 	}
@@ -423,17 +424,14 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	if (measurePoints.length > 0) {
 		layers.push(
 			new ScatterplotLayer({
+				...OUTLINED_DOT,
 				id: "measure-nodes",
 				data: measurePoints,
 				getPosition: (d) => renderPos(d[0], d[1]),
-				radiusUnits: "pixels" as const,
 				getRadius: MEASURE_NODE_PX,
 				getFillColor: [255, 255, 255, 255],
-				stroked: true,
-				lineWidthUnits: "pixels" as const,
 				getLineWidth: 2,
 				getLineColor: [0, 0, 0, 255],
-				pickable: false,
 			}),
 		);
 	}

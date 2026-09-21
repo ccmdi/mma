@@ -25,6 +25,7 @@ import { t } from "@/lib/i18n";
 import type { Selector } from "@/bindings.gen";
 import type { LatLng, MapTypeKey } from "@/types";
 import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
+import { packedPositions } from "@/lib/render/packedPositions";
 import {
 	GUESS_COLOR,
 	TRUTH_COLOR,
@@ -68,10 +69,7 @@ async function fetchPool(selector: Selector): Promise<Float32Array> {
 function poolLayer(positions: Float32Array, color: RGB) {
 	return new ScatterplotLayer({
 		id: "lg-pool",
-		data: {
-			length: positions.length / 2,
-			attributes: { getPosition: { value: positions, size: 2 } },
-		},
+		data: packedPositions(positions),
 		getFillColor: color,
 		radiusUnits: "pixels",
 		getRadius: POOL_RADIUS,
