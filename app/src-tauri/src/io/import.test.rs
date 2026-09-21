@@ -1,8 +1,8 @@
 use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
-use crate::store::engine::Store;
 use crate::store::engine::{record_name, record_order, ValueRecord};
+use crate::store::engine::{Store, WindowLabel};
 use crate::store::maps;
 use crate::store::maps::MapSettings;
 use crate::store::maps::VirtualTag;
@@ -765,7 +765,7 @@ fn bench_parse_real() {
         locs = parsed.locations.len();
 
         let t1 = Instant::now();
-        let _preview = build_preview(parsed).expect("build_preview");
+        let _preview = build_preview(parsed, "bench").expect("build_preview");
         let t_build = t1.elapsed().as_secs_f64() * 1e3;
 
         eprintln!("iter {i}: parse={t_parse:.0}ms build_preview={t_build:.0}ms");
@@ -783,21 +783,46 @@ fn staged_location_fetch_by_index() {
     ]}"#;
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
-    *EDITOR_IMPORT_CACHE.lock().unwrap() = Some(parsed);
+    let win = || WindowLabel("staged-fetch".into());
+    EDITOR_IMPORT_CACHE.lock().unwrap().insert(win().0, parsed);
 
-    let first = store_import_staged_location(0).unwrap();
+    let first = store_import_staged_location(win(), 0).unwrap();
     assert_eq!(first.id, 0); // staged sentinel id
     assert_eq!(first.lat, 10.5);
     assert_eq!(first.heading, 90.0);
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
 
-    let second = store_import_staged_location(1).unwrap();
+    let second = store_import_staged_location(win(), 1).unwrap();
     assert_eq!(second.lng, 7.75);
 
-    assert!(store_import_staged_location(2).is_err());
+    assert!(store_import_staged_location(win(), 2).is_err());
 
-    *EDITOR_IMPORT_CACHE.lock().unwrap() = None;
-    assert!(store_import_staged_location(0).is_err());
+    EDITOR_IMPORT_CACHE.lock().unwrap().remove(&win().0);
+    assert!(store_import_staged_location(win(), 0).is_err());
+}
+
+#[test]
+fn two_windows_previewing_at_once_keep_their_own_import() {
+    let stage = |window: &str, lat: f64| {
+        let json = format!(r#"{{"customCoordinates":[{{"lat":{lat},"lng":1}}]}}"#);
+        let mut buf = json.into_bytes();
+        build_preview(parse_single_json_mut(&mut buf), window).unwrap()
+    };
+    let a = stage("preview-a", 11.0);
+    let b = stage("preview-b", 22.0);
+    assert_ne!(a.preview_positions_path, b.preview_positions_path);
+
+    let lat_in = |window: &str| {
+        store_import_staged_location(WindowLabel(window.into()), 0)
+            .unwrap()
+            .lat
+    };
+    assert_eq!(lat_in("preview-a"), 11.0);
+    assert_eq!(lat_in("preview-b"), 22.0);
+
+    let mut cache = EDITOR_IMPORT_CACHE.lock().unwrap();
+    cache.remove("preview-a");
+    cache.remove("preview-b");
 }
 
 // -----------------------------------------------------------------------

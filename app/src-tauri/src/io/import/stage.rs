@@ -10,6 +10,7 @@ use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
@@ -50,9 +51,9 @@ pub struct EditorImportPreview {
 }
 
 /// Write interleaved LE f32 `[lng, lat]` for every location to a temp file.
-/// Build preview stats from a parsed map and cache the parse for commit.
+/// Build preview stats from a parsed map and cache the parse for commit by `window`.
 /// Single pass: field counts, positions buffer, and bounds are computed together.
-pub(super) fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview> {
+pub(super) fn build_preview(parsed: ParsedMap, window: &str) -> AppResult<EditorImportPreview> {
     let n = parsed.locations.len();
     let (mut h, mut p, mut z, mut pano_c, mut tag_c) = (0u32, 0u32, 0u32, 0u32, 0u32);
     let mut extra_counts: HashMap<String, u32> = HashMap::new();
@@ -124,7 +125,17 @@ pub(super) fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview>
         });
     }
 
-    let path = env::temp_dir().join("mma_import_preview.bin");
+    let file_label: String = window
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    let path = env::temp_dir().join(format!("mma_import_preview_{file_label}.bin"));
     fs::write(&path, &pos_buf)?;
 
     let preview = EditorImportPreview {
@@ -141,19 +152,23 @@ pub(super) fn build_preview(parsed: ParsedMap) -> AppResult<EditorImportPreview>
         will_auto_commit: n > IMPORT_AUTOCOMMIT_THRESHOLD,
     };
 
-    *EDITOR_IMPORT_CACHE.lock().unwrap() = Some(parsed);
+    EDITOR_IMPORT_CACHE
+        .lock()
+        .unwrap()
+        .insert(window.to_string(), parsed);
     Ok(preview)
 }
 
-pub(super) static EDITOR_IMPORT_CACHE: Mutex<Option<ParsedMap>> = Mutex::new(None);
+pub(super) static EDITOR_IMPORT_CACHE: Mutex<BTreeMap<String, ParsedMap>> =
+    Mutex::new(BTreeMap::new());
 
 /// Return one staged (not yet imported) location by its preview `index`, for
 /// read-only preview in the editor.
 #[tauri::command]
 #[specta::specta]
-pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
+pub fn store_import_staged_location(label: WindowLabel, index: u32) -> AppResult<Location> {
     let cache = EDITOR_IMPORT_CACHE.lock().unwrap();
-    let parsed = cache.as_ref().ok_or("no staged import")?;
+    let parsed = cache.get(&label.0).ok_or("no staged import")?;
     parsed
         .locations
         .get(index as usize)
@@ -165,7 +180,10 @@ pub fn store_import_staged_location(index: u32) -> AppResult<Location> {
 /// editor import dialog. Call `storeImportFile` to commit the import.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview> {
+pub async fn store_import_preview(
+    label: WindowLabel,
+    path: String,
+) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
     // thread (which the webview shares - a sync command here freezes the window).
     task::spawn_blocking(move || {
@@ -174,7 +192,7 @@ pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview
         let t_read = t0.elapsed();
         let parsed = parse_file(&mut buf);
         let t_parse = t0.elapsed();
-        let preview = build_preview(parsed)?;
+        let preview = build_preview(parsed, &label.0)?;
         log::debug!(
             "[import-preview] read={:.0}ms parse={:.0}ms build={:.0}ms locs={}",
             t_read.as_millis(),
@@ -191,7 +209,10 @@ pub async fn store_import_preview(path: String) -> AppResult<EditorImportPreview
 /// `storeImportPreview` but reads from a string instead of a file.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportPreview> {
+pub async fn store_import_paste_preview(
+    label: WindowLabel,
+    text: String,
+) -> AppResult<EditorImportPreview> {
     task::spawn_blocking(move || {
         let t0 = Instant::now();
         let mut buf = text.into_bytes();
@@ -204,7 +225,7 @@ pub async fn store_import_paste_preview(text: String) -> AppResult<EditorImportP
             t0.elapsed().as_millis(),
             parsed.locations.len()
         );
-        build_preview(parsed)
+        build_preview(parsed, &label.0)
     })
     .await?
 }
@@ -322,7 +343,7 @@ pub async fn store_import_file(
     let mut parsed = EDITOR_IMPORT_CACHE
         .lock()
         .unwrap()
-        .take()
+        .remove(&label.0)
         .ok_or("no cached import - call store_import_preview first")?;
 
     let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
