@@ -987,6 +987,8 @@
 	"Read the manual": "Leer el manual",
 	"Reassign": "Reasignar",
 	"Recent log": "Registro reciente",
+	"Recolor {tags} tags": "Cambiar el color de {tags} etiquetas",
+	"Recolor {tags} tags...": "Cambiar el color de {tags} etiquetas...",
 	"Redo": "Rehacer",
 	"Refresh document": "Actualizar el documento",
 	"Refresh panorama": "Actualizar el panorama",

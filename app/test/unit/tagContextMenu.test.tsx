@@ -6,6 +6,7 @@ import { ContextMenu } from "@base-ui-components/react/context-menu";
 const h = vi.hoisted(() => ({
 	deleteTags: vi.fn(async (_ids: number[]) => {}),
 	countIn: vi.fn(async (_s: unknown) => 0),
+	openDialog: vi.fn(),
 	selectedTagIds: new Set<number>(),
 }));
 
@@ -15,6 +16,11 @@ vi.mock("@/store/useMapStore", async (importOriginal) => ({
 	countIn: h.countIn,
 	getActiveSelections: () => [],
 	useMapState: (sel: () => unknown) => sel(),
+}));
+
+vi.mock("@/store/dialogBus", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/store/dialogBus")>()),
+	openDialog: h.openDialog,
 }));
 
 vi.mock("@/store/selectionActions", async (importOriginal) => ({
@@ -30,6 +36,7 @@ import { findNode, mkTag } from "./fixtures/tagFixtures";
 
 beforeEach(() => {
 	h.deleteTags.mockClear();
+	h.openDialog.mockClear();
 	h.countIn.mockReset();
 	h.countIn.mockResolvedValue(0);
 	h.selectedTagIds = new Set();
@@ -91,10 +98,18 @@ describe("tag context menu", () => {
 		expect(items.map((i) => i.textContent)).toEqual([
 			"Remove 3 tags from all (9 locations)",
 			"Remove 3 tags from selection (0 locations)",
+			"Recolor 3 tags...",
 		]);
 
 		act(() => items[0].click());
 		expect(h.deleteTags).toHaveBeenCalledWith([4, 5, 6]);
+	});
+
+	it("recolors every selected tag together", async () => {
+		h.selectedTagIds = new Set([4, 5, 6]);
+		const items = await openMenu(node("c"));
+		act(() => items.find((i) => i.textContent === "Recolor 3 tags...")!.click());
+		expect(h.openDialog).toHaveBeenCalledWith("recolor-tags", [4, 5, 6]);
 	});
 
 	it("ignores the tag selection when the clicked tag is outside it", async () => {

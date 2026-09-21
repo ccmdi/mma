@@ -1011,6 +1011,8 @@
 	"Read the manual": "Прочитать руководство",
 	"Reassign": "Переназначить",
 	"Recent log": "Недавний журнал",
+	"Recolor {tags} tags": "Изменить цвет (тегов: {tags})",
+	"Recolor {tags} tags...": "Изменить цвет (тегов: {tags})...",
 	"Redo": "Вернуть",
 	"Refresh document": "Обновить документ",
 	"Refresh panorama": "Обновить панораму",

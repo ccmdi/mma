@@ -939,6 +939,8 @@
 	"Read the manual": "マニュアルを読む",
 	"Reassign": "再割り当て",
 	"Recent log": "最近のログ",
+	"Recolor {tags} tags": "{tags} 個のタグの色を変更",
+	"Recolor {tags} tags...": "{tags} 個のタグの色を変更...",
 	"Redo": "やり直し",
 	"Refresh document": "ドキュメントを更新",
 	"Refresh panorama": "パノラマを更新",

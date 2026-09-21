@@ -13,6 +13,7 @@ import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagSelector } from "@/store/selections";
 import { MenuItem, MenuPopup } from "@/components/primitives/Menu";
 import { t } from "@/lib/i18n";
+import { openDialog } from "@/store/dialogBus";
 import { menuTargetTagIds, type TagTreeNode } from "./tagTreeModel";
 
 type TagContextMenuProps = {
@@ -115,7 +116,11 @@ function TagContextMenuItems({
 							{ n: counts.inSel },
 						)}
 			</MenuItem>
-			{!multi && (
+			{multi ? (
+				<MenuItem onClick={() => openDialog("recolor-tags", targets)}>
+					{t("Recolor {tags} tags...", { tags: targets.length })}
+				</MenuItem>
+			) : (
 				<>
 					<MenuItem disabled={counts.ownInSel === 0} onClick={onRename}>
 						{t(

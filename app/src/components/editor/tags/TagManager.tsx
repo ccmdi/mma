@@ -47,6 +47,7 @@ import {
 } from "./tagTreeModel";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
+import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
@@ -79,6 +80,8 @@ export function TagManager() {
 	const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 	const treeRef = useRef<TagTreeHandle>(null);
 	const [renamingTag, setRenamingTag] = useState<{ id: number; name: string } | null>(null);
+	const [recoloringIds, setRecoloringIds] = useState<number[] | null>(null);
+	useDialog("recolor-tags", setRecoloringIds);
 	const [collapsed, setCollapsed] = useState(false);
 
 	// memoOnRefs keys this on the tag view, so the array identity is stable across
@@ -346,6 +349,19 @@ export function TagManager() {
 				/>
 			)}
 
+			{recoloringIds && (
+				<RecolorTagsDialog
+					open
+					color={tags.find((t) => t.id === recoloringIds[0])?.color ?? "#888888"}
+					count={recoloringIds.length}
+					onSave={(color) => {
+						commitTags(recoloringIds.map((id) => ({ id, patch: { color } })));
+						setRecoloringIds(null);
+					}}
+					onOpenChange={(open) => !open && setRecoloringIds(null)}
+				/>
+			)}
+
 			{newFolderParent != null && (
 				<NewFolderDialog
 					open
@@ -520,11 +536,15 @@ function EditTagDialog({
 					<TagColorFields
 						hsl={hsl}
 						onChange={setHsl}
-						descendantCount={cascade?.descendantCount ?? 0}
-						onApplyColor={() => {
-							cascade?.onApplyColor(hexValue);
-							close();
-						}}
+						applyInside={
+							cascade && {
+								count: cascade.descendantCount,
+								onApply: () => {
+									cascade.onApplyColor(hexValue);
+									close();
+								},
+							}
+						}
 					/>
 					<div className="edit-tag-modal__hotkey">
 						<span>{t("Hotkey:")}</span>
@@ -565,13 +585,12 @@ function EditTagDialog({
 function TagColorFields({
 	hsl,
 	onChange,
-	descendantCount,
-	onApplyColor,
+	applyInside,
 }: {
 	hsl: { h: number; s: number; l: number };
 	onChange: (hsl: { h: number; s: number; l: number }) => void;
-	descendantCount: number;
-	onApplyColor: () => void;
+	/** Offers stamping the color onto the tags nested inside, when there are any. */
+	applyInside?: { count: number; onApply: () => void };
 }) {
 	return (
 		<div className="edit-tag-modal__color">
@@ -591,15 +610,36 @@ function TagColorFields({
 				color={hsl}
 				onChange={onChange}
 			/>
-			{descendantCount > 0 && (
-				<Button className="edit-tag-modal__apply-color" onClick={onApplyColor}>
+			{applyInside && applyInside.count > 0 && (
+				<Button className="edit-tag-modal__apply-color" onClick={applyInside.onApply}>
 					{t(
 						{ one: "Apply to {n} tag inside", other: "Apply to {n} tags inside" },
-						{ n: descendantCount },
+						{ n: applyInside.count },
 					)}
 				</Button>
 			)}
 		</div>
+	);
+}
+
+function RecolorTagsDialog({
+	open,
+	onOpenChange,
+	color,
+	count,
+	onSave,
+}: DialogProps & { color: string; count: number; onSave: (color: string) => void }) {
+	const [hsl, setHsl] = useState(() => hexToHsl(color));
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent title={t("Recolor {tags} tags", { tags: count })}>
+				<DialogForm onSubmit={() => onSave(hslToHex(hsl.h, hsl.s, hsl.l))}>
+					<TagColorFields hsl={hsl} onChange={setHsl} />
+					<DialogActions cancel primary={{ label: t("Save") }} />
+				</DialogForm>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -643,8 +683,7 @@ function VirtualTagDialog({
 					<TagColorFields
 						hsl={hsl}
 						onChange={setHsl}
-						descendantCount={descendantCount}
-						onApplyColor={() => onApplyColor(hexValue)}
+						applyInside={{ count: descendantCount, onApply: () => onApplyColor(hexValue) }}
 					/>
 					<DialogActions
 						destructive={{ label: t("Reset"), onClick: onReset, disabled: color == null }}

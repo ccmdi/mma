@@ -1011,6 +1011,8 @@
 	"Read the manual": "Przeczytaj podręcznik",
 	"Reassign": "Przypisz ponownie",
 	"Recent log": "Ostatni dziennik",
+	"Recolor {tags} tags": "Zmień kolor (tagów: {tags})",
+	"Recolor {tags} tags...": "Zmień kolor (tagów: {tags})...",
 	"Redo": "Ponów",
 	"Refresh document": "Odśwież dokument",
 	"Refresh panorama": "Odśwież panoramę",

@@ -939,6 +939,8 @@
 	"Read the manual": "阅读手册",
 	"Reassign": "重新分配",
 	"Recent log": "最近的日志",
+	"Recolor {tags} tags": "更改 {tags} 个标签的颜色",
+	"Recolor {tags} tags...": "更改 {tags} 个标签的颜色...",
 	"Redo": "重做",
 	"Refresh document": "刷新文档",
 	"Refresh panorama": "刷新全景",
