@@ -22,8 +22,8 @@ vi.mock("@/store/selectionActions", async (importOriginal) => ({
 	getSelectedTagIds: () => h.selectedTagIds,
 }));
 
-import { TagContextMenuContent } from "@/components/editor/tags/TagManager";
-import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeRange";
+import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";
+import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeModel";
 import { any, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
 import { findNode, mkTag } from "./fixtures/tagFixtures";
@@ -46,7 +46,7 @@ async function openMenu(n: TagTreeNode) {
 	await mountAsync(
 		<ContextMenu.Root open>
 			<ContextMenu.Trigger>Area</ContextMenu.Trigger>
-			<TagContextMenuContent node={n} onRename={() => {}} onAddAlias={() => {}} />
+			<TagContextMenu node={n} onRename={() => {}} onAddAlias={() => {}} />
 		</ContextMenu.Root>,
 	);
 	await act(async () => {});

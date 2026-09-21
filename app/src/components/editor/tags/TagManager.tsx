@@ -1,31 +1,18 @@
-import {
-	useState,
-	useMemo,
-	useEffect,
-	useRef,
-	useCallback,
-	useOptimistic,
-	startTransition,
-} from "react";
+import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition } from "react";
 import type { Tag, TagPatch } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
-	countIn,
-	currentSelection,
 	deleteTags,
-	getActiveSelections,
 	getMapState,
 	getVisibleTags,
-	setTags,
 	reorderTags,
 	updateTags,
 	useMapState,
 	getTagCounts,
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
-import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
-import type { Selector, Update, VirtualTag } from "@/bindings.gen";
+import type { Update, VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -55,13 +42,12 @@ import {
 	cascadeRename,
 	collectOccupiedPaths,
 	syncAliasSegments,
-	menuTargetTagIds,
 	type TagTreeNode,
 	type TagMoveResult,
-} from "./tagTreeRange";
+} from "./tagTreeModel";
 import { t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
-import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
+import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
@@ -162,13 +148,13 @@ export function TagManager() {
 		const tagUpdates: Update<TagPatch>[] = [];
 		const folders = new Set<string>();
 		for (const t of tags) {
-			if (t.name !== root && !t.name.startsWith(`${root}/`)) continue;
+			if (!isAtOrUnder(t.name, root)) continue;
 			tagUpdates.push({ id: t.id, patch: { color } });
 			const parts = t.name.split("/");
 			let p = "";
 			for (let i = 0; i < parts.length - 1; i++) {
 				p = p ? `${p}/${parts[i]}` : parts[i];
-				if (p === root || p.startsWith(`${root}/`)) folders.add(p);
+				if (isAtOrUnder(p, root)) folders.add(p);
 			}
 		}
 		commitTags(tagUpdates);
@@ -179,7 +165,7 @@ export function TagManager() {
 	const addAlias = useCallback((tag: { id: number; name: string }) => setAddingAliasFor(tag), []);
 	const handleEditTreeTag = useCallback((node: TagTreeNode) => {
 		if (node.tag)
-			setEditingTreeTag({ tag: node.tag, descendantCount: node.descendantTagIds.length - 1 });
+			setEditingTreeTag({ tag: node.tag, descendantCount: node.subtreeTagIds.length - 1 });
 	}, []);
 	const removeAlias = useCallback(
 		(aliasPath: string) => {
@@ -195,7 +181,7 @@ export function TagManager() {
 			const vt = getMapState().map?.settings.virtualTags ?? {};
 			const next: Record<string, VirtualTag> = {};
 			for (const [k, v] of Object.entries(vt)) {
-				if (k !== path && !k.startsWith(`${path}/`)) next[k] = v;
+				if (!isAtOrUnder(k, path)) next[k] = v;
 			}
 			setVirtualTags(next);
 		},
@@ -388,117 +374,6 @@ export function TagManager() {
 						setAddingAliasFor(null);
 					}}
 				/>
-			)}
-		</>
-	);
-}
-
-type TagContextMenuProps = {
-	node: TagTreeNode;
-	onRename: () => void;
-	/** Tree mode only: place this tag at a second folder path. */
-	onAddAlias?: () => void;
-	/** Tree mode only: present on an alias leaf to remove it. */
-	onRemoveAlias?: () => void;
-	/** Tree mode only: present on folder rows to create a declared subfolder. */
-	onNewSubfolder?: () => void;
-};
-
-export function TagContextMenuContent(props: TagContextMenuProps) {
-	return (
-		<MenuPopup>
-			<TagContextMenuItems {...props} />
-		</MenuPopup>
-	);
-}
-
-function TagContextMenuItems({
-	node,
-	onRename,
-	onAddAlias,
-	onRemoveAlias,
-	onNewSubfolder,
-}: TagContextMenuProps) {
-	const tagId = node.tag!.id;
-	const selectedTagIds = useMapState(getSelectedTagIds);
-	const targets = useMemo(() => menuTargetTagIds(node, selectedTagIds), [node, selectedTagIds]);
-	const multi = targets.length > new Set(node.descendantTagIds).size;
-	const [counts, setCounts] = useState({ total: 0, inSel: 0, ownInSel: 0 });
-
-	useEffect(() => {
-		const carriers = any(...targets.map(tagSelector));
-		const hasSelection = getActiveSelections().length > 0;
-		const inSelection = (s: Selector) =>
-			hasSelection ? countIn(all(s, currentSelection())) : Promise.resolve(0);
-		void Promise.all([
-			countIn(carriers),
-			inSelection(carriers),
-			inSelection(tagSelector(tagId)),
-		]).then(([total, inSel, ownInSel]) => setCounts({ total, inSel, ownInSel }));
-	}, [tagId, targets]);
-
-	return (
-		<>
-			<MenuItem tone="destructive" onClick={() => void deleteTags(targets)}>
-				{multi
-					? t(
-							{
-								one: "Remove {tags} tags from all ({n} location)",
-								other: "Remove {tags} tags from all ({n} locations)",
-							},
-							{ n: counts.total, tags: targets.length },
-						)
-					: t(
-							{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
-							{ n: counts.total },
-						)}
-			</MenuItem>
-			<MenuItem
-				tone="destructive"
-				disabled={counts.inSel === 0}
-				onClick={() =>
-					void setTags([], targets, {
-						type: "Locations",
-						locations: [...getMapState().selectedLocationIds],
-						name: null,
-					})
-				}
-			>
-				{multi
-					? t(
-							{
-								one: "Remove {tags} tags from selection ({n} location)",
-								other: "Remove {tags} tags from selection ({n} locations)",
-							},
-							{ n: counts.inSel, tags: targets.length },
-						)
-					: t(
-							{
-								one: "Remove from selection ({n} location)",
-								other: "Remove from selection ({n} locations)",
-							},
-							{ n: counts.inSel },
-						)}
-			</MenuItem>
-			{!multi && (
-				<>
-					<MenuItem disabled={counts.ownInSel === 0} onClick={onRename}>
-						{t(
-							{
-								one: "Rename in selection ({n} location)",
-								other: "Rename in selection ({n} locations)",
-							},
-							{ n: counts.ownInSel },
-						)}
-					</MenuItem>
-					{onAddAlias && <MenuItem onClick={onAddAlias}>{t("Add alias...")}</MenuItem>}
-					{onNewSubfolder && <MenuItem onClick={onNewSubfolder}>{t("New subfolder...")}</MenuItem>}
-					{onRemoveAlias && (
-						<MenuItem tone="destructive" onClick={onRemoveAlias}>
-							{t("Remove alias")}
-						</MenuItem>
-					)}
-				</>
 			)}
 		</>
 	);
@@ -749,7 +624,7 @@ function VirtualTagDialog({
 }) {
 	const [hsl, setHsl] = useState(() => hexToHsl(color ?? "#888888"));
 	const hexValue = hslToHex(hsl.h, hsl.s, hsl.l);
-	const segment = path.split("/").pop() || path;
+	const segment = leafSegment(path);
 	const [name, setName] = useState(segment);
 
 	return (
@@ -848,7 +723,7 @@ function AddAliasDialog({
 	onSave: (aliasPath: string) => void;
 }) {
 	const [folder, setFolder] = useState("");
-	const segment = tag.name.split("/").pop() || tag.name;
+	const segment = leafSegment(tag.name);
 
 	// The alias slot must be free.
 	const occupied = useMemo(

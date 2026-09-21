@@ -12,7 +12,7 @@ import { ValidationState } from "@/bindings.consts";
 import { getSettings } from "@/store/settings";
 import { dayMonthFmt } from "@/lib/util/format";
 import { t, msg } from "@/lib/i18n";
-import { shortestUniqueSuffixes } from "@/components/editor/tags/tagTreeRange";
+import { shortestUniqueSuffixes } from "@/lib/data/tagPaths";
 
 import type { Selection, Selector } from "@/bindings.gen";
 export interface SelectionState {

@@ -28,7 +28,7 @@ import {
 	isLeafTag,
 	loadExpanded,
 	type TagTreeNode,
-} from "@/components/editor/tags/tagTreeRange";
+} from "@/components/editor/tags/tagTreeModel";
 import { t } from "@/lib/i18n";
 import { matches as textMatches } from "@/lib/search";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -91,7 +91,7 @@ function TreePill({
 /** Doclinks in this doc across the branch's tags (aliases dedup to one count). */
 function branchLinkCount(node: TagTreeNode, ctx: TreeCtx): number {
 	let total = 0;
-	for (const id of new Set(node.descendantTagIds)) {
+	for (const id of new Set(node.subtreeTagIds)) {
 		const tag = ctx.tagMap[id];
 		if (tag) total += anchorsInDoc(tag, ctx.docId).size;
 	}

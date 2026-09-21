@@ -1,4 +1,4 @@
-import type { TagTreeNode } from "@/components/editor/tags/tagTreeRange";
+import type { TagTreeNode } from "@/components/editor/tags/tagTreeModel";
 import type { Tag } from "@/types";
 export const mkTag = (id: number, name: string, color = "#888888", order = id): Tag => ({
 	id,

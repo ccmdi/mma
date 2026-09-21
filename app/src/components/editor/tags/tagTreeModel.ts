@@ -4,6 +4,7 @@ import type { TagSortMode } from "@/types";
 import type { TagFolderColorMode } from "@/store/settings";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { toggleInSet } from "@/lib/util/util";
+import { isAtOrUnder, leafSegment, rebasePath } from "@/lib/data/tagPaths";
 
 const EXPANDED_KEY = "tagTreeExpanded";
 
@@ -26,7 +27,8 @@ export interface TagTreeNode {
 	tag: Tag | null;
 	inheritedColor: string;
 	children: TagTreeNode[];
-	descendantTagIds: number[];
+	/** This node's own tag and every tag under it, aliases included. */
+	subtreeTagIds: number[];
 	/** Min `order` across descendant tags — used for "default" sort parity with flat mode.
 	 *  MAX_SAFE_INTEGER for a subtree with no tags (declared empty folders), sorting it last. */
 	sortOrder: number;
@@ -56,15 +58,12 @@ export function resolveExpandedPaths(
 	if (intent.kind === "toggle-subtree") {
 		if (expanded.has(intent.path)) {
 			for (const path of next) {
-				if (path === intent.path || path.startsWith(`${intent.path}/`)) next.delete(path);
+				if (isAtOrUnder(path, intent.path)) next.delete(path);
 			}
 		} else {
 			const addSubtree = (nodes: TagTreeNode[]) => {
 				for (const node of nodes) {
-					if (
-						node.children.length > 0 &&
-						(node.fullPath === intent.path || node.fullPath.startsWith(`${intent.path}/`))
-					) {
+					if (node.children.length > 0 && isAtOrUnder(node.fullPath, intent.path)) {
 						next.add(node.fullPath);
 					}
 					addSubtree(node.children);
@@ -140,7 +139,7 @@ function ensurePath(root: TagTreeNode[], parts: string[]): TagTreeNode {
 				tag: null,
 				inheritedColor: "",
 				children: [],
-				descendantTagIds: [],
+				subtreeTagIds: [],
 				sortOrder: 0,
 				isAlias: false,
 			};
@@ -178,19 +177,9 @@ export function buildTagTree(
 	// fills a free leaf slot, never clobbers (and never leaves a stray empty folder).
 	if (split) {
 		const tagById = new Map(tags.map((t) => [t.id, t]));
-		const resolve = (path: string): TagTreeNode | null => {
-			let level = root;
-			let found: TagTreeNode | null = null;
-			for (const segment of path.split("/")) {
-				found = level.find((n) => n.segment === segment) ?? null;
-				if (!found) return null;
-				level = found.children;
-			}
-			return found;
-		};
 		for (const [aliasPath, tagId] of Object.entries(aliases)) {
 			const tag = tagById.get(tagId);
-			if (!tag || resolve(aliasPath)) continue;
+			if (!tag || findByPath(root, aliasPath)) continue;
 			const leaf = ensurePath(root, aliasPath.split("/"));
 			leaf.tag = tag;
 			leaf.isAlias = true;
@@ -239,7 +228,7 @@ export function buildTagTree(
 			ids.push(...c.ids);
 			if (c.minOrder < minOrder) minOrder = c.minOrder;
 		}
-		node.descendantTagIds = ids;
+		node.subtreeTagIds = ids;
 		node.sortOrder = minOrder === Number.POSITIVE_INFINITY ? Number.MAX_SAFE_INTEGER : minOrder;
 		return { ids, minOrder: node.sortOrder };
 	}
@@ -275,8 +264,8 @@ export function buildTagTree(
 }
 
 /** Tag ids to toggle for a shift-click range over the tree's visible rows. Unions the
- *  descendant ids of every row in the [anchor, target] span, de-duped, but excludes the
- *  anchor's own descendants — those were selected by the anchor click, and (when the anchor
+ *  subtree ids of every row in the [anchor, target] span, de-duped, but excludes the
+ *  anchor's own subtree — those were selected by the anchor click, and (when the anchor
  *  is an expanded parent) its child rows sit inside the span, so toggling them would undo it. */
 export function rangeToggleTagIds(
 	rows: TagTreeNode[],
@@ -285,51 +274,27 @@ export function rangeToggleTagIds(
 ): number[] {
 	const lo = Math.min(anchorIdx, targetIdx);
 	const hi = Math.max(anchorIdx, targetIdx);
-	const exclude = new Set(rows[anchorIdx].descendantTagIds);
+	const exclude = new Set(rows[anchorIdx].subtreeTagIds);
 	const ids = new Set<number>();
 	for (let i = lo; i <= hi; i++) {
-		for (const id of rows[i].descendantTagIds) {
+		for (const id of rows[i].subtreeTagIds) {
 			if (!exclude.has(id)) ids.add(id);
 		}
 	}
 	return [...ids];
 }
 
-/** Tags a context menu on `node` acts on: every selected tag when the node's own tag is
- *  among them, otherwise just the node's subtree. A selected folder always brings its subtree. */
+/** Tags a context menu on `node` acts on: every selected tag when the row reads as selected,
+ *  otherwise just the node's subtree. A selected folder always brings its subtree. */
 export function menuTargetTagIds(node: TagTreeNode, selectedTagIds: ReadonlySet<number>): number[] {
-	if (!node.tag || !selectedTagIds.has(node.tag.id)) return [...new Set(node.descendantTagIds)];
-	return [...new Set([...selectedTagIds, ...node.descendantTagIds])];
-}
-
-/** Map each `/`-delimited name to the shortest trailing path-segment run that uniquely
- *  identifies it within `names`. A name with no collision collapses to its last segment;
- *  one whose suffix is shared widens until distinct, falling back to the full path. */
-export function shortestUniqueSuffixes(names: string[]): Map<string, string> {
-	const parts = names.map((n) => n.split("/"));
-	const out = new Map<string, string>();
-	for (let i = 0; i < names.length; i++) {
-		const p = parts[i];
-		let depth = 1;
-		let suffix = p.slice(-depth).join("/");
-		while (
-			depth < p.length &&
-			parts.some((other, j) => j !== i && other.slice(-depth).join("/") === suffix)
-		) {
-			depth++;
-			suffix = p.slice(-depth).join("/");
-		}
-		out.set(names[i], suffix);
-	}
-	return out;
+	if (!isEffectivelySelected(node, selectedTagIds)) return [...new Set(node.subtreeTagIds)];
+	return [...new Set([...selectedTagIds, ...node.subtreeTagIds])];
 }
 
 export interface TagNameChange {
 	id: number;
 	name: string;
 }
-
-const leafOf = (name: string) => name.split("/").pop() ?? name;
 
 /** An alias leaf displays its path's last segment, fixed at creation from the tag's leaf
  *  name. When a tag's leaf name changes, rewrite the last segment of every alias key
@@ -340,7 +305,7 @@ export function syncAliasSegments(
 	renames: { id: number; oldName: string; newName: string }[],
 ): Record<string, number> | null {
 	const byId = new Map(
-		renames.filter((r) => leafOf(r.oldName) !== leafOf(r.newName)).map((r) => [r.id, r]),
+		renames.filter((r) => leafSegment(r.oldName) !== leafSegment(r.newName)).map((r) => [r.id, r]),
 	);
 	if (byId.size === 0) return null;
 	let changed = false;
@@ -349,7 +314,7 @@ export function syncAliasSegments(
 		const r = byId.get(id);
 		if (r) {
 			const parts = path.split("/");
-			parts[parts.length - 1] = leafOf(r.newName);
+			parts[parts.length - 1] = leafSegment(r.newName);
 			next[parts.join("/")] = id;
 			changed = true;
 		} else {
@@ -376,12 +341,7 @@ export function cascadeRename(
 	aliases: Record<string, number>;
 } {
 	const moved = newPrefix !== oldPrefix;
-	const rewrite = (s: string): string | null => {
-		if (!moved) return null;
-		if (s === oldPrefix) return newPrefix;
-		if (s.startsWith(`${oldPrefix}/`)) return newPrefix + s.slice(oldPrefix.length);
-		return null;
-	};
+	const rewrite = (s: string) => (moved ? rebasePath(s, oldPrefix, newPrefix) : null);
 
 	const tagRenames: TagNameChange[] = [];
 	for (const t of tags) {
@@ -416,8 +376,8 @@ export function cascadeRename(
 /** Resolve a split-mode tree node by full path (paths are `/`-joined segments). */
 function findByPath(tree: TagTreeNode[], path: string): TagTreeNode | null {
 	for (const n of tree) {
-		if (n.fullPath === path) return n;
-		if (path.startsWith(`${n.fullPath}/`)) return findByPath(n.children, path);
+		if (isAtOrUnder(path, n.fullPath))
+			return n.fullPath === path ? n : findByPath(n.children, path);
 	}
 	return null;
 }
@@ -436,7 +396,7 @@ export function canDropInto(tree: TagTreeNode[], dragPaths: string[], targetPath
 	}
 	const nodes = dragPaths.map((p) => findByPath(tree, p));
 	if (nodes.length === 0 || nodes.some((n) => !n || n.isAlias)) return false;
-	if (dragPaths.some((p) => targetPath === p || targetPath.startsWith(`${p}/`))) return false;
+	if (dragPaths.some((p) => isAtOrUnder(targetPath, p))) return false;
 	return nodes[0]!.parentPath !== targetPath;
 }
 
@@ -511,35 +471,15 @@ export function moveIntoFolder(
 	};
 }
 
-interface OrderNode {
-	fullPath: string;
-	tag: { id: number } | null;
-	children: OrderNode[];
-	isAlias?: boolean;
+function siblingsAt(tree: TagTreeNode[], parent: string): TagTreeNode[] {
+	return parent === "" ? tree : (findByPath(tree, parent)?.children ?? tree);
 }
 
-function siblingsAt<T extends OrderNode>(tree: T[], parent: string): T[] {
-	if (parent === "") return tree;
-	let result: T[] = tree;
-	const find = (arr: T[]): boolean => {
-		for (const n of arr) {
-			if (n.fullPath === parent) {
-				result = n.children as T[];
-				return true;
-			}
-			if (find(n.children as T[])) return true;
-		}
-		return false;
-	};
-	find(tree);
-	return result;
-}
-
-// Mirrors row highlighting: own tag selected, or a branch with every descendant selected.
-// The length guard keeps empty folders out ([].every is vacuously true).
-const isEffectivelySelected = (n: TagTreeNode, sel: ReadonlySet<number>): boolean =>
+/** Whether a row reads as selected: its own tag is, or every tag in its subtree is. A subtree
+ *  with no tags (an empty folder) never is. */
+export const isEffectivelySelected = (n: TagTreeNode, sel: ReadonlySet<number>): boolean =>
 	(n.tag != null && sel.has(n.tag.id)) ||
-	(n.descendantTagIds.length > 0 && n.descendantTagIds.every((id) => sel.has(id)));
+	(n.subtreeTagIds.length > 0 && n.subtreeTagIds.every((id) => sel.has(id)));
 
 /** The sibling paths a ctrl+drag carries as one block: the grabbed node plus every
  *  effectively-selected sibling of the same kind (pill vs folder row), in sibling order.
@@ -559,17 +499,10 @@ export function collectDragBlock(
 		.map((n) => n.fullPath);
 }
 
-/** Full DFS tag-id order reflecting an in-level move of the `dragPaths` block to
- *  before/after `dropPath`. The block keeps its relative sibling order and lands as one
- *  contiguous run. `parent` is the block's structural parentPath ("" at root) -- it can't
- *  be derived from the path string, which may contain literal "/" in no-split mode.
- *  Returns null if the target isn't a sibling under `parent`, is part of the block, or
- *  no block member is found. Every other node keeps its relative order; moved nodes
- *  carry their whole subtrees. */
 /** Move one node a single slot among its siblings (-1 up, +1 down). Returns the new flat
  *  DFS tag-id order, or null at either end. Keyboard counterpart to a drag reorder. */
-export function stepSiblingFlatOrder<T extends OrderNode>(
-	tree: T[],
+export function stepSiblingFlatOrder(
+	tree: TagTreeNode[],
 	path: string,
 	parent: string,
 	delta: -1 | 1,
@@ -589,8 +522,15 @@ export function stepSiblingFlatOrder<T extends OrderNode>(
 	);
 }
 
-export function reorderSiblingsFlatOrder<T extends OrderNode>(
-	tree: T[],
+/** Full DFS tag-id order reflecting an in-level move of the `dragPaths` block to
+ *  before/after `dropPath`. The block keeps its relative sibling order and lands as one
+ *  contiguous run. `parent` is the block's structural parentPath ("" at root) -- it can't
+ *  be derived from the path string, which may contain literal "/" in no-split mode.
+ *  Returns null if the target isn't a sibling under `parent`, is part of the block, or
+ *  no block member is found. Every other node keeps its relative order; moved nodes
+ *  carry their whole subtrees. */
+export function reorderSiblingsFlatOrder(
+	tree: TagTreeNode[],
 	dragPaths: string[],
 	dropPath: string,
 	position: "before" | "after",
@@ -610,7 +550,7 @@ export function reorderSiblingsFlatOrder<T extends OrderNode>(
 	without.splice(idx, 0, ...block);
 
 	const out: number[] = [];
-	const dfs = (nodes: OrderNode[], cur: string) => {
+	const dfs = (nodes: TagTreeNode[], cur: string) => {
 		const ordered = cur === parent ? without : nodes;
 		for (const n of ordered) {
 			if (n.tag && !n.isAlias) out.push(n.tag.id); // alias leaves don't own the id

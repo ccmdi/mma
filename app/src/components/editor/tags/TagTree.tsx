@@ -22,12 +22,14 @@ import { fmt } from "@/lib/util/format";
 import { toggleTagSelections } from "@/store/selectionActions";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useSetting } from "@/store/settings";
-import { TagContextMenuContent } from "./TagManager";
+import { TagContextMenu } from "./TagContextMenu";
+import { rebasePath } from "@/lib/data/tagPaths";
 import {
 	rangeToggleTagIds,
 	reorderSiblingsFlatOrder,
 	stepSiblingFlatOrder,
 	collectDragBlock,
+	isEffectivelySelected,
 	canDropInto,
 	moveIntoFolder,
 	buildTagTree,
@@ -39,7 +41,7 @@ import {
 	type TagTreeNode,
 	type TagMoveResult,
 	type TagTreeExpansionIntent,
-} from "./tagTreeRange";
+} from "./tagTreeModel";
 import type { TagSortMode } from "@/types";
 import type { VirtualTag } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
@@ -160,12 +162,7 @@ export function TagTreeView({
 			remapExpanded(oldPrefix, newPrefix) {
 				if (oldPrefix === newPrefix) return;
 				setExpandedPaths((prev) => {
-					const next = new Set<string>();
-					for (const p of prev) {
-						if (p === oldPrefix) next.add(newPrefix);
-						else if (p.startsWith(`${oldPrefix}/`)) next.add(newPrefix + p.slice(oldPrefix.length));
-						else next.add(p);
-					}
+					const next = new Set([...prev].map((p) => rebasePath(p, oldPrefix, newPrefix) ?? p));
 					saveExpanded(next);
 					return next;
 				});
@@ -363,8 +360,8 @@ export function TagTreeView({
 				reorderEnabled &&
 				src.parentPath === node.parentPath &&
 				isLeafTag(src) === isLeafTag(node) &&
-				src.descendantTagIds.length > 0 &&
-				node.descendantTagIds.length > 0
+				src.subtreeTagIds.length > 0 &&
+				node.subtreeTagIds.length > 0
 			) {
 				const rect = el.getBoundingClientRect();
 				const position = horizontal
@@ -441,12 +438,9 @@ export function TagTreeView({
 				// Solo: toggle only this node's own tag, ignoring descendants.
 				toggleTagSelections([node.tag.id]);
 			} else {
-				// Single-node select/deselect of all its descendant tags.
-				const allChildrenSelected =
-					node.children.length > 0 && node.descendantTagIds.every((id) => selectedTagIds.has(id));
-				const isSelected = node.tag ? selectedTagIds.has(node.tag.id) : false;
-				const effectiveSelected = isSelected || allChildrenSelected;
-				const ids = node.descendantTagIds.filter((id) =>
+				// Single-node select/deselect of its whole subtree.
+				const effectiveSelected = isEffectivelySelected(node, selectedTagIds);
+				const ids = node.subtreeTagIds.filter((id) =>
 					effectiveSelected ? selectedTagIds.has(id) : !selectedTagIds.has(id),
 				);
 				if (ids.length > 0) toggleTagSelections(ids);
@@ -593,15 +587,11 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 	const childRowsRef = useRef<HTMLUListElement>(null);
 	useSwapAnimation(childRowsRef, displayChildRows, dragPaths);
 
-	const isSelected = node.tag ? selectedTagIds.has(node.tag.id) : false;
-	const allChildrenSelected =
-		hasChildren && node.descendantTagIds.every((id) => selectedTagIds.has(id));
+	const effectiveSelected = isEffectivelySelected(node, selectedTagIds);
 	const someChildrenSelected =
 		hasChildren &&
-		!allChildrenSelected &&
-		node.descendantTagIds.some((id) => selectedTagIds.has(id));
-
-	const effectiveSelected = isSelected || allChildrenSelected;
+		node.subtreeTagIds.some((id) => selectedTagIds.has(id)) &&
+		!node.subtreeTagIds.every((id) => selectedTagIds.has(id));
 
 	const bg = node.inheritedColor;
 	const fg = textColorFor(bg);
@@ -675,7 +665,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 					}
 				/>
 				{node.tag ? (
-					<TagContextMenuContent
+					<TagContextMenu
 						node={node}
 						onRename={() => onRenameTag({ id: node.tag!.id, name: node.tag!.name })}
 						onAddAlias={() => onAddAlias({ id: node.tag!.id, name: node.tag!.name })}
@@ -684,7 +674,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 				) : (
 					<MenuPopup>
 						<MenuItem onClick={() => onNewFolder(node.fullPath)}>{t("New subfolder...")}</MenuItem>
-						{node.descendantTagIds.length === 0 && (
+						{node.subtreeTagIds.length === 0 && (
 							<MenuItem tone="destructive" onClick={() => onDeleteFolder(node.fullPath)}>
 								{t("Delete folder")}
 							</MenuItem>
@@ -877,7 +867,7 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 					/>
 				}
 			/>
-			<TagContextMenuContent
+			<TagContextMenu
 				node={node}
 				onRename={() => onRenameTag({ id: tag.id, name: tag.name })}
 				onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}

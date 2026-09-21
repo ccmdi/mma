@@ -13,21 +13,27 @@ import {
 	syncAliasSegments,
 	isLeafTag,
 	sumCounts,
-	shortestUniqueSuffixes,
 	resolveExpandedPaths,
 	type TagTreeNode,
 	type FolderColorOpts,
-} from "@/components/editor/tags/tagTreeRange";
+} from "@/components/editor/tags/tagTreeModel";
 import type { VirtualTag } from "@/bindings.gen";
 import { findNode, mkTag, segs } from "./fixtures/tagFixtures";
 
-interface N {
-	fullPath: string;
-	tag: { id: number } | null;
-	children: N[];
-	isAlias?: boolean;
-}
-const leaf = (path: string, id: number): N => ({ fullPath: path, tag: { id }, children: [] });
+const tree3 = () => buildTagTree([mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c")], "default", {});
+const tree5 = () =>
+	buildTagTree(
+		[mkTag(1, "a"), mkTag(2, "b"), mkTag(3, "c"), mkTag(4, "d"), mkTag(5, "e")],
+		"default",
+		{},
+	);
+/** Leaves float above folders, so `q` renders (and orders) before folder `p`. */
+const pxyzq = () =>
+	buildTagTree(
+		[mkTag(10, "p/x"), mkTag(11, "p/y"), mkTag(12, "p/z"), mkTag(20, "q")],
+		"default",
+		{},
+	);
 
 describe("resolveExpandedPaths", () => {
 	const tree = buildTagTree(
@@ -77,35 +83,6 @@ describe("resolveExpandedPaths", () => {
 	});
 });
 
-describe("shortestUniqueSuffixes", () => {
-	it("collapses a unique name to its last segment", () => {
-		const m = shortestUniqueSuffixes(["europe/france/paris", "usa/texas/austin"]);
-		expect(m.get("usa/texas/austin")).toBe("austin");
-	});
-
-	it("widens colliding suffixes until unique", () => {
-		const m = shortestUniqueSuffixes([
-			"europe/france/paris",
-			"usa/texas/paris",
-			"usa/texas/austin",
-		]);
-		expect(m.get("europe/france/paris")).toBe("france/paris");
-		expect(m.get("usa/texas/paris")).toBe("texas/paris");
-		expect(m.get("usa/texas/austin")).toBe("austin");
-	});
-
-	it("falls back to the full path when even that collides ancestrally", () => {
-		const m = shortestUniqueSuffixes(["a/b/c", "b/c"]);
-		expect(m.get("b/c")).toBe("b/c");
-		expect(m.get("a/b/c")).toBe("a/b/c");
-	});
-
-	it("leaves single-segment names untouched", () => {
-		const m = shortestUniqueSuffixes(["red", "blue"]);
-		expect(m.get("red")).toBe("red");
-	});
-});
-
 describe("rangeToggleTagIds", () => {
 	const pick = (tree: TagTreeNode[], paths: string[]) => paths.map((p) => findNode(tree, p)!);
 	const flat = buildTagTree(
@@ -127,7 +104,7 @@ describe("rangeToggleTagIds", () => {
 		expect(rangeToggleTagIds(rows, 1, 1)).toEqual([]);
 	});
 
-	it("unions and de-dupes descendant ids across rows (parent + child overlap)", () => {
+	it("unions and de-dupes subtree ids across rows (parent + child overlap)", () => {
 		const tree = buildTagTree(
 			[mkTag(10, "x"), mkTag(20, "P"), mkTag(21, "P/a"), mkTag(22, "P/b")],
 			"default",
@@ -177,7 +154,7 @@ describe("menuTargetTagIds", () => {
 });
 
 describe("reorderSiblingsFlatOrder", () => {
-	const tree: N[] = [leaf("a", 1), leaf("b", 2), leaf("c", 3)];
+	const tree = tree3();
 
 	it("moves a root sibling after another", () => {
 		expect(reorderSiblingsFlatOrder(tree, ["a"], "c", "after", "")).toEqual([2, 3, 1]);
@@ -188,23 +165,14 @@ describe("reorderSiblingsFlatOrder", () => {
 	});
 
 	it("reorders within a parent and preserves other subtrees + relative order", () => {
-		const nested: N[] = [
-			{
-				fullPath: "p",
-				tag: null,
-				children: [leaf("p/x", 10), leaf("p/y", 11), leaf("p/z", 12)],
-			},
-			leaf("q", 20),
-		];
 		// move p/z before p/x -> z,x,y under p; q untouched
-		expect(reorderSiblingsFlatOrder(nested, ["p/z"], "p/x", "before", "p")).toEqual([
-			12, 10, 11, 20,
+		expect(reorderSiblingsFlatOrder(pxyzq(), ["p/z"], "p/x", "before", "p")).toEqual([
+			20, 12, 10, 11,
 		]);
 	});
 
 	it("returns null when the target isn't a sibling under the given parent", () => {
-		const nested: N[] = [{ fullPath: "p", tag: null, children: [leaf("p/x", 10)] }, leaf("q", 20)];
-		expect(reorderSiblingsFlatOrder(nested, ["p/x"], "q", "after", "p")).toBeNull();
+		expect(reorderSiblingsFlatOrder(pxyzq(), ["p/x"], "q", "after", "p")).toBeNull();
 	});
 
 	it("returns null when source equals target", () => {
@@ -212,31 +180,37 @@ describe("reorderSiblingsFlatOrder", () => {
 	});
 
 	it("does not emit an alias leaf's id (the real leaf owns it)", () => {
-		const withAlias: N[] = [
-			leaf("a", 1),
-			{ fullPath: "b", tag: { id: 1 }, children: [], isAlias: true },
-			leaf("c", 3),
-		];
+		const withAlias = buildTagTree([mkTag(1, "a"), mkTag(3, "c")], "default", {}, {}, { b: 1 });
+		expect(findNode(withAlias, "b")!.isAlias).toBe(true);
 		// Reordering real siblings must not duplicate/emit the alias's id 1.
 		expect(reorderSiblingsFlatOrder(withAlias, ["a"], "c", "after", "")).toEqual([3, 1]);
 	});
 
 	it("treats a root leaf whose name contains '/' as a root sibling (no-split flat view)", () => {
 		// Flat view: "Europe/France" is one leaf at root, not a child of "Europe".
-		const flat: N[] = [leaf("Europe/France", 1), leaf("Red", 2), leaf("Blue", 3)];
+		const flat = buildTagTree(
+			[mkTag(1, "Europe/France"), mkTag(2, "Red"), mkTag(3, "Blue")],
+			"default",
+			{},
+			{},
+			{},
+			false,
+		);
 		expect(reorderSiblingsFlatOrder(flat, ["Europe/France"], "Blue", "after", "")).toEqual([
 			2, 3, 1,
 		]);
 	});
 
 	it("moves a non-contiguous block after a target, preserving relative order", () => {
-		const five: N[] = [leaf("a", 1), leaf("b", 2), leaf("c", 3), leaf("d", 4), leaf("e", 5)];
-		expect(reorderSiblingsFlatOrder(five, ["b", "d"], "e", "after", "")).toEqual([1, 3, 5, 2, 4]);
+		expect(reorderSiblingsFlatOrder(tree5(), ["b", "d"], "e", "after", "")).toEqual([
+			1, 3, 5, 2, 4,
+		]);
 	});
 
 	it("moves a block before the first sibling", () => {
-		const five: N[] = [leaf("a", 1), leaf("b", 2), leaf("c", 3), leaf("d", 4), leaf("e", 5)];
-		expect(reorderSiblingsFlatOrder(five, ["c", "e"], "a", "before", "")).toEqual([3, 5, 1, 2, 4]);
+		expect(reorderSiblingsFlatOrder(tree5(), ["c", "e"], "a", "before", "")).toEqual([
+			3, 5, 1, 2, 4,
+		]);
 	});
 
 	it("returns null when the target is part of the block", () => {
@@ -244,14 +218,14 @@ describe("reorderSiblingsFlatOrder", () => {
 	});
 
 	it("ignores block paths outside the sibling group", () => {
-		const nested: N[] = [
-			{ fullPath: "p", tag: null, children: [leaf("p/x", 10), leaf("p/y", 11)] },
-			leaf("q", 20),
-			leaf("r", 30),
-		];
+		const nested = buildTagTree(
+			[mkTag(10, "p/x"), mkTag(11, "p/y"), mkTag(20, "q"), mkTag(30, "r")],
+			"default",
+			{},
+		);
 		// p/x isn't a root sibling; only q moves.
 		expect(reorderSiblingsFlatOrder(nested, ["q", "p/x"], "r", "after", "")).toEqual([
-			10, 11, 30, 20,
+			30, 20, 10, 11,
 		]);
 	});
 });
@@ -411,7 +385,7 @@ describe("buildTagTree", () => {
 		const france = tree.find((n) => n.tag?.id === 1)!;
 		expect(france.segment).toBe("Europe/France");
 		expect(france.fullPath).toBe("Europe/France");
-		expect(france.descendantTagIds).toEqual([1]);
+		expect(france.subtreeTagIds).toEqual([1]);
 	});
 
 	it("split=false matches flat default sort (order, then name)", () => {
@@ -751,7 +725,7 @@ describe("declared empty folders (virtualTags)", () => {
 });
 
 describe("stepSiblingFlatOrder", () => {
-	const tree: N[] = [leaf("a", 1), leaf("b", 2), leaf("c", 3)];
+	const tree = tree3();
 
 	it("moves a node up one slot", () => {
 		expect(stepSiblingFlatOrder(tree, "c", "", -1)).toEqual([1, 3, 2]);
@@ -767,15 +741,7 @@ describe("stepSiblingFlatOrder", () => {
 	});
 
 	it("steps within a parent and leaves other subtrees alone", () => {
-		const nested: N[] = [
-			{
-				fullPath: "p",
-				tag: null,
-				children: [leaf("p/x", 10), leaf("p/y", 11), leaf("p/z", 12)],
-			},
-			leaf("q", 20),
-		];
-		expect(stepSiblingFlatOrder(nested, "p/z", "p", -1)).toEqual([10, 12, 11, 20]);
+		expect(stepSiblingFlatOrder(pxyzq(), "p/z", "p", -1)).toEqual([20, 10, 12, 11]);
 	});
 
 	it("returns null for a path that isn't under the given parent", () => {
