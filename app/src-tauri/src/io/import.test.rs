@@ -776,6 +776,36 @@ fn bench_parse_real() {
 }
 
 #[test]
+fn a_bulk_preview_keeps_every_file_it_parsed() {
+    let dir = std::env::temp_dir();
+    let paths: Vec<String> = ["bulk-cache-a", "bulk-cache-b"]
+        .iter()
+        .map(|name| {
+            let path = dir.join(format!("{name}.json"));
+            std::fs::write(
+                &path,
+                br#"{"name":"m","customCoordinates":[{"lat":1,"lng":2}]}"#,
+            )
+            .unwrap();
+            path.to_string_lossy().into_owned()
+        })
+        .collect();
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    for path in &paths {
+        rt.block_on(bulk_import_preview(path.clone())).unwrap();
+    }
+    {
+        let cache = CACHED_PARSE.lock().unwrap();
+        assert!(paths.iter().all(|p| cache.contains_key(p)));
+    }
+    rt.block_on(bulk_import_cancel()).unwrap();
+    assert!(CACHED_PARSE.lock().unwrap().is_empty());
+    for path in &paths {
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[test]
 fn staged_location_fetch_by_index() {
     let json = br#"{"name":"Pasted URLs","customCoordinates":[
         {"lat":10.5,"lng":20.5,"heading":90,"panoId":"abcdefghijklmnopqrstuv"},

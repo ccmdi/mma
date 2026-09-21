@@ -23,18 +23,12 @@ use crate::store::arrow;
 use crate::store::maps;
 use crate::store::maps::MapSettings;
 use crate::store::storage;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use tokio::task;
 
-/// Cached result from `bulk_import_preview` so `bulk_import_confirm` can
-/// skip re-parsing. Keyed by file path to detect stale caches.
-// TODO: single slot - multi-file bulk import only caches the last file; earlier ones re-parse.
-static CACHED_PARSE: Mutex<Option<CachedImport>> = Mutex::new(None);
-
-struct CachedImport {
-    path: String,
-    maps: Vec<ParsedMap>,
-}
+/// Every file `bulk_import_preview` parsed, keyed by path, so `bulk_import_confirm`
+/// skips re-parsing each one.
+static CACHED_PARSE: Mutex<BTreeMap<String, Vec<ParsedMap>>> = Mutex::new(BTreeMap::new());
 
 // ---------------------------------------------------------------------------
 // Types returned to JS
@@ -151,7 +145,7 @@ pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEnt
 
         let results: Vec<ImportPreviewEntry> = maps.iter().map(ImportPreviewEntry::from).collect();
 
-        *CACHED_PARSE.lock().unwrap() = Some(CachedImport { path, maps });
+        CACHED_PARSE.lock().unwrap().insert(path, maps);
 
         Ok(results)
     })
@@ -181,14 +175,10 @@ pub async fn bulk_import_confirm(
     let main_path = storage::db_path()?;
 
     task::spawn_blocking(move || {
-        let all_maps = {
-            let mut cache = CACHED_PARSE.lock().unwrap();
-            if cache.as_ref().map(|c| c.path.as_str()) == Some(path.as_str()) {
-                cache.take().unwrap().maps
-            } else {
-                drop(cache);
-                read_and_parse_maps(&path)?
-            }
+        let cached = CACHED_PARSE.lock().unwrap().remove(&path);
+        let all_maps = match cached {
+            Some(maps) => maps,
+            None => read_and_parse_maps(&path)?,
         };
 
         let selected_set: HashSet<u32> = selected_indices.into_iter().collect();
@@ -226,7 +216,7 @@ pub async fn bulk_import_confirm(
 #[tauri::command]
 #[specta::specta]
 pub async fn bulk_import_cancel() -> AppResult<()> {
-    *CACHED_PARSE.lock().unwrap() = None;
+    CACHED_PARSE.lock().unwrap().clear();
     Ok(())
 }
 
