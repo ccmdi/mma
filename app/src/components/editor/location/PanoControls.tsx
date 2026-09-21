@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
 import { isPinned } from "@/types";
+import { useFlashState, type FlashState } from "@/lib/hooks/useFlashState";
 import { PANO_ZOOM, SV_JUMP_RADIUS, displayZoom } from "@/lib/sv/constants";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp, formatDistance } from "@/lib/util/format";
@@ -36,6 +37,11 @@ import {
 import { t } from "@/lib/i18n";
 
 // --- Compass ---
+
+function FlashIcon({ state, icon }: { state: FlashState; icon: string }) {
+	if (state === "busy") return <Spinner size="18px" />;
+	return <Icon path={state === "done" ? mdiCheck : icon} />;
+}
 
 export function Compass() {
 	const pano = usePano();
@@ -335,8 +341,8 @@ export const PanoControls = memo(function PanoControls({
 	const fullscreenKey = useBinding("toggleFullscreen");
 	const jumpForwardKey = useBinding("jumpForward");
 	const jumpBackwardKey = useBinding("jumpBackward");
-	const [copyState, setCopyState] = useState<"idle" | "loading" | "done">("idle");
-	const [screenshotState, setScreenshotState] = useState<"idle" | "loading" | "done">("idle");
+	const [copyState, flashCopy] = useFlashState();
+	const [screenshotState, flashScreenshot] = useFlashState();
 
 	// Built from the LIVE pano, not the saved location: the link shares what you're looking at.
 	const buildMapsUrl = useCallback(() => {
@@ -360,12 +366,9 @@ export const PanoControls = memo(function PanoControls({
 			if (!url) return;
 			const location = getMapState().activeLocation;
 			if (!noTags && location) appendLinkTags(url, location, getTags());
-			if (!long) setCopyState("loading");
-			await copyMapsLink(url, { long });
-			setCopyState("done");
-			setTimeout(() => setCopyState("idle"), 500);
+			await flashCopy(() => copyMapsLink(url, { long }));
 		},
-		[buildMapsUrl],
+		[buildMapsUrl, flashCopy],
 	);
 
 	const jumpForwardRef = useHotkeyRef(jumpForwardKey);
@@ -374,29 +377,29 @@ export const PanoControls = memo(function PanoControls({
 
 	const takeScreenshot = useCallback(
 		async (download: boolean) => {
-			setScreenshotState("loading");
 			try {
-				const view = pano.snapshot();
-				const blob = await canvasToBlob(await renderPanoView(view, 1920, 1080));
-				const copied = download ? false : await copyImageToClipboard(blob);
-				if (copied) {
-					toast(t("Screenshot copied"));
-				} else {
-					const stamp = fileTimestamp();
-					downloadBlob(blob, `${view.panoId}_${stamp}.png`);
-					toast(
-						download ? t("Screenshot downloaded") : t("Clipboard unavailable, downloaded instead"),
-					);
-				}
-				setScreenshotState("done");
-				setTimeout(() => setScreenshotState("idle"), 500);
+				await flashScreenshot(async () => {
+					const view = pano.snapshot();
+					const blob = await canvasToBlob(await renderPanoView(view, 1920, 1080));
+					const copied = download ? false : await copyImageToClipboard(blob);
+					if (copied) {
+						toast(t("Screenshot copied"));
+					} else {
+						const stamp = fileTimestamp();
+						downloadBlob(blob, `${view.panoId}_${stamp}.png`);
+						toast(
+							download
+								? t("Screenshot downloaded")
+								: t("Clipboard unavailable, downloaded instead"),
+						);
+					}
+				});
 			} catch (error) {
 				log.warn("[pano-screenshot] capture failed", error);
-				setScreenshotState("idle");
 				toast(t("Screenshot failed"));
 			}
 		},
-		[pano],
+		[pano, flashScreenshot],
 	);
 
 	return (
@@ -416,13 +419,7 @@ export const PanoControls = memo(function PanoControls({
 									aria-label={t("Copy screenshot to clipboard")}
 									data-qa="pano-screenshot"
 								>
-									{screenshotState === "loading" ? (
-										<Spinner size="18px" />
-									) : screenshotState === "done" ? (
-										<Icon path={mdiCheck} />
-									) : (
-										<Icon path={mdiCameraOutline} />
-									)}
+									<FlashIcon state={screenshotState} icon={mdiCameraOutline} />
 								</button>
 							</Tooltip>
 						</div>
@@ -520,15 +517,10 @@ export const PanoControls = memo(function PanoControls({
 						<Tooltip content={t("Copy link - Shift: without tags, Alt: long URL")} side="right">
 							<button
 								onClick={(e) => void doCopy({ long: e.altKey, noTags: e.shiftKey })}
+								disabled={copyState !== "idle"}
 								aria-label={t("Copy link")}
 							>
-								{copyState === "loading" ? (
-									<Spinner size="18px" />
-								) : copyState === "done" ? (
-									<Icon path={mdiCheck} />
-								) : (
-									<Icon path={mdiContentCopy} />
-								)}
+								<FlashIcon state={copyState} icon={mdiContentCopy} />
 							</button>
 						</Tooltip>
 					</div>
