@@ -18,12 +18,20 @@ pub fn parse(tokens: &[Token], original: &str) -> Result<Node, ExprError> {
     }
     Ok(result)
 }
-fn parse_logical_or(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
-    let mut left = parse_logical_and(tokens, pos, expr)?;
-    while tokens[*pos].kind == TokenKind::Or {
+type Level = fn(&[Token], &mut usize, &str) -> Result<Node, ExprError>;
+/// A left-associative chain of `next` operands joined by any of `ops`.
+fn binary_level(
+    tokens: &[Token],
+    pos: &mut usize,
+    expr: &str,
+    ops: &[TokenKind],
+    next: Level,
+) -> Result<Node, ExprError> {
+    let mut left = next(tokens, pos, expr)?;
+    while ops.contains(&tokens[*pos].kind) {
         let op = tokens[*pos].clone();
         *pos += 1;
-        let right = parse_logical_and(tokens, pos, expr)?;
+        let right = next(tokens, pos, expr)?;
         left = Node::Binary {
             left: Box::new(left),
             op,
@@ -32,19 +40,11 @@ fn parse_logical_or(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Nod
     }
     Ok(left)
 }
+fn parse_logical_or(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
+    binary_level(tokens, pos, expr, &[TokenKind::Or], parse_logical_and)
+}
 fn parse_logical_and(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
-    let mut left = parse_comparison(tokens, pos, expr)?;
-    while tokens[*pos].kind == TokenKind::And {
-        let op = tokens[*pos].clone();
-        *pos += 1;
-        let right = parse_comparison(tokens, pos, expr)?;
-        left = Node::Binary {
-            left: Box::new(left),
-            op,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
+    binary_level(tokens, pos, expr, &[TokenKind::And], parse_comparison)
 }
 fn parse_comparison(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
     let mut left = parse_addition(tokens, pos, expr)?;
@@ -134,35 +134,22 @@ fn parse_comparison(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Nod
     Ok(left)
 }
 fn parse_addition(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
-    let mut left = parse_multiplication(tokens, pos, expr)?;
-    while matches!(tokens[*pos].kind, TokenKind::Plus | TokenKind::Minus) {
-        let op = tokens[*pos].clone();
-        *pos += 1;
-        let right = parse_multiplication(tokens, pos, expr)?;
-        left = Node::Binary {
-            left: Box::new(left),
-            op,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
+    binary_level(
+        tokens,
+        pos,
+        expr,
+        &[TokenKind::Plus, TokenKind::Minus],
+        parse_multiplication,
+    )
 }
 fn parse_multiplication(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
-    let mut left = parse_unary(tokens, pos, expr)?;
-    while matches!(
-        tokens[*pos].kind,
-        TokenKind::Multiply | TokenKind::Divide | TokenKind::Modulo
-    ) {
-        let op = tokens[*pos].clone();
-        *pos += 1;
-        let right = parse_unary(tokens, pos, expr)?;
-        left = Node::Binary {
-            left: Box::new(left),
-            op,
-            right: Box::new(right),
-        };
-    }
-    Ok(left)
+    binary_level(
+        tokens,
+        pos,
+        expr,
+        &[TokenKind::Multiply, TokenKind::Divide, TokenKind::Modulo],
+        parse_unary,
+    )
 }
 fn parse_unary(tokens: &[Token], pos: &mut usize, expr: &str) -> Result<Node, ExprError> {
     if tokens[*pos].kind == TokenKind::Minus {
