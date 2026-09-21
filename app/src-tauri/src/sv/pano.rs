@@ -605,8 +605,9 @@ fn metadata_request(pano_ids: &[String]) -> HttpRequestSpec {
     }
 }
 
-/// Issues every span of a round together and folds the answers into `out`. A multi-pano
-/// request that fails or decodes all-null is usually one poisoned pano, so those spans come
+/// Issues every span of a round together and folds the answers into `out`. Google answers
+/// each pano on its own, dead ones included, unless one malformed id makes it reject the
+/// whole request with no per-pano answers. Only those spans, and failed requests, come
 /// back to be split and retried in the next round rather than being written off.
 fn fetch_round(
     host: &mut dyn ProcHost,
@@ -639,7 +640,7 @@ fn fetch_round(
             continue;
         };
         let metas = decode_response(&resp.body);
-        if span.len > 1 && !metas.iter().any(Option::is_some) {
+        if span.len > 1 && metas.is_empty() {
             retry.extend(span.split());
             continue;
         }

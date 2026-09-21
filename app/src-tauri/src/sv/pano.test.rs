@@ -545,13 +545,21 @@ fn a_pano_asked_for_twice_is_fetched_once_and_answered_twice() {
     assert!(out.metas[3].is_none());
 }
 
+/// A whole-request rejection: a top-level status and no per-pano answers.
+fn rejected() -> Vec<u8> {
+    let mut out = Vec::new();
+    put_msg(&mut out, 1, |s| put_varint_field(s, 1, 3));
+    out
+}
+
 #[test]
-fn an_all_null_batch_is_bisected_until_the_poisoned_pano_stands_alone() {
+fn a_rejected_batch_is_bisected_until_the_malformed_pano_stands_alone() {
     let panos = ids(4);
     let mut host = StubHost::new(|asked: &[String]| {
-        ok(response_for(asked, |id| {
-            id != "pano-2" && !asked.contains(&"pano-2".to_string())
-        }))
+        if asked.contains(&"pano-2".to_string()) {
+            return ok(rejected());
+        }
+        ok(response_for(asked, |_| true))
     });
     let out = fetch_metadata(&mut host, &panos);
     assert_eq!(host.requests().last().unwrap().len(), 1);
@@ -559,6 +567,17 @@ fn an_all_null_batch_is_bisected_until_the_poisoned_pano_stands_alone() {
     assert_eq!(out.failed, vec![false; 4]);
     assert!(out.metas[2].is_none());
     assert!(out.metas[0].is_some() && out.metas[1].is_some() && out.metas[3].is_some());
+}
+
+#[test]
+fn a_batch_of_dead_panos_is_answered_in_one_request() {
+    let panos = ids(200);
+    let mut host = StubHost::new(|asked: &[String]| ok(response_for(asked, |_| false)));
+    let out = fetch_metadata(&mut host, &panos);
+    assert_eq!(host.requests().len(), 1);
+    assert_eq!(out.done, vec![true; 200]);
+    assert_eq!(out.failed, vec![false; 200]);
+    assert!(out.metas.iter().all(Option::is_none));
 }
 
 #[test]
