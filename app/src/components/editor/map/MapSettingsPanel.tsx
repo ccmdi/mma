@@ -5,9 +5,9 @@ import { Button } from "@/components/primitives/Button";
 import { buildTileUrl, createRoadmapTileConfig, type MapStyle } from "@/lib/geo/tiles";
 import {
 	BUILTIN_STYLE_KEYS,
-	BUILTIN_STYLE_LABELS,
+	builtinStyleLabel,
 	VECTOR_STYLE_KEYS,
-	VECTOR_STYLE_LABELS,
+	vectorStyleLabel,
 } from "@/lib/geo/mapStyles";
 import { MAP_TYPES, MAP_TYPE_LABELS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { mdiCogOutline } from "@mdi/js";
@@ -217,7 +217,7 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 						>
 							{VECTOR_STYLE_KEYS.map((key) => (
 								<option key={key} value={key}>
-									{t(VECTOR_STYLE_LABELS[key])}
+									{t(vectorStyleLabel(key))}
 								</option>
 							))}
 						</NSelect>
@@ -237,7 +237,7 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 						>
 							{BUILTIN_STYLE_KEYS.map((key) => (
 								<option key={key} value={key}>
-									{t(BUILTIN_STYLE_LABELS[key])}
+									{t(builtinStyleLabel(key))}
 								</option>
 							))}
 							{e.customStyles.map((s) => (

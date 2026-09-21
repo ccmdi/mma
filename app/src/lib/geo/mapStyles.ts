@@ -1,7 +1,7 @@
 import type { MapStyle } from "@/lib/geo/tiles";
 import { msg } from "@/lib/i18n";
 
-export const MUTED_STYLES: MapStyle[] = [
+const MUTED_STYLES: MapStyle[] = [
 	{ stylers: [{ saturation: -60 }, { lightness: 10 }, { gamma: 1.2 }] },
 	{ featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#c4d4e0" }] },
 	{ featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#8a9bab" }] },
@@ -24,7 +24,7 @@ export const MUTED_STYLES: MapStyle[] = [
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#e8e4df" }] },
 ];
 
-export const MIDNIGHT_STYLES: MapStyle[] = [
+const MIDNIGHT_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#0f0f0f" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#999999" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#0a0a0a" }] },
@@ -67,7 +67,7 @@ export const MIDNIGHT_STYLES: MapStyle[] = [
 	},
 ];
 
-export const MINIMAL_STYLES: MapStyle[] = [
+const MINIMAL_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#f0f0f0" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#666666" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#f0f0f0" }] },
@@ -102,7 +102,7 @@ export const MINIMAL_STYLES: MapStyle[] = [
 	},
 ];
 
-export const VINTAGE_STYLES: MapStyle[] = [
+const VINTAGE_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#e8dcc8" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#5c4a32" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#e8dcc8" }] },
@@ -142,7 +142,7 @@ export const VINTAGE_STYLES: MapStyle[] = [
 	},
 ];
 
-export const GRAYSCALE_STYLES: MapStyle[] = [
+const GRAYSCALE_STYLES: MapStyle[] = [
 	{ stylers: [{ saturation: -100 }] },
 	{ elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#555555" }] },
@@ -172,7 +172,7 @@ export const GRAYSCALE_STYLES: MapStyle[] = [
 	{ featureType: "transit", elementType: "geometry", stylers: [{ color: "#d8d8d8" }] },
 ];
 
-export const BLUEPRINT_STYLES: MapStyle[] = [
+const BLUEPRINT_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#0d1b2a" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#7ea8cc" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#0d1b2a" }] },
@@ -208,7 +208,7 @@ export const BLUEPRINT_STYLES: MapStyle[] = [
 	},
 ];
 
-export const ARCTIC_STYLES: MapStyle[] = [
+const ARCTIC_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#e8f0f8" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#4a6a80" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#e8f0f8" }] },
@@ -248,7 +248,7 @@ export const ARCTIC_STYLES: MapStyle[] = [
 	},
 ];
 
-export const EMBER_STYLES: MapStyle[] = [
+const EMBER_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#1a0c04" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#d4884a" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#1a0c04" }] },
@@ -286,7 +286,7 @@ export const EMBER_STYLES: MapStyle[] = [
 	},
 ];
 
-export const FOREST_STYLES: MapStyle[] = [
+const FOREST_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#2a2820" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#9a9a78" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#2a2820" }] },
@@ -326,7 +326,7 @@ export const FOREST_STYLES: MapStyle[] = [
 	},
 ];
 
-export const NOIR_STYLES: MapStyle[] = [
+const NOIR_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#0a0a0a" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#ffffff" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#000000" }] },
@@ -360,7 +360,7 @@ export const NOIR_STYLES: MapStyle[] = [
 	},
 ];
 
-export const DUSK_STYLES: MapStyle[] = [
+const DUSK_STYLES: MapStyle[] = [
 	{ elementType: "geometry", stylers: [{ color: "#1a1028" }] },
 	{ elementType: "labels.text.fill", stylers: [{ color: "#b08aaa" }] },
 	{ elementType: "labels.text.stroke", stylers: [{ color: "#1a1028" }] },
@@ -399,127 +399,89 @@ export const DUSK_STYLES: MapStyle[] = [
 	},
 ];
 
-export type BuiltinStyleKey =
-	| "default"
-	| "legacy"
-	| "muted"
-	| "midnight"
-	| "minimal"
-	| "vintage"
-	| "grayscale"
-	| "blueprint"
-	| "arctic"
-	| "ember"
-	| "forest"
-	| "noir"
-	| "dusk";
+interface BuiltinStyle {
+	label: string;
+	styles?: MapStyle[];
+	/** Shown while tiles load. Defaults to the style's base geometry color. */
+	background?: string;
+}
 
-export const BUILTIN_STYLE_MAP: Partial<Record<BuiltinStyleKey, MapStyle[]>> = {
-	muted: MUTED_STYLES,
-	midnight: MIDNIGHT_STYLES,
-	minimal: MINIMAL_STYLES,
-	vintage: VINTAGE_STYLES,
-	grayscale: GRAYSCALE_STYLES,
-	blueprint: BLUEPRINT_STYLES,
-	arctic: ARCTIC_STYLES,
-	ember: EMBER_STYLES,
-	forest: FOREST_STYLES,
-	noir: NOIR_STYLES,
-	dusk: DUSK_STYLES,
-};
+const BUILTIN_STYLES = {
+	default: { label: msg("Default"), background: "#e5e3df" },
+	legacy: { label: msg("Legacy"), background: "#e5e3df" },
+	muted: { label: msg("Muted"), styles: MUTED_STYLES, background: "#e8e4df" },
+	midnight: { label: msg("Midnight"), styles: MIDNIGHT_STYLES },
+	minimal: { label: msg("Minimal"), styles: MINIMAL_STYLES },
+	vintage: { label: msg("Vintage"), styles: VINTAGE_STYLES },
+	grayscale: { label: msg("Grayscale"), styles: GRAYSCALE_STYLES },
+	blueprint: { label: msg("Blueprint"), styles: BLUEPRINT_STYLES },
+	arctic: { label: msg("Arctic"), styles: ARCTIC_STYLES },
+	ember: { label: msg("Ember"), styles: EMBER_STYLES },
+	forest: { label: msg("Forest"), styles: FOREST_STYLES },
+	noir: { label: msg("Noir"), styles: NOIR_STYLES },
+	dusk: { label: msg("Dusk"), styles: DUSK_STYLES },
+} satisfies Record<string, BuiltinStyle>;
 
-export const BUILTIN_STYLE_LABELS: Record<BuiltinStyleKey, string> = {
-	default: msg("Default"),
-	legacy: msg("Legacy"),
-	muted: msg("Muted"),
-	midnight: msg("Midnight"),
-	minimal: msg("Minimal"),
-	vintage: msg("Vintage"),
-	grayscale: msg("Grayscale"),
-	blueprint: msg("Blueprint"),
-	arctic: msg("Arctic"),
-	ember: msg("Ember"),
-	forest: msg("Forest"),
-	noir: msg("Noir"),
-	dusk: msg("Dusk"),
-};
+export type BuiltinStyleKey = keyof typeof BUILTIN_STYLES;
 
-export const BUILTIN_STYLE_KEYS: BuiltinStyleKey[] = [
-	"default",
-	"legacy",
-	"muted",
-	"midnight",
-	"minimal",
-	"vintage",
-	"grayscale",
-	"blueprint",
-	"arctic",
-	"ember",
-	"forest",
-	"noir",
-	"dusk",
-];
+export const BUILTIN_STYLE_KEYS = Object.keys(BUILTIN_STYLES) as BuiltinStyleKey[];
 
-const STYLE_BG_COLORS: Record<BuiltinStyleKey, string> = {
-	default: "#e5e3df",
-	legacy: "#e5e3df",
-	muted: "#e8e4df",
-	midnight: "#0f0f0f",
-	minimal: "#f0f0f0",
-	vintage: "#e8dcc8",
-	grayscale: "#e5e5e5",
-	blueprint: "#0d1b2a",
-	arctic: "#e8f0f8",
-	ember: "#1a0c04",
-	forest: "#2a2820",
-	noir: "#000000",
-	dusk: "#1a1028",
-};
+export function builtinStyleLabel(key: BuiltinStyleKey): string {
+	return BUILTIN_STYLES[key].label;
+}
+
+/** The built-in style named `name`, or undefined for a custom style. */
+export function builtinStyle(name: string): BuiltinStyle | undefined {
+	return (BUILTIN_STYLES as Record<string, BuiltinStyle>)[name];
+}
+
+function baseGeometryColor(styles: MapStyle[] | undefined): string | undefined {
+	const base = styles?.find((s) => s.elementType === "geometry" && !s.featureType);
+	return base?.stylers.find((st) => st.color)?.color;
+}
 
 export function getStyleBackgroundColor(style: string): string {
-	return STYLE_BG_COLORS[style as BuiltinStyleKey] ?? STYLE_BG_COLORS.default;
+	const s = builtinStyle(style);
+	return s?.background ?? baseGeometryColor(s?.styles) ?? BUILTIN_STYLES.default.background;
 }
 
 // --- Vector basemap styles (keyless, drop-in MapLibre styles) ---
 // Sourced from OpenFreeMap, CARTO, and VersaTiles. All serve style JSON + tiles
 // without an API key; each provider has its own URL shape, so keys map to full URLs.
 
-export const VECTOR_STYLE_KEYS = [
-	"liberty",
-	"bright",
-	"positron",
-	"fiord",
-	"dark-matter",
-	"voyager",
-	"eclipse",
-	"colorful",
-] as const;
-export type VectorStyleKey = (typeof VECTOR_STYLE_KEYS)[number];
+const VECTOR_STYLES = {
+	liberty: { label: msg("Liberty"), url: "https://tiles.openfreemap.org/styles/liberty" },
+	bright: { label: msg("Bright"), url: "https://tiles.openfreemap.org/styles/bright" },
+	positron: { label: msg("Positron"), url: "https://tiles.openfreemap.org/styles/positron" },
+	fiord: { label: msg("Fiord (dark)"), url: "https://tiles.openfreemap.org/styles/fiord" },
+	"dark-matter": {
+		label: msg("Dark Matter"),
+		url: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+	},
+	voyager: {
+		label: msg("Voyager"),
+		url: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
+	},
+	eclipse: {
+		label: msg("Eclipse (dark)"),
+		url: "https://tiles.versatiles.org/assets/styles/eclipse/style.json",
+	},
+	colorful: {
+		label: msg("Colorful"),
+		url: "https://tiles.versatiles.org/assets/styles/colorful/style.json",
+	},
+} satisfies Record<string, { label: string; url: string }>;
 
-export const VECTOR_STYLE_LABELS: Record<VectorStyleKey, string> = {
-	liberty: "Liberty",
-	bright: "Bright",
-	positron: "Positron",
-	fiord: "Fiord (dark)",
-	"dark-matter": "Dark Matter",
-	voyager: "Voyager",
-	eclipse: "Eclipse (dark)",
-	colorful: "Colorful",
-};
+export type VectorStyleKey = keyof typeof VECTOR_STYLES;
 
-const VECTOR_STYLE_URLS: Record<VectorStyleKey, string> = {
-	liberty: "https://tiles.openfreemap.org/styles/liberty",
-	bright: "https://tiles.openfreemap.org/styles/bright",
-	positron: "https://tiles.openfreemap.org/styles/positron",
-	fiord: "https://tiles.openfreemap.org/styles/fiord",
-	"dark-matter": "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
-	voyager: "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json",
-	eclipse: "https://tiles.versatiles.org/assets/styles/eclipse/style.json",
-	colorful: "https://tiles.versatiles.org/assets/styles/colorful/style.json",
-};
+export const VECTOR_STYLE_KEYS = Object.keys(VECTOR_STYLES) as VectorStyleKey[];
+
+export function vectorStyleLabel(key: VectorStyleKey): string {
+	return VECTOR_STYLES[key].label;
+}
 
 export const DEFAULT_VECTOR_STYLE: VectorStyleKey = "liberty";
 
 export function vectorStyleUrl(name: string): string {
-	return VECTOR_STYLE_URLS[name as VectorStyleKey] ?? VECTOR_STYLE_URLS[DEFAULT_VECTOR_STYLE];
+	return (VECTOR_STYLES[name as VectorStyleKey] ?? VECTOR_STYLES[DEFAULT_VECTOR_STYLE]).url;
 }

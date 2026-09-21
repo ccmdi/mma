@@ -14,7 +14,7 @@ import {
 	LEGACY_STYLE_MAP_ID,
 	type MapStyle,
 } from "@/lib/geo/tiles";
-import { BUILTIN_STYLE_MAP } from "@/lib/geo/mapStyles";
+import { builtinStyle } from "@/lib/geo/mapStyles";
 import { BLOBBY_ZOOM_THRESHOLD } from "@/lib/sv/constants";
 import { createCompositeMapType, type TileLayer } from "@/lib/geo/stackedMapType";
 import { svLayerOpacity, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
@@ -69,7 +69,7 @@ export function buildMapStack(prefs: MapEmbedPrefs, opts: BuildOpts): google.map
 	const legacyMap = prefs.mapStyleName === "legacy" && prefs.mapType === "map";
 
 	const extraStyles: MapStyle[] = [];
-	const builtinStyles = BUILTIN_STYLE_MAP[prefs.mapStyleName as keyof typeof BUILTIN_STYLE_MAP];
+	const builtinStyles = builtinStyle(prefs.mapStyleName)?.styles;
 	if (builtinStyles) {
 		extraStyles.push(...builtinStyles);
 	} else if (opts.customStyles) {
