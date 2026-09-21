@@ -23,9 +23,9 @@ import {
 	getTagCounts,
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
-import { all } from "@/store/selections";
+import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
-import type { Update, VirtualTag } from "@/bindings.gen";
+import type { Selector, Update, VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -59,7 +59,6 @@ import {
 	type TagMoveResult,
 } from "./tagTreeRange";
 import { t } from "@/lib/i18n";
-import { tagSelector } from "@/store/selections";
 import { matches } from "@/lib/search";
 import { MenuPopup, MenuItem } from "@/components/primitives/Menu";
 import { SearchInput } from "@/components/primitives/SearchInput";
@@ -393,16 +392,10 @@ export function TagManager() {
 	);
 }
 
-export function TagContextMenuContent({
-	tagId,
-	totalCount,
-	onRename,
-	onAddAlias,
-	onRemoveAlias,
-	onNewSubfolder,
-}: {
+type TagContextMenuProps = {
 	tagId: number;
-	totalCount: number;
+	/** The tags removals act on: this tag and every tag nested under it. */
+	subtreeTagIds: number[];
 	onRename: () => void;
 	/** Tree mode only: place this tag at a second folder path. */
 	onAddAlias?: () => void;
@@ -410,32 +403,51 @@ export function TagContextMenuContent({
 	onRemoveAlias?: () => void;
 	/** Tree mode only: present on folder rows to create a declared subfolder. */
 	onNewSubfolder?: () => void;
-}) {
-	const [selCount, setSelCount] = useState<number | null>(null);
+};
 
-	useEffect(() => {
-		if (getActiveSelections().length === 0) {
-			setSelCount(0);
-			return;
-		}
-		void countIn(all(tagSelector(tagId), currentSelection())).then(setSelCount);
-	}, [tagId]);
-
-	const inSel = selCount ?? 0;
-
+export function TagContextMenuContent(props: TagContextMenuProps) {
 	return (
 		<MenuPopup>
-			<MenuItem tone="destructive" onClick={() => void setTags([], [tagId], tagSelector(tagId))}>
+			<TagContextMenuItems {...props} />
+		</MenuPopup>
+	);
+}
+
+function TagContextMenuItems({
+	tagId,
+	subtreeTagIds,
+	onRename,
+	onAddAlias,
+	onRemoveAlias,
+	onNewSubfolder,
+}: TagContextMenuProps) {
+	const [counts, setCounts] = useState({ total: 0, inSel: 0, ownInSel: 0 });
+	const subtree = useMemo(() => any(...subtreeTagIds.map(tagSelector)), [subtreeTagIds]);
+
+	useEffect(() => {
+		const hasSelection = getActiveSelections().length > 0;
+		const inSelection = (s: Selector) =>
+			hasSelection ? countIn(all(s, currentSelection())) : Promise.resolve(0);
+		void Promise.all([
+			countIn(subtree),
+			inSelection(subtree),
+			inSelection(tagSelector(tagId)),
+		]).then(([total, inSel, ownInSel]) => setCounts({ total, inSel, ownInSel }));
+	}, [tagId, subtree]);
+
+	return (
+		<>
+			<MenuItem tone="destructive" onClick={() => void setTags([], subtreeTagIds, subtree)}>
 				{t(
 					{ one: "Remove from all ({n} location)", other: "Remove from all ({n} locations)" },
-					{ n: totalCount },
+					{ n: counts.total },
 				)}
 			</MenuItem>
 			<MenuItem
 				tone="destructive"
-				disabled={inSel === 0}
+				disabled={counts.inSel === 0}
 				onClick={() =>
-					void setTags([], [tagId], {
+					void setTags([], subtreeTagIds, {
 						type: "Locations",
 						locations: [...getMapState().selectedLocationIds],
 						name: null,
@@ -447,16 +459,16 @@ export function TagContextMenuContent({
 						one: "Remove from selection ({n} location)",
 						other: "Remove from selection ({n} locations)",
 					},
-					{ n: inSel },
+					{ n: counts.inSel },
 				)}
 			</MenuItem>
-			<MenuItem disabled={inSel === 0} onClick={onRename}>
+			<MenuItem disabled={counts.ownInSel === 0} onClick={onRename}>
 				{t(
 					{
 						one: "Rename in selection ({n} location)",
 						other: "Rename in selection ({n} locations)",
 					},
-					{ n: inSel },
+					{ n: counts.ownInSel },
 				)}
 			</MenuItem>
 			{onAddAlias && <MenuItem onClick={onAddAlias}>{t("Add alias...")}</MenuItem>}
@@ -466,7 +478,7 @@ export function TagContextMenuContent({
 					{t("Remove alias")}
 				</MenuItem>
 			)}
-		</MenuPopup>
+		</>
 	);
 }
 

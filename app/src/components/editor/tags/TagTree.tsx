@@ -677,7 +677,7 @@ const TagTreeNodeRow = memo(function TagTreeNodeRow({
 				{node.tag ? (
 					<TagContextMenuContent
 						tagId={node.tag!.id}
-						totalCount={sumCounts(node, tagCounts)}
+						subtreeTagIds={node.descendantTagIds}
 						onRename={() => onRenameTag({ id: node.tag!.id, name: node.tag!.name })}
 						onAddAlias={() => onAddAlias({ id: node.tag!.id, name: node.tag!.name })}
 						onNewSubfolder={() => onNewFolder(node.fullPath)}
@@ -880,7 +880,7 @@ const TagTreeLeaf = memo(function TagTreeLeaf({
 			/>
 			<TagContextMenuContent
 				tagId={tag.id}
-				totalCount={count}
+				subtreeTagIds={node.descendantTagIds}
 				onRename={() => onRenameTag({ id: tag.id, name: tag.name })}
 				onAddAlias={node.isAlias ? undefined : () => onAddAlias({ id: tag.id, name: tag.name })}
 				onRemoveAlias={node.isAlias ? () => onRemoveAlias(node.fullPath) : undefined}
