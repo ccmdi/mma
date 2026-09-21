@@ -29,7 +29,7 @@ import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
 import { fmt } from "@/lib/util/format";
-import { hexToHsl, hslToHex } from "@/lib/util/color";
+import { hexToHsl, hslToHex, type HSL } from "@/lib/util/color";
 import { TagPill } from "@/components/primitives/TagPill";
 import { useSetting, setSetting } from "@/store/settings";
 import { sortTagsByMode } from "@/lib/util/util";
@@ -429,7 +429,7 @@ function EditTagDialog({
 	const close = () => onOpenChange(false);
 	const [name, setName] = useState(tag.name);
 	const [hsl, setHsl] = useState(() => hexToHsl(tag.color));
-	const hexValue = hslToHex(hsl.h, hsl.s, hsl.l);
+	const hexValue = hslToHex(hsl);
 	const [bindings, setBindings] = useMapSetting("keyBindings");
 	const [hotkey, setHotkey] = useState(() => getTagBindingKey(bindings ?? [], tag.id) ?? "");
 
@@ -511,20 +511,14 @@ function EditTagDialog({
 	);
 }
 
-function TagColorFields({
-	hsl,
-	onChange,
-}: {
-	hsl: { h: number; s: number; l: number };
-	onChange: (hsl: { h: number; s: number; l: number }) => void;
-}) {
+function TagColorFields({ hsl, onChange }: { hsl: HSL; onChange: (hsl: HSL) => void }) {
 	return (
 		<div className="edit-tag-modal__color">
 			<span>{t("Color:")}</span>
 			<TextInput
 				className="hex-color"
 				type="text"
-				value={hslToHex(hsl.h, hsl.s, hsl.l)}
+				value={hslToHex(hsl)}
 				onChange={(e) => {
 					const v = e.target.value;
 					if (/^#[0-9a-fA-F]{6}$/.test(v)) onChange(hexToHsl(v));
@@ -574,7 +568,7 @@ function RecolorTagsDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t({ one: "Recolor {n} tag", other: "Recolor {n} tags" }, { n: count })}>
-				<DialogForm onSubmit={() => onSave(hslToHex(hsl.h, hsl.s, hsl.l))}>
+				<DialogForm onSubmit={() => onSave(hslToHex(hsl))}>
 					<TagColorFields hsl={hsl} onChange={setHsl} />
 					<DialogActions cancel primary={{ label: t("Save") }} />
 				</DialogForm>
@@ -599,7 +593,7 @@ function VirtualTagDialog({
 	onReset: () => void;
 }) {
 	const [hsl, setHsl] = useState(() => hexToHsl(color ?? "#888888"));
-	const hexValue = hslToHex(hsl.h, hsl.s, hsl.l);
+	const hexValue = hslToHex(hsl);
 	const segment = leafSegment(path);
 	const [name, setName] = useState(segment);
 

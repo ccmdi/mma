@@ -3042,6 +3042,12 @@ declare namespace types {
 export type RGB = [number, number, number];
 /** An [r, g, b, a] byte tuple. @unstable */
 export type RGBA = [...RGB, number];
+/** Hue in degrees, saturation and lightness in percent. @unstable */
+export type HSL = {
+    h: number;
+    s: number;
+    l: number;
+};
 /** Parse "#rrggbb" to an [r, g, b] byte tuple. @unstable */
 declare function hexToRgb(hex: string): RGB;
 /** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
@@ -3051,14 +3057,10 @@ declare function textColorFor(bg: string): string;
 declare function resolveSvColorHex(color: string): string;
 /** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
 declare function applyAccentColor(hex: string): void;
-/** Convert "#rrggbb" to {h, s, l} (degrees, percent, percent). @unstable */
-declare function hexToHsl(hex: string): {
-    h: number;
-    s: number;
-    l: number;
-};
-/** Convert HSL (degrees, percent, percent) to "#rrggbb". @unstable */
-declare function hslToHex(h: number, s: number, l: number): string;
+/** Convert "#rrggbb" to HSL. @unstable */
+declare function hexToHsl(hex: string): HSL;
+/** Convert HSL to "#rrggbb". @unstable */
+declare function hslToHex({ h, s, l }: HSL): string;
 /** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
 declare function hslToRgb(h: number, s: number, l: number): RGB;
 /**
@@ -3073,6 +3075,8 @@ declare function rgbToHex([r, g, b]: RGB): string;
 /** A label's color: a user override if set, else a deterministic color from its name. @unstable */
 declare function labelColor(name: string, overrides: Record<string, string>): string;
 
+/** @unstable */
+export type colorUtils_HSL = HSL;
 /** @unstable */
 export type colorUtils_RGB = RGB;
 /** @unstable */
@@ -3101,7 +3105,7 @@ declare const colorUtils_rgbToHex: typeof rgbToHex;
 declare const colorUtils_textColorFor: typeof textColorFor;
 declare namespace colorUtils {
   export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
-  export type { colorUtils_RGB as RGB, colorUtils_RGBA as RGBA };
+  export type { colorUtils_HSL as HSL, colorUtils_RGB as RGB, colorUtils_RGBA as RGBA };
 }
 
 /** Per-cell, per-selection membership: a dense bitmask or a sparse selected-index list. @unstable */
@@ -5995,9 +5999,9 @@ declare function SuggestInput<T>({ value, onChange, suggestions, onPick, renderI
     disabled?: boolean;
     /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
     pickOnEnter?: boolean;
-    /** Render the dropdown in a body portal (fixed, anchored to the input) so it floats
-     *  over clipping ancestors like `.modal__content`. Clicks on it are exempted from
-     *  dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+    /** Render the dropdown in a body portal, anchored to the input and following it as it
+     *  moves, so it floats over clipping ancestors like `.modal__content`. Clicks on it are
+     *  exempted from dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
     portal?: boolean;
 }): react.JSX.Element;
 

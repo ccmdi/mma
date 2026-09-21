@@ -2333,9 +2333,9 @@ ui.SuggestInput<T>(props: {
   disabled?: boolean;
   /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
   pickOnEnter?: boolean;
-  /** Render the dropdown in a body portal (fixed, anchored to the input) so it floats
-   *  over clipping ancestors like `.modal__content`. Clicks on it are exempted from
-   *  dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+  /** Render the dropdown in a body portal, anchored to the input and following it as it
+   *  moves, so it floats over clipping ancestors like `.modal__content`. Clicks on it are
+   *  exempted from dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
   portal?: boolean;
 }): react.JSX.Element
 ```
@@ -7942,14 +7942,10 @@ Deterministic tag color from a name.
 `unstable` · since v0.10.3
 
 ```ts
-hexToHsl(hex: string): {
-  h: number;
-  s: number;
-  l: number;
-}
+hexToHsl(hex: string): HSL
 ```
 
-Convert "#rrggbb" to {h, s, l} (degrees, percent, percent).
+Convert "#rrggbb" to HSL.
 
 ### hexToRgb
 
@@ -7966,10 +7962,10 @@ Parse "#rrggbb" to an [r, g, b] byte tuple.
 `unstable` · since v0.10.3
 
 ```ts
-hslToHex(h: number, s: number, l: number): string
+hslToHex(props: HSL): string
 ```
 
-Convert HSL (degrees, percent, percent) to "#rrggbb".
+Convert HSL to "#rrggbb".
 
 ### hslToRgb
 

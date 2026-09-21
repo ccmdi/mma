@@ -658,7 +658,7 @@ export function createSvTileConfig(opts: {
 }): TileConfig {
 	const fill = resolveSvColorHex(opts.color);
 	const { h, s, l } = hexToHsl(fill);
-	const stroke = hslToHex(h, s, Math.min(l + 40, 90));
+	const stroke = hslToHex({ h, s, l: Math.min(l + 40, 90) });
 	const w = opts.thickness === "high" ? 0.5 : 1;
 	const sw = opts.thickness === "high" ? 0.5 : 3;
 

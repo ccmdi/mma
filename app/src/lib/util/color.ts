@@ -2,6 +2,8 @@
 export type RGB = [number, number, number];
 /** An [r, g, b, a] byte tuple. */
 export type RGBA = [...RGB, number];
+/** Hue in degrees, saturation and lightness in percent. */
+export type HSL = { h: number; s: number; l: number };
 
 /** Parse "#rrggbb" to an [r, g, b] byte tuple. */
 export function hexToRgb(hex: string): RGB {
@@ -35,8 +37,8 @@ export function applyAccentColor(hex: string) {
 	root.setProperty("--on-accent", textColorFor(hex));
 }
 
-/** Convert "#rrggbb" to {h, s, l} (degrees, percent, percent). */
-export function hexToHsl(hex: string): { h: number; s: number; l: number } {
+/** Convert "#rrggbb" to HSL. */
+export function hexToHsl(hex: string): HSL {
 	const [r8, g8, b8] = hexToRgb(hex);
 	const r = r8 / 255;
 	const g = g8 / 255;
@@ -60,8 +62,8 @@ export function hexToHsl(hex: string): { h: number; s: number; l: number } {
 	};
 }
 
-/** Convert HSL (degrees, percent, percent) to "#rrggbb". */
-export function hslToHex(h: number, s: number, l: number): string {
+/** Convert HSL to "#rrggbb". */
+export function hslToHex({ h, s, l }: HSL): string {
 	const [r, g, b] = hslToRgb(h, s / 100, l / 100);
 	const hex = (n: number) => n.toString(16).padStart(2, "0");
 	return `#${hex(r)}${hex(g)}${hex(b)}`;

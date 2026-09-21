@@ -65,23 +65,23 @@ describe("hexToHsl", () => {
 
 describe("hslToHex", () => {
 	it("pure red", () => {
-		expect(hslToHex(0, 100, 50)).toBe("#ff0000");
+		expect(hslToHex({ h: 0, s: 100, l: 50 })).toBe("#ff0000");
 	});
 
 	it("pure green", () => {
-		expect(hslToHex(120, 100, 50)).toBe("#00ff00");
+		expect(hslToHex({ h: 120, s: 100, l: 50 })).toBe("#00ff00");
 	});
 
 	it("pure blue", () => {
-		expect(hslToHex(240, 100, 50)).toBe("#0000ff");
+		expect(hslToHex({ h: 240, s: 100, l: 50 })).toBe("#0000ff");
 	});
 
 	it("white", () => {
-		expect(hslToHex(0, 0, 100)).toBe("#ffffff");
+		expect(hslToHex({ h: 0, s: 0, l: 100 })).toBe("#ffffff");
 	});
 
 	it("black", () => {
-		expect(hslToHex(0, 0, 0)).toBe("#000000");
+		expect(hslToHex({ h: 0, s: 0, l: 0 })).toBe("#000000");
 	});
 });
 
@@ -91,7 +91,7 @@ describe("hexToHsl -> hslToHex round-trip", () => {
 	for (const hex of colors) {
 		it(`round-trips ${hex}`, () => {
 			const { h, s, l } = hexToHsl(hex);
-			const result = hslToHex(h, s, l);
+			const result = hslToHex({ h, s, l });
 			expect(result).toBe(hex);
 		});
 	}
