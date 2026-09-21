@@ -1,126 +1,51 @@
 import { useEffect, useRef } from "react";
 import { getSettings } from "@/store/settings";
-import { parseHotkey, matchesKey, isEditableElement } from "@/lib/hooks/useHotkey";
-import { getBinding } from "@/lib/util/hotkeys";
+import { useHeldKeys } from "@/lib/hooks/useHeldKeys";
 import type { MapHost } from "@/lib/map/host";
 import { latLngToWorld, worldToLatLng } from "@/lib/geo/mercator";
-import { FRAME_MS } from "@/lib/sv/constants";
 
-/** Held-key map panning/zooming (pan*, mapZoomIn/Out) via an RAF tick loop, scoped to the
- *  given map. Bindings are resolved once on mount; speeds read live from app settings. */
+const ACTIONS = ["panLeft", "panRight", "panUp", "panDown", "mapZoomIn", "mapZoomOut"] as const;
+
+/** Held-key map panning/zooming (pan*, mapZoomIn/Out), scoped to the given map.
+ *  Speeds read live from app settings. */
 export function useMapKeyboardNav(host: MapHost | null) {
-	const navRef = useRef({
-		held: new Set<string>(),
-		zoom: null as number | null,
-		rafId: 0,
-		alt: false,
-		lastTime: 0,
+	const zoomRef = useRef<number | null>(null);
+
+	const held = useHeldKeys(ACTIONS, host !== null, {
+		onTick(held, dt, alt) {
+			const center = host?.getCenter();
+			if (!host || !center) return false;
+			zoomRef.current ??= host.getZoom();
+
+			const s = getSettings();
+			const slow = alt ? s.slowModifier : 1;
+			const step = (s.mapPanSpeed * dt) / slow;
+			let dx = 0,
+				dy = 0;
+			if (held.has("panLeft")) dx -= step;
+			if (held.has("panRight")) dx += step;
+			if (held.has("panUp")) dy -= step;
+			if (held.has("panDown")) dy += step;
+
+			const zoomStep = (0.02 * dt) / slow;
+			if (held.has("mapZoomIn")) zoomRef.current += zoomStep;
+			if (held.has("mapZoomOut")) zoomRef.current = Math.max(1, zoomRef.current - zoomStep);
+
+			const scale = Math.pow(2, zoomRef.current);
+			const worldPoint = latLngToWorld(center);
+			worldPoint.x += dx / scale;
+			worldPoint.y += dy / scale;
+			host.moveCamera({
+				center: worldToLatLng(worldPoint.x, worldPoint.y),
+				zoom: zoomRef.current,
+			});
+		},
 	});
 
 	useEffect(() => {
 		if (!host) return;
-		const nav = navRef.current;
-		const actions = ["panLeft", "panRight", "panUp", "panDown", "mapZoomIn", "mapZoomOut"] as const;
-
-		function tick() {
-			if (nav.held.size === 0) {
-				nav.rafId = 0;
-				nav.lastTime = 0;
-				return;
-			}
-
-			const now = performance.now();
-			const dt = nav.lastTime ? (now - nav.lastTime) / FRAME_MS : 1;
-			nav.lastTime = now;
-
-			const center = host!.getCenter();
-			if (!center) {
-				nav.rafId = 0;
-				nav.lastTime = 0;
-				return;
-			}
-
-			if (nav.zoom === null) nav.zoom = host!.getZoom();
-
-			const s = getSettings();
-			const slow = nav.alt ? s.slowModifier : 1;
-			let dx = 0,
-				dy = 0;
-			if (nav.held.has("panLeft")) dx -= (s.mapPanSpeed * dt) / slow;
-			if (nav.held.has("panRight")) dx += (s.mapPanSpeed * dt) / slow;
-			if (nav.held.has("panUp")) dy -= (s.mapPanSpeed * dt) / slow;
-			if (nav.held.has("panDown")) dy += (s.mapPanSpeed * dt) / slow;
-
-			const zoomStep = (0.02 * dt) / slow;
-			if (nav.held.has("mapZoomIn")) nav.zoom += zoomStep;
-			if (nav.held.has("mapZoomOut")) nav.zoom = Math.max(1, nav.zoom - zoomStep);
-
-			const scale = Math.pow(2, nav.zoom);
-			const worldPoint = latLngToWorld(center);
-			worldPoint.x += dx / scale;
-			worldPoint.y += dy / scale;
-
-			host!.moveCamera({
-				center: worldToLatLng(worldPoint.x, worldPoint.y),
-				zoom: nav.zoom,
-			});
-			nav.rafId = requestAnimationFrame(tick);
-		}
-
-		const bindings = actions.map((a) => ({
-			action: a,
-			parsed: parseHotkey(getBinding(a)),
-		}));
-
-		function onKeyDown(e: KeyboardEvent) {
-			nav.alt = e.altKey;
-			if (e.key === "Alt") {
-				e.preventDefault();
-				return;
-			}
-			if (e.defaultPrevented || e.repeat) return;
-			if (isEditableElement(e.target)) return;
-			for (const { action, parsed } of bindings) {
-				for (const alt of parsed) {
-					if (alt.length === 1 && matchesKey(e, alt[0], { ignoreAlt: true })) {
-						nav.held.add(action);
-						if (!nav.rafId) nav.rafId = requestAnimationFrame(tick);
-						return;
-					}
-				}
-			}
-		}
-
-		function onKeyUp(e: KeyboardEvent) {
-			nav.alt = e.altKey;
-			if (nav.held.size === 0) return;
-			const key = e.key.toLowerCase();
-			for (const { action, parsed } of bindings) {
-				for (const alt of parsed) {
-					if (alt.length === 1 && alt[0].key === key) {
-						nav.held.delete(action);
-					}
-				}
-			}
-		}
-
-		const offZoom = host.on("zoom", () => {
-			if (nav.held.size === 0) nav.zoom = null;
+		return host.on("zoom", () => {
+			if (held.size === 0) zoomRef.current = null;
 		});
-
-		function onBlur() {
-			nav.held.clear();
-		}
-
-		const ac = new AbortController();
-		const { signal } = ac;
-		document.addEventListener("keydown", onKeyDown, { capture: true, signal });
-		document.addEventListener("keyup", onKeyUp, { capture: true, signal });
-		window.addEventListener("blur", onBlur, { signal });
-		return () => {
-			ac.abort();
-			if (nav.rafId) cancelAnimationFrame(nav.rafId);
-			offZoom();
-		};
-	}, [host]);
+	}, [host, held]);
 }
