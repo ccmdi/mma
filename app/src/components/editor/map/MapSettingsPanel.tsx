@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type ComponentProps } from "react";
 import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { Button } from "@/components/primitives/Button";
@@ -9,7 +9,14 @@ import {
 	VECTOR_STYLE_KEYS,
 	vectorStyleLabel,
 } from "@/lib/geo/mapStyles";
-import { MAP_TYPES, MAP_TYPE_LABELS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
+import {
+	MAP_EMBED_PREFS,
+	MAP_TYPES,
+	MAP_TYPE_LABELS,
+	type MapEmbedPrefs,
+} from "@/store/mapEmbedPrefs";
+import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
+import type { MapSettings } from "@/bindings.gen";
 import { mdiCogOutline } from "@mdi/js";
 import type { MapTypeKey, SvCoverageType, MarkerStyle } from "@/types";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
@@ -66,6 +73,30 @@ function SearchRadiusSlider({
 	);
 }
 
+type BooleanKey<T> = { [K in keyof T]-?: NonNullable<T[K]> extends boolean ? K : never }[keyof T];
+type BoundSwitchProps = Omit<ComponentProps<typeof SwitchRow>, "checked" | "onChange">;
+
+/** A switch bound to one map view preference. */
+function PrefSwitch({ pref, ...row }: { pref: BooleanKey<MapEmbedPrefs> } & BoundSwitchProps) {
+	const [prefs, setPrefs] = useLocalStorage(MAP_EMBED_PREFS);
+	return (
+		<SwitchRow
+			{...row}
+			checked={prefs[pref]}
+			onChange={(v) => setPrefs((p) => ({ ...p, [pref]: v }))}
+		/>
+	);
+}
+
+/** A switch bound to one setting of the open map. */
+function MapSettingSwitch({
+	setting,
+	...row
+}: { setting: BooleanKey<MapSettings> } & BoundSwitchProps) {
+	const [value, setValue] = useMapSetting(setting, false);
+	return <SwitchRow {...row} checked={value} onChange={setValue} />;
+}
+
 function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 	const { prefs: p, setPref } = e;
 	return (
@@ -75,11 +106,10 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				<legend className="layer-config__header">
 					{t("Layers")} <span className="layer-config__divider" />
 				</legend>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.showTerrain}
+					pref="showTerrain"
 					disabled={!e.supportsTerrain}
-					onChange={(v) => setPref("showTerrain")(v)}
 					label={t("Terrain")}
 				/>
 				<SwitchRow
@@ -89,17 +119,15 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					onChange={() => {}}
 					label={t("Street View")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.showLabels}
+					pref="showLabels"
 					disabled={!e.supportsLabels}
-					onChange={(v) => setPref("showLabels")(v)}
 					label={t("Labels")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.svPanoramas}
-					onChange={(v) => setPref("svPanoramas")(v)}
+					pref="svPanoramas"
 					label={t("Panoramas (requires close zoom)")}
 				/>
 			</fieldset>
@@ -143,10 +171,9 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 					onChange={(v) => setPref("svThickness")(v ? "high" : "default")}
 					label={t("Make the lines thinner")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.svBlobby}
-					onChange={(v) => setPref("svBlobby")(v)}
+					pref="svBlobby"
 					label={t("Use blobby layer while zoomed out")}
 				/>
 			</fieldset>
@@ -155,46 +182,40 @@ function SettingsPopup({ layerConfig: e }: { layerConfig: LayerConfig }) {
 				<legend className="layer-config__header">
 					{t("Settings")} <span className="layer-config__divider" />
 				</legend>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.boldCountryBorders}
+					pref="boldCountryBorders"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("boldCountryBorders")(v)}
 					label={t("Emphasise country borders")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.boldSubdivisionBorders}
+					pref="boldSubdivisionBorders"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("boldSubdivisionBorders")(v)}
 					label={t("Emphasise subdivision borders")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.hideRoadLabels}
+					pref="hideRoadLabels"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("hideRoadLabels")(v)}
 					label={t("Hide road labels")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.hidePoi}
+					pref="hidePoi"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("hidePoi")(v)}
 					label={t("Hide points of interest")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.hideTransit}
+					pref="hideTransit"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("hideTransit")(v)}
 					label={t("Hide transit")}
 				/>
-				<SwitchRow
+				<PrefSwitch
 					className="layer-config__item"
-					checked={p.hideHighways}
+					pref="hideHighways"
 					disabled={!e.supportsStyling}
-					onChange={(v) => setPref("hideHighways")(v)}
 					label={t("Hide highways")}
 				/>
 			</fieldset>
@@ -367,12 +388,8 @@ export function MapSettingsDropdown({
 	prefs: MapEmbedPrefs;
 	setPref: <K extends keyof MapEmbedPrefs>(k: K) => (v: MapEmbedPrefs[K]) => void;
 }) {
-	const [pointAlongRoad, setPointAlongRoad] = useMapSetting("pointAlongRoad");
+	const [pointAlongRoad] = useMapSetting("pointAlongRoad");
 	const [preferDirection, setPreferDirection] = useMapSetting("preferDirection");
-	const [preferOfficial, setPreferOfficial] = useMapSetting("preferOfficial");
-	const [preferHigherQuality, setPreferHigherQuality] = useMapSetting("preferHigherQuality");
-	const [onlyOfficial, setOnlyOfficial] = useMapSetting("onlyOfficial");
-	const [defaultPanoId, setDefaultPanoId] = useMapSetting("defaultPanoId");
 	const [searchRadius, setSearchRadius] = useMapSetting("searchRadius");
 	const [isOpen, setIsOpen] = useState(false);
 	const containerRef = useRef<HTMLDivElement>(null);
@@ -405,9 +422,8 @@ export function MapSettingsDropdown({
 						<legend className="fieldset__header">
 							{t("Selecting new locations")} <span className="fieldset__divider" />
 						</legend>
-						<SwitchRow
-							checked={pointAlongRoad}
-							onChange={setPointAlongRoad}
+						<MapSettingSwitch
+							setting="pointAlongRoad"
 							label={t("Point view along the road by default")}
 						/>
 						{pointAlongRoad && (
@@ -429,24 +445,17 @@ export function MapSettingsDropdown({
 								</NSelect>
 							</label>
 						)}
-						<SwitchRow
-							checked={preferOfficial}
-							onChange={setPreferOfficial}
+						<MapSettingSwitch
+							setting="preferOfficial"
 							label={t("Prefer official coverage over unofficial")}
 						/>
-						<SwitchRow
-							checked={preferHigherQuality}
-							onChange={setPreferHigherQuality}
+						<MapSettingSwitch
+							setting="preferHigherQuality"
 							label={t("Prefer higher quality over newer images")}
 						/>
-						<SwitchRow
-							checked={onlyOfficial}
-							onChange={setOnlyOfficial}
-							label={t("Disallow unofficial coverage")}
-						/>
-						<SwitchRow
-							checked={defaultPanoId}
-							onChange={setDefaultPanoId}
+						<MapSettingSwitch setting="onlyOfficial" label={t("Disallow unofficial coverage")} />
+						<MapSettingSwitch
+							setting="defaultPanoId"
 							label={t("Use Pano ID locations by default")}
 						/>
 						<SearchRadiusSlider value={searchRadius} onChange={setSearchRadius} />
@@ -455,16 +464,11 @@ export function MapSettingsDropdown({
 						<legend className="fieldset__header">
 							{t("Map behaviour")} <span className="fieldset__divider" />
 						</legend>
-						<SwitchRow
-							checked={p.showPreviews}
-							onChange={setPref("showPreviews")}
+						<PrefSwitch
+							pref="showPreviews"
 							label={t("Show location previews when hovering the map")}
 						/>
-						<SwitchRow
-							checked={p.selectOnly}
-							onChange={setPref("selectOnly")}
-							label={t("Select-only mode")}
-						/>
+						<PrefSwitch pref="selectOnly" label={t("Select-only mode")} />
 					</fieldset>
 					<fieldset className="fieldset">
 						<legend className="fieldset__header">
@@ -492,14 +496,9 @@ export function MapSettingsDropdown({
 								onChange={(e) => setPref("markerSize")(Number(e.target.value))}
 							/>
 						</label>
-						<SwitchRow
-							checked={p.showPerfectScoreCircle}
-							onChange={setPref("showPerfectScoreCircle")}
-							label={t("Display 5K radius")}
-						/>
-						<SwitchRow
-							checked={p.showSearchRadiusCursor}
-							onChange={setPref("showSearchRadiusCursor")}
+						<PrefSwitch pref="showPerfectScoreCircle" label={t("Display 5K radius")} />
+						<PrefSwitch
+							pref="showSearchRadiusCursor"
 							label={t("Show click search radius at cursor")}
 						/>
 					</fieldset>
