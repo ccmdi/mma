@@ -19,6 +19,7 @@ import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
+import { IconButton } from "@/components/primitives/IconButton";
 import { Spinner } from "@/components/primitives/Spinner";
 import {
 	mdiCameraOutline,
@@ -160,18 +161,14 @@ function CompassControl() {
 		>
 			<div className="map-control map-control--transparent">
 				<div className="compass-control" ref={controlRef}>
-					<Tooltip
-						content={t("Click to point north (N). Ctrl+click to cycle through linked panoramas.")}
-						side="right"
-					>
-						<button
-							className="compass-control__button"
-							onClick={(e) => (e.ctrlKey ? pano.turnToNextLink() : pano.pointNorth())}
-							aria-label={t("Point north")}
-						>
-							<Compass />
-						</button>
-					</Tooltip>
+					<IconButton
+						icon={<Compass />}
+						label={t("Point north")}
+						tooltip={t("Click to point north (N). Ctrl+click to cycle through linked panoramas.")}
+						tooltipSide="right"
+						className="compass-control__button"
+						onClick={(e) => (e.ctrlKey ? pano.turnToNextLink() : pano.pointNorth())}
+					/>
 					{links.map((link) => (
 						<button
 							key={link.pano}
@@ -203,21 +200,21 @@ function ZoomControl() {
 			style={{ inset: "auto auto 112px 0px" }}
 		>
 			<div className="map-control map-control--button">
-				<Tooltip content={t("Zoom in")} side="right">
-					<button onClick={pano.zoomIn} aria-label={t("Zoom in")}>
-						<Icon path={mdiPlus} />
-					</button>
-				</Tooltip>
-				<Tooltip content={t("Reset zoom")} side="right">
-					<button disabled={atMin} onClick={pano.resetZoom} aria-label={t("Reset zoom")}>
-						<Icon path={mdiImageFilterCenterFocus} />
-					</button>
-				</Tooltip>
-				<Tooltip content={t("Zoom out")} side="right">
-					<button disabled={atMin} onClick={pano.zoomOut} aria-label={t("Zoom out")}>
-						<Icon path={mdiMinus} />
-					</button>
-				</Tooltip>
+				<IconButton icon={mdiPlus} label={t("Zoom in")} tooltipSide="right" onClick={pano.zoomIn} />
+				<IconButton
+					icon={mdiImageFilterCenterFocus}
+					label={t("Reset zoom")}
+					tooltipSide="right"
+					disabled={atMin}
+					onClick={pano.resetZoom}
+				/>
+				<IconButton
+					icon={mdiMinus}
+					label={t("Zoom out")}
+					tooltipSide="right"
+					disabled={atMin}
+					onClick={pano.zoomOut}
+				/>
 			</div>
 		</div>
 	);
@@ -250,15 +247,13 @@ function ReturnToSpawnControl({
 			style={{ inset: "auto auto 56px 0px" }}
 		>
 			<div className="map-control map-control--button">
-				<Tooltip content={t("Return to spawn (R)")} side="right">
-					<button
-						disabled={!hasChanged}
-						onClick={() => void Promise.resolve(onReturnToSpawn())}
-						aria-label={t("Return to spawn (R)")}
-					>
-						<Icon path={mdiHome} />
-					</button>
-				</Tooltip>
+				<IconButton
+					icon={mdiHome}
+					label={t("Return to spawn (R)")}
+					tooltipSide="right"
+					disabled={!hasChanged}
+					onClick={() => void Promise.resolve(onReturnToSpawn())}
+				/>
 			</div>
 		</div>
 	);
@@ -514,15 +509,14 @@ export const PanoControls = memo(function PanoControls({
 								<Icon path={mdiOpenInNew} />
 							</button>
 						</Tooltip>
-						<Tooltip content={t("Copy link - Shift: without tags, Alt: long URL")} side="right">
-							<button
-								onClick={(e) => void doCopy({ long: e.altKey, noTags: e.shiftKey })}
-								disabled={copyState !== "idle"}
-								aria-label={t("Copy link")}
-							>
-								<FlashIcon state={copyState} icon={mdiContentCopy} />
-							</button>
-						</Tooltip>
+						<IconButton
+							icon={<FlashIcon state={copyState} icon={mdiContentCopy} />}
+							label={t("Copy link")}
+							tooltip={t("Copy link - Shift: without tags, Alt: long URL")}
+							tooltipSide="right"
+							disabled={copyState !== "idle"}
+							onClick={(e) => void doCopy({ long: e.altKey, noTags: e.shiftKey })}
+						/>
 					</div>
 				)}
 			</div>

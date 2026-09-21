@@ -2248,6 +2248,8 @@ input[type="range"]:disabled {
 	min-width: 40px;
 	min-height: 40px;
 	display: block;
+	border-radius: 0;
+	line-height: normal;
 }
 .map-control--button button:not([disabled]) {
 	cursor: pointer;
@@ -2260,6 +2262,7 @@ input[type="range"]:disabled {
 }
 .map-control--button button[disabled] {
 	color: #4e4e4e;
+	opacity: 1;
 }
 .map-control--button.white {
 	background: #fff;

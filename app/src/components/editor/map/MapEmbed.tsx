@@ -11,7 +11,6 @@ import {
 import { startSceneEngine, loadScene, clearScene, recolorScene } from "@/lib/render/sceneStore";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
-import { Tooltip } from "@/components/primitives/Tooltip";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
 import { PanoType } from "@/bindings.consts";
 import { panosAt } from "@/lib/sv/query";
@@ -406,24 +405,18 @@ export function MapEmbed({
 				>
 					<MapSettingsDropdown prefs={prefs} setPref={pref} />
 					<div className="map-control sv-opacity-control">
-						<Tooltip
-							content={
+						<IconButton
+							icon={opacityTarget === "sv" ? mdiGoogleStreetView : mdiMapMarker}
+							size={20}
+							label={
 								opacityTarget === "sv"
 									? t("Adjusting Street View opacity")
 									: t("Adjusting marker opacity")
 							}
-							side="left"
-						>
-							<button
-								className="opacity-target-toggle"
-								onClick={() => setOpacityTarget((cur) => (cur === "sv" ? "marker" : "sv"))}
-							>
-								<Icon
-									path={opacityTarget === "sv" ? mdiGoogleStreetView : mdiMapMarker}
-									size={20}
-								/>
-							</button>
-						</Tooltip>
+							tooltipSide="left"
+							className="opacity-target-toggle"
+							onClick={() => setOpacityTarget((cur) => (cur === "sv" ? "marker" : "sv"))}
+						/>
 						<Slider
 							className="sv-opacity-control__slider"
 							min={0}
@@ -442,16 +435,20 @@ export function MapEmbed({
 					style={fullscreenMap ? { left: 0, bottom: 10 } : { right: 0, bottom: 10 }}
 				>
 					<div className="map-control map-control--button white">
-						<Tooltip content={t("Zoom in")} side="left">
-							<button onClick={zoomIn} aria-label={t("Zoom in")}>
-								<Icon path={mdiPlus} size={18} />
-							</button>
-						</Tooltip>
-						<Tooltip content={t("Zoom out")} side="left">
-							<button onClick={zoomOut} aria-label={t("Zoom out")}>
-								<Icon path={mdiMinus} size={18} />
-							</button>
-						</Tooltip>
+						<IconButton
+							icon={mdiPlus}
+							size={18}
+							label={t("Zoom in")}
+							tooltipSide="left"
+							onClick={zoomIn}
+						/>
+						<IconButton
+							icon={mdiMinus}
+							size={18}
+							label={t("Zoom out")}
+							tooltipSide="left"
+							onClick={zoomOut}
+						/>
 					</div>
 				</div>
 				{svPreview && (
