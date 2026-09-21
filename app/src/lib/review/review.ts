@@ -60,24 +60,35 @@ export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResul
 /** Mark the current cursor reviewed and step forward. `done` is true when the
  *  session has no remaining items. */
 export function advance(s: ReviewSession): { session: ReviewSession; done: boolean } {
-	const idx = positionOf(s, s.cursorId);
-	const reviewed = s.reviewed.includes(s.cursorId) ? s.reviewed : [...s.reviewed, s.cursorId];
-	if (idx < 0 || idx >= s.order.length - 1) {
-		return { session: { ...s, reviewed, status: "done" }, done: true };
-	}
-	return { session: { ...s, reviewed, cursorId: s.order[idx + 1] }, done: false };
+	const reviewed = isCurrentReviewed(s) ? s.reviewed : [...s.reviewed, s.cursorId];
+	if (isAtEnd(s)) return { session: { ...s, reviewed, status: "done" }, done: true };
+	return { session: { ...s, reviewed, cursorId: s.order[reviewIndex(s) + 1] }, done: false };
 }
 
 /** Step backward without marking anything reviewed. Null when already at the start. */
 export function retreat(s: ReviewSession): ReviewSession | null {
-	const idx = positionOf(s, s.cursorId);
-	if (idx <= 0) return null;
-	return { ...s, cursorId: s.order[idx - 1] };
+	if (isAtStart(s)) return null;
+	return { ...s, cursorId: s.order[reviewIndex(s) - 1] };
 }
 
 /** Position of the session cursor within its review order. */
 export function reviewIndex(s: ReviewSession): number {
 	return positionOf(s, s.cursorId);
+}
+
+export type ReviewMode = "reviewed" | "unreviewed";
+
+const REVIEW_MODES: ReviewMode[] = ["reviewed", "unreviewed"];
+
+/** The session's locations in `mode`: those reviewed, or those still to review. */
+export function reviewSet(s: ReviewSession, mode: ReviewMode): number[] {
+	if (mode === "reviewed") return s.reviewed;
+	const reviewed = new Set(s.reviewed);
+	return s.order.filter((id) => !reviewed.has(id));
+}
+
+function reviewSelector(sessionId: string, mode: ReviewMode, locations: number[] = []): Selector {
+	return { type: "Reviewed", locations, sessionId, mode };
 }
 
 /** Union of reviewed ids across sessions, de-duplicated. */
@@ -92,6 +103,12 @@ export function isAtStart(s: ReviewSession): boolean {
 	return reviewIndex(s) <= 0;
 }
 
+/** True when the cursor is on the session's last location. */
+export function isAtEnd(s: ReviewSession): boolean {
+	const i = reviewIndex(s);
+	return i < 0 || i >= s.order.length - 1;
+}
+
 /** Current cursor location is in the reviewed set. */
 export function isCurrentReviewed(s: ReviewSession): boolean {
 	return s.reviewed.includes(s.cursorId);
@@ -100,6 +117,19 @@ export function isCurrentReviewed(s: ReviewSession): boolean {
 // --- Module state + reactivity ---
 
 let session: ReviewSession | null = null;
+
+function setSession(next: ReviewSession | null): void {
+	session = next;
+	emit("review:changed");
+}
+
+/** Deactivate the session, clear its overlay selections, and leave review. */
+function closeSession(): Promise<void> {
+	const s = session;
+	setSession(null);
+	if (s) clearProjection(s.id);
+	return setActiveLocation(null);
+}
 
 /** Reactive active review session, or null. */
 export function useReviewSession(): ReviewSession | null {
@@ -193,10 +223,10 @@ export async function beginReview(ids: number[], source?: Selection): Promise<vo
 	const name = source ? selectionDisplayName(source) : t("Selected locations");
 	const sourceProps = source?.selector ?? { type: "Manual", locations: order };
 	try {
-		session = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
-		emit("review:changed");
+		const created = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
+		setSession(created);
 		refreshProjection();
-		await gotoCursor(session);
+		await gotoCursor(created);
 	} catch (e) {
 		log.error("[review] create failed:", e);
 	}
@@ -211,15 +241,10 @@ export async function resumeReview(s: ReviewSession): Promise<void> {
 export async function reviewNext(): Promise<void> {
 	if (!session) return;
 	const { session: next, done } = advance(session);
-	session = next;
-	emit("review:changed");
+	setSession(next);
 	if (done) {
-		const id = next.id;
 		flushSave();
-		session = null;
-		emit("review:changed");
-		clearProjection(id);
-		await setActiveLocation(null);
+		await closeSession();
 		return;
 	}
 	scheduleSave();
@@ -232,8 +257,7 @@ export async function reviewPrev(): Promise<void> {
 	if (!session) return;
 	const prev = retreat(session);
 	if (!prev) return;
-	session = prev;
-	emit("review:changed");
+	setSession(prev);
 	scheduleSave();
 	await gotoCursor(prev);
 }
@@ -243,44 +267,27 @@ export async function reviewPrev(): Promise<void> {
 export async function reviewDelete(): Promise<void> {
 	if (!session) return;
 	const s = session;
-	const curId = s.cursorId;
-	const idx = positionOf(s, curId);
-	const order = s.order.filter((id) => id !== curId);
-	const reviewed = s.reviewed.filter((id) => id !== curId);
-
-	if (idx >= 0 && idx < order.length) {
-		// an item took curId's slot — advance to it
-		session = { ...s, order, reviewed, cursorId: order[idx] };
-		emit("review:changed");
-		await gotoCursor(session);
+	const deleted = s.cursorId;
+	const next = pruneSession(s, new Set([deleted])).session;
+	if (next && !isAtEnd(s)) {
+		setSession(next);
+		await gotoCursor(next);
 		flushSave();
 		scheduleProjection();
-		await removeLocations(new Set([curId]));
-		return;
-	}
-
-	// curId was the last item (or the only one) — end the pass
-	if (order.length > 0) {
-		persist({ ...s, order, reviewed, status: "done" }); // survivors remain, resumable as done
 	} else {
-		cmd.storeReviewDelete(s.id).catch(() => {});
+		if (next)
+			persist({ ...next, status: "done" }); // survivors remain, resumable as done
+		else cmd.storeReviewDelete(s.id).catch(() => {});
+		await closeSession();
 	}
-	session = null;
-	emit("review:changed");
-	clearProjection(s.id);
-	await setActiveLocation(null);
-	await removeLocations(new Set([curId]));
+	await removeLocations(new Set([deleted]));
 }
 
 /** Exit the review UI but keep the session resumable (persisted as active). */
 export function cancelReview(): void {
 	if (!session) return;
-	const id = session.id;
 	flushSave();
-	session = null;
-	emit("review:changed");
-	clearProjection(id);
-	void setActiveLocation(null);
+	void closeSession();
 }
 
 /** Rename a review session. */
@@ -301,8 +308,7 @@ export async function renameReview(id: string, name: string): Promise<void> {
 		return;
 	}
 	if (session?.id === id) {
-		session = { ...session, name: trimmed };
-		emit("review:changed");
+		setSession({ ...session, name: trimmed });
 	}
 }
 
@@ -332,19 +338,14 @@ export async function selectReviewedHistory(): Promise<void> {
 	const ids = reviewedHistoryIds(await listSessions());
 	if (ids.length === 0) return;
 	await applySelectionUpdate(
-		batch(addSelection)([
-			{ type: "Reviewed", locations: ids, sessionId: HISTORY_SESSION_ID, mode: "reviewed" },
-		]),
+		batch(addSelection)([reviewSelector(HISTORY_SESSION_ID, "reviewed", ids)]),
 	);
 }
 
 /** Add a reviewed or unreviewed overlay selection for a session. */
-export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed") {
-	const reviewedSet = new Set(s.reviewed);
-	const locations =
-		mode === "reviewed" ? [...s.reviewed] : s.order.filter((id) => !reviewedSet.has(id));
+export function selectReviewSet(s: ReviewSession, mode: ReviewMode) {
 	return applySelectionUpdate(
-		batch(addSelection)([{ type: "Reviewed", locations, sessionId: s.id, mode }]),
+		batch(addSelection)([reviewSelector(s.id, mode, reviewSet(s, mode))]),
 	);
 }
 
@@ -354,8 +355,6 @@ export function selectReviewSet(s: ReviewSession, mode: "reviewed" | "unreviewed
 // "unreviewed". They're re-added by their deterministic keys (dedupe replaces the prior
 // pair), so refreshing just updates the membership. Debounced so mashing next doesn't
 // re-resolve the whole selection list on every step.
-
-const reviewKeys = (id: string): string[] => [`review:${id}:reviewed`, `review:${id}:unreviewed`];
 
 let projectTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -367,19 +366,10 @@ function clearProjectTimer() {
 }
 
 function refreshProjection(): void {
-	if (!session) return;
-	const reviewedSet = new Set(session.reviewed);
-	const unreviewed = session.order.filter((id) => !reviewedSet.has(id));
+	const s = session;
+	if (!s) return;
 	void applySelectionUpdate(
-		batch(addSelection)([
-			{
-				type: "Reviewed",
-				locations: [...session.reviewed],
-				sessionId: session.id,
-				mode: "reviewed",
-			},
-			{ type: "Reviewed", locations: unreviewed, sessionId: session.id, mode: "unreviewed" },
-		]),
+		batch(addSelection)(REVIEW_MODES.map((mode) => reviewSelector(s.id, mode, reviewSet(s, mode)))),
 	);
 }
 
@@ -393,7 +383,8 @@ function scheduleProjection(): void {
 
 function clearProjection(id: string): void {
 	clearProjectTimer();
-	void applySelectionUpdate(batch(removeSelection)(reviewKeys(id)));
+	const keys = REVIEW_MODES.map((mode) => buildSelection(reviewSelector(id, mode)).key);
+	void applySelectionUpdate(batch(removeSelection)(keys));
 }
 
 /** Adopt a persisted session as active, pruning locations that no longer exist. */
@@ -411,8 +402,7 @@ async function adopt(s: ReviewSession): Promise<void> {
 		await cmd.storeReviewDelete(s.id).catch(() => {});
 		return;
 	}
-	session = v;
-	emit("review:changed");
+	setSession(v);
 	if (v !== s) persist(v);
 	refreshProjection();
 	await gotoCursor(v);
@@ -425,14 +415,12 @@ function reconcile(removed: number[]): void {
 	const prev = session;
 	const { session: next, cursorMoved } = pruneSession(prev, new Set(removed));
 	if (next === prev) return; // nothing overlapped
-	session = next;
-	emit("review:changed");
 	if (!next) {
 		cmd.storeReviewDelete(prev.id).catch(() => {});
-		clearProjection(prev.id);
-		void setActiveLocation(null);
+		void closeSession();
 		return;
 	}
+	setSession(next);
 	scheduleSave();
 	scheduleProjection();
 	if (cursorMoved && getMapState().activeLocation?.id !== next.cursorId) {
@@ -445,8 +433,7 @@ function reconcile(removed: number[]): void {
 function onActiveChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
 	if (positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
-	session = { ...session, cursorId: id };
-	emit("review:changed");
+	setSession({ ...session, cursorId: id });
 	scheduleSave();
 }
 
@@ -455,11 +442,9 @@ onEvent("location:remove", (ids) => reconcile(ids));
 onEvent("map:close", () => {
 	clearProjectTimer();
 	flushSave();
-	session = null;
-	emit("review:changed");
+	setSession(null);
 });
 onEvent("map:open", () => {
 	clearProjectTimer();
-	session = null;
-	emit("review:changed");
+	setSession(null);
 });

@@ -10,6 +10,7 @@ vi.mock("@/store/useMapStore", () => ({
 	applySelectionUpdate: vi.fn(),
 	resolveIds: async ({ locations }: { locations: number[] }) =>
 		locations.filter((id) => store.liveIds.includes(id)),
+	removeLocations: vi.fn(),
 	mutate: vi.fn(),
 }));
 vi.mock("@/lib/commands", () => ({
@@ -21,6 +22,7 @@ vi.mock("@/store/selections", () => ({
 	batch: () => () => [],
 	addSelection: vi.fn(),
 	removeSelection: vi.fn(),
+	buildSelection: () => ({ key: "" }),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
@@ -30,6 +32,9 @@ import {
 	retreat,
 	reviewIndex,
 	isAtStart,
+	isAtEnd,
+	reviewSet,
+	reviewDelete,
 	isCurrentReviewed,
 	reviewedHistoryIds,
 	positionOf,
@@ -103,6 +108,24 @@ describe("resuming a session", () => {
 	});
 });
 
+describe("deleting the current location", () => {
+	it("moves to the location that takes its place", async () => {
+		store.liveIds = [1, 2, 3, 4, 5];
+		await resumeReview(mk([1, 2, 3, 4, 5], 3));
+		await reviewDelete();
+		expect(getReviewSession()?.order).toEqual([1, 2, 4, 5]);
+		expect(getReviewSession()?.cursorId).toBe(4);
+		cancelReview();
+	});
+
+	it("ends the pass when it was the last location", async () => {
+		store.liveIds = [1, 2, 3];
+		await resumeReview(mk([1, 2, 3], 3));
+		await reviewDelete();
+		expect(getReviewSession()).toBeNull();
+	});
+});
+
 describe("reviewedHistoryIds (cross-session union)", () => {
 	it("unions reviewed ids across sessions and de-duplicates", () => {
 		const a = mk([1, 2, 3], 3, [1, 2]);
@@ -149,12 +172,20 @@ describe("advance / retreat", () => {
 });
 
 describe("helpers", () => {
-	it("reviewIndex / isAtStart / isCurrentReviewed", () => {
+	it("reviewIndex / isAtStart / isAtEnd / isCurrentReviewed", () => {
 		expect(reviewIndex(mk([1, 2, 3], 2))).toBe(1);
 		expect(isAtStart(mk([1, 2, 3], 1))).toBe(true);
 		expect(isAtStart(mk([1, 2, 3], 2))).toBe(false);
+		expect(isAtEnd(mk([1, 2, 3], 3))).toBe(true);
+		expect(isAtEnd(mk([1, 2, 3], 2))).toBe(false);
 		expect(isCurrentReviewed(mk([1, 2, 3], 2, [2]))).toBe(true);
 		expect(isCurrentReviewed(mk([1, 2, 3], 2, [1]))).toBe(false);
+	});
+
+	it("reviewSet splits the worklist into reviewed and still to review", () => {
+		const s = mk([1, 2, 3, 4], 3, [1, 2]);
+		expect(reviewSet(s, "reviewed")).toEqual([1, 2]);
+		expect(reviewSet(s, "unreviewed")).toEqual([3, 4]);
 	});
 });
 
