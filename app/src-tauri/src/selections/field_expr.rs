@@ -5,12 +5,13 @@
 //!
 //! `true` and `false` are literals a comparison can name; everywhere a number is wanted
 //! they read as 1 and 0, as does a boolean field, so a predicate is a term you can add to
-//! a score. Comparison semantics are [`compare_filter`]'s, so `>` here means what `>`
-//! means in a filter.
+//! a score. A field reads as a number the way a filter reads it: a numeric string as its
+//! number, a list as its length. Comparison semantics are [`compare_filter`]'s, so `>`
+//! here means what `>` means in a filter.
 
 use std::fmt::{self, Display, Formatter};
 
-use super::{compare_filter, FilterOp};
+use super::{as_f64, compare_filter, FilterOp};
 
 use crate::types::AppError;
 
@@ -501,11 +502,11 @@ fn eval_node(expr: &Expr, field: &Resolver) -> Option<f64> {
         Expr::Bool(b) => f64::from(u8::from(*b)),
         // Bare strings are comparison operands; there is nothing numeric to yield.
         Expr::Str(_) => return None,
-        Expr::Field(name) => {
-            let v = field(name)?;
-            v.as_bool()
-                .map_or_else(|| v.as_f64(), |b| Some(f64::from(u8::from(b))))?
-        }
+        Expr::Field(name) => match field(name)? {
+            serde_json::Value::Bool(b) => f64::from(u8::from(b)),
+            serde_json::Value::Array(items) => items.len() as f64,
+            v => as_f64(&v)?,
+        },
         Expr::Has(name) => f64::from(u8::from(field(name).is_some())),
         Expr::Neg(arg) => -eval_node(arg, field)?,
         Expr::Bin(op, l, r) => {
