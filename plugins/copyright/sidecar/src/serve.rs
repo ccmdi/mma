@@ -4,9 +4,10 @@
 //! and prints `{"port":N}` on stdout for the parent to read. Exits by itself after
 //! an idle period, so a parent that died without killing it never leaves an orphan.
 
+use std::io::{self, Write};
 use std::time::{Duration, Instant};
 
-use crate::detect::{DetectInput, DetectResult, Detector};
+use crate::detect::{DetectInput, Detector};
 
 pub struct ServeState {
     model_dir: String,
@@ -23,25 +24,50 @@ impl ServeState {
     }
 
     /// Route one request. Pure over (method, path, body) so the protocol is
-    /// testable without sockets. Returns (status, response body).
-    pub fn handle(&mut self, method: &str, path: &str, body: &str) -> (u16, String) {
+    /// testable without sockets.
+    pub fn handle(&self, method: &str, path: &str, body: &str) -> Reply {
         match (method, path) {
-            ("GET", "/ping") => (200, r#"{"ok":true}"#.into()),
-            ("POST", "/detect") => {
-                let input: DetectInput = match serde_json::from_str(body) {
-                    Ok(i) => i,
-                    Err(e) => return (400, err_body(&format!("bad input: {e}"))),
-                };
-                let detector = self
-                    .detector
-                    .get_or_insert_with(|| Detector::load(&self.model_dir));
-                let mut results: Vec<DetectResult> = Vec::with_capacity(input.pano_ids.len());
-                detector.run(&input, |r| results.push(r));
-                (200, serde_json::to_string(&results).unwrap())
-            }
-            _ => (404, err_body("not found")),
+            ("GET", "/ping") => Reply::Done(200, r#"{"ok":true}"#.into()),
+            ("POST", "/detect") => match serde_json::from_str(body) {
+                Ok(input) => Reply::Detect(input),
+                Err(e) => Reply::Done(400, err_body(&format!("bad input: {e}"))),
+            },
+            _ => Reply::Done(404, err_body("not found")),
         }
     }
+
+    /// Detect `input`, writing each result to `out` as one HTTP chunk the moment it is
+    /// ready, so the caller sees progress per pano rather than per request.
+    pub fn stream_detect(&mut self, input: &DetectInput, out: &mut dyn Write) -> io::Result<()> {
+        let detector = self
+            .detector
+            .get_or_insert_with(|| Detector::load(&self.model_dir));
+        let mut failed: Option<io::Error> = None;
+        detector.run(input, |result| {
+            if failed.is_none() {
+                failed = write_chunk(out, &serde_json::to_string(&result).unwrap()).err();
+            }
+        });
+        match failed {
+            Some(e) => Err(e),
+            None => end_chunks(out),
+        }
+    }
+}
+
+fn write_chunk(out: &mut dyn Write, line: &str) -> io::Result<()> {
+    write!(out, "{:x}\r\n{line}\n\r\n", line.len() + 1)?;
+    out.flush()
+}
+
+fn end_chunks(out: &mut dyn Write) -> io::Result<()> {
+    out.write_all(b"0\r\n\r\n")?;
+    out.flush()
+}
+
+pub enum Reply {
+    Done(u16, String),
+    Detect(DetectInput),
 }
 
 fn err_body(msg: &str) -> String {
@@ -57,8 +83,7 @@ pub fn run(model_dir: &str, idle_secs: u64) {
     };
     // The parent reads this line to find the endpoint.
     println!("{{\"port\":{port}}}");
-    use std::io::Write;
-    std::io::stdout().flush().ok();
+    io::stdout().flush().ok();
 
     let mut state = ServeState::new(model_dir);
     let idle = Duration::from_secs(idle_secs);
@@ -66,24 +91,34 @@ pub fn run(model_dir: &str, idle_secs: u64) {
     loop {
         match server.recv_timeout(Duration::from_secs(5)) {
             Ok(Some(mut req)) => {
-                last = Instant::now();
                 let mut body = String::new();
                 let _ = req.as_reader().read_to_string(&mut body);
-                let (status, resp) = state.handle(
-                    req.method().as_str().to_uppercase().as_str(),
-                    req.url(),
-                    &body,
-                );
-                let response = tiny_http::Response::from_string(resp)
-                    .with_status_code(status)
-                    .with_header(
-                        tiny_http::Header::from_bytes(
-                            &b"Content-Type"[..],
-                            &b"application/json"[..],
-                        )
-                        .unwrap(),
-                    );
-                let _ = req.respond(response);
+                let method = req.method().as_str().to_uppercase();
+                match state.handle(&method, req.url(), &body) {
+                    Reply::Done(status, resp) => {
+                        let response = tiny_http::Response::from_string(resp)
+                            .with_status_code(status)
+                            .with_header(
+                                tiny_http::Header::from_bytes(
+                                    &b"Content-Type"[..],
+                                    &b"application/json"[..],
+                                )
+                                .unwrap(),
+                            );
+                        let _ = req.respond(response);
+                    }
+                    Reply::Detect(input) => {
+                        let mut out = req.into_writer();
+                        let head = "HTTP/1.1 200 OK\r\nContent-Type: application/x-ndjson\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n";
+                        if let Err(e) = out
+                            .write_all(head.as_bytes())
+                            .and_then(|()| state.stream_detect(&input, &mut out))
+                        {
+                            eprintln!("[copyright] detect stream broke: {e}");
+                        }
+                    }
+                }
+                last = Instant::now();
             }
             Ok(None) => {
                 if last.elapsed() >= idle {

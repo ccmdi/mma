@@ -263,3 +263,69 @@ fn path_traversal_entries_are_skipped_during_extraction() {
     assert!(!tmp.path().join("evil.txt").exists());
     assert!(!tmp.path().parent().unwrap().join("evil.txt").exists());
 }
+
+fn listen() -> (std::net::TcpListener, u16) {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    (listener, port)
+}
+
+fn accept_one(listener: std::net::TcpListener) -> std::net::TcpStream {
+    use std::io::Read;
+    let (mut sock, _) = listener.accept().unwrap();
+    let mut request = [0u8; 4096];
+    let _ = sock.read(&mut request);
+    sock
+}
+
+#[test]
+fn a_resident_reply_reaches_the_caller_line_by_line() {
+    use std::io::Write;
+    let (listener, port) = listen();
+    let (seen_tx, seen_rx) = mpsc::channel::<()>();
+    let server = thread::spawn(move || {
+        let mut sock = accept_one(listener);
+        sock.write_all(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n",
+        )
+        .unwrap();
+        for line in [r#"{"panoId":"a"}"#, r#"{"panoId":"b"}"#] {
+            let body = format!("{line}\n");
+            write!(sock, "{:x}\r\n{body}\r\n", body.len()).unwrap();
+            sock.flush().unwrap();
+            seen_rx
+                .recv_timeout(Duration::from_secs(5))
+                .expect("the caller saw the line before the reply ended");
+        }
+        sock.write_all(b"0\r\n\r\n").unwrap();
+    });
+    let mut seen = Vec::new();
+    let posted = post(port, "detect", "{}", &mut |line| {
+        seen.push(line);
+        let _ = seen_tx.send(());
+    });
+    server.join().unwrap();
+    assert!(posted.is_ok());
+    assert_eq!(seen, [r#"{"panoId":"a"}"#, r#"{"panoId":"b"}"#]);
+}
+
+#[test]
+fn a_single_line_resident_reply_still_arrives_whole() {
+    use std::io::Write;
+    let (listener, port) = listen();
+    let body = r#"[{"panoId":"a"},{"panoId":"b"}]"#;
+    let server = thread::spawn(move || {
+        let mut sock = accept_one(listener);
+        write!(
+            sock,
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    let mut seen = Vec::new();
+    assert!(post(port, "detect", "{}", &mut |line| seen.push(line)).is_ok());
+    server.join().unwrap();
+    assert_eq!(seen, [body]);
+}

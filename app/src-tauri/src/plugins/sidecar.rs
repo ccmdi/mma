@@ -232,7 +232,9 @@ fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()>
         }
         log::info!("[sidecar] SHA-256 verified against checksums.txt: {actual_sha}");
     } else {
-        log::warn!("[sidecar] no checksums.txt for this release, skipping integrity check (hash: {actual_sha})");
+        log::warn!(
+            "[sidecar] no checksums.txt for this release, skipping integrity check (hash: {actual_sha})"
+        );
     }
 
     let tmp_dir = plugin_root.join(".sidecar-tmp");
@@ -627,31 +629,45 @@ impl PostError {
     }
 }
 
-fn post(port: u16, command: &str, body: &str) -> Result<String, PostError> {
+fn post(
+    port: u16,
+    command: &str,
+    body: &str,
+    on_line: &mut dyn FnMut(String),
+) -> Result<(), PostError> {
     let resp = http()
         .post(format!("http://127.0.0.1:{port}/{command}"))
         .body(body.to_string())
         .send()
         .map_err(PostError::Transport)?;
-    let status = resp.status();
-    let text = resp.text().map_err(PostError::Transport)?;
-    if !status.is_success() {
+    if !resp.status().is_success() {
+        let text = resp.text().map_err(PostError::Transport)?;
         return Err(PostError::Http(format!("sidecar {command} failed: {text}")));
     }
-    Ok(text)
+    // A break mid-reply is the resident's error: a restart would deliver lines twice.
+    for line in BufReader::new(resp).lines() {
+        let line =
+            line.map_err(|e| PostError::Http(format!("sidecar {command} reply broke off: {e}")))?;
+        if !line.is_empty() {
+            on_line(line);
+        }
+    }
+    Ok(())
 }
 
-/// Post one command to the plugin's resident process and return its single reply.
+/// Post one command to the plugin's resident process, handing each reply line to
+/// `on_line` as it arrives.
 fn post_resident(
     plugin_id: &str,
     spec: &SidecarSpec,
     command: &str,
     payload: Option<&str>,
-) -> AppResult<String> {
+    on_line: &mut dyn FnMut(String),
+) -> AppResult<()> {
     let body = payload.unwrap_or("{}");
     let addr = resident_port(plugin_id, spec, None)?;
-    match post(addr.port, command, body) {
-        Ok(text) => Ok(text),
+    match post(addr.port, command, body, on_line) {
+        Ok(()) => Ok(()),
         // An HTTP error status is the resident answering; only a transport failure
         // (idled out or crashed between the liveness check and the send) warrants
         // one restart and retry.
@@ -659,21 +675,26 @@ fn post_resident(
         Err(PostError::Transport(e)) => {
             log::warn!("[sidecar] resident {command} unreachable ({e}), restarting");
             let addr = resident_port(plugin_id, spec, Some(addr.epoch))?;
-            post(addr.port, command, body).map_err(|e| e.into_app(command))
+            post(addr.port, command, body, on_line).map_err(|e| e.into_app(command))
         }
     }
 }
 
-fn run_resident(
+/// Run `command` on the plugin's resident process when the manifest serves it, else as a
+/// one-shot child, handing each output line to `on_line` as it arrives.
+fn run_command(
     plugin_id: &str,
     spec: &SidecarSpec,
     command: &str,
     payload: Option<&str>,
     req_id: u32,
+    on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
-    let text = post_resident(plugin_id, spec, command, payload)?;
-    emit_event(SidecarLine { req_id, line: text });
-    Ok(())
+    if spec.is_resident(command) {
+        post_resident(plugin_id, spec, command, payload, on_line)
+    } else {
+        run_oneshot(plugin_id, spec, command, payload, req_id, on_line)
+    }
 }
 
 // --- One-shot transport ---
@@ -797,18 +818,14 @@ pub fn sidecar_request(
     let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
 
     thread::spawn(move || {
-        let result = if spec.is_resident(&command) {
-            run_resident(&plugin_id, &spec, &command, payload.as_deref(), req_id)
-        } else {
-            run_oneshot(
-                &plugin_id,
-                &spec,
-                &command,
-                payload.as_deref(),
-                req_id,
-                &mut |line| emit_event(SidecarLine { req_id, line }),
-            )
-        };
+        let result = run_command(
+            &plugin_id,
+            &spec,
+            &command,
+            payload.as_deref(),
+            req_id,
+            &mut |line| emit_event(SidecarLine { req_id, line }),
+        );
         let error = result.err().map(|e| e.0);
         if let Some(ref message) = error {
             log::error!("[sidecar] req_id={req_id} failed: {message}");
@@ -819,16 +836,12 @@ pub fn sidecar_request(
     Ok(req_id)
 }
 
-/// Run one sidecar command synchronously and return every line it produced. Same
-/// resident-vs-one-shot dispatch as [`sidecar_request`], but nothing is emitted:
-/// the caller owns the lines. A resident answers with exactly one.
 /// A sidecar command's output, one line at a time, blocking until the next arrives.
 /// The stream ends after the last line, or with the error that stopped the run.
 pub(crate) type SidecarStream = Box<dyn Iterator<Item = AppResult<String>> + Send>;
 
 /// Run one command on its own thread and hand its lines over as they arrive, so an
-/// in-process caller such as the procedure engine can report progress mid-run. A
-/// resident command answers with a single line.
+/// in-process caller such as the procedure engine can report progress mid-run.
 pub(crate) fn sidecar_call_stream(
     plugin_id: &str,
     command: &str,
@@ -849,23 +862,17 @@ pub(crate) fn sidecar_call_stream(
         payload.to_string(),
     );
     thread::spawn(move || {
-        let result = if spec.is_resident(&command) {
-            post_resident(&plugin_id, &spec, &command, Some(&payload)).map(|text| {
-                let _ = tx.send(Ok(text));
-            })
-        } else {
-            let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
-            run_oneshot(
-                &plugin_id,
-                &spec,
-                &command,
-                Some(&payload),
-                req_id,
-                &mut |l| {
-                    let _ = tx.send(Ok(l));
-                },
-            )
-        };
+        let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
+        let result = run_command(
+            &plugin_id,
+            &spec,
+            &command,
+            Some(&payload),
+            req_id,
+            &mut |l| {
+                let _ = tx.send(Ok(l));
+            },
+        );
         if let Err(e) = result {
             let _ = tx.send(Err(e));
         }

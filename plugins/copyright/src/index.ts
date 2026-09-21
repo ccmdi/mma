@@ -22,8 +22,7 @@ registerPlugin({
 			fieldDefs: FIELD_DEFS,
 			procedure: {
 				entry: "procedure.js",
-				// The resident sidecar answers each chunk with one reply, so pages stay
-				// small enough to fit the transport budget and keep progress moving.
+				// Pages stay small enough to fit the transport budget.
 				batch: { mode: "chunk", size: 1000 },
 				instances: 1,
 			},
