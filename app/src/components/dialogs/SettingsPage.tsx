@@ -1,4 +1,11 @@
-import { useState, useRef, useEffect, useCallback, type ReactNode } from "react";
+import {
+	useState,
+	useRef,
+	useEffect,
+	useCallback,
+	type ComponentProps,
+	type ReactNode,
+} from "react";
 import {
 	ConfirmDialog,
 	Dialog,
@@ -103,6 +110,7 @@ import { Markdown } from "@/lib/util/markdown";
 import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
+import type { RGB } from "@/lib/util/color";
 import { t, msg } from "@/lib/i18n";
 import { isPrereleaseVersion } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";
@@ -145,6 +153,31 @@ function SettingSelect<K extends keyof AppSettings>({
 				</option>
 			))}
 		</NSelect>
+	);
+}
+
+type SettingOfType<T> = {
+	[K in keyof AppSettings]: AppSettings[K] extends T ? K : never;
+}[keyof AppSettings];
+
+function SettingSlider({
+	setting,
+	...props
+}: { setting: SettingOfType<number> } & Omit<ComponentProps<typeof Slider>, "value" | "onChange">) {
+	const value = useSetting(setting);
+	return (
+		<Slider
+			{...props}
+			value={value}
+			onChange={(e) => setSetting(setting, Number(e.target.value))}
+		/>
+	);
+}
+
+function SettingColor({ setting, ariaLabel }: { setting: SettingOfType<RGB>; ariaLabel: string }) {
+	const color = useSetting(setting);
+	return (
+		<ColorPicker color={color} onChange={(c) => setSetting(setting, c)} ariaLabel={ariaLabel} />
 	);
 }
 
@@ -440,14 +473,7 @@ function StreetViewBody() {
 				<SettingRow
 					label={t("Pano look speed")}
 					control={
-						<Slider
-							value={s.panoLookSpeed}
-							min={1}
-							max={10}
-							step={1}
-							onChange={(e) => setSetting("panoLookSpeed", Number(e.target.value))}
-							format={(v) => v}
-						/>
+						<SettingSlider setting="panoLookSpeed" min={1} max={10} step={1} format={(v) => v} />
 					}
 				/>
 			</SettingsGroup>
@@ -477,13 +503,12 @@ function StreetViewBody() {
 					label={t("Minimap close delay")}
 					description={t("How long the minimap stays expanded after the pointer leaves it.")}
 					control={
-						<Slider
-							value={s.fullscreenMinimapCloseDelay}
+						<SettingSlider
+							setting="fullscreenMinimapCloseDelay"
 							min={0}
 							max={1000}
 							step={50}
 							disabled={!s.showFullscreenMinimap}
-							onChange={(e) => setSetting("fullscreenMinimapCloseDelay", Number(e.target.value))}
 							format={(v) => `${v}ms`}
 						/>
 					}
@@ -528,14 +553,7 @@ function MapBody() {
 				<SettingRow
 					label={t("Pan speed")}
 					control={
-						<Slider
-							value={s.mapPanSpeed}
-							min={1}
-							max={20}
-							step={1}
-							onChange={(e) => setSetting("mapPanSpeed", Number(e.target.value))}
-							format={(v) => v}
-						/>
+						<SettingSlider setting="mapPanSpeed" min={1} max={20} step={1} format={(v) => v} />
 					}
 				/>
 				<SettingRow setting="panToImported" label={t("Pan to imported locations")} />
@@ -544,13 +562,12 @@ function MapBody() {
 					disabled={!s.panToImported}
 					label={t("Paste zoom padding")}
 					control={
-						<Slider
-							value={s.pastePadding}
+						<SettingSlider
+							setting="pastePadding"
 							min={0.001}
 							max={0.05}
 							step={0.001}
 							disabled={!s.panToImported}
-							onChange={(e) => setSetting("pastePadding", Number(e.target.value))}
 							format={(v) => `${v.toFixed(3)}°`}
 						/>
 					}
@@ -559,12 +576,11 @@ function MapBody() {
 					label={t("Alt slow-down")}
 					description={t("Hold Alt to slow down map panning and pano look.")}
 					control={
-						<Slider
-							value={s.slowModifier}
+						<SettingSlider
+							setting="slowModifier"
 							min={2}
 							max={10}
 							step={1}
-							onChange={(e) => setSetting("slowModifier", Number(e.target.value))}
 							format={(v) => `${v}x`}
 						/>
 					}
@@ -585,20 +601,13 @@ function MapBody() {
 			<SettingsGroup title={t("Markers")}>
 				<SettingRow
 					label={t("Default marker color")}
-					control={
-						<ColorPicker
-							color={s.markerColor}
-							onChange={(color) => setSetting("markerColor", color)}
-							ariaLabel={t("Default marker color")}
-						/>
-					}
+					control={<SettingColor setting="markerColor" ariaLabel={t("Default marker color")} />}
 				/>
 				<SettingRow
 					label={t("Active marker color")}
 					control={
-						<ColorPicker
-							color={s.activeLocationColor}
-							onChange={(color) => setSetting("activeLocationColor", color)}
+						<SettingColor
+							setting="activeLocationColor"
 							ariaLabel={t("Active location marker color")}
 						/>
 					}
@@ -606,9 +615,8 @@ function MapBody() {
 				<SettingRow
 					label={t("Staged marker color")}
 					control={
-						<ColorPicker
-							color={s.importPreviewColor}
-							onChange={(color) => setSetting("importPreviewColor", color)}
+						<SettingColor
+							setting="importPreviewColor"
 							ariaLabel={t("Staged import marker color")}
 						/>
 					}
@@ -626,13 +634,7 @@ function MapBody() {
 			<SettingsGroup title={t("Panorama dots")}>
 				<SettingRow
 					label={t("Dot color")}
-					control={
-						<ColorPicker
-							color={s.panoDotColor}
-							onChange={(color) => setSetting("panoDotColor", color)}
-							ariaLabel={t("Panorama dot color")}
-						/>
-					}
+					control={<SettingColor setting="panoDotColor" ariaLabel={t("Panorama dot color")} />}
 				/>
 				<SettingRow
 					label={t("Dot size")}
@@ -656,11 +658,7 @@ function MapBody() {
 							sub
 							label={t("Trail color")}
 							control={
-								<ColorPicker
-									color={s.svTrailColor}
-									onChange={(color) => setSetting("svTrailColor", color)}
-									ariaLabel={t("Street View trail color")}
-								/>
+								<SettingColor setting="svTrailColor" ariaLabel={t("Street View trail color")} />
 							}
 						/>
 						<SettingRow sub setting="svTrailPosition" label={t("Show position indicator")} />
@@ -676,11 +674,7 @@ function MapBody() {
 						<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
 							<SettingSelect setting="polygonColorMode" options={POLYGON_COLOR_MODES} />
 							{s.polygonColorMode === "fixed" && (
-								<ColorPicker
-									color={s.polygonColor}
-									onChange={(color) => setSetting("polygonColor", color)}
-									ariaLabel={t("Default polygon color")}
-								/>
+								<SettingColor setting="polygonColor" ariaLabel={t("Default polygon color")} />
 							)}
 						</span>
 					}
@@ -863,11 +857,7 @@ function EditingBody() {
 								<span style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
 									<SettingSelect setting="tagFolderColorMode" options={TAG_FOLDER_COLOR_MODES} />
 									{s.tagFolderColorMode === "direct" && (
-										<ColorPicker
-											color={s.tagFolderColor}
-											onChange={(color) => setSetting("tagFolderColor", color)}
-											ariaLabel={t("Default folder color")}
-										/>
+										<SettingColor setting="tagFolderColor" ariaLabel={t("Default folder color")} />
 									)}
 								</span>
 							}
@@ -883,14 +873,7 @@ function EditingBody() {
 				<SettingRow
 					label={t("Tag gap")}
 					control={
-						<Slider
-							value={s.tagGap}
-							min={0}
-							max={16}
-							step={1}
-							onChange={(e) => setSetting("tagGap", Number(e.target.value))}
-							format={(v) => `${v}px`}
-						/>
+						<SettingSlider setting="tagGap" min={0} max={16} step={1} format={(v) => `${v}px`} />
 					}
 				/>
 				<SettingRow
