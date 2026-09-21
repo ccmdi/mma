@@ -61,6 +61,7 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 
 			<Dialog open={open} onOpenChange={setOpen}>
 				<DialogContent
+					size="sm"
 					title={
 						locationIds.length === 1
 							? t("Tag this location")
@@ -79,6 +80,7 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 							getKey={(tag) => tag.id}
 							placeholder={t("Tag name")}
 							disabled={busy}
+							autoFocus
 							portal
 						/>
 						<DialogActions
