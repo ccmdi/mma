@@ -951,8 +951,10 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 	if (id) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
+		if (state.activeLocationId !== id) return t.end({ superseded: true });
 		if (checkDuplicates && loc) {
 			const nearby = await cmd.storeFindNearby(loc.lat, loc.lng, 2.0);
+			if (state.activeLocationId !== id) return t.end({ superseded: true });
 			if (nearby.length >= 2) {
 				setState({ duplicateLocations: nearby, workArea: "duplicates" });
 				clearActiveLocation();
