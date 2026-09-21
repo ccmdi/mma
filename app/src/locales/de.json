@@ -987,6 +987,10 @@
 	"Remove from toolbar": "Aus Werkzeugleiste entfernen",
 	"Remove separator": "Trenner entfernen",
 	"Remove this document's links from every tag": "Links dieses Dokuments von allen Tags entfernen",
+	"Remove this tag only ({n} locations)": {
+		"one": "Nur diesen Tag entfernen ({n} Standort)",
+		"other": "Nur diesen Tag entfernen ({n} Standorte)"
+	},
 	"Remove value": "Wert entfernen",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "{tags} Tags von allen entfernen ({n} Standort)",

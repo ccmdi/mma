@@ -1039,6 +1039,12 @@
 	"Remove from toolbar": "Убрать с панели",
 	"Remove separator": "Убрать разделитель",
 	"Remove this document's links from every tag": "Убрать ссылки на этот документ со всех тегов",
+	"Remove this tag only ({n} locations)": {
+		"one": "Удалить только этот тег ({n} локация)",
+		"few": "Удалить только этот тег ({n} локации)",
+		"many": "Удалить только этот тег ({n} локаций)",
+		"other": "Удалить только этот тег ({n} локации)"
+	},
 	"Remove value": "Удалить значение",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "Удалить из всех (тегов: {tags}, {n} локация)",

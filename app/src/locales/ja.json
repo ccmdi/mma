@@ -961,6 +961,9 @@
 	"Remove from toolbar": "ツールバーから削除",
 	"Remove separator": "区切りを削除",
 	"Remove this document's links from every tag": "このドキュメントへのリンクをすべてのタグから削除",
+	"Remove this tag only ({n} locations)": {
+		"other": "このタグのみ削除（{n} 地点）"
+	},
 	"Remove value": "値を削除",
 	"Remove {tags} tags from all ({n} locations)": {
 		"other": "{tags} 個のタグをすべてから削除（{n} 地点）"

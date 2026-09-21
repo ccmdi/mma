@@ -987,6 +987,10 @@
 	"Remove from toolbar": "[Ŕéɱöṽé ƒŕöɱ ţööĺƀåŕ åéîöüåéî]",
 	"Remove separator": "[Ŕéɱöṽé şéƥåŕåţöŕ åéîöüåé]",
 	"Remove this document's links from every tag": "[Ŕéɱöṽé ţĥîş ðöçüɱéñţ'ş ĺîñķş ƒŕöɱ éṽéŕý ţåǧ åéîöüåéîöüåéîöüåéî]",
+	"Remove this tag only ({n} locations)": {
+		"one": "[Ŕéɱöṽé ţĥîş ţåǧ öñĺý ({n} ĺöçåţîöñ) åéîöüåéîöüåéî]",
+		"other": "[Ŕéɱöṽé ţĥîş ţåǧ öñĺý ({n} ĺöçåţîöñş) åéîöüåéîöüåéîö]"
+	},
 	"Remove value": "[Ŕéɱöṽé ṽåĺüé åéîöü]",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "[Ŕéɱöṽé {tags} ţåǧş ƒŕöɱ åĺĺ ({n} ĺöçåţîöñ) åéîöüåéîöüåéîö]",

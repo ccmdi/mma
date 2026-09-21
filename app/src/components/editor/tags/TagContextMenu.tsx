@@ -44,8 +44,9 @@ function TagContextMenuItems({
 	const tagId = node.tag!.id;
 	const selectedTagIds = useMapState(getSelectedTagIds);
 	const targets = useMemo(() => menuTargetTagIds(node, selectedTagIds), [node, selectedTagIds]);
-	const multi = targets.length > new Set(node.subtreeTagIds).size;
-	const [counts, setCounts] = useState({ total: 0, inSel: 0, ownInSel: 0 });
+	const subtreeSize = new Set(node.subtreeTagIds).size;
+	const multi = targets.length > subtreeSize;
+	const [counts, setCounts] = useState({ total: 0, own: 0, inSel: 0, ownInSel: 0 });
 
 	useEffect(() => {
 		const carriers = any(...targets.map(tagSelector));
@@ -54,9 +55,10 @@ function TagContextMenuItems({
 			hasSelection ? countIn(all(s, currentSelection())) : Promise.resolve(0);
 		void Promise.all([
 			countIn(carriers),
+			countIn(tagSelector(tagId)),
 			inSelection(carriers),
 			inSelection(tagSelector(tagId)),
-		]).then(([total, inSel, ownInSel]) => setCounts({ total, inSel, ownInSel }));
+		]).then(([total, own, inSel, ownInSel]) => setCounts({ total, own, inSel, ownInSel }));
 	}, [tagId, targets]);
 
 	return (
@@ -75,6 +77,17 @@ function TagContextMenuItems({
 							{ n: counts.total },
 						)}
 			</MenuItem>
+			{!multi && subtreeSize > 1 && (
+				<MenuItem tone="destructive" onClick={() => void deleteTags([tagId])}>
+					{t(
+						{
+							one: "Remove this tag only ({n} location)",
+							other: "Remove this tag only ({n} locations)",
+						},
+						{ n: counts.own },
+					)}
+				</MenuItem>
+			)}
 			<MenuItem
 				tone="destructive"
 				disabled={counts.inSel === 0}

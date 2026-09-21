@@ -1039,6 +1039,12 @@
 	"Remove from toolbar": "Usuń z paska narzędzi",
 	"Remove separator": "Usuń separator",
 	"Remove this document's links from every tag": "Usuń linki do tego dokumentu ze wszystkich tagów",
+	"Remove this tag only ({n} locations)": {
+		"one": "Usuń tylko ten tag ({n} lokalizacja)",
+		"few": "Usuń tylko ten tag ({n} lokalizacje)",
+		"many": "Usuń tylko ten tag ({n} lokalizacji)",
+		"other": "Usuń tylko ten tag ({n} lokalizacji)"
+	},
 	"Remove value": "Usuń wartość",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "Usuń ze wszystkich (tagów: {tags}, {n} lokalizacja)",

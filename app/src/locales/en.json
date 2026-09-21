@@ -987,6 +987,10 @@
 	"Remove from toolbar": "Remove from toolbar",
 	"Remove separator": "Remove separator",
 	"Remove this document's links from every tag": "Remove this document's links from every tag",
+	"Remove this tag only ({n} locations)": {
+		"one": "Remove this tag only ({n} location)",
+		"other": "Remove this tag only ({n} locations)"
+	},
 	"Remove value": "Remove value",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "Remove {tags} tags from all ({n} location)",

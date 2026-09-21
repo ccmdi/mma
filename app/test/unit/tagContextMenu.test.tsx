@@ -68,6 +68,22 @@ describe("tag context menu", () => {
 		expect(h.deleteTags).toHaveBeenCalledWith([1, 2, 3]);
 	});
 
+	it("offers removing a folder tag on its own, leaving the tags under it", async () => {
+		h.countIn.mockImplementation(async (s) =>
+			JSON.stringify(s) === JSON.stringify(tagSelector(1)) ? 2 : 0,
+		);
+		const items = await openMenu(node("F"));
+		const only = items.find((i) => i.textContent === "Remove this tag only (2 locations)")!;
+
+		act(() => only.click());
+		expect(h.deleteTags).toHaveBeenCalledWith([1]);
+	});
+
+	it("does not offer removing a leaf on its own", async () => {
+		const items = await openMenu(node("c"));
+		expect(items.some((i) => i.textContent?.startsWith("Remove this tag only"))).toBe(false);
+	});
+
 	it("acts on every selected tag when the clicked tag is one of them", async () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
 		countFor([4, 5, 6], 9);

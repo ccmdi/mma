@@ -1013,6 +1013,11 @@
 	"Remove from toolbar": "Retirer de la barre d'outils",
 	"Remove separator": "Retirer le séparateur",
 	"Remove this document's links from every tag": "Retirer les liens de ce document de toutes les étiquettes",
+	"Remove this tag only ({n} locations)": {
+		"one": "Retirer seulement ce tag ({n} lieu)",
+		"many": "Retirer seulement ce tag ({n} lieux)",
+		"other": "Retirer seulement ce tag ({n} lieux)"
+	},
 	"Remove value": "Retirer la valeur",
 	"Remove {tags} tags from all ({n} locations)": {
 		"one": "Retirer {tags} tags de tous ({n} lieu)",

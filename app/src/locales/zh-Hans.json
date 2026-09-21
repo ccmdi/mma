@@ -961,6 +961,9 @@
 	"Remove from toolbar": "从工具栏移除",
 	"Remove separator": "移除分隔符",
 	"Remove this document's links from every tag": "从所有标签移除此文档的链接",
+	"Remove this tag only ({n} locations)": {
+		"other": "仅移除此标签（{n} 个位置）"
+	},
 	"Remove value": "移除值",
 	"Remove {tags} tags from all ({n} locations)": {
 		"other": "从全部移除 {tags} 个标签（{n} 个位置）"
