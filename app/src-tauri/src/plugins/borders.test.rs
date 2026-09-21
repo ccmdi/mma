@@ -4,7 +4,7 @@
 use super::{
     arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_points, classify_scan,
     convert_dataset, git_blob_sha1, parse_border_shas, refresh_stale_archive, ArchDataset,
-    ArchFeature,
+    ArchFeature, BorderFeature,
 };
 use crate::selections::{self, PolygonGeometry};
 use crate::test_util::TempDir;
@@ -97,10 +97,15 @@ fn classify_scan_names_points_in_order() {
         extra_polygons: None,
         properties: None,
     };
-    let features = [("A", owned), ("B", other)];
+    let feature = |name: &str, geometry: PolygonGeometry| BorderFeature {
+        name: name.into(),
+        code: name.into(),
+        geometry,
+    };
+    let features = [feature("A", owned), feature("B", other)];
     let feats: Vec<_> = features
         .iter()
-        .map(|f| (selections::geometry_bbox(&f.1).unwrap(), f))
+        .map(|f| (selections::geometry_bbox(&f.geometry).unwrap(), f))
         .collect();
 
     // (lat, lng): inside A, in A's hole, in A's extra polygon, inside B, outside all.
@@ -111,12 +116,7 @@ fn classify_scan_names_points_in_order() {
         (5.0, 45.0),
         (5.0, 35.0),
     ];
-    let names = classify_scan(
-        &feats,
-        &coords,
-        |lng, lat, f| selections::point_in_geometry(lng, lat, &f.1),
-        |f| f.0,
-    );
+    let names = classify_scan(&feats, &coords);
     assert_eq!(
         names,
         vec![
@@ -317,7 +317,7 @@ fn repo_borders() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../data/borders")
 }
 
-fn light_features() -> Vec<(super::BorderFeature, Option<[f64; 4]>)> {
+fn light_features() -> Vec<(BorderFeature, Option<[f64; 4]>)> {
     super::parse_geojson(include_str!("../../data/borders.json"))
         .unwrap()
         .into_iter()
@@ -328,11 +328,7 @@ fn light_features() -> Vec<(super::BorderFeature, Option<[f64; 4]>)> {
         .collect()
 }
 
-fn light_names(
-    feats: &[(super::BorderFeature, Option<[f64; 4]>)],
-    lat: f64,
-    lng: f64,
-) -> Vec<&str> {
+fn light_names(feats: &[(BorderFeature, Option<[f64; 4]>)], lat: f64, lng: f64) -> Vec<&str> {
     feats
         .iter()
         .filter(|(f, bb)| {

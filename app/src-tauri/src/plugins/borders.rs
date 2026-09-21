@@ -454,6 +454,63 @@ fn convert_dataset(json: &str) -> AppResult<Vec<u8>> {
     Ok(bytes.into_vec())
 }
 
+/// Runs `$body` with `$feats` bound to the dataset's features paired with their bboxes,
+/// once per backend so every scan stays statically dispatched.
+macro_rules! with_features {
+    ($ds:expr, $feats:ident => $body:expr) => {
+        match $ds {
+            Dataset::Owned { features, bboxes } => {
+                let $feats = zip_bboxes(features.iter(), bboxes);
+                $body
+            }
+            Dataset::Mapped { mmap, bboxes } => {
+                let $feats = zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes);
+                $body
+            }
+        }
+    };
+}
+
+/// A border feature from either backend.
+trait Feature {
+    fn contains(&self, lng: f64, lat: f64) -> bool;
+    fn name(&self) -> &str;
+    fn code(&self) -> &str;
+    fn to_geometry(&self) -> PolygonGeometry;
+}
+
+impl Feature for BorderFeature {
+    fn contains(&self, lng: f64, lat: f64) -> bool {
+        selections::point_in_geometry(lng, lat, &self.geometry)
+    }
+    fn name(&self) -> &str {
+        &self.name
+    }
+    fn code(&self) -> &str {
+        &self.code
+    }
+    fn to_geometry(&self) -> PolygonGeometry {
+        let mut geom = self.geometry.clone();
+        geom.properties = Some(serde_json::json!({ "name": self.name, "code": self.code }));
+        geom
+    }
+}
+
+impl Feature for ArchivedArchFeature {
+    fn contains(&self, lng: f64, lat: f64) -> bool {
+        arch_point_in_feature(lng, lat, self)
+    }
+    fn name(&self) -> &str {
+        self.name.as_str()
+    }
+    fn code(&self) -> &str {
+        self.code.as_str()
+    }
+    fn to_geometry(&self) -> PolygonGeometry {
+        arch_to_geometry(self)
+    }
+}
+
 fn load_dataset(level: &str) -> AppResult<()> {
     let dataset = if level == "light" {
         let features = parse_geojson(include_str!("../../data/borders.json"))?;
@@ -735,30 +792,7 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
     let datasets = cache().lock().unwrap();
     let ds = datasets.get(&level).unwrap();
 
-    let hit = |bb: &Option<[f64; 4]>| matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb));
-    match ds {
-        Dataset::Owned { features, bboxes } => {
-            for (feature, bb) in features.iter().zip(bboxes) {
-                if hit(bb) && selections::point_in_geometry(lng, lat, &feature.geometry) {
-                    let mut geom = feature.geometry.clone();
-                    geom.properties = Some(serde_json::json!({
-                        "name": feature.name,
-                        "code": feature.code,
-                    }));
-                    return Ok(Some(geom));
-                }
-            }
-        }
-        Dataset::Mapped { mmap, bboxes } => {
-            for (f, bb) in Dataset::archived(mmap).features.iter().zip(bboxes) {
-                if hit(bb) && arch_point_in_feature(lng, lat, f) {
-                    return Ok(Some(arch_to_geometry(f)));
-                }
-            }
-        }
-    }
-
-    Ok(None)
+    Ok(with_features!(ds, feats => find_feature(&feats, lng, lat).map(Feature::to_geometry)))
 }
 
 /// Classify each `(lat, lng)` to the name of its containing border feature at
@@ -782,20 +816,7 @@ pub(crate) fn classify_points(
     let datasets = cache().lock().unwrap();
     let ds = datasets.get(level).unwrap();
 
-    Ok(match ds {
-        Dataset::Owned { features, bboxes } => classify_scan(
-            &zip_bboxes(features.iter(), bboxes),
-            points,
-            |lng, lat, f| selections::point_in_geometry(lng, lat, &f.geometry),
-            |f| f.name.as_str(),
-        ),
-        Dataset::Mapped { mmap, bboxes } => classify_scan(
-            &zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
-            points,
-            arch_point_in_feature,
-            |f| f.name.as_str(),
-        ),
-    })
+    Ok(with_features!(ds, feats => classify_scan(&feats, points)))
 }
 
 /// Pair features with their load-time bboxes, dropping empty-geometry features.
@@ -809,22 +830,23 @@ fn zip_bboxes<'a, T>(
         .collect()
 }
 
-/// Bbox-prefiltered parallel point classification, generic over the feature backend.
-fn classify_scan<T: Sync>(
+/// The first feature containing the point, rejecting by bbox before the full test.
+fn find_feature<'a, T: Feature>(feats: &[([f64; 4], &'a T)], lng: f64, lat: f64) -> Option<&'a T> {
+    feats
+        .iter()
+        .find(|(bb, f)| selections::in_bbox(lng, lat, bb) && f.contains(lng, lat))
+        .map(|(_, f)| *f)
+}
+
+/// Parallel point classification to feature names.
+fn classify_scan<T: Feature + Sync>(
     feats: &[([f64; 4], &T)],
     coords: &[(f64, f64)],
-    contains: impl Fn(f64, f64, &T) -> bool + Sync,
-    name: impl Fn(&T) -> &str + Sync,
 ) -> Vec<Option<String>> {
     use rayon::prelude::*;
     coords
         .par_iter()
-        .map(|&(lat, lng)| {
-            feats.iter().find_map(|(bb, f)| {
-                (selections::in_bbox(lng, lat, bb) && contains(lng, lat, f))
-                    .then(|| name(f).to_string())
-            })
-        })
+        .map(|&(lat, lng)| find_feature(feats, lng, lat).map(|f| f.name().to_string()))
         .collect()
 }
 
@@ -853,44 +875,18 @@ pub fn tally_countries(level: &str, coords: &[(f64, f64)]) -> AppResult<Vec<(Str
     let datasets = cache().lock().unwrap();
     let ds = datasets.get(&level).unwrap();
 
-    Ok(match ds {
-        Dataset::Owned { features, bboxes } => tally_scan(
-            &zip_bboxes(features.iter(), bboxes),
-            coords,
-            |lng, lat, f| selections::point_in_geometry(lng, lat, &f.geometry),
-            |f| f.code.as_str(),
-        ),
-        Dataset::Mapped { mmap, bboxes } => tally_scan(
-            &zip_bboxes(Dataset::archived(mmap).features.iter(), bboxes),
-            coords,
-            arch_point_in_feature,
-            |f| f.code.as_str(),
-        ),
-    })
+    Ok(with_features!(ds, feats => tally_scan(&feats, coords)))
 }
 
-/// Bbox-prefiltered parallel point-in-polygon tally, generic over the feature backend
-/// (owned `BorderFeature` or archived `ArchivedArchFeature`).
-fn tally_scan<T: Sync>(
+/// Parallel point-in-polygon tally of feature codes.
+fn tally_scan<T: Feature + Sync>(
     feats: &[([f64; 4], &T)],
     coords: &[(f64, f64)],
-    contains: impl Fn(f64, f64, &T) -> bool + Sync,
-    code: impl Fn(&T) -> &str + Sync,
 ) -> Vec<(String, u32)> {
     use rayon::prelude::*;
     coords
         .par_iter()
-        .filter_map(|&(lat, lng)| {
-            for (bb, f) in feats {
-                if !selections::in_bbox(lng, lat, bb) {
-                    continue;
-                }
-                if contains(lng, lat, f) {
-                    return Some(code(f).to_string());
-                }
-            }
-            None
-        })
+        .filter_map(|&(lat, lng)| find_feature(feats, lng, lat).map(|f| f.code().to_string()))
         .fold(HashMap::new, |mut m: HashMap<String, u32>, c| {
             *m.entry(c).or_insert(0) += 1;
             m
