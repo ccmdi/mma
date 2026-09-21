@@ -3112,7 +3112,8 @@ input.date-picker__trigger.is-invalid:focus {
 .color-picker__swatch:hover {
 	border-color: var(--text-2);
 }
-.picker-positioner {
+.picker-positioner,
+.suggest-portal {
 	z-index: var(--z-popover);
 }
 .color-picker__popover {

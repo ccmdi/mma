@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Tag } from "@/types";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
@@ -16,7 +16,6 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 	const [name, setName] = useState("");
 	const [busy, setBusy] = useState(false);
 	const tags = useMapState(getVisibleTags);
-	const formRef = useRef<HTMLFormElement>(null);
 
 	const suggestions = useMemo(
 		() => search(tags, name, (tag) => [tag.name]).slice(0, 10),
@@ -67,15 +66,8 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 							? t("Tag this location")
 							: t("Tag {n} locations", { n: locationIds.length })
 					}
-					// TODO: deferred focus is a workaround for portal measuring before dialog layout settles
-					initialFocus={() => {
-						setTimeout(() => {
-							formRef.current?.querySelector<HTMLInputElement>("input")?.focus();
-						}, 100);
-						return false;
-					}}
 				>
-					<DialogForm ref={formRef} onSubmit={() => void apply(name)}>
+					<DialogForm onSubmit={() => void apply(name)}>
 						<SuggestInput<Tag>
 							value={name}
 							onChange={setName}

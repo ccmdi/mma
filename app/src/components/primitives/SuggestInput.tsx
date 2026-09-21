@@ -1,12 +1,5 @@
-import {
-	useState,
-	useEffect,
-	useLayoutEffect,
-	useRef,
-	type ReactNode,
-	type CSSProperties,
-} from "react";
-import { createPortal } from "react-dom";
+import { useState, useEffect, useRef, type ReactNode, type CSSProperties } from "react";
+import { Popover } from "@base-ui-components/react/popover";
 import { useClickOutside } from "@/lib/hooks/useClickOutside";
 
 /** Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
@@ -46,13 +39,12 @@ export function SuggestInput<T>({
 	disabled?: boolean;
 	/** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
 	pickOnEnter?: boolean;
-	/** Render the dropdown in a body portal (fixed, anchored to the input) so it floats
-	 *  over clipping ancestors like `.modal__content`. Clicks on it are exempted from
-	 *  dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+	/** Render the dropdown in a body portal, anchored to the input and following it as it
+	 *  moves, so it floats over clipping ancestors like `.modal__content`. Clicks on it are
+	 *  exempted from dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
 	portal?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
-	const [anchor, setAnchor] = useState<DOMRect | null>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const listRef = useRef<HTMLOListElement>(null);
 	// Highlight lives in the DOM (aria-selected), not React state, so mouse movement
@@ -68,16 +60,6 @@ export function SuggestInput<T>({
 		next?.setAttribute("aria-selected", "true");
 		if (scroll) next?.scrollIntoView({ block: "nearest" });
 	};
-
-	useLayoutEffect(() => {
-		if (!portal || !open) return;
-		const update = () => setAnchor(containerRef.current?.getBoundingClientRect() ?? null);
-		update();
-		const ac = new AbortController();
-		window.addEventListener("resize", update, { signal: ac.signal });
-		window.addEventListener("scroll", update, { capture: true, signal: ac.signal });
-		return () => ac.abort();
-	}, [portal, open]);
 
 	useEffect(() => {
 		highlightRef.current = 0;
@@ -95,19 +77,17 @@ export function SuggestInput<T>({
 		setOpen(false);
 	};
 
+	const shown = open && suggestions.length > 0;
 	const list = (
 		<ol
 			ref={listRef}
-			className={portal ? `${listClassName} suggest-portal` : listClassName}
-			hidden={!open || suggestions.length === 0}
+			className={listClassName}
+			hidden={!shown}
 			style={
 				portal
 					? {
-							position: "fixed",
-							top: anchor?.bottom ?? 0,
-							left: anchor?.left ?? 0,
-							width: anchor?.width,
-							zIndex: "var(--z-popover)",
+							position: "static",
+							width: "var(--anchor-width)",
 							pointerEvents: "auto",
 							...listStyle,
 						}
@@ -173,7 +153,31 @@ export function SuggestInput<T>({
 					}
 				}}
 			/>
-			{portal ? createPortal(list, document.body) : list}
+			{portal ? (
+				<Popover.Root
+					open={shown}
+					onOpenChange={(next, details) => {
+						if (next) return;
+						// Pressing the input itself is not "outside": it would close and re-open.
+						const target = details.event?.target;
+						if (target instanceof Node && containerRef.current?.contains(target)) {
+							details.cancel();
+							return;
+						}
+						setOpen(false);
+					}}
+				>
+					<Popover.Portal>
+						<Popover.Positioner className="suggest-portal" anchor={containerRef} align="start">
+							<Popover.Popup initialFocus={false} finalFocus={false}>
+								{list}
+							</Popover.Popup>
+						</Popover.Positioner>
+					</Popover.Portal>
+				</Popover.Root>
+			) : (
+				list
+			)}
 		</div>
 	);
 }
