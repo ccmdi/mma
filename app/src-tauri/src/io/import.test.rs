@@ -832,6 +832,21 @@ fn staged_location_fetch_by_index() {
 }
 
 #[test]
+fn a_cancelled_preview_frees_its_parse_and_preview_file() {
+    let mut buf = br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
+    let preview = build_preview(parse_single_json_mut(&mut buf), "cancel-me").unwrap();
+    let file = std::path::PathBuf::from(&preview.preview_positions_path);
+    assert!(file.exists());
+
+    store_import_cancel(WindowLabel("cancel-me".into()));
+    assert!(!file.exists());
+    assert!(!EDITOR_IMPORT_CACHE
+        .lock()
+        .unwrap()
+        .contains_key("cancel-me"));
+}
+
+#[test]
 fn two_windows_previewing_at_once_keep_their_own_import() {
     let stage = |window: &str, lat: f64| {
         let json = format!(r#"{{"customCoordinates":[{{"lat":{lat},"lng":1}}]}}"#);

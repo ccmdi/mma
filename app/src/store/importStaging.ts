@@ -36,9 +36,10 @@ export function getImportStaging() {
 	return importState.staging;
 }
 
-/** Clear staged import state. */
+/** Discard the staged import, freeing its parse. */
 export function resetImportState() {
 	importState = EMPTY_IMPORT;
+	void cmd.storeImportCancel().catch((e: unknown) => log.error("[import] cancel failed:", e));
 }
 
 async function setImportStaging(preview: EditorImportPreview, source: "file" | "paste") {
@@ -95,7 +96,7 @@ export async function confirmImport(droppedFields: string[], tagName?: string) {
 
 /** Discard the staged import without committing. */
 export function cancelImport() {
-	importState = EMPTY_IMPORT;
+	resetImportState();
 	emitEvent("import-markers:changed");
 	const active = getMapState().activeLocation;
 	if ((active && isVirtualLocation(active)) || getMapState().workArea === "import") {

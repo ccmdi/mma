@@ -8,6 +8,7 @@ import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
 import { initLocale } from "@/lib/i18n";
 import { initStore, flushSave } from "@/store/useMapStore";
+import { resetImportState } from "@/store/importStaging";
 import { getMapList } from "@/store/mapList";
 import { initRouter } from "@/store/router";
 import { getSettings } from "@/store/settings";
@@ -62,12 +63,14 @@ async function boot() {
 		}
 		await flushSave();
 		await saveWindowState();
+		resetImportState();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));
 		log.info("Map closed, destroying window");
 		void appWindow.destroy();
 	});
 
 	window.addEventListener("beforeunload", () => {
+		resetImportState();
 		cmd.storeCloseMap().catch(() => {});
 	});
 

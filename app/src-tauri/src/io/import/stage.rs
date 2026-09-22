@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::mem;
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::time::Instant;
 use tokio::task;
@@ -125,17 +126,7 @@ pub(super) fn build_preview(parsed: ParsedMap, window: &str) -> AppResult<Editor
         });
     }
 
-    let file_label: String = window
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
-    let path = env::temp_dir().join(format!("mma_import_preview_{file_label}.bin"));
+    let path = preview_positions_path(window);
     fs::write(&path, &pos_buf)?;
 
     let preview = EditorImportPreview {
@@ -161,6 +152,33 @@ pub(super) fn build_preview(parsed: ParsedMap, window: &str) -> AppResult<Editor
 
 pub(super) static EDITOR_IMPORT_CACHE: Mutex<BTreeMap<String, ParsedMap>> =
     Mutex::new(BTreeMap::new());
+
+fn preview_positions_path(window: &str) -> PathBuf {
+    let file_label: String = window
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    env::temp_dir().join(format!("mma_import_preview_{file_label}.bin"))
+}
+
+/// Remove `window`'s staged import and its preview file, handing back the parse if there was one.
+fn take_staged_import(window: &str) -> Option<ParsedMap> {
+    let _ = fs::remove_file(preview_positions_path(window));
+    EDITOR_IMPORT_CACHE.lock().unwrap().remove(window)
+}
+
+/// Discard the staged import without importing it.
+#[tauri::command]
+#[specta::specta]
+pub fn store_import_cancel(label: WindowLabel) {
+    take_staged_import(&label.0);
+}
 
 /// Return one staged (not yet imported) location by its preview `index`, for
 /// read-only preview in the editor.
@@ -340,11 +358,8 @@ pub async fn store_import_file(
     tag_name: Option<String>,
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
-    let mut parsed = EDITOR_IMPORT_CACHE
-        .lock()
-        .unwrap()
-        .remove(&label.0)
-        .ok_or("no cached import - call store_import_preview first")?;
+    let mut parsed =
+        take_staged_import(&label.0).ok_or("no cached import - call store_import_preview first")?;
 
     let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
     if !drop_set.is_empty() {

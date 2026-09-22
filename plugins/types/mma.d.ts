@@ -859,6 +859,8 @@ declare const commands$1: {
      *  @unstable
      */
     storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult>;
+    /**  Discard the staged import without importing it. @unstable */
+    storeImportCancel: () => Promise<void>;
     /**  The location a pasted Maps URL names, short links resolved. @unstable */
     parseMapsUrl: (input: string) => Promise<ParsedLocation | null>;
     /**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. @unstable */
@@ -4944,7 +4946,7 @@ export interface ImportStaging {
 declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
 /** The current staged import, or null if none. @unstable */
 declare function getImportStaging(): ImportStaging | null;
-/** Clear staged import state. @unstable */
+/** Discard the staged import, freeing its parse. @unstable */
 declare function resetImportState(): void;
 /** Import from a file path. @unstable */
 declare function beginImportFromPath(path: string): Promise<void>;

@@ -4591,7 +4591,7 @@ The current staged import, or null if none.
 resetImportState(): void
 ```
 
-Clear staged import state.
+Discard the staged import, freeing its parse.
 
 ## CommitDiff
 
@@ -6111,6 +6111,16 @@ cmd.storeGroupBy(
 ```
 
 Group by a derived key, returning `{ key, ids, bin }` per group.
+
+#### cmd.storeImportCancel
+
+`unstable` · unreleased
+
+```ts
+cmd.storeImportCancel(): Promise<void>
+```
+
+Discard the staged import without importing it.
 
 #### cmd.storeImportFile
 
