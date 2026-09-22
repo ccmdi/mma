@@ -2,7 +2,7 @@
 import { type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
-import { emit as emitEvent, useEventValue } from "@/lib/events";
+import { emit as emitEvent, subscribeMany, useEventValue, type EditorEvent } from "@/lib/events";
 import { openWindow } from "@/lib/window";
 
 let cachedMapList: MapMeta[] = [];
@@ -85,4 +85,47 @@ export async function moveMapToFolder(mapId: string, folder: string | null) {
 export async function deleteFolder(name: string) {
 	await cmd.storeDeleteFolder(name);
 	await invalidateMapList();
+}
+
+/** A mark drawn after a map's name in the map list. */
+export interface MapBadge {
+	key: string;
+	icon: string;
+	title: string;
+}
+
+/** Yields the badges it wants shown, each paired with its map id. */
+export type BadgeSource = () => Iterable<[mapId: string, badge: MapBadge]>;
+
+const badgeSources: BadgeSource[] = [];
+let mapBadges = new Map<string, MapBadge[]>();
+
+function collectMapBadges() {
+	const next = new Map<string, MapBadge[]>();
+	for (const source of badgeSources) {
+		for (const [mapId, badge] of source()) {
+			const badges = next.get(mapId) ?? [];
+			badges.push(badge);
+			next.set(mapId, badges);
+		}
+	}
+	mapBadges = next;
+	emitEvent("map-badges:changed");
+}
+
+/** Add a badge source, re-run whenever any of `events` fires. @unstable */
+export function registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]) {
+	badgeSources.push(source);
+	subscribeMany(events, collectMapBadges);
+	collectMapBadges();
+}
+
+/** Badges per map id, from every registered source. @unstable */
+export function getMapBadges(): Map<string, MapBadge[]> {
+	return mapBadges;
+}
+
+/** Reactive {@link getMapBadges}. @unstable */
+export function useMapBadges(): Map<string, MapBadge[]> {
+	return useEventValue("map-badges:changed", getMapBadges);
 }

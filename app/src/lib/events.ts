@@ -51,6 +51,10 @@ const EVENT_DEFS = {
 	"fullscreen:changed": event<void>(),
 	"plugins:changed": event<void>(),
 	/** @unstable */
+	"sync-links:changed": event<void>(),
+	/** @unstable */
+	"map-badges:changed": event<void>(),
+	/** @unstable */
 	"hotkeys:changed": event<void>(),
 	/** @unstable */
 	"toasts:changed": event<void>(),

@@ -633,6 +633,7 @@
 	"Link copied": "リンクをコピーしました",
 	"Link this map": "このマップをリンク",
 	"Linked to": "リンク先",
+	"Linked to \"{name}\" on {provider}": "{provider} の「{name}」にリンク済み",
 	"Live": "ライブ",
 	"Load as pano ID": "Pano ID として読み込む",
 	"Load shapes from GeoJSON as selection": "GeoJSON の図形を選択として読み込み",

@@ -1527,6 +1527,16 @@ deleteMap(id: string): Promise<void>
 
 Permanently delete a map and all its data. Not undoable.
 
+### getMapBadges
+
+`unstable` · unreleased
+
+```ts
+getMapBadges(): Map<string, MapBadge[]>
+```
+
+Badges per map id, from every registered source.
+
 ### getMapList
 
 `stable` · since v0.7.0
@@ -1577,6 +1587,16 @@ openScratchMap(): Promise<void>
 
 Open the scratch map, creating it on first use.
 
+### registerMapBadges
+
+`unstable` · unreleased
+
+```ts
+registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]): void
+```
+
+Add a badge source, re-run whenever any of `events` fires.
+
 ### reloadMapList
 
 `unstable` · since v0.8.1
@@ -1606,6 +1626,16 @@ setCachedMapList(list: MapMeta[]): void
 ```
 
 Set the map list directly without a disk read.
+
+### useMapBadges
+
+`unstable` · unreleased
+
+```ts
+useMapBadges(): Map<string, MapBadge[]>
+```
+
+Reactive {@link getMapBadges}.
 
 ### useMapList
 
@@ -1680,6 +1710,16 @@ unregisterPlugin(id: string): void
 Remove a plugin from the registry.
 
 ## PluginStorage
+
+### reloadStorage
+
+`unstable` · unreleased
+
+```ts
+reloadStorage(id: string): void
+```
+
+Re-read a plugin's store after another window wrote it.
 
 ### storage
 

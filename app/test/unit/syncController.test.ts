@@ -2,6 +2,9 @@
 import { describe, it, expect } from "vitest";
 import type { SyncReconcileResult } from "@/bindings.gen";
 import { createSyncController } from "@/lib/sync/controller";
+import { setPluginEnabled } from "@/plugins/pluginHost";
+import { getMapBadges } from "@/store/mapList";
+import { subscribe } from "@/lib/events";
 import type { SyncProvider } from "@/lib/sync/provider";
 import type { RemoteMappingRow } from "@/lib/sync/syncStore";
 
@@ -36,6 +39,7 @@ function makeMma() {
 			storage.has(k) ? (storage.get(k) as T) : (fallback as T),
 		set: (k: string, v: unknown) => void storage.set(k, v),
 		remove: (k: string) => void storage.delete(k),
+		keys: () => [...storage.keys()],
 	};
 
 	const api = {
@@ -99,6 +103,7 @@ function makeProvider(): SyncProvider {
 	return {
 		id: "fake",
 		label: "Fake",
+		icon: "M0 0",
 		remoteMapUrl: (id) => `https://fake.test/maps/${id}`,
 		listMaps: async () => [],
 	};
@@ -166,5 +171,60 @@ describe("createSyncController", () => {
 		expect(controller.livePref()).toBe(false); // a different map has its own pref
 
 		controller.pauseLive(); // clear the poll interval
+	});
+
+	it("allLinks spans every map of its own provider, and drops a map on unlink", async () => {
+		const mma = makeMma();
+		mma.install();
+		const controller = createSyncController(makeProvider(), PLUGIN);
+		const other = createSyncController({ ...makeProvider(), id: "other" }, PLUGIN);
+
+		await controller.link(REMOTE, null);
+		mma.setMapId("map-b");
+		await controller.link({ ...REMOTE, id: "r2" }, null);
+		await other.link({ ...REMOTE, id: "r3" }, null);
+
+		const pairs = (c: typeof controller) =>
+			c
+				.allLinks()
+				.map((l) => [l.localMapId, l.remoteMapId])
+				.sort();
+		expect(pairs(controller)).toEqual([
+			["map-a", "r1"],
+			["map-b", "r2"],
+		]);
+		expect(pairs(other)).toEqual([["map-b", "r3"]]);
+
+		await controller.unlink();
+		expect(pairs(controller)).toEqual([["map-a", "r1"]]);
+	});
+
+	it("link and unlink announce the change", async () => {
+		makeMma().install();
+		const controller = createSyncController(makeProvider(), PLUGIN);
+		let announced = 0;
+		const off = subscribe("sync-links:changed", () => announced++);
+
+		await controller.link(REMOTE, null);
+		expect(announced).toBe(1);
+		await controller.unlink();
+		expect(announced).toBe(2);
+		off();
+	});
+
+	it("a linked map carries its provider's badge only while the plugin is enabled", async () => {
+		makeMma().install();
+		const controller = createSyncController({ ...makeProvider(), id: "badged" }, "badge-plugin");
+		const badgeKeys = () => (getMapBadges().get("map-a") ?? []).map((b) => b.key);
+
+		await controller.link(REMOTE, null);
+		expect(badgeKeys()).not.toContain("sync:badged");
+
+		setPluginEnabled("badge-plugin", true);
+		expect(badgeKeys()).toContain("sync:badged");
+
+		await controller.unlink();
+		expect(badgeKeys()).not.toContain("sync:badged");
+		setPluginEnabled("badge-plugin", false);
 	});
 });

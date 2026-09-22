@@ -41,6 +41,20 @@ export interface KeyValueStore {
 	get<T = unknown>(key: string, fallback?: T): T;
 	set(key: string, value: unknown): void;
 	remove(key: string): void;
+	keys(): string[];
+}
+
+/** Sole owner of the link key format. `listLinks` depends on it being prefix-scannable. */
+const linkKey = (provider: string, localMapId: string): string => `link:${provider}:${localMapId}`;
+
+/** Every map this provider holds a link for. Includes links to since-deleted maps. */
+export function listLinks(kv: KeyValueStore, provider: string): SyncLink[] {
+	const prefix = linkKey(provider, "");
+	return kv
+		.keys()
+		.filter((k) => k.startsWith(prefix))
+		.map((k) => kv.get<SyncLink | null>(k, null))
+		.filter((l): l is SyncLink => l !== null);
 }
 
 /** Row-oriented mapping persistence (the real impl wraps the Rust `remote_mapping_*` commands). */
@@ -71,16 +85,16 @@ export function createSyncStore(
 	provider: string,
 	localMapId: string,
 ): SyncStore {
-	const linkKey = `link:${provider}:${localMapId}`;
+	const key = linkKey(provider, localMapId);
 
 	return {
-		getLink: () => kv.get<SyncLink | null>(linkKey, null),
-		setLink: (link) => (link === null ? kv.remove(linkKey) : kv.set(linkKey, link)),
+		getLink: () => kv.get<SyncLink | null>(key, null),
+		setLink: (link) => (link === null ? kv.remove(key) : kv.set(key, link)),
 		getMapping: () => mapping.get(provider, localMapId),
 		upsertMapping: (rows) => mapping.upsert(provider, localMapId, rows),
 		deleteMapping: (localIds) => mapping.delete(provider, localMapId, localIds),
 		clear: async () => {
-			kv.remove(linkKey);
+			kv.remove(key);
 			await mapping.clear(provider, localMapId);
 		},
 	};

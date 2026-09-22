@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
 	createSyncStore,
+	listLinks,
 	localKey,
 	type KeyValueStore,
 	type MappingBackend,
@@ -15,6 +16,7 @@ function memKv(): KeyValueStore {
 		get: <T>(key: string, fallback?: T) => (m.has(key) ? (m.get(key) as T) : (fallback as T)),
 		set: (key, value) => void m.set(key, JSON.parse(JSON.stringify(value))),
 		remove: (key) => void m.delete(key),
+		keys: () => [...m.keys()],
 	};
 }
 
@@ -103,5 +105,21 @@ describe("sync syncStore", () => {
 		expect(b.getLink()).not.toBeNull(); // other map untouched
 		expect(await b.getMapping()).toHaveLength(1);
 		expect(await g.getMapping()).toHaveLength(1); // other provider untouched
+	});
+
+	it("listLinks returns only this provider's links, skipping other keys in the store", () => {
+		const kv = memKv();
+		const mapping = memMapping();
+		createSyncStore(kv, mapping, P, "map-a").setLink(link());
+		createSyncStore(kv, mapping, P, "map-b").setLink(link({ localMapId: "map-b" }));
+		createSyncStore(kv, mapping, "geoguessr", "map-c").setLink(link({ localMapId: "map-c" }));
+		kv.set("live:map-a", true);
+
+		expect(
+			listLinks(kv, P)
+				.map((l) => l.localMapId)
+				.sort(),
+		).toEqual(["map-a", "map-b"]);
+		expect(listLinks(kv, "geoguessr").map((l) => l.localMapId)).toEqual(["map-c"]);
 	});
 });

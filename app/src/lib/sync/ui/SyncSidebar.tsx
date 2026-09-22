@@ -36,8 +36,6 @@ export interface SyncSidebarProps {
 	identity: { id: string | null } | null | undefined;
 	/** Fetch linkable remote maps. Called when authenticated and unlinked. */
 	listMaps: () => Promise<RemoteMapSummary[]>;
-	/** Provider mark for the header's open-in-browser button (shown when linked). */
-	brand?: { path: string; color: string };
 }
 
 /** Compact signed-in row for the Connection section: avatar (or initial), name, action. */
@@ -152,14 +150,8 @@ function ConflictItem({
 	);
 }
 
-export function SyncSidebar({
-	onClose,
-	controller,
-	auth,
-	identity,
-	listMaps,
-	brand,
-}: SyncSidebarProps) {
+export function SyncSidebar({ onClose, controller, auth, identity, listMaps }: SyncSidebarProps) {
+	const icon = controller.provider.icon;
 	const [maps, setMaps] = useState<RemoteMapSummary[] | null>(null);
 	const [filter, setFilter] = useState("");
 	const [link, setLink] = useState(controller.getLink());
@@ -312,9 +304,9 @@ export function SyncSidebar({
 			title={controller.provider.label}
 			onBack={onClose}
 			actions={
-				brand && remoteUrl ? (
+				icon && remoteUrl ? (
 					<IconButton
-						icon={<Icon path={brand.path} size={18} style={{ fill: brand.color }} />}
+						icon={<Icon path={icon} size={18} style={{ fill: "var(--accent)" }} />}
 						label={t("Open in {provider}", { provider: controller.provider.label })}
 						onClick={() => void openExternal(remoteUrl)}
 					/>

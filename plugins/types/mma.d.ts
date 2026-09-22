@@ -5087,6 +5087,88 @@ declare namespace picker {
   export type { picker_SelectorPick as SelectorPick, picker_SelectorPickController as SelectorPickController, picker_SelectorPickHandle as SelectorPickHandle };
 }
 
+/** @unstable */
+export interface SelectionBitmaskPayload {
+    selColors: RGB[];
+    cellEntries: SelCellEntry[];
+    setIds: (ids: SelectedIds) => void;
+}
+declare const EVENT_DEFS: {
+    "location:add": Location[];
+    "location:remove": number[];
+    "location:update": Update<LocationPatch_Deserialize>[];
+    /** Location data changed in bulk without per-location patches (e.g. a Rust-side
+     *  field op). Anything derived from location data must re-query. */
+    "location:invalidate": void;
+    "tag:add": Tag[];
+    "tag:remove": number[];
+    "tag:update": Update<TagPatch>[];
+    "selection:change": Selection[];
+    "active:change": number | null;
+    "map:open": MapMeta;
+    "map:close": void;
+    /** @unstable */
+    "store:changed": void;
+    /** @unstable */
+    "render:delta": RenderDelta;
+    /** @unstable */
+    "render:selection": SelectionBitmaskPayload;
+    "map-list:changed": void;
+    /** @unstable */
+    "saved-selections:changed": void;
+    "settings:changed": void;
+    /** @unstable */
+    "fullscreen:changed": void;
+    "plugins:changed": void;
+    /** @unstable */
+    "sync-links:changed": void;
+    /** @unstable */
+    "map-badges:changed": void;
+    /** @unstable */
+    "hotkeys:changed": void;
+    /** @unstable */
+    "toasts:changed": void;
+    /** @unstable */
+    "jobs:changed": void;
+    /** @unstable */
+    "bulkruns:changed": void;
+    /** @unstable */
+    "scene:changed": void;
+    /** @unstable */
+    "measure:changed": void;
+    /** @unstable */
+    "anchor:changed": void;
+    /** @unstable */
+    "viewport-lock:changed": void;
+    /** @unstable */
+    "trail:changed": void;
+    "seen:changed": void;
+    /** @unstable */
+    "update:changed": void;
+    /** @unstable */
+    "review:changed": void;
+    "fields:changed": void;
+    /** @unstable */
+    "route:changed": void;
+    /** @unstable */
+    "import-markers:changed": void;
+    /** @unstable */
+    "diff-markers:changed": void;
+    /** @unstable */
+    "commit-diff:changed": void;
+};
+export type EditorEventMap = typeof EVENT_DEFS;
+export type EditorEvent = keyof EditorEventMap;
+declare const pluginEventPayload: unique symbol;
+/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
+ *  hears it. `definePluginEvent` makes one. @unstable */
+export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
+    readonly [pluginEventPayload]: T;
+};
+/** What an event hands its handlers. */
+export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
+export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
+
 /** Reactive list of all maps (metadata only). */
 declare function useMapList(): MapMeta[];
 /** The list of all maps (metadata only). */
@@ -5111,9 +5193,29 @@ declare function renameFolder(from: string, to: string): Promise<void>;
 declare function moveMapToFolder(mapId: string, folder: string | null): Promise<void>;
 /** Delete a folder. Maps in it become unfoldered. */
 declare function deleteFolder(name: string): Promise<void>;
+/** A mark drawn after a map's name in the map list. @unstable */
+export interface MapBadge {
+    key: string;
+    icon: string;
+    title: string;
+}
+/** Yields the badges it wants shown, each paired with its map id. @unstable */
+export type BadgeSource = () => Iterable<[mapId: string, badge: MapBadge]>;
+/** Add a badge source, re-run whenever any of `events` fires. @unstable */
+declare function registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]): void;
+/** Badges per map id, from every registered source. @unstable */
+declare function getMapBadges(): Map<string, MapBadge[]>;
+/** Reactive {@link getMapBadges}. @unstable */
+declare function useMapBadges(): Map<string, MapBadge[]>;
 
+/** @unstable */
+export type mapList_BadgeSource = BadgeSource;
+/** @unstable */
+export type mapList_MapBadge = MapBadge;
 declare const mapList_createMap: typeof createMap;
 declare const mapList_deleteFolder: typeof deleteFolder;
+/** @unstable */
+declare const mapList_getMapBadges: typeof getMapBadges;
 declare const mapList_getMapList: typeof getMapList;
 /** @unstable */
 declare const mapList_invalidateMapList: typeof invalidateMapList;
@@ -5122,26 +5224,18 @@ declare const mapList_isReservedMap: typeof isReservedMap;
 declare const mapList_moveMapToFolder: typeof moveMapToFolder;
 declare const mapList_openScratchMap: typeof openScratchMap;
 /** @unstable */
+declare const mapList_registerMapBadges: typeof registerMapBadges;
+/** @unstable */
 declare const mapList_reloadMapList: typeof reloadMapList;
 declare const mapList_renameFolder: typeof renameFolder;
 /** @unstable */
 declare const mapList_setCachedMapList: typeof setCachedMapList;
+/** @unstable */
+declare const mapList_useMapBadges: typeof useMapBadges;
 declare const mapList_useMapList: typeof useMapList;
 declare namespace mapList {
-  export {
-    mapList_createMap as createMap,
-    mapList_deleteFolder as deleteFolder,
-    deleteMap$1 as deleteMap,
-    mapList_getMapList as getMapList,
-    mapList_invalidateMapList as invalidateMapList,
-    mapList_isReservedMap as isReservedMap,
-    mapList_moveMapToFolder as moveMapToFolder,
-    mapList_openScratchMap as openScratchMap,
-    mapList_reloadMapList as reloadMapList,
-    mapList_renameFolder as renameFolder,
-    mapList_setCachedMapList as setCachedMapList,
-    mapList_useMapList as useMapList,
-  };
+  export { mapList_createMap as createMap, mapList_deleteFolder as deleteFolder, deleteMap$1 as deleteMap, mapList_getMapBadges as getMapBadges, mapList_getMapList as getMapList, mapList_invalidateMapList as invalidateMapList, mapList_isReservedMap as isReservedMap, mapList_moveMapToFolder as moveMapToFolder, mapList_openScratchMap as openScratchMap, mapList_registerMapBadges as registerMapBadges, mapList_reloadMapList as reloadMapList, mapList_renameFolder as renameFolder, mapList_setCachedMapList as setCachedMapList, mapList_useMapBadges as useMapBadges, mapList_useMapList as useMapList };
+  export type { mapList_BadgeSource as BadgeSource, mapList_MapBadge as MapBadge };
 }
 
 /** @unstable */
@@ -5456,16 +5550,20 @@ export interface PluginStorage {
 }
 /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
 declare function storage(id: string): PluginStorage;
+/** Re-read a plugin's store after another window wrote it. @unstable */
+declare function reloadStorage(id: string): void;
 /** React state hook backed by the plugin's persistent store. Survives sidebar
  *  unmount and app restart. Values are global, not per-map. */
 declare function usePluginState<T>(pluginId: string, key: string, initial: T | (() => T)): readonly [T, (action: SetStateAction<T>) => void];
 
 /** @unstable */
 export type pluginStorage_PluginStorage = PluginStorage;
+/** @unstable */
+declare const pluginStorage_reloadStorage: typeof reloadStorage;
 declare const pluginStorage_storage: typeof storage;
 declare const pluginStorage_usePluginState: typeof usePluginState;
 declare namespace pluginStorage {
-  export { pluginStorage_storage as storage, pluginStorage_usePluginState as usePluginState };
+  export { pluginStorage_reloadStorage as reloadStorage, pluginStorage_storage as storage, pluginStorage_usePluginState as usePluginState };
   export type { pluginStorage_PluginStorage as PluginStorage };
 }
 
@@ -5502,84 +5600,6 @@ declare namespace scope {
     scope_trackDisposable as trackDisposable,
   };
 }
-
-/** @unstable */
-export interface SelectionBitmaskPayload {
-    selColors: RGB[];
-    cellEntries: SelCellEntry[];
-    setIds: (ids: SelectedIds) => void;
-}
-declare const EVENT_DEFS: {
-    "location:add": Location[];
-    "location:remove": number[];
-    "location:update": Update<LocationPatch_Deserialize>[];
-    /** Location data changed in bulk without per-location patches (e.g. a Rust-side
-     *  field op). Anything derived from location data must re-query. */
-    "location:invalidate": void;
-    "tag:add": Tag[];
-    "tag:remove": number[];
-    "tag:update": Update<TagPatch>[];
-    "selection:change": Selection[];
-    "active:change": number | null;
-    "map:open": MapMeta;
-    "map:close": void;
-    /** @unstable */
-    "store:changed": void;
-    /** @unstable */
-    "render:delta": RenderDelta;
-    /** @unstable */
-    "render:selection": SelectionBitmaskPayload;
-    "map-list:changed": void;
-    /** @unstable */
-    "saved-selections:changed": void;
-    "settings:changed": void;
-    /** @unstable */
-    "fullscreen:changed": void;
-    "plugins:changed": void;
-    /** @unstable */
-    "hotkeys:changed": void;
-    /** @unstable */
-    "toasts:changed": void;
-    /** @unstable */
-    "jobs:changed": void;
-    /** @unstable */
-    "bulkruns:changed": void;
-    /** @unstable */
-    "scene:changed": void;
-    /** @unstable */
-    "measure:changed": void;
-    /** @unstable */
-    "anchor:changed": void;
-    /** @unstable */
-    "viewport-lock:changed": void;
-    /** @unstable */
-    "trail:changed": void;
-    "seen:changed": void;
-    /** @unstable */
-    "update:changed": void;
-    /** @unstable */
-    "review:changed": void;
-    "fields:changed": void;
-    /** @unstable */
-    "route:changed": void;
-    /** @unstable */
-    "import-markers:changed": void;
-    /** @unstable */
-    "diff-markers:changed": void;
-    /** @unstable */
-    "commit-diff:changed": void;
-};
-export type EditorEventMap = typeof EVENT_DEFS;
-export type EditorEvent = keyof EditorEventMap;
-declare const pluginEventPayload: unique symbol;
-/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
- *  hears it. `definePluginEvent` makes one. @unstable */
-export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
-    readonly [pluginEventPayload]: T;
-};
-/** What an event hands its handlers. */
-export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
-export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
 
 /** Subscribe to an editor event or a plugin's own event, automatically unsubscribed on plugin
  *  deactivation. */

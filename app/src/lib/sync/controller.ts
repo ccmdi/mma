@@ -1,4 +1,8 @@
-import { LOCATION_DATA_EVENTS, TAG_DATA_EVENTS } from "@/lib/events";
+import { bridgeAcrossWindows, emit, LOCATION_DATA_EVENTS, TAG_DATA_EVENTS } from "@/lib/events";
+import { reloadStorage } from "@/plugins/pluginStorage";
+import { isPluginEnabled } from "@/plugins/pluginHost";
+import { registerMapBadges } from "@/store/mapList";
+import { t } from "@/lib/i18n";
 import { errText } from "@/lib/util/format";
 import { reconcile, type FirstSyncMode, type ReconcileOptions, type SyncOutcome } from "./engine";
 import { createMappingBackend } from "./mappingBackend";
@@ -6,6 +10,7 @@ import { createScheduler, type Scheduler, type SyncStatus } from "./scheduler";
 import type { RemoteMapSummary, SyncProvider } from "./provider";
 import {
 	createSyncStore,
+	listLinks,
 	type IdentityKey,
 	type KeyValueStore,
 	type SyncLink,
@@ -13,9 +18,12 @@ import {
 } from "./syncStore";
 
 export interface SyncController {
-	readonly provider: { id: string; label: string };
+	readonly provider: Pick<SyncProvider, "id" | "label" | "icon">;
+	readonly pluginId: string;
 	currentMapId(): string | null;
 	getLink(): SyncLink | null;
+	/** Links for every map, not just the open one. */
+	allLinks(): SyncLink[];
 	/** Web URL of the linked remote map, or null when unlinked. */
 	remoteMapUrl(): string | null;
 	link(map: RemoteMapSummary, remoteUserId: string | null): Promise<void>;
@@ -41,6 +49,34 @@ export interface SyncController {
 	/** Explicit user "off": clear the pref, then stop. */
 	stopLive(): void;
 }
+
+const controllers = new Map<string, SyncController>();
+
+bridgeAcrossWindows("sync-links:changed", () => {
+	for (const c of controllers.values()) reloadStorage(c.pluginId);
+});
+
+registerMapBadges(
+	function* () {
+		for (const c of controllers.values()) {
+			if (!isPluginEnabled(c.pluginId)) continue;
+			for (const link of c.allLinks()) {
+				yield [
+					link.localMapId,
+					{
+						key: `sync:${c.provider.id}`,
+						icon: c.provider.icon,
+						title: t('Linked to "{name}" on {provider}', {
+							name: link.remoteMapName || t("(unnamed)"),
+							provider: t(c.provider.label),
+						}),
+					},
+				];
+			}
+		}
+	},
+	["sync-links:changed", "plugins:changed"],
+);
 
 /** Plugin `activate()` for a sync plugin: resume the live loop when a linked map is
  *  (re)opened and live was left on, and pause it on close. */
@@ -127,10 +163,12 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 		statusListeners.forEach((l) => l("idle"));
 	};
 
-	return {
-		provider: { id: provider.id, label: provider.label },
+	const controller: SyncController = {
+		provider: { id: provider.id, label: provider.label, icon: provider.icon },
+		pluginId,
 		currentMapId,
 		getLink,
+		allLinks: () => listLinks(kv(), provider.id),
 		remoteMapUrl() {
 			const link = getLink();
 			return link ? provider.remoteMapUrl(link.remoteMapId) : null;
@@ -150,6 +188,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 				linkedAt: new Date().toISOString(),
 				lastSyncedAt: null,
 			});
+			emit("sync-links:changed");
 		},
 
 		async unlink() {
@@ -161,6 +200,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 			this.stopLive();
 			await pending?.catch(() => undefined);
 			await storeFor(id).clear();
+			emit("sync-links:changed");
 		},
 
 		syncNow: () => runReconcile(),
@@ -218,4 +258,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 			pauseLive();
 		},
 	};
+
+	controllers.set(provider.id, controller);
+	return controller;
 }

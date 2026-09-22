@@ -633,6 +633,7 @@
 	"Link copied": "已复制链接",
 	"Link this map": "链接此地图",
 	"Linked to": "已链接至",
+	"Linked to \"{name}\" on {provider}": "已链接至 {provider} 上的“{name}”",
 	"Live": "实时",
 	"Load as pano ID": "按全景 ID 加载",
 	"Load shapes from GeoJSON as selection": "从 GeoJSON 加载形状为选择",

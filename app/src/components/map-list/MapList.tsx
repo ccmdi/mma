@@ -11,6 +11,8 @@ import {
 	deleteFolder,
 	moveMapToFolder,
 	invalidateMapList,
+	useMapBadges,
+	type MapBadge,
 } from "@/store/mapList";
 import { openWindow } from "@/lib/window";
 import { log } from "@/lib/util/log";
@@ -251,6 +253,21 @@ interface MapAction {
 	name: string;
 }
 
+const NO_BADGES: MapBadge[] = [];
+
+function MapBadges({ badges }: { badges: MapBadge[] }) {
+	if (badges.length === 0) return null;
+	return (
+		<span className="map-list__badges">
+			{badges.map((b) => (
+				<span key={b.key} title={b.title}>
+					<Icon path={b.icon} size={14} />
+				</span>
+			))}
+		</span>
+	);
+}
+
 const FIELD_RENDERERS: Record<MapListField, (meta: MapMeta) => React.ReactNode> = {
 	locationCount: (meta) => (
 		<>{t({ one: "{n} location", other: "{n} locations" }, { n: meta.locationCount })}</>
@@ -267,6 +284,7 @@ const MapEntry = React.memo(function MapEntry({
 	onAction,
 	onLabelClick,
 	fields,
+	badges,
 }: {
 	meta: MapMeta;
 	isDragging: boolean;
@@ -274,6 +292,7 @@ const MapEntry = React.memo(function MapEntry({
 	onAction: (action: MapAction) => void;
 	onLabelClick: (label: string) => void;
 	fields: MapListField[];
+	badges: MapBadge[];
 }) {
 	const labelColors = useSetting("labelColors");
 	const metaParts: React.ReactNode[] = [];
@@ -310,6 +329,7 @@ const MapEntry = React.memo(function MapEntry({
 			>
 				{meta.name || t("(unnamed)")}
 			</a>
+			<MapBadges badges={badges} />
 			{metaParts.length > 0 && (
 				<span className="map-list__meta">
 					{metaParts.map((part, i) => (
@@ -367,6 +387,7 @@ const FolderEntry = React.memo(function FolderEntry({
 	onFolderAction,
 	onLabelClick,
 	fields,
+	badges,
 	searching,
 }: {
 	name: string;
@@ -377,6 +398,7 @@ const FolderEntry = React.memo(function FolderEntry({
 	onFolderAction: (action: FolderAction) => void;
 	onLabelClick: (label: string) => void;
 	fields: MapListField[];
+	badges: Map<string, MapBadge[]>;
 	searching: boolean;
 }) {
 	const triggerId = `folder:${name}-trig`;
@@ -443,6 +465,7 @@ const FolderEntry = React.memo(function FolderEntry({
 						onAction={onMapAction}
 						onLabelClick={onLabelClick}
 						fields={fields}
+						badges={badges.get(m.id) ?? NO_BADGES}
 					/>
 				))}
 			</Collapsible.Panel>
@@ -807,6 +830,7 @@ export function MapList() {
 	const filterInputRef = useRef<HTMLInputElement>(null);
 	const [hasFilter, setHasFilter] = useState(false);
 	const mapListFields = useSetting("mapListFields");
+	const badges = useMapBadges();
 
 	const toggleLabelFilter = useCallback((label: string) => {
 		const input = filterInputRef.current;
@@ -1004,6 +1028,7 @@ export function MapList() {
 							onFolderAction={handleFolderAction}
 							onLabelClick={toggleLabelFilter}
 							fields={mapListFields}
+							badges={badges}
 							searching={hasFilter}
 						/>
 					))}
@@ -1016,6 +1041,7 @@ export function MapList() {
 							onAction={handleMapAction}
 							onLabelClick={toggleLabelFilter}
 							fields={mapListFields}
+							badges={badges.get(m.id) ?? NO_BADGES}
 						/>
 					))}
 					{rootMaps.length === 0 && dragItem && <li>{t("drop map here to move out of folder")}</li>}

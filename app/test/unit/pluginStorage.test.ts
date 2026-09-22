@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { storage } from "@/plugins/pluginStorage";
+import { reloadStorage, storage } from "@/plugins/pluginStorage";
 
 beforeEach(() => {
 	localStorage.clear();
@@ -43,6 +43,15 @@ describe("storage", () => {
 		const s = storage("p1");
 		s.set("a", 1);
 		s.set("b", 2);
+		expect(s.keys().sort()).toEqual(["a", "b"]);
+	});
+
+	it("reloadStorage picks up a write another window made to the backing store", () => {
+		const s = storage("xwin");
+		s.set("a", 1);
+		localStorage.setItem("mma_plugin:xwin", JSON.stringify({ a: 1, b: 2 }));
+		expect(s.keys()).toEqual(["a"]);
+		reloadStorage("xwin");
 		expect(s.keys().sort()).toEqual(["a", "b"]);
 	});
 

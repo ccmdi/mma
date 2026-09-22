@@ -1,3 +1,4 @@
+import { mdiMapMarker } from "@mdi/js";
 import { createSyncController } from "@/lib/sync/controller";
 import { isAuthPrefixed, type SyncProvider } from "@/lib/sync/provider";
 import { listDrafts, listPublished } from "./api";
@@ -8,6 +9,7 @@ export const PLUGIN_ID = "geoguessr";
 export const geoguessrProvider: SyncProvider = {
 	id: "geoguessr",
 	label: msg("GeoGuessr"),
+	icon: mdiMapMarker,
 
 	isAuthError: isAuthPrefixed,
 

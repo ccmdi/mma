@@ -651,6 +651,7 @@
 	"Link copied": "Link copied",
 	"Link this map": "Link this map",
 	"Linked to": "Linked to",
+	"Linked to \"{name}\" on {provider}": "Linked to \"{name}\" on {provider}",
 	"Live": "Live",
 	"Load as pano ID": "Load as pano ID",
 	"Load shapes from GeoJSON as selection": "Load shapes from GeoJSON as selection",

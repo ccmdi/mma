@@ -669,6 +669,7 @@
 	"Link copied": "Enlace copiado",
 	"Link this map": "Vincular este mapa",
 	"Linked to": "Vinculado a",
+	"Linked to \"{name}\" on {provider}": "Vinculado a \"{name}\" en {provider}",
 	"Live": "En vivo",
 	"Load as pano ID": "Cargar como Pano ID",
 	"Load shapes from GeoJSON as selection": "Cargar formas desde GeoJSON como selección",

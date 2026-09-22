@@ -1767,6 +1767,18 @@ input[type="range"]:disabled {
 	font-size: 0.85em;
 	margin-left: 0.25rem;
 }
+.map-list__badges {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.1rem;
+	margin-left: 0.35rem;
+	vertical-align: middle;
+	cursor: help;
+	color: var(--accent);
+}
+.map-list__badges svg {
+	display: block;
+}
 .nselect.map-list__sort {
 	width: 10rem;
 	min-width: 0;

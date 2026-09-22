@@ -1,5 +1,5 @@
 import { useState, useCallback, type SetStateAction } from "react";
-import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
+import { getLocal, reloadLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 
 export interface PluginStorage {
 	get<T = unknown>(key: string, fallback?: T): T;
@@ -41,6 +41,11 @@ export function storage(id: string): PluginStorage {
 			return Object.keys(readPluginStore(id));
 		},
 	};
+}
+
+/** Re-read a plugin's store after another window wrote it. @unstable */
+export function reloadStorage(id: string) {
+	reloadLocal(pluginStoreKey(id), {});
 }
 
 /** React state hook backed by the plugin's persistent store. Survives sidebar

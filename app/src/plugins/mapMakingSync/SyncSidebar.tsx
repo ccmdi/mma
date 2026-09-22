@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Field } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
-import { mapMakingApp } from "@/components/primitives/Icon";
 import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import type { MmUser } from "@/bindings.gen";
 import * as auth from "./controller";
@@ -105,7 +104,6 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			auth={authUi}
 			identity={checking ? undefined : user ? { id: String(user.id) } : null}
 			listMaps={auth.listMaps}
-			brand={{ path: mapMakingApp, color: "#CC2F2D" }}
 		/>
 	);
 }
