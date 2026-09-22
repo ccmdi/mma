@@ -386,10 +386,7 @@ export const commands = {
 	storeUploadFinish: (sessionDir: string) => __TAURI_INVOKE<string>("store_upload_finish", { sessionDir }),
 	/**  Remove an abandoned upload session dir (e.g. cancelled operation). */
 	storeUploadAbort: (sessionDir: string) => __TAURI_INVOKE<null>("store_upload_abort", { sessionDir }),
-	/**
-	 *  Commit the map's uncommitted changes. Returns the new commit ID. `message`
-	 *  defaults to a generated `+a -r ~m` summary. Clears undo/redo.
-	 */
+	/**  Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/redo. */
 	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<CommitResult>("store_commit", { mapId, message }).then((v) => (({...v,status:({...v.status,delta:({...v.status.delta,added:v.status.delta.added.map(i=>i),updated:v.status.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.status.values,fieldDefs:v.status.values.fieldDefs==null?v.status.values.fieldDefs:Object.fromEntries(Object.entries(v.status.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  List all commits for a map, newest first. */
 	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),

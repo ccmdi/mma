@@ -893,11 +893,7 @@ declare const commands$1: {
     storeUploadFinish: (sessionDir: string) => Promise<string>;
     /**  Remove an abandoned upload session dir (e.g. cancelled operation). @unstable */
     storeUploadAbort: (sessionDir: string) => Promise<null>;
-    /**
-     *  Commit the map's uncommitted changes. Returns the new commit ID. `message`
-     *  defaults to a generated `+a -r ~m` summary. Clears undo/redo.
-     *  @unstable
-     */
+    /**  Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/redo. @unstable */
     storeCommit: (mapId: string, message: string | null) => Promise<CommitResult>;
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;

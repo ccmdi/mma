@@ -81,23 +81,7 @@ pub struct CommitResult {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// Build a default commit message (`+a -r ~m`) from the diff counts; None when empty.
-fn format_diff_message(added: u32, removed: u32, modified: u32) -> Option<String> {
-    let mut parts = Vec::new();
-    if added > 0 {
-        parts.push(format!("+{added}"));
-    }
-    if removed > 0 {
-        parts.push(format!("-{removed}"));
-    }
-    if modified > 0 {
-        parts.push(format!("~{modified}"));
-    }
-    (!parts.is_empty()).then(|| parts.join(" "))
-}
-
-/// Commit the map's uncommitted changes. Returns the new commit ID. `message`
-/// defaults to a generated `+a -r ~m` summary. Clears undo/redo.
+/// Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/redo.
 // The only commit path: builds the canonical batch ONCE (the bake) and derives the commit
 // delta three ways -- dirty overlay: the pre-bake changeset, O(changeset); genesis (no
 // parent): a copy of the base just written (batch_to_delta reads it as all-created); clean
@@ -186,8 +170,6 @@ pub async fn store_commit(
     };
 
     let t_delta = _t.elapsed();
-
-    let message = message.or_else(|| format_diff_message(added, removed_n, modified));
 
     conn.execute(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",

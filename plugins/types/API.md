@@ -5840,8 +5840,7 @@ Read specific fields across matched locations, returned as one column per field.
 cmd.storeCommit(mapId: string, message: string | null): Promise<CommitResult>
 ```
 
-Commit the map's uncommitted changes. Returns the new commit ID. `message`
-defaults to a generated `+a -r ~m` summary. Clears undo/redo.
+Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/redo.
 
 #### cmd.storeCommitDiff
 
