@@ -39,6 +39,7 @@ const map: MapMeta = {
 	tags: {},
 	labels: [],
 	locationCount: 0,
+	pending: { added: 0, removed: 0, modified: 0 },
 	createdAt: "2026-01-01",
 	updatedAt: "2026-01-01",
 	lastOpenedAt: null,

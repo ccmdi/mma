@@ -153,7 +153,7 @@ pub async fn store_open_map(
     store.bounds = Some(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
-        storage::set_location_count(&conn, &map_id, alive)?;
+        storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts().into())?;
         store
             .value_meta
             .insert("tags".into(), Tracked::new(read_tags_json(&conn, &map_id)));
@@ -555,10 +555,13 @@ fn copy_to_map(
         delta.adds.extend(fresh);
         let bytes = rmp_serde::to_vec_named(&delta)?;
         let alive = existing.len() + copied as usize;
+        let mut pending = storage::map_pending(&conn, &target_map_id)?;
+        pending.added += copied;
         persist_dirty(
             &target_map_id,
             Some(bytes),
             alive,
+            pending,
             Some(serialize_tags_json(&target_tags)),
         )?;
         log::debug!(
@@ -588,7 +591,7 @@ pub async fn store_save_dirty(
     // The snapshot carries the revision it serialized, so the store can be told exactly
     // what disk holds once the write lands, however many edits arrived meanwhile.
     // (Value metadata is not here: it persists write-through at the edit.)
-    let (map_id, delta, alive) = {
+    let (map_id, delta, alive, pending) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
         let map_id = store.map_id.clone().ok_or("no map open")?;
@@ -596,15 +599,22 @@ pub async fn store_save_dirty(
             return Ok(SaveResult { saved_bytes: 0 });
         }
         let delta = overlay_delta_bytes(&store.overlay).map(|b| store.overlay.stamp(b))?;
-        (map_id, delta, *store.alive_count)
+        (
+            map_id,
+            delta,
+            *store.alive_count,
+            store.overlay_diff_counts().into(),
+        )
     };
 
     let size = delta.value().len();
     let delta_rev = delta.rev();
     let map_id2 = map_id.clone();
-    task::spawn_blocking(move || persist_dirty(&map_id2, Some(delta.into_value()), alive, None))
-        .await
-        .unwrap_or_else(|e| Err(e.into()))?;
+    task::spawn_blocking(move || {
+        persist_dirty(&map_id2, Some(delta.into_value()), alive, pending, None)
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.into()))?;
 
     // The window may have closed or switched maps during the write; the map_id check
     // stops a fresh store from being marked saved by a stale write.

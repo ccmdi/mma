@@ -1209,7 +1209,7 @@ type CommitDelta = {
     created: Location[];
     removed: Location[];
 };
-/**  Added, removed, and modified counts for a commit. @unstable */
+/**  Added, removed, and modified location counts of a set of changes. */
 type CommitDiff = {
     added: number;
     removed: number;
@@ -1858,6 +1858,8 @@ type MapMeta = {
     };
     labels: string[];
     locationCount: number;
+    /**  Location changes since the last commit. */
+    pending: CommitDiff;
     createdAt: string;
     updatedAt: string;
     lastOpenedAt: string | null;
@@ -4628,7 +4630,7 @@ declare const DEFAULTS: {
     showFps: boolean;
     /** @unstable */
     mapListFields: MapListField[];
-    /** Ids of map-row badge sources the user turned off. @unstable */
+    /** Ids of map-row badge sources that are hidden. @unstable */
     hiddenMapBadges: string[];
     /** Read once at boot; changing it relaunches the app rather than re-rendering. @unstable */
     language: Language;
@@ -4760,7 +4762,7 @@ declare const APP_SETTINGS: PersistedStore<{
     slowModifier: number;
     showFps: boolean;
     mapListFields: MapListField[];
-    /** Ids of map-row badge sources the user turned off. */
+    /** Ids of map-row badge sources that are hidden. */
     hiddenMapBadges: string[];
     /** Read once at boot; changing it relaunches the app rather than re-rendering. */
     language: Language;
@@ -5197,12 +5199,15 @@ declare function renameFolder(from: string, to: string): Promise<void>;
 declare function moveMapToFolder(mapId: string, folder: string | null): Promise<void>;
 /** Delete a folder. Maps in it become unfoldered. */
 declare function deleteFolder(name: string): Promise<void>;
-/** A mark drawn after a map's name in the map list. @unstable */
-export interface MapBadge {
+/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
+export type MapBadge = {
     key: string;
-    icon: string;
     title: string;
-}
+} & ({
+    icon: string;
+} | {
+    diff: CommitDiff;
+});
 /** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
 export interface BadgeSource {
     /** Stable id, remembered by the setting that hides it. */

@@ -251,6 +251,7 @@ export function scheduleAutoCommit(mapId: string, importedCount: number) {
 		.then((r) => {
 			applyMutation(r.status);
 			resetCommitDiffCounts();
+			void invalidateMapList();
 		})
 		.catch((e: unknown) => log.error("[import] background commit failed:", e))
 		.finally(() => {
@@ -1149,6 +1150,7 @@ export async function commitMap(message?: string): Promise<string> {
 	t.end();
 	applyMutation(r.status);
 	resetCommitDiffCounts();
+	void invalidateMapList();
 
 	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
 	// re-resolve against the new baseline instead of showing now-committed rows.

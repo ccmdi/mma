@@ -33,6 +33,7 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
+import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { IconButton } from "@/components/primitives/IconButton";
 import { DeleteMapDialog, MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
 import {
@@ -261,7 +262,7 @@ function MapBadges({ badges }: { badges: MapBadge[] }) {
 		<span className="map-list__badges">
 			{badges.map((b) => (
 				<span key={b.key} title={b.title}>
-					<Icon path={b.icon} size={14} />
+					{"icon" in b ? <Icon path={b.icon} size={14} /> : <DiffCounts {...b.diff} hideZero />}
 				</span>
 			))}
 		</span>

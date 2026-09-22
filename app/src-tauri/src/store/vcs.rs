@@ -26,13 +26,23 @@ use std::time::Instant;
 // Types
 // ---------------------------------------------------------------------------
 
-/// Added, removed, and modified counts for a commit.
-#[derive(serde::Serialize, specta::Type)]
+/// Added, removed, and modified location counts of a set of changes.
+#[derive(Clone, Copy, Default, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitDiff {
     pub added: u32,
     pub removed: u32,
     pub modified: u32,
+}
+
+impl From<(u32, u32, u32)> for CommitDiff {
+    fn from((added, removed, modified): (u32, u32, u32)) -> Self {
+        Self {
+            added,
+            removed,
+            modified,
+        }
+    }
 }
 
 /// Metadata for a single commit.
@@ -183,7 +193,12 @@ pub async fn store_commit(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
         params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, added, removed_n, modified],
     )?;
-    storage::set_location_count(&conn, &map_id, location_count as usize)?;
+    storage::set_map_counts(
+        &conn,
+        &map_id,
+        location_count as usize,
+        CommitDiff::default(),
+    )?;
 
     log::info!(
         "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",

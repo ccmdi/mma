@@ -1,6 +1,7 @@
 //! SQLite: connections, pragmas, the migration registry, row helpers.
 
 use super::*;
+use crate::store::vcs::CommitDiff;
 use crate::types::AppResult;
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
@@ -67,10 +68,32 @@ pub(super) fn configure_connection(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
-pub(crate) fn set_location_count(conn: &Connection, map_id: &str, count: usize) -> AppResult<()> {
+/// A map's changes since the last commit, as last recorded by [`set_map_counts`].
+pub(crate) fn map_pending(conn: &Connection, map_id: &str) -> AppResult<CommitDiff> {
+    Ok(conn.query_row(
+        "SELECT pending_added, pending_removed, pending_modified FROM maps WHERE id = ?1",
+        [map_id],
+        |row| {
+            Ok(CommitDiff {
+                added: row.get(0)?,
+                removed: row.get(1)?,
+                modified: row.get(2)?,
+            })
+        },
+    )?)
+}
+
+/// Record a map's live location count and its changes since the last commit, together,
+/// so the map list never shows one without the other.
+pub(crate) fn set_map_counts(
+    conn: &Connection,
+    map_id: &str,
+    count: usize,
+    pending: CommitDiff,
+) -> AppResult<()> {
     conn.execute(
-        "UPDATE maps SET location_count = ?1 WHERE id = ?2",
-        rusqlite::params![count, map_id],
+        "UPDATE maps SET location_count = ?1, pending_added = ?2, pending_removed = ?3, pending_modified = ?4 WHERE id = ?5",
+        rusqlite::params![count, pending.added, pending.removed, pending.modified, map_id],
     )?;
     Ok(())
 }
@@ -421,5 +444,11 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
             color      TEXT NOT NULL,
             created_at TEXT NOT NULL
           );",
+    ),
+    (
+        22,
+        "ALTER TABLE maps ADD COLUMN pending_added INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE maps ADD COLUMN pending_removed INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE maps ADD COLUMN pending_modified INTEGER NOT NULL DEFAULT 0;",
     ),
 ];

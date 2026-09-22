@@ -727,6 +727,35 @@ fn fresh_full_chain_succeeds() {
 }
 
 #[test]
+fn map_counts_carry_pending_changes_and_reset_to_clean() {
+    let conn = Connection::open_in_memory().unwrap();
+    configure_connection(&conn).unwrap();
+    run_migrations_on(&conn).unwrap();
+    conn.execute(
+        "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES ('m', 'm', NULL, '{}', '', '')",
+        [],
+    )
+    .unwrap();
+    let pending = |conn: &Connection| {
+        let p = map_pending(conn, "m").unwrap();
+        (p.added, p.removed, p.modified)
+    };
+    assert_eq!(pending(&conn), (0, 0, 0), "a map starts clean");
+
+    set_map_counts(&conn, "m", 12, (5, 1, 2).into()).unwrap();
+    assert_eq!(pending(&conn), (5, 1, 2));
+    let count: i64 = conn
+        .query_row("SELECT location_count FROM maps WHERE id = 'm'", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(count, 12);
+
+    set_map_counts(&conn, "m", 12, crate::store::vcs::CommitDiff::default()).unwrap();
+    assert_eq!(pending(&conn), (0, 0, 0), "a commit leaves nothing pending");
+}
+
+#[test]
 fn seen_dropdown_queries_use_covering_indexes() {
     let conn = Connection::open_in_memory().unwrap();
     configure_connection(&conn).unwrap();

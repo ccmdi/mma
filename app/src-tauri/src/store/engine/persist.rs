@@ -3,6 +3,7 @@
 use super::*;
 use crate::store::arrow;
 use crate::store::storage;
+use crate::store::vcs::CommitDiff;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use arrow_array::RecordBatch;
@@ -55,7 +56,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
         }
         let count = *store.alive_count;
         let conn = storage::open_db()?;
-        storage::set_location_count(&conn, map_id, count)?;
+        storage::set_map_counts(&conn, map_id, count, store.overlay_diff_counts().into())?;
         save_edit_history(map_id, &store.edits.undo, &store.edits.redo)?;
         log::debug!(
             "[close_map] {map_id} flushed: undo={} redo={}",
@@ -98,12 +99,13 @@ pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>
     Ok(locs)
 }
 
-/// Write a map's dirty state: delta sidecar (if any), location count, and tags
-/// JSON (if any). Sync core shared by `store_save_dirty` and cross-map copy.
+/// Write a map's dirty state: delta sidecar (if any), location and pending counts, and
+/// tags JSON (if any). Sync core shared by `store_save_dirty` and cross-map copy.
 pub(crate) fn persist_dirty(
     map_id: &str,
     delta_data: Option<Vec<u8>>,
     alive: usize,
+    pending: CommitDiff,
     tags_json: Option<String>,
 ) -> AppResult<()> {
     if let Some(delta_data) = delta_data {
@@ -111,7 +113,7 @@ pub(crate) fn persist_dirty(
         storage::atomic_write_bytes(&path, &delta_data)?;
     }
     let conn = storage::open_db()?;
-    storage::set_location_count(&conn, map_id, alive)?;
+    storage::set_map_counts(&conn, map_id, alive, pending)?;
     if let Some(tags_json) = tags_json {
         conn.execute(
             "UPDATE maps SET tags = ?1 WHERE id = ?2",
@@ -217,7 +219,7 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     );
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
-    storage::set_location_count(&conn, map_id, count)?;
+    storage::set_map_counts(&conn, map_id, count, CommitDiff::default())?;
     Ok(())
 }
 

@@ -170,8 +170,8 @@ export const DEFAULTS = {
 	slowModifier: 4,
 	showFps: false,
 	mapListFields: ["locationCount"] as MapListField[],
-	/** Ids of map-row badge sources the user turned off. */
-	hiddenMapBadges: [] as string[],
+	/** Ids of map-row badge sources that are hidden. */
+	hiddenMapBadges: ["pending"] as string[],
 	/** Read once at boot; changing it relaunches the app rather than re-rendering. */
 	language: "en" as Language,
 	/** Every distance the UI shows or accepts; stored values stay metric. */

@@ -1,5 +1,5 @@
 ﻿import { SCRATCH_MAP_ID } from "@/bindings.consts";
-import { type MapMeta } from "@/bindings.gen";
+import { type CommitDiff, type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import {
@@ -11,6 +11,7 @@ import {
 } from "@/lib/events";
 import { openWindow } from "@/lib/window";
 import { getSettings } from "@/store/settings";
+import { msg, t } from "@/lib/i18n";
 
 let cachedMapList: MapMeta[] = [];
 
@@ -94,12 +95,8 @@ export async function deleteFolder(name: string) {
 	await invalidateMapList();
 }
 
-/** A mark drawn after a map's name in the map list. */
-export interface MapBadge {
-	key: string;
-	icon: string;
-	title: string;
-}
+/** A mark drawn after a map's name in the map list: an icon, or a count of changes. */
+export type MapBadge = { key: string; title: string } & ({ icon: string } | { diff: CommitDiff });
 
 /** A feature that marks map rows, shown or hidden as a unit in settings. */
 export interface BadgeSource {
@@ -114,35 +111,35 @@ export interface BadgeSource {
 }
 
 const badgeSources: BadgeSource[] = [];
-let mapBadges = new Map<string, MapBadge[]>();
-let hiddenBadges = getSettings().hiddenMapBadges;
+let collected: { hidden: readonly string[]; badges: Map<string, MapBadge[]> } | null = null;
 
-function collectMapBadges() {
-	const next = new Map<string, MapBadge[]>();
+function collectMapBadges(hidden: readonly string[]) {
+	const badges = new Map<string, MapBadge[]>();
 	for (const source of badgeSources) {
-		if (hiddenBadges.includes(source.id)) continue;
+		if (hidden.includes(source.id)) continue;
 		for (const [mapId, badge] of source.collect()) {
-			const badges = next.get(mapId) ?? [];
-			badges.push(badge);
-			next.set(mapId, badges);
+			const forMap = badges.get(mapId) ?? [];
+			forMap.push(badge);
+			badges.set(mapId, forMap);
 		}
 	}
-	mapBadges = next;
+	return badges;
+}
+
+function invalidateMapBadges() {
+	collected = null;
 	emitEvent("map-badges:changed");
 }
 
 subscribe("settings:changed", () => {
-	const hidden = getSettings().hiddenMapBadges;
-	if (hidden === hiddenBadges) return;
-	hiddenBadges = hidden;
-	collectMapBadges();
+	if (collected && collected.hidden !== getSettings().hiddenMapBadges) invalidateMapBadges();
 });
 
 /** Add a source of map-row badges. @unstable */
 export function registerMapBadges(source: BadgeSource) {
 	badgeSources.push(source);
-	subscribeMany(source.events, collectMapBadges);
-	collectMapBadges();
+	subscribeMany(source.events, invalidateMapBadges);
+	invalidateMapBadges();
 }
 
 /** Every registered badge source, in registration order. @unstable */
@@ -152,10 +149,27 @@ export function getMapBadgeSources(): readonly BadgeSource[] {
 
 /** Badges per map id, from every registered source. @unstable */
 export function getMapBadges(): Map<string, MapBadge[]> {
-	return mapBadges;
+	if (!collected) {
+		const hidden = getSettings().hiddenMapBadges;
+		collected = { hidden, badges: collectMapBadges(hidden) };
+	}
+	return collected.badges;
 }
 
 /** Reactive {@link getMapBadges}. @unstable */
 export function useMapBadges(): Map<string, MapBadge[]> {
 	return useEventValue("map-badges:changed", getMapBadges);
 }
+
+registerMapBadges({
+	id: "pending",
+	label: msg("Uncommitted changes"),
+	events: ["map-list:changed"],
+	*collect() {
+		for (const m of cachedMapList) {
+			const { added, removed, modified } = m.pending;
+			if (added + removed + modified === 0) continue;
+			yield [m.id, { key: "pending", diff: m.pending, title: t("Changes since the last commit") }];
+		}
+	},
+});

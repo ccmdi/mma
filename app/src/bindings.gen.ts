@@ -594,7 +594,7 @@ export type CommitDelta = {
 	removed: Location[],
 };
 
-/**  Added, removed, and modified counts for a commit. */
+/**  Added, removed, and modified location counts of a set of changes. */
 export type CommitDiff = {
 	added: number,
 	removed: number,
@@ -1120,6 +1120,8 @@ export type MapMeta = {
 	tags: { [key in string]: { [key in string]: unknown } },
 	labels: string[],
 	locationCount: number,
+	/**  Location changes since the last commit. */
+	pending: CommitDiff,
 	createdAt: string,
 	updatedAt: string,
 	lastOpenedAt: string | null,

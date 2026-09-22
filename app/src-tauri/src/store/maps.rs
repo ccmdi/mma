@@ -9,6 +9,7 @@ use crate::store::engine;
 use crate::store::engine::StoreState;
 use crate::store::engine::ValueRecord;
 use crate::store::storage::{self, push_field};
+use crate::store::vcs::CommitDiff;
 use crate::sv::schema::PanoType;
 use crate::types;
 use crate::types::wire_str_enum;
@@ -533,6 +534,8 @@ pub struct MapMeta {
     pub tags: HashMap<String, ValueRecord>,
     pub labels: Vec<String>,
     pub location_count: i64,
+    /// Location changes since the last commit.
+    pub pending: CommitDiff,
     pub created_at: String,
     pub updated_at: String,
     pub last_opened_at: Option<String>,
@@ -577,6 +580,11 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
         tags: storage::json_col(row, "tags")?,
         labels: storage::json_col(row, "labels")?,
         location_count: row.get("location_count")?,
+        pending: CommitDiff {
+            added: row.get("pending_added")?,
+            removed: row.get("pending_removed")?,
+            modified: row.get("pending_modified")?,
+        },
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
         last_opened_at: row.get("last_opened_at")?,

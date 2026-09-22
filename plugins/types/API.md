@@ -4100,7 +4100,7 @@ DEFAULTS: {
   slowModifier: number;
   showFps: boolean;
   mapListFields: ("locationCount" | "lastOpened" | "created")[];
-  /** Ids of map-row badge sources the user turned off. */
+  /** Ids of map-row badge sources that are hidden. */
   hiddenMapBadges: string[];
   /** Read once at boot; changing it relaunches the app rather than re-rendering. */
   language: "en" | "de" | "es" | "fr" | "ja" | "pl" | "ru" | "zh-Hans" | "en-XA";
