@@ -2,8 +2,15 @@
 import { type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
-import { emit as emitEvent, subscribeMany, useEventValue, type EditorEvent } from "@/lib/events";
+import {
+	emit as emitEvent,
+	subscribe,
+	subscribeMany,
+	useEventValue,
+	type EditorEvent,
+} from "@/lib/events";
 import { openWindow } from "@/lib/window";
+import { getSettings } from "@/store/settings";
 
 let cachedMapList: MapMeta[] = [];
 
@@ -94,16 +101,27 @@ export interface MapBadge {
 	title: string;
 }
 
-/** Yields the badges it wants shown, each paired with its map id. */
-export type BadgeSource = () => Iterable<[mapId: string, badge: MapBadge]>;
+/** A feature that marks map rows, shown or hidden as a unit in settings. */
+export interface BadgeSource {
+	/** Stable id, remembered by the setting that hides it. */
+	id: string;
+	/** Name shown next to its checkbox in settings. */
+	label: string;
+	/** Events after which the badges are collected again. */
+	events: readonly EditorEvent[];
+	/** Yields the badges to show, each paired with its map id. */
+	collect(): Iterable<[mapId: string, badge: MapBadge]>;
+}
 
 const badgeSources: BadgeSource[] = [];
 let mapBadges = new Map<string, MapBadge[]>();
+let hiddenBadges = getSettings().hiddenMapBadges;
 
 function collectMapBadges() {
 	const next = new Map<string, MapBadge[]>();
 	for (const source of badgeSources) {
-		for (const [mapId, badge] of source()) {
+		if (hiddenBadges.includes(source.id)) continue;
+		for (const [mapId, badge] of source.collect()) {
 			const badges = next.get(mapId) ?? [];
 			badges.push(badge);
 			next.set(mapId, badges);
@@ -113,11 +131,23 @@ function collectMapBadges() {
 	emitEvent("map-badges:changed");
 }
 
-/** Add a badge source, re-run whenever any of `events` fires. @unstable */
-export function registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]) {
-	badgeSources.push(source);
-	subscribeMany(events, collectMapBadges);
+subscribe("settings:changed", () => {
+	const hidden = getSettings().hiddenMapBadges;
+	if (hidden === hiddenBadges) return;
+	hiddenBadges = hidden;
 	collectMapBadges();
+});
+
+/** Add a source of map-row badges. @unstable */
+export function registerMapBadges(source: BadgeSource) {
+	badgeSources.push(source);
+	subscribeMany(source.events, collectMapBadges);
+	collectMapBadges();
+}
+
+/** Every registered badge source, in registration order. @unstable */
+export function getMapBadgeSources(): readonly BadgeSource[] {
+	return badgeSources;
 }
 
 /** Badges per map id, from every registered source. @unstable */

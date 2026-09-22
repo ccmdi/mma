@@ -1537,6 +1537,16 @@ getMapBadges(): Map<string, MapBadge[]>
 
 Badges per map id, from every registered source.
 
+### getMapBadgeSources
+
+`unstable` · unreleased
+
+```ts
+getMapBadgeSources(): readonly BadgeSource[]
+```
+
+Every registered badge source, in registration order.
+
 ### getMapList
 
 `stable` · since v0.7.0
@@ -1592,10 +1602,10 @@ Open the scratch map, creating it on first use.
 `unstable` · unreleased
 
 ```ts
-registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]): void
+registerMapBadges(source: BadgeSource): void
 ```
 
-Add a badge source, re-run whenever any of `events` fires.
+Add a source of map-row badges.
 
 ### reloadMapList
 
@@ -3951,6 +3961,7 @@ APP_SETTINGS: PersistedStore<{
   slowModifier: number;
   showFps: boolean;
   mapListFields: MapListField[];
+  hiddenMapBadges: string[];
   language: Language;
   units: UnitSystem;
   restoreSession: boolean;
@@ -4089,6 +4100,8 @@ DEFAULTS: {
   slowModifier: number;
   showFps: boolean;
   mapListFields: ("locationCount" | "lastOpened" | "created")[];
+  /** Ids of map-row badge sources the user turned off. */
+  hiddenMapBadges: string[];
   /** Read once at boot; changing it relaunches the app rather than re-rendering. */
   language: "en" | "de" | "es" | "fr" | "ja" | "pl" | "ru" | "zh-Hans" | "en-XA";
   /** Every distance the UI shows or accepts; stored values stay metric. */
@@ -4358,6 +4371,7 @@ PRIVATE_SETTINGS: ReadonlySet<
   | "slowModifier"
   | "showFps"
   | "mapListFields"
+  | "hiddenMapBadges"
   | "language"
   | "units"
   | "restoreSession"

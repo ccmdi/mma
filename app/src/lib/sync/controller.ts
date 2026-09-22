@@ -2,7 +2,7 @@ import { bridgeAcrossWindows, emit, LOCATION_DATA_EVENTS, TAG_DATA_EVENTS } from
 import { reloadStorage } from "@/plugins/pluginStorage";
 import { isPluginEnabled } from "@/plugins/pluginHost";
 import { registerMapBadges } from "@/store/mapList";
-import { t } from "@/lib/i18n";
+import { msg, t } from "@/lib/i18n";
 import { errText } from "@/lib/util/format";
 import { reconcile, type FirstSyncMode, type ReconcileOptions, type SyncOutcome } from "./engine";
 import { createMappingBackend } from "./mappingBackend";
@@ -56,8 +56,11 @@ bridgeAcrossWindows("sync-links:changed", () => {
 	for (const c of controllers.values()) reloadStorage(c.pluginId);
 });
 
-registerMapBadges(
-	function* () {
+registerMapBadges({
+	id: "sync",
+	label: msg("Sync status"),
+	events: ["sync-links:changed", "plugins:changed"],
+	*collect() {
 		for (const c of controllers.values()) {
 			if (!isPluginEnabled(c.pluginId)) continue;
 			for (const link of c.allLinks()) {
@@ -75,8 +78,7 @@ registerMapBadges(
 			}
 		}
 	},
-	["sync-links:changed", "plugins:changed"],
-);
+});
 
 /** Plugin `activate()` for a sync plugin: resume the live loop when a linked map is
  *  (re)opened and live was left on, and pause it on close. */

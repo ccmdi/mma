@@ -1226,6 +1226,7 @@
 	"Sync": "同步",
 	"Sync continuously while this map is open": "此地图打开时持续同步",
 	"Sync now": "立即同步",
+	"Sync status": "同步状态",
 	"Syncing...": "正在同步…",
 	"Table omitted - open the doc to view it.": "已省略表格 - 请打开文档查看。",
 	"Tag all imported locations": "为所有导入位置添加标签",

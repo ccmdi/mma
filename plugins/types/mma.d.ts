@@ -4628,6 +4628,8 @@ declare const DEFAULTS: {
     showFps: boolean;
     /** @unstable */
     mapListFields: MapListField[];
+    /** Ids of map-row badge sources the user turned off. @unstable */
+    hiddenMapBadges: string[];
     /** Read once at boot; changing it relaunches the app rather than re-rendering. @unstable */
     language: Language;
     /** Every distance the UI shows or accepts; stored values stay metric. @unstable */
@@ -4758,6 +4760,8 @@ declare const APP_SETTINGS: PersistedStore<{
     slowModifier: number;
     showFps: boolean;
     mapListFields: MapListField[];
+    /** Ids of map-row badge sources the user turned off. */
+    hiddenMapBadges: string[];
     /** Read once at boot; changing it relaunches the app rather than re-rendering. */
     language: Language;
     /** Every distance the UI shows or accepts; stored values stay metric. */
@@ -5199,10 +5203,21 @@ export interface MapBadge {
     icon: string;
     title: string;
 }
-/** Yields the badges it wants shown, each paired with its map id. @unstable */
-export type BadgeSource = () => Iterable<[mapId: string, badge: MapBadge]>;
-/** Add a badge source, re-run whenever any of `events` fires. @unstable */
-declare function registerMapBadges(source: BadgeSource, events: readonly EditorEvent[]): void;
+/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
+export interface BadgeSource {
+    /** Stable id, remembered by the setting that hides it. */
+    id: string;
+    /** Name shown next to its checkbox in settings. */
+    label: string;
+    /** Events after which the badges are collected again. */
+    events: readonly EditorEvent[];
+    /** Yields the badges to show, each paired with its map id. */
+    collect(): Iterable<[mapId: string, badge: MapBadge]>;
+}
+/** Add a source of map-row badges. @unstable */
+declare function registerMapBadges(source: BadgeSource): void;
+/** Every registered badge source, in registration order. @unstable */
+declare function getMapBadgeSources(): readonly BadgeSource[];
 /** Badges per map id, from every registered source. @unstable */
 declare function getMapBadges(): Map<string, MapBadge[]>;
 /** Reactive {@link getMapBadges}. @unstable */
@@ -5214,6 +5229,8 @@ export type mapList_BadgeSource = BadgeSource;
 export type mapList_MapBadge = MapBadge;
 declare const mapList_createMap: typeof createMap;
 declare const mapList_deleteFolder: typeof deleteFolder;
+/** @unstable */
+declare const mapList_getMapBadgeSources: typeof getMapBadgeSources;
 /** @unstable */
 declare const mapList_getMapBadges: typeof getMapBadges;
 declare const mapList_getMapList: typeof getMapList;
@@ -5234,7 +5251,7 @@ declare const mapList_setCachedMapList: typeof setCachedMapList;
 declare const mapList_useMapBadges: typeof useMapBadges;
 declare const mapList_useMapList: typeof useMapList;
 declare namespace mapList {
-  export { mapList_createMap as createMap, mapList_deleteFolder as deleteFolder, deleteMap$1 as deleteMap, mapList_getMapBadges as getMapBadges, mapList_getMapList as getMapList, mapList_invalidateMapList as invalidateMapList, mapList_isReservedMap as isReservedMap, mapList_moveMapToFolder as moveMapToFolder, mapList_openScratchMap as openScratchMap, mapList_registerMapBadges as registerMapBadges, mapList_reloadMapList as reloadMapList, mapList_renameFolder as renameFolder, mapList_setCachedMapList as setCachedMapList, mapList_useMapBadges as useMapBadges, mapList_useMapList as useMapList };
+  export { mapList_createMap as createMap, mapList_deleteFolder as deleteFolder, deleteMap$1 as deleteMap, mapList_getMapBadgeSources as getMapBadgeSources, mapList_getMapBadges as getMapBadges, mapList_getMapList as getMapList, mapList_invalidateMapList as invalidateMapList, mapList_isReservedMap as isReservedMap, mapList_moveMapToFolder as moveMapToFolder, mapList_openScratchMap as openScratchMap, mapList_registerMapBadges as registerMapBadges, mapList_reloadMapList as reloadMapList, mapList_renameFolder as renameFolder, mapList_setCachedMapList as setCachedMapList, mapList_useMapBadges as useMapBadges, mapList_useMapList as useMapList };
   export type { mapList_BadgeSource as BadgeSource, mapList_MapBadge as MapBadge };
 }
 

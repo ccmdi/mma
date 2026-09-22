@@ -1268,6 +1268,7 @@
 	"Sync": "Sync",
 	"Sync continuously while this map is open": "Fortlaufend synchronisieren, solange diese Karte geöffnet ist",
 	"Sync now": "Jetzt synchronisieren",
+	"Sync status": "Sync-Status",
 	"Syncing...": "Wird synchronisiert...",
 	"Table omitted - open the doc to view it.": "Tabelle ausgelassen - zum Ansehen das Dokument öffnen.",
 	"Tag all imported locations": "Alle importierten Standorte taggen",

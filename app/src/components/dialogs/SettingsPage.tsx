@@ -94,6 +94,7 @@ import {
 	PREVIEW_ASPECT_RATIOS,
 	resetSettings,
 } from "@/store/settings";
+import { getMapBadgeSources } from "@/store/mapList";
 import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { cmd } from "@/lib/commands";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -956,8 +957,15 @@ function MapListBlock() {
 		}
 	};
 
+	const hiddenBadges = s.hiddenMapBadges;
+	const toggleBadge = (id: string) =>
+		setSetting(
+			"hiddenMapBadges",
+			hiddenBadges.includes(id) ? hiddenBadges.filter((h) => h !== id) : [...hiddenBadges, id],
+		);
+
 	return (
-		<Aux match="map list fields columns row">
+		<Aux match="map list fields columns row badges">
 			<Hint>{t("Fields shown on each map row (labels are always shown)")}</Hint>
 			{Object.entries(MAP_LIST_FIELDS).map(([value, label]) => (
 				<Checkbox
@@ -966,6 +974,15 @@ function MapListBlock() {
 					onChange={() => toggle(value as MapListField)}
 				>
 					{t(label)}
+				</Checkbox>
+			))}
+			{getMapBadgeSources().map((source) => (
+				<Checkbox
+					key={source.id}
+					checked={!hiddenBadges.includes(source.id)}
+					onChange={() => toggleBadge(source.id)}
+				>
+					{t(source.label)}
 				</Checkbox>
 			))}
 		</Aux>

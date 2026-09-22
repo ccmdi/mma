@@ -1352,6 +1352,7 @@
 	"Sync": "Синхронизация",
 	"Sync continuously while this map is open": "Синхронизировать непрерывно, пока карта открыта",
 	"Sync now": "Синхронизировать сейчас",
+	"Sync status": "Статус синхронизации",
 	"Syncing...": "Синхронизация...",
 	"Table omitted - open the doc to view it.": "Таблица опущена - откройте документ, чтобы её увидеть.",
 	"Tag all imported locations": "Добавить тег всем импортированным локациям",

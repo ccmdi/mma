@@ -1226,6 +1226,7 @@
 	"Sync": "同期",
 	"Sync continuously while this map is open": "このマップを開いている間、継続的に同期",
 	"Sync now": "今すぐ同期",
+	"Sync status": "同期状態",
 	"Syncing...": "同期中...",
 	"Table omitted - open the doc to view it.": "表は省略されています - ドキュメントを開いて確認してください。",
 	"Tag all imported locations": "インポートした地点すべてにタグ付け",
