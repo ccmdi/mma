@@ -6323,6 +6323,8 @@ declare function getBuiltinKeys(): string[];
 declare function registerPluginFieldDefs(defs: Record<string, FieldDef>): void;
 /** Remove plugin field definitions by key (called when a plugin is deactivated). */
 declare function unregisterPluginFieldDefs(keys: string[]): void;
+/** Keys a field picker offers: every listable built-in, and every key this map's locations carry. @unstable */
+declare function getPickableFieldKeys(): string[];
 /** Keys some location on this map carries. Same reference until the user layer moves. */
 declare const getKnownFieldKeys: () => ReadonlySet<string>;
 /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
@@ -6345,6 +6347,8 @@ declare const fieldDefRegistry_getAllFieldDefs: typeof getAllFieldDefs;
 declare const fieldDefRegistry_getBuiltinKeys: typeof getBuiltinKeys;
 declare const fieldDefRegistry_getFieldDef: typeof getFieldDef;
 declare const fieldDefRegistry_getKnownFieldKeys: typeof getKnownFieldKeys;
+/** @unstable */
+declare const fieldDefRegistry_getPickableFieldKeys: typeof getPickableFieldKeys;
 declare const fieldDefRegistry_isBuiltinField: typeof isBuiltinField;
 /** @unstable */
 declare const fieldDefRegistry_isClearableField: typeof isClearableField;
@@ -6363,6 +6367,7 @@ declare namespace fieldDefRegistry {
     fieldDefRegistry_getBuiltinKeys as getBuiltinKeys,
     fieldDefRegistry_getFieldDef as getFieldDef,
     fieldDefRegistry_getKnownFieldKeys as getKnownFieldKeys,
+    fieldDefRegistry_getPickableFieldKeys as getPickableFieldKeys,
     fieldDefRegistry_isBuiltinField as isBuiltinField,
     fieldDefRegistry_isClearableField as isClearableField,
     fieldDefRegistry_isListableField as isListableField,

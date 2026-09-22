@@ -2668,6 +2668,16 @@ getKnownFieldKeys(): ReadonlySet<string>
 
 Keys some location on this map carries. Same reference until the user layer moves.
 
+### getPickableFieldKeys
+
+`unstable` · unreleased
+
+```ts
+getPickableFieldKeys(): string[]
+```
+
+Keys a field picker offers: every listable built-in, and every key this map's locations carry.
+
 ### isBuiltinField
 
 `stable` · since v0.10.3

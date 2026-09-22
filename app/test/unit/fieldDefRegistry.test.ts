@@ -6,6 +6,7 @@ import {
 	getFieldDef,
 	getAllFieldDefs,
 	getKnownFieldKeys,
+	getPickableFieldKeys,
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
 	isBuiltinField,
@@ -36,6 +37,20 @@ beforeEach(() => {
 // SV field defs live in Rust (`known_field_def`) and reach the registry via the user
 // layer (persisted into a map's `extra.fields`). The registry itself hardcodes only
 // the builtin/virtual Location fields; user > plugin > builtin resolution.
+
+describe("pickable field keys", () => {
+	it("offer the built-ins and the map's own keys, not a plugin's fields the map never had", () => {
+		registerPluginFieldDefs({ pluginOnly: createFieldDef("number", { label: "Plugin only" }) });
+		setUserFieldDefs({ elevation: createFieldDef("number", { label: "Elevation" }) });
+		const keys = getPickableFieldKeys();
+		expect(keys).toContain("elevation");
+		expect(keys).toContain("panoId");
+		expect(keys).toContain("tagCount");
+		expect(keys).not.toContain("pluginOnly");
+		expect(keys).not.toContain("lat");
+		unregisterPluginFieldDefs(["pluginOnly"]);
+	});
+});
 
 describe("field kinds", () => {
 	it("identity fields are builtin, readable, but never writable or listable", () => {

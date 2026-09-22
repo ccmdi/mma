@@ -8,8 +8,7 @@ import {
 	fieldValueLabel,
 	getAllFieldDefs,
 	getFieldDef,
-	isListableField,
-	getKnownFieldKeys,
+	getPickableFieldKeys,
 	declaredValues,
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
@@ -82,18 +81,9 @@ export function useExtraFieldKeys(): FieldEntry[] {
 	const pluginVersion = useEvent("fields:changed");
 	return useMemo(() => {
 		const allDefs = getAllFieldDefs();
-		const seen = new Set<string>();
-		const entries: FieldEntry[] = [];
-		for (const key of getKnownFieldKeys()) {
-			seen.add(key);
-			entries.push({ key, label: fieldLabel(key), def: allDefs[key] ?? { type: "string" } });
-		}
-		for (const [key, def] of Object.entries(allDefs)) {
-			if (!seen.has(key) && isListableField(key))
-				entries.push({ key, label: fieldLabel(key), def });
-		}
-		entries.sort((a, b) => a.label.localeCompare(b.label));
-		return entries;
+		return getPickableFieldKeys()
+			.map((key) => ({ key, label: fieldLabel(key), def: allDefs[key] ?? { type: "string" } }))
+			.sort((a, b) => a.label.localeCompare(b.label));
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- the two change signals
 	}, [userDefs, pluginVersion]);
 }
