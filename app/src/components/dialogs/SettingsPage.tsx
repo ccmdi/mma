@@ -473,7 +473,7 @@ function StreetViewBody() {
 				<SettingRow
 					label={t("Pano look speed")}
 					control={
-						<SettingSlider setting="panoLookSpeed" min={1} max={10} step={1} format={(v) => v} />
+						<SettingSlider setting="panoLookSpeed" min={1} max={20} step={1} format={(v) => v} />
 					}
 				/>
 			</SettingsGroup>
