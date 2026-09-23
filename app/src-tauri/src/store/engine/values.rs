@@ -190,7 +190,7 @@ impl Store {
 
     /// Write `field`'s records to their disk home when they have unsaved edits.
     /// Write-through: called beside every record edit, the same pattern
-    /// `apply_field_defs` uses for field definitions.
+    /// `register_fields` uses for field definitions.
     pub(crate) fn persist_value_meta(&mut self, field: &str) {
         let Some(map_id) = self.map_id.clone() else {
             return;

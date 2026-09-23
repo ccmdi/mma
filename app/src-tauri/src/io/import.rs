@@ -7,6 +7,7 @@
 
 use crate::store::engine;
 use crate::types::AppResult;
+use crate::types::RawExtra;
 use std::sync::Mutex;
 
 mod parse;
@@ -69,6 +70,31 @@ pub struct ImportedMapInfo {
     pub tag_count: u32,
 }
 
+/// The `extra` a bulk-imported map starts with: the file's own field definitions, plus
+/// an inferred one for every key its rows carry that the file does not define.
+fn map_extra_json(map: &mut ParsedMap) -> AppResult<String> {
+    let mut fields: serde_json::Map<String, serde_json::Value> = map
+        .fields
+        .take()
+        .and_then(|f| f.as_object().cloned())
+        .unwrap_or_default();
+    let extras: Vec<&RawExtra> = map
+        .locations
+        .iter()
+        .filter_map(|l| l.extra.as_ref())
+        .collect();
+    if let Some(found) = maps::infer_field_defs(|k| fields.contains_key(k), &extras) {
+        for (key, def) in found {
+            fields.insert(key, serde_json::to_value(def)?);
+        }
+    }
+    Ok(if fields.is_empty() {
+        "{}".to_string()
+    } else {
+        serde_json::json!({ "fields": fields }).to_string()
+    })
+}
+
 fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedMapInfo> {
     renumber_ordered_tags(&mut map.tags);
     let map_id = Uuid::new_v4().to_string();
@@ -76,14 +102,7 @@ fn write_map_to_db(conn: &Connection, mut map: ParsedMap) -> AppResult<ImportedM
     let loc_count = map.locations.len() as u32;
     let tag_count = map.tags.len() as u32;
 
-    let extra_json = if let Some(fields) = &map.fields {
-        format!(
-            r#"{{"fields":{}}}"#,
-            serde_json::to_string(fields).unwrap_or_else(|_| "{}".into())
-        )
-    } else {
-        "{}".to_string()
-    };
+    let extra_json = map_extra_json(&mut map)?;
 
     let settings = merge_settings(MapSettings::default(), &map.settings);
     let settings_json =

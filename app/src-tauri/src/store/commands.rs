@@ -528,7 +528,7 @@ fn copy_to_map(
         // skips keys the target already defines, so an empty known-set is safe.
         {
             let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
-            if let Some(defs) = maps::auto_register_field_defs(|_| false, &extras) {
+            if let Some(defs) = maps::infer_field_defs(|_| false, &extras) {
                 maps::persist_field_defs(&conn, &target_map_id, &defs)?;
             }
         }

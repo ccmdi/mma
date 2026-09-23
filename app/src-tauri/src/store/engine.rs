@@ -225,6 +225,7 @@ impl Store {
     /// changeset, and return the full mutation result. The changeset is the single
     /// source of truth; the render delta and selection sync are two projections of it.
     pub(crate) fn finish_mutation(&mut self, changes: &ChangeSet) -> MutationResult {
+        self.register_fields(changes);
         let before = self.version;
         self.bump();
         self.update_bounds(changes, before);

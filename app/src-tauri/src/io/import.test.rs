@@ -550,7 +550,7 @@ fn ascii_escaped_field_names_survive_both_paths() {
         .iter()
         .filter_map(|l| l.extra.as_ref())
         .collect();
-    let defs = maps::auto_register_field_defs(|_| false, &extras).unwrap();
+    let defs = maps::infer_field_defs(|_| false, &extras).unwrap();
     let mut keys: Vec<&str> = defs.keys().map(String::as_str).collect();
     keys.sort();
     assert_eq!(keys, vec!["café", "countryCode"]);
@@ -803,6 +803,29 @@ fn a_bulk_preview_keeps_every_file_it_parsed() {
     for path in &paths {
         std::fs::remove_file(path).unwrap();
     }
+}
+
+#[test]
+fn a_bulk_import_defines_every_field_its_rows_carry() {
+    let mut buf = br#"{"name":"m","customCoordinates":[
+        {"lat":1,"lng":2,"extra":{"elevation":10,"countryCode":"US"}},
+        {"lat":3,"lng":4,"extra":{"region":"west"}}
+    ],"extra":{"fields":{"elevation":{"type":"number","label":"Height"}}}}"#
+        .to_vec();
+    let mut map = parse_single_json_mut(&mut buf);
+    let fields = maps::MapExtra::from_json(&map_extra_json(&mut map).unwrap())
+        .fields
+        .unwrap();
+    assert!(
+        fields.contains_key("countryCode"),
+        "a key only the rows carry is defined"
+    );
+    assert!(fields.contains_key("region"));
+    assert_eq!(
+        fields["elevation"].label.as_deref(),
+        Some("Height"),
+        "the file's own definition is kept"
+    );
 }
 
 #[test]

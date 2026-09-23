@@ -4939,7 +4939,7 @@ proptest::proptest! {
 // ---------------------------------------------------------------------------
 
 fn def_of(key: &str) -> maps::FieldDef {
-    maps::auto_register_field_defs(
+    maps::infer_field_defs(
         |_| false,
         &[&raw_extra(&format!(r#"{{"{key}":1}}"#)).unwrap()],
     )
@@ -5335,14 +5335,17 @@ fn new_extra_key_is_announced_in_the_same_result() {
         .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz")));
 }
 
-// A def the map already holds is never overwritten by a later inference for the same key.
+// A def the map already holds is never overwritten when a new row carries the same key.
 #[test]
-fn apply_field_defs_keeps_the_existing_def() {
+fn registering_fields_keeps_the_existing_def() {
     let mut store = setup_store_with(&[]);
     let mut user = def_of("k");
     user.label = Some("User edited".into());
     store.field_defs.edit().insert("k".into(), user);
-    apply_field_defs(&mut store, HashMap::from([("k".to_string(), def_of("k"))]));
+    store.register_fields(&ChangeSet {
+        added: vec![loc_with_extra(1, r#"{"k":1}"#)],
+        ..Default::default()
+    });
     assert_eq!(store.field_defs["k"].label.as_deref(), Some("User edited"));
 }
 

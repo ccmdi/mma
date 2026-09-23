@@ -130,27 +130,37 @@ pub struct LocationPatch {
     pub modified_at: Option<Option<u32>>,
 }
 
-/// Register every `extra` key the store has not seen, with an inferred definition.
-fn auto_register_extras(store: &mut Store, extras: &[&RawExtra]) {
-    if let Some(new_defs) =
-        maps::auto_register_field_defs(|k| store.field_defs.contains_key(k), extras)
-    {
-        apply_field_defs(store, new_defs);
-    }
-}
-
-/// Persist newly-discovered extra-field definitions to SQLite and into the store's
-/// registry. An existing definition is never overwritten, on disk or in memory.
-pub(crate) fn apply_field_defs(store: &mut Store, new_defs: HashMap<String, maps::FieldDef>) {
-    if let Some(map_id) = &store.map_id {
-        if let Ok(conn) = storage::open_db() {
-            let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
+impl Store {
+    /// Define every `extra` key the rows a change brought in carry that the map has no
+    /// definition for yet, with an inferred one, on disk and in memory. A bulk reset brings
+    /// in the overlay's adds.
+    pub(super) fn register_fields(&mut self, changes: &ChangeSet) {
+        let new_defs = {
+            let extras: Vec<&RawExtra> = if changes.full_reset {
+                self.overlay
+                    .adds
+                    .iter()
+                    .filter_map(|l| l.extra.as_ref())
+                    .collect()
+            } else {
+                changes
+                    .added
+                    .iter()
+                    .chain(changes.updated.iter().map(|(_, new)| new))
+                    .filter_map(|l| l.extra.as_ref())
+                    .collect()
+            };
+            maps::infer_field_defs(|k| self.field_defs.contains_key(k), &extras)
+        };
+        let Some(new_defs) = new_defs else {
+            return;
+        };
+        if let Some(map_id) = &self.map_id {
+            if let Ok(conn) = storage::open_db() {
+                let _ = maps::persist_field_defs(&conn, map_id, &new_defs);
+            }
         }
-    }
-    for (key, def) in new_defs {
-        if !store.field_defs.contains_key(&key) {
-            store.field_defs.edit().insert(key, def);
-        }
+        self.field_defs.edit().extend(new_defs);
     }
 }
 
@@ -161,38 +171,23 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Mut
     for loc in &mut locations {
         loc.id = store.alloc_id();
     }
-    let extras: Vec<&RawExtra> = locations.iter().filter_map(|l| l.extra.as_ref()).collect();
-    auto_register_extras(store, &extras);
     store.apply_undoable(Vec::new(), locations)
 }
 
-/// Apply `{id, patch}` updates: overlay, undo, extras registration. The one place a
-/// patch batch becomes a mutation -- every command that derives patches ends here.
+/// Apply `{id, patch}` updates: overlay and undo. The one place a patch batch becomes a
+/// mutation -- every command that derives patches ends here.
 pub(crate) fn apply_updates(
     store: &mut Store,
     updates: &[Update<LocationPatch>],
     record_undo: bool,
 ) -> MutationResult {
     let mut updated: Vec<(Location, Location)> = Vec::with_capacity(updates.len());
-    let any_extras = updates.iter().any(|u| u.patch.extra.is_some());
     for u in updates {
         if let Some((old, new)) = store.overlay_update(u.id, &u.patch) {
             if old != new {
                 updated.push((old, new));
             }
         }
-    }
-    let extras: Vec<RawExtra> = if any_extras {
-        updated
-            .iter()
-            .filter_map(|(_, n)| n.extra.clone())
-            .collect()
-    } else {
-        Vec::new()
-    };
-    if any_extras {
-        let refs: Vec<&RawExtra> = extras.iter().collect();
-        auto_register_extras(store, &refs);
     }
     let changes = ChangeSet {
         updated,

@@ -457,7 +457,7 @@ pub fn infer_field_type(value: &serde_json::Value) -> FieldType {
 /// Scan extra maps for keys not yet in `known_keys` and produce field definitions.
 /// Known SV metadata keys get curated definitions; unknown keys get type-inferred ones.
 /// Returns `None` if no new fields are discovered.
-pub fn auto_register_field_defs(
+pub fn infer_field_defs(
     is_known: impl Fn(&str) -> bool,
     extras: &[&RawExtra],
 ) -> Option<HashMap<String, FieldDef>> {

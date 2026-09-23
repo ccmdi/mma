@@ -5,7 +5,6 @@ use crate::store::engine;
 use crate::store::engine::with_store;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
-use crate::store::maps;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
@@ -301,15 +300,6 @@ pub(super) fn add_parsed_to_store(
     let t_reconcile = _t.elapsed();
     let t_counts = _t.elapsed();
 
-    // Discover new extra-field defs from the locations now, before we consume them.
-    let new_field_defs = {
-        let extras: Vec<&RawExtra> = parsed
-            .locations
-            .iter()
-            .filter_map(|l| l.extra.as_ref())
-            .collect();
-        maps::auto_register_field_defs(|k| store.field_defs.contains_key(k), &extras)
-    };
     let t_autoreg = _t.elapsed();
 
     // Small imports keep a reversible undo entry (needs a copy of the locations). Large
@@ -331,9 +321,6 @@ pub(super) fn add_parsed_to_store(
     store.overlay_add(mem::take(&mut parsed.locations));
     let t_overlay = _t.elapsed();
 
-    if let Some(defs) = new_field_defs {
-        engine::apply_field_defs(store, defs);
-    }
     let result = store.finish_mutation(&engine::ChangeSet {
         full_reset: true,
         ..Default::default()

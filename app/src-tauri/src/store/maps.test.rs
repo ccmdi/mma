@@ -218,16 +218,13 @@ fn auto_register_no_new_keys() {
         .iter()
         .map(ToString::to_string)
         .collect();
-    assert!(
-        auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"altitude": 100}"#)]).is_none()
-    );
+    assert!(infer_field_defs(|k| known.contains(k), &[&raw(r#"{"altitude": 100}"#)]).is_none());
 }
 
 #[test]
 fn auto_register_known_key() {
     let known: HashSet<String> = HashSet::new();
-    let result =
-        auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"altitude": 500}"#)]).unwrap();
+    let result = infer_field_defs(|k| known.contains(k), &[&raw(r#"{"altitude": 500}"#)]).unwrap();
     assert_eq!(result.len(), 1);
     let def = &result["altitude"];
     assert!(matches!(def.field_type, FieldType::Number));
@@ -237,8 +234,7 @@ fn auto_register_known_key() {
 #[test]
 fn auto_register_unknown_number() {
     let known: HashSet<String> = HashSet::new();
-    let result =
-        auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"plumbus": 1}"#)]).unwrap();
+    let result = infer_field_defs(|k| known.contains(k), &[&raw(r#"{"plumbus": 1}"#)]).unwrap();
     assert_eq!(result.len(), 1);
     let def = &result["plumbus"];
     assert!(matches!(def.field_type, FieldType::Number));
@@ -248,8 +244,7 @@ fn auto_register_unknown_number() {
 #[test]
 fn auto_register_unknown_string() {
     let known: HashSet<String> = HashSet::new();
-    let result =
-        auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"region": "EU"}"#)]).unwrap();
+    let result = infer_field_defs(|k| known.contains(k), &[&raw(r#"{"region": "EU"}"#)]).unwrap();
     assert!(matches!(result["region"].field_type, FieldType::String));
 }
 
@@ -257,8 +252,7 @@ fn auto_register_unknown_string() {
 fn auto_register_unknown_month() {
     let known: HashSet<String> = HashSet::new();
     let result =
-        auto_register_field_defs(|k| known.contains(k), &[&raw(r#"{"captured": "2024-03"}"#)])
-            .unwrap();
+        infer_field_defs(|k| known.contains(k), &[&raw(r#"{"captured": "2024-03"}"#)]).unwrap();
     assert!(matches!(result["captured"].field_type, FieldType::Month));
 }
 
@@ -266,7 +260,7 @@ fn auto_register_unknown_month() {
 fn auto_register_mixed() {
     let known: HashSet<String> = ["altitude"].iter().map(ToString::to_string).collect();
     let extra = raw(r#"{"altitude": 100, "countryCode": "US", "plumbus": 42}"#);
-    let result = auto_register_field_defs(|k| known.contains(k), &[&extra]).unwrap();
+    let result = infer_field_defs(|k| known.contains(k), &[&extra]).unwrap();
     // altitude is already known → skipped
     assert!(!result.contains_key("altitude"));
     // countryCode is new but in known_field_def → gets label
@@ -279,7 +273,7 @@ fn auto_register_mixed() {
 #[test]
 fn auto_register_deduplicates_across_extras() {
     let known: HashSet<String> = HashSet::new();
-    let result = auto_register_field_defs(
+    let result = infer_field_defs(
         |k| known.contains(k),
         &[&raw(r#"{"foo": 1}"#), &raw(r#"{"foo": 2, "bar": "x"}"#)],
     )
@@ -423,7 +417,7 @@ fn auto_register_intra_call_dedup_first_value_wins_for_inference() {
     // Two extras introduce the same new key "foo" with values of different
     // inferred type; the first extra processed determines the def.
     let known: HashSet<String> = HashSet::new();
-    let result = auto_register_field_defs(
+    let result = infer_field_defs(
         |k| known.contains(k),
         &[&raw(r#"{"foo": 5}"#), &raw(r#"{"foo": "2024-01"}"#)],
     )
@@ -435,7 +429,7 @@ fn auto_register_intra_call_dedup_first_value_wins_for_inference() {
 fn auto_register_curated_beats_inference_for_string_value() {
     // altitude's curated def is Number even though the sample value here is a string.
     let known: HashSet<String> = HashSet::new();
-    let result = auto_register_field_defs(
+    let result = infer_field_defs(
         |k| known.contains(k),
         &[&raw(r#"{"altitude": "not a number"}"#)],
     )
