@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::arrow;
-use crate::store::arrow::{col_heading, col_id, col_lat, col_lng};
+use crate::store::arrow::Columns;
 use roaring::RoaringBitmap;
 use std::array;
 use std::collections::{HashMap, HashSet};
@@ -298,10 +298,10 @@ pub(crate) fn build_cell_render_buffers(store: &mut Store, req: &RenderRequest) 
         }
     };
     let batch_n = b.num_rows();
-    let lats = col_lat(b);
-    let lngs = col_lng(b);
-    let ids_col = col_id(b);
-    let headings = col_heading(b);
+    let lats = Columns::lat(b);
+    let lngs = Columns::lng(b);
+    let ids_col = Columns::id(b);
+    let headings = Columns::heading(b);
     let has_dead = !store.overlay.dead.is_empty();
     let has_patches = !store.overlay.patches.is_empty();
 

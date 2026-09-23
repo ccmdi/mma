@@ -44,7 +44,7 @@ pub struct Location {
     pub lng: f64,
     #[field(label = "Heading", kind = writable, circular = 360.0)]
     pub heading: f64,
-    #[field(label = "Pitch", kind = writable, column = pitches)]
+    #[field(label = "Pitch", kind = writable)]
     pub pitch: f64,
     #[field(label = "Zoom", kind = writable)]
     pub zoom: f64,
@@ -58,7 +58,7 @@ pub struct Location {
     /// Tag IDs applied to this location. References interned values of the `tags`
     /// field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
     /// `Nothas` on an absent field.
-    #[field(label = "Tags", kind = writable, interned, absent_when_empty, column = tags)]
+    #[field(label = "Tags", kind = writable, interned, absent_when_empty)]
     pub tags: Vec<u32>,
     /// Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
     /// name past the builtins.
@@ -76,7 +76,7 @@ pub struct Location {
     clippy::single_component_path_imports,
     reason = "lifts the derive-emitted macro into the module namespace so other modules can path-import it"
 )]
-pub(crate) use location_fields;
+pub(crate) use {location_columns, location_fields};
 
 impl Default for Location {
     fn default() -> Self {

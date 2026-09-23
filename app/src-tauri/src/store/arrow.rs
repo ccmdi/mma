@@ -1,7 +1,7 @@
 //! Conversion layer between [`Location`] structs and Arrow [`RecordBatch`]es.
 //!
 //! Every persistent location passes through this module on read and write.
-//! The canonical column order and types are defined by [`location_schema`].
+//! The canonical column order and types follow `Location`'s fields; see [`Column`].
 
 use std::sync::Arc;
 
@@ -21,49 +21,303 @@ use std::collections::HashMap;
 use crate::types::{Location, LocationFlags};
 
 // ---------------------------------------------------------------------------
-// Column table
+// Columns
 // ---------------------------------------------------------------------------
 
-macro_rules! columns {
-    ($( $idx:literal $const:ident $accessor:ident $name:literal $dtype:expr, $arrow_ty:ty, $nullable:literal );+ $(;)?) => {
-        $( pub(crate) const $const: usize = $idx; )+
+/// How one `Location` field is stored as an Arrow column. `Cell` is a value as it can be
+/// read in place, from the field or from a row of the column, so building, reading back
+/// and comparing never copy more than the column needs.
+pub(crate) trait Column {
+    type Array: Array + 'static;
+    type Cell<'c>: PartialEq
+    where
+        Self: 'c;
+    const NULLABLE: bool;
+    fn data_type() -> DataType;
+    fn cell(&self) -> Self::Cell<'_>;
+    fn cell_at(col: &Self::Array, i: usize) -> Self::Cell<'_>;
+    fn own(cell: Self::Cell<'_>) -> Self;
+    fn build<'c>(cells: impl Iterator<Item = Self::Cell<'c>>, n: usize) -> ArrayRef
+    where
+        Self: 'c;
+}
 
-        $(
-            pub(crate) fn $accessor(b: &RecordBatch) -> &$arrow_ty {
-                b.column($const).as_any().downcast_ref().unwrap()
+macro_rules! primitive_column {
+    ($ty:ty, $array:ty, $data_type:expr) => {
+        impl Column for $ty {
+            type Array = $array;
+            type Cell<'c> = $ty;
+            const NULLABLE: bool = false;
+            fn data_type() -> DataType {
+                $data_type
             }
-        )+
-
-        /// The canonical Arrow schema for location data. Column order is generated
-        /// from the same table as the positional `COL_*` indices, so the two cannot
-        /// desync. Metadata carries the format version stamp (see [`crate::store::arrow::migrate`]).
-        pub fn location_schema() -> Schema {
-            Schema::new_with_metadata(
-                vec![ $( Field::new($name, $dtype, $nullable) ),+ ],
-                crate::store::arrow::migrate::version_metadata(),
-            )
+            fn cell(&self) -> $ty {
+                *self
+            }
+            fn cell_at(col: &$array, i: usize) -> $ty {
+                col.value(i)
+            }
+            fn own(cell: $ty) -> $ty {
+                cell
+            }
+            fn build<'c>(cells: impl Iterator<Item = $ty>, _: usize) -> ArrayRef
+            where
+                Self: 'c,
+            {
+                Arc::new(<$array>::from_iter_values(cells))
+            }
         }
     };
 }
 
-// `tags` is a `List<UInt32>`; `pano_id`/`extra`/`modified_at` are nullable.
-// TODO: extras-as-columns — promote known_field_keys to real typed columns
-// (schema per-map), JSON only at import/export. Big project; kills the per-row
-// JSON parse in filters/scans and the re-serialize cost in bake.
-columns! {
-    0  COL_ID          col_id          "id"          DataType::UInt32,  UInt32Array,  false;
-    1  COL_LAT         col_lat         "lat"         DataType::Float64, Float64Array, false;
-    2  COL_LNG         col_lng         "lng"         DataType::Float64, Float64Array, false;
-    3  COL_HEADING     col_heading     "heading"     DataType::Float64, Float64Array, false;
-    4  COL_PITCH       col_pitch       "pitch"       DataType::Float64, Float64Array, false;
-    5  COL_ZOOM        col_zoom        "zoom"        DataType::Float64, Float64Array, false;
-    6  COL_PANO_ID     col_pano_id     "pano_id"     DataType::Utf8,    StringArray,  true;
-    7  COL_FLAGS       col_flags       "flags"       DataType::UInt32,  UInt32Array,  false;
-    8  COL_TAGS        col_tags        "tags"        DataType::List(Arc::new(Field::new("item", DataType::UInt32, true))), ListArray, false;
-    9  COL_EXTRA       col_extra       "extra"       DataType::Utf8,    StringArray,  true;
-    10 COL_CREATED_AT  col_created_at  "created_at"  DataType::UInt32,  UInt32Array,  false;
-    11 COL_MODIFIED_AT col_modified_at "modified_at" DataType::UInt32,  UInt32Array,  true;
+primitive_column!(f64, Float64Array, DataType::Float64);
+primitive_column!(u32, UInt32Array, DataType::UInt32);
+
+impl Column for Option<u32> {
+    type Array = UInt32Array;
+    type Cell<'c> = Option<u32>;
+    const NULLABLE: bool = true;
+    fn data_type() -> DataType {
+        DataType::UInt32
+    }
+    fn cell(&self) -> Option<u32> {
+        *self
+    }
+    fn cell_at(col: &UInt32Array, i: usize) -> Option<u32> {
+        (!col.is_null(i)).then(|| col.value(i))
+    }
+    fn own(cell: Option<u32>) -> Option<u32> {
+        cell
+    }
+    fn build<'c>(cells: impl Iterator<Item = Option<u32>>, _: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        Arc::new(cells.collect::<UInt32Array>())
+    }
 }
+
+impl Column for LocationFlags {
+    type Array = UInt32Array;
+    type Cell<'c> = LocationFlags;
+    const NULLABLE: bool = false;
+    fn data_type() -> DataType {
+        DataType::UInt32
+    }
+    fn cell(&self) -> LocationFlags {
+        *self
+    }
+    fn cell_at(col: &UInt32Array, i: usize) -> LocationFlags {
+        LocationFlags::from_bits_retain(col.value(i))
+    }
+    fn own(cell: LocationFlags) -> Self {
+        cell
+    }
+    fn build<'c>(cells: impl Iterator<Item = LocationFlags>, _: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        Arc::new(UInt32Array::from_iter_values(cells.map(|f| f.bits())))
+    }
+}
+
+impl Column for Option<compact_str::CompactString> {
+    type Array = StringArray;
+    type Cell<'c> = Option<&'c str>;
+    const NULLABLE: bool = true;
+    fn data_type() -> DataType {
+        DataType::Utf8
+    }
+    fn cell(&self) -> Option<&str> {
+        self.as_deref()
+    }
+    fn cell_at(col: &StringArray, i: usize) -> Option<&str> {
+        (!col.is_null(i)).then(|| col.value(i))
+    }
+    fn own(cell: Option<&str>) -> Self {
+        cell.map(Into::into)
+    }
+    fn build<'c>(cells: impl Iterator<Item = Option<&'c str>>, _: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        Arc::new(cells.collect::<StringArray>())
+    }
+}
+
+impl Column for Vec<u32> {
+    type Array = ListArray;
+    type Cell<'c> = &'c [u32];
+    const NULLABLE: bool = false;
+    fn data_type() -> DataType {
+        DataType::List(Arc::new(Field::new("item", DataType::UInt32, true)))
+    }
+    fn cell(&self) -> &[u32] {
+        self
+    }
+    fn cell_at(col: &ListArray, i: usize) -> &[u32] {
+        let values = col
+            .values()
+            .as_any()
+            .downcast_ref::<UInt32Array>()
+            .unwrap()
+            .values();
+        let offsets = col.value_offsets();
+        &values[offsets[i] as usize..offsets[i + 1] as usize]
+    }
+    fn own(cell: &[u32]) -> Self {
+        cell.to_vec()
+    }
+    fn build<'c>(cells: impl Iterator<Item = &'c [u32]>, n: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        let mut b =
+            GenericListBuilder::<i32, UInt32Builder>::with_capacity(UInt32Builder::new(), n);
+        for cell in cells {
+            b.values().append_slice(cell);
+            b.append(true);
+        }
+        Arc::new(b.finish())
+    }
+}
+
+/// A stored `extra` document, raw. Two are equal when their text is, or when they parse to
+/// the same document: a stored row whose keys were escaped, or whose text does not parse,
+/// is unchanged by a patch that reads it back.
+#[derive(Clone, Copy)]
+pub(crate) struct ExtraCell<'c>(pub(crate) Option<&'c str>);
+
+impl PartialEq for ExtraCell<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        let parse = |s: Option<&str>| s.and_then(|s| RawExtra::from_string(s.to_owned()));
+        self.0 == other.0 || parse(self.0) == parse(other.0)
+    }
+}
+
+impl Column for Option<RawExtra> {
+    type Array = StringArray;
+    type Cell<'c> = ExtraCell<'c>;
+    const NULLABLE: bool = true;
+    fn data_type() -> DataType {
+        DataType::Utf8
+    }
+    fn cell(&self) -> ExtraCell<'_> {
+        ExtraCell(self.as_ref().map(RawExtra::as_str))
+    }
+    fn cell_at(col: &StringArray, i: usize) -> ExtraCell<'_> {
+        ExtraCell((!col.is_null(i)).then(|| col.value(i)))
+    }
+    fn own(cell: ExtraCell<'_>) -> Self {
+        cell.0.and_then(|s| RawExtra::from_string(s.to_owned()))
+    }
+    fn build<'c>(cells: impl Iterator<Item = ExtraCell<'c>>, _: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        Arc::new(cells.map(|c| c.0).collect::<StringArray>())
+    }
+}
+
+// One column per `Location` field, in declaration order (`#[derive(Fields)]`).
+macro_rules! columns {
+    ($({ $idx:literal, $f:ident, $ty:ty }),* $(,)?) => {
+        /// Every `Location` column of a batch, each downcast to its array type once.
+        /// `Columns::<field>(batch)` reads one column alone.
+        #[derive(Clone, Copy)]
+        pub(crate) struct Columns<'a> {
+            $(pub(crate) $f: &'a <$ty as Column>::Array,)*
+        }
+
+        #[allow(dead_code, reason = "one reader per column, generated whether or not it is called")]
+        impl<'a> Columns<'a> {
+            pub(crate) fn of(batch: &'a RecordBatch) -> Self {
+                Self { $($f: Self::$f(batch),)* }
+            }
+
+            /// Row `i` as a [`Location`].
+            pub(crate) fn location(&self, i: usize) -> Location {
+                Location {
+                    $($f: <$ty as Column>::own(<$ty as Column>::cell_at(self.$f, i)),)*
+                }
+            }
+
+            /// The row holding `id`: ids are strictly ascending, so this is a binary search.
+            pub(crate) fn row_of(&self, id: u32) -> Option<usize> {
+                self.id.values().binary_search(&id).ok()
+            }
+
+            $(
+                pub(crate) fn $f(batch: &'a RecordBatch) -> &'a <$ty as Column>::Array {
+                    batch
+                        .column($idx)
+                        .as_any()
+                        .downcast_ref()
+                        .expect(concat!("the ", stringify!($f), " column"))
+                }
+            )*
+        }
+
+        /// How many columns a location batch has.
+        pub(crate) const COLUMN_COUNT: usize = [$($idx),*].len();
+
+        /// The canonical Arrow schema for location data. Metadata carries the format
+        /// version stamp (see [`crate::store::arrow::migrate`]).
+        pub fn location_schema() -> Schema {
+            Schema::new_with_metadata(
+                vec![$(Field::new(stringify!($f), <$ty as Column>::data_type(), <$ty as Column>::NULLABLE)),*],
+                crate::store::arrow::migrate::version_metadata(),
+            )
+        }
+
+        /// Reference-based core: builds the batch from `&Location` pointers so callers can
+        /// stitch together rows from multiple sources (e.g. a delta's removed+created)
+        /// without deep-cloning every `Location` into one contiguous Vec.
+        fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
+            let n = locs.len();
+            let columns: Vec<ArrayRef> = vec![
+                $(<$ty as Column>::build(locs.iter().map(|l| l.$f.cell()), n)),*
+            ];
+            RecordBatch::try_new(Arc::new(location_schema()), columns).expect("schema matches columns")
+        }
+
+        /// Apply `patches` (id -> new Location) to a batch column-wise: only columns a
+        /// patch actually changed are rebuilt; untouched columns are reused via Arc clone.
+        /// Row order is preserved (sorted id invariant). Patch ids absent from the batch
+        /// are ignored.
+        pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> RecordBatch {
+            let n = batch.num_rows();
+            let cols = Columns::of(batch);
+            let hits: HashMap<usize, &Location> = (0..n)
+                .filter_map(|i| patches.get(&cols.id.value(i)).map(|p| (i, p)))
+                .collect();
+            if hits.is_empty() {
+                return batch.clone();
+            }
+            let columns: Vec<ArrayRef> = vec![$({
+                let col = cols.$f;
+                let touched = hits
+                    .iter()
+                    .any(|(&i, p)| <$ty as Column>::cell_at(col, i) != p.$f.cell());
+                if touched {
+                    <$ty as Column>::build(
+                        (0..n).map(|i| match hits.get(&i) {
+                            Some(p) => p.$f.cell(),
+                            None => <$ty as Column>::cell_at(col, i),
+                        }),
+                        n,
+                    )
+                } else {
+                    batch.column($idx).clone()
+                }
+            }),*];
+            RecordBatch::try_new(batch.schema(), columns).expect("schema matches columns")
+        }
+
+    };
+}
+
+crate::types::location_columns!(columns);
 
 /// Serialize a slice of [`Location`]s into a single Arrow [`RecordBatch`].
 ///
@@ -74,278 +328,10 @@ pub fn locations_to_batch(locs: &[Location]) -> RecordBatch {
     locations_to_batch_refs(&refs)
 }
 
-/// Reference-based core: builds the batch from `&Location` pointers so callers can
-/// stitch together rows from multiple sources (e.g. a delta's removed+created) without
-/// deep-cloning every `Location` into one contiguous Vec.
-fn locations_to_batch_refs(locs: &[&Location]) -> RecordBatch {
-    let n = locs.len();
-
-    let ids = UInt32Array::from_iter_values(locs.iter().map(|l| l.id));
-    let lats = Float64Array::from_iter_values(locs.iter().map(|l| l.lat));
-    let lngs = Float64Array::from_iter_values(locs.iter().map(|l| l.lng));
-    let headings = Float64Array::from_iter_values(locs.iter().map(|l| l.heading));
-    let pitches = Float64Array::from_iter_values(locs.iter().map(|l| l.pitch));
-    let zooms = Float64Array::from_iter_values(locs.iter().map(|l| l.zoom));
-    let pano_ids: StringArray = locs.iter().map(|l| l.pano_id.as_deref()).collect();
-    let flags = UInt32Array::from_iter_values(locs.iter().map(|l| l.flags.bits()));
-
-    let mut tags_builder =
-        GenericListBuilder::<i32, UInt32Builder>::with_capacity(UInt32Builder::new(), n);
-    for loc in locs {
-        let values = tags_builder.values();
-        for &tag in &loc.tags {
-            values.append_value(tag);
-        }
-        tags_builder.append(true);
-    }
-    let tags = tags_builder.finish();
-
-    let extras: StringArray = locs
-        .iter()
-        .map(|l| l.extra.as_ref().map(RawExtra::as_str))
-        .collect();
-
-    let created_ats = UInt32Array::from_iter_values(locs.iter().map(|l| l.created_at));
-    let modified_ats: UInt32Array = locs.iter().map(|l| l.modified_at).collect();
-
-    let schema = Arc::new(location_schema());
-    let columns: Vec<ArrayRef> = vec![
-        Arc::new(ids),
-        Arc::new(lats),
-        Arc::new(lngs),
-        Arc::new(headings),
-        Arc::new(pitches),
-        Arc::new(zooms),
-        Arc::new(pano_ids),
-        Arc::new(flags),
-        Arc::new(tags),
-        Arc::new(extras),
-        Arc::new(created_ats),
-        Arc::new(modified_ats),
-    ];
-
-    RecordBatch::try_new(schema, columns).expect("schema matches columns")
-}
-
-/// Apply `patches` (id -> new Location) to a batch column-wise: only columns a
-/// patch actually changed are rebuilt; untouched columns are reused via Arc clone.
-/// Row order is preserved (sorted id invariant). Patch ids absent from the batch
-/// are ignored.
-pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> RecordBatch {
-    let n = batch.num_rows();
-    let ids = col_id(batch);
-    let hits: HashMap<usize, &Location> = (0..n)
-        .filter_map(|i| patches.get(&ids.value(i)).map(|p| (i, p)))
-        .collect();
-    if hits.is_empty() {
-        return batch.clone();
-    }
-
-    let mut touched = [false; 12];
-    let lats = col_lat(batch);
-    let lngs = col_lng(batch);
-    let headings = col_heading(batch);
-    let pitches = col_pitch(batch);
-    let zooms = col_zoom(batch);
-    let pano_ids = col_pano_id(batch);
-    let flags = col_flags(batch);
-    let tags = col_tags(batch);
-    let tag_values = tags
-        .values()
-        .as_any()
-        .downcast_ref::<UInt32Array>()
-        .unwrap()
-        .values();
-    let tag_offsets = tags.value_offsets();
-    let extras = col_extra(batch);
-    let created_ats = col_created_at(batch);
-    let modified_ats = col_modified_at(batch);
-    for (&i, p) in &hits {
-        touched[COL_LAT] |= lats.value(i) != p.lat;
-        touched[COL_LNG] |= lngs.value(i) != p.lng;
-        touched[COL_HEADING] |= headings.value(i) != p.heading;
-        touched[COL_PITCH] |= pitches.value(i) != p.pitch;
-        touched[COL_ZOOM] |= zooms.value(i) != p.zoom;
-        touched[COL_PANO_ID] |= if pano_ids.is_null(i) {
-            p.pano_id.is_some()
-        } else {
-            p.pano_id.as_deref() != Some(pano_ids.value(i))
-        };
-        touched[COL_FLAGS] |= flags.value(i) != p.flags.bits();
-        touched[COL_TAGS] |=
-            tag_values[tag_offsets[i] as usize..tag_offsets[i + 1] as usize] != p.tags;
-        touched[COL_EXTRA] |= if extras.is_null(i) {
-            p.extra.is_some()
-        } else if p
-            .extra
-            .as_ref()
-            .is_some_and(|e| e.as_str() == extras.value(i))
-        {
-            false
-        } else {
-            RawExtra::from_string(extras.value(i).to_owned()).as_ref() != p.extra.as_ref()
-        };
-        touched[COL_CREATED_AT] |= created_ats.value(i) != p.created_at;
-        touched[COL_MODIFIED_AT] |= if modified_ats.is_null(i) {
-            p.modified_at.is_some()
-        } else {
-            p.modified_at != Some(modified_ats.value(i))
-        };
-    }
-
-    let f64_col =
-        |getter: fn(&RecordBatch) -> &Float64Array, pick: fn(&Location) -> f64| -> ArrayRef {
-            let old = getter(batch);
-            Arc::new(Float64Array::from_iter_values(
-                (0..n).map(|i| hits.get(&i).map_or_else(|| old.value(i), |p| pick(p))),
-            ))
-        };
-
-    let columns: Vec<ArrayRef> = batch
-        .columns()
-        .iter()
-        .enumerate()
-        .map(|(ci, col)| {
-            if !touched[ci] {
-                return col.clone();
-            }
-            match ci {
-                COL_LAT => f64_col(col_lat, |p| p.lat),
-                COL_LNG => f64_col(col_lng, |p| p.lng),
-                COL_HEADING => f64_col(col_heading, |p| p.heading),
-                COL_PITCH => f64_col(col_pitch, |p| p.pitch),
-                COL_ZOOM => f64_col(col_zoom, |p| p.zoom),
-                COL_PANO_ID => {
-                    let old = col_pano_id(batch);
-                    Arc::new(
-                        (0..n)
-                            .map(|i| match hits.get(&i) {
-                                Some(p) => p.pano_id.as_deref(),
-                                None => (!old.is_null(i)).then(|| old.value(i)),
-                            })
-                            .collect::<StringArray>(),
-                    )
-                }
-                COL_FLAGS => {
-                    let old = col_flags(batch);
-                    Arc::new(UInt32Array::from_iter_values((0..n).map(|i| {
-                        hits.get(&i)
-                            .map_or_else(|| old.value(i), |p| p.flags.bits())
-                    })))
-                }
-                COL_TAGS => {
-                    let old = col_tags(batch);
-                    let old_vals = old
-                        .values()
-                        .as_any()
-                        .downcast_ref::<UInt32Array>()
-                        .unwrap()
-                        .values();
-                    let offs = old.value_offsets();
-                    let mut b = GenericListBuilder::<i32, UInt32Builder>::with_capacity(
-                        UInt32Builder::new(),
-                        n,
-                    );
-                    for i in 0..n {
-                        match hits.get(&i) {
-                            Some(p) => b.values().append_slice(&p.tags),
-                            None => b
-                                .values()
-                                .append_slice(&old_vals[offs[i] as usize..offs[i + 1] as usize]),
-                        }
-                        b.append(true);
-                    }
-                    Arc::new(b.finish())
-                }
-                COL_EXTRA => {
-                    let old = col_extra(batch);
-                    Arc::new(
-                        (0..n)
-                            .map(|i| match hits.get(&i) {
-                                Some(p) => p.extra.as_ref().map(RawExtra::as_str),
-                                None => (!old.is_null(i)).then(|| old.value(i)),
-                            })
-                            .collect::<StringArray>(),
-                    )
-                }
-                COL_CREATED_AT => {
-                    let old = col_created_at(batch);
-                    Arc::new(UInt32Array::from_iter_values((0..n).map(|i| {
-                        hits.get(&i).map_or_else(|| old.value(i), |p| p.created_at)
-                    })))
-                }
-                COL_MODIFIED_AT => {
-                    let old = col_modified_at(batch);
-                    Arc::new(
-                        (0..n)
-                            .map(|i| match hits.get(&i) {
-                                Some(p) => p.modified_at,
-                                None => (!old.is_null(i)).then(|| old.value(i)),
-                            })
-                            .collect::<UInt32Array>(),
-                    )
-                }
-                _ => col.clone(),
-            }
-        })
-        .collect();
-
-    RecordBatch::try_new(batch.schema(), columns).expect("schema matches columns")
-}
-
-/// Extract a single [`Location`] from row `idx` of a batch.
-///
-/// Accesses columns by positional index (must match [`location_schema`] order).
-/// Nullable `extra` is deserialized from its JSON string; malformed JSON yields `None`.
-pub fn row_to_location(batch: &RecordBatch, idx: usize) -> Location {
-    let pano_id_col = col_pano_id(batch);
-    let pano_id = if pano_id_col.is_null(idx) {
-        None
-    } else {
-        Some(pano_id_col.value(idx).into())
-    };
-
-    let tags_arr = col_tags(batch).value(idx);
-    let tags_u32 = tags_arr.as_any().downcast_ref::<UInt32Array>().unwrap();
-    let tags: Vec<u32> = (0..tags_u32.len()).map(|i| tags_u32.value(i)).collect();
-
-    let extra_col = col_extra(batch);
-    let extra = if extra_col.is_null(idx) {
-        None
-    } else {
-        RawExtra::from_string(extra_col.value(idx).to_owned())
-    };
-
-    let modified_at = {
-        let col = col_modified_at(batch);
-        if col.is_null(idx) {
-            None
-        } else {
-            Some(col.value(idx))
-        }
-    };
-
-    Location {
-        id: col_id(batch).value(idx),
-        lat: col_lat(batch).value(idx),
-        lng: col_lng(batch).value(idx),
-        heading: col_heading(batch).value(idx),
-        pitch: col_pitch(batch).value(idx),
-        zoom: col_zoom(batch).value(idx),
-        pano_id,
-        flags: LocationFlags::from_bits_retain(col_flags(batch).value(idx)),
-        tags,
-        extra,
-        created_at: col_created_at(batch).value(idx),
-        modified_at,
-    }
-}
-
 /// Materialize every row of a batch into a `Vec<Location>`.
 pub fn batch_to_locations(batch: &RecordBatch) -> Vec<Location> {
-    (0..batch.num_rows())
-        .map(|i| row_to_location(batch, i))
-        .collect()
+    let cols = Columns::of(batch);
+    (0..batch.num_rows()).map(|i| cols.location(i)).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -389,18 +375,19 @@ pub fn delta_to_batch(created: &[Location], removed: &[Location]) -> RecordBatch
 /// 12-column base format (no `op`) and every row is treated as created. The latter
 /// lets a genesis commit reuse the base file instead of re-serializing it.
 pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
-    let ops = if batch.num_columns() > COL_MODIFIED_AT + 1 {
+    let ops = if batch.num_columns() > COLUMN_COUNT {
         batch
-            .column(COL_MODIFIED_AT + 1)
+            .column(COLUMN_COUNT)
             .as_any()
             .downcast_ref::<UInt8Array>()
     } else {
         None
     };
+    let cols = Columns::of(batch);
     let mut created = Vec::new();
     let mut removed = Vec::new();
     for i in 0..batch.num_rows() {
-        let loc = row_to_location(batch, i);
+        let loc = cols.location(i);
         match ops.map(|a| a.value(i)).unwrap_or(OP_CREATED) {
             OP_REMOVED => removed.push(loc),
             _ => created.push(loc),
@@ -412,24 +399,6 @@ pub fn batch_to_delta(batch: &RecordBatch) -> (Vec<Location>, Vec<Location>) {
 #[cfg(test)]
 #[path = "arrow.test.rs"]
 mod tests;
-
-/// Binary search for a location ID in a sorted batch. O(log n).
-pub(crate) fn batch_row_for_id(batch: &RecordBatch, id: u32) -> Option<usize> {
-    let ids = col_id(batch);
-    let (mut lo, mut hi) = (0usize, batch.num_rows());
-    while lo < hi {
-        let mid = lo + (hi - lo) / 2;
-        let mid_id = ids.value(mid);
-        if mid_id < id {
-            lo = mid + 1;
-        } else if mid_id > id {
-            hi = mid;
-        } else {
-            return Some(mid);
-        }
-    }
-    None
-}
 
 pub(crate) fn schema() -> SchemaRef {
     Arc::new(location_schema())

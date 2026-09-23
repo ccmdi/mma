@@ -3,7 +3,7 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{neighborhood, resolve_field_loc, Selector};
+use crate::selections::{self, neighborhood, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
@@ -1813,10 +1813,16 @@ fn invalidate_derived(
         .filter(|(key, _)| {
             map.contains_key(*key) || map.get("extra").is_some_and(|e| e.get(key).is_some())
         })
-        .filter(|(key, _)| written(map, key) != resolve_field_loc(row, key))
+        .filter(|(key, _)| {
+            written(map, key) != selections::RowRef::from_loc(row).resolve_field(key)
+        })
         .flat_map(|(_, deps)| deps.iter().map(String::as_str))
         .filter(|dep| !patch_keys().iter().any(|k| k == dep))
-        .filter(|dep| resolve_field_loc(row, dep).is_some())
+        .filter(|dep| {
+            selections::RowRef::from_loc(row)
+                .resolve_field(dep)
+                .is_some()
+        })
         .collect();
     if stale.is_empty() {
         return;

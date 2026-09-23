@@ -2,7 +2,7 @@
 //!
 //! All location data lives here. The overlay (adds, patches, dead set) accumulates mutations
 //! between saves; `bake_overlay` merges them back into the batch. IDs are kept strictly sorted
-//! in the batch to enable O(log n) lookups via `batch_row_for_id`. Render cells (32 geohash-1
+//! in the batch to enable O(log n) lookups via `Columns::row_of`. Render cells (32 geohash-1
 //! buckets) and selection bitmasks are derived from the same `ChangeSet` via `finish_mutation`.
 
 use crate::types::{AppError, AppResult};
@@ -25,7 +25,7 @@ use rayon::prelude::*;
 
 use crate::selections;
 use crate::store::arrow;
-use crate::store::arrow::{batch_row_for_id, col_id, schema};
+use crate::store::arrow::{schema, Columns};
 use crate::store::maps;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
@@ -346,20 +346,14 @@ impl Store {
         if let Ok(i) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
             return Some(self.overlay.adds[i].clone());
         }
-        if let Some(ref b) = self.batch {
-            if let Some(idx) = batch_row_for_id(b, id) {
-                return Some(arrow::row_to_location(b, idx));
-            }
-        }
-        None
+        self.base_loc_by_id(id)
     }
 
     /// Read a single location from the committed base batch by id (ignores the
     /// overlay). O(log n). Used to recover the pre-edit version of a row.
     fn base_loc_by_id(&self, id: u32) -> Option<Location> {
-        let b = self.batch.as_ref()?;
-        let idx = batch_row_for_id(b, id)?;
-        Some(arrow::row_to_location(b, idx))
+        let cols = Columns::of(self.batch.as_ref()?);
+        Some(cols.location(cols.row_of(id)?))
     }
 
     /// Build a commit delta directly from the overlay - the in-memory changeset
@@ -405,7 +399,7 @@ impl Store {
         let in_base = |id: u32| {
             self.batch
                 .as_ref()
-                .is_some_and(|b| batch_row_for_id(b, id).is_some())
+                .is_some_and(|b| Columns::of(b).row_of(id).is_some())
         };
         let mut added = self.overlay.adds.len() as u32;
         let mut modified = 0u32;
@@ -435,7 +429,7 @@ impl Store {
             let in_batch = self
                 .batch
                 .as_ref()
-                .and_then(|b| batch_row_for_id(b, loc.id))
+                .and_then(|b| Columns::of(b).row_of(loc.id))
                 .is_some();
             if !in_batch {
                 fresh.push(loc);
@@ -579,7 +573,7 @@ impl Store {
 
         // Step 1: filter out dead rows
         if !self.overlay.dead.is_empty() {
-            let ids = col_id(&batch);
+            let ids = Columns::id(&batch);
             let keep: Vec<u32> = (0..batch.num_rows())
                 .filter(|&i| !self.overlay.dead.contains(ids.value(i)))
                 .map(|i| i as u32)
@@ -617,7 +611,7 @@ impl Store {
         );
         assert!(
             {
-                let ids = col_id(&batch);
+                let ids = Columns::id(&batch);
                 (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i))
             },
             "batch IDs must be strictly sorted after bake"
@@ -975,8 +969,12 @@ pub fn clearable_builtins() -> &'static [&'static str] {
                 };
                 let mut cleared = patched(&populated, &patch);
                 touch(&mut cleared);
-                selections::resolve_field_loc(&populated, key).is_some()
-                    && selections::resolve_field_loc(&cleared, key).is_none()
+                selections::RowRef::from_loc(&populated)
+                    .resolve_field(key)
+                    .is_some()
+                    && selections::RowRef::from_loc(&cleared)
+                        .resolve_field(key)
+                        .is_none()
             })
             .collect()
     })

@@ -4,7 +4,6 @@ use super::*;
 use crate::store::maps::{ComparisonType, FieldType};
 use crate::types::Location;
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
-use arrow_array::Array;
 use serde::Serialize;
 use std::cmp::Ordering;
 
@@ -76,76 +75,35 @@ macro_rules! field_interned {
     };
 }
 
-/// A field's value off a `Location`, by category. `None` is absence.
-macro_rules! field_loc_value {
-    (f64, $l:ident, $f:ident) => {
-        Some(serde_json::json!($l.$f))
+/// A built-in field's value on a row, by category, read through the row's typed column
+/// reader. `None` is absence.
+macro_rules! field_value {
+    (f64, $r:ident, $c:ident, $f:ident) => {
+        Some(serde_json::json!($r.$c()))
     };
-    (u32, $l:ident, $f:ident) => {
-        Some(serde_json::json!($l.$f))
+    (u32, $r:ident, $c:ident, $f:ident) => {
+        Some(serde_json::json!($r.$c()))
     };
-    (date_u32, $l:ident, $f:ident) => {
-        Some(serde_json::json!($l.$f as f64))
+    (date_u32, $r:ident, $c:ident, $f:ident) => {
+        Some(serde_json::json!($r.$c() as f64))
     };
-    (opt_date_u32, $l:ident, $f:ident) => {
-        $l.$f.map(|ts| serde_json::json!(ts as f64))
+    (opt_date_u32, $r:ident, $c:ident, $f:ident) => {
+        $r.$c().map(|ts| serde_json::json!(ts as f64))
     };
-    (opt_str_empty, $l:ident, $f:ident) => {
-        $l.$f
-            .as_deref()
-            .filter(|p| !p.is_empty())
-            .map(|p| serde_json::json!(p))
+    (opt_str_empty, $r:ident, $c:ident, $f:ident) => {
+        $r.$c()
+            .filter(|s| !s.is_empty())
+            .map(|s| serde_json::json!(s))
     };
-    (u32_list_empty, $l:ident, $f:ident) => {
-        (!$l.$f.is_empty()).then(|| serde_json::json!($l.$f))
+    (u32_list_empty, $r:ident, $c:ident, $f:ident) => {{
+        let list = $r.$c();
+        (!list.is_empty()).then(|| serde_json::json!(list))
+    }};
+    (len_of, $r:ident, $c:ident, $f:ident) => {
+        Some(serde_json::json!($r.$c().len()))
     };
-    (len_of, $l:ident, $f:ident) => {
-        Some(serde_json::json!($l.$f.len()))
-    };
-    (flag, $l:ident, $f:ident) => {
-        Some(flag_value($l.flags, LocationFlags::$f))
-    };
-}
-
-/// The same value off the Arrow columns, via `LocView`'s cached refs.
-macro_rules! field_arrow_value {
-    (f64, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.map(|c| serde_json::json!(c.value($i)))
-    };
-    (u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.map(|c| serde_json::json!(c.value($i)))
-    };
-    (date_u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.map(|c| serde_json::json!(c.value($i) as f64))
-    };
-    (opt_date_u32, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c
-            .and_then(|c| (!c.is_null($i)).then(|| serde_json::json!(c.value($i) as f64)))
-    };
-    (opt_str_empty, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.and_then(|c| {
-            (!c.is_null($i) && !c.value($i).is_empty()).then(|| serde_json::json!(c.value($i)))
-        })
-    };
-    (u32_list_empty, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.and_then(|c| {
-            let list = c.value($i);
-            let ids = list.as_any().downcast_ref::<UInt32Array>().unwrap();
-            (!ids.is_empty()).then(|| {
-                serde_json::json!((0..ids.len()).map(|k| ids.value(k)).collect::<Vec<_>>())
-            })
-        })
-    };
-    (len_of, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.map(|c| serde_json::json!(c.value($i).len()))
-    };
-    (flag, $v:ident, $i:ident, $c:ident, $f:ident) => {
-        $v.$c.map(|c| {
-            flag_value(
-                LocationFlags::from_bits_retain(c.value($i)),
-                LocationFlags::$f,
-            )
-        })
+    (flag, $r:ident, $c:ident, $f:ident) => {
+        Some(flag_value($r.$c(), LocationFlags::$f))
     };
 }
 
@@ -183,30 +141,12 @@ macro_rules! expand_location_fields {
             }
         }
 
-        /// Resolve a field name to its JSON value from a `Location` struct. Unknown fields
-        /// fall through to `loc.extra`. `None` is the one meaning of absence: a builtin
-        /// without a value and an `extra` key holding JSON null both resolve to it.
-        pub(crate) fn resolve_field_loc(loc: &Location, field: &str) -> Option<serde_json::Value> {
+        /// A built-in field's value on `row`, `None` when the row lacks it. `None` is the
+        /// one meaning of absence: resolving an `extra` key holding JSON null agrees.
+        pub(super) fn builtin_value(row: &RowRef, field: &str) -> Option<serde_json::Value> {
             match field {
-                $($key => field_loc_value!($cat, loc, $f),)*
-                _ => loc.extra.as_ref().and_then(|e| e.get(field)).filter(|v| !v.is_null()),
-            }
-        }
-
-        /// Resolve a field name to its JSON value directly from Arrow columns (avoids
-        /// materializing a full `Location`). Falls through to `extras` JSON otherwise.
-        pub(super) fn resolve_field_arrow(view: &LocView, idx: usize, field: &str) -> Option<serde_json::Value> {
-            match field {
-                $($key => field_arrow_value!($cat, view, idx, $col, $f),)*
-                _ => {
-                    let extras = view.extras?;
-                    if extras.is_null(idx) {
-                        return None;
-                    }
-                    // Byte-scan for the one key; parses only its value slice instead of
-                    // the whole extras document per row.
-                    crate::types::json_field(extras.value(idx), field).filter(|v| !v.is_null())
-                }
+                $($key => field_value!($cat, row, $col, $f),)*
+                _ => None,
             }
         }
     };
@@ -232,7 +172,7 @@ pub fn optional_builtins() -> &'static [&'static str] {
         let empty = Location::default();
         BUILTIN_FIELDS
             .iter()
-            .filter(|f| resolve_field_loc(&empty, f.key).is_none())
+            .filter(|f| RowRef::from_loc(&empty).resolve_field(f.key).is_none())
             .map(|f| f.key)
             .collect()
     })

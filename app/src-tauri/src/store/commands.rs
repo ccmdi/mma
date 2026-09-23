@@ -7,7 +7,7 @@ use crate::io::import;
 use crate::plugins::borders;
 use crate::selections::{self, Selection, Selector};
 use crate::store::arrow;
-use crate::store::arrow::{col_id, schema};
+use crate::store::arrow::schema;
 use crate::store::engine::*;
 use crate::store::maps;
 use crate::store::storage;
@@ -90,7 +90,7 @@ pub async fn store_open_map(
 
         // Legacy files may be unsorted; enforce the sorted ID invariant once.
         let (batch, mmap_handle) = {
-            let ids = col_id(&batch);
+            let ids = arrow::Columns::id(&batch);
             let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
             if sorted || batch.num_rows() == 0 {
                 (batch, mmap_handle)
@@ -121,7 +121,7 @@ pub async fn store_open_map(
 
         let n = batch.num_rows();
         let max_id = if n > 0 {
-            col_id(&batch).value(n - 1)
+            arrow::Columns::id(&batch).value(n - 1)
         } else {
             0
         };

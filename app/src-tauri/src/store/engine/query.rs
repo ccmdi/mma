@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::selections::{self, FilterOp, Selector};
-use crate::store::arrow::{col_lat, col_lng};
+use crate::store::arrow::Columns;
 use crate::store::maps::IndexShape;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
@@ -171,8 +171,8 @@ impl Store {
             return Some((l.lat, l.lng));
         }
         if let Some(b) = batch {
-            if let Some(idx) = batch_row_for_id(b, id) {
-                return Some((col_lat(b).value(idx), col_lng(b).value(idx)));
+            if let Some(idx) = Columns::of(b).row_of(id) {
+                return Some((Columns::lat(b).value(idx), Columns::lng(b).value(idx)));
             }
         }
         None
@@ -409,7 +409,7 @@ impl Store {
             let mut values_moved = false;
             for (locs, present) in [(removed, false), (added, true)] {
                 for loc in locs {
-                    let Some(v) = selections::resolve_field_loc(loc, field) else {
+                    let Some(v) = selections::RowRef::from_loc(loc).resolve_field(field) else {
                         continue;
                     };
                     let mark = |ids: &mut RoaringBitmap| {

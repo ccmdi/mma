@@ -21,7 +21,7 @@ pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mu
     }
     let mut points = Vec::new();
 
-    for i in 0..view.batch_rows {
+    for i in 0..view.batch_rows() {
         if !view.is_alive(i) {
             continue;
         }
@@ -33,8 +33,8 @@ pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mu
             });
         } else {
             points.push(Pt {
-                lat: view.lats.unwrap().value(i),
-                lng: view.lngs.unwrap().value(i),
+                lat: view.cols.unwrap().lat.value(i),
+                lng: view.cols.unwrap().lng.value(i),
                 global_idx: i,
             });
         }
@@ -43,7 +43,7 @@ pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mu
         points.push(Pt {
             lat: loc.lat,
             lng: loc.lng,
-            global_idx: view.batch_rows + j,
+            global_idx: view.batch_rows() + j,
         });
     }
 

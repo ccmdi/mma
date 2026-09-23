@@ -901,13 +901,13 @@ fn builtin_fields_resolve_on_every_path() {
     for f in BUILTIN_FIELDS {
         assert!(is_builtin_field(f.key), "{} not a builtin", f.key);
         assert_ne!(
-            resolve_field_loc(&l, f.key),
+            RowRef::from_loc(&l).resolve_field(f.key),
             sentinel,
             "{} falls through to extras on the Location path",
             f.key
         );
         assert_ne!(
-            resolve_field_arrow(&view, 0, f.key),
+            base_row.resolve_field(f.key),
             sentinel,
             "{} falls through to extras on the Arrow path",
             f.key
@@ -923,15 +923,14 @@ fn builtin_fields_resolve_on_every_path() {
     // Non-builtin keys still come from extras on every path.
     assert!(!is_builtin_field("timezone"));
     let utc = Some(serde_json::json!("UTC"));
-    assert_eq!(resolve_field_loc(&l, "timezone"), utc);
-    assert_eq!(resolve_field_arrow(&view, 0, "timezone"), utc);
+    assert_eq!(RowRef::from_loc(&l).resolve_field("timezone"), utc);
+    assert_eq!(base_row.resolve_field("timezone"), utc);
     assert_eq!(base_row.resolve_field_and_tz("timezone").0, utc);
 }
 
 // tagCount is a virtual field: filtered through the Filter primitive, resolved as the
 // length of the tag list. Counts every assigned tag (visibility is a display concern).
-// Covers both resolution paths: base-batch rows (resolve_field_arrow) and overlay adds
-// (resolve_field_loc).
+// Covers both row kinds: base-batch rows and overlay adds.
 #[test]
 fn resolve_filter_tag_count() {
     let b1 = loc(1, 0.0, 0.0); // base: 0 tags
@@ -1081,12 +1080,12 @@ fn live_tag_index(view: &LocView) -> FieldIndexes {
     let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
     for row in view.all().rows() {
         let id = row.id();
-        row.for_each_tag(|t| {
+        for &t in row.tags() {
             by_value
                 .entry(index_key(&serde_json::json!(t)).unwrap())
                 .or_default()
                 .insert(id);
-        });
+        }
     }
     let index = FieldIndex {
         shape: IndexShape::Multi,
@@ -3324,29 +3323,26 @@ fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
 /// The flag alone is not enough: an empty or absent pano id is not pinned, in either
 /// row variant.
 #[test]
-fn is_pinned_requires_the_flag_and_a_non_empty_pano_id() {
-    let locs = [
+fn pinned_requires_the_flag_and_a_non_empty_pano_id() {
+    let locs = vec![
         pinned(1, Some("a"), true),
         pinned(2, Some("b"), false),
         pinned(3, None, true),
         pinned(4, Some(""), true),
     ];
-    let fx = Fx::base(&locs);
-    let view = fx.view();
-    let base = |i| {
-        RowRef {
-            inner: RowInner::Base(&view, i),
-        }
-        .is_pinned()
+    let pinned_ids = |fx: &Fx| -> Vec<u32> {
+        fx.view()
+            .all()
+            .resolve(&Selector::pano_ids(true))
+            .iter()
+            .collect()
     };
-    assert!(base(0));
-    assert!(!base(1));
-    assert!(!base(2));
-    assert!(!base(3));
-
-    for (loc, want) in locs.iter().zip([true, false, false, false]) {
-        assert_eq!(RowRef::from_loc(loc).is_pinned(), want);
-    }
+    assert_eq!(pinned_ids(&Fx::base(&locs)), vec![1], "base rows");
+    assert_eq!(
+        pinned_ids(&Fx::base(&[]).with_adds(locs)),
+        vec![1],
+        "overlay rows"
+    );
 }
 
 #[test]

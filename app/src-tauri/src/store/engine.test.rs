@@ -2261,7 +2261,7 @@ fn paint_map_matches_paint_for() {
 
 fn ids_sorted(store: &Store) -> bool {
     if let Some(ref b) = store.batch {
-        let ids = col_id(b);
+        let ids = Columns::id(b);
         (1..b.num_rows()).all(|i| ids.value(i - 1) < ids.value(i))
     } else {
         true
@@ -2301,7 +2301,7 @@ fn bake_preserves_sorted_ids_after_remove_and_patch() {
     assert!(ids_sorted(&store));
     let ids: Vec<u32> = {
         let b = store.batch.as_ref().unwrap();
-        (0..b.num_rows()).map(|i| col_id(b).value(i)).collect()
+        (0..b.num_rows()).map(|i| Columns::id(b).value(i)).collect()
     };
     assert_eq!(ids, vec![1, 3, 4]);
 }
@@ -2321,7 +2321,7 @@ fn bake_preserves_sorted_ids_after_mixed_ops() {
     assert!(ids_sorted(&store));
     let ids: Vec<u32> = {
         let b = store.batch.as_ref().unwrap();
-        (0..b.num_rows()).map(|i| col_id(b).value(i)).collect()
+        (0..b.num_rows()).map(|i| Columns::id(b).value(i)).collect()
     };
     assert_eq!(ids, vec![2, 3]);
 }
@@ -2343,7 +2343,7 @@ fn bake_sorted_ids_survive_multiple_cycles() {
 }
 
 // -----------------------------------------------------------------------
-// Binary search (batch_row_for_id)
+// Binary search (Columns::row_of)
 // -----------------------------------------------------------------------
 
 #[test]
@@ -2351,9 +2351,9 @@ fn binary_search_finds_existing_ids() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(5, 10.0, 10.0), loc(10, 20.0, 20.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(batch_row_for_id(b, 1), Some(0));
-    assert_eq!(batch_row_for_id(b, 5), Some(1));
-    assert_eq!(batch_row_for_id(b, 10), Some(2));
+    assert_eq!(Columns::of(b).row_of(1), Some(0));
+    assert_eq!(Columns::of(b).row_of(5), Some(1));
+    assert_eq!(Columns::of(b).row_of(10), Some(2));
 }
 
 #[test]
@@ -2361,16 +2361,16 @@ fn binary_search_returns_none_for_missing() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(5, 10.0, 10.0), loc(10, 20.0, 20.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(batch_row_for_id(b, 0), None);
-    assert_eq!(batch_row_for_id(b, 3), None);
-    assert_eq!(batch_row_for_id(b, 7), None);
-    assert_eq!(batch_row_for_id(b, 99), None);
+    assert_eq!(Columns::of(b).row_of(0), None);
+    assert_eq!(Columns::of(b).row_of(3), None);
+    assert_eq!(Columns::of(b).row_of(7), None);
+    assert_eq!(Columns::of(b).row_of(99), None);
 }
 
 #[test]
 fn binary_search_on_empty_batch() {
     let b = empty_batch();
-    assert_eq!(batch_row_for_id(&b, 1), None);
+    assert_eq!(Columns::of(&b).row_of(1), None);
 }
 
 #[test]
@@ -2378,9 +2378,9 @@ fn binary_search_single_element() {
     let mut store = setup_store_with(&[loc(42, 0.0, 0.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(batch_row_for_id(b, 42), Some(0));
-    assert_eq!(batch_row_for_id(b, 41), None);
-    assert_eq!(batch_row_for_id(b, 43), None);
+    assert_eq!(Columns::of(b).row_of(42), Some(0));
+    assert_eq!(Columns::of(b).row_of(41), None);
+    assert_eq!(Columns::of(b).row_of(43), None);
 }
 
 #[test]
@@ -3907,7 +3907,7 @@ fn press_redo(store: &mut Store) {
 fn assert_bake_sorted(store: &mut Store) {
     store.bake_overlay();
     let batch = store.batch.as_ref().unwrap();
-    let ids = col_id(batch);
+    let ids = Columns::id(batch);
     assert!(
         (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i)),
         "batch ids strictly sorted after bake"

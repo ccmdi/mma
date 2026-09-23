@@ -8,11 +8,11 @@
 pub(crate) mod field_expr;
 pub(crate) mod saved;
 
-use crate::store::arrow;
+use crate::store::arrow::{Column, Columns};
 use crate::store::maps::IndexShape;
 use crate::types;
-use crate::types::{Location, LocationFlags};
-use arrow_array::{Array, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array};
+use crate::types::{Location, LocationFlags, RawExtra};
+use arrow_array::RecordBatch;
 
 mod duplicates;
 mod filter;
@@ -346,26 +346,11 @@ pub fn index_keys(shape: IndexShape, v: &serde_json::Value) -> Vec<String> {
 /// references, so a copy costs nothing.
 #[derive(Clone, Copy)]
 pub struct LocView<'a> {
-    batch: Option<&'a RecordBatch>,
     dead: &'a RoaringBitmap,
     patches: &'a HashMap<u32, Location>,
     adds: &'a [Location],
-    // Cached column refs (from batch)
-    ids: Option<&'a UInt32Array>,
-    lats: Option<&'a Float64Array>,
-    lngs: Option<&'a Float64Array>,
-    headings: Option<&'a Float64Array>,
-    pitches: Option<&'a Float64Array>,
-    zooms: Option<&'a Float64Array>,
-    flags: Option<&'a UInt32Array>,
-    tags: Option<&'a ListArray>,
-    extras: Option<&'a StringArray>,
-    pano_ids: Option<&'a StringArray>,
-    created_ats: Option<&'a UInt32Array>,
-    modified_ats: Option<&'a UInt32Array>,
-    batch_rows: usize,
-    has_dead: bool,
-    has_patches: bool,
+    /// The base batch's columns, downcast once.
+    cols: Option<Columns<'a>>,
     /// Optional per-field inverted indexes. When one covers the filtered field and the
     /// operator is a lookup, a `Filter` leaf resolves by cloning postings instead of
     /// scanning every row.
@@ -400,102 +385,6 @@ impl<'a> RowRef<'a, '_> {
 }
 
 impl<'a, 'v> RowRef<'a, 'v> {
-    #[inline]
-    pub fn id(&self) -> u32 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.batch_id(*i),
-            RowInner::Loc(l) => l.id,
-        }
-    }
-    #[inline]
-    pub fn lat(&self) -> f64 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.lats.unwrap().value(*i),
-            RowInner::Loc(l) => l.lat,
-        }
-    }
-    #[inline]
-    pub fn lng(&self) -> f64 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.lngs.unwrap().value(*i),
-            RowInner::Loc(l) => l.lng,
-        }
-    }
-    #[inline]
-    #[allow(
-        dead_code,
-        reason = "completes the lat/lng/heading/pitch/zoom accessor set"
-    )]
-    pub fn heading(&self) -> f64 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.headings.unwrap().value(*i),
-            RowInner::Loc(l) => l.heading,
-        }
-    }
-    #[inline]
-    #[allow(
-        dead_code,
-        reason = "completes the lat/lng/heading/pitch/zoom accessor set"
-    )]
-    pub fn pitch(&self) -> f64 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.pitches.unwrap().value(*i),
-            RowInner::Loc(l) => l.pitch,
-        }
-    }
-    #[inline]
-    #[allow(
-        dead_code,
-        reason = "completes the lat/lng/heading/pitch/zoom accessor set"
-    )]
-    pub fn zoom(&self) -> f64 {
-        match &self.inner {
-            RowInner::Base(v, i) => v.zooms.unwrap().value(*i),
-            RowInner::Loc(l) => l.zoom,
-        }
-    }
-    #[inline]
-    #[allow(dead_code, reason = "is_pinned's read; kept beside it")]
-    pub fn flags(&self) -> LocationFlags {
-        match &self.inner {
-            RowInner::Base(v, i) => LocationFlags::from_bits_retain(v.flags.unwrap().value(*i)),
-            RowInner::Loc(l) => l.flags,
-        }
-    }
-    /// Pinned: the row always opens one exact pano. The named form of the predicate
-    /// [`Selector::pano_ids`] expresses as a query.
-    #[allow(
-        dead_code,
-        reason = "exercised by tests; queries go through Selector::pano_ids"
-    )]
-    pub fn is_pinned(&self) -> bool {
-        if !self.flags().contains(LocationFlags::LOAD_AS_PANO_ID) {
-            return false;
-        }
-        match &self.inner {
-            RowInner::Base(v, i) => {
-                let ids = v.pano_ids.unwrap();
-                !ids.is_null(*i) && !ids.value(*i).is_empty()
-            }
-            RowInner::Loc(l) => l.pano_id.as_deref().is_some_and(|p| !p.is_empty()),
-        }
-    }
-    pub fn for_each_tag(&self, mut f: impl FnMut(u32)) {
-        match &self.inner {
-            RowInner::Base(v, i) => {
-                let list = v.tags.unwrap().value(*i);
-                let ids = list.as_any().downcast_ref::<UInt32Array>().unwrap();
-                for j in 0..ids.len() {
-                    f(ids.value(j));
-                }
-            }
-            RowInner::Loc(l) => {
-                for &t in &l.tags {
-                    f(t);
-                }
-            }
-        }
-    }
     /// Hand `f` each of `fields` this row holds, by position, with its value. Built-in
     /// fields read their columns; every other field comes from one walk of the row's
     /// extras that stops once all of them are found. A null value is not held.
@@ -506,11 +395,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 wanted += 1;
                 continue;
             }
-            let v = match &self.inner {
-                RowInner::Base(v, row) => resolve_field_arrow(v, *row, field),
-                RowInner::Loc(l) => resolve_field_loc(l, field),
-            };
-            if let Some(v) = v {
+            if let Some(v) = builtin_value(self, field) {
                 f(i, v);
             }
         }
@@ -531,28 +416,15 @@ impl<'a, 'v> RowRef<'a, 'v> {
             }
             found == wanted
         };
-        match &self.inner {
-            RowInner::Loc(l) => {
-                if let Some(extra) = l.extra.as_ref() {
-                    extra.for_each_field(|key, raw| {
-                        member(key, raw);
-                    });
-                }
-            }
-            RowInner::Base(v, i) => {
-                let Some(extras) = v.extras else { return };
-                if extras.is_null(*i) {
-                    return;
-                }
-                let s = extras.value(*i);
-                types::scan_fields(s.as_bytes(), |fs| {
-                    member(
-                        &types::decode_json_key(&s[fs.key.clone()]),
-                        &s[fs.value.clone()],
-                    )
-                });
-            }
-        }
+        let Some(extra) = self.extra().0 else {
+            return;
+        };
+        types::scan_fields(extra.as_bytes(), |fs| {
+            member(
+                &types::decode_json_key(&extra[fs.key.clone()]),
+                &extra[fs.value.clone()],
+            )
+        });
     }
     pub fn resolve_field(&self, field: &str) -> Option<serde_json::Value> {
         let mut value = None;
@@ -570,7 +442,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
     }
     pub fn to_location(&self) -> Location {
         match &self.inner {
-            RowInner::Base(v, i) => v.loc_at(*i),
+            RowInner::Base(v, i) => v.cols.unwrap().location(*i),
             RowInner::Loc(l) => (*l).clone(),
         }
     }
@@ -584,6 +456,27 @@ impl<'a, 'v> RowRef<'a, 'v> {
     }
 }
 
+// One typed reader per `Location` field (`#[derive(Fields)]`): the column's value in
+// place on a base row, the field on an overlay row.
+macro_rules! row_readers {
+    ($({ $idx:literal, $f:ident, $ty:ty }),* $(,)?) => {
+        #[allow(dead_code, reason = "one reader per column, generated whether or not it is called")]
+        impl<'a, 'v> RowRef<'a, 'v> {
+            $(
+                #[inline]
+                pub fn $f(&self) -> <$ty as Column>::Cell<'_> {
+                    match &self.inner {
+                        RowInner::Base(v, i) => <$ty as Column>::cell_at(v.cols.unwrap().$f, *i),
+                        RowInner::Loc(l) => l.$f.cell(),
+                    }
+                }
+            )*
+        }
+    };
+}
+
+crate::types::location_columns!(row_readers);
+
 impl<'a> LocView<'a> {
     pub fn new(
         batch: Option<&'a RecordBatch>,
@@ -592,85 +485,39 @@ impl<'a> LocView<'a> {
         adds: &'a [Location],
         field_indexes: Option<&'a FieldIndexes>,
     ) -> Self {
-        use crate::store::arrow::{
-            col_created_at, col_extra, col_flags, col_heading, col_id, col_lat, col_lng,
-            col_modified_at, col_pano_id, col_pitch, col_tags, col_zoom,
-        };
-        let batch_rows = batch.map_or(0, RecordBatch::num_rows);
-        let ids = batch.map(col_id);
-        let lats = batch.map(col_lat);
-        let lngs = batch.map(col_lng);
-        let headings = batch.map(col_heading);
-        let pitches = batch.map(col_pitch);
-        let zooms = batch.map(col_zoom);
-        let flags = batch.map(col_flags);
-        let tags = batch.map(col_tags);
-        let extras = batch.map(col_extra);
-        let pano_ids = batch.map(col_pano_id);
-        let created_ats = batch.map(col_created_at);
-        let modified_ats = batch.map(col_modified_at);
-        let has_dead = !dead.is_empty();
-        let has_patches = !patches.is_empty();
         Self {
-            batch,
             dead,
             patches,
             adds,
-            ids,
-            lats,
-            lngs,
-            headings,
-            pitches,
-            zooms,
-            flags,
-            tags,
-            extras,
-            pano_ids,
-            created_ats,
-            modified_ats,
-            batch_rows,
-            has_dead,
-            has_patches,
+            cols: batch.map(Columns::of),
             field_indexes,
         }
     }
 
+    /// How many rows the base batch holds, dead ones included.
+    fn batch_rows(&self) -> usize {
+        self.cols.map_or(0, |c| c.id.len())
+    }
+
     /// Read the raw batch ID at row `i` (no overlay check).
     fn batch_id(&self, i: usize) -> u32 {
-        self.ids.unwrap().value(i)
+        self.cols.unwrap().id.value(i)
     }
 
     /// Whether batch row `i` is alive (not in the dead set).
     #[inline]
     fn is_alive(&self, i: usize) -> bool {
-        !self.has_dead || !self.dead.contains(self.batch_id(i))
+        !self.dead.contains(self.batch_id(i))
     }
 
     #[inline]
     fn patch_at(&self, i: usize) -> Option<&'a Location> {
-        if !self.has_patches {
-            return None;
-        }
         self.patches.get(&self.batch_id(i))
-    }
-
-    /// Read the effective ID at batch row `i`, checking patches first.
-    fn id_at(&self, i: usize) -> u32 {
-        if self.has_patches {
-            if let Some(p) = self.patches.get(&self.batch_id(i)) {
-                return p.id;
-            }
-        }
-        self.batch_id(i)
-    }
-
-    fn loc_at(&self, i: usize) -> Location {
-        arrow::row_to_location(self.batch.unwrap(), i)
     }
 
     /// Every alive row, in view order: batch rows, then overlay adds.
     fn alive(&self) -> impl Iterator<Item = RowRef<'a, '_>> {
-        (0..self.batch_rows)
+        (0..self.batch_rows())
             .filter(move |&i| self.is_alive(i))
             .map(move |i| self.row(i))
             .chain(self.adds.iter().map(RowRef::from_loc))
@@ -766,15 +613,15 @@ impl<'v, 'a> Scope<'v, 'a> {
         let Some(set) = self.rows.as_deref() else {
             return Walk::All(view.alive());
         };
-        let physical = view.batch_rows + view.adds.len();
-        let seek_steps = view.batch_rows.checked_ilog2().unwrap_or(0)
+        let physical = view.batch_rows() + view.adds.len();
+        let seek_steps = view.batch_rows().checked_ilog2().unwrap_or(0)
             + view.adds.len().checked_ilog2().unwrap_or(0)
             + 2;
         if set.len().saturating_mul(u64::from(seek_steps)) >= physical as u64 {
             return Walk::Dense(view.alive().filter(move |r| set.contains(r.id())));
         }
         let base = set.iter().filter_map(move |id| {
-            let i = arrow::batch_row_for_id(view.batch?, id)?;
+            let i = view.cols?.row_of(id)?;
             view.is_alive(i).then(|| view.row(i))
         });
         let adds = set.iter().filter_map(move |id| {
@@ -808,7 +655,7 @@ impl<'v, 'a> Scope<'v, 'a> {
             return self.rows().filter(|r| test(r)).map(|r| r.id()).collect();
         }
         let view = &self.view;
-        let base: Vec<u32> = (0..view.batch_rows)
+        let base: Vec<u32> = (0..view.batch_rows())
             .into_par_iter()
             .with_min_len(CHUNK_SIZE)
             .filter_map(|i| {
@@ -988,9 +835,7 @@ impl<'v, 'a> Scope<'v, 'a> {
         for row in self.rows() {
             for (col, field) in out.iter_mut().zip(fields) {
                 col.push(if field == "tags" {
-                    let mut tags = Vec::new();
-                    row.for_each_tag(|t| tags.push(serde_json::Value::from(t)));
-                    serde_json::Value::Array(tags)
+                    serde_json::json!(row.tags())
                 } else {
                     row.resolve_field(field).unwrap_or(serde_json::Value::Null)
                 });
@@ -1075,16 +920,16 @@ impl<'v, 'a> Scope<'v, 'a> {
 
 /// Every alive row within `distance` metres of another, over the whole map.
 fn duplicates(view: &LocView, distance: f64) -> RoaringBitmap {
-    let mut mask = vec![false; view.batch_rows + view.adds.len()];
+    let mut mask = vec![false; view.batch_rows() + view.adds.len()];
     find_duplicates_bitmask(view, distance, &mut mask);
-    let base = (0..view.batch_rows)
+    let base = (0..view.batch_rows())
         .filter(|&i| mask[i] && view.is_alive(i))
-        .map(|i| view.id_at(i));
+        .map(|i| view.batch_id(i));
     let adds = view
         .adds
         .iter()
         .enumerate()
-        .filter(|(j, _)| mask[view.batch_rows + j])
+        .filter(|(j, _)| mask[view.batch_rows() + j])
         .map(|(_, l)| l.id);
     base.chain(adds).collect()
 }

@@ -30,32 +30,33 @@ fn sample_locations() -> Vec<Location> {
     ]
 }
 
+// The schema is the on-disk format and is generated from `Location`'s fields, so it is
+// pinned column by column: a reordered or retyped field must fail here, not on read.
 #[test]
-fn schema_field_names_match_column_indices() {
-    // The `columns!` table generates the COL_* indices and the schema together;
-    // this pins that they agree, so a mis-expansion can't silently shift columns.
+fn the_schema_is_the_on_disk_format() {
     let schema = location_schema();
+    let list = DataType::List(Arc::new(Field::new("item", DataType::UInt32, true)));
     let expected = [
-        (COL_ID, "id"),
-        (COL_LAT, "lat"),
-        (COL_LNG, "lng"),
-        (COL_HEADING, "heading"),
-        (COL_PITCH, "pitch"),
-        (COL_ZOOM, "zoom"),
-        (COL_PANO_ID, "pano_id"),
-        (COL_FLAGS, "flags"),
-        (COL_TAGS, "tags"),
-        (COL_EXTRA, "extra"),
-        (COL_CREATED_AT, "created_at"),
-        (COL_MODIFIED_AT, "modified_at"),
+        ("id", DataType::UInt32, false),
+        ("lat", DataType::Float64, false),
+        ("lng", DataType::Float64, false),
+        ("heading", DataType::Float64, false),
+        ("pitch", DataType::Float64, false),
+        ("zoom", DataType::Float64, false),
+        ("pano_id", DataType::Utf8, true),
+        ("flags", DataType::UInt32, false),
+        ("tags", list, false),
+        ("extra", DataType::Utf8, true),
+        ("created_at", DataType::UInt32, false),
+        ("modified_at", DataType::UInt32, true),
     ];
     assert_eq!(schema.fields().len(), expected.len());
-    for (idx, name) in expected {
-        assert_eq!(
-            schema.field(idx).name().as_str(),
-            name,
-            "column index {idx}"
-        );
+    assert_eq!(COLUMN_COUNT, expected.len());
+    for (idx, (name, data_type, nullable)) in expected.into_iter().enumerate() {
+        let field = schema.field(idx);
+        assert_eq!(field.name().as_str(), name, "column {idx}");
+        assert_eq!(field.data_type(), &data_type, "{name}");
+        assert_eq!(field.is_nullable(), nullable, "{name}");
     }
 }
 
@@ -134,8 +135,8 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
     // untouched columns are the same Arc, not rebuilt copies
     for ci in 0..out.num_columns() {
         let reused = Arc::ptr_eq(batch.column(ci), out.column(ci));
-        match ci {
-            COL_HEADING | COL_TAGS => assert!(!reused, "col {ci} should be rebuilt"),
+        match out.schema().field(ci).name().as_str() {
+            "heading" | "tags" => assert!(!reused, "col {ci} should be rebuilt"),
             _ => assert!(reused, "col {ci} should be reused"),
         }
     }
@@ -157,7 +158,7 @@ fn patch_batch_identical_patch_rebuilds_nothing() {
     let locs = sample_locations();
     let batch = locations_to_batch(&locs);
     // patch present but equal to the stored row: no column is "touched"
-    let stored = row_to_location(&batch, 0);
+    let stored = Columns::of(&batch).location(0);
     let patches = HashMap::from([(1u32, stored)]);
     let out = patch_batch(&batch, &patches);
     for ci in 0..out.num_columns() {
@@ -171,20 +172,21 @@ fn patch_batch_preserves_equivalent_stored_extras() {
     locs[0].extra = None;
     locs[1].extra = None;
     let batch = locations_to_batch(&locs);
+    let extra = location_schema().index_of("extra").unwrap();
     let mut columns = batch.columns().to_vec();
-    columns[COL_EXTRA] = Arc::new(StringArray::from(vec![
+    columns[extra] = Arc::new(StringArray::from(vec![
         Some("{invalid"),
         Some(r#"{"caf\u00e9":1}"#),
     ]));
     let batch = RecordBatch::try_new(batch.schema(), columns).unwrap();
     let patches = HashMap::from([
-        (1, row_to_location(&batch, 0)),
-        (2, row_to_location(&batch, 1)),
+        (1, Columns::of(&batch).location(0)),
+        (2, Columns::of(&batch).location(1)),
     ]);
 
     let out = patch_batch(&batch, &patches);
 
-    assert!(Arc::ptr_eq(batch.column(COL_EXTRA), out.column(COL_EXTRA)));
+    assert!(Arc::ptr_eq(batch.column(extra), out.column(extra)));
 }
 
 #[test]
@@ -226,7 +228,7 @@ fn empty_batch() {
 fn single_row_access() {
     let locs = sample_locations();
     let batch = locations_to_batch(&locs);
-    let loc = row_to_location(&batch, 1);
+    let loc = Columns::of(&batch).location(1);
     assert_eq!(loc.id, locs[1].id);
     assert_eq!(loc.pano_id, None);
     assert!(loc.tags.is_empty());

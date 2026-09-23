@@ -1,10 +1,10 @@
 //! `#[derive(Fields)]`: the field-system declaration lives on the `Location` struct.
 //!
 //! Each struct field carries a `#[field(...)]` attribute (or `#[field(skip)]`); the
-//! derive turns the whole set into one `location_fields!` table macro. Consumers hand
-//! it a callback macro and expand the table where their context lives - the field
-//! table, `is_builtin_field`, and both resolvers all come from this one declaration
-//! site, so a field added to the struct cannot be forgotten by the field system.
+//! derive turns the struct into two table macros named after it, `<struct>_fields!` and
+//! `<struct>_columns!`. Consumers hand one a callback macro and expand the table where
+//! their context lives, so a field added to the struct cannot be forgotten by anything
+//! built from it. The crate knows nothing about what a consumer builds.
 //!
 //! Row shape handed to the callback, one per field:
 //! `{ key, label, type-ident, kind-ident, comparison-tt, interned-ident, category-ident,
@@ -17,7 +17,12 @@
 //! - `category` picks the resolver body: how the value reads off a `Location` and off an
 //!   Arrow column. Residual quirks are categories, not closures: `absent_when_empty`
 //!   turns a string into `opt_str_empty` and a list into `u32_list_empty`.
-//! - `column` is the `LocView` cache field (defaults to `<ident>s`).
+//! - `column` is the struct field whose storage the row reads: the field itself, the list
+//!   a `derived_len` counts, or the flags field a `flag` reads.
+//!
+//! `<struct>_columns!` has one row per struct field, skipped ones included, in declaration
+//! order: `{ index, field-ident, type }`. It is the struct's storage layout, for a
+//! columnar encoding to build from.
 //!
 //! Struct-level `#[fields(...)]` declares the rows with no struct field of their own:
 //! `derived_len(key, label, of = <field>)` (a list's length as a virtual field) and
@@ -56,6 +61,17 @@ fn camel(ident: &str) -> String {
     out
 }
 
+fn snake(ident: &str) -> String {
+    let mut out = String::new();
+    for (i, c) in ident.chars().enumerate() {
+        if c.is_uppercase() && i > 0 {
+            out.push('_');
+        }
+        out.extend(c.to_lowercase());
+    }
+    out
+}
+
 fn type_name(ty: &Type) -> String {
     quote!(#ty).to_string().replace(' ', "")
 }
@@ -75,9 +91,12 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     };
 
     let mut rows: Vec<Row> = Vec::new();
+    let mut columns: Vec<TokenStream2> = Vec::new();
 
-    for f in &data.fields {
+    for (index, f) in data.fields.iter().enumerate() {
         let ident = f.ident.clone().expect("named fields");
+        let ty = &f.ty;
+        columns.push(quote! { { #index, #ident, #ty } });
         let attr = f.attrs.iter().find(|a| a.path().is_ident("field"));
         let Some(attr) = attr else {
             return Err(syn::Error::new_spanned(
@@ -93,7 +112,6 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let mut interned = format_ident!("not_interned");
         let mut date = false;
         let mut absent_when_empty = false;
-        let mut column: Option<Ident> = None;
 
         attr.parse_nested_meta(|meta| {
             let p = &meta.path;
@@ -117,8 +135,6 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 date = true;
             } else if p.is_ident("absent_when_empty") {
                 absent_when_empty = true;
-            } else if p.is_ident("column") {
-                column = Some(meta.value()?.parse()?);
             } else {
                 return Err(meta.error("unknown #[field] key"));
             }
@@ -153,7 +169,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
             cmp,
             interned,
             cat: format_ident!("{cat}"),
-            col: column.unwrap_or_else(|| format_ident!("{ident}s")),
+            col: ident.clone(),
             field: ident,
         });
     }
@@ -225,13 +241,23 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         })
         .collect();
 
-    let _ = &input.generics; // Location is not generic; nothing to carry.
+    let name = snake(&input.ident.to_string());
+    let fields_macro = format_ident!("{name}_fields");
+    let columns_macro = format_ident!("{name}_columns");
     Ok(quote! {
         /// The field table `#[derive(Fields)]` read off the struct: one row per
         /// declared field, handed whole to a callback macro (see `mma-fields`).
-        macro_rules! location_fields {
+        macro_rules! #fields_macro {
             ($cb:ident) => {
                 $cb! { #(#row_tokens),* }
+            };
+        }
+
+        /// The struct's storage layout `#[derive(Fields)]` read off it: one row per
+        /// struct field in declaration order, handed whole to a callback macro.
+        macro_rules! #columns_macro {
+            ($cb:ident) => {
+                $cb! { #(#columns),* }
             };
         }
     })

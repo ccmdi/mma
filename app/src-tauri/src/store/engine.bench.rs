@@ -9,8 +9,7 @@
 //! command fns, no mirrored bodies -- so they can never drift from the app.
 
 use super::*;
-use crate::selections;
-use crate::store::arrow::{col_heading, col_lat, col_lng};
+use crate::store::arrow::Columns;
 use crate::store::commands::*;
 use crate::store::engine::persist::overlay_delta_bytes;
 use crate::store::storage;
@@ -185,7 +184,7 @@ impl Fixture {
 
     /// `count` exact no-op heading patches spread across the population.
     pub fn noop_heading_updates(&self, count: usize) -> Vec<Update<LocationPatch>> {
-        let headings = col_heading(&self.batch);
+        let headings = Columns::heading(&self.batch);
         let step = (self.n / count.max(1)).max(1);
         (0..count)
             .map(|i| {
@@ -204,8 +203,8 @@ impl Fixture {
     pub fn coords(&self, id: u32) -> (f64, f64) {
         let row = id as usize - 1;
         (
-            col_lat(&self.batch).value(row),
-            col_lng(&self.batch).value(row),
+            Columns::lat(&self.batch).value(row),
+            Columns::lng(&self.batch).value(row),
         )
     }
 }
@@ -356,16 +355,15 @@ pub fn ensure_indexes(store: &mut Store, selector: &Selector) {
 
 /// Resolution only, no bitmask serialization.
 pub fn resolve_selection(store: &Store, selector: &Selector) -> usize {
-    let view = store.loc_view();
-    selections::resolve(&view, selector).len() as usize
+    store.all().resolve(selector).len() as usize
 }
 
 pub fn traverse_scope(store: &Store, set: &RoaringBitmap) -> (usize, f64) {
     let (mut count, mut sum) = (0, 0.0);
-    store.loc_view().for_each_within(Some(set), |row| {
+    for row in store.all().within(set).rows() {
         count += 1;
         sum += row.lat() + row.lng();
-    });
+    }
     (count, sum)
 }
 
@@ -430,9 +428,9 @@ pub fn derived_state(store: &mut Store) -> usize {
 
 pub fn build_spatial(store: &Store) -> usize {
     let mut index = mma_geo::SpatialIndex::new(SPATIAL_CELL_M);
-    store
-        .loc_view()
-        .for_each(|row| index.insert(row.id(), row.lat(), row.lng()));
+    for row in store.all().rows() {
+        index.insert(row.id(), row.lat(), row.lng());
+    }
     index.len()
 }
 
@@ -452,7 +450,7 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, ValueRecord>) -> Store {
     let (batch, handle) = arrow::read_arrow_ipc_mmap(path).expect("read arrow");
     let n = batch.num_rows();
     let max_id = if n > 0 {
-        col_id(&batch).value(n - 1)
+        Columns::id(&batch).value(n - 1)
     } else {
         0
     };
