@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { IconLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import { mdiFlagVariant } from "@mdi/js";
@@ -10,6 +10,8 @@ import {
 } from "@/lib/map/host";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
+import { cmd } from "@/lib/commands";
+import { usePluginState } from "@/plugins/pluginStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import type { LatLng } from "@/types";
@@ -169,9 +171,69 @@ function lazy<T>(make: () => T): () => T {
 	return () => (value ??= make());
 }
 
-export const GUESS_PIN = lazy(() => drawPin("guess", GUESS_COLOR, dotFace));
+const GUESS_PIN = lazy(() => drawPin("guess", GUESS_COLOR, dotFace));
 export const TRUTH_PIN = lazy(() => drawPin("truth", TRUTH_COLOR, flagFace));
 const NUMBERED_TRUTH_PIN = lazy(() => drawPin("truth-numbered", TRUTH_COLOR));
+
+const imageFace =
+	(image: HTMLImageElement): PinFace =>
+	(ctx, center, radius) => {
+		ctx.beginPath();
+		ctx.arc(center, center, radius, 0, 2 * Math.PI);
+		ctx.clip();
+		ctx.drawImage(image, center - radius, center - radius, radius * 2, radius * 2);
+	};
+
+function loadImage(url: string): Promise<HTMLImageElement> {
+	return new Promise((resolve, reject) => {
+		const image = new Image();
+		image.crossOrigin = "anonymous";
+		image.onload = () => resolve(image);
+		image.onerror = reject;
+		image.src = url;
+	});
+}
+
+/** The signed-in GitHub account's avatar, or null when signed out. */
+export function useGitHubAvatar(): string | null {
+	const [url, setUrl] = useState<string | null>(null);
+	useEffect(() => {
+		let cancelled = false;
+		void cmd
+			.githubMe()
+			.then((user) => !cancelled && setUrl(user?.avatarUrl ?? null))
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
+	return url;
+}
+
+export function useAvatarPinSetting() {
+	return usePluginState<boolean>("localguessr", "avatarPin", true);
+}
+
+/** The player's guess pin: their GitHub avatar when signed in and chosen, else the default. */
+export function useGuessPin(): () => PinIcon {
+	const [avatarPin] = useAvatarPinSetting();
+	const avatarUrl = useGitHubAvatar();
+	const [avatar, setAvatar] = useState<PinIcon | null>(null);
+	useEffect(() => {
+		setAvatar(null);
+		if (!avatarPin || !avatarUrl) return;
+		let cancelled = false;
+		void loadImage(avatarUrl)
+			.then((image) => {
+				if (!cancelled) setAvatar(drawPin(`avatar:${avatarUrl}`, GUESS_COLOR, imageFace(image)));
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [avatarPin, avatarUrl]);
+	return useMemo(() => (avatar ? () => avatar : GUESS_PIN), [avatar]);
+}
 
 export function pinLayers<T extends LatLng>(
 	id: string,
@@ -232,6 +294,7 @@ export function replayLayers(
 	results: Pick<RoundResult, "location" | "guess">[],
 	highlighted: number | null,
 	settledZoom: number | null,
+	guessPin: () => PinIcon,
 ) {
 	const group = (rounds: number[], id: string, opacity: number) => {
 		const truths: ReplayPin[] = rounds.map((round) => {
@@ -250,7 +313,7 @@ export function replayLayers(
 			...(settledZoom !== null && pairs.length > 0
 				? [resultLineLayer(`${id}-line`, pairs, settledZoom, opacity)]
 				: []),
-			pinLayers(`${id}-guess`, guesses, GUESS_PIN, true, opacity),
+			pinLayers(`${id}-guess`, guesses, guessPin, true, opacity),
 			pinLayers(`${id}-truth`, truths, NUMBERED_TRUTH_PIN, true, opacity),
 			new TextLayer<ReplayPin>({
 				id: `${id}-n`,

@@ -3,7 +3,7 @@ import { boundsOfCoords, type MapHost } from "@/lib/map/host";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import type { RoundResult } from "./game";
-import { replayLayers, useGameMap, useSettledZoom, type ReplayPin } from "./gameMap";
+import { replayLayers, useGameMap, useGuessPin, useSettledZoom, type ReplayPin } from "./gameMap";
 
 export function ReplayMap({
 	results,
@@ -38,19 +38,20 @@ export function ReplayMap({
 		{ onReady: frame },
 	);
 	const settledZoom = useSettledZoom(hostRef, ready);
+	const guessPin = useGuessPin();
 
 	useEffect(() => {
 		const overlay = overlayRef.current;
 		if (!overlay || !ready) return;
 		overlay.setProps({
-			layers: replayLayers(results, highlighted, settledZoom),
+			layers: replayLayers(results, highlighted, settledZoom, guessPin),
 			onClick: (info) => {
 				const pin = info.object as ReplayPin | undefined;
 				if (pin) onOpenRoundRef.current(pin.round);
 			},
 			onHover: (info) => hostRef.current?.setCursor(info.object ? "pointer" : null),
 		});
-	}, [hostRef, overlayRef, ready, results, highlighted, settledZoom]);
+	}, [hostRef, overlayRef, ready, results, highlighted, settledZoom, guessPin]);
 
 	return (
 		<div className="lg-summary__map">

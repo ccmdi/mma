@@ -1492,6 +1492,7 @@
 	"Use Pano ID locations by default": "По умолчанию использовать локации с Pano ID",
 	"Use blobby layer while zoomed out": "Использовать сглаженный слой при отдалении",
 	"Use local · delete remote-only pins": "Использовать локальную карту · удалить локации, которые есть только на сервере",
+	"Use my GitHub avatar as my pin": "Использовать мой аватар GitHub как метку",
 	"Use remote · delete local-only pins": "Использовать удалённую карту · удалить локации, которые есть только локально",
 	"User uploaded": "Загружено пользователем",
 	"VIEWPORT LOCK": "ФИКСАЦИЯ ОБЗОРА",

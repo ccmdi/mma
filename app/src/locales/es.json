@@ -1450,6 +1450,7 @@
 	"Use Pano ID locations by default": "Usar ubicaciones con Pano ID de forma predeterminada",
 	"Use blobby layer while zoomed out": "Usar la capa difusa al alejar el zoom",
 	"Use local · delete remote-only pins": "Usar el mapa local · eliminar las ubicaciones solo remotas",
+	"Use my GitHub avatar as my pin": "Usar mi avatar de GitHub como mi pin",
 	"Use remote · delete local-only pins": "Usar el mapa remoto · eliminar las ubicaciones solo locales",
 	"User uploaded": "Subido por usuario",
 	"VIEWPORT LOCK": "VISTA BLOQUEADA",

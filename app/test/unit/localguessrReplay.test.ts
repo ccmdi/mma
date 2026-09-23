@@ -12,8 +12,10 @@ function round(id: number, guessed: boolean): Pick<RoundResult, "location" | "gu
 
 const results = [round(10, true), round(11, false), round(12, true)];
 
+const guessPin = () => ({ id: "avatar", url: "", width: 1, height: 1 });
+
 function draw(highlighted: number | null, settledZoom: number | null): Layer[] {
-	return replayLayers(results, highlighted, settledZoom);
+	return replayLayers(results, highlighted, settledZoom, guessPin);
 }
 
 function layer(layers: Layer[], id: string) {
@@ -30,6 +32,10 @@ describe("replay layers", () => {
 		expect(rounds(layer(layers, "lg-replay-truth"))).toEqual([0, 1, 2]);
 		expect(rounds(layer(layers, "lg-replay-guess"))).toEqual([0, 2]);
 		expect(layer(layers, "lg-replay-line")?.props.data).toHaveLength(2);
+	});
+
+	it("draw guesses with the player's pin", () => {
+		expect(layer(draw(null, 3), "lg-replay-guess")?.props).toHaveProperty("getIcon", guessPin);
 	});
 
 	it("number answers from one", () => {

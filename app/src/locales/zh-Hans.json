@@ -1366,6 +1366,7 @@
 	"Use Pano ID locations by default": "默认使用全景 ID 位置",
 	"Use blobby layer while zoomed out": "缩小时使用 blob 图层",
 	"Use local · delete remote-only pins": "使用本地 · 删除仅远程的标记",
+	"Use my GitHub avatar as my pin": "使用我的 GitHub 头像作为图钉",
 	"Use remote · delete local-only pins": "使用远程 · 删除仅本地的标记",
 	"User uploaded": "用户上传",
 	"VIEWPORT LOCK": "视口锁定",

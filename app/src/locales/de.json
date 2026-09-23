@@ -1408,6 +1408,7 @@
 	"Use Pano ID locations by default": "Standardmäßig Pano ID-Standorte verwenden",
 	"Use blobby layer while zoomed out": "Blobby-Ebene beim Herauszoomen verwenden",
 	"Use local · delete remote-only pins": "Lokal verwenden · nur remote vorhandene Pins löschen",
+	"Use my GitHub avatar as my pin": "Mein GitHub-Profilbild als Pin verwenden",
 	"Use remote · delete local-only pins": "Remote verwenden · nur lokal vorhandene Pins löschen",
 	"User uploaded": "Nutzer-Upload",
 	"VIEWPORT LOCK": "ANSICHT GESPERRT",

@@ -1366,6 +1366,7 @@
 	"Use Pano ID locations by default": "既定で Pano ID の地点を使用",
 	"Use blobby layer while zoomed out": "ズームアウト時にブロブレイヤーを使用",
 	"Use local · delete remote-only pins": "ローカルを使用・リモートのみのピンを削除",
+	"Use my GitHub avatar as my pin": "GitHub のアバターを自分のピンにする",
 	"Use remote · delete local-only pins": "リモートを使用・ローカルのみのピンを削除",
 	"User uploaded": "ユーザー投稿",
 	"VIEWPORT LOCK": "ビューポート固定",

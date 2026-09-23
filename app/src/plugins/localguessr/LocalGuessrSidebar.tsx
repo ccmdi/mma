@@ -14,6 +14,7 @@ import {
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
+import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
 import { getMapState, query, useMapState } from "@/store/useMapStore";
@@ -58,6 +59,7 @@ import {
 import { RoundPlayer } from "./RoundPlayer";
 import { Summary } from "./Summary";
 import { PastStats } from "./PastStats";
+import { useAvatarPinSetting, useGitHubAvatar } from "./gameMap";
 import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 
@@ -211,6 +213,8 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [history, setHistory] = useState<PastGame[]>([]);
 	const [past, setPast] = useState<Session | null>(null);
 	const [showHistory, setShowHistory] = useState(false);
+	const signedIn = useGitHubAvatar() !== null;
+	const [avatarPin, setAvatarPin] = useAvatarPinSetting();
 
 	const patch = (p: Partial<GameConfig>) => setStored({ ...config, ...p });
 
@@ -400,6 +404,13 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 										format={(v) => v}
 									/>
 								</Field>
+							)}
+							{signedIn && (
+								<SwitchRow
+									checked={avatarPin}
+									onChange={setAvatarPin}
+									label={t("Use my GitHub avatar as my pin")}
+								/>
 							)}
 						</Section>
 

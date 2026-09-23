@@ -27,11 +27,11 @@ import type { LatLng, MapTypeKey } from "@/types";
 import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
 import { packedPositions } from "@/lib/render/packedPositions";
 import {
-	GUESS_PIN,
 	TRUTH_PIN,
 	pinLayers,
 	resultLineLayer,
 	useGameMap,
+	useGuessPin,
 	useSettledZoom,
 } from "./gameMap";
 
@@ -188,6 +188,7 @@ export function GuessMap({
 	}, [hostRef, showResult, hoveredPin]);
 
 	const settledZoom = useSettledZoom(hostRef, ready && showResult);
+	const guessPin = useGuessPin();
 
 	useEffect(() => {
 		if (!showPool || pool) return;
@@ -213,7 +214,7 @@ export function GuessMap({
 		if (showResult && truth && guess && settledZoom !== null) {
 			layers.push(resultLineLayer("lg-line", [{ guess, truth }], settledZoom));
 		}
-		if (guess) layers.push(pinLayers("lg-guess", [guess], GUESS_PIN, showResult));
+		if (guess) layers.push(pinLayers("lg-guess", [guess], guessPin, showResult));
 		if (showResult && truth) {
 			layers.push(pinLayers("lg-truth", [truth], TRUTH_PIN, showResult));
 		}
@@ -225,7 +226,18 @@ export function GuessMap({
 			},
 			onHover: (info) => setHoveredPin(PIN_KIND[info.layer?.id ?? ""] ?? null),
 		});
-	}, [overlayRef, guess, truth, showResult, ready, settledZoom, showPool, pool, prefs.svColor]);
+	}, [
+		overlayRef,
+		guess,
+		truth,
+		showResult,
+		ready,
+		settledZoom,
+		guessPin,
+		showPool,
+		pool,
+		prefs.svColor,
+	]);
 
 	const fitToLocations = useCallback(() => {
 		const host = hostRef.current;
