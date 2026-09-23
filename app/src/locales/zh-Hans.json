@@ -1,7 +1,6 @@
 {
 	" in {seconds}s ({rate}/s)": "，用时 {seconds}s（{rate}/s）",
 	"\"{path}\" already exists in the tree": "「{path}」在树中已存在",
-	"(deleted selection)": "（已删除的选择）",
 	"(downloading...)": "(正在下载…)",
 	"(latest)": "(最新)",
 	"(location time)": "（位置时间）",

@@ -1,7 +1,6 @@
 {
 	" in {seconds}s ({rate}/s)": " за {seconds}s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" уже есть в дереве",
-	"(deleted selection)": "(удалённая выборка)",
 	"(downloading...)": "(загрузка...)",
 	"(latest)": "(последний)",
 	"(location time)": "(время локации)",

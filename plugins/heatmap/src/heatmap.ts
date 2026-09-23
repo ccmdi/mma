@@ -51,14 +51,14 @@ function newLayer(): HeatmapLayerSettings {
 
 type StoredLayer = Partial<HeatmapLayerSettings> & { gradientIndex?: unknown };
 
-// Pre-1.2 versions stored the source as the old `{ kind }` scope.
+// Pre-1.2 versions stored the source as the old `{ kind }` scope. A saved-selection
+// source is no longer offered and falls back to all locations.
 function migrateSource(source: unknown): SelectorPick | undefined {
-  if (!source || typeof source !== "object" || !("kind" in source))
-    return undefined;
-  const { kind, id } = source as { kind: string; id?: string };
-  if (kind === "selected") return { pick: "selection" };
-  if (kind === "saved" && id) return { pick: "saved", id };
-  return { pick: "all" };
+  if (!source || typeof source !== "object") return undefined;
+  if ("pick" in source)
+    return source.pick === "saved" ? { pick: "all" } : undefined;
+  if (!("kind" in source)) return undefined;
+  return source.kind === "selected" ? { pick: "selection" } : { pick: "all" };
 }
 
 function migrateLayer(stored: StoredLayer): HeatmapLayerSettings {

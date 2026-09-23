@@ -5038,9 +5038,6 @@ export type SelectorPick = {
     pick: "all";
 } | {
     pick: "selection";
-} | {
-    pick: "saved";
-    id: string;
 };
 export interface SelectorPickController {
     /** The picked locations. Hand it straight to any `Selector` consumer. */
@@ -5050,8 +5047,6 @@ export interface SelectorPickController {
     setChoice(c: SelectorPick): void;
     allCount: number;
     selectionCount: number;
-    /** Opt-in: the picker additionally offers saved selections. */
-    saved?: boolean;
 }
 /** Convert a picker choice into the corresponding `Selector`. */
 declare function selectorForPick(choice: SelectorPick): Selector;

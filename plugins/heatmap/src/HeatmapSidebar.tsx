@@ -114,7 +114,6 @@ function LayerControls({
           setChoice: (c: SelectorPick) => set({ source: c }),
           allCount,
           selectionCount,
-          saved: true,
         }}
       />
 

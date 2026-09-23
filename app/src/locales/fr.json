@@ -1,7 +1,6 @@
 {
 	" in {seconds}s ({rate}/s)": " en {seconds} s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" existe déjà dans l'arborescence",
-	"(deleted selection)": "(sélection supprimée)",
 	"(downloading...)": "(téléchargement...)",
 	"(latest)": "(plus récent)",
 	"(location time)": "(heure du lieu)",

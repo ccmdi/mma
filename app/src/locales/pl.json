@@ -1,7 +1,6 @@
 {
 	" in {seconds}s ({rate}/s)": " w {seconds} s ({rate}/s)",
 	"\"{path}\" already exists in the tree": "\"{path}\" już istnieje w drzewie",
-	"(deleted selection)": "(usunięte zaznaczenie)",
 	"(downloading...)": "(pobieranie...)",
 	"(latest)": "(najnowszy)",
 	"(location time)": "(czas lokalizacji)",

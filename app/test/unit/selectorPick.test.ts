@@ -1,20 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { createSelectorPick, selectorForPick } from "@/store/selectorPick";
 
-// A missing saved rule triggers a body fetch; there is no Tauri host here to answer it.
-vi.mock("@/lib/commands", () => ({ cmd: { storeGetSavedSelections: async () => [] } }));
-
 describe("selectorForPick", () => {
 	it("turns each pick into a Selector -- the only language below the UI", () => {
 		expect(selectorForPick({ pick: "all" })).toEqual({ type: "Everything" });
 		// Nothing selected, so the live selection is an empty union rather than a sentinel.
 		expect(selectorForPick({ pick: "selection" })).toEqual({ type: "Union", selections: [] });
-		// A saved rule that this map cannot resolve contributes no members.
-		expect(selectorForPick({ pick: "saved", id: "missing" })).toEqual({
-			type: "Locations",
-			locations: [],
-			name: null,
-		});
 	});
 });
 

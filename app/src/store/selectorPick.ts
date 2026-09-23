@@ -1,12 +1,11 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { Selector } from "@/bindings.gen";
-import { savedSelector } from "./savedSelections";
 
 import { useMapState, currentSelection } from "./useMapStore";
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
  *  into a `Selector`. */
-export type SelectorPick = { pick: "all" } | { pick: "selection" } | { pick: "saved"; id: string };
+export type SelectorPick = { pick: "all" } | { pick: "selection" };
 
 export interface SelectorPickController {
 	/** The picked locations. Hand it straight to any `Selector` consumer. */
@@ -16,8 +15,6 @@ export interface SelectorPickController {
 	setChoice(c: SelectorPick): void;
 	allCount: number;
 	selectionCount: number;
-	/** Opt-in: the picker additionally offers saved selections. */
-	saved?: boolean;
 }
 
 /** Convert a picker choice into the corresponding `Selector`. */
@@ -27,8 +24,6 @@ export function selectorForPick(choice: SelectorPick): Selector {
 			return { type: "Everything" };
 		case "selection":
 			return currentSelection();
-		case "saved":
-			return savedSelector(choice.id);
 	}
 }
 

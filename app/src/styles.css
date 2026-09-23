@@ -5884,17 +5884,6 @@ body:has([data-plugin-overlay]) .map-meta {
 	gap: 0.375rem 1rem;
 	font-size: 0.875rem;
 }
-.selector-picker__saved {
-	display: flex;
-	align-items: center;
-	gap: 0.5rem;
-}
-.selector-picker__saved > .choice {
-	flex: none;
-}
-.selector-picker__saved > .nselect {
-	max-width: 10rem;
-}
 
 /* --- Plugin sidebar primitives --- */
 .plugin-sidebar {

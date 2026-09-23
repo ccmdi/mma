@@ -1,7 +1,6 @@
 {
 	" in {seconds}s ({rate}/s)": "[ îñ {seconds}ş ({rate}/ş) åéîö]",
 	"\"{path}\" already exists in the tree": "[\"{path}\" åĺŕéåðý éẋîşţş îñ ţĥé ţŕéé åéîöüåéîöüåé]",
-	"(deleted selection)": "[(ðéĺéţéð şéĺéçţîöñ) åéîöüåéî]",
 	"(downloading...)": "[(ðöŵñĺöåðîñǧ...) åéîöüåé]",
 	"(latest)": "[(ĺåţéşţ) åéîö]",
 	"(location time)": "[(ĺöçåţîöñ ţîɱé) åéîöüå]",
