@@ -9,7 +9,7 @@ import type { FieldType, DatePart } from "@/bindings.consts";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { usePickableFields, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { applySelectionUpdate, getMapState, partition, resetSelections } from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, query, resetSelections } from "@/store/useMapStore";
 import { addSelection, batch, setSelectionColors } from "@/store/selections";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { isNumericField, colorPartition } from "./gradientMath";
@@ -154,7 +154,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 								tzLocal: dateTimezone === "location",
 							};
 
-			const groups = await partition(fieldKey, key, picker.selector);
+			const groups = await query(picker.selector).partition(fieldKey, key);
 			const skipped = await countMissingTimezone(
 				picker.selector,
 				fieldKey,

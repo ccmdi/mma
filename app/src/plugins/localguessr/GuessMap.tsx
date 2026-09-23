@@ -1,4 +1,4 @@
-import { fetchBounds, fetchColumns, sampleFrom } from "@/store/useMapStore";
+import { query } from "@/store/useMapStore";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type React from "react";
 import { ScatterplotLayer } from "@deck.gl/layers";
@@ -53,8 +53,8 @@ const PIN_KIND: Record<string, ResultPin | undefined> = {
 };
 
 async function fetchPool(selector: Selector): Promise<Float32Array> {
-	const ids = await sampleFrom(selector, POOL_POINTS);
-	const [lng, lat] = await fetchColumns({ type: "Locations", locations: ids, name: null }, [
+	const ids = await query(selector).sample(POOL_POINTS);
+	const [lng, lat] = await query({ type: "Locations", locations: ids, name: null }).columns([
 		"lng",
 		"lat",
 	]);
@@ -151,7 +151,7 @@ export function GuessMap({
 		// Bounds up front so per-round fits stay synchronous -- awaiting IPC inside
 		// the fit paints a frame of the previous round's camera.
 		prepare: async () => {
-			boundsRef.current = await fetchBounds(selectorRef.current);
+			boundsRef.current = await query(selectorRef.current).bounds();
 		},
 		onReady: (host) => {
 			host.setCursor("crosshair");

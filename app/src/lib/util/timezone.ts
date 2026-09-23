@@ -2,7 +2,7 @@ import type { Selector } from "@/bindings.gen";
 import type { FieldType } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
-import { countIn } from "@/store/useMapStore";
+import { query } from "@/store/useMapStore";
 import { all, has, lacks } from "@/store/selections";
 import { t } from "@/lib/i18n";
 
@@ -21,7 +21,7 @@ export async function countMissingTimezone(
 	tzLocal: boolean,
 ): Promise<number> {
 	if (!tzLocal || fieldType !== "date") return 0;
-	return countIn(all(selector, has(field), lacks("timezone")));
+	return query(all(selector, has(field), lacks("timezone"))).count();
 }
 
 export function missingTimezoneMessage(n: number): string {

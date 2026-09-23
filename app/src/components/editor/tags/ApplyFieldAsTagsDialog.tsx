@@ -6,7 +6,7 @@ import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
-import { countBy, countIn, coverage, createTags, partition } from "@/store/useMapStore";
+import { createTags, query } from "@/store/useMapStore";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -80,9 +80,11 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		let live = true;
 		const selector = picker.selector;
 		void Promise.all([
-			countIn(selector),
-			coverage(selector),
-			key ? countBy(selector, field, key) : Promise.resolve<CountBy>({ counts: [], covered: 0 }),
+			query(selector).count(),
+			query(selector).coverage(),
+			key
+				? query(selector).countBy(field, key)
+				: Promise.resolve<CountBy>({ counts: [], covered: 0 }),
 		]).then(([total, counts, grouped]) => {
 			if (!live) return;
 			setLoaded({
@@ -120,7 +122,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const handleApply = async () => {
 		if (!field || !key) return;
 
-		const groups = await partition(field, key, picker.selector);
+		const groups = await query(picker.selector).partition(field, key);
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
@@ -128,7 +130,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const missing = tagMissing
 			? all(picker.selector, not({ type: "Locations", locations: grouped, name: null }))
 			: null;
-		const missingCount = missing ? await countIn(missing) : 0;
+		const missingCount = missing ? await query(missing).count() : 0;
 		if (groups.length === 0 && missingCount === 0) return;
 
 		const labels = await resolveFieldLabels(

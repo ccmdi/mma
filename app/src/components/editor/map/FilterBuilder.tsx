@@ -14,7 +14,7 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { applySelectionUpdate, coverage, fieldValues, useMapState } from "@/store/useMapStore";
+import { applySelectionUpdate, query, useMapState } from "@/store/useMapStore";
 import { addSelection, batch } from "@/store/selections";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
@@ -96,9 +96,11 @@ export function usePickableFields(): FieldEntry[] {
 	const [held, setHeld] = useState<ReadonlySet<string> | null>(null);
 	useEffect(() => {
 		let live = true;
-		void coverage({ type: "Everything" }).then((counts) => {
-			if (live) setHeld(new Set(counts.map(([key]) => key)));
-		});
+		void query({ type: "Everything" })
+			.coverage()
+			.then((counts) => {
+				if (live) setHeld(new Set(counts.map(([key]) => key)));
+			});
 		return () => {
 			live = false;
 		};
@@ -132,7 +134,7 @@ function useEnumValues(fieldKey: string | undefined, def: FieldDef | undefined):
 			setValues([]);
 			return;
 		}
-		void fieldValues({ type: "Everything" }, fieldKey).then(setValues);
+		void query({ type: "Everything" }).values(fieldKey).then(setValues);
 	}, [fieldKey, def]);
 	return values;
 }

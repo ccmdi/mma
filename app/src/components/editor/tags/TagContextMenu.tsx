@@ -1,12 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Selection } from "@/bindings.gen";
-import {
-	countIn,
-	deleteTags,
-	getActiveSelections,
-	setTags,
-	useMapState,
-} from "@/store/useMapStore";
+import { query, deleteTags, getActiveSelections, setTags, useMapState } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagIdOf, tagSelector } from "@/store/selections";
 import { MenuItem, MenuPopup } from "@/components/primitives/Menu";
@@ -63,9 +57,9 @@ function TagContextMenuItems({
 		const carriers = any(...targets.map(tagSelector));
 		const scope = selectionWithout(targets);
 		void Promise.all([
-			countIn(carriers),
-			tagId == null ? 0 : countIn(tagSelector(tagId)),
-			scope.selections.length > 0 ? countIn(all(carriers, scope)) : 0,
+			query(carriers).count(),
+			tagId == null ? 0 : query(tagSelector(tagId)).count(),
+			scope.selections.length > 0 ? query(all(carriers, scope)).count() : 0,
 		]).then(([total, own, inSel]) => setCounts({ total, own, inSel }));
 	}, [tagId, targets]);
 

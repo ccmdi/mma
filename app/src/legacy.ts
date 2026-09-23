@@ -7,11 +7,11 @@ import { tagSelector } from "@/store/selections";
 import {
 	getMapState,
 	getActiveSelections,
-	fetchLocations,
-	coverage,
+	query,
 	setMapExtraFields,
 	setTags,
 } from "@/store/useMapStore";
+import type { CountBy, KeySpec, Location, PartitionBucket } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
@@ -73,24 +73,78 @@ export async function getDirtyCount(): Promise<number> {
 	return (await cmd.storeGetSummary()).dirtyCount;
 }
 
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: [id], name: null })`. */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`. */
 export async function fetchLocation(id: number) {
-	return (await fetchLocations({ type: "Locations", locations: [id], name: null }))[0] ?? null;
+	return (await query({ type: "Locations", locations: [id], name: null }).locations())[0] ?? null;
 }
 
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: ids, name: null })`. */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: ids, name: null }).locations()`. */
 export function fetchLocationsByIds(ids: number[]) {
-	return fetchLocations({ type: "Locations", locations: ids, name: null });
+	return query({ type: "Locations", locations: ids, name: null }).locations();
 }
 
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Everything" })`. */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Everything" }).locations()`. */
 export function fetchAllLocations() {
-	return fetchLocations({ type: "Everything" });
+	return query({ type: "Everything" }).locations();
 }
 
-/** @deprecated v0.10.2. Use `MMA.coverage()`. */
+/** @deprecated v0.10.2. Use `MMA.query(selector).coverage()`. */
 export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
-	return coverage(selector);
+	return query(selector).coverage();
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).ids()`. */
+export function resolveIds(selector: Selector): Promise<number[]> {
+	return query(selector).ids();
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).count()`. */
+export function countIn(selector: Selector): Promise<number> {
+	return query(selector).count();
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).bounds()`. */
+export function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null> {
+	return query(selector).bounds();
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).sample(n)`. */
+export function sampleFrom(selector: Selector, n: number): Promise<number[]> {
+	return query(selector).sample(n);
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).values(field)`. */
+export function fieldValues(selector: Selector, field: string): Promise<string[]> {
+	return query(selector).values(field);
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).countBy(field, key)`. */
+export function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy> {
+	return query(selector).countBy(field, key);
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).coverage()`. */
+export function coverage(selector: Selector): Promise<[string, number][]> {
+	return query(selector).coverage();
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).columns(fields)`. */
+export function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]> {
+	return query(selector).columns(fields);
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).partition(field, key)`. */
+export function partition(
+	field: string,
+	key: KeySpec,
+	selector: Selector,
+): Promise<PartitionBucket[]> {
+	return query(selector).partition(field, key);
+}
+
+/** @deprecated v0.11.3. Use `MMA.query(selector).locations()`. */
+export function fetchLocations(selector: Selector): Promise<Location[]> {
+	return query(selector).locations();
 }
 
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. */

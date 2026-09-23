@@ -376,66 +376,44 @@ export function discardOpenMap() {
 	resetMapState();
 }
 
-/** Ids of every location the selector resolves to. */
-export function resolveIds(selector: Selector): Promise<number[]> {
-	return cmd.storeResolve(selector);
-}
-
-/** How many locations the selector resolves to. */
-export function countIn(selector: Selector): Promise<number> {
-	return cmd.storeCount(selector);
-}
-
-/** Bounding box `[west, south, east, north]`, or null when the selector is empty. */
-export function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null> {
-	return cmd.storeBounds(selector);
-}
-
-/** `n` ids drawn uniformly at random, without replacement. */
-export function sampleFrom(selector: Selector, n: number): Promise<number[]> {
-	return cmd.storeSample(selector, n);
-}
-
-/** Distinct values of `field`, sorted. */
-export function fieldValues(selector: Selector, field: string): Promise<string[]> {
-	return cmd.storeValues(selector, field);
-}
-
-/** Group by a derived key and count. */
-export function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy> {
-	return cmd.storeCountBy(selector, field, key);
-}
-
-/** How many locations hold a value for each field, key-sorted. */
-export function coverage(selector: Selector): Promise<[string, number][]> {
-	return cmd.storeCoverage(selector);
-}
-
-/** One column per field over the selected set. `null` where a location
- *  lacks the field; `"tags"` returns a column of tag-id arrays. */
-export function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]> {
-	return cmd.storeColumns(selector, fields);
-}
-
-/** Group the selected location set by a derived key. Numeric bins arrive in bound order;
- *  other keys are sorted naturally. */
-export async function partition(
-	field: string,
-	key: KeySpec,
-	selector: Selector,
-): Promise<PartitionBucket[]> {
-	const groups = await cmd.storeGroupBy(selector, field, key);
-	if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
-	return groups;
-}
-
-/** Fetch full location rows matching a selector. Missing ids are skipped.
- *
- *  Every row lands in memory, so an unscoped call on a large map is expensive.
- *  Prefer a narrower selector or a projection (`fetchColumns`, `countBy`) when possible. */
-export async function fetchLocations(selector: Selector): Promise<Location[]> {
-	const rows = await cmd.storeCollect(selector);
-	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
+/** Questions about the locations a selector resolves to. Each call answers once,
+ *  against the map as it is now; ask again after a change. */
+export function query(selector: Selector) {
+	return {
+		/** The resolved ids, in map order. */
+		ids: (): Promise<number[]> => cmd.storeResolve(selector),
+		/** How many locations resolve. */
+		count: (): Promise<number> => cmd.storeCount(selector),
+		/** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+		bounds: (): Promise<[number, number, number, number] | null> => cmd.storeBounds(selector),
+		/** `n` ids drawn uniformly at random, without replacement. */
+		sample: (n: number): Promise<number[]> => cmd.storeSample(selector, n),
+		/** Distinct values of `field`, sorted. */
+		values: (field: string): Promise<string[]> => cmd.storeValues(selector, field),
+		/** Group by a derived key and count. */
+		countBy: (field: string, key: KeySpec): Promise<CountBy> =>
+			cmd.storeCountBy(selector, field, key),
+		/** How many locations hold a value for each field, key-sorted. */
+		coverage: (): Promise<[string, number][]> => cmd.storeCoverage(selector),
+		/** One column per field. `null` where a location lacks the field; `"tags"`
+		 *  returns a column of tag-id arrays. */
+		columns: (fields: string[]): Promise<unknown[][]> => cmd.storeColumns(selector, fields),
+		/** Group by a derived key. Numeric bins arrive in bound order; other keys are
+		 *  sorted naturally. */
+		partition: async (field: string, key: KeySpec): Promise<PartitionBucket[]> => {
+			const groups = await cmd.storeGroupBy(selector, field, key);
+			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
+			return groups;
+		},
+		/** Every matching location as a full row; missing ids are skipped.
+		 *
+		 *  Every row lands in memory, so an unscoped call on a large map is expensive.
+		 *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+		locations: async (): Promise<Location[]> => {
+			const rows = await cmd.storeCollect(selector);
+			return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
+		},
+	};
 }
 
 /** Active (non-ghosted) selections, the default for any operational logic. */
@@ -601,7 +579,7 @@ export async function addLocations(locs: Location[]) {
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
 	if (!state.map || isVirtualLocation({ id })) return null;
-	const [loc] = await fetchLocations({ type: "Locations", locations: [id], name: null });
+	const [loc] = await query({ type: "Locations", locations: [id], name: null }).locations();
 	if (!loc) return null;
 	const now = nowUnix();
 	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
@@ -674,7 +652,11 @@ export async function applyFieldOp(
 	emitEvent("location:invalidate");
 	const active = state.activeLocation;
 	if (active && !isVirtualLocation(active)) {
-		const [fresh] = await fetchLocations({ type: "Locations", locations: [active.id], name: null });
+		const [fresh] = await query({
+			type: "Locations",
+			locations: [active.id],
+			name: null,
+		}).locations();
 		if (fresh) {
 			setState({ activeLocation: fresh });
 			emitEvent("store:changed");
@@ -792,7 +774,9 @@ export async function selectRandomFromSelection(
 	perSelection = false,
 ): Promise<number> {
 	const buckets = await Promise.all(
-		pickBuckets(perSelection).map((selector) => sampleFrom(selector ?? currentSelection(), count)),
+		pickBuckets(perSelection).map((selector) =>
+			query(selector ?? currentSelection()).sample(count),
+		),
 	);
 	const picked = [...new Set(buckets.flat())];
 	if (picked.length === 0) return 0;
@@ -924,7 +908,7 @@ function clearActiveLocation(): void {
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
 	return typeof m === "number"
-		? ((await fetchLocations({ type: "Locations", locations: [m], name: null }))[0] ?? null)
+		? ((await query({ type: "Locations", locations: [m], name: null }).locations())[0] ?? null)
 		: m;
 }
 

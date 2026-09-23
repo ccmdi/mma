@@ -16,7 +16,7 @@ import { Slider } from "@/components/primitives/Slider";
 import { NSelect } from "@/components/primitives/NSelect";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
-import { fetchLocations, getMapState, sampleFrom, useMapState } from "@/store/useMapStore";
+import { getMapState, query, useMapState } from "@/store/useMapStore";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
 import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
@@ -62,9 +62,9 @@ import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
-	const ids = await sampleFrom(selector, n);
+	const ids = await query(selector).sample(n);
 	if (ids.length === 0) return [];
-	return (await fetchLocations({ type: "Locations", locations: ids, name: null })).map(
+	return (await query({ type: "Locations", locations: ids, name: null }).locations()).map(
 		toRoundLocation,
 	);
 }

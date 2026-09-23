@@ -8,7 +8,7 @@ import {
 	setActiveLocation,
 	applySelectionUpdate,
 	removeLocations,
-	resolveIds,
+	query,
 } from "@/store/useMapStore";
 import {
 	addSelection,
@@ -217,7 +217,7 @@ export async function beginReview(ids: number[], source?: Selection): Promise<vo
 
 	// Freeze the worklist to ids that still exist, in the map's review order.
 	const worklist: Selector = { type: "Locations", locations: ids, name: null };
-	const order = await resolveIds(reviewOrdering(worklist, map.settings.reviewOrder));
+	const order = await query(reviewOrdering(worklist, map.settings.reviewOrder)).ids();
 	if (order.length === 0) return;
 
 	const name = source ? selectionDisplayName(source) : t("Selected locations");
@@ -392,7 +392,7 @@ async function adopt(s: ReviewSession): Promise<void> {
 	let v: ReviewSession | null = s;
 	try {
 		const liveIds = new Set(
-			await resolveIds({ type: "Locations", locations: s.order, name: null }),
+			await query({ type: "Locations", locations: s.order, name: null }).ids(),
 		);
 		v = pruneSession(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
 	} catch (e) {

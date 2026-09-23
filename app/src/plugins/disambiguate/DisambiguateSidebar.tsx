@@ -133,7 +133,11 @@ async function analyze(): Promise<Analysis> {
 
 	const colors = sels.map((s) => s.color);
 	const idSets = await Promise.all(
-		sels.map((s) => MMA.resolveIds(s.selector).then((ids) => new Set(ids))),
+		sels.map((s) =>
+			MMA.query(s.selector)
+				.ids()
+				.then((ids) => new Set(ids)),
+		),
 	);
 
 	const groupIds: number[][] = sels.map(() => []);
@@ -150,15 +154,18 @@ async function analyze(): Promise<Analysis> {
 	for (const [id, t] of Object.entries(MMA.getTags()))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
-	const present = await MMA.coverage({ type: "Locations", locations: unionIds, name: null });
+	const present = await MMA.query({
+		type: "Locations",
+		locations: unionIds,
+		name: null,
+	}).coverage();
 	const fields = analysisColumns(
 		fieldDefs,
 		present.map(([k]) => k),
 	);
 	const groups: GroupColumns[] = await Promise.all(
 		groupIds.map(async (ids) => {
-			const cols = await MMA.fetchColumns(
-				{ type: "Locations", locations: ids, name: null },
+			const cols = await MMA.query({ type: "Locations", locations: ids, name: null }).columns(
 				fields,
 			);
 			return { size: ids.length, columns: Object.fromEntries(fields.map((f, i) => [f, cols[i]])) };

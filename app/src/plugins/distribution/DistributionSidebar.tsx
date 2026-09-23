@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
-import { countBy } from "@/store/useMapStore";
+import { query } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
 
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
@@ -48,7 +48,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 		setTotal(count);
 
 		const meta = toDistribution(
-			(await countBy({ type: "Everything" }, "countryCode", { kind: "value" })).counts,
+			(await query({ type: "Everything" }).countBy("countryCode", { kind: "value" })).counts,
 			count,
 		);
 		const hasMeta = count > 0 && meta.unknown < count;

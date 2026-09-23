@@ -15,14 +15,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { Bar } from "@/components/primitives/Bar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
-import {
-	applySelectionUpdate,
-	applyFieldOp,
-	countIn,
-	fetchLocations,
-	coverage,
-	getMapState,
-} from "@/store/useMapStore";
+import { applySelectionUpdate, applyFieldOp, query, getMapState } from "@/store/useMapStore";
 import { addSelection, all, batch as batchOp, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector, FieldOp } from "@/bindings.gen";
@@ -105,9 +98,9 @@ interface SetupProps {
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 	const [total, pinned, counts] = await Promise.all([
-		countIn(selector),
-		countIn(all(selector, panoIdSelector(true))),
-		coverage(selector),
+		query(selector).count(),
+		query(all(selector, panoIdSelector(true))).count(),
+		query(selector).coverage(),
 	]);
 	const have = new Map(counts);
 	return {
@@ -709,7 +702,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 					onClick: () => {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
-							const locations = await fetchLocations(selector);
+							const locations = await query(selector).locations();
 							const result = await bulkDownloadPanoramas(locations, config, {
 								signal,
 								onProgress,
@@ -1147,7 +1140,7 @@ export function BulkOperationModal({
 }: DialogProps & { operation: BulkOperation }) {
 	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
-	const { data: allKeys } = useAsync(() => coverage({ type: "Everything" }), []);
+	const { data: allKeys } = useAsync(() => query({ type: "Everything" }).coverage(), []);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
 
 	if (!run && (allKeys === null || info === null)) return null;

@@ -15,15 +15,10 @@ import {
 import { loadSavedSelections, savedParts, useSavedSelectionIndex } from "@/store/savedSelections";
 import {
 	applySelectionUpdate,
-	countBy,
-	countIn,
-	fetchColumns,
-	fieldValues,
 	getActiveSelections,
 	getMapState,
-	partition,
-	resolveIds,
 	getTags,
+	query,
 } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
 import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
@@ -80,7 +75,7 @@ async function pivotRowDefs(rowSource: RowSource): Promise<RowDef[]> {
 
 /** Per-row tag histogram: one tag column read per row, tallied over that row alone. */
 async function tagCounts(row: RowDef): Promise<{ counts: Map<string, number>; withValue: number }> {
-	const [column] = await fetchColumns(row.selector, ["tags"]);
+	const [column] = await query(row.selector).columns(["tags"]);
 	const counts = new Map<string, number>();
 	let withValue = 0;
 	for (const cell of column) {
@@ -128,7 +123,7 @@ async function computePivot(
 	// Numeric fields bucket into a histogram; resolveBucketCount arbitrates between the
 	// user's choice and the field's cardinality.
 	let numericDistinct: number | undefined;
-	if (isNumeric) numericDistinct = (await fieldValues({ type: "Everything" }, fieldKey)).length;
+	if (isNumeric) numericDistinct = (await query({ type: "Everything" }).values(fieldKey)).length;
 	const effectiveBuckets =
 		numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 	const key: KeySpec = effectiveBuckets
@@ -138,17 +133,17 @@ async function computePivot(
 	let buckets: PartitionBucket[] | null = null;
 	let binOf: Map<number, string> | null = null;
 	if (effectiveBuckets) {
-		buckets = await partition(fieldKey, key, { type: "Everything" });
+		buckets = await query({ type: "Everything" }).partition(fieldKey, key);
 		binOf = new Map();
 		for (const g of buckets) for (const id of g.ids) binOf.set(id, g.key);
 	}
 
 	const perRow = await Promise.all(
 		rowDefs.map(async (row) => {
-			const total = await countIn(row.selector);
+			const total = await query(row.selector).count();
 			if (isTags) return { ...(await tagCounts(row)), total };
-			if (binOf) return { ...binCounts(await resolveIds(row.selector), binOf), total };
-			const grouped = await countBy(row.selector, fieldKey, key);
+			if (binOf) return { ...binCounts(await query(row.selector).ids(), binOf), total };
+			const grouped = await query(row.selector).countBy(fieldKey, key);
 			return { counts: new Map(grouped.counts), withValue: grouped.covered, total };
 		}),
 	);

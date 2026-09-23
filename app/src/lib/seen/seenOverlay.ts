@@ -5,7 +5,7 @@
 
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
-import { fetchLocations, setActiveLocation, previewVirtualLocation } from "@/store/useMapStore";
+import { query, setActiveLocation, previewVirtualLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { getSeenCount, getSeenEntries } from "./seen";
@@ -46,7 +46,7 @@ export function getSeenOnMapIds(): ReadonlySet<number> {
 async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
 	const locIds = [...new Set(list.map((e) => e.locationId).filter((x): x is number => x != null))];
 	if (locIds.length === 0) return new Set();
-	const onMap = await fetchLocations({ type: "Locations", locations: locIds, name: null });
+	const onMap = await query({ type: "Locations", locations: locIds, name: null }).locations();
 	const panoById = new Map(onMap.map((l) => [l.id, l.panoId]));
 	const out = new Set<number>();
 	for (const e of list) {
@@ -85,11 +85,11 @@ export async function openSeenEntry(index: number): Promise<void> {
 	if (!entry) return;
 	seenSkipNext(entry.panoId);
 	if (entry.locationId != null) {
-		const [existing] = await fetchLocations({
+		const [existing] = await query({
 			type: "Locations",
 			locations: [entry.locationId],
 			name: null,
-		});
+		}).locations();
 		if (existing && existing.panoId === entry.panoId) {
 			void setActiveLocation(existing.id);
 			return;

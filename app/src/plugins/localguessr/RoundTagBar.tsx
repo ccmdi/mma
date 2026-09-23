@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
 import {
 	createTags,
-	fetchLocations,
+	query,
 	getVisibleTags,
 	tagIdsToNames,
 	updateLocations,
@@ -22,9 +22,11 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 
 	useEffect(() => {
 		let cancelled = false;
-		void fetchLocations({ type: "Locations", locations: [locationId], name: null }).then((locs) => {
-			if (!cancelled) setNames(tagIdsToNames(locs[0]?.tags ?? []));
-		});
+		void query({ type: "Locations", locations: [locationId], name: null })
+			.locations()
+			.then((locs) => {
+				if (!cancelled) setNames(tagIdsToNames(locs[0]?.tags ?? []));
+			});
 		return () => {
 			cancelled = true;
 		};

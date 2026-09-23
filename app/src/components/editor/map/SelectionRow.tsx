@@ -2,10 +2,9 @@ import { memo, useState, useEffect, useCallback, useRef } from "react";
 import {
 	applySelectionUpdate,
 	createTags,
-	fetchBounds,
 	getVisibleTags,
 	pruneDuplicates,
-	resolveIds,
+	query,
 	useMapState,
 	getTags,
 } from "@/store/useMapStore";
@@ -63,7 +62,7 @@ async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
 		selection.selector.type === "Polygon"
 			? await cmd.polygonBounds(selection.selector.polygon)
-			: await fetchBounds(selection.selector);
+			: await query(selection.selector).bounds();
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 
@@ -336,7 +335,7 @@ export const SelectionRow = memo(function SelectionRow({
 										disabled={count === 0}
 										onClick={() =>
 											void (async () => {
-												const ids = await resolveIds(selection.selector);
+												const ids = await query(selection.selector).ids();
 												void beginReview(ids, selection);
 											})()
 										}

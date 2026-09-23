@@ -7,7 +7,7 @@ import {
 	getMapState,
 	mutate,
 	openMap as storeOpenMap,
-	resolveIds,
+	query,
 } from "@/store/useMapStore";
 import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
@@ -30,7 +30,7 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 			ghosted: ghostedSelections.has(s.key),
 		})),
 	);
-	return { ids: await resolveIds(currentSelection()) };
+	return { ids: await query(currentSelection()).ids() };
 }
 
 /** Open a map by id and navigate to it. */

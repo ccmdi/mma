@@ -8,8 +8,9 @@ vi.mock("@/store/useMapStore", () => ({
 	setActiveLocation: vi.fn(),
 	addSelections: vi.fn(),
 	applySelectionUpdate: vi.fn(),
-	resolveIds: async ({ locations }: { locations: number[] }) =>
-		locations.filter((id) => store.liveIds.includes(id)),
+	query: ({ locations }: { locations: number[] }) => ({
+		ids: async () => locations.filter((id) => store.liveIds.includes(id)),
+	}),
 	removeLocations: vi.fn(),
 	mutate: vi.fn(),
 }));

@@ -3602,31 +3602,35 @@ declare function openMap$1(id: string): Promise<void>;
 declare function closeMap$1(): Promise<void>;
 /** Drop the open map without persisting anything @unstable */
 declare function discardOpenMap(): void;
-/** Ids of every location the selector resolves to. */
-declare function resolveIds(selector: Selector): Promise<number[]>;
-/** How many locations the selector resolves to. */
-declare function countIn(selector: Selector): Promise<number>;
-/** Bounding box `[west, south, east, north]`, or null when the selector is empty. */
-declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
-/** `n` ids drawn uniformly at random, without replacement. */
-declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
-/** Distinct values of `field`, sorted. */
-declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
-/** Group by a derived key and count. */
-declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
-/** How many locations hold a value for each field, key-sorted. */
-declare function coverage(selector: Selector): Promise<[string, number][]>;
-/** One column per field over the selected set. `null` where a location
- *  lacks the field; `"tags"` returns a column of tag-id arrays. */
-declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
-/** Group the selected location set by a derived key. Numeric bins arrive in bound order;
- *  other keys are sorted naturally. */
-declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
-/** Fetch full location rows matching a selector. Missing ids are skipped.
- *
- *  Every row lands in memory, so an unscoped call on a large map is expensive.
- *  Prefer a narrower selector or a projection (`fetchColumns`, `countBy`) when possible. */
-declare function fetchLocations(selector: Selector): Promise<Location[]>;
+/** Questions about the locations a selector resolves to. Each call answers once,
+ *  against the map as it is now; ask again after a change. */
+declare function query$1(selector: Selector): {
+    /** The resolved ids, in map order. */
+    ids: () => Promise<number[]>;
+    /** How many locations resolve. */
+    count: () => Promise<number>;
+    /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+    bounds: () => Promise<[number, number, number, number] | null>;
+    /** `n` ids drawn uniformly at random, without replacement. */
+    sample: (n: number) => Promise<number[]>;
+    /** Distinct values of `field`, sorted. */
+    values: (field: string) => Promise<string[]>;
+    /** Group by a derived key and count. */
+    countBy: (field: string, key: KeySpec) => Promise<CountBy>;
+    /** How many locations hold a value for each field, key-sorted. */
+    coverage: () => Promise<[string, number][]>;
+    /** One column per field. `null` where a location lacks the field; `"tags"`
+     *  returns a column of tag-id arrays. */
+    columns: (fields: string[]) => Promise<unknown[][]>;
+    /** Group by a derived key. Numeric bins arrive in bound order; other keys are
+     *  sorted naturally. */
+    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+    /** Every matching location as a full row; missing ids are skipped.
+     *
+     *  Every row lands in memory, so an unscoped call on a large map is expensive.
+     *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+    locations: () => Promise<Location[]>;
+};
 /** Active (non-ghosted) selections, the default for any operational logic. */
 declare const getActiveSelections: () => Selection[];
 /** The live selection as a `Selector`: the union of the active selection nodes. */
@@ -3790,9 +3794,6 @@ declare const store_checkoutCommit: typeof checkoutCommit;
 /** @unstable */
 declare const store_closeDuplicates: typeof closeDuplicates;
 declare const store_commitMap: typeof commitMap;
-declare const store_countBy: typeof countBy;
-declare const store_countIn: typeof countIn;
-declare const store_coverage: typeof coverage;
 declare const store_createTags: typeof createTags;
 declare const store_currentSelection: typeof currentSelection;
 declare const store_deleteField: typeof deleteField;
@@ -3803,10 +3804,6 @@ declare const store_duplicateLocation: typeof duplicateLocation;
 /** @unstable */
 declare const store_emitBitmask: typeof emitBitmask;
 declare const store_exitPluginMode: typeof exitPluginMode;
-declare const store_fetchBounds: typeof fetchBounds;
-declare const store_fetchColumns: typeof fetchColumns;
-declare const store_fetchLocations: typeof fetchLocations;
-declare const store_fieldValues: typeof fieldValues;
 /** @unstable */
 declare const store_flushSave: typeof flushSave;
 declare const store_getActiveSelections: typeof getActiveSelections;
@@ -3827,7 +3824,6 @@ declare const store_mutate: typeof mutate;
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
 /** @unstable */
 declare const store_openStagedLocation: typeof openStagedLocation;
-declare const store_partition: typeof partition;
 declare const store_patchMapMeta: typeof patchMapMeta;
 /** @unstable */
 declare const store_previewDuplicateGroups: typeof previewDuplicateGroups;
@@ -3844,9 +3840,7 @@ declare const store_renameField: typeof renameField;
 declare const store_renameTagsIn: typeof renameTagsIn;
 declare const store_reorderTags: typeof reorderTags;
 declare const store_resetSelections: typeof resetSelections;
-declare const store_resolveIds: typeof resolveIds;
 declare const store_resolveLocation: typeof resolveLocation;
-declare const store_sampleFrom: typeof sampleFrom;
 /** @unstable */
 declare const store_scheduleAutoCommit: typeof scheduleAutoCommit;
 /** @unstable */
@@ -3874,7 +3868,7 @@ declare const store_useMapState: typeof useMapState;
 /** @unstable */
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_addSelections as addSelections, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_countBy as countBy, store_countIn as countIn, store_coverage as coverage, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_fetchBounds as fetchBounds, store_fetchColumns as fetchColumns, store_fetchLocations as fetchLocations, store_fieldValues as fieldValues, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_partition as partition, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveIds as resolveIds, store_resolveLocation as resolveLocation, store_sampleFrom as sampleFrom, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_addSelections as addSelections, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_emitBitmask as emitBitmask, store_exitPluginMode as exitPluginMode, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, query$1 as query, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_removeSelections as removeSelections, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resetSelections as resetSelections, store_resolveLocation as resolveLocation, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState, store_UiState as UiState };
 }
 
@@ -7317,14 +7311,34 @@ declare function getGhostedSelections(): ReadonlySet<string>;
 declare function getSelections(): Selection[];
 /** @deprecated v0.8.2. Read `(await MMA.cmd.storeGetSummary()).dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: [id], name: null })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Locations", locations: ids, name: null })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: ids, name: null }).locations()`. @unstable */
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.fetchLocations({ type: "Everything" })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.query({ type: "Everything" }).locations()`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
-/** @deprecated v0.10.2. Use `MMA.coverage()`. @unstable */
+/** @deprecated v0.10.2. Use `MMA.query(selector).coverage()`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).ids()`. @unstable */
+declare function resolveIds(selector: Selector): Promise<number[]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).count()`. @unstable */
+declare function countIn(selector: Selector): Promise<number>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).bounds()`. @unstable */
+declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).sample(n)`. @unstable */
+declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).values(field)`. @unstable */
+declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).countBy(field, key)`. @unstable */
+declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).coverage()`. @unstable */
+declare function coverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).columns(fields)`. @unstable */
+declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).partition(field, key)`. @unstable */
+declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
+/** @deprecated v0.11.3. Use `MMA.query(selector).locations()`. @unstable */
+declare function fetchLocations(selector: Selector): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
 /** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
@@ -7350,15 +7364,29 @@ declare function removeTagFromAllLocations(tagId: number): Promise<void> | Promi
 /** @unstable */
 declare const legacy_addTagToLocations: typeof addTagToLocations;
 /** @unstable */
+declare const legacy_countBy: typeof countBy;
+/** @unstable */
+declare const legacy_countIn: typeof countIn;
+/** @unstable */
+declare const legacy_coverage: typeof coverage;
+/** @unstable */
 declare const legacy_createPluginStorage: typeof createPluginStorage;
 /** @unstable */
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 /** @unstable */
+declare const legacy_fetchBounds: typeof fetchBounds;
+/** @unstable */
+declare const legacy_fetchColumns: typeof fetchColumns;
+/** @unstable */
 declare const legacy_fetchLocation: typeof fetchLocation;
+/** @unstable */
+declare const legacy_fetchLocations: typeof fetchLocations;
 /** @unstable */
 declare const legacy_fetchLocationsByIds: typeof fetchLocationsByIds;
 /** @unstable */
 declare const legacy_fieldCoverage: typeof fieldCoverage;
+/** @unstable */
+declare const legacy_fieldValues: typeof fieldValues;
 /** @unstable */
 declare const legacy_getActiveLocation: typeof getActiveLocation;
 /** @unstable */
@@ -7382,6 +7410,8 @@ declare const legacy_getWorkArea: typeof getWorkArea;
 /** @unstable */
 declare const legacy_installedVersion: typeof installedVersion;
 /** @unstable */
+declare const legacy_partition: typeof partition;
+/** @unstable */
 declare const legacy_registerEnrichFields: typeof registerEnrichFields;
 /** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
@@ -7392,17 +7422,28 @@ declare const legacy_removeTagFromLocations: typeof removeTagFromLocations;
 /** @unstable */
 declare const legacy_request: typeof request;
 /** @unstable */
+declare const legacy_resolveIds: typeof resolveIds;
+/** @unstable */
+declare const legacy_sampleFrom: typeof sampleFrom;
+/** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 /** @unstable */
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare namespace legacy {
   export {
     legacy_addTagToLocations as addTagToLocations,
+    legacy_countBy as countBy,
+    legacy_countIn as countIn,
+    legacy_coverage as coverage,
     legacy_createPluginStorage as createPluginStorage,
     legacy_fetchAllLocations as fetchAllLocations,
+    legacy_fetchBounds as fetchBounds,
+    legacy_fetchColumns as fetchColumns,
     legacy_fetchLocation as fetchLocation,
+    legacy_fetchLocations as fetchLocations,
     legacy_fetchLocationsByIds as fetchLocationsByIds,
     legacy_fieldCoverage as fieldCoverage,
+    legacy_fieldValues as fieldValues,
     legacy_getActiveLocation as getActiveLocation,
     legacy_getAllSelections as getAllSelections,
     legacy_getCurrentMap as getCurrentMap,
@@ -7414,11 +7455,14 @@ declare namespace legacy {
     legacy_getSelections as getSelections,
     legacy_getWorkArea as getWorkArea,
     legacy_installedVersion as installedVersion,
+    legacy_partition as partition,
     legacy_registerEnrichFields as registerEnrichFields,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_removeTagFromAllLocations as removeTagFromAllLocations,
     legacy_removeTagFromLocations as removeTagFromLocations,
     legacy_request as request,
+    legacy_resolveIds as resolveIds,
+    legacy_sampleFrom as sampleFrom,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_waitForGoogleMap as waitForGoogleMap,
   };

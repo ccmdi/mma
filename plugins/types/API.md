@@ -728,40 +728,6 @@ commitMap(message?: string): Promise<string>
 
 Commit all pending changes to the map's version history. Clears the undo stack.
 
-### countBy
-
-`stable` · since v0.9.0
-
-```ts
-countBy(
-  selector: Selector,
-  field: string,
-  key: KeySpec,
-): Promise<CountBy>
-```
-
-Group by a derived key and count.
-
-### countIn
-
-`stable` · since v0.10.0
-
-```ts
-countIn(selector: Selector): Promise<number>
-```
-
-How many locations the selector resolves to.
-
-### coverage
-
-`stable` · since v0.10.2
-
-```ts
-coverage(selector: Selector): Promise<[string, number][]>
-```
-
-How many locations hold a value for each field, key-sorted.
-
 ### createTags
 
 `stable` · since v0.4.0
@@ -845,52 +811,6 @@ exitPluginMode(): void
 ```
 
 Close the plugin sidebar and return to the overview.
-
-### fetchBounds
-
-`stable` · since v0.9.0
-
-```ts
-fetchBounds(
-  selector: Selector,
-): Promise<[number, number, number, number] | null>
-```
-
-Bounding box `[west, south, east, north]`, or null when the selector is empty.
-
-### fetchColumns
-
-`stable` · since v0.10.0
-
-```ts
-fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
-```
-
-One column per field over the selected set. `null` where a location
-lacks the field; `"tags"` returns a column of tag-id arrays.
-
-### fetchLocations
-
-`stable` · since v0.9.0
-
-```ts
-fetchLocations(selector: Selector): Promise<Location[]>
-```
-
-Fetch full location rows matching a selector. Missing ids are skipped.
-
-Every row lands in memory, so an unscoped call on a large map is expensive.
-Prefer a narrower selector or a projection (`fetchColumns`, `countBy`) when possible.
-
-### fieldValues
-
-`stable` · since v0.9.0
-
-```ts
-fieldValues(selector: Selector, field: string): Promise<string[]>
-```
-
-Distinct values of `field`, sorted.
 
 ### flushSave
 
@@ -1046,21 +966,6 @@ openStagedLocation(index: number): Promise<void>
 Open a staged-import location read-only, as if it were active. It is not on the map and
 cannot be edited.
 
-### partition
-
-`stable` · since v0.6.2
-
-```ts
-partition(
-  field: string,
-  key: KeySpec,
-  selector: Selector,
-): Promise<PartitionBucket[]>
-```
-
-Group the selected location set by a derived key. Numeric bins arrive in bound order;
-other keys are sorted naturally.
-
 ### patchMapMeta
 
 `stable` · since v0.10.1
@@ -1102,6 +1007,43 @@ pruneDuplicates(selector: Selector, distance: number): Promise<number>
 
 Prune duplicates within a resolved selection: keeps the most relevant location per
 cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
+
+### query
+
+`stable` · unreleased
+
+```ts
+query(selector: Selector): {
+  /** The resolved ids, in map order. */
+  ids: () => Promise<number[]>;
+  /** How many locations resolve. */
+  count: () => Promise<number>;
+  /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+  bounds: () => Promise<[number, number, number, number] | null>;
+  /** `n` ids drawn uniformly at random, without replacement. */
+  sample: (n: number) => Promise<number[]>;
+  /** Distinct values of `field`, sorted. */
+  values: (field: string) => Promise<string[]>;
+  /** Group by a derived key and count. */
+  countBy: (field: string, key: KeySpec) => Promise<CountBy>;
+  /** How many locations hold a value for each field, key-sorted. */
+  coverage: () => Promise<[string, number][]>;
+  /** One column per field. `null` where a location lacks the field; `"tags"`
+   *  returns a column of tag-id arrays. */
+  columns: (fields: string[]) => Promise<unknown[][]>;
+  /** Group by a derived key. Numeric bins arrive in bound order; other keys are
+   *  sorted naturally. */
+  partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+  /** Every matching location as a full row; missing ids are skipped.
+   *
+   *  Every row lands in memory, so an unscoped call on a large map is expensive.
+   *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+  locations: () => Promise<Location[]>;
+}
+```
+
+Questions about the locations a selector resolves to. Each call answers once,
+against the map as it is now; ask again after a change.
 
 ### redo
 
@@ -1194,16 +1136,6 @@ resetSelections(): Promise<void>
 
 Clear all selections.
 
-### resolveIds
-
-`stable` · since v0.10.0
-
-```ts
-resolveIds(selector: Selector): Promise<number[]>
-```
-
-Ids of every location the selector resolves to.
-
 ### resolveLocation
 
 `stable` · since v0.6.6
@@ -1213,16 +1145,6 @@ resolveLocation(m: MaybeLocation): Promise<Location | null>
 ```
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
-
-### sampleFrom
-
-`stable` · since v0.10.0
-
-```ts
-sampleFrom(selector: Selector, n: number): Promise<number[]>
-```
-
-`n` ids drawn uniformly at random, without replacement.
 
 ### scheduleAutoCommit
 
@@ -8538,6 +8460,40 @@ addTagToLocations(
 
 **Deprecated in v0.10.5.** Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`.
 
+### countBy
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+countBy(
+  selector: Selector,
+  field: string,
+  key: KeySpec,
+): Promise<CountBy>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).countBy(field, key)`.
+
+### countIn
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+countIn(selector: Selector): Promise<number>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).count()`.
+
+### coverage
+
+`unstable` · `deprecated` · since v0.10.2
+
+```ts
+coverage(selector: Selector): Promise<[string, number][]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).coverage()`.
+
 ### createPluginStorage
 
 `unstable` · `deprecated` · since v0.10.3
@@ -8556,7 +8512,29 @@ createPluginStorage(id: string): PluginStorage
 fetchAllLocations(): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.fetchLocations({ type: "Everything" })`.
+**Deprecated in v0.8.4.** Use `MMA.query({ type: "Everything" }).locations()`.
+
+### fetchBounds
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fetchBounds(
+  selector: Selector,
+): Promise<[number, number, number, number] | null>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).bounds()`.
+
+### fetchColumns
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).columns(fields)`.
 
 ### fetchLocation
 
@@ -8566,7 +8544,17 @@ fetchAllLocations(): Promise<Location[]>
 fetchLocation(id: number): Promise<Location>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.fetchLocations({ type: "Locations", locations: [id], name: null })`.
+**Deprecated in v0.8.4.** Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`.
+
+### fetchLocations
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fetchLocations(selector: Selector): Promise<Location[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).locations()`.
 
 ### fetchLocationsByIds
 
@@ -8576,7 +8564,7 @@ fetchLocation(id: number): Promise<Location>
 fetchLocationsByIds(ids: number[]): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.fetchLocations({ type: "Locations", locations: ids, name: null })`.
+**Deprecated in v0.8.4.** Use `MMA.query({ type: "Locations", locations: ids, name: null }).locations()`.
 
 ### fieldCoverage
 
@@ -8586,7 +8574,17 @@ fetchLocationsByIds(ids: number[]): Promise<Location[]>
 fieldCoverage(selector: Selector): Promise<[string, number][]>
 ```
 
-**Deprecated in v0.10.2.** Use `MMA.coverage()`.
+**Deprecated in v0.10.2.** Use `MMA.query(selector).coverage()`.
+
+### fieldValues
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fieldValues(selector: Selector, field: string): Promise<string[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).values(field)`.
 
 ### getActiveLocation
 
@@ -8698,6 +8696,20 @@ installedVersion(pluginId: string): Promise<string | null>
 
 **Deprecated in v0.11.0.** Use `MMA.sidecar.installedVersion()`.
 
+### partition
+
+`unstable` · `deprecated` · since v0.6.2
+
+```ts
+partition(
+  field: string,
+  key: KeySpec,
+  selector: Selector,
+): Promise<PartitionBucket[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).partition(field, key)`.
+
 ### registerEnrichFields
 
 `unstable` · `deprecated` · since v0.3.1
@@ -8756,6 +8768,26 @@ request<T>(
 ```
 
 **Deprecated in v0.11.0.** Use `MMA.sidecar.request()`.
+
+### resolveIds
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+resolveIds(selector: Selector): Promise<number[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).ids()`.
+
+### sampleFrom
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+sampleFrom(selector: Selector, n: number): Promise<number[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.query(selector).sample(n)`.
 
 ### setUserFieldDefs
 

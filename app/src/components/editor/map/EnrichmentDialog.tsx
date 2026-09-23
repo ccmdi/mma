@@ -21,9 +21,8 @@ import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDef
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import {
 	deleteField,
-	coverage as readCoverage,
-	fieldValues,
 	getMapState,
+	query,
 	renameField,
 	setMapExtraFields,
 } from "@/store/useMapStore";
@@ -114,9 +113,11 @@ function useCoverage(epoch = 0): Map<string, number> {
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		void readCoverage({ type: "Everything" }).then((counts) => {
-			setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
-		});
+		void query({ type: "Everything" })
+			.coverage()
+			.then((counts) => {
+				setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
+			});
 	}, [epoch]);
 	return coverage;
 }
@@ -296,7 +297,7 @@ function FieldsTab() {
 
 	const proposeRename = async (target: string) => {
 		if (!row || !target || target === row.key) return;
-		const counts = await readCoverage({ type: "Everything" });
+		const counts = await query({ type: "Everything" }).coverage();
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,
@@ -598,9 +599,11 @@ function EnumValues({
 	useEffect(() => {
 		let live = true;
 		const have = new Set((row.values ?? []).map((v) => v.value));
-		void fieldValues({ type: "Everything" }, row.key).then((values) => {
-			if (live) setCandidates(values.filter((v) => !have.has(v)));
-		});
+		void query({ type: "Everything" })
+			.values(row.key)
+			.then((values) => {
+				if (live) setCandidates(values.filter((v) => !have.has(v)));
+			});
 		return () => {
 			live = false;
 		};
