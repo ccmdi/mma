@@ -374,14 +374,10 @@ pub async fn store_country_distribution(
     selector: Selector,
     level: String,
 ) -> AppResult<Vec<(String, u32)>> {
-    let coords: Vec<(f64, f64)> = with_store!(label, state, |store| {
-        let view = store.view_for(&selector);
-        let resolved = selections::narrow(&view, &selector);
-        let mut coords = Vec::new();
-        view.for_each_within(resolved.as_ref(), |row| coords.push((row.lat(), row.lng())));
-        coords
+    let coords: AppResult<Vec<(f64, f64)>> = selector_read!(label, state, selector, |scope| {
+        scope.rows().map(|row| (row.lat(), row.lng())).collect()
     });
-    borders::tally_countries(&level, &coords)
+    borders::tally_countries(&level, &coords?)
 }
 
 /// Copy locations already stored in this map into another map.
@@ -837,11 +833,11 @@ pub fn store_resolve(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
 ) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |view, set| match &selector {
+    selector_read!(label, state, selector, |scope| match &selector {
         Selector::Ranked {
             expr, ascending, ..
-        } => selections::ranked_within(&view, set, expr, None, *ascending),
-        _ => selections::ids_within(&view, set),
+        } => scope.ranked(expr, None, *ascending),
+        _ => scope.rows().map(|row| row.id()).collect(),
     })
 }
 
@@ -853,12 +849,7 @@ pub fn store_count(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
 ) -> AppResult<u32> {
-    selector_read!(
-        label,
-        state,
-        selector,
-        |view, set| selections::count_within(&view, set)
-    )
+    selector_read!(label, state, selector, |scope| scope.rows().count() as u32)
 }
 
 /// `n` ids drawn uniformly at random from the selected set, without replacement.
@@ -870,8 +861,8 @@ pub fn store_sample(
     selector: Selector,
     n: u32,
 ) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |view, set| selections::sample(
-        selections::ids_within(&view, set),
+    selector_read!(label, state, selector, |scope| selections::sample(
+        scope.rows().map(|row| row.id()).collect(),
         n as usize
     ))
 }
@@ -887,8 +878,8 @@ pub fn store_spaced(
     target_count: Option<u32>,
     min_distance_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
-    selector_read!(label, state, selector, store: |store, set| store.pick_spaced(
-        set,
+    selector_read!(label, state, selector, |scope| pick_spaced(
+        located(&scope),
         target_count,
         min_distance_m
     )?)
@@ -906,8 +897,8 @@ pub fn store_evenly_spaced(
     target_count: Option<u32>,
     spacing_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
-    selector_read!(label, state, selector, store: |store, set| store.pick_even(
-        set,
+    selector_read!(label, state, selector, |scope| pick_even(
+        &located(&scope),
         target_count,
         spacing_m
     )?)
@@ -1052,9 +1043,8 @@ pub fn store_group_by(
     field: String,
     key: selections::KeySpec,
 ) -> AppResult<Vec<selections::PartitionBucket>> {
-    selector_read!(label, state, selector, |view, set| selections::partition(
-        &view, &field, &key, set
-    ))
+    selector_read!(label, state, selector, |scope| scope
+        .partition(&field, &key))
 }
 
 /// Group locations by a derived key, returning counts only (no member ids) and how many
@@ -1068,9 +1058,7 @@ pub fn store_count_by(
     field: String,
     key: selections::KeySpec,
 ) -> AppResult<selections::CountBy> {
-    selector_read!(label, state, selector, |view, set| selections::count_by(
-        &view, &field, &key, set
-    ))
+    selector_read!(label, state, selector, |scope| scope.count_by(&field, &key))
 }
 
 /// Distinct values of `field` across the selected set, sorted.
@@ -1082,9 +1070,8 @@ pub fn store_values(
     selector: Selector,
     field: String,
 ) -> AppResult<Vec<String>> {
-    selector_read!(label, state, selector, |view, set| {
-        selections::distinct_values(&view, &field, set)
-    })
+    selector_read!(label, state, selector, |scope| scope
+        .distinct_values(&field))
 }
 
 /// How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
@@ -1096,7 +1083,7 @@ pub fn store_coverage(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
 ) -> AppResult<Vec<(String, u32)>> {
-    selector_read!(label, state, selector, store: |store, set| store.coverage(set))
+    with_store!(label, state, |store| { Ok(store.coverage(&selector)) })
 }
 
 /// Per-field columns of the selected set. One value per row per field, `null` where a
@@ -1116,9 +1103,9 @@ pub fn store_columns(
     selector: Selector,
     fields: Vec<String>,
 ) -> AppResult<Columns> {
-    selector_read!(label, state, selector, |view, set| {
-        Columns(selections::columns_within(&view, set, &fields))
-    })
+    selector_read!(label, state, selector, |scope| Columns(
+        scope.columns(&fields)
+    ))
 }
 
 /// Bounding box `[west, south, east, north]`, or `null` when the set is empty.
@@ -1130,10 +1117,11 @@ pub fn store_bounds(
     selector: Selector,
 ) -> AppResult<Option<[f64; 4]>> {
     // The whole-map box is maintained incrementally; narrower ones scan.
-    selector_read!(label, state, selector, store: |store, set| match set {
-        None => store.cached_bounds(),
-        Some(set) => store.compute_bounds(Some(set)),
-    })
+    if matches!(selector, Selector::Everything) {
+        return with_store!(label, state, |store| { Ok(store.cached_bounds()) });
+    }
+    selector_read!(label, state, selector, |scope| bounds(&scope)
+        .map(BoundsAcc::resolve))
 }
 
 /// Collect all matched locations as full rows. Prefer a projection (`storeColumns`,

@@ -247,7 +247,7 @@ impl Index {
         let mut ids = Vec::new();
         let mut pts = Vec::new();
         let mut fields = Vec::new();
-        view.for_each(|row| {
+        for row in view.all().rows() {
             ids.push(row.id());
             pts.push((row.lat(), row.lng()));
             let mut got = serde_json::Map::new();
@@ -257,7 +257,7 @@ impl Index {
                 }
             }
             fields.push(got);
-        });
+        }
         let lookup = match Grid::build(&pts, radius_m) {
             Some(grid) => Lookup::Grid(grid),
             None => Lookup::Exact(exact_coord_groups(&pts)),

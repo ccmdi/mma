@@ -11,7 +11,6 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, LocationFlags};
 use crate::util;
-use roaring::RoaringBitmap;
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 
@@ -377,11 +376,7 @@ fn check_target(key: &str, assigning: bool) -> AppResult<()> {
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
 /// nothing, so the patch list is the changed set. Pure.
-pub(super) fn plan_field_op(
-    view: &selections::LocView,
-    set: Option<&RoaringBitmap>,
-    op: &FieldOp,
-) -> AppResult<FieldPlan> {
+pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResult<FieldPlan> {
     if let FieldOp::Move { from, to, .. } = op {
         if from == to || to.is_empty() {
             return Ok(FieldPlan::default());
@@ -407,7 +402,7 @@ pub(super) fn plan_field_op(
     }
     let mut plan = FieldPlan::default();
     let mut err: Option<AppError> = None;
-    view.for_each_within(set, |row| {
+    for row in scope.rows() {
         let id = row.id();
         let mut merge = serde_json::Map::new();
         match op {
@@ -480,7 +475,7 @@ pub(super) fn plan_field_op(
                 Err(e) => err = Some(e),
             }
         }
-    });
+    }
     if let Some(e) = err {
         return Err(e);
     }
@@ -497,8 +492,7 @@ pub(crate) fn apply_field_op(
 ) -> AppResult<FieldOpResult> {
     let plan = {
         let view = store.view_for(selector);
-        let resolved = selections::narrow(&view, selector);
-        plan_field_op(&view, resolved.as_ref(), op)?
+        plan_field_op(&view.all().narrow(selector), op)?
     };
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,

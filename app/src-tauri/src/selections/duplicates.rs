@@ -90,13 +90,13 @@ pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
         id: u32,
     }
     let mut points: Vec<Pt> = Vec::new();
-    view.for_each(|row| {
+    for row in view.all().rows() {
         points.push(Pt {
             lat: row.lat(),
             lng: row.lng(),
             id: row.id(),
         });
-    });
+    }
 
     let n = points.len();
     if n < 2 {

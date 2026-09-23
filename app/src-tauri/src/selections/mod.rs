@@ -31,9 +31,10 @@ pub use partition::*;
 use rayon::prelude::*;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
 /// for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
@@ -369,7 +370,7 @@ pub struct LocView<'a> {
     field_indexes: Option<&'a FieldIndexes>,
 }
 
-/// One alive location yielded by [`LocView::for_each`]. Provides uniform field
+/// One alive location yielded by [`Scope::rows`]. Provides uniform field
 /// access regardless of whether the data lives in an Arrow batch column or a
 /// materialized `Location` struct (patch or overlay add).
 pub struct RowRef<'a, 'v> {
@@ -632,57 +633,19 @@ impl<'a> LocView<'a> {
         }
     }
 
-    /// A filter's rows answered from its field's index, narrowed to `within` when given:
-    /// existence from the rows holding the field, equality on a scalar and membership in a
-    /// list from the postings. Every row move updates the index beside the mutation, so the
-    /// set is already the answer. `None` when the field has no index or the operator is not
-    /// a lookup (ranges, negated values, substrings) and needs a scan.
-    fn indexed_filter(
-        &self,
-        field: &str,
-        test: &FilterOp,
-        within: Option<&RoaringBitmap>,
-    ) -> Option<RoaringBitmap> {
-        let index = self.field_indexes?.get(field)?;
-        let set = match (index.shape, test) {
-            (_, FilterOp::Has) => index.rows.clone(),
-            (_, FilterOp::Nothas) => {
-                let universe = within.cloned().unwrap_or_else(|| alive_id_set(self));
-                return Some(universe - &index.rows);
-            }
-            (IndexShape::Scalar, FilterOp::Eq { value })
-            | (IndexShape::Multi, FilterOp::Contains { value }) => {
-                let key = index_key(value)?;
-                index.by_value.get(&key).cloned().unwrap_or_default()
-            }
-            _ => return None,
-        };
-        Some(match within {
-            Some(w) => set & w,
-            None => set,
-        })
-    }
-
-    #[allow(
-        dead_code,
-        reason = "reader for the field every LocView consumer indexes by"
-    )]
-    pub fn batch_rows(&self) -> usize {
-        self.batch_rows
-    }
     /// Read the raw batch ID at row `i` (no overlay check).
-    pub fn batch_id(&self, i: usize) -> u32 {
+    fn batch_id(&self, i: usize) -> u32 {
         self.ids.unwrap().value(i)
     }
 
     /// Whether batch row `i` is alive (not in the dead set).
     #[inline]
-    pub fn is_alive(&self, i: usize) -> bool {
+    fn is_alive(&self, i: usize) -> bool {
         !self.has_dead || !self.dead.contains(self.batch_id(i))
     }
 
     #[inline]
-    pub fn patch_at(&self, i: usize) -> Option<&'a Location> {
+    fn patch_at(&self, i: usize) -> Option<&'a Location> {
         if !self.has_patches {
             return None;
         }
@@ -690,7 +653,7 @@ impl<'a> LocView<'a> {
     }
 
     /// Read the effective ID at batch row `i`, checking patches first.
-    pub fn id_at(&self, i: usize) -> u32 {
+    fn id_at(&self, i: usize) -> u32 {
         if self.has_patches {
             if let Some(p) = self.patches.get(&self.batch_id(i)) {
                 return p.id;
@@ -699,111 +662,42 @@ impl<'a> LocView<'a> {
         self.batch_id(i)
     }
 
-    pub fn loc_at(&self, i: usize) -> Location {
+    fn loc_at(&self, i: usize) -> Location {
         arrow::row_to_location(self.batch.unwrap(), i)
     }
 
-    /// Every alive location once, overlay applied: dead rows skipped, patched rows
-    /// surfaced as `RowRef::Loc`, then the overlay adds. The patch is resolved a
-    /// single time per row.
-    pub fn iter(&self) -> impl Iterator<Item = RowRef<'a, '_>> {
+    /// Every alive row, in view order: batch rows, then overlay adds.
+    fn alive(&self) -> impl Iterator<Item = RowRef<'a, '_>> {
         (0..self.batch_rows)
             .filter(move |&i| self.is_alive(i))
-            .map(move |i| match self.patch_at(i) {
-                Some(p) => RowRef::from_loc(p),
-                None => RowRef {
-                    inner: RowInner::Base(self, i),
-                },
-            })
+            .map(move |i| self.row(i))
             .chain(self.adds.iter().map(RowRef::from_loc))
     }
 
-    /// The narrowing guard: rows in `set` only, `None` = every alive row. Pairs with
-    /// `narrow` -- resolution happens once at the command boundary, this is
-    /// the one place the resolved set filters iteration.
-    pub fn within<'v>(
-        &'v self,
-        set: Option<&'v RoaringBitmap>,
-    ) -> impl Iterator<Item = RowRef<'a, 'v>> + 'v {
-        self.iter()
-            .filter(move |r| set.is_none_or(|s| s.contains(r.id())))
-    }
-
-    /// `within` as a visitor. A set small enough that seeking each id beats one
-    /// sequential pass is walked by id (sorted ids on both the batch and the adds keep
-    /// view order); anything larger takes the dense walk.
-    #[inline]
-    pub fn for_each_within<'v>(
-        &'v self,
-        set: Option<&'v RoaringBitmap>,
-        mut f: impl FnMut(RowRef<'a, 'v>),
-    ) {
-        let physical_rows = self.batch_rows + self.adds.len();
-        let sparse = set.is_some_and(|set| {
-            let search_steps = self.batch_rows.checked_ilog2().unwrap_or(0)
-                + self.adds.len().checked_ilog2().unwrap_or(0)
-                + 2;
-            set.len().saturating_mul(u64::from(search_steps)) < physical_rows as u64
-        });
-        if !sparse {
-            self.within(set).for_each(f);
-            return;
-        }
-
-        let set = set.unwrap();
-        for id in set {
-            let Some(i) = self
-                .batch
-                .and_then(|batch| arrow::batch_row_for_id(batch, id))
-            else {
-                continue;
-            };
-            if !self.is_alive(i) {
-                continue;
-            }
-            let row = match self.patch_at(i) {
-                Some(p) => RowRef::from_loc(p),
-                None => RowRef {
-                    inner: RowInner::Base(self, i),
-                },
-            };
-            f(row);
-        }
-        for id in set {
-            if let Ok(i) = self.adds.binary_search_by_key(&id, |loc| loc.id) {
-                f(RowRef::from_loc(&self.adds[i]));
-            }
+    /// Batch row `i` as it reads now: its patch when it has one, else the base row.
+    fn row(&self, i: usize) -> RowRef<'a, '_> {
+        match self.patch_at(i) {
+            Some(p) => RowRef::from_loc(p),
+            None => RowRef {
+                inner: RowInner::Base(self, i),
+            },
         }
     }
 
-    #[inline]
-    pub fn for_each(&self, f: impl FnMut(RowRef)) {
-        self.iter().for_each(f);
+    /// Every alive row.
+    pub fn all(&self) -> Scope<'_, 'a> {
+        Scope {
+            view: self,
+            rows: None,
+        }
     }
 
-    /// Build a bool mask over all locations (batch + adds) using a per-row predicate.
-    /// Batch rows are scanned in parallel with rayon. O(N) with parallel speedup.
-    pub fn resolve_mask(&self, test: impl Fn(&RowRef) -> bool + Sync + Send) -> Vec<bool> {
-        let mut mask: Vec<bool> = (0..self.batch_rows)
-            .into_par_iter()
-            .with_min_len(CHUNK_SIZE)
-            .map(|i| {
-                if !self.is_alive(i) {
-                    return false;
-                }
-                let row = match self.patch_at(i) {
-                    Some(p) => RowRef {
-                        inner: RowInner::Loc(p),
-                    },
-                    None => RowRef {
-                        inner: RowInner::Base(self, i),
-                    },
-                };
-                test(&row)
-            })
-            .collect();
-        mask.extend(self.adds.iter().map(|loc| test(&RowRef::from_loc(loc))));
-        mask
+    /// The alive rows of `set`.
+    pub fn within<'v>(&'v self, set: &'v RoaringBitmap) -> Scope<'v, 'a> {
+        Scope {
+            view: self,
+            rows: Some(Cow::Borrowed(set)),
+        }
     }
 }
 
@@ -837,130 +731,257 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
 /// per-chunk overhead while keeping cache-friendly access patterns.
 const CHUNK_SIZE: usize = 64 * 1024;
 
-/// Resolve a selection into a `RoaringBitmap` of matching (alive) location **ids**.
-///
-/// This is the primary resolve path. Composites (`Intersection`/`Union`/`Invert`)
-/// combine child bitmaps with native roaring set ops (`&`/`|`/`Sub`) - branchless,
-/// sparse-aware, no per-row scanning. An indexed `Filter` leaf clones its postings
-/// (O(1)-ish) instead of scanning every row. Geometric leaves (`Polygon`/`Duplicates`)
-/// and unindexed filters still scan, producing a positional mask that is converted to
-/// an id set.
-pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
-    match selector {
-        // Falls through to the scan when the field is unindexed or the operator is not a
-        // lookup.
-        Selector::Filter { field, test } => {
-            if let Some(set) = view.indexed_filter(field, test, None) {
-                return set;
-            }
-        }
-        Selector::Locations { locations, .. }
-        | Selector::Manual { locations }
-        | Selector::ValidationState { locations, .. }
-        | Selector::Reviewed { locations, .. } => {
-            let ids: RoaringBitmap = locations.iter().copied().collect();
-            return resolve_within(view, &Selector::Everything, &ids);
-        }
-        Selector::Intersection { selections } => {
-            if selections.is_empty() {
-                return RoaringBitmap::new();
-            }
-            let mut acc = resolve(view, &selections[0].selector);
-            for s in &selections[1..] {
-                if acc.is_empty() {
-                    break;
-                }
-                acc = resolve_within(view, &s.selector, &acc);
-            }
-            return acc;
-        }
-        Selector::Union { selections } => {
-            return selections.iter().fold(RoaringBitmap::new(), |acc, s| {
-                acc | resolve(view, &s.selector)
-            });
-        }
-        Selector::Ranked {
-            selection,
-            expr,
-            k,
-            ascending,
-        } => {
-            let inner = match selection {
-                Some(child) => resolve(view, &child.selector),
-                None => alive_id_set(view),
-            };
-            let Some(k) = k else { return inner };
-            return ranked_within(view, Some(&inner), expr, Some(*k as usize), *ascending)
-                .into_iter()
-                .collect();
-        }
-        Selector::Invert { selections } => {
-            // Invert = (all alive ids) - (child ids). roaring-rs has no native flip,
-            // so this is a difference against the universe set.
-            let universe = alive_id_set(view);
-            if selections.is_empty() {
-                return universe;
-            }
-            let inner = resolve(view, &selections[0].selector);
-            return universe - inner;
-        }
-        _ => {}
-    }
-    // Scan leaves (incl. Tag with no index): build a positional mask, convert to ids.
-    let mask = resolve_leaf_mask(view, selector);
-    mask_to_set(view, &mask)
+/// The rows a query ranges over: every alive row, or the alive rows of one set. The only
+/// place "the whole map or these rows" is said; everything that walks, tests or resolves
+/// rows does it through one.
+#[derive(Clone)]
+pub struct Scope<'v, 'a> {
+    view: &'v LocView<'a>,
+    rows: Option<Cow<'v, RoaringBitmap>>,
 }
 
-/// The rows of `within` a selector keeps. An intersection narrows each leaf to what the
-/// leaves before it left, so `page AND has(field)` costs the page, not the map. Leaves
-/// whose answer depends on rows outside the set (duplicates, top-k) and the prepared
-/// polygon scan resolve whole and intersect, an indexed filter answers from its index,
-/// and every other leaf is tested row by row inside the set.
-pub fn resolve_within(
-    view: &LocView,
-    selector: &Selector,
-    within: &RoaringBitmap,
-) -> RoaringBitmap {
-    match selector {
-        Selector::Intersection { selections } => {
-            if selections.is_empty() {
-                return RoaringBitmap::new();
-            }
-            let mut acc = within.clone();
-            for s in selections {
-                if acc.is_empty() {
-                    break;
-                }
-                acc = resolve_within(view, &s.selector, &acc);
-            }
-            acc
+impl<'v, 'a> Scope<'v, 'a> {
+    /// The rows in scope, in view order: batch rows, then overlay adds. A set small enough
+    /// that seeking each id beats one sequential pass is walked by id.
+    pub fn rows(&self) -> Box<dyn Iterator<Item = RowRef<'a, 'v>> + '_> {
+        let view = self.view;
+        let Some(set) = self.rows.as_deref() else {
+            return Box::new(view.alive());
+        };
+        let physical = view.batch_rows + view.adds.len();
+        let seek_steps = view.batch_rows.checked_ilog2().unwrap_or(0)
+            + view.adds.len().checked_ilog2().unwrap_or(0)
+            + 2;
+        if set.len().saturating_mul(u64::from(seek_steps)) >= physical as u64 {
+            return Box::new(view.alive().filter(move |r| set.contains(r.id())));
         }
-        Selector::Union { selections } => selections.iter().fold(RoaringBitmap::new(), |acc, s| {
-            acc | resolve_within(view, &s.selector, within)
-        }),
-        Selector::Invert { selections } => match selections.first() {
-            Some(first) => within - resolve_within(view, &first.selector, within),
-            None => within.clone(),
-        },
-        Selector::Duplicates { .. } | Selector::Ranked { .. } | Selector::Polygon { .. } => {
-            resolve(view, selector) & within
-        }
-        Selector::Filter { field, test } => view
-            .indexed_filter(field, test, Some(within))
-            .unwrap_or_else(|| scan_within(view, selector, within)),
-        _ => scan_within(view, selector, within),
+        let base = set.iter().filter_map(move |id| {
+            let i = arrow::batch_row_for_id(view.batch?, id)?;
+            view.is_alive(i).then(|| view.row(i))
+        });
+        let adds = set.iter().filter_map(move |id| {
+            let i = view.adds.binary_search_by_key(&id, |loc| loc.id).ok()?;
+            Some(RowRef::from_loc(&view.adds[i]))
+        });
+        Box::new(base.chain(adds))
     }
-}
 
-/// The rows of `within` a selector keeps, tested one by one.
-fn scan_within(view: &LocView, selector: &Selector, within: &RoaringBitmap) -> RoaringBitmap {
-    let mut set = RoaringBitmap::new();
-    view.for_each_within(Some(within), |row| {
-        if test_row(&row, selector) {
-            set.insert(row.id());
+    /// The ids in scope.
+    pub fn ids(&self) -> RoaringBitmap {
+        self.rows().map(|r| r.id()).collect()
+    }
+
+    /// Whether the scope holds no rows at all.
+    pub fn is_empty(&self) -> bool {
+        self.rows.as_deref().is_some_and(RoaringBitmap::is_empty)
+    }
+
+    /// The rows of `set` that are in scope.
+    fn clip(&self, set: RoaringBitmap) -> RoaringBitmap {
+        match self.rows.as_deref() {
+            Some(rows) => set & rows,
+            None => set,
         }
-    });
-    set
+    }
+
+    /// The rows in scope `test` keeps. Over the whole map the batch is tested in parallel.
+    pub fn keep(&self, test: impl Fn(&RowRef) -> bool + Sync + Send) -> RoaringBitmap {
+        if self.rows.is_some() {
+            return self.rows().filter(|r| test(r)).map(|r| r.id()).collect();
+        }
+        let view = self.view;
+        let base: Vec<u32> = (0..view.batch_rows)
+            .into_par_iter()
+            .with_min_len(CHUNK_SIZE)
+            .filter_map(|i| {
+                let row = view.is_alive(i).then(|| view.row(i))?;
+                test(&row).then(|| row.id())
+            })
+            .collect();
+        let adds = view.adds.iter().filter(|loc| test(&RowRef::from_loc(loc)));
+        base.into_iter().chain(adds.map(|loc| loc.id)).collect()
+    }
+
+    /// A narrower scope: the rows here `selector` keeps. `Everything` keeps this scope.
+    pub fn narrow(&self, selector: &Selector) -> Scope<'v, 'a> {
+        match selector {
+            Selector::Everything => self.clone(),
+            _ => Scope {
+                view: self.view,
+                rows: Some(Cow::Owned(self.resolve(selector))),
+            },
+        }
+    }
+
+    /// The rows here `selector` keeps. Composites combine their children's sets, and an
+    /// intersection narrows the scope child by child, so `page AND has(field)` costs the
+    /// page, not the map. Duplicates and top-k depend on rows outside the scope, so they
+    /// resolve over the whole map and are clipped to it.
+    pub fn resolve(&self, selector: &Selector) -> RoaringBitmap {
+        match selector {
+            Selector::Everything => self.ids(),
+            Selector::Intersection { selections } => {
+                if selections.is_empty() {
+                    return RoaringBitmap::new();
+                }
+                let mut scope = self.clone();
+                for s in selections {
+                    if scope.is_empty() {
+                        break;
+                    }
+                    scope = scope.narrow(&s.selector);
+                }
+                scope.ids()
+            }
+            Selector::Union { selections } => {
+                selections.iter().fold(RoaringBitmap::new(), |acc, s| {
+                    acc | self.resolve(&s.selector)
+                })
+            }
+            Selector::Invert { selections } => match selections.first() {
+                Some(first) => self.ids() - self.resolve(&first.selector),
+                None => self.ids(),
+            },
+            Selector::Locations { locations, .. }
+            | Selector::Manual { locations }
+            | Selector::ValidationState { locations, .. }
+            | Selector::Reviewed { locations, .. } => Scope {
+                view: self.view,
+                rows: Some(Cow::Owned(self.clip(locations.iter().copied().collect()))),
+            }
+            .ids(),
+            Selector::Filter { field, test } => self
+                .indexed(field, test)
+                .unwrap_or_else(|| self.keep(|r| test_row(r, selector))),
+            Selector::Polygon { polygon } => match geometry_bbox(polygon) {
+                None => RoaringBitmap::new(),
+                Some(bb) => {
+                    let prepared = polygon.prepared();
+                    self.keep(|r| {
+                        in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
+                    })
+                }
+            },
+            Selector::Duplicates { distance } => self.clip(duplicates(self.view, *distance)),
+            Selector::Ranked {
+                selection,
+                expr,
+                k,
+                ascending,
+            } => {
+                let all = self.view.all();
+                let pool = match selection {
+                    Some(child) => all.narrow(&child.selector),
+                    None => all,
+                };
+                let Some(k) = k else {
+                    return self.clip(pool.ids());
+                };
+                self.clip(
+                    pool.ranked(expr, Some(*k as usize), *ascending)
+                        .into_iter()
+                        .collect(),
+                )
+            }
+            _ => self.keep(|r| test_row(r, selector)),
+        }
+    }
+
+    /// A filter's rows answered from its field's index: existence from the rows holding
+    /// the field, equality on a scalar and membership in a list from the postings. Every
+    /// row move updates the index beside the mutation, so the set is already the answer.
+    /// `None` when the field has no index or the operator is not a lookup and needs a scan.
+    fn indexed(&self, field: &str, test: &FilterOp) -> Option<RoaringBitmap> {
+        let index = self.view.field_indexes?.get(field)?;
+        Some(match (index.shape, test) {
+            (_, FilterOp::Has) => self.clip(index.rows.clone()),
+            (_, FilterOp::Nothas) => self.ids() - &index.rows,
+            (IndexShape::Scalar, FilterOp::Eq { value })
+            | (IndexShape::Multi, FilterOp::Contains { value }) => {
+                let key = index_key(value)?;
+                self.clip(index.by_value.get(&key).cloned().unwrap_or_default())
+            }
+            _ => return None,
+        })
+    }
+
+    /// One value per row in scope for each of `fields`, in view order, `Null` where the
+    /// row lacks it; `"tags"` yields the row's tag ids.
+    pub fn columns(&self, fields: &[String]) -> Vec<Vec<serde_json::Value>> {
+        let mut out: Vec<Vec<serde_json::Value>> = fields.iter().map(|_| Vec::new()).collect();
+        for row in self.rows() {
+            for (col, field) in out.iter_mut().zip(fields) {
+                col.push(if field == "tags" {
+                    let mut tags = Vec::new();
+                    row.for_each_tag(|t| tags.push(serde_json::Value::from(t)));
+                    serde_json::Value::Array(tags)
+                } else {
+                    row.resolve_field(field).unwrap_or(serde_json::Value::Null)
+                });
+            }
+        }
+        out
+    }
+
+    /// Ids in scope best-ranked first: highest score, or lowest when `ascending`. A row
+    /// the expression cannot evaluate ranks below every row it can, whichever direction
+    /// is asked for. The sort is stable, so ties keep view order. `k` cuts to the best k
+    /// first, which costs a selection rather than a full sort.
+    pub fn ranked(&self, expr: &str, k: Option<usize>, ascending: bool) -> Vec<u32> {
+        let expr = field_expr::parse(expr).ok();
+        let mut scored: Vec<(u32, Option<f64>)> = self
+            .rows()
+            .map(|row| {
+                let score = expr
+                    .as_ref()
+                    .and_then(|e| field_expr::eval(e, &|name| row.resolve_field(name)));
+                (row.id(), score)
+            })
+            .collect();
+        // eval never yields NaN, so partial_cmp is total.
+        let better = |a: &(u32, Option<f64>), b: &(u32, Option<f64>)| match (a.1, b.1) {
+            (Some(x), Some(y)) => {
+                let c = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
+                if ascending {
+                    c
+                } else {
+                    c.reverse()
+                }
+            }
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        };
+        if let Some(k) = k {
+            if k == 0 {
+                return Vec::new();
+            }
+            if k < scored.len() {
+                scored.select_nth_unstable_by(k - 1, better);
+                scored.truncate(k);
+            }
+        }
+        scored.sort_by(better);
+        scored.into_iter().map(|(id, _)| id).collect()
+    }
+
+    /// Distinct values of `field` in scope, sorted. Scalars stringify so they match the
+    /// string-typed options they populate; null and containers are skipped.
+    pub fn distinct_values(&self, field: &str) -> Vec<String> {
+        let mut seen = BTreeSet::new();
+        for row in self.rows() {
+            match row.resolve_field(field) {
+                Some(serde_json::Value::String(s)) if !s.is_empty() => {
+                    seen.insert(s);
+                }
+                Some(v @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_))) => {
+                    seen.insert(v.to_string());
+                }
+                _ => {}
+            }
+        }
+        seen.into_iter().collect()
+    }
 }
 
 /// Resolve a whole selection forest in one pass: the id-set for each top-level
@@ -971,14 +992,14 @@ pub fn resolve_forest(
     view: &LocView,
     sels: &[Selection],
 ) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
-    fn walk(view: &LocView, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
+    fn walk(all: &Scope, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
         let set = match &sel.selector {
             Selector::Intersection { selections } => {
                 // No empty short-circuit: children's counts are reported regardless,
                 // so they must resolve either way.
                 let mut acc: Option<RoaringBitmap> = None;
                 for c in selections {
-                    let child = walk(view, c, counts);
+                    let child = walk(all, c, counts);
                     acc = Some(match acc {
                         Some(a) => a & child,
                         None => child,
@@ -989,208 +1010,48 @@ pub fn resolve_forest(
             Selector::Union { selections } => {
                 let mut acc = RoaringBitmap::new();
                 for c in selections {
-                    acc |= walk(view, c, counts);
+                    acc |= walk(all, c, counts);
                 }
                 acc
             }
             Selector::Invert { selections } => {
-                let universe = alive_id_set(view);
                 let mut children = selections.iter();
                 let set = match children.next() {
-                    Some(first) => universe - walk(view, first, counts),
-                    None => universe,
+                    Some(first) => all.ids() - walk(all, first, counts),
+                    None => all.ids(),
                 };
                 // Invert is unary: extra children don't affect the set but their
                 // counts are still reported, matching resolve semantics.
                 for c in children {
-                    walk(view, c, counts);
+                    walk(all, c, counts);
                 }
                 set
             }
-            _ => resolve(view, &sel.selector),
+            _ => all.resolve(&sel.selector),
         };
         counts.insert(sel.key.clone(), set.len() as u32);
         set
     }
+    let all = view.all();
     let mut counts = HashMap::new();
-    let sets = sels.iter().map(|s| walk(view, s, &mut counts)).collect();
+    let sets = sels.iter().map(|s| walk(&all, s, &mut counts)).collect();
     (sets, counts)
 }
 
-/// Resolved count of every selection node - top-level and nested - keyed by
-/// `Selection.key`. Thin wrapper over [`resolve_forest`] for callers that only
-/// need the counts.
-#[allow(dead_code, reason = "exercised by tests; no production caller")]
-pub fn resolve_node_counts(view: &LocView, sels: &[Selection]) -> HashMap<String, u32> {
-    resolve_forest(view, sels).1
-}
-
-/// Set of all alive location ids (batch minus dead, plus overlay adds).
-fn alive_id_set(view: &LocView) -> RoaringBitmap {
-    let mut set = RoaringBitmap::new();
-    view.for_each(|row| {
-        set.insert(row.id());
-    });
-    set
-}
-
-/// Convert a positional mask (batch rows then adds) into a roaring id set. Excludes
-/// dead batch rows. O(N).
-fn mask_to_set(view: &LocView, mask: &[bool]) -> RoaringBitmap {
-    let mut set = RoaringBitmap::new();
-    for (i, &hit) in mask.iter().enumerate().take(view.batch_rows) {
-        if hit && view.is_alive(i) {
-            set.insert(view.id_at(i));
-        }
-    }
-    for (j, loc) in view.adds.iter().enumerate() {
-        if mask[view.batch_rows + j] {
-            set.insert(loc.id);
-        }
-    }
-    set
-}
-
-/// Resolve a single non-composite leaf into a positional bool mask. O(N) parallel
-/// (or O(N^2) grid-accelerated for Duplicates). Composites are handled by `resolve`.
-fn resolve_leaf_mask(view: &LocView, selector: &Selector) -> Vec<bool> {
-    let n = view.batch_rows + view.adds.len();
-    match selector {
-        Selector::Locations { locations, .. }
-        | Selector::Manual { locations }
-        | Selector::ValidationState { locations, .. }
-        | Selector::Reviewed { locations, .. } => {
-            let set: HashSet<u32> = locations.iter().copied().collect();
-            view.resolve_mask(|r| set.contains(&r.id()))
-        }
-        Selector::Duplicates { distance } => {
-            let mut mask = vec![false; n];
-            find_duplicates_bitmask(view, *distance, &mut mask);
-            mask
-        }
-        Selector::Polygon { polygon } => match geometry_bbox(polygon) {
-            None => vec![false; n],
-            Some(bb) => {
-                let prepared = polygon.prepared();
-                view.resolve_mask(|r| {
-                    in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
-                })
-            }
-        },
-        _ => view.resolve_mask(|r| test_row(r, selector)),
-    }
-}
-
-/// The id set a selector narrows to, or `None` for "no narrowing" -- every alive row.
-/// Two selectors answer without resolving: `Everything` is the whole map, and `Locations`
-/// is already an id list. The result is only ever handed to [`LocView::within`], which
-/// skips dead rows itself, so neither fast path has to filter them.
-pub fn narrow(view: &LocView, selector: &Selector) -> Option<RoaringBitmap> {
-    match selector {
-        Selector::Everything => None,
-        Selector::Locations { locations, .. } => Some(locations.iter().copied().collect()),
-        _ => Some(resolve(view, selector)),
-    }
-}
-
-/// One value per selected row for each of `fields`, in view order, `Null` where the row
-/// lacks it; `"tags"` yields the row's tag ids. A typed projection for scans that need
-/// values but not rows.
-pub fn columns_within(
-    view: &LocView,
-    set: Option<&RoaringBitmap>,
-    fields: &[String],
-) -> Vec<Vec<serde_json::Value>> {
-    let mut out: Vec<Vec<serde_json::Value>> = fields.iter().map(|_| Vec::new()).collect();
-    view.for_each_within(set, |row| {
-        for (col, field) in out.iter_mut().zip(fields) {
-            col.push(if field == "tags" {
-                let mut tags = Vec::new();
-                row.for_each_tag(|t| tags.push(serde_json::Value::from(t)));
-                serde_json::Value::Array(tags)
-            } else {
-                row.resolve_field(field).unwrap_or(serde_json::Value::Null)
-            });
-        }
-    });
-    out
-}
-
-/// Size of the selected set. Counts rows, never materializes them.
-pub fn count_within(view: &LocView, set: Option<&RoaringBitmap>) -> u32 {
-    let mut count = 0;
-    view.for_each_within(set, |_| count += 1);
-    count
-}
-
-/// Ids of every alive location in the set, in view order (batch rows, then overlay adds).
-pub fn ids_within(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<u32> {
-    let mut ids = Vec::new();
-    view.for_each_within(set, |row| ids.push(row.id()));
-    ids
-}
-
-/// Selected ids best-ranked first: highest score, or lowest when `ascending`. A row the
-/// expression cannot evaluate (unparseable expression, missing field, non-numeric,
-/// non-finite result) ranks below every row it can, whichever direction is asked for --
-/// "no score" is absence, not a low one. The sort is stable, so ties keep view order.
-/// `k` cuts to the best k first, which costs a selection rather than a full sort.
-pub fn ranked_within(
-    view: &LocView,
-    set: Option<&RoaringBitmap>,
-    expr: &str,
-    k: Option<usize>,
-    ascending: bool,
-) -> Vec<u32> {
-    let expr = field_expr::parse(expr).ok();
-    let mut scored: Vec<(u32, Option<f64>)> = Vec::new();
-    view.for_each_within(set, |row| {
-        let score = expr
-            .as_ref()
-            .and_then(|e| field_expr::eval(e, &|name| row.resolve_field(name)));
-        scored.push((row.id(), score));
-    });
-    // eval never yields NaN, so partial_cmp is total.
-    let better = |a: &(u32, Option<f64>), b: &(u32, Option<f64>)| match (a.1, b.1) {
-        (Some(x), Some(y)) => {
-            let c = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
-            if ascending {
-                c
-            } else {
-                c.reverse()
-            }
-        }
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => Ordering::Equal,
-    };
-    if let Some(k) = k {
-        if k == 0 {
-            return Vec::new();
-        }
-        if k < scored.len() {
-            scored.select_nth_unstable_by(k - 1, better);
-            scored.truncate(k);
-        }
-    }
-    scored.sort_by(better);
-    scored.into_iter().map(|(id, _)| id).collect()
-}
-
-/// Distinct values of `field` across the selected set, sorted. Scalars stringify so they
-/// match the string-typed options they populate; null and containers are skipped.
-pub fn distinct_values(view: &LocView, field: &str, set: Option<&RoaringBitmap>) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    view.for_each_within(set, |row| match row.resolve_field(field) {
-        Some(serde_json::Value::String(s)) if !s.is_empty() => {
-            seen.insert(s);
-        }
-        Some(v @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_))) => {
-            seen.insert(v.to_string());
-        }
-        _ => {}
-    });
-    seen.into_iter().collect()
+/// Every alive row within `distance` metres of another, over the whole map.
+fn duplicates(view: &LocView, distance: f64) -> RoaringBitmap {
+    let mut mask = vec![false; view.batch_rows + view.adds.len()];
+    find_duplicates_bitmask(view, distance, &mut mask);
+    let base = (0..view.batch_rows)
+        .filter(|&i| mask[i] && view.is_alive(i))
+        .map(|i| view.id_at(i));
+    let adds = view
+        .adds
+        .iter()
+        .enumerate()
+        .filter(|(j, _)| mask[view.batch_rows + j])
+        .map(|(_, l)| l.id);
+    base.chain(adds).collect()
 }
 
 /// `n` distinct ids drawn uniformly at random. Partial Fisher-Yates, so drawing 5 from a

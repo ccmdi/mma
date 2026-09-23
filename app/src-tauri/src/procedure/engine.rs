@@ -3,9 +3,7 @@
 //! progress. Nothing here knows what any provider actually computes.
 
 use super::{HttpRequestSpec, HttpResponse, PatchEntry, ProcHost, ProcShape, Procedure};
-use crate::selections::{
-    ids_within, narrow, neighborhood, resolve, resolve_field_loc, resolve_within, Selector,
-};
+use crate::selections::{neighborhood, resolve_field_loc, Selector};
 use crate::store::engine::{
     apply_updates, ExternalMutation, LocationPatch, Store, StoreState, Update, WindowLabel,
 };
@@ -1180,8 +1178,8 @@ pub(crate) fn run_all(
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<u32> = ctx.rows.with_store(|store| {
         let view = store.view_for(&decl.select);
-        let set = narrow(&view, &decl.select);
-        Ok(ids_within(&view, set.as_ref()))
+        let scope = view.all().narrow(&decl.select);
+        Ok(scope.rows().map(|row| row.id()).collect())
     })?;
     let total = ids.len() as u32;
     let started = Instant::now();
@@ -1331,13 +1329,13 @@ fn page_batches(
     };
     let (rows, unmet) = ctx.rows.with_store(|store| {
         let view = store.loc_view();
-        let alive = resolve(&view, &page_sel);
-        let todo = resolve(&view, &todo);
+        let alive = view.all().resolve(&page_sel);
+        let todo = view.all().resolve(&todo);
         prog.add_skipped((alive.len() - todo.len()) as u32);
         let workable = if decl.requires.is_empty() {
             todo.clone()
         } else {
-            resolve_within(&view, &has_every(&decl.requires), &todo)
+            view.within(&todo).resolve(&has_every(&decl.requires))
         };
         let unmet: Vec<u32> = page
             .iter()

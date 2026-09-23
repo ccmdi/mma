@@ -340,17 +340,16 @@ impl Store {
         let mut patches: Vec<(Location, LocationPatch)> = Vec::new();
         let mut err: Option<AppError> = None;
         {
-            let view = self.loc_view();
-            view.for_each(|row| {
+            for row in self.loc_view().all().rows() {
                 let Some(serde_json::Value::Array(list)) = row.resolve_field(field) else {
-                    return;
+                    continue;
                 };
                 let current: Vec<u32> = list
                     .iter()
                     .filter_map(|v| v.as_u64().map(|n| n as u32))
                     .collect();
                 if !current.iter().any(|id| merges.contains_key(id)) {
-                    return;
+                    continue;
                 }
                 let mut next: Vec<u32> = Vec::with_capacity(current.len());
                 for &id in &current {
@@ -366,7 +365,7 @@ impl Store {
                     Ok(p) => patches.push((row.to_location(), p)),
                     Err(e) => err = Some(e),
                 }
-            });
+            }
         }
         if let Some(e) = err {
             return Err(e);

@@ -323,7 +323,7 @@ fn named_id_ordering_is_consumer_defined() {
     let rows: Vec<u32> = store.collect(&selector).iter().map(|l| l.id).collect();
     assert_eq!(rows, vec![7, 3, 3]);
     let view = store.loc_view();
-    let set = selections::narrow(&view, &selector).unwrap();
+    let set = view.all().narrow(&selector).ids();
     assert_eq!(set.iter().collect::<Vec<u32>>(), vec![3, 7]);
 }
 
@@ -927,7 +927,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 5.0, 5.0]));
 
     // The cache must never diverge from a fresh O(N) compute.
-    assert_eq!(store.cached_bounds(), store.compute_bounds(None));
+    assert_eq!(
+        store.cached_bounds(),
+        bounds(&store.loc_view().all()).map(BoundsAcc::resolve)
+    );
 }
 
 #[test]
@@ -2839,7 +2842,7 @@ fn set_tags_undo_restores_membership() {
 
 /// Ids a selector resolves to, in order.
 fn resolved(store: &Store, sel: &Selector) -> Vec<u32> {
-    selections::resolve(&store.loc_view(), sel).iter().collect()
+    store.loc_view().all().resolve(sel).iter().collect()
 }
 
 fn tag_filter(tag_id: u32) -> Selector {
@@ -2953,6 +2956,254 @@ fn a_range_operator_is_not_an_index_lookup() {
         },
     };
     assert_eq!(resolved(&store, &ranged), vec![1]);
+}
+
+fn nothas(field: &str) -> Selector {
+    Selector::Filter {
+        field: field.into(),
+        test: selections::FilterOp::Nothas,
+    }
+}
+
+/// `has(field)` and `not has(field)` resolved through the store's index, each against the
+/// row-by-row answer over the same rows.
+fn assert_existence_matches_scan(store: &mut Store, field: &str, holders: &[u32]) {
+    for (name, sel) in [("has", Selector::has(field)), ("nothas", nothas(field))] {
+        store.ensure_indexes_for(&sel);
+        assert!(store.field_indexes.contains_key(field), "{name}: indexed");
+        let scanned: Vec<u32> = store
+            .loc_view()
+            .all()
+            .keep(|r| r.matches(&sel))
+            .iter()
+            .collect();
+        assert_eq!(resolved(store, &sel), scanned, "{name}");
+    }
+    assert_eq!(resolved(store, &Selector::has(field)), holders);
+}
+
+#[test]
+fn existence_answers_from_the_index_rows() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"k":1}"#),
+        loc_with_extra(2, r#"{"k":2}"#),
+    ]);
+    store.bake_overlay();
+    store.ensure_indexes_for(&Selector::has("k"));
+    store.field_indexes.get_mut("k").unwrap().rows.remove(2);
+
+    assert_eq!(resolved(&store, &Selector::has("k")), vec![1]);
+    assert_eq!(resolved(&store, &nothas("k")), vec![2]);
+}
+
+#[test]
+fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"k":1}"#),
+        loc_with_extra(2, r#"{"k":2}"#),
+        loc_with_extra(3, r#"{"other":1}"#),
+    ]);
+    store.bake_overlay();
+    store.next_id = 10;
+    assert_existence_matches_scan(&mut store, "k", &[1, 2]);
+
+    apply_adds(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
+    assert_existence_matches_scan(&mut store, "k", &[1, 2, 10]);
+
+    let drop_k = Update {
+        id: 1,
+        patch: patch!(extra: raw_extra(r#"{"k":null}"#)),
+    };
+    apply_updates(&mut store, &[drop_k], true);
+    assert_existence_matches_scan(&mut store, "k", &[2, 10]);
+
+    let gain_k = Update {
+        id: 3,
+        patch: patch!(extra: raw_extra(r#"{"k":4}"#)),
+    };
+    apply_updates(&mut store, &[gain_k], true);
+    assert_existence_matches_scan(&mut store, "k", &[2, 3, 10]);
+
+    let two = store.get_loc_by_id(2).unwrap();
+    store.apply_undoable(vec![two], Vec::new());
+    assert_existence_matches_scan(&mut store, "k", &[3, 10]);
+
+    for holders in [&[2, 3, 10][..], &[2, 10], &[1, 2, 10], &[1, 2]] {
+        let entry = store.edits.edit().undo.pop().unwrap();
+        edit_and_finish(&mut store, &entry, false);
+        assert_existence_matches_scan(&mut store, "k", holders);
+    }
+}
+
+/// Coverage of the fields a row's `extra` can hold, leaving out the builtin columns.
+fn extra_coverage(store: &mut Store, selector: &Selector) -> Vec<(String, u32)> {
+    store
+        .coverage(selector)
+        .into_iter()
+        .filter(|(k, _)| !selections::is_builtin_field(k))
+        .collect()
+}
+
+fn counts(pairs: &[(&str, u32)]) -> Vec<(String, u32)> {
+    pairs.iter().map(|(k, n)| ((*k).to_string(), *n)).collect()
+}
+
+#[test]
+fn coverage_follows_the_rows_that_hold_each_field() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"a":1,"b":1}"#),
+        loc_with_extra(2, r#"{"a":2}"#),
+        loc_with_extra(3, r#"{"a":3}"#),
+    ]);
+    store.bake_overlay();
+    for k in ["a", "b"] {
+        store.field_defs.edit().insert(k.into(), def_of(k));
+    }
+    let all = Selector::Everything;
+    assert_eq!(
+        extra_coverage(&mut store, &all),
+        counts(&[("a", 3), ("b", 1)])
+    );
+
+    apply_field_op(&mut store, &all, &del_op(&["b"]), true).unwrap();
+    assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
+
+    let gain_b = Update {
+        id: 2,
+        patch: patch!(extra: raw_extra(r#"{"b":5}"#)),
+    };
+    apply_updates(&mut store, &[gain_b], true);
+    assert_eq!(
+        extra_coverage(&mut store, &all),
+        counts(&[("a", 3), ("b", 1)])
+    );
+
+    let two = store.get_loc_by_id(2).unwrap();
+    store.apply_undoable(vec![two], Vec::new());
+    assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 2)]));
+
+    let entry = store.edits.edit().undo.pop().unwrap();
+    edit_and_finish(&mut store, &entry, false);
+    assert_eq!(
+        extra_coverage(&mut store, &all),
+        counts(&[("a", 3), ("b", 1)])
+    );
+
+    let some = Selector::Manual {
+        locations: vec![2, 3],
+    };
+    assert_eq!(
+        extra_coverage(&mut store, &some),
+        counts(&[("a", 2), ("b", 1)])
+    );
+    let one = Selector::Manual { locations: vec![3] };
+    assert_eq!(extra_coverage(&mut store, &one), counts(&[("a", 1)]));
+}
+
+/// A store over a committed batch of `base` with `dead` removed and `adds` in the overlay,
+/// defining each of `keys`.
+fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[&str]) -> Store {
+    let mut store = Store::new();
+    store.map_id = Some("test-coverage".to_string());
+    store.batch = Some(arrow::locations_to_batch(base));
+    store.alive_count = Tracked::new(base.len());
+    for &id in dead {
+        let l = store.get_loc_by_id(id).unwrap();
+        store.overlay_remove(slice::from_ref(&l));
+    }
+    store.overlay_add(adds);
+    for k in keys {
+        store.field_defs.edit().insert((*k).to_string(), def_of(k));
+    }
+    store
+}
+
+#[test]
+fn coverage_counts_rows_per_key_across_the_overlay() {
+    let mut store = coverage_store(
+        &[
+            loc_with_extra(1, r#"{"a":1,"b":2}"#),
+            loc_with_extra(2, r#"{"a":1}"#),
+            loc_with_extra(3, r#"{"b":2}"#),
+        ],
+        vec![loc_with_extra(4, r#"{"a":9,"c":{"nested":1}}"#)],
+        &[3],
+        &["a", "b", "c"],
+    );
+    assert_eq!(
+        store.coverage(&Selector::Everything),
+        counts(&[("a", 3), ("b", 1), ("c", 1)])
+    );
+}
+
+#[test]
+fn coverage_counts_an_optional_column_beside_the_extra_keys() {
+    let locs = [
+        Location {
+            pano_id: Some("abc".into()),
+            modified_at: Some(7),
+            ..loc_with_extra(1, r#"{"a":1}"#)
+        },
+        loc_with_extra(2, r#"{"a":2}"#),
+    ];
+    let mut store = coverage_store(&locs, Vec::new(), &[], &["a"]);
+    assert_eq!(
+        store.coverage(&Selector::Everything),
+        counts(&[("a", 2), ("modifiedAt", 1), ("panoId", 1)])
+    );
+}
+
+#[test]
+fn coverage_leaves_out_a_column_every_row_holds() {
+    let mut store = coverage_store(&[loc(1, 1.0, 1.0)], Vec::new(), &[], &[]);
+    // lat/lng/heading/pitch/zoom always hold a value, so counting them says nothing.
+    assert!(store.coverage(&Selector::Everything).is_empty());
+}
+
+#[test]
+fn coverage_decodes_escaped_base_row_keys() {
+    // Blobs baked before key canonicalization can still carry `café` on disk; coverage
+    // must report the decoded spelling, matching overlay rows and the field-def registry.
+    let mut l = loc(1, 0.0, 0.0);
+    l.extra = RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
+    let mut store = coverage_store(&[l], Vec::new(), &[], &["café"]);
+    assert_eq!(
+        store.coverage(&Selector::Everything),
+        counts(&[("café", 1)])
+    );
+}
+
+#[test]
+fn coverage_does_not_descend_into_nested_objects() {
+    let mut store = coverage_store(
+        &[loc_with_extra(1, r#"{"outer":{"inner":1}}"#)],
+        Vec::new(),
+        &[],
+        &["outer", "inner"],
+    );
+    assert_eq!(
+        store.coverage(&Selector::Everything),
+        counts(&[("outer", 1)])
+    );
+}
+
+#[test]
+fn coverage_honours_a_named_id_list() {
+    let mut store = coverage_store(
+        &[
+            loc_with_extra(1, r#"{"c":"US","d":1}"#),
+            loc_with_extra(2, r#"{"c":"FR"}"#),
+            loc_with_extra(3, r#"{"c":"FR"}"#),
+        ],
+        Vec::new(),
+        &[],
+        &["c", "d"],
+    );
+    let named = Selector::Locations {
+        locations: vec![2, 3],
+        name: None,
+    };
+    assert_eq!(store.coverage(&named), counts(&[("c", 2)]));
 }
 
 fn flag_filter(on: bool) -> Selector {
@@ -4036,12 +4287,36 @@ fn min_pairwise(ids: &[u32], coords: &HashMap<u32, (f64, f64)>) -> f64 {
     min
 }
 
+fn candidates(store: &Store, set: Option<&RoaringBitmap>) -> Vec<(u32, f64, f64)> {
+    let view = store.loc_view();
+    match set {
+        Some(s) => located(&view.within(s)),
+        None => located(&view.all()),
+    }
+}
+
+fn spaced(
+    store: &Store,
+    set: Option<&RoaringBitmap>,
+    target: Option<u32>,
+    min_distance_m: Option<f64>,
+) -> AppResult<SpacedPickResult> {
+    pick_spaced(candidates(store, set), target, min_distance_m)
+}
+
+fn even(
+    store: &Store,
+    set: Option<&RoaringBitmap>,
+    target: Option<u32>,
+    spacing_m: Option<f64>,
+) -> AppResult<SpacedPickResult> {
+    pick_even(&candidates(store, set), target, spacing_m)
+}
+
 #[test]
 fn pick_spaced_count_returns_exactly_n_subset() {
     let store = spaced_grid_store();
-    let res = store
-        .pick_spaced(Some(&store.selections.ids), Some(8), None)
-        .unwrap();
+    let res = spaced(&store, Some(&store.selections.ids), Some(8), None).unwrap();
     assert_eq!(res.ids.len(), 8);
     let uniq: HashSet<u32> = res.ids.iter().copied().collect();
     assert_eq!(uniq.len(), 8, "no duplicates");
@@ -4056,9 +4331,7 @@ fn pick_spaced_count_returns_exactly_n_subset() {
 #[test]
 fn pick_spaced_count_ge_size_returns_all() {
     let store = spaced_grid_store();
-    let res = store
-        .pick_spaced(Some(&store.selections.ids), Some(50), None)
-        .unwrap();
+    let res = spaced(&store, Some(&store.selections.ids), Some(50), None).unwrap();
     assert_eq!(res.ids.len(), 20);
     assert_eq!(res.distance_m, 0);
     let uniq: HashSet<u32> = res.ids.iter().copied().collect();
@@ -4069,9 +4342,7 @@ fn pick_spaced_count_ge_size_returns_all() {
 fn pick_spaced_count_pairwise_spacing_meets_returned_distance() {
     let store = spaced_grid_store();
     let coords = coord_lookup(&store);
-    let res = store
-        .pick_spaced(Some(&store.selections.ids), Some(6), None)
-        .unwrap();
+    let res = spaced(&store, Some(&store.selections.ids), Some(6), None).unwrap();
     let min = min_pairwise(&res.ids, &coords);
     assert!(
         min >= res.distance_m as f64 - 1e-6,
@@ -4085,9 +4356,7 @@ fn pick_spaced_count_pairwise_spacing_meets_returned_distance() {
 fn pick_spaced_distance_enforces_threshold() {
     let store = spaced_grid_store();
     let coords = coord_lookup(&store);
-    let res = store
-        .pick_spaced(Some(&store.selections.ids), None, Some(250.0))
-        .unwrap();
+    let res = spaced(&store, Some(&store.selections.ids), None, Some(250.0)).unwrap();
     assert_eq!(res.distance_m, 250);
     assert!(!res.ids.is_empty());
     let min = min_pairwise(&res.ids, &coords);
@@ -4098,16 +4367,16 @@ fn pick_spaced_distance_enforces_threshold() {
 fn pick_spaced_arg_validation() {
     let store = spaced_grid_store();
     assert!(
-        store.pick_spaced(None, Some(5), Some(100.0)).is_err(),
+        spaced(&store, None, Some(5), Some(100.0)).is_err(),
         "both set"
     );
-    assert!(store.pick_spaced(None, None, None).is_err(), "neither set");
+    assert!(spaced(&store, None, None, None).is_err(), "neither set");
     assert!(
-        store.pick_spaced(None, None, Some(0.0)).is_err(),
+        spaced(&store, None, None, Some(0.0)).is_err(),
         "zero distance"
     );
     assert!(
-        store.pick_spaced(None, None, Some(f64::INFINITY)).is_err(),
+        spaced(&store, None, None, Some(f64::INFINITY)).is_err(),
         "distance above i32::MAX"
     );
 }
@@ -4115,14 +4384,10 @@ fn pick_spaced_arg_validation() {
 #[test]
 fn pick_spaced_empty_selection() {
     let store = setup_store_with(&[]);
-    let count = store
-        .pick_spaced(Some(&store.selections.ids), Some(5), None)
-        .unwrap();
+    let count = spaced(&store, Some(&store.selections.ids), Some(5), None).unwrap();
     assert!(count.ids.is_empty());
     assert_eq!(count.distance_m, 0);
-    let dist = store
-        .pick_spaced(Some(&store.selections.ids), None, Some(100.0))
-        .unwrap();
+    let dist = spaced(&store, Some(&store.selections.ids), None, Some(100.0)).unwrap();
     assert!(dist.ids.is_empty());
     assert_eq!(dist.distance_m, 0);
 }
@@ -4131,13 +4396,10 @@ fn pick_spaced_empty_selection() {
 fn pick_spaced_narrowing_overrides_selection() {
     let mut store = spaced_grid_store();
     // Selection is the whole grid; narrow to ids 1..=5 (one row).
-    let set = selections::resolve(
-        &store.loc_view(),
-        &Selector::Manual {
-            locations: vec![1, 2, 3, 4, 5],
-        },
-    );
-    let res = store.pick_spaced(Some(&set), Some(3), None).unwrap();
+    let set = store.loc_view().all().resolve(&Selector::Manual {
+        locations: vec![1, 2, 3, 4, 5],
+    });
+    let res = spaced(&store, Some(&set), Some(3), None).unwrap();
     assert_eq!(res.ids.len(), 3);
     for id in &res.ids {
         assert!(*id <= 5, "id {id} outside the set");
@@ -4145,7 +4407,7 @@ fn pick_spaced_narrowing_overrides_selection() {
 
     // An empty selection does not starve a narrowed pick.
     store.selections.ids = RoaringBitmap::new();
-    let res = store.pick_spaced(Some(&set), Some(3), None).unwrap();
+    let res = spaced(&store, Some(&set), Some(3), None).unwrap();
     assert_eq!(res.ids.len(), 3);
 }
 
@@ -4196,9 +4458,7 @@ fn nearest_to(lat: f64, lng: f64, others: impl Iterator<Item = (f64, f64)>) -> f
 fn pick_even_spaces_neighbors_about_one_spacing_apart() {
     let store = selected_store(&square_of(60, 10.0));
     let coords = coord_lookup(&store);
-    let res = store
-        .pick_even(Some(&store.selections.ids), None, Some(100.0))
-        .unwrap();
+    let res = even(&store, Some(&store.selections.ids), None, Some(100.0)).unwrap();
     assert_eq!(res.distance_m, 100);
 
     let picks: Vec<(f64, f64)> = res.ids.iter().map(|id| coords[id]).collect();
@@ -4228,9 +4488,7 @@ fn pick_even_never_keeps_two_picks_closer_than_half_the_spacing() {
         let store = selected_store(&points);
         let coords = coord_lookup(&store);
         for spacing in [60.0, 150.0] {
-            let res = store
-                .pick_even(Some(&store.selections.ids), None, Some(spacing))
-                .unwrap();
+            let res = even(&store, Some(&store.selections.ids), None, Some(spacing)).unwrap();
             assert!(res.ids.len() > 1);
             let min = min_pairwise(&res.ids, &coords);
             assert!(
@@ -4246,9 +4504,7 @@ fn pick_even_never_keeps_two_picks_closer_than_half_the_spacing() {
 fn pick_even_leaves_every_location_near_a_pick() {
     let store = selected_store(&scattered(3000));
     let coords = coord_lookup(&store);
-    let res = store
-        .pick_even(Some(&store.selections.ids), None, Some(100.0))
-        .unwrap();
+    let res = even(&store, Some(&store.selections.ids), None, Some(100.0)).unwrap();
     for (id, &(lat, lng)) in &coords {
         let gap = nearest_to(lat, lng, res.ids.iter().map(|p| coords[p]));
         assert!(
@@ -4263,9 +4519,7 @@ fn pick_even_count_keeps_at_most_n_near_n() {
     let store = selected_store(&scattered(3000));
     let coords = coord_lookup(&store);
     for goal in [1u32, 7, 40, 250] {
-        let res = store
-            .pick_even(Some(&store.selections.ids), Some(goal), None)
-            .unwrap();
+        let res = even(&store, Some(&store.selections.ids), Some(goal), None).unwrap();
         let n = res.ids.len();
         assert!(n >= 1 && n <= goal as usize, "{n} picks for {goal}");
         if goal >= 40 {
@@ -4284,9 +4538,7 @@ fn pick_even_count_keeps_at_most_n_near_n() {
 #[test]
 fn pick_even_count_ge_size_returns_all() {
     let store = spaced_grid_store();
-    let res = store
-        .pick_even(Some(&store.selections.ids), Some(50), None)
-        .unwrap();
+    let res = even(&store, Some(&store.selections.ids), Some(50), None).unwrap();
     assert_eq!(res.ids.len(), 20);
     assert_eq!(res.distance_m, 0);
 }
@@ -4294,12 +4546,8 @@ fn pick_even_count_ge_size_returns_all() {
 #[test]
 fn pick_even_is_deterministic() {
     let store = selected_store(&scattered(1000));
-    let first = store
-        .pick_even(Some(&store.selections.ids), None, Some(80.0))
-        .unwrap();
-    let second = store
-        .pick_even(Some(&store.selections.ids), None, Some(80.0))
-        .unwrap();
+    let first = even(&store, Some(&store.selections.ids), None, Some(80.0)).unwrap();
+    let second = even(&store, Some(&store.selections.ids), None, Some(80.0)).unwrap();
     assert_eq!(first.ids, second.ids);
 }
 
@@ -4307,13 +4555,13 @@ fn pick_even_is_deterministic() {
 fn pick_even_arg_validation() {
     let store = spaced_grid_store();
     assert!(
-        store.pick_even(None, Some(5), Some(100.0)).is_err(),
+        even(&store, None, Some(5), Some(100.0)).is_err(),
         "both set"
     );
-    assert!(store.pick_even(None, None, None).is_err(), "neither set");
+    assert!(even(&store, None, None, None).is_err(), "neither set");
     for spacing in [0.0, -5.0, f64::NAN, f64::INFINITY] {
         assert!(
-            store.pick_even(None, None, Some(spacing)).is_err(),
+            even(&store, None, None, Some(spacing)).is_err(),
             "spacing {spacing}"
         );
     }
@@ -4323,9 +4571,7 @@ fn pick_even_arg_validation() {
 fn pick_even_empty_selection() {
     let store = setup_store_with(&[]);
     for (count, spacing) in [(Some(5), None), (None, Some(100.0))] {
-        let res = store
-            .pick_even(Some(&store.selections.ids), count, spacing)
-            .unwrap();
+        let res = even(&store, Some(&store.selections.ids), count, spacing).unwrap();
         assert!(res.ids.is_empty());
         assert_eq!(res.distance_m, 0);
     }
@@ -4719,7 +4965,7 @@ fn plan(locs: &[Location], op: &FieldOp) -> Vec<Update<LocationPatch>> {
 
 fn plan_full(locs: &[Location], op: &FieldOp) -> FieldPlan {
     let fx = Fx::base(locs);
-    plan_field_op(&fx.view(), None, op).unwrap()
+    plan_field_op(&fx.view().all(), op).unwrap()
 }
 
 fn set_op(key: &str, value: serde_json::Value) -> FieldOp {
@@ -4842,52 +5088,13 @@ fn field_op_honours_the_selector() {
     ];
     let fx = Fx::base(&locs);
     let set: RoaringBitmap = [2u32].into_iter().collect();
-    let FieldPlan {
-        updates: out,
-        forget,
-        ..
-    } = plan_field_op(
-        &fx.view(),
-        Some(&set),
+    let FieldPlan { updates: out, .. } = plan_field_op(
+        &fx.view().within(&set),
         &move_op("a", "b", MergeWinner::From),
     )
     .unwrap();
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].id, 2);
-    // Row 1 still holds `a`, so the key must not be forgotten.
-    assert!(forget.is_empty());
-}
-
-#[test]
-fn field_op_forgets_a_key_only_when_no_row_retains_it() {
-    let locs = [
-        loc_with_extra(1, r#"{"a":5}"#),
-        loc_with_extra(2, r#"{"a":6,"x":1}"#),
-    ];
-    let fx = Fx::base(&locs);
-
-    // Whole-map move erases `a` everywhere.
-    let forget = plan_field_op(&fx.view(), None, &move_op("a", "b", MergeWinner::From))
-        .unwrap()
-        .forget;
-    assert_eq!(forget, vec!["a".to_string()]);
-
-    // Whole-map delete of `x` erases it; `a` is untouched.
-    let forget = plan_field_op(
-        &fx.view(),
-        None,
-        &FieldOp::Delete {
-            keys: vec!["x".into()],
-        },
-    )
-    .unwrap()
-    .forget;
-    assert_eq!(forget, vec!["x".to_string()]);
-
-    // Invalid move plans nothing and forgets nothing.
-    let p = plan_field_op(&fx.view(), None, &move_op("a", "a", MergeWinner::From)).unwrap();
-    assert!(p.updates.is_empty());
-    assert!(p.forget.is_empty());
 }
 
 #[test]
@@ -4969,7 +5176,7 @@ fn pinned_loc(id: u32, pano: &str) -> Location {
 /// The message a rejected op answers with, or a panic naming what was wrongly accepted.
 fn plan_err(locs: &[Location], op: &FieldOp) -> String {
     let fx = Fx::base(locs);
-    match plan_field_op(&fx.view(), None, op) {
+    match plan_field_op(&fx.view().all(), op) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("op was accepted"),
     }
@@ -5063,7 +5270,6 @@ fn expr_op_evaluates_per_row_and_names_the_rows_it_cannot() {
         serde_json::json!({ "h": 170 })
     );
     assert_eq!(p.failed, vec![3, 4]);
-    assert!(p.forget.is_empty());
 }
 
 #[test]
@@ -5095,7 +5301,7 @@ fn expr_op_reads_builtin_columns_and_may_write_one() {
 #[test]
 fn expr_op_rejects_a_syntax_error_before_touching_rows() {
     let fx = Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
-    let err = plan_field_op(&fx.view(), None, &expr_op("a", "a +"))
+    let err = plan_field_op(&fx.view().all(), &expr_op("a", "a +"))
         .err()
         .unwrap();
     assert!(err.0.contains("unexpected end of expression"), "{}", err.0);
@@ -5140,10 +5346,6 @@ fn apply_field_defs_keeps_the_existing_def() {
     assert_eq!(store.field_defs["k"].label.as_deref(), Some("User edited"));
 }
 
-// The round-trip rename invariant: a->b then b->a. The render delta never carries
-// extra-only rewrites, so knownness must flow through the registry channel: the store
-// forgets `a` when the move erases it, and re-announces it via field_defs when
-// the reverse move brings it back.
 // The command path, not just the plan: a gate that rejected a clearable builtin before
 // `plan_field_op` ran would make every plan-level test above green and the feature dead.
 #[test]
@@ -5245,49 +5447,6 @@ fn apply_field_op_refuses_a_non_numeric_assignment() {
         false,
     )
     .is_err());
-}
-
-#[test]
-fn field_op_round_trip_rename_reannounces_the_key() {
-    let mut store = setup_store_with(&[
-        loc_with_extra(1, r#"{"a":5}"#),
-        loc_with_extra(2, r#"{"a":6}"#),
-    ]);
-    store.field_defs.edit().insert("a".into(), def_of("a"));
-
-    let r1 = apply_field_op(
-        &mut store,
-        &Selector::Everything,
-        &move_op("a", "b", MergeWinner::From),
-        false,
-    )
-    .unwrap()
-    .mutation;
-    assert!(r1.delta.updated.is_empty(), "extra-only: no render delta");
-    assert!(!store.field_defs.contains_key("a"), "a erased, forgotten");
-    assert!(store.field_defs.contains_key("b"), "b auto-registered");
-    assert!(
-        r1.values
-            .field_defs
-            .as_ref()
-            .is_some_and(|d| !d.contains_key("a")),
-        "the result ships the registry without a"
-    );
-
-    let r2 = apply_field_op(
-        &mut store,
-        &Selector::Everything,
-        &move_op("b", "a", MergeWinner::From),
-        false,
-    )
-    .unwrap()
-    .mutation;
-    assert!(store.field_defs.contains_key("a"));
-    assert!(!store.field_defs.contains_key("b"));
-    assert!(
-        r2.values.field_defs.is_some_and(|d| d.contains_key("a")),
-        "reappearing key is re-announced"
-    );
 }
 
 #[test]

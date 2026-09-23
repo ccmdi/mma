@@ -108,35 +108,47 @@ pub struct PartitionBucket {
     pub bin: Option<[f64; 2]>,
 }
 
-/// Partition `view` into groups by `field`. `set` (when Some) restricts to those ids.
-/// Returns groups in a deterministic but unsorted order (numeric: bin order; projection:
-/// first-seen) - the JS caller sorts for display.
-pub fn partition(
-    view: &LocView,
-    field: &str,
-    spec: &KeySpec,
-    set: Option<&RoaringBitmap>,
-) -> Vec<PartitionBucket> {
-    match spec {
-        KeySpec::NumericBin { binning } => partition_numeric(view, field, binning, set),
-        _ => partition_keyed(view, field, spec, set),
+impl Scope<'_, '_> {
+    /// The rows in scope grouped by `field`, in a deterministic but unsorted order
+    /// (numeric: bin order; projection: first-seen) - the JS caller sorts for display.
+    pub fn partition(&self, field: &str, spec: &KeySpec) -> Vec<PartitionBucket> {
+        match spec {
+            KeySpec::NumericBin { binning } => partition_numeric(self, field, binning),
+            _ => partition_keyed(self, field, spec),
+        }
+    }
+
+    /// Group counts without the member ids. Goes through `partition` so key derivation
+    /// keeps one definition.
+    pub fn count_by(&self, field: &str, spec: &KeySpec) -> CountBy {
+        let groups = self.partition(field, spec);
+        let mut covered = RoaringBitmap::new();
+        for g in &groups {
+            covered.extend(g.ids.iter().copied());
+        }
+        CountBy {
+            counts: groups
+                .into_iter()
+                .map(|g| (g.key, g.ids.len() as u32))
+                .collect(),
+            covered: covered.len() as u32,
+        }
     }
 }
 
 pub(super) const MAX_BINS_WITH_EMPTIES: usize = 100;
 
 pub(super) fn partition_numeric(
-    view: &LocView,
+    scope: &Scope,
     field: &str,
     binning: &NumericBinning,
-    set: Option<&RoaringBitmap>,
 ) -> Vec<PartitionBucket> {
     let mut vals: Vec<(u32, f64)> = Vec::new();
-    view.for_each_within(set, |row| {
+    for row in scope.rows() {
         if let Some(n) = row.resolve_field(field).as_ref().and_then(as_f64) {
             vals.push((row.id(), n));
         }
-    });
+    }
     let nums: Vec<f64> = vals.iter().map(|(_, n)| *n).collect();
     let Some(buckets) = bin_numeric(&nums, binning) else {
         return Vec::new();
@@ -185,15 +197,10 @@ fn row_keys(row: &RowRef<'_, '_>, field: &str, spec: &KeySpec) -> Vec<String> {
     keys
 }
 
-pub(super) fn partition_keyed(
-    view: &LocView,
-    field: &str,
-    spec: &KeySpec,
-    set: Option<&RoaringBitmap>,
-) -> Vec<PartitionBucket> {
+pub(super) fn partition_keyed(scope: &Scope, field: &str, spec: &KeySpec) -> Vec<PartitionBucket> {
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut groups: Vec<PartitionBucket> = Vec::new();
-    view.for_each_within(set, |row| {
+    for row in scope.rows() {
         let id = row.id();
         for k in row_keys(&row, field, spec) {
             match index.get(&k) {
@@ -208,7 +215,7 @@ pub(super) fn partition_keyed(
                 }
             }
         }
-    });
+    }
     groups
 }
 
@@ -220,28 +227,6 @@ pub struct CountBy {
     pub counts: Vec<(String, u32)>,
     /// Rows held by at least one group.
     pub covered: u32,
-}
-
-/// Group counts without the member ids. Delegates to `partition` so key derivation
-/// keeps one definition.
-pub fn count_by(
-    view: &LocView,
-    field: &str,
-    spec: &KeySpec,
-    set: Option<&RoaringBitmap>,
-) -> CountBy {
-    let groups = partition(view, field, spec, set);
-    let mut covered = RoaringBitmap::new();
-    for g in &groups {
-        covered.extend(g.ids.iter().copied());
-    }
-    CountBy {
-        counts: groups
-            .into_iter()
-            .map(|g| (g.key, g.ids.len() as u32))
-            .collect(),
-        covered: covered.len() as u32,
-    }
 }
 
 /// The group key for a field value, printed the way JS `String()` does: strings verbatim

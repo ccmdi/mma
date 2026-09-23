@@ -852,26 +852,13 @@ pub struct SummaryResult {
 // Commands
 // ---------------------------------------------------------------------------
 
-/// One read through a selector: `view_for` (indexes, then the view), resolve once,
-/// then project.
+/// One read through a selector: `view_for` (indexes, then the view), narrowed once to
+/// the scope the body projects.
 macro_rules! selector_read {
-    ($label:ident, $state:ident, $selector:ident, |$view:ident, $set:ident| $body:expr) => {
+    ($label:ident, $state:ident, $selector:ident, |$scope:ident| $body:expr) => {
         with_store!($label, $state, |store| {
-            let $view = store.view_for(&$selector);
-            let resolved = selections::narrow(&$view, &$selector);
-            let $set = resolved.as_ref();
-            Ok($body)
-        })
-    };
-    // The view borrows the store, so a projection needing `&mut store` gets the set only
-    // after the view is dropped.
-    ($label:ident, $state:ident, $selector:ident, store: |$store:ident, $set:ident| $body:expr) => {
-        with_store!($label, $state, |$store| {
-            let resolved = {
-                let view = $store.view_for(&$selector);
-                selections::narrow(&view, &$selector)
-            };
-            let $set = resolved.as_ref();
+            let view = store.view_for(&$selector);
+            let $scope = view.all().narrow(&$selector);
             Ok($body)
         })
     };
