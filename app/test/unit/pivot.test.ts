@@ -1,20 +1,35 @@
 import { describe, it, expect } from "vitest";
+import type { Selector } from "@/bindings.gen";
 import {
+	buildPivot,
+	crossCounts,
 	stripNa,
 	pivotCellValue,
 	formatPct,
 	resolveBucketCount,
+	NA_KEY,
 	BUCKET_MIN_DISTINCT,
 	BUCKET_FORCE_DISTINCT,
 	DEFAULT_BUCKETS,
 	type PivotData,
+	type PivotMember,
 	type PivotRow,
+	type ResolvedAxis,
 } from "@/plugins/pivot/pivotMath";
 
-function row(label: string, counts: Record<string, number>): PivotRow {
+function member(key: string): PivotMember {
 	return {
-		label,
-		color: [0, 0, 0],
+		key,
+		label: key,
+		color: null,
+		selector: { type: "Filter", field: "f", test: { op: "eq", value: key } },
+		selectable: true,
+	};
+}
+
+function row(key: string, counts: Record<string, number>): PivotRow {
+	return {
+		...member(key),
 		counts: new Map(Object.entries(counts)),
 		total: Object.values(counts).reduce((a, b) => a + b, 0),
 	};
@@ -23,35 +38,147 @@ function row(label: string, counts: Record<string, number>): PivotRow {
 function pivot(rows: PivotRow[], columns: string[]): PivotData {
 	return {
 		rows,
-		columns,
-		columnLabels: [...columns],
+		columns: columns.map(member),
 		columnTotals: columns.map((c) => rows.reduce((s, r) => s + (r.counts.get(c) ?? 0), 0)),
+		numericDistinct: {},
 	};
 }
 
 describe("stripNa", () => {
 	it("removes the N/A column and shrinks row totals", () => {
-		const data = pivot([row("a", { x: 6, __na__: 4 }), row("b", { x: 2 })], ["x", "__na__"]);
+		const data = pivot([row("a", { x: 6, __na__: 4 }), row("b", { x: 2 })], ["x", NA_KEY]);
 		const stripped = stripNa(data);
-		expect(stripped.columns).toEqual(["x"]);
+		expect(stripped.columns.map((c) => c.key)).toEqual(["x"]);
 		expect(stripped.columnTotals).toEqual([8]);
 		expect(stripped.rows[0].total).toBe(6);
 		expect(stripped.rows[1].total).toBe(2);
 	});
 
-	it("is a no-op without an N/A column", () => {
+	it("removes the N/A row and shrinks column totals", () => {
+		const data = pivot([row("a", { x: 6, y: 1 }), row(NA_KEY, { x: 2, y: 3 })], ["x", "y"]);
+		const stripped = stripNa(data);
+		expect(stripped.rows.map((r) => r.key)).toEqual(["a"]);
+		expect(stripped.columnTotals).toEqual([6, 1]);
+	});
+
+	it("is a no-op without an N/A row or column", () => {
 		const data = pivot([row("a", { x: 1 })], ["x"]);
 		expect(stripNa(data)).toBe(data);
 	});
+});
 
-	it("keeps columnProps aligned with the remaining columns", () => {
-		const data: PivotData = {
-			...pivot([row("a", { x: 1, __na__: 2 })], ["x", "__na__"]),
-			columnProps: [{ type: "Filter", field: "f", test: { op: "eq", value: "x" } }, null],
-		};
-		const stripped = stripNa(data);
-		expect(stripped.columnProps).toHaveLength(1);
-		expect(stripped.columnProps![0]).toMatchObject({ test: { op: "eq", value: "x" } });
+/** A field axis over `values`, one entry per location (null = lacks the field), where a
+ *  selector is the set of locations it names. */
+function fieldAxis(values: (string | null)[], keys: string[]): ResolvedAxis {
+	const tallyIds = (ids: number[]) => {
+		const counts = new Map<string, number>();
+		let withValue = 0;
+		for (const id of ids) {
+			const v = values[id];
+			if (v == null) continue;
+			withValue++;
+			counts.set(v, (counts.get(v) ?? 0) + 1);
+		}
+		return { counts, withValue };
+	};
+	const members = keys.map((k) => ({
+		...member(k),
+		selector: {
+			type: "Manual",
+			locations: values.flatMap((v, id) => ((k === NA_KEY ? v == null : v === k) ? [id] : [])),
+		} as Selector,
+	}));
+	return {
+		members,
+		sizes: members.map((m) => idsOf(m.selector).length),
+		tally: async (s) => tallyIds(idsOf(s)),
+		binned: false,
+	};
+}
+
+function selectionAxis(sets: Record<string, number[]>): ResolvedAxis {
+	const members = Object.entries(sets).map(([key, locations]) => ({
+		...member(key),
+		selector: { type: "Manual", locations } as Selector,
+		selectable: false,
+	}));
+	return {
+		members,
+		sizes: members.map((m) => idsOf(m.selector).length),
+		tally: null,
+		binned: false,
+	};
+}
+
+const idsOf = (s: Selector) => (s.type === "Manual" ? s.locations : []);
+const countBoth = async (a: Selector, b: Selector) =>
+	idsOf(a).filter((id) => idsOf(b).includes(id)).length;
+
+async function cells(r: ResolvedAxis, c: ResolvedAxis) {
+	const cell = await crossCounts(r, c, countBoth);
+	return r.members.map((_, ri) => c.members.map((_, ci) => cell(ri, ci)));
+}
+
+describe("crossCounts", () => {
+	const field = fieldAxis(["x", "y", "x", null, "y", "x"], ["x", "y", NA_KEY]);
+	const sels = selectionAxis({ a: [0, 1, 3], b: [2, 3, 4, 5] });
+
+	it("tallies a field column inside each selection row, deriving N/A", async () => {
+		expect(await cells(sels, field)).toEqual([
+			[1, 1, 1],
+			[2, 1, 1],
+		]);
+	});
+
+	it("a field row against selection columns is the transpose", async () => {
+		expect(await cells(field, sels)).toEqual([
+			[1, 2],
+			[1, 1],
+			[1, 1],
+		]);
+	});
+
+	it("crosses two fields", async () => {
+		const other = fieldAxis(["p", "p", "q", "q", null, "p"], ["p", "q", NA_KEY]);
+		expect(await cells(field, other)).toEqual([
+			[2, 1, 0],
+			[1, 0, 1],
+			[0, 1, 0],
+		]);
+	});
+
+	it("intersects two selection axes pairwise", async () => {
+		expect(await cells(sels, sels)).toEqual([
+			[3, 1],
+			[1, 4],
+		]);
+	});
+});
+
+describe("buildPivot", () => {
+	it("drops field members with no count against the other axis", async () => {
+		const field = fieldAxis(["x", "y", "z"], ["x", "y", "z"]);
+		const sels = selectionAxis({ a: [0], b: [1] });
+		const data = buildPivot(sels, field, await crossCounts(sels, field, countBoth));
+		expect(data.columns.map((c) => c.key)).toEqual(["x", "y"]);
+		expect(data.columnTotals).toEqual([1, 1]);
+		const flipped = buildPivot(field, sels, await crossCounts(field, sels, countBoth));
+		expect(flipped.rows.map((r) => r.key)).toEqual(["x", "y"]);
+	});
+
+	it("keeps empty numeric bins and empty selections", async () => {
+		const bins = { ...fieldAxis(["x", "y", "z"], ["x", "y", "z"]), binned: true };
+		const sels = selectionAxis({ a: [0], empty: [] });
+		const data = buildPivot(sels, bins, await crossCounts(sels, bins, countBoth));
+		expect(data.columns.map((c) => c.key)).toEqual(["x", "y", "z"]);
+		expect(data.rows.map((r) => r.key)).toEqual(["a", "empty"]);
+	});
+
+	it("row totals are each row member's size", async () => {
+		const field = fieldAxis(["x", "y", "x", null], ["x", "y", NA_KEY]);
+		const sels = selectionAxis({ a: [0, 1, 2, 3] });
+		const data = buildPivot(field, sels, await crossCounts(field, sels, countBoth));
+		expect(data.rows.map((r) => r.total)).toEqual([2, 1, 1]);
 	});
 });
 

@@ -225,7 +225,7 @@
 	"Color locations by field value using gradient buckets": "Colorer les lieux selon la valeur d'un champ avec des tranches de dégradé",
 	"Color:": "Couleur :",
 	"Colorful": "Colorful",
-	"Column field": "Champ des colonnes",
+	"Columns": "Colonnes",
 	"Comma-separated terms": "Termes séparés par des virgules",
 	"Command Palette": "Palette de commandes",
 	"Commands": "Commandes",
@@ -1131,7 +1131,6 @@
 	"Save thumbnails": "Enregistrer les vignettes",
 	"Save zoom levels": "Enregistrer les niveaux de zoom",
 	"Saved": "Enregistré",
-	"Saved selection could not be resolved.": "La sélection enregistrée n'a pas pu être résolue.",
 	"Saved {n} panoramas as ZIP": {
 		"one": "{n} panorama enregistré en ZIP",
 		"many": "{n} panoramas enregistrés en ZIP",

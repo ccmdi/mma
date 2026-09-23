@@ -209,7 +209,7 @@
 	"Color locations by field value using gradient buckets": "按字段值用渐变分桶为位置着色",
 	"Color:": "颜色：",
 	"Colorful": "Colorful",
-	"Column field": "列字段",
+	"Columns": "列",
 	"Comma-separated terms": "逗号分隔的关键词",
 	"Command Palette": "命令面板",
 	"Commands": "命令",
@@ -1063,7 +1063,6 @@
 	"Save thumbnails": "保存缩略图",
 	"Save zoom levels": "保存缩放级别",
 	"Saved": "已保存",
-	"Saved selection could not be resolved.": "无法解析已保存的选择。",
 	"Saved {n} panoramas as ZIP": {
 		"other": "已将 {n} 个全景保存为 ZIP"
 	},

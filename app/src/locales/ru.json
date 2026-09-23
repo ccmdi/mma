@@ -233,7 +233,7 @@
 	"Color locations by field value using gradient buckets": "Раскрашивать локации по значению поля через градиентные интервалы",
 	"Color:": "Цвет:",
 	"Colorful": "Colorful",
-	"Column field": "Поле столбцов",
+	"Columns": "Столбцы",
 	"Comma-separated terms": "Термины через запятую",
 	"Command Palette": "Палитра команд",
 	"Commands": "Команды",
@@ -1165,7 +1165,6 @@
 	"Save thumbnails": "Сохранять превью",
 	"Save zoom levels": "Сохранять уровни зума",
 	"Saved": "Сохранено",
-	"Saved selection could not be resolved.": "Не удалось применить сохранённую выборку.",
 	"Saved {n} panoramas as ZIP": {
 		"one": "Сохранена {n} панорама в ZIP",
 		"few": "Сохранено {n} панорамы в ZIP",

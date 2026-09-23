@@ -233,7 +233,7 @@
 	"Color locations by field value using gradient buckets": "Koloruj lokalizacje według wartości pola przy użyciu przedziałów gradientu",
 	"Color:": "Kolor:",
 	"Colorful": "Colorful",
-	"Column field": "Pole kolumny",
+	"Columns": "Kolumny",
 	"Comma-separated terms": "Terminy oddzielone przecinkami",
 	"Command Palette": "Paleta poleceń",
 	"Commands": "Polecenia",
@@ -1165,7 +1165,6 @@
 	"Save thumbnails": "Zapisuj miniatury",
 	"Save zoom levels": "Zapisuj poziomy przybliżenia",
 	"Saved": "Zapisano",
-	"Saved selection could not be resolved.": "Nie udało się rozwiązać zapisanego zaznaczenia.",
 	"Saved {n} panoramas as ZIP": {
 		"one": "Zapisano {n} panoramę jako ZIP",
 		"few": "Zapisano {n} panoramy jako ZIP",

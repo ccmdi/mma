@@ -2,22 +2,29 @@ import type { Selector } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { localeFormat } from "@/lib/util/format";
 
-export interface PivotRow {
+/** One row or column: a selection, or one value of a field. */
+export interface PivotMember {
+	key: string;
 	label: string;
-	color: RGB;
+	color: RGB | null;
+	selector: Selector;
+	/** Whether Ctrl+Click adds `selector` as a selection. */
+	selectable: boolean;
+}
+
+export interface PivotRow extends PivotMember {
 	counts: Map<string, number>;
 	total: number;
 }
 
+export type AxisSide = "rows" | "cols";
+
 export interface PivotData {
 	rows: PivotRow[];
-	columns: string[];
-	columnLabels: string[];
+	columns: PivotMember[];
 	columnTotals: number[];
-	/** Distinct raw values of the numeric field (absent for non-numeric fields). */
-	numericDistinct?: number;
-	/** Per-column selection props for header toggling (null = not expressible, e.g. N/A). */
-	columnProps?: (Selector | null)[];
+	/** Distinct raw values of each numeric field axis. */
+	numericDistinct: Partial<Record<AxisSide, number>>;
 }
 
 export type ValueMode = "count" | "rowPct" | "colPct";
@@ -36,18 +43,91 @@ export function resolveBucketCount(distinct: number, chosen: number | null): num
 	return chosen;
 }
 
-/** Drop the N/A column and shrink row totals, so percentages are relative to
- *  locations that actually have the field. */
+export interface Tally {
+	counts: Map<string, number>;
+	withValue: number;
+}
+
+/** An axis resolved against the map: its members, each member's location count, and for
+ *  a field axis how to count its values inside any selector. */
+export interface ResolvedAxis {
+	members: PivotMember[];
+	sizes: number[];
+	tally: ((selector: Selector) => Promise<Tally>) | null;
+	binned: boolean;
+	numericDistinct?: number;
+}
+
+/** Cell counts: a field axis is tallied inside each member of the other axis, and two
+ *  selection axes intersect pairwise. */
+export async function crossCounts(
+	rows: ResolvedAxis,
+	cols: ResolvedAxis,
+	countBoth: (a: Selector, b: Selector) => Promise<number>,
+): Promise<(row: number, col: number) => number> {
+	const within = (t: Tally, key: string, size: number) =>
+		key === NA_KEY ? size - t.withValue : (t.counts.get(key) ?? 0);
+	const colTally = cols.tally;
+	if (colTally) {
+		const tallies = await Promise.all(rows.members.map((m) => colTally(m.selector)));
+		return (ri, ci) => within(tallies[ri], cols.members[ci].key, rows.sizes[ri]);
+	}
+	const rowTally = rows.tally;
+	if (rowTally) {
+		const tallies = await Promise.all(cols.members.map((m) => rowTally(m.selector)));
+		return (ri, ci) => within(tallies[ci], rows.members[ri].key, cols.sizes[ci]);
+	}
+	const grid = await Promise.all(
+		rows.members.map((r) =>
+			Promise.all(cols.members.map((c) => countBoth(r.selector, c.selector))),
+		),
+	);
+	return (ri, ci) => grid[ri][ci];
+}
+
+/** A field value no location in the other axis carries is dropped; a numeric bin is
+ *  kept so the histogram shows its gaps. */
+const prunes = (axis: ResolvedAxis) => axis.tally !== null && !axis.binned;
+
+export function buildPivot(
+	rowAxis: ResolvedAxis,
+	colAxis: ResolvedAxis,
+	cell: (row: number, col: number) => number,
+): PivotData {
+	let rows: PivotRow[] = rowAxis.members.map((m, ri) => ({
+		...m,
+		counts: new Map(colAxis.members.map((c, ci) => [c.key, cell(ri, ci)])),
+		total: rowAxis.sizes[ri],
+	}));
+	if (prunes(rowAxis)) rows = rows.filter((r) => [...r.counts.values()].some((v) => v > 0));
+	const totalOf = (key: string) => rows.reduce((sum, r) => sum + (r.counts.get(key) ?? 0), 0);
+	const columns = prunes(colAxis)
+		? colAxis.members.filter((c) => totalOf(c.key) > 0)
+		: colAxis.members;
+	return {
+		rows,
+		columns,
+		columnTotals: columns.map((c) => totalOf(c.key)),
+		numericDistinct: { rows: rowAxis.numericDistinct, cols: colAxis.numericDistinct },
+	};
+}
+
+/** Drop the N/A row and column, shrinking the totals they fed, so percentages are
+ *  relative to locations that actually have the field. */
 export function stripNa(data: PivotData): PivotData {
-	const naIdx = data.columns.indexOf(NA_KEY);
-	if (naIdx === -1) return data;
+	const naRow = data.rows.find((r) => r.key === NA_KEY);
+	const hasNaCol = data.columns.some((c) => c.key === NA_KEY);
+	if (!naRow && !hasNaCol) return data;
+	const kept = data.columns.flatMap((c, i) => (c.key === NA_KEY ? [] : [i]));
 	return {
 		...data,
-		columns: data.columns.filter((_, i) => i !== naIdx),
-		columnLabels: data.columnLabels.filter((_, i) => i !== naIdx),
-		columnTotals: data.columnTotals.filter((_, i) => i !== naIdx),
-		columnProps: data.columnProps?.filter((_, i) => i !== naIdx),
-		rows: data.rows.map((r) => ({ ...r, total: r.total - (r.counts.get(NA_KEY) ?? 0) })),
+		columns: kept.map((i) => data.columns[i]),
+		columnTotals: kept.map(
+			(i) => data.columnTotals[i] - (naRow?.counts.get(data.columns[i].key) ?? 0),
+		),
+		rows: data.rows
+			.filter((r) => r !== naRow)
+			.map((r) => ({ ...r, total: r.total - (r.counts.get(NA_KEY) ?? 0) })),
 	};
 }
 
@@ -56,7 +136,7 @@ export function pivotCellValue(data: PivotData, row: PivotRow, col: string, mode
 	const v = row.counts.get(col) ?? 0;
 	if (mode === "rowPct") return row.total ? v / row.total : 0;
 	if (mode === "colPct") {
-		const colTotal = data.columnTotals[data.columns.indexOf(col)];
+		const colTotal = data.columnTotals[data.columns.findIndex((c) => c.key === col)];
 		return colTotal ? v / colTotal : 0;
 	}
 	return v;
