@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import { ScatterplotLayer, PathLayer, TextLayer } from "@deck.gl/layers";
+import { IconLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
+import { mdiFlagVariant } from "@mdi/js";
 import {
 	createMapHost,
 	hostKindForMapType,
@@ -10,12 +11,12 @@ import {
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import type { RGB } from "@/lib/util/color";
+import { rgbCss, type RGB } from "@/lib/util/color";
 import type { LatLng } from "@/types";
 import type { RoundResult } from "./game";
 
-export const GUESS_COLOR: RGB = [64, 133, 244];
-export const TRUTH_COLOR: RGB = [76, 175, 80];
+const GUESS_COLOR: RGB = [64, 133, 244];
+const TRUTH_COLOR: RGB = [76, 175, 80];
 const DIMMED = 0.3;
 
 /**
@@ -105,40 +106,90 @@ export function useSettledZoom(hostRef: RefObject<MapHost | null>, active: boole
 	return zoom;
 }
 
-/** Pins and their shadow halos, so each circle separates from same-colored basemap. */
+const PIN_SIZE = 36;
+const PIN_RADIUS = 13.5;
+const PIN_RING = 3;
+
+interface PinIcon {
+	id: string;
+	url: string;
+	width: number;
+	height: number;
+}
+
+type PinFace = (ctx: CanvasRenderingContext2D, center: number, radius: number) => void;
+
+/** A white-ringed badge with a soft drop shadow, so it lifts off any basemap. */
+function drawPin(id: string, color: RGB, face?: PinFace): PinIcon {
+	const scale = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+	const canvas = document.createElement("canvas");
+	canvas.width = canvas.height = PIN_SIZE * scale;
+	const ctx = canvas.getContext("2d")!;
+	ctx.scale(scale, scale);
+	const center = PIN_SIZE / 2;
+	const inner = PIN_RADIUS - PIN_RING;
+
+	ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+	ctx.shadowBlur = 4;
+	ctx.shadowOffsetY = 1.5;
+	ctx.beginPath();
+	ctx.arc(center, center, PIN_RADIUS, 0, 2 * Math.PI);
+	ctx.fillStyle = "#fff";
+	ctx.fill();
+	ctx.shadowColor = "transparent";
+
+	const fill = ctx.createLinearGradient(0, center - inner, 0, center + inner);
+	fill.addColorStop(0, rgbCss(color.map((v) => v + (255 - v) * 0.3) as RGB));
+	fill.addColorStop(1, rgbCss(color));
+	ctx.beginPath();
+	ctx.arc(center, center, inner, 0, 2 * Math.PI);
+	ctx.fillStyle = fill;
+	ctx.fill();
+
+	ctx.fillStyle = "#fff";
+	face?.(ctx, center, inner);
+	return { id, url: canvas.toDataURL(), width: canvas.width, height: canvas.height };
+}
+
+const dotFace: PinFace = (ctx, center) => {
+	ctx.beginPath();
+	ctx.arc(center, center, 3, 0, 2 * Math.PI);
+	ctx.fill();
+};
+
+const flagFace: PinFace = (ctx, center) => {
+	const size = 14;
+	ctx.translate(center - size / 2, center - size / 2);
+	ctx.scale(size / 24, size / 24);
+	ctx.fill(new Path2D(mdiFlagVariant));
+};
+
+function lazy<T>(make: () => T): () => T {
+	let value: T | undefined;
+	return () => (value ??= make());
+}
+
+export const GUESS_PIN = lazy(() => drawPin("guess", GUESS_COLOR, dotFace));
+export const TRUTH_PIN = lazy(() => drawPin("truth", TRUTH_COLOR, flagFace));
+const NUMBERED_TRUTH_PIN = lazy(() => drawPin("truth-numbered", TRUTH_COLOR));
+
 export function pinLayers<T extends LatLng>(
 	id: string,
 	pins: T[],
-	color: RGB,
+	icon: () => PinIcon,
 	pickable: boolean,
 	opacity = 1,
 ) {
-	return [
-		new ScatterplotLayer<T>({
-			id: `${id}-halo`,
-			data: pins,
-			getPosition: (d) => [d.lng, d.lat],
-			getFillColor: [0, 0, 0, 90],
-			radiusUnits: "pixels",
-			getRadius: 11,
-			opacity,
-			pickable: false,
-		}),
-		new ScatterplotLayer<T>({
-			id,
-			data: pins,
-			getPosition: (d) => [d.lng, d.lat],
-			getFillColor: color,
-			getLineColor: [255, 255, 255],
-			getLineWidth: 2,
-			lineWidthUnits: "pixels",
-			stroked: true,
-			radiusUnits: "pixels",
-			getRadius: 8,
-			opacity,
-			pickable,
-		}),
-	];
+	return new IconLayer<T>({
+		id,
+		data: pins,
+		getPosition: (d) => [d.lng, d.lat],
+		getIcon: icon,
+		getSize: PIN_SIZE,
+		sizeUnits: "pixels",
+		opacity,
+		pickable,
+	});
 }
 
 export interface RoundPair {
@@ -199,14 +250,14 @@ export function replayLayers(
 			...(settledZoom !== null && pairs.length > 0
 				? [resultLineLayer(`${id}-line`, pairs, settledZoom, opacity)]
 				: []),
-			...pinLayers(`${id}-guess`, guesses, GUESS_COLOR, true, opacity),
-			...pinLayers(`${id}-truth`, truths, TRUTH_COLOR, true, opacity),
+			pinLayers(`${id}-guess`, guesses, GUESS_PIN, true, opacity),
+			pinLayers(`${id}-truth`, truths, NUMBERED_TRUTH_PIN, true, opacity),
 			new TextLayer<ReplayPin>({
 				id: `${id}-n`,
 				data: truths,
 				getPosition: (d) => [d.lng, d.lat],
 				getText: (d) => String(d.round + 1),
-				getSize: 10,
+				getSize: 12,
 				getColor: [255, 255, 255],
 				fontFamily: '"Open Sans", sans-serif',
 				fontWeight: 700,

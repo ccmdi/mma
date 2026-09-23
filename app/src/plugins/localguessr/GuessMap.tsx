@@ -27,8 +27,8 @@ import type { LatLng, MapTypeKey } from "@/types";
 import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
 import { packedPositions } from "@/lib/render/packedPositions";
 import {
-	GUESS_COLOR,
-	TRUTH_COLOR,
+	GUESS_PIN,
+	TRUTH_PIN,
 	pinLayers,
 	resultLineLayer,
 	useGameMap,
@@ -213,9 +213,9 @@ export function GuessMap({
 		if (showResult && truth && guess && settledZoom !== null) {
 			layers.push(resultLineLayer("lg-line", [{ guess, truth }], settledZoom));
 		}
-		if (guess) layers.push(...pinLayers("lg-guess", [guess], GUESS_COLOR, showResult));
+		if (guess) layers.push(pinLayers("lg-guess", [guess], GUESS_PIN, showResult));
 		if (showResult && truth) {
-			layers.push(...pinLayers("lg-truth", [truth], TRUTH_COLOR, showResult));
+			layers.push(pinLayers("lg-truth", [truth], TRUTH_PIN, showResult));
 		}
 		overlay.setProps({
 			layers,
