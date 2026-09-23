@@ -744,7 +744,7 @@ export type EngineValues = {
 	valueMeta: { [key in string]: { [key in number]: { [key in string]: unknown } } } | null,
 	/**
 	 *  The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
-	 *  seen for the first time, erased, or the user edited a definition.
+	 *  seen for the first time or the user edited a definition.
 	 */
 	fieldDefs: { [key in string]: FieldDef } | null,
 };

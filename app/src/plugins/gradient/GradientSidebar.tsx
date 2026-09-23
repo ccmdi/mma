@@ -8,7 +8,7 @@ import type { KeySpec } from "@/bindings.gen";
 import type { FieldType, DatePart } from "@/bindings.consts";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { useExtraFieldKeys, type FieldEntry } from "@/components/editor/map/FilterBuilder";
+import { usePickableFields, type FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { applySelectionUpdate, getMapState, partition, resetSelections } from "@/store/useMapStore";
 import { addSelection, batch, setSelectionColors } from "@/store/selections";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
@@ -121,7 +121,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 
 	const map = getMapState().map;
 
-	const allFields = useExtraFieldKeys();
+	const allFields = usePickableFields();
 	const knownKeys = getKnownFieldKeys();
 	const fields = useMemo(() => gradientFields(allFields, knownKeys), [allFields, knownKeys]);
 

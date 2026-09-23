@@ -5,7 +5,7 @@ import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
-import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
+import { usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { countBy, countIn, coverage, createTags, partition } from "@/store/useMapStore";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
@@ -40,7 +40,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const [tagMissing, setTagMissing] = useState(false);
 	const [template, setTemplate] = useState(DEFAULT_TEMPLATE);
 	const picker = useSelectorPick();
-	const fields = useExtraFieldKeys();
+	const fields = usePickableFields();
 
 	const fieldType = fields.find((f) => f.key === field)?.def.type ?? "string";
 	const projOptions = partitionKeyOptions(fieldType, false);

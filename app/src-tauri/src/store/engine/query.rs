@@ -1,7 +1,7 @@
 //! Read-only queries over the store: bounds, spatial lookups, spaced picks, aggregates.
 
 use super::*;
-use crate::selections::{self, Selector};
+use crate::selections::{self, FilterOp, Selector};
 use crate::store::arrow::{col_lat, col_lng};
 use crate::store::maps::IndexShape;
 use crate::types::Location;
@@ -528,14 +528,18 @@ impl Store {
             .map_or(IndexShape::None, |d| d.field_type.index_shape())
     }
 
-    /// Build an index for every enumerable field a selector filters on. Reached through
-    /// the selector entry points (`selector_read`, `apply_field_op`, the sync path), so
-    /// resolution never meets a filterable field without its index; a no-op on every
-    /// call after the first for a given field.
+    /// Build an index for every field a selector could answer from one: the fields it
+    /// tests for existence, and the enumerable fields it filters on. Reached through the
+    /// selector entry points (`selector_read`, `apply_field_op`, the sync path), so
+    /// resolution never meets such a field without its index; a no-op on every call
+    /// after the first for a given field.
     pub(crate) fn ensure_indexes_for(&mut self, selector: &Selector) {
-        fn walk(sel: &Selector, out: &mut Vec<String>) {
+        fn walk(sel: &Selector, out: &mut Vec<(String, bool)>) {
             match sel {
-                Selector::Filter { field, .. } => out.push(field.clone()),
+                Selector::Filter { field, test } => out.push((
+                    field.clone(),
+                    matches!(test, FilterOp::Has | FilterOp::Nothas),
+                )),
                 Selector::Intersection { selections }
                 | Selector::Union { selections }
                 | Selector::Invert { selections } => {
@@ -548,10 +552,16 @@ impl Store {
         }
         let mut fields = Vec::new();
         walk(selector, &mut fields);
-        for field in fields {
-            let shape = self.index_shape_of(&field);
-            self.ensure_field_index(&field, shape);
-        }
+        let wanted: Vec<(String, IndexShape)> = fields
+            .into_iter()
+            .map(|(f, existence)| {
+                let shape = self.index_shape_of(&f);
+                (f, shape, existence)
+            })
+            .filter(|(_, shape, existence)| *existence || *shape != IndexShape::None)
+            .map(|(f, shape, _)| (f, shape))
+            .collect();
+        self.ensure_field_indexes(&wanted);
     }
 
     /// Move the changed rows through every index that exists, so a value's count is its
@@ -564,43 +574,37 @@ impl Store {
     ) -> HashSet<String> {
         // An enumerable builtin is always indexed: the engine reports its per-value
         // counts, so the postings have to exist before a row moves, not on first query.
-        for f in selections::BUILTIN_FIELDS {
-            self.ensure_field_index(f.key, f.field_type.index_shape());
-        }
-        let fields: Vec<(String, IndexShape)> = self
-            .field_indexes
+        let enumerable: Vec<(String, IndexShape)> = selections::BUILTIN_FIELDS
             .iter()
-            .map(|(k, v)| (k.clone(), v.shape))
+            .map(|f| (f.key.to_string(), f.field_type.index_shape()))
+            .filter(|(_, shape)| *shape != IndexShape::None)
             .collect();
+        self.ensure_field_indexes(&enumerable);
         let mut moved: HashSet<String> = HashSet::new();
-        for (field, shape) in fields {
-            let mut touched: Vec<(String, u32, bool)> = Vec::new();
+        for (field, index) in &mut self.field_indexes {
+            let mut values_moved = false;
             for (locs, present) in [(removed, false), (added, true)] {
                 for loc in locs {
-                    let Some(v) = selections::resolve_field_loc(loc, &field) else {
+                    let Some(v) = selections::resolve_field_loc(loc, field) else {
                         continue;
                     };
-                    for key in selections::index_keys(shape, &v) {
-                        touched.push((key, loc.id, present));
+                    let mark = |ids: &mut RoaringBitmap| {
+                        if present {
+                            ids.insert(loc.id);
+                        } else {
+                            ids.remove(loc.id);
+                        }
+                    };
+                    mark(&mut index.rows);
+                    for key in selections::index_keys(index.shape, &v) {
+                        mark(index.by_value.entry(key).or_default());
+                        values_moved = true;
                     }
                 }
             }
-            if touched.is_empty() {
-                continue;
+            if values_moved {
+                moved.insert(field.clone());
             }
-            let index = self
-                .field_indexes
-                .get_mut(&field)
-                .expect("field listed above");
-            for (key, id, present) in touched {
-                let posting = index.by_value.entry(key).or_default();
-                if present {
-                    posting.insert(id);
-                } else {
-                    posting.remove(id);
-                }
-            }
-            moved.insert(field);
         }
         moved
     }
@@ -609,7 +613,10 @@ impl Store {
     /// index if it has none: a count is a query like any other.
     pub(crate) fn value_counts(&mut self, field: &str) -> HashMap<String, usize> {
         let shape = self.index_shape_of(field);
-        self.ensure_field_index(field, shape);
+        if shape == IndexShape::None {
+            return HashMap::new();
+        }
+        self.ensure_field_indexes(&[(field.to_string(), shape)]);
         self.field_indexes
             .get(field)
             .map(|ix| {
@@ -627,29 +634,63 @@ impl Store {
         self.value_counts(field).get(value).copied().unwrap_or(0)
     }
 
-    /// Build the inverted index for `field` if its type is enumerable and it has none
-    /// yet. Postings snapshot the live view; `resolve` re-tests overlay rows on every
-    /// lookup and `finish_mutation` moves changed rows through, so this is paid once per
-    /// field per map open rather than once per mutation.
-    pub(crate) fn ensure_field_index(&mut self, field: &str, shape: IndexShape) {
-        if shape == IndexShape::None || self.field_indexes.contains_key(field) {
+    /// Build the index of every listed field that has none, in one pass over the rows.
+    /// Every field gets the rows holding it; an enumerable one also gets its value postings.
+    pub(crate) fn ensure_field_indexes(&mut self, fields: &[(String, IndexShape)]) {
+        let missing: Vec<&(String, IndexShape)> = fields
+            .iter()
+            .filter(|(field, _)| !self.field_indexes.contains_key(field))
+            .collect();
+        if missing.is_empty() {
             return;
         }
-        let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
-        {
-            let view = self.loc_view();
-            view.for_each(|row| {
-                let Some(v) = row.resolve_field(field) else {
-                    return;
-                };
-                for key in selections::index_keys(shape, &v) {
-                    by_value.entry(key).or_default().insert(row.id());
+        let mut built: Vec<selections::FieldIndex> = missing
+            .iter()
+            .map(|&&(_, shape)| selections::FieldIndex {
+                shape,
+                rows: RoaringBitmap::new(),
+                by_value: HashMap::new(),
+            })
+            .collect();
+        let names: Vec<&str> = missing.iter().map(|(field, _)| field.as_str()).collect();
+        self.loc_view().for_each(|row| {
+            let id = row.id();
+            row.resolve_fields(&names, |i, v| {
+                let index = &mut built[i];
+                index.rows.insert(id);
+                for key in selections::index_keys(index.shape, &v) {
+                    index.by_value.entry(key).or_default().insert(id);
                 }
             });
+        });
+        for ((field, _), index) in missing.into_iter().zip(built) {
+            self.field_indexes.insert(field.clone(), index);
         }
-        self.field_indexes.insert(
-            field.to_string(),
-            selections::FieldIndex { shape, by_value },
-        );
+    }
+
+    /// How many rows of `set` (every alive row when `None`) hold a value for each field the
+    /// map defines and each built-in column a row can lack, key-sorted. A field no row in
+    /// the set holds is left out.
+    pub(crate) fn coverage(&mut self, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
+        let fields: Vec<(String, IndexShape)> = selections::optional_builtins()
+            .iter()
+            .map(|k| (*k).to_string())
+            .chain(self.field_defs.keys().cloned())
+            .map(|k| {
+                let shape = self.index_shape_of(&k);
+                (k, shape)
+            })
+            .collect();
+        self.ensure_field_indexes(&fields);
+        let mut out: Vec<(String, u32)> = fields
+            .into_iter()
+            .filter_map(|(field, _)| {
+                let rows = &self.field_indexes[&field].rows;
+                let n = set.map_or_else(|| rows.len(), |s| rows.intersection_len(s)) as u32;
+                (n > 0).then_some((field, n))
+            })
+            .collect();
+        out.sort_by(|a, b| a.0.cmp(&b.0));
+        out
     }
 }

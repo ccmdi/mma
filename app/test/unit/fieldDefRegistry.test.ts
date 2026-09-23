@@ -6,7 +6,7 @@ import {
 	getFieldDef,
 	getAllFieldDefs,
 	getKnownFieldKeys,
-	getPickableFieldKeys,
+	getFieldKeys,
 	registerPluginFieldDefs,
 	unregisterPluginFieldDefs,
 	isBuiltinField,
@@ -42,7 +42,7 @@ describe("pickable field keys", () => {
 	it("offer the built-ins and the map's own keys, not a plugin's fields the map never had", () => {
 		registerPluginFieldDefs({ pluginOnly: createFieldDef("number", { label: "Plugin only" }) });
 		setUserFieldDefs({ elevation: createFieldDef("number", { label: "Elevation" }) });
-		const keys = getPickableFieldKeys();
+		const keys = getFieldKeys();
 		expect(keys).toContain("elevation");
 		expect(keys).toContain("panoId");
 		expect(keys).toContain("tagCount");

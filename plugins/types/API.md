@@ -2658,6 +2658,16 @@ getFieldDef(key: string): FieldDef | undefined
 
 Look up metadata for a field key. Returns `undefined` if no layer declares it.
 
+### getFieldKeys
+
+`unstable` · unreleased
+
+```ts
+getFieldKeys(): string[]
+```
+
+Every listable built-in, and every field this map defines.
+
 ### getKnownFieldKeys
 
 `stable` · since v0.5.0
@@ -2666,17 +2676,7 @@ Look up metadata for a field key. Returns `undefined` if no layer declares it.
 getKnownFieldKeys(): ReadonlySet<string>
 ```
 
-Keys some location on this map carries. Same reference until the user layer moves.
-
-### getPickableFieldKeys
-
-`unstable` · unreleased
-
-```ts
-getPickableFieldKeys(): string[]
-```
-
-Keys a field picker offers: every listable built-in, and every key this map's locations carry.
+Keys this map defines a field for. Same reference until the user layer moves.
 
 ### isBuiltinField
 

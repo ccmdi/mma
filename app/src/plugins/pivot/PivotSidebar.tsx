@@ -32,7 +32,7 @@ import type { FieldDef } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
-import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
+import { usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/pluginStorage";
 import {
@@ -233,7 +233,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const [data, setData] = useState<PivotData | null>(null);
 	const [loading, setLoading] = useState(false);
 
-	const allFields = useExtraFieldKeys();
+	const allFields = usePickableFields();
 	const knownKeys = getKnownFieldKeys();
 	const fields = useMemo(() => pivotFields(allFields, knownKeys), [allFields, knownKeys]);
 

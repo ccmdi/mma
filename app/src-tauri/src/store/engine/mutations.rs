@@ -59,7 +59,7 @@ pub struct EngineValues {
     #[specta(type = Option<HashMap<String, HashMap<u32, HashMap<String, specta_typescript::Unknown>>>>)]
     pub value_meta: Option<HashMap<String, HashMap<u32, ValueRecord>>>,
     /// The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
-    /// seen for the first time, erased, or the user edited a definition.
+    /// seen for the first time or the user edited a definition.
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
 }
 
@@ -267,7 +267,6 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
 #[derive(Default)]
 pub(super) struct FieldPlan {
     pub(super) updates: Vec<Update<LocationPatch>>,
-    pub(super) forget: Vec<String>,
     pub(super) failed: Vec<u32>,
 }
 
@@ -377,20 +376,17 @@ fn check_target(key: &str, assigning: bool) -> AppResult<()> {
 }
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
-/// nothing, so the patch list is the changed set. Also reports which of the op's removed
-/// keys no longer exist on ANY row afterward -- the caller forgets those in
-/// `known_field_keys`, so a later reappearance of the key is re-announced to JS. Pure.
+/// nothing, so the patch list is the changed set. Pure.
 pub(super) fn plan_field_op(
     view: &selections::LocView,
     set: Option<&RoaringBitmap>,
     op: &FieldOp,
 ) -> AppResult<FieldPlan> {
-    let removed: Vec<String> = match op {
-        FieldOp::Move { from, to, .. } if from != to && !to.is_empty() => vec![from.clone()],
-        FieldOp::Move { .. } => return Ok(FieldPlan::default()),
-        FieldOp::Delete { keys } => keys.clone(),
-        FieldOp::Set { .. } | FieldOp::Expr { .. } | FieldOp::ListSet { .. } => Vec::new(),
-    };
+    if let FieldOp::Move { from, to, .. } = op {
+        if from == to || to.is_empty() {
+            return Ok(FieldPlan::default());
+        }
+    }
     let expr = match op {
         FieldOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
         _ => None,
@@ -410,85 +406,72 @@ pub(super) fn plan_field_op(
         }
     }
     let mut plan = FieldPlan::default();
-    let mut survives: HashSet<String> = HashSet::new();
     let mut err: Option<AppError> = None;
-    view.for_each(|row| {
+    view.for_each_within(set, |row| {
         let id = row.id();
         let mut merge = serde_json::Map::new();
-        if set.is_none_or(|s| s.contains(id)) {
-            match op {
-                FieldOp::Set { key, value } => {
-                    if !same_field_value(row.resolve_field(key).as_ref(), value) {
-                        merge.insert(key.clone(), value.clone());
-                    }
+        match op {
+            FieldOp::Set { key, value } => {
+                if !same_field_value(row.resolve_field(key).as_ref(), value) {
+                    merge.insert(key.clone(), value.clone());
                 }
-                FieldOp::Expr { key, .. } => {
-                    let expr = expr.as_ref().expect("parsed above");
-                    let field = |name: &str| row.resolve_field(name);
-                    match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
-                        None => plan.failed.push(id),
-                        Some(value) => {
-                            if !same_field_value(row.resolve_field(key).as_ref(), &value) {
-                                merge.insert(key.clone(), value);
-                            }
+            }
+            FieldOp::Expr { key, .. } => {
+                let expr = expr.as_ref().expect("parsed above");
+                let field = |name: &str| row.resolve_field(name);
+                match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
+                    None => plan.failed.push(id),
+                    Some(value) => {
+                        if !same_field_value(row.resolve_field(key).as_ref(), &value) {
+                            merge.insert(key.clone(), value);
                         }
-                    }
-                }
-                FieldOp::Move { from, to, winner } => {
-                    if let Some(value) = row.resolve_field(from) {
-                        merge.insert(from.clone(), serde_json::Value::Null);
-                        // Winner decides only where the row already holds `to`.
-                        if *winner == MergeWinner::From || row.resolve_field(to).is_none() {
-                            merge.insert(to.clone(), value);
-                        }
-                    }
-                }
-                FieldOp::Delete { keys } => {
-                    for key in keys {
-                        if row.resolve_field(key).is_some() {
-                            merge.insert(key.clone(), serde_json::Value::Null);
-                        }
-                    }
-                }
-                FieldOp::ListSet { key, add, remove } => {
-                    let current = match row.resolve_field(key) {
-                        Some(serde_json::Value::Array(a)) => a,
-                        Some(v) => vec![v],
-                        None => Vec::new(),
-                    };
-                    let mut next: Vec<serde_json::Value> = current
-                        .iter()
-                        .filter(|v| !contains_value(remove, v) || contains_value(add, v))
-                        .cloned()
-                        .collect();
-                    for v in add {
-                        if !contains_value(&next, v) {
-                            next.push(v.clone());
-                        }
-                    }
-                    if next != current {
-                        // A builtin column is non-null, so an emptied list is `[]`. An
-                        // emptied `extra` key carries nothing, so it is deleted instead.
-                        merge.insert(
-                            key.clone(),
-                            if next.is_empty() && !selections::is_builtin_field(key) {
-                                serde_json::Value::Null
-                            } else {
-                                serde_json::Value::Array(next)
-                            },
-                        );
                     }
                 }
             }
-        }
-        // A removed key survives on any row this op leaves it on (unselected, or absent
-        // from the patch).
-        for k in &removed {
-            if merge.get(k) != Some(&serde_json::Value::Null)
-                && !survives.contains(k)
-                && row.resolve_field(k).is_some()
-            {
-                survives.insert(k.clone());
+            FieldOp::Move { from, to, winner } => {
+                if let Some(value) = row.resolve_field(from) {
+                    merge.insert(from.clone(), serde_json::Value::Null);
+                    // Winner decides only where the row already holds `to`.
+                    if *winner == MergeWinner::From || row.resolve_field(to).is_none() {
+                        merge.insert(to.clone(), value);
+                    }
+                }
+            }
+            FieldOp::Delete { keys } => {
+                for key in keys {
+                    if row.resolve_field(key).is_some() {
+                        merge.insert(key.clone(), serde_json::Value::Null);
+                    }
+                }
+            }
+            FieldOp::ListSet { key, add, remove } => {
+                let current = match row.resolve_field(key) {
+                    Some(serde_json::Value::Array(a)) => a,
+                    Some(v) => vec![v],
+                    None => Vec::new(),
+                };
+                let mut next: Vec<serde_json::Value> = current
+                    .iter()
+                    .filter(|v| !contains_value(remove, v) || contains_value(add, v))
+                    .cloned()
+                    .collect();
+                for v in add {
+                    if !contains_value(&next, v) {
+                        next.push(v.clone());
+                    }
+                }
+                if next != current {
+                    // A builtin column is non-null, so an emptied list is `[]`. An
+                    // emptied `extra` key carries nothing, so it is deleted instead.
+                    merge.insert(
+                        key.clone(),
+                        if next.is_empty() && !selections::is_builtin_field(key) {
+                            serde_json::Value::Null
+                        } else {
+                            serde_json::Value::Array(next)
+                        },
+                    );
+                }
             }
         }
         if !merge.is_empty() {
@@ -501,18 +484,11 @@ pub(super) fn plan_field_op(
     if let Some(e) = err {
         return Err(e);
     }
-    plan.forget = removed
-        .into_iter()
-        .filter(|k| !survives.contains(k))
-        .collect();
     Ok(plan)
 }
 
 /// Rewrite a field across the selected set in one pass. Replaces fetching every location
-/// into JS to derive patches and shipping them all back. Keeps `known_field_keys`
-/// truthful: keys the op erased from every row are forgotten (before the status snapshot),
-/// so `StoreStatus.knownFieldKeys` reflects the data and a reappearing key is re-announced
-/// through `new_field_defs`.
+/// into JS to derive patches and shipping them all back.
 pub(crate) fn apply_field_op(
     store: &mut Store,
     selector: &Selector,
@@ -524,11 +500,6 @@ pub(crate) fn apply_field_op(
         let resolved = selections::narrow(&view, selector);
         plan_field_op(&view, resolved.as_ref(), op)?
     };
-    for k in &plan.forget {
-        if store.field_defs.contains_key(k) {
-            store.field_defs.edit().remove(k);
-        }
-    }
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
         failed: plan.failed,

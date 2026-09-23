@@ -8,12 +8,13 @@ import {
 	fieldValueLabel,
 	getAllFieldDefs,
 	getFieldDef,
-	getPickableFieldKeys,
+	getFieldKeys,
+	getKnownFieldKeys,
 	declaredValues,
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { applySelectionUpdate, fieldValues, useMapState } from "@/store/useMapStore";
+import { applySelectionUpdate, coverage, fieldValues, useMapState } from "@/store/useMapStore";
 import { addSelection, batch } from "@/store/selections";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
@@ -81,11 +82,32 @@ export function useExtraFieldKeys(): FieldEntry[] {
 	const pluginVersion = useEvent("fields:changed");
 	return useMemo(() => {
 		const allDefs = getAllFieldDefs();
-		return getPickableFieldKeys()
+		return getFieldKeys()
 			.map((key) => ({ key, label: fieldLabel(key), def: allDefs[key] ?? { type: "string" } }))
 			.sort((a, b) => a.label.localeCompare(b.label));
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- the two change signals
 	}, [userDefs, pluginVersion]);
+}
+
+/** {@link useExtraFieldKeys} without this map's own fields that no location holds. */
+export function usePickableFields(): FieldEntry[] {
+	const all = useExtraFieldKeys();
+	const changed = useEvent("store:changed");
+	const [held, setHeld] = useState<ReadonlySet<string> | null>(null);
+	useEffect(() => {
+		let live = true;
+		void coverage({ type: "Everything" }).then((counts) => {
+			if (live) setHeld(new Set(counts.map(([key]) => key)));
+		});
+		return () => {
+			live = false;
+		};
+	}, [changed]);
+	return useMemo(() => {
+		if (!held) return all;
+		const defined = getKnownFieldKeys();
+		return all.filter((f) => !defined.has(f.key) || held.has(f.key));
+	}, [all, held]);
 }
 
 const TIMEZONE_VALUES = Intl.supportedValuesOf("timeZone");
@@ -281,7 +303,7 @@ export function FilterForm({
 	onSubmit: (field: string, test: FilterOp) => void;
 	onClose?: () => void;
 }) {
-	const fields = useExtraFieldKeys();
+	const fields = usePickableFields();
 	const saved = initial ?? (persistKey ? filterBuilderState.get(persistKey) : undefined);
 	const [field, setField] = useState(() => saved?.field || fields[0]?.key || "");
 	const [op, setOp] = useState<FilterOpKind>(() => {

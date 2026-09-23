@@ -297,11 +297,14 @@ impl Selector {
 // Field indexes
 // ---------------------------------------------------------------------------
 
-/// Inverted index over one enumerable field: canonical value -> member ids. Carries its
-/// own shape so a lookup needs no second trip to the field registry, and so an `extra`
-/// field is indexed on exactly the same terms as a builtin.
+/// Inverted index over one field: the rows holding it, and for an enumerable field the
+/// member ids of each canonical value. Carries its own shape so a lookup needs no second
+/// trip to the field registry, and so an `extra` field is indexed on exactly the same
+/// terms as a builtin.
 pub struct FieldIndex {
     pub shape: IndexShape,
+    /// Rows holding a value for the field.
+    pub rows: RoaringBitmap,
     pub by_value: HashMap<String, RoaringBitmap>,
 }
 
@@ -330,17 +333,6 @@ pub fn index_keys(shape: IndexShape, v: &serde_json::Value) -> Vec<String> {
             a.iter().filter_map(index_key).collect()
         }
         _ => Vec::new(),
-    }
-}
-
-/// The single key a filter can answer from an index, or `None` when the operator needs a
-/// scan. Equality on a scalar field and membership on a list field are the two the
-/// postings already are; everything else (ranges, negations, substring) is not a lookup.
-fn indexable_test(shape: IndexShape, test: &FilterOp) -> Option<String> {
-    match (shape, test) {
-        (IndexShape::Scalar, FilterOp::Eq { value }) => index_key(value),
-        (IndexShape::Multi, FilterOp::Contains { value }) => index_key(value),
-        _ => None,
     }
 }
 
@@ -501,18 +493,47 @@ impl<'a, 'v> RowRef<'a, 'v> {
             }
         }
     }
-    pub fn resolve_field(&self, field: &str) -> Option<serde_json::Value> {
-        match &self.inner {
-            RowInner::Base(v, i) => resolve_field_arrow(v, *i, field),
-            RowInner::Loc(l) => resolve_field_loc(l, field),
+    /// Hand `f` each of `fields` this row holds, by position, with its value. Built-in
+    /// fields read their columns; every other field comes from one walk of the row's
+    /// extras that stops once all of them are found. A null value is not held.
+    pub fn resolve_fields(&self, fields: &[&str], mut f: impl FnMut(usize, serde_json::Value)) {
+        let mut wanted = 0;
+        for (i, field) in fields.iter().enumerate() {
+            if !is_builtin_field(field) {
+                wanted += 1;
+                continue;
+            }
+            let v = match &self.inner {
+                RowInner::Base(v, row) => resolve_field_arrow(v, *row, field),
+                RowInner::Loc(l) => resolve_field_loc(l, field),
+            };
+            if let Some(v) = v {
+                f(i, v);
+            }
         }
-    }
-    /// Visit each top-level `extra` key. Byte-scan only: no value parsing, no map alloc.
-    pub fn for_each_extra_key(&self, mut f: impl FnMut(&str)) {
+        if wanted == 0 {
+            return;
+        }
+        let mut found = 0;
+        let mut member = |key: &str, raw: &str| {
+            for (i, field) in fields.iter().enumerate() {
+                if *field != key || is_builtin_field(field) {
+                    continue;
+                }
+                found += 1;
+                match serde_json::from_str::<serde_json::Value>(raw) {
+                    Ok(v) if !v.is_null() => f(i, v),
+                    _ => {}
+                }
+            }
+            found == wanted
+        };
         match &self.inner {
             RowInner::Loc(l) => {
                 if let Some(extra) = l.extra.as_ref() {
-                    extra.for_each_field(|k, _| f(k));
+                    extra.for_each_field(|key, raw| {
+                        member(key, raw);
+                    });
                 }
             }
             RowInner::Base(v, i) => {
@@ -522,53 +543,27 @@ impl<'a, 'v> RowRef<'a, 'v> {
                 }
                 let s = extras.value(*i);
                 types::scan_fields(s.as_bytes(), |fs| {
-                    f(&types::decode_json_key(&s[fs.key.clone()]));
-                    false
+                    member(
+                        &types::decode_json_key(&s[fs.key.clone()]),
+                        &s[fs.value.clone()],
+                    )
                 });
             }
         }
     }
-    /// Resolve `field` plus the companion `timezone` with at most one extras-JSON parse.
-    /// The tz_local filter path reads both per row; going through `resolve_field` twice
-    /// would parse the extras blob twice.
+    pub fn resolve_field(&self, field: &str) -> Option<serde_json::Value> {
+        let mut value = None;
+        self.resolve_fields(&[field], |_, v| value = Some(v));
+        value
+    }
+    /// `field` and the row's `timezone`, which a local-time date test reads together.
     pub fn resolve_field_and_tz(&self, field: &str) -> (Option<serde_json::Value>, Option<String>) {
-        match &self.inner {
-            RowInner::Loc(l) => (
-                resolve_field_loc(l, field),
-                l.extra
-                    .as_ref()
-                    .and_then(|e| e.get("timezone"))
-                    .and_then(|v| v.as_str().map(str::to_owned)),
-            ),
-            RowInner::Base(v, i) => {
-                // One byte-scan collects both members; only their value slices parse.
-                let mut fv_extra: Option<serde_json::Value> = None;
-                let mut tz: Option<String> = None;
-                if let Some(s) = v.extras.and_then(|c| (!c.is_null(*i)).then(|| c.value(*i))) {
-                    let b = s.as_bytes();
-                    types::scan_fields(b, |fs| {
-                        let k = &b[fs.key.clone()];
-                        // Not else-if: `field` may itself be "timezone".
-                        if tz.is_none() && k == b"timezone" {
-                            tz = serde_json::from_str::<serde_json::Value>(&s[fs.value.clone()])
-                                .ok()
-                                .and_then(|v| v.as_str().map(str::to_owned));
-                        }
-                        if fv_extra.is_none() && k == field.as_bytes() {
-                            fv_extra = serde_json::from_str(&s[fs.value.clone()]).ok();
-                        }
-                        tz.is_some() && fv_extra.is_some()
-                    });
-                }
-                // Built-in names come from their columns, not the extras blob.
-                let fv = if is_builtin_field(field) {
-                    resolve_field_arrow(v, *i, field)
-                } else {
-                    fv_extra
-                };
-                (fv, tz)
-            }
-        }
+        let (mut value, mut tz) = (None, None);
+        self.resolve_fields(&[field, "timezone"], |i, v| match i {
+            0 => value = Some(v),
+            _ => tz = v.as_str().map(str::to_owned),
+        });
+        (value, tz)
     }
     pub fn to_location(&self) -> Location {
         match &self.inner {
@@ -637,20 +632,35 @@ impl<'a> LocView<'a> {
         }
     }
 
-    /// True when a filter is answerable from postings rather than a scan.
-    fn is_indexed(&self, field: &str, test: &FilterOp) -> bool {
-        self.field_indexes
-            .and_then(|ix| ix.get(field))
-            .and_then(|ix| indexable_test(ix.shape, test))
-            .is_some()
-    }
-
-    /// Postings for a filter: every row move updates them beside the mutation and a lazy
-    /// build reads the live view, so the set is already the answer.
-    fn indexed_filter(&self, field: &str, test: &FilterOp) -> Option<RoaringBitmap> {
+    /// A filter's rows answered from its field's index, narrowed to `within` when given:
+    /// existence from the rows holding the field, equality on a scalar and membership in a
+    /// list from the postings. Every row move updates the index beside the mutation, so the
+    /// set is already the answer. `None` when the field has no index or the operator is not
+    /// a lookup (ranges, negated values, substrings) and needs a scan.
+    fn indexed_filter(
+        &self,
+        field: &str,
+        test: &FilterOp,
+        within: Option<&RoaringBitmap>,
+    ) -> Option<RoaringBitmap> {
         let index = self.field_indexes?.get(field)?;
-        let key = indexable_test(index.shape, test)?;
-        Some(index.by_value.get(&key).cloned().unwrap_or_default())
+        let set = match (index.shape, test) {
+            (_, FilterOp::Has) => index.rows.clone(),
+            (_, FilterOp::Nothas) => {
+                let universe = within.cloned().unwrap_or_else(|| alive_id_set(self));
+                return Some(universe - &index.rows);
+            }
+            (IndexShape::Scalar, FilterOp::Eq { value })
+            | (IndexShape::Multi, FilterOp::Contains { value }) => {
+                let key = index_key(value)?;
+                index.by_value.get(&key).cloned().unwrap_or_default()
+            }
+            _ => return None,
+        };
+        Some(match within {
+            Some(w) => set & w,
+            None => set,
+        })
     }
 
     #[allow(
@@ -837,10 +847,10 @@ const CHUNK_SIZE: usize = 64 * 1024;
 /// an id set.
 pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
     match selector {
-        // Filter leaf via index: clone the postings, then fold the overlay in. Falls
-        // through to the scan when the field is unindexed or the operator is not a lookup.
+        // Falls through to the scan when the field is unindexed or the operator is not a
+        // lookup.
         Selector::Filter { field, test } => {
-            if let Some(set) = view.indexed_filter(field, test) {
+            if let Some(set) = view.indexed_filter(field, test, None) {
                 return set;
             }
         }
@@ -903,9 +913,9 @@ pub fn resolve(view: &LocView, selector: &Selector) -> RoaringBitmap {
 
 /// The rows of `within` a selector keeps. An intersection narrows each leaf to what the
 /// leaves before it left, so `page AND has(field)` costs the page, not the map. Leaves
-/// whose answer depends on rows outside the set (duplicates, top-k), the prepared
-/// polygon scan and an indexed filter resolve whole and intersect; every other leaf is
-/// tested row by row inside the set.
+/// whose answer depends on rows outside the set (duplicates, top-k) and the prepared
+/// polygon scan resolve whole and intersect, an indexed filter answers from its index,
+/// and every other leaf is tested row by row inside the set.
 pub fn resolve_within(
     view: &LocView,
     selector: &Selector,
@@ -935,19 +945,22 @@ pub fn resolve_within(
         Selector::Duplicates { .. } | Selector::Ranked { .. } | Selector::Polygon { .. } => {
             resolve(view, selector) & within
         }
-        Selector::Filter { field, test } if view.is_indexed(field, test) => {
-            resolve(view, selector) & within
-        }
-        _ => {
-            let mut set = RoaringBitmap::new();
-            view.for_each_within(Some(within), |row| {
-                if test_row(&row, selector) {
-                    set.insert(row.id());
-                }
-            });
-            set
-        }
+        Selector::Filter { field, test } => view
+            .indexed_filter(field, test, Some(within))
+            .unwrap_or_else(|| scan_within(view, selector, within)),
+        _ => scan_within(view, selector, within),
     }
+}
+
+/// The rows of `within` a selector keeps, tested one by one.
+fn scan_within(view: &LocView, selector: &Selector, within: &RoaringBitmap) -> RoaringBitmap {
+    let mut set = RoaringBitmap::new();
+    view.for_each_within(Some(within), |row| {
+        if test_row(&row, selector) {
+            set.insert(row.id());
+        }
+    });
+    set
 }
 
 /// Resolve a whole selection forest in one pass: the id-set for each top-level
@@ -1078,30 +1091,6 @@ pub fn narrow(view: &LocView, selector: &Selector) -> Option<RoaringBitmap> {
         Selector::Locations { locations, .. } => Some(locations.iter().copied().collect()),
         _ => Some(resolve(view, selector)),
     }
-}
-
-/// How many selected rows hold a value for each field, key-sorted: `extra` keys and the
-/// built-in columns a row can lack. A column that is always present would report every
-/// row and say nothing, so only the optional ones are counted.
-pub fn coverage(view: &LocView, set: Option<&RoaringBitmap>) -> Vec<(String, u32)> {
-    let columns = optional_builtins();
-    let mut counts: HashMap<String, u32> = HashMap::new();
-    view.for_each_within(set, |row| {
-        row.for_each_extra_key(|key| match counts.get_mut(key) {
-            Some(c) => *c += 1,
-            None => {
-                counts.insert(key.to_string(), 1);
-            }
-        });
-        for key in columns {
-            if row.resolve_field(key).is_some() {
-                *counts.entry((*key).to_string()).or_insert(0) += 1;
-            }
-        }
-    });
-    let mut out: Vec<(String, u32)> = counts.into_iter().collect();
-    out.sort_by(|a, b| a.0.cmp(&b.0));
-    out
 }
 
 /// One value per selected row for each of `fields`, in view order, `Null` where the row

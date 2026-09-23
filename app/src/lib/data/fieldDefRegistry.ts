@@ -81,12 +81,12 @@ export function unregisterPluginFieldDefs(keys: string[]) {
 	emit("fields:changed");
 }
 
-/** Keys a field picker offers: every listable built-in, and every key this map's locations carry. @unstable */
-export function getPickableFieldKeys(): string[] {
+/** Every listable built-in, and every field this map defines. @unstable */
+export function getFieldKeys(): string[] {
 	return [...new Set([...Object.keys(FIELDS), ...getKnownFieldKeys()])].filter(isListableField);
 }
 
-/** Keys some location on this map carries. Same reference until the user layer moves. */
+/** Keys this map defines a field for. Same reference until the user layer moves. */
 export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
 	() => [getMapState().fieldDefs] as const,
 	(defs) => new Set(Object.keys(defs)),

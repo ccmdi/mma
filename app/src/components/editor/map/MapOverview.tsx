@@ -22,7 +22,7 @@ import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { useSetting } from "@/store/settings";
 
 import { TagManager } from "@/components/editor/tags/TagManager";
-import { FilterForm, useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
+import { FilterForm, usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { ApplyFieldAsTagsDialog } from "@/components/editor/tags/ApplyFieldAsTagsDialog";
 import { TagFindReplaceDialog } from "@/components/editor/tags/TagFindReplaceDialog";
 import { MergeDuplicatesModal } from "@/components/dialogs/MergeDuplicatesModal";
@@ -206,7 +206,7 @@ function RankedPanel({
 	ascending: boolean;
 	setAscending: (v: boolean) => void;
 }) {
-	const fields = useExtraFieldKeys();
+	const fields = usePickableFields();
 	const field = fieldProp || fields[0]?.key || "";
 	return (
 		<form

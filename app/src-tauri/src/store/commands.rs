@@ -1096,9 +1096,7 @@ pub fn store_coverage(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
 ) -> AppResult<Vec<(String, u32)>> {
-    selector_read!(label, state, selector, |view, set| {
-        selections::coverage(&view, set)
-    })
+    selector_read!(label, state, selector, store: |store, set| store.coverage(set))
 }
 
 /// Per-field columns of the selected set. One value per row per field, `null` where a
