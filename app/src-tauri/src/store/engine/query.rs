@@ -193,7 +193,7 @@ impl Store {
         }
         let _t = Instant::now();
         let mut ix = mma_geo::SpatialIndex::new(SPATIAL_CELL_M);
-        for row in self.loc_view().all().rows() {
+        for row in self.all().rows() {
             ix.insert(row.id(), row.lat(), row.lng());
         }
         log::debug!(
@@ -245,8 +245,7 @@ impl Store {
                 .filter_map(|&id| self.get_loc_by_id(id))
                 .collect();
         }
-        let view = self.view_for(selector);
-        let scope = view.all().narrow(selector);
+        let scope = self.scope(selector);
         scope.rows().map(|row| row.to_location()).collect()
     }
 
@@ -256,7 +255,7 @@ impl Store {
     pub(crate) fn cached_bounds(&mut self) -> Option<[f64; 4]> {
         let version = self.version;
         if !self.bounds.is_some_and(|b| b.current(version)) {
-            self.bounds = Some(At::new(version, bounds(&self.loc_view().all())));
+            self.bounds = Some(At::new(version, self.all().bounds()));
         }
         self.bounds.and_then(|b| b.value().map(BoundsAcc::resolve))
     }
@@ -301,34 +300,38 @@ impl Store {
     pub(crate) fn scan_locations(&self) -> LocationAggregates {
         let mut alive = 0usize;
         let mut bounds: Option<BoundsAcc> = None;
-        for row in self.loc_view().all().rows() {
+        for row in self.all().rows() {
             alive += 1;
             bounds = Some(BoundsAcc::fold(bounds, row.lat(), row.lng()));
         }
         LocationAggregates { alive, bounds }
     }
 
-    /// The one doorway to resolving a selector: build any indexes it leans on, then
-    /// hand the view. Scans that resolve nothing use `loc_view` directly.
-    pub(crate) fn view_for(&mut self, selector: &Selector) -> selections::LocView<'_> {
+    /// Every alive row: the scope for walks that resolve no selector.
+    pub(crate) fn all(&self) -> selections::Scope<'_, '_> {
+        self.view().all()
+    }
+
+    /// The rows `selector` resolves to: the indexes it leans on built, then narrowed once.
+    /// The one doorway to resolving a selector.
+    pub(crate) fn scope(&mut self, selector: &Selector) -> selections::Scope<'_, '_> {
         self.ensure_indexes_for(selector);
-        self.loc_view()
+        self.view().all().narrow(selector)
     }
 
-    /// `view_for` over several selectors resolved against one view.
-    pub(crate) fn view_for_all<'a>(
+    /// Every selection's rows and every node's count over the whole map, each selector's
+    /// indexes built first.
+    pub(crate) fn resolve_forest(
         &mut self,
-        selectors: impl IntoIterator<Item = &'a Selector>,
-    ) -> selections::LocView<'_> {
-        for s in selectors {
-            self.ensure_indexes_for(s);
+        sels: &[selections::Selection],
+    ) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+        for s in sels {
+            self.ensure_indexes_for(&s.selector);
         }
-        self.loc_view()
+        self.all().resolve_forest(sels)
     }
 
-    /// Construct a read-only view over all alive locations. Selector resolution goes
-    /// through `view_for`; this is for scans that resolve nothing.
-    pub(crate) fn loc_view(&self) -> selections::LocView<'_> {
+    fn view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.dead,
@@ -474,7 +477,7 @@ impl Store {
             })
             .collect();
         let names: Vec<&str> = missing.iter().map(|(field, _)| field.as_str()).collect();
-        for row in self.loc_view().all().rows() {
+        for row in self.all().rows() {
             let id = row.id();
             row.resolve_fields(&names, |i, v| {
                 let index = &mut built[i];
@@ -503,8 +506,7 @@ impl Store {
             })
             .collect();
         self.ensure_field_indexes(&fields);
-        let view = self.view_for(selector);
-        let scope = view.all().narrow(selector);
+        let scope = self.scope(selector);
         let mut out: Vec<(String, u32)> = fields
             .into_iter()
             .filter_map(|(field, _)| {
@@ -659,18 +661,19 @@ pub(crate) fn pick_even(
     })
 }
 
-/// The rows in `scope` with finite coordinates, as `(id, lat, lng)`.
-pub(crate) fn located(scope: &selections::Scope) -> Vec<(u32, f64, f64)> {
-    scope
-        .rows()
-        .map(|row| (row.id(), row.lat(), row.lng()))
-        .filter(|&(_, lat, lng)| lat.is_finite() && lng.is_finite())
-        .collect()
-}
+impl selections::Scope<'_, '_> {
+    /// The rows in scope with finite coordinates, as `(id, lat, lng)`.
+    pub(crate) fn points(&self) -> Vec<(u32, f64, f64)> {
+        self.rows()
+            .map(|row| (row.id(), row.lat(), row.lng()))
+            .filter(|&(_, lat, lng)| lat.is_finite() && lng.is_finite())
+            .collect()
+    }
 
-/// The box around every row in `scope`, before it is resolved to `[w,s,e,n]`.
-pub(crate) fn bounds(scope: &selections::Scope) -> Option<BoundsAcc> {
-    scope.rows().fold(None, |acc, row| {
-        Some(BoundsAcc::fold(acc, row.lat(), row.lng()))
-    })
+    /// The box around every row in scope, before it is resolved to `[w,s,e,n]`.
+    pub(crate) fn bounds(&self) -> Option<BoundsAcc> {
+        self.rows().fold(None, |acc, row| {
+            Some(BoundsAcc::fold(acc, row.lat(), row.lng()))
+        })
+    }
 }

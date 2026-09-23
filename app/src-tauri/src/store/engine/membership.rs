@@ -224,10 +224,7 @@ impl Store {
             .map(|r| r.sel.clone())
             .collect();
         let ghosted: Vec<bool> = self.selections.resolved.iter().map(|r| r.ghosted).collect();
-        let (loc_sets, node_counts) = {
-            let view = self.view_for_all(sels.iter().map(|s| &s.selector));
-            selections::resolve_forest(&view, &sels)
-        };
+        let (loc_sets, node_counts) = self.resolve_forest(&sels);
         self.selections.node_counts = node_counts;
         self.selections.resolved = pair_selections(sels, loc_sets, ghosted);
 

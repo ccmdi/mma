@@ -858,8 +858,7 @@ pub struct SummaryResult {
 macro_rules! selector_read {
     ($label:ident, $state:ident, $selector:ident, |$scope:ident| $body:expr) => {
         with_store!($label, $state, |store| {
-            let view = store.view_for(&$selector);
-            let $scope = view.all().narrow(&$selector);
+            let $scope = store.scope(&$selector);
             Ok($body)
         })
     };

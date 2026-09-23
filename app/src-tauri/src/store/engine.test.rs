@@ -322,8 +322,7 @@ fn named_id_ordering_is_consumer_defined() {
     };
     let rows: Vec<u32> = store.collect(&selector).iter().map(|l| l.id).collect();
     assert_eq!(rows, vec![7, 3, 3]);
-    let view = store.loc_view();
-    let set = view.all().narrow(&selector).ids();
+    let set = store.all().narrow(&selector).ids();
     assert_eq!(set.iter().collect::<Vec<u32>>(), vec![3, 7]);
 }
 
@@ -929,7 +928,7 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     // The cache must never diverge from a fresh O(N) compute.
     assert_eq!(
         store.cached_bounds(),
-        bounds(&store.loc_view().all()).map(BoundsAcc::resolve)
+        store.all().bounds().map(BoundsAcc::resolve)
     );
 }
 
@@ -2842,7 +2841,7 @@ fn set_tags_undo_restores_membership() {
 
 /// Ids a selector resolves to, in order.
 fn resolved(store: &Store, sel: &Selector) -> Vec<u32> {
-    store.loc_view().all().resolve(sel).iter().collect()
+    store.all().resolve(sel).iter().collect()
 }
 
 fn tag_filter(tag_id: u32) -> Selector {
@@ -2971,12 +2970,7 @@ fn assert_existence_matches_scan(store: &mut Store, field: &str, holders: &[u32]
     for (name, sel) in [("has", Selector::has(field)), ("nothas", nothas(field))] {
         store.ensure_indexes_for(&sel);
         assert!(store.field_indexes.contains_key(field), "{name}: indexed");
-        let scanned: Vec<u32> = store
-            .loc_view()
-            .all()
-            .keep(|r| r.matches(&sel))
-            .iter()
-            .collect();
+        let scanned: Vec<u32> = store.all().keep(|r| r.matches(&sel)).iter().collect();
         assert_eq!(resolved(store, &sel), scanned, "{name}");
     }
     assert_eq!(resolved(store, &Selector::has(field)), holders);
@@ -4288,10 +4282,10 @@ fn min_pairwise(ids: &[u32], coords: &HashMap<u32, (f64, f64)>) -> f64 {
 }
 
 fn candidates(store: &Store, set: Option<&RoaringBitmap>) -> Vec<(u32, f64, f64)> {
-    let view = store.loc_view();
+    let all = store.all();
     match set {
-        Some(s) => located(&view.within(s)),
-        None => located(&view.all()),
+        Some(s) => all.within(s).points(),
+        None => all.points(),
     }
 }
 
@@ -4396,7 +4390,7 @@ fn pick_spaced_empty_selection() {
 fn pick_spaced_narrowing_overrides_selection() {
     let mut store = spaced_grid_store();
     // Selection is the whole grid; narrow to ids 1..=5 (one row).
-    let set = store.loc_view().all().resolve(&Selector::Manual {
+    let set = store.all().resolve(&Selector::Manual {
         locations: vec![1, 2, 3, 4, 5],
     });
     let res = spaced(&store, Some(&set), Some(3), None).unwrap();
@@ -5089,7 +5083,7 @@ fn field_op_honours_the_selector() {
     let fx = Fx::base(&locs);
     let set: RoaringBitmap = [2u32].into_iter().collect();
     let FieldPlan { updates: out, .. } = plan_field_op(
-        &fx.view().within(&set),
+        &fx.view().all().within(&set),
         &move_op("a", "b", MergeWinner::From),
     )
     .unwrap();

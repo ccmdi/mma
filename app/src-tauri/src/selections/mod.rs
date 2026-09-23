@@ -342,7 +342,9 @@ pub fn index_keys(shape: IndexShape, v: &serde_json::Value) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// Unified read-only view over Arrow batch + overlay (dead, patches, adds).
-/// Caches column downcast refs on construction to avoid repeated downcasts.
+/// Caches column downcast refs on construction to avoid repeated downcasts. Only
+/// references, so a copy costs nothing.
+#[derive(Clone, Copy)]
 pub struct LocView<'a> {
     batch: Option<&'a RecordBatch>,
     dead: &'a RoaringBitmap,
@@ -685,18 +687,10 @@ impl<'a> LocView<'a> {
     }
 
     /// Every alive row.
-    pub fn all(&self) -> Scope<'_, 'a> {
+    pub fn all<'v>(&self) -> Scope<'v, 'a> {
         Scope {
-            view: self,
+            view: *self,
             rows: None,
-        }
-    }
-
-    /// The alive rows of `set`.
-    pub fn within<'v>(&'v self, set: &'v RoaringBitmap) -> Scope<'v, 'a> {
-        Scope {
-            view: self,
-            rows: Some(Cow::Borrowed(set)),
         }
     }
 }
@@ -731,29 +725,53 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
 /// per-chunk overhead while keeping cache-friendly access patterns.
 const CHUNK_SIZE: usize = 64 * 1024;
 
+/// The three ways a scope walks its rows, chosen once by [`Scope::rows`]: every alive row,
+/// a dense pass filtered to the set, or a seek by each id in a sparse set.
+enum Walk<A, D, S> {
+    All(A),
+    Dense(D),
+    Seek(S),
+}
+
+impl<T, A, D, S> Iterator for Walk<A, D, S>
+where
+    A: Iterator<Item = T>,
+    D: Iterator<Item = T>,
+    S: Iterator<Item = T>,
+{
+    type Item = T;
+    fn next(&mut self) -> Option<T> {
+        match self {
+            Walk::All(rows) => rows.next(),
+            Walk::Dense(rows) => rows.next(),
+            Walk::Seek(rows) => rows.next(),
+        }
+    }
+}
+
 /// The rows a query ranges over: every alive row, or the alive rows of one set. The only
 /// place "the whole map or these rows" is said; everything that walks, tests or resolves
 /// rows does it through one.
 #[derive(Clone)]
 pub struct Scope<'v, 'a> {
-    view: &'v LocView<'a>,
+    view: LocView<'a>,
     rows: Option<Cow<'v, RoaringBitmap>>,
 }
 
 impl<'v, 'a> Scope<'v, 'a> {
     /// The rows in scope, in view order: batch rows, then overlay adds. A set small enough
     /// that seeking each id beats one sequential pass is walked by id.
-    pub fn rows(&self) -> Box<dyn Iterator<Item = RowRef<'a, 'v>> + '_> {
-        let view = self.view;
+    pub fn rows(&self) -> impl Iterator<Item = RowRef<'a, '_>> + '_ {
+        let view = &self.view;
         let Some(set) = self.rows.as_deref() else {
-            return Box::new(view.alive());
+            return Walk::All(view.alive());
         };
         let physical = view.batch_rows + view.adds.len();
         let seek_steps = view.batch_rows.checked_ilog2().unwrap_or(0)
             + view.adds.len().checked_ilog2().unwrap_or(0)
             + 2;
         if set.len().saturating_mul(u64::from(seek_steps)) >= physical as u64 {
-            return Box::new(view.alive().filter(move |r| set.contains(r.id())));
+            return Walk::Dense(view.alive().filter(move |r| set.contains(r.id())));
         }
         let base = set.iter().filter_map(move |id| {
             let i = arrow::batch_row_for_id(view.batch?, id)?;
@@ -763,7 +781,7 @@ impl<'v, 'a> Scope<'v, 'a> {
             let i = view.adds.binary_search_by_key(&id, |loc| loc.id).ok()?;
             Some(RowRef::from_loc(&view.adds[i]))
         });
-        Box::new(base.chain(adds))
+        Walk::Seek(base.chain(adds))
     }
 
     /// The ids in scope.
@@ -789,7 +807,7 @@ impl<'v, 'a> Scope<'v, 'a> {
         if self.rows.is_some() {
             return self.rows().filter(|r| test(r)).map(|r| r.id()).collect();
         }
-        let view = self.view;
+        let view = &self.view;
         let base: Vec<u32> = (0..view.batch_rows)
             .into_par_iter()
             .with_min_len(CHUNK_SIZE)
@@ -800,6 +818,65 @@ impl<'v, 'a> Scope<'v, 'a> {
             .collect();
         let adds = view.adds.iter().filter(|loc| test(&RowRef::from_loc(loc)));
         base.into_iter().chain(adds.map(|loc| loc.id)).collect()
+    }
+
+    /// The rows of `set` in this scope.
+    pub fn within<'s>(&self, set: &'s RoaringBitmap) -> Scope<'s, 'a> {
+        Scope {
+            view: self.view,
+            rows: Some(match self.rows.as_deref() {
+                None => Cow::Borrowed(set),
+                Some(rows) => Cow::Owned(rows & set),
+            }),
+        }
+    }
+
+    /// Every selection's rows and every node's count, keyed by `Selection.key`, resolved
+    /// in this scope without narrowing: a child's count is its full count.
+    pub fn resolve_forest(&self, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+        fn walk(all: &Scope, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
+            let set = match &sel.selector {
+                Selector::Intersection { selections } => {
+                    // No empty short-circuit: children's counts are reported regardless,
+                    // so they must resolve either way.
+                    let mut acc: Option<RoaringBitmap> = None;
+                    for c in selections {
+                        let child = walk(all, c, counts);
+                        acc = Some(match acc {
+                            Some(a) => a & child,
+                            None => child,
+                        });
+                    }
+                    acc.unwrap_or_default()
+                }
+                Selector::Union { selections } => {
+                    let mut acc = RoaringBitmap::new();
+                    for c in selections {
+                        acc |= walk(all, c, counts);
+                    }
+                    acc
+                }
+                Selector::Invert { selections } => {
+                    let mut children = selections.iter();
+                    let set = match children.next() {
+                        Some(first) => all.ids() - walk(all, first, counts),
+                        None => all.ids(),
+                    };
+                    // Invert is unary: extra children don't affect the set but their
+                    // counts are still reported, matching resolve semantics.
+                    for c in children {
+                        walk(all, c, counts);
+                    }
+                    set
+                }
+                _ => all.resolve(&sel.selector),
+            };
+            counts.insert(sel.key.clone(), set.len() as u32);
+            set
+        }
+        let mut counts = HashMap::new();
+        let sets = sels.iter().map(|s| walk(self, s, &mut counts)).collect();
+        (sets, counts)
     }
 
     /// A narrower scope: the rows here `selector` keeps. `Everything` keeps this scope.
@@ -845,11 +922,10 @@ impl<'v, 'a> Scope<'v, 'a> {
             Selector::Locations { locations, .. }
             | Selector::Manual { locations }
             | Selector::ValidationState { locations, .. }
-            | Selector::Reviewed { locations, .. } => Scope {
-                view: self.view,
-                rows: Some(Cow::Owned(self.clip(locations.iter().copied().collect()))),
+            | Selector::Reviewed { locations, .. } => {
+                let ids: RoaringBitmap = locations.iter().copied().collect();
+                self.within(&ids).ids()
             }
-            .ids(),
             Selector::Filter { field, test } => self
                 .indexed(field, test)
                 .unwrap_or_else(|| self.keep(|r| test_row(r, selector))),
@@ -862,7 +938,7 @@ impl<'v, 'a> Scope<'v, 'a> {
                     })
                 }
             },
-            Selector::Duplicates { distance } => self.clip(duplicates(self.view, *distance)),
+            Selector::Duplicates { distance } => self.clip(duplicates(&self.view, *distance)),
             Selector::Ranked {
                 selection,
                 expr,
@@ -965,6 +1041,19 @@ impl<'v, 'a> Scope<'v, 'a> {
         scored.into_iter().map(|(id, _)| id).collect()
     }
 
+    /// `n` distinct ids in scope drawn uniformly at random. Partial Fisher-Yates, so drawing
+    /// 5 from a million swaps 5 entries rather than shuffling the pool.
+    pub fn sample(&self, n: usize) -> Vec<u32> {
+        let mut ids: Vec<u32> = self.rows().map(|r| r.id()).collect();
+        let k = n.min(ids.len());
+        for i in 0..k {
+            let j = i + fastrand::usize(..ids.len() - i);
+            ids.swap(i, j);
+        }
+        ids.truncate(k);
+        ids
+    }
+
     /// Distinct values of `field` in scope, sorted. Scalars stringify so they match the
     /// string-typed options they populate; null and containers are skipped.
     pub fn distinct_values(&self, field: &str) -> Vec<String> {
@@ -984,60 +1073,6 @@ impl<'v, 'a> Scope<'v, 'a> {
     }
 }
 
-/// Resolve a whole selection forest in one pass: the id-set for each top-level
-/// selection plus the resolved count of every node (top-level and nested), keyed by
-/// `Selection.key`. Each node is resolved exactly once - composites combine their
-/// children's already-resolved sets instead of re-resolving them.
-pub fn resolve_forest(
-    view: &LocView,
-    sels: &[Selection],
-) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
-    fn walk(all: &Scope, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
-        let set = match &sel.selector {
-            Selector::Intersection { selections } => {
-                // No empty short-circuit: children's counts are reported regardless,
-                // so they must resolve either way.
-                let mut acc: Option<RoaringBitmap> = None;
-                for c in selections {
-                    let child = walk(all, c, counts);
-                    acc = Some(match acc {
-                        Some(a) => a & child,
-                        None => child,
-                    });
-                }
-                acc.unwrap_or_default()
-            }
-            Selector::Union { selections } => {
-                let mut acc = RoaringBitmap::new();
-                for c in selections {
-                    acc |= walk(all, c, counts);
-                }
-                acc
-            }
-            Selector::Invert { selections } => {
-                let mut children = selections.iter();
-                let set = match children.next() {
-                    Some(first) => all.ids() - walk(all, first, counts),
-                    None => all.ids(),
-                };
-                // Invert is unary: extra children don't affect the set but their
-                // counts are still reported, matching resolve semantics.
-                for c in children {
-                    walk(all, c, counts);
-                }
-                set
-            }
-            _ => all.resolve(&sel.selector),
-        };
-        counts.insert(sel.key.clone(), set.len() as u32);
-        set
-    }
-    let all = view.all();
-    let mut counts = HashMap::new();
-    let sets = sels.iter().map(|s| walk(&all, s, &mut counts)).collect();
-    (sets, counts)
-}
-
 /// Every alive row within `distance` metres of another, over the whole map.
 fn duplicates(view: &LocView, distance: f64) -> RoaringBitmap {
     let mut mask = vec![false; view.batch_rows + view.adds.len()];
@@ -1052,18 +1087,6 @@ fn duplicates(view: &LocView, distance: f64) -> RoaringBitmap {
         .filter(|(j, _)| mask[view.batch_rows + j])
         .map(|(_, l)| l.id);
     base.chain(adds).collect()
-}
-
-/// `n` distinct ids drawn uniformly at random. Partial Fisher-Yates, so drawing 5 from a
-/// million swaps 5 entries rather than shuffling the pool.
-pub fn sample(mut ids: Vec<u32>, n: usize) -> Vec<u32> {
-    let k = n.min(ids.len());
-    for i in 0..k {
-        let j = i + fastrand::usize(..ids.len() - i);
-        ids.swap(i, j);
-    }
-    ids.truncate(k);
-    ids
 }
 
 #[cfg(test)]

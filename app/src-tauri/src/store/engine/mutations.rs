@@ -485,10 +485,7 @@ pub(crate) fn apply_field_op(
     op: &FieldOp,
     record_undo: bool,
 ) -> AppResult<FieldOpResult> {
-    let plan = {
-        let view = store.view_for(selector);
-        plan_field_op(&view.all().narrow(selector), op)?
-    };
+    let plan = { plan_field_op(&store.scope(selector), op)? };
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
         failed: plan.failed,

@@ -786,8 +786,7 @@ pub async fn store_sync_selections(
         //    counts for every node (top-level and nested). Indexed filter leaves clone
         //    postings; composites combine natively. (Geometric leaves still scan.)
         //    Counts cover ghosted selections too; the overlay uses the non-ghosted subset.
-        let view = store.view_for_all(sels_full.iter().map(|s| &s.selector));
-        let (sel_sets, counts) = selections::resolve_forest(&view, &sels_full);
+        let (sel_sets, counts) = store.resolve_forest(&sels_full);
 
         // 2. Keep every selection, ghosted flagged: a mutation recounts all of them, and
         //    `SelectionState::live` is the one rule that keeps ghosted out of the overlay
@@ -861,10 +860,7 @@ pub fn store_sample(
     selector: Selector,
     n: u32,
 ) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |scope| selections::sample(
-        scope.rows().map(|row| row.id()).collect(),
-        n as usize
-    ))
+    selector_read!(label, state, selector, |scope| scope.sample(n as usize))
 }
 
 /// An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
@@ -879,7 +875,7 @@ pub fn store_spaced(
     min_distance_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
     selector_read!(label, state, selector, |scope| pick_spaced(
-        located(&scope),
+        scope.points(),
         target_count,
         min_distance_m
     )?)
@@ -898,7 +894,7 @@ pub fn store_evenly_spaced(
     spacing_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
     selector_read!(label, state, selector, |scope| pick_even(
-        &located(&scope),
+        &scope.points(),
         target_count,
         spacing_m
     )?)
@@ -1120,7 +1116,8 @@ pub fn store_bounds(
     if matches!(selector, Selector::Everything) {
         return with_store!(label, state, |store| { Ok(store.cached_bounds()) });
     }
-    selector_read!(label, state, selector, |scope| bounds(&scope)
+    selector_read!(label, state, selector, |scope| scope
+        .bounds()
         .map(BoundsAcc::resolve))
 }
 
@@ -1157,8 +1154,7 @@ pub fn store_duplicate_groups(
     distance: f64,
 ) -> AppResult<Vec<Vec<u32>>> {
     with_store!(label, state, |store| {
-        let view = store.loc_view();
-        Ok(selections::find_duplicate_groups(&view, distance))
+        Ok(store.all().duplicate_groups(distance))
     })
 }
 
@@ -1177,10 +1173,7 @@ pub async fn store_merge_duplicates(
     let _t = Instant::now();
     let score = selections::parse_duplicate_score(score.as_deref())?;
     with_store!(label, state, |store| {
-        let groups = {
-            let view = store.loc_view();
-            selections::find_duplicate_groups(&view, distance)
-        };
+        let groups = store.all().duplicate_groups(distance);
 
         let mut remove: Vec<Location> = Vec::new();
         let mut create: Vec<Location> = Vec::new();

@@ -1064,7 +1064,7 @@ impl RunCtx<'_> {
         log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
         let index = self.rows.with_store(|store| {
             Ok(Arc::new(neighborhood::Index::build(
-                &store.loc_view(),
+                &store.all(),
                 radius_m,
                 fields,
             )))
@@ -1177,8 +1177,7 @@ pub(crate) fn run_all(
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<u32> = ctx.rows.with_store(|store| {
-        let view = store.view_for(&decl.select);
-        let scope = view.all().narrow(&decl.select);
+        let scope = store.scope(&decl.select);
         Ok(scope.rows().map(|row| row.id()).collect())
     })?;
     let total = ids.len() as u32;
@@ -1328,14 +1327,14 @@ fn page_batches(
         Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
     };
     let (rows, unmet) = ctx.rows.with_store(|store| {
-        let view = store.loc_view();
-        let alive = view.all().resolve(&page_sel);
-        let todo = view.all().resolve(&todo);
+        let all = store.all();
+        let alive = all.resolve(&page_sel);
+        let todo = all.resolve(&todo);
         prog.add_skipped((alive.len() - todo.len()) as u32);
         let workable = if decl.requires.is_empty() {
             todo.clone()
         } else {
-            view.within(&todo).resolve(&has_every(&decl.requires))
+            all.within(&todo).resolve(&has_every(&decl.requires))
         };
         let unmet: Vec<u32> = page
             .iter()

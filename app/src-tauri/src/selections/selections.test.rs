@@ -45,7 +45,7 @@ fn within_iterates_resolved_set_in_view_order() {
 
     let ids = |set: Option<&RoaringBitmap>| {
         let scope = match set {
-            Some(s) => view.within(s),
+            Some(s) => view.all().within(s),
             None => view.all(),
         };
         scope.rows().map(|r| r.id()).collect::<Vec<u32>>()
@@ -67,7 +67,7 @@ fn within_sparse_applies_overlay_and_preserves_view_order() {
     let set: RoaringBitmap = [1, 500, 750, 1_001, 9_999].into_iter().collect();
 
     let mut rows = Vec::new();
-    for row in view.within(&set).rows() {
+    for row in view.all().within(&set).rows() {
         rows.push((row.id(), row.lat()));
     }
 
@@ -1380,7 +1380,7 @@ fn node_counts_cover_nested_children() {
         },
     }];
 
-    let counts = resolve_forest(&view, &tree).1;
+    let counts = view.all().resolve_forest(&tree).1;
     assert_eq!(counts.get("a"), Some(&2)); // tag 10: l1, l2
     assert_eq!(counts.get("b"), Some(&2)); // tag 20: l1, l3
     assert_eq!(counts.get("root"), Some(&1)); // intersection: only l1 has both
@@ -1409,7 +1409,7 @@ fn node_counts_invert_is_global_complement() {
         },
     }];
 
-    let counts = resolve_forest(&view, &tree).1;
+    let counts = view.all().resolve_forest(&tree).1;
     assert_eq!(counts.get("t"), Some(&1)); // tag 10: l1
     assert_eq!(counts.get("inv"), Some(&2)); // NOT tag 10: l2, l3 (universe of 3 minus 1)
 }
@@ -1466,7 +1466,7 @@ fn resolve_forest_matches_individual_resolve() {
         },
     ];
 
-    let (sets, counts) = resolve_forest(&view, &sels);
+    let (sets, counts) = view.all().resolve_forest(&sels);
     assert_eq!(sets.len(), sels.len());
     for (i, sel) in sels.iter().enumerate() {
         assert_eq!(
@@ -1544,7 +1544,9 @@ fn duplicates_bitmask_matches_flattened_groups() {
     let view = fx.view();
     for d in [0.5, 2.0, 25.0] {
         let selected = ids_of(&view, &Selector::Duplicates { distance: d });
-        let mut grouped: Vec<u32> = find_duplicate_groups(&view, d)
+        let mut grouped: Vec<u32> = view
+            .all()
+            .duplicate_groups(d)
             .into_iter()
             .flatten()
             .collect();
@@ -1665,7 +1667,7 @@ fn duplicate_groups_are_transitive() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let groups = find_duplicate_groups(&view, 2.0);
+    let groups = view.all().duplicate_groups(2.0);
     assert_eq!(groups, vec![vec![1, 2, 3]]);
 }
 
@@ -1680,7 +1682,7 @@ fn duplicate_groups_separate_clusters_and_drop_singletons() {
     ];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    let groups = find_duplicate_groups(&view, 2.0);
+    let groups = view.all().duplicate_groups(2.0);
     assert_eq!(groups, vec![vec![1, 2], vec![4, 5]]);
 }
 
@@ -1689,7 +1691,7 @@ fn duplicate_groups_empty_when_all_far() {
     let adds = vec![loc(1, 0.0, 0.0), loc(2, 0.5, 0.0), loc(3, 1.0, 0.0)];
     let fx = Fx::adds(adds);
     let view = fx.view();
-    assert!(find_duplicate_groups(&view, 2.0).is_empty());
+    assert!(view.all().duplicate_groups(2.0).is_empty());
 }
 
 // -----------------------------------------------------------------------
@@ -2217,7 +2219,7 @@ fn ranked_within_honours_the_set() {
     let fx = alt_fx();
     let set: RoaringBitmap = [1u32, 3].into_iter().collect();
     assert_eq!(
-        fx.view().within(&set).ranked("alt", None, false),
+        fx.view().all().within(&set).ranked("alt", None, false),
         vec![3, 1]
     );
 }
@@ -2453,7 +2455,7 @@ fn partition_respects_the_selector() {
         locations: vec![1, 2],
         name: None,
     });
-    let groups = view.within(&set).partition("c", &KeySpec::Value);
+    let groups = view.all().within(&set).partition("c", &KeySpec::Value);
     assert_eq!(groups.iter().find(|g| g.key == "FR").unwrap().ids, vec![1]);
     assert_eq!(groups.iter().find(|g| g.key == "DE").unwrap().ids, vec![2]);
 }
@@ -2708,7 +2710,7 @@ proptest! {
         let view = fx.view();
         let mut counter = 0u32;
         let sels: Vec<Selection> = trees.iter().map(|t| to_selection(t, &mut counter)).collect();
-        let (sets, _counts) = resolve_forest(&view, &sels);
+        let (sets, _counts) = view.all().resolve_forest(&sels);
         prop_assert_eq!(sets.len(), sels.len());
         for (i, sel) in sels.iter().enumerate() {
             prop_assert_eq!(&sets[i], &view.all().resolve(&sel.selector));
@@ -2906,7 +2908,7 @@ proptest! {
         let indexed = Fx::batch(batch);
         for view in [plain.view(), indexed.view_indexed(&sets)] {
             let want = view.all().resolve(&selector) & &within;
-            prop_assert_eq!(view.within(&within).resolve(&selector), want);
+            prop_assert_eq!(view.all().within(&within).resolve(&selector), want);
         }
     }
 }
@@ -2967,6 +2969,7 @@ fn ids_within_applies_the_overlay_and_the_set() {
     // 2 is dead, so the set cannot resurrect it.
     assert_eq!(
         fx.view()
+            .all()
             .within(&set)
             .rows()
             .map(|r| r.id())
@@ -2975,19 +2978,24 @@ fn ids_within_applies_the_overlay_and_the_set() {
     );
 }
 
+fn sample_of(ids: impl IntoIterator<Item = u32>, n: usize) -> Vec<u32> {
+    let locs: Vec<Location> = ids.into_iter().map(|id| loc(id, 0.0, 0.0)).collect();
+    Fx::base(&locs).view().all().sample(n)
+}
+
 #[test]
 fn sample_draws_n_distinct_ids_and_clamps_to_the_pool() {
     let pool: Vec<u32> = (1..=100).collect();
 
-    let drawn = sample(pool.clone(), 5);
+    let drawn = sample_of(pool.clone(), 5);
     assert_eq!(drawn.len(), 5);
     let unique: HashSet<u32> = drawn.iter().copied().collect();
     assert_eq!(unique.len(), 5, "sample returned duplicates");
     assert!(drawn.iter().all(|id| pool.contains(id)));
 
-    assert_eq!(sample(pool.clone(), 1000).len(), pool.len());
-    assert!(sample(pool, 0).is_empty());
-    assert!(sample(Vec::new(), 5).is_empty());
+    assert_eq!(sample_of(pool.clone(), 1000).len(), pool.len());
+    assert!(sample_of(pool, 0).is_empty());
+    assert!(sample_of([], 5).is_empty());
 }
 
 #[test]
@@ -2995,7 +3003,7 @@ fn sample_reaches_every_member_of_the_pool() {
     // Uniformity isn't asserted, but a draw that can't reach an element is a bug.
     let mut seen = HashSet::new();
     for _ in 0..200 {
-        seen.extend(sample(vec![1, 2, 3, 4], 1));
+        seen.extend(sample_of([1, 2, 3, 4], 1));
     }
     assert_eq!(seen.len(), 4);
 }
@@ -3029,7 +3037,7 @@ fn distinct_values_honours_the_set() {
     ];
     let fx = Fx::base(&locs);
     let set: RoaringBitmap = [1u32].into_iter().collect();
-    assert_eq!(fx.view().within(&set).distinct_values("t"), vec!["a"]);
+    assert_eq!(fx.view().all().within(&set).distinct_values("t"), vec!["a"]);
 }
 
 #[test]
@@ -3189,7 +3197,7 @@ fn columns_within_projects_one_value_per_row_per_field() {
     assert_eq!(cols[4], vec![serde_json::Value::Null; 3]);
 
     let set: RoaringBitmap = [2u32].into_iter().collect();
-    let cols = fx.view().within(&set).columns(&fields[..1]);
+    let cols = fx.view().all().within(&set).columns(&fields[..1]);
     assert_eq!(cols[0], vec![serde_json::json!("x")]);
 }
 
@@ -3242,7 +3250,7 @@ fn count_is_the_selected_size() {
 
     // A named id list is raw: the dead id must not be counted.
     let set: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
-    assert_eq!((view.within(&set).rows().count() as u32), 2);
+    assert_eq!((view.all().within(&set).rows().count() as u32), 2);
 }
 
 /// `panoId` is a builtin field: the generic Filter predicate reaches the Arrow column
@@ -3774,7 +3782,7 @@ fn resolve_within_duplicates_equals_resolve_then_intersect() {
     let dups = Selector::Duplicates { distance: 10.0 };
     let full = view.all().resolve(&dups);
     let within_set: RoaringBitmap = [1u32, 2, 4].into_iter().collect();
-    let via_resolve_within = view.within(&within_set).resolve(&dups);
+    let via_resolve_within = view.all().within(&within_set).resolve(&dups);
     let via_intersect = &full & &within_set;
     assert_eq!(via_resolve_within, via_intersect);
 }
@@ -3797,7 +3805,7 @@ fn resolve_within_ranked_equals_resolve_then_intersect() {
     };
     let full = view.all().resolve(&ranked_sel);
     let within_set: RoaringBitmap = [1u32, 3, 4].into_iter().collect();
-    let via_resolve_within = view.within(&within_set).resolve(&ranked_sel);
+    let via_resolve_within = view.all().within(&within_set).resolve(&ranked_sel);
     let via_intersect = &full & &within_set;
     assert_eq!(via_resolve_within, via_intersect);
 }
@@ -3846,7 +3854,8 @@ fn resolve_fields_reports_each_requested_field_by_position() {
     };
     let fx = Fx::base(slice::from_ref(&base)).with_adds(vec![add]);
     let view = fx.view();
-    let rows: Vec<RowRef> = view.all().rows().collect();
+    let all = view.all();
+    let rows: Vec<RowRef> = all.rows().collect();
     assert!(!rows[0].is_uncommitted());
     assert!(rows[1].is_uncommitted());
 
@@ -3973,7 +3982,7 @@ fn a_scope_resolves_like_the_whole_map_clipped_to_its_rows() {
                     !clipped.is_empty(),
                     "{name}: the case must select something"
                 );
-                assert_eq!(view.within(set).resolve(sel), clipped, "{name}");
+                assert_eq!(view.all().within(set).resolve(sel), clipped, "{name}");
             }
         }
     }
@@ -3985,15 +3994,16 @@ fn a_scope_walks_only_the_alive_rows_of_its_set() {
     let view = fx.view();
     let sparse: RoaringBitmap = [2, 3, 500, 751, 1_002, 9_999].into_iter().collect();
     assert_eq!(
-        view.within(&sparse)
+        view.all()
+            .within(&sparse)
             .rows()
             .map(|r| r.id())
             .collect::<Vec<u32>>(),
         vec![2, 751, 1_002]
     );
     let dense: RoaringBitmap = (1..=1_002).chain([9_999]).collect();
-    let walked: Vec<u32> = view.within(&dense).rows().map(|r| r.id()).collect();
+    let walked: Vec<u32> = view.all().within(&dense).rows().map(|r| r.id()).collect();
     assert_eq!(walked.len(), 1_000);
     assert!(!walked.contains(&3) && !walked.contains(&500) && !walked.contains(&9_999));
-    assert_eq!(view.within(&dense).ids(), view.all().ids());
+    assert_eq!(view.all().within(&dense).ids(), view.all().ids());
 }

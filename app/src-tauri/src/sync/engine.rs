@@ -727,7 +727,7 @@ pub async fn sync_reconcile(
         // `extra`) is dropped immediately - never a whole-map copy of fields sync cannot see.
         let t = Instant::now();
         let mut pins: Vec<SyncLocalPin> = Vec::new();
-        for row in store.loc_view().all().rows() {
+        for row in store.all().rows() {
             pins.push(SyncLocalPin::from(row.to_location()));
         }
         log::info!(

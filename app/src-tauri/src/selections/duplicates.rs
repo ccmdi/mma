@@ -77,79 +77,81 @@ pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mu
     }
 }
 
-/// Transitive (connected-component) spatial grouping. Two locations are linked when within
-/// `distance_m` metres; each returned group is a connected component of size >= 2. Same
-/// grid broad-phase as `find_duplicates_bitmask`, but union-find preserves the partition
-/// instead of flattening to a membership mask. Chains collapse: A~B, B~C => {A,B,C} even
-/// if A and C are out of range. Output is deterministic: ids ascending within each group,
-/// groups ordered by first id.
-pub fn find_duplicate_groups(view: &LocView, distance_m: f64) -> Vec<Vec<u32>> {
-    struct Pt {
-        lat: f64,
-        lng: f64,
-        id: u32,
-    }
-    let mut points: Vec<Pt> = Vec::new();
-    for row in view.all().rows() {
-        points.push(Pt {
-            lat: row.lat(),
-            lng: row.lng(),
-            id: row.id(),
-        });
-    }
-
-    let n = points.len();
-    if n < 2 {
-        return Vec::new();
-    }
-
-    // Union-find with path halving and union by size.
-    fn find(parent: &mut [usize], mut x: usize) -> usize {
-        while parent[x] != x {
-            parent[x] = parent[parent[x]];
-            x = parent[x];
+impl Scope<'_, '_> {
+    /// Transitive (connected-component) spatial grouping. Two locations are linked when within
+    /// `distance_m` metres; each returned group is a connected component of size >= 2. Same
+    /// grid broad-phase as `find_duplicates_bitmask`, but union-find preserves the partition
+    /// instead of flattening to a membership mask. Chains collapse: A~B, B~C => {A,B,C} even
+    /// if A and C are out of range. Output is deterministic: ids ascending within each group,
+    /// groups ordered by first id.
+    pub fn duplicate_groups(&self, distance_m: f64) -> Vec<Vec<u32>> {
+        struct Pt {
+            lat: f64,
+            lng: f64,
+            id: u32,
         }
-        x
-    }
-    let mut uf: (Vec<usize>, Vec<u32>) = ((0..n).collect(), vec![1; n]);
+        let mut points: Vec<Pt> = Vec::new();
+        for row in self.rows() {
+            points.push(Pt {
+                lat: row.lat(),
+                lng: row.lng(),
+                id: row.id(),
+            });
+        }
 
-    for_pairs_within(
-        n,
-        |i| (points[i].lat, points[i].lng),
-        distance_m,
-        &mut uf,
-        |uf, pi, pj| {
-            let ra = find(&mut uf.0, pi);
-            let rb = find(&mut uf.0, pj);
-            if ra != rb {
-                let (small, big) = if uf.1[ra] < uf.1[rb] {
-                    (ra, rb)
-                } else {
-                    (rb, ra)
-                };
-                uf.0[small] = big;
-                uf.1[big] += uf.1[small];
+        let n = points.len();
+        if n < 2 {
+            return Vec::new();
+        }
+
+        // Union-find with path halving and union by size.
+        fn find(parent: &mut [usize], mut x: usize) -> usize {
+            while parent[x] != x {
+                parent[x] = parent[parent[x]];
+                x = parent[x];
             }
-        },
-    );
-    let mut parent = uf.0;
+            x
+        }
+        let mut uf: (Vec<usize>, Vec<u32>) = ((0..n).collect(), vec![1; n]);
 
-    let mut comps: HashMap<usize, Vec<u32>> = HashMap::new();
-    for (pi, point) in points.iter().enumerate() {
-        let r = find(&mut parent, pi);
-        comps.entry(r).or_default().push(point.id);
+        for_pairs_within(
+            n,
+            |i| (points[i].lat, points[i].lng),
+            distance_m,
+            &mut uf,
+            |uf, pi, pj| {
+                let ra = find(&mut uf.0, pi);
+                let rb = find(&mut uf.0, pj);
+                if ra != rb {
+                    let (small, big) = if uf.1[ra] < uf.1[rb] {
+                        (ra, rb)
+                    } else {
+                        (rb, ra)
+                    };
+                    uf.0[small] = big;
+                    uf.1[big] += uf.1[small];
+                }
+            },
+        );
+        let mut parent = uf.0;
+
+        let mut comps: HashMap<usize, Vec<u32>> = HashMap::new();
+        for (pi, point) in points.iter().enumerate() {
+            let r = find(&mut parent, pi);
+            comps.entry(r).or_default().push(point.id);
+        }
+
+        let mut groups: Vec<Vec<u32>> = comps
+            .into_values()
+            .filter(|g| g.len() >= 2)
+            .map(|mut g| {
+                g.sort_unstable();
+                g
+            })
+            .collect();
+        groups.sort_unstable_by_key(|g| g[0]);
+        groups
     }
-
-    let mut groups: Vec<Vec<u32>> = comps
-        .into_values()
-        .filter(|g| g.len() >= 2)
-        .map(|mut g| {
-            g.sort_unstable();
-            g
-        })
-        .collect();
-    groups.sort_unstable_by_key(|g| g[0]);
-    groups
 }
 
 /// The default duplicate score: how finished a location is. Doubles as the placeholder

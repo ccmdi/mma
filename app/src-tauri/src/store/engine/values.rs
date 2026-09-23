@@ -340,7 +340,7 @@ impl Store {
         let mut patches: Vec<(Location, LocationPatch)> = Vec::new();
         let mut err: Option<AppError> = None;
         {
-            for row in self.loc_view().all().rows() {
+            for row in self.all().rows() {
                 let Some(serde_json::Value::Array(list)) = row.resolve_field(field) else {
                     continue;
                 };

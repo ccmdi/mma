@@ -16,14 +16,14 @@ fn ids(hits: &[Neighbor]) -> Vec<u32> {
 #[test]
 fn within_answers_nearest_first() {
     let fx = Fx::adds(vec![at(1, 90.0), at(2, 30.0), at(3, 60.0)]);
-    let index = Index::build(&fx.view(), 100.0, &[]);
+    let index = Index::build(&fx.view().all(), 100.0, &[]);
     assert_eq!(ids(&index.within(0.0, 0.0)), vec![2, 3, 1]);
 }
 
 #[test]
 fn equidistant_neighbors_break_the_tie_by_id() {
     let fx = Fx::adds(vec![at(7, 40.0), at(3, -40.0), at(5, 40.0)]);
-    let index = Index::build(&fx.view(), 100.0, &[]);
+    let index = Index::build(&fx.view().all(), 100.0, &[]);
     assert_eq!(ids(&index.within(0.0, 0.0)), vec![3, 5, 7]);
 }
 
@@ -36,7 +36,7 @@ fn a_point_at_the_query_coordinate_is_a_hit() {
 }
 
 fn index_within(fx: &Fx, radius_m: f64, lat: f64, lng: f64) -> Vec<Neighbor> {
-    Index::build(&fx.view(), radius_m, &[]).within(lat, lng)
+    Index::build(&fx.view().all(), radius_m, &[]).within(lat, lng)
 }
 
 #[test]
@@ -62,7 +62,7 @@ fn a_neighbor_carries_the_named_fields_it_had_and_no_others() {
     b.heading = 7.0;
     let fx = Fx::adds(vec![a, b]);
     let want = ["heading".to_string(), "quality".to_string()];
-    let hits = Index::build(&fx.view(), 100.0, &want).within(0.0, 0.0);
+    let hits = Index::build(&fx.view().all(), 100.0, &want).within(0.0, 0.0);
 
     assert_eq!(
         serde_json::to_value(&hits[0].fields).unwrap(),
@@ -81,7 +81,7 @@ fn a_neighbor_serializes_its_fields_beside_its_coordinates() {
     a.extra = RawExtra::from_value(&serde_json::json!({ "quality": 3 }));
     let fx = Fx::adds(vec![a]);
     let want = ["quality".to_string()];
-    let hits = Index::build(&fx.view(), 100.0, &want).within(0.0, 0.0);
+    let hits = Index::build(&fx.view().all(), 100.0, &want).within(0.0, 0.0);
     let json = serde_json::to_value(&hits[0]).unwrap();
 
     assert_eq!(json["id"], 1);
