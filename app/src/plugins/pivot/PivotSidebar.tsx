@@ -7,6 +7,7 @@ import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import {
 	addSelection,
+	all,
 	batch,
 	removeSelection,
 	selectionDisplayName,
@@ -28,6 +29,8 @@ import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/pluginStorage";
+import { SelectorPicker } from "@/components/primitives/SelectorPicker";
+import { useSelectorPick } from "@/store/selectorPick";
 import {
 	buildPivot,
 	crossCounts,
@@ -53,13 +56,12 @@ type Axis =
 
 const TAGS_FIELD_KEY = "__tags__";
 const FIELD_PREFIX = "field:";
-const EVERYTHING: Selector = { type: "Everything" };
 
 import type { FieldEntry } from "@/components/editor/map/FilterBuilder";
 import { msg, t } from "@/lib/i18n";
 import { Swatch } from "@/components/primitives/Swatch";
 
-async function selectionAxis(kind: "all" | "active"): Promise<ResolvedAxis> {
+async function selectionAxis(kind: "all" | "active", scope: Selector): Promise<ResolvedAxis> {
 	const members: PivotMember[] =
 		kind === "all"
 			? [
@@ -67,7 +69,7 @@ async function selectionAxis(kind: "all" | "active"): Promise<ResolvedAxis> {
 						key: "__all__",
 						label: t("All locations"),
 						color: [140, 140, 140],
-						selector: EVERYTHING,
+						selector: scope,
 						selectable: false,
 					},
 				]
@@ -75,7 +77,7 @@ async function selectionAxis(kind: "all" | "active"): Promise<ResolvedAxis> {
 					key: s.key,
 					label: selectionDisplayName(s),
 					color: s.color,
-					selector: s.selector,
+					selector: all(scope, s.selector),
 					selectable: false,
 				}));
 	const sizes = await Promise.all(members.map((m) => query(m.selector).count()));
@@ -99,8 +101,8 @@ async function tagCounts(selector: Selector): Promise<Tally> {
 	return { counts, withValue };
 }
 
-/** Counts over a global set of numeric bins, which only a whole-map partition can pin
- *  down (bin edges follow the data range). */
+/** Counts over a shared set of numeric bins, which only a scope-wide partition can pin
+ *  down (bin edges follow the scoped data's range). */
 function binCounts(ids: number[], binOf: Map<number, string>): Tally {
 	const counts = new Map<string, number>();
 	let withValue = 0;
@@ -117,13 +119,14 @@ async function fieldAxis(
 	fieldKey: string,
 	fieldDef: FieldDef | undefined,
 	bucketCount: number | null,
+	scope: Selector,
 ): Promise<ResolvedAxis> {
 	const isTags = fieldKey === TAGS_FIELD_KEY;
 	const isNumeric = !isTags && (fieldDef?.type === "number" || fieldDef?.type === "date");
 
 	// Numeric fields bucket into a histogram; resolveBucketCount arbitrates between the
 	// user's choice and the field's cardinality.
-	const numericDistinct = isNumeric ? (await query(EVERYTHING).values(fieldKey)).length : undefined;
+	const numericDistinct = isNumeric ? (await query(scope).values(fieldKey)).length : undefined;
 	const effectiveBuckets =
 		numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 
@@ -132,9 +135,9 @@ async function fieldAxis(
 	let whole: Tally;
 	if (isTags) {
 		tally = tagCounts;
-		whole = await tally(EVERYTHING);
+		whole = await tally(scope);
 	} else if (effectiveBuckets) {
-		const groups = await query(EVERYTHING).partition(fieldKey, {
+		const groups = await query(scope).partition(fieldKey, {
 			kind: "numericBin",
 			binning: { by: "count", n: effectiveBuckets },
 		});
@@ -151,7 +154,7 @@ async function fieldAxis(
 			const grouped = await query(selector).countBy(fieldKey, { kind: "value" });
 			return { counts: new Map(grouped.counts), withValue: grouped.covered };
 		};
-		whole = await tally(EVERYTHING);
+		whole = await tally(scope);
 	}
 
 	let keys: string[];
@@ -178,26 +181,30 @@ async function fieldAxis(
 				? (tagMap[Number(key)]?.name ?? t("Tag {id}", { id: key }))
 				: (extraLabels[key] ?? key),
 			color: null,
-			selector: isTags
-				? tagSelector(Number(key))
-				: bin
-					? { type: "Filter", field: fieldKey, test: { op: "between", lo: bin[0], hi: bin[1] } }
-					: { type: "Filter", field: fieldKey, test: { op: "eq", value: key } },
+			selector: all(
+				scope,
+				isTags
+					? tagSelector(Number(key))
+					: bin
+						? { type: "Filter", field: fieldKey, test: { op: "between", lo: bin[0], hi: bin[1] } }
+						: { type: "Filter", field: fieldKey, test: { op: "eq", value: key } },
+			),
 			selectable: true,
 		};
 	};
 	const members = keys.map(member);
 	const sizes = keys.map((k) => whole.counts.get(k) ?? 0);
 
-	const naCount = (await query(EVERYTHING).count()) - whole.withValue;
+	const naCount = (await query(scope).count()) - whole.withValue;
 	if (naCount > 0) {
 		members.push({
 			key: NA_KEY,
 			label: t("N/A"),
 			color: null,
-			selector: isTags
-				? untaggedSelector()
-				: { type: "Filter", field: fieldKey, test: { op: "nothas" } },
+			selector: all(
+				scope,
+				isTags ? untaggedSelector() : { type: "Filter", field: fieldKey, test: { op: "nothas" } },
+			),
 			selectable: true,
 		});
 		sizes.push(naCount);
@@ -206,10 +213,10 @@ async function fieldAxis(
 	return { members, sizes, tally, binned: buckets != null, numericDistinct };
 }
 
-function resolveAxis(axis: Axis, defOf: (key: string) => FieldDef | undefined) {
+function resolveAxis(axis: Axis, scope: Selector, defOf: (key: string) => FieldDef | undefined) {
 	return axis.kind === "field"
-		? fieldAxis(axis.key, defOf(axis.key), axis.buckets)
-		: selectionAxis(axis.kind);
+		? fieldAxis(axis.key, defOf(axis.key), axis.buckets, scope)
+		: selectionAxis(axis.kind, scope);
 }
 
 const countBoth = (a: Selector, b: Selector) =>
@@ -218,12 +225,13 @@ const countBoth = (a: Selector, b: Selector) =>
 async function computePivot(
 	rows: Axis,
 	cols: Axis,
+	scope: Selector,
 	defOf: (key: string) => FieldDef | undefined,
 ): Promise<PivotData | null> {
 	if (!getMapState().map) return null;
 	const [rowAxis, colAxis] = await Promise.all([
-		resolveAxis(rows, defOf),
-		resolveAxis(cols, defOf),
+		resolveAxis(rows, scope, defOf),
+		resolveAxis(cols, scope, defOf),
 	]);
 	if (rowAxis.members.length === 0 || colAxis.members.length === 0) return null;
 	return buildPivot(rowAxis, colAxis, await crossCounts(rowAxis, colAxis, countBoth));
@@ -331,6 +339,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 		key: "",
 		buckets: DEFAULT_BUCKETS,
 	});
+	const scope = useSelectorPick({ pick: "all" });
 	const [valueMode, setValueMode] = usePluginState<ValueMode>("pivot", "valueMode", "count");
 	const [includeNa, setIncludeNa] = usePluginState<boolean>("pivot", "includeNa", true);
 	const [data, setData] = useState<PivotData | null>(null);
@@ -346,11 +355,18 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const recompute = useCallback(async () => {
 		setLoading(true);
 		try {
-			setData(await computePivot(rows, cols, (key) => fields.find((f) => f.key === key)?.def));
+			setData(
+				await computePivot(
+					rows,
+					cols,
+					scope.selector,
+					(key) => fields.find((f) => f.key === key)?.def,
+				),
+			);
 		} finally {
 			setLoading(false);
 		}
-	}, [rows, cols, fields]);
+	}, [rows, cols, scope.selector, fields]);
 
 	const debouncedRecompute = useDebouncedCallback(() => void recompute(), 150);
 
@@ -392,6 +408,9 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 					fields={fields}
 					distinct={data?.numericDistinct.cols}
 				/>
+				<Field label={t("Within")}>
+					<SelectorPicker ctl={scope} />
+				</Field>
 				<Field label={t("Values")}>
 					<SegmentedControl<ValueMode>
 						value={valueMode}
@@ -411,7 +430,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 			<div className="pivot-sidebar__body">
 				{!data && !loading && (
 					<EmptyState>
-						{rows.kind === "active" || cols.kind === "active"
+						{rows.kind === "active" || cols.kind === "active" || scope.choice.pick === "selection"
 							? t("No active selections. Add selections to see pivot data.")
 							: t("No locations on this map.")}
 					</EmptyState>

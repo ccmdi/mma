@@ -1441,6 +1441,7 @@
 	"What would you like?": "What would you like?",
 	"What's new": "What's new",
 	"With no location open, Enter opens the location at the center of the map.": "With no location open, Enter opens the location at the center of the map.",
+	"Within": "Within",
 	"Without an API key, requests may be rate-limited by Nominatim's usage policy.": "Without an API key, requests may be rate-limited by Nominatim's usage policy.",
 	"Works in every map (click for this map only)": "Works in every map (click for this map only)",
 	"World map (ACW, {distance})": "World map (ACW, {distance})",
