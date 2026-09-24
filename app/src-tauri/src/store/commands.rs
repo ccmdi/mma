@@ -150,7 +150,7 @@ pub async fn store_open_map(
 
     let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
-    store.bounds = Some(At::new(store.version, bounds));
+    store.bounds.seed(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
         storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts().into())?;

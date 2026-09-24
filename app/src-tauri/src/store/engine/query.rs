@@ -6,14 +6,60 @@ use crate::store::arrow::Columns;
 use crate::store::maps::IndexShape;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
-use mma_geo::{fold_lng, HexGrid, EARTH_R_M};
+use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
 use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::f64::consts::PI;
+use std::time::Instant;
 
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
 pub(crate) const SPATIAL_CELL_M: f64 = 25.0;
-use std::time::Instant;
+
+impl Derived for SpatialIndex {
+    fn valid(&self, store: &Store) -> bool {
+        self.len() == *store.alive_count
+    }
+
+    fn build(store: &Store) -> Self {
+        let _t = Instant::now();
+        let mut ix = SpatialIndex::new(SPATIAL_CELL_M);
+        for row in store.all().rows() {
+            ix.insert(row.id(), row.lat(), row.lng());
+        }
+        log::debug!(
+            "[spatial] built n={} in {}ms",
+            ix.len(),
+            _t.elapsed().as_millis()
+        );
+        ix
+    }
+
+    fn slot(store: &mut Store) -> &mut Ensured<Self> {
+        &mut store.spatial
+    }
+
+    fn slot_ref(store: &Store) -> &Ensured<Self> {
+        &store.spatial
+    }
+}
+
+impl Derived for At<Option<BoundsAcc>> {
+    fn valid(&self, store: &Store) -> bool {
+        self.current(store.version)
+    }
+
+    fn build(store: &Store) -> Self {
+        At::new(store.version, store.all().bounds())
+    }
+
+    fn slot(store: &mut Store) -> &mut Ensured<Self> {
+        &mut store.bounds
+    }
+
+    fn slot_ref(store: &Store) -> &Ensured<Self> {
+        &store.bounds
+    }
+}
 
 /// Everything derived from a single O(N) pass over all alive locations. Computed
 /// once on map open; add new whole-map derivations here rather than scanning again.
@@ -136,7 +182,7 @@ fn even_picks(candidates: &[(u32, f64, f64)], grid: &HexGrid, spacing_m: f64) ->
 
     let floor = spacing_m / 2.0;
     let mut kept: Vec<usize> = Vec::new();
-    let mut index = mma_geo::SpatialIndex::new(floor);
+    let mut index = SpatialIndex::new(floor);
     for (_, i) in winners {
         let (_, lat, lng) = candidates[i];
         let crowded = index.any_candidate(lat, lng, floor, |k| {
@@ -155,11 +201,7 @@ impl Store {
     /// Current coordinates of an alive location, without cloning the full Location.
     #[inline]
     pub(super) fn coords_of(&self, id: u32) -> Option<(f64, f64)> {
-        Self::coords_from(&self.overlay, self.batch.as_ref(), id)
-    }
-
-    #[inline]
-    fn coords_from(overlay: &Overlay, batch: Option<&RecordBatch>, id: u32) -> Option<(f64, f64)> {
+        let overlay = &self.overlay;
         if overlay.dead.contains(id) {
             return None;
         }
@@ -170,7 +212,7 @@ impl Store {
             let l = &overlay.adds[i];
             return Some((l.lat, l.lng));
         }
-        if let Some(b) = batch {
+        if let Some(b) = self.batch.as_ref() {
             if let Some(idx) = Columns::of(b).row_of(id) {
                 return Some((Columns::lat(b).value(idx), Columns::lng(b).value(idx)));
             }
@@ -178,46 +220,19 @@ impl Store {
         None
     }
 
-    /// Build the spatial index if absent or drifted (length mismatch vs alive_count
-    /// catches any bulk path that bypassed the overlay fns - rebuild, never wrong).
-    pub(super) fn ensure_spatial(&mut self) {
-        if let Some(ix) = self.spatial.as_ref() {
-            if ix.len() == *self.alive_count {
-                return;
-            }
-            log::warn!(
-                "[spatial] index len {} != alive {} - rebuilding",
-                ix.len(),
-                *self.alive_count
-            );
-        }
-        let _t = Instant::now();
-        let mut ix = mma_geo::SpatialIndex::new(SPATIAL_CELL_M);
-        for row in self.all().rows() {
-            ix.insert(row.id(), row.lat(), row.lng());
-        }
-        log::debug!(
-            "[spatial] built n={} in {}ms",
-            ix.len(),
-            _t.elapsed().as_millis()
-        );
-        self.spatial = Some(ix);
-    }
-
     /// Ids of alive locations within `radius_m` metres of the point. Index-backed:
     /// O(cells in radius) instead of an O(N) scan.
     pub(crate) fn find_nearby_ids(&mut self, lat: f64, lng: f64, radius_m: f64) -> Vec<u32> {
-        self.ensure_spatial();
-        let mut cand = Vec::new();
-        self.spatial
-            .as_ref()
-            .unwrap()
-            .candidates(lat, lng, radius_m, &mut cand);
-        cand.retain(|&id| {
-            self.coords_of(id)
-                .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
-        });
-        cand
+        Ensured::<SpatialIndex>::with(self, |ix, store| {
+            let mut cand = Vec::new();
+            ix.candidates(lat, lng, radius_m, &mut cand);
+            cand.retain(|&id| {
+                store
+                    .coords_of(id)
+                    .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
+            });
+            cand
+        })
     }
 
     /// Id of the alive location closest to the point, or `None` on an empty map.
@@ -245,16 +260,13 @@ impl Store {
 
     /// Whether any alive location lies within `radius_m` metres of the point.
     pub(crate) fn any_within(&mut self, lat: f64, lng: f64, radius_m: f64) -> bool {
-        self.ensure_spatial();
-        let overlay = &self.overlay;
-        let batch = self.batch.as_ref();
-        self.spatial
-            .as_ref()
-            .unwrap()
-            .any_candidate(lat, lng, radius_m, |id| {
-                Self::coords_from(overlay, batch, id)
+        Ensured::<SpatialIndex>::with(self, |ix, store| {
+            ix.any_candidate(lat, lng, radius_m, |id| {
+                store
+                    .coords_of(id)
                     .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
             })
+        })
     }
 
     /// Materialize the selected location set (`Everything` = every alive location).
@@ -272,15 +284,11 @@ impl Store {
         scope.rows().map(|row| row.to_location()).collect()
     }
 
-    /// Whole-map bounding box, cached. Recomputes O(N) only when dirty (after a
+    /// Whole-map bounding box, cached. Recomputes O(N) only when stale (after a
     /// removal or bulk change); otherwise O(1). The scoring UI refreshes this on
     /// every edit, so it must not scan the whole map per mutation.
     pub(crate) fn cached_bounds(&mut self) -> Option<[f64; 4]> {
-        let version = self.version;
-        if !self.bounds.is_some_and(|b| b.current(version)) {
-            self.bounds = Some(At::new(version, self.all().bounds()));
-        }
-        self.bounds.and_then(|b| b.value().map(BoundsAcc::resolve))
+        Ensured::<At<Option<BoundsAcc>>>::with(self, |b, _| b.value().map(BoundsAcc::resolve))
     }
 
     /// Carry the bounds from `before` to the current version when this mutation can only
@@ -289,7 +297,7 @@ impl Store {
     /// extreme point: the bounds are left at `before` and the next read rescans.
     /// `removed` carries ids only (no coords), so any removal is conservative.
     pub(super) fn update_bounds(&mut self, changes: &ChangeSet, before: u64) {
-        let Some(at) = self.bounds.filter(|b| b.current(before)) else {
+        let Some(at) = self.bounds.if_built_mut().filter(|b| b.current(before)) else {
             return;
         };
         if changes.full_reset || !changes.removed.is_empty() {
@@ -313,7 +321,7 @@ impl Store {
         {
             acc = Some(BoundsAcc::fold(acc, lat, lng));
         }
-        self.bounds = Some(At::new(self.version, acc));
+        self.bounds.seed(At::new(self.version, acc));
     }
 
     /// Single O(N) pass over all alive locations deriving every open-time aggregate:

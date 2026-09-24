@@ -18,6 +18,7 @@ pub use query::*;
 pub use render::*;
 pub use values::*;
 
+use mma_geo::SpatialIndex;
 use roaring::RoaringBitmap;
 
 use arrow_array::RecordBatch;
@@ -107,13 +108,12 @@ pub struct Store {
     pub(crate) edits: Tracked<EditStacks>,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
-    /// the next read rescans. `None` until first read. Resolved to `[w,s,e,n]` on read.
-    pub(crate) bounds: Option<At<Option<BoundsAcc>>>,
-    /// Lazy spatial index over alive locations. Built on the first radius query,
-    /// then maintained incrementally by the overlay mutation functions. A length
-    /// mismatch against `alive_count` at query time forces a rebuild, so any bulk
+    /// the next read rescans. Resolved to `[w,s,e,n]` on read.
+    pub(crate) bounds: Ensured<At<Option<BoundsAcc>>>,
+    /// Lazy spatial index over alive locations, maintained incrementally by the overlay
+    /// mutation functions. Validity is a length match against `alive_count`, so any bulk
     /// path that bypasses the overlay fns degrades to a rebuild, never wrong results.
-    spatial: Option<mma_geo::SpatialIndex>,
+    pub(crate) spatial: Ensured<SpatialIndex>,
 }
 
 macro_rules! apply_patch {
@@ -158,8 +158,8 @@ impl Store {
             value_meta: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
             edits: Tracked::default(),
-            bounds: None,
-            spatial: None,
+            bounds: Ensured::default(),
+            spatial: Ensured::default(),
         }
     }
 
@@ -422,7 +422,7 @@ impl Store {
         let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
         for loc in locs {
             *self.alive_count.edit() += 1;
-            if let Some(ix) = self.spatial.as_mut() {
+            if let Some(ix) = self.spatial.if_built_mut() {
                 ix.insert(loc.id, loc.lat, loc.lng);
             }
             self.overlay.edit().dead.remove(loc.id);
@@ -488,7 +488,7 @@ impl Store {
             // Index under the CURRENT coords, not the caller's copy: a patched
             // location's overlay coords are where the index filed it.
             let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
-            if let Some(ix) = self.spatial.as_mut() {
+            if let Some(ix) = self.spatial.if_built_mut() {
                 if !ix.remove(loc.id, lat, lng) {
                     log::warn!("[spatial] remove miss for id {}", loc.id);
                 }
@@ -516,7 +516,7 @@ impl Store {
     /// the location as the store now holds it (stamped on a real change).
     fn overlay_write(&mut self, id: u32, mut loc: Location, old: &Location) -> Location {
         if (loc.lat, loc.lng) != (old.lat, old.lng) {
-            if let Some(ix) = self.spatial.as_mut() {
+            if let Some(ix) = self.spatial.if_built_mut() {
                 if !ix.remove(id, old.lat, old.lng) {
                     log::warn!("[spatial] remove miss for id {id}");
                 }
@@ -738,6 +738,65 @@ impl<T> At<T> {
 
     pub(crate) fn into_value(self) -> T {
         self.value
+    }
+}
+
+/// What a value derived from the store declares: when it is still valid, how to rebuild
+/// itself, and where in the store it lives. The slot passthroughs are what let `valid`
+/// and `build` read the whole store the value sits inside: [`Ensured::with`] takes the
+/// value out of its slot, consults the store unencumbered, and puts it back.
+pub(crate) trait Derived: Sized {
+    fn valid(&self, store: &Store) -> bool;
+    fn build(store: &Store) -> Self;
+    fn slot(store: &mut Store) -> &mut Ensured<Self>;
+    fn slot_ref(store: &Store) -> &Ensured<Self>;
+}
+
+/// A derived value that cannot be read without proving it is ready: access runs the
+/// declared validity check and rebuilds on failure, so absence and staleness are one
+/// case and no read path can skip the check. The dual of [`Tracked`]: `Tracked` guards
+/// source data leaving memory (does disk owe a write?), `Ensured` guards derived data
+/// entering use (can this cache be trusted?).
+#[derive(Debug)]
+pub(crate) struct Ensured<T>(Option<T>);
+
+impl<T> Default for Ensured<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T: Derived> Ensured<T> {
+    /// Ensure, then read beside the store: the closure gets the value and the store as
+    /// shared borrows, so answers can be checked against live rows in the same pass.
+    pub(crate) fn with<R>(store: &mut Store, f: impl FnOnce(&T, &Store) -> R) -> R {
+        let val = match T::slot(store).0.take() {
+            Some(v) if v.valid(store) => v,
+            _ => T::build(store),
+        };
+        T::slot(store).0 = Some(val);
+        let store = &*store;
+        f(
+            T::slot_ref(store).0.as_ref().expect("just installed"),
+            store,
+        )
+    }
+}
+
+impl<T> Ensured<T> {
+    /// Install a value computed elsewhere (an open-time scan that already walked the rows).
+    pub(crate) fn seed(&mut self, value: T) {
+        self.0 = Some(value);
+    }
+
+    /// Maintain in place when built; never builds. Staleness is the next read's problem.
+    pub(crate) fn if_built_mut(&mut self) -> Option<&mut T> {
+        self.0.as_mut()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn peek(&self) -> Option<&T> {
+        self.0.as_ref()
     }
 }
 

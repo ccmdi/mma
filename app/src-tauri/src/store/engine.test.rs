@@ -889,7 +889,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
         before,
     );
     assert!(
-        store.bounds.is_some_and(|b| b.current(store.version)),
+        store
+            .bounds
+            .peek()
+            .is_some_and(|b| b.current(store.version)),
         "add carries the cache forward"
     );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
@@ -920,7 +923,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
         before,
     );
     assert!(
-        !store.bounds.is_some_and(|b| b.current(store.version)),
+        !store
+            .bounds
+            .peek()
+            .is_some_and(|b| b.current(store.version)),
         "removal leaves the cache behind"
     );
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 5.0, 5.0]));
@@ -4195,7 +4201,7 @@ fn spatial_matches_brute_force_across_mutations() {
             "radius {r} after mutations"
         );
     }
-    assert_eq!(store.spatial.as_ref().unwrap().len(), *store.alive_count);
+    assert_eq!(store.spatial.peek().unwrap().len(), *store.alive_count);
 }
 
 #[test]
