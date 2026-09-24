@@ -62,10 +62,13 @@ function historyBuilds(dirPath, currentMinApp, currentVersion) {
 		seenFloors.add(floor);
 
 		// Build files can be rebuilt without touching the manifest, so pin the newest
-		// commit that touched the plugin while this floor was still current.
+		// commit that touched the plugin while this floor was still current. With no newer
+		// commit the floor change is uncommitted, so that is the newest one in HEAD -- the
+		// same ref this resolves to once the change is committed.
 		const newer = commits[i - 1];
 		const ref =
-			(newer && gitOk(["log", "-1", "--format=%H", `${newer}^`, "--", dirPath])) || commits[i];
+			gitOk(["log", "-1", "--format=%H", newer ? `${newer}^` : "HEAD", "--", dirPath]) ||
+			commits[i];
 
 		const pinned = manifestAt(ref, dirPath) || m;
 		if (minAppOf(pinned) !== floor) {
