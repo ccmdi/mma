@@ -95,7 +95,7 @@ export async function reconcile(
 	);
 
 	// The command is not abortable; it has already pushed and written the push half's mapping rows.
-	// An abort now just skips the pull applies - the persisted mapping stays consistent regardless.
+	// Each pull's mapping row is written only after that pull applies, so an abort leaves it pending.
 	assertStillOpen();
 	const nameToId = new Map<string, number>();
 	for (const t of Object.values(M.getTags())) nameToId.set(t.name, t.id);
@@ -130,12 +130,18 @@ export async function reconcile(
 		assertStillOpen();
 		await M.updateLocations(updates);
 	}
+	if (result.pullUpdates.length) {
+		await store.upsertMapping(
+			result.pullUpdates.map((u) => ({ localId: u.localId, remoteId: u.remoteId, hash: u.hash })),
+		);
+	}
 
 	const removals = new Set<number>([...result.pullDeleteIds, ...result.mirrorLocalDeleteIds]);
 	if (removals.size) {
 		assertStillOpen();
 		await M.removeLocations(removals);
 	}
+	if (result.pullDeleteIds.length) await store.deleteMapping(result.pullDeleteIds);
 
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 

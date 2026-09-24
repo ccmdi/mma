@@ -62,6 +62,8 @@ pub struct PullCreate {
 pub struct PullUpdate {
     pub local_id: u32,
     pub patch: SyncPatch,
+    pub remote_id: i64,
+    pub hash: String,
 }
 
 /// Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
@@ -342,6 +344,16 @@ pub(crate) fn plan<P: SyncProvider>(
         settled.remove(&c.key);
     }
 
+    // The JS side records a pulled update's hash once applied; until then only its handle moves.
+    let pulled_updates: HashSet<&IdentityKey> = plan.pull.update.iter().collect();
+    let persisted_hash = |key: &IdentityKey, content: &NormalizedSyncLocation| {
+        if pulled_updates.contains(key) {
+            keyed.base.get(key).cloned()
+        } else {
+            Some(sync_hash(content))
+        }
+    };
+
     let needs_push = !plan.push.create.is_empty()
         || !plan.push.update.is_empty()
         || !plan.push.delete.is_empty()
@@ -362,8 +374,10 @@ pub(crate) fn plan<P: SyncProvider>(
     if push_batch.is_some() {
         if positional {
             for (&key, content) in &settled {
-                if let Some(&local_id) = keyed.local_id_of.get(key) {
-                    push_hashes.insert(local_id, sync_hash(content));
+                if let (Some(&local_id), Some(hash)) =
+                    (keyed.local_id_of.get(key), persisted_hash(key, content))
+                {
+                    push_hashes.insert(local_id, hash);
                 }
             }
         } else {
@@ -432,12 +446,14 @@ pub(crate) fn plan<P: SyncProvider>(
         .pull
         .update
         .iter()
-        .map(|key| PullUpdate {
-            local_id: keyed.local_id_of[key],
-            patch: changed_patch(
-                keyed.local.get(key).expect("local key"),
-                keyed.remote.get(key).expect("remote key"),
-            ),
+        .map(|key| {
+            let remote = keyed.remote.get(key).expect("remote key");
+            PullUpdate {
+                local_id: keyed.local_id_of[key],
+                patch: changed_patch(keyed.local.get(key).expect("local key"), remote),
+                remote_id: handle_of(key).expect("remote key"),
+                hash: sync_hash(remote),
+            }
         })
         .collect();
     let pull_delete_ids: Vec<u32> = plan
@@ -478,10 +494,13 @@ pub(crate) fn plan<P: SyncProvider>(
         let Some(remote_id) = handle_of(key) else {
             continue;
         };
+        let Some(hash) = persisted_hash(key, content) else {
+            continue;
+        };
         let row = RemoteMappingRow {
             local_id,
             remote_id,
-            hash: sync_hash(content),
+            hash,
         };
         if changed(&row) {
             rows.push(row);
@@ -509,7 +528,7 @@ pub(crate) fn plan<P: SyncProvider>(
     }
 
     let mut mapping_delete_ids: Vec<u32> = Vec::new();
-    for key in plan.pull.delete.iter().chain(plan.push.delete.iter()) {
+    for key in &plan.push.delete {
         if let Some(id) = parse_local_key(key) {
             mapping_delete_ids.push(id);
         }

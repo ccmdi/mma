@@ -256,6 +256,16 @@ impl MemSink {
         out.sort_by_key(|r| r.local_id);
         out
     }
+    /// What the apply step records once the pulls have landed locally.
+    fn apply_pulls(&mut self, out: &SyncReconcileResult) {
+        let rows: Vec<RemoteMappingRow> = out
+            .pull_updates
+            .iter()
+            .map(|u| row(u.local_id, u.remote_id, u.hash.clone()))
+            .collect();
+        self.upsert(&rows).unwrap();
+        self.delete(&out.pull_delete_ids).unwrap();
+    }
 }
 
 impl MappingSink for MemSink {
@@ -435,6 +445,8 @@ fn pushes_local_edit_and_pulls_remote_edit() {
     assert_eq!(out.pull_updates.len(), 1);
     assert_eq!(out.pull_updates[0].local_id, 2);
     assert_eq!(out.pull_updates[0].patch.lat, Some(22.0));
+    assert_eq!(out.pull_updates[0].remote_id, 8);
+    assert_eq!(out.pull_updates[0].hash, nhash(|n| n.lat = 22.0));
 
     let pushes = provider.pushes.borrow();
     assert_eq!(pushes[0].updates.len(), 1);
@@ -446,11 +458,12 @@ fn pushes_local_edit_and_pulls_remote_edit() {
         sink.dump(),
         vec![
             (1, 1000, nhash(|n| n.lat = 11.0)),
-            (2, 8, nhash(|n| n.lat = 22.0)),
+            (2, 8, nhash(|n| n.lat = 2.0)),
         ]
     );
 
     // With the pull applied locally (JS's job), the second pass is a no-op.
+    sink.apply_pulls(&out);
     let settled_locs = [loc(1, |l| l.lat = 11.0), loc(2, |l| l.lat = 22.0)];
     let mut sink2 = MemSink::seeded(&sink.mapping());
     let out2 = sync(
@@ -556,7 +569,51 @@ fn resolution_to_remote_applies_as_a_pull() {
     assert_eq!(out.pull_updates.len(), 1);
     assert_eq!(out.pull_updates[0].local_id, 1);
     assert_eq!(out.pull_updates[0].patch.lat, Some(3.0));
-    assert_eq!(sink.dump(), vec![(1, 7, nhash(|n| n.lat = 3.0))]);
+    assert_eq!(out.pull_updates[0].remote_id, 7);
+    assert_eq!(out.pull_updates[0].hash, nhash(|n| n.lat = 3.0));
+    assert_eq!(sink.dump(), vec![(1, 7, nhash(|n| n.lat = 1.0))]);
+}
+
+#[test]
+fn pull_updates_and_pull_deletes_leave_their_mapping_rows_to_the_apply_step() {
+    let provider = Fake::stable(vec![
+        raw(|n| n.lat = 11.0, Some(7)),
+        raw(|n| n.lat = 2.0, Some(8)),
+    ]);
+    let locs = [
+        loc(1, |l| l.lat = 1.0),
+        loc(2, |l| l.lat = 2.0),
+        loc(3, |l| l.lat = 3.0),
+    ];
+    let mapping = [
+        row(1, 7, nhash(|n| n.lat = 1.0)),
+        row(2, 8, nhash(|n| n.lat = 2.0)),
+        row(3, 9, nhash(|n| n.lat = 3.0)),
+    ];
+    let mut sink = MemSink::seeded(&mapping);
+
+    let out = sync(&provider, &locs, &mapping, &no_tags(), &mut sink);
+
+    assert_eq!(out.pulled, side(0, 1, 1));
+    assert_eq!(out.pull_delete_ids, vec![3]);
+    assert!(sink.untouched());
+    assert_eq!(
+        sink.dump(),
+        vec![
+            (1, 7, nhash(|n| n.lat = 1.0)),
+            (2, 8, nhash(|n| n.lat = 2.0)),
+            (3, 9, nhash(|n| n.lat = 3.0)),
+        ]
+    );
+
+    sink.apply_pulls(&out);
+    assert_eq!(
+        sink.dump(),
+        vec![
+            (1, 7, nhash(|n| n.lat = 11.0)),
+            (2, 8, nhash(|n| n.lat = 2.0)),
+        ]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -1027,6 +1084,56 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
     let mut all_ids: Vec<u32> = sink2.rows.keys().copied().collect();
     all_ids.sort();
     assert_eq!(all_ids, vec![1, 2, 3]);
+}
+
+#[test]
+fn positional_pull_update_moves_to_its_new_index_but_keeps_its_base_hash_until_applied() {
+    let edited = || {
+        let mut r = raw(|n| n.lat = 3.0, None);
+        r.n.heading = 77.0;
+        r
+    };
+    let provider = Fake::positional(vec![
+        raw(|n| n.lat = 1.0, None),
+        raw(|n| n.lat = 2.0, None),
+        edited(),
+    ]);
+    let locs = [loc(2, |l| l.lat = 2.0), loc(3, |l| l.lat = 3.0)];
+    let mapping = [
+        row(1, 0, nhash(|n| n.lat = 1.0)),
+        row(2, 1, nhash(|n| n.lat = 2.0)),
+        row(3, 2, nhash(|n| n.lat = 3.0)),
+    ];
+    let mut sink = MemSink::seeded(&mapping);
+
+    let out = sync(&provider, &locs, &mapping, &no_tags(), &mut sink);
+
+    assert_eq!(out.pushed, side(0, 0, 1));
+    assert_eq!(out.pulled, side(0, 1, 0));
+    assert_eq!(out.pull_updates[0].local_id, 3);
+    assert_eq!(out.pull_updates[0].remote_id, 1);
+    assert_eq!(out.pull_updates[0].hash, sync_hash(&edited().n));
+    assert_eq!(
+        sink.dump(),
+        vec![
+            (2, 0, nhash(|n| n.lat = 2.0)),
+            (3, 1, nhash(|n| n.lat = 3.0)),
+        ]
+    );
+
+    sink.apply_pulls(&out);
+    let applied = [
+        loc(2, |l| l.lat = 2.0),
+        loc(3, |l| {
+            l.lat = 3.0;
+            l.heading = 77.0;
+        }),
+    ];
+    let mut sink2 = MemSink::seeded(&sink.mapping());
+    let out2 = sync(&provider, &applied, &sink.mapping(), &no_tags(), &mut sink2);
+    assert_eq!(out2.pushed, side(0, 0, 0));
+    assert_eq!(out2.pulled, side(0, 0, 0));
+    assert!(sink2.untouched());
 }
 
 // ---------------------------------------------------------------------------

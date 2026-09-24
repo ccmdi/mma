@@ -1567,6 +1567,8 @@ export type PullCreate = {
 export type PullUpdate = {
 	localId: number,
 	patch: SyncPatch,
+	remoteId: number,
+	hash: string,
 };
 
 /**  The questions one procedure is answering, taken together. */

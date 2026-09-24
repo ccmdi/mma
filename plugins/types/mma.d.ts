@@ -2303,6 +2303,8 @@ type PullCreate = {
 type PullUpdate = {
     localId: number;
     patch: SyncPatch;
+    remoteId: number;
+    hash: string;
 };
 /**  The questions one procedure is answering, taken together. @unstable */
 type QueryActivity = {
