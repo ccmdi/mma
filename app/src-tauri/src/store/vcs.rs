@@ -6,7 +6,7 @@
 //! graph. A commit's full state is materialized by replaying its ancestor deltas
 //! from genesis forward (see [`crate::store::vcs::delta`]).
 
-use crate::types::AppResult;
+use crate::types::{AppError, AppResult};
 use rusqlite::params;
 use tauri::State;
 
@@ -15,11 +15,12 @@ pub(crate) mod delta;
 use crate::selections::Selector;
 use crate::store::arrow;
 use crate::store::engine;
-use crate::store::engine::StoreState;
+use crate::store::engine::{StoreManager, StoreState};
 use crate::store::storage;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
 use std::fs;
+use std::path::Path;
 use std::time::Instant;
 
 // ---------------------------------------------------------------------------
@@ -156,7 +157,7 @@ pub async fn store_commit(
             // snapshot by copying the base (one serialization, not two); batch_to_delta
             // reads a 12-column snapshot as all-created.
             let base_path = storage::arrow_path(&map_id)?;
-            fs::copy(&base_path, &path)?;
+            storage::atomic_copy(&base_path, &path)?;
             (location_count, 0, 0)
         }
         None => {
@@ -233,18 +234,25 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()> {
+pub fn store_checkout_commit(
+    state: State<'_, StoreState>,
+    map_id: String,
+    commit_id: String,
+) -> AppResult<()> {
     let conn = storage::open_db()?;
     let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
     // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
     // base batch requires.
     let locs: Vec<Location> = materialized.into_values().collect();
-    let batch = arrow::locations_to_batch(&locs);
 
-    let path = storage::arrow_path(&map_id)?;
-    arrow::write_arrow_ipc(&path, &batch)?;
-    let delta = storage::arrow_delta_path(&map_id)?;
-    let _ = fs::remove_file(delta);
+    let mgr = state.lock()?;
+    write_checkout(
+        &mgr,
+        &map_id,
+        &locs,
+        &storage::arrow_path(&map_id)?,
+        &storage::arrow_delta_path(&map_id)?,
+    )?;
 
     log::info!(
         "[vcs] checkout {} on map {} ({} locs)",
@@ -252,6 +260,24 @@ pub fn store_checkout_commit(map_id: String, commit_id: String) -> AppResult<()>
         map_id,
         locs.len()
     );
+    Ok(())
+}
+
+/// Replace a closed map's base with `locs` and drop its uncommitted delta.
+fn write_checkout(
+    mgr: &StoreManager,
+    map_id: &str,
+    locs: &[Location],
+    base: &Path,
+    delta: &Path,
+) -> AppResult<()> {
+    if mgr.stores.contains_key(map_id) {
+        return Err(AppError(
+            "close this map in every other window before restoring a version".into(),
+        ));
+    }
+    arrow::write_arrow_ipc(base, &arrow::locations_to_batch(locs))?;
+    let _ = fs::remove_file(delta);
     Ok(())
 }
 
@@ -272,3 +298,7 @@ pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<Co
     let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
     Ok(CommitDelta { created, removed })
 }
+
+#[cfg(test)]
+#[path = "vcs.test.rs"]
+mod tests;

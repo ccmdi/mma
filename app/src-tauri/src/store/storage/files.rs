@@ -4,6 +4,7 @@ use super::*;
 use crate::types::{AppError, AppResult};
 use std::fs;
 use std::fs::{File, OpenOptions};
+use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -36,6 +37,15 @@ pub(crate) fn atomic_write_bytes(path: &Path, bytes: &[u8]) -> AppResult<()> {
     atomic_write(path, |mut file| {
         use std::io::Write;
         file.write_all(bytes).map_err(AppError::from)
+    })
+}
+
+/// [`atomic_write`] of `from`'s bytes to `to`.
+pub(crate) fn atomic_copy(from: &Path, to: &Path) -> AppResult<()> {
+    let mut source = File::open(from)?;
+    atomic_write(to, |mut file| {
+        io::copy(&mut source, &mut file)?;
+        Ok(())
     })
 }
 

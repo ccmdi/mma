@@ -24,3 +24,23 @@ fn concurrent_atomic_writes_to_one_destination_leave_one_intact_payload() {
     assert!(payloads.contains(&got));
     assert_eq!(sweep_tmp_under(dir.path()), 0);
 }
+
+#[test]
+fn atomic_copy_duplicates_the_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let from = dir.path().join("base.arrow");
+    let to = dir.path().join("genesis.arrow");
+    fs::write(&from, vec![7u8; 4096]).unwrap();
+    atomic_copy(&from, &to).unwrap();
+    assert_eq!(fs::read(&to).unwrap(), fs::read(&from).unwrap());
+    assert_eq!(sweep_tmp_under(dir.path()), 0);
+}
+
+#[test]
+fn a_failed_atomic_copy_leaves_no_destination_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let to = dir.path().join("genesis.arrow");
+    assert!(atomic_copy(&dir.path().join("missing.arrow"), &to).is_err());
+    assert!(!to.exists());
+    assert_eq!(sweep_tmp_under(dir.path()), 0);
+}
