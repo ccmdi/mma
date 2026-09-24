@@ -2,7 +2,8 @@
 //!
 //! Attaches to the LIVE app and serves it over HTTP. Browser requests are bridged
 //! into the app's own machinery, so there is no per-command or per-frontend code:
-//!   - `POST /__ipc/<cmd>`  -> the app's real invoke handler (`Webview::on_message`)
+//!   - `POST /__ipc/<cmd>`  -> the app's real invoke handler (`Webview::on_message`),
+//!                             through the calling tab's own hidden webview
 //!   - `GET  /<asset>`      -> the app's bundled frontend (`AssetResolver`), with a
 //!                             bootstrap `<script>` injected so the same desktop
 //!                             bundle boots in a browser (defines `__TAURI_INTERNALS__`)
@@ -26,7 +27,7 @@ use std::time::Duration;
 use tauri::ipc::{CallbackFn, InvokeBody, InvokeError, InvokeResponse};
 use tauri::plugin::{Builder, TauriPlugin};
 use tauri::webview::InvokeRequest;
-use tauri::{AppHandle, Manager, Runtime, Webview};
+use tauri::{AppHandle, Manager, Runtime, Webview, WebviewUrl, WebviewWindowBuilder};
 use tiny_http::{Header, Method, Response, Server};
 
 const BOOTSTRAP_JS: &str = include_str!("bootstrap.js");
@@ -101,6 +102,70 @@ where
 fn event_clients() -> &'static Mutex<Vec<Sender<Vec<u8>>>> {
     static CLIENTS: OnceLock<Mutex<Vec<Sender<Vec<u8>>>>> = OnceLock::new();
     CLIENTS.get_or_init(|| Mutex::new(Vec::new()))
+}
+
+// Each page load is a client with its own hidden webview, so state the app keys by
+// window label is per tab, as it is per window on desktop.
+const CLIENT_HEADER: &str = "x-webserve-client";
+const DEFAULT_CLIENT: &str = "main";
+/// Outlasts EventSource's reconnects, so only a client that is really gone loses its webview.
+const CLIENT_GRACE: Duration = Duration::from_secs(15);
+
+/// The client's webview label, or `None` for an id that is not a valid label.
+/// Requests that name no client share the default one.
+fn client_label(id: Option<&str>) -> Option<String> {
+    let Some(id) = id else {
+        return Some(DEFAULT_CLIENT.to_string());
+    };
+    let valid = !id.is_empty()
+        && id.len() <= 64
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+    valid.then(|| id.to_string())
+}
+
+fn client_streams() -> &'static Mutex<HashMap<String, usize>> {
+    static STREAMS: OnceLock<Mutex<HashMap<String, usize>>> = OnceLock::new();
+    STREAMS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+fn client_webview<R: Runtime>(handle: &AppHandle<R>, label: &str) -> Result<Webview<R>, String> {
+    if let Some(w) = handle.get_webview_window(label) {
+        return Ok(w.as_ref().clone());
+    }
+    WebviewWindowBuilder::new(
+        handle,
+        label,
+        WebviewUrl::External("about:blank".parse().unwrap()),
+    )
+    .visible(false)
+    .build()
+    .map(|w| w.as_ref().clone())
+    .map_err(|e| format!("client webview {label}: {e}"))
+}
+
+fn release_client<R: Runtime>(handle: AppHandle<R>, label: String) {
+    let gone = {
+        let mut streams = client_streams().lock().unwrap();
+        let n = streams.entry(label.clone()).or_default();
+        *n = n.saturating_sub(1);
+        *n == 0
+    };
+    if !gone || label == DEFAULT_CLIENT {
+        return;
+    }
+    std::thread::sleep(CLIENT_GRACE);
+    {
+        let mut streams = client_streams().lock().unwrap();
+        if streams.get(&label).copied().unwrap_or(0) > 0 {
+            return;
+        }
+        streams.remove(&label);
+    }
+    if let Some(w) = handle.get_webview_window(&label) {
+        let _ = w.destroy();
+    }
 }
 
 /// Forward a backend event to every connected web client (SSE). No-op when no
@@ -185,7 +250,11 @@ fn serve<R: Runtime>(handle: AppHandle<R>) {
             let _ = req.as_reader().read_to_string(&mut body);
             let args: serde_json::Value =
                 serde_json::from_str(&body).unwrap_or_else(|_| serde_json::json!({}));
-            let (status, out) = invoke(&handle, cmd, args);
+            let client = header_value(&req, CLIENT_HEADER);
+            let (status, out) = match client_label(client.as_deref()) {
+                Some(label) => invoke(&handle, &label, cmd, args),
+                None => (400, err_json("invalid client id")),
+            };
             let _ = req.respond(
                 Response::from_string(out)
                     .with_status_code(status)
@@ -195,11 +264,29 @@ fn serve<R: Runtime>(handle: AppHandle<R>) {
         }
 
         if method == Method::Get && path == "/__events" {
+            let client = query
+                .split('&')
+                .find_map(|kv| kv.strip_prefix("client="))
+                .map(url_decode);
+            let Some(label) = client_label(client.as_deref()) else {
+                let _ =
+                    req.respond(Response::from_string("invalid client id").with_status_code(400));
+                continue;
+            };
             let (tx, rx) = channel::<Vec<u8>>();
             event_clients().lock().unwrap().push(tx);
+            *client_streams()
+                .lock()
+                .unwrap()
+                .entry(label.clone())
+                .or_default() += 1;
+            let handle = handle.clone();
             // Own thread: the accept loop is single-threaded, so holding an SSE
             // connection open here would stall every other request.
-            std::thread::spawn(move || stream_events(req, rx));
+            std::thread::spawn(move || {
+                stream_events(req, rx);
+                release_client(handle, label);
+            });
             continue;
         }
 
@@ -291,12 +378,13 @@ fn stream_events(req: tiny_http::Request, rx: Receiver<Vec<u8>>) {
 
 fn invoke<R: Runtime>(
     handle: &AppHandle<R>,
+    client: &str,
     cmd: String,
     args: serde_json::Value,
 ) -> (u16, String) {
-    let webview = match handle.get_webview_window("main") {
-        Some(w) => w.as_ref().clone(),
-        None => return (500, err_json("ipc webview not ready")),
+    let webview = match client_webview(handle, client) {
+        Ok(w) => w,
+        Err(e) => return (500, err_json(&e)),
     };
 
     // Must be the app's real local origin or Tauri's ACL treats it as remote and

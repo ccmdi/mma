@@ -1,5 +1,5 @@
 //! Headless web-serve entry. Builds the real app with the `webserve` plugin and a
-//! hidden `about:blank` webview (the IPC dispatch host), registers the app's URI
+//! hidden `about:blank` webview (the default client's IPC host), registers the app's URI
 //! schemes for the web, then runs. All HTTP/bridge logic lives in the plugin -
 //! the only app-facing surface is enabling the plugin + the scheme registrations.
 //!
@@ -15,7 +15,8 @@ use crate::net::proxy;
 pub fn run_server() {
     crate::install_crypto_provider();
     // Drop the configured visible window; we make our own hidden blank "main"
-    // webview as the IPC dispatch host (the browser gets the bundle over HTTP).
+    // webview (the browser gets the bundle over HTTP). Browser tabs get their own
+    // webviews from the plugin; this one outlives them, so closing tabs never ends the app.
     let mut ctx = tauri::generate_context!();
     ctx.config_mut().app.windows.clear();
 

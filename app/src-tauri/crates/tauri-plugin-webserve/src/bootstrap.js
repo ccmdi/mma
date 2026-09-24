@@ -5,6 +5,13 @@
 (function () {
 	if (window.__TAURI_INTERNALS__ && window.__TAURI_INTERNALS__.__webserve) return;
 
+	// Per page load rather than sessionStorage, which a duplicated tab would copy.
+	const clientId =
+		"web-" +
+		Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) =>
+			b.toString(16).padStart(2, "0"),
+		).join("");
+
 	// --- callback registry (transformCallback) ---
 	let cbId = 0;
 	const callbacks = new Map();
@@ -144,7 +151,7 @@
 	function realInvoke(cmd, args) {
 		return fetch("/__ipc/" + cmd, {
 			method: "POST",
-			headers: { "Content-Type": "application/json" },
+			headers: { "Content-Type": "application/json", "X-Webserve-Client": clientId },
 			body: JSON.stringify(args ?? {}),
 		}).then(async (r) => {
 			const body = await r.json();
@@ -202,7 +209,7 @@
 	// Backend events (Rust app.emit) arrive over SSE and feed the same listener
 	// bus as in-tab emit. EventSource auto-reconnects, so transient drops self-heal.
 	if (typeof EventSource !== "undefined") {
-		const es = new EventSource("/__events");
+		const es = new EventSource("/__events?client=" + clientId);
 		es.onmessage = (m) => {
 			try {
 				const data = JSON.parse(m.data);
@@ -216,8 +223,8 @@
 	window.__TAURI_INTERNALS__ = {
 		__webserve: true,
 		metadata: {
-			currentWindow: { label: "main" },
-			currentWebview: { windowLabel: "main", label: "main" },
+			currentWindow: { label: clientId },
+			currentWebview: { windowLabel: clientId, label: clientId },
 		},
 		invoke,
 		transformCallback,

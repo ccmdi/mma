@@ -7,7 +7,16 @@
  * incidentally at best, so a regression there can pass ~46 of 47 tests.
  */
 
-import { createAndOpenMap, closeMap, deleteMap, withApi, addLocs, createLocation } from "./helpers";
+import {
+	createAndOpenMap,
+	closeMap,
+	deleteMap,
+	withApi,
+	addLocs,
+	createLocation,
+	getLocCount,
+	waitForReady,
+} from "./helpers";
 
 describe("Web bridge", () => {
 	let mapId: string;
@@ -94,6 +103,27 @@ describe("Web bridge", () => {
 					),
 				{ timeoutMsg: "the backend-emitted event never reached the listener" },
 			);
+		});
+	});
+
+	describe("clients", () => {
+		it("keeps each tab's open map its own", async () => {
+			const first = await browser.getWindowHandle();
+			await browser.newWindow(new URL(await browser.getUrl()).origin);
+			const second = await browser.getWindowHandle();
+			await waitForReady();
+			const other = await createAndOpenMap("web-bridge-other");
+			await addLocs([0, 1, 2].map((i) => createLocation({ lat: 10 + i, lng: 20 + i })));
+			expect(await getLocCount()).toBe(3);
+
+			await browser.switchToWindow(first);
+			expect(await getLocCount()).toBe(2);
+
+			await browser.switchToWindow(second);
+			await closeMap();
+			await deleteMap(other);
+			await browser.closeWindow();
+			await browser.switchToWindow(first);
 		});
 	});
 });
