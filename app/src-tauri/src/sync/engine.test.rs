@@ -297,7 +297,7 @@ fn drive(
         first_sync,
         resolutions,
     };
-    let planned = plan(&input);
+    let planned = plan(&input).unwrap();
     execute(provider, "r", planned, token, sink).unwrap()
 }
 
@@ -864,7 +864,7 @@ fn commits_each_chunk_as_it_lands_and_does_not_rewrite_them_at_the_end() {
         first_sync: None,
         resolutions: &[],
     };
-    let planned = plan(&input);
+    let planned = plan(&input).unwrap();
     let out = execute(&provider, "r", planned, None, &mut sink).unwrap();
 
     // Two chunk commits, and nothing after them: pushed keys are excluded from the final rows.
@@ -995,7 +995,7 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         first_sync: None,
         resolutions: &[],
     };
-    let planned = plan(&input);
+    let planned = plan(&input).unwrap();
     let result = execute(&provider, "r", planned, None, &mut sink);
 
     assert!(result.is_err());
@@ -1018,7 +1018,7 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         first_sync: None,
         resolutions: &[],
     };
-    let planned2 = plan(&input2);
+    let planned2 = plan(&input2).unwrap();
     let out = execute(&provider, "r", planned2, token2, &mut sink2).unwrap();
 
     assert_eq!(out.pushed, side(1, 0, 0));
@@ -1051,7 +1051,8 @@ fn content_keyed_entries_never_produce_conflict_rows_or_mapping_deletes() {
         tag_names: &no_tags(),
         first_sync: None,
         resolutions: &[],
-    });
+    })
+    .unwrap();
     assert_eq!(planned_mapped.conflicts.len(), 1);
     assert_eq!(planned_mapped.conflict_rows.len(), 1);
 
@@ -1068,7 +1069,8 @@ fn content_keyed_entries_never_produce_conflict_rows_or_mapping_deletes() {
         tag_names: &no_tags(),
         first_sync: None,
         resolutions: &[],
-    });
+    })
+    .unwrap();
     assert!(planned_unmapped.conflicts.is_empty());
     assert!(planned_unmapped.conflict_rows.is_empty());
     assert!(planned_unmapped.mapping_delete_ids.is_empty());
@@ -1081,9 +1083,7 @@ fn content_keyed_entries_never_produce_conflict_rows_or_mapping_deletes() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn empty_remote_snapshot_plans_pull_delete_for_every_mapped_location() {
-    // No threshold guard exists in the Rust engine or the TS layer: an empty remote
-    // deletes all mapped locals. This test documents the behavior.
+fn empty_remote_snapshot_with_a_nonempty_mapping_refuses_the_sync() {
     let provider = Fake::stable(vec![]);
     let locs = [
         loc(1, |l| l.lat = 1.0),
@@ -1095,17 +1095,32 @@ fn empty_remote_snapshot_plans_pull_delete_for_every_mapped_location() {
         row(2, 8, nhash(|n| n.lat = 2.0)),
         row(3, 9, nhash(|n| n.lat = 3.0)),
     ];
-    let mut sink = MemSink::seeded(&mapping);
 
-    let out = sync(&provider, &locs, &mapping, &no_tags(), &mut sink);
+    let planned = plan(&ReconcileInput {
+        provider: &provider,
+        local_locs: &locs,
+        remote: provider.pull("r").unwrap(),
+        mapping: &mapping,
+        tag_names: &no_tags(),
+        first_sync: None,
+        resolutions: &[],
+    });
+
+    assert!(planned.is_err());
+    assert!(provider.pushes.borrow().is_empty());
+}
+
+#[test]
+fn empty_remote_snapshot_with_an_empty_mapping_still_syncs() {
+    let provider = Fake::stable(vec![]);
+    let mut sink = MemSink::new();
+
+    let out = sync(&provider, &[], &[], &no_tags(), &mut sink);
 
     assert_eq!(out.pushed, side(0, 0, 0));
-    assert_eq!(out.pulled, side(0, 0, 3));
-    let mut ids = out.pull_delete_ids.clone();
-    ids.sort();
-    assert_eq!(ids, vec![1, 2, 3]);
-    assert!(sink.rows.is_empty());
-    assert!(provider.pushes.borrow().is_empty());
+    assert_eq!(out.pulled, side(0, 0, 0));
+    assert!(out.pull_delete_ids.is_empty());
+    assert!(sink.untouched());
 }
 
 // ---------------------------------------------------------------------------

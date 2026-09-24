@@ -228,7 +228,14 @@ fn build_push_batch<P: SyncProvider>(
     clippy::too_many_lines,
     reason = "a sequential pipeline whose stages thread the same accumulating state"
 )]
-pub(crate) fn plan<P: SyncProvider>(input: &ReconcileInput<P>) -> PlannedReconcile<P::Raw> {
+pub(crate) fn plan<P: SyncProvider>(
+    input: &ReconcileInput<P>,
+) -> AppResult<PlannedReconcile<P::Raw>> {
+    if input.remote.locations.is_empty() && !input.mapping.is_empty() {
+        return Err(AppError(
+            "The remote map came back empty, so nothing was synced.".into(),
+        ));
+    }
     let provider = input.provider;
     let positional = provider.identity() == IdentityModel::Positional;
 
@@ -519,7 +526,7 @@ pub(crate) fn plan<P: SyncProvider>(input: &ReconcileInput<P>) -> PlannedReconci
     }
 
     let counts = summarize(&plan);
-    PlannedReconcile {
+    Ok(PlannedReconcile {
         counts_push: counts.push,
         counts_pull: counts.pull,
         conflicts: plan.conflicts,
@@ -535,7 +542,7 @@ pub(crate) fn plan<P: SyncProvider>(input: &ReconcileInput<P>) -> PlannedReconci
         rows,
         conflict_rows,
         mapping_delete_ids,
-    }
+    })
 }
 
 // --- Layer 2: execution -----------------------------------------------------
@@ -663,7 +670,7 @@ fn reconcile_with<P: SyncProvider>(
         resolutions: req.resolutions,
     };
     let t = Instant::now();
-    let planned = plan(&input);
+    let planned = plan(&input)?;
     log::info!(
         "[sync] plan: push {}+{}+{} pull {}+{}+{} adopted {} conflicts {} rows {} in {:.1}s",
         planned.counts_push.create,
