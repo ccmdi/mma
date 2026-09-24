@@ -96,10 +96,11 @@ function historyBuilds(dirPath, currentMinApp, currentVersion) {
 			continue;
 		}
 
-		// Only what picking a build needs. The rest comes from the manifest at `ref`,
-		// which the installer fetches first anyway.
+		// Only what picking a build and checking its install needs. The rest comes from
+		// the manifest at `ref`, which the installer fetches first anyway.
 		const build = { version: pinned.version, ref };
 		if (floor) build.minAppVersion = floor;
+		if (pinned.sidecar) build.sidecar = { name: pinned.sidecar.name, version: pinned.sidecar.version };
 		builds.push(build);
 	}
 	return builds;

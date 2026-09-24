@@ -37,35 +37,44 @@ export interface ResolvedBuild {
 	version: string;
 	ref: string | null;
 	minAppVersion: string | null;
+	sidecarVersion: string | null;
 }
 
 /** The newest build of a plugin this app version can run. Falls back through older
  *  pinned builds when the latest is incompatible. Null when none fit. */
 export function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null {
 	if (isPluginCompatible(entry.minAppVersion, appVersion)) {
-		return { version: entry.version, ref: null, minAppVersion: entry.minAppVersion ?? null };
+		return {
+			version: entry.version,
+			ref: null,
+			minAppVersion: entry.minAppVersion ?? null,
+			sidecarVersion: entry.sidecar?.version ?? null,
+		};
 	}
 	for (const b of entry.builds ?? []) {
 		if (isPluginCompatible(b.minAppVersion, appVersion)) {
-			return { version: b.version, ref: b.ref, minAppVersion: b.minAppVersion ?? null };
+			return {
+				version: b.version,
+				ref: b.ref,
+				minAppVersion: b.minAppVersion ?? null,
+				sidecarVersion: b.sidecar?.version ?? null,
+			};
 		}
 	}
 	return null;
 }
 
-/** True when the installed plugin should be refreshed to `target`. */
+/** True when the installed plugin or its sidecar should be refreshed to `target`. */
 export function needsBuildUpdate(
 	installedVersion: string | undefined,
 	target: ResolvedBuild,
 	installedSidecarVersion: string | null | undefined,
-	latestSidecarVersion: string | undefined,
 ): boolean {
-	if (target.ref) return isPluginUpdatable(installedVersion, target.version);
 	return needsUpdate(
 		installedVersion,
 		target.version,
 		installedSidecarVersion,
-		latestSidecarVersion,
+		target.sidecarVersion ?? undefined,
 	);
 }
 
@@ -97,10 +106,10 @@ export async function autoUpdatePlugin(
 	if (!latest) return m;
 	const target = resolveBuild(latest, appVersion);
 	if (!target) return m;
-	const sidecarVersion = latest.sidecar
+	const sidecarVersion = target.sidecarVersion
 		? await cmd.sidecarInstalledVersion(m.id).catch(() => null)
 		: null;
-	if (!needsBuildUpdate(m.version, target, sidecarVersion, latest.sidecar?.version)) return m;
+	if (!needsBuildUpdate(m.version, target, sidecarVersion)) return m;
 	try {
 		const fresh = await cmd.installPlugin(m.id, target.ref);
 		if (fresh.sidecar) {

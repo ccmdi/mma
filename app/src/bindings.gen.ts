@@ -1341,6 +1341,8 @@ export type PluginBuild_Deserialize = {
 	version: string,
 	ref: string,
 	minAppVersion: string | null,
+	/**  The sidecar this build ships, so a half-installed one can be repaired. */
+	sidecar?: PluginSidecar_Deserialize | null,
 };
 
 /**  A published build of a plugin. */
@@ -1348,6 +1350,8 @@ export type PluginBuild = {
 	version: string,
 	ref: string,
 	minAppVersion?: string | null,
+	/**  The sidecar this build ships, so a half-installed one can be repaired. */
+	sidecar?: PluginSidecar | null,
 };
 
 

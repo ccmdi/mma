@@ -91,7 +91,8 @@ pub struct PluginManifest {
 }
 
 /// A published build of a plugin.
-// Carries only what picking a build needs; the rest comes from the manifest at `git_ref`.
+// Carries only what picking a build and checking its install needs; the rest comes from the
+// manifest at `git_ref`.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PluginBuild {
@@ -100,6 +101,9 @@ pub struct PluginBuild {
     git_ref: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     min_app_version: Option<String>,
+    /// The sidecar this build ships, so a half-installed one can be repaired.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    sidecar: Option<PluginSidecar>,
 }
 
 impl Default for PluginManifest {

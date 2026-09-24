@@ -271,7 +271,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 				const updatable =
 					isInstalled &&
 					!!target &&
-					needsBuildUpdate(manifest.version, target, sidecarVersions[r.id], r.sidecar?.version);
+					needsBuildUpdate(manifest.version, target, sidecarVersions[r.id]);
 				const entry: PluginEntry = {
 					...identity(r),
 					installed: isInstalled,

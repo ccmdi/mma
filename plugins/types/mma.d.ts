@@ -2088,12 +2088,16 @@ type PluginBuild_Deserialize = {
     version: string;
     ref: string;
     minAppVersion: string | null;
+    /**  The sidecar this build ships, so a half-installed one can be repaired. */
+    sidecar?: PluginSidecar_Deserialize | null;
 };
 /**  A published build of a plugin. */
 type PluginBuild = {
     version: string;
     ref: string;
     minAppVersion?: string | null;
+    /**  The sidecar this build ships, so a half-installed one can be repaired. */
+    sidecar?: PluginSidecar | null;
 };
 /**  Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`. @unstable */
 type PluginManifest_Deserialize = {
@@ -5522,12 +5526,13 @@ export interface ResolvedBuild {
     version: string;
     ref: string | null;
     minAppVersion: string | null;
+    sidecarVersion: string | null;
 }
 /** The newest build of a plugin this app version can run. Falls back through older
  *  pinned builds when the latest is incompatible. Null when none fit. @unstable */
 declare function resolveBuild(entry: PluginManifest, appVersion: string): ResolvedBuild | null;
-/** True when the installed plugin should be refreshed to `target`. @unstable */
-declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined, latestSidecarVersion: string | undefined): boolean;
+/** True when the installed plugin or its sidecar should be refreshed to `target`. @unstable */
+declare function needsBuildUpdate(installedVersion: string | undefined, target: ResolvedBuild, installedSidecarVersion: string | null | undefined): boolean;
 /** Fetch the marketplace plugin registry. Later calls return the first result until restart. @unstable */
 declare function fetchPluginRegistry(): Promise<PluginManifest[]>;
 /** Auto-update a plugin to the newest compatible build before loading it. Falls back

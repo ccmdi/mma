@@ -6931,11 +6931,10 @@ needsBuildUpdate(
   installedVersion: string | undefined,
   target: ResolvedBuild,
   installedSidecarVersion: string | null | undefined,
-  latestSidecarVersion: string | undefined,
 ): boolean
 ```
 
-True when the installed plugin should be refreshed to `target`.
+True when the installed plugin or its sidecar should be refreshed to `target`.
 
 ### needsUpdate
 

@@ -89,6 +89,7 @@ describe("resolveBuild", () => {
 			version: "2.0.0",
 			ref: null,
 			minAppVersion: "1.0.0",
+			sidecarVersion: null,
 		});
 	});
 
@@ -104,10 +105,21 @@ describe("resolveBuild", () => {
 			version: "1.5.0",
 			ref: REF,
 			minAppVersion: "1.0.0",
+			sidecarVersion: null,
 		});
 	});
 
 	// builds are newest-first, so the first compatible one is the answer.
+	it("carries the chosen build's own sidecar version", () => {
+		const e = entry({
+			minAppVersion: "9.0.0",
+			sidecar: { name: "mma-x", version: "0.9.0" },
+			builds: [{ version: "1.5.0", ref: REF, sidecar: { name: "mma-x", version: "0.1.0" } }],
+		});
+		expect(resolveBuild(e, "1.0.0")?.sidecarVersion).toBe("0.1.0");
+		expect(resolveBuild({ ...e, minAppVersion: null }, "1.0.0")?.sidecarVersion).toBe("0.9.0");
+	});
+
 	it("skips fallbacks that also require a newer app", () => {
 		const e = entry({
 			minAppVersion: "9.0.0",
@@ -130,17 +142,23 @@ describe("resolveBuild", () => {
 });
 
 describe("needsBuildUpdate", () => {
-	it("compares versions only for a pinned build", () => {
-		const target = { version: "1.5.0", ref: REF, minAppVersion: null };
-		expect(needsBuildUpdate("1.0.0", target, "0.1.0", "0.9.0")).toBe(true);
-		// Sidecar drift against the latest build says nothing about a pinned one.
-		expect(needsBuildUpdate("1.5.0", target, "0.1.0", "0.9.0")).toBe(false);
+	it("compares versions only for a pinned build without a sidecar", () => {
+		const target = { version: "1.5.0", ref: REF, minAppVersion: null, sidecarVersion: null };
+		expect(needsBuildUpdate("1.0.0", target, "0.1.0")).toBe(true);
+		expect(needsBuildUpdate("1.5.0", target, "0.1.0")).toBe(false);
+	});
+
+	it("repairs a pinned build's sidecar that is missing or drifted (#251)", () => {
+		const target = { version: "1.5.0", ref: REF, minAppVersion: null, sidecarVersion: "0.1.0" };
+		expect(needsBuildUpdate("1.5.0", target, null)).toBe(true);
+		expect(needsBuildUpdate("1.5.0", target, "0.0.9")).toBe(true);
+		expect(needsBuildUpdate("1.5.0", target, "0.1.0")).toBe(false);
 	});
 
 	it("stays sidecar-aware for the latest build", () => {
-		const target = { version: "1.0.0", ref: null, minAppVersion: null };
-		expect(needsBuildUpdate("1.0.0", target, "0.1.0", "0.2.0")).toBe(true);
-		expect(needsBuildUpdate("1.0.0", target, "0.2.0", "0.2.0")).toBe(false);
+		const target = { version: "1.0.0", ref: null, minAppVersion: null, sidecarVersion: "0.2.0" };
+		expect(needsBuildUpdate("1.0.0", target, "0.1.0")).toBe(true);
+		expect(needsBuildUpdate("1.0.0", target, "0.2.0")).toBe(false);
 	});
 });
 
@@ -184,8 +202,6 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		expect(installPlugin).toHaveBeenCalledWith("p", REF);
 	});
 
-	// The fallback's sidecar version is only knowable from its own manifest, so the
-	// pre-download check can't compare it -- install reconciles it after.
 	it("installs a pinned build's sidecar from the manifest it downloads", async () => {
 		sidecarInstalledVersion.mockResolvedValue("0.9.0");
 		installPlugin.mockResolvedValue(manifest({ sidecar: { name: "mma-x", version: "0.1.0" } }));
@@ -196,6 +212,21 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 			builds: [{ version: "1.5.0", ref: REF }],
 		});
 		await autoUpdatePlugin(manifest(), latest, "1.0.0");
+		expect(installPlugin).toHaveBeenCalledWith("p", REF);
+		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.1.0");
+	});
+
+	it("repairs a pinned build's broken sidecar at the same version", async () => {
+		const sidecar = { name: "mma-x", version: "0.1.0" };
+		sidecarInstalledVersion.mockResolvedValue(null);
+		installPlugin.mockResolvedValue(manifest({ version: "1.5.0", sidecar }));
+		const latest = manifest({
+			version: "2.0.0",
+			minAppVersion: "9.0.0",
+			sidecar: { name: "mma-x", version: "0.9.0" },
+			builds: [{ version: "1.5.0", ref: REF, sidecar }],
+		});
+		await autoUpdatePlugin(manifest({ version: "1.5.0", sidecar }), latest, "1.0.0");
 		expect(installPlugin).toHaveBeenCalledWith("p", REF);
 		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.1.0");
 	});

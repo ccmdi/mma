@@ -17,21 +17,37 @@
 			{
 				"version": "0.5.1",
 				"ref": "8d92f3783c2b8bdf1e05a3ade6a6330a970d138e",
-				"minAppVersion": "0.11.1"
+				"minAppVersion": "0.11.1",
+				"sidecar": {
+					"name": "mma-copyright",
+					"version": "0.5.0"
+				}
 			},
 			{
 				"version": "0.5.0",
 				"ref": "35c64636f2282185c73d3835ee051037f7b77c24",
-				"minAppVersion": "0.10.2"
+				"minAppVersion": "0.10.2",
+				"sidecar": {
+					"name": "mma-copyright",
+					"version": "0.5.0"
+				}
 			},
 			{
 				"version": "0.3.10",
 				"ref": "2d806fbae2d609ff35e4d55ceea86352d07a60c3",
-				"minAppVersion": "0.10.0"
+				"minAppVersion": "0.10.0",
+				"sidecar": {
+					"name": "mma-copyright",
+					"version": "0.3.0"
+				}
 			},
 			{
 				"version": "0.3.1",
-				"ref": "471972e1b93fb7bb10dc6ce5f786c223a1f59120"
+				"ref": "471972e1b93fb7bb10dc6ce5f786c223a1f59120",
+				"sidecar": {
+					"name": "mma-copyright",
+					"version": "0.3.0"
+				}
 			}
 		]
 	},
@@ -138,16 +154,28 @@
 			{
 				"version": "0.2.10",
 				"ref": "c61887bc7bc0e8a655d6da6abb4f6d4c8ca89ba5",
-				"minAppVersion": "0.10.2"
+				"minAppVersion": "0.10.2",
+				"sidecar": {
+					"name": "mma-vision",
+					"version": "0.4.3"
+				}
 			},
 			{
 				"version": "0.2.8",
 				"ref": "a33543b7da5df3407d64eef7db231e12f2421c4b",
-				"minAppVersion": "0.10.0"
+				"minAppVersion": "0.10.0",
+				"sidecar": {
+					"name": "mma-vision",
+					"version": "0.4.2"
+				}
 			},
 			{
 				"version": "0.2.8",
-				"ref": "5689c1cc5d008749d90ed7b08f456b53f0090726"
+				"ref": "5689c1cc5d008749d90ed7b08f456b53f0090726",
+				"sidecar": {
+					"name": "mma-vision",
+					"version": "0.4.2"
+				}
 			}
 		]
 	},
