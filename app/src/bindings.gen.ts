@@ -355,9 +355,9 @@ export const commands = {
 	/**
 	 *  Commit a previously previewed editor import into the open map, optionally
 	 *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-	 *  and/or applying `tagName` to every imported location.
+	 *  and/or applying each of `tagNames` to every imported location.
 	 */
-	storeImportFile: (droppedFields: string[], tagName: string | null) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagName }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
+	storeImportFile: (droppedFields: string[], tagNames: string[]) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagNames }).then((v) => (({...v,mutation:({...v.mutation,delta:({...v.mutation.delta,added:v.mutation.delta.added.map(i=>i),updated:v.mutation.delta.updated.map(i=>({...i,lng:i.lng==null?i.lng:i.lng,lat:i.lat==null?i.lat:i.lat,heading:i.heading==null?i.heading:i.heading}))}),values:({...v.mutation.values,fieldDefs:v.mutation.values.fieldDefs==null?v.mutation.values.fieldDefs:Object.fromEntries(Object.entries(v.mutation.values.fieldDefs).map(([k,v])=>[k,({...v,comparison:v.comparison==null?v.comparison:v.comparison})]))})})}) as typeof v)),
 	/**  Discard the staged import without importing it. */
 	storeImportCancel: () => __TAURI_INVOKE<void>("store_import_cancel"),
 	/**  The location a pasted Maps URL names, short links resolved. */

@@ -4491,11 +4491,11 @@ Discard the staged import without committing.
 ```ts
 confirmImport(
   droppedFields: string[],
-  tagName?: string,
+  tagNames?: string[],
 ): Promise<EditorImportResult | null>
 ```
 
-Commit the staged import, optionally dropping fields and applying a bulk tag.
+Commit the staged import, optionally dropping fields and applying bulk tags.
 
 ### getImportPreviewPositions
 
@@ -6073,13 +6073,13 @@ Discard the staged import without importing it.
 ```ts
 cmd.storeImportFile(
   droppedFields: string[],
-  tagName: string | null,
+  tagNames: string[],
 ): Promise<EditorImportResult>
 ```
 
 Commit a previously previewed editor import into the open map, optionally
 dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-and/or applying `tagName` to every imported location.
+and/or applying each of `tagNames` to every imported location.
 
 #### cmd.storeImportLegacySavedSelections
 
@@ -8170,11 +8170,11 @@ Delete a map by id.
 ```ts
 _test.importFile(
   droppedFields: string[],
-  tagName?: string,
+  tagNames?: string[],
 ): Promise<EditorImportResult>
 ```
 
-Import a previewed file, optionally assigning a tag.
+Import a previewed file, optionally assigning tags.
 
 #### _test.importPaste
 

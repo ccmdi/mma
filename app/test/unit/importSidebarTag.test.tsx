@@ -7,7 +7,7 @@ import type { EditorImportPreview } from "@/bindings.gen";
 // trace().end() logs through tauri-plugin-log, which needs a host.
 Object.assign(window, { __TAURI_INTERNALS__: { invoke: async () => {} } });
 
-const confirmImport = vi.fn(async (_dropped?: string[], _tagName?: string) => ({
+const confirmImport = vi.fn(async (_dropped?: string[], _tagNames?: string[]) => ({
 	importedCount: 1,
 }));
 let staging: { preview: EditorImportPreview; source: "file" } | null = null;
@@ -15,7 +15,7 @@ let tags: Tag[] = [];
 
 vi.mock("@/store/importStaging", () => ({
 	getImportStaging: () => staging,
-	confirmImport: (dropped: string[], tagName?: string) => confirmImport(dropped, tagName),
+	confirmImport: (dropped: string[], tagNames?: string[]) => confirmImport(dropped, tagNames),
 	cancelImport: () => {},
 }));
 
@@ -53,6 +53,22 @@ function type(text: string) {
 	});
 }
 
+function submitTag() {
+	const form = container.querySelector<HTMLFormElement>(".form-add-tag")!;
+	act(() => {
+		form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+	});
+}
+
+function removeTag(name: string) {
+	const pill = [...container.querySelectorAll(".tag")].find(
+		(e) => e.querySelector(".tag__text")?.textContent === name,
+	)!;
+	act(() =>
+		pill.querySelector("button")!.dispatchEvent(new MouseEvent("click", { bubbles: true })),
+	);
+}
+
 async function clickImport() {
 	const button = [...container.querySelectorAll("button")].find((b) => b.textContent === "Import")!;
 	await act(() => button.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -76,7 +92,7 @@ describe("import bulk tag", () => {
 		const unmount = mount();
 		type("france");
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], "france");
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
 		unmount();
 	});
 
@@ -104,7 +120,7 @@ describe("import bulk tag", () => {
 		type("   ");
 		expect(pills()).toEqual([]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], "");
+		expect(confirmImport).toHaveBeenCalledWith([], []);
 		unmount();
 	});
 
@@ -113,7 +129,58 @@ describe("import bulk tag", () => {
 		type("  france  ");
 		expect(pills()).toEqual(["france"]);
 		await clickImport();
-		expect(confirmImport).toHaveBeenCalledWith([], "france");
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
+		unmount();
+	});
+});
+
+// #231: several tags, each added with Enter or +.
+describe("import bulk tags", () => {
+	it("adds the typed tag as a chip and clears the input", () => {
+		const unmount = mount();
+		type("france");
+		submitTag();
+		expect(pills()).toEqual(["france"]);
+		expect(container.querySelector<HTMLInputElement>(".form-add-tag__input")!.value).toBe("");
+		unmount();
+	});
+
+	it("imports with every added tag plus the one still typed", async () => {
+		const unmount = mount();
+		type("france");
+		submitTag();
+		type("urban");
+		submitTag();
+		type("2024");
+		expect(pills()).toEqual(["france", "urban", "2024"]);
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], ["france", "urban", "2024"]);
+		unmount();
+	});
+
+	it("collapses repeats case-insensitively", async () => {
+		const unmount = mount();
+		type("france");
+		submitTag();
+		type("France");
+		submitTag();
+		type("FRANCE");
+		expect(pills()).toEqual(["france"]);
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], ["france"]);
+		unmount();
+	});
+
+	it("drops a removed chip from the import", async () => {
+		const unmount = mount();
+		type("france");
+		submitTag();
+		type("urban");
+		submitTag();
+		removeTag("france");
+		expect(pills()).toEqual(["urban"]);
+		await clickImport();
+		expect(confirmImport).toHaveBeenCalledWith([], ["urban"]);
 		unmount();
 	});
 });

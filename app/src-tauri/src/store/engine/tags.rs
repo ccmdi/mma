@@ -8,13 +8,13 @@ use crate::util;
 
 impl Store {
     /// Remap incoming tag ids onto this map's records by name (import and cross-map
-    /// copy), rewriting `locations` in place; `bulk_tag` is one more incoming name
+    /// copy), rewriting `locations` in place; `bulk_tags` are more incoming names
     /// through the same path, applied to every location. Record changes persist and
     /// ship on the enclosing mutation like any other edit.
     pub(crate) fn reconcile_incoming_tags(
         &mut self,
         source: &[(u32, ValueRecord)],
-        bulk_tag: Option<&str>,
+        bulk_tags: &[String],
         locations: &mut [Location],
     ) {
         let floor = self.intern_floor("tags");
@@ -24,22 +24,29 @@ impl Store {
         if changed {
             meta.replace(staged);
         }
-        let bulk_id = bulk_tag
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .and_then(|name| {
+        let seeds: Vec<ValueRecord> = bulk_tags
+            .iter()
+            .map(|name| name.trim())
+            .filter(|name| !name.is_empty())
+            .map(|name| {
                 let mut seed = ValueRecord::new();
                 seed.insert("name".into(), name.into());
                 seed.insert("color".into(), util::color_for_name(name).into());
-                self.intern("tags", &[seed]).ok().map(|ids| ids[0])
-            });
+                seed
+            })
+            .collect();
+        let bulk_ids = if seeds.is_empty() {
+            Vec::new()
+        } else {
+            self.intern("tags", &seeds).unwrap_or_default()
+        };
         for loc in locations.iter_mut() {
             loc.tags = loc
                 .tags
                 .iter()
                 .filter_map(|old| remap.get(old).copied())
                 .collect();
-            if let Some(b) = bulk_id {
+            for &b in &bulk_ids {
                 if !loc.tags.contains(&b) {
                     loc.tags.push(b);
                 }

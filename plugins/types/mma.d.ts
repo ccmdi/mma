@@ -857,10 +857,10 @@ declare const commands$1: {
     /**
      *  Commit a previously previewed editor import into the open map, optionally
      *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-     *  and/or applying `tagName` to every imported location.
+     *  and/or applying each of `tagNames` to every imported location.
      *  @unstable
      */
-    storeImportFile: (droppedFields: string[], tagName: string | null) => Promise<EditorImportResult>;
+    storeImportFile: (droppedFields: string[], tagNames: string[]) => Promise<EditorImportResult>;
     /**  Discard the staged import without importing it. @unstable */
     storeImportCancel: () => Promise<void>;
     /**  The location a pasted Maps URL names, short links resolved. @unstable */
@@ -4954,8 +4954,8 @@ declare function resetImportState(): void;
 declare function beginImportFromPath(path: string): Promise<void>;
 /** Stage pasted text for preview. Throws if no locations are found. @unstable */
 declare function beginImportPaste(text: string): Promise<void>;
-/** Commit the staged import, optionally dropping fields and applying a bulk tag. @unstable */
-declare function confirmImport(droppedFields: string[], tagName?: string): Promise<EditorImportResult | null>;
+/** Commit the staged import, optionally dropping fields and applying bulk tags. @unstable */
+declare function confirmImport(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult | null>;
 /** Discard the staged import without committing. @unstable */
 declare function cancelImport(): void;
 
@@ -7496,8 +7496,8 @@ declare function closeMap(): Promise<void>;
 declare function deleteMap(id: string): Promise<void>;
 /** Import locations from pasted text and commit them to the map. @unstable */
 declare function importPaste(text: string): Promise<EditorImportResult[]>;
-/** Import a previewed file, optionally assigning a tag. @unstable */
-declare function importFile(droppedFields: string[], tagName?: string): Promise<EditorImportResult>;
+/** Import a previewed file, optionally assigning tags. @unstable */
+declare function importFile(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult>;
 
 /** @unstable */
 declare const testApi_closeMap: typeof closeMap;

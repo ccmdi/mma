@@ -12,7 +12,7 @@ import { Section, Sidebar } from "@/components/primitives/Sidebar";
 import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Notice } from "@/components/primitives/Hint";
-import { TagPill } from "@/components/primitives/TagPill";
+import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { tagColorFor, toggleInSet } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
@@ -35,6 +35,7 @@ export function ImportSidebar() {
 	const staging = useEventValue("import-markers:changed", getImportStaging);
 	const visibleTags = useMapState(getVisibleTags);
 	const [droppedFields, setDroppedFields] = useState(loadDroppedFields);
+	const [bulkTags, setBulkTags] = useState<string[]>([]);
 	const [tagInput, setTagInput] = useState("");
 	const [importing, setImporting] = useState(false);
 	const [error, setError] = useState<string | null>(null);
@@ -43,7 +44,14 @@ export function ImportSidebar() {
 
 	if (!staging) return null;
 	const { preview } = staging;
-	const bulkTag = tagInput.trim();
+	const typed = tagInput.trim();
+	const typedIsNew = typed !== "" && !bulkTags.some((n) => n.toLowerCase() === typed.toLowerCase());
+	// The typed tag applies too, added or not (#105).
+	const importTags = typedIsNew ? [...bulkTags, typed] : bulkTags;
+	const addTag = () => {
+		if (typedIsNew) setBulkTags(importTags);
+		setTagInput("");
+	};
 
 	const toggleField = (key: string) => {
 		setDroppedFields((prev) => {
@@ -73,7 +81,7 @@ export function ImportSidebar() {
 		setError(null);
 		const t = trace("import");
 		try {
-			const r = await confirmImport([...droppedFields], bulkTag);
+			const r = await confirmImport([...droppedFields], importTags);
 			t.end({ imported: r?.importedCount ?? 0 });
 		} catch (e: unknown) {
 			log.error("[import] failed:", e);
@@ -129,10 +137,25 @@ export function ImportSidebar() {
 			<Section title={t("Tag all imported locations")}>
 				<ul className="tag-list">
 					<li>
-						<AddTagForm value={tagInput} onChange={setTagInput} />
+						<AddTagForm value={tagInput} onChange={setTagInput} onAdd={addTag} />
 					</li>
-					{bulkTag && (
-						<TagPill as="li" small color={tagColorFor(bulkTag, visibleTags)} label={bulkTag} />
+					{bulkTags.map((name) => (
+						<TagPill
+							as="li"
+							key={name}
+							small
+							color={tagColorFor(name, visibleTags)}
+							label={name}
+							button={
+								<TagPillButton
+									variant="delete"
+									onClick={() => setBulkTags(bulkTags.filter((n) => n !== name))}
+								/>
+							}
+						/>
+					))}
+					{typedIsNew && (
+						<TagPill as="li" small color={tagColorFor(typed, visibleTags)} label={typed} />
 					)}
 				</ul>
 			</Section>

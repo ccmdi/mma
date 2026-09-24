@@ -275,7 +275,7 @@ pub(crate) fn add_copied_to_store(
         tags,
         ..Default::default()
     };
-    add_parsed_to_store(store, &mut parsed, None)
+    add_parsed_to_store(store, &mut parsed, &[])
 }
 
 /// Insert parsed locations into the open map's store via the overlay.
@@ -289,11 +289,11 @@ pub(crate) fn add_copied_to_store(
 pub(super) fn add_parsed_to_store(
     store: &mut engine::Store,
     parsed: &mut ParsedMap,
-    bulk_tag: Option<&str>,
+    bulk_tags: &[String],
 ) -> AppResult<engine::MutationResult> {
     let _t = Instant::now();
     let n = parsed.locations.len();
-    store.reconcile_incoming_tags(&parsed.tags, bulk_tag, &mut parsed.locations);
+    store.reconcile_incoming_tags(&parsed.tags, bulk_tags, &mut parsed.locations);
     for loc in &mut parsed.locations {
         loc.id = store.alloc_id();
     }
@@ -333,7 +333,7 @@ pub(super) fn add_parsed_to_store(
 
 /// Commit a previously previewed editor import into the open map, optionally
 /// dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
-/// and/or applying `tagName` to every imported location.
+/// and/or applying each of `tagNames` to every imported location.
 // `async` so the insert + render-buffer registration runs off the main (event-loop)
 // thread; as a sync command it froze the webview for the duration of the import insert.
 #[tauri::command]
@@ -342,7 +342,7 @@ pub async fn store_import_file(
     label: WindowLabel,
     state: tauri::State<'_, engine::StoreState>,
     dropped_fields: Vec<String>,
-    tag_name: Option<String>,
+    tag_names: Vec<String>,
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
     let mut parsed =
@@ -384,7 +384,7 @@ pub async fn store_import_file(
     log::debug!("[import] parse=cached locs={imported_count}");
 
     with_store!(label, state, |store| {
-        let mutation = add_parsed_to_store(store, &mut parsed, tag_name.as_deref())?;
+        let mutation = add_parsed_to_store(store, &mut parsed, &tag_names)?;
 
         log::debug!(
             "[import] total={:.0}ms locs={}",

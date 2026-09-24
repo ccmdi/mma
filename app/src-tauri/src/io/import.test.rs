@@ -918,7 +918,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         ..Default::default()
     };
 
-    let r = add_parsed_to_store(&mut store, &mut parsed, None).unwrap();
+    let r = add_parsed_to_store(&mut store, &mut parsed, &[]).unwrap();
 
     // Both copies landed in the target store.
     assert_eq!(r.values.location_count, Some(2));
@@ -958,6 +958,37 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         .as_ref()
         .and_then(|m| m.get("tags"))
         .is_some_and(|t| t.contains_key(&unique_id)));
+}
+
+#[test]
+fn bulk_tags_apply_every_name_to_every_import() {
+    // "shared" reuses the existing "Shared" (id 5); blanks drop and repeats collapse.
+    let mut store = Store::new();
+    store.map_id = Some("test".into());
+    store.value_meta.insert(
+        "tags".into(),
+        engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
+    );
+    let mut parsed = ParsedMap {
+        locations: vec![loc_with_tags(1, vec![]), loc_with_tags(2, vec![])],
+        ..Default::default()
+    };
+    let names = ["shared", " France ", "", "france"].map(String::from);
+
+    add_parsed_to_store(&mut store, &mut parsed, &names).unwrap();
+
+    let meta = &store.value_meta["tags"];
+    let (france, _) = meta
+        .iter()
+        .find(|(_, rec)| record_name(rec) == Some("France"))
+        .expect("France created");
+    let france = *france;
+    assert_eq!(meta.values().count(), 2);
+    let stored = store.collect(&Selector::Everything);
+    assert_eq!(stored.len(), 2);
+    for l in &stored {
+        assert_eq!(l.tags, vec![5, france]);
+    }
 }
 
 #[test]

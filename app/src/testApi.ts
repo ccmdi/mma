@@ -56,14 +56,14 @@ export function deleteMap(id: string) {
 /** Import locations from pasted text and commit them to the map. */
 export async function importPaste(text: string) {
 	await cmd.storeImportPastePreview(text);
-	const r = await cmd.storeImportFile([], null);
+	const r = await cmd.storeImportFile([], []);
 	await mutate(() => Promise.resolve(r.mutation));
 	return [r];
 }
 
-/** Import a previewed file, optionally assigning a tag. */
-export async function importFile(droppedFields: string[], tagName?: string) {
-	const r = await cmd.storeImportFile(droppedFields, tagName ?? null);
+/** Import a previewed file, optionally assigning tags. */
+export async function importFile(droppedFields: string[], tagNames: string[] = []) {
+	const r = await cmd.storeImportFile(droppedFields, tagNames);
 	await mutate(() => Promise.resolve(r.mutation));
 	return r;
 }
