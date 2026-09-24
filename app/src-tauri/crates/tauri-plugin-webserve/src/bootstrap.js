@@ -32,6 +32,11 @@
 		}
 	}
 
+	function removeListener(id) {
+		const i = listeners.findIndex((l) => l.id === id);
+		if (i >= 0) listeners.splice(i, 1);
+	}
+
 	function eventInvoke(name, args) {
 		if (name === "listen") {
 			const id = ++eventId;
@@ -39,8 +44,7 @@
 			return id;
 		}
 		if (name === "unlisten") {
-			const i = listeners.findIndex((l) => l.id === args.eventId);
-			if (i >= 0) listeners.splice(i, 1);
+			removeListener(args.eventId);
 			return null;
 		}
 		if (name === "emit" || name === "emit_to") {
@@ -221,5 +225,9 @@
 		// Some builds probe these; provide harmless stubs.
 		ipc: (msg) => {},
 		unregisterCallback: (id) => callbacks.delete(id),
+	};
+	// The event API's unlisten() calls this before invoking plugin:event|unlisten.
+	window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+		unregisterListener: (_event, id) => removeListener(id),
 	};
 })();
