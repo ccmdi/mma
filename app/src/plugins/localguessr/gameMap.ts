@@ -92,9 +92,25 @@ export function useGameMap(
 	return { hostRef, overlayRef, ready };
 }
 
-/** The host zoom while `active`, else null. The `zoom` event fires once per step already
- *  carrying the target value, so this changes once per zoom level, never mid-animation. */
-export function useSettledZoom(hostRef: RefObject<MapHost | null>, active: boolean): number | null {
+const ROPE_SETTLE_MS = 450;
+const ROPE_MAX_STRETCH = 1;
+
+/** The zoom a rope sized for `rope` is pulled to when the map sits at `live`: it stretches
+ *  with the map up to a limit, and past it is dragged along. */
+export function ropeTension(rope: number, live: number): number {
+	return Math.min(live + ROPE_MAX_STRETCH, Math.max(live - ROPE_MAX_STRETCH, rope));
+}
+
+/** Overshoots slightly before resting, like a rope springing taut. */
+export function ropeEase(t: number): number {
+	const s = 1.4;
+	return 1 + (s + 1) * (t - 1) ** 3 + s * (t - 1) ** 2;
+}
+
+/** The zoom the result line is sized for while `active`, else null. It holds through a
+ *  zoom so the line stretches with the map, then springs to the resting zoom once the
+ *  camera comes to rest. */
+export function useRopeZoom(hostRef: RefObject<MapHost | null>, active: boolean): number | null {
 	const [zoom, setZoom] = useState<number | null>(null);
 	useEffect(() => {
 		const host = hostRef.current;
@@ -102,8 +118,35 @@ export function useSettledZoom(hostRef: RefObject<MapHost | null>, active: boole
 			setZoom(null);
 			return;
 		}
-		setZoom(host.getZoom());
-		return host.on("zoom", () => setZoom(hostRef.current?.getZoom() ?? null));
+		let rope = host.getZoom();
+		let frame = 0;
+		const set = (value: number) => {
+			rope = value;
+			setZoom(value);
+		};
+		set(rope);
+		const offZoom = host.on("zoom", () => {
+			const pulled = ropeTension(rope, host.getZoom());
+			if (pulled !== rope) set(pulled);
+		});
+		const offIdle = host.on("idle", () => {
+			cancelAnimationFrame(frame);
+			const from = rope;
+			const to = host.getZoom();
+			if (from === to) return;
+			const start = performance.now();
+			const step = (now: number) => {
+				const t = Math.min(1, (now - start) / ROPE_SETTLE_MS);
+				set(from + (to - from) * ropeEase(t));
+				if (t < 1) frame = requestAnimationFrame(step);
+			};
+			frame = requestAnimationFrame(step);
+		});
+		return () => {
+			offZoom();
+			offIdle();
+			cancelAnimationFrame(frame);
+		};
 	}, [hostRef, active]);
 	return zoom;
 }
@@ -259,14 +302,12 @@ export interface RoundPair {
 	truth: LatLng;
 }
 
-/** Dashed guess-to-answer lines, GeoGuessr contract: everything is anchored to the
- *  map (common units + high-precision dash), so mid-animation the pattern scales
- *  with the world like a texture; it re-normalizes to standard pixel size exactly
- *  once per settled zoom, via `useSettledZoom`. */
-export function resultLineLayer(id: string, pairs: RoundPair[], settledZoom: number, opacity = 1) {
+/** Dashed guess-to-answer lines, anchored to the map (common units + high-precision dash)
+ *  so the pattern stretches with the world, and 2.5px wide at `ropeZoom`. */
+export function resultLineLayer(id: string, pairs: RoundPair[], ropeZoom: number, opacity = 1) {
 	// Under the maps overlay, deck's zoom sits one below the host's; one common
-	// unit is 2^(zoom-1) screen px, so this width reads as 2.5px at the settled zoom.
-	const width = 2.5 / 2 ** (settledZoom - 1);
+	// unit is 2^(zoom-1) screen px.
+	const width = 2.5 / 2 ** (ropeZoom - 1);
 	return new PathLayer({
 		id,
 		data: pairs,
@@ -293,7 +334,7 @@ export interface ReplayPin extends LatLng {
 export function replayLayers(
 	results: Pick<RoundResult, "location" | "guess">[],
 	highlighted: number | null,
-	settledZoom: number | null,
+	ropeZoom: number | null,
 	guessPin: () => PinIcon,
 ) {
 	const group = (rounds: number[], id: string, opacity: number) => {
@@ -310,8 +351,8 @@ export function replayLayers(
 			truth: results[round].location,
 		}));
 		return [
-			...(settledZoom !== null && pairs.length > 0
-				? [resultLineLayer(`${id}-line`, pairs, settledZoom, opacity)]
+			...(ropeZoom !== null && pairs.length > 0
+				? [resultLineLayer(`${id}-line`, pairs, ropeZoom, opacity)]
 				: []),
 			pinLayers(`${id}-guess`, guesses, guessPin, true, opacity),
 			pinLayers(`${id}-truth`, truths, NUMBERED_TRUTH_PIN, true, opacity),

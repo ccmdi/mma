@@ -14,8 +14,8 @@ const results = [round(10, true), round(11, false), round(12, true)];
 
 const guessPin = () => ({ id: "avatar", url: "", width: 1, height: 1 });
 
-function draw(highlighted: number | null, settledZoom: number | null): Layer[] {
-	return replayLayers(results, highlighted, settledZoom, guessPin);
+function draw(highlighted: number | null, ropeZoom: number | null): Layer[] {
+	return replayLayers(results, highlighted, ropeZoom, guessPin);
 }
 
 function layer(layers: Layer[], id: string) {
@@ -44,7 +44,7 @@ describe("replay layers", () => {
 		expect((text.props.data as ReplayPin[]).map(getText)).toEqual(["1", "2", "3"]);
 	});
 
-	it("wait for a settled zoom before drawing lines", () => {
+	it("wait for a rope zoom before drawing lines", () => {
 		expect(layer(draw(null, null), "lg-replay-line")).toBeUndefined();
 	});
 

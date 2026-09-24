@@ -32,7 +32,7 @@ import {
 	resultLineLayer,
 	useGameMap,
 	useGuessPin,
-	useSettledZoom,
+	useRopeZoom,
 } from "./gameMap";
 
 // Sizing mirrors the pano viewer minimap. Grows in layout, never by transform --
@@ -187,7 +187,7 @@ export function GuessMap({
 		hostRef.current?.setCursor(showResult ? (hoveredPin ? "pointer" : null) : "crosshair");
 	}, [hostRef, showResult, hoveredPin]);
 
-	const settledZoom = useSettledZoom(hostRef, ready && showResult);
+	const ropeZoom = useRopeZoom(hostRef, ready && showResult);
 	const guessPin = useGuessPin();
 
 	useEffect(() => {
@@ -211,8 +211,8 @@ export function GuessMap({
 		if (!overlay || !ready) return;
 		const layers = [];
 		if (showPool && pool) layers.push(poolLayer(pool, hexToRgb(resolveSvColorHex(prefs.svColor))));
-		if (showResult && truth && guess && settledZoom !== null) {
-			layers.push(resultLineLayer("lg-line", [{ guess, truth }], settledZoom));
+		if (showResult && truth && guess && ropeZoom !== null) {
+			layers.push(resultLineLayer("lg-line", [{ guess, truth }], ropeZoom));
 		}
 		if (guess) layers.push(pinLayers("lg-guess", [guess], guessPin, showResult));
 		if (showResult && truth) {
@@ -232,7 +232,7 @@ export function GuessMap({
 		truth,
 		showResult,
 		ready,
-		settledZoom,
+		ropeZoom,
 		guessPin,
 		showPool,
 		pool,
