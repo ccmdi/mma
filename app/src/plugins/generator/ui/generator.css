@@ -11,20 +11,6 @@
 	flex-shrink: 0;
 }
 
-/* Actions pinned to the bottom of the sidebar, full-bleed over the body
-   padding, so the region list scrolls above without squishing them. */
-.generator-sidebar__footer {
-	position: sticky;
-	bottom: -0.5rem;
-	margin: auto -0.5rem -0.5rem;
-	padding: 0.5rem;
-	display: flex;
-	flex-direction: column;
-	gap: 6px;
-	background: var(--surface-0);
-	border-top: 1px solid var(--border-subtle);
-}
-
 .generator-sidebar__summary {
 	margin: 0;
 	font-size: 0.8rem;

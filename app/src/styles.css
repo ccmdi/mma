@@ -5935,6 +5935,16 @@ body:has([data-plugin-overlay]) .map-meta {
 	overflow: hidden;
 }
 
+.plugin-sidebar__footer {
+	flex-shrink: 0;
+	padding: 0.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	background: var(--surface-0);
+	border-top: 1px solid var(--border-subtle);
+}
+
 .plugin-boundary__label {
 	font-weight: 500;
 }

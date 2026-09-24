@@ -2253,11 +2253,13 @@ ui.Sidebar(props: {
   actions?: ReactNode;
   className?: string;
   flush?: boolean;
+  /** Stays pinned below the body while it scrolls, for the sidebar's main actions. */
+  footer?: ReactNode;
   children: ReactNode;
 }): react.JSX.Element
 ```
 
-Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars.
+Standard right-hand sidebar chrome (title, back button, scrollable body, pinned footer). Use for plugin sidebars.
 
 #### ui.Slider
 

@@ -5967,13 +5967,15 @@ declare function EmptyState({ icon, compact, children, }: {
     children: ReactNode;
 }): react.JSX.Element;
 
-/** Standard right-hand sidebar chrome (title, back button, scrollable body). Use for plugin sidebars. */
-declare function Sidebar({ title, onBack, actions, className, flush, children, }: {
+/** Standard right-hand sidebar chrome (title, back button, scrollable body, pinned footer). Use for plugin sidebars. */
+declare function Sidebar({ title, onBack, actions, className, flush, footer, children, }: {
     title: ReactNode;
     onBack?: () => void;
     actions?: ReactNode;
     className?: string;
     flush?: boolean;
+    /** Stays pinned below the body while it scrolls, for the sidebar's main actions. */
+    footer?: ReactNode;
     children: ReactNode;
 }): react.JSX.Element;
 /** Collapsible titled section inside a Sidebar. */

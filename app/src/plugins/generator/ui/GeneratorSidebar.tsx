@@ -324,7 +324,33 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 
 	return (
-		<Sidebar title={t("Map Generator")} onBack={handleClose} className="generator-sidebar">
+		<Sidebar
+			title={t("Map Generator")}
+			onBack={handleClose}
+			className="generator-sidebar"
+			footer={
+				<>
+					<p className="generator-sidebar__summary">{summarizeSettings(settings)}</p>
+					<div className="generator-sidebar__actions">
+						{!running ? (
+							<Button
+								variant="primary"
+								onClick={handleStart}
+								disabled={polygonSelections.length === 0}
+							>
+								{t("Start")}
+							</Button>
+						) : (
+							<>
+								<Button onClick={handlePause}>{paused ? t("Resume") : t("Pause")}</Button>
+								<Button onClick={stopGeneration}>{t("Stop")}</Button>
+							</>
+						)}
+						<StatsRow />
+					</div>
+				</>
+			}
+		>
 			<Section title={t("Regions ({n})", { n: polygonSelections.length })}>
 				<RegionSelector
 					defaultTarget={settings.defaultTarget}
@@ -352,27 +378,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					/>
 				</label>
 			</Section>
-
-			<div className="generator-sidebar__footer">
-				<p className="generator-sidebar__summary">{summarizeSettings(settings)}</p>
-				<div className="generator-sidebar__actions">
-					{!running ? (
-						<Button
-							variant="primary"
-							onClick={handleStart}
-							disabled={polygonSelections.length === 0}
-						>
-							{t("Start")}
-						</Button>
-					) : (
-						<>
-							<Button onClick={handlePause}>{paused ? t("Resume") : t("Pause")}</Button>
-							<Button onClick={stopGeneration}>{t("Stop")}</Button>
-						</>
-					)}
-					<StatsRow />
-				</div>
-			</div>
 		</Sidebar>
 	);
 }

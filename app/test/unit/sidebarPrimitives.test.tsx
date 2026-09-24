@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { SegmentedControl, Section } from "@/components/primitives/Sidebar";
+import { SegmentedControl, Section, Sidebar } from "@/components/primitives/Sidebar";
 
 describe("SegmentedControl", () => {
 	it("marks exactly the selected option active", () => {
@@ -33,6 +33,25 @@ describe("SegmentedControl", () => {
 			/>,
 		);
 		expect(html).toContain("disabled");
+	});
+});
+
+describe("Sidebar", () => {
+	it("pins the footer outside the scrolling body", () => {
+		const html = renderToStaticMarkup(
+			<Sidebar title="T" footer={<button>Go</button>}>
+				<p>Body</p>
+			</Sidebar>,
+		);
+		const root = new DOMParser().parseFromString(html, "text/html");
+		const footer = root.querySelector(".plugin-sidebar__footer")!;
+		expect(footer.textContent).toBe("Go");
+		expect(footer.closest(".plugin-sidebar__body")).toBeNull();
+	});
+
+	it("renders no footer when none is given", () => {
+		const html = renderToStaticMarkup(<Sidebar title="T">x</Sidebar>);
+		expect(html).not.toContain("plugin-sidebar__footer");
 	});
 });
 
