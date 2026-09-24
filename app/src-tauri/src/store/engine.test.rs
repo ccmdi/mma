@@ -4705,7 +4705,7 @@ fn delta_bytes_roundtrip_exact() {
 }
 
 // -----------------------------------------------------------------------
-// Crash-window double-apply: save_arrow renames the base file, then
+// Crash-window double-apply: write_baked_base renames the base file, then
 // deletes the delta sidecar non-atomically. A crash between the two leaves a
 // stale delta whose `adds` duplicate what the (now up to date) base already
 // holds. store_open_map applies the parsed delta unconditionally -- mirror
@@ -4737,6 +4737,48 @@ fn load_delta_reads_valid_and_missing_files() {
     fs::write(&path, bytes).unwrap();
     assert!(load_delta(&path).is_some());
     assert!(path.exists(), "valid delta stays in place");
+}
+
+#[test]
+fn failed_base_write_keeps_the_overlay_and_the_delta() {
+    let dir = TempDir::new("mma_test_failed_base_write");
+    let base = dir.join("m1.arrow");
+    let delta = dir.join("m1_delta.arrow");
+    let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
+    store.bake_overlay();
+    store.overlay_add(vec![loc(2, 2.0, 2.0)]);
+    store.overlay_update(1, &patch!(lat: 5.0));
+    let delta_bytes = overlay_delta_bytes(&store.overlay).unwrap();
+    fs::write(&delta, &delta_bytes).unwrap();
+
+    fs::create_dir(&base).unwrap();
+    fs::write(base.join("obstacle"), b"x").unwrap();
+    assert!(write_baked_base(&mut store, &base, &delta).is_err());
+
+    assert!(store.overlay.is_unsaved(), "edits still read as unsaved");
+    assert_eq!(overlay_delta_bytes(&store.overlay).unwrap(), delta_bytes);
+    assert_eq!(
+        store.batch.as_ref().unwrap().num_rows(),
+        1,
+        "base untouched"
+    );
+    assert_eq!(
+        fs::read(&delta).unwrap(),
+        delta_bytes,
+        "delta file untouched"
+    );
+
+    fs::remove_dir_all(&base).unwrap();
+    write_baked_base(&mut store, &base, &delta).unwrap();
+
+    assert!(store.overlay.is_empty() && !store.overlay.is_unsaved());
+    assert!(!delta.exists(), "a written base supersedes the delta");
+    let written: Vec<(u32, f64)> =
+        arrow::batch_to_locations(&arrow::read_arrow_ipc(&base).unwrap())
+            .iter()
+            .map(|l| (l.id, l.lat))
+            .collect();
+    assert_eq!(written, vec![(1, 5.0), (2, 2.0)]);
 }
 
 #[test]

@@ -182,41 +182,37 @@ pub(crate) fn load_edit_history(map_id: &str) -> AppResult<(Vec<EditEntry>, Vec<
     }
 }
 
-/// Write the current batch to disk as Arrow IPC and remove any stale delta file.
-pub(crate) fn save_arrow(store: &Store, map_id: &str) -> AppResult<()> {
-    if let Some(ref batch) = store.batch {
-        let path = storage::arrow_path(map_id)?;
-        arrow::write_arrow_ipc(&path, batch)?;
-        let delta = storage::arrow_delta_path(map_id)?;
-        let _ = fs::remove_file(delta);
-    }
+/// Bake the overlay into the base, write it to `path`, and only then adopt it, clear the
+/// overlay, drop the stale delta file, and re-mmap. A failed write leaves the store as it was.
+pub(crate) fn write_baked_base(store: &mut Store, path: &Path, delta_path: &Path) -> AppResult<()> {
+    let _t = Instant::now();
+    let Some(batch) = store.baked_batch().or_else(|| store.batch.clone()) else {
+        return Ok(());
+    };
+    let t_bake = _t.elapsed();
+    arrow::write_arrow_ipc(path, &batch)?;
+    let t_write = _t.elapsed();
+    store.adopt_base(batch);
+    let _ = fs::remove_file(delta_path);
+    let (batch, handle) = arrow::read_arrow_ipc_mmap(path)?;
+    store.batch = Some(batch);
+    store.mmap_handle = Some(handle);
+    log::debug!(
+        "[write_baked_base] bake={:.0}ms base-write={:.0}ms remmap={:.0}ms",
+        t_bake.as_millis(),
+        (t_write - t_bake).as_millis(),
+        (_t.elapsed() - t_write).as_millis()
+    );
     Ok(())
 }
 
-/// Bake the overlay into the base batch, write it to disk, re-mmap, and flush
-/// location count + dirty tags. Used by `store_commit` so a commit builds
-/// the batch only once.
+/// Write the baked base for `store_commit` and flush the location count.
 pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
-    let _t = Instant::now();
-    store.bake_overlay();
-    let t_bake = _t.elapsed();
-    store.mmap_handle = None;
-    save_arrow(store, map_id)?;
-    let t_write = _t.elapsed();
-    let path = storage::arrow_path(map_id)?;
-    if path.exists() {
-        let (batch, handle) = arrow::read_arrow_ipc_mmap(&path)?;
-        store.batch = Some(batch);
-        store.mmap_handle = Some(handle);
-    }
-    let t_mmap = _t.elapsed();
-    log::debug!(
-        "[bake_and_save] bake={:.0}ms base-write={:.0}ms remmap={:.0}ms total={:.0}ms",
-        t_bake.as_millis(),
-        (t_write - t_bake).as_millis(),
-        (t_mmap - t_write).as_millis(),
-        _t.elapsed().as_millis()
-    );
+    write_baked_base(
+        store,
+        &storage::arrow_path(map_id)?,
+        &storage::arrow_delta_path(map_id)?,
+    )?;
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
     storage::set_map_counts(&conn, map_id, count, CommitDiff::default())?;

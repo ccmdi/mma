@@ -554,21 +554,32 @@ impl Store {
         self.overlay.mark_saved();
     }
 
-    /// Merge overlay (adds, patches, dead) into the Arrow batch. O(N) where N = batch rows.
-    /// Expensive at 10M+ rows - prefer delta saves; full bake only on commit.
-    /// Gated on emptiness: an autosave folds nothing in, so a saved overlay must still bake.
+    /// Merge overlay (adds, patches, dead) into the Arrow batch.
+    #[cfg(any(test, feature = "bench"))]
     pub(crate) fn bake_overlay(&mut self) {
+        if let Some(batch) = self.baked_batch() {
+            self.adopt_base(batch);
+        }
+    }
+
+    /// Make `batch` the base and clear the overlay it already holds.
+    fn adopt_base(&mut self, batch: RecordBatch) {
+        self.batch = Some(batch);
+        self.field_indexes.clear();
+        self.clear_overlay();
+    }
+
+    /// The base batch with the overlay merged in, or `None` when there is nothing to merge.
+    /// O(N) where N = batch rows. Expensive at 10M+ rows - prefer delta saves; full bake only on commit.
+    /// Gated on emptiness: an autosave folds nothing in, so a saved overlay must still bake.
+    fn baked_batch(&self) -> Option<RecordBatch> {
         if self.overlay.is_empty() {
-            return;
+            return None;
         }
         let _t = Instant::now();
 
-        let Some(mut batch) = self.batch.take() else {
-            let b = arrow::locations_to_batch(&self.overlay.adds);
-            self.clear_overlay();
-            self.batch = Some(b);
-            self.field_indexes.clear();
-            return;
+        let Some(mut batch) = self.batch.clone() else {
+            return Some(arrow::locations_to_batch(&self.overlay.adds));
         };
 
         // Step 1: filter out dead rows
@@ -616,9 +627,7 @@ impl Store {
             },
             "batch IDs must be strictly sorted after bake"
         );
-        self.batch = Some(batch);
-        self.field_indexes.clear();
-        self.clear_overlay();
+        Some(batch)
     }
 }
 
