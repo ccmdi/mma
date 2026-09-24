@@ -11,22 +11,19 @@ use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_webserve::{register_scheme, SchemeRequest, SchemeResponse};
 
 use crate::net::proxy;
-use crate::store::engine;
-use crate::store::storage;
 
 pub fn run_server() {
+    crate::install_crypto_provider();
     // Drop the configured visible window; we make our own hidden blank "main"
     // webview as the IPC dispatch host (the browser gets the bundle over HTTP).
     let mut ctx = tauri::generate_context!();
     ctx.config_mut().app.windows.clear();
 
-    tauri::Builder::default()
-        .manage(engine::StoreState::new(engine::StoreManager::new()))
+    crate::manage_command_state(tauri::Builder::default())
         .invoke_handler(crate::specta_builder().invoke_handler())
         .plugin(tauri_plugin_webserve::init())
         .setup(|app| {
-            storage::init_paths(app.handle())?;
-            storage::run_migrations()?;
+            crate::init_backend(app.handle())?;
             register_web_schemes();
             let handle = app.handle().clone();
             WebviewWindowBuilder::new(

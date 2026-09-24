@@ -497,15 +497,8 @@ fn focus_existing(app: &tauri::AppHandle) {
 }
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
-    // GTK adopts the user's LC_NUMERIC, and QuickJS parses numbers with strtod.
-    #[cfg(target_os = "linux")]
-    unsafe {
-        libc::setlocale(libc::LC_NUMERIC, c"C".as_ptr());
-    }
     let t = Instant::now();
-    let _ = APP_HANDLE.set(app.handle().clone());
-    store::storage::init_paths(app.handle())?;
-    store::storage::run_migrations()?;
+    init_backend(app.handle())?;
     let swept = store::storage::sweep_orphaned_tmp();
     if swept > 0 {
         log::info!("[startup] swept {swept} orphaned .tmp files");
@@ -545,6 +538,37 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
+/// reqwest is built with rustls-no-provider; every entry point installs the process-wide
+/// provider up front instead of leaving it to whichever client initializes first.
+pub(crate) fn install_crypto_provider() {
+    use rustls::crypto::ring;
+    let _ = ring::default_provider().install_default();
+}
+
+/// The state every command handler reads, shared by every entry point that serves them.
+pub(crate) fn manage_command_state(
+    builder: tauri::Builder<tauri::Wry>,
+) -> tauri::Builder<tauri::Wry> {
+    builder
+        .manage(store::engine::StoreState::new(
+            store::engine::StoreManager::new(),
+        ))
+        .manage(plugins::vali::ValiState::new())
+}
+
+/// Startup shared by every entry point that serves commands.
+pub(crate) fn init_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn error::Error>> {
+    // GTK adopts the user's LC_NUMERIC, and QuickJS parses numbers with strtod.
+    #[cfg(target_os = "linux")]
+    unsafe {
+        libc::setlocale(libc::LC_NUMERIC, c"C".as_ptr());
+    }
+    let _ = APP_HANDLE.set(app.clone());
+    store::storage::init_paths(app)?;
+    store::storage::run_migrations()?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = START_INSTANT.set(Instant::now());
@@ -554,10 +578,7 @@ pub fn run() {
         default_hook(info);
     }));
 
-    // reqwest is built with rustls-no-provider; install the process-wide provider up front
-    // instead of leaving it to whichever client initializes first.
-    use rustls::crypto::ring;
-    let _ = ring::default_provider().install_default();
+    install_crypto_provider();
 
     #[cfg(debug_assertions)]
     if let Err(e) = export_bindings() {
@@ -591,12 +612,9 @@ pub fn run() {
                 )
                 .build(),
         )
-        .manage(store::engine::StoreState::new(
-            store::engine::StoreManager::new(),
-        ))
-        .manage(plugins::vali::ValiState::new())
         .invoke_handler(specta_builder().invoke_handler())
         .setup(setup);
+    let builder = manage_command_state(builder);
 
     #[cfg(feature = "e2e")]
     let builder = builder.plugin(tauri_plugin_webdriver::init());
