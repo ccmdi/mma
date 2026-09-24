@@ -4239,6 +4239,62 @@ fn spatial_any_within() {
     assert!(!store.any_within(-45.0, 100.0, 1000.0));
 }
 
+#[test]
+fn find_nearest_agrees_with_brute_force() {
+    let mut store = setup_store_with(&[]);
+    assert_eq!(store.find_nearest_id(0.0, 0.0), None);
+
+    // Scattered worldwide, both sides of the antimeridian included.
+    let mut seed = 7u64;
+    let mut rand = move || {
+        seed = seed
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    let locs: Vec<Location> = (1..=200)
+        .map(|id| loc(id, rand() * 160.0 - 80.0, rand() * 360.0 - 180.0))
+        .chain([loc(201, 5.0, 179.9999), loc(202, 5.0, -179.9999)])
+        .collect();
+    let mut store = setup_store_with(&locs);
+
+    let brute_nearest = |store: &mut Store, lat: f64, lng: f64| {
+        store
+            .collect(&Selector::Everything)
+            .iter()
+            .map(|l| selections::haversine_m(lat, lng, l.lat, l.lng))
+            .min_by(f64::total_cmp)
+            .unwrap()
+    };
+    let mut check = |store: &mut Store, lat: f64, lng: f64| {
+        let id = store.find_nearest_id(lat, lng).expect("nonempty map");
+        let (la, ln) = store.coords_of(id).expect("alive id");
+        let d = selections::haversine_m(lat, lng, la, ln);
+        let want = brute_nearest(store, lat, lng);
+        assert!((d - want).abs() < 1e-6, "({lat},{lng}): {d} != {want}");
+    };
+
+    // A queried point sitting on a location, dense and sparse regions, poles, and a
+    // query just across the antimeridian from its nearest hit.
+    for (lat, lng) in [
+        (locs[0].lat, locs[0].lng),
+        (0.0, 0.0),
+        (48.8566, 2.3522),
+        (89.9, 45.0),
+        (-89.9, -45.0),
+        (5.0, 179.9),
+        (5.0, -179.9),
+    ] {
+        check(&mut store, lat, lng);
+    }
+
+    // Removing the nearest hands the answer to the runner-up.
+    let gone = store.find_nearest_id(5.0, 179.9).unwrap();
+    let gone_loc = store.get_loc_by_id(gone).unwrap();
+    store.overlay_remove(&[gone_loc]);
+    check(&mut store, 5.0, 179.9);
+}
+
 // -----------------------------------------------------------------------
 // pick_spaced
 // -----------------------------------------------------------------------

@@ -1268,6 +1268,22 @@ pub fn store_find_nearby(
     })
 }
 
+/// The location closest to a coordinate, or null when the map has none.
+#[tauri::command]
+#[specta::specta]
+pub fn store_find_nearest(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    lat: f64,
+    lng: f64,
+) -> AppResult<Option<Location>> {
+    with_store!(label, state, |store| {
+        Ok(store
+            .find_nearest_id(lat, lng)
+            .and_then(|id| store.get_loc_by_id(id)))
+    })
+}
+
 /// For each input point, whether any existing location lies within `radiusM` metres.
 /// Batch form for probing many coordinates at once.
 #[tauri::command]

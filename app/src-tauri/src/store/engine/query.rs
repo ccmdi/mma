@@ -220,6 +220,29 @@ impl Store {
         cand
     }
 
+    /// Id of the alive location closest to the point, or `None` on an empty map.
+    /// Widening `find_nearby_ids` passes: each is complete for its radius, so the first
+    /// non-empty one already holds the nearest. A disc wider than the planet cannot
+    /// gain candidates, so running past it means the map is empty.
+    pub(crate) fn find_nearest_id(&mut self, lat: f64, lng: f64) -> Option<u32> {
+        let mut radius = SPATIAL_CELL_M;
+        while radius < 1e8 {
+            let best = self
+                .find_nearby_ids(lat, lng, radius)
+                .into_iter()
+                .filter_map(|id| {
+                    self.coords_of(id)
+                        .map(|(la, ln)| (id, selections::haversine_m(lat, lng, la, ln)))
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1));
+            if let Some((id, _)) = best {
+                return Some(id);
+            }
+            radius *= 8.0;
+        }
+        None
+    }
+
     /// Whether any alive location lies within `radius_m` metres of the point.
     pub(crate) fn any_within(&mut self, lat: f64, lng: f64, radius_m: f64) -> bool {
         self.ensure_spatial();

@@ -740,6 +740,8 @@ declare const commands$1: {
     storeCountryDistribution: (selector: Selector, level: string) => Promise<[string, number][]>;
     /**  Find all locations within `radiusM` metres of (`lat`, `lng`). @unstable */
     storeFindNearby: (lat: number, lng: number, radiusM: number) => Promise<Location[]>;
+    /**  The location closest to a coordinate, or null when the map has none. @unstable */
+    storeFindNearest: (lat: number, lng: number) => Promise<Location | null>;
     /**
      *  For each input point, whether any existing location lies within `radiusM` metres.
      *  Batch form for probing many coordinates at once.
@@ -6962,8 +6964,10 @@ export interface MapEmbedPrefs {
     showPerfectScoreCircle: boolean;
     showSearchRadiusCursor: boolean;
     showPreviews: boolean;
-    selectOnly: boolean;
+    clickMode: ClickMode;
 }
+/** What clicking empty map does: create a location, nothing, or snap to the nearest one. */
+export type ClickMode = "default" | "selectOnly" | "nearest";
 
 export interface MapStyle {
     featureType?: string;

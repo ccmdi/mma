@@ -189,6 +189,7 @@
 	"Cleared fields from {n} locations.": {
 		"other": "已清除 {n} 个位置的字段。"
 	},
+	"Click behavior:": "点击行为:",
 	"Click headings to link or unlink.": "点击标题以链接或取消链接。",
 	"Click to point north (N). Ctrl+click to cycle through linked panoramas.": "点击指向北方 (N)。Ctrl+点击循环切换链接全景。",
 	"Click to rebind": "点击重新绑定",
@@ -280,6 +281,7 @@
 	"Coverage settings": "覆盖设置",
 	"Coverage updated since last view": "自上次查看后覆盖已更新",
 	"Create": "创建",
+	"Create location": "创建位置",
 	"Create tag": "创建标签",
 	"Created": "创建于",
 	"Cross-tabulate selections against location metadata": "将选区与位置元数据交叉制表",
@@ -1099,7 +1101,9 @@
 	"Select at least two groups to compare - tags, polygons, or filters.": "请至少选择两个分组进行比较——标签、多边形或筛选。",
 	"Select everything": "选择全部",
 	"Select failed": "选择失败项",
+	"Select nearest location": "选择最近的位置",
 	"Select non-Pano ID locations": "选择非全景 ID 位置",
+	"Select only": "仅选择",
 	"Select reviewed": "选择已审位置",
 	"Select reviewed locations": "选择已审位置",
 	"Select this country": "选择此国家",
@@ -1109,7 +1113,6 @@
 	"Select unpanned locations": "选择未平移位置",
 	"Select unreviewed": "选择未审位置",
 	"Select untagged locations": "选择无标签位置",
-	"Select-only mode": "仅选择模式",
 	"Select-only mode is on.": "仅选择模式已开启。",
 	"Select...": "选择…",
 	"Selected locations": "所选位置",

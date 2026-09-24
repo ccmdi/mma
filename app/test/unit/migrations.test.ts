@@ -85,3 +85,32 @@ describe("globalCopyBindings and fullscreenTagbarCollapsed migration", () => {
 		expect(stored).toEqual({});
 	});
 });
+
+describe("selectOnly -> clickMode migration", () => {
+	const apply = (stored: Record<string, unknown>) => {
+		for (const migrate of migrationsFor("mapEmbedPrefs")) migrate(stored);
+	};
+
+	it("maps the boolean onto the enum and drops the old key", () => {
+		const on: Record<string, unknown> = { selectOnly: true };
+		apply(on);
+		expect(on).toEqual({ clickMode: "selectOnly" });
+
+		const off: Record<string, unknown> = { selectOnly: false };
+		apply(off);
+		expect(off).toEqual({ clickMode: "default" });
+	});
+
+	it("never overwrites an already-chosen clickMode", () => {
+		const stored: Record<string, unknown> = { selectOnly: true, clickMode: "nearest" };
+		apply(stored);
+		expect(stored).toEqual({ clickMode: "nearest" });
+	});
+
+	it("leaves a blob without the key untouched and is idempotent", () => {
+		const stored: Record<string, unknown> = { clickMode: "nearest" };
+		apply(stored);
+		apply(stored);
+		expect(stored).toEqual({ clickMode: "nearest" });
+	});
+});

@@ -252,6 +252,8 @@ export const commands = {
 	storeCountryDistribution: (selector: Selector, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
 	/**  Find all locations within `radiusM` metres of (`lat`, `lng`). */
 	storeFindNearby: (lat: number, lng: number, radiusM: number) => __TAURI_INVOKE<Location[]>("store_find_nearby", { lat, lng, radiusM }).then((v) => (v.map(i=>i) as typeof v)),
+	/**  The location closest to a coordinate, or null when the map has none. */
+	storeFindNearest: (lat: number, lng: number) => __TAURI_INVOKE<Location | null>("store_find_nearest", { lat, lng }).then((v) => (v==null?v:v as typeof v)),
 	/**
 	 *  For each input point, whether any existing location lies within `radiusM` metres.
 	 *  Batch form for probing many coordinates at once.

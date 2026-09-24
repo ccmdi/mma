@@ -181,6 +181,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             selections::field_expr::field_expr_error,
             store::commands::store_country_distribution,
             store::commands::store_find_nearby,
+            store::commands::store_find_nearest,
             store::commands::store_near_any,
             store::commands::store_patch_field_values,
             store::commands::store_undo,

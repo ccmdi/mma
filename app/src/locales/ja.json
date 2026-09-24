@@ -189,6 +189,7 @@
 	"Cleared fields from {n} locations.": {
 		"other": "{n} 件の地点のフィールドを消去しました。"
 	},
+	"Click behavior:": "クリック動作:",
 	"Click headings to link or unlink.": "見出しをクリックしてリンクまたは解除します。",
 	"Click to point north (N). Ctrl+click to cycle through linked panoramas.": "クリックで北を向きます（N）。Ctrl+クリックでリンク先パノラマを順に切り替えます。",
 	"Click to rebind": "クリックで再割り当て",
@@ -280,6 +281,7 @@
 	"Coverage settings": "カバレッジ設定",
 	"Coverage updated since last view": "前回表示以降にカバレッジが更新",
 	"Create": "作成",
+	"Create location": "地点を作成",
 	"Create tag": "タグを作成",
 	"Created": "作成日",
 	"Cross-tabulate selections against location metadata": "選択を地点メタデータでクロス集計",
@@ -1099,7 +1101,9 @@
 	"Select at least two groups to compare - tags, polygons, or filters.": "比較するグループを 2 つ以上選択してください - タグ、ポリゴン、フィルター。",
 	"Select everything": "すべて選択",
 	"Select failed": "失敗した地点を選択",
+	"Select nearest location": "最寄りの地点を選択",
 	"Select non-Pano ID locations": "Pano ID のない地点を選択",
+	"Select only": "選択のみ",
 	"Select reviewed": "レビュー済みを選択",
 	"Select reviewed locations": "レビュー済みの地点を選択",
 	"Select this country": "この国を選択",
@@ -1109,7 +1113,6 @@
 	"Select unpanned locations": "未パンの地点を選択",
 	"Select unreviewed": "未レビューを選択",
 	"Select untagged locations": "タグなしの地点を選択",
-	"Select-only mode": "選択専用モード",
 	"Select-only mode is on.": "選択専用モードが有効です。",
 	"Select...": "選択...",
 	"Selected locations": "選択した地点",

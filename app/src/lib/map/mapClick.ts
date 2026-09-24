@@ -1,5 +1,6 @@
 import type { PickingInfo } from "@deck.gl/core";
 import type { CellManager } from "@/lib/render/CellManager";
+import type { ClickMode } from "@/store/mapEmbedPrefs";
 import { boundsOfCoords, type MapHost } from "@/lib/map/host";
 import { LOCATION_LAYER_ID } from "@/lib/render/buildSceneLayers";
 import { cmd } from "@/lib/commands";
@@ -139,7 +140,7 @@ export async function createLocationAtLatLng(
 export interface MapClickCtx {
 	cm: CellManager;
 	host: MapHost | null;
-	selectOnly?: boolean;
+	clickMode?: ClickMode;
 	measuring?: boolean;
 	// Dispatch the surface's context menu at the given client coords. Absent => the
 	// surface has no context menu and ignores right-click (the minimap).
@@ -211,8 +212,16 @@ export async function handleMapClick(
 
 	if (info.coordinate) {
 		const container = ctx.host?.container ?? null;
-		if (ctx.selectOnly) {
+		if (ctx.clickMode === "selectOnly") {
 			if (container) toast(t("Select-only mode is on."), 1500, container);
+			return;
+		}
+		if (ctx.clickMode === "nearest") {
+			const nearest = await cmd.storeFindNearest(info.coordinate[1], info.coordinate[0]);
+			if (!nearest) return;
+			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
+				void applySelectionUpdate(toggleManualSelection(nearest.id));
+			else void setActiveLocation(nearest);
 			return;
 		}
 		await createLocationAtLatLng(info.coordinate[1], info.coordinate[0], ctx.host?.getZoom() ?? 2, {

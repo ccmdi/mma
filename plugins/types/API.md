@@ -5992,6 +5992,16 @@ cmd.storeFindNearby(
 
 Find all locations within `radiusM` metres of (`lat`, `lng`).
 
+#### cmd.storeFindNearest
+
+`unstable` · unreleased
+
+```ts
+cmd.storeFindNearest(lat: number, lng: number): Promise<Location | null>
+```
+
+The location closest to a coordinate, or null when the map has none.
+
 #### cmd.storeGetCommitDelta
 
 `unstable` · since v0.5.1

@@ -13,6 +13,7 @@ import {
 	MAP_EMBED_PREFS,
 	MAP_TYPES,
 	MAP_TYPE_LABELS,
+	type ClickMode,
 	type MapEmbedPrefs,
 } from "@/store/mapEmbedPrefs";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
@@ -468,7 +469,18 @@ export function MapSettingsDropdown({
 							pref="showPreviews"
 							label={t("Show location previews when hovering the map")}
 						/>
-						<PrefSwitch pref="selectOnly" label={t("Select-only mode")} />
+						<label className="settings-popup__item settings-popup__select">
+							{t("Click behavior:")}{" "}
+							<NSelect
+								compact
+								value={p.clickMode}
+								onChange={(e) => setPref("clickMode")(e.target.value as ClickMode)}
+							>
+								<option value="default">{t("Create location")}</option>
+								<option value="selectOnly">{t("Select only")}</option>
+								<option value="nearest">{t("Select nearest location")}</option>
+							</NSelect>
+						</label>
 					</fieldset>
 					<fieldset className="fieldset">
 						<legend className="fieldset__header">

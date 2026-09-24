@@ -39,8 +39,11 @@ export interface MapEmbedPrefs {
 	showPerfectScoreCircle: boolean;
 	showSearchRadiusCursor: boolean;
 	showPreviews: boolean;
-	selectOnly: boolean;
+	clickMode: ClickMode;
 }
+
+/** What clicking empty map does: create a location, nothing, or snap to the nearest one. */
+export type ClickMode = "default" | "selectOnly" | "nearest";
 
 export const DEFAULT_PREFS: MapEmbedPrefs = {
 	svOpacity: 0.5,
@@ -68,7 +71,7 @@ export const DEFAULT_PREFS: MapEmbedPrefs = {
 	showPerfectScoreCircle: true,
 	showSearchRadiusCursor: false,
 	showPreviews: false,
-	selectOnly: false,
+	clickMode: "default",
 };
 
 export const MAP_EMBED_PREFS = persisted("mapEmbedPrefs", DEFAULT_PREFS);

@@ -327,7 +327,7 @@ export function MapEmbed({
 	});
 
 	useHotkey(useBinding("toggleSelectOnly"), () => {
-		setPrefs((p) => ({ ...p, selectOnly: !p.selectOnly }));
+		setPrefs((p) => ({ ...p, clickMode: p.clickMode === "selectOnly" ? "default" : "selectOnly" }));
 	});
 	useHotkey(useBinding("toggleSvOpacity"), () => toggleLayer("sv"));
 	useHotkey(useBinding("toggleMarkerOpacity"), () => toggleLayer("marker"));
