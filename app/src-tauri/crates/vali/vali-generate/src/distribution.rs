@@ -94,6 +94,26 @@ pub fn merge_location_filters(parts: &[Option<&str>]) -> Option<String> {
         Some(merged.join(" and "))
     }
 }
+fn resolve_subdivision_goal(
+    country_code: &str,
+    subdivision: &str,
+    custom_weights: Option<&[(String, i32)]>,
+    available_subdivisions: &[&str],
+    custom_weight_total: i32,
+    default_total: i32,
+) -> i32 {
+    match custom_weights {
+        Some(weights) => {
+            subdivision_goal_from_custom_weights(weights, subdivision, custom_weight_total)
+        }
+        None => goal_for_subdivision(
+            country_code,
+            subdivision,
+            default_total,
+            Some(available_subdivisions),
+        ),
+    }
+}
 #[allow(clippy::too_many_arguments)]
 pub fn subdivision_by_max_min_distance(
     locations: &[Location],
@@ -136,15 +156,14 @@ pub fn subdivision_by_max_min_distance(
         enable_default_filters,
         deterministic,
     )?;
-    let region_goal_count = match custom_subdivision_weights {
-        Some(weights) => subdivision_goal_from_custom_weights(weights, subdivision, goal_count),
-        None => goal_for_subdivision(
-            country_code,
-            subdivision,
-            goal_count,
-            Some(available_subdivisions),
-        ),
-    };
+    let region_goal_count = resolve_subdivision_goal(
+        country_code,
+        subdivision,
+        custom_subdivision_weights,
+        available_subdivisions,
+        goal_count,
+        goal_count,
+    );
     if region_goal_count == 0 {
         return Ok(empty(0));
     }
@@ -296,14 +315,11 @@ fn weighted_get_some(
     }
     selected
 }
-pub fn distribute_evenly(
+fn group_by_cell(
     locations: &[Location],
     candidates: &[u32],
-    min_distance: i32,
-    probability: &ResolvedProbability,
-    deterministic: bool,
-) -> Vec<u32> {
-    let precision = precision_for_min_distance(min_distance);
+    precision: HashPrecision,
+) -> Vec<(u64, Vec<u32>)> {
     let mut group_of: FxHashMap<u64, usize> = FxHashMap::default();
     let mut groups: Vec<(u64, Vec<u32>)> = Vec::new();
     for &i in candidates {
@@ -315,6 +331,17 @@ pub fn distribute_evenly(
         });
         groups[slot].1.push(i);
     }
+    groups
+}
+pub fn distribute_evenly(
+    locations: &[Location],
+    candidates: &[u32],
+    min_distance: i32,
+    probability: &ResolvedProbability,
+    deterministic: bool,
+) -> Vec<u32> {
+    let precision = precision_for_min_distance(min_distance);
+    let groups = group_by_cell(locations, candidates, precision);
     let mut placed_by_hash: FxHashMap<u64, Vec<(f64, f64)>> = FxHashMap::default();
     let mut selected: Vec<u32> = Vec::new();
     for (hash, group) in &groups {
@@ -354,19 +381,9 @@ pub fn densify_country(
     let per_cell_goal = crate::goals::round_to_int(
         rust_decimal::Decimal::from(120_000) / rust_decimal::Decimal::from(files_count as i64),
     );
-    let mut group_of: FxHashMap<u64, usize> = FxHashMap::default();
-    let mut groups: Vec<Vec<u32>> = Vec::new();
-    for &i in filtered {
-        let l = &locations[i as usize];
-        let hash = vali_geo::encode(l.lat, l.lng, HashPrecision::Size_km_1x1);
-        let slot = *group_of.entry(hash).or_insert_with(|| {
-            groups.push(Vec::new());
-            groups.len() - 1
-        });
-        groups[slot].push(i);
-    }
+    let groups = group_by_cell(locations, filtered, HashPrecision::Size_km_1x1);
     let mut selected: Vec<u32> = Vec::new();
-    for group in &groups {
+    for (_, group) in &groups {
         selected.extend(get_some_indices(
             locations,
             group,
@@ -396,26 +413,16 @@ pub fn locations_by_coverage_density(
     min_min_distance: i32,
     deterministic: bool,
 ) -> Result<Selected, ExprError> {
-    let mut group_of: FxHashMap<u64, usize> = FxHashMap::default();
-    let mut clusters: Vec<Vec<u32>> = Vec::new();
-    for &i in filtered {
-        let l = &locations[i as usize];
-        let hash = vali_geo::encode(l.lat, l.lng, HashPrecision::Size_km_156x156);
-        let slot = *group_of.entry(hash).or_insert_with(|| {
-            clusters.push(Vec::new());
-            clusters.len() - 1
-        });
-        clusters[slot].push(i);
-    }
+    let clusters = group_by_cell(locations, filtered, HashPrecision::Size_km_156x156);
     let weights: Vec<f64> = clusters
         .iter()
-        .map(|c| 1.0 / (c.len() as f64).powf(tuning_factor) * c.len() as f64)
+        .map(|(_, c)| 1.0 / (c.len() as f64).powf(tuning_factor) * c.len() as f64)
         .collect();
     let weight_sum: f64 = weights.iter().sum();
     let mut indices: Vec<u32> = Vec::new();
     let mut tags: Vec<Option<String>> = Vec::new();
     let mut min_distance = i32::MAX;
-    for (cluster, weight) in clusters.iter().zip(&weights) {
+    for ((_, cluster), weight) in clusters.iter().zip(&weights) {
         let count = (region_goal_count as f64 * (weight / weight_sum)).round_ties_even() as i32;
         let (cluster_indices, cluster_tags, cluster_min) = by_max_min_distance(
             locations,
@@ -445,10 +452,14 @@ pub fn max_count_goal_search(
     deterministic: bool,
 ) -> Vec<i32> {
     let goal_for = |sub: &str, total: i32| -> i32 {
-        match custom_weights {
-            Some(w) => subdivision_goal_from_custom_weights(w, sub, total),
-            None => goal_for_subdivision(country_code, sub, total, Some(available_subdivisions)),
-        }
+        resolve_subdivision_goal(
+            country_code,
+            sub,
+            custom_weights,
+            available_subdivisions,
+            total,
+            total,
+        )
     };
     let mut total: i32 = 110_000;
     let mut tried: Vec<(i32, bool)> = Vec::new();
@@ -505,14 +516,15 @@ pub fn max_count_goal_search(
         .filter(|&c| c != 0)
         .unwrap_or_else(|| tried.iter().map(|t| t.0).min().unwrap());
     subs.iter()
-        .map(|(sub, _, _)| match custom_weights {
-            Some(w) => subdivision_goal_from_custom_weights(w, sub, total),
-            None => goal_for_subdivision(
+        .map(|(sub, _, _)| {
+            resolve_subdivision_goal(
                 country_code,
                 sub,
+                custom_weights,
+                available_subdivisions,
+                total,
                 max_satisfying,
-                Some(available_subdivisions),
-            ),
+            )
         })
         .collect()
 }
@@ -608,3 +620,6 @@ fn distribute(
         min_distance,
     )
 }
+#[cfg(test)]
+#[path = "distribution.test.rs"]
+mod tests;
