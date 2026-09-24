@@ -155,7 +155,6 @@ impl Fixture {
         store
             .value_meta
             .insert("tags".into(), Tracked::new(self.tags.clone()));
-        store.bounds = None;
         store
     }
 
@@ -461,7 +460,7 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, ValueRecord>) -> Store {
     store.next_id = max_id + 1;
     let agg = store.scan_locations();
     store.alive_count = Tracked::new(agg.alive);
-    store.bounds = Some(At::new(store.version, agg.bounds));
+    store.bounds.seed(At::new(store.version, agg.bounds));
     store
         .value_meta
         .insert("tags".into(), Tracked::new(tags.clone()));
