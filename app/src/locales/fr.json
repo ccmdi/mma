@@ -1090,6 +1090,7 @@
 	"Restart now": "Redémarrer maintenant",
 	"Restarts the app": "Redémarre l'application",
 	"Restore": "Restaurer",
+	"Restore failed: {error}": "Échec de la restauration : {error}",
 	"Restore open maps on startup": "Restaurer les cartes ouvertes au démarrage",
 	"Restoring...": "Restauration...",
 	"Resume": "Reprendre",

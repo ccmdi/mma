@@ -1056,6 +1056,7 @@
 	"Restart now": "Restart now",
 	"Restarts the app": "Restarts the app",
 	"Restore": "Restore",
+	"Restore failed: {error}": "Restore failed: {error}",
 	"Restore open maps on startup": "Restore open maps on startup",
 	"Restoring...": "Restoring...",
 	"Resume": "Resume",

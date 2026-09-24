@@ -15,6 +15,7 @@ import { useAsync } from "@/lib/hooks/useAsync";
 import type { CommitInfo } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { fmt, dateTimeFmt } from "@/lib/util/format";
+import { toast } from "@/lib/util/toast";
 
 export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	const map = useMapState((s) => s.map);
@@ -30,9 +31,14 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 
 	const restore = async (commit: CommitInfo) => {
 		setRestoring(commit.id);
-		await checkoutCommit(commit.id);
-		setRestoring(null);
-		onOpenChange(false);
+		try {
+			await checkoutCommit(commit.id);
+			onOpenChange(false);
+		} catch (e) {
+			toast(t("Restore failed: {error}", { error: String(e) }));
+		} finally {
+			setRestoring(null);
+		}
 	};
 
 	return (

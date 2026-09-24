@@ -1150,8 +1150,11 @@ export async function checkoutCommit(commitId: string) {
 	let commitResult;
 	try {
 		await cmd.storeCloseMap();
-		await cmd.storeCheckoutCommit(state.mapId, commitId);
-		openResult = await cmd.storeOpenMap(state.mapId);
+		try {
+			await cmd.storeCheckoutCommit(state.mapId, commitId);
+		} finally {
+			openResult = await cmd.storeOpenMap(state.mapId);
+		}
 		const msg = `Revert to ${commitId.slice(0, 7)}`;
 		commitResult = await cmd.storeCommit(state.mapId, msg);
 	} catch (e) {

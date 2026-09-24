@@ -1124,6 +1124,7 @@
 	"Restart now": "Uruchom ponownie teraz",
 	"Restarts the app": "Uruchamia aplikację ponownie",
 	"Restore": "Przywróć",
+	"Restore failed: {error}": "Przywracanie nie powiodło się: {error}",
 	"Restore open maps on startup": "Przywracaj otwarte mapy przy uruchamianiu",
 	"Restoring...": "Przywracanie...",
 	"Resume": "Wznów",

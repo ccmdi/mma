@@ -1056,6 +1056,7 @@
 	"Restart now": "Jetzt neu starten",
 	"Restarts the app": "Startet die App neu",
 	"Restore": "Wiederherstellen",
+	"Restore failed: {error}": "Wiederherstellung fehlgeschlagen: {error}",
 	"Restore open maps on startup": "Geöffnete Karten beim Start wiederherstellen",
 	"Restoring...": "Wird wiederhergestellt...",
 	"Resume": "Fortsetzen",

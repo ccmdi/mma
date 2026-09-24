@@ -60,6 +60,22 @@ describe("Version control — commit and restore", () => {
 		const count = await getLocCount();
 		expect(count).toBe(3);
 	});
+
+	it("a failed restore leaves the map open", async () => {
+		const error = await withApi(async (api) => {
+			try {
+				await api.checkoutCommit("no-such-commit");
+				return null;
+			} catch (e) {
+				return String(e);
+			}
+		});
+		expect(error).toBeTruthy();
+		expect(await getLocCount()).toBe(3);
+
+		await addLocs([createLocation({ lat: 60, lng: 60 })]);
+		expect(await getLocCount()).toBe(4);
+	});
 });
 
 describe("Version control — multiple commits", () => {

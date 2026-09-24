@@ -1124,6 +1124,7 @@
 	"Restart now": "Перезапустить сейчас",
 	"Restarts the app": "Перезапускает приложение",
 	"Restore": "Восстановить",
+	"Restore failed: {error}": "Не удалось восстановить: {error}",
 	"Restore open maps on startup": "Восстанавливать открытые карты при запуске",
 	"Restoring...": "Восстановление...",
 	"Resume": "Продолжить",
