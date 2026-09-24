@@ -1,6 +1,7 @@
 import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import {
+	bearingDeg,
 	densifyRing,
 	normalizeHeading,
 	reverseHeading,
@@ -196,5 +197,20 @@ describe("longitude delta shared mirror cases", () => {
 		for (const [from, to, expected] of mirrorCases.lngDelta) {
 			expect(unwrapLng(to, from) - from).toBeCloseTo(expected);
 		}
+	});
+});
+
+describe("bearingDeg", () => {
+	it("gives compass bearings along the axes", () => {
+		const o = { lat: 0, lng: 0 };
+		expect(bearingDeg(o, { lat: 1, lng: 0 })).toBeCloseTo(0);
+		expect(bearingDeg(o, { lat: 0, lng: 1 })).toBeCloseTo(90);
+		expect(bearingDeg(o, { lat: -1, lng: 0 })).toBeCloseTo(-180);
+		expect(bearingDeg(o, { lat: 0, lng: -1 })).toBeCloseTo(-90);
+	});
+
+	it("follows the great circle rather than the rhumb line", () => {
+		// Due east at 60N starts out bearing north of east.
+		expect(bearingDeg({ lat: 60, lng: 0 }, { lat: 60, lng: 10 })).toBeCloseTo(85.67, 1);
 	});
 });

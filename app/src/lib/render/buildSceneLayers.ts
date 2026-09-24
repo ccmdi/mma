@@ -32,7 +32,7 @@ import {
 	MEASURE_NODE_PX,
 } from "@/lib/sv/measure";
 import type { RGB, RGBA } from "@/lib/util/color";
-import { unwrapRing } from "@/lib/geo/geo";
+import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
 
 /** Lines drawn at a fixed on-screen width. */
 const SCREEN_LINE = {
@@ -65,6 +65,40 @@ function trailSegments(trail: [number, number][]) {
 		path: [pt, trail[i + 1]] as [number, number][],
 		alpha: count === 1 ? 255 : Math.round(50 + (205 * i) / (count - 1)),
 	}));
+}
+
+// The trail's tip in the marker style's shape. Arrows point along the last step.
+function trailPositionLayers(trail: [number, number][], ctx: SceneContext): Layer[] {
+	const [prev, tip] = trail.slice(-2);
+	if (ctx.markerStyle === "circle") {
+		return [
+			new ScatterplotLayer({
+				...OUTLINED_DOT,
+				id: "sv-trail-position",
+				data: [tip],
+				getPosition: (d) => renderPos(d[0], d[1]),
+				getRadius: 5,
+				radiusMinPixels: 4,
+				getFillColor: [255, 255, 255, 220],
+				getLineWidth: 2,
+				getLineColor: [...ctx.svTrailColor, 255],
+			}),
+		];
+	}
+	const s = MARKER_STYLE[ctx.markerStyle];
+	return [
+		new SDFMarkerLayer<[number, number]>({
+			id: "sv-trail-position-sdf",
+			data: [tip],
+			getPosition: (d) => renderPos(d[0], d[1]),
+			shape: s.shape,
+			radiusPixels: s.radiusPixels * ctx.markerSize,
+			getFillColor: [...ctx.svTrailColor, 255],
+			getAngle: s.angle
+				? -bearingDeg({ lng: prev[0], lat: prev[1] }, { lng: tip[0], lat: tip[1] })
+				: 0,
+		}),
+	];
 }
 
 export const LOCATION_LAYER_ID = "locations";
@@ -273,22 +307,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 				getWidth: 2,
 			}),
 		);
-		if (ctx.svTrailPosition) {
-			const tip = svTrail.at(-1);
-			layers.push(
-				new ScatterplotLayer({
-					...OUTLINED_DOT,
-					id: "sv-trail-position",
-					data: [tip],
-					getPosition: (d) => renderPos(d[0], d[1]),
-					getRadius: 5,
-					radiusMinPixels: 4,
-					getFillColor: [255, 255, 255, 220],
-					getLineWidth: 2,
-					getLineColor: [...ctx.svTrailColor, 255],
-				}),
-			);
-		}
+		if (ctx.svTrailPosition) layers.push(...trailPositionLayers(svTrail, ctx));
 	}
 
 	// Active marker renders even with no committed locations so virtual previews (staged/seen)

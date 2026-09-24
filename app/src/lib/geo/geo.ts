@@ -105,3 +105,13 @@ export function distMeters(a: LatLng, b: LatLng): number {
 	const x = Math.sin(df / 2) ** 2 + Math.cos(f1) * Math.cos(f2) * Math.sin(dl / 2) ** 2;
 	return 2 * EARTH_RADIUS_M * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 }
+
+/** Initial great-circle bearing from `a` to `b` as a heading, in [-180, 180). */
+export function bearingDeg(a: LatLng, b: LatLng): number {
+	const f1 = (a.lat * Math.PI) / 180;
+	const f2 = (b.lat * Math.PI) / 180;
+	const dl = ((b.lng - a.lng) * Math.PI) / 180;
+	const y = Math.sin(dl) * Math.cos(f2);
+	const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
+	return normalizeHeading((Math.atan2(y, x) * 180) / Math.PI);
+}
