@@ -1526,6 +1526,7 @@
 	"What would you like?": "Что вы хотели бы предложить?",
 	"What's new": "Что нового",
 	"With no location open, Enter opens the location at the center of the map.": "Если локация не открыта, Enter открывает локацию в центре карты.",
+	"Within": "В пределах",
 	"Without an API key, requests may be rate-limited by Nominatim's usage policy.": "Без API-ключа запросы могут ограничиваться политикой использования Nominatim.",
 	"Works in every map (click for this map only)": "Работает во всех картах (клик: только эта карта)",
 	"World map (ACW, {distance})": "Карта мира (ACW, {distance})",

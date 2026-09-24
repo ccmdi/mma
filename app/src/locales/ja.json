@@ -1400,6 +1400,7 @@
 	"What would you like?": "どのようなものをご希望ですか？",
 	"What's new": "新機能",
 	"With no location open, Enter opens the location at the center of the map.": "地点を開いていないとき、Enterでマップ中央の地点を開きます。",
+	"Within": "範囲",
 	"Without an API key, requests may be rate-limited by Nominatim's usage policy.": "API キーがない場合、Nominatim の利用規約によりリクエストが制限されることがあります。",
 	"Works in every map (click for this map only)": "すべてのマップで有効（クリックでこのマップのみ）",
 	"World map (ACW, {distance})": "世界地図（ACW、{distance}）",

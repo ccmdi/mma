@@ -1400,6 +1400,7 @@
 	"What would you like?": "你希望增加什么？",
 	"What's new": "更新内容",
 	"With no location open, Enter opens the location at the center of the map.": "未打开位置时，回车打开地图中心的位置。",
+	"Within": "范围",
 	"Without an API key, requests may be rate-limited by Nominatim's usage policy.": "若未配置 API 密钥，请求可能受 Nominatim 使用策略限流。",
 	"Works in every map (click for this map only)": "在所有地图中生效（点击后仅限本地图）",
 	"World map (ACW, {distance})": "世界地图（ACW，{distance}）",

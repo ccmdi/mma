@@ -1484,6 +1484,7 @@
 	"What would you like?": "Que souhaiteriez-vous ?",
 	"What's new": "Nouveautés",
 	"With no location open, Enter opens the location at the center of the map.": "Sans lieu ouvert, Entrée ouvre le lieu au centre de la carte.",
+	"Within": "Dans",
 	"Without an API key, requests may be rate-limited by Nominatim's usage policy.": "Sans clé API, les requêtes peuvent être limitées par la politique d'utilisation de Nominatim.",
 	"Works in every map (click for this map only)": "Actif dans toutes les cartes (cliquer : cette carte seulement)",
 	"World map (ACW, {distance})": "Carte du monde (ACW, {distance})",

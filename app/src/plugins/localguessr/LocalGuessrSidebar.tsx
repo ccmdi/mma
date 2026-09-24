@@ -362,6 +362,17 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 						/>
 					)
 				}
+				footer={
+					map && (
+						<Button
+							variant="primary"
+							disabled={locationCount === 0 || starting}
+							onClick={() => void start()}
+						>
+							{starting ? t("Starting...") : t("Play")}
+						</Button>
+					)
+				}
 			>
 				{!map ? (
 					<EmptyState icon={mdiEarth}>{t("Open a map to play")}</EmptyState>
@@ -459,28 +470,20 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 
 						{saved.length > 0 && (
 							<Section title={t("In progress")}>
-								<EntryList>
-									{saved.map((game) => (
-										<SavedGameCard
-											key={game.startedAt}
-											game={game}
-											onResume={(game) => dispatch({ type: "start", game })}
-											onDiscard={discardGame}
-										/>
-									))}
-								</EntryList>
+								<div className="lg-sidebar__saved">
+									<EntryList>
+										{saved.map((game) => (
+											<SavedGameCard
+												key={game.startedAt}
+												game={game}
+												onResume={(game) => dispatch({ type: "start", game })}
+												onDiscard={discardGame}
+											/>
+										))}
+									</EntryList>
+								</div>
 							</Section>
 						)}
-
-						<div className="lg-sidebar__actions">
-							<Button
-								variant="primary"
-								disabled={locationCount === 0 || starting}
-								onClick={() => void start()}
-							>
-								{starting ? t("Starting...") : t("Play")}
-							</Button>
-						</div>
 					</>
 				)}
 			</Sidebar>

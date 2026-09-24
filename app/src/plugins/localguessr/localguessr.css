@@ -1,11 +1,12 @@
-.lg-sidebar__actions {
-	display: flex;
-	gap: 8px;
-	padding: 12px 0;
+.lg-sidebar .plugin-section {
+	flex-shrink: 0;
 }
 
-.lg-sidebar__actions .button {
-	flex: 1;
+.lg-sidebar__saved {
+	max-height: 13rem;
+	overflow-y: auto;
+	margin: 0 -0.25rem -0.5rem 0;
+	padding: 0 0.25rem 0.5rem 0;
 }
 
 .lg-sidebar__streak {
