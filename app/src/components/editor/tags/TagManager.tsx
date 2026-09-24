@@ -376,7 +376,9 @@ export function TagManager() {
 					virtualTags={virtualTags}
 					aliases={aliases}
 					onOpenChange={(open) => !open && setAddingAliasFor(null)}
-					onSave={(aliasPath) => {
+					onSave={(aliasPath, folder) => {
+						// Declared, so the folder outlives the alias like one made with New folder.
+						if (folder && !virtualTags[folder]) setVirtualTags({ ...virtualTags, [folder]: {} });
 						setAliases({ ...aliases, [aliasPath]: addingAliasFor.id });
 						setAddingAliasFor(null);
 					}}
@@ -687,7 +689,7 @@ function AddAliasDialog({
 	tags: Tag[];
 	virtualTags: Record<string, VirtualTag>;
 	aliases: Record<string, number>;
-	onSave: (aliasPath: string) => void;
+	onSave: (aliasPath: string, folder: string) => void;
 }) {
 	const [folder, setFolder] = useState("");
 	const segment = leafSegment(tag.name);
@@ -725,7 +727,7 @@ function AddAliasDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent title={t('Alias "{name}"', { name: segment })} size="sm">
-				<DialogForm onSubmit={() => !collision && onSave(aliasPath)}>
+				<DialogForm onSubmit={() => !collision && onSave(aliasPath, trimmed)}>
 					<Field
 						label={t("Target folder")}
 						hint={
