@@ -104,6 +104,64 @@ describe("Web bridge", () => {
 				{ timeoutMsg: "the backend-emitted event never reached the listener" },
 			);
 		});
+
+		it("stops delivering to a listener once it unlistens", async () => {
+			await withApi(async (api) => {
+				const w = window as unknown as {
+					__TAURI_INTERNALS__: {
+						invoke: (cmd: string, args: unknown) => Promise<unknown>;
+						transformCallback: (cb: (p: unknown) => void) => number;
+					};
+					__TAURI_EVENT_PLUGIN_INTERNALS__: {
+						unregisterListener: (event: string, id: number) => void;
+					};
+					__e2eKept: unknown[];
+					__e2eDropped: unknown[];
+				};
+				// eslint-disable-next-line no-restricted-syntax -- the bridge itself is under test
+				const { invoke, transformCallback } = w.__TAURI_INTERNALS__;
+				const event = "bulk-export-progress";
+				w.__e2eKept = [];
+				w.__e2eDropped = [];
+				await invoke("plugin:event|listen", {
+					event,
+					handler: transformCallback((e) => w.__e2eKept.push(e)),
+				});
+				const dropped = (await invoke("plugin:event|listen", {
+					event,
+					handler: transformCallback((e) => w.__e2eDropped.push(e)),
+				})) as number;
+
+				w.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener(event, dropped);
+				await invoke("plugin:event|unlisten", { event, eventId: dropped });
+
+				await api.cmd.storeExportBulkZip();
+			});
+
+			await browser.waitUntil(
+				() =>
+					browser.execute(
+						() => (window as unknown as { __e2eKept: unknown[] }).__e2eKept.length > 0,
+					),
+				{ timeoutMsg: "the kept listener never received the event" },
+			);
+			const dropped = await browser.execute(
+				() => (window as unknown as { __e2eDropped: unknown[] }).__e2eDropped.length,
+			);
+			expect(dropped).toBe(0);
+		});
+	});
+
+	it("serves commands that read the generator's shared state", async () => {
+		const error = await withApi(async (api) => {
+			try {
+				await api.cmd.valiCancel();
+				return null;
+			} catch (e) {
+				return String(e);
+			}
+		});
+		expect(error).toBeNull();
 	});
 
 	describe("clients", () => {
