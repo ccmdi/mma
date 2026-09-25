@@ -16,18 +16,21 @@ export async function withApi<A extends unknown[], R>(
 	fn: (api: MMA, ...args: A) => R,
 	...args: A
 ): Promise<Awaited<R>> {
+	// Arguments and result cross as one JSON string each: WebDriver BiDi serializes
+	// structured values node by node, which makes a large batch take minutes.
 	const wrapped = new Function(
-		"...___a",
-		`const ___d = ___a.pop();
-     const api = window.MMA;
-     (async () => { try { ___d(await (${fn.toString()})(api, ...___a)); } catch(e) { ___d({ __withApiError: (e && e.message) || String(e) }); } })();`,
+		"___json",
+		"___d",
+		`const api = window.MMA;
+     (async () => { try { const r = await (${fn.toString()})(api, ...JSON.parse(___json)); ___d({ __withApiJson: r === undefined ? null : JSON.stringify(r) }); } catch(e) { ___d({ __withApiError: (e && e.message) || String(e) }); } })();`,
 	);
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callback is serialized and re-evaluated in the browser; this bridge can't be statically typed
-	const result = (await browser.executeAsync(wrapped as any, ...args)) as unknown;
-	if (result !== null && typeof result === "object" && "__withApiError" in result) {
-		throw new Error(String((result as { __withApiError: unknown }).__withApiError));
-	}
-	return result as Awaited<R>;
+	const result = (await browser.executeAsync(wrapped as any, JSON.stringify(args))) as {
+		__withApiJson?: string | null;
+		__withApiError?: unknown;
+	};
+	if ("__withApiError" in result) throw new Error(String(result.__withApiError));
+	return (result.__withApiJson == null ? null : JSON.parse(result.__withApiJson)) as Awaited<R>;
 }
 
 export async function waitForReady() {
