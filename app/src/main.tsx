@@ -15,6 +15,7 @@ import { getSettings } from "@/store/settings";
 import { loadSession, saveSession } from "@/store/session";
 import { openWindow, openWindows, closeWindows } from "@/lib/window";
 import { cmd } from "@/lib/commands";
+import { isWeb } from "@/lib/util/util";
 import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { checkForUpdate } from "@/lib/util/updateCheck";
 import { refreshStoredReports } from "@/lib/feedback/submit";
@@ -89,7 +90,7 @@ async function boot() {
 	// Shown as soon as the shell has rendered: the webview surface exists by now, so the
 	// appear is a single native show (with DWM's pop-in), the maximize lands while the
 	// window is still a blank shell, and content streams into a visible window.
-	if (hasWindowHost) {
+	if (hasWindowHost && !isWeb()) {
 		void revealWindow();
 		mark("show");
 	} else {
