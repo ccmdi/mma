@@ -131,6 +131,8 @@ fn client_streams() -> &'static Mutex<HashMap<String, usize>> {
 }
 
 fn client_webview<R: Runtime>(handle: &AppHandle<R>, label: &str) -> Result<Webview<R>, String> {
+    static CREATING: Mutex<()> = Mutex::new(());
+    let _creating = CREATING.lock().unwrap();
     if let Some(w) = handle.get_webview_window(label) {
         return Ok(w.as_ref().clone());
     }
@@ -214,100 +216,97 @@ fn serve<R: Runtime>(handle: AppHandle<R>) {
     log::info!("[webserve] listening on http://{addr}");
     eprintln!("[webserve] http://{addr}");
 
-    for mut req in server.incoming_requests() {
-        let method = req.method().clone();
-        let url = req.url().to_string();
-        let path = url.split('?').next().unwrap_or("").to_string();
-        let query = url
-            .split_once('?')
-            .map(|(_, q)| q.to_string())
-            .unwrap_or_default();
-
-        if method == Method::Post && path == "/__ipc_upload" {
-            let raw = query.strip_prefix("name=").unwrap_or("upload");
-            let name = url_decode(raw);
-            let mut body = Vec::new();
-            let _ = req.as_reader().read_to_end(&mut body);
-            let dest = std::env::temp_dir().join(format!("mma_{name}"));
-            let resp = match std::fs::write(&dest, &body) {
-                Ok(()) => {
-                    let path_str = dest.to_string_lossy().to_string();
-                    (200, serde_json::json!(path_str).to_string())
-                }
-                Err(e) => (500, err_json(&format!("write failed: {e}"))),
-            };
-            let _ = req.respond(
-                Response::from_string(resp.1)
-                    .with_status_code(resp.0)
-                    .with_header(json_header()),
-            );
-            continue;
-        }
-
-        if method == Method::Post && path.starts_with("/__ipc/") {
-            let cmd = path.trim_start_matches("/__ipc/").to_string();
-            let mut body = String::new();
-            let _ = req.as_reader().read_to_string(&mut body);
-            let args: serde_json::Value =
-                serde_json::from_str(&body).unwrap_or_else(|_| serde_json::json!({}));
-            let client = header_value(&req, CLIENT_HEADER);
-            let (status, out) = match client_label(client.as_deref()) {
-                Some(label) => invoke(&handle, &label, cmd, args),
-                None => (400, err_json("invalid client id")),
-            };
-            let _ = req.respond(
-                Response::from_string(out)
-                    .with_status_code(status)
-                    .with_header(json_header()),
-            );
-            continue;
-        }
-
-        if method == Method::Get && path == "/__events" {
-            let client = query
-                .split('&')
-                .find_map(|kv| kv.strip_prefix("client="))
-                .map(url_decode);
-            let Some(label) = client_label(client.as_deref()) else {
-                let _ =
-                    req.respond(Response::from_string("invalid client id").with_status_code(400));
-                continue;
-            };
-            let (tx, rx) = channel::<Vec<u8>>();
-            event_clients().lock().unwrap().push(tx);
-            *client_streams()
-                .lock()
-                .unwrap()
-                .entry(label.clone())
-                .or_default() += 1;
-            let handle = handle.clone();
-            // Own thread: the accept loop is single-threaded, so holding an SSE
-            // connection open here would stall every other request.
-            std::thread::spawn(move || {
-                stream_events(req, rx);
-                release_client(handle, label);
-            });
-            continue;
-        }
-
-        if path == "/__webserve/sw.js" {
-            let resp = Response::from_string(SERVICE_WORKER_JS)
-                .with_header(ct_header("text/javascript; charset=utf-8"))
-                .with_header(
-                    Header::from_bytes(&b"Service-Worker-Allowed"[..], &b"/"[..]).unwrap(),
-                );
-            let _ = req.respond(resp);
-            continue;
-        }
-
-        if let Some(rest) = path.strip_prefix("/__scheme/") {
-            let resp = serve_scheme(&mut req, rest, &query, method);
-            let _ = req.respond(resp);
-            continue;
-        }
-
-        let _ = req.respond(serve_asset(&handle, &path));
+    for req in server.incoming_requests() {
+        let handle = handle.clone();
+        std::thread::spawn(move || handle_request(&handle, req));
     }
+}
+
+fn handle_request<R: Runtime>(handle: &AppHandle<R>, mut req: tiny_http::Request) {
+    let method = req.method().clone();
+    let url = req.url().to_string();
+    let path = url.split('?').next().unwrap_or("").to_string();
+    let query = url
+        .split_once('?')
+        .map(|(_, q)| q.to_string())
+        .unwrap_or_default();
+
+    if method == Method::Post && path == "/__ipc_upload" {
+        let raw = query.strip_prefix("name=").unwrap_or("upload");
+        let name = url_decode(raw);
+        let mut body = Vec::new();
+        let _ = req.as_reader().read_to_end(&mut body);
+        let dest = std::env::temp_dir().join(format!("mma_{name}"));
+        let resp = match std::fs::write(&dest, &body) {
+            Ok(()) => {
+                let path_str = dest.to_string_lossy().to_string();
+                (200, serde_json::json!(path_str).to_string())
+            }
+            Err(e) => (500, err_json(&format!("write failed: {e}"))),
+        };
+        let _ = req.respond(
+            Response::from_string(resp.1)
+                .with_status_code(resp.0)
+                .with_header(json_header()),
+        );
+        return;
+    }
+
+    if method == Method::Post && path.starts_with("/__ipc/") {
+        let cmd = path.trim_start_matches("/__ipc/").to_string();
+        let mut body = String::new();
+        let _ = req.as_reader().read_to_string(&mut body);
+        let args: serde_json::Value =
+            serde_json::from_str(&body).unwrap_or_else(|_| serde_json::json!({}));
+        let client = header_value(&req, CLIENT_HEADER);
+        let (status, out) = match client_label(client.as_deref()) {
+            Some(label) => invoke(handle, &label, cmd, args),
+            None => (400, err_json("invalid client id")),
+        };
+        let _ = req.respond(
+            Response::from_string(out)
+                .with_status_code(status)
+                .with_header(json_header()),
+        );
+        return;
+    }
+
+    if method == Method::Get && path == "/__events" {
+        let client = query
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("client="))
+            .map(url_decode);
+        let Some(label) = client_label(client.as_deref()) else {
+            let _ = req.respond(Response::from_string("invalid client id").with_status_code(400));
+            return;
+        };
+        let (tx, rx) = channel::<Vec<u8>>();
+        event_clients().lock().unwrap().push(tx);
+        *client_streams()
+            .lock()
+            .unwrap()
+            .entry(label.clone())
+            .or_default() += 1;
+        stream_events(req, rx);
+        release_client(handle.clone(), label);
+        return;
+    }
+
+    if path == "/__webserve/sw.js" {
+        let resp = Response::from_string(SERVICE_WORKER_JS)
+            .with_header(ct_header("text/javascript; charset=utf-8"))
+            .with_header(Header::from_bytes(&b"Service-Worker-Allowed"[..], &b"/"[..]).unwrap());
+        let _ = req.respond(resp);
+        return;
+    }
+
+    if let Some(rest) = path.strip_prefix("/__scheme/") {
+        let resp = serve_scheme(&mut req, rest, &query, method);
+        let _ = req.respond(resp);
+        return;
+    }
+
+    let _ = req.respond(serve_asset(handle, &path));
 }
 
 fn serve_scheme(

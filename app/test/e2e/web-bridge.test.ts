@@ -17,6 +17,7 @@ import {
 	getLocCount,
 	waitForReady,
 } from "./helpers";
+import { setFaults } from "./parityDriver";
 
 describe("Web bridge", () => {
 	let mapId: string;
@@ -150,6 +151,28 @@ describe("Web bridge", () => {
 			);
 			expect(dropped).toBe(0);
 		});
+	});
+
+	it("answers other commands while a slow one is still running", async () => {
+		const pano = "-zrYsLR4Fh-cfJG_EMZ1-A";
+		// One transient failure makes the lookup sit out the engine's retry backoff.
+		await setFaults({ [pano]: [503] });
+		const order = await withApi(async (api, id) => {
+			const done: string[] = [];
+			const slow = api.cmd
+				.procedureQuery(
+					{ entry: "res://procedures/svMeta.js" },
+					JSON.stringify({ op: "metadata", panoIds: [id] }),
+					null,
+				)
+				.then(() => done.push("slow"));
+			await api.cmd.storeGetSummary();
+			done.push("fast");
+			await slow;
+			return done;
+		}, pano);
+		await setFaults({});
+		expect(order).toEqual(["fast", "slow"]);
 	});
 
 	it("serves commands that read the generator's shared state", async () => {
