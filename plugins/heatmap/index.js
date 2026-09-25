@@ -52,7 +52,7 @@ var require_jsx_runtime = __commonJS({
   }
 });
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/common/utils/color-utils.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/common/utils/color-utils.js
 var defaultColorRange = [
   [255, 255, 178],
   [254, 217, 118],
@@ -84,7 +84,7 @@ function colorRangeToFlatArray(colorRange, normalize = false, ArrayType = Float3
   return flatArray;
 }
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer-utils.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer-utils.js
 function getBounds(points) {
   const x = points.map((p) => p[0]);
   const y = points.map((p) => p[1]);
@@ -139,15 +139,15 @@ function getTextureCoordinates(point, bounds) {
   return [(point[0] - xMin) / (xMax - xMin), (point[1] - yMin) / (yMax - yMin)];
 }
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer.js
 var import_engine2 = __toESM(require_engine(), 1);
 var import_core3 = __toESM(require_core(), 1);
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer.js
 var import_engine = __toESM(require_engine(), 1);
 var import_core = __toESM(require_core(), 1);
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-vertex.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-vertex.glsl.js
 var triangle_layer_vertex_glsl_default = `#version 300 es
 #define SHADER_NAME heatp-map-layer-vertex-shader
 uniform sampler2D maxTexture;
@@ -171,7 +171,7 @@ vIntensityMin = triangle.intensity / minValue;
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-fragment.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-fragment.glsl.js
 var triangle_layer_fragment_glsl_default = `#version 300 es
 #define SHADER_NAME triangle-layer-fragment-shader
 precision highp float;
@@ -202,7 +202,7 @@ fragColor = linearColor;
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-uniforms.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer-uniforms.js
 var uniformBlock = `layout(std140) uniform triangleUniforms {
   float aggregationMode;
   vec2 colorDomain;
@@ -222,7 +222,7 @@ var triangleUniforms = {
   }
 };
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/triangle-layer.js
 var TriangleLayer = class extends import_core.Layer {
   getShaders() {
     return super.getShaders({ vs: triangle_layer_vertex_glsl_default, fs: triangle_layer_fragment_glsl_default, modules: [import_core.project32, triangleUniforms] });
@@ -263,10 +263,10 @@ var TriangleLayer = class extends import_core.Layer {
 TriangleLayer.layerName = "TriangleLayer";
 var triangle_layer_default = TriangleLayer;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/aggregation-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/aggregation-layer.js
 var import_core2 = __toESM(require_core(), 1);
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/common/utils/prop-utils.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/common/utils/prop-utils.js
 function filterProps(props, filterKeys) {
   const filteredProps = {};
   for (const key in props) {
@@ -277,7 +277,7 @@ function filterProps(props, filterKeys) {
   return filteredProps;
 }
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/aggregation-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/aggregation-layer.js
 var AggregationLayer = class extends import_core2.CompositeLayer {
   initializeAggregationLayer(dimensions) {
     super.initializeState(this.context);
@@ -398,7 +398,7 @@ function isObjectEmpty(obj) {
   return isEmpty;
 }
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/weights-vs.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/weights-vs.glsl.js
 var weights_vs_glsl_default = `#version 300 es
 in vec3 positions;
 in vec3 positions64Low;
@@ -416,7 +416,7 @@ gl_Position.w = 1.0;
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/weights-fs.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/weights-fs.glsl.js
 var weights_fs_glsl_default = `#version 300 es
 in vec4 weightsTexture;
 out vec4 fragColor;
@@ -434,7 +434,7 @@ DECKGL_FILTER_COLOR(fragColor, geometry);
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/max-vs.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/max-vs.glsl.js
 var max_vs_glsl_default = `#version 300 es
 uniform sampler2D inTexture;
 out vec4 outTexture;
@@ -449,7 +449,7 @@ gl_PointSize = 1.0;
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/max-fs.glsl.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/max-fs.glsl.js
 var max_fs_glsl_default = `#version 300 es
 in vec4 outTexture;
 out vec4 fragColor;
@@ -459,7 +459,7 @@ fragColor.g = outTexture.r / max(1.0, outTexture.a);
 }
 `;
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer-uniforms.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer-uniforms.js
 var uniformBlock2 = `layout(std140) uniform weightUniforms {
   vec4 commonBounds;
   float radiusPixels;
@@ -488,7 +488,7 @@ var maxWeightUniforms = {
   }
 };
 
-// ../../../../plugins/heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer.js
+// heatmap/node_modules/@deck.gl/aggregation-layers/dist/heatmap-layer/heatmap-layer.js
 var RESOLUTION = 2;
 var TEXTURE_PROPS = {
   format: "rgba8unorm",
