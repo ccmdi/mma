@@ -42,6 +42,97 @@ fn a_street_view_path_url_with_a_pano_loads_as_pano_id() {
     assert!((p.zoom - fov_to_zoom(75.0)).abs() < 1e-12);
 }
 
+const KOREA_FIRST: &str = "https://www.google.com/maps/@8Q98FWJW+FMW54RX,3a,106.3y,96.73h,94.69t/data=!3m5!1e1!3m3!1sVCkBR3k2Lcvs3qBGSb4rGg!2e0?extra%5Btags%5D=South+Korea";
+const KOREA_SECOND: &str = "https://www.google.com/maps/@8Q98QG96+W2XCHFV,3a,106.3y,254.92h,90.55t/data=!3m5!1e1!3m3!1skIj6lYm-HiSCvTxUEJcCeA!2e0?extra%5Btags%5D=South+Korea";
+
+#[test]
+fn korean_plus_code_share_links_preserve_the_panorama_camera_and_tags() {
+    for (url, lat, lng, id, heading, pitch) in [
+        (
+            KOREA_FIRST,
+            37.48122598,
+            126.9467152709961,
+            "VCkBR3k2Lcvs3qBGSb4rGg",
+            96.73,
+            4.69,
+        ),
+        (
+            KOREA_SECOND,
+            37.76986258,
+            126.5101002807617,
+            "kIj6lYm-HiSCvTxUEJcCeA",
+            254.92,
+            0.55,
+        ),
+    ] {
+        let p = parsed(url);
+        assert!((p.lat - lat).abs() < 1e-10);
+        assert!((p.lng - lng).abs() < 1e-10);
+        assert_eq!(p.pano_id.as_deref(), Some(id));
+        assert_eq!(p.flags, LocationFlags::LOAD_AS_PANO_ID);
+        assert!((p.heading - heading).abs() < 1e-10);
+        assert!((p.pitch - pitch).abs() < 1e-10);
+        assert!((p.zoom - fov_to_zoom(106.3)).abs() < 1e-12);
+        assert_eq!(p.tags, ["South Korea"]);
+    }
+}
+
+#[test]
+fn a_plus_code_accepts_an_encoded_separator_and_lowercase_characters() {
+    assert_eq!(
+        parsed(&KOREA_FIRST.replace("8Q98FWJW+FMW54RX", "8q98fwjw%2bfmw54rx")),
+        parsed(KOREA_FIRST)
+    );
+    assert_eq!(
+        parsed(&KOREA_FIRST.replace("FWJW+", "FWJW%2B")),
+        parsed(KOREA_FIRST)
+    );
+}
+
+#[test]
+fn a_plus_code_retains_the_fragment_tags_and_lat_lng_load_mode() {
+    let p = parsed(&format!(
+        "{KOREA_FIRST}#extra[tags]=FromHash&extra[loadMode]=latLng"
+    ));
+    assert_eq!(p.flags, LocationFlags::empty());
+    assert_eq!(p.pano_id.as_deref(), Some("VCkBR3k2Lcvs3qBGSb4rGg"));
+    assert_eq!(p.tags, ["FromHash"]);
+}
+
+#[test]
+fn a_plus_code_path_without_heading_keeps_roll_and_camera_parsing() {
+    let p = parsed(&KOREA_SECOND.replace(",254.92h,90.55t", ",90.55t,2r"));
+    assert_eq!(p.heading, 0.0);
+    assert!((p.pitch - 0.55).abs() < 1e-10);
+    assert_eq!(p.pano_id.as_deref(), Some("kIj6lYm-HiSCvTxUEJcCeA"));
+}
+
+#[test]
+fn plus_code_decoding_matches_the_reference_pair_cell() {
+    let (lat, lng) = decode_full_plus_code("8FVC9G8F+6X").expect("full code");
+    assert!((lat - 47.3655625).abs() < 1e-10);
+    assert!((lng - 8.5249375).abs() < 1e-10);
+}
+
+#[test]
+fn malformed_short_and_out_of_range_plus_codes_are_rejected() {
+    for code in [
+        "FWJW+FM",
+        "8Q98FWJW+F",
+        "8Q98FWJW+FMW54RXX",
+        "8Q98FWJW+FM0",
+        "FQ98FWJW+FM",
+        "8W98FWJW+FM",
+    ] {
+        assert_eq!(decode_full_plus_code(code), None, "{code}");
+        assert_eq!(
+            parse(&KOREA_FIRST.replace("8Q98FWJW+FMW54RX", code)),
+            None,
+            "{code}"
+        );
+    }
+}
+
 #[test]
 fn load_mode_lat_lng_opts_out_of_load_as_pano_id() {
     let p = parsed(

@@ -54,16 +54,65 @@ fn number(v: Option<String>) -> Option<f64> {
     v?.trim().parse().ok()
 }
 
-/// The `@lat,lng,<alt>a,<fov>y[,<heading>h],<pitch>t[,<roll>r]/data=...!1s<key>!2e<frontend>`
-/// path form a Street View share link uses.
+/// A Street View share path, whose position is either `lat,lng` or a full Plus Code.
 fn street_view_path() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?),(?:-?\d+(?:\.\d+)?)a,(-?\d+(?:\.\d+)?)y(?:,(-?\d+(?:\.\d+)?)h)?,(-?\d+(?:\.\d+)?)t(?:,-?\d+(?:\.\d+)?r)?/data=(?:.*?)!1s([0-9a-zA-Z_-]+)!2e(\d+)",
+            r"@(?P<position>-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?|(?i:[23456789CFGHJMPQRVWX]{8}(?:\+|%2b)[23456789CFGHJMPQRVWX]{2,7})),(?:-?\d+(?:\.\d+)?)a,(?P<fov>-?\d+(?:\.\d+)?)y(?:,(?P<heading>-?\d+(?:\.\d+)?)h)?,(?P<tilt>-?\d+(?:\.\d+)?)t(?:,-?\d+(?:\.\d+)?r)?/data=(?:.*?)!1s(?P<key>[0-9a-zA-Z_-]+)!2e(?P<frontend>\d+)",
         )
         .expect("street view path pattern")
     })
+}
+
+fn street_view_position(position: &str) -> Option<(f64, f64)> {
+    if let Some((lat, lng)) = position.split_once(',') {
+        return Some((lat.parse().ok()?, lng.parse().ok()?));
+    }
+    let code = percent_encoding::percent_decode_str(position)
+        .decode_utf8()
+        .ok()?;
+    decode_full_plus_code(&code)
+}
+
+/// Decode a full, unpadded Open Location Code to its cell center. Street View shares
+/// use 10–15 significant digits; short codes need a reference location and are rejected.
+/// Pair digits describe a 20x20 grid; subsequent digits refine it into 5 rows / 4 columns.
+fn decode_full_plus_code(code: &str) -> Option<(f64, f64)> {
+    const ALPHABET: &[u8] = b"23456789CFGHJMPQRVWX";
+    let bytes = code.as_bytes();
+    if !(11..=16).contains(&bytes.len()) || bytes[8] != b'+' {
+        return None;
+    }
+    let digits: Vec<i64> = bytes[..8]
+        .iter()
+        .chain(&bytes[9..])
+        .map(|b| {
+            ALPHABET
+                .iter()
+                .position(|a| *a == b.to_ascii_uppercase())
+                .map(|i| i as i64)
+        })
+        .collect::<Option<_>>()?;
+    let (mut lat, mut lng) = (0_i64, 0_i64);
+    for pair in digits[..10].chunks_exact(2) {
+        lat = lat * 20 + pair[0];
+        lng = lng * 20 + pair[1];
+    }
+    let (mut lat_scale, mut lng_scale) = (8_000_i64, 8_000_i64);
+    if lat >= 180 * lat_scale || lng >= 360 * lng_scale {
+        return None;
+    }
+    for digit in &digits[10..] {
+        lat = lat * 5 + digit / 4;
+        lng = lng * 4 + digit % 4;
+        lat_scale *= 5;
+        lng_scale *= 4;
+    }
+    Some((
+        (lat as f64 + 0.5) / lat_scale as f64 - 90.0,
+        (lng as f64 + 0.5) / lng_scale as f64 - 180.0,
+    ))
 }
 
 fn parse_expanded(url: &Url) -> Option<ParsedLocation> {
@@ -97,16 +146,15 @@ fn parse_expanded(url: &Url) -> Option<ParsedLocation> {
     let host = url.host_str().unwrap_or_default();
     if host.starts_with("www.google.") && url.path().starts_with("/maps") {
         if let Some(m) = street_view_path().captures(url.path()) {
-            let lat: f64 = m[1].parse().ok()?;
-            let lng: f64 = m[2].parse().ok()?;
-            let zoom = m[3].parse().map_or(0.0, fov_to_zoom);
+            let (lat, lng) = street_view_position(&m["position"])?;
+            let zoom = m["fov"].parse().map_or(0.0, fov_to_zoom);
             let heading = m
-                .get(4)
+                .name("heading")
                 .and_then(|h| h.as_str().parse().ok())
                 .unwrap_or(0.0);
-            let pitch = m[5].parse::<f64>().map_or(0.0, |t| t - 90.0);
-            let frontend: i32 = m[7].parse().ok()?;
-            let pano_id = from_image_key(if frontend == 0 { 2 } else { frontend }, &m[6]);
+            let pitch = m["tilt"].parse::<f64>().map_or(0.0, |t| t - 90.0);
+            let frontend: i32 = m["frontend"].parse().ok()?;
+            let pano_id = from_image_key(if frontend == 0 { 2 } else { frontend }, &m["key"]);
             let flags = if pano_id.is_empty() {
                 LocationFlags::empty()
             } else {
