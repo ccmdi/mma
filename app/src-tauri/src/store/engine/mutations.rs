@@ -68,6 +68,9 @@ pub struct MutationResult {
     pub version: u64,
     pub selection_sync: Option<SelectionSync>,
     pub values: EngineValues,
+    /// The newest undo step after this change, for a later change to join while it is
+    /// still the newest.
+    pub step: Option<u64>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.

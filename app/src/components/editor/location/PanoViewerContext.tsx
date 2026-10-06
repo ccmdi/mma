@@ -9,11 +9,11 @@ import {
 	useState,
 	type ReactNode,
 } from "react";
-import { useMapState } from "@/store/useMapStore";
+import { getMapState, updateLocations, useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
 import { usePano } from "@/lib/hooks/usePano";
-import { sameRow, type LatLng } from "@/types";
+import { applyLocationPatch, extraPatch, sameRow, type LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
@@ -37,9 +37,11 @@ interface PanoViewerContextValue {
 	open: (location: Location, resolved: string | null) => void;
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
-	/** What a save writes: the draft as it stands, never waiting on enrichment. A run
-	 *  still in flight is skipped and its answers discarded. */
+	/** What a save writes: the draft as it stands, never waiting on enrichment. */
 	settled: () => Promise<Location | null>;
+	/** The draft was saved as map row `id` in undo step `step`: enrichment still in flight
+	 *  lands there, in the same step while it is the newest. */
+	commit: (id: number, step: number | null) => void;
 	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
 	 *  rather than off the draft; null until it lands. */
 	currentPano: Pano | null;
@@ -55,6 +57,11 @@ interface PanoViewerContextValue {
 }
 
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
+
+/** An enrichment run, and the map row and undo step its draft was saved as, once saved. */
+interface Run {
+	saved?: { id: number; step: number | null };
+}
 
 /** Where the viewer is: the draft once the location is open, else the location. */
 export function viewerPosition(draft: Location | null, location: Location | null): LatLng {
@@ -143,34 +150,64 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const [enrichedKey, setEnrichedKey] = useState<string | null>(null);
 	const enriching = location != null && (draftKey == null || enrichedKey !== draftKey);
 	const inFlight = useRef<Promise<Location | null>>(Promise.resolve(null));
+	const run = useRef<Run>({});
 	useEffect(() => {
 		if (!draft) return;
 		const ac = new AbortController();
-		const patch = (extra: Location["extra"]) =>
-			setState((prev) => (prev && sameRow(prev, draft) ? { ...prev, extra } : prev));
+		const thisRun: Run = {};
+		run.current = thisRun;
+		// An answer is one patch over the row the run read, laid wherever that row lives now:
+		// on the draft, or once saved, on the map row it became, in the save's undo step.
+		let landing = Promise.resolve();
+		const land = (row: Location) => {
+			const patch = { extra: extraPatch(draft.extra, row.extra) };
+			landing = landing.then(async () => {
+				const saved = thisRun.saved;
+				if (!saved) {
+					setState((prev) =>
+						prev && sameRow(prev, draft) ? applyLocationPatch(prev, patch) : prev,
+					);
+					return;
+				}
+				await updateLocations([{ id: saved.id, patch }], { join: saved.step });
+				saved.step = getMapState().step ?? saved.step;
+			});
+		};
 		inFlight.current = enrich(draft, {
 			signal: ac.signal,
 			onPartial: ([row]) => {
-				if (row && !ac.signal.aborted && sameRow(row, draft)) patch(row.extra);
+				if (row && !ac.signal.aborted && sameRow(row, draft)) land(row);
 			},
 		})
 			.then((row) => {
 				if (ac.signal.aborted) return null;
-				patch(row.extra);
+				land(row);
 				return row;
 			})
 			.catch((e: unknown) => {
 				if (ac.signal.aborted) return null;
 				log.error("[viewer] enrichment failed:", e);
-				patch(draft.extra);
+				if (!thisRun.saved) {
+					setState((prev) =>
+						prev && sameRow(prev, draft) ? { ...prev, extra: draft.extra } : prev,
+					);
+				}
 				return null;
 			})
 			.finally(() => {
 				if (!ac.signal.aborted) setEnrichedKey(draftKey);
 			});
-		return () => ac.abort();
+		return () => {
+			if (!thisRun.saved) ac.abort();
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs per pano, reading the draft as it is then
 	}, [draft?.id, draft?.panoId]);
+	const commit = useCallback(
+		(id: number, step: number | null) => {
+			if (enriching) run.current.saved = { id, step };
+		},
+		[enriching],
+	);
 	const settled = useCallback(async () => {
 		if (!draft) return null;
 		if (enriching) return draft;
@@ -197,8 +234,19 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	}, [pano, location]);
 
 	const value = useMemo(
-		() => ({ draft, open, edit, settled, currentPano, timeline, defaultPano, geo, enriching }),
-		[draft, open, edit, settled, currentPano, timeline, defaultPano, geo, enriching],
+		() => ({
+			draft,
+			open,
+			edit,
+			settled,
+			commit,
+			currentPano,
+			timeline,
+			defaultPano,
+			geo,
+			enriching,
+		}),
+		[draft, open, edit, settled, commit, currentPano, timeline, defaultPano, geo, enriching],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;

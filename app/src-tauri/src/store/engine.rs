@@ -260,6 +260,7 @@ impl Store {
             result.values.can_undo = Some(self.edits.undo_len() > 0);
             result.values.can_redo = Some(self.edits.redo_len() > 0);
         }
+        result.step = self.edits.newest();
     }
 
     /// Bump version, project the semantic changeset onto the render cells and the
@@ -356,6 +357,7 @@ impl Store {
                 field_defs,
                 ..Default::default()
             },
+            step: None,
         };
         self.report(&mut result);
         result

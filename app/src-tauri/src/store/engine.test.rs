@@ -4475,6 +4475,26 @@ fn a_row_a_run_touches_twice_undoes_to_its_state_before_the_run() {
 }
 
 #[test]
+fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let saved = apply_updates(
+        &mut store,
+        &[Update {
+            id: 1,
+            patch: patch!(heading: 90.0),
+        }],
+        UndoScope::Entry,
+    );
+    let mut join = saved.step;
+    assert!(join.is_some(), "a recorded change names its step");
+    page(&mut store, &mut join, 1, 180.0);
+
+    assert_eq!(store.edits.undo_len(), 1);
+    undo_and_finish(&mut store);
+    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+}
+
+#[test]
 fn an_edit_between_pages_splits_the_group() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 0.0)]);
     let mut group = None;

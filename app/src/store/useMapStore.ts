@@ -75,6 +75,9 @@ export interface UiState {
 	workArea: WorkArea;
 	/** @unstable */
 	activePluginId: string | null;
+	/** The newest undo step, for a later change to join while it is still the newest.
+	 *  @unstable */
+	step: number | null;
 }
 
 export type MapState = UiState & EngineState;
@@ -100,6 +103,7 @@ const INITIAL_STATE: MapState = {
 	duplicateLocations: [],
 	workArea: "overview",
 	activePluginId: null,
+	step: null,
 };
 
 let state: MapState = INITIAL_STATE;
@@ -487,6 +491,7 @@ function applyMutation(r: MutationResult) {
 	if (!state.map) return;
 	const oldTags = getTags();
 	mergeEngineValues(r.values);
+	if (r.step !== state.step) setState({ step: r.step });
 	if (getTags() !== oldTags)
 		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
@@ -500,6 +505,7 @@ function applySelectionSync(sync: SelectionSync) {
 const EMPTY_MUTATION: MutationResult = {
 	version: 0,
 	selectionSync: null,
+	step: null,
 	values: {
 		locationCount: null,
 		canUndo: null,
@@ -602,11 +608,11 @@ export async function removeLocations(ids: ReadonlyIdSet) {
  *  per-key (null deletes a key). Undoable by default. */
 export async function updateLocations(
 	updates: Update<LocationPatch>[],
-	opts?: { undoable?: boolean },
+	opts?: { undoable?: boolean; join?: number | null },
 ) {
 	if (updates.length === 0) return;
 	if (updates.some((u) => isVirtualLocation(u))) return;
-	await mutate(() => cmd.storeUpdateLocations(updates, opts?.undoable ?? true));
+	await mutate(() => cmd.storeUpdateLocations(updates, opts?.undoable ?? true, opts?.join ?? null));
 	emitEvent("location:update", updates);
 	if (state.activeLocation) {
 		const activePatch = updates.find((u) => u.id === state.activeLocationId)?.patch;

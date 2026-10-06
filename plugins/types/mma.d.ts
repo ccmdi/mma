@@ -736,10 +736,11 @@ declare const commands$1: {
     /**
      *  Apply partial patches to existing locations. `recordUndo` defaults to true;
      *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
-     *  that manage their own undo).
+     *  that manage their own undo). With `join`, an undoable change folds into that undo step
+     *  while it is still the newest.
      *  @unstable
      */
-    storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null) => Promise<MutationResult>;
+    storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null, join: number | null) => Promise<MutationResult>;
     /**  Set (or clear) the active location. @unstable */
     storeSetActive: (id: number | null) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
@@ -2094,6 +2095,11 @@ type MutationResult = {
     version: number;
     selectionSync: SelectionSync | null;
     values: EngineValues;
+    /**
+     *  The newest undo step after this change, for a later change to join while it is
+     *  still the newest.
+     */
+    step: number | null;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -3463,6 +3469,9 @@ export interface UiState {
     workArea: WorkArea;
     /** @unstable */
     activePluginId: string | null;
+    /** The newest undo step, for a later change to join while it is still the newest.
+     *  @unstable */
+    step: number | null;
 }
 export type MapState = UiState & EngineState;
 /** Per-tag location counts: `valueCounts.tags` re-keyed by numeric id. */
@@ -3567,6 +3576,7 @@ declare function removeLocations(ids: ReadonlyIdSet): Promise<void>;
  *  per-key (null deletes a key). Undoable by default. */
 declare function updateLocations(updates: Update<LocationPatch_Deserialize>[], opts?: {
     undoable?: boolean;
+    join?: number | null;
 }): Promise<void>;
 /** Rename extra-field `from` to `to` across all locations, its definition, and selections.
  *  When a location already holds `to`, `winner` decides which value survives. */

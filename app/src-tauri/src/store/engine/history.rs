@@ -106,6 +106,11 @@ impl EditStacks {
         self.redo.clear();
     }
 
+    /// The `seq` of the newest undoable edit.
+    pub(crate) fn newest(&self) -> Option<u64> {
+        self.undo.last().map(|e| e.seq)
+    }
+
     pub(crate) fn undo_len(&self) -> usize {
         self.undo.len()
     }

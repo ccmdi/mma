@@ -1374,6 +1374,7 @@ updateLocations(
   updates: Update<LocationPatch_Deserialize>[],
   opts?: {
     undoable?: boolean;
+    join?: number | null;
   },
 ): Promise<void>
 ```
@@ -6438,12 +6439,14 @@ Undo the last edit.
 cmd.storeUpdateLocations(
   updates: Update<LocationPatch_Deserialize>[],
   recordUndo: boolean | null,
+  join: number | null,
 ): Promise<MutationResult>
 ```
 
 Apply partial patches to existing locations. `recordUndo` defaults to true;
 set to false for ephemeral updates (e.g., plugin-driven batch modifications
-that manage their own undo).
+that manage their own undo). With `join`, an undoable change folds into that undo step
+while it is still the newest.
 
 #### cmd.storeUpdateMapMeta
 

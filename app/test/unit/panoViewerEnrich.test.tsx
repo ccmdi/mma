@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
 	/** Rows `enrich` was handed, in order. */
 	enriched: [] as Location[],
 	written: [] as { id: number; patch: { extra?: Record<string, unknown> } }[],
+	/** The undo step each write asked to join. */
+	joins: [] as (number | null)[],
 	enrichDefer: false,
 	deferredResolvers: [] as Array<(loc: Location) => void>,
 }));
@@ -23,9 +25,11 @@ const h = vi.hoisted(() => ({
 vi.mock("@/store/useMapStore", () => ({
 	useMapState: (sel: (s: { activeLocation: unknown; map: unknown }) => unknown) =>
 		sel({ activeLocation: h.activeLocation, map: { settings: {} } }),
-	updateLocations: async (updates: typeof h.written) => {
+	updateLocations: async (updates: typeof h.written, opts?: { join?: number | null }) => {
 		h.written.push(...updates);
+		h.joins.push(opts?.join ?? null);
 	},
+	getMapState: () => ({ step: 9 }),
 }));
 // Enrichment answers the row with one field derived from its pano.
 vi.mock("@/lib/sv/enrich", () => ({
@@ -103,6 +107,7 @@ const walk = (pano: string) =>
 beforeEach(() => {
 	h.enriched = [];
 	h.written = [];
+	h.joins = [];
 	h.enrichOn = true;
 	h.enrichFails = false;
 	h.enrichHangs = false;
@@ -370,6 +375,41 @@ describe("handleSave extraPatch", () => {
 		const patch = extraPatch(location().extra, settled!.extra);
 		expect(patch.enriched).toBeNull();
 		expect("custom" in patch).toBe(false);
+		m.unmount();
+	});
+});
+
+describe("an answer after Save", () => {
+	const close = () =>
+		act(async () => {
+			h.activeLocation = null;
+			refresh();
+		});
+	const answer = () =>
+		act(async () => {
+			const read = h.enriched[0];
+			h.deferredResolvers[0]({ ...read, extra: { ...read.extra, enriched: read.panoId } });
+		});
+
+	it("lands on the saved row, in the save's undo step", async () => {
+		const m = mountHost();
+		h.enrichDefer = true;
+		await open("pA");
+		await act(async () => viewer.commit(7, 5));
+		await close();
+		await answer();
+		expect(h.written).toEqual([{ id: 7, patch: { extra: { enriched: "pA" } } }]);
+		expect(h.joins).toEqual([5]);
+		m.unmount();
+	});
+
+	it("writes nothing when the draft closed without saving", async () => {
+		const m = mountHost();
+		h.enrichDefer = true;
+		await open("pA");
+		await close();
+		await answer();
+		expect(h.written).toEqual([]);
 		m.unmount();
 	});
 });

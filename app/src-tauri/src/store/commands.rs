@@ -307,7 +307,8 @@ pub fn store_remove_locations(
 
 /// Apply partial patches to existing locations. `recordUndo` defaults to true;
 /// set to false for ephemeral updates (e.g., plugin-driven batch modifications
-/// that manage their own undo).
+/// that manage their own undo). With `join`, an undoable change folds into that undo step
+/// while it is still the newest.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_update_locations(
@@ -315,12 +316,18 @@ pub async fn store_update_locations(
     state: tauri::State<'_, StoreState>,
     updates: Vec<Update<LocationPatch>>,
     record_undo: Option<bool>,
+    join: Option<u64>,
 ) -> AppResult<MutationResult> {
     let record_undo = record_undo.unwrap_or(true);
+    let mut join = join;
     let _t = Instant::now();
     with_store!(label, state, |store| {
         let n = updates.len();
-        let result = apply_updates(store, &updates, UndoScope::entry_if(record_undo));
+        let undo = match record_undo {
+            true => UndoScope::Run(&mut join),
+            false => UndoScope::Skip,
+        };
+        let result = apply_updates(store, &updates, undo);
         log::debug!(
             "[cmd] store_update_locations n={} undo={} total={}ms",
             n,

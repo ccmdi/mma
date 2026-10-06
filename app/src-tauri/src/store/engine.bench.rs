@@ -292,6 +292,7 @@ impl BenchApp {
             self.state(),
             updates,
             Some(record_undo),
+            None,
         ))
         .expect("update_locations")
     }

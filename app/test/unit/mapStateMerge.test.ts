@@ -29,6 +29,7 @@ const result = (
 ): MutationResult => ({
 	version: 0,
 	selectionSync: null,
+	step: null,
 	values: {
 		locationCount: null,
 		canUndo: null,

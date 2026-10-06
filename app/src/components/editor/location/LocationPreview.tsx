@@ -175,7 +175,7 @@ export function LocationPreview() {
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, defaultPano, edit, settled, geo, enriching } = usePanoViewer();
+	const { draft, defaultPano, edit, settled, commit, geo, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = usePendingTags(location);
 	const visibleTags = useMapState(getVisibleTags);
@@ -226,19 +226,19 @@ export function LocationPreview() {
 		const pov = pano.captureView();
 
 		if (isSeenPreview(location)) {
-			await addLocations([
-				createLocation({
-					...draft,
-					...pov,
-					flags: location.flags & ~VIRTUAL_FLAGS, // keep LoadAsPanoId; drop the preview-kind bits
-					tags: (await createTags(pendingTags)).map((t) => t.id),
-				}),
-			]);
+			const added = createLocation({
+				...draft,
+				...pov,
+				flags: location.flags & ~VIRTUAL_FLAGS, // keep LoadAsPanoId; drop the preview-kind bits
+				tags: (await createTags(pendingTags)).map((t) => t.id),
+			});
+			await addLocations([added]);
+			commit(added.id, getMapState().step);
 			void setActiveLocation(null);
 			return;
 		}
 
-		void updateLocations([
+		await updateLocations([
 			{
 				id: location.id,
 				patch: {
@@ -252,13 +252,14 @@ export function LocationPreview() {
 				},
 			},
 		]);
+		commit(location.id, getMapState().step);
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [pano, location, settled, isReviewMode, reviewSession, pendingTags]);
+	}, [pano, location, settled, commit, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
