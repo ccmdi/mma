@@ -3,7 +3,7 @@
 // check is what catches a plugin reaching for an API newer than the version it says it
 // supports. Older SDKs are served from git in memory, so the checkout is never touched.
 // Run: node plugins/check-floors.mjs
-import { execSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, join, relative } from "node:path";
@@ -81,11 +81,6 @@ function typecheck(dirs, sdk) {
 	} finally {
 		api.close();
 	}
-}
-
-if (!existsSync(join(typesDir, "node_modules"))) {
-	console.log("[types] npm ci");
-	execSync("npm ci", { cwd: typesDir, stdio: "inherit" });
 }
 
 const plugins = readdirSync(pluginsDir)

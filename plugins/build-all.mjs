@@ -1,5 +1,5 @@
 // Build every plugin via the shared build script, then regenerate registry.json.
-// Run: node plugins/build-all.mjs [--install]  (--install stops after installing plugin deps)
+// Run: node plugins/build-all.mjs [--install]  (--install stops after installing every package's deps)
 import { execSync } from "node:child_process";
 import { existsSync, readdirSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -7,17 +7,16 @@ import { fileURLToPath } from "node:url";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
 
-// Install deps for any plugin that has a package.json but no node_modules.
-const plugins = readdirSync(pluginsDir)
+const dirs = readdirSync(pluginsDir)
 	.map((name) => join(pluginsDir, name))
-	.filter(
-		(dir) =>
-			statSync(dir).isDirectory() &&
-			existsSync(join(dir, "manifest.json")) &&
-			(existsSync(join(dir, "src/index.tsx")) || existsSync(join(dir, "src/index.ts"))),
-	);
+	.filter((dir) => statSync(dir).isDirectory());
+const plugins = dirs.filter(
+	(dir) =>
+		existsSync(join(dir, "manifest.json")) &&
+		(existsSync(join(dir, "src/index.tsx")) || existsSync(join(dir, "src/index.ts"))),
+);
 
-for (const dir of plugins) {
+for (const dir of dirs) {
 	if (existsSync(join(dir, "package.json")) && !existsSync(join(dir, "node_modules"))) {
 		const name = dir.slice(pluginsDir.length + 1);
 		const cmd = existsSync(join(dir, "package-lock.json")) ? "npm ci" : "npm install";

@@ -8,8 +8,8 @@
 // @unstable -> reachable and documented, but no guarantee; delete it freely.
 //
 // Run: node plugins/check-legacy.mjs
-import { execSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ts, withProgram } from "../app/scripts/native-ts.mjs";
@@ -44,11 +44,6 @@ function supportedTags() {
 		.filter((t) => /^v\d+\.\d+\.\d+$/.test(t))
 		.filter((t) => cmpVer(t.slice(1), SUPPORT_FLOOR) >= 0)
 		.sort((a, b) => cmpVer(a.slice(1), b.slice(1)));
-}
-
-if (!existsSync(join(typesDir, "node_modules"))) {
-	console.log("[types] npm ci");
-	execSync("npm ci", { cwd: typesDir, stdio: "inherit" });
 }
 
 const PROBE_OPTS = {

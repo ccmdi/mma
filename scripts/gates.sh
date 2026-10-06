@@ -2,7 +2,8 @@
 # Every CI gate, defined once. CI runs `gates.sh --env <env>` per environment; the pre-push
 # hook runs them all. Lanes run in parallel and each runs its gates in order; a gate in lane
 # `-` shares nothing and runs on its own. The `fresh` lane regenerates committed artifacts, so
-# it runs after every other lane rather than racing a reader.
+# it runs after every other lane rather than racing a reader. Every dependency is installed
+# before the lanes start; a gate never installs.
 #
 #   gates.sh                 all gates
 #   gates.sh --env node      one environment's gates
