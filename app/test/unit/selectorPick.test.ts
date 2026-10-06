@@ -4,8 +4,7 @@ import { createSelectorPick, selectorForPick } from "@/store/selectorPick";
 describe("selectorForPick", () => {
 	it("turns each pick into a Selector -- the only language below the UI", () => {
 		expect(selectorForPick({ pick: "all" })).toEqual({ type: "Everything" });
-		// Nothing selected, so the live selection is an empty union rather than a sentinel.
-		expect(selectorForPick({ pick: "selection" })).toEqual({ type: "Union", selections: [] });
+		expect(selectorForPick({ pick: "selection" })).toEqual({ type: "Selected" });
 	});
 });
 

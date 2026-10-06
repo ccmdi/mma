@@ -2684,6 +2684,10 @@ type Selector = {
     name: string | null;
 } | {
     type: "Everything";
+} | 
+/**  The locations currently selected in the editor. */
+{
+    type: "Selected";
 } | {
     type: "Polygon";
     polygon: PolygonGeometry;
@@ -3534,8 +3538,6 @@ declare function query$1(selector: Selector): {
 };
 /** The selection: every listed selection that is not ghosted. */
 declare const getActiveSelections: () => Selection[];
-/** The live selection as a `Selector`: the union of the active selection nodes. */
-declare function currentSelection(): Selector;
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
 declare function setSelectedLocationIds(ids: SelectedIds): void;
 /** Patch any map's metadata by id and persist it. Updates the open map's state when it is that map.
@@ -3688,7 +3690,6 @@ declare const store_checkoutCommit: typeof checkoutCommit;
 declare const store_closeDuplicates: typeof closeDuplicates;
 declare const store_commitMap: typeof commitMap;
 declare const store_createTags: typeof createTags;
-declare const store_currentSelection: typeof currentSelection;
 declare const store_deleteField: typeof deleteField;
 declare const store_deleteTags: typeof deleteTags;
 /** @unstable */
@@ -3757,7 +3758,7 @@ declare const store_useMapState: typeof useMapState;
 /** @unstable */
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_addLocations as addLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_createTags as createTags, store_currentSelection as currentSelection, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, query$1 as query, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resolveLocation as resolveLocation, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_addLocations as addLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_createTags as createTags, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, query$1 as query, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resolveLocation as resolveLocation, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState, store_UiState as UiState };
 }
 
@@ -4012,7 +4013,7 @@ declare namespace selectionActions {
  *  re-resolve against whatever map is open. */
 
 /** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
-declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed"];
+declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
 /** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
 declare function isSaveable(selector: Selector): boolean;
 /** One part of a saved rule: what its chip reads as, and what it resolves to here. The
@@ -7539,6 +7540,8 @@ declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 declare function fetchAllLocations(): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.query(selector).coverage()`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
+/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
+declare function currentSelection(): Selector;
 /** @deprecated v0.11.3. Use `MMA.query(selector).ids()`. @unstable */
 declare function resolveIds(selector: Selector): Promise<number[]>;
 /** @deprecated v0.11.3. Use `MMA.query(selector).count()`. @unstable */
@@ -7599,6 +7602,8 @@ declare const legacy_countIn: typeof countIn;
 declare const legacy_coverage: typeof coverage;
 /** @unstable */
 declare const legacy_createPluginStorage: typeof createPluginStorage;
+/** @unstable */
+declare const legacy_currentSelection: typeof currentSelection;
 /** @unstable */
 declare const legacy_fetchAllLocations: typeof fetchAllLocations;
 /** @unstable */
@@ -7669,6 +7674,7 @@ declare namespace legacy {
     legacy_countIn as countIn,
     legacy_coverage as coverage,
     legacy_createPluginStorage as createPluginStorage,
+    legacy_currentSelection as currentSelection,
     legacy_fetchAllLocations as fetchAllLocations,
     legacy_fetchBounds as fetchBounds,
     legacy_fetchColumns as fetchColumns,

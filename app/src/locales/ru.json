@@ -1262,6 +1262,7 @@
 	"Select untagged locations": "Выбрать локации без тегов",
 	"Select-only mode is on.": "Режим только выбора включён.",
 	"Select...": "Выберите...",
+	"Selected": "Выбранные",
 	"Selected locations": "Выбранные локации",
 	"Selected marker opacity": "Прозрачность выбранных маркеров",
 	"Selected {n} failed locations": {

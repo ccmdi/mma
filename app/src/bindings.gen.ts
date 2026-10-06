@@ -1857,7 +1857,9 @@ export type SelectionSync = {
  *  inverted index when one covers the filtered field. Composites (Intersection, Union,
  *  Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
+export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
+/**  The locations currently selected in the editor. */
+{ type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
  *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
  *  a ranked root in rank order, where every other selector answers ascending. With no

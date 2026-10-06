@@ -369,6 +369,7 @@ impl Store {
             &self.overlay.patches,
             &self.overlay.adds,
             Some(&self.field_indexes),
+            Some(&self.selections.ids),
         )
     }
 

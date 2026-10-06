@@ -98,6 +98,11 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 	return query(selector).coverage();
 }
 
+/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. */
+export function currentSelection(): Selector {
+	return { type: "Selected" };
+}
+
 /** @deprecated v0.11.3. Use `MMA.query(selector).ids()`. */
 export function resolveIds(selector: Selector): Promise<number[]> {
 	return query(selector).ids();

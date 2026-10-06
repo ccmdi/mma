@@ -64,6 +64,7 @@ pub(crate) struct Fx {
     pub dead: RoaringBitmap,
     pub patches: HashMap<u32, Location>,
     pub adds: Vec<Location>,
+    pub selected: Option<RoaringBitmap>,
 }
 
 impl Fx {
@@ -102,6 +103,11 @@ impl Fx {
         self
     }
 
+    pub(crate) fn with_selected(mut self, ids: impl IntoIterator<Item = u32>) -> Self {
+        self.selected = Some(ids.into_iter().collect());
+        self
+    }
+
     pub(crate) fn view(&self) -> LocView<'_> {
         self.view_with(None)
     }
@@ -118,6 +124,7 @@ impl Fx {
             &self.patches,
             &self.adds,
             indexes,
+            self.selected.as_ref(),
         )
     }
 }

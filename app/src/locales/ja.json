@@ -1148,6 +1148,7 @@
 	"Select untagged locations": "タグなしの地点を選択",
 	"Select-only mode is on.": "選択専用モードが有効です。",
 	"Select...": "選択...",
+	"Selected": "選択中",
 	"Selected locations": "選択した地点",
 	"Selected marker opacity": "選択したマーカーの不透明度",
 	"Selected {n} failed locations": {

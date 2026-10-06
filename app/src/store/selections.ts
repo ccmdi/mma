@@ -255,6 +255,10 @@ export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 		key: () => "everything",
 		label: () => t("Everything"),
 	},
+	Selected: {
+		key: () => "selected",
+		label: () => t("Selected"),
+	},
 	Polygon: {
 		key: (s) => polygonKey(s.polygon),
 		label: (s) =>

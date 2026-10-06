@@ -2679,7 +2679,7 @@ proptest! {
     #[test]
     fn resolve_matches_oracle_with_overlay(entries in entries_strategy(60), tree in oracle_tree_strategy()) {
         let (batch, dead, patches, adds, alive) = build_overlay_view(&entries);
-        let fx = Fx { batch: Some(batch), dead, patches, adds };
+        let fx = Fx { batch: Some(batch), dead, patches, adds, selected: None };
         let view = fx.view();
         let selector = to_selection(&tree, &mut 0).selector;
         let got: HashSet<u32> = view.all().resolve(&selector).into_iter().collect();
@@ -3467,6 +3467,41 @@ fn narrow_resolves_to_the_id_set_it_names() {
             .ids(),
         [1u32, 7].into_iter().collect::<RoaringBitmap>()
     );
+}
+
+#[test]
+fn selected_borrows_the_synced_set_clipped_to_alive_rows() {
+    let locs = vec![loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)];
+    let fx = Fx::base(&locs).with_dead([3]).with_selected([2, 3, 99]);
+    let view = fx.view();
+
+    // A dead row and an id the map never held both drop out.
+    assert_eq!(
+        view.all().resolve(&Selector::Selected),
+        [2u32].into_iter().collect::<RoaringBitmap>()
+    );
+    // Clipped inside a narrower scope, like any leaf.
+    assert!(view
+        .all()
+        .narrow(&Selector::Locations {
+            locations: vec![1],
+            name: None,
+        })
+        .resolve(&Selector::Selected)
+        .is_empty());
+    // Composes: the inverse is the alive rows not selected.
+    assert_eq!(
+        view.all().resolve(&Selector::Invert {
+            selections: vec![Selection::of(Selector::Selected)],
+        }),
+        [1u32].into_iter().collect::<RoaringBitmap>()
+    );
+}
+
+#[test]
+fn selected_without_a_synced_set_is_empty() {
+    let fx = Fx::base(&[loc(1, 0.0, 0.0)]);
+    assert!(fx.view().all().resolve(&Selector::Selected).is_empty());
 }
 
 #[test]

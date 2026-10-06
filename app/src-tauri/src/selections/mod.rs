@@ -48,6 +48,8 @@ pub enum Selector {
         name: Option<String>,
     },
     Everything,
+    /// The locations currently selected in the editor.
+    Selected,
     #[serde(rename_all = "camelCase")]
     Polygon {
         polygon: PolygonGeometry,
@@ -355,6 +357,9 @@ pub struct LocView<'a> {
     /// operator is a lookup, a `Filter` leaf resolves by cloning postings instead of
     /// scanning every row.
     field_indexes: Option<&'a FieldIndexes>,
+    /// The synced selected-id set, which a `Selected` leaf borrows instead of
+    /// re-resolving the live selection tree.
+    selected: Option<&'a RoaringBitmap>,
 }
 
 /// One alive location yielded by [`Scope::rows`]. Provides uniform field
@@ -484,6 +489,7 @@ impl<'a> LocView<'a> {
         patches: &'a HashMap<u32, Location>,
         adds: &'a [Location],
         field_indexes: Option<&'a FieldIndexes>,
+        selected: Option<&'a RoaringBitmap>,
     ) -> Self {
         Self {
             dead,
@@ -491,6 +497,7 @@ impl<'a> LocView<'a> {
             adds,
             cols: batch.map(Columns::of),
             field_indexes,
+            selected,
         }
     }
 
@@ -744,6 +751,10 @@ impl<'v, 'a> Scope<'v, 'a> {
     pub fn resolve(&self, selector: &Selector) -> RoaringBitmap {
         match selector {
             Selector::Everything => self.ids(),
+            Selector::Selected => match self.view.selected {
+                Some(ids) => self.within(ids).ids(),
+                None => RoaringBitmap::new(),
+            },
             Selector::Intersection { selections } => {
                 if selections.is_empty() {
                     return RoaringBitmap::new();

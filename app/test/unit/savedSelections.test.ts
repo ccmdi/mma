@@ -226,6 +226,7 @@ describe("Selector coverage", () => {
 			},
 		},
 		Uncommitted: { type: "Uncommitted" },
+		Selected: { type: "Selected" },
 		Manual: { type: "Manual", locations: [1] },
 		Duplicates: { type: "Duplicates", distance: 25 },
 		Validation: { type: "Validation", locations: [1], category: "valid" },

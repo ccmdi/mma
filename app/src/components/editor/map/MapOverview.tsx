@@ -4,7 +4,6 @@ import { NSelect } from "@/components/primitives/NSelect";
 import {
 	applySelectionUpdate,
 	createTags,
-	currentSelection,
 	getActiveSelections,
 	getMapState,
 	getTagCounts,
@@ -291,7 +290,7 @@ function BulkTagForm() {
 		const name = bulkTagInput.trim();
 		const selected = getMapState().selectedLocationIds;
 		if (!name || selected.size === 0) return;
-		await createTags([name], currentSelection());
+		await createTags([name], { type: "Selected" });
 		setBulkTagInput("");
 	};
 

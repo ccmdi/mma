@@ -216,7 +216,7 @@ export async function refreshSelections(): Promise<number[]> {
 	return withApi(async (api) => {
 		if (api.getActiveSelections().length === 0) return [] as number[];
 		await api.syncSelections();
-		return api.resolveIds(api.currentSelection());
+		return api.query({ type: "Selected" }).ids();
 	});
 }
 

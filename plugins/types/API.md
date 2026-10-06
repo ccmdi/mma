@@ -819,16 +819,6 @@ Get-or-create tags by name (case-insensitive; ids are allocated by the store) an
 return them in request order. Pass `selector` to also put the tags on those
 locations. Emits `tag:add`.
 
-### currentSelection
-
-`stable` · since v0.10.0
-
-```ts
-currentSelection(): Selector
-```
-
-The live selection as a `Selector`: the union of the active selection nodes.
-
 ### deleteField
 
 `stable` · since v0.5.1
@@ -1838,15 +1828,8 @@ A dialog body laid out as a column that runs `onSubmit` when submitted, Enter in
 `unstable` · since v0.10.0
 
 ```ts
-ui.DialogTrigger<Payload>(
-  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
-): React.JSX.Element
+ui.DialogTrigger: Dialog$1.Trigger
 ```
-
-A button that opens the dialog.
-Renders a `<button>` element.
-
-Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 
 #### ui.EmptyState
 
@@ -3154,6 +3137,7 @@ SELECTIONS: {
   Polygon: SelectionDescriptor<"Polygon">;
   Ranked: SelectionDescriptor<"Ranked">;
   Reviewed: SelectionDescriptor<"Reviewed">;
+  Selected: SelectionDescriptor<"Selected">;
   Uncommitted: SelectionDescriptor<"Uncommitted">;
   Union: SelectionDescriptor<"Union">;
   Validation: SelectionDescriptor<"Validation">;
@@ -3414,7 +3398,13 @@ Load the full rule bodies for the given `ids`.
 `unstable` · since v0.10.3
 
 ```ts
-MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed"]
+MAP_LOCAL_TYPES: readonly [
+  "Locations",
+  "Manual",
+  "Validation",
+  "Reviewed",
+  "Selected",
+]
 ```
 
 Selection types that cannot be saved as rules because they are bound to the open map.
@@ -6699,14 +6689,8 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
+invoke: any
 ```
-
-Sends a message to the backend.
 
 ### shell
 
@@ -8759,6 +8743,16 @@ createPluginStorage(id: string): PluginStorage
 ```
 
 **Deprecated in v0.11.0.** Use `MMA.storage()`.
+
+### currentSelection
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+currentSelection(): Selector
+```
+
+**Deprecated in v0.11.7.** Use the `{ type: "Selected" }` selector.
 
 ### fetchAllLocations
 

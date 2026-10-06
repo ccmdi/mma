@@ -3832,6 +3832,35 @@ fn membership_delta_reports_lost_on_tag_remove() {
 }
 
 #[test]
+fn selected_leaf_tracks_the_selection_through_mutations() {
+    let tagged = loc_with_tags(1, 10.0, 20.0, vec![1]);
+    let other = loc_with_tags(2, 11.0, 21.0, vec![]);
+    let mut store = setup_store_with(&[tagged.clone(), other]);
+    insert_tag(&mut store, 1, 0);
+    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    store.resolve_selection_membership();
+    assert_eq!(store.selections.ids, [1u32].into_iter().collect());
+
+    assert_eq!(
+        store.scope(&Selector::Selected).ids(),
+        store.selections.ids,
+        "resolves to the synced set"
+    );
+
+    let untagged = loc_with_tags(1, 10.0, 20.0, vec![]);
+    store.finish_mutation(&ChangeSet {
+        updated: vec![(tagged, untagged)],
+        ..Default::default()
+    });
+    assert_eq!(
+        store.scope(&Selector::Selected).ids(),
+        store.selections.ids,
+        "a mutation's recount is visible without a re-sync"
+    );
+    assert_eq!(store.selections.ids, RoaringBitmap::new());
+}
+
+#[test]
 fn removed_selected_location_leaves_no_patch() {
     // A deleted row has no cell left to patch; the page drops it from the overlay with
     // its removal, so emitting a patch for it would dangle.

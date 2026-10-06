@@ -23,14 +23,21 @@ vi.mock("@/lib/commands", async () => {
 		test?: { op: string; value?: unknown };
 		selections?: { selector: TestSelector }[];
 	};
-	// A tag leaf is a `tags` membership filter; a Union is the set union of its children --
-	// which is what "the current selection" now is, rather than a sentinel Rust reads back.
+	// A tag leaf is a `tags` membership filter; a Union is the set union of its children;
+	// the Selected leaf answers from the live selection list, as the engine's synced
+	// bitmap would.
 	const poolOf = (selector: TestSelector): number[] => {
 		if (selector.type === "Filter" && selector.field === "tags")
 			return byTag[Number(selector.test?.value ?? 0)] ?? [];
 		if (selector.selections)
 			return [...new Set(selector.selections.flatMap((c) => poolOf(c.selector)))];
 		return [];
+	};
+	const resolvePool = async (selector: TestSelector): Promise<number[]> => {
+		if (selector.type !== "Selected") return poolOf(selector);
+		const { getActiveSelections } = await import("@/store/useMapStore");
+		const active = getActiveSelections() as unknown as { selector: TestSelector }[];
+		return [...new Set(active.flatMap((s) => poolOf(s.selector)))];
 	};
 	const handlers: Record<string, (...args: never[]) => unknown> = {
 		storeGetMap: async () =>
@@ -43,19 +50,19 @@ vi.mock("@/lib/commands", async () => {
 			}),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeSyncSelections: async () => selectionChange(),
-		storeResolve: async (selector: TestSelector) => poolOf(selector),
+		storeResolve: async (selector: TestSelector) => resolvePool(selector),
 		storeSample: async (selector: TestSelector, n: number) => {
 			h.sampledSelectors.push(selector);
-			return poolOf(selector).slice(0, n);
+			return (await resolvePool(selector)).slice(0, n);
 		},
 		storeSpaced: async (selector: TestSelector, targetCount: number | null) => {
 			h.spacedSelectors.push(selector);
-			const pool = poolOf(selector);
+			const pool = await resolvePool(selector);
 			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 100 };
 		},
 		storeEvenlySpaced: async (selector: TestSelector, targetCount: number | null) => {
 			h.evenSelectors.push(selector);
-			const pool = poolOf(selector);
+			const pool = await resolvePool(selector);
 			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 250 };
 		},
 	};
@@ -74,10 +81,8 @@ import {
 } from "@/store/useMapStore";
 import { addSelection, buildSelection, tagSelector } from "@/store/selections";
 
-/** What `currentSelection()` builds: the active selections under one Union. */
-function unionOfActive() {
-	return { type: "Union", selections: getActiveSelections() };
-}
+/** The whole live selection, as every whole-selection pick now names it. */
+const selectedLeaf = { type: "Selected" };
 
 /** Tag membership as the command mock resolves it. */
 function byTagIds(tagId: number): number[] {
@@ -122,13 +127,11 @@ describe("random pick, per selection", () => {
 
 	it("falls back to the whole selection below two selections", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1)));
-		const sent = unionOfActive();
 
 		const picked = await selectRandomFromSelection(2, true);
 
 		expect(picked).toBe(2);
-		// One bucket, and it is the selection tree itself -- no "selected" sentinel.
-		expect(h.sampledSelectors).toEqual([sent]);
+		expect(h.sampledSelectors).toEqual([selectedLeaf]);
 		expect(pickedIds().every((id) => byTagIds(1).includes(id))).toBe(true);
 	});
 
@@ -137,13 +140,13 @@ describe("random pick, per selection", () => {
 		const { toggleGhost } = await import("@/store/selections");
 		const ghostKey = buildSelection(tagSelector(2)).key;
 		await applySelectionUpdate(toggleGhost(1));
-		const sent = unionOfActive();
 
 		await selectRandomFromSelection(2, true);
 
-		// One live selection left, so the pick runs once over the whole selection --
-		// and the ghosted one is absent from the union that gets sent.
-		expect(h.sampledSelectors).toEqual([sent]);
+		// One live selection left, so the pick runs once over the whole selection,
+		// which the ghosted selection is not part of.
+		expect(h.sampledSelectors).toEqual([selectedLeaf]);
+		expect(pickedIds().every((id) => byTagIds(1).includes(id))).toBe(true);
 		// The pick replaces only what it picked from: the ghosted selection stays, still ghosted.
 		expect(getMapState().selectionList.map((r) => [r.selection.key, r.ghosted])).toEqual([
 			["manual", false],
@@ -164,14 +167,12 @@ describe("spaced pick, per selection", () => {
 		expect(distanceM).toBe(0);
 	});
 
-	it("sends the whole selection tree for a whole-selection pick", async () => {
+	it("sends the Selected leaf for a whole-selection pick", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
-
-		const sent = unionOfActive();
 
 		const { distanceM } = await selectSpacedFromSelection({ count: 3 }, false);
 
-		expect(h.spacedSelectors).toEqual([sent]);
+		expect(h.spacedSelectors).toEqual([selectedLeaf]);
 		expect(distanceM).toBe(100);
 	});
 });
@@ -190,11 +191,10 @@ describe("evenly spaced pick, per selection", () => {
 
 	it("reports the spacing of a whole-selection pick", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1)));
-		const sent = unionOfActive();
 
 		const { distanceM } = await selectEvenlySpacedFromSelection({ spacingM: 250 }, false);
 
-		expect(h.evenSelectors).toEqual([sent]);
+		expect(h.evenSelectors).toEqual([selectedLeaf]);
 		expect(distanceM).toBe(250);
 	});
 });

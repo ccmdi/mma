@@ -420,11 +420,6 @@ export const getActiveSelections: () => Selection[] = memoOnRefs(
 	(rows) => rows.filter((r) => !r.ghosted).map((r) => r.selection),
 );
 
-/** The live selection as a `Selector`: the union of the active selection nodes. */
-export function currentSelection(): Selector {
-	return { type: "Union", selections: getActiveSelections() };
-}
-
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
 export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
@@ -734,7 +729,7 @@ export async function selectRandomFromSelection(
 ): Promise<number> {
 	const buckets = await Promise.all(
 		pickBuckets(perSelection).map((selector) =>
-			query(selector ?? currentSelection()).sample(count),
+			query(selector ?? { type: "Selected" }).sample(count),
 		),
 	);
 	const picked = [...new Set(buckets.flat())];
@@ -753,7 +748,7 @@ async function selectSpacedWith(
 	perSelection: boolean,
 ): Promise<{ picked: number; distanceM: number }> {
 	const results = await Promise.all(
-		pickBuckets(perSelection).map((selector) => pick(selector ?? currentSelection())),
+		pickBuckets(perSelection).map((selector) => pick(selector ?? { type: "Selected" })),
 	);
 	const ids = [...new Set(results.flatMap((r) => r.ids))];
 	if (ids.length === 0) return { picked: 0, distanceM: 0 };

@@ -3,7 +3,6 @@
 
 import {
 	closeMap as storeCloseMap,
-	currentSelection,
 	getMapState,
 	mutate,
 	openMap as storeOpenMap,
@@ -23,7 +22,7 @@ export { runProcedure, procedureEntry } from "@/lib/data/procedures";
 export async function syncSelections(): Promise<{ ids: number[] }> {
 	if (getMapState().selectionList.length === 0) return { ids: [] };
 	await storeSyncSelections();
-	return { ids: await query(currentSelection()).ids() };
+	return { ids: await query({ type: "Selected" }).ids() };
 }
 
 /** Open a map by id and navigate to it. */

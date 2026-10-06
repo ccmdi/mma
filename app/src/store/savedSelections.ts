@@ -20,7 +20,13 @@ import { log } from "@/lib/util/log";
 import { applySelectionUpdate, getTag, getVisibleTags } from "./useMapStore";
 
 /** Selection types that cannot be saved as rules because they are bound to the open map. */
-export const MAP_LOCAL_TYPES = ["Locations", "Manual", "Validation", "Reviewed"] as const;
+export const MAP_LOCAL_TYPES = [
+	"Locations",
+	"Manual",
+	"Validation",
+	"Reviewed",
+	"Selected",
+] as const;
 
 const MAP_LOCAL_SET: ReadonlySet<string> = new Set(MAP_LOCAL_TYPES);
 

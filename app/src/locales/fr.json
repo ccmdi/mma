@@ -1224,6 +1224,7 @@
 	"Select untagged locations": "Sélectionner les lieux sans étiquette",
 	"Select-only mode is on.": "Le mode sélection seule est activé.",
 	"Select...": "Sélectionner...",
+	"Selected": "Sélection active",
 	"Selected locations": "Lieux sélectionnés",
 	"Selected marker opacity": "Opacité des marqueurs sélectionnés",
 	"Selected {n} failed locations": {

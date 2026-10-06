@@ -19,13 +19,7 @@ import { getSettings, useSetting } from "@/store/settings";
 import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
-import {
-	applySelectionUpdate,
-	currentSelection,
-	getActiveSelections,
-	query,
-	useMapState,
-} from "@/store/useMapStore";
+import { applySelectionUpdate, getActiveSelections, query, useMapState } from "@/store/useMapStore";
 import { addSelection, displayColor } from "@/store/selections";
 import { rgbCss } from "@/lib/util/color";
 import { mapOpen } from "@/lib/util/debug";
@@ -371,7 +365,7 @@ export function MapEmbed({
 	});
 
 	useHotkey(useBinding("mapZoomSelection"), () => {
-		void query(currentSelection())
+		void query({ type: "Selected" })
 			.bounds()
 			.then((bounds) => {
 				if (!hostRef.current || !bounds) return;
