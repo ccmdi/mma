@@ -175,7 +175,12 @@ export const commands = {
 	 *  that manage their own undo). With `join`, an undoable change folds into that undo step
 	 *  while it is still the newest.
 	 */
-	storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null, join: number | null) => __TAURI_INVOKE<MutationResult>("store_update_locations", { updates, recordUndo, join }),
+	storeUpdateLocations: (updates: (Partial<Location> & Pick<Location, "id">)[], recordUndo: boolean | null, join: number | null) => __TAURI_INVOKE<MutationResult>("store_update_locations", { updates, recordUndo, join }),
+	/**
+	 *  Declare which fields are computed from which: each input field and the fields derived
+	 *  from it. A write that changes an input clears what was derived from it.
+	 */
+	storeSetDerived: (edges: { [key in string]: string[] }) => __TAURI_INVOKE<null>("store_set_derived", { edges }),
 	/**  Set (or clear) the active location. */
 	storeSetActive: (id: number | null) => __TAURI_INVOKE<null>("store_set_active", { id }),
 	/**  Set the default marker color for new render updates. */
@@ -321,7 +326,7 @@ export const commands = {
 	 *  Apply a partial update to a map's metadata. Omitted fields are left unchanged.
 	 *  Returns a mutation result when the open map's field definitions changed.
 	 */
-	storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { id, patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
 	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
@@ -435,7 +440,7 @@ export const commands = {
 	/**  List review sessions for a map, newest first. Optionally filter by `status`. */
 	storeReviewList: (mapId: string, status: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status }),
 	/**  Apply a partial update to a review session. */
-	storeReviewUpdate: (update: ReviewUpdate) => __TAURI_INVOKE<null>("store_review_update", { update }),
+	storeReviewUpdate: (update: Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">) => __TAURI_INVOKE<null>("store_review_update", { update }),
 	/**  Delete a review session. */
 	storeReviewDelete: (id: string) => __TAURI_INVOKE<null>("store_review_delete", { id }),
 	/**  List every saved selection rule (name, color, date), without their selector trees. */
@@ -892,12 +897,12 @@ export type FieldValuesPatch = {
 	 */
 	create?: { [key in string]: unknown }[],
 	/**
-	 *  Merge patches into existing piles (null deletes a key). A patch whose `name`
-	 *  collides with another record's merges the two values instead of renaming:
-	 *  every row is remapped to the survivor in one undoable edit and the emptied
-	 *  record goes dark.
+	 *  Merge patches into existing piles, each naming its pile's `id` (null deletes a
+	 *  key). A patch whose `name` collides with another record's merges the two values
+	 *  instead of renaming: every row is remapped to the survivor in one undoable edit
+	 *  and the emptied record goes dark.
 	 */
-	update?: (Update<{ [key in string]: unknown }>)[],
+	update?: { [key in string]: unknown }[],
 	/**  New display order: each id gets its index in this list as `order`. */
 	reorder?: number[] | null,
 };
@@ -1081,45 +1086,6 @@ export type Location = {
 	modifiedAt: number | null,
 };
 
-
-/**
- *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
- *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
- *  shallow-merge, null values delete.
- */
-export type LocationPatch_Deserialize = {
-	lat?: number | null,
-	lng?: number | null,
-	heading?: number | null,
-	pitch?: number | null,
-	zoom?: number | null,
-	panoId?: string | null,
-	flags?: number | null,
-	tags?: number[] | null,
-	extra?: { [key in string]: unknown } | null,
-	createdAt?: number | null,
-	modifiedAt?: number | null,
-};
-
-/**
- *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
- *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
- *  shallow-merge, null values delete.
- */
-export type LocationPatch = {
-	lat: number | null,
-	lng: number | null,
-	heading: number | null,
-	pitch: number | null,
-	zoom: number | null,
-	panoId: string | null,
-	flags: number | null,
-	tags: number[] | null,
-	extra: { [key in string]: unknown } | null,
-	createdAt: number | null,
-	modifiedAt: number | null,
-};
-
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -1164,37 +1130,6 @@ export type MapMeta = {
 	createdAt: string,
 	updatedAt: string,
 	lastOpenedAt: string | null,
-};
-
-
-/**
- *  Partial update for map metadata. Omitted fields are left unchanged.
- *  Setting `folder` to null moves the map to root.
- */
-export type MapMetaPatch_Deserialize = {
-	name?: string | null,
-	description?: string | null,
-	folder?: string | null,
-	settings?: MapSettings | null,
-	scoreBounds?: ScoreBounds | null,
-	extra?: MapExtra | null,
-	tags?: { [key in string]: { [key in string]: unknown } } | null,
-	labels?: string[] | null,
-};
-
-/**
- *  Partial update for map metadata. Omitted fields are left unchanged.
- *  Setting `folder` to null moves the map to root.
- */
-export type MapMetaPatch = {
-	name: string | null,
-	description: string | null,
-	folder: string | null,
-	settings: MapSettings | null,
-	scoreBounds: ScoreBounds | null,
-	extra: MapExtra | null,
-	tags: { [key in string]: { [key in string]: unknown } } | null,
-	labels: string[] | null,
 };
 
 /**  Street View lookup, export, and enrichment preferences that can start any map. */
@@ -1269,6 +1204,8 @@ export type MutationResult = {
 	 *  still the newest.
 	 */
 	step: number | null,
+	/**  The active location as this change left it, when the change touched it. */
+	active: Location | null,
 };
 
 /**
@@ -1597,7 +1534,6 @@ export type ProviderDecl = {
 	label?: string | null,
 	fields?: string[],
 	requires?: string[],
-	invalidates?: { [key in string]: string[] },
 	select: Selector,
 	batch: BatchMode,
 	sink?: Sink,
@@ -1624,7 +1560,7 @@ export type PullCreate = {
 /**  A remote-originated update for JS to apply to an existing local id. */
 export type PullUpdate = {
 	localId: number,
-	patch: SyncPatch,
+	patch: Partial<NormalizedSyncLocation>,
 	remoteId: number,
 	hash: string,
 };
@@ -1685,10 +1621,7 @@ export type RenderRequest = {
 };
 
 
-/**
- *  One location's answer from a `Collect` provider: whatever its module emitted for
- *  that row, carried as text exactly as a patch would be.
- */
+/**  One location's answer from a procedure, as the JSON its module emitted. */
 export type ResultEntry = {
 	id: number,
 	json: string,
@@ -1725,16 +1658,6 @@ export type ReviewSession = {
 	status: string,
 	createdAt: string,
 	updatedAt: string,
-};
-
-/**  Partial update for a review session. Omitted fields are left unchanged. */
-export type ReviewUpdate = {
-	id: string,
-	name?: string | null,
-	cursorId: number | null,
-	reviewed: number[] | null,
-	ordering: number[] | null,
-	status: string | null,
 };
 
 /**  Matched locations: returned inline, or as a file path to read them from. */
@@ -1948,25 +1871,6 @@ export type SyncLogResult =
 /**  The pass stopped with this error. */
 { kind: "error"; message: string };
 
-/**
- *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
- *  on the remote side and must not overwrite local data, so absent fields are left untouched.
- *  `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
- */
-export type SyncPatch = {
-	lat: number | null,
-	lng: number | null,
-	heading: number | null,
-	pitch: number | null,
-	zoom: number | null,
-	panoIdSet: boolean,
-	panoId: string | null,
-	flags: number | null,
-	tags: string[] | null,
-	/**  A merge patch onto the custom fields: changed fields, and `null` for removed ones. */
-	extra: { [key in string]: unknown } | null,
-};
-
 /**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. */
 export type SyncReconcileResult = {
 	/**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
@@ -1982,16 +1886,6 @@ export type SyncReconcileResult = {
 	mirrorLocalDeleteIds: number[],
 };
 
-
-/**
- *  Generic `{id, patch}` update envelope, parameterized by the patch type. Specta
- *  has no `Partial<T>`, and a patch is a deliberate *subset* of patchable fields, so
- *  each entity names its own patch struct (e.g. `TagPatch`) rather than deriving one.
- */
-export type Update<P> = {
-	id: number,
-	patch: P,
-};
 
 export type UpdateAvailable = {
 	version: string,

@@ -108,7 +108,7 @@ describe("Bounds cache - update edge invalidation", () => {
 
 		await withApi(async (api, edgeId) => {
 			const loc = await api.fetchLocation(edgeId);
-			await api.updateLocations([{ id: loc!.id, patch: { lat: 30 } }]);
+			await api.updateLocations([{ id: loc!.id, lat: 30 }]);
 		}, ids[1]);
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
@@ -120,7 +120,7 @@ describe("Bounds cache - update edge invalidation", () => {
 		const result = await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
 			const interior = all.find((l) => Math.abs(l.lat - 10) < 0.01)!;
-			await api.updateLocations([{ id: interior.id, patch: { lat: 70 } }]);
+			await api.updateLocations([{ id: interior.id, lat: 70 }]);
 			return api.fetchBounds({ type: "Everything" });
 		});
 

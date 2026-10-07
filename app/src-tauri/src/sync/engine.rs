@@ -14,7 +14,6 @@ use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
 
 use crate::store::engine::StoreState;
 use crate::store::storage;
@@ -26,11 +25,12 @@ use crate::sync::map_making::MapMakingProvider;
 use crate::sync::remote_mapping::{self, RemoteMappingRow};
 use crate::sync::{
     parse_local_key, sync_hash, Conflict, DesiredEntry, FirstSyncMode, IdentityKey, IdentityModel,
-    NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId, RemoteSnapshot, RemoteTag,
-    SideCounts, SyncDirection, SyncLocalPin, SyncPlan, SyncProvider,
+    Location, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId, RemoteSnapshot, RemoteTag,
+    SideCounts, SyncDirection, SyncPlan, SyncProvider,
 };
 use crate::types::shape::MapPart;
 use crate::types::{AppError, AppResult};
+use mma_algebra::{Patch, Patchable};
 use std::mem;
 use std::time::Instant;
 use tauri::async_runtime;
@@ -64,29 +64,9 @@ pub struct PullCreate {
 #[serde(rename_all = "camelCase")]
 pub struct PullUpdate {
     pub local_id: u32,
-    pub patch: SyncPatch,
+    pub patch: Patch<NormalizedSyncLocation>,
     pub remote_id: i64,
     pub hash: String,
-}
-
-/// Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
-/// on the remote side and must not overwrite local data, so absent fields are left untouched.
-/// `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
-#[derive(Clone, Debug, Default, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncPatch {
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub heading: Option<f64>,
-    pub pitch: Option<f64>,
-    pub zoom: Option<f64>,
-    pub pano_id_set: bool,
-    pub pano_id: Option<String>,
-    pub flags: Option<u32>,
-    pub tags: Option<Vec<String>>,
-    /// A merge patch onto the custom fields: changed fields, and `null` for removed ones.
-    #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
-    pub extra: Option<Map<String, Value>>,
 }
 
 /// Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map.
@@ -110,7 +90,7 @@ pub struct SyncReconcileResult {
 
 pub(crate) struct ReconcileInput<'a, P: SyncProvider> {
     pub provider: &'a P,
-    pub local_locs: &'a [SyncLocalPin],
+    pub local_locs: &'a [Location],
     pub remote: RemoteSnapshot<P::Raw>,
     pub mapping: &'a [RemoteMappingRow],
     /// tag id -> name of the open map.
@@ -141,43 +121,6 @@ pub(crate) struct PlannedReconcile<R> {
     /// Held keys keep their BASE hash but take the post-push handle.
     pub held_rows: Vec<RemoteMappingRow>,
     pub mapping_delete_ids: Vec<u32>,
-}
-
-fn changed_patch(prev: &NormalizedSyncLocation, next: &NormalizedSyncLocation) -> SyncPatch {
-    let pano_changed = prev.pano_id != next.pano_id;
-    SyncPatch {
-        lat: (prev.lat != next.lat).then_some(next.lat),
-        lng: (prev.lng != next.lng).then_some(next.lng),
-        heading: (prev.heading != next.heading).then_some(next.heading),
-        pitch: (prev.pitch != next.pitch).then_some(next.pitch),
-        zoom: (prev.zoom != next.zoom).then_some(next.zoom),
-        pano_id_set: pano_changed,
-        pano_id: if pano_changed {
-            next.pano_id.clone()
-        } else {
-            None
-        },
-        flags: (prev.flags != next.flags).then_some(next.flags),
-        tags: (prev.tags != next.tags).then(|| next.tags.clone()),
-        extra: extra_patch(prev.extra.as_ref(), next.extra.as_ref()),
-    }
-}
-
-fn extra_patch(
-    prev: Option<&Map<String, Value>>,
-    next: Option<&Map<String, Value>>,
-) -> Option<Map<String, Value>> {
-    let none = Map::new();
-    let (prev, next) = (prev.unwrap_or(&none), next.unwrap_or(&none));
-    let mut patch: Map<String, Value> = next
-        .iter()
-        .filter(|(k, v)| prev.get(*k) != Some(*v))
-        .map(|(k, v)| (k.clone(), v.clone()))
-        .collect();
-    for k in prev.keys().filter(|k| !next.contains_key(*k)) {
-        patch.insert(k.clone(), Value::Null);
-    }
-    (!patch.is_empty()).then_some(patch)
 }
 
 /// Express the remote half of the plan both ways: as a delta, and as the full desired document.
@@ -509,7 +452,10 @@ pub(crate) fn plan<P: SyncProvider>(
             let remote = keyed.remote.get(key).expect("remote key");
             PullUpdate {
                 local_id: keyed.local_id_of[key],
-                patch: changed_patch(keyed.local.get(key).expect("local key"), remote),
+                patch: NormalizedSyncLocation::between(
+                    keyed.local.get(key).expect("local key"),
+                    remote,
+                ),
                 remote_id: handle_of(key).expect("remote key"),
                 hash: sync_hash(remote),
             }
@@ -713,7 +659,7 @@ impl MappingSink for DbSink<'_> {
 pub(crate) struct ReconcileRequest<'a> {
     pub map_id: &'a str,
     pub remote_map_id: &'a str,
-    pub local_locs: &'a [SyncLocalPin],
+    pub local_locs: &'a [Location],
     /// tag id -> name of the open map.
     pub tag_names: &'a HashMap<u32, String>,
     pub first_sync: Option<FirstSyncMode>,
@@ -815,16 +761,14 @@ pub async fn sync_reconcile(
     let (local_locs, tag_names) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_map(&map_id)?;
-        // Stream rows into the slim sync shape so each full Location is dropped immediately -
-        // never a whole-map copy of fields sync cannot see.
         let t = Instant::now();
-        let mut pins: Vec<SyncLocalPin> = Vec::new();
+        let mut pins: Vec<Location> = Vec::new();
         for row in store.all().rows() {
             let mut loc = row.to_location();
             if !keeps_extra {
                 loc.extra = None;
             }
-            pins.push(SyncLocalPin::from(loc));
+            pins.push(loc);
         }
         log::info!(
             "[sync] snapshot: {} pins in {:.1}s (store lock held)",

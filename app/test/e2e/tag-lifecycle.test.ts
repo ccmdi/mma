@@ -35,7 +35,7 @@ describe("Tag rename propagation", () => {
 	});
 	it("renaming a tag updates metadata", async () => {
 		await withApi(async (api, tid) => {
-			await api.updateTags([{ id: tid, patch: { name: "RenamedTag" } }]);
+			await api.updateTags([{ id: tid, name: "RenamedTag" }]);
 		}, tagId);
 
 		const name = await withApi(async (api, tid) => {

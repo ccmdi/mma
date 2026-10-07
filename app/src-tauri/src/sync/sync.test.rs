@@ -1,5 +1,4 @@
 use super::*;
-use crate::sync::SyncLocalPin;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
 use serde_json::json;
@@ -100,8 +99,7 @@ fn local_to_normalized_strips_virtual_flags_and_resolves_tags() {
         11 => Some("alpha".to_string()),
         _ => None, // unknown ids are dropped
     };
-    // Through the From impl deliberately: the snapshot path converts Location -> SyncLocalPin.
-    let n = local_to_normalized(&SyncLocalPin::from(loc), &name);
+    let n = local_to_normalized(&loc, &name);
     assert_eq!(n.flags, 1);
     assert_eq!(n.tags, vec!["alpha".to_string(), "zeta".to_string()]);
     assert_eq!(n.pano_id.as_deref(), Some("p"));

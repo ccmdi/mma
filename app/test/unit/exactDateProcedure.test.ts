@@ -48,7 +48,7 @@ describe("exactDate procedure", () => {
 		expect(failed).toEqual([]);
 		expect(out).toHaveLength(1);
 		expect(out[0].id).toBe(1);
-		const ts = out[0].patch.extra.datetime;
+		const ts = out[0].extra.datetime;
 		const first = Date.UTC(2021, 8, 1) / 1000;
 		expect(ts).toBeGreaterThanOrEqual(first - 86400);
 		expect(ts).toBeLessThan(first + 32 * 86400);

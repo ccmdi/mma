@@ -3,6 +3,9 @@
 use super::*;
 use crate::store::vcs::CommitDiff;
 use crate::types::AppResult;
+use crate::util::now_iso;
+use mma_algebra::{Patch, Patchable};
+use rusqlite::types::Value as SqlValue;
 use rusqlite::Connection;
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
@@ -20,23 +23,47 @@ pub(crate) fn json_col<T: Default + DeserializeOwned>(
     Ok(serde_json::from_str(&s).unwrap_or_default())
 }
 
-/// Push a plain field onto a dynamic SQL UPDATE builder.
-/// Skips `None` fields; clones `Some` values into the boxed param list.
-macro_rules! push_field {
-    ($sets:expr, $vals:expr, $patch:expr, $col:literal, $field:ident) => {
-        if let Some(ref v) = $patch.$field {
-            $sets.push(concat!($col, " = ?"));
-            $vals.push(Box::new(v.clone()));
-        }
+/// Write the fields `patch` sets to row `id` of `table` and stamp `updated_at`. A list or
+/// object lands as JSON text.
+pub(crate) fn update_row<T: Patchable>(
+    conn: &Connection,
+    table: &str,
+    id: &str,
+    patch: &Patch<T>,
+) -> AppResult<()> {
+    let serde_json::Value::Object(set) = serde_json::to_value(patch)? else {
+        return Ok(());
     };
-    (json $sets:expr, $vals:expr, $patch:expr, $col:literal, $field:ident) => {
-        if let Some(ref v) = $patch.$field {
-            $sets.push(concat!($col, " = ?"));
-            $vals.push(Box::new(serde_json::to_string(v).unwrap_or_default()));
-        }
-    };
+    let mut sets: Vec<String> = Vec::new();
+    let mut values: Vec<SqlValue> = Vec::new();
+    for (key, column) in T::WRITES {
+        let Some(value) = set.get(*key) else {
+            continue;
+        };
+        sets.push(format!("{column} = ?"));
+        values.push(match value {
+            serde_json::Value::Null => SqlValue::Null,
+            serde_json::Value::Bool(b) => SqlValue::Integer(i64::from(*b)),
+            serde_json::Value::Number(n) => n.as_i64().map_or_else(
+                || SqlValue::Real(n.as_f64().unwrap_or_default()),
+                SqlValue::Integer,
+            ),
+            serde_json::Value::String(s) => SqlValue::Text(s.clone()),
+            json => SqlValue::Text(json.to_string()),
+        });
+    }
+    if sets.is_empty() {
+        return Ok(());
+    }
+    values.push(SqlValue::Text(now_iso()));
+    values.push(SqlValue::Text(id.to_string()));
+    let sql = format!(
+        "UPDATE {table} SET {}, updated_at = ? WHERE id = ?",
+        sets.join(", ")
+    );
+    conn.execute(&sql, rusqlite::params_from_iter(values))?;
+    Ok(())
 }
-pub(crate) use push_field;
 
 /// Open (or create) the SQLite database, ensuring the parent directory exists.
 /// The one place that owns per-connection setup (busy timeout, pragmas).

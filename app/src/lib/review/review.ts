@@ -151,7 +151,7 @@ function persist(s: ReviewSession) {
 			id: s.id,
 			cursorId: s.cursorId,
 			reviewed: s.reviewed,
-			ordering: s.order,
+			order: s.order,
 			status: s.status,
 		})
 		.catch((e) => log.error("[review] persist failed:", e));
@@ -305,10 +305,6 @@ export async function renameReview(id: string, name: string): Promise<void> {
 		await cmd.storeReviewUpdate({
 			id,
 			name: trimmed,
-			cursorId: null,
-			reviewed: null,
-			ordering: null,
-			status: null,
 		});
 	} catch (e) {
 		log.error("[review] rename failed:", e);

@@ -13,19 +13,6 @@ import {
 const MAP = "map-a";
 const PROVIDER = "geoguessr";
 
-const noPatch = {
-	lat: null,
-	lng: null,
-	heading: null,
-	pitch: null,
-	zoom: null,
-	panoIdSet: false,
-	panoId: null,
-	flags: null,
-	tags: null,
-	extra: null,
-};
-
 /** Location 2 was edited remotely and location 3 was deleted remotely. */
 const RESULT: SyncReconcileResult = {
 	pushed: { create: 0, update: 0, delete: 0 },
@@ -34,7 +21,7 @@ const RESULT: SyncReconcileResult = {
 	conflicts: [],
 	neededTags: [],
 	pullCreates: [],
-	pullUpdates: [{ localId: 2, patch: { ...noPatch, lat: 22 }, remoteId: 8, hash: "remote-2" }],
+	pullUpdates: [{ localId: 2, patch: { lat: 22 }, remoteId: 8, hash: "remote-2" }],
 	pullDeleteIds: [3],
 	mirrorLocalDeleteIds: [],
 };
@@ -159,7 +146,7 @@ describe("sync reconcile apply step", () => {
 			pullUpdates: [
 				{
 					localId: 2,
-					patch: { ...noPatch, extra: { score: 4, note: null } },
+					patch: { extra: { score: 4, note: null } },
 					remoteId: 8,
 					hash: "u",
 				},
@@ -170,6 +157,6 @@ describe("sync reconcile apply step", () => {
 		await run();
 
 		expect(added[0]).toMatchObject({ extra: { score: 3 } });
-		expect(updated).toEqual([{ id: 2, patch: { extra: { score: 4, note: null } } }]);
+		expect(updated).toEqual([{ id: 2, extra: { score: 4, note: null } }]);
 	});
 });

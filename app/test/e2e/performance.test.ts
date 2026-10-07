@@ -679,7 +679,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		run: () =>
 			withApi(async (api, id) => {
 				const start = performance.now();
-				await api.updateLocations([{ id, patch: { heading: 11 } }]);
+				await api.updateLocations([{ id, heading: 11 }]);
 				const operationMs = performance.now() - start;
 				api.cancelAutosave();
 				await new Promise<void>((resolve) =>
@@ -696,7 +696,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		run: () =>
 			withApi(async (api) => {
 				const ids = await api.resolveIds({ type: "Everything" });
-				const updates = ids.map((id) => ({ id, patch: { pitch: 0.25 } }));
+				const updates = ids.map((id) => ({ id, pitch: 0.25 }));
 				const start = performance.now();
 				await api.updateLocations(updates);
 				const operationMs = performance.now() - start;
@@ -846,7 +846,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`autosave helper ${id} is missing`);
-				await api.updateLocations([{ id, patch: { heading: (loc.heading + 1) % 360 } }]);
+				await api.updateLocations([{ id, heading: (loc.heading + 1) % 360 }]);
 				api.cancelAutosave();
 			}, helperA);
 		},
@@ -869,7 +869,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				if ((await api.cmd.storeGetSummary()).dirtyCount > 0) await api.commitMap("Bench setup");
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`commit helper ${id} is missing`);
-				await api.updateLocations([{ id, patch: { pitch: (loc.pitch ?? 0) + 0.25 } }]);
+				await api.updateLocations([{ id, pitch: (loc.pitch ?? 0) + 0.25 }]);
 				api.cancelAutosave();
 			}, helperB);
 		},

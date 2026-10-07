@@ -164,7 +164,7 @@ describe("Live selection correctness after update", () => {
 			async (api, tagId: number, loc) => {
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 				const before = api.getMapState().selectedLocationIds.size;
-				await api.updateLocations([{ id: loc.id, patch: { tags: [tagId] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [tagId] }]);
 				const result = await api._test.syncSelections();
 				const after = result.ids;
 				return { before, after: after.length, has: after.includes(loc.id) };
@@ -184,7 +184,7 @@ describe("Live selection correctness after update", () => {
 			async (api, tagId: number, loc) => {
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 				const before = api.getMapState().selectedLocationIds.size;
-				await api.updateLocations([{ id: loc.id, patch: { tags: [] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [] }]);
 				return before;
 			},
 			tagAlphaId,
@@ -201,7 +201,7 @@ describe("Live selection correctness after update", () => {
 		const before = await withApi(async (api, loc) => {
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			const before = api.getMapState().selectedLocationIds.size;
-			await api.updateLocations([{ id: loc.id, patch: { flags: 1 } }]);
+			await api.updateLocations([{ id: loc.id, flags: 1 }]);
 			return before;
 		}, loc10);
 		const ids = await refreshSelections();
@@ -214,7 +214,7 @@ describe("Live selection correctness after update", () => {
 		const before = await withApi(async (api, loc) => {
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			const before = api.getMapState().selectedLocationIds.size;
-			await api.updateLocations([{ id: loc.id, patch: { flags: 0 } }]);
+			await api.updateLocations([{ id: loc.id, flags: 0 }]);
 			return before;
 		}, loc0);
 		const ids = await refreshSelections();
@@ -227,7 +227,7 @@ describe("Live selection correctness after update", () => {
 		const before = await withApi(async (api, loc) => {
 			await api.applySelectionUpdate(api.addSelection(api.unpannedSelector()));
 			const before = api.getMapState().selectedLocationIds.size;
-			await api.updateLocations([{ id: loc.id, patch: { heading: 45 } }]);
+			await api.updateLocations([{ id: loc.id, heading: 45 }]);
 			return before;
 		}, loc0);
 		const ids = await refreshSelections();
@@ -240,7 +240,7 @@ describe("Live selection correctness after update", () => {
 		const before = await withApi(async (api, loc) => {
 			await api.applySelectionUpdate(api.addSelection(api.unpannedSelector()));
 			const before = api.getMapState().selectedLocationIds.size;
-			await api.updateLocations([{ id: loc.id, patch: { heading: 0 } }]);
+			await api.updateLocations([{ id: loc.id, heading: 0 }]);
 			return before;
 		}, loc10);
 		const ids = await refreshSelections();
@@ -405,7 +405,7 @@ describe("Selection correctness after undo/redo", () => {
 			async (api, tagId: number, loc) => {
 				await api.applySelectionUpdate(() => []);
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
-				await api.updateLocations([{ id: loc.id, patch: { tags: [tagId] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [tagId] }]);
 			},
 			tagUndoId,
 			loc5,
@@ -523,7 +523,7 @@ describe("Composite selection correctness after mutations", () => {
 				await api.applySelectionUpdate(api.onActive(api.intersectSelections()));
 				const before = api.getMapState().selectedLocationIds.size;
 
-				await api.updateLocations([{ id: loc.id, patch: { tags: [tagAId, tagBId] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [tagAId, tagBId] }]);
 				return before;
 			},
 			tagCompAId,
@@ -546,7 +546,7 @@ describe("Composite selection correctness after mutations", () => {
 				await api.applySelectionUpdate(api.onActive(api.intersectSelections()));
 				const before = api.getMapState().selectedLocationIds.size;
 
-				await api.updateLocations([{ id: loc.id, patch: { tags: [tagAId] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [tagAId] }]);
 				return before;
 			},
 			tagCompAId,
@@ -623,7 +623,7 @@ describe("Bulk operations with active selections", () => {
 			async (api, tagId: number, ids: number[]) => {
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 				const before = api.getMapState().selectedLocationIds.size;
-				const updates = ids.map((id: number) => ({ id, patch: { tags: [tagId] } }));
+				const updates = ids.map((id: number) => ({ id, tags: [tagId] }));
 				await api.updateLocations(updates);
 				const result = await api._test.syncSelections();
 				const after = result.ids;

@@ -7,7 +7,7 @@
  * A procedure is an ES module bundled to one file. Its named exports are the entry
  * points: `map` (pure compute, no effectful calls) or `run`, plus the optional `query`.
  * Every entry point receives the run's `{ fields, force, config }` as its last argument.
- * Rows arrive as `Location`s and `run`/`map` answer with `Update<LocationPatch>`s under
+ * Rows arrive as `Location`s and `run`/`map` answer with `Patch<Location>`s under
  * the `patch` sink, or `Update<T>` of the module's own answer under `collect`.
  */
 

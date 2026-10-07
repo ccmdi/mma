@@ -175,8 +175,11 @@ pub(crate) fn save_edit_history(
                     map_id,
                     edit.seq as i64,
                     stack,
-                    entry.max_id(),
-                    arrow::arrow_ipc_bytes(&arrow::delta_to_batch(&entry.created, &entry.removed))?
+                    entry.max_key().unwrap_or(0),
+                    arrow::arrow_ipc_bytes(&{
+                        let (created, removed) = entry.sides();
+                        arrow::delta_to_batch(&created, &removed)
+                    })?
                 ])?;
             }
             (None, None) => log::warn!(
@@ -212,14 +215,14 @@ pub(crate) fn load_edit_history(conn: &Connection, map_id: &str) -> AppResult<Ed
 }
 
 /// One stored edit.
-pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<EditEntry> {
+pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<Change> {
     let bytes: Vec<u8> = conn.query_row(
         "SELECT entry FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
         rusqlite::params![map_id, seq as i64],
         |r| r.get(0),
     )?;
     let (created, removed) = arrow::batch_to_delta(&arrow::read_arrow_ipc_bytes(&bytes)?);
-    Ok(EditEntry { created, removed })
+    Ok(Change::from_sides(created, removed))
 }
 
 /// Highest location id the stored history can re-materialize, without reading it.
@@ -265,59 +268,5 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
     storage::set_map_counts(&conn, map_id, count, CommitDiff::default())?;
-    Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Tag value records: the `maps.tags` JSON column
-// ---------------------------------------------------------------------------
-// The disk home of the `tags` field's interned-value records (`values.rs`). The engine's
-// data-side tag concept is only the id-list column on locations; the piles live here.
-// The format is the legacy per-tag object (`{"<id>": {name, color, ...}}`), so old maps
-// read as-is; `id` and `visible` inside the objects are legacy keys - identity is the
-// map key and visibility is derived - stripped on read, `id` re-injected on write so
-// older builds still parse the column.
-
-/// Load the tag records from the SQLite `maps.tags` JSON column.
-pub(crate) fn read_tags_json(conn: &Connection, map_id: &str) -> HashMap<u32, ValueRecord> {
-    let json: String = conn
-        .query_row("SELECT tags FROM maps WHERE id = ?1", [map_id], |row| {
-            row.get(0)
-        })
-        .unwrap_or_else(|_| "{}".into());
-    let raw: HashMap<String, ValueRecord> = serde_json::from_str(&json).unwrap_or_default();
-    raw.into_iter()
-        .filter_map(|(k, mut rec)| {
-            rec.remove("id");
-            rec.remove("visible");
-            k.parse::<u32>().ok().map(|id| (id, rec))
-        })
-        .collect()
-}
-
-/// Serialize tag records to JSON with string keys (SQLite stores them this way).
-pub(crate) fn serialize_tags_json(tags: &HashMap<u32, ValueRecord>) -> String {
-    let as_str_keys: HashMap<String, ValueRecord> = tags
-        .iter()
-        .map(|(k, v)| {
-            let mut rec = v.clone();
-            rec.insert("id".into(), (*k).into());
-            (k.to_string(), rec)
-        })
-        .collect();
-    serde_json::to_string(&as_str_keys).unwrap_or_default()
-}
-
-/// Persist tag records to the SQLite `maps.tags` JSON column.
-pub(crate) fn write_tags_json(
-    conn: &Connection,
-    map_id: &str,
-    tags: &HashMap<u32, ValueRecord>,
-) -> AppResult<()> {
-    let json = serialize_tags_json(tags);
-    conn.execute(
-        "UPDATE maps SET tags = ?1 WHERE id = ?2",
-        rusqlite::params![json, map_id],
-    )?;
     Ok(())
 }

@@ -318,7 +318,7 @@ describe("Selection correctness after mutations", () => {
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			const before = api.getMapState().selectedLocationIds.size;
 			for (const l of locs) {
-				await api.updateLocations([{ id: l.id, patch: { flags: 1 } }]);
+				await api.updateLocations([{ id: l.id, flags: 1 }]);
 			}
 			await api.applySelectionUpdate(() => []);
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
@@ -363,7 +363,7 @@ describe("Selection correctness after mutations", () => {
 		await withApi(async (api, loc) => {
 			await api.applySelectionUpdate(() => []);
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
-			await api.updateLocations([{ id: loc.id, patch: { flags: 0 } }]);
+			await api.updateLocations([{ id: loc.id, flags: 0 }]);
 		}, loc0);
 
 		const afterUnpin = await refreshSelections();
@@ -384,8 +384,8 @@ describe("Selection correctness after mutations", () => {
 		await withApi(
 			async (api, l0, l1, tagId: number) => {
 				await api.applySelectionUpdate(() => []);
-				await api.updateLocations([{ id: l0.id, patch: { tags: [tagId] } }]);
-				await api.updateLocations([{ id: l1.id, patch: { tags: [tagId] } }]);
+				await api.updateLocations([{ id: l0.id, tags: [tagId] }]);
+				await api.updateLocations([{ id: l1.id, tags: [tagId] }]);
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 			},
 			tagLoc0,

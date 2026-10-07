@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { MapMeta, MapMetaPatch } from "@/bindings.gen";
+import type { MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { flushSave, getMapState, patchMapMeta } from "@/store/useMapStore";
 import { mapStorage } from "@/plugins/pluginStorage";
@@ -36,7 +36,7 @@ function holdWrites() {
 }
 
 const sentSettings = () =>
-	vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([, patch]) => (patch as MapMetaPatch).settings);
+	vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.settings);
 
 beforeEach(() => openMap("a"));
 
@@ -52,22 +52,25 @@ afterEach(async () => {
 describe("map metadata writes", () => {
 	it("start one at a time, in the order they were made", async () => {
 		const settle = holdWrites();
-		void patchMapMeta("a", { name: "first" });
-		void patchMapMeta("b", { name: "second" });
+		void patchMapMeta({ id: "a", name: "first" });
+		void patchMapMeta({ id: "b", name: "second" });
 		await new Promise((r) => setTimeout(r));
 		expect(cmd.storeUpdateMapMeta).toHaveBeenCalledTimes(1);
 
 		await settle();
-		expect(vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([id]) => id)).toEqual(["a", "b"]);
+		expect(vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.id)).toEqual([
+			"a",
+			"b",
+		]);
 		await settle();
 	});
 
 	it("fold a burst to one map into a single write of its last state", async () => {
 		const settle = holdWrites();
-		void patchMapMeta("a", { settings: { exportZoom: true } });
+		void patchMapMeta({ id: "a", settings: { exportZoom: true } });
 		await new Promise((r) => setTimeout(r));
-		void patchMapMeta("a", { settings: { exportZoom: false } });
-		void patchMapMeta("a", { settings: { exportZoom: true, pinResolve: false } });
+		void patchMapMeta({ id: "a", settings: { exportZoom: false } });
+		void patchMapMeta({ id: "a", settings: { exportZoom: true, pinResolve: false } });
 		await settle();
 		await settle();
 		expect(sentSettings()).toEqual([{ exportZoom: true }, { exportZoom: true, pinResolve: false }]);
@@ -75,8 +78,8 @@ describe("map metadata writes", () => {
 
 	it("are all saved once flushSave resolves", async () => {
 		const settle = holdWrites();
-		void patchMapMeta("a", { name: "first" });
-		void patchMapMeta("a", { name: "second" });
+		void patchMapMeta({ id: "a", name: "first" });
+		void patchMapMeta({ id: "a", name: "second" });
 		let flushed = false;
 		void flushSave().then(() => (flushed = true));
 		await settle();

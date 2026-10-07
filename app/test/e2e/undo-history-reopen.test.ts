@@ -60,7 +60,7 @@ describe("Undo history across close and reopen", () => {
 			createLocation({ lat: 30, lng: 30 }),
 		]);
 		states.push(await snapshot());
-		await withApi(async (api, id) => api.updateLocations([{ id, patch: { heading: 90 } }]), a);
+		await withApi(async (api, id) => api.updateLocations([{ id, heading: 90 }]), a);
 		states.push(await snapshot());
 		await withApi(async (api, id) => api.removeLocations(new Set([id])), b);
 		states.push(await snapshot());

@@ -1,9 +1,9 @@
 use super::*;
-use crate::sync::SyncLocalPin;
 use crate::sync::{
     sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, RemoteSnapshot, SyncDirection,
 };
 use crate::types::shape::MapShape;
+use crate::types::{Location, LocationFlags};
 use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -42,18 +42,10 @@ fn raw(f: impl FnOnce(&mut NormalizedSyncLocation), rid: Option<i64>) -> Raw {
     Raw { n: norm(f), rid }
 }
 
-fn loc(id: u32, f: impl FnOnce(&mut SyncLocalPin)) -> SyncLocalPin {
-    let mut l = SyncLocalPin {
+fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
+    let mut l = Location {
         id,
-        lat: 0.0,
-        lng: 0.0,
-        heading: 0.0,
-        pitch: 0.0,
-        zoom: 0.0,
-        pano_id: None,
-        flags: 0,
-        tags: vec![],
-        extra: None,
+        ..Location::default()
     };
     f(&mut l);
     l
@@ -306,7 +298,7 @@ impl MappingSink for MemSink {
 
 fn drive(
     provider: &Fake,
-    locs: &[SyncLocalPin],
+    locs: &[Location],
     mapping: &[RemoteMappingRow],
     tags: &HashMap<u32, String>,
     first_sync: Option<FirstSyncMode>,
@@ -331,7 +323,7 @@ fn drive(
 /// Plain reconcile: no first-sync mode, no resolutions.
 fn sync(
     provider: &Fake,
-    locs: &[SyncLocalPin],
+    locs: &[Location],
     mapping: &[RemoteMappingRow],
     tags: &HashMap<u32, String>,
     sink: &mut MemSink,
@@ -670,7 +662,7 @@ fn pull_updates_and_pull_deletes_leave_their_mapping_rows_to_the_apply_step() {
 // first-sync mirror modes
 // ---------------------------------------------------------------------------
 
-fn mirror_setup() -> (Fake, [SyncLocalPin; 1]) {
+fn mirror_setup() -> (Fake, [Location; 1]) {
     (
         Fake::stable(vec![raw(|n| n.lat = 2.0, Some(7))]),
         [loc(1, |l| l.lat = 1.0)],
@@ -750,7 +742,7 @@ fn mirror_from_local_deletes_remote_only_pins_instead_of_pulling() {
 
 /// Three synced pins; the first is deleted locally, so the push rewrites the whole document and
 /// every later pin slides down one index.
-fn reindex_setup() -> (Fake, [SyncLocalPin; 2], Vec<RemoteMappingRow>) {
+fn reindex_setup() -> (Fake, [Location; 2], Vec<RemoteMappingRow>) {
     let provider = Fake::positional(vec![
         raw(|n| n.lat = 1.0, None),
         raw(|n| n.lat = 2.0, None),
@@ -1313,7 +1305,7 @@ const PULL_ONLY_POSITIONAL: ProviderSpec = ProviderSpec {
 
 /// Land a result the way the apply step does: pulled creates get a never-used local id and a row,
 /// pulled updates patch in place, pulled and mirrored deletes leave.
-fn land(out: &SyncReconcileResult, locs: &mut Vec<SyncLocalPin>, sink: &mut MemSink) {
+fn land(out: &SyncReconcileResult, locs: &mut Vec<Location>, sink: &mut MemSink) {
     static NEXT_ID: AtomicU32 = AtomicU32::new(100);
     for c in &out.pull_creates {
         let next = NEXT_ID.fetch_add(1, Ordering::Relaxed);
@@ -1321,8 +1313,8 @@ fn land(out: &SyncReconcileResult, locs: &mut Vec<SyncLocalPin>, sink: &mut MemS
         locs.push(loc(next, |l| {
             l.lat = f.lat;
             l.lng = f.lng;
-            l.pano_id.clone_from(&f.pano_id);
-            l.flags = f.flags;
+            l.pano_id = f.pano_id.as_deref().map(Into::into);
+            l.flags = LocationFlags::from_bits_retain(f.flags);
         }));
         sink.upsert(&[row(next, c.remote_id, c.hash.clone())])
             .unwrap();
@@ -1343,11 +1335,7 @@ fn land(out: &SyncReconcileResult, locs: &mut Vec<SyncLocalPin>, sink: &mut MemS
 }
 
 /// One reconcile against the sink's own rows, landed.
-fn pull_once(
-    provider: &Fake,
-    locs: &mut Vec<SyncLocalPin>,
-    sink: &mut MemSink,
-) -> SyncReconcileResult {
+fn pull_once(provider: &Fake, locs: &mut Vec<Location>, sink: &mut MemSink) -> SyncReconcileResult {
     let mapping = sink.mapping();
     let out = sync(provider, locs, &mapping, &no_tags(), sink);
     land(&out, locs, sink);

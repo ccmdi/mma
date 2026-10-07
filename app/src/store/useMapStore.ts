@@ -1,17 +1,12 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
-import type { Tag, TagPatch } from "@/types";
+import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
-import { isVirtualLocation, isImportPreview, locId, applyLocationPatch } from "@/types";
+import { isVirtualLocation, isImportPreview, locId } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import type { Added, Location, MapMeta, FieldDef, StoreStatus, CountBy } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
-import type {
-	MutationResult,
-	EngineValues,
-	MapMetaPatch_Deserialize as MapMetaPatch,
-	SelectionSync,
-} from "@/bindings.gen";
+import type { MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { colorForName } from "@/lib/util/color";
@@ -21,7 +16,6 @@ import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
-import type { LocationPatch_Deserialize as LocationPatch, Update } from "@/bindings.gen";
 import type {
 	KeySpec,
 	PartitionBucket,
@@ -432,27 +426,27 @@ export function setSelectedLocationIds(ids: SelectedIds) {
 /** Every metadata write, chained so they land in the order they were made. */
 let metaWrites: Promise<void> = Promise.resolve();
 /** The last write still waiting its turn; a patch to the same map joins it. */
-let waitingMetaWrite: { id: string; patch: MapMetaPatch; done: Promise<void> } | null = null;
+let waitingMetaWrite: { patch: Patch<MapMeta>; done: Promise<void> } | null = null;
 
-/** Patch any map's metadata by id and persist it. Updates the open map's state when it is that map.
+/** Patch any map's metadata and persist it. Updates the open map's state when it is that map.
  *  Writes land in the order they were made. */
-export function patchMapMeta(id: string, patch: MapMetaPatch): Promise<void> {
+export function patchMapMeta(patch: Patch<MapMeta>): Promise<void> {
 	const carried = Object.fromEntries(
 		Object.entries(patch).filter(([, v]) => v !== undefined),
-	) as MapMetaPatch;
-	if (state.map && state.mapId === id) {
-		setState({ map: { ...state.map, ...(carried as Partial<MapMeta>) } });
+	) as Patch<MapMeta>;
+	if (state.map && state.mapId === patch.id) {
+		setState({ map: { ...state.map, ...carried } });
 	}
 	emitEvent("store:changed");
-	if (waitingMetaWrite?.id === id) {
+	if (waitingMetaWrite?.patch.id === patch.id) {
 		Object.assign(waitingMetaWrite.patch, carried);
 		return waitingMetaWrite.done;
 	}
-	const write = { id, patch: carried, done: Promise.resolve() };
+	const write = { patch: carried, done: Promise.resolve() };
 	write.done = metaWrites.then(async () => {
 		if (waitingMetaWrite === write) waitingMetaWrite = null;
-		const r = await cmd.storeUpdateMapMeta(write.id, write.patch);
-		if (r && state.mapId === write.id) applyMutation(r);
+		const r = await cmd.storeUpdateMapMeta(write.patch);
+		if (r && state.mapId === write.patch.id) applyMutation(r);
 		await invalidateMapList();
 	});
 	waitingMetaWrite = write;
@@ -461,16 +455,16 @@ export function patchMapMeta(id: string, patch: MapMetaPatch): Promise<void> {
 }
 
 /** `patchMapMeta` for the map open in this window. */
-export function updateMapMeta(patch: MapMetaPatch) {
+export function updateMapMeta(patch: Omit<Patch<MapMeta>, "id">) {
 	if (!state.mapId) return;
-	return patchMapMeta(state.mapId, patch);
+	return patchMapMeta({ ...patch, id: state.mapId });
 }
 
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 export async function setMapExtraFields(fields: Record<string, FieldDef>) {
 	if (!state.mapId || !state.map) return;
 	const current = state.map.extra ?? {};
-	return patchMapMeta(state.mapId, { extra: { ...current, fields } } as MapMetaPatch);
+	return patchMapMeta({ id: state.mapId, extra: { ...current, fields } });
 }
 
 /** Keys of tag selections whose tag just died (emptied or deleted). */
@@ -492,6 +486,7 @@ function applyMutation(r: MutationResult) {
 	const oldTags = getTags();
 	mergeEngineValues(r.values);
 	if (r.step !== state.step) setState({ step: r.step });
+	if (r.active && r.active.id === state.activeLocationId) setState({ activeLocation: r.active });
 	if (getTags() !== oldTags)
 		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
@@ -506,6 +501,7 @@ const EMPTY_MUTATION: MutationResult = {
 	version: 0,
 	selectionSync: null,
 	step: null,
+	active: null,
 	values: {
 		locationCount: null,
 		canUndo: null,
@@ -607,20 +603,13 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 /** Patch locations by id. Only include the fields you're changing; `extra` merges
  *  per-key (null deletes a key). Undoable by default. */
 export async function updateLocations(
-	updates: Update<LocationPatch>[],
+	updates: Patch<Location>[],
 	opts?: { undoable?: boolean; join?: number | null },
 ) {
 	if (updates.length === 0) return;
 	if (updates.some((u) => isVirtualLocation(u))) return;
 	await mutate(() => cmd.storeUpdateLocations(updates, opts?.undoable ?? true, opts?.join ?? null));
 	emitEvent("location:update", updates);
-	if (state.activeLocation) {
-		const activePatch = updates.find((u) => u.id === state.activeLocationId)?.patch;
-		if (activePatch) {
-			setState({ activeLocation: applyLocationPatch(state.activeLocation, activePatch) });
-			emitEvent("store:changed");
-		}
-	}
 }
 
 // --- Bulk metadata-field operations ---
@@ -652,18 +641,6 @@ export async function applyFieldOp(
 		failed: [],
 	});
 	emitEvent("location:invalidate");
-	const active = state.activeLocation;
-	if (active && !isVirtualLocation(active)) {
-		const [fresh] = await query({
-			type: "Locations",
-			locations: [active.id],
-			name: null,
-		}).locations();
-		if (fresh) {
-			setState({ activeLocation: fresh });
-			emitEvent("store:changed");
-		}
-	}
 	return r;
 }
 
@@ -975,7 +952,7 @@ export function exitPluginMode() {
 /** Patch the `tags` field's value metadata and apply the mutation it returns. */
 async function patchTagValues(patch: {
 	create?: string[];
-	update?: Update<TagPatch>[];
+	update?: Patch<Tag>[];
 	reorder?: number[];
 }): Promise<Tag[]> {
 	let ids: number[] = [];
@@ -1026,12 +1003,12 @@ export async function renameTagsIn(tagIds: number[], name: string, selector: Sel
 /** Rename or recolor tags. A rename colliding with an existing tag name
  *  (case-insensitive) merges the two: every location is remapped to the survivor
  *  (undoable) and the emptied source's metadata goes dark. */
-export async function updateTags(updates: Update<TagPatch>[]) {
+export async function updateTags(updates: Patch<Tag>[]) {
 	if (updates.length === 0) return;
 	await patchTagValues({ update: updates });
 	emitEvent("tag:update", updates);
 	// Only a color change needs a selection resync; names never enter the resolve.
-	const recolored = new Set(updates.filter((u) => u.patch.color != null).map((u) => u.id));
+	const recolored = new Set(updates.filter((u) => u.color != null).map((u) => u.id));
 	if (state.selectionList.some((r) => recolored.has(tagIdOf(r.selection.selector) ?? -1))) {
 		void syncSelections();
 	}

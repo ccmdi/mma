@@ -11,12 +11,12 @@ use crate::plugins::sidecar::SidecarStream;
 use crate::sv::pano::{PanoAnswer, PanoQuery};
 use crate::types::{AppError, AppResult};
 
-/// One location's result: a `LocationPatch` as JSON. Held as text until
-/// `engine::to_updates` parses it, so the host stays free of store types.
-#[derive(Debug, Clone, PartialEq)]
-pub struct PatchEntry {
+/// One location's answer from a procedure, as the JSON its module emitted.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ResultEntry {
     pub id: u32,
-    pub patch: String,
+    pub json: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -85,7 +85,7 @@ pub trait Procedure: Send {
         _batch: &[u8],
         _host: &mut dyn ProcHost,
         _config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         Err(AppError("procedure shape does not implement map".into()))
     }
 
@@ -94,7 +94,7 @@ pub trait Procedure: Send {
         _batch: &[u8],
         _host: &mut dyn ProcHost,
         _config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         Err(AppError("procedure shape does not implement run".into()))
     }
 

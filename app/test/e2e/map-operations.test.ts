@@ -17,7 +17,7 @@ describe("Map rename", () => {
 
 	it("rename open map updates in-memory name", async () => {
 		await withApi(async (api, id) => {
-			await api.patchMapMeta(id, { name: "Renamed Map" });
+			await api.patchMapMeta({ id: id, name: "Renamed Map" });
 		}, map.id);
 
 		const name = await withApi(async (api) => api.getMapState().map?.name);

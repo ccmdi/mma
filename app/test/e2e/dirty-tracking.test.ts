@@ -27,7 +27,7 @@ describe("Dirty tracking", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { heading: 90 } }]);
+			await api.updateLocations([{ id: l.id, heading: 90 }]);
 		}, loc);
 
 		const count = await withApi(async (api) => (await api.cmd.storeGetSummary()).dirtyCount);

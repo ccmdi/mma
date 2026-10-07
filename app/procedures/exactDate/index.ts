@@ -1,3 +1,4 @@
+import type { Patch } from "@/types";
 // Exact capture timestamp. The month window from `extra.imageDate` is narrowed against
 // Google's SingleImageSearch RPC until the first frame of coverage is bracketed to one
 // second, and written as `extra.datetime` in unix seconds.
@@ -8,13 +9,7 @@
 // anything this module decides. `query` answers the same question for a single point.
 
 import type { ProcedureConfig } from "@/bindings.gen";
-import type {
-	Location,
-	PanoAnswer,
-	SearchQuery,
-	Update,
-	LocationPatch_Deserialize as LocationPatch,
-} from "@/bindings.gen";
+import type { Location, PanoAnswer, SearchQuery } from "@/bindings.gen";
 import { PanoType, RankingStrategy } from "@/bindings.consts";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 
@@ -168,7 +163,7 @@ function narrow(batch: Search[], counts = true): void {
 	}
 }
 
-export function run(rows: Location[], _cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
+export function run(rows: Location[], _cfg: ProcedureConfig<unknown>): Patch<Location>[] {
 	const batch: Search[] = [];
 	for (const row of rows) {
 		const s = newSearch(row.id, row.lat, row.lng, row.extra?.imageDate);
@@ -181,12 +176,12 @@ export function run(rows: Location[], _cfg: ProcedureConfig<unknown>): Update<Lo
 	}
 	narrow(batch);
 
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	for (const s of batch) {
 		// A row cut short by an abort is neither a result nor a failure; beyond any
 		// partial credit already reported, the engine counts it as untouched.
 		if (!s.settled) continue;
-		if (s.ts !== null) out.push({ id: s.id, patch: { extra: { datetime: s.ts } } });
+		if (s.ts !== null) out.push({ id: s.id, extra: { datetime: s.ts } });
 		else mma.fail(s.id);
 	}
 	return out;

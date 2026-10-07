@@ -1,12 +1,12 @@
 use super::*;
 use crate::sync::diff::compute_sync_plan;
-use crate::sync::SyncLocalPin;
 use crate::sync::{
     local_to_normalized, sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch,
     PushedId, RemoteSnapshot, SyncDirection,
 };
 use crate::types::shape::MapShape;
 use crate::types::AppResult;
+use crate::types::{Location, LocationFlags};
 
 /// A remote whose raw shape is already the normalized contract, plus an optional real id for the
 /// stable case; keeps the tests about identity, not adaptation.
@@ -37,7 +37,7 @@ const POSITIONAL_GEOGUESSR: ProviderSpec = ProviderSpec {
 
 struct Fake {
     spec: &'static ProviderSpec,
-    include_fn: Option<fn(&SyncLocalPin) -> bool>,
+    include_fn: Option<fn(&Location) -> bool>,
 }
 
 impl Fake {
@@ -66,7 +66,7 @@ impl SyncProvider for Fake {
     fn normalize(&self, item: &Raw) -> NormalizedSyncLocation {
         item.n.clone()
     }
-    fn include_local(&self, loc: &SyncLocalPin) -> bool {
+    fn include_local(&self, loc: &Location) -> bool {
         match self.include_fn {
             Some(f) => f(loc),
             None => true,
@@ -116,18 +116,10 @@ fn raw(f: impl FnOnce(&mut Raw)) -> Raw {
     r
 }
 
-fn loc(id: u32, f: impl FnOnce(&mut SyncLocalPin)) -> SyncLocalPin {
-    let mut l = SyncLocalPin {
+fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
+    let mut l = Location {
         id,
-        lat: 0.0,
-        lng: 0.0,
-        heading: 0.0,
-        pitch: 0.0,
-        zoom: 0.0,
-        pano_id: None,
-        flags: 0,
-        tags: vec![],
-        extra: None,
+        ..Location::default()
     };
     f(&mut l);
     l
@@ -141,7 +133,7 @@ fn tag_name(id: u32) -> Option<String> {
     }
 }
 
-fn hash_of(l: &SyncLocalPin) -> String {
+fn hash_of(l: &Location) -> String {
     sync_hash(&local_to_normalized(l, &tag_name))
 }
 
@@ -284,12 +276,12 @@ fn positional_recovers_edited_pin_by_pano_after_delete_shift() {
     let a = loc(10, |l| {
         l.lat = 1.0;
         l.pano_id = Some("PANO_A".into());
-        l.flags = 1;
+        l.flags = LocationFlags::from_bits_retain(1);
     });
     let b = loc(11, |l| {
         l.lat = 2.0;
         l.pano_id = Some("PANO_B".into());
-        l.flags = 1;
+        l.flags = LocationFlags::from_bits_retain(1);
     });
     let mapping = vec![
         RemoteMappingRow {
@@ -362,7 +354,7 @@ fn projection_erases_unrepresentable_fields() {
     // projection this would diff forever.
     let l = loc(10, |x| {
         x.pano_id = Some("PANO".into());
-        x.flags = 0;
+        x.flags = LocationFlags::from_bits_retain(0);
     });
     let projected = {
         let mut n = local_to_normalized(&l, &tag_name);
@@ -391,8 +383,8 @@ fn projection_erases_unrepresentable_fields() {
     assert_eq!(k.local.get("L:10").unwrap().pano_id, None);
 }
 
-fn exclude_bit_two(l: &SyncLocalPin) -> bool {
-    (l.flags & 2) == 0
+fn exclude_bit_two(l: &Location) -> bool {
+    (l.flags.bits() & 2) == 0
 }
 
 #[test]
@@ -400,7 +392,7 @@ fn filtering_excludes_and_deletes_once_excluded() {
     let kept = loc(10, |x| x.lat = 1.0);
     let excluded = loc(11, |x| {
         x.lat = 2.0;
-        x.flags = 2;
+        x.flags = LocationFlags::from_bits_retain(2);
     });
     let mut p = Fake::stable();
     p.include_fn = Some(exclude_bit_two);

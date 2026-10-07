@@ -24,7 +24,13 @@ pub use raw_extra::*;
 /// in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
 /// within a map and assigned by the store's monotonic allocator.
 #[derive(
-    Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize, specta::Type, mma_fields::Fields,
+    Clone,
+    Debug,
+    serde::Deserialize,
+    serde::Serialize,
+    specta::Type,
+    mma_fields::Fields,
+    mma_fields::Patch,
 )]
 #[serde(rename_all = "camelCase")]
 #[fields(
@@ -35,6 +41,7 @@ pub struct Location {
     /// Monotonically increasing within a map. Zero is a sentinel meaning
     /// "not yet assigned" (used during import before IDs are allocated).
     #[field(label = "ID", kind = identity)]
+    #[patch(key)]
     pub id: u32,
     #[field(label = "Latitude", kind = identity)]
     pub lat: f64,
@@ -63,11 +70,13 @@ pub struct Location {
     // Stored as raw JSON bytes; see [`RawExtra`].
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
     #[field(skip)]
+    #[patch(merge)]
     pub extra: Option<RawExtra>,
     /// Unix timestamp (seconds)
     #[field(label = "Created", date)]
     pub created_at: u32,
     #[field(label = "Modified", date)]
+    #[patch(stamp)]
     pub modified_at: Option<u32>,
 }
 #[allow(
@@ -75,6 +84,13 @@ pub struct Location {
     reason = "lifts the derive-emitted macro into the module namespace so other modules can path-import it"
 )]
 pub(crate) use {location_columns, location_fields};
+
+impl mma_algebra::Keyed for Location {
+    type Key = u32;
+    fn key(&self) -> u32 {
+        self.id
+    }
+}
 
 impl Default for Location {
     fn default() -> Self {

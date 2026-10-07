@@ -2,18 +2,18 @@
 //! over paged location batches, applies the resulting patches, and reports
 //! progress. Nothing here knows what any provider actually computes.
 
-use super::{PatchEntry, ProcHost, ProcShape, Procedure};
+use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
-use crate::selections::{self, neighborhood, Selector};
+use crate::selections::{neighborhood, Selector};
 use crate::store::engine::{
-    apply_updates, ExternalMutation, LocationPatch, Store, StoreState, UndoScope, Update,
-    WindowLabel,
+    Change, Edit, ExternalMutation, Store, StoreState, UndoScope, WindowLabel,
 };
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
+use mma_algebra::{Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::mem;
@@ -91,8 +91,6 @@ pub struct ProviderDecl {
     pub fields: Vec<String>,
     #[serde(default)]
     pub requires: Vec<String>,
-    #[serde(default)]
-    pub invalidates: HashMap<String, Vec<String>>,
     pub select: Selector,
     pub batch: BatchMode,
     #[serde(default)]
@@ -160,15 +158,6 @@ pub struct ProcedureProgress {
     /// the provider produces. Callers subtract these to report what a run actually did.
     pub skipped: u32,
     pub finished: bool,
-}
-
-/// One location's answer from a `Collect` provider: whatever its module emitted for
-/// that row, carried as text exactly as a patch would be.
-#[derive(serde::Serialize, Clone, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ResultEntry {
-    pub id: u32,
-    pub json: String,
 }
 
 /// What one page hands back to the caller: a `Collect` provider's answers, delivered
@@ -555,7 +544,10 @@ pub(crate) enum RunRows<'a> {
 impl RunRows<'_> {
     pub(crate) fn given(rows: Vec<Location>) -> Self {
         let mut store = Store::new();
-        store.overlay_add(rows);
+        store.put(&Change {
+            added: rows,
+            ..Change::default()
+        });
         RunRows::Given(Box::new(Mutex::new(store)))
     }
 
@@ -970,14 +962,7 @@ enum Produced {
 
 /// Write one page: patches to the store, answers and failed ids to the caller.
 fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResult<()> {
-    let mut entries: Vec<ResultEntry> = page
-        .entries
-        .into_iter()
-        .map(|e| ResultEntry {
-            id: e.id,
-            json: e.patch,
-        })
-        .collect();
+    let mut entries = page.entries;
     if !page.updates.is_empty() {
         let on_map = matches!(*ctx.rows, RunRows::Map { .. });
         let result = ctx.rows.with_store(|store| {
@@ -987,7 +972,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
             } else {
                 UndoScope::Skip
             };
-            Ok(apply_updates(store, &page.updates, undo))
+            Ok(store.write(page.updates.iter().cloned().map(Edit::Put), undo))
         })?;
         if let RunRows::Map { map_id, .. } = &*ctx.rows {
             crate::emit_event(ExternalMutation {
@@ -1183,8 +1168,8 @@ fn config_json(fields: &[String], force: bool, config: Option<&str>) -> String {
 /// sink: a `Patch` provider yields store updates, a `Collect` provider yields answers.
 #[derive(Default)]
 struct PageOutput {
-    updates: Vec<Update<LocationPatch>>,
-    entries: Vec<PatchEntry>,
+    updates: Vec<Patch<Location>>,
+    entries: Vec<ResultEntry>,
     /// Rows the procedure failed, plus every row of a batch whose call failed.
     failed: Vec<u32>,
 }
@@ -1232,10 +1217,8 @@ fn run_instance(
             .map(|entries| fan_out(entries, batch.fanout.as_ref()))
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
-                // contract with its caller, not a LocationPatch.
-                Sink::Patch => {
-                    to_updates(&entries, &batch.rows, &decl.invalidates).map(BatchProduct::Patches)
-                }
+                // contract with its caller, not a Patch<Location>.
+                Sink::Patch => to_patches(&entries).map(BatchProduct::Patches),
                 Sink::Collect => Ok(BatchProduct::Entries(entries)),
             });
         let units = batch.units();
@@ -1264,8 +1247,8 @@ fn run_instance(
 
 /// One batch's product, before it joins the page.
 enum BatchProduct {
-    Patches(Vec<Update<LocationPatch>>),
-    Entries(Vec<PatchEntry>),
+    Patches(Vec<Patch<Location>>),
+    Entries(Vec<ResultEntry>),
 }
 
 fn run_batch(
@@ -1273,7 +1256,7 @@ fn run_batch(
     batch: &WorkBatch,
     host: &mut EngineHost,
     config: &str,
-) -> AppResult<Vec<PatchEntry>> {
+) -> AppResult<Vec<ResultEntry>> {
     let blob = serde_json::to_vec(&batch.rows)
         .map_err(|e| AppError(format!("batch could not be serialized: {e}")))?;
     match proc.shape() {
@@ -1282,51 +1265,26 @@ fn run_batch(
     }
 }
 
-/// The camelCase wire names of every `LocationPatch` field, read off the type itself so
-/// the two cannot drift. A patch entry carrying anything else fails its batch rather than
-/// being silently ignored.
-fn patch_keys() -> &'static [String] {
-    static KEYS: OnceLock<Vec<String>> = OnceLock::new();
-    KEYS.get_or_init(|| match serde_json::to_value(LocationPatch::default()) {
-        Ok(serde_json::Value::Object(map)) => map.into_iter().map(|(k, _)| k).collect(),
-        _ => unreachable!("LocationPatch serializes as an object"),
-    })
-}
-
-/// Validate one entry's JSON and hand back its object. `None` when the patch sets
-/// nothing, which is dropped rather than applied -- an empty `extra` merge patch in
-/// particular must not reach the store, where it would read as "clear extra".
-fn patch_object(
-    entry: &PatchEntry,
-) -> AppResult<Option<serde_json::Map<String, serde_json::Value>>> {
-    let err = |msg: String| AppError(format!("patch for location {}: {msg}", entry.id));
-    let value: serde_json::Value =
-        serde_json::from_str(&entry.patch).map_err(|e| err(e.to_string()))?;
-    let serde_json::Value::Object(mut map) = value else {
-        return Err(err("expected a LocationPatch object".into()));
-    };
-    if let Some(key) = map.keys().find(|k| !patch_keys().iter().any(|p| p == *k)) {
-        return Err(err(format!("unknown field `{key}`")));
-    }
-    let empty_extra = map.get("extra").and_then(|v| v.as_object());
-    if empty_extra.is_some_and(serde_json::Map::is_empty) {
-        map.remove("extra");
-    }
-    Ok((!map.is_empty()).then_some(map))
+/// Whether a location patch can write `key`. A patch entry carrying anything else fails its
+/// batch rather than being silently ignored.
+fn writable(key: &str) -> bool {
+    <Location as Patchable>::WRITES
+        .iter()
+        .any(|(k, _)| *k == key)
 }
 
 /// Repeat a deduped representative's answer for every row it stood for. Without a
 /// fanout map the entries already name their own rows and pass through untouched.
-fn fan_out(entries: Vec<PatchEntry>, fanout: Option<&HashMap<u32, Vec<u32>>>) -> Vec<PatchEntry> {
+fn fan_out(entries: Vec<ResultEntry>, fanout: Option<&HashMap<u32, Vec<u32>>>) -> Vec<ResultEntry> {
     let Some(fanout) = fanout else {
         return entries;
     };
     let mut out = Vec::with_capacity(entries.len());
     for e in entries {
         match fanout.get(&e.id) {
-            Some(ids) => out.extend(ids.iter().map(|&id| PatchEntry {
+            Some(ids) => out.extend(ids.iter().map(|&id| ResultEntry {
                 id,
-                patch: e.patch.clone(),
+                json: e.json.clone(),
             })),
             None => out.push(e),
         }
@@ -1334,71 +1292,21 @@ fn fan_out(entries: Vec<PatchEntry>, fanout: Option<&HashMap<u32, Vec<u32>>>) ->
     out
 }
 
-/// Parse each entry's JSON into a store patch. A patch that sets nothing is dropped;
-/// one that does not parse fails the whole batch.
-fn to_updates(
-    entries: &[PatchEntry],
-    rows: &[Location],
-    invalidates: &HashMap<String, Vec<String>>,
-) -> AppResult<Vec<Update<LocationPatch>>> {
-    let by_id: HashMap<u32, &Location> = rows.iter().map(|l| (l.id, l)).collect();
-    let mut out = Vec::with_capacity(entries.len());
-    for e in entries {
-        let Some(mut map) = patch_object(e)? else {
-            continue;
-        };
-        if let Some(row) = by_id.get(&e.id) {
-            invalidate_derived(&mut map, row, invalidates);
-        }
-        let patch = serde_json::from_value(serde_json::Value::Object(map))
-            .map_err(|err| AppError(format!("patch for location {}: {err}", e.id)))?;
-        out.push(Update { id: e.id, patch });
-    }
-    Ok(out)
-}
-
-/// A field whose value this patch changes takes the fields derived from it along: they
-/// were derived from the old value. A dependent the patch writes itself is kept, and a
-/// dependent the row never held has nothing to lose.
-fn invalidate_derived(
-    map: &mut serde_json::Map<String, serde_json::Value>,
-    row: &Location,
-    invalidates: &HashMap<String, Vec<String>>,
-) {
-    let written = |map: &serde_json::Map<String, serde_json::Value>, key: &str| {
-        map.get(key)
-            .or_else(|| map.get("extra")?.get(key))
-            .cloned()
-            .filter(|v| !v.is_null())
-    };
-    let stale: Vec<&str> = invalidates
+/// Each answer as the patch it writes. A field a patch cannot write fails the batch.
+fn to_patches(entries: &[ResultEntry]) -> AppResult<Vec<Patch<Location>>> {
+    entries
         .iter()
-        .filter(|(key, _)| {
-            map.contains_key(*key) || map.get("extra").is_some_and(|e| e.get(key).is_some())
+        .map(|e| {
+            let err = |msg: String| AppError(format!("patch for location {}: {msg}", e.id));
+            let mut map: serde_json::Map<String, serde_json::Value> =
+                serde_json::from_str(&e.json).map_err(|x| err(x.to_string()))?;
+            if let Some(key) = map.keys().find(|k| !writable(k)) {
+                return Err(err(format!("unknown field `{key}`")));
+            }
+            map.insert("id".into(), e.id.into());
+            serde_json::from_value(map.into()).map_err(|x| err(x.to_string()))
         })
-        .filter(|(key, _)| {
-            written(map, key) != selections::RowRef::from_loc(row).resolve_field(key)
-        })
-        .flat_map(|(_, deps)| deps.iter().map(String::as_str))
-        .filter(|dep| !patch_keys().iter().any(|k| k == dep))
-        .filter(|dep| {
-            selections::RowRef::from_loc(row)
-                .resolve_field(dep)
-                .is_some()
-        })
-        .collect();
-    if stale.is_empty() {
-        return;
-    }
-    let extra = map
-        .entry("extra")
-        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
-    let serde_json::Value::Object(extra) = extra else {
-        return;
-    };
-    for dep in stale {
-        extra.entry(dep).or_insert(serde_json::Value::Null);
-    }
+        .collect()
 }
 
 struct EngineHost<'a> {

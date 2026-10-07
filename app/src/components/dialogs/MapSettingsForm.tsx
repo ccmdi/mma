@@ -308,7 +308,7 @@ export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFo
 		<>
 			<DialogForm
 				onSubmit={() => {
-					void patchMapMeta(map.id, patch);
+					void patchMapMeta({ ...patch, id: map.id });
 					close();
 				}}
 			>

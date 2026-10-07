@@ -17,10 +17,12 @@ use crate::types::{AppError, AppResult};
 use crate::util;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
+use mma_algebra::Patch;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{self, AtomicUsize};
+use std::sync::Arc;
 use std::time::Instant;
 use tauri::ipc::Channel;
 use tokio::task;
@@ -180,23 +182,17 @@ async fn open_claimed_map(
     {
         let conn = storage::open_db()?;
         storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts().into())?;
+        let meta = maps::read_map_meta(&conn, &map_id)?;
         store
             .value_meta
-            .insert("tags".into(), Tracked::new(read_tags_json(&conn, &map_id)));
-        let extra_str: String = conn
-            .query_row(
-                "SELECT extra FROM maps WHERE id = ?1",
-                rusqlite::params![map_id],
-                |row| row.get(0),
-            )
-            .unwrap_or_default();
-        let extra = maps::MapExtra::from_json(&extra_str);
-        store.field_defs = Tracked::new(extra.fields.unwrap_or_default());
+            .insert("tags".into(), Tracked::new(meta.tags.0));
+        store.field_defs = Tracked::new(meta.extra.fields.unwrap_or_default());
     }
     store.edits = Tracked::new(edits);
 
     let status = store.open_status();
     let mut mgr = state.lock()?;
+    store.derived = mgr.derived.clone();
     mgr.window_map.insert(label.0.clone(), map_id.clone());
     if let Some(replaced) = mgr.stores.remove(&map_id) {
         store.adopt_watchers(replaced);
@@ -291,11 +287,7 @@ pub fn store_remove_locations(
 ) -> AppResult<MutationResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let removed: Vec<Location> = ids
-            .iter()
-            .filter_map(|&id| store.get_loc_by_id(id))
-            .collect();
-        let result = store.apply_undoable(removed, Vec::new());
+        let result = store.write(ids.iter().map(|&id| Edit::Remove(id)), UndoScope::Entry);
         log::debug!(
             "[cmd] store_remove_locations total={}ms ids={}",
             _t.elapsed().as_millis(),
@@ -303,6 +295,23 @@ pub fn store_remove_locations(
         );
         Ok(result)
     })
+}
+
+/// Declare which fields are computed from which: each input field and the fields derived
+/// from it. A write that changes an input clears what was derived from it.
+#[tauri::command]
+#[specta::specta]
+pub fn store_set_derived(
+    state: tauri::State<'_, StoreState>,
+    edges: HashMap<String, Vec<String>>,
+) -> AppResult<()> {
+    let mut mgr = state.lock()?;
+    mgr.derived = Arc::new(edges);
+    let derived = mgr.derived.clone();
+    for store in mgr.stores.values_mut() {
+        store.derived = derived.clone();
+    }
+    Ok(())
 }
 
 /// Apply partial patches to existing locations. `recordUndo` defaults to true;
@@ -314,7 +323,7 @@ pub fn store_remove_locations(
 pub async fn store_update_locations(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    updates: Vec<Update<LocationPatch>>,
+    updates: Vec<Patch<Location>>,
     record_undo: Option<bool>,
     join: Option<u64>,
 ) -> AppResult<MutationResult> {
@@ -327,7 +336,7 @@ pub async fn store_update_locations(
             true => UndoScope::Run(&mut join),
             false => UndoScope::Skip,
         };
-        let result = apply_updates(store, &updates, undo);
+        let result = store.write(updates.into_iter().map(Edit::Put), undo);
         log::debug!(
             "[cmd] store_update_locations n={} undo={} total={}ms",
             n,
@@ -549,7 +558,7 @@ fn copy_to_map(
     let (mut fresh, skipped) = split_new_locations(sources, &existing);
     let copied = fresh.len() as u32;
     if copied > 0 {
-        let mut target_tags = read_tags_json(&conn, &target_map_id);
+        let mut target_tags = maps::read_map_meta(&conn, &target_map_id)?.tags.0;
         let data_max = existing
             .iter()
             .flat_map(|l| l.tags.iter().copied())
@@ -598,7 +607,16 @@ fn copy_to_map(
             existing.len() + copied as usize,
             pending,
         )?;
-        write_tags_json(&conn, &target_map_id, &target_tags)?;
+        storage::update_row::<maps::MapMeta>(
+            &conn,
+            "maps",
+            &target_map_id,
+            &Patch::<maps::MapMeta> {
+                id: target_map_id.clone(),
+                tags: Some(maps::TagRecords(target_tags)),
+                ..Default::default()
+            },
+        )?;
         log::debug!(
             "[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
             read_ms,
@@ -758,7 +776,7 @@ pub async fn store_redo(
     })
 }
 
-fn log_history_step(step: &str, started: Instant, depth: usize, changes: &ChangeSet) {
+fn log_history_step(step: &str, started: Instant, depth: usize, changes: &Change) {
     log::debug!(
         "[{step}] stack_depth={depth} apply_edit={}ms changes: +{} ~{} -{}",
         started.elapsed().as_millis(),
@@ -1188,9 +1206,7 @@ pub async fn store_merge_duplicates(
     with_store!(label, state, |store| {
         let groups = store.all().duplicate_groups(distance);
 
-        let mut remove: Vec<Location> = Vec::new();
-        let mut create: Vec<Location> = Vec::new();
-
+        let mut edits: Vec<Edit> = Vec::new();
         for group in &groups {
             let members: Vec<Location> = group
                 .iter()
@@ -1199,19 +1215,17 @@ pub async fn store_merge_duplicates(
             if members.len() < 2 {
                 continue;
             }
-            create.push(merge_group(&members, &score));
-            for m in members {
-                remove.push(m);
-            }
+            let survivor = merge_group(&members, &score);
+            edits.extend(members.iter().map(|m| Edit::Remove(m.id)));
+            edits.push(Edit::Set(survivor));
         }
 
         log::debug!(
-            "[cmd] store_merge_duplicates groups={} merged_away={} total={}ms",
-            create.len(),
-            remove.len().saturating_sub(create.len()),
+            "[cmd] store_merge_duplicates groups={} total={}ms",
+            groups.len(),
             _t.elapsed().as_millis()
         );
-        Ok(store.apply_undoable(remove, create))
+        Ok(store.write(edits, UndoScope::Entry))
     })
 }
 
@@ -1236,18 +1250,13 @@ pub async fn store_prune_duplicates(
             .into_iter()
             .collect();
         let total = locs.len();
-        let remove: Vec<Location> = locs
-            .into_iter()
-            .filter(|l| prune_ids.contains(&l.id))
-            .collect();
-
         log::debug!(
             "[cmd] store_prune_duplicates pruned={} of {} total={}ms",
-            remove.len(),
+            prune_ids.len(),
             total,
             _t.elapsed().as_millis()
         );
-        Ok(store.apply_undoable(remove, Vec::new()))
+        Ok(store.write(prune_ids.into_iter().map(Edit::Remove), UndoScope::Entry))
     })
 }
 

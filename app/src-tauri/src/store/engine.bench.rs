@@ -23,10 +23,8 @@ use tauri::test;
 use tauri::test::MockRuntime;
 
 pub use crate::selections::{Selection, Selector};
-pub use crate::store::engine::{
-    ListedSelection, LocationPatch, MutationResult, RenderRequest, Store, Update,
-};
-pub use crate::types::Location;
+pub use crate::store::engine::{Change, ListedSelection, MutationResult, RenderRequest, Store};
+pub use crate::types::{Location, LocationFlags, Patch};
 
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
 /// full-size run; the default is a smoke-sized store.
@@ -170,32 +168,28 @@ impl Fixture {
     }
 
     /// `count` heading patches spread across the population.
-    pub fn heading_updates(&self, count: usize) -> Vec<Update<LocationPatch>> {
+    pub fn heading_updates(&self, count: usize) -> Vec<Patch<Location>> {
         let step = (self.n / count.max(1)).max(1);
         (0..count)
-            .map(|i| Update {
+            .map(|i| Patch::<Location> {
                 id: (i * step) as u32 + 1,
-                patch: LocationPatch {
-                    heading: Some(((i * 7) % 360) as f64),
-                    ..Default::default()
-                },
+                heading: Some(((i * 7) % 360) as f64),
+                ..Default::default()
             })
             .collect()
     }
 
     /// `count` exact no-op heading patches spread across the population.
-    pub fn noop_heading_updates(&self, count: usize) -> Vec<Update<LocationPatch>> {
+    pub fn noop_heading_updates(&self, count: usize) -> Vec<Patch<Location>> {
         let headings = Columns::heading(&self.batch);
         let step = (self.n / count.max(1)).max(1);
         (0..count)
             .map(|i| {
                 let row = (i * step).min(self.n - 1);
-                Update {
+                Patch::<Location> {
                     id: row as u32 + 1,
-                    patch: LocationPatch {
-                        heading: Some(headings.value(row)),
-                        ..Default::default()
-                    },
+                    heading: Some(headings.value(row)),
+                    ..Default::default()
                 }
             })
             .collect()
@@ -284,7 +278,7 @@ impl BenchApp {
 
     pub fn update_locations(
         &self,
-        updates: Vec<Update<LocationPatch>>,
+        updates: Vec<Patch<Location>>,
         record_undo: bool,
     ) -> MutationResult {
         async_runtime::block_on(store_update_locations(
@@ -349,10 +343,13 @@ impl BenchApp {
 /// The real bulk-update path -- `store_update_locations` is this plus the state lock.
 pub fn update_locations(
     store: &mut Store,
-    updates: &[Update<LocationPatch>],
+    updates: &[Patch<Location>],
     record_undo: bool,
 ) -> MutationResult {
-    apply_updates(store, updates, UndoScope::entry_if(record_undo))
+    store.write(
+        updates.iter().cloned().map(Edit::Put),
+        UndoScope::entry_if(record_undo),
+    )
 }
 
 /// The index step every selector entry point runs before resolving.
@@ -413,17 +410,9 @@ pub fn base_loc_by_id(store: &Store, id: u32) -> Option<Location> {
     store.base_loc_by_id(id)
 }
 
-/// `old` is the row's pre-mutation state, as every caller in the app holds it.
-pub fn overlay_write(store: &mut Store, loc: Location, old: &Location) -> Location {
-    store.overlay_write(loc.id, loc, old)
-}
-
-pub fn overlay_update(
-    store: &mut Store,
-    id: u32,
-    patch: &LocationPatch,
-) -> Option<(Location, Location)> {
-    store.overlay_update(id, patch)
+/// The step every write ends in: make the store hold each row as `change` leaves it.
+pub fn put(store: &mut Store, change: &Change) {
+    store.put(change);
 }
 
 pub fn bake_overlay(store: &mut Store) {

@@ -290,7 +290,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					return !(r?.docId === docRef.docId && r.anchor === anchor);
 				})
 			: [...existing, target];
-		await updateTags([{ id: tag.id, patch: { doclinks } }]);
+		await updateTags([{ id: tag.id, doclinks }]);
 	};
 
 	const runMatch = () => {

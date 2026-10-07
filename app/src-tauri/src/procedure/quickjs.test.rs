@@ -21,12 +21,12 @@ fn loaded(src: &str) -> JsProcedure {
 }
 
 /// The single patch a fixture answered with, parsed.
-fn only_patch(patches: &[PatchEntry]) -> Json {
+fn only_patch(patches: &[ResultEntry]) -> Json {
     assert_eq!(patches.len(), 1, "expected one patch, got {patches:?}");
-    serde_json::from_str(&patches[0].patch).expect("patch is JSON")
+    serde_json::from_str(&patches[0].json).expect("patch is JSON")
 }
 
-fn extra(patches: &[PatchEntry]) -> Json {
+fn extra(patches: &[ResultEntry]) -> Json {
     only_patch(patches)["extra"].clone()
 }
 
@@ -126,7 +126,7 @@ impl ProcHost for MockProcHost {
 fn echo_map(payload: &str) -> String {
     format!(
         "export function map(rows) {{
-           return rows.map(r => ({{ id: r.id, patch: {{ extra: {payload} }} }}));
+           return rows.map(r => ({{ id: r.id, extra: {payload} }}));
          }}"
     )
 }
@@ -228,8 +228,8 @@ fn rows_arrive_as_parsed_objects() {
 fn run_answers_with_patches() {
     let mut proc = loaded(
         "export function run(rows) {
-           return [{ id: rows[0].id, patch: { lat: 9.5, panoId: null } },
-                   { id: 42, patch: { extra: { a: 1 } } }];
+           return [{ id: rows[0].id, lat: 9.5, panoId: null },
+                   { id: 42, extra: { a: 1 } }];
          }",
     );
     let mut host = MockProcHost::default();
@@ -238,12 +238,12 @@ fn run_answers_with_patches() {
         .expect("run succeeds");
     assert_eq!(patches.len(), 2);
     assert_eq!(patches[0].id, 7);
-    assert_eq!(patches[0].patch, r#"{"lat":9.5,"panoId":null}"#);
+    assert_eq!(patches[0].json, r#"{"lat":9.5,"panoId":null}"#);
     assert_eq!(
         patches[1],
-        PatchEntry {
+        ResultEntry {
             id: 42,
-            patch: r#"{"extra":{"a":1}}"#.into()
+            json: r#"{"extra":{"a":1}}"#.into()
         }
     );
 }
@@ -303,7 +303,7 @@ fn an_async_entry_point_settles_before_it_answers() {
     let mut proc = loaded(
         "export async function run(rows) {
            await Promise.resolve();
-           return [{ id: rows[0].id, patch: { extra: { awaited: true } } }];
+           return [{ id: rows[0].id, extra: { awaited: true } }];
          }",
     );
     let mut host = MockProcHost::default();
@@ -319,7 +319,7 @@ fn an_async_entry_point_settles_before_it_answers() {
 
 const CONFIGURABLE: &str = "
   export function map(rows, cfg) {
-    return [{ id: rows[0].id, patch: { extra: cfg } }];
+    return [{ id: rows[0].id, extra: cfg }];
   }";
 
 const NULL_CONFIG: &str = r#"{"fields":[],"force":false,"config":null}"#;
@@ -353,8 +353,8 @@ fn a_run_shape_reaches_fetch() {
         "export function run(rows) {
            const r = mma.fetch({ method: 'POST', url: 'https://example.test/v1',
                                  headers: { 'X-Test': '1' }, body: 'hello' });
-           return [{ id: rows[0].id, patch: { extra: {
-             status: r.status, body: new TextDecoder().decode(r.body) } } }];
+           return [{ id: rows[0].id, extra: {
+             status: r.status, body: new TextDecoder().decode(r.body) } }];
          }",
     );
     let mut host = MockProcHost {
@@ -391,9 +391,9 @@ fn a_list_fetch_answers_in_order_and_reports_a_failure_as_status_zero() {
              { method: 'GET', url: 'https://example.test/b' },
              { method: 'GET', url: 'https://example.test/c' },
            ]);
-           return [{ id: rows[0].id, patch: { extra: {
+           return [{ id: rows[0].id, extra: {
              bodies: rs.map(r => d.decode(r.body)),
-             statuses: rs.map(r => r.status) } } }];
+             statuses: rs.map(r => r.status) } }];
          }",
     );
     let mut host = MockProcHost {
@@ -557,7 +557,7 @@ fn sidecar_lines_reach_a_run_shape() {
     let mut proc = loaded(
         "export function run(rows) {
            const lines = mma.sidecar('plug', 'cmd', JSON.stringify({ a: 1 }));
-           return [{ id: rows[0].id, patch: { extra: { lines } } }];
+           return [{ id: rows[0].id, extra: { lines } }];
          }",
     );
     let mut host = MockProcHost {
@@ -590,7 +590,7 @@ fn sidecar_lines_stream_to_a_handler_with_progress_serviced_between_them() {
              seen.push(line + '!');
              mma.progress(1);
            });
-           return [{ id: rows[0].id, patch: { extra: { seen, lines } } }];
+           return [{ id: rows[0].id, extra: { seen, lines } }];
          }",
     );
     let mut host = MockProcHost {
@@ -671,7 +671,7 @@ fn aborted_reports_the_hosts_answer() {
     let src = "export function run(rows) {
                  let n = 0;
                  while (!mma.aborted() && n < 5) n++;
-                 return [{ id: rows[0].id, patch: { extra: { n } } }];
+                 return [{ id: rows[0].id, extra: { n } }];
                }";
     let mut host = MockProcHost {
         abort: true,
@@ -786,7 +786,7 @@ fn a_fetch_the_host_refuses_throws_into_the_guest() {
     let mut proc = loaded(
         "export function run(rows) {
            try { mma.fetch({ method: 'GET', url: 'https://example.test/no' }); }
-           catch (e) { return [{ id: rows[0].id, patch: { extra: { caught: String(e) } } }]; }
+           catch (e) { return [{ id: rows[0].id, extra: { caught: String(e) } }]; }
            return [];
          }",
     );
@@ -856,7 +856,7 @@ fn a_procedure_still_works_after_an_interrupt() {
     let mut proc = loaded(
         "export function run(rows) {
            if (rows[0].id === 7) { while (true) {} }
-           return [{ id: rows[0].id, patch: { extra: { ok: true } } }];
+           return [{ id: rows[0].id, extra: { ok: true } }];
          }",
     );
     let mut aborting = MockProcHost {

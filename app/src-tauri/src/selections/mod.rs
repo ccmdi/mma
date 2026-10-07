@@ -915,14 +915,10 @@ impl<'v, 'a> Scope<'v, 'a> {
     pub fn distinct_values(&self, field: &str) -> Vec<String> {
         let mut seen = BTreeSet::new();
         for row in self.rows() {
-            match row.resolve_field(field) {
-                Some(serde_json::Value::String(s)) if !s.is_empty() => {
-                    seen.insert(s);
+            if let Some(key) = row.resolve_field(field).as_ref().and_then(index_key) {
+                if !key.is_empty() {
+                    seen.insert(key);
                 }
-                Some(v @ (serde_json::Value::Number(_) | serde_json::Value::Bool(_))) => {
-                    seen.insert(v.to_string());
-                }
-                _ => {}
             }
         }
         seen.into_iter().collect()

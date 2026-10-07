@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, useEffect, useState } from "react";
 import { mount } from "./fixtures/harness";
-import { createLocation, extraPatch } from "@/types";
+import { createLocation, patchBetween } from "@/types";
 import type { Location } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({
@@ -345,10 +345,10 @@ describe("cancellation race", () => {
 	});
 });
 
-describe("handleSave extraPatch", () => {
+describe("handleSave patchBetween", () => {
 	it("changed keys carry values, deleted keys carry null, unchanged keys are omitted", () => {
 		expect(
-			extraPatch(
+			patchBetween<Record<string, unknown>>(
 				{ kept: 1, changed: "old", gone: "deleted" },
 				{ kept: 1, changed: "new", added: true },
 			),
@@ -359,7 +359,7 @@ describe("handleSave extraPatch", () => {
 		const m = mountHost();
 		await open("pA");
 		const settled = await viewer.settled();
-		const patch = extraPatch(location().extra, settled!.extra);
+		const patch = patchBetween(location().extra ?? {}, settled!.extra ?? {});
 		expect(patch).toEqual({ enriched: "pA" });
 		expect("custom" in patch).toBe(false);
 		m.unmount();
@@ -372,7 +372,7 @@ describe("handleSave extraPatch", () => {
 		await walk("pB");
 		const settled = await viewer.settled();
 		expect(settled!.extra).toEqual({ custom: "kept" });
-		const patch = extraPatch(location().extra, settled!.extra);
+		const patch = patchBetween(location().extra ?? {}, settled!.extra ?? {});
 		expect(patch.enriched).toBeNull();
 		expect("custom" in patch).toBe(false);
 		m.unmount();
@@ -398,7 +398,7 @@ describe("an answer after Save", () => {
 		await act(async () => viewer.commit(7, 5));
 		await close();
 		await answer();
-		expect(h.written).toEqual([{ id: 7, patch: { extra: { enriched: "pA" } } }]);
+		expect(h.written).toEqual([{ id: 7, extra: { enriched: "pA" } }]);
 		expect(h.joins).toEqual([5]);
 		m.unmount();
 	});

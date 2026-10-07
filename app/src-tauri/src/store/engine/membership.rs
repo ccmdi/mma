@@ -138,7 +138,7 @@ impl Store {
     /// Update selection membership sets for incremental changes (adds/removes/updates).
     /// Returns which ids changed paint, so the render frame can state their new
     /// selection state.
-    pub(super) fn update_selection_membership(&mut self, changes: &ChangeSet) -> MembershipDelta {
+    pub(super) fn update_selection_membership(&mut self, changes: &Change) -> MembershipDelta {
         let drop_ids: HashSet<u32> = changes
             .removed
             .iter()

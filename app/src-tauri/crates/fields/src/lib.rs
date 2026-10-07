@@ -262,3 +262,141 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     })
 }
+
+/// `#[derive(Patch)]`: implements `Patchable`, generating the struct's patch type.
+/// `#[patch(key)]` fields name the row and are required, `#[patch(skip)]` fields are never
+/// written, `#[patch(merge)]` fields change key by key through `Merge`, and `#[patch(stamp)]`
+/// fields are written but never read as a change. Two values are equal exactly when the patch
+/// between them is empty. Every other
+/// field is optional, stored in the column `#[patch(column = "...")]` names or its own. The
+/// wire type is `Partial<Struct>` narrowed the same way.
+#[proc_macro_derive(Patch, attributes(patch))]
+pub fn derive_patch(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match expand_patch(&input) {
+        Ok(ts) => ts.into(),
+        Err(e) => e.to_compile_error().into(),
+    }
+}
+
+fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
+    let Data::Struct(data) = &input.data else {
+        return Err(syn::Error::new_spanned(input, "Patch derives on a struct"));
+    };
+    let ident = &input.ident;
+    let patch = format_ident!("{ident}Patch");
+    let nullable = format_ident!("{}_patch_nullable", snake(&ident.to_string()));
+    let nullable_path = nullable.to_string();
+    let (mut slots, mut writes, mut reads) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut keys, mut skips) = (Vec::new(), Vec::new());
+    let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
+    for f in &data.fields {
+        let name = f.ident.as_ref().expect("named fields");
+        let ty = &f.ty;
+        let (mut key, mut skip, mut merge, mut stamp) = (false, false, false, false);
+        let mut column = name.to_string();
+        for attr in f.attrs.iter().filter(|a| a.path().is_ident("patch")) {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("key") {
+                    key = true;
+                } else if meta.path.is_ident("skip") {
+                    skip = true;
+                } else if meta.path.is_ident("merge") {
+                    merge = true;
+                } else if meta.path.is_ident("stamp") {
+                    stamp = true;
+                } else if meta.path.is_ident("column") {
+                    column = meta.value()?.parse::<LitStr>()?.value();
+                } else {
+                    return Err(meta.error("unknown #[patch] key"));
+                }
+                Ok(())
+            })?;
+        }
+        let key_name = camel(&name.to_string());
+        let wire = format!("\"{key_name}\"");
+        if key {
+            keys.push(wire);
+            slots.push(quote! { pub #name: #ty, });
+            reads.push(quote! { #name: new.#name.clone(), });
+            same.push(quote! { old.#name == new.#name });
+            continue;
+        }
+        if skip {
+            skips.push(wire);
+            continue;
+        }
+        let de = type_name(ty)
+            .starts_with("Option<")
+            .then(|| quote!(#[serde(deserialize_with = #nullable_path)]));
+        slots.push(quote! {
+            #[serde(default, skip_serializing_if = "Option::is_none")] #de pub #name: Option<#ty>,
+        });
+        columns.push(quote! { (#key_name, #column), });
+        let change = if merge {
+            merged.push(key_name);
+            writes.push(quote! { if let Some(v) = &patch.#name { out.#name = ::mma_algebra::Merge::merged(&out.#name, v); } });
+            quote! { ::mma_algebra::Merge::between(&old.#name, &new.#name) }
+        } else {
+            writes.push(quote! { if let Some(v) = &patch.#name { out.#name = v.clone(); } });
+            quote! { (old.#name != new.#name).then(|| new.#name.clone()) }
+        };
+        if stamp {
+            reads.push(quote! { #name: None, });
+        } else {
+            same.push(quote! { (#change).is_none() });
+            reads.push(quote! { #name: #change, });
+        }
+    }
+    let mut wire = format!("Partial<{ident}>");
+    if !skips.is_empty() {
+        wire = format!("Partial<Omit<{ident}, {}>>", skips.join(" | "));
+    }
+    if !keys.is_empty() {
+        wire = format!("{wire} & Pick<{ident}, {}>", keys.join(" | "));
+    }
+    let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
+    Ok(quote! {
+        /// A change to some of one value's fields: an absent field is unchanged.
+        #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+        #(#serde)*
+        pub struct #patch { #(#slots)* }
+
+        impl PartialEq for #ident {
+            fn eq(&self, other: &Self) -> bool {
+                let (old, new) = (self, other);
+                true #(&& #same)*
+            }
+        }
+
+        impl specta::Type for #patch {
+            fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
+                specta::datatype::DataType::Reference(specta_typescript::define(#wire))
+            }
+        }
+
+        impl ::mma_algebra::Patchable for #ident {
+            type Patch = #patch;
+            const WRITES: &'static [(&'static str, &'static str)] = &[#(#columns)*];
+            const MERGED: &'static [&'static str] = &[#(#merged),*];
+
+            fn patched(&self, patch: &#patch) -> Self {
+                let mut out = self.clone();
+                #(#writes)*
+                out
+            }
+
+            fn between(old: &Self, new: &Self) -> #patch {
+                #patch { #(#reads)* }
+            }
+        }
+
+        fn #nullable<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
+        where
+            T: serde::Deserialize<'de>,
+            D: serde::Deserializer<'de>,
+        {
+            Ok(Some(<Option<T> as serde::Deserialize>::deserialize(d)?))
+        }
+    })
+}

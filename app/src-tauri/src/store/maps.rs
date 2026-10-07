@@ -10,7 +10,7 @@ use crate::store::engine;
 use crate::store::engine::StoreState;
 use crate::store::engine::ValueRecord;
 use crate::store::map_defaults;
-use crate::store::storage::{self, push_field};
+use crate::store::storage;
 use crate::store::vcs::CommitDiff;
 use crate::sv::schema::PanoType;
 use crate::types;
@@ -20,7 +20,7 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
-use rusqlite::types::ToSql;
+use mma_algebra::Patch;
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fs;
@@ -32,7 +32,7 @@ use std::path::Path;
 
 /// Action performed by a per-map key binding on the active location.
 /// New action kinds (e.g. copy-to-map) are added as variants here.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum MapKeyAction {
     #[serde(rename_all = "camelCase")]
@@ -43,7 +43,7 @@ pub enum MapKeyAction {
 
 /// One user-defined per-map key binding. `key` is a combo string in the same
 /// canonical format as global hotkey bindings (e.g. "m", "Mod+Shift+x").
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MapKeyBinding {
     pub key: String,
@@ -53,7 +53,7 @@ pub struct MapKeyBinding {
 /// Per-map config for a virtual tag-tree node - a folder node with no underlying
 /// tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
 /// path in `MapSettings::virtual_tags`. Tree-view only; never creates a real tag.
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct VirtualTag {
     pub color: Option<String>,
@@ -62,7 +62,7 @@ pub struct VirtualTag {
 }
 
 /// Street View lookup, export, and enrichment preferences that can start any map.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapPreferences {
     pub point_along_road: bool,
@@ -92,7 +92,7 @@ pub struct MapPreferences {
 }
 
 /// A map's settings: its preferences plus what refers to its own tags and data.
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapSettings {
     #[serde(flatten)]
@@ -110,7 +110,7 @@ pub struct MapSettings {
 
 wire_str_enum! {
     /// A capture of a pano's timeline to settle on.
-    derive(Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)
+    derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type)
     pub enum CapturePick {
         /// The newest official capture.
         Newest = "newest",
@@ -151,7 +151,7 @@ pub fn default_settings_json() -> String {
 wire_str_enum! {
     /// Type discriminant for `Location.extra` field definitions.
     /// Determines how the field is displayed and filtered in the UI.
-    derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)
+    derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)
     pub enum FieldType {
         /// Text.
         String = "string",
@@ -199,7 +199,7 @@ impl FieldType {
 /// Schema definition for a single `Location.extra` field. Stored in the map's
 /// `extra.fields` JSON. For enumerable types, `values` declares the value space in
 /// display order, each member carrying its own display name.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDef {
     #[serde(rename = "type")]
@@ -214,7 +214,7 @@ pub struct FieldDef {
 /// One member of an enumerable field's value space: the stored value plus its display
 /// name. The value is the identity, so a rename is a label change and membership is
 /// untouched.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldValue {
     pub value: String,
@@ -241,7 +241,7 @@ impl FieldValue {
 /// groups (selection disambiguation). The only un-inferrable property a field can
 /// declare is circularity (heading/azimuth=360, hour-of-day=24, month=12);
 /// everything else is inferred from `FieldType`.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum ComparisonType {
     Linear,
@@ -251,7 +251,7 @@ pub enum ComparisonType {
 
 /// Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
 /// but structured as an object to allow future extensions.
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct MapExtra {
     pub fields: Option<HashMap<String, FieldDef>>,
@@ -310,7 +310,7 @@ impl MapExtra {
 
 /// Score bounding box: either `"auto"` (computed from locations) or an
 /// explicit `[south, west, north, east]` rectangle.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(untagged)]
 pub enum ScoreBounds {
     Auto(String),
@@ -532,9 +532,10 @@ pub fn persist_field_defs(
 // ---------------------------------------------------------------------------
 
 /// Full metadata for a map.
-#[derive(serde::Serialize, specta::Type)]
+#[derive(Clone, serde::Serialize, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct MapMeta {
+    #[patch(key)]
     pub id: String,
     pub name: String,
     pub description: String,
@@ -545,39 +546,56 @@ pub struct MapMeta {
     /// The map's tag value records (opaque piles keyed by id-as-string), an open-time
     /// snapshot of the `maps.tags` column. JS coerces them to its tag view.
     #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
-    pub tags: HashMap<String, ValueRecord>,
+    pub tags: TagRecords,
     pub labels: Vec<String>,
+    #[patch(skip)]
     pub location_count: i64,
     /// Location changes since the last commit.
+    #[patch(skip)]
     pub pending: CommitDiff,
+    #[patch(skip)]
     pub created_at: String,
+    #[patch(skip)]
     pub updated_at: String,
+    #[patch(skip)]
     pub last_opened_at: Option<String>,
 }
 
-/// Partial update for map metadata. Omitted fields are left unchanged.
-/// Setting `folder` to null moves the map to root.
-#[derive(Default, serde::Deserialize, specta::Type)]
-#[serde(default, rename_all = "camelCase")]
-pub struct MapMetaPatch {
-    pub name: Option<String>,
-    pub description: Option<String>,
-    #[serde(deserialize_with = "deserialize_double_option", default)]
-    #[specta(type = Option<String>)]
-    pub folder: Option<Option<String>>,
-    pub settings: Option<MapSettings>,
-    pub score_bounds: Option<ScoreBounds>,
-    pub extra: Option<MapExtra>,
-    #[specta(type = Option<HashMap<String, HashMap<String, specta_typescript::Unknown>>>)]
-    pub tags: Option<HashMap<String, ValueRecord>>,
-    pub labels: Option<Vec<String>>,
+/// A map's tag records by id, as the `maps.tags` column spells them: string keys, each
+/// record carrying its id for older builds to read, and the legacy `id` and `visible` keys
+/// dropped on read, since identity is the key and visibility is derived.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TagRecords(pub HashMap<u32, ValueRecord>);
+
+impl serde::Serialize for TagRecords {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_map(self.0.iter().map(|(id, rec)| {
+            let mut rec = rec.clone();
+            rec.insert("id".into(), (*id).into());
+            (id.to_string(), rec)
+        }))
+    }
 }
 
-fn deserialize_double_option<'de, D>(de: D) -> Result<Option<Option<String>>, D::Error>
-where
-    D: serde::Deserializer<'de>,
-{
-    Ok(Some(serde::Deserialize::deserialize(de)?))
+impl<'de> serde::Deserialize<'de> for TagRecords {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let raw: HashMap<String, ValueRecord> = serde::Deserialize::deserialize(d)?;
+        let records = raw.into_iter().filter_map(|(key, mut rec)| {
+            rec.remove("id");
+            rec.remove("visible");
+            Some((key.parse().ok()?, rec))
+        });
+        Ok(Self(records.collect()))
+    }
+}
+
+/// The map `id`'s metadata.
+pub(crate) fn read_map_meta(conn: &Connection, id: &str) -> rusqlite::Result<MapMeta> {
+    conn.query_row(
+        "SELECT * FROM maps WHERE id = ?1",
+        params![id],
+        row_to_map_meta,
+    )
 }
 
 /// Deserialize a SQLite row into `MapMeta`, parsing JSON columns with
@@ -590,7 +608,7 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
         folder: row.get("folder")?,
         settings: storage::json_col(row, "settings")?,
         score_bounds: storage::json_col(row, "score_bounds")?,
-        extra: storage::json_col(row, "extra")?,
+        extra: MapExtra::from_json(&row.get::<_, String>("extra")?),
         tags: storage::json_col(row, "tags")?,
         labels: storage::json_col(row, "labels")?,
         location_count: row.get("location_count")?,
@@ -640,11 +658,7 @@ fn scratch_map_row(conn: &Connection) -> AppResult<MapMeta> {
          VALUES (?1, '', NULL, ?2, ?3, ?3)",
         params![SCRATCH_MAP_ID, settings, now],
     )?;
-    Ok(conn.query_row(
-        "SELECT * FROM maps WHERE id = ?1",
-        params![SCRATCH_MAP_ID],
-        row_to_map_meta,
-    )?)
+    Ok(read_map_meta(conn, SCRATCH_MAP_ID)?)
 }
 
 /// Open the scratch map, creating it if this is its first use. Ordinary in every way
@@ -666,15 +680,10 @@ pub fn purge_scratch_map() -> AppResult<bool> {
 #[tauri::command]
 #[specta::specta]
 pub async fn store_get_map(id: String) -> AppResult<Option<MapMeta>> {
-    storage::with_db(move |conn| {
-        let result = conn.query_row("SELECT * FROM maps WHERE id = ?1", params![id], |row| {
-            row_to_map_meta(row)
-        });
-        match result {
-            Ok(meta) => Ok(Some(meta)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e.into()),
-        }
+    storage::with_db(move |conn| match read_map_meta(conn, &id) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
     })
     .await
 }
@@ -687,11 +696,7 @@ fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppRes
         "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, name, folder, settings, now, now],
     )?;
-    Ok(conn.query_row(
-        "SELECT * FROM maps WHERE id = ?1",
-        params![id],
-        row_to_map_meta,
-    )?)
+    Ok(read_map_meta(conn, &id)?)
 }
 
 /// Create a new empty map with the preferences new maps start from. Returns the full metadata.
@@ -726,11 +731,7 @@ fn duplicate_map_row(
         let _ = fs::remove_file(arrow_path);
         return Err(e.into());
     }
-    Ok(conn.query_row(
-        "SELECT * FROM maps WHERE id = ?1",
-        params![copy_id],
-        row_to_map_meta,
-    )?)
+    Ok(read_map_meta(conn, copy_id)?)
 }
 
 /// Copy a map, uncommitted edits included, into a new map named `name`. Version history,
@@ -812,12 +813,12 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
 #[specta::specta]
 pub async fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
-    id: String,
-    patch: MapMetaPatch,
+    patch: Patch<MapMeta>,
 ) -> AppResult<Option<engine::MutationResult>> {
     let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
-    let row_id = id.clone();
-    storage::with_db(move |conn| update_map_meta_row(conn, &row_id, &patch)).await?;
+    let id = patch.id.clone();
+    storage::with_db(move |conn| storage::update_row::<MapMeta>(conn, "maps", &patch.id, &patch))
+        .await?;
     let Some(new_fields) = new_fields else {
         return Ok(None);
     };
@@ -826,36 +827,7 @@ pub async fn store_update_map_meta(
         return Ok(None);
     };
     store.field_defs.replace(new_fields);
-    Ok(Some(store.finish_mutation(&engine::ChangeSet::default())))
-}
-
-/// Apply the patch to the `maps` row.
-fn update_map_meta_row(conn: &Connection, id: &str, patch: &MapMetaPatch) -> AppResult<()> {
-    let mut sets: Vec<&str> = Vec::new();
-    let mut values: Vec<Box<dyn ToSql>> = Vec::new();
-
-    push_field!(sets, values, patch, "name", name);
-    push_field!(sets, values, patch, "description", description);
-    push_field!(sets, values, patch, "folder", folder);
-    push_field!(json sets, values, patch, "settings", settings);
-    push_field!(json sets, values, patch, "score_bounds", score_bounds);
-    push_field!(json sets, values, patch, "extra", extra);
-    push_field!(json sets, values, patch, "tags", tags);
-    push_field!(json sets, values, patch, "labels", labels);
-
-    if sets.is_empty() {
-        return Ok(());
-    }
-
-    let now = now_iso();
-    sets.push("updated_at = ?");
-    values.push(Box::new(now));
-    values.push(Box::new(id.to_string()));
-
-    let sql = format!("UPDATE maps SET {} WHERE id = ?", sets.join(", "));
-    let param_refs: Vec<&dyn ToSql> = values.iter().map(AsRef::as_ref).collect();
-    conn.execute(&sql, param_refs.as_slice())?;
-    Ok(())
+    Ok(Some(store.finish_mutation(&engine::Change::default())))
 }
 
 /// Mark a map as opened now, for sorting the map list by recency.

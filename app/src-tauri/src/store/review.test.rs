@@ -74,14 +74,16 @@ fn get_is_none_for_unknown_or_wrong_map() {
 fn update_persists_cursor_reviewed_and_ordering() {
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![1, 2, 3, 4])).unwrap();
-    update(
+    storage::update_row::<ReviewSession>(
         &conn,
-        ReviewUpdate {
+        "review_sessions",
+        &s.id,
+        &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: Some(3),
             reviewed: Some(vec![1, 2]),
-            ordering: None,
+            order: None,
             status: None,
         },
     )
@@ -98,27 +100,31 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
     // cursor id is left untouched (it survives because it wasn't pruned).
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![1, 2, 3, 4, 5])).unwrap();
-    update(
+    storage::update_row::<ReviewSession>(
         &conn,
-        ReviewUpdate {
+        "review_sessions",
+        &s.id,
+        &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: Some(3),
             reviewed: Some(vec![1, 2]),
-            ordering: None,
+            order: None,
             status: None,
         },
     )
     .unwrap();
     // Locations 2 and 4 deleted: prune them from ordering + reviewed, cursor stays 3.
-    update(
+    storage::update_row::<ReviewSession>(
         &conn,
-        ReviewUpdate {
+        "review_sessions",
+        &s.id,
+        &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: None,
             reviewed: Some(vec![1]),
-            ordering: Some(vec![1, 3, 5]),
+            order: Some(vec![1, 3, 5]),
             status: None,
         },
     )
@@ -133,14 +139,16 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
 fn done_sessions_are_excluded_from_get_but_listable() {
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![1, 2])).unwrap();
-    update(
+    storage::update_row::<ReviewSession>(
         &conn,
-        ReviewUpdate {
+        "review_sessions",
+        &s.id,
+        &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: None,
             reviewed: None,
-            ordering: None,
+            order: None,
             status: Some("done".into()),
         },
     )

@@ -33,7 +33,7 @@ function withHost<T>(run: () => T): T {
 describe("panoResolve procedure", () => {
 	it("patches a row with the pano id the search found", () => {
 		const out = withHost(() => mod.run([{ id: 7, lat: 1, lng: 2, panoId: null }], NULL_CFG));
-		expect(out).toEqual([{ id: 7, patch: { panoId: PANO } }]);
+		expect(out).toEqual([{ id: 7, panoId: PANO }]);
 	});
 
 	it("leaves a row that already carries a pano id alone", () => {
@@ -44,7 +44,7 @@ describe("panoResolve procedure", () => {
 	it("re-resolves a stored pano when the run is forced, which is what pinning asks for", () => {
 		const cfg = { fields: [], force: true, config: null };
 		const out = withHost(() => mod.run([{ id: 7, lat: 1, lng: 2, panoId: "stale" }], cfg));
-		expect(out).toEqual([{ id: 7, patch: { panoId: PANO } }]);
+		expect(out).toEqual([{ id: 7, panoId: PANO }]);
 	});
 
 	it("answers whole panos from the `at` query, not ids", () => {

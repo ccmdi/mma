@@ -9,8 +9,7 @@ import type {
 	ProcedureRequest,
 	ProcedureResponse,
 	Location,
-	Update,
-	LocationPatch_Deserialize as LocationPatch,
+	Patch,
 } from "mma-plugin-types";
 
 const ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive";
@@ -90,7 +89,7 @@ function parseResults(body: string): { hourly?: Hourly }[] {
 
 const decoder = new TextDecoder();
 
-export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
+export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Patch<Location>[] {
 	return patches(rows, mma.fetch(archiveRequest(rows, cfg)), cfg);
 }
 
@@ -98,7 +97,7 @@ function patches(
 	rows: Location[],
 	response: ProcedureResponse,
 	cfg: ProcedureConfig<unknown>,
-): Update<LocationPatch>[] {
+): Patch<Location>[] {
 	const hourlyWanted = wanted(cfg);
 	if (response.status !== 200) {
 		for (const row of rows) mma.fail(row.id);
@@ -106,7 +105,7 @@ function patches(
 	}
 
 	const results = parseResults(decoder.decode(response.body));
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	let pos = 0;
 	for (const row of rows) {
 		const secs = usableSeconds(row);
@@ -133,7 +132,7 @@ function patches(
 			if (value === null || value === undefined) continue;
 			patch[key] = value;
 		}
-		if (Object.keys(patch).length > 0) out.push({ id: row.id, patch: { extra: patch } });
+		if (Object.keys(patch).length > 0) out.push({ id: row.id, extra: patch });
 	}
 	return out;
 }

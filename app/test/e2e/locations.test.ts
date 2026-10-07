@@ -51,7 +51,7 @@ describe("Location CRUD", () => {
 	it("update location lat/lng", async () => {
 		const loc = await getLoc(singleLocId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { lat: 51.5, lng: -0.1 } }]);
+			await api.updateLocations([{ id: l.id, lat: 51.5, lng: -0.1 }]);
 		}, loc);
 		const updated = await getLoc(singleLocId);
 		expect(updated.lat).toBe(51.5);
@@ -61,7 +61,7 @@ describe("Location CRUD", () => {
 	it("update location heading/pitch/zoom", async () => {
 		const loc = await getLoc(singleLocId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { heading: 180, pitch: -10, zoom: 3 } }]);
+			await api.updateLocations([{ id: l.id, heading: 180, pitch: -10, zoom: 3 }]);
 		}, loc);
 		const updated = await getLoc(singleLocId);
 		expect(updated.heading).toBe(180);
@@ -72,7 +72,7 @@ describe("Location CRUD", () => {
 	it("update location flags", async () => {
 		const loc = await getLoc(singleLocId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { flags: 1 } }]);
+			await api.updateLocations([{ id: l.id, flags: 1 }]);
 		}, loc);
 		const updated = await getLoc(singleLocId);
 		expect(updated.flags).toBe(1);
@@ -81,7 +81,7 @@ describe("Location CRUD", () => {
 	it("update location panoId", async () => {
 		const loc = await getLoc(singleLocId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { panoId: "CAoSK0FG" } }]);
+			await api.updateLocations([{ id: l.id, panoId: "CAoSK0FG" }]);
 		}, loc);
 		const updated = await getLoc(singleLocId);
 		expect(updated.panoId).toBe("CAoSK0FG");
@@ -90,7 +90,7 @@ describe("Location CRUD", () => {
 	it("update location tags", async () => {
 		const loc = await getLoc(singleLocId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { tags: [100, 200] } }]);
+			await api.updateLocations([{ id: l.id, tags: [100, 200] }]);
 		}, loc);
 		const updated = await getLoc(singleLocId);
 		expect(updated.tags).toEqual([100, 200]);
@@ -101,9 +101,9 @@ describe("Location CRUD", () => {
 	it("batch update multiple locations", async () => {
 		const result = await withApi(async (api, ids) => {
 			await api.updateLocations([
-				{ id: ids[0], patch: { heading: 999 } },
-				{ id: ids[1], patch: { heading: 888 } },
-				{ id: ids[2], patch: { heading: 777 } },
+				{ id: ids[0], heading: 999 },
+				{ id: ids[1], heading: 888 },
+				{ id: ids[2], heading: 777 },
 			]);
 			const locs = await Promise.all([
 				api.fetchLocation(ids[0]),
@@ -121,7 +121,7 @@ describe("Location CRUD", () => {
 		await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);
 			const merged = { ...(loc?.extra || {}), altitude: 150, country: "GB" };
-			await api.updateLocations([{ id: id, patch: { extra: merged } }], { undoable: false });
+			await api.updateLocations([{ id: id, extra: merged }], { undoable: false });
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra?.altitude).toBe(150);
@@ -132,7 +132,7 @@ describe("Location CRUD", () => {
 		await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);
 			const merged = { ...(loc?.extra || {}), city: "London" };
-			await api.updateLocations([{ id: id, patch: { extra: merged } }], { undoable: false });
+			await api.updateLocations([{ id: id, extra: merged }], { undoable: false });
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra?.altitude).toBe(150);
@@ -141,7 +141,7 @@ describe("Location CRUD", () => {
 
 	it("patch extra deletes key with null", async () => {
 		await withApi(async (api, id) => {
-			await api.updateLocations([{ id: id, patch: { extra: { altitude: null } } }], {
+			await api.updateLocations([{ id: id, extra: { altitude: null } }], {
 				undoable: false,
 			});
 		}, singleLocId);
@@ -249,7 +249,7 @@ describe("Location persistence", () => {
 		const extraLoc = await getLoc(persistLocIds[0]);
 		await withApi(async (api, l) => {
 			await api.updateLocations(
-				[{ id: l.id, patch: { extra: { altitude: 42, country: "US", note: "test" } } }],
+				[{ id: l.id, extra: { altitude: 42, country: "US", note: "test" } }],
 				{ undoable: false },
 			);
 		}, extraLoc);
@@ -277,7 +277,7 @@ describe("Location persistence", () => {
 		const tagLoc = await getLoc(persistLocIds[1]);
 		await withApi(
 			async (api, l, tIds) => {
-				await api.updateLocations([{ id: l.id, patch: { tags: tIds } }]);
+				await api.updateLocations([{ id: l.id, tags: tIds }]);
 			},
 			tagLoc,
 			tagIds,
@@ -297,7 +297,7 @@ describe("Location persistence", () => {
 	it("panoId and flags survive pin/unpin/save cycle", async () => {
 		const pinLoc = await getLoc(persistLocIds[5]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { panoId: "PINNED_PANO", flags: 1 } }]);
+			await api.updateLocations([{ id: l.id, panoId: "PINNED_PANO", flags: 1 }]);
 		}, pinLoc);
 
 		await flushAndWait();

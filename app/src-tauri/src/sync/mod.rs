@@ -14,7 +14,8 @@ pub(crate) mod remote_mapping;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::wire_str_enum;
 use crate::types::AppResult;
-use crate::types::{Location, LocationFlags, RawExtra};
+use crate::types::{Location, LocationFlags};
+use mma_algebra::canonical;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -65,7 +66,7 @@ pub struct ProviderSpec {
 
 /// The syncable contract: the only fields that participate in diffing. Everything else is
 /// owned by exactly one side and would register as a phantom change.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Debug, Serialize, Deserialize, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct NormalizedSyncLocation {
     pub lat: f64,
@@ -80,6 +81,7 @@ pub struct NormalizedSyncLocation {
     pub tags: Vec<String>,
     /// Custom fields, for a remote that keeps them; `null` for one that does not, or when empty.
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
+    #[patch(merge)]
     pub extra: Option<Map<String, Value>>,
 }
 
@@ -144,26 +146,9 @@ pub fn sync_key(n: &NormalizedSyncLocation) -> String {
     );
     match &n.extra {
         None => serde_json::to_string(&core),
-        Some(extra) => serde_json::to_string(&(core, sorted_keys(&Value::Object(extra.clone())))),
+        Some(extra) => serde_json::to_string(&(core, canonical(&Value::Object(extra.clone())))),
     }
     .expect("sync key serialization cannot fail")
-}
-
-/// `v` with every object's keys in sorted order, so key order never reads as a difference.
-fn sorted_keys(v: &Value) -> Value {
-    match v {
-        Value::Object(m) => {
-            let mut keys: Vec<&String> = m.keys().collect();
-            keys.sort();
-            Value::Object(
-                keys.into_iter()
-                    .map(|k| (k.clone(), sorted_keys(&m[k])))
-                    .collect(),
-            )
-        }
-        Value::Array(a) => Value::Array(a.iter().map(sorted_keys).collect()),
-        other => other.clone(),
-    }
 }
 
 /// cyrb53 (ported from the TS engine, over UTF-8 bytes): fast 53-bit string hash.
@@ -206,57 +191,27 @@ pub fn canon_tags(names: impl IntoIterator<Item = String>) -> Vec<String> {
     set.into_iter().collect()
 }
 
-/// The slice of a [`Location`] that sync can observe. The engine's whole-map snapshot must not
-/// carry any field the contract ignores, so the store lock is held for a copy of THIS, not
-/// `Location`; `extra` (arbitrarily large) rides along only for a remote that keeps it.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SyncLocalPin {
-    pub id: u32,
-    pub lat: f64,
-    pub lng: f64,
-    pub heading: f64,
-    pub pitch: f64,
-    pub zoom: f64,
-    pub pano_id: Option<String>,
-    pub flags: u32,
-    pub tags: Vec<u32>,
-    pub extra: Option<RawExtra>,
-}
-
-impl From<Location> for SyncLocalPin {
-    fn from(loc: Location) -> Self {
-        SyncLocalPin {
-            id: loc.id,
-            lat: loc.lat,
-            lng: loc.lng,
-            heading: loc.heading,
-            pitch: loc.pitch,
-            zoom: loc.zoom,
-            pano_id: loc.pano_id.map(Into::into),
-            flags: loc.flags.bits(),
-            tags: loc.tags,
-            extra: loc.extra,
-        }
-    }
-}
-
-/// Project a local pin onto the synced contract, resolving tag ids to names (unknown ids are
-/// dropped), stripping undeclared flag bits, and dropping null fields, which a merge patch
-/// cannot tell from absent ones.
+/// Project a location onto the synced contract, resolving tag ids to names (unknown ids are
+/// dropped), stripping undeclared flag bits, reading an empty pano id as none, and dropping
+/// null fields, which a merge patch cannot tell from absent ones.
 pub fn local_to_normalized(
-    pin: &SyncLocalPin,
+    loc: &Location,
     tag_name: &impl Fn(u32) -> Option<String>,
 ) -> NormalizedSyncLocation {
     NormalizedSyncLocation {
-        lat: pin.lat,
-        lng: pin.lng,
-        heading: pin.heading,
-        pitch: pin.pitch,
-        zoom: pin.zoom,
-        pano_id: pin.pano_id.clone(),
-        flags: sync_flags(pin.flags),
-        tags: canon_tags(pin.tags.iter().filter_map(|&id| tag_name(id))),
-        extra: pin
+        lat: loc.lat,
+        lng: loc.lng,
+        heading: loc.heading,
+        pitch: loc.pitch,
+        zoom: loc.zoom,
+        pano_id: loc
+            .pano_id
+            .as_deref()
+            .filter(|p| !p.is_empty())
+            .map(Into::into),
+        flags: sync_flags(loc.flags.bits()),
+        tags: canon_tags(loc.tags.iter().filter_map(|&id| tag_name(id))),
+        extra: loc
             .extra
             .as_ref()
             .map(|e| {
@@ -395,7 +350,7 @@ pub trait SyncProvider {
     fn normalize(&self, item: &Self::Raw) -> NormalizedSyncLocation;
 
     /// Whether a local location participates in sync at all.
-    fn include_local(&self, _pin: &SyncLocalPin) -> bool {
+    fn include_local(&self, _loc: &Location) -> bool {
         true
     }
 

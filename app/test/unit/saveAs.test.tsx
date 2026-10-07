@@ -83,7 +83,7 @@ describe("Save as", () => {
 		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(
 			() => new Promise((resolve) => (land = () => resolve(null))),
 		);
-		void patchMapMeta("m1", { settings: { pluginData: { heatmap: { project: 1 } } } });
+		void patchMapMeta({ id: "m1", settings: { pluginData: { heatmap: { project: 1 } } } });
 		await mountAsync(<SaveAsDialog open onOpenChange={vi.fn()} />);
 
 		await submit();

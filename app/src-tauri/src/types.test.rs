@@ -93,6 +93,35 @@ fn human_readable_json_round_trips_transparently() {
     assert_eq!(back.unwrap().unwrap().as_str(), r#"{"k":[1,2,3]}"#);
 }
 
+#[test]
+fn rows_are_equal_exactly_when_the_patch_between_them_is_empty() {
+    use mma_algebra::{Patch, Patchable};
+    let row = Location {
+        id: 1,
+        heading: 10.0,
+        modified_at: Some(1),
+        ..Location::default()
+    };
+    let stamped = Location {
+        modified_at: Some(2),
+        ..row.clone()
+    };
+    let turned = Location {
+        heading: 20.0,
+        ..row.clone()
+    };
+    assert_eq!(row, stamped);
+    assert_eq!(
+        Location::between(&row, &stamped),
+        Patch::<Location> {
+            id: 1,
+            ..Default::default()
+        }
+    );
+    assert_ne!(row, turned);
+    assert_eq!(Location::between(&row, &turned).heading, Some(20.0));
+}
+
 // -----------------------------------------------------------------------
 // Property-based JSON round trip
 // -----------------------------------------------------------------------

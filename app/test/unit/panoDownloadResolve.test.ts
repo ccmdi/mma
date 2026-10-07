@@ -23,6 +23,7 @@ vi.mock("@/lib/data/procedures", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => null,
 		storeUploadBegin: async () => "session-1",
 		storeUploadFinish: async () => {
 			h.finished = true;

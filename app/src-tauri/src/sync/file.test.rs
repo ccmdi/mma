@@ -2,6 +2,7 @@ use super::*;
 use crate::sync::engine::{plan, ReconcileInput};
 use crate::sync::remote_mapping::RemoteMappingRow;
 use crate::sync::sync_hash;
+use crate::types::Location;
 use crate::types::RawExtra;
 use serde_json::{json, Value};
 use std::env;
@@ -114,17 +115,12 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         json!({ "score": 3, "note": "a" }).as_object().cloned()
     );
 
-    let local = SyncLocalPin {
+    let local = Location {
         id: 1,
         lat: created.fields.lat,
         lng: created.fields.lng,
-        heading: 0.0,
-        pitch: 0.0,
-        zoom: 0.0,
-        pano_id: None,
-        flags: 0,
-        tags: vec![],
         extra: created.fields.extra.as_ref().and_then(RawExtra::from_map),
+        ..Location::default()
     };
     let mapping = [RemoteMappingRow {
         local_id: 1,
@@ -150,7 +146,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
     assert_eq!(second.pull_updates.len(), 1);
     assert_eq!(
         second.pull_updates[0].patch.extra,
-        json!({ "score": 4, "note": null }).as_object().cloned()
+        Some(json!({ "score": 4, "note": null }).as_object().cloned())
     );
     assert!(second.push_batch.is_none());
 }

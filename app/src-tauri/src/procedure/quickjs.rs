@@ -42,7 +42,7 @@ use std::mem;
 use std::sync::OnceLock;
 use std::thread;
 
-use super::{PatchEntry, ProcHost, ProcShape, Procedure};
+use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{self, HttpRequestSpec, HttpResponse};
 use crate::plugins::sidecar::SidecarStream;
 use crate::sv::pano::{PanoAnswer, PanoQuery};
@@ -479,7 +479,7 @@ fn failed_response() -> HttpResponse {
     }
 }
 
-fn read_patches<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> AppResult<Vec<PatchEntry>> {
+fn read_patches<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> AppResult<Vec<ResultEntry>> {
     let arr = Array::from_value(v)
         .map_err(|_| AppError("procedure did not answer with an array of patches".into()))?;
     let mut out = Vec::with_capacity(arr.len());
@@ -491,16 +491,15 @@ fn read_patches<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> AppResult<Vec<PatchEntry>
         let id: u32 = obj
             .get("id")
             .map_err(|_| AppError(format!("patch {i}: `id` must be a number")))?;
-        let patch: Value = obj
-            .get("patch")
-            .map_err(|_| AppError(format!("patch {i}: missing `patch`")))?;
+        obj.remove("id")
+            .map_err(|e| AppError(format!("patch {i}: {e}")))?;
         let json = ctx
-            .json_stringify(patch)
+            .json_stringify(item.clone())
             .map_err(|e| AppError(format!("patch {i}: {e}")))?
-            .ok_or_else(|| AppError(format!("patch {i}: `patch` is not serializable")))?;
-        out.push(PatchEntry {
+            .ok_or_else(|| AppError(format!("patch {i} is not serializable")))?;
+        out.push(ResultEntry {
             id,
-            patch: js_string(&json)?,
+            json: js_string(&json)?,
         });
     }
     Ok(out)
@@ -1018,7 +1017,7 @@ impl Procedure for JsProcedure {
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         if self.shape != ProcShape::Map {
             return Err(self.err("procedure shape does not implement map"));
         }
@@ -1035,7 +1034,7 @@ impl Procedure for JsProcedure {
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         if self.shape != ProcShape::Run {
             return Err(self.err("procedure shape does not implement run"));
         }
@@ -1166,7 +1165,7 @@ impl Procedure for PooledProcedure {
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         self.inner().map(batch, host, config)
     }
 
@@ -1175,7 +1174,7 @@ impl Procedure for PooledProcedure {
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         self.inner().run(batch, host, config)
     }
 

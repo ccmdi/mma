@@ -4,7 +4,7 @@
 //! between saves; `bake_overlay` merges them back into the batch. IDs are kept strictly sorted
 //! in the batch to enable O(log n) lookups via `Columns::row_of`. Render cells (32 geohash-1
 //! buckets) and the render frame every watching window receives are derived from the same
-//! `ChangeSet` via `finish_mutation`.
+//! `Change` via `finish_mutation`.
 
 use crate::types::{AppError, AppResult};
 use std::collections::{HashMap, HashSet};
@@ -30,11 +30,11 @@ use crate::selections;
 use crate::store::arrow;
 use crate::store::arrow::{schema, Columns};
 use crate::store::maps;
-use crate::types::RawExtra;
-use crate::types::{Location, LocationFlags};
+use crate::types::Location;
 use crate::util;
 use arrow_select::concat;
 use arrow_select::take;
+use mma_algebra::Patchable;
 use specta::datatype::DataType;
 use specta::function::FunctionArg;
 use std::mem;
@@ -154,15 +154,8 @@ pub struct Store {
     /// The windows drawing this store. A store opened afresh has none: each window
     /// subscribes when it loads its scene.
     pub(crate) frames: FrameSinks,
-}
-
-macro_rules! apply_patch {
-    ($target:expr, $patch:expr; $($field:ident),+ $(,)?) => {
-        $(if let Some(v) = $patch.$field { $target.$field = v; })+
-    };
-    (clone $target:expr, $patch:expr; $($field:ident),+ $(,)?) => {
-        $(if let Some(ref v) = $patch.$field { $target.$field = v.clone(); })+
-    };
+    /// Which fields are computed from which, as the providers declare them.
+    pub(crate) derived: ComputedFrom,
 }
 
 impl Default for Store {
@@ -201,6 +194,7 @@ impl Store {
             bounds: Ensured::default(),
             spatial: Ensured::default(),
             frames: FrameSinks::default(),
+            derived: ComputedFrom::default(),
         }
     }
 
@@ -267,17 +261,17 @@ impl Store {
     /// selection state, send every watching window the frame, and return the mutation
     /// result. The changeset is the single source of truth; the frame and the selection
     /// sync are two projections of it.
-    pub(crate) fn finish_mutation(&mut self, changes: &ChangeSet) -> MutationResult {
+    pub(crate) fn finish_mutation(&mut self, changes: &Change) -> MutationResult {
         self.finish(changes, false)
     }
 
     /// Finish a change to the selection list itself: no row moves, and the frame restates
     /// every row's selection.
     pub(crate) fn finish_selection_change(&mut self) -> MutationResult {
-        self.finish(&ChangeSet::default(), true)
+        self.finish(&Change::default(), true)
     }
 
-    fn finish(&mut self, changes: &ChangeSet, selections_replaced: bool) -> MutationResult {
+    fn finish(&mut self, changes: &Change, selections_replaced: bool) -> MutationResult {
         self.register_fields(changes);
         let before = self.version;
         self.bump();
@@ -300,9 +294,8 @@ impl Store {
         // A metadata-only mutation (a value rename or reorder, a create with nothing to
         // assign) moves no rows, so there is no membership to re-test.
         let has_selections = !changes.is_empty() && !self.selections.resolved.is_empty();
-        let full_resolve = has_selections
-            && (changes.added.len() + changes.removed.len() + changes.updated.len() > 100
-                || self.selections_need_full_resolve());
+        let full_resolve =
+            has_selections && (changes.len() > 100 || self.selections_need_full_resolve());
 
         let membership_delta = if has_selections {
             if full_resolve {
@@ -358,6 +351,11 @@ impl Store {
                 ..Default::default()
             },
             step: None,
+            active: self
+                .selections
+                .active_id
+                .filter(|&id| changes.touches(id))
+                .and_then(|id| self.get_loc_by_id(id)),
         };
         self.report(&mut result);
         result
@@ -419,7 +417,7 @@ impl Store {
     /// `bake_overlay` asserts): fresh ids sort above everything and are appended, O(k);
     /// anything else (an undo re-adding old ids) is merged in one linear pass, O(n + k),
     /// where inserting each row into its slot would shift the rows above it, O(n * k).
-    pub(crate) fn overlay_add(&mut self, locs: Vec<Location>) {
+    fn overlay_add(&mut self, locs: Vec<Location>) {
         let mut fresh: Vec<Location> = Vec::with_capacity(locs.len());
         for loc in locs {
             *self.alive_count.edit() += 1;
@@ -482,9 +480,10 @@ impl Store {
     }
 
     /// Mark locations as dead in the overlay. O(L) for L locations removed.
-    pub(crate) fn overlay_remove(&mut self, locs: &[Location]) {
-        let remove_set: HashSet<u32> = locs.iter().map(|l| l.id).collect();
+    fn overlay_remove<'a>(&mut self, locs: impl Iterator<Item = &'a Location>) {
+        let mut remove_set: HashSet<u32> = HashSet::new();
         for loc in locs {
+            remove_set.insert(loc.id);
             *self.alive_count.edit() -= 1;
             // Index under the CURRENT coords, not the caller's copy: a patched
             // location's overlay coords are where the index filed it.
@@ -501,49 +500,6 @@ impl Store {
             .edit()
             .adds
             .retain(|l| !remove_set.contains(&l.id));
-    }
-
-    /// Apply a partial patch to an existing location. Reads the current state, merges
-    /// non-None fields from the patch, and writes back to overlay_adds or overlay_patches.
-    fn overlay_update(&mut self, id: u32, patch: &LocationPatch) -> Option<(Location, Location)> {
-        let old = self.get_loc_by_id(id)?;
-        let loc = self.overlay_write(id, patched(&old, patch), &old);
-        Some((old, loc))
-    }
-
-    /// Write an already-computed Location into the overlay (adds/patches). `old` is the
-    /// row's pre-mutation state, which every caller already holds -- for an unpatched row
-    /// it IS the base row, so the no-op check needs no Arrow re-materialization. Returns
-    /// the location as the store now holds it (stamped on a real change).
-    fn overlay_write(&mut self, id: u32, mut loc: Location, old: &Location) -> Location {
-        if (loc.lat, loc.lng) != (old.lat, old.lng) {
-            if let Some(ix) = self.spatial.if_built_mut() {
-                if !ix.remove(id, old.lat, old.lng) {
-                    log::warn!("[spatial] remove miss for id {id}");
-                }
-                ix.insert(id, loc.lat, loc.lng);
-            }
-        }
-        // Stamp only on a real change in every branch
-        if let Ok(pos) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
-            if self.overlay.adds[pos] != loc {
-                touch(&mut loc);
-                self.overlay.edit().adds[pos] = loc.clone();
-            }
-        } else if self.overlay.patches.contains_key(&id) {
-            // A patched row: `old` is the patched state, so reverting to the base row
-            // exactly is the one case that still has to materialize it.
-            if self.base_loc_by_id(id).as_ref() == Some(&loc) {
-                self.overlay.edit().patches.remove(&id);
-            } else if self.overlay.patches.get(&id) != Some(&loc) {
-                touch(&mut loc);
-                self.overlay.edit().patches.insert(id, loc.clone());
-            }
-        } else if loc != *old {
-            touch(&mut loc);
-            self.overlay.edit().patches.insert(id, loc.clone());
-        }
-        loc
     }
 
     /// Reset overlay state. Called after bake or on map close.
@@ -644,6 +600,8 @@ impl Store {
 pub struct StoreManager {
     pub(crate) stores: HashMap<String, Store>,
     pub(crate) window_map: HashMap<String, String>,
+    /// Which fields are computed from which, handed to every store it opens.
+    pub(crate) derived: ComputedFrom,
 }
 
 impl StoreManager {
@@ -651,6 +609,7 @@ impl StoreManager {
         Self {
             stores: HashMap::new(),
             window_map: HashMap::new(),
+            derived: ComputedFrom::default(),
         }
     }
 
@@ -971,35 +930,6 @@ mod tests;
 #[path = "engine.bench.rs"]
 pub mod bench;
 
-/// Apply a patch to a location. The single definition of what a `LocationPatch` means:
-/// absent fields are unchanged, `Some(None)` nulls a nullable column, and `extra` is a
-/// JSON Merge Patch (RFC 7386) where a null value deletes its key.
-pub(crate) fn patched(old: &Location, patch: &LocationPatch) -> Location {
-    let mut loc = old.clone();
-    apply_patch!(loc, patch; lat, lng, heading, pitch, zoom, created_at, modified_at);
-    apply_patch!(clone loc, patch; pano_id, tags);
-    if let Some(v) = patch.flags {
-        loc.flags = LocationFlags::from_bits_retain(v);
-    }
-    if let Some(ref v) = patch.extra {
-        loc.extra = match v {
-            None => None,
-            Some(p) => {
-                let mut m = loc.extra.as_ref().map(RawExtra::to_map).unwrap_or_default();
-                for (k, val) in p.to_map() {
-                    if val.is_null() {
-                        m.remove(&k);
-                    } else {
-                        m.insert(k, val);
-                    }
-                }
-                RawExtra::from_map(&m)
-            }
-        };
-    }
-    loc
-}
-
 /// The engine's own write on every real change to a row.
 fn touch(loc: &mut Location) {
     loc.modified_at = Some(util::now_unix());
@@ -1026,10 +956,10 @@ pub fn clearable_builtins() -> &'static [&'static str] {
                 };
                 let mut assignments = serde_json::Map::new();
                 assignments.insert((*key).to_string(), serde_json::Value::Null);
-                let Ok(patch) = assign_patch(&assignments, populated.flags) else {
+                let Ok(patch) = assign_patch(populated.id, &assignments, populated.flags) else {
                     return false;
                 };
-                let mut cleared = patched(&populated, &patch);
+                let mut cleared = populated.patched(&patch);
                 touch(&mut cleared);
                 selections::RowRef::from_loc(&populated)
                     .resolve_field(key)

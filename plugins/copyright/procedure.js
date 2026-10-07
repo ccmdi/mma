@@ -46,7 +46,7 @@ function run(rows) {
       for (const row of group) {
         if (parsed.error) mma.fail(row.id);
         else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
-          out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
+          out.push({ id: row.id, extra: { copyrightYear: parsed.year } });
         mma.progress(1);
       }
     }

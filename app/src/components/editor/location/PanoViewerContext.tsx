@@ -11,9 +11,9 @@ import {
 } from "react";
 import { getMapState, updateLocations, useMapState } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
-import { PanoType } from "@/bindings.consts";
+import { LOCATION_MERGED, PanoType } from "@/bindings.consts";
 import { usePano } from "@/lib/hooks/usePano";
-import { applyLocationPatch, extraPatch, sameRow, type LatLng } from "@/types";
+import { applyPatch, patchBetween, sameRow, type LatLng } from "@/types";
 import type { Pano } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
@@ -70,9 +70,7 @@ export function viewerPosition(draft: Location | null, location: Location | null
 
 /** `to`, without the fields derived from any input it changed from `from`. */
 function moved(from: Location, to: Location): Location {
-	const changed = Object.keys(to).filter(
-		(k) => k !== "extra" && to[k as keyof Location] !== from[k as keyof Location],
-	);
+	const changed = Object.keys(patchBetween(from, to)).filter((k) => k !== "extra");
 	return changed.length ? { ...to, extra: withoutDerivedFrom(to.extra, changed) } : to;
 }
 
@@ -95,11 +93,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 					...prev,
 					...(typeof patch === "function" ? patch(prev) : patch),
 				});
-				return Object.keys(next).some(
-					(k) => next[k as keyof Location] !== prev[k as keyof Location],
-				)
-					? next
-					: prev;
+				return Object.keys(patchBetween(prev, next)).length > 0 ? next : prev;
 			});
 		},
 		[],
@@ -160,16 +154,16 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		// on the draft, or once saved, on the map row it became, in the save's undo step.
 		let landing = Promise.resolve();
 		const land = (row: Location) => {
-			const patch = { extra: extraPatch(draft.extra, row.extra) };
+			const patch = { extra: patchBetween(draft.extra ?? {}, row.extra ?? {}) };
 			landing = landing.then(async () => {
 				const saved = thisRun.saved;
 				if (!saved) {
 					setState((prev) =>
-						prev && sameRow(prev, draft) ? applyLocationPatch(prev, patch) : prev,
+						prev && sameRow(prev, draft) ? applyPatch(prev, patch, LOCATION_MERGED) : prev,
 					);
 					return;
 				}
-				await updateLocations([{ id: saved.id, patch }], { join: saved.step });
+				await updateLocations([{ ...patch, id: saved.id }], { join: saved.step });
 				saved.step = getMapState().step ?? saved.step;
 			});
 		};

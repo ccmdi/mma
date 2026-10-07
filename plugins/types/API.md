@@ -442,6 +442,14 @@ KNOWN_FIELDS: readonly [
 ]
 ```
 
+### LOCATION_MERGED
+
+`stable` · unreleased
+
+```ts
+LOCATION_MERGED: readonly ["extra"]
+```
+
 ### LocationFlag
 
 `stable` · since v0.11.0
@@ -1031,10 +1039,10 @@ cannot be edited.
 `stable` · since v0.10.1
 
 ```ts
-patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<void>
+patchMapMeta(patch: Patch<MapMeta>): Promise<void>
 ```
 
-Patch any map's metadata by id and persist it. Updates the open map's state when it is that map.
+Patch any map's metadata and persist it. Updates the open map's state when it is that map.
 Writes land in the order they were made.
 
 ### previewDuplicateGroups
@@ -1372,7 +1380,7 @@ Undo the last edit.
 
 ```ts
 updateLocations(
-  updates: Update<LocationPatch_Deserialize>[],
+  updates: Patch<Location>[],
   opts?: {
     undoable?: boolean;
     join?: number | null;
@@ -1388,7 +1396,7 @@ per-key (null deletes a key). Undoable by default.
 `stable` · since v0.4.0
 
 ```ts
-updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined
+updateMapMeta(patch: Omit<Patch<MapMeta>, "id">): Promise<void> | undefined
 ```
 
 `patchMapMeta` for the map open in this window.
@@ -1398,7 +1406,7 @@ updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined
 `stable` · since v0.4.0
 
 ```ts
-updateTags(updates: Update<TagPatch>[]): Promise<void>
+updateTags(updates: Patch<Tag>[]): Promise<void>
 ```
 
 Rename or recolor tags. A rename colliding with an existing tag name
@@ -2603,16 +2611,22 @@ so a double-clicked button cannot start two.
 
 ## Types
 
-### applyLocationPatch
+### applyPatch
 
-`stable` · since v0.10.3
+`stable` · unreleased
 
 ```ts
-applyLocationPatch(loc: Location, patch: LocationPatch_Deserialize): Location
+applyPatch<T extends object>(
+  row: T,
+  patch: {
+    [K in keyof T]?: unknown;
+  },
+  merged?: readonly string[],
+): T
 ```
 
-Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
-keys shallow-merge, a null value deletes its key, and a null patch clears extra.
+`row` with `patch` written over it. An absent field is unchanged, and a `merged` field
+changes key by key, a null value deleting its key, and is null once empty.
 
 ### bboxTupleToBounds
 
@@ -2674,20 +2688,6 @@ dropLocation(
 A new Location at the viewer's live camera, carrying `source`'s flags and the given
 tags. `extra` describes the pano it was fetched for, so it only survives a drop that
 stayed on that pano.
-
-### extraPatch
-
-`stable` · since v0.10.3
-
-```ts
-extraPatch(
-  before: Record<string, unknown> | null,
-  after: Record<string, unknown> | null,
-): Record<string, unknown>
-```
-
-The `extra` merge patch that turns `before` into `after`: changed keys carry their
-new value, keys `after` lacks carry null.
 
 ### isImportPreview
 
@@ -2751,6 +2751,21 @@ locId(m: MaybeLocation): number
 ```
 
 Extract the id from a MaybeLocation.
+
+### patchBetween
+
+`stable` · unreleased
+
+```ts
+patchBetween<T extends object>(
+  old: T,
+  next: T,
+  merged?: readonly string[],
+): Partial<T>
+```
+
+The patch that turns `old` into `next`: each field that changed, a `merged` field as only
+its changed keys, and null for a key `next` lacks.
 
 ### sameRow
 
@@ -6223,7 +6238,15 @@ List review sessions for a map, newest first. Optionally filter by `status`.
 `unstable` · since v0.5.2
 
 ```ts
-cmd.storeReviewUpdate(update: ReviewUpdate): Promise<null>
+cmd.storeReviewUpdate(
+  update: Partial<
+    Omit<
+      ReviewSession,
+      "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt"
+    >
+  > &
+    Pick<ReviewSession, "id">,
+): Promise<null>
 ```
 
 Apply a partial update to a review session.
@@ -6359,6 +6382,17 @@ cmd.storeSetActive(id: number | null): Promise<null>
 
 Set (or clear) the active location.
 
+#### cmd.storeSetDerived
+
+`unstable` · unreleased
+
+```ts
+cmd.storeSetDerived(edges: { [key in string]: string[] }): Promise<null>
+```
+
+Declare which fields are computed from which: each input field and the fields derived
+from it. A write that changes an input clears what was derived from it.
+
 #### cmd.storeSetMapDefaults
 
 `unstable` · since v0.11.4
@@ -6445,7 +6479,7 @@ Undo the last edit.
 
 ```ts
 cmd.storeUpdateLocations(
-  updates: Update<LocationPatch_Deserialize>[],
+  updates: (Partial<Location> & Pick<Location, "id">)[],
   recordUndo: boolean | null,
   join: number | null,
 ): Promise<MutationResult>
@@ -6462,8 +6496,13 @@ while it is still the newest.
 
 ```ts
 cmd.storeUpdateMapMeta(
-  id: string,
-  patch: MapMetaPatch_Deserialize,
+  patch: Partial<
+    Omit<
+      MapMeta,
+      "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt"
+    >
+  > &
+    Pick<MapMeta, "id">,
 ): Promise<MutationResult | null>
 ```
 

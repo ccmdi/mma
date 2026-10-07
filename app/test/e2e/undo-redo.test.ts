@@ -58,7 +58,7 @@ describe("Undo/Redo", () => {
 	it("undo update restores original values", async () => {
 		const original = await getLoc(undo1Id);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { lat: 99, heading: 270 } }]);
+			await api.updateLocations([{ id: l.id, lat: 99, heading: 270 }]);
 		}, original);
 
 		let loc = await getLoc(undo1Id);
@@ -146,8 +146,8 @@ describe("Undo/Redo", () => {
 			if (!seq1) throw new Error("seq-1 not found");
 
 			await api.updateLocations([
-				{ id: u1Id, patch: { heading: 111 } },
-				{ id: seq1.id, patch: { heading: 222 } },
+				{ id: u1Id, heading: 111 },
+				{ id: seq1.id, heading: 222 },
 			]);
 			return { seq1Id: seq1.id };
 		}, undo1Id);
@@ -198,7 +198,7 @@ describe("Undo/Redo persistence", () => {
 	it("flags survive undo across save/load", async () => {
 		const loc = await getLoc(uh1Id);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { flags: 1, panoId: "PIN" } }]);
+			await api.updateLocations([{ id: l.id, flags: 1, panoId: "PIN" }]);
 		}, loc);
 
 		await flushAndWait();

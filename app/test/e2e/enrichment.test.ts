@@ -167,13 +167,11 @@ describe("Enrichment — single location via preview", () => {
 				[
 					{
 						id: l.id,
-						patch: {
-							extra: {
-								imageDate: "2099-01",
-								altitude: null,
-								datetime: 9999999999,
-								timezone: "Fake/Zone",
-							},
+						extra: {
+							imageDate: "2099-01",
+							altitude: null,
+							datetime: 9999999999,
+							timezone: "Fake/Zone",
 						},
 					},
 				],
@@ -261,7 +259,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 		// Clear existing extra
 		const clearLoc = await readLocation(fieldsSelectiveId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { extra: null } }], { undoable: false });
+			await api.updateLocations([{ id: l.id, extra: null }], { undoable: false });
 			return "ok";
 		}, clearLoc);
 
@@ -345,7 +343,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		// Clear extra and re-enrich
 		const defLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { extra: null } }], { undoable: false });
+			await api.updateLocations([{ id: l.id, extra: null }], { undoable: false });
 			return "ok";
 		}, defLoc);
 
@@ -364,7 +362,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("extra patches auto-register known field keys", async () => {
 		const patchLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { extra: { datetime: 1700000000 } } }], {
+			await api.updateLocations([{ id: l.id, extra: { datetime: 1700000000 } }], {
 				undoable: false,
 			});
 			return "ok";
@@ -392,7 +390,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("unknown extra fields get auto-registered as known keys", async () => {
 		const customLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { extra: { randomCustomThing: "hello" } } }], {
+			await api.updateLocations([{ id: l.id, extra: { randomCustomThing: "hello" } }], {
 				undoable: false,
 			});
 			return "ok";

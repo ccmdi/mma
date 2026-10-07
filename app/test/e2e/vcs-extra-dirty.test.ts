@@ -23,7 +23,7 @@ describe("VCS — extra-only change commit semantics", () => {
 		const loc = await getLoc(id);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, patch: { extra: { score: 7 } } }], { undoable: false }),
+				api.updateLocations([{ id: l.id, extra: { score: 7 } }], { undoable: false }),
 			loc,
 		);
 		// Overlay-derived diff sees non-undoable extra writes.
@@ -40,7 +40,7 @@ describe("VCS — extra-only change commit semantics", () => {
 		const loc = await getLoc(id);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, patch: { extra: { score: 999 } } }], { undoable: false }),
+				api.updateLocations([{ id: l.id, extra: { score: 999 } }], { undoable: false }),
 			loc,
 		);
 		await flushAndWait();

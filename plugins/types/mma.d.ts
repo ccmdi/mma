@@ -421,6 +421,7 @@ declare const KNOWN_FIELDS: readonly [{
     readonly circularPeriod: null;
     readonly defaultOff: true;
 }];
+declare const LOCATION_MERGED: readonly ["extra"];
 /** @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
@@ -502,6 +503,7 @@ declare const consts_IssueState: typeof IssueState;
 /** @unstable */
 export type consts_IssueState = IssueState;
 declare const consts_KNOWN_FIELDS: typeof KNOWN_FIELDS;
+declare const consts_LOCATION_MERGED: typeof LOCATION_MERGED;
 declare const consts_LocationFlag: typeof LocationFlag;
 /** @unstable */
 export type consts_LocationFlag = LocationFlag;
@@ -547,7 +549,7 @@ declare const consts_ValidationFlag: typeof ValidationFlag;
 /** @unstable */
 export type consts_ValidationFlag = ValidationFlag;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_LOCATION_MERGED as LOCATION_MERGED, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS, consts_VIRTUAL_FLAGS as VIRTUAL_FLAGS };
   export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_ValidationFlag as ValidationFlag };
 }
 
@@ -740,7 +742,13 @@ declare const commands$1: {
      *  while it is still the newest.
      *  @unstable
      */
-    storeUpdateLocations: (updates: Update<LocationPatch_Deserialize>[], recordUndo: boolean | null, join: number | null) => Promise<MutationResult>;
+    storeUpdateLocations: (updates: (Partial<Location> & Pick<Location, "id">)[], recordUndo: boolean | null, join: number | null) => Promise<MutationResult>;
+    /**
+     *  Declare which fields are computed from which: each input field and the fields derived
+     *  from it. A write that changes an input clears what was derived from it.
+     *  @unstable
+     */
+    storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set (or clear) the active location. @unstable */
     storeSetActive: (id: number | null) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
@@ -905,7 +913,7 @@ declare const commands$1: {
      *  Returns a mutation result when the open map's field definitions changed.
      *  @unstable
      */
-    storeUpdateMapMeta: (id: string, patch: MapMetaPatch_Deserialize) => Promise<MutationResult | null>;
+    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => Promise<MutationResult | null>;
     /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
@@ -1032,7 +1040,7 @@ declare const commands$1: {
     /**  List review sessions for a map, newest first. Optionally filter by `status`. @unstable */
     storeReviewList: (mapId: string, status: string | null) => Promise<ReviewSession[]>;
     /**  Apply a partial update to a review session. @unstable */
-    storeReviewUpdate: (update: ReviewUpdate) => Promise<null>;
+    storeReviewUpdate: (update: Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">) => Promise<null>;
     /**  Delete a review session. @unstable */
     storeReviewDelete: (id: string) => Promise<null>;
     /**  List every saved selection rule (name, color, date), without their selector trees. @unstable */
@@ -1656,14 +1664,14 @@ type FieldValuesPatch = {
         [key in string]: unknown;
     }[];
     /**
-     *  Merge patches into existing piles (null deletes a key). A patch whose `name`
-     *  collides with another record's merges the two values instead of renaming:
-     *  every row is remapped to the survivor in one undoable edit and the emptied
-     *  record goes dark.
+     *  Merge patches into existing piles, each naming its pile's `id` (null deletes a
+     *  key). A patch whose `name` collides with another record's merges the two values
+     *  instead of renaming: every row is remapped to the survivor in one undoable edit
+     *  and the emptied record goes dark.
      */
-    update?: (Update<{
+    update?: {
         [key in string]: unknown;
-    }>)[];
+    }[];
     /**  New display order: each id gets its index in this list as `order`. */
     reorder?: number[] | null;
 };
@@ -1895,47 +1903,6 @@ type Location = {
     modifiedAt: number | null;
 };
 /**
- *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
- *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
- *  shallow-merge, null values delete.
- */
-type LocationPatch_Deserialize = {
-    lat?: number | null;
-    lng?: number | null;
-    heading?: number | null;
-    pitch?: number | null;
-    zoom?: number | null;
-    panoId?: string | null;
-    flags?: number | null;
-    tags?: number[] | null;
-    extra?: {
-        [key in string]: unknown;
-    } | null;
-    createdAt?: number | null;
-    modifiedAt?: number | null;
-};
-/**
- *  Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
- *  modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
- *  shallow-merge, null values delete.
- *  @unstable
- */
-type LocationPatch = {
-    lat: number | null;
-    lng: number | null;
-    heading: number | null;
-    pitch: number | null;
-    zoom: number | null;
-    panoId: string | null;
-    flags: number | null;
-    tags: number[] | null;
-    extra: {
-        [key in string]: unknown;
-    } | null;
-    createdAt: number | null;
-    modifiedAt: number | null;
-};
-/**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
  */
@@ -1988,43 +1955,6 @@ type MapMeta = {
     createdAt: string;
     updatedAt: string;
     lastOpenedAt: string | null;
-};
-/**
- *  Partial update for map metadata. Omitted fields are left unchanged.
- *  Setting `folder` to null moves the map to root.
- */
-type MapMetaPatch_Deserialize = {
-    name?: string | null;
-    description?: string | null;
-    folder?: string | null;
-    settings?: MapSettings | null;
-    scoreBounds?: ScoreBounds | null;
-    extra?: MapExtra | null;
-    tags?: {
-        [key in string]: {
-            [key in string]: unknown;
-        };
-    } | null;
-    labels?: string[] | null;
-};
-/**
- *  Partial update for map metadata. Omitted fields are left unchanged.
- *  Setting `folder` to null moves the map to root.
- *  @unstable
- */
-type MapMetaPatch = {
-    name: string | null;
-    description: string | null;
-    folder: string | null;
-    settings: MapSettings | null;
-    scoreBounds: ScoreBounds | null;
-    extra: MapExtra | null;
-    tags: {
-        [key in string]: {
-            [key in string]: unknown;
-        };
-    } | null;
-    labels: string[] | null;
 };
 /**  Street View lookup, export, and enrichment preferences that can start any map. */
 type MapPreferences = {
@@ -2100,6 +2030,8 @@ type MutationResult = {
      *  still the newest.
      */
     step: number | null;
+    /**  The active location as this change left it, when the change touched it. */
+    active: Location | null;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -2423,9 +2355,6 @@ type ProviderDecl = {
     label?: string | null;
     fields?: string[];
     requires?: string[];
-    invalidates?: {
-        [key in string]: string[];
-    };
     select: Selector;
     batch: BatchMode;
     sink?: Sink;
@@ -2450,7 +2379,7 @@ type PullCreate = {
 /**  A remote-originated update for JS to apply to an existing local id. @unstable */
 type PullUpdate = {
     localId: number;
-    patch: SyncPatch;
+    patch: Partial<NormalizedSyncLocation>;
     remoteId: number;
     hash: string;
 };
@@ -2505,11 +2434,7 @@ type RenderRequest = {
     markerStyle?: string;
     markerColor?: [number, number, number] | null;
 };
-/**
- *  One location's answer from a `Collect` provider: whatever its module emitted for
- *  that row, carried as text exactly as a patch would be.
- *  @unstable
- */
+/**  One location's answer from a procedure, as the JSON its module emitted. @unstable */
 type ResultEntry = {
     id: number;
     json: string;
@@ -2544,15 +2469,6 @@ type ReviewSession = {
     status: string;
     createdAt: string;
     updatedAt: string;
-};
-/**  Partial update for a review session. Omitted fields are left unchanged. @unstable */
-type ReviewUpdate = {
-    id: string;
-    name?: string | null;
-    cursorId: number | null;
-    reviewed: number[] | null;
-    ordering: number[] | null;
-    status: string | null;
 };
 /**  Matched locations: returned inline, or as a file path to read them from. @unstable */
 type Rows = {
@@ -2818,27 +2734,6 @@ type SyncLogResult =
     kind: "error";
     message: string;
 };
-/**
- *  Only the fields a pull genuinely changes. A field the provider cannot represent reads as empty
- *  on the remote side and must not overwrite local data, so absent fields are left untouched.
- *  `panoId` applies only when `panoIdSet` is true, since a cleared panoId is a real change to `null`.
- *  @unstable
- */
-type SyncPatch = {
-    lat: number | null;
-    lng: number | null;
-    heading: number | null;
-    pitch: number | null;
-    zoom: number | null;
-    panoIdSet: boolean;
-    panoId: string | null;
-    flags: number | null;
-    tags: string[] | null;
-    /**  A merge patch onto the custom fields: changed fields, and `null` for removed ones. */
-    extra: {
-        [key in string]: unknown;
-    } | null;
-};
 /**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. @unstable */
 type SyncReconcileResult = {
     /**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
@@ -2852,15 +2747,6 @@ type SyncReconcileResult = {
     pullUpdates: PullUpdate[];
     pullDeleteIds: number[];
     mirrorLocalDeleteIds: number[];
-};
-/**
- *  Generic `{id, patch}` update envelope, parameterized by the patch type. Specta
- *  has no `Partial<T>`, and a patch is a deliberate *subset* of patchable fields, so
- *  each entity names its own patch struct (e.g. `TagPatch`) rather than deriving one.
- */
-type Update<P> = {
-    id: number;
-    patch: P;
 };
 /** @unstable */
 type UpdateAvailable = {
@@ -2941,7 +2827,7 @@ type VirtualTag = {
  * A procedure is an ES module bundled to one file. Its named exports are the entry
  * points: `map` (pure compute, no effectful calls) or `run`, plus the optional `query`.
  * Every entry point receives the run's `{ fields, force, config }` as its last argument.
- * Rows arrive as `Location`s and `run`/`map` answer with `Update<LocationPatch>`s under
+ * Rows arrive as `Location`s and `run`/`map` answer with `Patch<Location>`s under
  * the `patch` sink, or `Update<T>` of the module's own answer under `collect`.
  *  @unstable
  */
@@ -3053,9 +2939,10 @@ export interface Tag {
     doclinks: string[];
 }
 /** Partial update to a tag's editable display metadata; `null` clears the field. */
-export type TagPatch = {
-    [K in "name" | "color" | "doclinks"]?: Tag[K] | null;
-};
+/** A change to some of row `id`'s fields. */
+export type Patch<T extends {
+    id: unknown;
+}> = Partial<T> & Pick<T, "id">;
 /** Street View camera orientation (POV). @unstable */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
 /** A view on a specific panorama. @unstable */
@@ -3080,9 +2967,9 @@ declare function isPinned(loc: Location): loc is Location & {
 };
 /** The location pinned to the pano it carries, or unpinned to float on default coverage. */
 declare function setPinned(loc: Location, on: boolean): Location;
-/** The `extra` merge patch that turns `before` into `after`: changed keys carry their
- *  new value, keys `after` lacks carry null. */
-declare function extraPatch(before: Record<string, unknown> | null, after: Record<string, unknown> | null): Record<string, unknown>;
+/** The patch that turns `old` into `next`: each field that changed, a `merged` field as only
+ *  its changed keys, and null for a key `next` lacks. */
+declare function patchBetween<T extends object>(old: T, next: T, merged?: readonly string[]): Partial<T>;
 /** The same location on the same pano: what makes one row's answer another row's. @unstable */
 declare function sameRow(a: Location, b: Location): boolean;
 /** True for virtual (preview-only) locations, which have negative ids and are not
@@ -3105,9 +2992,11 @@ declare function createLocation(partial: Partial<Location> & LatLng): Location;
  *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
  *  stayed on that pano. @unstable */
 declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location;
-/** Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
- *  keys shallow-merge, a null value deletes its key, and a null patch clears extra. */
-declare function applyLocationPatch(loc: Location, patch: LocationPatch_Deserialize): Location;
+/** `row` with `patch` written over it. An absent field is unchanged, and a `merged` field
+ *  changes key by key, a null value deleting its key, and is null once empty. */
+declare function applyPatch<T extends object>(row: T, patch: {
+    [K in keyof T]?: unknown;
+}, merged?: readonly string[]): T;
 /** @unstable */
 export type SortMode = "name" | "created" | "opened" | "amount";
 /** @unstable */
@@ -3142,6 +3031,10 @@ export type types_PanoCapture = PanoCapture;
 /** @unstable */
 export type types_PanoView = PanoView;
 /** @unstable */
+export type types_Patch<T extends {
+    id: unknown;
+}> = Patch<T>;
+/** @unstable */
 export type types_SortMode = SortMode;
 /** @unstable */
 export type types_SvColor = SvColor;
@@ -3152,12 +3045,10 @@ export type types_SvThickness = SvThickness;
 /** @unstable */
 export type types_Tag = Tag;
 /** @unstable */
-export type types_TagPatch = TagPatch;
-/** @unstable */
 export type types_TagSortMode = TagSortMode;
 /** @unstable */
 export type types_WorkArea = WorkArea;
-declare const types_applyLocationPatch: typeof applyLocationPatch;
+declare const types_applyPatch: typeof applyPatch;
 /** @unstable */
 declare const types_bboxTupleToBounds: typeof bboxTupleToBounds;
 /** @unstable */
@@ -3166,7 +3057,6 @@ declare const types_createFieldDef: typeof createFieldDef;
 declare const types_createLocation: typeof createLocation;
 /** @unstable */
 declare const types_dropLocation: typeof dropLocation;
-declare const types_extraPatch: typeof extraPatch;
 /** @unstable */
 declare const types_isImportPreview: typeof isImportPreview;
 declare const types_isPinned: typeof isPinned;
@@ -3175,14 +3065,15 @@ declare const types_isSeenPreview: typeof isSeenPreview;
 declare const types_isVirtualLocation: typeof isVirtualLocation;
 declare const types_isWorldBounds: typeof isWorldBounds;
 declare const types_locId: typeof locId;
+declare const types_patchBetween: typeof patchBetween;
 /** @unstable */
 declare const types_sameRow: typeof sameRow;
 /** @unstable */
 declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare const types_setPinned: typeof setPinned;
 declare namespace types {
-  export { types_applyLocationPatch as applyLocationPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_extraPatch as extraPatch, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
-  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_Tag as Tag, types_TagPatch as TagPatch, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+  export { types_applyPatch as applyPatch, types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_isImportPreview as isImportPreview, types_isPinned as isPinned, types_isSeenPreview as isSeenPreview, types_isVirtualLocation as isVirtualLocation, types_isWorldBounds as isWorldBounds, types_locId as locId, types_patchBetween as patchBetween, types_sameRow as sameRow, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
+  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_Tag as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
 /** An [r, g, b] byte tuple. */
@@ -3549,11 +3440,11 @@ declare function query$1(selector: Selector): {
 declare const getActiveSelections: () => Selection[];
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
 declare function setSelectedLocationIds(ids: SelectedIds): void;
-/** Patch any map's metadata by id and persist it. Updates the open map's state when it is that map.
+/** Patch any map's metadata and persist it. Updates the open map's state when it is that map.
  *  Writes land in the order they were made. */
-declare function patchMapMeta(id: string, patch: MapMetaPatch_Deserialize): Promise<void>;
+declare function patchMapMeta(patch: Patch<MapMeta>): Promise<void>;
 /** `patchMapMeta` for the map open in this window. */
-declare function updateMapMeta(patch: MapMetaPatch_Deserialize): Promise<void> | undefined;
+declare function updateMapMeta(patch: Omit<Patch<MapMeta>, "id">): Promise<void> | undefined;
 /** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
 declare function setMapExtraFields(fields: Record<string, FieldDef>): Promise<void>;
 /** Run a mutation, wait for the scene to draw it, apply its result to the map, and schedule a
@@ -3574,7 +3465,7 @@ declare function duplicateLocation(id: number): Promise<number | null>;
 declare function removeLocations(ids: ReadonlyIdSet): Promise<void>;
 /** Patch locations by id. Only include the fields you're changing; `extra` merges
  *  per-key (null deletes a key). Undoable by default. */
-declare function updateLocations(updates: Update<LocationPatch_Deserialize>[], opts?: {
+declare function updateLocations(updates: Patch<Location>[], opts?: {
     undoable?: boolean;
     join?: number | null;
 }): Promise<void>;
@@ -3663,7 +3554,7 @@ declare function renameTagsIn(tagIds: number[], name: string, selector: Selector
 /** Rename or recolor tags. A rename colliding with an existing tag name
  *  (case-insensitive) merges the two: every location is remapped to the survivor
  *  (undoable) and the emptied source's metadata goes dark. */
-declare function updateTags(updates: Update<TagPatch>[]): Promise<void>;
+declare function updateTags(updates: Patch<Tag>[]): Promise<void>;
 /** Delete tags: strip them from every location in one undoable mutation. The emptied
  *  metadata goes dark (count 0 hides it); undo restores the rows and the tags with
  *  them. Emits `tag:remove`. */
@@ -5213,13 +5104,13 @@ declare namespace picker {
 declare const EVENT_DEFS: {
     "location:add": Location[];
     "location:remove": number[];
-    "location:update": Update<LocationPatch_Deserialize>[];
+    "location:update": Patch<Location>[];
     /** Location data changed in bulk without per-location patches (e.g. a Rust-side
      *  field op). Anything derived from location data must re-query. */
     "location:invalidate": void;
     "tag:add": Tag[];
     "tag:remove": number[];
-    "tag:update": Update<TagPatch>[];
+    "tag:update": Patch<Tag>[];
     "selection:change": Selection[];
     "active:change": number | null;
     "map:open": MapMeta;
@@ -6642,7 +6533,6 @@ export interface DeclOpts {
     force?: boolean;
     fields?: string[];
     requires?: string[];
-    invalidates?: Record<string, string[]>;
 }
 /** Run a single procedure over `selector` and return its typed results. @unstable */
 declare function runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires" | "config"> & {
@@ -7975,5 +7865,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, SyncDirection, SyncTrigger, VIRTUAL_FLAGS, ValidationFlag, commands$1 as commands, events };
-export type { Added, AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, ListedSelection, Location, LocationPatch, LocationPatch_Deserialize, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMetaPatch, MapMetaPatch_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RemoteTag, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, ReviewUpdate, Rows, RowsRun, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncLogEntry, SyncLogResult, SyncPatch, SyncReconcileResult, Update, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, SyncDirection, SyncTrigger, VIRTUAL_FLAGS, ValidationFlag, commands$1 as commands, events };
+export type { Added, AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RemoteTag, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, Rows, RowsRun, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncLogEntry, SyncLogResult, SyncReconcileResult, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };

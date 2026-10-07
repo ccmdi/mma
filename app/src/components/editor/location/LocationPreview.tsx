@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Tag } from "@/types";
-import { createLocation, extraPatch, isImportPreview, isSeenPreview, setPinned } from "@/types";
-import { VIRTUAL_FLAGS } from "@/bindings.consts";
+import { createLocation, isImportPreview, isSeenPreview, patchBetween, setPinned } from "@/types";
+import { LOCATION_MERGED, VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -238,20 +238,9 @@ export function LocationPreview() {
 			return;
 		}
 
-		await updateLocations([
-			{
-				id: location.id,
-				patch: {
-					...pov,
-					lat: draft.lat,
-					lng: draft.lng,
-					panoId: draft.panoId,
-					flags: draft.flags,
-					tags: (await createTags(pendingTags)).map((t) => t.id),
-					extra: extraPatch(location.extra, draft.extra),
-				},
-			},
-		]);
+		const tags = (await createTags(pendingTags)).map((t) => t.id);
+		const saved = { ...draft, ...pov, tags };
+		await updateLocations([{ ...patchBetween(location, saved, LOCATION_MERGED), id: location.id }]);
 		commit(location.id, getMapState().step);
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {

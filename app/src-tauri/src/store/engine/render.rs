@@ -331,7 +331,7 @@ impl Store {
     /// changed selection without moving still gets a patch stating its new state.
     pub(super) fn derive_cell_frames(
         &mut self,
-        changes: &ChangeSet,
+        changes: &Change,
         membership_changed: &HashSet<u32>,
     ) -> [CellFrame; 32] {
         let mut cells: [CellFrame; 32] = array::from_fn(|ci| CellFrame {

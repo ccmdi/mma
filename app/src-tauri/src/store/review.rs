@@ -8,27 +8,35 @@
 //! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
 //! functions below, which carry all the behavior and are unit-tested directly.
 
-use crate::store::storage::{self, push_field};
+use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::now_iso;
+use mma_algebra::Patch;
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
 /// A review session: a frozen worklist of locations with progress tracking.
-#[derive(serde::Serialize, specta::Type)]
+#[derive(Clone, serde::Serialize, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewSession {
+    #[patch(key)]
     pub id: String,
+    #[patch(skip)]
     pub map_id: String,
     pub name: String,
+    #[patch(skip)]
     pub source_key: String,
     #[specta(type = specta_typescript::Any)]
+    #[patch(skip)]
     pub source_props: serde_json::Value,
+    #[patch(column = "ordering")]
     pub order: Vec<u32>,
     pub reviewed: Vec<u32>,
     pub cursor_id: u32,
     pub status: String,
+    #[patch(skip)]
     pub created_at: String,
+    #[patch(skip)]
     pub updated_at: String,
 }
 
@@ -43,19 +51,6 @@ pub struct ReviewCreate {
     #[specta(type = specta_typescript::Any)]
     pub source_props: serde_json::Value,
     pub order: Vec<u32>,
-}
-
-/// Partial update for a review session. Omitted fields are left unchanged.
-#[derive(serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ReviewUpdate {
-    pub id: String,
-    #[serde(default)]
-    pub name: Option<String>,
-    pub cursor_id: Option<u32>,
-    pub reviewed: Option<Vec<u32>>,
-    pub ordering: Option<Vec<u32>>,
-    pub status: Option<String>,
 }
 
 /// SELECT column list shared by all readers, matching `row_to_session` ordinals.
@@ -158,34 +153,6 @@ pub(crate) fn list(
     Ok(out)
 }
 
-/// Applies a partial update. Only `Some` fields are written. Always bumps `updated_at`.
-pub(crate) fn update(conn: &Connection, update: ReviewUpdate) -> AppResult<()> {
-    let mut sets: Vec<&str> = Vec::new();
-    let mut params: Vec<Box<dyn ToSql>> = Vec::new();
-
-    push_field!(sets, params, update, "name", name);
-    push_field!(sets, params, update, "cursor_id", cursor_id);
-    push_field!(json sets, params, update, "reviewed", reviewed);
-    push_field!(json sets, params, update, "ordering", ordering);
-    push_field!(sets, params, update, "status", status);
-    if sets.is_empty() {
-        return Ok(());
-    }
-    sets.push("updated_at = ?");
-    params.push(Box::new(now_iso()));
-    params.push(Box::new(update.id));
-
-    let sql = format!(
-        "UPDATE review_sessions SET {} WHERE id = ?",
-        sets.join(", ")
-    );
-    conn.execute(
-        &sql,
-        rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
-    )?;
-    Ok(())
-}
-
 pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
     conn.execute(
         "DELETE FROM review_sessions WHERE id = ?",
@@ -226,8 +193,11 @@ pub async fn store_review_list(
 /// Apply a partial update to a review session.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_review_update(update: ReviewUpdate) -> AppResult<()> {
-    storage::with_db(move |conn| self::update(conn, update)).await
+pub async fn store_review_update(update: Patch<ReviewSession>) -> AppResult<()> {
+    storage::with_db(move |conn| {
+        storage::update_row::<ReviewSession>(conn, "review_sessions", &update.id, &update)
+    })
+    .await
 }
 
 /// Delete a review session.

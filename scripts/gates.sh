@@ -32,6 +32,7 @@ cargo-fmt         rust  cargo   app/src-tauri  cargo fmt --all -- --check
 clippy            rust  cargo   app/src-tauri  cargo clippy -- -D clippy::correctness
 cargo-test        rust  cargo   app/src-tauri  cargo test --lib
 mma-geo           rust  cargo   app/src-tauri  cargo test -p mma-geo
+mma-algebra       rust  cargo   app/src-tauri  cargo test -p mma-algebra
 geocode           rust  -       app/src-tauri  cargo test --manifest-path crates/geocode/Cargo.toml
 tz                rust  -       app/src-tauri  cargo test --manifest-path crates/tz/Cargo.toml
 bindings          rust  fresh   app            fresh src/bindings.gen.ts src/bindings.consts.ts -- npm run gen:bindings

@@ -61,7 +61,7 @@ describe("Extra field definitions", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { extra: { country: "France" } } }], {
+			await api.updateLocations([{ id: l.id, extra: { country: "France" } }], {
 				undoable: false,
 			});
 		}, loc);
@@ -82,10 +82,9 @@ describe("Extra field definitions", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations(
-				[{ id: l.id, patch: { extra: { newField: "value", altitude: null } } }],
-				{ undoable: false },
-			);
+			await api.updateLocations([{ id: l.id, extra: { newField: "value", altitude: null } }], {
+				undoable: false,
+			});
 		}, loc);
 
 		const reloaded = await getLoc(ids[0]);

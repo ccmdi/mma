@@ -2,7 +2,7 @@
 // sidecar to detect once per distinct pano, and each result line fans back out to every
 // row sharing that pano.
 
-import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "mma-plugin-types";
+import type { Location, Patch } from "mma-plugin-types";
 
 const PLUGIN_ID = "copyright";
 const COMMAND = "detect";
@@ -42,7 +42,7 @@ function yearFitsCapture(extra: Record<string, unknown> | null, year: number): b
 	return captured < 0 || captured <= year;
 }
 
-export function run(rows: Location[]): Update<LocationPatch>[] {
+export function run(rows: Location[]): Patch<Location>[] {
 	if (mma.aborted()) return [];
 
 	const byPano = new Map<string, Location[]>();
@@ -64,7 +64,7 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 		}
 	}
 	const payload = JSON.stringify({ panoIds: [...byPano.keys()], minYears });
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	mma.sidecar(PLUGIN_ID, COMMAND, payload, (line) => {
 		for (const parsed of parseLine(line)) {
 			const group = parsed.panoId ? byPano.get(parsed.panoId) : undefined;
@@ -72,7 +72,7 @@ export function run(rows: Location[]): Update<LocationPatch>[] {
 			for (const row of group) {
 				if (parsed.error) mma.fail(row.id);
 				else if (typeof parsed.year === "number" && yearFitsCapture(row.extra, parsed.year))
-					out.push({ id: row.id, patch: { extra: { copyrightYear: parsed.year } } });
+					out.push({ id: row.id, extra: { copyrightYear: parsed.year } });
 				mma.progress(1);
 			}
 		}

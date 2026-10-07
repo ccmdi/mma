@@ -296,7 +296,7 @@ impl Store {
     /// update whose OLD position sat on an edge, can shrink it, which needs the next
     /// extreme point: the bounds are left at `before` and the next read rescans.
     /// `removed` carries ids only (no coords), so any removal is conservative.
-    pub(super) fn update_bounds(&mut self, changes: &ChangeSet, before: u64) {
+    pub(super) fn update_bounds(&mut self, changes: &Change, before: u64) {
         let Some(at) = self.bounds.if_built_mut().filter(|b| b.current(before)) else {
             return;
         };

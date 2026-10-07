@@ -85,11 +85,7 @@ pub(super) fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<
         if !lat.is_finite() || !lng.is_finite() {
             continue;
         }
-        // `+ 0.0` folds -0.0 into +0.0 so the two compare equal.
-        groups
-            .entry(((lat + 0.0).to_bits(), (lng + 0.0).to_bits()))
-            .or_default()
-            .push(i);
+        groups.entry(coord_key(lat, lng)).or_default().push(i);
     }
     groups
 }
@@ -294,9 +290,8 @@ impl Index {
                 });
             }
             Lookup::Exact(groups) => {
-                let key = ((lat + 0.0).to_bits(), (lng + 0.0).to_bits());
                 groups
-                    .get(&key)
+                    .get(&coord_key(lat, lng))
                     .into_iter()
                     .flatten()
                     .for_each(|&pi| hit(pi));
@@ -305,6 +300,11 @@ impl Index {
         out.sort_unstable_by(|a, b| a.dist_m.total_cmp(&b.dist_m).then_with(|| a.id.cmp(&b.id)));
         out
     }
+}
+
+/// The exact position a point sits at, as a key: -0.0 and +0.0 are one position.
+pub(crate) fn coord_key(lat: f64, lng: f64) -> (u64, u64) {
+    ((lat + 0.0).to_bits(), (lng + 0.0).to_bits())
 }
 
 #[cfg(test)]

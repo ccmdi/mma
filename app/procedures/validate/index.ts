@@ -8,7 +8,7 @@
 // `mma.panos`, so a batch of any size costs a fixed number of rounds.
 
 import type { ProcedureConfig } from "@/bindings.gen";
-import type { Location, Pano, PanoAnswer, Update } from "@/bindings.gen";
+import type { Location, Pano, PanoAnswer } from "@/bindings.gen";
 import type { ValidateConfig } from "@/lib/sv/validate";
 import type { ValidationAnswer } from "@/lib/sv/validationCategories";
 import { capturedAfter, isOfficialPano, isUnofficial, pickCapture } from "@/lib/sv/panoId";
@@ -43,7 +43,7 @@ function behindOwnTimeline(p: Pano): boolean {
 export function run(
 	rows: Location[],
 	cfg: ProcedureConfig<Partial<ValidateConfig>>,
-): Update<ValidationAnswer>[] {
+): ({ id: number } & ValidationAnswer)[] {
 	const radius = cfg.config?.radius ?? SV_SEARCH_RADIUS;
 	if (rows.length === 0 || mma.aborted()) return [];
 
@@ -109,5 +109,5 @@ export function run(
 		if (defaultNewer || storedBehind) it.flags |= ValidationFlag.Newer;
 	}
 
-	return items.map((it) => ({ id: it.row.id, patch: { flags: it.flags, pinned: it.pinned } }));
+	return items.map((it) => ({ id: it.row.id, flags: it.flags, pinned: it.pinned }));
 }

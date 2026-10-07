@@ -88,7 +88,7 @@ describe("JSON import/export round-trip", () => {
 		const ieLoc = await getLoc(locIds[0]);
 		await withApi(
 			async (api, loc, tag: { id: number; name: string; color: string }) => {
-				await api.updateLocations([{ id: loc.id, patch: { tags: [tag.id] } }]);
+				await api.updateLocations([{ id: loc.id, tags: [tag.id] }]);
 			},
 			ieLoc,
 			ieTag,
@@ -144,7 +144,7 @@ describe("JSON import/export round-trip", () => {
 	it("export with exportUnpanned tweaks heading=0 to 0.001", async () => {
 		const hLoc = await getLoc(locIds[1]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, patch: { heading: 0 } }]);
+			await api.updateLocations([{ id: l.id, heading: 0 }]);
 		}, hLoc);
 
 		const result = await withApi(async (api) => {

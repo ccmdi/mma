@@ -8,6 +8,7 @@ const storeFindNearby = vi.fn();
 const parseMapsUrl = vi.fn();
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => null,
 		storeResolvePick: (...a: unknown[]) => storeResolvePick(...a),
 		storeFindNearby: (...a: unknown[]) => storeFindNearby(...a),
 		parseMapsUrl: (...a: unknown[]) => parseMapsUrl(...a),

@@ -1,10 +1,11 @@
+import type { Patch } from "@/types";
 // Pano id from coordinates, Run and Query shapes. A row that already carries a pano id is
 // left alone: enrichment fills in what is missing, it does not replace a pano the user
 // picked deliberately. A forced run re-resolves it: with a capture pick, within the stored
 // pano's own timeline; without one, from its coordinates.
 
 import type { ProcedureConfig } from "@/bindings.gen";
-import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
+import type { Location } from "@/bindings.gen";
 import { SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { pickCapture } from "@/lib/sv/panoId";
 import type { Pano } from "@/bindings.gen";
@@ -14,7 +15,7 @@ import type { PanoResolveConfig } from "@/lib/sv/providers";
 export function run(
 	rows: Location[],
 	cfg: ProcedureConfig<Partial<PanoResolveConfig>>,
-): Update<LocationPatch>[] {
+): Patch<Location>[] {
 	const radius = cfg.config?.radius ?? SV_SEARCH_RADIUS;
 	const force = cfg.force;
 	const sources = cfg.config?.sources;
@@ -30,7 +31,7 @@ export function run(
 		),
 	);
 
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	todo.forEach((row, i) => {
 		const a = answers[i];
 		// A skipped answer is a cancelled run's declined request: neither a result nor
@@ -38,7 +39,7 @@ export function run(
 		if (a.state === "skipped") return;
 		const panoId =
 			a.state !== "found" ? null : capture ? pickCapture(a.pano.time, capture)?.panoId : a.pano.id;
-		if (panoId) out.push({ id: row.id, patch: { panoId } });
+		if (panoId) out.push({ id: row.id, panoId });
 		else mma.fail(row.id);
 		mma.progress(1);
 	});

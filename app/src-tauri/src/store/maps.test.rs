@@ -780,7 +780,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         serde_json::to_value(&copy.extra).unwrap(),
         serde_json::to_value(&source.extra).unwrap()
     );
-    assert_eq!(copy.tags.len(), 1);
+    assert_eq!(copy.tags.0.len(), 1);
     assert_eq!(copy.location_count, 2);
     assert_eq!(
         copy.pending.added, 0,
@@ -808,13 +808,15 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         assert_eq!(n, 0, "{table} came along");
     }
 
-    update_map_meta_row(
+    storage::update_row::<MapMeta>(
         &conn,
+        "maps",
         "copy",
         &MapMetaPatch {
+            id: "copy".into(),
             name: Some("Renamed".into()),
             settings: Some(MapSettings::default()),
-            ..MapMetaPatch::default()
+            ..Patch::<MapMeta>::default()
         },
     )
     .unwrap();
@@ -837,4 +839,25 @@ fn duplicating_a_missing_map_writes_nothing() {
         .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
         .unwrap();
     assert_eq!(maps, 1);
+}
+
+#[test]
+fn tag_records_read_and_write_the_one_column_format() {
+    let stored = r#"{"7":{"id":7,"name":"a","visible":true,"color":"red"},"x":{"name":"b"}}"#;
+    let records: TagRecords = serde_json::from_str(stored).unwrap();
+    assert_eq!(
+        records.0,
+        HashMap::from([(
+            7,
+            serde_json::json!({ "name": "a", "color": "red" })
+                .as_object()
+                .unwrap()
+                .clone()
+        )])
+    );
+    let written = serde_json::to_value(&records).unwrap();
+    assert_eq!(
+        written,
+        serde_json::json!({ "7": { "id": 7, "name": "a", "color": "red" } })
+    );
 }

@@ -301,7 +301,7 @@ describe("Tag color update", () => {
 	});
 	it("can update tag color", async () => {
 		await withApi(async (api, tagId) => {
-			await api.updateTags([{ id: tagId, patch: { color: "#ff0000" } }]);
+			await api.updateTags([{ id: tagId, color: "#ff0000" }]);
 		}, colorTagId);
 
 		const color = await withApi(async (api, tagId) => {
@@ -312,7 +312,7 @@ describe("Tag color update", () => {
 
 	it("tag color persists after save/close/reopen", async () => {
 		await withApi(async (api, tagId) => {
-			await api.updateTags([{ id: tagId, patch: { color: "#00ff00" } }]);
+			await api.updateTags([{ id: tagId, color: "#00ff00" }]);
 		}, colorTagId);
 
 		await flushAndWait();

@@ -129,12 +129,19 @@ impl Fx {
     }
 }
 
-/// Build a [`crate::store::engine::LocationPatch`] from only the fields it sets.
+/// Build a `Patch<Location>` from only the fields it sets.
 /// Each value is wrapped in one `Some`, so nullable fields take the inner option:
-/// `patch!(pano_id: None)` clears the pano id.
+/// `patch!(pano_id: None)` clears the pano id; `patch!(7; heading: 90.0)` names row 7.
 macro_rules! patch {
+    ($id:expr; $($field:ident: $value:expr),* $(,)?) => {
+        mma_algebra::Patch::<crate::types::Location> {
+            id: $id,
+            $($field: Some($value),)*
+            ..Default::default()
+        }
+    };
     ($($field:ident: $value:expr),* $(,)?) => {
-        crate::store::engine::LocationPatch {
+        mma_algebra::Patch::<crate::types::Location> {
             $($field: Some($value),)*
             ..Default::default()
         }

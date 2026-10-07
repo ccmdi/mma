@@ -1,12 +1,5 @@
-import type {
-	Conflict,
-	Location,
-	LocationPatch_Deserialize,
-	NormalizedSyncLocation,
-	SideCounts,
-	SyncPatch,
-	Update,
-} from "@/bindings.gen";
+import type { Conflict, Location, NormalizedSyncLocation, SideCounts } from "@/bindings.gen";
+import type { Patch } from "@/types";
 import type { FirstSyncMode } from "@/bindings.consts";
 import type { SyncProvider } from "./provider";
 import type { IdentityKey, RemoteMappingRow, SyncStore } from "./syncStore";
@@ -48,19 +41,14 @@ function fieldsToLocal(
 	};
 }
 
-/** Build a local patch from a remote-originated `SyncPatch`, resolving tag names to ids. */
-function patchToLocal(p: SyncPatch, tagId: TagId): LocationPatch_Deserialize {
-	const patch: LocationPatch_Deserialize = {};
-	if (p.lat !== null) patch.lat = p.lat;
-	if (p.lng !== null) patch.lng = p.lng;
-	if (p.heading !== null) patch.heading = p.heading;
-	if (p.pitch !== null) patch.pitch = p.pitch;
-	if (p.zoom !== null) patch.zoom = p.zoom;
-	if (p.panoIdSet) patch.panoId = p.panoId;
-	if (p.flags !== null) patch.flags = p.flags;
-	if (p.tags !== null) patch.tags = p.tags.map(tagId).filter((id): id is number => id != null);
-	if (p.extra !== null) patch.extra = p.extra;
-	return patch;
+/** A remote-originated patch as a local one, its tag names resolved to ids. */
+function patchToLocal(
+	{ tags, ...patch }: Partial<NormalizedSyncLocation>,
+	tagId: TagId,
+): Partial<Location> {
+	return tags
+		? { ...patch, tags: tags.map(tagId).filter((id): id is number => id != null) }
+		: patch;
 }
 
 /**
@@ -112,7 +100,7 @@ export async function reconcile(
 		const color = new Map(result.neededTags.map((t) => [t.name, t.color]));
 		const recolors = created
 			.filter((t) => !existing.has(t.id) && color.get(t.name) != null)
-			.map((t) => ({ id: t.id, patch: { color: color.get(t.name)! } }));
+			.map((t) => ({ id: t.id, color: color.get(t.name)! }));
 		if (recolors.length) await M.updateTags(recolors);
 	}
 	const tagId: TagId = (name) => nameToId.get(name);
@@ -131,10 +119,10 @@ export async function reconcile(
 		await store.upsertMapping(rows);
 	}
 
-	const updates: Update<LocationPatch_Deserialize>[] = [];
+	const updates: Patch<Location>[] = [];
 	for (const u of result.pullUpdates) {
 		const patch = patchToLocal(u.patch, tagId);
-		if (Object.keys(patch).length) updates.push({ id: u.localId, patch });
+		if (Object.keys(patch).length) updates.push({ ...patch, id: u.localId });
 	}
 	if (updates.length) {
 		assertStillOpen();

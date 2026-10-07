@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition } from "react";
-import type { Tag, TagPatch } from "@/types";
+import type { Patch, Tag } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
 	deleteTags,
@@ -13,7 +13,7 @@ import {
 } from "@/store/useMapStore";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import type { TagSortMode } from "@/types";
-import type { Selector, Update, VirtualTag } from "@/bindings.gen";
+import type { Selector, VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -53,7 +53,6 @@ import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
 /** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
-type OptimisticTagPatch = TagPatch & { order?: number };
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -97,22 +96,20 @@ export function TagManager() {
 	// over the store tags for the lifetime of the mutation; React drops them once the transition
 	// settles (by which point the store reflects the change), so a rename/recolor/drag-reorder
 	// renders in the same frame as the virtualTags/expansion updates
-	const [tags, addOptimisticTags] = useOptimistic(
-		storeTags,
-		(cur: Tag[], updates: Update<OptimisticTagPatch>[]) =>
-			cur.map((t) => {
-				const u = updates.find((x) => x.id === t.id);
-				if (!u) return t;
-				return {
-					...t,
-					...(u.patch.name != null ? { name: u.patch.name } : {}),
-					...(u.patch.color != null ? { color: u.patch.color } : {}),
-					...(u.patch.order != null ? { order: u.patch.order } : {}),
-				};
-			}),
+	const [tags, addOptimisticTags] = useOptimistic(storeTags, (cur: Tag[], updates: Patch<Tag>[]) =>
+		cur.map((t) => {
+			const u = updates.find((x) => x.id === t.id);
+			if (!u) return t;
+			return {
+				...t,
+				...(u.name != null ? { name: u.name } : {}),
+				...(u.color != null ? { color: u.color } : {}),
+				...(u.order != null ? { order: u.order } : {}),
+			};
+		}),
 	);
 	const commitTags = useCallback(
-		(updates: Update<TagPatch>[]) => {
+		(updates: Patch<Tag>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
 				await updateTags(updates);
@@ -123,7 +120,7 @@ export function TagManager() {
 	const commitReorder = useCallback(
 		({ orderedIds, virtualTags }: FlatOrder) => {
 			startTransition(async () => {
-				addOptimisticTags(orderedIds.map((id, i) => ({ id, patch: { order: i } })));
+				addOptimisticTags(orderedIds.map((id, i) => ({ id, order: i })));
 				await reorderTags(orderedIds);
 			});
 			setVirtualTags(virtualTags);
@@ -134,13 +131,13 @@ export function TagManager() {
 		(move: TagMoveResult) => {
 			startTransition(async () => {
 				// One merged patch per id -- the optimistic reducer applies the first match only.
-				const patchById = new Map<number, OptimisticTagPatch>();
-				move.orderedIds.forEach((id, i) => patchById.set(id, { order: i }));
+				const patchById = new Map<number, Patch<Tag>>();
+				move.orderedIds.forEach((id, i) => patchById.set(id, { id, order: i }));
 				for (const r of move.tagRenames)
-					patchById.set(r.id, { ...patchById.get(r.id), name: r.name });
-				addOptimisticTags([...patchById].map(([id, patch]) => ({ id, patch })));
+					patchById.set(r.id, { ...patchById.get(r.id), id: r.id, name: r.name });
+				addOptimisticTags([...patchById.values()]);
 				if (move.tagRenames.length)
-					await updateTags(move.tagRenames.map((r) => ({ id: r.id, patch: { name: r.name } })));
+					await updateTags(move.tagRenames.map((r) => ({ id: r.id, name: r.name })));
 				await reorderTags(move.orderedIds);
 			});
 			setVirtualTags(move.virtualTags);
@@ -153,7 +150,7 @@ export function TagManager() {
 
 	// Stamp `color` onto `tagIds`, and with a `root` onto every folder node at or under it too.
 	const recolor = (tagIds: number[], root: string | null, color: string) => {
-		commitTags(tagIds.map((id) => ({ id, patch: { color } })));
+		commitTags(tagIds.map((id) => ({ id, color })));
 		if (root == null) return;
 		const nextVT = { ...virtualTags };
 		for (const t of tags) {
@@ -172,8 +169,7 @@ export function TagManager() {
 			virtualTags: nextVT,
 			aliases: nextAliases,
 		} = cascadeRename(oldPath, newPath, tags, virtualTags, aliases);
-		if (tagRenames.length)
-			commitTags(tagRenames.map((r) => ({ id: r.id, patch: { name: r.name } })));
+		if (tagRenames.length) commitTags(tagRenames.map((r) => ({ id: r.id, name: r.name })));
 		if (folder) nextVT[newPath] = { ...nextVT[newPath], ...folder };
 		setVirtualTags(nextVT);
 		setAliases(nextAliases);
@@ -428,7 +424,7 @@ function EditTagDialog({
 }: DialogProps & {
 	tag: { id: number; name: string; color: string };
 	/** Routes tag updates through the optimistic overlay. */
-	commit: (updates: Update<TagPatch>[]) => void;
+	commit: (updates: Patch<Tag>[]) => void;
 	aliases: Record<string, number>;
 	setAliases: (v: Record<string, number>) => void;
 }) {
@@ -455,7 +451,7 @@ function EditTagDialog({
 
 	const handleSave = () => {
 		const newName = name.trim() || tag.name;
-		commit([{ id: tag.id, patch: { name: newName, color: hexValue } }]);
+		commit([{ id: tag.id, name: newName, color: hexValue }]);
 		if (newName !== tag.name) {
 			const synced = syncAliasSegments(aliases, [{ id: tag.id, oldName: tag.name, newName }]);
 			if (synced) setAliases(synced);

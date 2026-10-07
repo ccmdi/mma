@@ -1,15 +1,9 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import type { Tag, TagPatch } from "@/types";
+import type { Patch, Tag } from "@/types";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
 import { log } from "@/lib/util/log";
-import type {
-	Location,
-	Update,
-	LocationPatch_Deserialize,
-	MapMeta,
-	Selection,
-} from "@/bindings.gen";
+import type { Location, MapMeta, Selection } from "@/bindings.gen";
 
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;
@@ -17,13 +11,13 @@ const event = <T>() => null as T;
 const EVENT_DEFS = {
 	"location:add": event<Location[]>(),
 	"location:remove": event<number[]>(),
-	"location:update": event<Update<LocationPatch_Deserialize>[]>(),
+	"location:update": event<Patch<Location>[]>(),
 	/** Location data changed in bulk without per-location patches (e.g. a Rust-side
 	 *  field op). Anything derived from location data must re-query. */
 	"location:invalidate": event<void>(),
 	"tag:add": event<Tag[]>(),
 	"tag:remove": event<number[]>(),
-	"tag:update": event<Update<TagPatch>[]>(),
+	"tag:update": event<Patch<Tag>[]>(),
 	"selection:change": event<Selection[]>(),
 	"active:change": event<number | null>(),
 	"map:open": event<MapMeta>(),

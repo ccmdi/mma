@@ -1,8 +1,4 @@
-import type {
-	FieldDef,
-	Location,
-	LocationPatch_Deserialize as LocationPatch,
-} from "@/bindings.gen";
+import type { FieldDef, Location } from "@/bindings.gen";
 import type { FieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
@@ -28,7 +24,8 @@ export interface Tag {
 }
 
 /** Partial update to a tag's editable display metadata; `null` clears the field. */
-export type TagPatch = { [K in "name" | "color" | "doclinks"]?: Tag[K] | null };
+/** A change to some of row `id`'s fields. */
+export type Patch<T extends { id: unknown }> = Partial<T> & Pick<T, "id">;
 
 /** Street View camera orientation (POV). */
 export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
@@ -76,20 +73,34 @@ export function setPinned(loc: Location, on: boolean): Location {
 	};
 }
 
-/** The `extra` merge patch that turns `before` into `after`: changed keys carry their
- *  new value, keys `after` lacks carry null. */
-export function extraPatch(
-	before: Record<string, unknown> | null,
-	after: Record<string, unknown> | null,
-): Record<string, unknown> {
+/** The patch that turns `old` into `next`: each field that changed, a `merged` field as only
+ *  its changed keys, and null for a key `next` lacks. */
+export function patchBetween<T extends object>(
+	old: T,
+	next: T,
+	merged: readonly string[] = [],
+): Partial<T> {
+	const [a, b] = [old as Record<string, unknown>, next as Record<string, unknown>];
 	const patch: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(after ?? {})) {
-		if (JSON.stringify(before?.[key] ?? null) !== JSON.stringify(value ?? null)) patch[key] = value;
+	for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+		if (merged.includes(key)) {
+			const keys = patchBetween((a[key] ?? {}) as object, (b[key] ?? {}) as object);
+			if (Object.keys(keys).length > 0) patch[key] = keys;
+		} else if (!same(a[key] ?? null, b[key] ?? null)) {
+			patch[key] = b[key] ?? null;
+		}
 	}
-	for (const key of Object.keys(before ?? {})) {
-		if (!(key in (after ?? {}))) patch[key] = null;
-	}
-	return patch;
+	return patch as Partial<T>;
+}
+
+/** Whether two values hold the same thing; an object's key order never matters. */
+function same(a: unknown, b: unknown): boolean {
+	if (a === b) return true;
+	if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
+	if (Array.isArray(a) !== Array.isArray(b)) return false;
+	const [x, y] = [a as Record<string, unknown>, b as Record<string, unknown>];
+	const keys = Object.keys(x);
+	return keys.length === Object.keys(y).length && keys.every((k) => same(x[k], y[k]));
 }
 
 /** The same location on the same pano: what makes one row's answer another row's. @unstable */
@@ -157,24 +168,28 @@ export function dropLocation(
 	});
 }
 
-/** Apply a LocationPatch to a location. `extra` follows JSON Merge Patch (RFC 7386):
- *  keys shallow-merge, a null value deletes its key, and a null patch clears extra. */
-export function applyLocationPatch(loc: Location, patch: LocationPatch): Location {
-	const { extra: extraPatch, ...rest } = patch;
-	const next = { ...loc, ...rest } as Location;
-	if (extraPatch !== undefined) {
-		if (extraPatch === null) {
-			next.extra = null;
-		} else {
-			const merged: Record<string, unknown> = { ...loc.extra };
-			for (const [k, v] of Object.entries(extraPatch as Record<string, unknown>)) {
-				if (v === null) delete merged[k];
-				else merged[k] = v;
-			}
-			next.extra = Object.keys(merged).length > 0 ? merged : null;
+/** `row` with `patch` written over it. An absent field is unchanged, and a `merged` field
+ *  changes key by key, a null value deleting its key, and is null once empty. */
+export function applyPatch<T extends object>(
+	row: T,
+	patch: { [K in keyof T]?: unknown },
+	merged: readonly string[] = [],
+): T {
+	const next = { ...row } as Record<string, unknown>;
+	for (const [key, value] of Object.entries(patch)) {
+		if (value === undefined) continue;
+		if (value === null || !merged.includes(key)) {
+			next[key] = value;
+			continue;
 		}
+		const keys: Record<string, unknown> = { ...(next[key] as object | null) };
+		for (const [k, v] of Object.entries(value)) {
+			if (v === null) delete keys[k];
+			else keys[k] = v;
+		}
+		next[key] = Object.keys(keys).length > 0 ? keys : null;
 	}
-	return next;
+	return next as T;
 }
 
 export type SortMode = "name" | "created" | "opened" | "amount";

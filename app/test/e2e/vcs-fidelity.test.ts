@@ -74,7 +74,7 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		const loc2 = await getLoc(ids[2]);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, patch: { extra: { note: "hello", score: 42 } } }], {
+				api.updateLocations([{ id: l.id, extra: { note: "hello", score: 42 } }], {
 					undoable: false,
 				}),
 			loc2,
@@ -100,14 +100,14 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		const loc0 = await getLoc(ids[0]);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, patch: { heading: 270, lat: 1.111, panoId: "PANO_A2" } }]),
+				api.updateLocations([{ id: l.id, heading: 270, lat: 1.111, panoId: "PANO_A2" }]),
 			loc0,
 		);
 		await withApi(async (api, t, c) => api.addTagToLocations(t, [c]), tagId, ids[2]);
 		const loc2 = await getLoc(ids[2]);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, patch: { extra: { note: "changed" } } }], {
+				api.updateLocations([{ id: l.id, extra: { note: "changed" } }], {
 					undoable: false,
 				}),
 			loc2,
@@ -180,10 +180,7 @@ describe("VCS commit-diff badge accuracy", () => {
 
 	it("a pure modification counts as ~1, not an add/remove", async () => {
 		const loc0 = await getLoc(ids[0]);
-		await withApi(
-			async (api, l) => api.updateLocations([{ id: l.id, patch: { heading: 123 } }]),
-			loc0,
-		);
+		await withApi(async (api, l) => api.updateLocations([{ id: l.id, heading: 123 }]), loc0);
 		const [added, removed, modified] = await commitDiff();
 		expect([added, removed]).toEqual([0, 0]);
 		expect(modified).toBe(1);

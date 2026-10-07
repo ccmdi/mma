@@ -138,7 +138,7 @@ pub async fn store_commit(
             Vec::new()
         };
 
-        let status = store.finish_mutation(&engine::ChangeSet::default());
+        let status = store.finish_mutation(&engine::Change::default());
         (pre_bake, current_fallback, location_count, status)
     };
     let t_bake = _t.elapsed();

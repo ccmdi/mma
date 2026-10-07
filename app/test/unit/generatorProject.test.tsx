@@ -16,6 +16,7 @@ vi.mock("@/store/mapList", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => null,
 		storeUpdateMapMeta: vi.fn(async () => null),
 		storeSaveDirty: vi.fn(async () => null),
 	},

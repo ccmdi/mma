@@ -30,6 +30,7 @@ const result = (
 	version: 0,
 	selectionSync: null,
 	step: null,
+	active: null,
 	values: {
 		locationCount: null,
 		canUndo: null,

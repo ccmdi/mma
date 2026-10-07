@@ -1,17 +1,18 @@
+import type { Patch } from "@/types";
 // Heading along the road, Run shape: "forwards" faces the driving direction, "backwards"
 // the opposite.
 
 import type { ProcedureConfig } from "@/bindings.gen";
-import type { Location, Update, LocationPatch_Deserialize as LocationPatch } from "@/bindings.gen";
+import type { Location } from "@/bindings.gen";
 import { reverseHeading } from "@/lib/geo/geo";
 import type { HeadingRoadConfig } from "@/lib/sv/headingRoad";
 
 export function run(
 	rows: Location[],
 	cfg: ProcedureConfig<Partial<HeadingRoadConfig>>,
-): Update<LocationPatch>[] {
+): Patch<Location>[] {
 	const backwards = cfg.config?.direction === "backwards";
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	const answers = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 
 	for (let i = 0; i < rows.length; i++) {
@@ -26,7 +27,7 @@ export function run(
 		}
 		if (a.pano.pov) {
 			const dir = a.pano.centerHeading;
-			out.push({ id: row.id, patch: { heading: backwards ? reverseHeading(dir) : dir } });
+			out.push({ id: row.id, heading: backwards ? reverseHeading(dir) : dir });
 		}
 		mma.progress(1);
 	}

@@ -6,6 +6,7 @@ use crate::store::engine::{render_cell_idx, Store, StoreManager};
 use crate::test_util::loc;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
+use mma_algebra::{Patch, Patchable};
 use std::env;
 use std::thread;
 use tokio::time;
@@ -21,7 +22,10 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     store.map_id = Some(map_id.clone());
     store.batch = Some(arrow::locations_to_batch(&[]));
     for l in locs {
-        store.overlay_add(vec![l.clone()]);
+        store.put(&Change {
+            added: vec![l.clone()],
+            ..Change::default()
+        });
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
@@ -61,7 +65,6 @@ fn decl(id: &str, batch: BatchMode) -> ProviderDecl {
         procedure: procedure_decl("mock"),
         fields: Vec::new(),
         requires: Vec::new(),
-        invalidates: HashMap::new(),
         select: Selector::Everything,
         batch,
         sink: Sink::Patch,
@@ -93,7 +96,7 @@ fn batch_rows(batch: &[u8]) -> AppResult<Vec<Location>> {
     serde_json::from_slice(batch).map_err(|e| AppError(format!("batch JSON is invalid: {e}")))
 }
 
-type MapFn = Arc<dyn Fn(&[Location]) -> AppResult<Vec<PatchEntry>> + Send + Sync>;
+type MapFn = Arc<dyn Fn(&[Location]) -> AppResult<Vec<ResultEntry>> + Send + Sync>;
 
 struct MockProc {
     shape: ProcShape,
@@ -106,7 +109,7 @@ struct MockProc {
 }
 
 impl MockProc {
-    fn handle(&mut self, batch: &[u8]) -> AppResult<Vec<PatchEntry>> {
+    fn handle(&mut self, batch: &[u8]) -> AppResult<Vec<ResultEntry>> {
         let rows = batch_rows(batch)?;
         self.seen
             .lock()
@@ -125,7 +128,7 @@ impl Procedure for MockProc {
         batch: &[u8],
         host: &mut dyn ProcHost,
         _config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         if let Some(id) = self.fail_id {
             host.fail(id);
         }
@@ -136,7 +139,7 @@ impl Procedure for MockProc {
         batch: &[u8],
         host: &mut dyn ProcHost,
         _config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         if self.fetches {
             fetch_one(host, "https://example.invalid/")?;
         }
@@ -233,14 +236,14 @@ impl Harness {
     }
 }
 
-/// Every row gets the same `LocationPatch` JSON.
+/// Every row gets the same `Patch<Location>` JSON.
 fn patch_all(json: &'static str) -> MapFn {
     Arc::new(move |rows: &[Location]| {
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: json.to_string(),
+                json: json.to_string(),
             })
             .collect())
     })
@@ -252,9 +255,9 @@ fn patch_extra_all(json: &'static str) -> MapFn {
         let patch = format!(r#"{{"extra":{json}}}"#);
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: patch.clone(),
+                json: patch.clone(),
             })
             .collect())
     })
@@ -361,9 +364,9 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
     let h = Harness::map_only(Arc::new(move |rows: &[Location]| {
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: if r.id == 2 {
+                json: if r.id == 2 {
                     b_ran
                         .lock()
                         .unwrap()
@@ -770,9 +773,9 @@ fn cancel_stops_before_the_next_batch_and_keeps_applied_patches() {
         f.store(true, Ordering::Relaxed);
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: r#"{"extra":{"hit":true}}"#.into(),
+                json: r#"{"extra":{"hit":true}}"#.into(),
             })
             .collect())
     });
@@ -801,9 +804,9 @@ fn cancel_with_more_batches_queued_than_the_queue_holds_still_lands_and_returns(
         f.store(true, Ordering::Relaxed);
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: r#"{"extra":{"hit":true}}"#.into(),
+                json: r#"{"extra":{"hit":true}}"#.into(),
             })
             .collect())
     });
@@ -855,30 +858,28 @@ fn null_in_a_merge_patch_deletes_the_key() {
 }
 
 #[test]
-fn a_patch_that_sets_nothing_is_dropped() {
+fn a_patch_that_sets_nothing_changes_nothing() {
+    let mut row = loc(1, 1.0, 2.0);
+    row.extra = RawExtra::from_map(&serde_json::json!({ "a": 1 }).as_object().unwrap().clone());
     for json in [r#"{}"#, r#"{"extra":{}}"#] {
-        let updates = to_updates(
-            &[PatchEntry {
-                id: 1,
-                patch: json.into(),
-            }],
-            &[],
-            &HashMap::new(),
-        )
+        let patches = to_patches(&[ResultEntry {
+            id: 1,
+            json: json.into(),
+        }])
         .unwrap();
-        assert!(updates.is_empty(), "{json} should produce no update");
+        assert_eq!(row.patched(&patches[0]), row, "{json} changed the row");
     }
 }
 
-/// Every key `patch_keys()` reports must actually deserialize into its field: the keys
+/// Every key `<Location as Patchable>::WRITES` names must actually deserialize into its field: the keys
 /// come from serializing the type, so a `rename_all` or attribute mismatch between the
 /// two directions would otherwise pass silently. The destructuring below has no `..`,
-/// so a new `LocationPatch` field breaks this test at compile time.
+/// so a new `Patch<Location>` field breaks this test at compile time.
 #[test]
 fn patch_keys_cover_every_location_patch_field() {
     let mut obj = serde_json::Map::new();
-    for key in patch_keys() {
-        let sample = match key.as_str() {
+    for (key, _) in <Location as Patchable>::WRITES {
+        let sample = match *key {
             "lat" | "lng" | "heading" | "pitch" | "zoom" => serde_json::json!(1.5),
             "panoId" => serde_json::json!("PANO_X"),
             "flags" | "createdAt" | "modifiedAt" => serde_json::json!(3),
@@ -886,11 +887,13 @@ fn patch_keys_cover_every_location_patch_field() {
             "extra" => serde_json::json!({ "a": 1 }),
             other => panic!("no sample value for patch key `{other}`"),
         };
-        obj.insert(key.clone(), sample);
+        obj.insert((*key).to_string(), sample);
     }
+    obj.insert("id".into(), serde_json::json!(3));
     let json = serde_json::Value::Object(obj).to_string();
-    let p: LocationPatch = serde_json::from_str(&json).unwrap();
-    let LocationPatch {
+    let p: Patch<Location> = serde_json::from_str(&json).unwrap();
+    let Patch::<Location> {
+        id: _,
         lat,
         lng,
         heading,
@@ -922,14 +925,10 @@ fn patch_keys_cover_every_location_patch_field() {
 
 #[test]
 fn an_unknown_key_names_itself_in_the_error() {
-    let Err(err) = to_updates(
-        &[PatchEntry {
-            id: 1,
-            patch: r#"{"lat":1,"nope":2}"#.into(),
-        }],
-        &[],
-        &HashMap::new(),
-    ) else {
+    let Err(err) = to_patches(&[ResultEntry {
+        id: 1,
+        json: r#"{"lat":1,"nope":2}"#.into(),
+    }]) else {
         panic!("an unknown key must fail the batch");
     };
     assert!(err.0.contains("nope"), "{}", err.0);
@@ -939,14 +938,10 @@ fn an_unknown_key_names_itself_in_the_error() {
 fn a_patch_that_is_not_an_object_is_an_error() {
     for json in [r#"[{"lat":1}]"#, r#""lat""#, "7"] {
         assert!(
-            to_updates(
-                &[PatchEntry {
-                    id: 1,
-                    patch: json.into()
-                }],
-                &[],
-                &HashMap::new()
-            )
+            to_patches(&[ResultEntry {
+                id: 1,
+                json: json.into()
+            }])
             .is_err(),
             "{json} should not parse as a patch"
         );
@@ -1037,6 +1032,12 @@ fn force_false_skips_rows_that_already_hold_every_field() {
     );
 }
 
+fn computed_from(state: &StoreState, map_id: &str, input: &str, outputs: &[&str]) {
+    let outputs = outputs.iter().map(ToString::to_string).collect();
+    let edges = HashMap::from([(input.to_string(), outputs)]);
+    state.lock().unwrap().store_for_map(map_id).unwrap().derived = Arc::new(edges);
+}
+
 #[test]
 fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them() {
     let row = |id: u32, month: &str| Location {
@@ -1048,14 +1049,12 @@ fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them(
     let (state, map_id) = setup(&[row(1, "2020-01"), row(2, "2021-05")]);
     let mut d = decl("meta", BatchMode::PerRow);
     d.fields = vec!["imageDate".into()];
-    d.invalidates = HashMap::from([(
-        "imageDate".to_string(),
-        vec![
-            "datetime".to_string(),
-            "timezone".to_string(),
-            "sunAzimuth".to_string(),
-        ],
-    )]);
+    computed_from(
+        &state,
+        &map_id,
+        "imageDate",
+        &["datetime", "timezone", "sunAzimuth"],
+    );
     let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05"}"#));
     let mut ctx = h.ctx(&state, &map_id);
     ctx.force = true;
@@ -1085,7 +1084,7 @@ fn a_patch_that_writes_a_dependent_itself_keeps_that_value() {
     let (state, map_id) = setup(&[one]);
     let mut d = decl("meta", BatchMode::PerRow);
     d.fields = vec!["imageDate".into(), "datetime".into()];
-    d.invalidates = HashMap::from([("imageDate".to_string(), vec!["datetime".to_string()])]);
+    computed_from(&state, &map_id, "imageDate", &["datetime"]);
     let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05","datetime":456}"#));
     let mut ctx = h.ctx(&state, &map_id);
     ctx.force = true;
@@ -1148,16 +1147,16 @@ impl Procedure for RunProc {
         batch: &[u8],
         host: &mut dyn ProcHost,
         _config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         let rows = batch_rows(batch)?;
         fetch_one(host, "https://example.invalid/")?;
         self.hits.fetch_add(1, Ordering::Relaxed);
         host.progress(rows.len() as u32);
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: r#"{"extra":{"ok":true}}"#.into(),
+                json: r#"{"extra":{"ok":true}}"#.into(),
             })
             .collect())
     }
@@ -1408,7 +1407,7 @@ impl Procedure for CfgProc {
         _batch: &[u8],
         _host: &mut dyn ProcHost,
         config: &str,
-    ) -> AppResult<Vec<PatchEntry>> {
+    ) -> AppResult<Vec<ResultEntry>> {
         self.seen.lock().unwrap().push(config.to_string());
         Ok(Vec::new())
     }
@@ -1500,7 +1499,7 @@ fn a_partly_started_provider_runs_on_the_instances_that_did_start() {
 fn a_real_js_procedure_reads_the_batch_as_json_rows() {
     const SRC: &str = r#"
       export function map(rows) {
-        return rows.map((r) => ({ id: r.id, patch: { extra: { row: JSON.stringify(r) } } }));
+        return rows.map((r) => ({ id: r.id, extra: { row: JSON.stringify(r) } }));
       }
     "#;
     let rows = vec![
@@ -1566,9 +1565,9 @@ const NEIGHBOR_SRC: &str = r#"
   export function map(rows) {
     return rows.map((r) => ({
       id: r.id,
-      patch: { extra: { near: mma.neighbors(r.lat, r.lng, 200, ["heading"])
+      extra: { near: mma.neighbors(r.lat, r.lng, 200, ["heading"])
         .filter((n) => n.id !== r.id)
-        .map((n) => [n.id, n.heading]) } },
+        .map((n) => [n.id, n.heading]) },
     }));
   }
 "#;
@@ -1722,7 +1721,7 @@ fn engine_throughput_probe() {
       export function map(rows) {
         return rows.map((r) => ({
           id: r.id,
-          patch: { extra: { sunAzimuth: (r.lat + r.lng) % 360, sunAltitude: r.lat - 45 } },
+          extra: { sunAzimuth: (r.lat + r.lng) % 360, sunAltitude: r.lat - 45 },
         }));
       }
     "#;
@@ -2167,13 +2166,13 @@ fn delivered(h: &Harness) -> Vec<ProcedureResult> {
 fn a_collect_provider_delivers_its_answers_and_writes_nothing() {
     let (state, map_id) = setup(&[loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
     let d = collect_decl("validate", BatchMode::PerRow);
-    // Not a LocationPatch at all: a collected answer is the module's own contract.
+    // Not a Patch<Location> at all: a collected answer is the module's own contract.
     let h = Harness::map_only(Arc::new(|rows: &[Location]| {
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: r.id.to_string(),
+                json: r.id.to_string(),
             })
             .collect())
     }));
@@ -2252,9 +2251,9 @@ fn cancelling_stops_delivery() {
         c.store(true, Ordering::Relaxed);
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: "7".into(),
+                json: "7".into(),
             })
             .collect())
     }));
@@ -2319,9 +2318,9 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
     let h = Harness::map_only(Arc::new(|rows: &[Location]| {
         Ok(rows
             .iter()
-            .map(|r| PatchEntry {
+            .map(|r| ResultEntry {
                 id: r.id,
-                patch: if r
+                json: if r
                     .extra
                     .as_ref()
                     .is_some_and(|e| e.as_str().contains("\"x\""))

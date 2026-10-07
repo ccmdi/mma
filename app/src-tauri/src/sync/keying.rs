@@ -10,7 +10,7 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::sync::remote_mapping::RemoteMappingRow;
-use crate::sync::SyncLocalPin;
+use crate::sync::Location;
 use crate::sync::{
     local_key, local_to_normalized, sync_hash, IdentityKey, IdentityModel, NormalizedSyncLocation,
     SyncProvider,
@@ -79,7 +79,7 @@ fn claim_remotes<P: SyncProvider>(
     remote_locs: &[P::Raw],
     remote_norm: &[NormalizedSyncLocation],
     mapping: &[RemoteMappingRow],
-    local_by_id: &HashMap<u32, &SyncLocalPin>,
+    local_by_id: &HashMap<u32, &Location>,
 ) -> HashMap<usize, u32> {
     let mut claimed_by: HashMap<usize, u32> = HashMap::new();
     let mut taken: HashSet<usize> = HashSet::new();
@@ -152,7 +152,7 @@ fn claim_remotes<P: SyncProvider>(
     for row in &pending {
         if let Some(p) = local_by_id
             .get(&row.local_id)
-            .and_then(|l| l.pano_id.clone())
+            .and_then(|l| l.pano_id.as_deref().map(String::from))
         {
             *pending_pano_count.entry(p).or_insert(0) += 1;
         }
@@ -160,7 +160,7 @@ fn claim_remotes<P: SyncProvider>(
     pending.retain(|row| {
         let Some(p) = local_by_id
             .get(&row.local_id)
-            .and_then(|l| l.pano_id.clone())
+            .and_then(|l| l.pano_id.as_deref().map(String::from))
         else {
             return true;
         };
@@ -197,7 +197,7 @@ fn claim_remotes<P: SyncProvider>(
 
 pub(crate) fn build_keyed_inputs<P: SyncProvider>(
     provider: &P,
-    local_locs: &[SyncLocalPin],
+    local_locs: &[Location],
     remote_locs: &[P::Raw],
     mapping: &[RemoteMappingRow],
     tag_name: &impl Fn(u32) -> Option<String>,
@@ -209,7 +209,7 @@ pub(crate) fn build_keyed_inputs<P: SyncProvider>(
         base.insert(local_key(row.local_id), row.hash.clone());
     }
 
-    let mut local_index: HashMap<u32, &SyncLocalPin> = HashMap::new();
+    let mut local_index: HashMap<u32, &Location> = HashMap::new();
     for loc in local_locs {
         local_index.insert(loc.id, loc);
     }

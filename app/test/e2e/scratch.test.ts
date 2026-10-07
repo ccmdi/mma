@@ -25,7 +25,7 @@ describe("scratch", () => {
 
 		// Arbitrary user action / orchestration goes here. `api` is window.MMA.
 		await withApi(async (api, locId) => {
-			await api.updateLocations([{ id: locId, patch: { heading: 180 } }]);
+			await api.updateLocations([{ id: locId, heading: 180 }]);
 			await api.flushSave();
 		}, id);
 

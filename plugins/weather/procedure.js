@@ -87,7 +87,7 @@ function patches(rows, response, cfg) {
       if (value === null || value === void 0) continue;
       patch[key] = value;
     }
-    if (Object.keys(patch).length > 0) out.push({ id: row.id, patch: { extra: patch } });
+    if (Object.keys(patch).length > 0) out.push({ id: row.id, extra: patch });
   }
   return out;
 }

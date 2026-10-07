@@ -18,6 +18,7 @@ use super::*;
 use crate::selections;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
+use mma_algebra::{Merge, Patch};
 use std::collections::HashMap;
 
 /// One interned value's record: just a pile of data.
@@ -47,12 +48,12 @@ pub struct FieldValuesPatch {
     /// interned as the seed.
     #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
     pub create: Vec<ValueRecord>,
-    /// Merge patches into existing piles (null deletes a key). A patch whose `name`
-    /// collides with another record's merges the two values instead of renaming:
-    /// every row is remapped to the survivor in one undoable edit and the emptied
-    /// record goes dark.
-    #[specta(type = Vec<Update<HashMap<String, specta_typescript::Unknown>>>)]
-    pub update: Vec<Update<ValueRecord>>,
+    /// Merge patches into existing piles, each naming its pile's `id` (null deletes a
+    /// key). A patch whose `name` collides with another record's merges the two values
+    /// instead of renaming: every row is remapped to the survivor in one undoable edit
+    /// and the emptied record goes dark.
+    #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
+    pub update: Vec<ValueRecord>,
     /// New display order: each id gets its index in this list as `order`.
     pub reorder: Option<Vec<u32>>,
 }
@@ -67,21 +68,14 @@ pub struct FieldValuesResult {
     pub mutation: MutationResult,
 }
 
-/// JSON merge patch into a pile: null deletes a key, anything else lands as-is. The
-/// one interpreted key is `name`: a blank or non-string value is ignored, so the
-/// identity never goes blank.
-fn merge_record(rec: &mut ValueRecord, patch: &ValueRecord) {
-    for (k, v) in patch {
-        if k == "name" {
-            if let Some(trimmed) = v.as_str().map(str::trim).filter(|s| !s.is_empty()) {
-                rec.insert(k.clone(), trimmed.into());
-            }
-        } else if v.is_null() {
-            rec.remove(k);
-        } else {
-            rec.insert(k.clone(), v.clone());
-        }
-    }
+/// `patch` merged into a pile. Its `name` lands trimmed, and a blank or non-string one is
+/// ignored, so the identity never goes blank.
+fn merge_record(rec: &mut ValueRecord, mut patch: ValueRecord) {
+    match record_name(&patch).map(str::to_string) {
+        Some(name) => patch.insert("name".into(), name.into()),
+        None => patch.remove("name"),
+    };
+    *rec = Merge::merged(&Some(rec.clone()), &Some(patch)).unwrap_or_default();
 }
 
 /// Merge `source` piles into `target` by case-insensitive `name` matching: matches
@@ -203,7 +197,16 @@ impl Store {
         }
         if let Ok(conn) = storage::open_db() {
             let result = match field {
-                "tags" => write_tags_json(&conn, &map_id, meta),
+                "tags" => storage::update_row::<maps::MapMeta>(
+                    &conn,
+                    "maps",
+                    &map_id,
+                    &Patch::<maps::MapMeta> {
+                        id: map_id.clone(),
+                        tags: Some(maps::TagRecords((**meta).clone())),
+                        ..Default::default()
+                    },
+                ),
                 _ => Ok(()),
             };
             match result {
@@ -276,8 +279,11 @@ impl Store {
         {
             let meta = self.value_meta.entry(field.to_string()).or_default();
             for u in &patch.update {
+                let mut u = u.clone();
+                let Some(id) = u.remove("id").and_then(|v| v.as_u64()).map(|n| n as u32) else {
+                    return Err(AppError("a value patch names no `id`".into()));
+                };
                 let target = u
-                    .patch
                     .get("name")
                     .and_then(|v| v.as_str())
                     .map(str::trim)
@@ -285,19 +291,19 @@ impl Store {
                     .and_then(|name| {
                         let lower = name.to_lowercase();
                         meta.iter()
-                            .find(|(&id, r)| {
-                                id != u.id
+                            .find(|(&other, r)| {
+                                other != id
                                     && record_name(r).is_some_and(|n| n.to_lowercase() == lower)
                             })
-                            .map(|(&id, _)| id)
+                            .map(|(&other, _)| other)
                     });
                 if let Some(target_id) = target {
-                    merges.insert(u.id, target_id);
-                } else if meta.contains_key(&u.id) || counted.contains(&u.id) {
+                    merges.insert(id, target_id);
+                } else if meta.contains_key(&id) || counted.contains(&id) {
                     // A counted id without a record is a value data knows but metadata
                     // doesn't (foreign import); patching it materializes the pile.
-                    let rec = meta.edit().entry(u.id).or_default();
-                    merge_record(rec, &u.patch);
+                    let rec = meta.edit().entry(id).or_default();
+                    merge_record(rec, u);
                 }
             }
             if let Some(ordered) = &patch.reorder {
@@ -309,23 +315,23 @@ impl Store {
             }
         }
         self.persist_value_meta(field);
-        let (remove, create) = self.plan_value_merges(field, &merges)?;
+        let patches = self.plan_value_merges(field, &merges)?;
         Ok(FieldValuesResult {
             resolved,
-            mutation: self.apply_undoable(remove, create),
+            mutation: self.write(patches.into_iter().map(Edit::Put), UndoScope::Entry),
         })
     }
 
-    /// Rows to rewrite so every id in `merges` disappears from the data in favor of its
+    /// Patches that rewrite rows so every id in `merges` disappears from the data in favor of its
     /// target. One scan of the live view; chains (a target that is itself merged) are
     /// followed in the map, so a batch of colliding renames lands in one edit.
     fn plan_value_merges(
         &mut self,
         field: &str,
         merges: &HashMap<u32, u32>,
-    ) -> AppResult<(Vec<Location>, Vec<Location>)> {
+    ) -> AppResult<Vec<Patch<Location>>> {
         if merges.is_empty() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok(Vec::new());
         }
         let resolve = |mut id: u32| {
             let mut seen = HashSet::new();
@@ -337,7 +343,7 @@ impl Store {
             }
             id
         };
-        let mut patches: Vec<(Location, LocationPatch)> = Vec::new();
+        let mut patches: Vec<Patch<Location>> = Vec::new();
         let mut err: Option<AppError> = None;
         {
             for row in self.all().rows() {
@@ -361,23 +367,15 @@ impl Store {
                 let assignment = [(field.to_string(), serde_json::json!(next))]
                     .into_iter()
                     .collect();
-                match assign_patch(&assignment, row.flags()) {
-                    Ok(p) => patches.push((row.to_location(), p)),
+                match assign_patch(row.id(), &assignment, row.flags()) {
+                    Ok(p) => patches.push(p),
                     Err(e) => err = Some(e),
                 }
             }
         }
-        if let Some(e) = err {
-            return Err(e);
+        match err {
+            Some(e) => Err(e),
+            None => Ok(patches),
         }
-        let mut remove = Vec::with_capacity(patches.len());
-        let mut create = Vec::with_capacity(patches.len());
-        for (old, patch) in patches {
-            let mut new_loc = patched(&old, &patch);
-            touch(&mut new_loc);
-            create.push(new_loc);
-            remove.push(old);
-        }
-        Ok((remove, create))
     }
 }

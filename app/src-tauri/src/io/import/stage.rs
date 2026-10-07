@@ -300,13 +300,13 @@ pub(super) fn add_parsed_to_store(
     let t_reconcile = _t.elapsed();
 
     let locations = mem::take(&mut parsed.locations);
-    let result = if locations.len() <= IMPORT_AUTOCOMMIT_THRESHOLD {
-        store.apply_undoable(Vec::new(), locations)
+    let undo = if locations.len() <= IMPORT_AUTOCOMMIT_THRESHOLD {
+        engine::UndoScope::Entry
     } else {
         store.edits.edit().clear_redo();
-        let changes = store.apply_edit(Vec::new(), locations);
-        store.finish_mutation(&changes)
+        engine::UndoScope::Skip
     };
+    let result = store.write(locations.into_iter().map(engine::Edit::Set), undo);
     log::debug!(
         "[import-insert] n={n} reconcile+alloc={:.0}ms insert={:.0}ms",
         t_reconcile.as_millis(),

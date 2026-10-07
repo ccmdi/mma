@@ -97,7 +97,7 @@ export async function moveMapToFolder(mapId: string, folder: string | null) {
 		cachedMapList = cachedMapList.map((m) => (m.id === mapId ? { ...m, folder } : m));
 		emitEvent("map-list:changed");
 	}
-	await cmd.storeUpdateMapMeta(mapId, { folder: folder ?? null });
+	await cmd.storeUpdateMapMeta({ id: mapId, folder });
 	await tauriEmit("map-list-changed");
 }
 

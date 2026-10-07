@@ -37,7 +37,7 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 		void (async () => {
 			try {
 				const resolved = next.length > 0 ? await createTags(next) : [];
-				await updateLocations([{ id: locationId, patch: { tags: resolved.map((x) => x.id) } }]);
+				await updateLocations([{ id: locationId, tags: resolved.map((x) => x.id) }]);
 			} catch (e) {
 				toast(e instanceof Error ? e.message : t("Could not update tags"));
 			}

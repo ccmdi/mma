@@ -162,6 +162,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_add_locations_uploaded,
             store::commands::store_remove_locations,
             store::commands::store_update_locations,
+            store::commands::store_set_derived,
             store::commands::store_set_active,
             store::commands::store_set_marker_color,
             store::commands::store_resolve,
@@ -441,6 +442,10 @@ fn export_consts() -> Result<(), String> {
             TsConst::value(selections::DEFAULT_DUPLICATE_SCORE).unstable(),
         ),
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
+        (
+            "LOCATION_MERGED",
+            TsConst::value(<types::Location as mma_algebra::Patchable>::MERGED),
+        ),
         (
             "PROJECTIONS",
             TsConst::value(selections::PROJECTIONS).unstable(),

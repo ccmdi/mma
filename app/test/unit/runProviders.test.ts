@@ -105,6 +105,7 @@ vi.mock("@/bindings.gen", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => null,
 		checkBorderFile: async () => true,
 		downloadBorderFile: async () => {},
 		procedureRun: (decls: typeof h.decls) => {

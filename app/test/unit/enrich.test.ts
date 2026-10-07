@@ -31,6 +31,7 @@ vi.mock("@/lib/data/procedures", () => ({
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 const cmdMock = vi.hoisted(() => ({
+	storeSetDerived: vi.fn(async () => null),
 	checkBorderFile: vi.fn(async () => true),
 	downloadBorderFile: vi.fn(async () => {}),
 	borderClassify: vi.fn(async (_level: string, pts: [number, number][]) =>

@@ -13,7 +13,7 @@ use crate::net::proxy;
 use crate::store::engine::{record_name, record_order};
 use crate::sync::{
     local_to_normalized, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId,
-    RemoteSnapshot, RemoteTag, SyncDirection, SyncLocalPin, SyncProvider,
+    RemoteSnapshot, RemoteTag, SyncDirection, SyncProvider,
 };
 use crate::types::shape::MapShape;
 use crate::types::{AppError, AppResult};
@@ -98,7 +98,7 @@ fn normalized(map: ParsedMap) -> Vec<NormalizedSyncLocation> {
     let tag_name = |id: u32| names.get(&id).cloned();
     map.locations
         .into_iter()
-        .map(|loc| local_to_normalized(&SyncLocalPin::from(loc), &tag_name))
+        .map(|loc| local_to_normalized(&loc, &tag_name))
         .collect()
 }
 

@@ -1,13 +1,9 @@
+import type { Patch } from "@/types";
 // Street View metadata, Run shape: the host fetches every pano, this maps the answers onto
 // the eight metadata `extra` fields.
 
 import type { ProcedureConfig } from "@/bindings.gen";
-import type {
-	Location,
-	Pano,
-	Update,
-	LocationPatch_Deserialize as LocationPatch,
-} from "@/bindings.gen";
+import type { Location, Pano } from "@/bindings.gen";
 import { SVMETA_FIELDS } from "@/lib/sv/constants";
 
 /** How a pano becomes each field this provider produces. */
@@ -32,10 +28,10 @@ export function query(input: { op?: string; panoIds?: string[] }, _cfg: Procedur
 	return answers.map((a) => (a.state === "found" ? a.pano : null));
 }
 
-export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Update<LocationPatch>[] {
+export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Patch<Location>[] {
 	const fields = cfg.fields.length > 0 ? new Set(cfg.fields) : null;
 	const answers = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
-	const out: Update<LocationPatch>[] = [];
+	const out: Patch<Location>[] = [];
 	for (let i = 0; i < rows.length; i++) {
 		const a = answers[i];
 		if (a.state === "skipped") continue;
@@ -48,7 +44,7 @@ export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Update<Loc
 			for (const key of SVMETA_FIELDS) {
 				if (fields === null || fields.has(key)) extra[key] = DERIVE[key](a.pano);
 			}
-			if (Object.keys(extra).length > 0) out.push({ id: row.id, patch: { extra } });
+			if (Object.keys(extra).length > 0) out.push({ id: row.id, extra });
 		}
 		mma.progress(1);
 	}

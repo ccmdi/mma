@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
-import type { Tag } from "@/types";
+import { patchBetween, type Tag } from "@/types";
+import { LOCATION_MERGED } from "@/bindings.consts";
 import type { Location } from "@/bindings.gen";
 import { createTags } from "@/store/useMapStore";
 import { locDate } from "@/lib/util/format";
@@ -49,17 +50,9 @@ export function JsonEditorPanel() {
 			if (parsed.tags && Array.isArray(parsed.tags)) {
 				parsed.tags = await resolveTagNames(parsed.tags as unknown as string[]);
 			}
-			// patch.extra is a merge patch: keys the user deleted from the JSON
-			// must become explicit nulls or they'd survive the write.
-			if (parsed.extra != null) {
-				const removed = Object.keys(active.extra ?? {}).filter((k) => !(k in parsed.extra!));
-				parsed.extra = {
-					...Object.fromEntries(removed.map((k) => [k, null])),
-					...parsed.extra,
-				};
-			}
 			setError(null);
-			void MMA.updateLocations([{ id: active.id, patch: parsed }]);
+			const patch = patchBetween(active, { ...active, ...parsed }, LOCATION_MERGED);
+			void MMA.updateLocations([{ ...patch, id: active.id }]);
 			setSaved(true);
 		} catch (e: unknown) {
 			setError(errText(e));

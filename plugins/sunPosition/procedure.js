@@ -232,7 +232,7 @@ function map(rows, cfg) {
     const patch = {};
     if (wantAz) patch.sunAzimuth = round2(((pos.azimuth * DEG + 180) % 360 + 360) % 360);
     if (wantAlt) patch.sunAltitude = round2(pos.altitude * DEG);
-    out.push({ id: row.id, patch: { extra: patch } });
+    out.push({ id: row.id, extra: patch });
   }
   return out;
 }

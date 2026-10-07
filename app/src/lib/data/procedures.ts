@@ -4,13 +4,7 @@
 
 import type { KeySpec, Location, ProcedureDecl, RowsRun, Selector } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
-import {
-	derivedFrom,
-	getProviderForField,
-	getProviders,
-	type Provider,
-	type ProcedureSpec,
-} from "@/lib/data/fieldDefs";
+import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl } from "@/bindings.gen";
 import type { Sink } from "@/bindings.consts";
@@ -195,9 +189,6 @@ export async function runProviders(
 	opts: RunOpts = {},
 ): Promise<ProviderOutcomes | RowsRun> {
 	const selector: Selector = Array.isArray(rows) ? { type: "Everything" } : rows;
-	// Core columns cannot be nulled through `extra`; a changed core input still cascades
-	// into the extra fields derived from it.
-	const core = new Set(getProviders().flatMap((p) => p.provides ?? []));
 	const decls: ProviderDecl[] = [];
 	for (const { provider: p, config, force: providerForce, fields: wanted } of items) {
 		const fields = wanted ?? Object.keys(p.fieldDefs ?? {});
@@ -211,11 +202,6 @@ export async function runProviders(
 			force: providerForce,
 			fields: written,
 			requires: p.requires,
-			invalidates: Object.fromEntries(
-				written
-					.map((f) => [f, [...derivedFrom([f])].filter((k) => !core.has(k))] as const)
-					.filter(([, deps]) => deps.length > 0),
-			),
 		});
 		if (decl) decls.push(decl);
 	}
@@ -259,7 +245,6 @@ interface DeclOpts {
 	force?: boolean;
 	fields?: string[];
 	requires?: string[];
-	invalidates?: Record<string, string[]>;
 }
 
 /** Null when the spec's `prepare` gate declines, dropping it from the run. */
@@ -276,7 +261,6 @@ async function declare(
 		...procedureDecl(spec, o.config === undefined ? spec.config : o.config),
 		fields: o.fields ?? [],
 		requires: o.requires ?? [],
-		invalidates: o.invalidates ?? {},
 		select: spec.select ?? selector,
 		batch: spec.batch,
 		sink: o.sink ?? spec.sink ?? "patch",

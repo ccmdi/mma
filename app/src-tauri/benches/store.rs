@@ -44,7 +44,7 @@
 //! use it for both halves of an A/B or neither.
 
 use app_lib::bench_api as bench;
-use bench::{ListedSelection, LocationPatch, Selection, Selector};
+use bench::{Change, ListedSelection, Location, Patch, Selection, Selector};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
 use roaring::RoaringBitmap;
 use std::env;
@@ -165,53 +165,30 @@ fn row_ops(c: &mut Criterion) {
 
     // A store with row 1 living in the overlay patches instead of the base batch.
     let mut patched = fx.store();
-    bench::overlay_update(
-        &mut patched,
-        1,
-        &LocationPatch {
-            heading: Some(123.0),
-            ..Default::default()
-        },
-    );
+    let turn = Patch::<Location> {
+        id: 1,
+        heading: Some(123.0),
+        ..Default::default()
+    };
+    bench::update_locations(&mut patched, &[turn], false);
     g.bench_function("get_loc_by_id/patched", |b| {
         b.iter(|| black_box(bench::get_loc_by_id(&patched, 1)));
     });
 
-    // overlay_write, the two branches that decide the bulk-update cost: writing a row
-    // back unchanged (compare against the caller's old row, no Arrow materialization)
-    // versus changing a row that is already patched (the one branch that still has to
-    // materialize the base row to test for a revert).
-    // The row clone happens in setup so only the write itself is measured.
+    // `put`, the step every write ends in, changing one row. The change is built in setup
+    // so only the put itself is measured.
     let base_row = bench::get_loc_by_id(&store, 1).unwrap();
     let mut wstore = fx.store();
-    g.bench_function("overlay_write/no_op", |b| {
-        b.iter_batched(
-            || base_row.clone(),
-            |loc| bench::overlay_write(&mut wstore, loc, &base_row),
-            BatchSize::SmallInput,
-        );
-    });
-
-    let mut wstore2 = fx.store();
     let mut heading = 0.0f64;
-    bench::overlay_write(
-        &mut wstore2,
-        {
-            let mut l = base_row.clone();
-            l.heading = 1.0;
-            l
-        },
-        &base_row,
-    );
-    g.bench_function("overlay_write/patched_row_change", |b| {
+    g.bench_function("put/row_change", |b| {
         b.iter_batched(
             || {
                 heading = (heading + 1.0) % 360.0;
                 let mut l = base_row.clone();
                 l.heading = heading;
-                l
+                Change::from_rows([(Some(base_row.clone()), Some(l))])
             },
-            |l| bench::overlay_write(&mut wstore2, l, &base_row),
+            |change| bench::put(&mut wstore, &change),
             BatchSize::SmallInput,
         );
     });

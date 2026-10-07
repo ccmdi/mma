@@ -67,7 +67,9 @@ describe("svMeta metadata query", () => {
 // --- the JS wrapper over the query ---
 
 const { procedureQuery } = vi.hoisted(() => ({ procedureQuery: vi.fn() }));
-vi.mock("@/lib/commands", () => ({ cmd: { procedureQuery } }));
+vi.mock("@/lib/commands", () => ({
+	cmd: { procedureQuery, storeSetDerived: async () => null },
+}));
 
 const ANSWER = {
 	copyright: "© 2026 Google",
@@ -152,7 +154,7 @@ describe("the svMeta run pass", () => {
 	it("derives every field as the type the field table declares", () => {
 		installHost(CAR_PANO);
 		const [out] = run([{ id: 1, lat: 0, lng: 0, panoId: "pA", extra: null }], NULL_CFG);
-		const extra = out.patch.extra as Record<string, unknown>;
+		const extra = out.extra as Record<string, unknown>;
 		const defs = Object.fromEntries(KNOWN_FIELDS.map((f) => [f.key, f]));
 		for (const key of SVMETA_FIELDS) {
 			const value = extra[key];

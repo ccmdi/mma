@@ -3,6 +3,7 @@ import type { BatchMode, FieldDef, ProcedureDecl, ProviderDecl } from "@/binding
 import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
 import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
 import { log } from "@/lib/util/log";
+import { cmd } from "@/lib/commands";
 
 export interface EnrichFieldOption {
 	key: string;
@@ -116,12 +117,26 @@ export function registerProvider(provider: Provider) {
 		providers.push(provider);
 		registerPluginFieldDefs(provider.fieldDefs ?? {});
 		const defKeys = Object.keys(provider.fieldDefs ?? {});
+		declareComputedFrom();
 		trackDisposable(() => {
 			const i = providers.findIndex((p) => p.id === provider.id);
 			if (i >= 0) providers.splice(i, 1);
 			unregisterPluginFieldDefs(defKeys);
+			declareComputedFrom();
 		});
 	}
+}
+
+/** Tell the store which fields are computed from which, as the providers now declare. */
+function declareComputedFrom() {
+	const edges: Record<string, string[]> = {};
+	for (const p of providers) {
+		const outputs = [...Object.keys(p.fieldDefs ?? {}), ...(p.provides ?? [])];
+		for (const input of p.requires ?? []) edges[input] = [...(edges[input] ?? []), ...outputs];
+	}
+	void cmd
+		.storeSetDerived(edges)
+		.catch((e) => log.error("[procedure] declaring derived fields failed:", e));
 }
 
 /** All registered providers. @unstable */

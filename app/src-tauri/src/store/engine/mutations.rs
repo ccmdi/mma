@@ -3,6 +3,7 @@
 use super::*;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
+use crate::selections::neighborhood::coord_key;
 use crate::selections::{self, Selector};
 use crate::store::maps;
 use crate::store::storage;
@@ -11,29 +12,22 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, LocationFlags};
 use crate::util;
+use mma_algebra::{number_value, same_field_value, Merge, Patch, Patchable};
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
-/// Semantic description of what a mutation changed, independent of any consumer.
-/// `finish_mutation` derives both the render frame and the selection sync from it -
-/// one source of truth, two projections. `updated` carries `(old, new)` so the
-/// render side can detect cell moves / pos-heading patches and the selection side
-/// can re-test membership.
-#[derive(Default)]
-pub struct ChangeSet {
-    pub added: Vec<Location>,
-    /// Removed rows in full, not ids: `finish_mutation` reindexes off their old field
-    /// values, and the rows are already gone from the store by then. The removal path
-    /// materialized them anyway, so the changeset takes ownership instead of cloning.
-    pub removed: Vec<Location>,
-    pub updated: Vec<(Location, Location)>,
-}
+/// What one write did to the rows. The render frame, the indexes, the selection sync and
+/// undo all read it, and undo writes its inverse.
+pub type Change = mma_algebra::Change<Location>;
 
-impl ChangeSet {
-    /// No rows moved. A metadata-only mutation (value rename, reorder) produces one of these.
-    pub(crate) fn is_empty(&self) -> bool {
-        self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
-    }
+/// One change a writer asks for.
+pub(crate) enum Edit {
+    /// The row exactly as given, added when the map lacks it.
+    Set(Location),
+    /// The row with a patch written over it, stamped when that changes it.
+    Put(Patch<Location>),
+    Remove(u32),
 }
 
 /// Map state a change affected. Each field is `null` when it did not change.
@@ -71,6 +65,8 @@ pub struct MutationResult {
     /// The newest undo step after this change, for a later change to join while it is
     /// still the newest.
     pub step: Option<u64>,
+    /// The active location as this change left it, when the change touched it.
+    pub active: Option<Location>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -92,47 +88,10 @@ pub struct ExternalMutation {
     pub map_id: String,
 }
 
-/// Deserialize a present-but-null JSON field as `Some(None)` instead of `None`.
-/// Missing field → `None` (don't update), `null` → `Some(None)` (set to null),
-/// `"value"` → `Some(Some("value"))` (set to value).
-pub(super) fn nullable<'de, T, D>(deserializer: D) -> Result<Option<Option<T>>, D::Error>
-where
-    T: serde::Deserialize<'de>,
-    D: serde::Deserializer<'de>,
-{
-    use serde::Deserialize;
-    Ok(Some(Option::deserialize(deserializer)?))
-}
-
-/// Partial location update. Omitted fields are unchanged; `null` on panoId, extra or
-/// modifiedAt clears the field. `extra` is a JSON Merge Patch (RFC 7386): keys
-/// shallow-merge, null values delete.
-#[derive(Default, serde::Serialize, serde::Deserialize, specta::Type)]
-#[serde(default, rename_all = "camelCase")]
-pub struct LocationPatch {
-    pub lat: Option<f64>,
-    pub lng: Option<f64>,
-    pub heading: Option<f64>,
-    pub pitch: Option<f64>,
-    pub zoom: Option<f64>,
-    #[serde(default, deserialize_with = "nullable")]
-    #[specta(type = Option<Option<String>>)]
-    pub pano_id: Option<Option<compact_str::CompactString>>,
-    pub flags: Option<u32>,
-    pub tags: Option<Vec<u32>>,
-    #[serde(default, deserialize_with = "nullable")]
-    #[specta(type = Option<Option<HashMap<String, specta_typescript::Unknown>>>)]
-    pub extra: Option<Option<RawExtra>>,
-    pub created_at: Option<u32>,
-    #[serde(default, deserialize_with = "nullable")]
-    #[specta(type = Option<Option<u32>>)]
-    pub modified_at: Option<Option<u32>>,
-}
-
 impl Store {
     /// Define every `extra` key the rows a change brought in carry that the map has no
     /// definition for yet, with an inferred one, on disk and in memory.
-    pub(super) fn register_fields(&mut self, changes: &ChangeSet) {
+    pub(super) fn register_fields(&mut self, changes: &Change) {
         let new_defs = {
             let extras: Vec<&RawExtra> = changes
                 .added
@@ -172,7 +131,7 @@ pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Add
         loc.id = store.alloc_id();
     }
     Added {
-        mutation: store.apply_undoable(Vec::new(), locations),
+        mutation: store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry),
         first_id,
     }
 }
@@ -199,37 +158,136 @@ impl UndoScope<'_> {
     }
 }
 
-/// Apply `{id, patch}` updates: overlay and undo. The one place a patch batch becomes a
-/// mutation -- every command that derives patches ends here.
-pub(crate) fn apply_updates(
-    store: &mut Store,
-    updates: &[Update<LocationPatch>],
-    undo: UndoScope,
-) -> MutationResult {
-    let mut updated: Vec<(Location, Location)> = Vec::with_capacity(updates.len());
-    for u in updates {
-        if let Some((old, new)) = store.overlay_update(u.id, &u.patch) {
-            if old != new {
-                updated.push((old, new));
+/// Each input field's direct outputs: the fields computed from it.
+pub type ComputedFrom = Arc<HashMap<String, Vec<String>>>;
+
+impl Store {
+    /// `row` as the store keeps it after `patch`: written over, and every field computed
+    /// from one the patch changes cleared along with it, unless the patch writes it itself.
+    pub(super) fn applied(&self, row: &Location, patch: &Patch<Location>) -> Location {
+        let mut new = row.patched(patch);
+        let derived = &self.derived;
+        let (before, after) = (
+            selections::RowRef::from_loc(row),
+            selections::RowRef::from_loc(&new),
+        );
+        let mut queue: Vec<&str> = derived
+            .keys()
+            .filter(|k| {
+                !same_field_value(
+                    before.resolve_field(k).as_ref(),
+                    after.resolve_field(k).as_ref(),
+                )
+            })
+            .map(String::as_str)
+            .collect();
+        let writes = |key: &str| {
+            <Location as Patchable>::WRITES
+                .iter()
+                .any(|(k, _)| *k == key)
+                || matches!(&patch.extra, Some(Some(e)) if e.get(key).is_some())
+        };
+        let mut stale = serde_json::Map::new();
+        while let Some(key) = queue.pop() {
+            for out in derived.get(key).into_iter().flatten() {
+                if !writes(out) && stale.insert(out.clone(), serde_json::Value::Null).is_none() {
+                    queue.push(out);
+                }
+            }
+        }
+        if !stale.is_empty() {
+            new.extra = Merge::merged(&new.extra, &RawExtra::from_map(&stale));
+        }
+        new
+    }
+
+    /// The only way rows change: each edit resolved against the row it touches, put,
+    /// projected, and recorded for undo as `undo` says.
+    pub(crate) fn write(
+        &mut self,
+        edits: impl IntoIterator<Item = Edit>,
+        undo: UndoScope,
+    ) -> MutationResult {
+        let mut order: Vec<u32> = Vec::new();
+        let mut rows: HashMap<u32, (Option<Location>, Option<Location>)> = HashMap::new();
+        for edit in edits {
+            let id = match &edit {
+                Edit::Set(loc) => loc.id,
+                Edit::Put(patch) => patch.id,
+                Edit::Remove(id) => *id,
+            };
+            let held = match rows.get(&id) {
+                Some((_, after)) => after.clone(),
+                None => self.get_loc_by_id(id),
+            };
+            let after = match edit {
+                Edit::Set(loc) => Some(loc),
+                Edit::Remove(_) => None,
+                Edit::Put(patch) => held.as_ref().map(|old| {
+                    let mut new = self.applied(old, &patch);
+                    if new != *old {
+                        touch(&mut new);
+                    }
+                    new
+                }),
+            };
+            match rows.get_mut(&id) {
+                Some(row) => row.1 = after,
+                None => {
+                    order.push(id);
+                    rows.insert(id, (held, after));
+                }
+            }
+        }
+        let change = Change::from_rows(order.into_iter().filter_map(|id| rows.remove(&id)));
+        self.put(&change);
+        let mut result = self.finish_mutation(&change);
+        if self.record(change, undo) {
+            self.report(&mut result);
+        }
+        result
+    }
+
+    /// Make the store hold every row as `change` leaves it.
+    pub(crate) fn put(&mut self, change: &Change) {
+        if change.is_empty() {
+            return;
+        }
+        let old = change.updated.iter().map(|(o, _)| o);
+        self.overlay_remove(change.removed.iter().chain(old));
+        let new = change.updated.iter().map(|(_, n)| n);
+        self.overlay_add(change.added.iter().chain(new).cloned().collect());
+    }
+
+    /// Record `change` for undo as `undo` says: an entry of its own, or folded into the
+    /// entry of a run while that is still the newest. Whether anything was recorded.
+    fn record(&mut self, change: Change, undo: UndoScope) -> bool {
+        if change.is_empty() {
+            return false;
+        }
+        let edits = self.edits.edit();
+        match undo {
+            UndoScope::Skip => false,
+            UndoScope::Entry => {
+                edits.record(change);
+                true
+            }
+            UndoScope::Run(group) => {
+                let change = match *group {
+                    Some(seq) => match edits.fold_into_newest(seq, change) {
+                        Ok(seq) => {
+                            *group = Some(seq);
+                            return true;
+                        }
+                        Err(change) => change,
+                    },
+                    None => change,
+                };
+                *group = Some(edits.record(change));
+                true
             }
         }
     }
-    let changes = ChangeSet {
-        updated,
-        ..Default::default()
-    };
-    let mut result = store.finish_mutation(&changes);
-    // Undo is recorded after the mutation is finished so the pairs move into the entry
-    // instead of being cloned; report again so the stack change rides along.
-    let recorded = match undo {
-        UndoScope::Skip => false,
-        UndoScope::Entry => store.record_update_undo(&mut None, changes.updated),
-        UndoScope::Run(group) => store.record_update_undo(group, changes.updated),
-    };
-    if recorded {
-        store.report(&mut result);
-    }
-    result
 }
 
 wire_str_enum! {
@@ -283,14 +341,16 @@ pub enum FieldOp {
 /// Membership test that agrees with [`same_field_value`] on numbers, so an id written as
 /// `1` and one arriving as `1.0` are the same member.
 fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) -> bool {
-    haystack.iter().any(|v| same_field_value(Some(v), needle))
+    haystack
+        .iter()
+        .any(|v| same_field_value(Some(v), Some(needle)))
 }
 
 /// What a field op planned: the patches for the rows it changes, the removed keys that
 /// no longer exist on any row, and the rows an expression could not evaluate.
 #[derive(Default)]
 pub(super) struct FieldPlan {
-    pub(super) updates: Vec<Update<LocationPatch>>,
+    pub(super) updates: Vec<Patch<Location>>,
     pub(super) failed: Vec<u32>,
 }
 
@@ -303,28 +363,6 @@ pub struct FieldOpResult {
     pub changed: u32,
     /// Rows an expression could not evaluate.
     pub failed: Vec<u32>,
-}
-
-/// Two field values are the same when JSON says so, except numbers, which compare by
-/// value: an integer stored as `45` equals the `45.0` an expression computes.
-pub(super) fn same_field_value(
-    current: Option<&serde_json::Value>,
-    next: &serde_json::Value,
-) -> bool {
-    match (current, next) {
-        (Some(c), n) if c.is_number() && n.is_number() => c.as_f64() == n.as_f64(),
-        (c, n) => c == Some(n),
-    }
-}
-
-/// A computed number as the JSON a JS writer would have stored: whole values as
-/// integers, the rest as floats.
-pub(super) fn number_value(v: f64) -> serde_json::Value {
-    if v.fract() == 0.0 && v.abs() < 9.0e15 {
-        serde_json::Value::from(v as i64)
-    } else {
-        serde_json::Value::from(v)
-    }
 }
 
 /// A flag field's assigned value as the bit it sets: a boolean, nothing else.
@@ -345,15 +383,17 @@ fn expr_value(key: &str, v: f64) -> Option<serde_json::Value> {
     }
 }
 
-/// The patch applying one row's assignments: a built-in column is set directly, a flag
+/// The patch applying row `id`'s assignments: a built-in column is set directly, a flag
 /// field toggles its bit in the row's `flags`, anything else merges into `extra` (null
 /// deletes). Every field op writes through here, so what `set` targets and what `delete`
 /// targets cannot drift apart.
 pub(super) fn assign_patch(
+    id: u32,
     assignments: &serde_json::Map<String, serde_json::Value>,
     flags: LocationFlags,
-) -> AppResult<LocationPatch> {
+) -> AppResult<Patch<Location>> {
     let mut columns = serde_json::Map::new();
+    columns.insert("id".into(), id.into());
     let mut extra = serde_json::Map::new();
     let mut next_flags = flags;
     for (key, value) in assignments {
@@ -369,7 +409,7 @@ pub(super) fn assign_patch(
         };
         dest.insert(key.clone(), value.clone());
     }
-    let mut patch: LocationPatch = serde_json::from_value(columns.into())?;
+    let mut patch: Patch<Location> = serde_json::from_value(columns.into())?;
     if !extra.is_empty() {
         patch.extra = Some(RawExtra::from_map(&extra));
     }
@@ -432,7 +472,7 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
         let mut merge = serde_json::Map::new();
         match op {
             FieldOp::Set { key, value } => {
-                if !same_field_value(row.resolve_field(key).as_ref(), value) {
+                if !same_field_value(row.resolve_field(key).as_ref(), Some(value)) {
                     merge.insert(key.clone(), value.clone());
                 }
             }
@@ -442,7 +482,7 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
                 match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
                     None => plan.failed.push(id),
                     Some(value) => {
-                        if !same_field_value(row.resolve_field(key).as_ref(), &value) {
+                        if !same_field_value(row.resolve_field(key).as_ref(), Some(&value)) {
                             merge.insert(key.clone(), value);
                         }
                     }
@@ -495,8 +535,8 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
             }
         }
         if !merge.is_empty() {
-            match assign_patch(&merge, row.flags()) {
-                Ok(patch) => plan.updates.push(Update { id, patch }),
+            match assign_patch(id, &merge, row.flags()) {
+                Ok(patch) => plan.updates.push(patch),
                 Err(e) => err = Some(e),
             }
         }
@@ -519,18 +559,11 @@ pub(crate) fn apply_field_op(
     Ok(FieldOpResult {
         changed: plan.updates.len() as u32,
         failed: plan.failed,
-        mutation: apply_updates(store, &plan.updates, UndoScope::entry_if(record_undo)),
+        mutation: store.write(
+            plan.updates.into_iter().map(Edit::Put),
+            UndoScope::entry_if(record_undo),
+        ),
     })
-}
-
-/// Generic `{id, patch}` update envelope, parameterized by the patch type. Specta
-/// has no `Partial<T>`, and a patch is a deliberate *subset* of patchable fields, so
-/// each entity names its own patch struct (e.g. `TagPatch`) rather than deriving one.
-#[derive(serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct Update<P> {
-    pub id: u32,
-    pub patch: P,
 }
 
 /// Result of copying locations to another map.
@@ -558,14 +591,14 @@ pub(crate) fn split_new_locations(
                 panos.insert(p.as_str());
             }
         }
-        coords.insert((l.lat.to_bits(), l.lng.to_bits()));
+        coords.insert(coord_key(l.lat, l.lng));
     }
     let mut fresh = Vec::new();
     let mut skipped = 0u32;
     for l in sources {
         let dup = match &l.pano_id {
             Some(p) if !p.is_empty() => panos.contains(p.as_str()),
-            _ => coords.contains(&(l.lat.to_bits(), l.lng.to_bits())),
+            _ => coords.contains(&coord_key(l.lat, l.lng)),
         };
         if dup {
             skipped += 1;
@@ -593,25 +626,17 @@ pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
     }
 
     // Non-survivors in id order first, survivor last so its values win conflicts.
-    let mut merged_extra = serde_json::Map::new();
     let mut others: Vec<&Location> = members.iter().filter(|m| m.id != survivor.id).collect();
     others.sort_by_key(|m| m.id);
-    for m in others {
-        if let Some(e) = &m.extra {
-            for (k, v) in e.to_map() {
-                merged_extra.insert(k, v);
-            }
-        }
-    }
-    if let Some(e) = &survivor.extra {
-        for (k, v) in e.to_map() {
-            merged_extra.insert(k, v);
-        }
-    }
+    let extra = others
+        .into_iter()
+        .chain([survivor])
+        .filter(|m| m.extra.is_some())
+        .fold(None, |held, m| Merge::merged(&held, &m.extra));
 
     let mut new_survivor = survivor.clone();
     new_survivor.tags = tagset.into_iter().collect();
-    new_survivor.extra = RawExtra::from_map(&merged_extra);
+    new_survivor.extra = extra;
     new_survivor.modified_at = Some(util::now_unix());
     new_survivor
 }
