@@ -41,8 +41,8 @@ function meta(id, over = {}) {
 		.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0));
 	return pano({
 		id,
-		lat: over.lat ?? 35.6,
-		lng: over.lng ?? 139.7,
+		lat: over.lat ?? 1,
+		lng: over.lng ?? 2,
 		countryCode: over.countryCode ?? "JP",
 		copyright: over.copyright ?? "© 2021 Google",
 		worldSize: { width: 16384, height },
@@ -315,6 +315,29 @@ test("a pin ahead of a lagging default is off default, not newer", () => {
 		},
 	);
 	assert.equal(state, OFF_DEFAULT);
+});
+
+test("a pin whose row sits on a neighbouring frame is judged at the pin's own position", () => {
+	const { state, coordCalls } = stateOf(
+		{ panoId: A, flags: PINNED },
+		{
+			panos: { [A]: meta(A, { lat: 1.0001, lng: 2 }), [B]: meta(B) },
+			coords: { "1,2": B, "1.0001,2": A },
+		},
+	);
+	assert.equal(state, OK);
+	assert.deepEqual(
+		coordCalls.map((c) => [c.lat, c.lng]),
+		[[1.0001, 2]],
+	);
+});
+
+test("a stored pano that does not resolve is searched at the row's position", () => {
+	const { coordCalls } = stateOf({ panoId: A, flags: PINNED }, { panos: {}, coords: { "1,2": B } });
+	assert.deepEqual(
+		coordCalls.map((c) => [c.lat, c.lng]),
+		[[1, 2]],
+	);
 });
 
 test("an unofficial pano at the coordinate is off default, not newer or stale", () => {

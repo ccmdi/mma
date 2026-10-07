@@ -1,6 +1,7 @@
 // Street View coverage validation. Run shape: metadata for the stored pano, a coordinate
-// lookup as comparison and fallback, then the unofficial, badcam and timeline checks. It
-// answers each row with the ValidationFlags that apply and whether it is pinned, and writes
+// lookup at that pano's position (the row's, when it does not resolve) as comparison and
+// fallback, then the unofficial, badcam and timeline checks. It answers each row with the
+// ValidationFlags that apply and whether it is pinned, and writes
 // nothing -- the run declares the collect sink.
 //
 // The batch moves through three phases, each issuing every lookup it needs in one
@@ -49,7 +50,12 @@ export function run(
 	const storedMeta = mma.panos(rows.map((r) => ({ panoId: r.panoId ?? "" })));
 	if (mma.aborted()) return [];
 	// The search answers the default's metadata too, so there is no second lookup.
-	const coordMeta = mma.panos(rows.map((r) => ({ lat: r.lat, lng: r.lng, radius })));
+	const coordMeta = mma.panos(
+		rows.map((r, i) => {
+			const at = metaOf(storedMeta[i]) ?? r;
+			return { lat: at.lat, lng: at.lng, radius };
+		}),
+	);
 	if (mma.aborted()) return [];
 
 	const items: RowState[] = rows.map((row, i) => {
