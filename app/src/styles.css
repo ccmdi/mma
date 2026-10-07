@@ -1141,9 +1141,6 @@ input[type="range"]:disabled {
 	border-radius: var(--radius-3);
 	--rise-distance: 1.5vh;
 	animation: rise-in var(--dur) var(--ease-enter);
-	/* Stay on a compositor layer after the entrance: dropping it repaints outlines and
-	   text in a different antialiasing mode, which reads as a brightness flash. */
-	will-change: transform;
 }
 .modal__frame.is-resizing {
 	overflow: hidden;
@@ -4712,6 +4709,8 @@ body {
 	min-width: 0;
 	overflow-y: auto;
 	padding: 1.25rem 1.5rem 2rem;
+	/* A scroller without an opaque background loses subpixel text antialiasing. */
+	background: var(--modal-bg);
 }
 /* Sections stack visually only during search; in single mode the hidden
    siblings still exist in the DOM, so an unscoped sibling margin would push
