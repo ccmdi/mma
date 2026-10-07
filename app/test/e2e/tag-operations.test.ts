@@ -278,6 +278,13 @@ describe("Rename tags within a selection", () => {
 		);
 		expect(await counts()).toEqual({ from: 3, into: 4 });
 	});
+
+	it("merges every location of the tag when no selector narrows it", async () => {
+		await withApi(async (api, a) => {
+			await api.renameTagsIn([a], "Into", null);
+		}, fromId);
+		expect(await counts()).toEqual({ from: 0, into: 7 });
+	});
 });
 
 // ============================================================================

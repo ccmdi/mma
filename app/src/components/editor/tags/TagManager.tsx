@@ -75,12 +75,12 @@ export function TagManager() {
 	// Parent path for a pending new declared folder ("" = root, null = dialog closed).
 	const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
 	const treeRef = useRef<TagTreeHandle>(null);
-	const [renamingInSelection, setRenamingInSelection] = useState<{
+	const [renamingTags, setRenamingTags] = useState<{
 		tagIds: number[];
 		name: string;
-		scope: Selector;
+		scope: Selector | null;
 	} | null>(null);
-	useDialog("rename-in-selection", setRenamingInSelection);
+	useDialog("rename-tags", setRenamingTags);
 	const [recoloring, setRecoloring] = useState<{ tagIds: number[]; root: string | null } | null>(
 		null,
 	);
@@ -322,11 +322,11 @@ export function TagManager() {
 				/>
 			)}
 
-			{renamingInSelection && (
-				<RenameInSelectionDialog
+			{renamingTags && (
+				<RenameTagsDialog
 					open
-					{...renamingInSelection}
-					onOpenChange={(open) => !open && setRenamingInSelection(null)}
+					{...renamingTags}
+					onOpenChange={(open) => !open && setRenamingTags(null)}
 				/>
 			)}
 
@@ -390,13 +390,13 @@ export function TagManager() {
 	);
 }
 
-function RenameInSelectionDialog({
+function RenameTagsDialog({
 	open,
 	onOpenChange,
 	tagIds,
 	name: initialName,
 	scope,
-}: DialogProps & { tagIds: number[]; name: string; scope: Selector }) {
+}: DialogProps & { tagIds: number[]; name: string; scope: Selector | null }) {
 	const [name, setName] = useState(initialName);
 
 	const handleSubmit = () => {
@@ -409,7 +409,7 @@ function RenameInSelectionDialog({
 		<PromptDialog
 			open={open}
 			onOpenChange={onOpenChange}
-			title={t("Rename in selection")}
+			title={scope ? t("Rename in selection") : t("Rename tags")}
 			value={name}
 			onChange={setName}
 			submitLabel={t("Rename")}

@@ -25,7 +25,7 @@ type DialogPayloads = {
 	"inline-panel": string;
 	"recolor-tags": { tagIds: number[]; root: string | null };
 	"rename-folder": string;
-	"rename-in-selection": { tagIds: number[]; name: string; scope: Selector };
+	"rename-tags": { tagIds: number[]; name: string; scope: Selector | null };
 };
 
 export type DialogKey = keyof DialogPayloads;

@@ -1012,13 +1012,15 @@ export async function createTags(
 }
 
 /** Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
- *  found or created, in one undoable mutation. Every other location keeps its tags, so a tag
- *  the selection only partly covers splits in two. */
-export async function renameTagsIn(tagIds: number[], name: string, selector: Selector) {
+ *  found or created, in one undoable mutation; a null `selector` moves every one of them.
+ *  Every other location keeps its tags, so a tag the selection only partly covers splits in
+ *  two. */
+export async function renameTagsIn(tagIds: number[], name: string, selector: Selector | null) {
 	const [target] = await createTags([name]);
 	const sources = tagIds.filter((id) => id !== target.id);
 	if (sources.length === 0) return;
-	await setTags([target.id], sources, all(any(...sources.map(tagSelector)), selector));
+	const carriers = any(...sources.map(tagSelector));
+	await setTags([target.id], sources, selector ? all(carriers, selector) : carriers);
 }
 
 /** Rename or recolor tags. A rename colliding with an existing tag name

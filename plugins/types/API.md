@@ -1159,13 +1159,14 @@ When a location already holds `to`, `winner` decides which value survives.
 renameTagsIn(
   tagIds: number[],
   name: string,
-  selector: Selector,
+  selector: Selector | null,
 ): Promise<void>
 ```
 
 Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
-found or created, in one undoable mutation. Every other location keeps its tags, so a tag
-the selection only partly covers splits in two.
+found or created, in one undoable mutation; a null `selector` moves every one of them.
+Every other location keeps its tags, so a tag the selection only partly covers splits in
+two.
 
 ### reorderTags
 
@@ -1829,8 +1830,15 @@ A dialog body laid out as a column that runs `onSubmit` when submitted, Enter in
 `unstable` · since v0.10.0
 
 ```ts
-ui.DialogTrigger: Dialog$1.Trigger
+ui.DialogTrigger<Payload>(
+  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
+): React.JSX.Element
 ```
+
+A button that opens the dialog.
+Renders a `<button>` element.
+
+Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
 
 #### ui.EmptyState
 
@@ -2647,8 +2655,8 @@ A field definition with every optional attribute spelled absent.
 createLocation(partial: Partial<Location> & LatLng): Location
 ```
 
-Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
-writes the real id back into the object.
+Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
+overrides hold, until `addLocations` writes the real id back into the object.
 
 ### dropLocation
 
@@ -6692,8 +6700,14 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke: any
+invoke<T>(
+  cmd: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T>
 ```
+
+Sends a message to the backend.
 
 ### shell
 

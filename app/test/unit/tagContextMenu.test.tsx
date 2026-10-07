@@ -113,6 +113,7 @@ describe("tag context menu", () => {
 			"Remove 3 tags from all (9 locations)",
 			"Remove 3 tags from selection (0 locations)",
 			"Remove only this tag from selection (0 locations)",
+			"Rename 3 tags in all (9 locations)",
 			"Rename 3 tags in selection (0 locations)",
 			"Recolor 3 tags...",
 		]);
@@ -154,10 +155,25 @@ describe("tag context menu", () => {
 		h.countIn.mockResolvedValue(2);
 		const items = await openMenu(node("c"));
 		act(() => items.find((i) => i.textContent?.startsWith("Rename 3 tags in selection"))!.click());
-		expect(h.openDialog).toHaveBeenCalledWith("rename-in-selection", {
+		expect(h.openDialog).toHaveBeenCalledWith("rename-tags", {
 			tagIds: [4, 5, 6],
 			name: "c",
 			scope: { type: "Union", selections: [manual] },
+		});
+	});
+
+	it("renames every selected tag on all their locations when nothing else is selected", async () => {
+		h.selectedTagIds = new Set([4, 5, 6]);
+		h.active = [4, 5, 6].map((id) => buildSelection(tagSelector(id)));
+		countFor([4, 5, 6], 9);
+		const items = await openMenu(node("c"));
+		const renameAll = items.find((i) => i.textContent === "Rename 3 tags in all (9 locations)")!;
+		expect(renameAll.getAttribute("aria-disabled")).not.toBe("true");
+		act(() => renameAll.click());
+		expect(h.openDialog).toHaveBeenCalledWith("rename-tags", {
+			tagIds: [4, 5, 6],
+			name: "c",
+			scope: null,
 		});
 	});
 

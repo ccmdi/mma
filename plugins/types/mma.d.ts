@@ -3098,8 +3098,8 @@ declare function locId(m: MaybeLocation): number;
 declare function isImportPreview(loc: Location): boolean;
 /** True when the location is a seen-history overlay preview. @unstable */
 declare function isSeenPreview(loc: Location): boolean;
-/** Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
- *  writes the real id back into the object. */
+/** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
+ *  overrides hold, until `addLocations` writes the real id back into the object. */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
 /** A new Location at the viewer's live camera, carrying `source`'s flags and the given
  *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
@@ -3656,9 +3656,10 @@ declare function exitPluginMode(): void;
  *  locations. Emits `tag:add`. */
 declare function createTags(names: string[], selector?: Selector): Promise<Tag[]>;
 /** Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
- *  found or created, in one undoable mutation. Every other location keeps its tags, so a tag
- *  the selection only partly covers splits in two. */
-declare function renameTagsIn(tagIds: number[], name: string, selector: Selector): Promise<void>;
+ *  found or created, in one undoable mutation; a null `selector` moves every one of them.
+ *  Every other location keeps its tags, so a tag the selection only partly covers splits in
+ *  two. */
+declare function renameTagsIn(tagIds: number[], name: string, selector: Selector | null): Promise<void>;
 /** Rename or recolor tags. A rename colliding with an existing tag name
  *  (case-insensitive) merges the two: every location is remapped to the survivor
  *  (undoable) and the emptied source's metadata goes dark. */

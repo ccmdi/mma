@@ -143,10 +143,30 @@ function TagContextMenuItems({
 									)}
 						</MenuItem>
 					)}
+					{multi && (
+						<MenuItem
+							disabled={counts.total === 0}
+							onClick={() =>
+								openDialog("rename-tags", {
+									tagIds: targets,
+									name: node.tag?.name ?? node.fullPath,
+									scope: null,
+								})
+							}
+						>
+							{t(
+								{
+									one: "Rename {tags} tags in all ({n} location)",
+									other: "Rename {tags} tags in all ({n} locations)",
+								},
+								{ n: counts.total, tags: targets.length },
+							)}
+						</MenuItem>
+					)}
 					<MenuItem
 						disabled={counts.inSel === 0}
 						onClick={() =>
-							openDialog("rename-in-selection", {
+							openDialog("rename-tags", {
 								tagIds: targets,
 								name: node.tag?.name ?? node.fullPath,
 								scope: selectionWithout(targets),
