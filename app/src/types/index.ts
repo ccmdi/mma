@@ -121,11 +121,10 @@ export function isSeenPreview(loc: Location): boolean {
 	return (loc.flags & LocationFlag.SeenOverlay) !== 0;
 }
 
-/** Build a Location from lat/lng plus overrides. `id` stays 0 until `addLocations`
- *  writes the real id back into the object. */
+/** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
+ *  overrides hold, until `addLocations` writes the real id back into the object. */
 export function createLocation(partial: Partial<Location> & LatLng): Location {
 	return {
-		id: 0, // placeholder; Rust assigns the real ID
 		heading: 0,
 		pitch: 0,
 		zoom: 0,
@@ -136,6 +135,7 @@ export function createLocation(partial: Partial<Location> & LatLng): Location {
 		createdAt: nowUnix(),
 		modifiedAt: null,
 		...partial,
+		id: 0,
 	};
 }
 

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createLocation } from "@/types";
 import type { PanoViewer } from "@/lib/sv/pano";
 
-const active = createLocation({ id: 7, lat: 1, lng: 2, panoId: null });
+const active = { ...createLocation({ lat: 1, lng: 2, panoId: null }), id: 7 };
 
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));

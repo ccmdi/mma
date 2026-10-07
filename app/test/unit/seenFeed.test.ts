@@ -48,7 +48,10 @@ function render(patch: Partial<typeof scene>) {
 	};
 }
 
-const loc = (id: number, panoId: string | null) => createLocation({ id, lat: 1, lng: 2, panoId });
+const loc = (id: number, panoId: string | null) => ({
+	...createLocation({ lat: 1, lng: 2, panoId }),
+	id,
+});
 
 beforeEach(() => {
 	vi.clearAllMocks();

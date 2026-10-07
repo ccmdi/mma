@@ -54,6 +54,11 @@ describe("createLocation", () => {
 		expect(loc.lng).toBe(-151.2093);
 	});
 
+	it("is always a new location, even built from one that has an id", () => {
+		const preview = { ...createLocation({ lat: 1, lng: 2 }), id: -3 };
+		expect(createLocation({ ...preview }).id).toBe(0);
+	});
+
 	it("preserves zero values explicitly passed", () => {
 		const loc = createLocation({ lat: 0, lng: 0, heading: 0, pitch: 0, zoom: 0 });
 		expect(loc.heading).toBe(0);
