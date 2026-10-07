@@ -31,6 +31,7 @@ const result = (
 	selectionSync: null,
 	step: null,
 	active: null,
+	firstId: null,
 	values: {
 		locationCount: null,
 		canUndo: null,

@@ -6,7 +6,7 @@
 //! neighborhood *means* stays with the caller: duplicate detection reads connected
 //! components out of it.
 
-use super::Scope;
+use super::RowRef;
 #[cfg(test)]
 use crate::types::Location;
 use mma_geo::equirect_m2;
@@ -239,11 +239,15 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn build(scope: &Scope, radius_m: f64, want: &[String]) -> Index {
+    pub fn build<'a: 'b, 'b>(
+        rows: impl Iterator<Item = RowRef<'a, 'b>>,
+        radius_m: f64,
+        want: &[String],
+    ) -> Index {
         let mut ids = Vec::new();
         let mut pts = Vec::new();
         let mut fields = Vec::new();
-        for row in scope.rows() {
+        for row in rows {
             ids.push(row.id());
             pts.push((row.lat(), row.lng()));
             let mut got = serde_json::Map::new();

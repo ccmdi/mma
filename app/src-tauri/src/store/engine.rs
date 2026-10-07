@@ -156,6 +156,8 @@ pub struct Store {
     pub(crate) frames: FrameSinks,
     /// Which fields are computed from which, as the providers declare them.
     pub(crate) derived: ComputedFrom,
+    /// Named layers of pending edits held over the map's rows.
+    pub(crate) pending: HashMap<String, Pending>,
 }
 
 impl Default for Store {
@@ -195,6 +197,7 @@ impl Store {
             spatial: Ensured::default(),
             frames: FrameSinks::default(),
             derived: ComputedFrom::default(),
+            pending: HashMap::new(),
         }
     }
 
@@ -351,6 +354,7 @@ impl Store {
                 ..Default::default()
             },
             step: None,
+            first_id: None,
             active: self
                 .selections
                 .active_id

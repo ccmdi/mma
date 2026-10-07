@@ -2,7 +2,7 @@ use super::*;
 use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT_STATUSES};
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
-use crate::store::engine::{render_cell_idx, Store, StoreManager};
+use crate::store::engine::{render_cell_idx, Change, Edit, Store, StoreManager};
 use crate::test_util::loc;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
@@ -32,6 +32,31 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     let mut mgr = StoreManager::new();
     mgr.stores.insert(map_id.clone(), store);
     (Mutex::new(mgr), map_id)
+}
+
+fn given(state: &StoreState, map_id: &str, rows: Vec<Location>) -> Target {
+    let target = Target::Pending {
+        name: "given".into(),
+    };
+    let mut mgr = state.lock().unwrap();
+    let store = mgr.store_for_map(map_id).unwrap();
+    store.edit(
+        &target,
+        rows.into_iter().map(Edit::Set).collect(),
+        false,
+        None,
+        true,
+    );
+    target
+}
+
+fn layer_rows(state: &StoreState, map_id: &str, target: &Target) -> Vec<Location> {
+    state
+        .lock()
+        .unwrap()
+        .store_for_map(map_id)
+        .unwrap()
+        .rows_at(target, None)
 }
 
 fn read_extra(state: &StoreState, map_id: &str, id: u32) -> Option<serde_json::Value> {
@@ -217,10 +242,9 @@ impl Harness {
 
     fn ctx<'a>(&'a self, state: &'a StoreState, map_id: &str) -> RunCtx<'a> {
         RunCtx {
-            rows: Arc::new(RunRows::Map {
-                state,
-                map_id: map_id.to_string(),
-            }),
+            state,
+            map_id: map_id.to_string(),
+            target: Target::Map,
             run_id: 1,
             force: true,
             cancel: self.cancel.clone(),
@@ -386,11 +410,14 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
             })
             .collect())
     }));
-    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
+    let (state, map_id) = setup(&[]);
+    let target = given(&state, &map_id, vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     run_all(
-        &rows,
+        &state,
+        &map_id,
+        &target,
         &[c, b, a],
         false,
         97,
@@ -400,9 +427,7 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
         &results,
     );
 
-    let out = rows
-        .with_store(|store| Ok(store.collect(&Selector::Everything)))
-        .unwrap();
+    let out = layer_rows(&state, &map_id, &target);
     let extra = |id: usize| {
         serde_json::from_str::<serde_json::Value>(out[id - 1].extra.as_ref().unwrap().as_str())
             .unwrap()
@@ -420,7 +445,8 @@ fn a_dependency_cycle_still_runs_as_one_block() {
     b.fields = vec!["y".into()];
     b.requires = vec!["x".into()];
     let h = Harness::map_only(patch_all(r#"{"extra":{"ran":true}}"#));
-    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0)]));
+    let (state, map_id) = setup(&[]);
+    let target = given(&state, &map_id, vec![loc(1, 1.0, 0.0)]);
     let finished: Arc<Mutex<Vec<String>>> = Arc::default();
     let progress: Arc<ProgressSink> = {
         let finished = finished.clone();
@@ -433,7 +459,9 @@ fn a_dependency_cycle_still_runs_as_one_block() {
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     // Returning at all is the point: mutual gates must release, not deadlock.
     run_all(
-        &rows,
+        &state,
+        &map_id,
+        &target,
         &[a, b],
         false,
         96,
@@ -1112,10 +1140,9 @@ fn run_shape_reaches_the_host_fetch() {
         transport: transport(fetch),
     };
     let ctx = RunCtx {
-        rows: Arc::new(RunRows::Map {
-            state: &state,
-            map_id: map_id.clone(),
-        }),
+        state: &state,
+        map_id: map_id.clone(),
+        target: Target::Map,
         run_id: 7,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1427,10 +1454,9 @@ fn every_procedure_call_receives_its_config() {
         transport: transport(sync_fetch(|_| Err(AppError("no fetch expected".into())))),
     };
     let ctx = RunCtx {
-        rows: Arc::new(RunRows::Map {
-            state: &state,
-            map_id: map_id.clone(),
-        }),
+        state: &state,
+        map_id: map_id.clone(),
+        target: Target::Map,
         run_id: 5,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1522,10 +1548,9 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
         transport: transport(sync_fetch(|_| Err(AppError("no fetch expected".into())))),
     };
     let ctx = RunCtx {
-        rows: Arc::new(RunRows::Map {
-            state: &state,
-            map_id: map_id.clone(),
-        }),
+        state: &state,
+        map_id: map_id.clone(),
+        target: Target::Map,
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1600,10 +1625,9 @@ fn neighbors_answers_a_procedure_from_the_maps_rows() {
     ]);
     let deps = neighbor_deps();
     let ctx = RunCtx {
-        rows: Arc::new(RunRows::Map {
-            state: &state,
-            map_id: map_id.clone(),
-        }),
+        state: &state,
+        map_id: map_id.clone(),
+        target: Target::Map,
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1627,8 +1651,11 @@ fn neighbors_answers_a_procedure_from_the_maps_rows() {
 fn neighbors_over_handed_in_rows_sees_only_those_rows() {
     let (state, map_id) = setup(&[spaced(1, 0.0, 10.5), spaced(2, 50.0, 20.5)]);
     let deps = neighbor_deps();
+    let target = given(&state, &map_id, vec![spaced(2, 50.0, 20.5)]);
     let ctx = RunCtx {
-        rows: Arc::new(RunRows::given(vec![spaced(2, 50.0, 20.5)])),
+        state: &state,
+        map_id: map_id.clone(),
+        target,
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1758,10 +1785,9 @@ fn engine_throughput_probe() {
             transport: transport(sync_fetch(|_| Err(AppError("no fetch".into())))),
         };
         let ctx = RunCtx {
-            rows: Arc::new(RunRows::Map {
-                state: &state,
-                map_id: map_id.clone(),
-            }),
+            state: &state,
+            map_id: map_id.clone(),
+            target: Target::Map,
             run_id: 1,
             force: true,
             cancel: Arc::new(AtomicBool::new(false)),
@@ -2332,10 +2358,10 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
             })
             .collect())
     }));
-    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]));
+    let target = given(&state, &map_id, vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
-    // A rows run streams every written row through the result sink as a full parseable
-    // row, since its store is invisible to the caller.
+    // A held layer's writes reach no window, so every written row streams through the
+    // result sink as a full parseable row.
     let streamed: Arc<Mutex<Vec<(String, Vec<u32>)>>> = Arc::default();
     let results: Arc<ResultSink> = {
         let streamed = streamed.clone();
@@ -2349,7 +2375,9 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
         }))
     };
     run_all(
-        &rows,
+        &state,
+        &map_id,
+        &target,
         &[b, a],
         false,
         99,
@@ -2359,9 +2387,7 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
         &results,
     );
 
-    let out = rows
-        .with_store(|store| Ok(store.collect(&Selector::Everything)))
-        .unwrap();
+    let out = layer_rows(&state, &map_id, &target);
     assert_eq!(out.len(), 2);
     for row in &out {
         let extra: serde_json::Value =
@@ -2388,11 +2414,13 @@ fn given_rows_do_not_write_to_the_open_map() {
     let (state, map_id) = setup(&[seeded]);
     let d = decl("writer", BatchMode::PerRow);
     let h = Harness::map_only(patch_extra_all(r#"{"written":true}"#));
-    let rows = Arc::new(RunRows::given(vec![loc(1, 1.0, 0.0)]));
+    let target = given(&state, &map_id, vec![loc(1, 1.0, 0.0)]);
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     run_all(
-        &rows,
+        &state,
+        &map_id,
+        &target,
         &[d],
         true,
         50,
@@ -2402,11 +2430,9 @@ fn given_rows_do_not_write_to_the_open_map() {
         &results,
     );
 
-    let given = rows
-        .with_store(|store| Ok(store.collect(&Selector::Everything)))
-        .unwrap();
+    let held = layer_rows(&state, &map_id, &target);
     let given_extra: serde_json::Value =
-        serde_json::from_str(given[0].extra.as_ref().unwrap().as_str()).unwrap();
+        serde_json::from_str(held[0].extra.as_ref().unwrap().as_str()).unwrap();
     assert_eq!(given_extra["written"], serde_json::json!(true));
 
     let map_extra = read_extra(&state, &map_id, 1).unwrap();

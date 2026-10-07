@@ -2,7 +2,7 @@
 //! behind. Nothing here knows what the values are.
 
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::hash::Hash;
 
 type Json = serde_json::Map<String, Value>;
@@ -43,7 +43,7 @@ pub fn number_value(v: f64) -> Value {
 /// A type whose values change by patch: each field a patch can set, written over a
 /// value or read off two of them. `#[derive(mma_fields::Patch)]` implements it.
 pub trait Patchable: Sized {
-    type Patch: serde::Serialize;
+    type Patch: Clone + PartialEq + std::fmt::Debug + serde::Serialize;
     /// The wire name and column of each field a patch writes.
     const WRITES: &'static [(&'static str, &'static str)];
     /// The wire names of the fields a patch changes key by key.
@@ -99,6 +99,97 @@ impl Merge for Json {
 pub trait Keyed {
     type Key: Copy + Eq + Hash + Ord;
     fn key(&self) -> Self::Key;
+}
+
+/// An intent for the row at one key: what it becomes, a patch over it, or that it goes.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Op<T: Patchable> {
+    Set(T),
+    Put(Patch<T>),
+    Remove,
+}
+
+/// Intents held over whatever holds the rows below. Per key the ops land in order, and
+/// reading a row applies them to the row below as it is now, so writes landing underneath
+/// show through instead of being masked.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Layer<T: Patchable + Keyed> {
+    ops: BTreeMap<T::Key, Vec<Op<T>>>,
+}
+
+impl<T: Patchable + Keyed> Default for Layer<T> {
+    fn default() -> Self {
+        Self {
+            ops: BTreeMap::new(),
+        }
+    }
+}
+
+impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
+    /// Land `op` at `key`. A set or a remove replaces everything the row meant before;
+    /// a patch lands on top of it.
+    pub fn push(&mut self, key: T::Key, op: Op<T>) {
+        let ops = self.ops.entry(key).or_default();
+        if matches!(op, Op::Set(_) | Op::Remove) {
+            ops.clear();
+        }
+        ops.push(op);
+    }
+
+    /// The row at `key`: this layer's intents applied in order to `below`. A patch on a
+    /// row that does not exist is nothing.
+    pub fn get(
+        &self,
+        key: T::Key,
+        below: Option<T>,
+        apply: impl Fn(&T, &Patch<T>) -> T,
+    ) -> Option<T> {
+        self.ops
+            .get(&key)
+            .into_iter()
+            .flatten()
+            .fold(below, |row, op| match op {
+                Op::Set(r) => Some(r.clone()),
+                Op::Remove => None,
+                Op::Put(p) => row.map(|r| apply(&r, p)),
+            })
+    }
+
+    /// Each key's row before and after, read over `below`: what folding this layer in
+    /// would change.
+    pub fn resolve<'a>(
+        &'a self,
+        below: impl Fn(T::Key) -> Option<T> + 'a,
+        apply: impl Fn(&T, &Patch<T>) -> T + 'a,
+    ) -> impl Iterator<Item = (T::Key, Option<T>, Option<T>)> + 'a {
+        self.ops.keys().map(move |&key| {
+            let before = below(key);
+            let after = self.get(key, before.clone(), &apply);
+            (key, before, after)
+        })
+    }
+
+    pub fn keys(&self) -> impl Iterator<Item = T::Key> + '_ {
+        self.ops.keys().copied()
+    }
+
+    /// Whether `key` has an intent here.
+    pub fn holds(&self, key: T::Key) -> bool {
+        self.ops.contains_key(&key)
+    }
+
+    /// Drop the intent at `key`.
+    pub fn remove(&mut self, key: T::Key) {
+        self.ops.remove(&key);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.ops.len()
+    }
 }
 
 /// What one write did to the rows: each row as it was and as it became. The inverse

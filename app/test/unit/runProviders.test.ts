@@ -23,6 +23,7 @@ const h = vi.hoisted(() => ({
 	enrichFields: null as string[] | null,
 	onProgress: null as ((p: unknown) => void) | null,
 	onResult: null as ((p: unknown) => void) | null,
+	resultCbs: [] as ((e: { payload: unknown }) => void)[],
 	/// Answers a collect provider delivers, per provider id.
 	answers: {} as Record<string, { id: number; json: string }[]>,
 	/// Ids a provider fails, per provider id.
@@ -32,11 +33,13 @@ const h = vi.hoisted(() => ({
 		input: string;
 		cancel: number | null;
 	}[],
-	rowRuns: [] as { ids: number[]; force: boolean; cancel: number | null }[],
+	rowRuns: [] as { ids: number[]; force: boolean }[],
 	cancelled: [] as number[],
 	reservedRuns: [] as number[],
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
-	rowRunHook: null as ((cancel: number) => void) | null,
+	runHook: null as ((runId: number) => void) | null,
+	pending: new Map<string, Map<number, Record<string, unknown>>>(),
+	nextId: 1000,
 	fieldOps: [] as { selector: Selector; op: unknown }[],
 }));
 
@@ -96,8 +99,13 @@ vi.mock("@/bindings.gen", () => ({
 		},
 		procedureResult: {
 			listen: (cb: (e: { payload: unknown }) => void) => {
-				h.onResult = (p) => cb({ payload: p });
-				return Promise.resolve(() => {});
+				h.resultCbs.push(cb);
+				h.onResult = (p) => {
+					for (const c of [...h.resultCbs]) c({ payload: p });
+				};
+				return Promise.resolve(() => {
+					h.resultCbs = h.resultCbs.filter((c) => c !== cb);
+				});
 			},
 		},
 	},
@@ -108,9 +116,32 @@ vi.mock("@/lib/commands", () => ({
 		storeSetDerived: async () => null,
 		checkBorderFile: async () => true,
 		downloadBorderFile: async () => {},
-		procedureRun: (decls: typeof h.decls) => {
+		procedureRun: (
+			decls: typeof h.decls,
+			_force: boolean,
+			target: { kind: string; name?: string } | null,
+		) => {
 			h.decls.push(...decls);
 			queueMicrotask(() => {
+				const layer = target?.kind === "pending" ? h.pending.get(target.name!) : undefined;
+				if (layer) {
+					h.rowRuns.push({ ids: [...layer.keys()], force: _force });
+					for (const [id, row] of layer) {
+						layer.set(id, { ...row, extra: { ...(row.extra as object), ran: true } });
+					}
+					for (const d of decls) {
+						h.onResult?.({
+							runId: 7,
+							providerId: d.id,
+							entries: [...layer.values()].map((row) => ({
+								id: row.id,
+								json: JSON.stringify(row),
+							})),
+							failed: [],
+						});
+					}
+				}
+				h.runHook?.(7);
 				for (const d of decls) {
 					const entries = h.answers[d.id] ?? [];
 					const failed = h.failedIds[d.id] ?? [];
@@ -143,19 +174,30 @@ vi.mock("@/lib/commands", () => ({
 			h.reservedRuns.push(runId);
 			return Promise.resolve(runId);
 		},
-		procedureRunRows: async (
-			decls: typeof h.decls,
-			force: boolean,
-			rows: { id: number; extra: Record<string, unknown> | null }[],
-			cancel: number | null,
-		) => {
-			h.decls.push(...decls);
-			h.rowRuns.push({ ids: rows.map((r) => r.id), force, cancel });
-			if (cancel != null) h.rowRunHook?.(cancel);
+		storeEdit: async (target: { name: string }, edits: { set?: Record<string, unknown> }[]) => {
+			const layer = new Map<number, Record<string, unknown>>();
+			h.pending.set(target.name, layer);
+			const first = h.nextId;
+			let added = 0;
+			for (const e of edits) {
+				if (!e.set) continue;
+				layer.set(h.nextId, { ...e.set, id: h.nextId });
+				h.nextId++;
+				added++;
+			}
 			return {
-				rows: rows.map((r) => ({ ...r, extra: { ...r.extra, ran: true } })),
-				failed: { [decls[0].id]: [rows[0].id] },
+				version: 0,
+				selectionSync: null,
+				step: null,
+				active: null,
+				values: {},
+				firstId: added ? first : null,
 			};
+		},
+		storeRow: async (target: { name: string }, id: number) =>
+			h.pending.get(target.name)?.get(id) ?? null,
+		storeDrop: async (name: string) => {
+			h.pending.delete(name);
 		},
 		procedureQuery: (
 			procedure: (typeof h.queries)[number]["procedure"],
@@ -218,7 +260,10 @@ beforeEach(() => {
 	h.answers = {};
 	h.failedIds = {};
 	h.queryAnswer = (input) => Promise.resolve(input);
-	h.rowRunHook = null;
+	h.runHook = null;
+	h.resultCbs = [];
+	h.pending = new Map();
+	h.nextId = 1000;
 	h.fieldOps = [];
 });
 
@@ -794,28 +839,36 @@ describe("the progress bar is rows finished through every provider", () => {
 });
 
 describe("runProviders over rows handed in", () => {
-	it("runs in the engine under stand-in ids and answers the rows under their own", async () => {
+	it("runs on a layer of its own and answers the rows under their own ids", async () => {
 		h.decls = [];
 		h.rowRuns = [];
+		h.failedIds = { svMeta: [1000] };
 		const rows = [
 			{ ...createLocation({ lat: 1, lng: 2 }), id: -3, extra: { keep: 1 } },
 			{ ...createLocation({ lat: 3, lng: 4 }), id: 42 },
 		];
 		const out = await runProviders([{ provider: svMetaProvider }], rows);
-		expect(h.rowRuns).toEqual([{ ids: [1, 2], force: false, cancel: null }]);
+		expect(h.rowRuns).toEqual([{ ids: [1000, 1001], force: false }]);
 		expect(h.decls.map((d) => d.select)).toEqual([{ type: "Everything" }]);
 		expect(out.rows.map((r) => r.id)).toEqual([-3, 42]);
 		expect(out.rows[0].extra).toEqual({ keep: 1, ran: true });
 		expect(out.failed).toEqual({ svMeta: [-3] });
+		expect(h.pending.size).toBe(0);
 	});
 
-	it("names the run for cancellation when the caller hands it a signal", async () => {
-		h.rowRuns = [];
+	it("aborting the signal cancels the engine run", async () => {
+		h.script = [
+			{ providerId: "svMeta", done: 0, total: 1, failed: 0, skipped: 0, finished: false },
+		];
 		const ac = new AbortController();
-		await runProviders([{ provider: svMetaProvider }], [createLocation({ lat: 1, lng: 2 })], {
+		const run = runProviders([{ provider: svMetaProvider }], [createLocation({ lat: 1, lng: 2 })], {
 			signal: ac.signal,
 		});
-		expect(h.rowRuns[0].cancel).not.toBeNull();
+		const settled = run.catch((e) => e);
+		await new Promise((r) => setTimeout(r));
+		ac.abort();
+		expect(await settled).toBeInstanceOf(Error);
+		expect(h.cancelled).toContain(7);
 	});
 });
 
@@ -939,91 +992,46 @@ describe("provider dependency declarations propagate requires through a chain", 
 
 // --- Streaming (rows run) ------------------------------------------------------------
 
-describe("a rows run streams partial results via onPartial", () => {
+describe("a rows run streams held rows via onPartial", () => {
 	const loc1 = { ...createLocation({ lat: 1, lng: 2 }), id: 10, panoId: "pA" } as Location;
 	const loc2 = { ...createLocation({ lat: 3, lng: 4 }), id: 20, panoId: "pB" } as Location;
 
-	it("delivers entries under their original ids as each provider finishes", async () => {
+	it("delivers each provider's held rows under their original ids", async () => {
 		const partial: Location[][] = [];
-		h.rowRunHook = (token) => {
-			h.onResult?.({
-				runId: token,
-				providerId: "svMeta",
-				entries: [
-					{ id: 1, json: JSON.stringify({ ...loc1, extra: { enriched: true } }) },
-					{ id: 2, json: JSON.stringify({ ...loc2, extra: { enriched: true } }) },
-				],
-				failed: [],
-			});
-		};
 		await runProviders([{ provider: svMetaProvider }], [loc1, loc2], {
 			onPartial: (r) => partial.push(r),
 		});
 		expect(partial).toHaveLength(1);
 		expect(partial[0].map((r) => r.id)).toEqual([10, 20]);
-		expect(partial[0][0].extra).toEqual({ enriched: true });
+		expect(partial[0][0].extra).toMatchObject({ ran: true });
 	});
 
 	it("fires separate callbacks for separate providers", async () => {
 		const partial: Location[][] = [];
-		h.rowRunHook = (token) => {
-			h.onResult?.({
-				runId: token,
-				providerId: "svMeta",
-				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { meta: "first" } }) }],
-				failed: [],
-			});
-			h.onResult?.({
-				runId: token,
-				providerId: "exactDate",
-				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { date: "second" } }) }],
-				failed: [],
-			});
-		};
 		await runProviders([{ provider: svMetaProvider }, { provider: exactDateProvider }], [loc1], {
 			onPartial: (r) => partial.push(r),
 		});
 		expect(partial).toHaveLength(2);
-		expect(partial[0][0].extra).toEqual({ meta: "first" });
-		expect(partial[1][0].extra).toEqual({ date: "second" });
 	});
 
-	it("ignores events with no entries", async () => {
+	it("ignores events with no entries and rows outside its layer", async () => {
 		const partial: Location[][] = [];
-		h.rowRunHook = (token) => {
-			h.onResult?.({ runId: token, providerId: "svMeta", entries: [], failed: [] });
-		};
-		await runProviders([{ provider: svMetaProvider }], [loc1], {
-			onPartial: (r) => partial.push(r),
-		});
-		expect(partial).toEqual([]);
-	});
-
-	it("ignores events from a different run", async () => {
-		const partial: Location[][] = [];
-		h.rowRunHook = (token) => {
+		h.runHook = (runId) => {
+			h.onResult?.({ runId, providerId: "svMeta", entries: [], failed: [] });
 			h.onResult?.({
-				runId: token + 999,
+				runId,
 				providerId: "svMeta",
-				entries: [{ id: 1, json: JSON.stringify(loc1) }],
+				entries: [{ id: 5, json: JSON.stringify(loc1) }],
 				failed: [],
 			});
 		};
-		await runProviders([{ provider: svMetaProvider }], [loc1], {
+		await runProviders([{ provider: panoResolveProvider }], [loc1], {
 			onPartial: (r) => partial.push(r),
 		});
-		expect(partial).toEqual([]);
+		expect(partial.flat().map((r) => r.id)).not.toContain(5);
 	});
 
 	it("the final result is still correct alongside streaming", async () => {
-		h.rowRunHook = (token) => {
-			h.onResult?.({
-				runId: token,
-				providerId: "svMeta",
-				entries: [{ id: 1, json: JSON.stringify({ ...loc1, extra: { streamed: true } }) }],
-				failed: [],
-			});
-		};
 		const out = await runProviders([{ provider: svMetaProvider }], [loc1], {
 			onPartial: () => {},
 		});

@@ -3,7 +3,7 @@ import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { isVirtualLocation, isImportPreview, locId } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import type { Added, Location, MapMeta, FieldDef, StoreStatus, CountBy } from "@/bindings.gen";
+import type { Location, MapMeta, FieldDef, StoreStatus, CountBy, Target } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type { MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
@@ -16,13 +16,7 @@ import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
-import type {
-	KeySpec,
-	PartitionBucket,
-	FieldOp,
-	FieldOpResult,
-	StoreWarning,
-} from "@/bindings.gen";
+import type { KeySpec, PartitionBucket, Work, WorkResult, StoreWarning } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { clearScene, loadScene, sceneReached } from "@/lib/render/sceneStore";
@@ -497,11 +491,14 @@ function applySelectionSync(sync: SelectionSync) {
 	setState({ selectionCounts: sync.counts });
 }
 
+const MAP: Target = { kind: "map" };
+
 const EMPTY_MUTATION: MutationResult = {
 	version: 0,
 	selectionSync: null,
 	step: null,
 	active: null,
+	firstId: null,
 	values: {
 		locationCount: null,
 		canUndo: null,
@@ -542,7 +539,7 @@ const ADD_CHUNK = 5000;
 
 /** Stage `locs` as chunked JSON in an upload session, then commit them in one mutation.
  *  Only one chunk is serialized at a time, so peak memory is O(chunk), not O(batch). */
-async function addViaUpload(locs: Location[]): Promise<Added> {
+async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 	const session = await cmd.storeUploadBegin();
 	try {
 		for (let i = 0, n = 0; i < locs.length; i += ADD_CHUNK, n++) {
@@ -565,12 +562,18 @@ async function addViaUpload(locs: Location[]): Promise<Added> {
 export async function addLocations(locs: Location[]) {
 	if (locs.length === 0) return;
 	const t = trace("add");
-	const r = await mutate(
-		() => (locs.length > ADD_CHUNK ? addViaUpload(locs) : cmd.storeAddLocations(locs)),
-		{ mutation: EMPTY_MUTATION, firstId: 0 },
+	const r = await mutate(() =>
+		locs.length > ADD_CHUNK
+			? addViaUpload(locs)
+			: cmd.storeEdit(
+					MAP,
+					locs.map((l) => ({ set: l })),
+					null,
+				),
 	);
 	t.end({ added: locs.length });
-	if (state.map) locs.forEach((l, i) => (l.id = r.firstId + i));
+	const first = r.firstId;
+	if (state.map && first != null) locs.forEach((l, i) => (l.id = first + i));
 	emitEvent("location:add", locs);
 }
 
@@ -594,9 +597,13 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 	}
 	if (state.activeLocationId && ids.has(state.activeLocationId)) setWorkArea("overview");
 	emitEvent("store:changed");
-	await mutate(() => cmd.storeRemoveLocations([...ids])).catch((e) =>
-		log.error("[delete] store_remove_locations failed:", e),
-	);
+	await mutate(() =>
+		cmd.storeEdit(
+			MAP,
+			[...ids].map((id) => ({ remove: id })),
+			null,
+		),
+	).catch((e) => log.error("[delete] store_edit remove failed:", e));
 	emitEvent("location:remove", [...ids]);
 }
 
@@ -608,7 +615,13 @@ export async function updateLocations(
 ) {
 	if (updates.length === 0) return;
 	if (updates.some((u) => isVirtualLocation(u))) return;
-	await mutate(() => cmd.storeUpdateLocations(updates, opts?.undoable ?? true, opts?.join ?? null));
+	await mutate(() =>
+		cmd.storeEdit(
+			MAP,
+			updates.map((put) => ({ put })),
+			{ join: opts?.join ?? undefined, recordUndo: opts?.undoable },
+		),
+	);
 	emitEvent("location:update", updates);
 }
 
@@ -632,10 +645,10 @@ export async function deleteField(key: string) {
 /** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
 export async function applyFieldOp(
 	selector: Selector,
-	op: FieldOp,
+	op: Work,
 	recordUndo: boolean,
-): Promise<FieldOpResult> {
-	const r = await mutate(() => cmd.storeApplyFieldOp(selector, op, recordUndo), {
+): Promise<WorkResult> {
+	const r = await mutate(() => cmd.storeWork(selector, op, recordUndo), {
 		mutation: EMPTY_MUTATION,
 		changed: 0,
 		failed: [],
@@ -777,8 +790,14 @@ export function previewDuplicateGroups(distance: number): Promise<number[][]> {
 /** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
  *  map's duplicate preference. One undoable edit. @unstable */
 export async function mergeDuplicates(distance: number) {
-	await mutate(() =>
-		cmd.storeMergeDuplicates(distance, state.map?.settings.duplicateScore ?? null),
+	await mutate(
+		() =>
+			cmd.storeWork(
+				{ type: "Everything" },
+				{ kind: "mergeDuplicates", distance, score: state.map?.settings.duplicateScore ?? null },
+				null,
+			),
+		{ mutation: EMPTY_MUTATION, changed: 0, failed: [] },
 	);
 }
 
@@ -790,8 +809,14 @@ export async function mergeDuplicates(distance: number) {
 export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
 	const before = state.locationCount;
-	await mutate(() =>
-		cmd.storePruneDuplicates(selector, distance, state.map?.settings.duplicateScore ?? null),
+	await mutate(
+		() =>
+			cmd.storeWork(
+				selector,
+				{ kind: "pruneDuplicates", distance, score: state.map?.settings.duplicateScore ?? null },
+				null,
+			),
+		{ mutation: EMPTY_MUTATION, changed: 0, failed: [] },
 	);
 	return before - state.locationCount;
 }

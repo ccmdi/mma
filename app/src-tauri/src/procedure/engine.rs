@@ -6,10 +6,8 @@ use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
-use crate::selections::{neighborhood, Selector};
-use crate::store::engine::{
-    Change, Edit, ExternalMutation, Store, StoreState, UndoScope, WindowLabel,
-};
+use crate::selections::{neighborhood, RowRef, Selector};
+use crate::store::engine::{Edit, ExternalMutation, Store, StoreState, Target, WindowLabel};
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
@@ -530,38 +528,6 @@ struct QueryRun {
 // Engine
 // ---------------------------------------------------------------------------
 
-/// Where a run's rows live: the open map, paged by each provider's selector, or rows the
-/// caller handed in, held in a store of their own so dependencies chain the same way and nothing
-/// reaches the map.
-pub(crate) enum RunRows<'a> {
-    Map {
-        state: &'a StoreState,
-        map_id: String,
-    },
-    Given(Box<Mutex<Store>>),
-}
-
-impl RunRows<'_> {
-    pub(crate) fn given(rows: Vec<Location>) -> Self {
-        let mut store = Store::new();
-        store.put(&Change {
-            added: rows,
-            ..Change::default()
-        });
-        RunRows::Given(Box::new(Mutex::new(store)))
-    }
-
-    fn with_store<T>(&self, f: impl FnOnce(&mut Store) -> AppResult<T>) -> AppResult<T> {
-        match self {
-            RunRows::Map { state, map_id } => {
-                let mut mgr = state.lock()?;
-                f(mgr.store_for_map(map_id)?)
-            }
-            RunRows::Given(store) => f(&mut store.lock().unwrap_or_else(PoisonError::into_inner)),
-        }
-    }
-}
-
 /// The neighbor index a provider has built, and what it was built for. Rebuilt when a
 /// call names a different radius or field set, so a procedure that varies either pays
 /// a whole-map rescan; asking with the same arguments every row is the intended use.
@@ -578,7 +544,10 @@ struct BuiltIndex {
 }
 
 pub(crate) struct RunCtx<'a> {
-    pub rows: Arc<RunRows<'a>>,
+    pub state: &'a StoreState,
+    pub map_id: String,
+    /// Where the run reads its rows and lands its answers.
+    pub target: Target,
     pub run_id: u32,
     pub force: bool,
     pub cancel: Arc<AtomicBool>,
@@ -591,6 +560,11 @@ pub(crate) struct RunCtx<'a> {
 }
 
 impl RunCtx<'_> {
+    fn with_store<T>(&self, f: impl FnOnce(&mut Store) -> AppResult<T>) -> AppResult<T> {
+        let mut mgr = self.state.lock()?;
+        f(mgr.store_for_map(&self.map_id)?)
+    }
+
     fn aborted(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
     }
@@ -613,12 +587,18 @@ impl RunCtx<'_> {
             }
         }
         log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
-        let index = self.rows.with_store(|store| {
-            Ok(Arc::new(neighborhood::Index::build(
-                &store.all(),
-                radius_m,
-                fields,
-            )))
+        let index = self.with_store(|store| {
+            let index = match &self.target {
+                Target::Map => {
+                    let all = store.all();
+                    neighborhood::Index::build(all.rows(), radius_m, fields)
+                }
+                Target::Pending { .. } => {
+                    let rows = store.rows_at(&self.target, None);
+                    neighborhood::Index::build(rows.iter().map(RowRef::from_loc), radius_m, fields)
+                }
+            };
+            Ok(Arc::new(index))
         })?;
         *held = Some(BuiltIndex {
             radius_m,
@@ -650,8 +630,11 @@ impl WorkBatch {
 /// its required fields have finished. Blocking throughout: callers put this on a
 /// blocking thread.
 #[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn run_all(
-    rows: &Arc<RunRows<'_>>,
+    state: &StoreState,
+    map_id: &str,
+    target: &Target,
     providers: &[ProviderDecl],
     force: bool,
     run_id: u32,
@@ -670,7 +653,9 @@ pub(crate) fn run_all(
         let start = |idx: usize, running: &mut usize| {
             let decl = &providers[idx];
             let ctx = RunCtx {
-                rows: rows.clone(),
+                state,
+                map_id: map_id.to_string(),
+                target: target.clone(),
                 run_id,
                 force,
                 cancel: cancel.clone(),
@@ -729,9 +714,17 @@ pub(crate) fn run_all(
 }
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
-    let ids: Vec<u32> = ctx.rows.with_store(|store| {
-        let scope = store.scope(&decl.select);
-        Ok(scope.rows().map(|row| row.id()).collect())
+    let ids: Vec<u32> = ctx.with_store(|store| match &ctx.target {
+        Target::Map => {
+            let scope = store.scope(&decl.select);
+            Ok(scope.rows().map(|row| row.id()).collect())
+        }
+        Target::Pending { .. } => Ok(store
+            .rows_at(&ctx.target, None)
+            .iter()
+            .filter(|r| RowRef::from_loc(r).matches(&decl.select))
+            .map(|r| r.id)
+            .collect()),
     })?;
     let total = ids.len() as u32;
     let started = Instant::now();
@@ -886,30 +879,49 @@ fn page_batches(
     } else {
         Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
     };
-    let (rows, unmet) = ctx.rows.with_store(|store| {
-        let all = store.all();
-        let alive = all.resolve(&page_sel);
-        let todo = all.resolve(&todo);
-        prog.add_skipped((alive.len() - todo.len()) as u32);
-        let workable = if decl.requires.is_empty() {
-            todo.clone()
-        } else {
-            all.within(&todo).resolve(&has_every(&decl.requires))
-        };
-        let unmet: Vec<u32> = page
-            .iter()
-            .copied()
-            .filter(|id| todo.contains(*id) && !workable.contains(*id))
-            .collect();
-        let rows = store.collect(&Selector::Locations {
-            locations: page
+    let (rows, unmet) = ctx.with_store(|store| match &ctx.target {
+        Target::Map => {
+            let all = store.all();
+            let alive = all.resolve(&page_sel);
+            let todo = all.resolve(&todo);
+            prog.add_skipped((alive.len() - todo.len()) as u32);
+            let workable = if decl.requires.is_empty() {
+                todo.clone()
+            } else {
+                all.within(&todo).resolve(&has_every(&decl.requires))
+            };
+            let unmet: Vec<u32> = page
                 .iter()
                 .copied()
-                .filter(|id| workable.contains(*id))
-                .collect(),
-            name: None,
-        });
-        Ok((rows, unmet))
+                .filter(|id| todo.contains(*id) && !workable.contains(*id))
+                .collect();
+            let rows = store.collect(&Selector::Locations {
+                locations: page
+                    .iter()
+                    .copied()
+                    .filter(|id| workable.contains(*id))
+                    .collect(),
+                name: None,
+            });
+            Ok((rows, unmet))
+        }
+        Target::Pending { .. } => {
+            let has = |row: &Location, f: &str| RowRef::from_loc(row).resolve_field(f).is_some();
+            let (mut rows, mut unmet, mut skipped) = (Vec::new(), Vec::new(), 0);
+            for row in store.rows_at(&ctx.target, Some(page)) {
+                let todo =
+                    force || decl.fields.is_empty() || !decl.fields.iter().all(|f| has(&row, f));
+                if !todo {
+                    skipped += 1;
+                } else if decl.requires.iter().all(|f| has(&row, f)) {
+                    rows.push(row);
+                } else {
+                    unmet.push(row.id);
+                }
+            }
+            prog.add_skipped(skipped);
+            Ok((rows, unmet))
+        }
     })?;
     if !unmet.is_empty() {
         prog.add_failed(unmet.len() as u32);
@@ -964,36 +976,45 @@ enum Produced {
 fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResult<()> {
     let mut entries = page.entries;
     if !page.updates.is_empty() {
-        let on_map = matches!(*ctx.rows, RunRows::Map { .. });
-        let result = ctx.rows.with_store(|store| {
-            let mut group = ctx.undo_group.lock().unwrap();
-            let undo = if on_map {
-                UndoScope::Run(&mut group)
-            } else {
-                UndoScope::Skip
-            };
-            Ok(store.write(page.updates.iter().cloned().map(Edit::Put), undo))
-        })?;
-        if let RunRows::Map { map_id, .. } = &*ctx.rows {
-            crate::emit_event(ExternalMutation {
-                result,
-                map_id: map_id.clone(),
-            });
-        } else {
-            // A rows run mutates a store no one can watch, so each written row rides the
+        let ids: Vec<u32> = page.updates.iter().map(|(_, u)| u.id).collect();
+        let (result, held_rows) = ctx.with_store(|store| {
+            let edits = page
+                .updates
+                .iter()
+                .map(|(read, patch)| {
+                    let patch = match (read, store.row_at(&ctx.target, patch.id)) {
+                        (Some(read), Some(now)) => store.still_applies(patch.clone(), read, &now),
+                        _ => patch.clone(),
+                    };
+                    Edit::Put(patch)
+                })
+                .collect();
+            let mut group = ctx
+                .undo_group
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            let result = store.edit(&ctx.target, edits, false, *group, true);
+            if let Some(step) = result.step {
+                *group = Some(step);
+            }
+            // An edit a layer held reaches no window, so each row it now holds rides the
             // result stream instead, as the provider left it.
-            ctx.rows.with_store(|store| {
-                for u in &page.updates {
-                    if let Some(loc) = store.get_loc_by_id(u.id) {
-                        entries.push(ResultEntry {
-                            id: u.id,
-                            json: serde_json::to_string(&loc)
-                                .map_err(|e| AppError(e.to_string()))?,
-                        });
-                    }
+            let held = result.step.is_none() && matches!(ctx.target, Target::Pending { .. });
+            Ok((result, held.then(|| store.rows_at(&ctx.target, Some(&ids)))))
+        })?;
+        match held_rows {
+            None => crate::emit_event(ExternalMutation {
+                result,
+                map_id: ctx.map_id.clone(),
+            }),
+            Some(rows) => {
+                for row in rows {
+                    entries.push(ResultEntry {
+                        id: row.id,
+                        json: serde_json::to_string(&row).map_err(|e| AppError(e.to_string()))?,
+                    });
                 }
-                Ok(())
-            })?;
+            }
         }
     }
     if !entries.is_empty() || !page.failed.is_empty() {
@@ -1168,7 +1189,9 @@ fn config_json(fields: &[String], force: bool, config: Option<&str>) -> String {
 /// sink: a `Patch` provider yields store updates, a `Collect` provider yields answers.
 #[derive(Default)]
 struct PageOutput {
-    updates: Vec<Patch<Location>>,
+    /// Each patch beside the row its procedure read, when that row was materialized:
+    /// delivery keeps only what still applies to the row as it is then.
+    updates: Vec<(Option<Location>, Patch<Location>)>,
     entries: Vec<ResultEntry>,
     /// Rows the procedure failed, plus every row of a batch whose call failed.
     failed: Vec<u32>,
@@ -1218,7 +1241,16 @@ fn run_instance(
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
                 // contract with its caller, not a Patch<Location>.
-                Sink::Patch => to_patches(&entries).map(BatchProduct::Patches),
+                Sink::Patch => to_patches(&entries).map(|patches| {
+                    let read: HashMap<u32, &Location> =
+                        batch.rows.iter().map(|r| (r.id, r)).collect();
+                    BatchProduct::Patches(
+                        patches
+                            .into_iter()
+                            .map(|p| (read.get(&p.id).map(|r| (*r).clone()), p))
+                            .collect(),
+                    )
+                }),
                 Sink::Collect => Ok(BatchProduct::Entries(entries)),
             });
         let units = batch.units();
@@ -1247,7 +1279,7 @@ fn run_instance(
 
 /// One batch's product, before it joins the page.
 enum BatchProduct {
-    Patches(Vec<Patch<Location>>),
+    Patches(Vec<(Option<Location>, Patch<Location>)>),
     Entries(Vec<ResultEntry>),
 }
 
@@ -1450,6 +1482,7 @@ pub async fn procedure_run(
     state: tauri::State<'_, StoreState>,
     providers: Vec<ProviderDecl>,
     force: bool,
+    target: Option<Target>,
 ) -> AppResult<u32> {
     let map_id = state.lock()?.map_id_for_window(&label.0)?;
     let run_id = next_run_id();
@@ -1465,73 +1498,21 @@ pub async fn procedure_run(
         let progress: Arc<ProgressSink> =
             Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
         let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
-        let rows = Arc::new(RunRows::Map {
-            state: state.inner(),
-            map_id,
-        });
+        let target = target.unwrap_or(Target::Map);
         run_all(
-            &rows, &providers, force, run_id, &cancel, &deps, &progress, &results,
+            state.inner(),
+            &map_id,
+            &target,
+            &providers,
+            force,
+            run_id,
+            &cancel,
+            &deps,
+            &progress,
+            &results,
         );
     });
     Ok(run_id)
-}
-
-/// Rows after a run over them, and the ids each provider failed.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct RowsRun {
-    pub rows: Vec<Location>,
-    pub failed: HashMap<String, Vec<u32>>,
-}
-
-/// Run providers over caller-supplied `rows` and return them as modified. Does not
-/// affect the open map. A `runId` from `procedureReserveRun` streams results under it and
-/// lets `procedureCancel` stop the run.
-#[tauri::command]
-#[specta::specta]
-pub async fn procedure_run_rows(
-    providers: Vec<ProviderDecl>,
-    force: bool,
-    rows: Vec<Location>,
-    run_id: Option<u32>,
-) -> AppResult<RowsRun> {
-    let streams = run_id.is_some();
-    let run_id = run_id.unwrap_or_else(next_run_id);
-    let flag = register_run(run_id)?;
-    let out = task::spawn_blocking(move || {
-        let deps = EngineDeps::production();
-        let rows = Arc::new(RunRows::given(rows));
-        let failed: Arc<Mutex<HashMap<String, Vec<u32>>>> = Arc::default();
-        let results: Arc<ResultSink> = {
-            let failed = failed.clone();
-            Arc::new(Box::new(move |r: ProcedureResult| {
-                if !r.failed.is_empty() {
-                    failed
-                        .lock()
-                        .unwrap_or_else(PoisonError::into_inner)
-                        .entry(r.provider_id.clone())
-                        .or_default()
-                        .extend(r.failed.iter().copied());
-                }
-                if streams && !r.entries.is_empty() {
-                    crate::emit_event(r);
-                }
-            }))
-        };
-        let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
-        run_all(
-            &rows, &providers, force, run_id, &flag, &deps, &progress, &results,
-        );
-        let rows = rows.with_store(|store| Ok(store.collect(&Selector::Everything)))?;
-        let failed = failed
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone();
-        Ok(RowsRun { rows, failed })
-    })
-    .await
-    .map_err(|e| AppError(format!("procedure run panicked: {e}")))?;
-    out
 }
 
 /// Stop a run before its next batch. Already-applied patches stay applied.

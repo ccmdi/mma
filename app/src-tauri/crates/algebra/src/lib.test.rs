@@ -15,7 +15,7 @@ impl Keyed for Row {
     }
 }
 
-#[derive(Clone, Debug, Default, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 struct RowPatch {
     name: Option<String>,
     extra: Option<Option<Json>>,
@@ -149,4 +149,82 @@ fn composed_changes_keep_the_first_before_and_the_last_after() {
     let there = Change::from_rows([(Some(row(5, "x")), Some(row(5, "y")))]);
     let back = there.clone().inverse();
     assert!(there.then(back).is_empty());
+}
+
+fn rename(name: &str) -> RowPatch {
+    RowPatch {
+        name: Some(name.into()),
+        extra: None,
+    }
+}
+
+fn apply(r: &Row, p: &RowPatch) -> Row {
+    r.patched(p)
+}
+
+#[test]
+fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
+    let mut layer: Layer<Row> = Layer::default();
+    layer.push(1, Op::Put(rename("mine")));
+    assert_eq!(
+        layer.get(1, Some(row(1, "below")), apply),
+        Some(row(1, "mine"))
+    );
+    assert_eq!(
+        layer.get(
+            1,
+            Some(Row {
+                extra: json!({ "k": 1 }).as_object().cloned(),
+                ..row(1, "newer")
+            }),
+            apply
+        ),
+        Some(Row {
+            extra: json!({ "k": 1 }).as_object().cloned(),
+            ..row(1, "mine")
+        }),
+    );
+    assert_eq!(layer.get(1, None, apply), None);
+    assert_eq!(layer.get(2, Some(row(2, "b")), apply), Some(row(2, "b")));
+}
+
+#[test]
+fn intents_land_in_order_and_a_set_or_remove_replaces_what_came_before() {
+    let mut layer: Layer<Row> = Layer::default();
+    layer.push(1, Op::Put(rename("first")));
+    layer.push(1, Op::Put(rename("second")));
+    assert_eq!(
+        layer.get(1, Some(row(1, "below")), apply),
+        Some(row(1, "second"))
+    );
+
+    layer.push(1, Op::Remove);
+    assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
+    layer.push(1, Op::Put(rename("after remove")));
+    assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
+
+    layer.push(1, Op::Set(row(1, "set")));
+    layer.push(1, Op::Put(rename("edited")));
+    assert_eq!(layer.get(1, None, apply), Some(row(1, "edited")));
+}
+
+#[test]
+fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
+    let mut layer: Layer<Row> = Layer::default();
+    layer.push(1, Op::Put(rename("new")));
+    layer.push(2, Op::Remove);
+    layer.push(3, Op::Set(row(3, "added")));
+    let below = |key: u32| (key < 3).then(|| row(key, "old"));
+    let resolved: Vec<_> = layer.resolve(below, apply).collect();
+    assert_eq!(
+        resolved,
+        vec![
+            (1, Some(row(1, "old")), Some(row(1, "new"))),
+            (2, Some(row(2, "old")), None),
+            (3, None, Some(row(3, "added"))),
+        ]
+    );
+    let change = Change::from_rows(resolved.into_iter().map(|(_, b, a)| (b, a)));
+    assert_eq!(change.len(), 3);
+    assert!(layer.holds(2) && !layer.holds(4));
 }

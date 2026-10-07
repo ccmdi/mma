@@ -34,9 +34,10 @@ vi.mock("@/lib/commands", async () => {
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),
 		storeOpenMap: async () => openMapResult(),
-		storeUpdateLocations: (updates: unknown, undoable: unknown) => {
-			wire.updates.push(updates as UpdateCall);
-			wire.undoable.push(undoable as boolean);
+		storeEdit: (_target: unknown, edits: unknown, opts: unknown) => {
+			const puts = (edits as { put: Record<string, unknown> }[]).map((e) => e.put);
+			wire.updates.push(puts as UpdateCall);
+			wire.undoable.push((opts as { recordUndo?: boolean } | null)?.recordUndo as boolean);
 			if (!wire.gated) return Promise.resolve(mutationResult());
 			return new Promise((res) => wire.gates.push(() => res(mutationResult())));
 		},

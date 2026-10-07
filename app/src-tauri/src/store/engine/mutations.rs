@@ -12,7 +12,7 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, LocationFlags};
 use crate::util;
-use mma_algebra::{number_value, same_field_value, Merge, Patch, Patchable};
+use mma_algebra::{number_value, same_field_value, Merge, Op, Patch, Patchable};
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -21,13 +21,31 @@ use std::sync::Arc;
 /// undo all read it, and undo writes its inverse.
 pub type Change = mma_algebra::Change<Location>;
 
-/// One change a writer asks for.
-pub(crate) enum Edit {
-    /// The row exactly as given, added when the map lacks it.
+/// One keyed edit.
+#[derive(Clone, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Edit {
+    /// The row exactly as given; id zero adds it under a fresh id.
     Set(Location),
-    /// The row with a patch written over it, stamped when that changes it.
+    /// A patch written over the row it names, stamped when that changes it.
     Put(Patch<Location>),
+    /// The row at this id removed.
     Remove(u32),
+}
+
+/// How an edit lands.
+#[derive(Default, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase", default)]
+pub struct EditOpts {
+    /// Fold the pending layer's edits into the map after these land in it.
+    #[specta(optional)]
+    pub land: bool,
+    /// The undo step to fold into while it is still the newest.
+    #[specta(optional)]
+    pub join: Option<u64>,
+    /// `false` leaves no undo step. The default is `true`.
+    #[specta(optional)]
+    pub record_undo: Option<bool>,
 }
 
 /// Map state a change affected. Each field is `null` when it did not change.
@@ -67,6 +85,27 @@ pub struct MutationResult {
     pub step: Option<u64>,
     /// The active location as this change left it, when the change touched it.
     pub active: Option<Location>,
+    /// The id the first added row was given; the rest follow it in order.
+    pub first_id: Option<u32>,
+}
+
+/// Where an edit lands or a row is read: the map's rows, or a named layer of pending
+/// edits held over them.
+#[derive(serde::Deserialize, serde::Serialize, specta::Type, Clone, PartialEq)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum Target {
+    /// The map's rows.
+    Map,
+    /// The named layer of pending edits over the map, made on first use. Its edits read
+    /// over the map's rows as they are now, and land when an edit says so.
+    Pending { name: String },
+}
+
+/// A named layer of pending edits and, once landed, the undo step its edits join.
+#[derive(Default)]
+pub(crate) struct Pending {
+    pub(crate) layer: mma_algebra::Layer<Location>,
+    pub(crate) landed: Option<u64>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -113,27 +152,17 @@ impl Store {
     }
 }
 
-/// A batch of new locations added to the open map.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct Added {
-    pub mutation: MutationResult,
-    /// The id the first location was given; the rest follow it in order.
-    pub first_id: u32,
-}
-
 /// Allocate IDs for `locations`, insert them, and record the undo entry. The one place a
 /// batch of new locations becomes a mutation -- every add path (direct IPC, uploaded chunks)
 /// ends here, so they cannot drift in what they record.
-pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> Added {
-    let first_id = store.next_id;
+pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> MutationResult {
+    let first_id = (!locations.is_empty()).then_some(store.next_id);
     for loc in &mut locations {
         loc.id = store.alloc_id();
     }
-    Added {
-        mutation: store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry),
-        first_id,
-    }
+    let mut result = store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry);
+    result.first_id = first_id;
+    result
 }
 
 /// How a patch batch lands in the undo history.
@@ -201,6 +230,45 @@ impl Store {
         new
     }
 
+    /// `patch` with every extra key dropped whose declared inputs changed between the row
+    /// the writer read and the row as it is now: an answer computed from a row that moved
+    /// keeps only what still applies.
+    pub(crate) fn still_applies(
+        &self,
+        mut patch: Patch<Location>,
+        read: &Location,
+        now: &Location,
+    ) -> Patch<Location> {
+        let Some(Some(extra)) = &patch.extra else {
+            return patch;
+        };
+        let (read, now) = (
+            selections::RowRef::from_loc(read),
+            selections::RowRef::from_loc(now),
+        );
+        let moved: Vec<&String> = self
+            .derived
+            .iter()
+            .filter(|(input, _)| {
+                !same_field_value(
+                    read.resolve_field(input).as_ref(),
+                    now.resolve_field(input).as_ref(),
+                )
+            })
+            .flat_map(|(_, outs)| outs)
+            .collect();
+        if moved.is_empty() {
+            return patch;
+        }
+        let mut m = extra.to_map();
+        let before = m.len();
+        m.retain(|k, _| !moved.iter().any(|o| *o == k));
+        if m.len() != before {
+            patch.extra = RawExtra::from_map(&m).map(|r| Some(r));
+        }
+        patch
+    }
+
     /// The only way rows change: each edit resolved against the row it touches, put,
     /// projected, and recorded for undo as `undo` says.
     pub(crate) fn write(
@@ -246,6 +314,127 @@ impl Store {
             self.report(&mut result);
         }
         result
+    }
+
+    /// The one edit: whole rows added, flat patches written, ids removed, where `target`
+    /// says. Edits at an unlanded pending layer are held there until one says `land`;
+    /// edits at a landed layer write through and join its step while it is the newest.
+    pub(crate) fn edit(
+        &mut self,
+        target: &Target,
+        mut edits: Vec<Edit>,
+        land: bool,
+        join: Option<u64>,
+        record_undo: bool,
+    ) -> MutationResult {
+        let mut first_id = None;
+        for edit in &mut edits {
+            if let Edit::Set(row) = edit {
+                if row.id == 0 {
+                    row.id = self.alloc_id();
+                    first_id.get_or_insert(row.id);
+                }
+            }
+        }
+        let mut join = join;
+        let (edits, update_landed) = match target {
+            Target::Map => (edits, None),
+            Target::Pending { name } => {
+                let entry = self.pending.entry(name.clone()).or_default();
+                match entry.landed {
+                    Some(seq) => {
+                        join = join.or(Some(seq));
+                        (edits, Some(name.clone()))
+                    }
+                    None => {
+                        for edit in edits {
+                            match edit {
+                                Edit::Set(row) => entry.layer.push(row.id, Op::Set(row)),
+                                Edit::Put(p) => entry.layer.push(p.id, Op::Put(p)),
+                                Edit::Remove(id) => entry.layer.push(id, Op::Remove),
+                            }
+                        }
+                        if !land {
+                            return self.held(first_id);
+                        }
+                        let pending = self.pending.remove(name).expect("entry just touched");
+                        let rows: Vec<_> = pending
+                            .layer
+                            .resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
+                            .collect();
+                        let edits = rows
+                            .into_iter()
+                            .map(|(id, _, after)| match after {
+                                Some(row) => Edit::Set(row),
+                                None => Edit::Remove(id),
+                            })
+                            .collect();
+                        (edits, Some(name.clone()))
+                    }
+                }
+            }
+        };
+        let undo = match record_undo {
+            true => UndoScope::Run(&mut join),
+            false => UndoScope::Skip,
+        };
+        let mut result = self.write(edits, undo);
+        if let Some(name) = update_landed {
+            self.pending.insert(
+                name,
+                Pending {
+                    layer: Default::default(),
+                    landed: join,
+                },
+            );
+        }
+        result.first_id = first_id;
+        result
+    }
+
+    /// The row at `id` as `target` sees it.
+    pub(crate) fn row_at(&self, target: &Target, id: u32) -> Option<Location> {
+        let below = self.get_loc_by_id(id);
+        match target {
+            Target::Map => below,
+            Target::Pending { name } => match self.pending.get(name) {
+                Some(p) => p.layer.get(id, below, |r, patch| self.applied(r, patch)),
+                None => below,
+            },
+        }
+    }
+
+    /// The rows `target` holds, read through its layer: every one, or just `ids`.
+    pub(crate) fn rows_at(&self, target: &Target, ids: Option<&[u32]>) -> Vec<Location> {
+        let keys: Vec<u32> = match (ids, target) {
+            (Some(ids), _) => ids.to_vec(),
+            (None, Target::Map) => return Vec::new(),
+            (None, Target::Pending { name }) => self
+                .pending
+                .get(name)
+                .map(|p| p.layer.keys().collect())
+                .unwrap_or_default(),
+        };
+        keys.iter()
+            .filter_map(|&id| self.row_at(target, id))
+            .collect()
+    }
+
+    /// Drop the named pending layer and everything it holds.
+    pub(crate) fn drop_pending(&mut self, name: &str) {
+        self.pending.remove(name);
+    }
+
+    /// The result of an edit a pending layer held: nothing on the map moved.
+    fn held(&self, first_id: Option<u32>) -> MutationResult {
+        MutationResult {
+            version: self.version,
+            selection_sync: None,
+            values: EngineValues::default(),
+            step: None,
+            active: None,
+            first_id,
+        }
     }
 
     /// Make the store hold every row as `change` leaves it.
@@ -301,10 +490,10 @@ wire_str_enum! {
     }
 }
 
-/// A rewrite of one `extra` field across every location, computed per row.
+/// Work the store runs over the selected rows to derive their edits.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum FieldOp {
+pub enum Work {
     /// Rename `from` into `to`. Merge is the same operation -- rename is just the case
     /// where nothing holds `to` -- so `winner` decides only where a row holds both.
     Move {
@@ -336,6 +525,19 @@ pub enum FieldOp {
         #[specta(type = Vec<specta_typescript::Unknown>)]
         remove: Vec<serde_json::Value>,
     },
+    /// Merge each duplicate group within `distance` metres into one survivor, unioning
+    /// tags and extra fields. `score` ranks which survives; absent uses the default
+    /// ranking.
+    MergeDuplicates {
+        distance: f64,
+        score: Option<String>,
+    },
+    /// Remove duplicates within `distance` metres of each other, keeping the best-scored
+    /// survivor per cluster.
+    PruneDuplicates {
+        distance: f64,
+        score: Option<String>,
+    },
 }
 
 /// Membership test that agrees with [`same_field_value`] on numbers, so an id written as
@@ -349,17 +551,17 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
 /// What a field op planned: the patches for the rows it changes, the removed keys that
 /// no longer exist on any row, and the rows an expression could not evaluate.
 #[derive(Default)]
-pub(super) struct FieldPlan {
-    pub(super) updates: Vec<Patch<Location>>,
+pub(super) struct WorkPlan {
+    pub(super) edits: Vec<Edit>,
     pub(super) failed: Vec<u32>,
 }
 
-/// The op's outcome for the caller: the mutation plus what its message needs.
+/// The work's outcome for the caller: the mutation plus what its message needs.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct FieldOpResult {
+pub struct WorkResult {
     pub mutation: MutationResult,
-    /// Rows the op patched.
+    /// Rows the work edited.
     pub changed: u32,
     /// Rows an expression could not evaluate.
     pub failed: Vec<u32>,
@@ -440,43 +642,46 @@ fn check_target(key: &str, assigning: bool) -> AppResult<()> {
 }
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
-/// nothing, so the patch list is the changed set. Pure.
-pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResult<FieldPlan> {
-    if let FieldOp::Move { from, to, .. } = op {
+/// nothing, so the edit list is the changed set. Pure.
+pub(super) fn plan_fields(scope: &selections::Scope, op: &Work) -> AppResult<WorkPlan> {
+    if let Work::Move { from, to, .. } = op {
         if from == to || to.is_empty() {
-            return Ok(FieldPlan::default());
+            return Ok(WorkPlan::default());
         }
     }
     let expr = match op {
-        FieldOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
+        Work::Expr { expr, .. } => Some(field_expr::parse(expr)?),
         _ => None,
     };
     match op {
-        FieldOp::Set { key, value } => {
+        Work::Set { key, value } => {
             check_target(key, true)?;
             if selections::flag_field(key).is_some() {
                 flag_assignment(key, value)?;
             }
         }
-        FieldOp::Expr { key, .. } | FieldOp::ListSet { key, .. } => check_target(key, true)?,
-        FieldOp::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
-        FieldOp::Move { from, to, .. } => {
+        Work::Expr { key, .. } | Work::ListSet { key, .. } => check_target(key, true)?,
+        Work::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
+        Work::Move { from, to, .. } => {
             check_target(from, false)?;
             check_target(to, true)?;
         }
+        Work::MergeDuplicates { .. } | Work::PruneDuplicates { .. } => {
+            unreachable!("planned in plan_work")
+        }
     }
-    let mut plan = FieldPlan::default();
+    let mut plan = WorkPlan::default();
     let mut err: Option<AppError> = None;
     for row in scope.rows() {
         let id = row.id();
         let mut merge = serde_json::Map::new();
         match op {
-            FieldOp::Set { key, value } => {
+            Work::Set { key, value } => {
                 if !same_field_value(row.resolve_field(key).as_ref(), Some(value)) {
                     merge.insert(key.clone(), value.clone());
                 }
             }
-            FieldOp::Expr { key, .. } => {
+            Work::Expr { key, .. } => {
                 let expr = expr.as_ref().expect("parsed above");
                 let field = |name: &str| row.resolve_field(name);
                 match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
@@ -488,7 +693,7 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
                     }
                 }
             }
-            FieldOp::Move { from, to, winner } => {
+            Work::Move { from, to, winner } => {
                 if let Some(value) = row.resolve_field(from) {
                     merge.insert(from.clone(), serde_json::Value::Null);
                     // Winner decides only where the row already holds `to`.
@@ -497,14 +702,14 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
                     }
                 }
             }
-            FieldOp::Delete { keys } => {
+            Work::Delete { keys } => {
                 for key in keys {
                     if row.resolve_field(key).is_some() {
                         merge.insert(key.clone(), serde_json::Value::Null);
                     }
                 }
             }
-            FieldOp::ListSet { key, add, remove } => {
+            Work::ListSet { key, add, remove } => {
                 let current = match row.resolve_field(key) {
                     Some(serde_json::Value::Array(a)) => a,
                     Some(v) => vec![v],
@@ -533,10 +738,13 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
                     );
                 }
             }
+            Work::MergeDuplicates { .. } | Work::PruneDuplicates { .. } => {
+                unreachable!("planned in plan_work")
+            }
         }
         if !merge.is_empty() {
             match assign_patch(id, &merge, row.flags()) {
-                Ok(patch) => plan.updates.push(patch),
+                Ok(patch) => plan.edits.push(Edit::Put(patch)),
                 Err(e) => err = Some(e),
             }
         }
@@ -547,22 +755,50 @@ pub(super) fn plan_field_op(scope: &selections::Scope, op: &FieldOp) -> AppResul
     Ok(plan)
 }
 
-/// Rewrite a field across the selected set in one pass. Replaces fetching every location
-/// into JS to derive patches and shipping them all back.
-pub(crate) fn apply_field_op(
+/// Run `work` over the selected rows in one pass, deriving and landing their edits.
+/// Replaces fetching every location into JS to derive patches and shipping them all back.
+pub(crate) fn apply_work(
     store: &mut Store,
     selector: &Selector,
-    op: &FieldOp,
+    work: &Work,
     record_undo: bool,
-) -> AppResult<FieldOpResult> {
-    let plan = { plan_field_op(&store.scope(selector), op)? };
-    Ok(FieldOpResult {
-        changed: plan.updates.len() as u32,
+) -> AppResult<WorkResult> {
+    let plan = match work {
+        Work::MergeDuplicates { distance, score } => {
+            let score = selections::parse_duplicate_score(score.as_deref())?;
+            let mut plan = WorkPlan::default();
+            for group in store.scope(selector).duplicate_groups(*distance) {
+                let members: Vec<Location> = group
+                    .iter()
+                    .filter_map(|&id| store.get_loc_by_id(id))
+                    .collect();
+                if members.len() < 2 {
+                    continue;
+                }
+                let survivor = merge_group(&members, &score);
+                plan.edits
+                    .extend(members.iter().map(|m| Edit::Remove(m.id)));
+                plan.edits.push(Edit::Set(survivor));
+            }
+            plan
+        }
+        Work::PruneDuplicates { distance, score } => {
+            let score = selections::parse_duplicate_score(score.as_deref())?;
+            let locs: Vec<Location> = store.collect(selector);
+            WorkPlan {
+                edits: selections::prune_duplicates(&locs, *distance, &score)
+                    .into_iter()
+                    .map(Edit::Remove)
+                    .collect(),
+                failed: Vec::new(),
+            }
+        }
+        fields => plan_fields(&store.scope(selector), fields)?,
+    };
+    Ok(WorkResult {
+        changed: plan.edits.len() as u32,
         failed: plan.failed,
-        mutation: store.write(
-            plan.updates.into_iter().map(Edit::Put),
-            UndoScope::entry_if(record_undo),
-        ),
+        mutation: store.write(plan.edits, UndoScope::entry_if(record_undo)),
     })
 }
 

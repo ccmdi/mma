@@ -745,9 +745,9 @@ Emits `location:add`.
 ```ts
 applyFieldOp(
   selector: Selector,
-  op: FieldOp,
+  op: Work,
   recordUndo: boolean,
-): Promise<FieldOpResult>
+): Promise<WorkResult>
 ```
 
 Apply a field operation across all locations matching `selector`. Emits `location:invalidate`.
@@ -1324,7 +1324,7 @@ setTags(
   add: number[],
   remove: number[],
   selector: Selector,
-): Promise<void> | Promise<FieldOpResult>
+): Promise<void> | Promise<WorkResult>
 ```
 
 Put `add` on every location the selector resolves to and strip `remove` from them,
@@ -5349,28 +5349,15 @@ its streamed results carry the id, and `procedureCancel` stops it.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.procedureRun(providers: ProviderDecl[], force: boolean): Promise<number>
+cmd.procedureRun(
+  providers: ProviderDecl[],
+  force: boolean,
+  target: Target | null,
+): Promise<number>
 ```
 
 Start a procedure run over the open map's locations. Returns immediately with
 the run id. Emits `procedure-progress` and `procedure-result` as work completes.
-
-#### cmd.procedureRunRows
-
-`unstable` · since v0.10.2
-
-```ts
-cmd.procedureRunRows(
-  providers: ProviderDecl[],
-  force: boolean,
-  rows: Location[],
-  runId: number | null,
-): Promise<RowsRun>
-```
-
-Run providers over caller-supplied `rows` and return them as modified. Does not
-affect the open map. A `runId` from `procedureReserveRun` streams results under it and
-lets `procedureCancel` stop the run.
 
 #### cmd.readFile
 
@@ -5564,16 +5551,6 @@ cmd.sidecarStopAll(): Promise<null>
 
 Stop all sidecar processes across every plugin.
 
-#### cmd.storeAddLocations
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeAddLocations(locations: Location[]): Promise<Added>
-```
-
-Add new locations, allocating sequential IDs. Undoable.
-
 #### cmd.storeAddLocationsToMap
 
 `unstable` · since v0.10.2
@@ -5593,24 +5570,10 @@ map's tag table.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<Added>
+cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult>
 ```
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
-
-#### cmd.storeApplyFieldOp
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.storeApplyFieldOp(
-  selector: Selector,
-  op: FieldOp,
-  recordUndo: boolean | null,
-): Promise<FieldOpResult>
-```
-
-Apply a field operation to every location matched by `selector`.
 
 #### cmd.storeBounds
 
@@ -5799,6 +5762,16 @@ cmd.storeDeleteSavedSelection(id: string): Promise<null>
 
 Delete a saved selection rule by `id`.
 
+#### cmd.storeDrop
+
+`unstable` · unreleased
+
+```ts
+cmd.storeDrop(name: string): Promise<null>
+```
+
+Drop a named pending layer and everything it holds.
+
 #### cmd.storeDuplicateGroups
 
 `unstable` · since v0.5.1
@@ -5820,6 +5793,21 @@ cmd.storeDuplicateMap(id: string, name: string): Promise<MapMeta>
 
 Copy a map, uncommitted edits included, into a new map named `name`. Version history,
 edit history, sync links, and review sessions stay with the original.
+
+#### cmd.storeEdit
+
+`unstable` · unreleased
+
+```ts
+cmd.storeEdit(
+  target: Target,
+  edits: Edit[],
+  opts: EditOpts | null,
+): Promise<MutationResult>
+```
+
+Edit rows where `target` says. Edits at a pending layer are held there until one says
+`land`; once landed they write through and join its step.
 
 #### cmd.storeEvenlySpaced
 
@@ -6066,21 +6054,6 @@ cmd.storeListSavedSelections(): Promise<SavedSelectionInfo[]>
 
 List every saved selection rule (name, color, date), without their selector trees.
 
-#### cmd.storeMergeDuplicates
-
-`unstable` · since v0.5.1
-
-```ts
-cmd.storeMergeDuplicates(
-  distance: number,
-  score: string | null,
-): Promise<MutationResult>
-```
-
-Merge each duplicate group within `distance` metres into one location, unioning tags
-and extra fields. `score` ranks which location survives; blank uses the default ranking.
-Undoable.
-
 #### cmd.storeNearAny
 
 `unstable` · since v0.7.0
@@ -6122,21 +6095,6 @@ Patch an interned field's value metadata: get-or-create names, edit display
 metadata, reorder. Metadata only - membership writes go through the ordinary
 `listSet` field op. `tags` is the first (and so far only) interned field.
 
-#### cmd.storePruneDuplicates
-
-`unstable` · since v0.6.0
-
-```ts
-cmd.storePruneDuplicates(
-  selector: Selector,
-  distance: number,
-  score: string | null,
-): Promise<MutationResult>
-```
-
-Remove duplicate locations within `distance` metres of each other, keeping the
-best-scored survivor per cluster. Undoable.
-
 #### cmd.storeRedo
 
 `unstable` · since v0.4.0
@@ -6146,16 +6104,6 @@ cmd.storeRedo(): Promise<MutationResult>
 ```
 
 Redo the last undone edit.
-
-#### cmd.storeRemoveLocations
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeRemoveLocations(ids: number[]): Promise<MutationResult>
-```
-
-Remove locations by ID. Undoable.
 
 #### cmd.storeRenameFolder
 
@@ -6250,6 +6198,16 @@ cmd.storeReviewUpdate(
 ```
 
 Apply a partial update to a review session.
+
+#### cmd.storeRow
+
+`unstable` · unreleased
+
+```ts
+cmd.storeRow(target: Target, id: number): Promise<Location | null>
+```
+
+The row at `id` as `target` sees it.
 
 #### cmd.storeSample
 
@@ -6473,23 +6431,6 @@ cmd.storeUndo(): Promise<MutationResult>
 
 Undo the last edit.
 
-#### cmd.storeUpdateLocations
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeUpdateLocations(
-  updates: (Partial<Location> & Pick<Location, "id">)[],
-  recordUndo: boolean | null,
-  join: number | null,
-): Promise<MutationResult>
-```
-
-Apply partial patches to existing locations. `recordUndo` defaults to true;
-set to false for ephemeral updates (e.g., plugin-driven batch modifications
-that manage their own undo). With `join`, an undoable change folds into that undo step
-while it is still the newest.
-
 #### cmd.storeUpdateMapMeta
 
 `unstable` · since v0.4.0
@@ -6550,6 +6491,20 @@ cmd.storeValues(selector: Selector, field: string): Promise<string[]>
 ```
 
 Distinct values of `field` across the selected set, sorted.
+
+#### cmd.storeWork
+
+`unstable` · unreleased
+
+```ts
+cmd.storeWork(
+  selector: Selector,
+  work: Work,
+  recordUndo: boolean | null,
+): Promise<WorkResult>
+```
+
+Run work over every location matched by `selector`, landing the edits it derives.
 
 #### cmd.syncLogAppend
 
@@ -8751,7 +8706,7 @@ addSelections(selectors: Selector[]): Promise<void>
 addTagToLocations(
   tagId: number,
   locationIds: number[],
-): Promise<void> | Promise<FieldOpResult>
+): Promise<void> | Promise<WorkResult>
 ```
 
 **Deprecated in v0.10.5.** Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`.
@@ -9052,7 +9007,7 @@ removeSelections(keys: string[]): Promise<void>
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-removeTagFromAllLocations(tagId: number): Promise<void> | Promise<FieldOpResult>
+removeTagFromAllLocations(tagId: number): Promise<void> | Promise<WorkResult>
 ```
 
 **Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`.
@@ -9065,7 +9020,7 @@ removeTagFromAllLocations(tagId: number): Promise<void> | Promise<FieldOpResult>
 removeTagFromLocations(
   tagId: number,
   locationIds: number[],
-): Promise<void> | Promise<FieldOpResult>
+): Promise<void> | Promise<WorkResult>
 ```
 
 **Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`.

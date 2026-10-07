@@ -21,20 +21,23 @@ vi.mock("@/lib/commands", async () => {
 			opened.values.locationCount = 5;
 			return opened;
 		},
-		storePruneDuplicates: async (...args: unknown[]) => {
-			const [selector, distance, score] = args as [Selector, number, string | null];
-			h.calls.push({ selector, distance, score });
+		storeWork: async (...args: unknown[]) => {
+			const [selector, work] = args as [
+				Selector,
+				{ kind: string; distance: number; score: string | null },
+			];
+			h.calls.push({ selector, distance: work.distance, score: work.score });
 			return {
-				version: 4,
-				selectionSync: null,
-				values: {
-					locationCount: 3,
-					canUndo: null,
-					canRedo: null,
-					tagCounts: null,
-					tags: null,
-					fieldDefs: null,
+				mutation: {
+					version: 1,
+					selectionSync: null,
+					step: null,
+					active: null,
+					firstId: null,
+					values: { locationCount: 3 },
 				},
+				changed: 0,
+				failed: [],
 			};
 		},
 	});

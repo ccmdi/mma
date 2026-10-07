@@ -163,19 +163,17 @@ export const commands = {
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
 	/**  Return the map's current location count, store version, and unsaved-change count. */
 	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
-	/**  Add new locations, allocating sequential IDs. Undoable. */
-	storeAddLocations: (locations: Location[]) => __TAURI_INVOKE<Added>("store_add_locations", { locations: locations.map(i=>i) }),
 	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
-	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<Added>("store_add_locations_uploaded", { sessionDir }),
-	/**  Remove locations by ID. Undoable. */
-	storeRemoveLocations: (ids: number[]) => __TAURI_INVOKE<MutationResult>("store_remove_locations", { ids }),
+	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }),
 	/**
-	 *  Apply partial patches to existing locations. `recordUndo` defaults to true;
-	 *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
-	 *  that manage their own undo). With `join`, an undoable change folds into that undo step
-	 *  while it is still the newest.
+	 *  Edit rows where `target` says. Edits at a pending layer are held there until one says
+	 *  `land`; once landed they write through and join its step.
 	 */
-	storeUpdateLocations: (updates: (Partial<Location> & Pick<Location, "id">)[], recordUndo: boolean | null, join: number | null) => __TAURI_INVOKE<MutationResult>("store_update_locations", { updates, recordUndo, join }),
+	storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
+	/**  The row at `id` as `target` sees it. */
+	storeRow: (target: Target, id: number) => __TAURI_INVOKE<Location | null>("store_row", { target, id }),
+	/**  Drop a named pending layer and everything it holds. */
+	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/**
 	 *  Declare which fields are computed from which: each input field and the fields derived
 	 *  from it. A write that changes an input clears what was derived from it.
@@ -249,8 +247,8 @@ export const commands = {
 	 *  `storeValues`) when only specific fields are needed.
 	 */
 	storeCollect: (selector: Selector) => __TAURI_INVOKE<Rows>("store_collect", { selector }),
-	/**  Apply a field operation to every location matched by `selector`. */
-	storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => __TAURI_INVOKE<FieldOpResult>("store_apply_field_op", { selector, op, recordUndo }),
+	/**  Run work over every location matched by `selector`, landing the edits it derives. */
+	storeWork: (selector: Selector, work: Work, recordUndo: boolean | null) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work, recordUndo }),
 	/**  The parse error for `src`, or `null` when it parses. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**
@@ -289,17 +287,6 @@ export const commands = {
 	 *  Returns groups of IDs, each with at least two members.
 	 */
 	storeDuplicateGroups: (distance: number) => __TAURI_INVOKE<number[][]>("store_duplicate_groups", { distance }),
-	/**
-	 *  Merge each duplicate group within `distance` metres into one location, unioning tags
-	 *  and extra fields. `score` ranks which location survives; blank uses the default ranking.
-	 *  Undoable.
-	 */
-	storeMergeDuplicates: (distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_merge_duplicates", { distance, score }),
-	/**
-	 *  Remove duplicate locations within `distance` metres of each other, keeping the
-	 *  best-scored survivor per cluster. Undoable.
-	 */
-	storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => __TAURI_INVOKE<MutationResult>("store_prune_duplicates", { selector, distance, score }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
@@ -525,13 +512,7 @@ export const commands = {
 	 *  Start a procedure run over the open map's locations. Returns immediately with
 	 *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 	 */
-	procedureRun: (providers: ProviderDecl[], force: boolean) => __TAURI_INVOKE<number>("procedure_run", { providers, force }),
-	/**
-	 *  Run providers over caller-supplied `rows` and return them as modified. Does not
-	 *  affect the open map. A `runId` from `procedureReserveRun` streams results under it and
-	 *  lets `procedureCancel` stop the run.
-	 */
-	procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], runId: number | null) => __TAURI_INVOKE<RowsRun>("procedure_run_rows", { providers, force, rows: rows.map(i=>i), runId }).then((v) => (({...v,rows:v.rows.map(i=>i)}) as typeof v)),
+	procedureRun: (providers: ProviderDecl[], force: boolean, target: Target | null) => __TAURI_INVOKE<number>("procedure_run", { providers, force, target }),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
@@ -566,13 +547,6 @@ export const events = {
 };
 
 /* Types */
-/**  A batch of new locations added to the open map. */
-export type Added = {
-	mutation: MutationResult,
-	/**  The id the first location was given; the rest follow it in order. */
-	firstId: number,
-};
-
 export type AnonIssueRef = {
 	number: number,
 	url: string,
@@ -720,6 +694,25 @@ export type DeviceCodeInfo = {
 	expiresIn: number,
 };
 
+/**  One keyed edit. */
+export type Edit = 
+/**  The row exactly as given; id zero adds it under a fresh id. */
+({ set: Location }) & { put?: never; remove?: never } | 
+/**  A patch written over the row it names, stamped when that changes it. */
+({ put: Partial<Location> & Pick<Location, "id"> }) & { remove?: never; set?: never } | 
+/**  The row at this id removed. */
+({ remove: number }) & { put?: never; set?: never };
+
+/**  How an edit lands. */
+export type EditOpts = {
+	/**  Fold the pending layer's edits into the map after these land in it. */
+	land?: boolean,
+	/**  The undo step to fold into while it is still the newest. */
+	join?: number | null,
+	/**  `false` leaves no undo step. The default is `true`. */
+	recordUndo?: boolean | null,
+};
+
 /**
  *  Preview data for importing a file into the currently open map.
  *  Unlike bulk import, this shows per-field counts so the user can
@@ -838,43 +831,6 @@ export type FieldDef = {
 	values: FieldValue[] | null,
 	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
 	comparison: ComparisonType | null,
-};
-
-/**  A rewrite of one `extra` field across every location, computed per row. */
-export type FieldOp = 
-/**
- *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
- */
-{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
-/**  Drop `keys` from every row that has them. */
-{ kind: "delete"; keys: string[] } | 
-/**
- *  Assign `value` to `key` on every row where it differs. A writable built-in key
- *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
- */
-{ kind: "set"; key: string; value: unknown } | 
-/**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is reported back by id.
- */
-{ kind: "expr"; key: string; expr: string } | 
-/**
- *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
- *  reads the row's current value as a set rather than replacing it, which is what
- *  membership needs: `tags` is this op's first caller, `array` extras its second.
- *  `add` wins for a value named in both lists, and a row already in the requested
- *  state keeps its member order.
- */
-{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
-
-/**  The op's outcome for the caller: the mutation plus what its message needs. */
-export type FieldOpResult = {
-	mutation: MutationResult,
-	/**  Rows the op patched. */
-	changed: number,
-	/**  Rows an expression could not evaluate. */
-	failed: number[],
 };
 
 
@@ -1206,6 +1162,8 @@ export type MutationResult = {
 	step: number | null,
 	/**  The active location as this change left it, when the change touched it. */
 	active: Location | null,
+	/**  The id the first added row was given; the rest follow it in order. */
+	firstId: number | null,
 };
 
 /**
@@ -1663,12 +1621,6 @@ export type ReviewSession = {
 /**  Matched locations: returned inline, or as a file path to read them from. */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
 
-/**  Rows after a run over them, and the ids each provider failed. */
-export type RowsRun = {
-	rows: Location[],
-	failed: { [key in string]: number[] },
-};
-
 export type SavedSelection = {
 	selector: Selector,
 	/**  Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable. */
@@ -1887,6 +1839,19 @@ export type SyncReconcileResult = {
 };
 
 
+/**
+ *  Where an edit lands or a row is read: the map's rows, or a named layer of pending
+ *  edits held over them.
+ */
+export type Target = 
+/**  The map's rows. */
+{ kind: "map" } | 
+/**
+ *  The named layer of pending edits over the map, made on first use. Its edits read
+ *  over the map's rows as they are now, and land when an edit says so.
+ */
+{ kind: "pending"; name: string };
+
 export type UpdateAvailable = {
 	version: string,
 	currentVersion: string,
@@ -1937,6 +1902,54 @@ export type VirtualTag = {
 	color?: string | null,
 	/**  Where the folder sorts while it holds no tags, on the same scale as tag order. */
 	order?: number | null,
+};
+
+/**  Work the store runs over the selected rows to derive their edits. */
+export type Work = 
+/**
+ *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
+ *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ */
+{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
+/**  Drop `keys` from every row that has them. */
+{ kind: "delete"; keys: string[] } | 
+/**
+ *  Assign `value` to `key` on every row where it differs. A writable built-in key
+ *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+ */
+{ kind: "set"; key: string; value: unknown } | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
+ */
+{ kind: "expr"; key: string; expr: string } | 
+/**
+ *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
+ *  reads the row's current value as a set rather than replacing it, which is what
+ *  membership needs: `tags` is this op's first caller, `array` extras its second.
+ *  `add` wins for a value named in both lists, and a row already in the requested
+ *  state keeps its member order.
+ */
+{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] } | 
+/**
+ *  Merge each duplicate group within `distance` metres into one survivor, unioning
+ *  tags and extra fields. `score` ranks which survives; absent uses the default
+ *  ranking.
+ */
+{ kind: "mergeDuplicates"; distance: number; score: string | null } | 
+/**
+ *  Remove duplicates within `distance` metres of each other, keeping the best-scored
+ *  survivor per cluster.
+ */
+{ kind: "pruneDuplicates"; distance: number; score: string | null };
+
+/**  The work's outcome for the caller: the mutation plus what its message needs. */
+export type WorkResult = {
+	mutation: MutationResult,
+	/**  Rows the work edited. */
+	changed: number,
+	/**  Rows an expression could not evaluate. */
+	failed: number[],
 };
 
 /* Tauri Specta runtime */

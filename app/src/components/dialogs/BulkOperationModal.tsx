@@ -18,7 +18,7 @@ import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { applyFieldOp, applySelectionUpdate, getMapState, query } from "@/store/useMapStore";
 import { addSelection, all, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
-import type { Selector, FieldOp } from "@/bindings.gen";
+import type { Selector, Work } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
 	getFieldDef,
@@ -576,7 +576,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 						const useExpr = isNumber;
 						const setValue: string | boolean = isBool ? rv === "true" : rv;
 						onReady(async ({ selector }) => {
-							const op: FieldOp = useExpr
+							const op: Work = useExpr
 								? { kind: "expr", key: ek, expr: rv }
 								: { kind: "set", key: ek, value: setValue };
 							const { changed, failed } = await applyFieldOp(selector, op, true);

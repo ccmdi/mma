@@ -2386,7 +2386,8 @@ fn an_add_reports_the_id_its_first_location_was_given() {
         .filter(|l| l.lat > 0.5)
         .map(|l| l.id)
         .collect();
-    assert_eq!(ids, vec![added.first_id, added.first_id + 1]);
+    let first = added.first_id.unwrap();
+    assert_eq!(ids, vec![first, first + 1]);
 }
 
 #[test]
@@ -3052,7 +3053,7 @@ fn stripping_the_last_member_reports_a_zero_count() {
 /// Membership write through the generic field op: `tags` is an ordinary list-valued
 /// field, so it goes through the same `ListSet` any `array` field would.
 fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> MutationResult {
-    let op = FieldOp::ListSet {
+    let op = Work::ListSet {
         key: "tags".into(),
         add: add.iter().map(|&i| serde_json::json!(i)).collect(),
         remove: remove.iter().map(|&i| serde_json::json!(i)).collect(),
@@ -3061,9 +3062,7 @@ fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Muta
         locations: ids.to_vec(),
         name: None,
     };
-    apply_field_op(store, &selector, &op, true)
-        .unwrap()
-        .mutation
+    apply_work(store, &selector, &op, true).unwrap().mutation
 }
 
 #[test]
@@ -3373,7 +3372,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
         counts(&[("a", 3), ("b", 1)])
     );
 
-    apply_field_op(&mut store, &all, &del_op(&["b"]), true).unwrap();
+    apply_work(&mut store, &all, &del_op(&["b"]), true).unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
     let gain_b = patch!(2; extra: raw_extra(r#"{"b":5}"#));
@@ -5776,31 +5775,50 @@ fn planned_extra(u: &Patch<Location>) -> serde_json::Value {
     serde_json::from_str(u.extra.as_ref().unwrap().as_ref().unwrap().as_str()).unwrap()
 }
 
-fn plan(locs: &[Location], op: &FieldOp) -> Vec<Patch<Location>> {
+struct Planned {
+    updates: Vec<Patch<Location>>,
+    failed: Vec<u32>,
+}
+
+fn puts(edits: Vec<Edit>) -> Vec<Patch<Location>> {
+    edits
+        .into_iter()
+        .map(|e| match e {
+            Edit::Put(p) => p,
+            _ => panic!("field work plans only patches"),
+        })
+        .collect()
+}
+
+fn plan(locs: &[Location], op: &Work) -> Vec<Patch<Location>> {
     plan_full(locs, op).updates
 }
 
-fn plan_full(locs: &[Location], op: &FieldOp) -> FieldPlan {
+fn plan_full(locs: &[Location], op: &Work) -> Planned {
     let fx = Fx::base(locs);
-    plan_field_op(&fx.view().all(), op).unwrap()
+    let p = plan_fields(&fx.view().all(), op).unwrap();
+    Planned {
+        updates: puts(p.edits),
+        failed: p.failed,
+    }
 }
 
-fn set_op(key: &str, value: serde_json::Value) -> FieldOp {
-    FieldOp::Set {
+fn set_op(key: &str, value: serde_json::Value) -> Work {
+    Work::Set {
         key: key.into(),
         value,
     }
 }
 
-fn expr_op(key: &str, expr: &str) -> FieldOp {
-    FieldOp::Expr {
+fn expr_op(key: &str, expr: &str) -> Work {
+    Work::Expr {
         key: key.into(),
         expr: expr.into(),
     }
 }
 
-fn move_op(from: &str, to: &str, winner: MergeWinner) -> FieldOp {
-    FieldOp::Move {
+fn move_op(from: &str, to: &str, winner: MergeWinner) -> Work {
+    Work::Move {
         from: from.into(),
         to: to.into(),
         winner,
@@ -5874,7 +5892,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
             loc_with_extra(1, r#"{"a":5,"b":9}"#),
             loc_with_extra(2, r#"{"b":1}"#),
         ],
-        &FieldOp::Delete {
+        &Work::Delete {
             keys: vec!["a".into()],
         },
     );
@@ -5887,7 +5905,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
 fn field_delete_takes_several_keys_at_once() {
     let out = plan(
         &[loc_with_extra(1, r#"{"a":5,"b":9,"c":1}"#)],
-        &FieldOp::Delete {
+        &Work::Delete {
             keys: vec!["a".into(), "c".into(), "missing".into()],
         },
     );
@@ -5905,11 +5923,14 @@ fn field_op_honours_the_selector() {
     ];
     let fx = Fx::base(&locs);
     let set: RoaringBitmap = [2u32].into_iter().collect();
-    let FieldPlan { updates: out, .. } = plan_field_op(
-        &fx.view().all().within(&set),
-        &move_op("a", "b", MergeWinner::From),
-    )
-    .unwrap();
+    let out = puts(
+        plan_fields(
+            &fx.view().all().within(&set),
+            &move_op("a", "b", MergeWinner::From),
+        )
+        .unwrap()
+        .edits,
+    );
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].id, 2);
 }
@@ -5991,16 +6012,16 @@ fn pinned_loc(id: u32, pano: &str) -> Location {
 }
 
 /// The message a rejected op answers with, or a panic naming what was wrongly accepted.
-fn plan_err(locs: &[Location], op: &FieldOp) -> String {
+fn plan_err(locs: &[Location], op: &Work) -> String {
     let fx = Fx::base(locs);
-    match plan_field_op(&fx.view().all(), op) {
+    match plan_fields(&fx.view().all(), op) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("op was accepted"),
     }
 }
 
-fn del_op(keys: &[&str]) -> FieldOp {
-    FieldOp::Delete {
+fn del_op(keys: &[&str]) -> Work {
+    Work::Delete {
         keys: keys.iter().map(|k| (*k).to_string()).collect(),
     }
 }
@@ -6118,7 +6139,7 @@ fn expr_op_reads_builtin_columns_and_may_write_one() {
 #[test]
 fn expr_op_rejects_a_syntax_error_before_touching_rows() {
     let fx = Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
-    let err = plan_field_op(&fx.view().all(), &expr_op("a", "a +"))
+    let err = plan_fields(&fx.view().all(), &expr_op("a", "a +"))
         .err()
         .unwrap();
     assert!(err.0.contains("unexpected end of expression"), "{}", err.0);
@@ -6131,13 +6152,9 @@ fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let r = apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
     assert!(store.field_defs.contains_key("zz"));
-    assert!(r
-        .mutation
-        .values
-        .field_defs
-        .is_some_and(|d| d.contains_key("zz")));
+    assert!(r.values.field_defs.is_some_and(|d| d.contains_key("zz")));
     let r = apply_adds(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
-    assert!(r.mutation.values.field_defs.is_none());
+    assert!(r.values.field_defs.is_none());
 
     let r = apply_updates(
         &mut store,
@@ -6173,7 +6190,7 @@ fn registering_fields_keeps_the_existing_def() {
 #[test]
 fn apply_field_op_clears_a_nullable_column() {
     let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
-    let out = apply_field_op(
+    let out = apply_work(
         &mut store,
         &Selector::Everything,
         &del_op(&["panoId"]),
@@ -6193,7 +6210,7 @@ fn clearable_builtins_are_the_optional_columns_touch_leaves_empty() {
 #[test]
 fn apply_field_op_refuses_to_clear_the_column_the_engine_stamps() {
     let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
-    let Err(err) = apply_field_op(
+    let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
         &del_op(&["modifiedAt"]),
@@ -6211,7 +6228,7 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
         loc_with_extra(2, r#"{"b":1}"#),
         loc_with_extra(3, r#"{"a":"ten"}"#),
     ]);
-    let out = apply_field_op(
+    let out = apply_work(
         &mut store,
         &Selector::Everything,
         &expr_op("h", "a + 1"),
@@ -6226,7 +6243,7 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
 fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
     for on in [true, false] {
-        let out = apply_field_op(
+        let out = apply_work(
             &mut store,
             &Selector::Everything,
             &set_op("loadAsPanoId", serde_json::json!(on)),
@@ -6248,7 +6265,7 @@ fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
 #[test]
 fn apply_field_op_refuses_a_column_it_cannot_clear() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
-    let Err(err) = apply_field_op(
+    let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
         &del_op(&["heading"]),
@@ -6262,7 +6279,7 @@ fn apply_field_op_refuses_a_column_it_cannot_clear() {
 #[test]
 fn apply_field_op_refuses_a_non_numeric_assignment() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
-    assert!(apply_field_op(
+    assert!(apply_work(
         &mut store,
         &Selector::Everything,
         &set_op("heading", serde_json::json!("north")),
@@ -6446,4 +6463,209 @@ fn a_save_stamped_with_an_older_rev_leaves_the_value_unsaved() {
     let current = tracked.rev();
     tracked.saved_at(current);
     assert!(!tracked.is_unsaved());
+}
+
+// ---------------------------------------------------------------------------
+// Pending layers: edits held over the map until they land
+// ---------------------------------------------------------------------------
+
+fn viewer() -> Target {
+    Target::Pending {
+        name: "viewer".into(),
+    }
+}
+
+fn heading(id: u32, heading: f64) -> Patch<Location> {
+    Patch::<Location> {
+        id,
+        heading: Some(heading),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_pending_edit_is_held_and_read_through_until_it_lands() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.next_id = 2;
+    let r = store.edit(
+        &viewer(),
+        vec![Edit::Put(heading(1, 90.0))],
+        false,
+        None,
+        true,
+    );
+    assert_eq!(r.step, None);
+    assert_eq!(store.row_at(&Target::Map, 1).unwrap().heading, 0.0);
+    assert_eq!(store.row_at(&viewer(), 1).unwrap().heading, 90.0);
+    assert_eq!(store.edits.undo_len(), 0);
+}
+
+#[test]
+fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.next_id = 2;
+    store.edit(
+        &viewer(),
+        vec![Edit::Put(heading(1, 90.0))],
+        false,
+        None,
+        true,
+    );
+    store.write(
+        [Edit::Put(Patch::<Location> {
+            id: 1,
+            pitch: Some(5.0),
+            ..Default::default()
+        })],
+        UndoScope::Entry,
+    );
+    let seen = store.row_at(&viewer(), 1).unwrap();
+    assert_eq!(seen.heading, 90.0);
+    assert_eq!(seen.pitch, 5.0);
+}
+
+#[test]
+fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
+    store.next_id = 3;
+    store.edit(
+        &viewer(),
+        vec![Edit::Put(heading(1, 90.0))],
+        false,
+        None,
+        true,
+    );
+    store.edit(&viewer(), vec![Edit::Remove(2)], false, None, true);
+    assert_eq!(store.edits.undo_len(), 0);
+
+    let r = store.edit(&viewer(), vec![], true, None, true);
+    assert!(r.step.is_some());
+    assert_eq!(store.edits.undo_len(), 1);
+    assert_eq!(store.row_at(&Target::Map, 1).unwrap().heading, 90.0);
+    assert!(store.row_at(&Target::Map, 2).is_none());
+
+    press_undo(&mut store);
+    assert_eq!(store.row_at(&Target::Map, 1).unwrap().heading, 0.0);
+    assert!(store.row_at(&Target::Map, 2).is_some());
+}
+
+#[test]
+fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.next_id = 2;
+    store.edit(
+        &viewer(),
+        vec![Edit::Put(heading(1, 90.0))],
+        true,
+        None,
+        true,
+    );
+    assert_eq!(store.edits.undo_len(), 1);
+
+    store.edit(
+        &viewer(),
+        vec![Edit::Put(Patch::<Location> {
+            id: 1,
+            pitch: Some(5.0),
+            ..Default::default()
+        })],
+        false,
+        None,
+        true,
+    );
+    let row = store.row_at(&Target::Map, 1).unwrap();
+    assert_eq!((row.heading, row.pitch), (90.0, 5.0));
+    assert_eq!(store.edits.undo_len(), 1);
+
+    press_undo(&mut store);
+    let row = store.row_at(&Target::Map, 1).unwrap();
+    assert_eq!((row.heading, row.pitch), (0.0, 0.0));
+}
+
+#[test]
+fn dropping_a_pending_layer_discards_what_it_held() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.next_id = 2;
+    store.edit(
+        &viewer(),
+        vec![Edit::Put(heading(1, 90.0))],
+        false,
+        None,
+        true,
+    );
+    store.drop_pending("viewer");
+    assert_eq!(store.row_at(&viewer(), 1).unwrap().heading, 0.0);
+}
+
+#[test]
+fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.next_id = 2;
+    let r = store.edit(
+        &viewer(),
+        vec![Edit::Set(loc(0, 2.0, 2.0))],
+        false,
+        None,
+        true,
+    );
+    assert_eq!(r.first_id, Some(2));
+    assert!(store.row_at(&Target::Map, 2).is_none());
+    assert_eq!(store.row_at(&viewer(), 2).unwrap().lat, 2.0);
+
+    store.edit(&viewer(), vec![], true, None, true);
+    assert_eq!(store.row_at(&Target::Map, 2).unwrap().lat, 2.0);
+}
+
+#[test]
+fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
+    let mut store = setup_store_with(&[]);
+    store.derived = std::sync::Arc::new(HashMap::from([(
+        "panoId".to_string(),
+        vec!["countryCode".to_string()],
+    )]));
+    let read = Location {
+        pano_id: Some("old".into()),
+        ..loc(1, 0.0, 0.0)
+    };
+    let now = Location {
+        pano_id: Some("new".into()),
+        ..loc(1, 0.0, 0.0)
+    };
+    let answer = || Patch::<Location> {
+        id: 1,
+        heading: Some(2.0),
+        extra: RawExtra::from_map(
+            serde_json::json!({ "countryCode": "FR", "altitude": 9 })
+                .as_object()
+                .unwrap(),
+        )
+        .map(Some),
+        ..Default::default()
+    };
+
+    let kept = store.still_applies(answer(), &read, &now);
+    let extra = kept.extra.unwrap().unwrap().to_map();
+    assert!(extra.get("countryCode").is_none());
+    assert_eq!(extra.get("altitude"), Some(&serde_json::json!(9)));
+    assert_eq!(kept.heading, Some(2.0));
+
+    let same = store.still_applies(answer(), &read, &read);
+    assert!(same
+        .extra
+        .unwrap()
+        .unwrap()
+        .to_map()
+        .contains_key("countryCode"));
+
+    let all_stale = Patch::<Location> {
+        id: 1,
+        extra: RawExtra::from_map(
+            serde_json::json!({ "countryCode": "FR" })
+                .as_object()
+                .unwrap(),
+        )
+        .map(Some),
+        ..Default::default()
+    };
+    assert_eq!(store.still_applies(all_stale, &read, &now).extra, None);
 }

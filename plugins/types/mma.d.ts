@@ -729,20 +729,18 @@ declare const commands$1: {
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Return the map's current location count, store version, and unsaved-change count. @unstable */
     storeGetSummary: () => Promise<SummaryResult>;
-    /**  Add new locations, allocating sequential IDs. Undoable. @unstable */
-    storeAddLocations: (locations: Location[]) => Promise<Added>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
-    storeAddLocationsUploaded: (sessionDir: string) => Promise<Added>;
-    /**  Remove locations by ID. Undoable. @unstable */
-    storeRemoveLocations: (ids: number[]) => Promise<MutationResult>;
+    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult>;
     /**
-     *  Apply partial patches to existing locations. `recordUndo` defaults to true;
-     *  set to false for ephemeral updates (e.g., plugin-driven batch modifications
-     *  that manage their own undo). With `join`, an undoable change folds into that undo step
-     *  while it is still the newest.
+     *  Edit rows where `target` says. Edits at a pending layer are held there until one says
+     *  `land`; once landed they write through and join its step.
      *  @unstable
      */
-    storeUpdateLocations: (updates: (Partial<Location> & Pick<Location, "id">)[], recordUndo: boolean | null, join: number | null) => Promise<MutationResult>;
+    storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => Promise<MutationResult>;
+    /**  The row at `id` as `target` sees it. @unstable */
+    storeRow: (target: Target, id: number) => Promise<Location | null>;
+    /**  Drop a named pending layer and everything it holds. @unstable */
+    storeDrop: (name: string) => Promise<null>;
     /**
      *  Declare which fields are computed from which: each input field and the fields derived
      *  from it. A write that changes an input clears what was derived from it.
@@ -826,8 +824,8 @@ declare const commands$1: {
      *  @unstable
      */
     storeCollect: (selector: Selector) => Promise<Rows>;
-    /**  Apply a field operation to every location matched by `selector`. @unstable */
-    storeApplyFieldOp: (selector: Selector, op: FieldOp, recordUndo: boolean | null) => Promise<FieldOpResult>;
+    /**  Run work over every location matched by `selector`, landing the edits it derives. @unstable */
+    storeWork: (selector: Selector, work: Work, recordUndo: boolean | null) => Promise<WorkResult>;
     /**  The parse error for `src`, or `null` when it parses. @unstable */
     fieldExprError: (src: string) => Promise<ExprError | null>;
     /**
@@ -871,19 +869,6 @@ declare const commands$1: {
      *  @unstable
      */
     storeDuplicateGroups: (distance: number) => Promise<number[][]>;
-    /**
-     *  Merge each duplicate group within `distance` metres into one location, unioning tags
-     *  and extra fields. `score` ranks which location survives; blank uses the default ranking.
-     *  Undoable.
-     *  @unstable
-     */
-    storeMergeDuplicates: (distance: number, score: string | null) => Promise<MutationResult>;
-    /**
-     *  Remove duplicate locations within `distance` metres of each other, keeping the
-     *  best-scored survivor per cluster. Undoable.
-     *  @unstable
-     */
-    storePruneDuplicates: (selector: Selector, distance: number, score: string | null) => Promise<MutationResult>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
@@ -1132,14 +1117,7 @@ declare const commands$1: {
      *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
      *  @unstable
      */
-    procedureRun: (providers: ProviderDecl[], force: boolean) => Promise<number>;
-    /**
-     *  Run providers over caller-supplied `rows` and return them as modified. Does not
-     *  affect the open map. A `runId` from `procedureReserveRun` streams results under it and
-     *  lets `procedureCancel` stop the run.
-     *  @unstable
-     */
-    procedureRunRows: (providers: ProviderDecl[], force: boolean, rows: Location[], runId: number | null) => Promise<RowsRun>;
+    procedureRun: (providers: ProviderDecl[], force: boolean, target: Target | null) => Promise<number>;
     /**  Stop a run before its next batch. Already-applied patches stay applied. @unstable */
     procedureCancel: (runId: number) => Promise<null>;
     /**
@@ -1268,12 +1246,6 @@ declare const events: {
         once: (cb: __TAURI_EVENT.EventCallback<ValiProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
         emit: (payload: ValiProgress) => Promise<void>;
     };
-};
-/**  A batch of new locations added to the open map. @unstable */
-type Added = {
-    mutation: MutationResult;
-    /**  The id the first location was given; the rest follow it in order. */
-    firstId: number;
 };
 /** @unstable */
 type AnonIssueRef = {
@@ -1422,6 +1394,38 @@ type DeviceCodeInfo = {
     verificationUri: string;
     /**  Seconds until `userCode` stops working. */
     expiresIn: number;
+};
+/**  One keyed edit. @unstable */
+type Edit = 
+/**  The row exactly as given; id zero adds it under a fresh id. */
+(({
+    set: Location;
+}) & {
+    put?: never;
+    remove?: never;
+}) | (
+/**  A patch written over the row it names, stamped when that changes it. */
+({
+    put: Partial<Location> & Pick<Location, "id">;
+}) & {
+    remove?: never;
+    set?: never;
+}) | (
+/**  The row at this id removed. */
+({
+    remove: number;
+}) & {
+    put?: never;
+    set?: never;
+});
+/**  How an edit lands. @unstable */
+type EditOpts = {
+    /**  Fold the pending layer's edits into the map after these land in it. */
+    land?: boolean;
+    /**  The undo step to fold into while it is still the newest. */
+    join?: number | null;
+    /**  `false` leaves no undo step. The default is `true`. */
+    recordUndo?: boolean | null;
 };
 /**
  *  Preview data for importing a file into the currently open map.
@@ -1587,62 +1591,6 @@ type FieldDef = {
     values: FieldValue[] | null;
     /**  How this field is compared during disambiguation. `null` infers it from the field type. */
     comparison: ComparisonType | null;
-};
-/**  A rewrite of one `extra` field across every location, computed per row. @unstable */
-type FieldOp = 
-/**
- *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
- */
-{
-    kind: "move";
-    from: string;
-    to: string;
-    winner: MergeWinner;
-} | 
-/**  Drop `keys` from every row that has them. */
-{
-    kind: "delete";
-    keys: string[];
-} | 
-/**
- *  Assign `value` to `key` on every row where it differs. A writable built-in key
- *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
- */
-{
-    kind: "set";
-    key: string;
-    value: unknown;
-} | 
-/**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is reported back by id.
- */
-{
-    kind: "expr";
-    key: string;
-    expr: string;
-} | 
-/**
- *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
- *  reads the row's current value as a set rather than replacing it, which is what
- *  membership needs: `tags` is this op's first caller, `array` extras its second.
- *  `add` wins for a value named in both lists, and a row already in the requested
- *  state keeps its member order.
- */
-{
-    kind: "listSet";
-    key: string;
-    add: unknown[];
-    remove: unknown[];
-};
-/**  The op's outcome for the caller: the mutation plus what its message needs. */
-type FieldOpResult = {
-    mutation: MutationResult;
-    /**  Rows the op patched. */
-    changed: number;
-    /**  Rows an expression could not evaluate. */
-    failed: number[];
 };
 /**
  *  One member of an enumerable field's value space: the stored value plus its display
@@ -2032,6 +1980,8 @@ type MutationResult = {
     step: number | null;
     /**  The active location as this change left it, when the change touched it. */
     active: Location | null;
+    /**  The id the first added row was given; the rest follow it in order. */
+    firstId: number | null;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -2478,13 +2428,6 @@ type Rows = {
     kind: "file";
     path: string;
 };
-/**  Rows after a run over them, and the ids each provider failed. @unstable */
-type RowsRun = {
-    rows: Location[];
-    failed: {
-        [key in string]: number[];
-    };
-};
 /** @unstable */
 type SavedSelection = {
     selector: Selector;
@@ -2748,6 +2691,24 @@ type SyncReconcileResult = {
     pullDeleteIds: number[];
     mirrorLocalDeleteIds: number[];
 };
+/**
+ *  Where an edit lands or a row is read: the map's rows, or a named layer of pending
+ *  edits held over them.
+ *  @unstable
+ */
+type Target = 
+/**  The map's rows. */
+{
+    kind: "map";
+} | 
+/**
+ *  The named layer of pending edits over the map, made on first use. Its edits read
+ *  over the map's rows as they are now, and land when an edit says so.
+ */
+{
+    kind: "pending";
+    name: string;
+};
 /** @unstable */
 type UpdateAvailable = {
     version: string;
@@ -2816,6 +2777,81 @@ type VirtualTag = {
     color?: string | null;
     /**  Where the folder sorts while it holds no tags, on the same scale as tag order. */
     order?: number | null;
+};
+/**  Work the store runs over the selected rows to derive their edits. @unstable */
+type Work = 
+/**
+ *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
+ *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ */
+{
+    kind: "move";
+    from: string;
+    to: string;
+    winner: MergeWinner;
+} | 
+/**  Drop `keys` from every row that has them. */
+{
+    kind: "delete";
+    keys: string[];
+} | 
+/**
+ *  Assign `value` to `key` on every row where it differs. A writable built-in key
+ *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+ */
+{
+    kind: "set";
+    key: string;
+    value: unknown;
+} | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
+ */
+{
+    kind: "expr";
+    key: string;
+    expr: string;
+} | 
+/**
+ *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
+ *  reads the row's current value as a set rather than replacing it, which is what
+ *  membership needs: `tags` is this op's first caller, `array` extras its second.
+ *  `add` wins for a value named in both lists, and a row already in the requested
+ *  state keeps its member order.
+ */
+{
+    kind: "listSet";
+    key: string;
+    add: unknown[];
+    remove: unknown[];
+} | 
+/**
+ *  Merge each duplicate group within `distance` metres into one survivor, unioning
+ *  tags and extra fields. `score` ranks which survives; absent uses the default
+ *  ranking.
+ */
+{
+    kind: "mergeDuplicates";
+    distance: number;
+    score: string | null;
+} | 
+/**
+ *  Remove duplicates within `distance` metres of each other, keeping the best-scored
+ *  survivor per cluster.
+ */
+{
+    kind: "pruneDuplicates";
+    distance: number;
+    score: string | null;
+};
+/**  The work's outcome for the caller: the mutation plus what its message needs. */
+type WorkResult = {
+    mutation: MutationResult;
+    /**  Rows the work edited. */
+    changed: number;
+    /**  Rows an expression could not evaluate. */
+    failed: number[];
 };
 
 /**
@@ -3475,7 +3511,7 @@ declare function renameField(from: string, to: string, winner?: MergeWinner): Pr
 /** Delete extra-field `key` from every location, its definition, and references. */
 declare function deleteField(key: string): Promise<void>;
 /** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
-declare function applyFieldOp(selector: Selector, op: FieldOp, recordUndo: boolean): Promise<FieldOpResult>;
+declare function applyFieldOp(selector: Selector, op: Work, recordUndo: boolean): Promise<WorkResult>;
 /** Apply `op` to the listed selections and re-resolve them: the one way the selection changes.
  *  Lift an op over the active selections alone with `onActive`. No-op when nothing changed. @unstable */
 declare function applySelectionUpdate(op: (rows: ListedSelection[]) => ListedSelection[]): Promise<void>;
@@ -3565,7 +3601,7 @@ declare function reorderTags(orderedIds: number[]): Promise<void>;
  *  in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
  *  list-valued field, so this is the same `listSet` any `array` field takes. Locations
  *  already in the requested state are untouched; `add` wins for a tag in both lists. */
-declare function setTags(add: number[], remove: number[], selector: Selector): Promise<void> | Promise<FieldOpResult>;
+declare function setTags(add: number[], remove: number[], selector: Selector): Promise<void> | Promise<WorkResult>;
 /** Undo the last edit. */
 declare function undo(): Promise<void>;
 /** Redo the last undone edit. */
@@ -6522,6 +6558,11 @@ declare function runProviders<C extends readonly unknown[]>(items: {
 declare function runProviders<C extends readonly unknown[]>(items: {
     [K in keyof C]: ProviderRun<C[K]>;
 }, rows: Location[], opts?: RunOpts): Promise<RowsRun>;
+/** Rows after a run over them, and the ids each provider failed. @unstable */
+export interface RowsRun {
+    rows: Location[];
+    failed: Record<string, number[]>;
+}
 /** What a run may set on top of what the spec declares. @unstable */
 export interface DeclOpts {
     label?: string;
@@ -6555,6 +6596,8 @@ export type procedures_ProviderPart = ProviderPart;
 /** @unstable */
 export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
 /** @unstable */
+export type procedures_RowsRun = RowsRun;
+/** @unstable */
 export type procedures_RunOpts = RunOpts;
 /** @unstable */
 declare const procedures_noWork: typeof noWork;
@@ -6572,7 +6615,7 @@ declare const procedures_runProcedure: typeof runProcedure;
 declare const procedures_runProviders: typeof runProviders;
 declare namespace procedures {
   export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_procedureName as procedureName, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
-  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
+  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RowsRun as RowsRun, procedures_RunOpts as RunOpts };
 }
 
 /** Fetch a page of the seen (visited-panorama) history. @unstable */
@@ -7479,11 +7522,11 @@ declare function request<T>(pluginId: string, command: string, payload?: unknown
 /** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
 declare function installedVersion(pluginId: string): Promise<string | null>;
 /** @deprecated v0.10.5. Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`. @unstable */
-declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<FieldOpResult>;
+declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<WorkResult>;
 /** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`. @unstable */
-declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<FieldOpResult>;
+declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<void> | Promise<WorkResult>;
 /** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`. @unstable */
-declare function removeTagFromAllLocations(tagId: number): Promise<void> | Promise<FieldOpResult>;
+declare function removeTagFromAllLocations(tagId: number): Promise<void> | Promise<WorkResult>;
 /** @deprecated v0.11.3. Use `MMA.applySelectionUpdate(MMA.addSelection(...selectors))`. @unstable */
 declare function addSelections(selectors: Selector[]): Promise<void>;
 /** @deprecated v0.11.3. Use `MMA.applySelectionUpdate(MMA.removeSelection(...keys))`. @unstable */
@@ -7866,4 +7909,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, SyncDirection, SyncTrigger, VIRTUAL_FLAGS, ValidationFlag, commands$1 as commands, events };
-export type { Added, AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldOp, FieldOpResult, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RemoteTag, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, Rows, RowsRun, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncLogEntry, SyncLogResult, SyncReconcileResult, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag };
+export type { AnonIssueRef, AttachmentRef, BatchMode, CameraFrame, Columns, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, PullCreate, PullUpdate, QueryActivity, RateSpec, RemoteMappingRow, RemoteTag, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, SpacedPickResult, StoreStatus, StoreWarning, SummaryResult, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

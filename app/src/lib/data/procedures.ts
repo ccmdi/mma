@@ -2,7 +2,7 @@
 // providers are gated on their dependencies, locations are paged, and each procedure's
 // answers are delivered as patches or back to the caller.
 
-import type { KeySpec, Location, ProcedureDecl, RowsRun, Selector } from "@/bindings.gen";
+import type { KeySpec, Location, ProcedureDecl, Selector, Target } from "@/bindings.gen";
 import { holdAutosave } from "@/store/useMapStore";
 import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
@@ -208,30 +208,52 @@ export async function runProviders(
 	return Array.isArray(rows) ? runRows(decls, rows, opts) : runDecls(decls, opts);
 }
 
-/** The engine holds ids as unsigned integers, so a row travels under its position and
- *  comes back under its own id (a virtual location's is negative). */
+/** Rows after a run over them, and the ids each provider failed. */
+export interface RowsRun {
+	rows: Location[];
+	failed: Record<string, number[]>;
+}
+
+/** The rows run on a pending layer of their own over the open map, so nothing reaches the
+ *  map; each travels under the id the layer gave it and comes back under its own. */
 async function runRows(decls: ProviderDecl[], rows: Location[], opts: RunOpts): Promise<RowsRun> {
 	if (decls.length === 0 || rows.length === 0) return { rows, failed: {} };
-	const standIns = rows.map((r, i) => ({ ...r, id: i + 1 }));
-	const idOf = (standIn: number) => rows[standIn - 1].id;
+	const target: Target = { kind: "pending", name: `run:${crypto.randomUUID()}` };
+	const held = await cmd.storeEdit(
+		target,
+		rows.map((row) => ({ set: { ...row, id: 0 } })),
+		null,
+	);
+	const first = held.firstId ?? 0;
+	const mine = (id: number) => id >= first && id < first + rows.length;
+	const idOf = (id: number) => rows[id - first].id;
 	let unlisten: (() => void) | undefined;
-	const out = await cancellable(opts.signal, !!opts.onPartial, async (runId) => {
+	try {
 		if (opts.onPartial) {
 			unlisten = await events.procedureResult.listen(({ payload }) => {
-				if (payload.runId !== runId || payload.entries.length === 0) return;
+				const entries = payload.entries.filter((e) => mine(e.id));
+				if (entries.length === 0) return;
 				opts.onPartial!(
-					payload.entries.map((e) => ({ ...(JSON.parse(e.json) as Location), id: idOf(e.id) })),
+					entries.map((e) => ({ ...(JSON.parse(e.json) as Location), id: idOf(e.id) })),
 				);
 			});
 		}
-		return cmd.procedureRunRows(decls, opts.force ?? false, standIns, runId);
-	}).finally(() => unlisten?.());
-	return {
-		rows: out.rows.map((r) => ({ ...r, id: idOf(r.id) })),
-		failed: Object.fromEntries(
-			Object.entries(out.failed).map(([provider, ids]) => [provider, ids.map(idOf)]),
-		),
-	};
+		const outcomes = await runDecls(decls, opts, target);
+		const out: Location[] = [];
+		for (let i = 0; i < rows.length; i++) {
+			const row = await cmd.storeRow(target, first + i);
+			out.push(row ? { ...row, id: rows[i].id } : rows[i]);
+		}
+		const failed = Object.fromEntries(
+			Object.entries(outcomes)
+				.filter(([, o]) => o.failed.length > 0)
+				.map(([provider, o]) => [provider, o.failed.map(idOf)]),
+		);
+		return { rows: out, failed };
+	} finally {
+		unlisten?.();
+		void cmd.storeDrop(target.name);
+	}
 }
 
 /** What a run may set on top of what the spec declares. */
@@ -287,7 +309,11 @@ export async function runProcedure<T, C>(
 }
 
 /** Drive declared procedures through the engine as one run and gather what comes back. */
-async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderOutcomes> {
+async function runDecls(
+	decls: ProviderDecl[],
+	opts: RunOpts,
+	target: Target | null = null,
+): Promise<ProviderOutcomes> {
 	const { signal, force = false, onProgress } = opts;
 	const result: ProviderOutcomes = {};
 	if (decls.length === 0) return result;
@@ -357,7 +383,7 @@ async function runDecls(decls: ProviderDecl[], opts: RunOpts): Promise<ProviderO
 	};
 	const releaseAutosave = holdAutosave();
 	try {
-		runId = await cmd.procedureRun(decls, force);
+		runId = await cmd.procedureRun(decls, force, target);
 		for (const r of pendingResults) if (r.runId === runId) gather(r);
 		for (const p of pending) if (p.runId === runId) handle(p);
 		if (signal?.aborted) onAbort();

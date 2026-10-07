@@ -230,24 +230,55 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
     }
 }
 
-/// Add new locations, allocating sequential IDs. Undoable.
+/// Edit rows where `target` says. Edits at a pending layer are held there until one says
+/// `land`; once landed they write through and join its step.
 #[tauri::command]
 #[specta::specta]
-pub fn store_add_locations(
+pub fn store_edit(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    locations: Vec<Location>,
-) -> AppResult<Added> {
+    target: Target,
+    edits: Vec<Edit>,
+    opts: Option<EditOpts>,
+) -> AppResult<MutationResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let _lock = _t.elapsed().as_millis();
-        let result = apply_adds(store, locations);
-        log::debug!(
-            "[cmd] store_add_locations lock={}ms total={}ms",
-            _lock,
-            _t.elapsed().as_millis()
+        let opts = opts.unwrap_or_default();
+        let result = store.edit(
+            &target,
+            edits,
+            opts.land,
+            opts.join,
+            opts.record_undo.unwrap_or(true),
         );
+        log::debug!("[cmd] store_edit total={}ms", _t.elapsed().as_millis());
         Ok(result)
+    })
+}
+
+/// The row at `id` as `target` sees it.
+#[tauri::command]
+#[specta::specta]
+pub fn store_row(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    target: Target,
+    id: u32,
+) -> AppResult<Option<Location>> {
+    with_store!(label, state, |store| { Ok(store.row_at(&target, id)) })
+}
+
+/// Drop a named pending layer and everything it holds.
+#[tauri::command]
+#[specta::specta]
+pub fn store_drop(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    name: String,
+) -> AppResult<()> {
+    with_store!(label, state, |store| {
+        store.drop_pending(&name);
+        Ok(())
     })
 }
 
@@ -258,7 +289,7 @@ pub async fn store_add_locations_uploaded(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     session_dir: String,
-) -> AppResult<Added> {
+) -> AppResult<MutationResult> {
     let _t = Instant::now();
     // Parse before taking the store lock: a malformed chunk must leave the store untouched.
     let locations =
@@ -272,26 +303,6 @@ pub async fn store_add_locations_uploaded(
             n,
             _read,
             _t.elapsed().as_millis()
-        );
-        Ok(result)
-    })
-}
-
-/// Remove locations by ID. Undoable.
-#[tauri::command]
-#[specta::specta]
-pub fn store_remove_locations(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    ids: Vec<u32>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let result = store.write(ids.iter().map(|&id| Edit::Remove(id)), UndoScope::Entry);
-        log::debug!(
-            "[cmd] store_remove_locations total={}ms ids={}",
-            _t.elapsed().as_millis(),
-            ids.len()
         );
         Ok(result)
     })
@@ -314,56 +325,20 @@ pub fn store_set_derived(
     Ok(())
 }
 
-/// Apply partial patches to existing locations. `recordUndo` defaults to true;
-/// set to false for ephemeral updates (e.g., plugin-driven batch modifications
-/// that manage their own undo). With `join`, an undoable change folds into that undo step
-/// while it is still the newest.
+/// Run work over every location matched by `selector`, landing the edits it derives.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_update_locations(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    updates: Vec<Patch<Location>>,
-    record_undo: Option<bool>,
-    join: Option<u64>,
-) -> AppResult<MutationResult> {
-    let record_undo = record_undo.unwrap_or(true);
-    let mut join = join;
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let n = updates.len();
-        let undo = match record_undo {
-            true => UndoScope::Run(&mut join),
-            false => UndoScope::Skip,
-        };
-        let result = store.write(updates.into_iter().map(Edit::Put), undo);
-        log::debug!(
-            "[cmd] store_update_locations n={} undo={} total={}ms",
-            n,
-            record_undo,
-            _t.elapsed().as_millis()
-        );
-        Ok(result)
-    })
-}
-
-/// Apply a field operation to every location matched by `selector`.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_apply_field_op(
+pub async fn store_work(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     selector: Selector,
-    op: FieldOp,
+    work: Work,
     record_undo: Option<bool>,
-) -> AppResult<FieldOpResult> {
+) -> AppResult<WorkResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let result = apply_field_op(store, &selector, &op, record_undo.unwrap_or(true))?;
-        log::debug!(
-            "[cmd] store_apply_field_op total={}ms",
-            _t.elapsed().as_millis()
-        );
+        let result = apply_work(store, &selector, &work, record_undo.unwrap_or(true))?;
+        log::debug!("[cmd] store_work total={}ms", _t.elapsed().as_millis());
         Ok(result)
     })
 }
@@ -1186,77 +1161,6 @@ pub fn store_duplicate_groups(
 ) -> AppResult<Vec<Vec<u32>>> {
     with_store!(label, state, |store| {
         Ok(store.all().duplicate_groups(distance))
-    })
-}
-
-/// Merge each duplicate group within `distance` metres into one location, unioning tags
-/// and extra fields. `score` ranks which location survives; blank uses the default ranking.
-/// Undoable.
-// Extra merges survivor-wins.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_merge_duplicates(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    distance: f64,
-    score: Option<String>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    let score = selections::parse_duplicate_score(score.as_deref())?;
-    with_store!(label, state, |store| {
-        let groups = store.all().duplicate_groups(distance);
-
-        let mut edits: Vec<Edit> = Vec::new();
-        for group in &groups {
-            let members: Vec<Location> = group
-                .iter()
-                .filter_map(|&id| store.get_loc_by_id(id))
-                .collect();
-            if members.len() < 2 {
-                continue;
-            }
-            let survivor = merge_group(&members, &score);
-            edits.extend(members.iter().map(|m| Edit::Remove(m.id)));
-            edits.push(Edit::Set(survivor));
-        }
-
-        log::debug!(
-            "[cmd] store_merge_duplicates groups={} total={}ms",
-            groups.len(),
-            _t.elapsed().as_millis()
-        );
-        Ok(store.write(edits, UndoScope::Entry))
-    })
-}
-
-/// Remove duplicate locations within `distance` metres of each other, keeping the
-/// best-scored survivor per cluster. Undoable.
-// <= 25m: best-scored per cluster; > 25m: greedy thinning so no two survivors remain in
-// range.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_prune_duplicates(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    distance: f64,
-    score: Option<String>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    let score = selections::parse_duplicate_score(score.as_deref())?;
-    with_store!(label, state, |store| {
-        let locs: Vec<Location> = store.collect(&selector);
-        let prune_ids: HashSet<u32> = selections::prune_duplicates(&locs, distance, &score)
-            .into_iter()
-            .collect();
-        let total = locs.len();
-        log::debug!(
-            "[cmd] store_prune_duplicates pruned={} of {} total={}ms",
-            prune_ids.len(),
-            total,
-            _t.elapsed().as_millis()
-        );
-        Ok(store.write(prune_ids.into_iter().map(Edit::Remove), UndoScope::Entry))
     })
 }
 
