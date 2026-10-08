@@ -6,35 +6,35 @@ vi.mock("@/lib/util/log", () => ({
 }));
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 
-import { holdAutosave, scheduleSave, cancelAutosave } from "@/store/useMapStore";
+import { hold, schedule, cancel } from "@/store/autosave";
 
 beforeEach(() => {
 	vi.useFakeTimers();
 });
 afterEach(() => {
-	cancelAutosave();
+	cancel();
 	vi.useRealTimers();
 });
 
 describe("holdAutosave defers saves until every hold is released", () => {
 	it("schedules nothing while held, then one save on release", () => {
-		const release = holdAutosave();
-		scheduleSave();
-		scheduleSave();
+		const release = hold();
+		schedule();
+		schedule();
 		expect(vi.getTimerCount()).toBe(0);
 		release();
 		expect(vi.getTimerCount()).toBe(1);
 	});
 
 	it("releasing with nothing deferred schedules nothing", () => {
-		holdAutosave()();
+		hold()();
 		expect(vi.getTimerCount()).toBe(0);
 	});
 
 	it("nested holds release only when the last one does", () => {
-		const outer = holdAutosave();
-		const inner = holdAutosave();
-		scheduleSave();
+		const outer = hold();
+		const inner = hold();
+		schedule();
 		inner();
 		expect(vi.getTimerCount()).toBe(0);
 		outer();

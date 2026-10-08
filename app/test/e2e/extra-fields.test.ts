@@ -20,7 +20,7 @@ describe("Extra field definitions", () => {
 		};
 		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.updateMapMeta({
+			await api.edit.meta({
 				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
 		}, defs);

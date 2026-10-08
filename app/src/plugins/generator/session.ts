@@ -4,7 +4,8 @@ import { registerJob, type JobHandle } from "@/lib/jobs";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 import { definePluginEvent, emitPluginEvent } from "@/plugins/pluginEvents";
-import { createTags, setPluginMode } from "@/store/useMapStore";
+import { setPluginMode } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { createLocation } from "@/types";
 import { GenerationEngine } from "./engine/GenerationEngine";
 import type {
@@ -39,8 +40,8 @@ function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: n
 
 async function resolveTagByName(name: string): Promise<number | null> {
 	if (!name) return null;
-	const [tag] = await createTags([name]);
-	return tag.id;
+	const [id] = await edit.values("tags", { create: [{ name }] });
+	return id;
 }
 
 // Finds arrive one pano at a time; the region list and the tray hear about them once a frame.

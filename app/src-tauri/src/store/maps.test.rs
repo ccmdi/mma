@@ -75,7 +75,7 @@ fn map_extra_decodes_escaped_field_keys() {
     let bs = '\\';
     let json = format!(r#"{{"fields":{{"caf{bs}{bs}u00e9":{{"type":"string"}}}}}}"#);
     let extra = MapExtra::from_json(&json);
-    let fields = extra.fields.unwrap();
+    let fields = extra.fields;
     assert!(fields.contains_key("café"), "got {:?}", fields.keys());
 }
 
@@ -368,7 +368,7 @@ fn a_legacy_def_folds_its_labels_map_into_its_values() {
     let extra = MapExtra::from_json(
         r#"{"fields":{"cam":{"type":"enum","label":"Camera","values":["gen1","gen2"],"labels":{"gen1":"Gen 1"}}}}"#,
     );
-    let values = extra.fields.unwrap()["cam"].values.clone().unwrap();
+    let values = extra.fields["cam"].values.clone().unwrap();
     assert_eq!(values.len(), 2);
     assert_eq!(values[0].value, "gen1");
     assert_eq!(values[1].value, "gen2");
@@ -540,84 +540,6 @@ fn deleting_the_scratch_map_leaves_other_maps_alone() {
     assert_eq!(list_map_rows(&conn).unwrap().len(), 1);
 }
 
-fn setup_maps_table() -> Connection {
-    let conn = Connection::open_in_memory().unwrap();
-    conn.execute(
-        "CREATE TABLE maps (id TEXT PRIMARY KEY, extra TEXT NOT NULL)",
-        [],
-    )
-    .unwrap();
-    conn
-}
-
-#[test]
-fn persist_field_defs_inserts_missing() {
-    let conn = setup_maps_table();
-    conn.execute("INSERT INTO maps (id, extra) VALUES ('m1', '{}')", [])
-        .unwrap();
-    let mut new_defs = HashMap::new();
-    new_defs.insert("altitude".to_string(), known_field_def("altitude").unwrap());
-    persist_field_defs(&conn, "m1", &new_defs).unwrap();
-
-    let extra_str: String = conn
-        .query_row("SELECT extra FROM maps WHERE id = 'm1'", [], |r| r.get(0))
-        .unwrap();
-    let extra: MapExtra = serde_json::from_str(&extra_str).unwrap();
-    let fields = extra.fields.unwrap();
-    assert!(matches!(fields["altitude"].field_type, FieldType::Number));
-}
-
-#[test]
-fn persist_field_defs_never_overwrites_existing() {
-    let conn = setup_maps_table();
-    let seed = r#"{"fields":{"countryCode":{"type":"string","label":"Custom"}}}"#;
-    conn.execute(
-        "INSERT INTO maps (id, extra) VALUES ('m1', ?1)",
-        params![seed],
-    )
-    .unwrap();
-
-    let mut new_defs = HashMap::new();
-    new_defs.insert(
-        "countryCode".to_string(),
-        known_field_def("countryCode").unwrap(),
-    );
-    persist_field_defs(&conn, "m1", &new_defs).unwrap();
-
-    let extra_str: String = conn
-        .query_row("SELECT extra FROM maps WHERE id = 'm1'", [], |r| r.get(0))
-        .unwrap();
-    let extra: MapExtra = serde_json::from_str(&extra_str).unwrap();
-    let fields = extra.fields.unwrap();
-    // Original label survives; not clobbered by the curated "Country code" label.
-    assert_eq!(fields["countryCode"].label.as_deref(), Some("Custom"));
-}
-
-#[test]
-fn persist_field_defs_missing_map_row_errors() {
-    let conn = setup_maps_table();
-    let new_defs = HashMap::new();
-    assert!(persist_field_defs(&conn, "does-not-exist", &new_defs).is_err());
-}
-
-#[test]
-fn persist_field_defs_corrupt_extra_json_defaults_and_succeeds() {
-    let conn = setup_maps_table();
-    conn.execute("INSERT INTO maps (id, extra) VALUES ('m1', 'not json')", [])
-        .unwrap();
-    let mut new_defs = HashMap::new();
-    new_defs.insert("altitude".to_string(), known_field_def("altitude").unwrap());
-    persist_field_defs(&conn, "m1", &new_defs).unwrap();
-
-    let extra_str: String = conn
-        .query_row("SELECT extra FROM maps WHERE id = 'm1'", [], |r| r.get(0))
-        .unwrap();
-    let extra: MapExtra = serde_json::from_str(&extra_str).unwrap();
-    let fields = extra.fields.unwrap();
-    assert!(fields.contains_key("altitude"));
-    assert_eq!(fields.len(), 1);
-}
-
 #[test]
 fn default_settings_json_round_trips_to_default() {
     let json = default_settings_json();
@@ -758,6 +680,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     let copy = duplicate_map_row(
         &conn,
         "m1",
+        None,
         "copy",
         "Real (copy)",
         &arrow::locations_to_batch(&locations),
@@ -833,7 +756,7 @@ fn duplicating_a_missing_map_writes_nothing() {
     let dir = TempDir::new("mma_test_duplicate_missing");
     let path = dir.join("copy.arrow");
     let empty = RecordBatch::new_empty(arrow::schema());
-    assert!(duplicate_map_row(&conn, "nope", "copy", "x", &empty, &path).is_err());
+    assert!(duplicate_map_row(&conn, "nope", None, "copy", "x", &empty, &path).is_err());
     assert!(!path.exists());
     let maps: i64 = conn
         .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
@@ -860,4 +783,174 @@ fn tag_records_read_and_write_the_one_column_format() {
         written,
         serde_json::json!({ "7": { "id": 7, "name": "a", "color": "red" } })
     );
+}
+
+/// A manager with map `m1` open, its store seeded from the row as opening does.
+fn open_m1(conn: &Connection) -> StoreManager {
+    let mut store = engine::Store::new();
+    let mut meta = read_map_meta(conn, "m1").unwrap();
+    store.value_meta.insert(
+        "tags".into(),
+        engine::Tracked::new(std::mem::take(&mut meta.tags.0)),
+    );
+    store.meta = engine::Tracked::new(meta);
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert("m1".into(), store);
+    mgr
+}
+
+fn name_on_disk(conn: &Connection) -> String {
+    conn.query_row("SELECT name FROM maps WHERE id = 'm1'", [], |r| r.get(0))
+        .unwrap()
+}
+
+#[test]
+fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let patch = Patch::<MapMeta> {
+        id: "m1".into(),
+        name: Some("Renamed".into()),
+        ..Default::default()
+    };
+    update_map_meta(&mut mgr, &conn, patch).unwrap();
+
+    assert_eq!(
+        live_row(&mgr, read_map_meta(&conn, "m1").unwrap()).name,
+        "Renamed"
+    );
+    assert_eq!(name_on_disk(&conn), "Real");
+    let store = mgr.store_for_map("m1").unwrap();
+    assert_eq!(store.meta.name, "Renamed");
+    let unsaved = store.unsaved().unwrap().expect("the row is owed to disk");
+
+    let dir = TempDir::new("mma_test_meta_save_path");
+    unsaved
+        .write(&conn, "m1", &dir.join("m1_delta.arrow"))
+        .unwrap();
+    store.saved(&unsaved);
+    assert_eq!(name_on_disk(&conn), "Renamed");
+    assert!(store.unsaved().unwrap().is_none());
+}
+
+#[test]
+fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let store = mgr.store_for_map("m1").unwrap();
+    let mut rec = ValueRecord::new();
+    rec.insert("name".into(), "A".into());
+    store
+        .value_meta
+        .get_mut("tags")
+        .unwrap()
+        .edit()
+        .insert(1, rec);
+    store
+        .meta
+        .edit()
+        .extra
+        .fields
+        .insert("altitude".into(), known_field_def("altitude").unwrap());
+
+    let unsaved = store.unsaved().unwrap().unwrap();
+    let dir = TempDir::new("mma_test_meta_tags_save");
+    unsaved
+        .write(&conn, "m1", &dir.join("m1_delta.arrow"))
+        .unwrap();
+    store.saved(&unsaved);
+
+    let row = read_map_meta(&conn, "m1").unwrap();
+    assert_eq!(row.tags.0.len(), 1);
+    assert!(row.extra.fields.contains_key("altitude"));
+    assert!(store.unsaved().unwrap().is_none());
+}
+
+#[test]
+fn an_open_maps_tags_cannot_be_patched_behind_their_values() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let patch = Patch::<MapMeta> {
+        id: "m1".into(),
+        tags: Some(TagRecords::default()),
+        ..Default::default()
+    };
+    assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
+    assert!(mgr
+        .store_for_map("m1")
+        .unwrap()
+        .unsaved()
+        .unwrap()
+        .is_none());
+}
+
+#[test]
+fn a_closed_maps_meta_is_written_directly() {
+    let conn = setup_real_db();
+    let mut mgr = StoreManager::new();
+    let patch = Patch::<MapMeta> {
+        id: "m1".into(),
+        name: Some("Renamed".into()),
+        ..Default::default()
+    };
+    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    assert_eq!(name_on_disk(&conn), "Renamed");
+}
+
+#[test]
+fn an_open_maps_field_definitions_ship_when_patched() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let fields = HashMap::from([("altitude".to_string(), known_field_def("altitude").unwrap())]);
+    let patch = Patch::<MapMeta> {
+        id: "m1".into(),
+        extra: Some(MapExtra {
+            fields: fields.clone(),
+        }),
+        ..Default::default()
+    };
+    let before = mgr.store_for_map("m1").unwrap().version;
+    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    let store = mgr.store_for_map("m1").unwrap();
+    assert_eq!(store.meta.extra.fields, fields);
+    assert!(store.version > before, "the change landed and shipped");
+}
+
+#[test]
+fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let patch = Patch::<MapMeta> {
+        id: "m1".into(),
+        description: Some("unsaved".into()),
+        ..Default::default()
+    };
+    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    let dir = TempDir::new("mma_test_duplicate_live");
+    let live = Some(mgr.store_for_map("m1").unwrap().meta_patch());
+    let empty = RecordBatch::new_empty(arrow::schema());
+    let copy = duplicate_map_row(
+        &conn,
+        "m1",
+        live,
+        "copy",
+        "Copy",
+        &empty,
+        &dir.join("c.arrow"),
+    )
+    .unwrap();
+    assert_eq!(copy.name, "Copy");
+    assert_eq!(copy.description, "unsaved");
+}
+
+#[test]
+fn a_whole_row_as_a_patch_writes_every_column_back() {
+    let conn = setup_real_db();
+    let mut row = read_map_meta(&conn, "m1").unwrap();
+    row.name = "Other".into();
+    row.folder = Some("F".into());
+    row.labels = vec!["x".into()];
+    storage::update_row::<MapMeta>(&conn, "maps", "m1", &row.to_patch()).unwrap();
+    let back = read_map_meta(&conn, "m1").unwrap();
+    assert!(back == row);
 }

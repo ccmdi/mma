@@ -9,7 +9,8 @@ import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
 import { toast } from "@/lib/util/toast";
 import { displayTagName } from "@/store/selections";
-import { createTags, getVisibleTags, useMapState } from "@/store/useMapStore";
+import { getVisibleTags, useMapState } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 
 export function TagButton({ locationIds, label }: { locationIds: number[]; label?: string }) {
 	const [open, setOpen] = useState(false);
@@ -28,7 +29,11 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 			if (!trimmed || busy || locationIds.length === 0) return;
 			setBusy(true);
 			try {
-				await createTags([trimmed], { type: "Locations", locations: locationIds, name: null });
+				const add = await edit.values("tags", { create: [{ name: trimmed }] });
+				await edit.work(
+					{ type: "Locations", locations: locationIds, name: null },
+					{ kind: "listSet", key: "tags", add, remove: [] },
+				);
 				toast(
 					locationIds.length === 1
 						? t("Tagged with {tag}", { tag: trimmed })

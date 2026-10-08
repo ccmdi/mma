@@ -73,12 +73,6 @@ export function setPinned(loc: Location, on: boolean): Location {
 	};
 }
 
-/** True for virtual (preview-only) locations, which have negative ids and are not
- *  part of the map. */
-export function isVirtualLocation(loc: { id: number }): boolean {
-	return loc.id < 0;
-}
-
 /** A full location or just its id (to be fetched on demand). */
 export type MaybeLocation = Location | number;
 

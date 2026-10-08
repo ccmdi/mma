@@ -217,7 +217,7 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 	await withApi(async (api) => {
 		await api.setActiveLocation(null);
 		for (let guard = 0; guard < 16 && api.getMapState().canUndo; guard += 1) await api.undo();
-		api.cancelAutosave();
+		api.autosave.cancel();
 		if (api.getMapState().canUndo) throw new Error("unwind did not reach the committed baseline");
 	});
 	await waitForScene(minimumMarkers);
@@ -226,8 +226,8 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 /** Commit anything outstanding so the next case's `unwind` has a clean floor. */
 async function settleBaseline(message: string): Promise<void> {
 	await withApi(async (api, msg) => {
-		api.cancelAutosave();
-		await api.waitForInflightPersist();
+		api.autosave.cancel();
+		await api.autosave.waitForInflight();
 		if (
 			(
 				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
@@ -372,7 +372,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					await api.beginImportFromPath(path);
 					const result = await api.confirmImport([], undefined);
 					if (!result) throw new Error("import returned no result");
-					await api.waitForInflightPersist();
+					await api.autosave.waitForInflight();
 					await perf.settled();
 					const operationMs = performance.now() - start;
 					await new Promise<void>((resolve) =>
@@ -407,7 +407,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					`fixture import produced ${result?.importedCount ?? 0}, expected ${target}`,
 				);
 			}
-			await api.waitForInflightPersist();
+			await api.autosave.waitForInflight();
 			// Two off-fixture helper rows the single-row mutation cases operate on.
 			const helpers = [
 				api.createLocation({ lat: 84.75, lng: 179.75, heading: 10, panoId: null }),
@@ -416,7 +416,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await api.addLocations(helpers);
 			if (helpers.some((h) => h.id <= 0)) throw new Error("helper rows got no ids");
 			await api.commitMap(`Bench fixture ${target}`);
-			await api.waitForInflightPersist();
+			await api.autosave.waitForInflight();
 			const tag = Object.values(api.getTags()).find((t) => t.name === "benchmark-tag");
 			if (!tag) throw new Error("fixture is missing the benchmark-tag");
 			return { tagId: tag.id, helperIds: helpers.map((h) => h.id) };
@@ -626,7 +626,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.addLocations([location]);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -646,7 +646,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.addLocations([location]);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -675,7 +675,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					const start = performance.now();
 					await api.addLocations(locations);
 					const operationMs = performance.now() - start;
-					api.cancelAutosave();
+					api.autosave.cancel();
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
@@ -702,7 +702,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.updateLocations([{ id, heading: 11 }]);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -721,7 +721,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.updateLocations(updates);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -741,7 +741,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					const start = performance.now();
 					await api.removeLocations(new Set([id]));
 					const operationMs = performance.now() - start;
-					api.cancelAutosave();
+					api.autosave.cancel();
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
@@ -778,7 +778,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.removeLocations(ids);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -804,7 +804,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.removeLocations(ids);
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -829,7 +829,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.applySelectionUpdate(() => []);
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				await api.removeLocations(api.getMapState().selectedLocationIds);
-				api.cancelAutosave();
+				api.autosave.cancel();
 				if (!api.getMapState().canUndo) throw new Error("bulk delete is not undoable");
 			}, tagId);
 		},
@@ -838,7 +838,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.undo();
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -862,7 +862,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				await api.undo();
-				api.cancelAutosave();
+				api.autosave.cancel();
 				if (!api.getMapState().canRedo) throw new Error("bulk delete is not redoable");
 			}, tagId);
 		},
@@ -871,7 +871,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				await api.redo();
 				const operationMs = performance.now() - start;
-				api.cancelAutosave();
+				api.autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
@@ -898,14 +898,14 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`autosave helper ${id} is missing`);
 				await api.updateLocations([{ id, heading: (loc.heading + 1) % 360 }]);
-				api.cancelAutosave();
+				api.autosave.cancel();
 			}, helperA);
 		},
 		run: () =>
 			withApi(async (api) => {
 				const start = performance.now();
-				await api.flushSave();
-				await api.waitForInflightPersist();
+				await api.autosave.flush();
+				await api.autosave.waitForInflight();
 				const durationMs = performance.now() - start;
 				return { durationMs, operationMs: durationMs };
 			}),
@@ -915,8 +915,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await ensureOpen(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				api.cancelAutosave();
-				await api.waitForInflightPersist();
+				api.autosave.cancel();
+				await api.autosave.waitForInflight();
 				if (
 					(
 						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
@@ -930,7 +930,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`commit helper ${id} is missing`);
 				await api.updateLocations([{ id, pitch: (loc.pitch ?? 0) + 0.25 }]);
-				api.cancelAutosave();
+				api.autosave.cancel();
 			}, helperB);
 		},
 		run: () =>
@@ -992,7 +992,7 @@ async function runGpuScenarios(gpuMaps: Set<string>): Promise<void> {
 			if (!result || result.importedCount !== target) {
 				throw new Error(`render fixture imported ${result?.importedCount ?? 0}`);
 			}
-			await api.waitForInflightPersist();
+			await api.autosave.waitForInflight();
 		},
 		fixture,
 		GPU_SCALE,

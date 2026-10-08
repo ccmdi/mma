@@ -130,14 +130,14 @@ describe("Multi-map metadata isolation", () => {
 		await waitForReady();
 		map1Id = await createAndOpenMap("Meta Map 1");
 		await withApi(async (api) => {
-			await api.updateMapMeta({ description: "Description 1" });
+			await api.edit.meta({ description: "Description 1" });
 		});
 		await flushAndWait();
 		await closeMap();
 
 		map2Id = await createAndOpenMap("Meta Map 2");
 		await withApi(async (api) => {
-			await api.updateMapMeta({ description: "Description 2" });
+			await api.edit.meta({ description: "Description 2" });
 		});
 		await flushAndWait();
 		await closeMap();
@@ -162,7 +162,7 @@ describe("Multi-map metadata isolation", () => {
 	});
 
 	it("renaming one map does not affect the other", async () => {
-		await withApi(async (api, id) => api.patchMapMeta({ id: id, name: "Renamed Map 1" }), map1Id);
+		await withApi(async (api, id) => api.edit.meta({ id: id, name: "Renamed Map 1" }), map1Id);
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
 		const m1 = maps.find((m: any) => m.id === map1Id);

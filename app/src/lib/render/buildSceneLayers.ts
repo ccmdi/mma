@@ -295,7 +295,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		if (ctx.svTrailPosition) layers.push(...trailPositionLayers(svTrail, ctx));
 	}
 
-	// Active marker renders even with no committed locations so virtual previews (staged/seen)
+	// Active marker renders even with no committed locations so previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
 	const activeLoc = getMapState().openRow;
 	if (activeLoc) {

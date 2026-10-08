@@ -179,7 +179,7 @@ describe("Rust bulk import — confirm and verify", () => {
 			const beforeLocs = await api.fetchAllLocations();
 			const beforeFirst = beforeLocs[0];
 
-			await api.flushSave();
+			await api.autosave.flush();
 			await api._test.closeMap();
 			await api._test.openMap(id);
 

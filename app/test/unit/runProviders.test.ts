@@ -52,13 +52,15 @@ vi.mock("@/lib/i18n", () => ({
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 
-vi.mock("@/store/useMapStore", () => ({
-	holdAutosave: () => () => {},
-	updateLocations: async () => {},
-	applyFieldOp: async (selector: Selector, op: unknown) => {
+vi.mock("@/store/edit", () => ({
+	work: async (selector: Selector, op: unknown) => {
 		h.fieldOps.push({ selector, op });
 		return { changed: 2, failed: [] };
 	},
+}));
+vi.mock("@/store/useMapStore", () => ({
+	holdAutosave: () => () => {},
+	updateLocations: async () => {},
 	getMapState: () => ({
 		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
 	}),
@@ -66,6 +68,7 @@ vi.mock("@/store/useMapStore", () => ({
 
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.
 vi.mock("@/bindings.consts", () => ({
+	SCRATCH_MAP_ID: "scratch",
 	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
 	PanoType: { Official: 2, Unknown: 3, UserUploaded: 10 },
 	BUILTIN_FIELDS: [

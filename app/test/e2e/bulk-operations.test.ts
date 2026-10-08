@@ -169,10 +169,9 @@ describe("Bulk operations -- bulkPinToPano", () => {
 
 	it("unpins by clearing the flag and keeps every pano id", async () => {
 		const result = await withApi(async (api) => {
-			return await api.applyFieldOp(
+			return await api.edit.work(
 				{ type: "Everything" },
 				{ kind: "set", key: "loadAsPanoId", value: false },
-				true,
 			);
 		});
 
@@ -269,10 +268,9 @@ describe("Bulk operations -- field ops", () => {
 	it("an expression writes per row, names the rows it cannot evaluate, and undoes as one entry", async () => {
 		const r = await withApi(
 			(api, ids) =>
-				api.applyFieldOp(
+				api.edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "expr", key: "h", expr: "mod(a + 180, 360)" },
-					true,
 				),
 			ids,
 		);
@@ -293,10 +291,9 @@ describe("Bulk operations -- field ops", () => {
 	it("a constant set patches a writable built-in column and a clear drops extra keys", async () => {
 		const set = await withApi(
 			(api, ids) =>
-				api.applyFieldOp(
+				api.edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "set", key: "heading", value: 90 },
-					true,
 				),
 			ids,
 		);
@@ -305,10 +302,9 @@ describe("Bulk operations -- field ops", () => {
 
 		const cleared = await withApi(
 			(api, ids) =>
-				api.applyFieldOp(
+				api.edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "delete", keys: ["a"] },
-					true,
 				),
 			ids,
 		);

@@ -112,7 +112,7 @@ export async function deleteMap(id: string) {
 }
 
 export async function flushAndWait() {
-	await withApi(async (api) => api.flushSave());
+	await withApi(async (api) => api.autosave.flush());
 }
 
 /** Open a location in the editor via the test API. */
@@ -239,7 +239,15 @@ export async function refreshSelections(): Promise<number[]> {
 export async function createTag(
 	name: string,
 ): Promise<{ id: number; name: string; color: string }> {
-	return withApi(async (api, n) => (await api.createTags([n]))[0], name);
+	return withApi(
+		async (api, n) =>
+			(
+				await api.edit
+					.values("tags", { create: [n].map((name) => ({ name })) })
+					.then((ids) => ids.map((id) => api.getTag(id)!))
+			)[0],
+		name,
+	);
 }
 
 // --- Deterministic waits (replace fixed browser.pause sleeps) ---
@@ -260,7 +268,7 @@ export async function waitForActive(id: number | null) {
 export async function updateMapSettings(patch: Record<string, unknown>) {
 	await withApi(async (api, p) => {
 		const map = api.getMapState().map!;
-		await api.updateMapMeta({ settings: { ...map.settings, ...p } });
+		await api.edit.meta({ settings: { ...map.settings, ...p } });
 		return "ok";
 	}, patch);
 }
@@ -269,7 +277,7 @@ export async function registerFields(defs: Record<string, FieldDef>) {
 	await withApi(async (api, d) => {
 		const map = api.getMapState().map!;
 		const cur = map.extra?.fields ?? {};
-		await api.updateMapMeta({
+		await api.edit.meta({
 			extra: { ...map.extra, fields: { ...cur, ...d } },
 		});
 		return "ok";

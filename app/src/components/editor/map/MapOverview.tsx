@@ -3,7 +3,6 @@ import type { Tag } from "@/types";
 import { NSelect } from "@/components/primitives/NSelect";
 import {
 	applySelectionUpdate,
-	createTags,
 	getActiveSelections,
 	getMapState,
 	getTagCounts,
@@ -11,9 +10,9 @@ import {
 	selectEvenlySpacedFromSelection,
 	selectRandomFromSelection,
 	selectSpacedFromSelection,
-	setTags,
 	useMapState,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { addSelection, buildSelection, has } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/util/util";
@@ -290,7 +289,8 @@ function BulkTagForm() {
 		const name = bulkTagInput.trim();
 		const selected = getMapState().selectedLocationIds;
 		if (!name || selected.size === 0) return;
-		await createTags([name], { type: "Selected" });
+		const add = await edit.values("tags", { create: [{ name }] });
+		await edit.work({ type: "Selected" }, { kind: "listSet", key: "tags", add, remove: [] });
 		setBulkTagInput("");
 	};
 
@@ -303,7 +303,10 @@ function BulkTagForm() {
 	const handleBulkPick = (t: Tag) => {
 		const selected = getMapState().selectedLocationIds;
 		if (selected.size === 0) return;
-		void setTags([t.id], [], { type: "Locations", locations: [...selected], name: null });
+		void edit.work(
+			{ type: "Locations", locations: [...selected], name: null },
+			{ kind: "listSet", key: "tags", add: [t.id], remove: [] },
+		);
 		setBulkTagInput("");
 	};
 

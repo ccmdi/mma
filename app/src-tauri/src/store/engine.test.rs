@@ -41,9 +41,20 @@ fn net(added: u32, removed: u32, updated: u32) -> mma_algebra::Counts {
 fn apply_updates(
     store: &mut Store,
     updates: &[Patch<Location>],
-    undo: UndoScope,
+    join: &mut Option<u64>,
 ) -> MutationResult {
-    store.write(updates.iter().cloned().map(Edit::Put), undo)
+    store.write(
+        updates.iter().cloned().map(Edit::Put),
+        join,
+        Entry::default(),
+    )
+}
+
+fn entry(rows: Change) -> Entry {
+    Entry {
+        rows,
+        ..Default::default()
+    }
 }
 
 fn add_rows(store: &mut Store, locs: Vec<Location>) -> MutationResult {
@@ -88,7 +99,8 @@ fn undoable(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> 
     let removes = remove.into_iter().map(|l| Edit::Remove(l.id));
     store.write(
         removes.chain(create.into_iter().map(Edit::Set)),
-        UndoScope::Entry,
+        &mut None,
+        Entry::default(),
     )
 }
 
@@ -125,7 +137,10 @@ fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
 fn setup_store_with(locs: &[Location]) -> Store {
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let mut store = Store::new();
-    store.map_id = Some(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed)));
+    store.meta = Tracked::new(maps::MapMeta {
+        id: format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed)),
+        ..Default::default()
+    });
     store.batch = Some(empty_batch());
     for l in locs {
         store.overlay_add(vec![l.clone()]);
@@ -442,8 +457,7 @@ fn commit_diff_counts_session_adds() {
 
 #[test]
 fn commit_diff_counts_patch_on_base_row_without_undo() {
-    // Pins the fix: an edit that never touches the undo stack (record_undo=false
-    // paths) must still show up in the commit diff.
+    // An overlay edit that never touches the undo stack still shows up in the commit diff.
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.bake_overlay();
     assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
@@ -523,7 +537,7 @@ fn undo_add() {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![l.clone()], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
 
     let _delta = reverse(&mut store, &Change::from_sides(vec![l], vec![]));
     assert_eq!(*store.alive_count, 0);
@@ -576,7 +590,7 @@ fn undo_stack_capped_at_max() {
         store
             .edits
             .edit()
-            .record(Arc::new(Change::from_sides(vec![l], vec![])));
+            .record(Arc::new(entry(Change::from_sides(vec![l], vec![]))));
     }
     assert_eq!(store.edits.undo_len(), MAX_UNDO_ENTRIES);
 }
@@ -588,10 +602,10 @@ fn redo_stack_cleared_on_new_edit() {
     press_undo(&mut store);
     assert_eq!(store.edits.redo_len(), 1);
 
-    store
-        .edits
-        .edit()
-        .record(Arc::new(Change::from_sides(vec![loc(1, 0.0, 0.0)], vec![])));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(1, 0.0, 0.0)],
+        vec![],
+    ))));
     assert_eq!(store.edits.redo_len(), 0, "a new edit drops redo by itself");
 }
 
@@ -864,25 +878,25 @@ fn open_status_reflects_undo_redo() {
     let mut store = setup_store_with(&[l]);
 
     let s = store.open_status();
-    assert_eq!(s.values.can_undo, Some(false));
-    assert_eq!(s.values.can_redo, Some(false));
+    assert_eq!(s.derived.can_undo, Some(false));
+    assert_eq!(s.derived.can_redo, Some(false));
 
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
     let s = store.open_status();
-    assert_eq!(s.values.can_undo, Some(true));
-    assert_eq!(s.values.can_redo, Some(false));
+    assert_eq!(s.derived.can_undo, Some(true));
+    assert_eq!(s.derived.can_redo, Some(false));
 
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
     press_undo(&mut store);
     let s = store.open_status();
-    assert_eq!(s.values.can_undo, Some(true));
-    assert_eq!(s.values.can_redo, Some(true));
+    assert_eq!(s.derived.can_undo, Some(true));
+    assert_eq!(s.derived.can_redo, Some(true));
 }
 
 #[test]
@@ -892,15 +906,15 @@ fn finish_mutation_reports_correct_state() {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
 
     let feed = FeedCapture::attach(&mut store);
     let result = store.finish_mutation(&Change::default());
     let e = feed.last();
-    assert_eq!(e.values.location_count, Some(1));
-    assert_eq!(e.values.can_undo, Some(true));
+    assert_eq!(e.derived.location_count, Some(1));
+    assert_eq!(e.derived.can_undo, Some(true));
     assert_eq!(
-        e.values.can_redo,
+        e.derived.can_redo,
         Some(false),
         "stack change ships both flags"
     );
@@ -918,9 +932,9 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
     store.finish_mutation(&Change::default());
-    assert_eq!(feed.last().values.can_undo, Some(true));
+    assert_eq!(feed.last().derived.can_undo, Some(true));
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
     store.edits.edit().clear();
@@ -928,10 +942,10 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
     store.finish_mutation(&Change::default());
-    assert_eq!(feed.last().values.can_undo, Some(true));
-    assert_eq!(feed.last().values.can_redo, Some(false));
+    assert_eq!(feed.last().derived.can_undo, Some(true));
+    assert_eq!(feed.last().derived.can_redo, Some(false));
 }
 
 #[test]
@@ -943,13 +957,13 @@ fn value_counts_shipped_only_when_postings_move() {
 
     // A mutation that moves no rows ships no counts.
     store.finish_mutation(&Change::default());
-    assert!(feed.all().iter().all(|e| e.values.value_counts.is_none()));
+    assert!(feed.all().iter().all(|e| e.derived.value_counts.is_none()));
 
     // A tag-touching edit ships fresh counts.
     let changes = apply_edit(&mut store, vec![l.clone()], Vec::new());
     store.finish_mutation(&changes);
     assert_eq!(
-        feed.last().values.value_counts.as_ref().unwrap()["tags"].get("10"),
+        feed.last().derived.value_counts.as_ref().unwrap()["tags"].get("10"),
         Some(&0)
     );
 }
@@ -1194,12 +1208,12 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
 
     let frames = watch(&mut store);
     let feed = FeedCapture::attach(&mut store);
-    apply_updates(&mut store, &updates, UndoScope::Entry);
+    apply_updates(&mut store, &updates, &mut None);
 
     assert_eq!(store.overlay.rev(), rev);
     assert_eq!(store.edits.undo_len(), undo_len);
     assert!(frames.last().cells.is_empty());
-    assert!(feed.last().selections.is_none());
+    assert!(feed.last().derived.selection_counts.is_none());
 }
 
 // -----------------------------------------------------------------------
@@ -1623,12 +1637,12 @@ fn stored_round_trip(entries: &[Change]) -> Vec<Change> {
     let mut store = setup_store_with(&[]);
     let seqs: Vec<u64> = entries
         .iter()
-        .map(|e| store.edits.edit().record(Arc::new(e.clone())))
+        .map(|e| store.edits.edit().record(Arc::new(entry(e.clone()))))
         .collect();
     with_history_db(|conn| {
         save_edit_history(conn, "m", &store.edits).unwrap();
         seqs.iter()
-            .map(|&seq| load_edit(conn, "m", seq).unwrap())
+            .map(|&seq| load_edit(conn, "m", seq).unwrap().rows)
             .collect()
     })
 }
@@ -2090,33 +2104,6 @@ fn delta_overlay_round_trip_preserves_store_state() {
 }
 
 // -----------------------------------------------------------------------
-// Bug regression: active location removed by undo
-// -----------------------------------------------------------------------
-
-#[test]
-fn active_id_should_be_clearable_when_location_removed() {
-    let l = loc(1, 10.0, 20.0);
-    let mut store = setup_store_with(slice::from_ref(&l));
-    store.selections.active_id = Some(1);
-
-    // Remove the active location
-    let entry = Change::from_sides(vec![], vec![l]);
-    forward(&mut store, &entry);
-
-    // The caller (JS) should clear active_id when the delta removes it.
-    // Verify the location is actually gone so the caller can detect it.
-    assert!(store.get_loc_by_id(1).is_none());
-    let delta_has_removed_active = entry
-        .removed
-        .iter()
-        .any(|l| Some(l.id) == store.selections.active_id);
-    assert!(
-        delta_has_removed_active,
-        "caller can detect active was removed"
-    );
-}
-
-// -----------------------------------------------------------------------
 // Render buffer binary format
 // -----------------------------------------------------------------------
 
@@ -2451,7 +2438,8 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     assert_eq!(frame.palette, [[255, 0, 0]]);
     let section = frame.selection.expect("every cell's membership restated");
     assert_eq!(section, store.selection_section());
-    assert_eq!(feed.last().selections.expect("counts").selected_count, 1);
+    assert!(feed.last().derived.selection_counts.is_some());
+    assert_eq!(store.selections.ids.len(), 1);
     assert!(
         store.bounds.peek().unwrap().current(store.version),
         "a selection change moves no row, so the bounds carry over"
@@ -2787,10 +2775,16 @@ fn patch_all_rows_preserves_order() {
 fn manager_insert_and_lookup() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
-    s1.map_id = Some("map-a".into());
+    s1.meta = Tracked::new(maps::MapMeta {
+        id: "map-a".into(),
+        ..Default::default()
+    });
     s1.alive_count = Tracked::new(10);
     let mut s2 = Store::new();
-    s2.map_id = Some("map-b".into());
+    s2.meta = Tracked::new(maps::MapMeta {
+        id: "map-b".into(),
+        ..Default::default()
+    });
     s2.alive_count = Tracked::new(20);
 
     mgr.stores.insert("map-a".into(), s1);
@@ -2855,9 +2849,15 @@ fn manager_unbind_keeps_store_open_elsewhere() {
 fn manager_remove_preserves_other() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
-    s1.map_id = Some("map-a".into());
+    s1.meta = Tracked::new(maps::MapMeta {
+        id: "map-a".into(),
+        ..Default::default()
+    });
     let mut s2 = Store::new();
-    s2.map_id = Some("map-b".into());
+    s2.meta = Tracked::new(maps::MapMeta {
+        id: "map-b".into(),
+        ..Default::default()
+    });
     s2.alive_count = Tracked::new(99);
 
     mgr.stores.insert("map-a".into(), s1);
@@ -2911,7 +2911,7 @@ fn patch_field_values_interns_names_with_server_side_ids_above_the_data_floor() 
     assert!(r.resolved[1] > urban);
     assert!(
         feed.last()
-            .values
+            .derived
             .value_meta
             .as_ref()
             .is_some_and(|m| m["tags"].contains_key(&r.resolved[1])),
@@ -2946,7 +2946,7 @@ fn patch_field_values_updates_and_reorders_records() {
         )
         .unwrap();
     let _ = r;
-    let meta = feed.last().values.value_meta.unwrap();
+    let meta = feed.last().derived.value_meta.unwrap();
     let meta = &meta["tags"];
     assert_eq!(record_name(&meta[&ids[0]]), Some("Alpha"));
     assert_eq!(meta[&ids[0]]["color"], "#123456");
@@ -3077,7 +3077,7 @@ fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
         assert!(store.get_loc_by_id(id).unwrap().tags.contains(&7));
     }
     assert_eq!(
-        feed.last().values.value_counts.unwrap()["tags"].get("7"),
+        feed.last().derived.value_counts.unwrap()["tags"].get("7"),
         Some(&2),
         "the same mutation reports the count to JS"
     );
@@ -3095,7 +3095,7 @@ fn stripping_the_last_member_reports_a_zero_count() {
 
     assert_eq!(tag_count(&mut store, 7), 0);
     assert_eq!(
-        feed.last().values.value_counts.unwrap()["tags"].get("7"),
+        feed.last().derived.value_counts.unwrap()["tags"].get("7"),
         Some(&0)
     );
 }
@@ -3103,16 +3103,16 @@ fn stripping_the_last_member_reports_a_zero_count() {
 /// Membership write through the generic field op: `tags` is an ordinary list-valued
 /// field, so it goes through the same `ListSet` any `array` field would.
 fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> MutationResult {
-    let op = Work::ListSet {
+    let op = Work::Rows(RowOp::ListSet {
         key: "tags".into(),
         add: add.iter().map(|&i| serde_json::json!(i)).collect(),
         remove: remove.iter().map(|&i| serde_json::json!(i)).collect(),
-    };
+    });
     let selector = Selector::Locations {
         locations: ids.to_vec(),
         name: None,
     };
-    apply_work(store, &selector, &op, true).unwrap().mutation
+    apply_work(store, &selector, &op).unwrap().mutation
 }
 
 #[test]
@@ -3131,7 +3131,7 @@ fn set_tags_strips_a_tag_and_drops_its_count() {
         "only the stripped row leaves the tag"
     );
     assert_eq!(
-        feed.last().values.value_counts.unwrap()["tags"].get("7"),
+        feed.last().derived.value_counts.unwrap()["tags"].get("7"),
         Some(&1)
     );
 }
@@ -3376,11 +3376,11 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     assert_existence_matches_scan(&mut store, "k", &[1, 2, 10]);
 
     let drop_k = patch!(1; extra: raw_extra(r#"{"k":null}"#));
-    apply_updates(&mut store, &[drop_k], UndoScope::Entry);
+    apply_updates(&mut store, &[drop_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 10]);
 
     let gain_k = patch!(3; extra: raw_extra(r#"{"k":4}"#));
-    apply_updates(&mut store, &[gain_k], UndoScope::Entry);
+    apply_updates(&mut store, &[gain_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 3, 10]);
 
     let two = store.get_loc_by_id(2).unwrap();
@@ -3415,7 +3415,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     ]);
     store.bake_overlay();
     for k in ["a", "b"] {
-        store.field_defs.edit().insert(k.into(), def_of(k));
+        store.meta.edit().extra.fields.insert(k.into(), def_of(k));
     }
     let all = Selector::Everything;
     assert_eq!(
@@ -3423,11 +3423,11 @@ fn coverage_follows_the_rows_that_hold_each_field() {
         counts(&[("a", 3), ("b", 1)])
     );
 
-    apply_work(&mut store, &all, &del_op(&["b"]), true).unwrap();
+    apply_work(&mut store, &all, &Work::Rows(del_op(&["b"]))).unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
     let gain_b = patch!(2; extra: raw_extra(r#"{"b":5}"#));
-    apply_updates(&mut store, &[gain_b], UndoScope::Entry);
+    apply_updates(&mut store, &[gain_b], &mut None);
     assert_eq!(
         extra_coverage(&mut store, &all),
         counts(&[("a", 3), ("b", 1)])
@@ -3458,7 +3458,10 @@ fn coverage_follows_the_rows_that_hold_each_field() {
 /// defining each of `keys`.
 fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[&str]) -> Store {
     let mut store = Store::new();
-    store.map_id = Some("test-coverage".to_string());
+    store.meta = Tracked::new(maps::MapMeta {
+        id: "test-coverage".to_string(),
+        ..Default::default()
+    });
     store.batch = Some(arrow::locations_to_batch(base));
     store.alive_count = Tracked::new(base.len());
     for &id in dead {
@@ -3467,7 +3470,12 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
     }
     store.overlay_add(adds);
     for k in keys {
-        store.field_defs.edit().insert((*k).to_string(), def_of(k));
+        store
+            .meta
+            .edit()
+            .extra
+            .fields
+            .insert((*k).to_string(), def_of(k));
     }
     store
 }
@@ -3632,10 +3640,18 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     });
 
     let _ = result;
-    let sync = feed.last().selections.expect("a mutation recounts");
-    assert_eq!(sync.counts["tag:1"], 1, "the ghosted selection is counted");
-    assert_eq!(sync.counts["tag:2"], 1);
-    assert_eq!(sync.selected_count, 1, "only the live selection selects");
+    let counts = feed
+        .last()
+        .derived
+        .selection_counts
+        .expect("a mutation recounts");
+    assert_eq!(counts["tag:1"], 1, "the ghosted selection is counted");
+    assert_eq!(counts["tag:2"], 1);
+    assert_eq!(
+        store.selections.ids.len(),
+        1,
+        "only the live selection selects"
+    );
     let frame = frames.last();
     assert_eq!(
         patched(&frame.cells)[0].sel,
@@ -3669,7 +3685,6 @@ fn a_full_resolve_counts_a_ghosted_selection_and_keeps_it_out_of_the_selected_se
         1,
         "only the live selection selects"
     );
-    assert_eq!(store.selection_sync().selected_count, 1);
     assert_eq!(
         u32::from_le_bytes(store.selection_section()[0..4].try_into().unwrap()),
         1,
@@ -3730,8 +3745,11 @@ fn incremental_membership_change_ships_no_bitmask() {
     });
 
     let _ = result;
-    let sync = feed.last().selections.expect("counts still sync");
-    assert_eq!(sync.selected_count, 1);
+    assert!(
+        feed.last().derived.selection_counts.is_some(),
+        "counts still sync"
+    );
+    assert_eq!(store.selections.ids.len(), 1);
     let frame = frames.last();
     assert_eq!(
         frame.selection, None,
@@ -4215,7 +4233,7 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
         store
             .edits
             .edit()
-            .record(Arc::new(Change::from_sides(created, removed)));
+            .record(Arc::new(entry(Change::from_sides(created, removed))));
     }
     with_history_db(|conn| {
         assert_eq!(stored_history_max_id(conn, "m").unwrap(), 0);
@@ -4242,7 +4260,7 @@ fn with_history_db<R>(f: impl FnOnce(&rusqlite::Connection) -> R) -> R {
     HISTORY_DB.with(f)
 }
 
-fn fetch_stored(seq: u64) -> AppResult<Change> {
+fn fetch_stored(seq: u64) -> AppResult<Entry> {
     with_history_db(|conn| load_edit(conn, "m", seq))
 }
 
@@ -4265,7 +4283,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     let delta = Overlay::from_delta(&arrow::read_arrow_ipc_bytes(delta_bytes).unwrap());
 
     let mut reopened = Store::new();
-    reopened.map_id = store.map_id.clone();
+    reopened.meta = Tracked::new((*store.meta).clone());
     reopened.batch = Some(empty_batch());
     reopened.overlay = Tracked::unsaved(delta);
     reopened.next_id = seed_next_id(0, &reopened.overlay.adds, history_max);
@@ -4281,7 +4299,7 @@ fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![l.clone()], vec![])));
+        .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
     store.overlay_add(vec![l]);
     id
 }
@@ -4292,7 +4310,7 @@ fn delete_loc(store: &mut Store, id: u32) {
     store
         .edits
         .edit()
-        .record(Arc::new(Change::from_sides(vec![], vec![l.clone()])));
+        .record(Arc::new(entry(Change::from_sides(vec![], vec![l.clone()]))));
     store.overlay_remove(slice::from_ref(&l).iter());
 }
 
@@ -4307,7 +4325,7 @@ fn press_redo(store: &mut Store) {
 
 fn undo_and_finish(store: &mut Store) {
     let changes = store.undo(fetch_stored).unwrap().unwrap();
-    store.finish_mutation(&changes);
+    store.finish_entry(&changes);
 }
 
 /// The change events one window received, decoded.
@@ -4360,6 +4378,7 @@ fn newest_undo(store: &Store) -> Change {
         .as_deref()
         .cloned()
         .unwrap_or_else(|| fetch_stored(edit.seq).unwrap())
+        .rows
 }
 
 fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
@@ -4373,7 +4392,7 @@ fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
                 .as_deref()
                 .cloned()
                 .unwrap_or_else(|| fetch_stored(e.seq).unwrap());
-            (e.seq, entry.sides().0.iter().map(|l| l.id).collect())
+            (e.seq, entry.rows.sides().0.iter().map(|l| l.id).collect())
         })
         .collect()
 }
@@ -4491,7 +4510,7 @@ fn a_reopened_history_reads_no_edit_until_undo_reaches_it() {
 
 fn page(store: &mut Store, group: &mut Option<u64>, id: u32, heading: f64) {
     let updates = [patch!(id; heading: heading)];
-    apply_updates(store, &updates, UndoScope::Run(group));
+    apply_updates(store, &updates, group);
 }
 
 #[test]
@@ -4524,7 +4543,7 @@ fn a_row_a_run_touches_twice_undoes_to_its_state_before_the_run() {
 #[test]
 fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    apply_updates(&mut store, &[patch!(1; heading: 90.0)], UndoScope::Entry);
+    apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
     let mut join = store.edits.newest();
     assert!(join.is_some(), "a recorded change names its step");
     page(&mut store, &mut join, 1, 180.0);
@@ -4540,7 +4559,7 @@ fn an_edit_between_pages_splits_the_group() {
     let mut group = None;
     page(&mut store, &mut group, 1, 90.0);
     let user_edit = [patch!(2; heading: 45.0)];
-    apply_updates(&mut store, &user_edit, UndoScope::Entry);
+    apply_updates(&mut store, &user_edit, &mut None);
     page(&mut store, &mut group, 1, 180.0);
 
     assert_eq!(store.edits.undo_len(), 3);
@@ -4597,7 +4616,7 @@ fn a_page_folded_into_the_run_clears_redo() {
     let mut group = None;
     page(&mut store, &mut group, 1, 90.0);
     let user_edit = [patch!(2; heading: 45.0)];
-    apply_updates(&mut store, &user_edit, UndoScope::Entry);
+    apply_updates(&mut store, &user_edit, &mut None);
     undo_and_finish(&mut store);
     page(&mut store, &mut group, 2, 180.0);
 
@@ -4788,9 +4807,10 @@ fn tag(id: u32, name: &str, color: &str) -> (u32, ValueRecord) {
 #[test]
 fn reconcile_values_match_by_name_case_insensitive() {
     let mut target: HashMap<u32, ValueRecord> = [tag(3, "rural", "#222222")].into_iter().collect();
-    let (remap, changed) = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
+    let before = target.clone();
+    let remap = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
     assert_eq!(remap.get(&7), Some(&3));
-    assert!(!changed, "pure match mutates nothing");
+    assert_eq!(target, before, "pure match mutates nothing");
     assert_eq!(target.len(), 1);
     // The existing target record keeps its own color.
     assert_eq!(target.get(&3).unwrap()["color"], "#222222");
@@ -4799,9 +4819,7 @@ fn reconcile_values_match_by_name_case_insensitive() {
 #[test]
 fn reconcile_values_create_missing_with_source_pile() {
     let mut target: HashMap<u32, ValueRecord> = Default::default();
-    let (remap, changed) =
-        reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
-    assert!(changed);
+    let remap = reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
     assert_eq!(remap.get(&7), Some(&10));
     let rec = target.get(&10).unwrap();
     assert_eq!(record_name(rec), Some("Trekker"));
@@ -4816,8 +4834,7 @@ fn reconcile_values_pile_keys_claimed_when_target_lacks_them() {
         "doclinks".into(),
         serde_json::json!(["https://docs.google.com/document/d/x/edit#heading=h.abc"]),
     );
-    let (_, changed) = reconcile_values_by_name(&[(id, rec.clone())], &mut target, 0);
-    assert!(changed, "key adoption must mark the records as changed");
+    reconcile_values_by_name(&[(id, rec.clone())], &mut target, 0);
     assert_eq!(target.get(&3).unwrap()["doclinks"], rec["doclinks"]);
 }
 
@@ -4834,15 +4851,14 @@ fn reconcile_values_pile_keys_never_overwrite_existing() {
         "doclinks".into(),
         serde_json::json!(["https://docs.google.com/document/d/new/edit#heading=h.new"]),
     );
-    let (_, changed) = reconcile_values_by_name(&[(id, rec)], &mut target, 0);
-    assert!(!changed, "no adoption means no record change");
+    reconcile_values_by_name(&[(id, rec)], &mut target, 0);
     assert_eq!(target.get(&3).unwrap()["doclinks"], kept);
 }
 
 #[test]
 fn reconcile_values_dedupes_same_name_within_batch() {
     let mut target: HashMap<u32, ValueRecord> = Default::default();
-    let (remap, _) = reconcile_values_by_name(
+    let remap = reconcile_values_by_name(
         &[tag(7, "urban", "#111111"), tag(8, "Urban", "#222222")],
         &mut target,
         0,
@@ -4886,7 +4902,7 @@ fn any_write_that_changes_an_input_clears_what_was_computed_from_it() {
         ("lat".to_string(), vec!["timezone".to_string()]),
         ("timezone".to_string(), vec!["sunrise".to_string()]),
     ]));
-    apply_updates(&mut store, &[patch!(1; lat: 11.0)], UndoScope::Skip);
+    apply_updates(&mut store, &[patch!(1; lat: 11.0)], &mut None);
     let extra = store.get_loc_by_id(1).unwrap().extra.unwrap().to_map();
     assert_eq!(
         extra,
@@ -5405,7 +5421,10 @@ fn pick_even_empty_selection() {
 fn store_with_full_overlay_base() -> Store {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
     let mut store = Store::new();
-    store.map_id = Some("test-full-overlay".to_string());
+    store.meta = Tracked::new(maps::MapMeta {
+        id: "test-full-overlay".to_string(),
+        ..Default::default()
+    });
     store.batch = Some(arrow::locations_to_batch(&base));
     store.alive_count = Tracked::new(base.len());
     store.next_id = 10;
@@ -5585,7 +5604,10 @@ fn patches_only_base_write_replaces_the_mapped_file_it_was_read_from() {
 fn crash_window_stale_delta_double_applies_baked_locations() {
     let x = vec![loc(5, 5.0, 5.0), loc(6, 6.0, 6.0)];
     let mut store = Store::new();
-    store.map_id = Some("test-crash-window".to_string());
+    store.meta = Tracked::new(maps::MapMeta {
+        id: "test-crash-window".to_string(),
+        ..Default::default()
+    });
     store.batch = Some(arrow::locations_to_batch(&x));
     store.alive_count = Tracked::new(x.len());
 
@@ -5714,7 +5736,7 @@ fn apply_model_op(
             store
                 .edits
                 .edit()
-                .record(Arc::new(Change::from_sides(vec![l.clone()], vec![])));
+                .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
             store.overlay_add(vec![l.clone()]);
             model.insert(id, l);
             let pos = alive_ids.partition_point(|&x| x < id);
@@ -5731,7 +5753,7 @@ fn apply_model_op(
             store
                 .edits
                 .edit()
-                .record(Arc::new(Change::from_sides(vec![], vec![l])));
+                .record(Arc::new(entry(Change::from_sides(vec![], vec![l]))));
             model.remove(&id);
             alive_ids.remove(idx);
         }
@@ -5749,10 +5771,13 @@ fn apply_model_op(
             overlay_update(store, &patch!(id; heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
             store.reindex(&[&old], &[&new_loc]);
-            store.edits.edit().record(Arc::new(Change::from_rows([(
-                Some(old),
-                Some(new_loc.clone()),
-            )])));
+            store
+                .edits
+                .edit()
+                .record(Arc::new(entry(Change::from_rows([(
+                    Some(old),
+                    Some(new_loc.clone()),
+                )]))));
             model.insert(id, new_loc);
         }
     }
@@ -5873,11 +5898,11 @@ fn puts(edits: Vec<Edit>) -> Vec<Patch<Location>> {
         .collect()
 }
 
-fn plan(locs: &[Location], op: &Work) -> Vec<Patch<Location>> {
+fn plan(locs: &[Location], op: &RowOp) -> Vec<Patch<Location>> {
     plan_full(locs, op).updates
 }
 
-fn plan_full(locs: &[Location], op: &Work) -> Planned {
+fn plan_full(locs: &[Location], op: &RowOp) -> Planned {
     let fx = Fx::base(locs);
     let p = plan_fields(&fx.view().all(), op).unwrap();
     Planned {
@@ -5886,22 +5911,22 @@ fn plan_full(locs: &[Location], op: &Work) -> Planned {
     }
 }
 
-fn set_op(key: &str, value: serde_json::Value) -> Work {
-    Work::Set {
+fn set_op(key: &str, value: serde_json::Value) -> RowOp {
+    RowOp::Set {
         key: key.into(),
         value,
     }
 }
 
-fn expr_op(key: &str, expr: &str) -> Work {
-    Work::Expr {
+fn expr_op(key: &str, expr: &str) -> RowOp {
+    RowOp::Expr {
         key: key.into(),
         expr: expr.into(),
     }
 }
 
-fn move_op(from: &str, to: &str, winner: MergeWinner) -> Work {
-    Work::Move {
+fn move_op(from: &str, to: &str, winner: MergeWinner) -> RowOp {
+    RowOp::Move {
         from: from.into(),
         to: to.into(),
         winner,
@@ -5975,7 +6000,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
             loc_with_extra(1, r#"{"a":5,"b":9}"#),
             loc_with_extra(2, r#"{"b":1}"#),
         ],
-        &Work::Delete {
+        &RowOp::Delete {
             keys: vec!["a".into()],
         },
     );
@@ -5988,7 +6013,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
 fn field_delete_takes_several_keys_at_once() {
     let out = plan(
         &[loc_with_extra(1, r#"{"a":5,"b":9,"c":1}"#)],
-        &Work::Delete {
+        &RowOp::Delete {
             keys: vec!["a".into(), "c".into(), "missing".into()],
         },
     );
@@ -6095,7 +6120,7 @@ fn pinned_loc(id: u32, pano: &str) -> Location {
 }
 
 /// The message a rejected op answers with, or a panic naming what was wrongly accepted.
-fn plan_err(locs: &[Location], op: &Work) -> String {
+fn plan_err(locs: &[Location], op: &RowOp) -> String {
     let fx = Fx::base(locs);
     match plan_fields(&fx.view().all(), op) {
         Err(e) => e.to_string(),
@@ -6103,8 +6128,8 @@ fn plan_err(locs: &[Location], op: &Work) -> String {
     }
 }
 
-fn del_op(keys: &[&str]) -> Work {
-    Work::Delete {
+fn del_op(keys: &[&str]) -> RowOp {
+    RowOp::Delete {
         keys: keys.iter().map(|k| (*k).to_string()).collect(),
     }
 }
@@ -6235,14 +6260,14 @@ fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let feed = FeedCapture::attach(&mut store);
     add_rows(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
-    assert!(store.field_defs.contains_key("zz"));
+    assert!(store.meta.extra.fields.contains_key("zz"));
     assert!(feed
         .last()
-        .values
+        .derived
         .field_defs
         .is_some_and(|d| d.contains_key("zz")));
     add_rows(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
-    assert!(feed.last().values.field_defs.is_none());
+    assert!(feed.last().derived.field_defs.is_none());
 
     let feed = FeedCapture::attach(&mut store);
     apply_updates(
@@ -6252,11 +6277,11 @@ fn new_extra_key_is_announced_in_the_same_result() {
             extra: Some(RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into())),
             ..Default::default()
         }],
-        UndoScope::Skip,
+        &mut None,
     );
     assert!(feed
         .last()
-        .values
+        .derived
         .field_defs
         .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz")));
 }
@@ -6267,12 +6292,15 @@ fn registering_fields_keeps_the_existing_def() {
     let mut store = setup_store_with(&[]);
     let mut user = def_of("k");
     user.label = Some("User edited".into());
-    store.field_defs.edit().insert("k".into(), user);
+    store.meta.edit().extra.fields.insert("k".into(), user);
     store.register_fields(&Change {
         added: vec![loc_with_extra(1, r#"{"k":1}"#)],
         ..Default::default()
     });
-    assert_eq!(store.field_defs["k"].label.as_deref(), Some("User edited"));
+    assert_eq!(
+        store.meta.extra.fields["k"].label.as_deref(),
+        Some("User edited")
+    );
 }
 
 // The command path, not just the plan: a gate that rejected a clearable builtin before
@@ -6283,8 +6311,7 @@ fn apply_field_op_clears_a_nullable_column() {
     let out = apply_work(
         &mut store,
         &Selector::Everything,
-        &del_op(&["panoId"]),
-        false,
+        &Work::Rows(del_op(&["panoId"])),
     )
     .unwrap();
     assert_eq!(out.changed, 1);
@@ -6293,8 +6320,21 @@ fn apply_field_op_clears_a_nullable_column() {
 }
 
 #[test]
-fn clearable_builtins_are_the_optional_columns_touch_leaves_empty() {
-    assert_eq!(clearable_builtins(), &["panoId"]);
+fn work_wire_kinds_land_in_their_tier() {
+    let work = |v: serde_json::Value| serde_json::from_value::<Work>(v).unwrap();
+    assert!(matches!(
+        work(serde_json::json!({ "kind": "delete", "keys": ["a"] })),
+        Work::Rows(RowOp::Delete { .. })
+    ));
+    assert!(matches!(
+        work(serde_json::json!({ "kind": "pruneDuplicates", "distance": 25.0, "score": null })),
+        Work::Sets(SetOp::PruneDuplicates { .. })
+    ));
+}
+
+#[test]
+fn a_patch_clears_only_the_nullable_columns_the_engine_does_not_stamp() {
+    assert_eq!(<Location as mma_algebra::Patchable>::CLEARS, &["panoId"]);
 }
 
 #[test]
@@ -6303,8 +6343,7 @@ fn apply_field_op_refuses_to_clear_the_column_the_engine_stamps() {
     let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
-        &del_op(&["modifiedAt"]),
-        false,
+        &Work::Rows(del_op(&["modifiedAt"])),
     ) else {
         panic!("cleared the stamped column");
     };
@@ -6321,8 +6360,7 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
     let out = apply_work(
         &mut store,
         &Selector::Everything,
-        &expr_op("h", "a + 1"),
-        false,
+        &Work::Rows(expr_op("h", "a + 1")),
     )
     .unwrap();
     assert_eq!(out.changed, 1);
@@ -6336,8 +6374,7 @@ fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
         let out = apply_work(
             &mut store,
             &Selector::Everything,
-            &set_op("loadAsPanoId", serde_json::json!(on)),
-            false,
+            &Work::Rows(set_op("loadAsPanoId", serde_json::json!(on))),
         )
         .unwrap();
         assert_eq!(out.changed, 1);
@@ -6358,8 +6395,7 @@ fn apply_field_op_refuses_a_column_it_cannot_clear() {
     let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
-        &del_op(&["heading"]),
-        false,
+        &Work::Rows(del_op(&["heading"])),
     ) else {
         panic!("heading is writable, never clearable")
     };
@@ -6372,8 +6408,7 @@ fn apply_field_op_refuses_a_non_numeric_assignment() {
     assert!(apply_work(
         &mut store,
         &Selector::Everything,
-        &set_op("heading", serde_json::json!("north")),
-        false,
+        &Work::Rows(set_op("heading", serde_json::json!("north"))),
     )
     .is_err());
 }
@@ -6604,7 +6639,8 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
             pitch: Some(5.0),
             ..Default::default()
         })],
-        UndoScope::Entry,
+        &mut None,
+        Entry::default(),
     );
     let seen = store.row_at(&viewer(), 1).unwrap();
     assert_eq!(seen.heading, 90.0);
@@ -6713,7 +6749,7 @@ fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
     };
     store.changes.insert("win".into(), sink);
 
-    apply_updates(&mut store, &[patch!(1; heading: 90.0)], UndoScope::Entry);
+    apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
     store.edit(
         &viewer(),
         vec![Edit::Put(heading(1, 45.0))],
@@ -6790,4 +6826,242 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
         ..Default::default()
     };
     assert_eq!(store.still_applies(all_stale, &read, &now).extra, None);
+}
+
+fn tag_records(store: &Store) -> HashMap<u32, ValueRecord> {
+    store
+        .value_meta
+        .get("tags")
+        .map(|m| (**m).clone())
+        .unwrap_or_default()
+}
+
+fn tag_update(id: u32, key: &str, value: serde_json::Value) -> FieldValuesPatch {
+    let mut rec = ValueRecord::new();
+    rec.insert("id".into(), id.into());
+    rec.insert(key.into(), value);
+    FieldValuesPatch {
+        update: vec![rec],
+        ..Default::default()
+    }
+}
+
+#[test]
+fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
+    let mut store = setup_store_with(&[]);
+    let mut states = vec![tag_records(&store)];
+    let ids = store
+        .patch_field_values("tags", &creates(&["A", "B"]))
+        .unwrap()
+        .resolved;
+    states.push(tag_records(&store));
+    for patch in [
+        tag_update(ids[0], "name", "Alpha".into()),
+        tag_update(ids[1], "color", "#123456".into()),
+        FieldValuesPatch {
+            reorder: Some(vec![ids[1], ids[0]]),
+            ..Default::default()
+        },
+    ] {
+        store.patch_field_values("tags", &patch).unwrap();
+        states.push(tag_records(&store));
+    }
+    assert_eq!(store.edits.undo_len(), 4);
+
+    for expected in states.iter().rev().skip(1) {
+        undo_and_finish(&mut store);
+        assert_eq!(&tag_records(&store), expected);
+    }
+    press_redo(&mut store);
+    assert_eq!(tag_records(&store), states[1]);
+}
+
+#[test]
+fn undoing_a_rename_collision_restores_records_and_rows_together() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
+    let ids = store
+        .patch_field_values("tags", &creates(&["A", "B"]))
+        .unwrap()
+        .resolved;
+    let (a, b) = (ids[0], ids[1]);
+    tag_onto(&mut store, a, &[1, 2]);
+    tag_onto(&mut store, b, &[2]);
+    let records = tag_records(&store);
+
+    let mut merge = tag_update(a, "name", "b".into());
+    merge
+        .update
+        .extend(tag_update(b, "color", "#abcdef".into()).update);
+    store.patch_field_values("tags", &merge).unwrap();
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
+    assert_eq!(tag_records(&store)[&b]["color"], "#abcdef");
+
+    undo_and_finish(&mut store);
+    assert_eq!(tag_records(&store), records);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![a]);
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![a, b]);
+}
+
+#[test]
+fn undoing_a_landing_removes_the_tags_it_interned() {
+    let mut store = setup_store_with(&[]);
+    let before = tag_records(&store);
+    crate::io::import::add_copied_to_store(
+        &mut store,
+        vec![loc_with_tags(0, 1.0, 1.0, vec![5])],
+        vec![(5, seed("Fresh"))],
+    )
+    .unwrap();
+    let interned = tag_records(&store);
+    assert!(interned.values().any(|r| record_name(r) == Some("Fresh")));
+
+    undo_and_finish(&mut store);
+    assert_eq!(tag_records(&store), before);
+    assert_eq!(*store.alive_count, 0);
+
+    press_redo(&mut store);
+    assert_eq!(tag_records(&store), interned);
+}
+
+#[test]
+fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let ids = store
+        .patch_field_values("tags", &creates(&["A"]))
+        .unwrap()
+        .resolved;
+    tag_onto(&mut store, ids[0], &[1]);
+    store
+        .patch_field_values("tags", &tag_update(ids[0], "color", "#010203".into()))
+        .unwrap();
+    let held: Vec<(u64, Entry)> = store
+        .edits
+        .iter()
+        .map(|(_, e)| (e.seq, (**e.entry.as_ref().unwrap()).clone()))
+        .collect();
+    assert!(held.iter().any(|(_, e)| !e.piles.is_empty()));
+    with_history_db(|conn| {
+        save_edit_history(conn, "m", &store.edits).unwrap();
+        for (seq, entry) in &held {
+            assert_eq!(&load_edit(conn, "m", *seq).unwrap(), entry);
+        }
+    });
+}
+
+#[test]
+fn dead_values_ship_exactly_when_a_tag_empties_or_its_record_goes() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
+    let ids = store
+        .patch_field_values("tags", &creates(&["A", "B"]))
+        .unwrap()
+        .resolved;
+    let (a, b) = (ids[0], ids[1]);
+    tag_onto(&mut store, a, &[1]);
+    tag_onto(&mut store, b, &[1, 2]);
+    let feed = FeedCapture::attach(&mut store);
+
+    set_tags(&mut store, &[], &[b], &[1]);
+    let dead = |ids: Vec<u32>| Some(HashMap::from([("tags".to_string(), ids)]));
+    assert_eq!(feed.last().derived.dead_values, None, "b still holds row 2");
+
+    set_tags(&mut store, &[], &[a], &[1]);
+    assert_eq!(feed.last().derived.dead_values, dead(vec![a]));
+
+    let c = store
+        .patch_field_values("tags", &creates(&["C"]))
+        .unwrap()
+        .resolved[0];
+    assert_eq!(feed.last().derived.dead_values, None);
+    undo_and_finish(&mut store);
+    assert_eq!(feed.last().derived.dead_values, dead(vec![c]));
+}
+
+fn labelled_def(key: &str) -> maps::FieldDef {
+    maps::FieldDef {
+        label: Some(key.to_uppercase()),
+        ..def_of(key)
+    }
+}
+
+#[test]
+fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"a":1}"#),
+        loc_with_extra(2, r#"{"a":2}"#),
+    ]);
+    store
+        .meta
+        .edit()
+        .extra
+        .fields
+        .insert("a".into(), labelled_def("a"));
+    let steps = store.edits.undo_len();
+
+    let rename = Work::Rows(move_op("a", "b", MergeWinner::From));
+    apply_work(&mut store, &Selector::Everything, &rename).unwrap();
+    assert_eq!(store.edits.undo_len(), steps + 1);
+    assert!(!store.meta.extra.fields.contains_key("a"));
+    assert_eq!(store.meta.extra.fields["b"], labelled_def("a"));
+
+    undo_and_finish(&mut store);
+    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
+    assert!(!store.meta.extra.fields.contains_key("b"));
+    let row = store.get_loc_by_id(1).unwrap().extra.unwrap().to_map();
+    assert!(row.contains_key("a") && !row.contains_key("b"));
+}
+
+#[test]
+fn a_field_loses_its_definition_only_when_no_row_holds_it() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"a":1}"#),
+        loc_with_extra(2, r#"{"a":2}"#),
+    ]);
+    store
+        .meta
+        .edit()
+        .extra
+        .fields
+        .insert("a".into(), labelled_def("a"));
+    let one = Selector::Locations {
+        locations: vec![1],
+        name: None,
+    };
+    apply_work(&mut store, &one, &Work::Rows(del_op(&["a"]))).unwrap();
+    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
+
+    apply_work(
+        &mut store,
+        &Selector::Everything,
+        &Work::Rows(del_op(&["a"])),
+    )
+    .unwrap();
+    assert!(!store.meta.extra.fields.contains_key("a"));
+    undo_and_finish(&mut store);
+    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
+}
+
+#[test]
+fn a_stored_edit_keeps_its_definition_moves() {
+    let conn = rusqlite::Connection::open_in_memory().unwrap();
+    crate::store::storage::run_migrations_on(&conn).unwrap();
+    conn.execute(
+        "INSERT INTO maps (id, name, settings, created_at, updated_at) VALUES ('m', '', '{}', '', '')",
+        [],
+    )
+    .unwrap();
+    let mut store = setup_store_with(&[loc_with_extra(1, r#"{"a":1}"#)]);
+    store
+        .meta
+        .edit()
+        .extra
+        .fields
+        .insert("a".into(), labelled_def("a"));
+    let rename = Work::Rows(move_op("a", "b", MergeWinner::From));
+    apply_work(&mut store, &Selector::Everything, &rename).unwrap();
+    let (_, newest) = store.edits.iter().last().unwrap();
+    let held = (**newest.entry.as_ref().unwrap()).clone();
+    assert!(!held.defs.is_empty());
+
+    save_edit_history(&conn, "m", &store.edits).unwrap();
+    assert_eq!(load_edit(&conn, "m", newest.seq).unwrap(), held);
 }

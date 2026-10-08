@@ -279,7 +279,9 @@ describe("Location persistence", () => {
 
 	it("tags on locations survive save/load", async () => {
 		const tagIds = await withApi(async (api) => {
-			const resolved = await api.createTags(["tag-x", "tag-y"]);
+			const resolved = await api.edit
+				.values("tags", { create: ["tag-x", "tag-y"].map((name) => ({ name })) })
+				.then((ids) => ids.map((id) => api.getTag(id)!));
 			return resolved.map((t) => t.id);
 		});
 

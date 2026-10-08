@@ -490,4 +490,9 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
           DROP TABLE IF EXISTS edit_history;",
     ),
     (26, "DELETE FROM edit_entries;"),
+    (
+        27,
+        "ALTER TABLE edit_entries ADD COLUMN piles TEXT;
+          DELETE FROM edit_entries;",
+    ),
 ];

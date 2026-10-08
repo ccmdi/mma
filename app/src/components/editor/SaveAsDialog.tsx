@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { PromptDialog, type DialogProps } from "@/components/primitives/Dialog";
-import { closeMap, flushSave, useMapState } from "@/store/useMapStore";
+import { closeMap, useMapState } from "@/store/useMapStore";
 import { copyName, duplicateMap } from "@/store/mapList";
 import { confirmMapExit } from "@/lib/jobs";
 import { goTo } from "@/store/router";
@@ -17,13 +17,11 @@ export function SaveAsDialog({ open, onOpenChange }: DialogProps) {
 	const save = async () => {
 		if (!map || !(await confirmMapExit("leave"))) return;
 		setSaving(true);
-		const copy = await flushSave()
-			.then(() => duplicateMap(map.id, name.trim()))
-			.catch((e: unknown) => {
-				toast(t("Could not save a copy: {error}", { error: errText(e) }));
-				setSaving(false);
-				return null;
-			});
+		const copy = await duplicateMap(map.id, name.trim()).catch((e: unknown) => {
+			toast(t("Could not save a copy: {error}", { error: errText(e) }));
+			setSaving(false);
+			return null;
+		});
 		if (!copy) return;
 		onOpenChange(false);
 		await closeMap();

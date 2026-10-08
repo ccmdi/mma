@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { mdiRestore, mdiClose } from "@mdi/js";
 import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.consts";
 import type { MapMeta } from "@/bindings.gen";
-import { patchMapMeta } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { deleteMap } from "@/store/mapList";
 import { cmd } from "@/lib/commands";
 import { useSetting, setSetting, getSettings } from "@/store/settings";
@@ -308,7 +308,7 @@ export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFo
 		<>
 			<DialogForm
 				onSubmit={() => {
-					void patchMapMeta({ ...patch, id: map.id });
+					void edit.meta({ ...patch, id: map.id });
 					close();
 				}}
 			>

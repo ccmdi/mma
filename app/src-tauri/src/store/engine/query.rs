@@ -15,7 +15,7 @@ use std::time::Instant;
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
 pub(crate) const SPATIAL_CELL_M: f64 = 25.0;
 
-impl Derived for SpatialIndex {
+impl Cached for SpatialIndex {
     fn valid(&self, store: &Store) -> bool {
         self.len() == *store.alive_count
     }
@@ -43,7 +43,7 @@ impl Derived for SpatialIndex {
     }
 }
 
-impl Derived for At<Option<BoundsAcc>> {
+impl Cached for At<Option<BoundsAcc>> {
     fn valid(&self, store: &Store) -> bool {
         self.current(store.version)
     }
@@ -379,7 +379,9 @@ impl Store {
         if let Some(f) = selections::BUILTIN_FIELDS.iter().find(|f| f.key == field) {
             return f.field_type.index_shape();
         }
-        self.field_defs
+        self.meta
+            .extra
+            .fields
             .get(field)
             .map_or(IndexShape::None, |d| d.field_type.index_shape())
     }
@@ -534,7 +536,7 @@ impl Store {
         let fields: Vec<(String, IndexShape)> = selections::optional_builtins()
             .iter()
             .map(|k| (*k).to_string())
-            .chain(self.field_defs.keys().cloned())
+            .chain(self.meta.extra.fields.keys().cloned())
             .map(|k| {
                 let shape = self.index_shape_of(&k);
                 (k, shape)
@@ -804,7 +806,7 @@ impl Store {
             });
         }
 
-        let map_id = self.map_id.clone().unwrap_or_else(|| "default".into());
+        let map_id = self.meta.id.clone();
         let scope = self.scope(selector);
         let scope = match &picked {
             Some(set) => scope.within(set),

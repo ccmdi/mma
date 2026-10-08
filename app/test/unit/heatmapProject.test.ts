@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapMeta } from "@/bindings.gen";
-import { flushSave, getMapState } from "@/store/useMapStore";
+import { getMapState } from "@/store/useMapStore";
+import * as autosave from "@/store/autosave";
 import { mapStorage, storage } from "@/plugins/pluginStorage";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 
@@ -57,7 +58,7 @@ beforeEach(() => {
 afterEach(async () => {
 	cleanup?.();
 	cleanup = null;
-	await flushSave();
+	await autosave.flush();
 	const s = getMapState() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;

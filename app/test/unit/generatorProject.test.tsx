@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import type { MapMeta } from "@/bindings.gen";
-import { getMapState, flushSave } from "@/store/useMapStore";
+import { getMapState } from "@/store/useMapStore";
+import * as autosave from "@/store/autosave";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { normalizeGeneratorSettings } from "@/plugins/generator/engine/types";
 import { mount, type Mounted } from "./fixtures/harness";
@@ -56,7 +57,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	await flushSave();
+	await autosave.flush();
 	const s = getMapState() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;

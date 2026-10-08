@@ -40,7 +40,7 @@ fn reconcile(
     meta: &mut HashMap<u32, ValueRecord>,
     tags: &[(u32, ValueRecord)],
 ) -> HashMap<u32, u32> {
-    engine::reconcile_values_by_name(tags, meta, 0).0
+    engine::reconcile_values_by_name(tags, meta, 0)
 }
 
 fn ordered_tag(id: u32, name: &str, order: u32) -> (u32, ValueRecord) {
@@ -82,8 +82,7 @@ fn reconcile_new_ids_land_above_the_data_floor() {
     // Metadata is empty but the map's rows already carry tag ids up to 7 (metadata was
     // deleted out from under them); fresh ids must not collide with those.
     let mut meta = meta_with(&[]);
-    let (remap, changed) = engine::reconcile_values_by_name(&[tag(1, "New")], &mut meta, 7);
-    assert!(changed);
+    let remap = engine::reconcile_values_by_name(&[tag(1, "New")], &mut meta, 7);
     assert_eq!(remap[&1], 8);
 }
 
@@ -851,9 +850,7 @@ fn a_bulk_import_defines_every_field_its_rows_carry() {
     ],"extra":{"fields":{"elevation":{"type":"number","label":"Height"}}}}"#
         .to_vec();
     let mut map = parse_single_json_mut(&mut buf);
-    let fields = maps::MapExtra::from_json(&map_extra_json(&mut map).unwrap())
-        .fields
-        .unwrap();
+    let fields = maps::MapExtra::from_json(&map_extra_json(&mut map).unwrap()).fields;
     assert!(
         fields.contains_key("countryCode"),
         "a key only the rows carry is defined"
@@ -875,7 +872,10 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
 
     let first_id = stage_parsed(&mut store, "staged-fetch", parsed).unwrap();
     let target = import_target("staged-fetch");
@@ -894,7 +894,10 @@ fn cancelling_a_staged_import_drops_its_layer() {
     let mut buf = br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
     stage_parsed(&mut store, "cancel-me", parsed).unwrap();
     store.drop_pending(&import_layer("cancel-me"));
     assert!(store.rows_at(&import_target("cancel-me"), None).is_empty());
@@ -903,7 +906,10 @@ fn cancelling_a_staged_import_drops_its_layer() {
 #[test]
 fn two_windows_previewing_at_once_keep_their_own_import() {
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
     let stage = |store: &mut Store, window: &str, lat: f64| {
         let json = format!(r#"{{"customCoordinates":[{{"lat":{lat},"lng":1}}]}}"#);
         let mut buf = json.into_bytes();
@@ -932,7 +938,10 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
 #[test]
 fn editor_import_reports_marker_additions_only_when_it_lands() {
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, Vec::new()), loc_with_tags(0, Vec::new())],
         ..Default::default()
@@ -965,7 +974,10 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     // Target metadata already defines "Shared" (id 5). The copies reference the *source*
     // map's own tag ids (1 = Shared, 2 = Unique), as a real cross-map copy would.
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
     store.value_meta.insert(
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
@@ -982,7 +994,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     let event = feed.last();
 
     // Both copies landed in the target store.
-    assert_eq!(event.values.location_count, Some(2));
+    assert_eq!(event.derived.location_count, Some(2));
     let stored = store.collect(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
@@ -1009,7 +1021,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
     let counts = &event
-        .values
+        .derived
         .value_counts
         .as_ref()
         .expect("import moves counts")["tags"];
@@ -1018,7 +1030,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // The reconciled metadata ships on the same result (the receiver renders from it).
     assert!(event
-        .values
+        .derived
         .value_meta
         .as_ref()
         .and_then(|m| m.get("tags"))
@@ -1029,7 +1041,10 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 fn bulk_tags_apply_every_name_to_every_import() {
     // "shared" reuses the existing "Shared" (id 5); blanks drop and repeats collapse.
     let mut store = Store::new();
-    store.map_id = Some("test".into());
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: "test".into(),
+        ..Default::default()
+    });
     store.value_meta.insert(
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),

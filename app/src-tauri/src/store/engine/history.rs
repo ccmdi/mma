@@ -1,8 +1,59 @@
-//! Undo and redo: each edit is the `Change` it made, replayed forward or as its inverse.
+//! Undo and redo: each edit is the `Entry` it made, replayed forward or as its inverse.
 
 use super::*;
 use crate::types::Location;
 use std::sync::Arc;
+
+/// What one write did to an interned field's records.
+pub(crate) type PileDelta = mma_algebra::Change<(u32, ValueRecord)>;
+
+/// What one write did to every interned field's records, by field.
+pub(crate) type Piles = HashMap<String, PileDelta>;
+
+/// What one write did to the map's extra-field definitions.
+pub(crate) type DefsDelta = mma_algebra::Change<(String, maps::FieldDef)>;
+
+/// What one write did: to the rows, to the records of each interned field, and to the
+/// field definitions. The rows persist as Arrow; the rest as JSON.
+#[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct Entry {
+    #[serde(skip)]
+    pub rows: Change,
+    pub piles: Piles,
+    pub defs: DefsDelta,
+}
+
+impl Entry {
+    pub(crate) fn inverse(&self) -> Self {
+        Self {
+            rows: self.rows.inverse(),
+            piles: self
+                .piles
+                .iter()
+                .map(|(field, d)| (field.clone(), d.inverse()))
+                .collect(),
+            defs: self.defs.inverse(),
+        }
+    }
+
+    /// This entry and then `later`, as one.
+    pub(crate) fn then(self, later: Self) -> Self {
+        let mut piles = self.piles;
+        for (field, d) in later.piles {
+            let held = piles.remove(&field).unwrap_or_default();
+            piles.insert(field, held.then(d));
+        }
+        Self {
+            rows: self.rows.then(later.rows),
+            piles,
+            defs: self.defs.then(later.defs),
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.rows.is_empty() && self.piles.values().all(PileDelta::is_empty) && self.defs.is_empty()
+    }
+}
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
@@ -33,7 +84,7 @@ pub(crate) struct EditStacks {
 #[derive(Clone)]
 pub(crate) struct LoggedEdit {
     pub seq: u64,
-    pub entry: Option<Arc<Change>>,
+    pub entry: Option<Arc<Entry>>,
 }
 
 impl EditStacks {
@@ -56,7 +107,7 @@ impl EditStacks {
 
     /// Record a new edit: it goes on top of undo, under the cap, and redo is gone.
     /// Returns the `seq` it was stored under.
-    pub(crate) fn record(&mut self, entry: Arc<Change>) -> u64 {
+    pub(crate) fn record(&mut self, entry: Arc<Entry>) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
         self.push_undo(LoggedEdit {
@@ -67,19 +118,19 @@ impl EditStacks {
         seq
     }
 
-    /// Fold `change` into the newest edit when it is `seq` and in memory, and give it a
+    /// Fold `later` into the newest edit when it is `seq` and in memory, and give it a
     /// fresh `seq`: a stored row keeps the edit as it was when stored, so the grown edit is
     /// stored anew and the old row goes on the next save. Redo is gone, as for any new
-    /// edit. Hands `change` back when the newest edit is another.
-    pub(crate) fn fold_into_newest(&mut self, seq: u64, change: Change) -> Result<u64, Change> {
+    /// edit. Hands `later` back when the newest edit is another.
+    pub(crate) fn fold_into_newest(&mut self, seq: u64, later: Entry) -> Result<u64, Entry> {
         let Some(top) = self.undo.last_mut().filter(|top| top.seq == seq) else {
-            return Err(change);
+            return Err(later);
         };
         let Some(entry) = top.entry.as_mut() else {
-            return Err(change);
+            return Err(later);
         };
         let held = Arc::make_mut(entry);
-        *held = mem::take(held).then(change);
+        *held = mem::take(held).then(later);
         top.seq = self.next_seq;
         self.next_seq += 1;
         self.redo.clear();
@@ -139,24 +190,24 @@ impl Store {
     /// corrupt the map. `None` when there is nothing to undo.
     pub(crate) fn undo(
         &mut self,
-        fetch: impl FnOnce(u64) -> AppResult<Change>,
-    ) -> AppResult<Option<Change>> {
+        fetch: impl FnOnce(u64) -> AppResult<Entry>,
+    ) -> AppResult<Option<Entry>> {
         self.step(Stack::Undo, fetch)
     }
 
     /// Re-apply the newest undone edit and move it back to undo. As [`Store::undo`].
     pub(crate) fn redo(
         &mut self,
-        fetch: impl FnOnce(u64) -> AppResult<Change>,
-    ) -> AppResult<Option<Change>> {
+        fetch: impl FnOnce(u64) -> AppResult<Entry>,
+    ) -> AppResult<Option<Entry>> {
         self.step(Stack::Redo, fetch)
     }
 
     fn step(
         &mut self,
         from: Stack,
-        fetch: impl FnOnce(u64) -> AppResult<Change>,
-    ) -> AppResult<Option<Change>> {
+        fetch: impl FnOnce(u64) -> AppResult<Entry>,
+    ) -> AppResult<Option<Entry>> {
         let edits = self.edits.edit();
         let popped = match from {
             Stack::Undo => edits.undo.pop(),
@@ -173,7 +224,7 @@ impl Store {
             Stack::Undo => entry.inverse(),
             Stack::Redo => (*entry).clone(),
         };
-        self.put(&changes);
+        self.put_entry(&changes);
         edit.entry = Some(entry);
         let edits = self.edits.edit();
         match from {

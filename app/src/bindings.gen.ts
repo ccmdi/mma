@@ -182,8 +182,6 @@ export const commands = {
 	 *  from it. A write that changes an input clears what was derived from it.
 	 */
 	storeSetDerived: (edges: { [key in string]: string[] }) => __TAURI_INVOKE<null>("store_set_derived", { edges }),
-	/**  Set (or clear) the active location. */
-	storeSetActive: (id: number | null) => __TAURI_INVOKE<null>("store_set_active", { id }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: [number, number, number]) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
@@ -211,7 +209,7 @@ export const commands = {
 	/**  The area a polygon selects, as polygons whose edges never cross, for drawing its fill. */
 	polygonFill: (polygon: PolygonGeometry) => __TAURI_INVOKE<((([number, number])[])[])[]>("polygon_fill", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))) as typeof v)),
 	/**  Run work over every location matched by `selector`, landing the edits it derives. */
-	storeWork: (selector: Selector, work: Work, recordUndo: boolean | null) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work, recordUndo }),
+	storeWork: (selector: Selector, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/**  The parse error for `src`, or `null` when it parses. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**
@@ -264,10 +262,11 @@ export const commands = {
 	 */
 	storeDuplicateMap: (id: string, name: string) => __TAURI_INVOKE<MapMeta>("store_duplicate_map", { id, name }),
 	/**
-	 *  Apply a partial update to a map's metadata. Omitted fields are left unchanged.
-	 *  Returns a mutation result when the open map's field definitions changed.
+	 *  Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
+	 *  map's store takes the update and saves it with the map; its tags change only through
+	 *  their values.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => __TAURI_INVOKE<null>("store_update_map_meta", { patch }),
 	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
@@ -576,16 +575,14 @@ export type Change<T> = {
 };
 
 /**
- *  One landed change as every watching window hears it: the change by key, and what
- *  it moved in the map's values and selections.
+ *  One landed change as every watching window hears it: the change by key, and the
+ *  state it moved.
  */
 export type ChangeEvent = {
 	/**  The map version this change brought the map to. */
 	version: number,
-	/**  Map values this change moved; an untouched value is absent. */
-	values: EngineValues,
-	/**  Selection state after this change, when it touched any selection. */
-	selections: SelectionSync | null,
+	/**  State this change moved; an untouched field is absent. */
+	derived: Derived,
 } & Keys<number>;
 
 /**  Metadata for a single commit. */
@@ -680,6 +677,33 @@ export type DbStats = {
 	foreignKeys: boolean,
 };
 
+/**  Map state a change affected. Each field is `null` when it did not change. */
+export type Derived = {
+	locationCount: number | null,
+	canUndo: boolean | null,
+	canRedo: boolean | null,
+	/**
+	 *  Per-value row counts, keyed by field then by index key: one complete map per
+	 *  indexed field whose postings moved. Fields that did not move are absent.
+	 */
+	valueCounts: { [key in string]: { [key in string]: number } } | null,
+	/**
+	 *  Per-value records (opaque piles), keyed by field then by interned id: one
+	 *  complete map per interned field whose records changed. JS coerces piles to its
+	 *  typed views (a tag) at its own boundary.
+	 */
+	valueMeta: { [key in string]: { [key in number]: { [key in string]: unknown } } } | null,
+	/**  The whole extra-field registry, when the map's row changed. */
+	fieldDefs: { [key in string]: FieldDef } | null,
+	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
+	selectionCounts: { [key in string]: number } | null,
+	/**
+	 *  Ids of each interned field's values this change left on no row or whose record it
+	 *  removed, keyed by field.
+	 */
+	deadValues: { [key in string]: number[] } | null,
+};
+
 /**  What the user needs in order to authorize: the code to type and where to type it. */
 export type DeviceCodeInfo = {
 	userCode: string,
@@ -735,29 +759,6 @@ export type EditorImportResult = {
 	importedCount: number,
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
-};
-
-/**  Map state a change affected. Each field is `null` when it did not change. */
-export type EngineValues = {
-	locationCount: number | null,
-	canUndo: boolean | null,
-	canRedo: boolean | null,
-	/**
-	 *  Per-value row counts, keyed by field then by index key: one complete map per
-	 *  indexed field whose postings moved. Fields that did not move are absent.
-	 */
-	valueCounts: { [key in string]: { [key in string]: number } } | null,
-	/**
-	 *  Per-value records (opaque piles), keyed by field then by interned id: one
-	 *  complete map per interned field whose records changed. JS coerces piles to its
-	 *  typed views (a tag) at its own boundary.
-	 */
-	valueMeta: { [key in string]: { [key in number]: { [key in string]: unknown } } } | null,
-	/**
-	 *  The whole extra-field registry (`MapMeta.extra.fields` mirror), when a key was
-	 *  seen for the first time or the user edited a definition.
-	 */
-	fieldDefs: { [key in string]: FieldDef } | null,
 };
 
 /**
@@ -1040,7 +1041,7 @@ export type Location = {
  *  but structured as an object to allow future extensions.
  */
 export type MapExtra = {
-	fields: { [key in string]: FieldDef } | null,
+	fields?: { [key in string]: FieldDef },
 };
 
 /**
@@ -1569,6 +1570,34 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
+/**  Work that derives each selected row's edit from that row alone. */
+export type RowOp = 
+/**
+ *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
+ *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ */
+{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
+/**  Drop `keys` from every row that has them. */
+{ kind: "delete"; keys: string[] } | 
+/**
+ *  Assign `value` to `key` on every row where it differs. A writable built-in key
+ *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+ */
+{ kind: "set"; key: string; value: unknown } | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
+ */
+{ kind: "expr"; key: string; expr: string } | 
+/**
+ *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
+ *  reads the row's current value as a set rather than replacing it, which is what
+ *  membership needs: `tags` is this op's first caller, `array` extras its second.
+ *  `add` wins for a value named in both lists, and a row already in the requested
+ *  state keeps its member order.
+ */
+{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
+
 /**  A narrowing drawn from the selected rows before the question is asked. */
 export type RowPick = 
 /**  `n` rows drawn uniformly at random, without replacement. */
@@ -1696,13 +1725,6 @@ export type Selection = {
 	selector: Selector,
 };
 
-/**  Updated selection state after a change. `counts` gives each selection's match count. */
-export type SelectionSync = {
-	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
-	counts: { [key in string]: number },
-	selectedCount: number,
-};
-
 /**
  *  Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
  *  for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
@@ -1721,6 +1743,20 @@ export type Selector = { type: "Locations"; locations: number[]; name: string | 
 { type: "Ranked"; 
 /**  What to rank; `null` ranks the whole map. */
 selection: Selection | null; expr: string; k: number | null; ascending: boolean };
+
+/**  Work that derives its edits from the selected rows as a set. */
+export type SetOp = 
+/**
+ *  Merge each duplicate group within `distance` metres into one survivor, unioning
+ *  tags and extra fields. `score` ranks which survives; absent uses the default
+ *  ranking.
+ */
+{ kind: "mergeDuplicates"; distance: number; score: string | null } | 
+/**
+ *  Remove duplicates within `distance` metres of each other, keeping the best-scored
+ *  survivor per cluster.
+ */
+{ kind: "pruneDuplicates"; distance: number; score: string | null };
 
 export type SideCounts = {
 	create: number,
@@ -1752,12 +1788,12 @@ export type SidecarProgress = {
 
 
 /**
- *  Open-time snapshot: the same `values` a mutation result carries, with every field
+ *  Open-time snapshot: the same derived state a change carries, with every field
  *  present. The one full picture JS ever receives; everything after is a delta.
  */
 export type StoreStatus = {
 	version: number,
-	values: EngineValues,
+	derived: Derived,
 };
 
 /**  What the store has to warn the user about. The sentence is TS's to write. */
@@ -1865,43 +1901,7 @@ export type VirtualTag = {
 };
 
 /**  Work the store runs over the selected rows to derive their edits. */
-export type Work = 
-/**
- *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
- */
-{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
-/**  Drop `keys` from every row that has them. */
-{ kind: "delete"; keys: string[] } | 
-/**
- *  Assign `value` to `key` on every row where it differs. A writable built-in key
- *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
- */
-{ kind: "set"; key: string; value: unknown } | 
-/**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is reported back by id.
- */
-{ kind: "expr"; key: string; expr: string } | 
-/**
- *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
- *  reads the row's current value as a set rather than replacing it, which is what
- *  membership needs: `tags` is this op's first caller, `array` extras its second.
- *  `add` wins for a value named in both lists, and a row already in the requested
- *  state keeps its member order.
- */
-{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] } | 
-/**
- *  Merge each duplicate group within `distance` metres into one survivor, unioning
- *  tags and extra fields. `score` ranks which survives; absent uses the default
- *  ranking.
- */
-{ kind: "mergeDuplicates"; distance: number; score: string | null } | 
-/**
- *  Remove duplicates within `distance` metres of each other, keeping the best-scored
- *  survivor per cluster.
- */
-{ kind: "pruneDuplicates"; distance: number; score: string | null };
+export type Work = RowOp | SetOp;
 
 /**  The work's outcome for the caller: the mutation plus what its message needs. */
 export type WorkResult = {

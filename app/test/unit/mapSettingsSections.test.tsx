@@ -35,7 +35,7 @@ const map: MapMeta = {
 	folder: null,
 	settings: {},
 	scoreBounds: "auto",
-	extra: { fields: null },
+	extra: {},
 	tags: {},
 	labels: [],
 	locationCount: 0,

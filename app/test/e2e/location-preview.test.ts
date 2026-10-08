@@ -608,7 +608,7 @@ describe("LocationPreview — exact date resolution", () => {
 	before(async () => {
 		await withApi(async (api) => {
 			const map = api.getMapState().map!;
-			await api.updateMapMeta({
+			await api.edit.meta({
 				settings: {
 					...map.settings,
 					enrichMetadata: true,

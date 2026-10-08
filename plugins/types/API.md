@@ -17,7 +17,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [PluginEvents](#pluginevents)
 - [Externals](#externals)
 - [Sidecar](#sidecar)
-- [Ui](#ui)
 - [FieldDefs](#fielddefs)
 - [FieldDefRegistry](#fielddefregistry)
 - [Query](#query)
@@ -540,6 +539,16 @@ PLAIN_CALLS: readonly [
 ]
 ```
 
+### PREVIEW_FLAGS
+
+`unstable` · unreleased
+
+```ts
+PREVIEW_FLAGS: 12
+```
+
+The bits a preview carries that a real location must not.
+
 ### PROJECTIONS
 
 `unstable` · since v0.10.3
@@ -714,16 +723,6 @@ ValidationFlag: {
 One finding of a Street View coverage check. `validate` answers each row with the
 findings that apply, combined into one number.
 
-### VIRTUAL_FLAGS
-
-`unstable` · since v0.10.3
-
-```ts
-VIRTUAL_FLAGS: 12
-```
-
-The bits a preview carries that a real location must not.
-
 ## Store
 
 ### addLocations
@@ -737,20 +736,6 @@ addLocations(locs: Location[]): Promise<void>
 Add locations to the map. Real ids are assigned and written back into the passed
 objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
 
-### applyFieldOp
-
-`unstable` · since v0.10.0
-
-```ts
-applyFieldOp(
-  selector: Selector,
-  op: Work,
-  recordUndo: boolean,
-): Promise<WorkResult>
-```
-
-Apply a field operation across all locations matching `selector`.
-
 ### applySelectionUpdate
 
 `unstable` · since v0.10.3
@@ -763,16 +748,6 @@ applySelectionUpdate(
 
 Apply `op` to the listed selections and re-resolve them: the one way the selection changes.
 Lift an op over the active selections alone with `onActive`. No-op when nothing changed.
-
-### cancelAutosave
-
-`unstable` · since v0.8.1
-
-```ts
-cancelAutosave(): void
-```
-
-Cancel any pending autosave timer.
 
 ### checkoutCommit
 
@@ -814,18 +789,6 @@ commitMap(message?: string): Promise<string>
 
 Commit all pending changes to the map's version history. Clears the undo stack.
 
-### createTags
-
-`stable` · since v0.4.0
-
-```ts
-createTags(names: string[], selector?: Selector): Promise<Tag[]>
-```
-
-Get-or-create tags by name (case-insensitive; ids are allocated by the store) and
-return them in request order. Pass `selector` to also put the tags on those
-locations. Emits `tag:add`.
-
 ### deleteField
 
 `stable` · since v0.5.1
@@ -834,19 +797,19 @@ locations. Emits `tag:add`.
 deleteField(key: string): Promise<void>
 ```
 
-Delete extra-field `key` from every location, its definition, and references.
+Delete extra-field `key` from every location, its definition, and the listed selections,
+in one undoable step.
 
 ### deleteTags
 
 `stable` · since v0.4.0
 
 ```ts
-deleteTags(tagIds: number[]): Promise<void>
+deleteTags(tagIds: number[]): Promise<WorkResult>
 ```
 
-Delete tags: strip them from every location in one undoable mutation. The emptied
-metadata goes dark (count 0 hides it); undo restores the rows and the tags with
-them. Emits `tag:remove`.
+Strip `tagIds` from every location in one undoable step. The emptied records go dark
+(count 0 hides them); undo restores the rows and the tags with them.
 
 ### discardOpenMap
 
@@ -877,16 +840,6 @@ exitPluginMode(): void
 ```
 
 Close the plugin sidebar and return to the overview.
-
-### flushSave
-
-`unstable` · since v0.4.0
-
-```ts
-flushSave(): Promise<void>
-```
-
-Save any unsaved changes now instead of waiting for the autosave timer.
 
 ### getActiveSelections
 
@@ -954,16 +907,6 @@ Tags that exist from the user's point of view: the ones something carries. Raw
 `tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
 should enumerate those.
 
-### holdAutosave
-
-`unstable` · since v0.10.0
-
-```ts
-holdAutosave(): () => void
-```
-
-Defer autosave until the returned release function runs. Useful for batches that land many mutations.
-
 ### initStore
 
 `unstable` · since v0.4.0
@@ -973,17 +916,6 @@ initStore(): Promise<void>
 ```
 
 One-time store startup. The app calls this; plugins never need to.
-
-### mergeDuplicates
-
-`unstable` · since v0.5.1
-
-```ts
-mergeDuplicates(distance: number): Promise<void>
-```
-
-Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
-map's duplicate preference. One undoable edit.
 
 ### mutate
 
@@ -1033,17 +965,6 @@ openStagedLocation(index: number): Promise<void>
 Open a staged-import location, as if it were active: the viewer previews a copy, and
 the staged row itself stays in the import layer until Confirm lands it.
 
-### patchMapMeta
-
-`stable` · since v0.10.1
-
-```ts
-patchMapMeta(patch: Patch<MapMeta>): Promise<void>
-```
-
-Patch any map's metadata and persist it. Updates the open map's state when it is that map.
-Writes land in the order they were made.
-
 ### previewDuplicateGroups
 
 `unstable` · since v0.5.1
@@ -1054,27 +975,16 @@ previewDuplicateGroups(distance: number): Promise<number[][]>
 
 Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
 
-### previewVirtualLocation
+### previewLocation
 
-`unstable` · since v0.6.3
+`unstable` · unreleased
 
 ```ts
-previewVirtualLocation(loc: Location): void
+previewLocation(loc: Location): void
 ```
 
 Open an arbitrary location read-only as a seen-preview: loads its pano without
 adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
-
-### pruneDuplicates
-
-`unstable` · since v0.6.0
-
-```ts
-pruneDuplicates(selector: Selector, distance: number): Promise<number>
-```
-
-Prune duplicates within a resolved selection: keeps the most relevant location per
-cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
 
 ### query
 
@@ -1171,35 +1081,9 @@ renameField(
 ): Promise<void>
 ```
 
-Rename extra-field `from` to `to` across all locations, its definition, and selections.
-When a location already holds `to`, `winner` decides which value survives.
-
-### renameTagsIn
-
-`stable` · since v0.11.3
-
-```ts
-renameTagsIn(
-  tagIds: number[],
-  name: string,
-  selector: Selector | null,
-): Promise<void>
-```
-
-Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
-found or created, in one undoable mutation; a null `selector` moves every one of them.
-Every other location keeps its tags, so a tag the selection only partly covers splits in
-two.
-
-### reorderTags
-
-`stable` · since v0.4.0
-
-```ts
-reorderTags(orderedIds: number[]): Promise<void>
-```
-
-Persist a new tag display order.
+Rename extra-field `from` to `to` across all locations, its definition, and the listed
+selections, in one undoable step. When a location already holds `to`, `winner` decides
+which value survives. Saved selections are map-independent rules and keep their names.
 
 ### resolveLocation
 
@@ -1220,26 +1104,6 @@ rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
 ```
 
 Full rows out of a rows answer, fetched from disk when they were many.
-
-### scheduleAutoCommit
-
-`unstable` · since v0.8.1
-
-```ts
-scheduleAutoCommit(mapId: string, importedCount: number): void
-```
-
-Background auto-commit after an import with autoCommit set.
-
-### scheduleSave
-
-`unstable` · since v0.4.0
-
-```ts
-scheduleSave(): void
-```
-
-Schedule a debounced autosave. Mutations call this automatically.
 
 ### selectEvenlySpacedFromSelection
 
@@ -1310,15 +1174,15 @@ setActiveLocation(
 Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
 with 2+ locations within 2m opens the duplicate-resolution panel instead.
 
-### setMapExtraFields
+### setMap
 
-`stable` · since v0.4.0
+`unstable` · unreleased
 
 ```ts
-setMapExtraFields(fields: Record<string, FieldDef>): Promise<void>
+setMap(map: MapMeta): void
 ```
 
-Replace the map's extra-field definitions (types/labels for `Location.extra` keys).
+Replace the open map's row in state; persisting it is the caller's.
 
 ### setOpenRow
 
@@ -1350,23 +1214,6 @@ setSelectedLocationIds(ids: SelectedIds): void
 ```
 
 Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
-
-### setTags
-
-`stable` · since v0.11.1
-
-```ts
-setTags(
-  add: number[],
-  remove: number[],
-  selector: Selector,
-): Promise<void> | Promise<WorkResult>
-```
-
-Put `add` on every location the selector resolves to and strip `remove` from them,
-in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
-list-valued field, so this is the same `listSet` any `array` field takes. Locations
-already in the requested state are untouched; `add` wins for a tag in both lists.
 
 ### settled
 
@@ -1432,28 +1279,6 @@ updateLocations(updates: Patch<Location>[]): Promise<void>
 Patch locations by id. Only include the fields you're changing; `extra` merges
 per-key (null deletes a key). Undoable by default.
 
-### updateMapMeta
-
-`stable` · since v0.4.0
-
-```ts
-updateMapMeta(patch: Omit<Patch<MapMeta>, "id">): Promise<void> | undefined
-```
-
-`patchMapMeta` for the map open in this window.
-
-### updateTags
-
-`stable` · since v0.4.0
-
-```ts
-updateTags(updates: Patch<Tag>[]): Promise<void>
-```
-
-Rename or recolor tags. A rename colliding with an existing tag name
-(case-insensitive) merges the two: every location is remapped to the survivor
-(undoable) and the emptied source's metadata goes dark.
-
 ### useMapState
 
 `stable` · since v0.8.2
@@ -1476,16 +1301,6 @@ VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
 
 The viewer's own pending layer: its edits read over the map's rows as they are now,
 and nothing reaches the map until a save lands them.
-
-### waitForInflightPersist
-
-`unstable` · since v0.8.1
-
-```ts
-waitForInflightPersist(): Promise<void> | null
-```
-
-Wait for any in-progress save to finish.
 
 ## Registry
 
@@ -1695,644 +1510,6 @@ sidecar: {
 ```
 
 The nested `sidecar` namespace on the plugin surface.
-
-## Ui
-
-### ui
-
-`stable` · since v0.6.1
-
-The nested `ui` namespace on the plugin surface: the primitives module and nothing else.
-
-#### ui.Bar
-
-`stable` · since v0.11.1
-
-```ts
-ui.Bar(props: {
-  value: number;
-  size?: BarSize;
-  tone?: BarTone;
-  className?: string;
-}): react.JSX.Element
-```
-
-A bar filled to `value`, a share from 0 to 1.
-
-#### ui.Button
-
-`stable` · since v0.10.0
-
-```ts
-ui.Button(
-  props: ComponentPropsWithRef<"button"> & {
-    variant?: ButtonVariant;
-    small?: boolean;
-  },
-): react.JSX.Element
-```
-
-#### ui.Checkbox
-
-`stable` · since v0.10.0
-
-```ts
-ui.Checkbox(
-  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
-): react.JSX.Element
-```
-
-A checkbox, with its label and hint beside it when given.
-
-#### ui.ColorPicker
-
-`stable` · since v0.10.0
-
-```ts
-ui.ColorPicker(props: {
-  color: RGB;
-  onChange: (color: RGB) => void;
-  ariaLabel?: string;
-}): react.JSX.Element
-```
-
-A color swatch that opens the picker in a popover on click.
-
-#### ui.ConfirmButton
-
-`unstable` · since v0.11.1
-
-```ts
-ui.ConfirmButton(
-  props: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
-    onConfirm: () => void;
-    /** The label while armed. Defaults to "Are you sure?". */
-    confirmLabel?: ReactNode;
-  },
-): react.JSX.Element
-```
-
-A button that asks "Are you sure?" on the first click and acts on the second. Moving focus
-away disarms it.
-
-#### ui.ConfirmDialog
-
-`unstable` · since v0.11.1
-
-```ts
-ui.ConfirmDialog(
-  props: DialogProps & {
-    title: string;
-    message: ReactNode;
-    confirmLabel: ReactNode;
-    cancelLabel?: ReactNode;
-    /** Destructive for an action that cannot be taken back. */
-    tone?: "primary" | "destructive";
-    /** Disables both buttons while the action runs. */
-    busy?: boolean;
-    size?: DialogSize;
-    onConfirm: () => void;
-    children?: ReactNode;
-  },
-): react.JSX.Element
-```
-
-Asks the user to confirm one action, with room for extra options under the message.
-
-#### ui.CoverageBar
-
-`stable` · since v0.11.1
-
-```ts
-ui.CoverageBar(props: {
-  ratio: number;
-  size?: BarSize;
-  status?: boolean;
-  className?: string;
-}): react.JSX.Element
-```
-
-Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set.
-
-#### ui.DatePicker
-
-`unstable` · since v0.10.0
-
-```ts
-ui.DatePicker(props: DatePickerProps): react.JSX.Element
-```
-
-#### ui.Dialog
-
-`unstable` · since v0.10.0
-
-```ts
-ui.Dialog(
-  props: Omit<ComponentProps<typeof Dialog$1.Root>, "onOpenChange"> & {
-    onOpenChange?: (open: boolean) => void;
-  },
-): react.JSX.Element
-```
-
-#### ui.DialogActions
-
-`unstable` · since v0.11.1
-
-```ts
-ui.DialogActions(props: {
-  /** Content held to the left: a summary, a meter, paging or secondary buttons. */
-  start?: ReactNode;
-  /** An action that destroys something, held to the far left. With `confirm` it asks "Are you
-   *  sure?" on the first click and acts on the second. */
-  destructive?: DialogAction & {
-    confirm?: boolean;
-  };
-  /** The dismiss button, labelled Cancel and closing the dialog unless told otherwise. */
-  cancel?: true | Partial<DialogAction>;
-  /** The action the dialog exists for, always rightmost. */
-  primary?: DialogAction & {
-    tone?: "primary" | "destructive";
-  };
-}): react.JSX.Element
-```
-
-A dialog's footer: side content on the left, then Cancel, then the main action on the right.
-
-#### ui.DialogContent
-
-`unstable` · since v0.10.0
-
-```ts
-ui.DialogContent(
-  props: ComponentProps<typeof Dialog$1.Popup> & {
-    title: string;
-    size?: DialogSize;
-  },
-): react.JSX.Element
-```
-
-#### ui.DialogForm
-
-`unstable` · since v0.11.1
-
-```ts
-ui.DialogForm(
-  props: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & {
-    onSubmit: () => void;
-  },
-): react.JSX.Element
-```
-
-A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
-
-#### ui.DialogTrigger
-
-`unstable` · since v0.10.0
-
-```ts
-ui.DialogTrigger<Payload>(
-  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
-): React.JSX.Element
-```
-
-A button that opens the dialog.
-Renders a `<button>` element.
-
-Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
-
-#### ui.EmptyState
-
-`stable` · since v0.6.1
-
-```ts
-ui.EmptyState(props: {
-  icon?: string;
-  compact?: boolean;
-  children: ReactNode;
-}): react.JSX.Element
-```
-
-A message for a panel or list with nothing to show, with an optional icon. `compact` fits it
-inline in a list.
-
-#### ui.Field
-
-`stable` · since v0.6.1
-
-```ts
-ui.Field(props: {
-  label: ReactNode;
-  hint?: ReactNode;
-  row?: boolean;
-  children: ReactNode;
-}): react.JSX.Element
-```
-
-Labelled form row (label left, control right) for sidebar sections.
-
-#### ui.Flag
-
-`stable` · since v0.10.0
-
-```ts
-ui.Flag(props: {
-  code: string | null;
-  height?: number;
-  className?: string;
-}): react.JSX.Element | null
-```
-
-Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
-
-#### ui.Hint
-
-`stable` · since v0.11.1
-
-```ts
-ui.Hint(props: {
-  tone?: "warning" | "error";
-  children?: ReactNode;
-}): react.JSX.Element
-```
-
-A line of secondary text, optionally marked as a warning or an error.
-
-#### ui.HotkeyInput
-
-`unstable` · since v0.10.0
-
-```ts
-ui.HotkeyInput(props: {
-  value: string;
-  onChange: (combo: string) => void;
-}): react.JSX.Element
-```
-
-Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
-
-#### ui.Icon
-
-`stable` · since v0.10.0
-
-```ts
-ui.Icon(props: IconProps): react.JSX.Element
-```
-
-#### ui.IconButton
-
-`unstable` · since v0.11.1
-
-```ts
-ui.IconButton(
-  props: Omit<ComponentPropsWithRef<"button">, "aria-label" | "title"> & {
-    /** An icon path, or a drawn icon to show instead. */
-    icon: string | ReactNode;
-    /** What the button does, read aloud and shown as its tooltip. */
-    label: string;
-    /** The icon's size in pixels. */
-    size?: number;
-    /** Shows the button as pressed. */
-    active?: boolean;
-    /** Hides the button until its row is hovered or holds focus. */
-    reveal?: boolean;
-    /** Draws the button for use over map or street view imagery. */
-    overlay?: boolean;
-    /** The tooltip text, or false for none. Defaults to the label. */
-    tooltip?: string | false;
-    /** The side the tooltip opens on. */
-    tooltipSide?: "top" | "bottom" | "left" | "right";
-    /** Shown after the icon, such as a badge. */
-    children?: ReactNode;
-  },
-): react.JSX.Element
-```
-
-A button showing only an icon, named by its label.
-
-#### ui.Notice
-
-`stable` · since v0.11.1
-
-```ts
-ui.Notice(props: {
-  tone: "info" | "warning" | "error" | "success";
-  children: ReactNode;
-}): react.JSX.Element
-```
-
-A boxed message that informs, warns, reports an error or confirms a success.
-
-#### ui.NSelect
-
-`unstable` · since v0.10.0
-
-```ts
-ui.NSelect(
-  props: ComponentPropsWithRef<"select"> & {
-    compact?: boolean;
-    limited?: boolean;
-  },
-): react.JSX.Element
-```
-
-A dropdown. `compact` shrinks it to fit its value; `limited` caps the height of its option list.
-
-#### ui.ProgressRow
-
-`stable` · since v0.11.1
-
-```ts
-ui.ProgressRow(props: {
-  label: ReactNode;
-  count?: ReactNode;
-  value: number;
-  size?: BarSize;
-  className?: string;
-  children?: ReactNode;
-}): react.JSX.Element
-```
-
-A progress bar under its label and count, with any extra detail below it.
-
-#### ui.PromptDialog
-
-`unstable` · since v0.11.1
-
-```ts
-ui.PromptDialog(
-  props: DialogProps & {
-    title: string;
-    value: string;
-    onChange: (value: string) => void;
-    placeholder?: string;
-    submitLabel: ReactNode;
-    /** Shown under the field. Pass null to keep its line reserved while there is no error. */
-    error?: ReactNode;
-    /** Whether the value can be submitted. Defaults to the value not being blank. */
-    canSubmit?: boolean;
-    /** Selects the whole value when the field gains focus. */
-    selectOnFocus?: boolean;
-    size?: DialogSize;
-    onSubmit: () => void;
-    /** Extra content between the field and the buttons. */
-    children?: ReactNode;
-  },
-): react.JSX.Element
-```
-
-Asks for one line of text, submitted with Enter or the submit button.
-
-#### ui.Radio
-
-`stable` · since v0.10.0
-
-```ts
-ui.Radio(
-  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
-): react.JSX.Element
-```
-
-A radio button, with its label and hint beside it when given.
-
-#### ui.RgbPicker
-
-`unstable` · since v0.10.0
-
-```ts
-ui.RgbPicker(props: {
-  color: RGB;
-  onChange: (color: RGB) => void;
-}): react.JSX.Element
-```
-
-A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced.
-
-#### ui.Section
-
-`stable` · since v0.6.1
-
-```ts
-ui.Section(props: {
-  title: ReactNode;
-  defaultOpen?: boolean;
-  collapsible?: boolean;
-  addons?: ReactNode;
-  children: ReactNode;
-}): react.JSX.Element
-```
-
-Collapsible titled section inside a Sidebar.
-
-#### ui.SegmentedControl
-
-`stable` · since v0.6.1
-
-```ts
-ui.SegmentedControl<T extends string | number>(props: {
-  options: SegmentedOption<T>[];
-  value: T;
-  onChange: (value: T) => void;
-  role?: "tabs" | "radio";
-  fill?: boolean;
-  className?: string;
-}): react.JSX.Element
-```
-
-Row of mutually exclusive option buttons. `role` is `"tabs"` when the options switch between
-panels and `"radio"` (the default) when they pick a value; `fill` stretches the options to
-equal widths across the row.
-
-#### ui.SelectorPicker
-
-`stable` · since v0.10.0
-
-```ts
-ui.SelectorPicker(props: {
-  ctl: SelectorPickController;
-  className?: string;
-}): react.JSX.Element
-```
-
-#### ui.SettingRow
-
-`unstable` · since v0.10.0
-
-```ts
-ui.SettingRow(
-  props: BoolRow | ControlRow | AutoBoolRow,
-): react.JSX.Element | null
-```
-
-#### ui.Sidebar
-
-`stable` · since v0.6.1
-
-```ts
-ui.Sidebar(props: {
-  title: ReactNode;
-  onBack?: () => void;
-  actions?: ReactNode;
-  className?: string;
-  flush?: boolean;
-  /** Stays pinned below the body while it scrolls, for the sidebar's main actions. */
-  footer?: ReactNode;
-  children: ReactNode;
-}): react.JSX.Element
-```
-
-Standard right-hand sidebar chrome (title, back button, scrollable body, pinned footer). Use for plugin sidebars.
-
-#### ui.Slider
-
-`stable` · since v0.10.0
-
-```ts
-ui.Slider(
-  props: ComponentPropsWithRef<"input"> & {
-    format?: (value: number) => ReactNode;
-  },
-): react.JSX.Element
-```
-
-A range input whose track fills up to its value, followed by the value itself when `format` is given.
-
-#### ui.Spinner
-
-`stable` · since v0.11.1
-
-```ts
-ui.Spinner(props: { size?: string; label?: string }): react.JSX.Element
-```
-
-A spinning ring shown while something loads. `size` is any length, such as `"10px"`.
-
-#### ui.SuggestInput
-
-`unstable` · since v0.10.0
-
-```ts
-ui.SuggestInput<T>(props: {
-  value: string;
-  onChange: (v: string) => void;
-  suggestions: T[];
-  onPick: (item: T) => void;
-  renderItem: (item: T) => ReactNode;
-  getKey: (item: T) => string | number;
-  placeholder?: string;
-  containerClassName?: string;
-  inputClassName?: string;
-  listClassName?: string;
-  itemClassName?: string;
-  listStyle?: CSSProperties;
-  autoFocus?: boolean;
-  disabled?: boolean;
-  /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
-  pickOnEnter?: boolean;
-  /** Render the dropdown in a body portal, anchored to the input and following it as it
-   *  moves, so it floats over clipping ancestors like `.modal__content`. Clicks on it are
-   *  exempted from dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
-  portal?: boolean;
-}): react.JSX.Element
-```
-
-Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
-outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
-filter or fetch them yourself. The class props restyle it.
-
-#### ui.Switch
-
-`stable` · since v0.10.0
-
-```ts
-ui.Switch(props: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-  label?: string;
-}): react.JSX.Element
-```
-
-#### ui.SwitchRow
-
-`stable` · since v0.10.0
-
-```ts
-ui.SwitchRow(props: {
-  checked: boolean;
-  onChange: (v: boolean) => void;
-  label: string;
-  disabled?: boolean;
-  className?: string;
-  children?: ReactNode;
-}): react.JSX.Element
-```
-
-A compact row with a switch on the left. Clicking anywhere on the row toggles it.
-
-#### ui.TagPill
-
-`unstable` · since v0.10.0
-
-```ts
-ui.TagPill<E extends ElementType = "span">(
-  props: TagPillProps<E>,
-): react.JSX.Element
-```
-
-A tag shown as a pill in its color.
-
-#### ui.TagPillButton
-
-`unstable` · since v0.10.0
-
-```ts
-ui.TagPillButton(
-  props: ComponentPropsWithRef<"button"> & {
-    variant: TagPillButtonVariant;
-  },
-): react.JSX.Element
-```
-
-The leading affordance inside a TagPill: remove, apply, or open the editor.
-
-#### ui.TextInput
-
-`stable` · since v0.10.0
-
-```ts
-ui.TextInput(props: ComponentPropsWithRef<"input">): react.JSX.Element
-```
-
-#### ui.ToolBlock
-
-`unstable` · since v0.10.0
-
-```ts
-ui.ToolBlock(props: ToolBlockProps): react.JSX.Element
-```
-
-#### ui.Tooltip
-
-`stable` · since v0.10.0
-
-```ts
-ui.Tooltip(props: {
-  content: string;
-  side?: Side;
-  align?: Align;
-  children: ReactElement;
-}): ReactElement<Record<string, unknown>, string | react.JSXElementConstructor<any>>
-```
-
-Shows `content` as a tooltip when its child is hovered. The child is not wrapped.
-
-#### ui.useCloseDialog
-
-`unstable` · since v0.10.0
-
-```ts
-ui.useCloseDialog(): () => void
-```
 
 ## FieldDefs
 
@@ -2732,17 +1909,6 @@ isSeenPreview(loc: Location): boolean
 ```
 
 True when the location is a seen-history overlay preview.
-
-### isVirtualLocation
-
-`stable` · since v0.10.3
-
-```ts
-isVirtualLocation(loc: { id: number }): boolean
-```
-
-True for virtual (preview-only) locations, which have negative ids and are not
-part of the map.
 
 ### isWorldBounds
 
@@ -6066,16 +5232,6 @@ cmd.storeSeenWrite(entry: SeenWriteEntry): Promise<null>
 
 Record a panorama visit. The history is capped; oldest entries are evicted when full.
 
-#### cmd.storeSetActive
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeSetActive(id: number | null): Promise<null>
-```
-
-Set (or clear) the active location.
-
 #### cmd.storeSetDerived
 
 `unstable` · unreleased
@@ -6176,11 +5332,12 @@ cmd.storeUpdateMapMeta(
     >
   > &
     Pick<MapMeta, "id">,
-): Promise<MutationResult | null>
+): Promise<null>
 ```
 
-Apply a partial update to a map's metadata. Omitted fields are left unchanged.
-Returns a mutation result when the open map's field definitions changed.
+Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
+map's store takes the update and saves it with the map; its tags change only through
+their values.
 
 #### cmd.storeUploadAbort
 
@@ -6219,11 +5376,7 @@ directory. Returns a temp path for `storeSaveExportFile`.
 `unstable` · unreleased
 
 ```ts
-cmd.storeWork(
-  selector: Selector,
-  work: Work,
-  recordUndo: boolean | null,
-): Promise<WorkResult>
+cmd.storeWork(selector: Selector, work: Work): Promise<WorkResult>
 ```
 
 Run work over every location matched by `selector`, landing the edits it derives.
@@ -8418,13 +7571,10 @@ addSelections(selectors: Selector[]): Promise<void>
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-addTagToLocations(
-  tagId: number,
-  locationIds: number[],
-): Promise<void> | Promise<WorkResult>
+addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
 ```
 
-**Deprecated in v0.10.5.** Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`.
+**Deprecated in v0.10.5.** Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`.
 
 ### countBy
 
@@ -8722,23 +7872,20 @@ removeSelections(keys: string[]): Promise<void>
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-removeTagFromAllLocations(tagId: number): Promise<void> | Promise<WorkResult>
+removeTagFromAllLocations(tagId: number): Promise<WorkResult>
 ```
 
-**Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`.
+**Deprecated in v0.10.5.** Use `MMA.edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
 
 ### removeTagFromLocations
 
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-removeTagFromLocations(
-  tagId: number,
-  locationIds: number[],
-): Promise<void> | Promise<WorkResult>
+removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
 ```
 
-**Deprecated in v0.10.5.** Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`.
+**Deprecated in v0.10.5.** Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
 
 ### request
 
@@ -8790,12 +7937,12 @@ sampleFrom(selector: Selector, n: number): Promise<number[]>
 `unstable` · `deprecated` · since v0.10.3
 
 ```ts
-setUserFieldDefs(defs: Record<string, FieldDef>): Promise<void>
+setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>
 ```
 
 **Deprecated in v0.10.5.** The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
-use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
-plugin-owned defs.
+use `MMA.edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+for plugin-owned defs.
 
 ### waitForGoogleMap
 

@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import type { MapSettings } from "@/bindings.gen";
-import { useMapState, getMapState, updateMapMeta } from "@/store/useMapStore";
+import { useMapState, getMapState } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 
 export function useMapSetting<K extends keyof MapSettings>(
 	key: K,
@@ -18,7 +19,7 @@ export function useMapSetting<K extends keyof MapSettings>(
 		(v: MapSettings[K]) => {
 			const settings = getMapState().map?.settings;
 			if (settings) {
-				void updateMapMeta({ settings: { ...settings, [key]: v } });
+				void edit.meta({ settings: { ...settings, [key]: v } });
 			}
 		},
 		[key],

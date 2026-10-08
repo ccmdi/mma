@@ -882,17 +882,17 @@ fn every_prefix_upgrades_to_head() {
                 "prefix k={k}: seen row must survive"
             );
         }
-        if k >= 26 {
+        if k >= 27 {
             assert_eq!(
                 count_rows(&conn, "edit_entries"),
                 1,
                 "prefix k={k}: edit_entries row must survive"
             );
-        } else if k == 25 {
+        } else if k >= 25 {
             assert_eq!(
                 count_rows(&conn, "edit_entries"),
                 0,
-                "prefix k={k}: v26 drops undo entries in the retired encoding"
+                "prefix k={k}: v27 drops undo entries in the retired encoding"
             );
         } else {
             assert!(

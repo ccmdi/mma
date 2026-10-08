@@ -1,12 +1,13 @@
-//! Everything that touches disk or SQLite for an open store: Arrow snapshots, the uncommitted delta, edit history, tag display metadata.
+//! Everything that touches disk or SQLite for an open store: Arrow snapshots, the uncommitted delta, edit history, the map's row.
 
 use super::*;
 use crate::store::arrow;
+use crate::store::maps::{MapMeta, TagRecords};
 use crate::store::storage;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use arrow_array::RecordBatch;
-use mma_algebra::Counts;
+use mma_algebra::{Counts, Patch, Patchable};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -76,17 +77,25 @@ pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>
     Ok(locs)
 }
 
-/// What an open map owes disk: its delta and its undo history, each stamped with the
-/// revision it reflects, so edits made while the write runs stay unsaved.
+/// What an open map owes disk: its delta, its row and its undo history, each stamped with
+/// the revision it reflects, so edits made while the write runs stay unsaved.
 pub(crate) struct Unsaved {
     delta: Option<At<RecordBatch>>,
+    meta: Option<MetaRow>,
     edits: Option<At<EditStacks>>,
     alive: usize,
     pending: Counts,
 }
 
+/// The map's row whole, and the revision of each source it was read from.
+struct MetaRow {
+    patch: Patch<MapMeta>,
+    meta: u64,
+    values: Vec<(String, u64)>,
+}
+
 impl Unsaved {
-    /// Delta before history, so a crash between the two leaves history behind the data, never ahead of it.
+    /// Data before history, so a crash between the two leaves history behind the data, never ahead of it.
     pub(crate) fn write(
         &self,
         conn: &Connection,
@@ -97,6 +106,9 @@ impl Unsaved {
             arrow::write_arrow_ipc(delta_path, delta.value())?;
         }
         storage::set_map_counts(conn, map_id, self.alive, self.pending)?;
+        if let Some(row) = &self.meta {
+            storage::update_row::<MapMeta>(conn, "maps", map_id, &row.patch)?;
+        }
         if let Some(edits) = &self.edits {
             save_edit_history(conn, map_id, edits.value())?;
         }
@@ -105,9 +117,31 @@ impl Unsaved {
 }
 
 impl Store {
+    /// The open map's row as this store holds it, whole.
+    pub(crate) fn meta_patch(&self) -> Patch<MapMeta> {
+        let mut patch = self.meta.to_patch();
+        patch.tags = Some(TagRecords(
+            self.value_meta
+                .get("tags")
+                .map(|t| (**t).clone())
+                .unwrap_or_default(),
+        ));
+        patch
+    }
+
     /// The state disk lacks, or `None` when disk is current.
     pub(crate) fn unsaved(&self) -> AppResult<Option<Unsaved>> {
-        if !self.overlay.is_unsaved() && !self.edits.is_unsaved() {
+        let meta = (self.meta.is_unsaved() || self.value_meta.values().any(Tracked::is_unsaved))
+            .then(|| MetaRow {
+                patch: self.meta_patch(),
+                meta: self.meta.rev(),
+                values: self
+                    .value_meta
+                    .iter()
+                    .map(|(field, v)| (field.clone(), v.rev()))
+                    .collect(),
+            });
+        if !self.overlay.is_unsaved() && !self.edits.is_unsaved() && meta.is_none() {
             return Ok(None);
         }
         Ok(Some(Unsaved {
@@ -115,6 +149,7 @@ impl Store {
                 self.overlay
                     .stamp(self.overlay.to_delta(self.batch.as_ref()))
             }),
+            meta,
             edits: self
                 .edits
                 .is_unsaved()
@@ -128,6 +163,14 @@ impl Store {
     pub(crate) fn saved(&mut self, written: &Unsaved) {
         if let Some(delta) = &written.delta {
             self.overlay.saved_at(delta.rev());
+        }
+        if let Some(row) = &written.meta {
+            self.meta.saved_at(row.meta);
+            for (field, rev) in &row.values {
+                if let Some(v) = self.value_meta.get_mut(field) {
+                    v.saved_at(*rev);
+                }
+            }
         }
         if let Some(edits) = &written.edits {
             self.edits.saved_at(edits.rev());
@@ -169,17 +212,18 @@ pub(crate) fn save_edit_history(
             }
             (None, Some(entry)) => {
                 tx.prepare_cached(
-                    "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry, piles) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 )?
                 .execute(rusqlite::params![
                     map_id,
                     edit.seq as i64,
                     stack,
-                    entry.max_key().unwrap_or(0),
+                    entry.rows.max_key().unwrap_or(0),
                     arrow::arrow_ipc_bytes(&{
-                        let (created, removed) = entry.sides();
+                        let (created, removed) = entry.rows.sides();
                         arrow::delta_to_batch(&created, &removed)
-                    })?
+                    })?,
+                    serde_json::to_string(&**entry)?
                 ])?;
             }
             (None, None) => log::warn!(
@@ -215,14 +259,17 @@ pub(crate) fn load_edit_history(conn: &Connection, map_id: &str) -> AppResult<Ed
 }
 
 /// One stored edit.
-pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<Change> {
-    let bytes: Vec<u8> = conn.query_row(
-        "SELECT entry FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
+pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<Entry> {
+    let (bytes, json): (Vec<u8>, String) = conn.query_row(
+        "SELECT entry, piles FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
         rusqlite::params![map_id, seq as i64],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
     let (created, removed) = arrow::batch_to_delta(&arrow::read_arrow_ipc_bytes(&bytes)?);
-    Ok(Change::from_sides(created, removed))
+    Ok(Entry {
+        rows: Change::from_sides(created, removed),
+        ..serde_json::from_str(&json)?
+    })
 }
 
 /// Highest location id the stored history can re-materialize, without reading it.

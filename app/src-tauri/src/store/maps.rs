@@ -7,8 +7,8 @@
 
 use crate::store::arrow;
 use crate::store::engine;
-use crate::store::engine::StoreState;
 use crate::store::engine::ValueRecord;
+use crate::store::engine::{StoreManager, StoreState};
 use crate::store::map_defaults;
 use crate::store::storage;
 use crate::sv::schema::PanoType;
@@ -20,7 +20,7 @@ use crate::types::{AppError, AppResult};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
 use mma_algebra::Counts;
-use mma_algebra::Patch;
+use mma_algebra::{Patch, Patchable};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fs;
@@ -252,9 +252,9 @@ pub enum ComparisonType {
 /// Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
 /// but structured as an object to allow future extensions.
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
+#[serde(default, rename_all = "camelCase")]
 pub struct MapExtra {
-    pub fields: Option<HashMap<String, FieldDef>>,
+    pub fields: HashMap<String, FieldDef>,
 }
 
 /// Rows written before the per-value collapse spell a field's value space as a bare string
@@ -295,16 +295,14 @@ impl MapExtra {
     pub fn from_json(s: &str) -> Self {
         let mut raw: serde_json::Value = serde_json::from_str(s).unwrap_or_default();
         modernize_field_defs(&mut raw);
-        let mut extra: MapExtra = serde_json::from_value(raw).unwrap_or_default();
-        if let Some(fields) = extra.fields.take() {
-            extra.fields = Some(
-                fields
-                    .into_iter()
-                    .map(|(k, v)| (types::decode_json_key(&k).into_owned(), v))
-                    .collect(),
-            );
+        let extra: MapExtra = serde_json::from_value(raw).unwrap_or_default();
+        MapExtra {
+            fields: extra
+                .fields
+                .into_iter()
+                .map(|(k, v)| (types::decode_json_key(&k).into_owned(), v))
+                .collect(),
         }
-        extra
     }
 }
 
@@ -503,36 +501,12 @@ pub fn infer_field_defs(
     }
 }
 
-/// Persist new field defs - skips keys that already exist. Used for auto-registration.
-pub fn persist_field_defs(
-    conn: &Connection,
-    map_id: &str,
-    new_defs: &HashMap<String, FieldDef>,
-) -> AppResult<()> {
-    let extra_str: String = conn.query_row(
-        "SELECT extra FROM maps WHERE id = ?1",
-        params![map_id],
-        |row| row.get(0),
-    )?;
-    let mut extra = MapExtra::from_json(&extra_str);
-    let fields = extra.fields.get_or_insert_with(HashMap::new);
-    for (k, v) in new_defs {
-        fields.entry(k.clone()).or_insert_with(|| v.clone());
-    }
-    let json = serde_json::to_string(&extra).unwrap_or_default();
-    conn.execute(
-        "UPDATE maps SET extra = ?1 WHERE id = ?2",
-        params![json, map_id],
-    )?;
-    Ok(())
-}
-
 // ---------------------------------------------------------------------------
 // MapMeta
 // ---------------------------------------------------------------------------
 
 /// Full metadata for a map.
-#[derive(Clone, serde::Serialize, specta::Type, mma_fields::Patch)]
+#[derive(Clone, Default, serde::Serialize, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct MapMeta {
     #[patch(key)]
@@ -630,8 +604,18 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
 /// Return metadata for every map in the database.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_list_maps() -> AppResult<Vec<MapMeta>> {
-    storage::with_db(move |conn| Ok(list_map_rows(conn)?)).await
+pub async fn store_list_maps(state: tauri::State<'_, StoreState>) -> AppResult<Vec<MapMeta>> {
+    let rows = storage::with_db(move |conn| Ok(list_map_rows(conn)?)).await?;
+    let mgr = state.lock()?;
+    Ok(rows.into_iter().map(|row| live_row(&mgr, row)).collect())
+}
+
+/// `row` as the store holding its map open has it, when one does.
+fn live_row(mgr: &StoreManager, row: MapMeta) -> MapMeta {
+    match mgr.stores.get(&row.id) {
+        Some(store) => row.patched(&store.meta_patch()),
+        None => row,
+    }
 }
 
 /// The one ephemeral map. A reserved id rather than a flag column: the row is an
@@ -679,13 +663,18 @@ pub fn purge_scratch_map() -> AppResult<bool> {
 /// Fetch a single map's metadata by ID. Returns `null` if not found.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_get_map(id: String) -> AppResult<Option<MapMeta>> {
-    storage::with_db(move |conn| match read_map_meta(conn, &id) {
+pub async fn store_get_map(
+    state: tauri::State<'_, StoreState>,
+    id: String,
+) -> AppResult<Option<MapMeta>> {
+    let row = storage::with_db(move |conn| match read_map_meta(conn, &id) {
         Ok(meta) => Ok(Some(meta)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => Err(e.into()),
     })
-    .await
+    .await?;
+    let mgr = state.lock()?;
+    Ok(row.map(|row| live_row(&mgr, row)))
 }
 
 fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppResult<MapMeta> {
@@ -711,6 +700,7 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
 fn duplicate_map_row(
     conn: &Connection,
     source: &str,
+    live: Option<Patch<MapMeta>>,
     copy_id: &str,
     name: &str,
     batch: &RecordBatch,
@@ -725,6 +715,14 @@ fn duplicate_map_row(
     )?;
     if copied == 0 {
         return Err(AppError(format!("no map {source} to copy")));
+    }
+    if let Some(live) = live {
+        let patch = Patch::<MapMeta> {
+            id: copy_id.to_string(),
+            name: None,
+            ..live
+        };
+        storage::update_row::<MapMeta>(&tx, "maps", copy_id, &patch)?;
     }
     arrow::write_arrow_ipc(arrow_path, batch)?;
     if let Err(e) = tx.commit() {
@@ -746,14 +744,17 @@ pub fn store_duplicate_map(
 ) -> AppResult<MapMeta> {
     // Held throughout, so the source can neither change nor open while it is read.
     let mgr = state.lock()?;
-    let batch = match mgr.stores.get(&id) {
-        Some(store) => store
-            .current_batch()
-            .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
+    let (batch, live) = match mgr.stores.get(&id) {
+        Some(store) => (
+            store
+                .current_batch()
+                .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
+            Some(store.meta_patch()),
+        ),
         None => {
             let mut locations = engine::read_full_state_from_disk(&id)?;
             locations.sort_unstable_by_key(|l| l.id);
-            arrow::locations_to_batch(&locations)
+            (arrow::locations_to_batch(&locations), None)
         }
     };
     let copy_id = uuid::Uuid::new_v4().to_string();
@@ -761,6 +762,7 @@ pub fn store_duplicate_map(
     let copy = duplicate_map_row(
         &conn,
         &id,
+        live,
         &copy_id,
         &name,
         &batch,
@@ -807,27 +809,38 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     Ok(())
 }
 
-/// Apply a partial update to a map's metadata. Omitted fields are left unchanged.
-/// Returns a mutation result when the open map's field definitions changed.
+/// Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
+/// map's store takes the update and saves it with the map; its tags change only through
+/// their values.
+#[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub async fn store_update_map_meta(
+pub fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     patch: Patch<MapMeta>,
-) -> AppResult<Option<engine::MutationResult>> {
-    let new_fields = patch.extra.as_ref().and_then(|e| e.fields.clone());
-    let id = patch.id.clone();
-    storage::with_db(move |conn| storage::update_row::<MapMeta>(conn, "maps", &patch.id, &patch))
-        .await?;
-    let Some(new_fields) = new_fields else {
-        return Ok(None);
+) -> AppResult<()> {
+    update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)
+}
+
+fn update_map_meta(
+    mgr: &mut StoreManager,
+    conn: &Connection,
+    patch: Patch<MapMeta>,
+) -> AppResult<()> {
+    let Ok(store) = mgr.store_for_map(&patch.id) else {
+        return storage::update_row::<MapMeta>(conn, "maps", &patch.id, &patch);
     };
-    let mut mgr = state.lock()?;
-    let Ok(store) = mgr.store_for_map(&id) else {
-        return Ok(None);
-    };
-    store.field_defs.replace(new_fields);
-    Ok(Some(store.finish_mutation(&engine::Change::default())))
+    if patch.tags.is_some() {
+        return Err(AppError(
+            "an open map's tags change through their values".into(),
+        ));
+    }
+    let next = store.meta.patched(&patch);
+    store.meta.replace(next);
+    if patch.extra.is_some() {
+        store.finish_mutation(&engine::Change::default());
+    }
+    Ok(())
 }
 
 /// Mark a map as opened now, for sorting the map list by recency.
@@ -848,7 +861,12 @@ pub async fn store_touch_map_opened(map_id: String) -> AppResult<()> {
 /// Rename a folder across all maps that reference it.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_rename_folder(from: String, to: String) -> AppResult<()> {
+pub async fn store_rename_folder(
+    state: tauri::State<'_, StoreState>,
+    from: String,
+    to: String,
+) -> AppResult<()> {
+    refolder(&state, &from, Some(&to))?;
     storage::with_db(move |conn| {
         conn.execute(
             "UPDATE maps SET folder = ?1 WHERE folder = ?2",
@@ -862,7 +880,11 @@ pub async fn store_rename_folder(from: String, to: String) -> AppResult<()> {
 /// Delete a folder, moving its maps to the root level.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_delete_folder(name: String) -> AppResult<()> {
+pub async fn store_delete_folder(
+    state: tauri::State<'_, StoreState>,
+    name: String,
+) -> AppResult<()> {
+    refolder(&state, &name, None)?;
     storage::with_db(move |conn| {
         conn.execute(
             "UPDATE maps SET folder = NULL WHERE folder = ?1",
@@ -871,6 +893,16 @@ pub async fn store_delete_folder(name: String) -> AppResult<()> {
         Ok(())
     })
     .await
+}
+
+/// Move every open map in folder `from` to `to`, as the folder commands do on disk.
+fn refolder(state: &StoreState, from: &str, to: Option<&str>) -> AppResult<()> {
+    for store in state.lock()?.stores.values_mut() {
+        if store.meta.folder.as_deref() == Some(from) {
+            store.meta.edit().folder = to.map(str::to_string);
+        }
+    }
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

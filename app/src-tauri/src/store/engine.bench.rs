@@ -147,11 +147,14 @@ impl Fixture {
     /// A store holding the whole population as a committed base batch, empty overlay.
     pub fn store(&self) -> Store {
         let mut store = Store::new();
-        store.map_id = Some("bench".into());
+        store.meta = Tracked::new(maps::MapMeta {
+            id: "bench".into(),
+            ..Default::default()
+        });
         store.batch = Some(self.batch.clone());
         store.next_id = self.n as u32 + 1;
         store.alive_count = Tracked::new(self.n);
-        store.field_defs = Tracked::new(self.field_defs.clone());
+        store.meta.edit().extra.fields = self.field_defs.clone();
         store
             .value_meta
             .insert("tags".into(), Tracked::new(self.tags.clone()));
@@ -349,6 +352,7 @@ pub fn update_locations(
     store.write(
         updates.iter().cloned().map(Edit::Put),
         UndoScope::entry_if(record_undo),
+        Piles::new(),
     )
 }
 
@@ -452,7 +456,10 @@ pub fn open_from_arrow(path: &Path, tags: &HashMap<u32, ValueRecord>) -> Store {
         0
     };
     let mut store = Store::new();
-    store.map_id = Some("bench".into());
+    store.meta = Tracked::new(maps::MapMeta {
+        id: "bench".into(),
+        ..Default::default()
+    });
     store.batch = Some(batch);
     store.mmap_handle = Some(handle);
     store.next_id = max_id + 1;

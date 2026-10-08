@@ -17,7 +17,6 @@ import { trace } from "@/lib/util/debug";
 import {
 	addLocations,
 	applySelectionUpdate,
-	createTags,
 	getMapState,
 	openStagedLocation,
 	resolveLocation,
@@ -25,8 +24,9 @@ import {
 	read,
 	rowsOf,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { toggleManualSelection } from "@/store/selections";
-import { isVirtualLocation, isImportPreview, locId, createLocation } from "@/types";
+import { isImportPreview, isSeenPreview, locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
 import type { Location } from "@/bindings.gen";
 
@@ -61,8 +61,8 @@ function zoomToPasted(bounds: Bounds | null, padding = 0) {
  *  names to tags, add, activate the last one, pan to fit. */
 export async function addParsedLocations(parsed: ParsedLocation[]) {
 	const tagNames = [...new Set(parsed.flatMap((p) => p.tags))];
-	const resolved = await createTags(tagNames);
-	const tagIdByName = new Map(resolved.map((t) => [t.name.toLowerCase(), t.id]));
+	const ids = await edit.values("tags", { create: tagNames.map((name) => ({ name })) });
+	const tagIdByName = new Map(tagNames.map((name, i) => [name.toLowerCase(), ids[i]]));
 	const locs = parsed.map((p) =>
 		createLocation({
 			...p,
@@ -216,7 +216,7 @@ export async function handleMapClick(
 	if (isLocationLayer(info.layer?.id)) {
 		const picked = await resolvePicked();
 		if (picked != null) {
-			if (isVirtualLocation({ id: locId(picked) })) return; // staged location's active pin: already open
+			if (typeof picked !== "number" && (isImportPreview(picked) || isSeenPreview(picked))) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void applySelectionUpdate(toggleManualSelection(locId(picked)));
 			else void setActiveLocation(picked);

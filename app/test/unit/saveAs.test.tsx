@@ -2,7 +2,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act } from "react";
 import { cmd } from "@/lib/commands";
-import { getMapState, patchMapMeta } from "@/store/useMapStore";
+import { getMapState } from "@/store/useMapStore";
 import { copyName } from "@/store/mapList";
 import { goTo } from "@/store/router";
 import { initLocale } from "@/lib/i18n";
@@ -14,7 +14,6 @@ vi.mock("@/store/router", () => ({ goTo: vi.fn() }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeDuplicateMap: vi.fn(async (_id: string, name: string) => ({ id: "copy", name })),
-		storeUpdateMapMeta: vi.fn(async () => null),
 		storeListMaps: vi.fn(async () => []),
 		storeSaveDirty: vi.fn(async () => null),
 		storeCloseMap: vi.fn(async () => null),
@@ -73,23 +72,5 @@ describe("Save as", () => {
 		expect(onOpenChange).toHaveBeenCalledWith(false);
 		await vi.waitFor(() => expect(goTo).toHaveBeenCalledWith({ type: "editor", mapId: "copy" }));
 		expect(cmd.storeCloseMap).toHaveBeenCalled();
-	});
-
-	it("lands the open map's pending setting writes before copying it", async () => {
-		const s = getMapState() as Record<string, unknown>;
-		s.mapId = "m1";
-		s.map = { id: "m1", name: "Europe", settings: {} };
-		let land = () => {};
-		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(
-			() => new Promise((resolve) => (land = () => resolve(null))),
-		);
-		void patchMapMeta({ id: "m1", settings: { pluginData: { heatmap: { project: 1 } } } });
-		await mountAsync(<SaveAsDialog open onOpenChange={vi.fn()} />);
-
-		await submit();
-		expect(cmd.storeDuplicateMap).not.toHaveBeenCalled();
-
-		land();
-		await vi.waitFor(() => expect(cmd.storeDuplicateMap).toHaveBeenCalled());
 	});
 });

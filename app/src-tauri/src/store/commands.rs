@@ -19,6 +19,7 @@ use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
 use mma_algebra::Patch;
 use std::collections::{HashMap, HashSet};
+use std::mem;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::ipc::Channel;
@@ -138,7 +139,6 @@ async fn open_claimed_map(
 
     let mut store = Store::new();
     store.bump();
-    store.map_id = Some(map_id.clone());
     store.batch = Some(batch);
     store.mmap_handle = mmap_handle;
 
@@ -152,19 +152,17 @@ async fn open_claimed_map(
     let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
     store.bounds.seed(At::new(store.version, bounds));
-    {
-        let conn = storage::open_db()?;
-        storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts())?;
-        let meta = maps::read_map_meta(&conn, &map_id)?;
-        store
-            .value_meta
-            .insert("tags".into(), Tracked::new(meta.tags.0));
-        store.field_defs = Tracked::new(meta.extra.fields.unwrap_or_default());
-    }
+    let conn = storage::open_db()?;
+    storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts())?;
     store.edits = Tracked::new(edits);
 
-    let status = store.open_status();
     let mut mgr = state.lock()?;
+    let mut meta = maps::read_map_meta(&conn, &map_id)?;
+    store
+        .value_meta
+        .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags.0)));
+    store.meta = Tracked::new(meta);
+    let status = store.open_status();
     store.derived = mgr.derived.clone();
     mgr.window_map.insert(label.0.clone(), map_id.clone());
     if let Some(replaced) = mgr.stores.remove(&map_id) {
@@ -308,11 +306,10 @@ pub async fn store_work(
     state: tauri::State<'_, StoreState>,
     selector: Selector,
     work: Work,
-    record_undo: Option<bool>,
 ) -> AppResult<WorkResult> {
     let _t = Instant::now();
     with_store!(label, state, |store| {
-        let result = apply_work(store, &selector, &work, record_undo.unwrap_or(true))?;
+        let result = apply_work(store, &selector, &work)?;
         log::debug!("[cmd] store_work total={}ms", _t.elapsed().as_millis());
         Ok(result)
     })
@@ -331,20 +328,6 @@ pub fn store_patch_field_values(
 ) -> AppResult<FieldValuesResult> {
     with_store!(label, state, |store| {
         store.patch_field_values(&field, &patch)
-    })
-}
-
-/// Set (or clear) the active location.
-#[tauri::command]
-#[specta::specta]
-pub fn store_set_active(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    id: Option<u32>,
-) -> AppResult<()> {
-    with_store!(label, state, |store| {
-        store.selections.active_id = id;
-        Ok(())
     })
 }
 
@@ -507,13 +490,14 @@ fn copy_to_map(
     let (mut fresh, skipped) = split_new_locations(sources, &existing);
     let copied = fresh.len() as u32;
     if copied > 0 {
-        let mut target_tags = maps::read_map_meta(&conn, &target_map_id)?.tags.0;
+        let target_meta = maps::read_map_meta(&conn, &target_map_id)?;
+        let mut target_tags = target_meta.tags.0;
         let data_max = existing
             .iter()
             .flat_map(|l| l.tags.iter().copied())
             .max()
             .unwrap_or(0);
-        let (remap, _) = reconcile_values_by_name(&used_tags(&fresh), &mut target_tags, data_max);
+        let remap = reconcile_values_by_name(&used_tags(&fresh), &mut target_tags, data_max);
         for loc in &mut fresh {
             loc.tags = loc
                 .tags
@@ -522,13 +506,10 @@ fn copy_to_map(
                 .collect();
         }
 
-        // Register any extra-field defs the copies introduce. `persist_field_defs`
-        // skips keys the target already defines, so an empty known-set is safe.
-        {
-            let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
-            if let Some(defs) = maps::infer_field_defs(|_| false, &extras) {
-                maps::persist_field_defs(&conn, &target_map_id, &defs)?;
-            }
+        let mut fields = target_meta.extra.fields;
+        let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
+        if let Some(defs) = maps::infer_field_defs(|k| fields.contains_key(k), &extras) {
+            fields.extend(defs);
         }
 
         let t_hist = Instant::now();
@@ -563,6 +544,7 @@ fn copy_to_map(
             &Patch::<maps::MapMeta> {
                 id: target_map_id.clone(),
                 tags: Some(maps::TagRecords(target_tags)),
+                extra: Some(maps::MapExtra { fields }),
                 ..Default::default()
             },
         )?;
@@ -592,11 +574,10 @@ pub async fn store_save_dirty(
     log::debug!("[cmd] store_save_dirty ENTER");
     // The snapshot carries the revision it serialized, so the store can be told exactly
     // what disk holds once the write lands, however many edits arrived meanwhile.
-    // (Value metadata is not here: it persists write-through at the edit.)
     let (map_id, unsaved) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label.0)?;
-        let map_id = store.map_id.clone().ok_or("no map open")?;
+        let map_id = store.meta.id.clone();
         let Some(unsaved) = store.unsaved()? else {
             return Ok(());
         };
@@ -616,7 +597,7 @@ pub async fn store_save_dirty(
     // stops a fresh store from being marked saved by a stale write.
     let mut mgr = state.lock()?;
     if let Ok(store) = mgr.store_for_window(&label.0) {
-        if store.map_id.as_deref() == Some(map_id.as_str()) {
+        if store.meta.id == map_id {
             store.saved(&unsaved);
         }
     }
@@ -695,12 +676,12 @@ pub async fn store_undo(
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
-        let map_id = store.map_id.clone().unwrap_or_default();
+        let map_id = store.meta.id.clone();
         let changes = store
             .undo(|seq| load_edit(&storage::open_db()?, &map_id, seq))?
             .ok_or("nothing to undo")?;
-        log_history_step("UNDO", _t, store.edits.undo_len(), &changes);
-        Ok(store.finish_mutation(&changes))
+        log_history_step("UNDO", _t, store.edits.undo_len(), &changes.rows);
+        Ok(store.finish_entry(&changes))
     })
 }
 
@@ -713,12 +694,12 @@ pub async fn store_redo(
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
-        let map_id = store.map_id.clone().unwrap_or_default();
+        let map_id = store.meta.id.clone();
         let changes = store
             .redo(|seq| load_edit(&storage::open_db()?, &map_id, seq))?
             .ok_or("nothing to redo")?;
-        log_history_step("REDO", _t, store.edits.redo_len(), &changes);
-        Ok(store.finish_mutation(&changes))
+        log_history_step("REDO", _t, store.edits.redo_len(), &changes.rows);
+        Ok(store.finish_entry(&changes))
     })
 }
 
@@ -773,7 +754,6 @@ pub async fn store_sync_selections(
         pair_selections(sels_full, sel_sets, sels.iter().map(|si| si.ghosted));
     store.selections.ids = store.selections.live_ids();
     store.selections.node_counts = counts;
-    store.selections.version += 1;
     let result = store.finish_selection_change();
 
     log::debug!(

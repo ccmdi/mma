@@ -3273,7 +3273,7 @@ fn columns_within_projects_one_value_per_row_per_field() {
 fn optional_builtins_are_the_columns_a_row_can_lack() {
     // `tags` is here because an untagged row lacks it, which is what makes "untagged" an
     // ordinary `Nothas` rather than its own selector. Lacking a value is not the same as
-    // being clearable, which `clearable_builtins` probes separately.
+    // being clearable, which `Patchable::CLEARS` declares separately.
     assert_eq!(optional_builtins(), &["panoId", "tags", "modifiedAt"]);
 }
 

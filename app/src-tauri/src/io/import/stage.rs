@@ -291,14 +291,21 @@ pub struct EditorImportResult {
 }
 
 /// Insert pre-deduped copied locations (cross-map copy) through the same path
-/// as editor import: tag reconcile, id alloc, field defs, undo entry, and render
-/// cell registration. `tags` are the source tag defs referenced by `locations`.
+/// as editor import: a pending layer landing with the source tag defs `locations`
+/// reference, so tag reconcile, id alloc, field defs and the undo entry are its.
 pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
-    mut locations: Vec<Location>,
+    locations: Vec<Location>,
     tags: Vec<(u32, ValueRecord)>,
 ) -> AppResult<engine::MutationResult> {
-    store.reconcile_incoming_tags(&tags, &[], &mut locations);
+    const LAYER: &str = "copy-to-map";
+    store.drop_pending(LAYER);
+    store
+        .pending
+        .entry(LAYER.to_string())
+        .or_default()
+        .incoming
+        .insert("tags".to_string(), tags);
     let edits = locations
         .into_iter()
         .map(|mut loc| {
@@ -306,7 +313,10 @@ pub(crate) fn add_copied_to_store(
             engine::Edit::Set(loc)
         })
         .collect();
-    Ok(store.edit(&engine::Target::Map, edits, false, &mut None))
+    let target = engine::Target::Pending {
+        name: LAYER.to_string(),
+    };
+    Ok(store.edit(&target, edits, true, &mut None))
 }
 
 /// Commit a previously previewed editor import into the open map, optionally

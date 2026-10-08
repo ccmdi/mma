@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { getVisibleTags, updateTags } from "@/store/useMapStore";
+import { getVisibleTags } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { TagPill } from "@/components/primitives/TagPill";
 import {
 	Dialog,
@@ -21,13 +22,11 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 
 	const handleApply = async () => {
 		if (!find || matches.length === 0) return;
-		const patches = matches.map((t) => ({
+		const update = matches.map((t) => ({
 			id: t.id,
-			patch: {
-				name: t.name.replaceAll(new RegExp(RegExp.escape(find), "gi"), replace),
-			},
+			name: t.name.replaceAll(new RegExp(RegExp.escape(find), "gi"), replace),
 		}));
-		await updateTags(patches);
+		await edit.values("tags", { update });
 		setApplied(true);
 	};
 

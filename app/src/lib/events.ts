@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
-import type { Patch, Tag } from "@/types";
 import type { ChangeEvent } from "@/bindings.gen";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
@@ -13,9 +12,6 @@ const EVENT_DEFS = {
 	/** The store's change feed: the ids every landed change created, deleted and
 	 *  rewrote, whatever caused it. Anything derived from location data re-reads on it. */
 	"store:change": event<ChangeEvent>(),
-	"tag:add": event<Tag[]>(),
-	"tag:remove": event<number[]>(),
-	"tag:update": event<Patch<Tag>[]>(),
 	"selection:change": event<Selection[]>(),
 	"active:change": event<number | null>(),
 	"map:open": event<MapMeta>(),
@@ -210,7 +206,5 @@ export const OVERLAY_REPAINT_EVENTS = [
 
 /** Selection-related events. */
 export const SELECTION_EVENTS = eventsWithPrefix("selection");
-/** The events that fire whenever tag definitions change. */
-export const TAG_DATA_EVENTS = eventsWithPrefix("tag");
 /** Map open/close lifecycle. */
 export const MAP_LIFECYCLE_EVENTS = eventsWithPrefix("map");

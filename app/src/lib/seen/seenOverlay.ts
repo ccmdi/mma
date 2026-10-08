@@ -5,7 +5,7 @@
 
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
-import { query, setActiveLocation, previewVirtualLocation } from "@/store/useMapStore";
+import { query, setActiveLocation, previewLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { getSeenCount, getSeenEntries } from "./seen";
@@ -105,7 +105,7 @@ export async function openSeenEntry(index: number): Promise<void> {
 		extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
 	});
 	preview.flags = LocationFlag.LoadAsPanoId; // resolve the exact pano, not nearest coverage
-	previewVirtualLocation(preview);
+	previewLocation(preview);
 }
 
 onEvent("map:close", () => {

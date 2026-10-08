@@ -66,7 +66,14 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 
 	it("merge collapses each group to one survivor", async () => {
 		expect(await getLocCount()).toBe(5);
-		await withApi(async (api, d) => api.mergeDuplicates(d), DIST);
+		await withApi(
+			async (api, d) =>
+				api.edit.work(
+					{ type: "Everything" },
+					{ kind: "mergeDuplicates", distance: d, score: null },
+				),
+			DIST,
+		);
 		await flushAndWait();
 		expect(await getLocCount()).toBe(2); // one survivor per group
 	});

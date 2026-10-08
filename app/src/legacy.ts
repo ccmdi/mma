@@ -9,10 +9,9 @@ import {
 	getMapState,
 	getActiveSelections,
 	query,
-	setMapExtraFields,
-	setTags,
 	read,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import type { CountBy, KeySpec, Location, PartitionBucket } from "@/bindings.gen";
 import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
@@ -168,10 +167,10 @@ export function registerEnrichmentProvider(provider: Provider): void {
 export function registerEnrichFields(_fields: EnrichFieldOption[]): void {}
 
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
- *  use `MMA.setMapExtraFields()` to change it, or `MMA.registerPluginFieldDefs()` for
- *  plugin-owned defs. */
-export function setUserFieldDefs(defs: Record<string, FieldDef>) {
-	return setMapExtraFields(defs);
+ *  use `MMA.edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+ *  for plugin-owned defs. */
+export function setUserFieldDefs(fields: Record<string, FieldDef>) {
+	return edit.meta({ extra: { ...getMapState().map?.extra, fields } });
 }
 
 /** @deprecated v0.11.0. Use `MMA.storage()`. */
@@ -194,19 +193,25 @@ export function installedVersion(pluginId: string) {
 	return sidecar.installedVersion(pluginId);
 }
 
-/** @deprecated v0.10.5. Use `MMA.setTags([tagId], [], { type: "Locations", locations: ids, name: null })`. */
+/** @deprecated v0.10.5. Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. */
 export function addTagToLocations(tagId: number, locationIds: number[]) {
-	return setTags([tagId], [], { type: "Locations", locations: locationIds, name: null });
+	return edit.work(
+		{ type: "Locations", locations: locationIds, name: null },
+		{ kind: "listSet", key: "tags", add: [tagId], remove: [] },
+	);
 }
 
-/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], { type: "Locations", locations: ids, name: null })`. */
+/** @deprecated v0.10.5. Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. */
 export function removeTagFromLocations(tagId: number, locationIds: number[]) {
-	return setTags([], [tagId], { type: "Locations", locations: locationIds, name: null });
+	return edit.work(
+		{ type: "Locations", locations: locationIds, name: null },
+		{ kind: "listSet", key: "tags", add: [], remove: [tagId] },
+	);
 }
 
-/** @deprecated v0.10.5. Use `MMA.setTags([], [tagId], MMA.tagSelector(tagId))`. */
+/** @deprecated v0.10.5. Use `MMA.edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. */
 export function removeTagFromAllLocations(tagId: number) {
-	return setTags([], [tagId], tagSelector(tagId));
+	return edit.work(tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] });
 }
 
 /** @deprecated v0.11.3. Use `MMA.applySelectionUpdate(MMA.addSelection(...selectors))`. */

@@ -19,7 +19,10 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     static SEQ: AtomicU32 = AtomicU32::new(0);
     let map_id = format!("procedure-test-{}", SEQ.fetch_add(1, Ordering::Relaxed));
     let mut store = Store::new();
-    store.map_id = Some(map_id.clone());
+    store.meta = crate::store::engine::Tracked::new(crate::store::maps::MapMeta {
+        id: map_id.clone(),
+        ..Default::default()
+    });
     store.batch = Some(arrow::locations_to_batch(&[]));
     for l in locs {
         store.put(&Change {

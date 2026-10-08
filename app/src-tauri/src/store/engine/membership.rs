@@ -41,10 +41,8 @@ pub(crate) struct SelectionState {
     /// Resolved count of every selection node (top-level and nested), keyed by `Selection.key`.
     /// The faithful per-node count source for sidebar display; refreshed on every sync/resolve.
     pub node_counts: HashMap<String, u32>,
-    pub version: u64,
     /// Union of every member set. Answers "is this id selected".
     pub ids: RoaringBitmap,
-    pub active_id: Option<u32>,
 }
 
 impl SelectionState {
@@ -91,22 +89,6 @@ impl SelectionState {
     }
 }
 
-/// Ids whose selection paint changed in a mutation - including moves between overlapping
-/// selections, where union membership never flips but the winning colour does. Carries no
-/// paint: `SelectionState::paint_for` is the one place colour and draw order is decided.
-pub(super) struct MembershipDelta {
-    pub(super) changed: HashSet<u32>,
-}
-
-/// Updated selection state after a change. `counts` gives each selection's match count.
-#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SelectionSync {
-    /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).
-    pub counts: HashMap<String, u32>,
-    pub selected_count: usize,
-}
-
 /// A selection as the sidebar lists it, plus whether it is ghosted.
 // Ghosting means nothing for a nested child, which is why the flag lives here and not on
 // `Selection`.
@@ -136,9 +118,10 @@ impl Store {
     }
 
     /// Update selection membership sets for incremental changes (adds/removes/updates).
-    /// Returns which ids changed paint, so the render frame can state their new
-    /// selection state.
-    pub(super) fn update_selection_membership(&mut self, changes: &Change) -> MembershipDelta {
+    /// Returns the ids whose paint changed - including moves between overlapping
+    /// selections, where union membership never flips but the winning colour does - so the
+    /// render frame can state their new selection state.
+    pub(super) fn update_selection_membership(&mut self, changes: &Change) -> HashSet<u32> {
         let drop_ids: HashSet<u32> = changes
             .removed
             .iter()
@@ -180,7 +163,6 @@ impl Store {
                 }
             }
         }
-        self.selections.version += 1;
         // Incremental path runs only without composites, so every node is top-level.
         self.selections.node_counts = self
             .selections
@@ -203,7 +185,7 @@ impl Store {
             }
         }
         // A removed row leaves the overlay with its cell; nothing to state about it.
-        MembershipDelta { changed }
+        changed
     }
 
     /// Full selection membership resolve: recomputes every member set, the union, and the
@@ -221,15 +203,6 @@ impl Store {
         self.selections.resolved = pair_selections(sels, loc_sets, ghosted);
 
         self.selections.ids = self.selections.live_ids();
-        self.selections.version += 1;
-    }
-
-    /// Every selection's counts and the selected total, as they stand.
-    pub(super) fn selection_sync(&self) -> SelectionSync {
-        SelectionSync {
-            counts: self.selections.node_counts.clone(),
-            selected_count: self.selections.ids.len() as usize,
-        }
     }
 
     /// Every cell's selection membership, the selection section of a frame.

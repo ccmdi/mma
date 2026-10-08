@@ -6,7 +6,9 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { previewDuplicateGroups, mergeDuplicates } from "@/store/useMapStore";
+import { getMapState, previewDuplicateGroups } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
+
 import { toast } from "@/lib/util/toast";
 import { fmt, formatDistance } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
@@ -42,7 +44,14 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 	const handleMerge = useCallback(async () => {
 		setMerging(true);
 		try {
-			await mergeDuplicates(distance);
+			await edit.work(
+				{ type: "Everything" },
+				{
+					kind: "mergeDuplicates",
+					distance,
+					score: getMapState().map?.settings.duplicateScore ?? null,
+				},
+			);
 			toast(
 				t("Merged {merged} duplicates into {groups} locations", {
 					merged: fmt.format(preview?.mergedAway ?? 0),

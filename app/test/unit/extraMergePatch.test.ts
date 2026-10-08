@@ -26,6 +26,7 @@ vi.mock("@/lib/commands", async () => {
 			tagCounts: null,
 			tags: null,
 			fieldDefs: null,
+			deadTags: null,
 		},
 		step: null,
 		active: wire.active,

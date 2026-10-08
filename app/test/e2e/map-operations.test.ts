@@ -17,7 +17,7 @@ describe("Map rename", () => {
 
 	it("rename open map updates in-memory name", async () => {
 		await withApi(async (api, id) => {
-			await api.patchMapMeta({ id: id, name: "Renamed Map" });
+			await api.edit.meta({ id: id, name: "Renamed Map" });
 		}, map.id);
 
 		const name = await withApi(async (api) => api.getMapState().map?.name);
@@ -136,7 +136,7 @@ describe("Map metadata updates", () => {
 
 	it("update description", async () => {
 		await withApi(async (api) => {
-			await api.updateMapMeta({ description: "Test map for E2E" });
+			await api.edit.meta({ description: "Test map for E2E" });
 		});
 
 		const desc = await withApi(async (api) => api.getMapState().map?.description);
@@ -146,7 +146,7 @@ describe("Map metadata updates", () => {
 	it("update settings", async () => {
 		await withApi(async (api) => {
 			const cur = api.getMapState().map!.settings;
-			await api.updateMapMeta({ settings: { ...cur, enrichMetadata: true } });
+			await api.edit.meta({ settings: { ...cur, enrichMetadata: true } });
 		});
 
 		const settings = await withApi(async (api) => api.getMapState().map!.settings);
@@ -155,7 +155,7 @@ describe("Map metadata updates", () => {
 
 	it("update scoreBounds", async () => {
 		await withApi(async (api) => {
-			await api.updateMapMeta({
+			await api.edit.meta({
 				scoreBounds: [100, 200, 300, 400],
 			});
 		});
@@ -257,7 +257,7 @@ describe("Extra field definitions", () => {
 		};
 		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.updateMapMeta({
+			await api.edit.meta({
 				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
 		}, defs);
@@ -366,7 +366,7 @@ describe("Extra field definitions", () => {
 		const score = createFieldDef("number", { label: "My Score" });
 		await withApi(async (api, score) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.updateMapMeta({
+			await api.edit.meta({
 				extra: { ...api.getMapState().map!.extra, fields: { ...cur, score } },
 			});
 		}, score);

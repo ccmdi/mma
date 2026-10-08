@@ -1,12 +1,13 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { CountBy, KeySpec } from "@/bindings.gen";
+import type { CountBy, KeySpec, Selector } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
-import { createTags, query } from "@/store/useMapStore";
+import { query } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -140,14 +141,14 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 			groups.map((g) => g.key),
 			key,
 		);
-		// Groups sharing a label land on one tag: createTags reuses an existing name.
+		// Groups sharing a label land on one tag: creating a name that exists reuses it.
+		const tagInto = async (name: string, selector: Selector) => {
+			const add = await edit.values("tags", { create: [{ name }] });
+			await edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
+		};
 		for (const [i, g] of groups.entries())
-			await createTags([tagName(labels[i])], {
-				type: "Locations",
-				locations: g.ids,
-				name: null,
-			});
-		if (missing && missingCount > 0) await createTags([tagName(missingName)], missing);
+			await tagInto(tagName(labels[i]), { type: "Locations", locations: g.ids, name: null });
+		if (missing && missingCount > 0) await tagInto(tagName(missingName), missing);
 		onOpenChange(false);
 	};
 

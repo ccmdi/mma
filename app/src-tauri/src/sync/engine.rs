@@ -876,7 +876,7 @@ fn apply_pull(
     if edit_count == 0 {
         return Ok((None, Vec::new()));
     }
-    let layer = format!("sync:{}", store.map_id.as_deref().unwrap_or_default());
+    let layer = format!("sync:{}", store.meta.id);
     let target = Target::Pending {
         name: layer.clone(),
     };

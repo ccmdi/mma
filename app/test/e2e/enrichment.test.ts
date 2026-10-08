@@ -332,7 +332,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		});
 		await withApi(async (api, countryCode) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.updateMapMeta({
+			await api.edit.meta({
 				extra: { ...api.getMapState().map!.extra, fields: { ...cur, countryCode } },
 			});
 			return "ok";
@@ -634,7 +634,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 		};
 		await withApi(async (api, defs) => {
 			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.updateMapMeta({
+			await api.edit.meta({
 				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
 			});
 			return "ok";

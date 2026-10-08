@@ -110,31 +110,22 @@ export function openMapResult(
 ) {
 	return {
 		version: 0,
-		values: {
+		derived: {
 			locationCount: 0,
 			canUndo: false,
 			canRedo: false,
-			tagCounts: over.tagCounts ?? {},
-			tags: {},
+			valueCounts: { tags: over.tagCounts ?? {} },
+			valueMeta: {},
 			fieldDefs: over.fieldDefs ?? {},
+			selectionCounts: {},
+			deadValues: null,
 		},
 	};
 }
 
-/** What `storeSyncSelections` answers: a change that moved no row and recounted the selections. */
-export function selectionChange(counts: Record<string, number> = {}) {
-	return {
-		version: 0,
-		selectionSync: { counts, selectedCount: 0 },
-		values: {
-			locationCount: null,
-			canUndo: null,
-			canRedo: null,
-			valueCounts: null,
-			valueMeta: null,
-			fieldDefs: null,
-		},
-	};
+/** What `storeSyncSelections` answers: a change that moved no row. */
+export function selectionChange() {
+	return { version: 0, added: [] };
 }
 
 export function cmdProxy(handlers: Handlers) {

@@ -46,9 +46,7 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("every hop of a bundler alias carries the tag", () => {
-		expect(dts).toMatch(
-			/@unstable[^\n]*\n\s*declare const store_holdAutosave: typeof holdAutosave;/,
-		);
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const autosave_hold: typeof hold;/);
 	});
 
 	it("a type only unstable members reach is unstable", () => {

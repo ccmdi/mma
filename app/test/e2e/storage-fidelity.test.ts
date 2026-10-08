@@ -39,7 +39,7 @@ describe("Save ordering under concurrent mutations", () => {
 			const id1 = locs1[0].id;
 
 			// First save
-			await api.flushSave();
+			await api.autosave.flush();
 
 			// Add while no save is in flight, then save again
 			const locs2: Location[] = [
@@ -48,7 +48,7 @@ describe("Save ordering under concurrent mutations", () => {
 			await api.addLocations(locs2);
 			const id2 = locs2[0].id;
 
-			await api.flushSave();
+			await api.autosave.flush();
 			return { id1, id2 };
 		});
 		so1Id = result.id1;
@@ -70,10 +70,10 @@ describe("Save ordering under concurrent mutations", () => {
 		const loc = await getLoc(so1Id);
 		await withApi(async (api, l) => {
 			await api.updateLocations([{ id: l.id, heading: 45 }]);
-			await api.flushSave();
+			await api.autosave.flush();
 			const l2 = await api.fetchLocation(l.id);
 			await api.updateLocations([{ id: l2!.id, heading: 180 }]);
-			await api.flushSave();
+			await api.autosave.flush();
 			return { ok: true };
 		}, loc);
 
@@ -92,7 +92,7 @@ describe("Save ordering under concurrent mutations", () => {
 			];
 			await api.addLocations(geoLocs1);
 			const geoId1 = geoLocs1[0].id;
-			await api.flushSave();
+			await api.autosave.flush();
 
 			// Remove it and add a different one at similar coords (same geohash cell)
 			await api.removeLocations(new Set([geoId1]));
@@ -101,7 +101,7 @@ describe("Save ordering under concurrent mutations", () => {
 			];
 			await api.addLocations(geoLocs2);
 			const geoId2 = geoLocs2[0].id;
-			await api.flushSave();
+			await api.autosave.flush();
 			return { geoId1, geoId2 };
 		});
 

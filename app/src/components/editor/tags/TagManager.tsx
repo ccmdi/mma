@@ -3,15 +3,14 @@ import type { Patch, Tag } from "@/types";
 import { HslColorPicker } from "react-colorful";
 import {
 	deleteTags,
-	renameTagsIn,
 	getMapState,
 	getVisibleTags,
-	reorderTags,
-	updateTags,
 	useMapState,
 	getTagCounts,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { getSelectedTagIds } from "@/store/selectionActions";
+import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Selector, VirtualTag } from "@/bindings.gen";
 import {
@@ -52,7 +51,7 @@ import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
-/** `order` rides the optimistic overlay only; persisted order goes through `reorderTags`. */
+/** `order` rides the optimistic overlay only; persisted order goes through `edit.values`. */
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -112,7 +111,7 @@ export function TagManager() {
 		(updates: Patch<Tag>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
-				await updateTags(updates);
+				await edit.values("tags", { update: updates });
 			});
 		},
 		[addOptimisticTags],
@@ -121,7 +120,7 @@ export function TagManager() {
 		({ orderedIds, virtualTags }: FlatOrder) => {
 			startTransition(async () => {
 				addOptimisticTags(orderedIds.map((id, i) => ({ id, order: i })));
-				await reorderTags(orderedIds);
+				await edit.values("tags", { reorder: orderedIds });
 			});
 			setVirtualTags(virtualTags);
 		},
@@ -136,9 +135,10 @@ export function TagManager() {
 				for (const r of move.tagRenames)
 					patchById.set(r.id, { ...patchById.get(r.id), id: r.id, name: r.name });
 				addOptimisticTags([...patchById.values()]);
-				if (move.tagRenames.length)
-					await updateTags(move.tagRenames.map((r) => ({ id: r.id, name: r.name })));
-				await reorderTags(move.orderedIds);
+				await edit.values("tags", {
+					update: move.tagRenames.map((r) => ({ id: r.id, name: r.name })),
+				});
+				await edit.values("tags", { reorder: move.orderedIds });
 			});
 			setVirtualTags(move.virtualTags);
 			setAliases(move.aliases);
@@ -395,9 +395,21 @@ function RenameTagsDialog({
 }: DialogProps & { tagIds: number[]; name: string; scope: Selector | null }) {
 	const [name, setName] = useState(initialName);
 
+	const moveInto = async (trimmed: string) => {
+		const [target] = await edit.values("tags", { create: [{ name: trimmed }] });
+		const sources = tagIds.filter((id) => id !== target);
+		if (sources.length === 0) return;
+		await edit.work(all(any(...sources.map(tagSelector)), scope), {
+			kind: "listSet",
+			key: "tags",
+			add: [target],
+			remove: sources,
+		});
+	};
+
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed) void renameTagsIn(tagIds, trimmed, scope);
+		if (trimmed) void moveInto(trimmed);
 		onOpenChange(false);
 	};
 

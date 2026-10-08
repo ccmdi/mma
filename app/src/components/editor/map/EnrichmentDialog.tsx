@@ -19,13 +19,8 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import {
-	deleteField,
-	getMapState,
-	query,
-	renameField,
-	setMapExtraFields,
-} from "@/store/useMapStore";
+import { deleteField, getMapState, query, renameField } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { useMapSetting } from "@/store/useMapSetting";
 import type { FieldDef, FieldValue } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
@@ -284,7 +279,7 @@ function FieldsTab() {
 				comparison: r.comparison,
 			});
 		}
-		await setMapExtraFields(fields);
+		await edit.meta({ extra: { ...getMapState().map?.extra, fields } });
 	};
 
 	const updateRow = (key: string, patch: Partial<FieldRow>, commit = false) => {

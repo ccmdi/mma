@@ -22,7 +22,7 @@ describe("Duplicate map", () => {
 		await seedLocs(1, () => ({ lat: 30, lng: 40 }));
 		await withApi(async (api) => {
 			await api.mapStorage("e2e").set("setup", { tag: "kept" });
-			await api.updateMapMeta({ description: "about", labels: ["wip"] });
+			await api.edit.meta({ description: "about", labels: ["wip"] });
 		});
 	});
 

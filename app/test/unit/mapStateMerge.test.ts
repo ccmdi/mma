@@ -5,7 +5,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // replaces its slice; a null value was untouched and must keep its reference (the
 // render gate for useMapState selectors is reference identity).
 
-const feed = vi.hoisted(() => ({ onmessage: null as ((e: unknown) => void) | null }));
+const feed = vi.hoisted(() => ({
+	onmessage: null as ((e: unknown) => void) | null,
+	sync: vi.fn(async () => ({ version: 0, added: [] })),
+}));
 
 vi.mock("@tauri-apps/api/core", () => ({
 	Channel: class {
@@ -23,6 +26,7 @@ vi.mock("@/lib/commands", async () => {
 			}),
 		storeOpenMap: async () =>
 			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
+		storeSyncSelections: () => feed.sync(),
 		storeSubscribeChanges: async (...args: unknown[]) => {
 			feed.onmessage = (args[0] as { onmessage: (e: unknown) => void }).onmessage;
 		},
@@ -30,28 +34,32 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { openMap, getMapState, getTags, getTagCounts } from "@/store/useMapStore";
+import {
+	applySelectionUpdate,
+	openMap,
+	getMapState,
+	getTags,
+	getTagCounts,
+} from "@/store/useMapStore";
+import { addSelection, tagSelector } from "@/store/selections";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { ChangeEvent } from "@/bindings.gen";
-const event = (
-	values: Partial<ChangeEvent["values"]> = {},
-	over: Partial<ChangeEvent> = {},
-): ChangeEvent => ({
+const event = (derived: Partial<ChangeEvent["derived"]> = {}): ChangeEvent => ({
 	version: 0,
 	added: [],
 	removed: [],
 	updated: [],
-	selections: null,
-	values: {
+	derived: {
 		locationCount: null,
 		canUndo: null,
 		canRedo: null,
 		valueCounts: null,
 		valueMeta: null,
 		fieldDefs: null,
-		...values,
+		selectionCounts: null,
+		deadValues: null,
+		...derived,
 	},
-	...over,
 });
 
 const arrive = (e: ChangeEvent) => feed.onmessage!(e);
@@ -115,8 +123,30 @@ describe("change feed merge semantics", () => {
 		expect(getKnownFieldKeys()).toBe(held);
 	});
 
-	it("selections refresh selectionCounts", () => {
-		arrive(event({}, { selections: { counts: { "tag:1": 7 }, selectedCount: 7 } }));
+	it("selectionCounts replace when present", () => {
+		arrive(event({ selectionCounts: { "tag:1": 7 } }));
 		expect(getMapState().selectionCounts).toEqual({ "tag:1": 7 });
+	});
+
+	it("dead values drop their tag selections and never enter state", async () => {
+		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
+		arrive(event({ deadValues: { tags: [1] } }));
+		await new Promise((r) => setTimeout(r));
+		const left = getMapState().selectionList.map((r) => r.selection.selector);
+		expect(left).toEqual([tagSelector(2)]);
+		expect("deadValues" in getMapState()).toBe(false);
+	});
+
+	it("a tag record change resyncs only while a selection names a tag", async () => {
+		const { sync } = feed;
+		await applySelectionUpdate(() => []);
+		sync.mockClear();
+		arrive(event({ valueMeta: { tags: { 1: { name: "red", color: "#00ff00" } } } }));
+		expect(sync).not.toHaveBeenCalled();
+
+		await applySelectionUpdate(addSelection(tagSelector(1)));
+		sync.mockClear();
+		arrive(event({ valueMeta: { tags: { 1: { name: "red", color: "#0000ff" } } } }));
+		expect(sync).toHaveBeenCalledTimes(1);
 	});
 });

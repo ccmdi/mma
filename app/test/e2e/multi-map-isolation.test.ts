@@ -214,7 +214,7 @@ describe("Per-map settings isolation", () => {
 		mapAId = await createAndOpenMap("E2E SettingsIso A");
 		await withApi(async (api) => {
 			const current = api.getMapState().map!.settings;
-			await api.updateMapMeta({
+			await api.edit.meta({
 				settings: {
 					...current,
 					exportZoom: true,
@@ -228,7 +228,7 @@ describe("Per-map settings isolation", () => {
 		mapBId = await createAndOpenMap("E2E SettingsIso B");
 		await withApi(async (api) => {
 			const current = api.getMapState().map!.settings;
-			await api.updateMapMeta({
+			await api.edit.meta({
 				settings: {
 					...current,
 					exportZoom: false,
@@ -268,7 +268,7 @@ describe("Per-map settings isolation", () => {
 		await openMap(mapAId);
 		await withApi(async (api) => {
 			const current = api.getMapState().map!.settings;
-			await api.updateMapMeta({
+			await api.edit.meta({
 				settings: {
 					...current,
 					exportZoom: false,

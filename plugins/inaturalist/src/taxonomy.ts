@@ -1,4 +1,4 @@
-const { storage, getVisibleTags, updateTags } = MMA;
+const { storage, getVisibleTags, edit } = MMA;
 
 export interface TaxonInfo {
 	id: number;
@@ -252,7 +252,7 @@ export async function sortTagsByTaxonomy(
 
 	if (renames.length > 0) {
 		onProgress?.({ phase: "Renaming tags", current: 0, total: renames.length });
-		await updateTags(renames.map((r) => ({ id: r.id, name: r.name })));
+		await edit.values("tags", { update: renames.map((r) => ({ id: r.id, name: r.name })) });
 	}
 
 	return { sorted: renames.length, skipped, created: 0 };

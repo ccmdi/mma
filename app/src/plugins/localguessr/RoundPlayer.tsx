@@ -20,7 +20,7 @@ import { t } from "@/lib/i18n";
 import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
 import { panosAt } from "@/lib/sv/query";
-import { previewVirtualLocation, setActiveLocation } from "@/store/useMapStore";
+import { previewLocation, setActiveLocation } from "@/store/useMapStore";
 import { usePano } from "@/lib/hooks/usePano";
 import { seenRecord } from "@/lib/seen/seenRecorder";
 import type { LatLng } from "@/types";
@@ -219,7 +219,7 @@ export function RoundPlayer({
 			setOpening(true);
 			try {
 				const [pano] = await panosAt([at], GUESS_PANO_RADIUS);
-				if (pano?.id) previewVirtualLocation(guessPreview(pano));
+				if (pano?.id) previewLocation(guessPreview(pano));
 				else toast(t("No Street View near your guess"));
 			} finally {
 				setOpening(false);

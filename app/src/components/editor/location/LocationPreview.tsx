@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Tag } from "@/types";
 import { isImportPreview, isSeenPreview, setPinned } from "@/types";
-import { VIRTUAL_FLAGS } from "@/bindings.consts";
+import { PREVIEW_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -11,11 +11,11 @@ import {
 	useMapState,
 	getMapState,
 	removeLocations,
-	createTags,
 	setActiveLocation,
 	getVisibleTags,
 	getTagCounts,
 } from "@/store/useMapStore";
+import * as mapEdit from "@/store/edit";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/store/selections";
@@ -224,15 +224,13 @@ export function LocationPreview() {
 
 		// The draft as it stands, never waiting on enrichment: answers still in flight
 		// follow it onto the saved row, in the save's undo step. The camera is read live.
-		const wasPreview = isSeenPreview(location);
 		await land({
 			...pano.captureView(),
-			tags: (await createTags(pendingTags)).map((t) => t.id),
-			// Keep LoadAsPanoId; drop the preview-kind bits.
-			flags: wasPreview ? draft.flags & ~VIRTUAL_FLAGS : draft.flags,
+			tags: await mapEdit.values("tags", { create: pendingTags.map((name) => ({ name })) }),
+			flags: draft.flags & ~PREVIEW_FLAGS,
 		});
 
-		if (!wasPreview && isReviewMode && reviewSession?.cursorId === location.id) {
+		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
 			void setActiveLocation(null);

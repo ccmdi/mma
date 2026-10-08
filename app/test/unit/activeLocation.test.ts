@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
-	setActiveCalls: [] as (number | null)[],
 	nearby: [] as { id: number }[],
 	held: new Map<number, Promise<void>>(),
 }));
@@ -10,10 +9,6 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetActive: (id: number | null) => {
-			h.setActiveCalls.push(id);
-			return Promise.resolve(null);
-		},
 		storeRead: async (selector: { locations?: number[] }, pick: { kind: string } | null) => {
 			if (pick?.kind === "nearby") {
 				return { kind: "rows", rows: { kind: "inline", locations: h.nearby } };
@@ -35,29 +30,25 @@ import { setActiveLocation, setWorkArea, getMapState } from "@/store/useMapStore
 import { subscribe } from "@/lib/events";
 
 beforeEach(() => {
-	h.setActiveCalls = [];
 	h.nearby = [];
 	h.held.clear();
 });
 
-describe("active location keeps Rust's active_id in step", () => {
-	it("pushes null to Rust when the duplicate panel takes over", async () => {
+describe("active location", () => {
+	it("drops the open row when the duplicate panel takes over", async () => {
 		h.nearby = [{ id: 7 }, { id: 8 }];
 		await setActiveLocation(7);
 
 		expect(getMapState().openRow).toBeNull();
-		expect(h.setActiveCalls).toEqual([7, null]);
 	});
 
-	it("pushes null to Rust when leaving the location pane", async () => {
+	it("drops the open row when leaving the location pane", async () => {
 		await setActiveLocation(7);
 		expect(getMapState().openRow?.id).toBe(7);
 
-		h.setActiveCalls = [];
 		setWorkArea("plugin");
 
 		expect(getMapState().openRow).toBeNull();
-		expect(h.setActiveCalls).toEqual([null]);
 	});
 
 	it("a slow switch that lands after a newer one leaves the newer location active", async () => {
@@ -71,11 +62,6 @@ describe("active location keeps Rust's active_id in step", () => {
 		expect(getMapState().openId).toBe(8);
 		expect(getMapState().openRow?.id).toBe(8);
 		setWorkArea("overview");
-	});
-
-	it("does not push a redundant null when nothing was active", () => {
-		setWorkArea("overview");
-		expect(h.setActiveCalls).toEqual([]);
 	});
 
 	it("emits active:change exactly once per clear, and not when nothing was active", async () => {

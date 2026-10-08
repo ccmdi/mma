@@ -7,7 +7,8 @@ import "@/styles.css";
 import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
 import { initLocale } from "@/lib/i18n";
-import { initStore, flushSave } from "@/store/useMapStore";
+import { initStore } from "@/store/useMapStore";
+import * as autosave from "@/store/autosave";
 import { resetImportState } from "@/store/importStaging";
 import { getMapList } from "@/store/mapList";
 import { initRouter } from "@/store/router";
@@ -62,7 +63,7 @@ async function boot() {
 			log.info(`[session] saved ${openIds.length} open map(s): ${openIds.join(", ")}`);
 			await closeWindows("editor");
 		}
-		await flushSave();
+		await autosave.flush();
 		await saveWindowState();
 		resetImportState();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));

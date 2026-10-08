@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 	openDialog: vi.fn(),
 	selectedTagIds: new Set<number>(),
 	active: [] as import("@/bindings.gen").Selection[],
-	setTags: vi.fn(async () => {}),
+	work: vi.fn(async () => {}),
 }));
 
 vi.mock("@/store/useMapStore", async (importOriginal) => ({
@@ -17,9 +17,10 @@ vi.mock("@/store/useMapStore", async (importOriginal) => ({
 	deleteTags: h.deleteTags,
 	query: (s: unknown) => ({ count: () => h.countIn(s) }),
 	getActiveSelections: () => h.active,
-	setTags: h.setTags,
 	useMapState: (sel: () => unknown) => sel(),
 }));
+
+vi.mock("@/store/edit", () => ({ work: h.work }));
 
 vi.mock("@/store/dialogBus", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/store/dialogBus")>()),
@@ -44,7 +45,7 @@ beforeEach(() => {
 	h.countIn.mockResolvedValue(0);
 	h.selectedTagIds = new Set();
 	h.active = [];
-	h.setTags.mockClear();
+	h.work.mockClear();
 });
 
 const tree = buildTagTree(
@@ -211,7 +212,12 @@ describe("tag context menu", () => {
 			(i) => i.textContent === "Remove only this tag from selection (3 locations)",
 		)!;
 		act(() => onlyThis.click());
-		expect(h.setTags).toHaveBeenCalledWith([], [4], scope);
+		expect(h.work).toHaveBeenCalledWith(scope, {
+			kind: "listSet",
+			key: "tags",
+			add: [],
+			remove: [4],
+		});
 	});
 
 	it("removes the targets from the rest of the selection only", async () => {
@@ -228,6 +234,11 @@ describe("tag context menu", () => {
 			(i) => i.textContent === "Remove 3 tags from selection (2 locations)",
 		)!;
 		act(() => fromSelection.click());
-		expect(h.setTags).toHaveBeenCalledWith([], [4, 5, 6], scope);
+		expect(h.work).toHaveBeenCalledWith(scope, {
+			kind: "listSet",
+			key: "tags",
+			add: [],
+			remove: [4, 5, 6],
+		});
 	});
 });

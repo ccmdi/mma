@@ -15,7 +15,9 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { Bar } from "@/components/primitives/Bar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
-import { applyFieldOp, applySelectionUpdate, getMapState, query } from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, query } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
+
 import { addSelection, all, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector, Work } from "@/bindings.gen";
@@ -331,11 +333,11 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					<Button
 						onClick={() =>
 							onReady(async ({ selector }) => {
-								const { changed, failed } = await applyFieldOp(
-									selector,
-									{ kind: "set", key: "loadAsPanoId", value: false },
-									true,
-								);
+								const { changed, failed } = await edit.work(selector, {
+									kind: "set",
+									key: "loadAsPanoId",
+									value: false,
+								});
 								return {
 									outcome: { succeeded: changed, failed },
 									doneMessage: t(
@@ -437,11 +439,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 					onClick: () => {
 						const keys = [...selected];
 						onReady(async ({ selector }) => {
-							const { changed, failed } = await applyFieldOp(
-								selector,
-								{ kind: "delete", keys },
-								true,
-							);
+							const { changed, failed } = await edit.work(selector, { kind: "delete", keys });
 							return {
 								outcome: { succeeded: changed, failed },
 								doneMessage: t(
@@ -579,7 +577,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 							const op: Work = useExpr
 								? { kind: "expr", key: ek, expr: rv }
 								: { kind: "set", key: ek, value: setValue };
-							const { changed, failed } = await applyFieldOp(selector, op, true);
+							const { changed, failed } = await edit.work(selector, op);
 							const message =
 								t(
 									{ one: "Set field on {n} location.", other: "Set field on {n} locations." },

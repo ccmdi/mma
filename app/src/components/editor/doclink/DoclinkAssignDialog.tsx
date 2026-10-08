@@ -9,7 +9,8 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
-import { useMapState, updateTags, getTags, getTagCounts } from "@/store/useMapStore";
+import { useMapState, getTags, getTagCounts } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { useSetting } from "@/store/settings";
 import { useMapSetting } from "@/store/useMapSetting";
 import {
@@ -269,11 +270,9 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 			.filter((t) => anchorsInDoc(t, docRef.docId).size > 0)
 			.map((t) => ({
 				id: t.id,
-				patch: {
-					doclinks: (t.doclinks ?? []).filter((u) => parseDoclink(u)?.docId !== docRef.docId),
-				},
+				doclinks: (t.doclinks ?? []).filter((u) => parseDoclink(u)?.docId !== docRef.docId),
 			}));
-		if (updates.length > 0) await updateTags(updates);
+		await edit.values("tags", { update: updates });
 	};
 
 	const toggle = async (tag: Tag, anchor: string) => {
@@ -290,7 +289,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					return !(r?.docId === docRef.docId && r.anchor === anchor);
 				})
 			: [...existing, target];
-		await updateTags([{ id: tag.id, doclinks }]);
+		await edit.values("tags", { update: [{ id: tag.id, doclinks }] });
 	};
 
 	const runMatch = () => {
@@ -311,9 +310,9 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 		}
 		const updates = [...byTag.entries()].map(([id, added]) => ({
 			id,
-			patch: { doclinks: [...(tagMap[id].doclinks ?? []), ...added] },
+			doclinks: [...(tagMap[id].doclinks ?? []), ...added],
 		}));
-		if (updates.length > 0) await updateTags(updates);
+		await edit.values("tags", { update: updates });
 		setMatches(null);
 	};
 

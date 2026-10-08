@@ -17,14 +17,14 @@ describe("event group constants", () => {
 describe("subscribeMany", () => {
 	it("fans out to every event and the combined unsubscribe detaches all", () => {
 		const fn = vi.fn();
-		const off = subscribeMany(["tag:remove", "tag:add"], fn);
-		emit("tag:remove", []);
-		emit("tag:add", []);
+		const off = subscribeMany(["selection:change", "active:change"], fn);
+		emit("selection:change", []);
+		emit("active:change", null);
 		expect(fn).toHaveBeenCalledTimes(2);
 
 		off();
-		emit("tag:remove", []);
-		emit("tag:add", []);
+		emit("selection:change", []);
+		emit("active:change", null);
 		expect(fn).toHaveBeenCalledTimes(2);
 	});
 });

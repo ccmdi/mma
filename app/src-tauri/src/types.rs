@@ -375,7 +375,7 @@ wire_bitflags! {
         /// Legacy marker (web). Kept as imported, with no effect in the app.
         const INFORMATIONAL = 2;
         // Preview kinds, set only on the ephemeral active-location preview and stripped
-        // by [`LocationFlags::VIRTUAL`] before one is materialized. Never persisted.
+        // by [`LocationFlags::PREVIEW`] before one is materialized. Never persisted.
         /// A location from a pending import, opened for preview and not yet on the map.
         const IMPORT_PREVIEW = 4;
         /// A pano opened from the seen history overlay, not yet on the map.
@@ -383,7 +383,7 @@ wire_bitflags! {
     }
     consts {
         /// The bits a preview carries that a real location must not.
-        VIRTUAL as "VIRTUAL_FLAGS" = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
+        PREVIEW as "PREVIEW_FLAGS" = Self::IMPORT_PREVIEW.union(Self::SEEN_OVERLAY);
     }
 }
 

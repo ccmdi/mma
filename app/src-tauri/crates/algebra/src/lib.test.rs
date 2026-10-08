@@ -25,6 +25,7 @@ impl Patchable for Row {
     type Patch = RowPatch;
     const WRITES: &'static [(&'static str, &'static str)] = &[("name", "name"), ("extra", "extra")];
     const MERGED: &'static [&'static str] = &["extra"];
+    const CLEARS: &'static [&'static str] = &[];
 
     fn patched(&self, patch: &RowPatch) -> Self {
         let mut out = self.clone();
@@ -41,6 +42,13 @@ impl Patchable for Row {
         RowPatch {
             name: (old.name != new.name).then(|| new.name.clone()),
             extra: Merge::between(&old.extra, &new.extra),
+        }
+    }
+
+    fn to_patch(&self) -> RowPatch {
+        RowPatch {
+            name: Some(self.name.clone()),
+            extra: Some(self.extra.clone()),
         }
     }
 }
@@ -78,6 +86,20 @@ fn the_patch_between_two_values_turns_one_into_the_other() {
     };
     assert_eq!(old.patched(&Row::between(&old, &new)), new);
     assert_eq!(new.patched(&Row::between(&new, &old)), old);
+}
+
+#[test]
+fn a_whole_value_as_a_patch_writes_it_over_any_row_with_nothing_merged_in() {
+    let v = Row {
+        extra: json!({ "a": 1 }).as_object().cloned(),
+        ..row(1, "v")
+    };
+    assert_eq!(row(1, "other").patched(&v.to_patch()), v);
+    assert_eq!(v.patched(&row(1, "w").to_patch()), row(1, "w"));
+    assert_eq!(
+        Row::between(&v, &v.patched(&v.to_patch())),
+        RowPatch::default()
+    );
 }
 
 #[test]
@@ -227,4 +249,58 @@ fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
     let change = Change::from_rows(resolved.into_iter().map(|(_, b, a)| (b, a)));
     assert_eq!(change.len(), 3);
     assert!(layer.holds(2) && !layer.holds(4));
+}
+
+#[test]
+fn the_change_between_two_tables_turns_one_into_the_other_and_back() {
+    let before: HashMap<u32, &str> = HashMap::from([(1, "a"), (2, "b"), (3, "c")]);
+    let after: HashMap<u32, &str> = HashMap::from([(1, "a"), (2, "B"), (4, "d")]);
+    let change = Change::at(&before, &after, [1, 2, 3, 4]);
+    assert_eq!(
+        change.counts(),
+        Counts {
+            added: 1,
+            removed: 1,
+            updated: 1
+        }
+    );
+
+    let mut table = before.clone();
+    change.apply_to(&mut table);
+    assert_eq!(table, after);
+    change.inverse().apply_to(&mut table);
+    assert_eq!(table, before);
+
+    assert!(
+        Change::at(&before, &after, [1]).is_empty(),
+        "an untouched key is no change"
+    );
+}
+
+#[test]
+fn a_change_round_trips_through_its_serialized_form() {
+    let change = Change::at(
+        &HashMap::from([(1u32, 5)]),
+        &HashMap::from([(1, 6), (2, 7)]),
+        [1, 2],
+    );
+    let back: Change<(u32, i32)> =
+        serde_json::from_str(&serde_json::to_string(&change).unwrap()).unwrap();
+    assert_eq!(back, change);
+}
+
+#[test]
+fn an_owned_key_composes_like_a_copied_one() {
+    let before: HashMap<String, i32> = HashMap::from([("a".into(), 1), ("b".into(), 2)]);
+    let mid: HashMap<String, i32> = HashMap::from([("b".into(), 2), ("c".into(), 1)]);
+    let after: HashMap<String, i32> = HashMap::from([("c".into(), 9)]);
+    let keys = || ["a", "b", "c"].map(String::from);
+    let both = Change::at(&before, &mid, keys()).then(Change::at(&mid, &after, keys()));
+    assert_eq!(both, Change::at(&before, &after, keys()));
+
+    let mut table = before.clone();
+    both.apply_to(&mut table);
+    assert_eq!(table, after);
+    both.inverse().apply_to(&mut table);
+    assert_eq!(table, before);
 }

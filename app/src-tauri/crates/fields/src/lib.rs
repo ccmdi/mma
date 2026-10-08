@@ -288,8 +288,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let nullable = format_ident!("{}_patch_nullable", snake(&ident.to_string()));
     let nullable_path = nullable.to_string();
     let (mut slots, mut writes, mut reads) = (Vec::new(), Vec::new(), Vec::new());
-    let (mut keys, mut skips) = (Vec::new(), Vec::new());
+    let (mut keys, mut skips, mut whole) = (Vec::new(), Vec::new(), Vec::new());
     let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
+    let mut clears = Vec::new();
     for f in &data.fields {
         let name = f.ident.as_ref().expect("named fields");
         let ty = &f.ty;
@@ -319,6 +320,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             keys.push(wire);
             slots.push(quote! { pub #name: #ty, });
             reads.push(quote! { #name: new.#name.clone(), });
+            whole.push(quote! { #name: self.#name.clone(), });
             same.push(quote! { old.#name == new.#name });
             continue;
         }
@@ -326,13 +328,16 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             skips.push(wire);
             continue;
         }
-        let de = type_name(ty)
-            .starts_with("Option<")
-            .then(|| quote!(#[serde(deserialize_with = #nullable_path)]));
+        let optional = type_name(ty).starts_with("Option<");
+        let de = optional.then(|| quote!(#[serde(deserialize_with = #nullable_path)]));
+        if optional && !merge && !stamp {
+            clears.push(key_name.clone());
+        }
         slots.push(quote! {
             #[serde(default, skip_serializing_if = "Option::is_none")] #de pub #name: Option<#ty>,
         });
         columns.push(quote! { (#key_name, #column), });
+        whole.push(quote! { #name: Some(self.#name.clone()), });
         let change = if merge {
             merged.push(key_name);
             writes.push(quote! { if let Some(v) = &patch.#name { out.#name = ::mma_algebra::Merge::merged(&out.#name, v); } });
@@ -379,6 +384,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             type Patch = #patch;
             const WRITES: &'static [(&'static str, &'static str)] = &[#(#columns)*];
             const MERGED: &'static [&'static str] = &[#(#merged),*];
+            const CLEARS: &'static [&'static str] = &[#(#clears),*];
 
             fn patched(&self, patch: &#patch) -> Self {
                 let mut out = self.clone();
@@ -388,6 +394,10 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
             fn between(old: &Self, new: &Self) -> #patch {
                 #patch { #(#reads)* }
+            }
+
+            fn to_patch(&self) -> #patch {
+                #patch { #(#whole)* }
             }
         }
 

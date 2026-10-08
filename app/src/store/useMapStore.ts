@@ -1,12 +1,11 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
-import { isVirtualLocation, isImportPreview, isSeenPreview, locId } from "@/types";
+import { isImportPreview, isSeenPreview, locId } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import type {
 	Location,
 	MapMeta,
-	FieldDef,
 	StoreStatus,
 	CountBy,
 	Target,
@@ -17,7 +16,7 @@ import type {
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
-import type { ChangeEvent, MutationResult, EngineValues } from "@/bindings.gen";
+import type { ChangeEvent, MutationResult, Derived } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { colorForName } from "@/lib/util/color";
@@ -27,7 +26,7 @@ import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
-import type { KeySpec, PartitionBucket, Work, WorkResult, StoreWarning } from "@/bindings.gen";
+import type { KeySpec, PartitionBucket, StoreWarning } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { clearScene, loadScene, sceneReached } from "@/lib/render/sceneStore";
@@ -35,11 +34,11 @@ import { refreshPolygonFills } from "@/lib/render/polygonFills";
 import { resetImportState, getImportStaging, importTarget } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
+import * as autosave from "./autosave";
+import * as edit from "./edit";
 
 import type { ListedSelection, Selection, Selector } from "@/bindings.gen";
 import {
-	all,
-	any,
 	buildSelection,
 	displayColor,
 	removeSelection,
@@ -50,15 +49,16 @@ import {
 
 // --- Map state ---
 
-/** The engine-owned mirror: exactly the value slice Rust ships (`EngineValues`), with every field required. */
-type EngineState = { [K in keyof EngineValues]: NonNullable<EngineValues[K]> };
+/** The engine-owned mirror: the derived state Rust ships, with every field required. Dead
+ *  values are an announcement the change handler consumes, never state. */
+type EngineState = {
+	[K in Exclude<keyof Derived, "deadValues">]: NonNullable<Derived[K]>;
+};
 
 export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
-	/** Resolved count per selection node keyed by `Selection.key`. @unstable */
-	selectionCounts: Record<string, number>;
 	/** The selections as the sidebar lists them, ghosted ones included. Everything that acts on
 	 *  the selection reads `getActiveSelections` instead. @unstable */
 	selectionList: ListedSelection[];
@@ -85,13 +85,13 @@ const ENGINE_INITIAL: EngineState = {
 	valueCounts: {},
 	valueMeta: {},
 	fieldDefs: {},
+	selectionCounts: {},
 };
 
 const INITIAL_STATE: MapState = {
 	...ENGINE_INITIAL,
 	mapId: null,
 	map: null,
-	selectionCounts: {},
 	selectionList: [],
 	selectedLocationIds: SelectedIds.EMPTY,
 	openId: null,
@@ -110,10 +110,10 @@ function setState(patch: Partial<MapState>) {
 	emitEvent("store:changed");
 }
 
-/** Merge the engine values Rust shipped (JSON merge patch: null = unchanged).
+/** Merge the derived state Rust shipped (JSON merge patch: null = unchanged).
  *  `valueCounts`/`valueMeta` merge per field: each present field replaces its whole
  *  map, absent fields keep theirs. */
-function mergeEngineValues(v: EngineValues) {
+function mergeDerived(v: Omit<Derived, "deadValues">) {
 	const { valueCounts, valueMeta, ...rest } = v;
 	state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
 	if (valueCounts) state = { ...state, valueCounts: { ...state.valueCounts, ...valueCounts } };
@@ -195,95 +195,6 @@ export function tagIdsToNames(ids: number[]): string[] {
 	return ids.map((id) => getTags()[id]?.name).filter((n): n is string => n != null);
 }
 
-// --- Autosave ---
-let autosaveTimer: ReturnType<typeof setTimeout> | null = null;
-let inflightPersist: Promise<void> | null = null;
-const AUTOSAVE_DELAY_MS = 2000;
-
-/** Schedule an autosave shortly. Mutations call this automatically; debounced. */
-let autosaveHolds = 0;
-let saveDeferred = false;
-
-/** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-export function holdAutosave(): () => void {
-	autosaveHolds++;
-	return () => {
-		autosaveHolds--;
-		if (autosaveHolds === 0 && saveDeferred) {
-			saveDeferred = false;
-			scheduleSave();
-		}
-	};
-}
-
-/** Schedule a debounced autosave. Mutations call this automatically. @unstable */
-export function scheduleSave() {
-	if (autosaveHolds > 0) {
-		saveDeferred = true;
-		return;
-	}
-	if (autosaveTimer) clearTimeout(autosaveTimer);
-	autosaveTimer = setTimeout(() => {
-		autosaveTimer = null;
-		void doSave();
-	}, AUTOSAVE_DELAY_MS);
-}
-
-/** Cancel any pending autosave timer. @unstable */
-export function cancelAutosave() {
-	if (autosaveTimer) {
-		clearTimeout(autosaveTimer);
-		autosaveTimer = null;
-	}
-}
-
-/** Wait for any in-progress save to finish. @unstable */
-export function waitForInflightPersist() {
-	return inflightPersist;
-}
-
-/** Background auto-commit after an import with autoCommit set. @unstable */
-export function scheduleAutoCommit(mapId: string, importedCount: number) {
-	inflightPersist = cmd
-		.storeCommit(mapId, `Import ${importedCount} locations`)
-		.then(() => {
-			resetCommitDiffCounts();
-			void invalidateMapList();
-		})
-		.catch((e: unknown) => log.error("[import] background commit failed:", e))
-		.finally(() => {
-			inflightPersist = null;
-			emitEvent("store:changed");
-		});
-}
-
-async function doSave(): Promise<void> {
-	if (!state.mapId || !state.map) return;
-	await inflightPersist;
-
-	const t = trace("save");
-	inflightPersist = cmd
-		.storeSaveDirty()
-		.then(() => {
-			t.end();
-			void invalidateMapList();
-		})
-		.catch((err) => {
-			scheduleSave();
-			log.error("Autosave failed, will retry:", err);
-		})
-		.finally(() => {
-			inflightPersist = null;
-		});
-	await inflightPersist;
-}
-
-/** Save any unsaved changes now instead of waiting for the autosave timer. @unstable */
-export async function flushSave(): Promise<void> {
-	cancelAutosave();
-	await Promise.all([doSave(), metaWrites]);
-}
-
 // --- Init (called once at startup) ---
 /** One-time store startup. The app calls this; plugins never need to. @unstable */
 export async function initStore() {
@@ -310,7 +221,7 @@ function clearEditState() {
 /** Every (re)open: the meta identity slice, then the open-time engine full picture. */
 function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 	setState({ map: meta });
-	mergeEngineValues(status.values);
+	mergeDerived(status.derived);
 }
 
 /** Hear the store's change feed for this window's map and republish it locally. */
@@ -325,8 +236,8 @@ async function subscribeChanges() {
 export async function openMap(id: string) {
 	mapOpen.begin();
 
-	cancelAutosave();
-	await inflightPersist;
+	autosave.cancel();
+	await autosave.waitForInflight();
 
 	const t = trace("openMap");
 	setState({ mapId: id, map: null });
@@ -368,14 +279,14 @@ function resetMapState() {
 
 /** Close the open map, saving unsaved changes first. */
 export async function closeMap() {
-	await flushSave();
+	await autosave.flush();
 	resetMapState();
 	await cmd.storeCloseMap();
 }
 
 /** Drop the open map without persisting anything @unstable */
 export function discardOpenMap() {
-	cancelAutosave();
+	autosave.cancel();
 	resetMapState();
 }
 
@@ -454,72 +365,26 @@ export function setSelectedLocationIds(ids: SelectedIds) {
 	setState({ selectedLocationIds: ids });
 }
 
-/** Every metadata write, chained so they land in the order they were made. */
-let metaWrites: Promise<void> = Promise.resolve();
-/** The last write still waiting its turn; a patch to the same map joins it. */
-let waitingMetaWrite: { patch: Patch<MapMeta>; done: Promise<void> } | null = null;
-
-/** Patch any map's metadata and persist it. Updates the open map's state when it is that map.
- *  Writes land in the order they were made. */
-export function patchMapMeta(patch: Patch<MapMeta>): Promise<void> {
-	const carried = Object.fromEntries(
-		Object.entries(patch).filter(([, v]) => v !== undefined),
-	) as Patch<MapMeta>;
-	if (state.map && state.mapId === patch.id) {
-		setState({ map: { ...state.map, ...carried } });
-	}
-	emitEvent("store:changed");
-	if (waitingMetaWrite?.patch.id === patch.id) {
-		Object.assign(waitingMetaWrite.patch, carried);
-		return waitingMetaWrite.done;
-	}
-	const write = { patch: carried, done: Promise.resolve() };
-	write.done = metaWrites.then(async () => {
-		if (waitingMetaWrite === write) waitingMetaWrite = null;
-		await cmd.storeUpdateMapMeta(write.patch);
-		await invalidateMapList();
-	});
-	waitingMetaWrite = write;
-	metaWrites = write.done.catch(() => {});
-	return write.done;
-}
-
-/** `patchMapMeta` for the map open in this window. */
-export function updateMapMeta(patch: Omit<Patch<MapMeta>, "id">) {
-	if (!state.mapId) return;
-	return patchMapMeta({ ...patch, id: state.mapId });
-}
-
-/** Replace the map's extra-field definitions (types/labels for `Location.extra` keys). */
-export async function setMapExtraFields(fields: Record<string, FieldDef>) {
-	if (!state.mapId || !state.map) return;
-	const current = state.map.extra ?? {};
-	return patchMapMeta({ id: state.mapId, extra: { ...current, fields } });
-}
-
-/** Keys of tag selections whose tag just died (emptied or deleted). */
-function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>): string[] {
-	return Object.keys(oldTags)
-		.map(Number)
-		.filter((id) => {
-			const was = oldTags[id];
-			const now = newTags[id];
-			return was && was.visible !== false && (!now || now.visible === false);
-		})
-		.map((id) => buildSelection(tagSelector(id)).key);
+/** Replace the open map's row in state; persisting it is the caller's. @unstable */
+export function setMap(map: MapMeta) {
+	setState({ map });
 }
 
 /** A change event carries only what moved: every present value replaces its slice,
  *  every null value was untouched and keeps its reference. */
 function applyChange(e: ChangeEvent) {
 	if (!state.map) return;
-	const oldTags = getTags();
-	mergeEngineValues(e.values);
+	const { deadValues, ...derived } = e.derived;
+	mergeDerived(derived);
 
-	if (getTags() !== oldTags)
-		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
-	if (e.selections) setState({ selectionCounts: e.selections.counts });
-	if (e.added.length || e.removed.length || e.updated.length) scheduleSave();
+	const deadTags = deadValues?.tags ?? [];
+	if (deadTags.length > 0)
+		void applySelectionUpdate(
+			removeSelection(...deadTags.map((id) => buildSelection(tagSelector(id)).key)),
+		);
+	if (derived.valueMeta?.tags && getActiveSelections().some((s) => tagIdOf(s.selector) != null))
+		void syncSelections();
+	if (e.added.length || e.removed.length || e.updated.length) autosave.schedule();
 	emitEvent("store:change", e);
 	emitEvent("store:changed");
 }
@@ -544,9 +409,9 @@ const EMPTY_MUTATION: MutationResult = {
 /** Settle a mutation that already ran: wait for the scene to draw its version and
  *  schedule a save. @unstable */
 export async function settled(m: MutationResult): Promise<void> {
-	await inflightPersist;
+	await autosave.waitForInflight();
 	await sceneReached(m.version);
-	scheduleSave();
+	autosave.schedule();
 }
 
 /** Run a mutation and settle it; what it changed arrives on the change feed. A result
@@ -597,22 +462,20 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 export async function addLocations(locs: Location[]) {
 	if (locs.length === 0) return;
 	const t = trace("add");
-	const r = await mutate(() =>
+	const r =
 		locs.length > ADD_CHUNK
-			? addViaUpload(locs)
-			: cmd.storeEdit(
+			? await mutate(() => addViaUpload(locs))
+			: await edit.rows(
 					MAP,
 					locs.map((l) => ({ set: l })),
-					null,
-				),
-	);
+				);
 	t.end({ added: locs.length });
 	if (state.map) locs.forEach((l, i) => (l.id = r.added[i] ?? l.id));
 }
 
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
-	if (!state.map || isVirtualLocation({ id })) return null;
+	if (!state.map) return null;
 	const [loc] = await query({ type: "Locations", locations: [id], name: null }).locations();
 	if (!loc) return null;
 	const now = nowUnix();
@@ -624,79 +487,43 @@ export async function duplicateLocation(id: number): Promise<number | null> {
 /** Remove locations by id. Undoable. */
 export async function removeLocations(ids: ReadonlyIdSet) {
 	if (ids.size === 0) return;
-	if (Iterator.from(ids).some((id) => isVirtualLocation({ id }))) {
-		await setActiveLocation(null);
-		return;
-	}
 	if (state.openId && ids.has(state.openId)) setWorkArea("overview");
 	emitEvent("store:changed");
-	await mutate(() =>
-		cmd.storeEdit(
+	await edit
+		.rows(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),
-			null,
-		),
-	).catch((e) => log.error("[delete] store_edit remove failed:", e));
+		)
+		.catch((e) => log.error("[delete] store_edit remove failed:", e));
 }
 
 /** Patch locations by id. Only include the fields you're changing; `extra` merges
  *  per-key (null deletes a key). Undoable by default. */
 export async function updateLocations(updates: Patch<Location>[]) {
 	if (updates.length === 0) return;
-	if (updates.some((u) => isVirtualLocation(u))) return;
-	await mutate(() =>
-		cmd.storeEdit(
-			MAP,
-			updates.map((put) => ({ put })),
-			null,
-		),
+	await edit.rows(
+		MAP,
+		updates.map((put) => ({ put })),
 	);
 }
 
 // --- Bulk metadata-field operations ---
 
-/** Rename extra-field `from` to `to` across all locations, its definition, and selections.
- *  When a location already holds `to`, `winner` decides which value survives. */
+/** Rename extra-field `from` to `to` across all locations, its definition, and the listed
+ *  selections, in one undoable step. When a location already holds `to`, `winner` decides
+ *  which value survives. Saved selections are map-independent rules and keep their names. */
 export async function renameField(from: string, to: string, winner: MergeWinner = "from") {
 	if (!state.map || from === to || !to) return;
-	await applyFieldOp({ type: "Everything" }, { kind: "move", from, to, winner }, false);
-	await migrateFieldReferences(from, to);
+	await edit.work({ type: "Everything" }, { kind: "move", from, to, winner });
+	await applySelectionUpdate(rewriteSelectionFields(from, to));
 }
 
-/** Delete extra-field `key` from every location, its definition, and references. */
+/** Delete extra-field `key` from every location, its definition, and the listed selections,
+ *  in one undoable step. */
 export async function deleteField(key: string) {
 	if (!state.map) return;
-	await applyFieldOp({ type: "Everything" }, { kind: "delete", keys: [key] }, false);
-	await migrateFieldReferences(key, null);
-}
-
-/** Apply a field operation across all locations matching `selector`. @unstable */
-export async function applyFieldOp(
-	selector: Selector,
-	op: Work,
-	recordUndo: boolean,
-): Promise<WorkResult> {
-	const r = await mutate(() => cmd.storeWork(selector, op, recordUndo), {
-		mutation: EMPTY_MUTATION,
-		changed: 0,
-		failed: [],
-	});
-	return r;
-}
-
-/** Migrate field definition + active selection references after a data move.
- *  Saved selections are deliberately NOT rewritten: they are global name-based
- *  rules resolved against whichever map is open, so a map-local rename/delete
- *  must not mutate them (the rule simply stops resolving here). */
-async function migrateFieldReferences(from: string, to: string | null) {
-	if (!state.map) return;
-	const defs = { ...(state.map.extra?.fields ?? {}) };
-	if (defs[from]) {
-		if (to && !defs[to]) defs[to] = defs[from];
-		delete defs[from];
-		await setMapExtraFields(defs);
-	}
-	await applySelectionUpdate(rewriteSelectionFields(from, to));
+	await edit.work({ type: "Everything" }, { kind: "delete", keys: [key] });
+	await applySelectionUpdate(rewriteSelectionFields(key, null));
 }
 
 // --- Selections ---
@@ -834,44 +661,9 @@ export async function previewDuplicateGroups(distance: number): Promise<number[]
 	return groups;
 }
 
-/** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
- *  map's duplicate preference. One undoable edit. @unstable */
-export async function mergeDuplicates(distance: number) {
-	await mutate(
-		() =>
-			cmd.storeWork(
-				{ type: "Everything" },
-				{ kind: "mergeDuplicates", distance, score: state.map?.settings.duplicateScore ?? null },
-				null,
-			),
-		{ mutation: EMPTY_MUTATION, changed: 0, failed: [] },
-	);
-}
-
-/**
- * Prune duplicates within a resolved selection: keeps the most relevant location per
- * cluster (<= 25m) or thins to enforce spacing (> 25m). Returns the number pruned.
- *  @unstable
- */
-export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
-	if (!state.map) return 0;
-	const r = await mutate(
-		() =>
-			cmd.storeWork(
-				selector,
-				{ kind: "pruneDuplicates", distance, score: state.map?.settings.duplicateScore ?? null },
-				null,
-			),
-		{ mutation: EMPTY_MUTATION, changed: 0, failed: [] },
-	);
-	return r.changed;
-}
-
 /** Seed the viewer's layer with a copy of `loc` under `flag` and open it: the preview's
  *  edits live in the layer and are dropped on close, never the source. */
 async function openPreview(loc: Location, flag: number) {
-	// Rust's active_id must not stay pinned to the previous real location.
-	void cmd.storeSetActive(null);
 	await cmd.storeDrop(VIEWER.name);
 	const r = await cmd.storeEdit(
 		VIEWER,
@@ -898,14 +690,13 @@ export async function openStagedLocation(index: number) {
 
 /** Open an arbitrary location read-only as a seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
-export function previewVirtualLocation(loc: Location) {
+export function previewLocation(loc: Location) {
 	void openPreview(loc, LocationFlag.SeenOverlay);
 }
 
-/** Drop the open row, keeping Rust's `active_id` and `active:change` in step. */
+/** Drop the open row, keeping `active:change` in step. */
 function clearActiveLocation(): void {
 	if (state.openId == null && state.openRow == null) return;
-	void cmd.storeSetActive(null);
 	setState({ openId: null, openRow: null });
 	emitEvent("active:change", null);
 }
@@ -936,7 +727,6 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 		}
 	}
 	setState({ openId: id });
-	void cmd.storeSetActive(id);
 	if (id) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
@@ -976,7 +766,6 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 export function openDuplicateLocation(loc: Location) {
 	setState({ openId: loc.id, openRow: loc, workArea: "location" });
-	void cmd.storeSetActive(loc.id);
 }
 
 /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
@@ -1011,100 +800,15 @@ export function exitPluginMode() {
 	setWorkArea("overview");
 }
 
-// --- Tag CRUD ---
-// A tag operation is display metadata (`storePatchFieldValues` on the interned `tags`
-// field), row membership (the generic `listSet` field op), or both. There is no tag
-// machinery behind these; the metadata rides back on every mutation result.
+// --- Tags ---
 
-/** Patch the `tags` field's value metadata and apply the mutation it returns. */
-async function patchTagValues(patch: {
-	create?: string[];
-	update?: Patch<Tag>[];
-	reorder?: number[];
-}): Promise<Tag[]> {
-	let ids: number[] = [];
-	await mutate(async () => {
-		const r = await cmd.storePatchFieldValues("tags", {
-			create: (patch.create ?? []).map((name) => ({ name })),
-			update: patch.update ?? [],
-			reorder: patch.reorder ?? null,
-		});
-		ids = r.resolved;
-		return r.mutation;
-	});
-	return ids.flatMap((id) => (getTags()[id] ? [getTags()[id]] : []));
-}
-
-/** Get-or-create tags by name (case-insensitive; ids are allocated by the store) and
- *  return them in request order. Pass `selector` to also put the tags on those
- *  locations. Emits `tag:add`. */
-export async function createTags(
-	names: string[],
-	selector: Selector = { type: "Locations", locations: [], name: null },
-): Promise<Tag[]> {
-	if (names.length === 0) return [];
-	const resolved = await patchTagValues({ create: names });
-	if (!(selector.type === "Locations" && selector.locations.length === 0)) {
-		await setTags(
-			resolved.map((t) => t.id),
-			[],
-			selector,
-		);
-	}
-	emitEvent("tag:add", resolved);
-	return resolved;
-}
-
-/** Move the locations `selector` picks that carry any of `tagIds` onto the tag named `name`,
- *  found or created, in one undoable mutation; a null `selector` moves every one of them.
- *  Every other location keeps its tags, so a tag the selection only partly covers splits in
- *  two. */
-export async function renameTagsIn(tagIds: number[], name: string, selector: Selector | null) {
-	const [target] = await createTags([name]);
-	const sources = tagIds.filter((id) => id !== target.id);
-	if (sources.length === 0) return;
-	const carriers = any(...sources.map(tagSelector));
-	await setTags([target.id], sources, selector ? all(carriers, selector) : carriers);
-}
-
-/** Rename or recolor tags. A rename colliding with an existing tag name
- *  (case-insensitive) merges the two: every location is remapped to the survivor
- *  (undoable) and the emptied source's metadata goes dark. */
-export async function updateTags(updates: Patch<Tag>[]) {
-	if (updates.length === 0) return;
-	await patchTagValues({ update: updates });
-	emitEvent("tag:update", updates);
-	// Only a color change needs a selection resync; names never enter the resolve.
-	const recolored = new Set(updates.filter((u) => u.color != null).map((u) => u.id));
-	if (state.selectionList.some((r) => recolored.has(tagIdOf(r.selection.selector) ?? -1))) {
-		void syncSelections();
-	}
-}
-
-/** Delete tags: strip them from every location in one undoable mutation. The emptied
- *  metadata goes dark (count 0 hides it); undo restores the rows and the tags with
- *  them. Emits `tag:remove`. */
-export async function deleteTags(tagIds: number[]) {
-	if (tagIds.length === 0) return;
-	await setTags([], tagIds, {
-		type: "Union",
-		selections: tagIds.map((id) => buildSelection(tagSelector(id))),
-	});
-	emitEvent("tag:remove", tagIds);
-}
-
-/** Persist a new tag display order. */
-export async function reorderTags(orderedIds: number[]) {
-	await patchTagValues({ reorder: orderedIds });
-}
-
-/** Put `add` on every location the selector resolves to and strip `remove` from them,
- *  in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
- *  list-valued field, so this is the same `listSet` any `array` field takes. Locations
- *  already in the requested state are untouched; `add` wins for a tag in both lists. */
-export function setTags(add: number[], remove: number[], selector: Selector) {
-	if (add.length === 0 && remove.length === 0) return Promise.resolve();
-	return applyFieldOp(selector, { kind: "listSet", key: "tags", add, remove }, true);
+/** Strip `tagIds` from every location in one undoable step. The emptied records go dark
+ *  (count 0 hides them); undo restores the rows and the tags with them. */
+export function deleteTags(tagIds: number[]) {
+	return edit.work(
+		{ type: "Union", selections: tagIds.map((id) => buildSelection(tagSelector(id))) },
+		{ kind: "listSet", key: "tags", add: [], remove: tagIds },
+	);
 }
 
 // --- Undo/redo ---
@@ -1135,8 +839,8 @@ export function redo() {
 export async function commitMap(message?: string): Promise<string> {
 	if (!state.mapId) throw new Error("No map open");
 	const t = trace("commit");
-	cancelAutosave();
-	await inflightPersist;
+	autosave.cancel();
+	await autosave.waitForInflight();
 
 	const r = await cmd.storeCommit(state.mapId, message ?? null);
 	t.step("commit");
@@ -1153,7 +857,7 @@ export async function commitMap(message?: string): Promise<string> {
 /** Restore the map to a previous commit's state and reopen it. Clears undo/redo. @unstable */
 export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
-	await flushSave();
+	await autosave.flush();
 	let openResult;
 	let commitResult;
 	try {

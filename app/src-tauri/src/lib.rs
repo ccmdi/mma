@@ -163,7 +163,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             store::commands::store_row,
             store::commands::store_drop,
             store::commands::store_set_derived,
-            store::commands::store_set_active,
             store::commands::store_set_marker_color,
             store::commands::honeycomb_points,
             store::commands::polygon_random_points,
@@ -404,7 +403,7 @@ fn export_consts() -> Result<(), String> {
         ),
         (
             "CLEARABLE_BUILTINS",
-            TsConst::value(store::engine::clearable_builtins()).unstable(),
+            TsConst::value(<types::Location as mma_algebra::Patchable>::CLEARS).unstable(),
         ),
         (
             "EFFECT_CALLS",

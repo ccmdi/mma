@@ -3,7 +3,7 @@
 // answers are delivered as patches or back to the caller.
 
 import type { KeySpec, Location, ProcedureDecl, Selector, Target } from "@/bindings.gen";
-import { holdAutosave } from "@/store/useMapStore";
+import * as autosave from "@/store/autosave";
 import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl } from "@/bindings.gen";
@@ -333,7 +333,7 @@ async function runDecls(
 		if (runId !== null) void cmd.procedureCancel(runId);
 		settle();
 	};
-	const releaseAutosave = holdAutosave();
+	const releaseAutosave = autosave.hold();
 	try {
 		runId = await cmd.procedureRun(decls, force, target);
 		for (const r of pendingResults) if (r.runId === runId) gather(r);

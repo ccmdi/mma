@@ -6,7 +6,7 @@ import { cmd } from "@/lib/commands";
 import type { ValiCountryStatus, ValiLocation } from "@/bindings.gen";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { createTags } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { mapStorage } from "@/plugins/pluginStorage";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { Sidebar } from "@/components/primitives/Sidebar";
@@ -53,7 +53,7 @@ function saveValiProject(project: ValiProject) {
 async function importLocations(valiLocs: ValiLocation[], tagName: string): Promise<number> {
 	let tagId: number | null = null;
 	if (tagName) {
-		tagId = (await createTags([tagName]))[0].id;
+		[tagId] = await edit.values("tags", { create: [{ name: tagName }] });
 	}
 	const locations = valiLocs.map((v) =>
 		createLocation({

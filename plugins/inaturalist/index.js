@@ -264,7 +264,7 @@ var import_react2 = __toESM(require_react());
 var import_react = __toESM(require_react());
 
 // inaturalist/src/taxonomy.ts
-var { storage, getVisibleTags, updateTags } = MMA;
+var { storage, getVisibleTags, edit } = MMA;
 var API_DELAY = 350;
 var delay = (ms) => new Promise((r) => setTimeout(r, ms));
 var DEEP_RANKS = [
@@ -470,7 +470,7 @@ async function sortTagsByTaxonomy(opts, onProgress, signal) {
   }
   if (renames.length > 0) {
     onProgress?.({ phase: "Renaming tags", current: 0, total: renames.length });
-    await updateTags(renames.map((r) => ({ id: r.id, name: r.name })));
+    await edit.values("tags", { update: renames.map((r) => ({ id: r.id, name: r.name })) });
   }
   return { sorted: renames.length, skipped, created: 0 };
 }

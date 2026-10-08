@@ -6,7 +6,6 @@ import { search } from "@/lib/search";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { getMapState } from "@/store/useMapStore";
-import { isVirtualLocation } from "@/types";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 
@@ -39,10 +38,6 @@ export function QuickCopyToMapDialog({
 	);
 
 	const doCopy = (targetMapId: string) => {
-		if (isVirtualLocation({ id: locationId })) {
-			close();
-			return;
-		}
 		cmd
 			.storeCopyLocationsToMap(targetMapId, {
 				type: "Locations",

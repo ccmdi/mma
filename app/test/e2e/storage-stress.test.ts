@@ -458,11 +458,15 @@ describe("Unicode in all fields", () => {
 
 	it("Unicode panoId, extra keys/values, and tag names survive round-trip", async () => {
 		const result = await withApi(async (api) => {
-			const resolved = await api.createTags([
-				"東京タワー", // CJK
-				"café crème", // diacritics
-				"Москва", // Cyrillic
-			]);
+			const resolved = await api.edit
+				.values("tags", {
+					create: [
+						"東京タワー", // CJK
+						"café crème", // diacritics
+						"Москва", // Cyrillic
+					].map((name) => ({ name })),
+				})
+				.then((ids) => ids.map((id) => api.getTag(id)!));
 
 			const loc = api.createLocation({
 				lat: 35.6762,
@@ -844,7 +848,7 @@ describe("Autosave racing with mutations", () => {
 			await api.addLocations(locs);
 
 			// Now fire a save AND more mutations simultaneously
-			const savePromise = api.flushSave();
+			const savePromise = api.autosave.flush();
 			// These mutations happen while save might be serializing the overlay
 			const addPromise = api.addLocations([
 				api.createLocation({
@@ -858,7 +862,7 @@ describe("Autosave racing with mutations", () => {
 			await Promise.all([savePromise, addPromise]);
 
 			// One more save to capture the post-save location
-			await api.flushSave();
+			await api.autosave.flush();
 
 			const count = (
 				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
@@ -919,7 +923,7 @@ describe("Undo while save in-flight", () => {
 			await api.addLocations(batch2);
 
 			// Fire save and undo simultaneously
-			const savePromise = api.flushSave();
+			const savePromise = api.autosave.flush();
 			const undoPromise = api.undo();
 			await Promise.all([savePromise, undoPromise]);
 
@@ -1107,7 +1111,7 @@ describe("Implicit save on close", () => {
 		await deleteMap(mapId);
 	});
 
-	it("edits persist even without explicit flushSave", async () => {
+	it("edits persist even without an explicit flush", async () => {
 		mapId = await createAndOpenMap("Stress ImplicitSave");
 
 		const ids = await addLocs([

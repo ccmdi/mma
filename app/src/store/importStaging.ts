@@ -6,17 +6,11 @@ import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
 import { fitMapToBounds } from "@/lib/map/mapState";
 import { getSettings } from "@/store/settings";
+import * as autosave from "@/store/autosave";
 import { whenSceneSettled } from "@/lib/render/sceneStore";
 import { emit as emitEvent } from "@/lib/events";
-import {
-	settled,
-	getMapState,
-	setWorkArea,
-	updateMapMeta,
-	waitForInflightPersist,
-	cancelAutosave,
-	scheduleAutoCommit,
-} from "./useMapStore";
+import { settled, getMapState, setWorkArea } from "./useMapStore";
+import * as edit from "./edit";
 
 /** Parsed-but-not-committed import shown while `workArea === "import"`. */
 export interface ImportStaging {
@@ -76,7 +70,7 @@ export async function beginImportPaste(text: string) {
 /** Commit the staged import, optionally dropping fields and applying bulk tags. */
 export async function confirmImport(droppedFields: string[], tagNames: string[] = []) {
 	if (!importState.staging) return null;
-	await waitForInflightPersist();
+	await autosave.waitForInflight();
 
 	const settings = importState.staging.preview.settings;
 	const r = await cmd.storeImportFile(droppedFields, tagNames.map((n) => n.trim()).filter(Boolean));
@@ -85,16 +79,16 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 
 	const map = getMapState().map;
 	if (map && Object.keys(settings).length) {
-		await updateMapMeta({ settings: { ...map.settings, ...settings } });
+		await edit.meta({ settings: { ...map.settings, ...settings } });
 	}
 
 	if (r.autoCommit) {
 		const mapId = getMapState().mapId;
 		if (mapId) {
 			await whenSceneSettled();
-			cancelAutosave();
-			await waitForInflightPersist();
-			scheduleAutoCommit(mapId, r.importedCount);
+			autosave.cancel();
+			await autosave.waitForInflight();
+			autosave.scheduleAutoCommit(mapId, r.importedCount);
 		}
 	}
 	return r;

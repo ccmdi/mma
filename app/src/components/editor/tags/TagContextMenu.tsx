@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Selection } from "@/bindings.gen";
-import { query, deleteTags, getActiveSelections, setTags, useMapState } from "@/store/useMapStore";
+import { query, deleteTags, getActiveSelections, useMapState } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagIdOf, tagSelector } from "@/store/selections";
 import { MenuItem, MenuPopup } from "@/components/primitives/Menu";
@@ -102,7 +103,14 @@ function TagContextMenuItems({
 					<MenuItem
 						tone="destructive"
 						disabled={counts.inSel === 0}
-						onClick={() => void setTags([], targets, selectionWithout(targets))}
+						onClick={() =>
+							void edit.work(selectionWithout(targets), {
+								kind: "listSet",
+								key: "tags",
+								add: [],
+								remove: targets,
+							})
+						}
 					>
 						{multi
 							? t(
@@ -124,7 +132,14 @@ function TagContextMenuItems({
 						<MenuItem
 							tone="destructive"
 							disabled={counts.nodeInSel === 0}
-							onClick={() => void setTags([], nodeTargets, selectionWithout(nodeTargets))}
+							onClick={() =>
+								void edit.work(selectionWithout(nodeTargets), {
+									kind: "listSet",
+									key: "tags",
+									add: [],
+									remove: nodeTargets,
+								})
+							}
 						>
 							{nodeTargets.length > 1
 								? t(

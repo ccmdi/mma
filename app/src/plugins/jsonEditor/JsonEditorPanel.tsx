@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import type { Tag } from "@/types";
 import type { Location } from "@/bindings.gen";
-import { createTags } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { locDate } from "@/lib/util/format";
 import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
@@ -22,9 +22,7 @@ function serializeActive(active: Location): string {
 }
 
 async function resolveTagNames(names: string[]): Promise<number[]> {
-	if (names.length === 0) return [];
-	const resolved = await createTags(names);
-	return resolved.map((t) => t.id);
+	return edit.values("tags", { create: names.map((name) => ({ name })) });
 }
 
 export function JsonEditorPanel() {

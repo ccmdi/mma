@@ -15,7 +15,7 @@ describe("Map metadata persistence", () => {
 
 	it("description updates and persists", async () => {
 		await withApi(async (api) => {
-			await api.updateMapMeta({ description: "A test map for e2e" });
+			await api.edit.meta({ description: "A test map for e2e" });
 		});
 
 		await flushAndWait();
@@ -28,7 +28,7 @@ describe("Map metadata persistence", () => {
 
 	it("map settings update and persist", async () => {
 		await withApi(async (api) => {
-			await api.updateMapMeta({
+			await api.edit.meta({
 				settings: {
 					pointAlongRoad: true,
 					preferDirection: "north",
@@ -58,7 +58,7 @@ describe("Map metadata persistence", () => {
 
 	it("scoreBounds update and persist", async () => {
 		await withApi(async (api) => {
-			await api.updateMapMeta({
+			await api.edit.meta({
 				scoreBounds: [-60, 70, -170, 170],
 			});
 		});

@@ -155,13 +155,6 @@ macro_rules! expand_location_fields {
 use crate::types::location_fields;
 location_fields!(expand_location_fields);
 
-/// True for the built-in columns a bulk set may assign (`heading`, `pitch`, `zoom`, `tags`).
-pub fn is_writable_builtin(field: &str) -> bool {
-    BUILTIN_FIELDS
-        .iter()
-        .any(|f| f.key == field && matches!(f.kind, Some(BuiltinFieldKind::Writable)))
-}
-
 /// The columns a row can lack, derived from the resolvers rather than declared
 /// beside them: a default location holds every always-present field, so whatever
 /// it answers `None` for is a column an op may clear.

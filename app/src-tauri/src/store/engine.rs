@@ -7,9 +7,9 @@
 //! `Change` via `finish_mutation`.
 
 use crate::types::{AppError, AppResult};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 
 pub use frame::*;
 pub(crate) use history::*;
@@ -34,7 +34,6 @@ use crate::types::Location;
 use crate::util;
 use arrow_select::concat;
 use arrow_select::take;
-use mma_algebra::Patchable;
 use specta::datatype::DataType;
 use specta::function::FunctionArg;
 use std::mem;
@@ -119,22 +118,21 @@ impl Overlay {
 }
 
 pub struct Store {
-    pub(crate) map_id: Option<String>,
+    /// The open map's row, its extra-field registry included; its tags live in
+    /// `value_meta`. A store no map was opened into holds a default row.
+    pub(crate) meta: Tracked<maps::MapMeta>,
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: u32,
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
-    /// The map's extra-field registry, mirroring `maps.extra.fields` on disk.
-    pub(crate) field_defs: Tracked<HashMap<String, maps::FieldDef>>,
 
     pub(crate) overlay: Tracked<Overlay>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     /// Records for interned field values (`values.rs`), keyed by field: opaque piles
-    /// this engine never reads a shape into. `tags` is the only interned field today;
-    /// loaded on open, persisted write-through.
+    /// this engine never reads a shape into. `tags` is the only interned field today.
     pub(crate) value_meta: HashMap<String, Tracked<HashMap<u32, ValueRecord>>>,
     /// Lazy inverted indexes over enumerable fields, built on the first query that could
     /// use one and keyed by field. Postings snapshot the live view at build time; the
@@ -171,13 +169,12 @@ impl Default for Store {
 impl Store {
     pub fn new() -> Self {
         Self {
-            map_id: None,
+            meta: Tracked::default(),
             batch: None,
             mmap_handle: None,
             next_id: 1,
             version: 0,
             alive_count: Tracked::default(),
-            field_defs: Tracked::default(),
             overlay: Tracked::default(),
             render: RenderState {
                 cells: [const { None }; 32],
@@ -188,9 +185,7 @@ impl Store {
             selections: SelectionState {
                 resolved: Vec::new(),
                 node_counts: HashMap::new(),
-                version: 0,
                 ids: RoaringBitmap::new(),
-                active_id: None,
             },
             value_meta: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
@@ -215,7 +210,7 @@ impl Store {
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
         self.edits.ship();
-        self.field_defs.ship();
+        self.meta.ship();
         let value_counts = Some(self.eager_value_counts());
         let value_meta = Some(
             self.value_meta
@@ -228,13 +223,15 @@ impl Store {
         );
         StoreStatus {
             version: self.version,
-            values: EngineValues {
+            derived: Derived {
                 location_count: Some(*self.alive_count),
                 can_undo: Some(self.edits.undo_len() > 0),
                 can_redo: Some(self.edits.redo_len() > 0),
                 value_counts,
                 value_meta,
-                field_defs: Some((*self.field_defs).clone()),
+                field_defs: Some(self.meta.extra.fields.clone()),
+                selection_counts: Some(self.selections.node_counts.clone()),
+                dead_values: None,
             },
         }
     }
@@ -254,16 +251,26 @@ impl Store {
     /// result. The changeset is the single source of truth; the frame and the selection
     /// sync are two projections of it.
     pub(crate) fn finish_mutation(&mut self, changes: &Change) -> MutationResult {
-        self.finish(changes, false)
+        self.finish(changes, &Piles::new(), false)
+    }
+
+    /// [`Store::finish_mutation`] for a write that also moved records.
+    pub(crate) fn finish_entry(&mut self, entry: &Entry) -> MutationResult {
+        self.finish(&entry.rows, &entry.piles, false)
     }
 
     /// Finish a change to the selection list itself: no row moves, and the frame restates
     /// every row's selection.
     pub(crate) fn finish_selection_change(&mut self) -> MutationResult {
-        self.finish(&Change::default(), true)
+        self.finish(&Change::default(), &Piles::new(), true)
     }
 
-    fn finish(&mut self, changes: &Change, selections_replaced: bool) -> MutationResult {
+    fn finish(
+        &mut self,
+        changes: &Change,
+        piles: &Piles,
+        selections_replaced: bool,
+    ) -> MutationResult {
         self.register_fields(changes);
         let before = self.version;
         self.bump();
@@ -282,6 +289,37 @@ impl Store {
             .chain(changes.updated.iter().map(|(_, n)| n))
             .collect();
         let moved_fields = self.reindex(&removed, &added);
+        let dead_values = {
+            let dead: HashMap<String, Vec<u32>> = selections::BUILTIN_FIELDS
+                .iter()
+                .filter(|f| f.interned)
+                .filter_map(|f| {
+                    let mut dead: BTreeSet<u32> = removed
+                        .iter()
+                        .filter_map(|l| {
+                            match selections::RowRef::from_loc(l).resolve_field(f.key) {
+                                Some(serde_json::Value::Array(ids)) => Some(ids),
+                                _ => None,
+                            }
+                        })
+                        .flatten()
+                        .filter_map(|v| v.as_u64().map(|n| n as u32))
+                        .collect();
+                    if !dead.is_empty() {
+                        let counts = self.value_counts(f.key);
+                        dead.retain(|v| counts.get(&v.to_string()).copied().unwrap_or(0) == 0);
+                    }
+                    dead.extend(
+                        piles
+                            .get(f.key)
+                            .into_iter()
+                            .flat_map(|d| d.removed.iter().map(|(id, _)| *id)),
+                    );
+                    (!dead.is_empty()).then(|| (f.key.to_string(), dead.into_iter().collect()))
+                })
+                .collect();
+            (!dead.is_empty()).then_some(dead)
+        };
 
         // A metadata-only mutation (a value rename or reorder, a create with nothing to
         // assign) moves no rows, so there is no membership to re-test.
@@ -304,7 +342,7 @@ impl Store {
         // change needs no second channel: a row that only gained or lost a selection comes
         // out as a patch. Only a full resolve restates every cell's membership, which costs
         // O(rows in the affected cells) where the patches cost O(changed).
-        let changed = membership_delta.map(|md| md.changed).unwrap_or_default();
+        let changed = membership_delta.unwrap_or_default();
         let cells = self.derive_cell_frames(changes, &changed);
         let restated = full_resolve || selections_replaced;
         let frame = Frame {
@@ -318,7 +356,6 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
-        let selections = (has_selections || selections_replaced).then(|| self.selection_sync());
         let value_counts = (!moved_fields.is_empty()).then(|| {
             moved_fields
                 .iter()
@@ -333,30 +370,32 @@ impl Store {
                 .collect();
             (!changed.is_empty()).then_some(changed)
         };
-        let mut values = EngineValues {
+        let mut derived = Derived {
             value_counts,
             value_meta,
-            field_defs: self.field_defs.take_changed(),
+            field_defs: self.meta.ship().then(|| self.meta.extra.fields.clone()),
+            selection_counts: (has_selections || selections_replaced)
+                .then(|| self.selections.node_counts.clone()),
+            dead_values,
             ..Default::default()
         };
         if self.alive_count.ship() {
-            values.location_count = Some(*self.alive_count);
+            derived.location_count = Some(*self.alive_count);
         }
         if self.edits.ship() {
-            values.can_undo = Some(self.edits.undo_len() > 0);
-            values.can_redo = Some(self.edits.redo_len() > 0);
+            derived.can_undo = Some(self.edits.undo_len() > 0);
+            derived.can_redo = Some(self.edits.redo_len() > 0);
         }
         let keys = changes.keys();
         let result = MutationResult {
             version: self.version,
             added: keys.added.clone(),
         };
-        if !changes.is_empty() || !values.is_empty() || selections.is_some() {
+        if !changes.is_empty() || !derived.is_empty() {
             self.changes.send(ChangeEvent {
                 version: self.version,
                 keys,
-                values,
-                selections,
+                derived,
             });
         }
         result
@@ -695,13 +734,13 @@ impl FunctionArg for WindowLabel {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Open-time snapshot: the same `values` a mutation result carries, with every field
+/// Open-time snapshot: the same derived state a change carries, with every field
 /// present. The one full picture JS ever receives; everything after is a delta.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStatus {
     pub version: u64,
-    pub values: EngineValues,
+    pub derived: Derived,
 }
 
 /// Something that was correct at revision `rev` of its source: a consumer's watermark
@@ -740,7 +779,7 @@ impl<T> At<T> {
 /// itself, and where in the store it lives. The slot passthroughs are what let `valid`
 /// and `build` read the whole store the value sits inside: [`Ensured::with`] takes the
 /// value out of its slot, consults the store unencumbered, and puts it back.
-pub(crate) trait Derived: Sized {
+pub(crate) trait Cached: Sized {
     fn valid(&self, store: &Store) -> bool;
     fn build(store: &Store) -> Self;
     fn slot(store: &mut Store) -> &mut Ensured<Self>;
@@ -761,7 +800,7 @@ impl<T> Default for Ensured<T> {
     }
 }
 
-impl<T: Derived> Ensured<T> {
+impl<T: Cached> Ensured<T> {
     /// Ensure, then read beside the store: the closure gets the value and the store as
     /// shared borrows, so answers can be checked against live rows in the same pass.
     pub(crate) fn with<R>(store: &mut Store, f: impl FnOnce(&T, &Store) -> R) -> R {
@@ -838,7 +877,6 @@ impl<T> Tracked<T> {
         self.rev += 1;
     }
 
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
     pub(crate) fn rev(&self) -> u64 {
         self.rev
     }
@@ -900,7 +938,6 @@ mod mutations;
 mod persist;
 pub(crate) mod query;
 mod render;
-mod tags;
 mod values;
 
 #[cfg(test)]
@@ -914,41 +951,4 @@ pub mod bench;
 /// The engine's own write on every real change to a row.
 fn touch(loc: &mut Location) {
     loc.modified_at = Some(util::now_unix());
-}
-
-/// The built-in columns a bulk clear can actually empty. Probed by running the real
-/// thing: write null through the real patch path and see whether the field is gone
-/// afterwards. That catches both failure modes at once -- a column the engine refills
-/// through `touch`, and one whose patch field cannot express null at all (a plain
-/// `Option<T>` reads null as "unchanged", so the delete would report rows changed and
-/// do nothing).
-pub fn clearable_builtins() -> &'static [&'static str] {
-    static KEYS: OnceLock<Vec<&'static str>> = OnceLock::new();
-    KEYS.get_or_init(|| {
-        selections::optional_builtins()
-            .iter()
-            .copied()
-            .filter(|key| {
-                let populated = Location {
-                    pano_id: Some("p".into()),
-                    tags: vec![1],
-                    modified_at: Some(1),
-                    ..Location::default()
-                };
-                let mut assignments = serde_json::Map::new();
-                assignments.insert((*key).to_string(), serde_json::Value::Null);
-                let Ok(patch) = assign_patch(populated.id, &assignments, populated.flags) else {
-                    return false;
-                };
-                let mut cleared = populated.patched(&patch);
-                touch(&mut cleared);
-                selections::RowRef::from_loc(&populated)
-                    .resolve_field(key)
-                    .is_some()
-                    && selections::RowRef::from_loc(&cleared)
-                        .resolve_field(key)
-                        .is_none()
-            })
-            .collect()
-    })
 }

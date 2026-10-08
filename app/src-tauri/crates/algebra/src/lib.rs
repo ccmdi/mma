@@ -2,7 +2,7 @@
 //! behind. Nothing here knows what the values are.
 
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::hash::Hash;
 
 type Json = serde_json::Map<String, Value>;
@@ -48,10 +48,14 @@ pub trait Patchable: Sized {
     const WRITES: &'static [(&'static str, &'static str)];
     /// The wire names of the fields a patch changes key by key.
     const MERGED: &'static [&'static str];
+    /// The wire names of the fields a null in a patch leaves empty.
+    const CLEARS: &'static [&'static str];
     /// This value with `patch` written over it.
     fn patched(&self, patch: &Self::Patch) -> Self;
     /// The patch that turns `old` into `new`.
     fn between(old: &Self, new: &Self) -> Self::Patch;
+    /// This whole value as a patch: every field a patch writes, set.
+    fn to_patch(&self) -> Self::Patch;
 }
 
 /// A change to some of a `T`'s fields: an absent field is unchanged.
@@ -97,8 +101,16 @@ impl Merge for Json {
 
 /// A value addressed by key wherever it lives.
 pub trait Keyed {
-    type Key: Copy + Eq + Hash + Ord;
+    type Key: Clone + Eq + Hash + Ord;
     fn key(&self) -> Self::Key;
+}
+
+/// A table row: a value at its key.
+impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
+    type Key = K;
+    fn key(&self) -> K {
+        self.0.clone()
+    }
 }
 
 /// An intent for the row at one key: what it becomes, a patch over it, or that it goes.
@@ -162,15 +174,16 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
         below: impl Fn(T::Key) -> Option<T> + 'a,
         apply: impl Fn(&T, &Patch<T>) -> T + 'a,
     ) -> impl Iterator<Item = (T::Key, Option<T>, Option<T>)> + 'a {
-        self.ops.keys().map(move |&key| {
-            let before = below(key);
-            let after = self.get(key, before.clone(), &apply);
+        self.ops.keys().map(move |key| {
+            let before = below(key.clone());
+            let after = self.get(key.clone(), before.clone(), &apply);
+            let key = key.clone();
             (key, before, after)
         })
     }
 
     pub fn keys(&self) -> impl Iterator<Item = T::Key> + '_ {
-        self.ops.keys().copied()
+        self.ops.keys().cloned()
     }
 
     /// Whether `key` has an intent here.
@@ -217,7 +230,7 @@ pub struct Counts {
 
 /// What one write did to the rows: each row as it was and as it became. The inverse
 /// undoes it, and `then` composes two into one.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct Change<T> {
     /// The rows it created.
     pub added: Vec<T>,
@@ -299,7 +312,7 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
             match rows.get_mut(&key) {
                 Some(row) => row.1 = after,
                 None => {
-                    order.push(key);
+                    order.push(key.clone());
                     rows.insert(key, (before, after));
                 }
             }
@@ -352,6 +365,29 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
         let (added, removed) = (self.added.iter(), self.removed.iter());
         let updated = self.updated.iter().map(|(_, n)| n);
         added.chain(removed).chain(updated).map(T::key).max()
+    }
+}
+
+impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
+    /// What turning table `before` into `after` did at `keys`.
+    pub fn at(
+        before: &HashMap<K, V>,
+        after: &HashMap<K, V>,
+        keys: impl IntoIterator<Item = K>,
+    ) -> Self {
+        let row = |table: &HashMap<K, V>, k: &K| table.get(k).map(|v| (k.clone(), v.clone()));
+        let keys: BTreeSet<K> = keys.into_iter().collect();
+        Self::from_rows(keys.iter().map(|k| (row(before, k), row(after, k))))
+    }
+
+    /// Make `table` hold every row as this change leaves it.
+    pub fn apply_to(&self, table: &mut HashMap<K, V>) {
+        for (k, _) in &self.removed {
+            table.remove(k);
+        }
+        for (k, v) in self.added.iter().chain(self.updated.iter().map(|(_, n)| n)) {
+            table.insert(k.clone(), v.clone());
+        }
     }
 }
 

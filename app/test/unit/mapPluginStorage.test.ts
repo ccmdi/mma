@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { flushSave, getMapState, patchMapMeta } from "@/store/useMapStore";
+import { getMapState } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
+import * as autosave from "@/store/autosave";
 import { mapStorage } from "@/plugins/pluginStorage";
 
 vi.mock("@/store/mapList", () => ({
@@ -42,7 +44,7 @@ beforeEach(() => openMap("a"));
 
 afterEach(async () => {
 	vi.mocked(cmd.storeUpdateMapMeta).mockImplementation(async () => null);
-	await flushSave();
+	await autosave.flush();
 	const s = getMapState() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
@@ -50,42 +52,26 @@ afterEach(async () => {
 });
 
 describe("map metadata writes", () => {
-	it("start one at a time, in the order they were made", async () => {
+	it("fire immediately and whole; ordering is the store's", async () => {
 		const settle = holdWrites();
-		void patchMapMeta({ id: "a", name: "first" });
-		void patchMapMeta({ id: "b", name: "second" });
+		void edit.meta({ id: "a", name: "first" });
+		void edit.meta({ id: "b", name: "second" });
 		await new Promise((r) => setTimeout(r));
-		expect(cmd.storeUpdateMapMeta).toHaveBeenCalledTimes(1);
-
-		await settle();
 		expect(vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.id)).toEqual([
 			"a",
 			"b",
 		]);
 		await settle();
+		await settle();
 	});
 
-	it("fold a burst to one map into a single write of its last state", async () => {
-		const settle = holdWrites();
-		void patchMapMeta({ id: "a", settings: { exportZoom: true } });
-		await new Promise((r) => setTimeout(r));
-		void patchMapMeta({ id: "a", settings: { exportZoom: false } });
-		void patchMapMeta({ id: "a", settings: { exportZoom: true, pinResolve: false } });
-		await settle();
-		await settle();
-		expect(sentSettings()).toEqual([{ exportZoom: true }, { exportZoom: true, pinResolve: false }]);
-	});
-
-	it("are all saved once flushSave resolves", async () => {
-		const settle = holdWrites();
-		void patchMapMeta({ id: "a", name: "first" });
-		void patchMapMeta({ id: "a", name: "second" });
-		let flushed = false;
-		void flushSave().then(() => (flushed = true));
-		await settle();
-		expect(flushed).toBe(false);
-		await settle();
-		expect(flushed).toBe(true);
+	it("schedule the save that persists them", async () => {
+		vi.useFakeTimers();
+		await edit.meta({ id: "a", name: "first" });
+		expect(cmd.storeSaveDirty).not.toHaveBeenCalled();
+		await vi.runAllTimersAsync();
+		expect(cmd.storeSaveDirty).toHaveBeenCalledTimes(1);
+		vi.useRealTimers();
 	});
 });
 

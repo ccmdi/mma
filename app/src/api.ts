@@ -4,6 +4,8 @@ export type { ProcedureHost, ProcedureRequest, ProcedureResponse } from "@/lib/d
 
 import * as consts from "@/bindings.consts";
 import * as store from "@/store/useMapStore";
+import * as autosave from "@/store/autosave";
+import * as edit from "@/store/edit";
 import * as selectionOps from "@/store/selections";
 import * as selectionActions from "@/store/selectionActions";
 import * as savedSelections from "@/store/savedSelections";
@@ -23,7 +25,7 @@ import * as scope from "@/plugins/scope";
 import * as pluginEvents from "@/plugins/pluginEvents";
 import * as externals from "@/plugins/externals";
 import * as sidecar from "@/plugins/sidecar";
-import * as uiSurface from "@/components/primitives/ui";
+import * as primitives from "@/components/primitives";
 import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as fieldProjections from "@/lib/data/fieldProjections";
@@ -51,6 +53,7 @@ import * as util from "@/lib/util/util";
 
 type ConstsApi = typeof consts;
 type StoreApi = typeof store;
+
 /** Pure transforms over the selection list behind the sidebar. @unstable */
 type SelectionOpsApi = typeof selectionOps;
 /** Editing the selection list the way the sidebar does. @unstable */
@@ -84,7 +87,6 @@ type ScopeApi = typeof scope;
 type PluginEventsApi = typeof pluginEvents;
 type ExternalsApi = typeof externals;
 type SidecarApi = typeof sidecar;
-type UiApi = typeof uiSurface;
 type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
 /** The keys a field can be grouped by. @unstable */
@@ -152,7 +154,6 @@ export interface MMA
 		PluginEventsApi,
 		ExternalsApi,
 		SidecarApi,
-		UiApi,
 		FieldDefsApi,
 		FieldDefRegistryApi,
 		FieldProjectionsApi,
@@ -176,7 +177,15 @@ export interface MMA
 		TestApi,
 		TypesApi,
 		UtilApi,
-		LegacyApi {}
+		LegacyApi {
+	/** Shared UI primitives for plugin sidebars and dialogs. */
+	ui: typeof primitives;
+	/** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
+	autosave: typeof autosave;
+	/** Every write to the open map: its rows, its metadata, an interned field's values, and
+	 *  work run over a selection. */
+	edit: typeof edit;
+}
 
 export type { MMA as MMAApi };
 
@@ -202,7 +211,7 @@ const mma: MMA = {
 	...pluginEvents,
 	...externals,
 	...sidecar,
-	...uiSurface,
+	ui: primitives,
 	...fieldDefs,
 	...fieldDefRegistry,
 	...fieldProjections,
@@ -227,6 +236,8 @@ const mma: MMA = {
 	...types,
 	...util,
 	...legacy,
+	autosave,
+	edit,
 };
 
 declare global {

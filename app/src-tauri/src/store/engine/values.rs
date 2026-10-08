@@ -16,7 +16,6 @@
 
 use super::*;
 use crate::selections;
-use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use mma_algebra::{Merge, Patch};
 use std::collections::HashMap;
@@ -81,9 +80,9 @@ fn merge_record(rec: &mut ValueRecord, mut patch: ValueRecord) {
 /// Merge `source` piles into `target` by case-insensitive `name` matching: matches
 /// remap to the existing target id; misses are inserted as a clone of the source pile
 /// under a fresh id above `floor` (the highest id the target's data or metadata
-/// already uses). Returns the `{source_id -> target_id}` remap table (keyed by each
-/// source pile's position) and whether `target` changed. Single source of truth for
-/// value reconciliation - used by import and cross-map copy.
+/// already uses). Returns the `{source_id -> target_id}` remap table, whose targets are
+/// every record it touched. Single source of truth for value reconciliation - used by
+/// import and cross-map copy.
 ///
 /// Order semantics: source order values are never stored verbatim. Every ordered
 /// source pile whose target has no order yet (newly created, or an existing record
@@ -97,15 +96,13 @@ pub(crate) fn reconcile_values_by_name(
     source: &[(u32, ValueRecord)],
     target: &mut HashMap<u32, ValueRecord>,
     floor: u32,
-) -> (HashMap<u32, u32>, bool) {
+) -> HashMap<u32, u32> {
     let mut next_id = target.keys().max().copied().unwrap_or(0).max(floor) + 1;
     let mut name_to_id: HashMap<String, u32> = target
         .iter()
         .filter_map(|(&id, r)| record_name(r).map(|n| (n.to_lowercase(), id)))
         .collect();
     let mut remap: HashMap<u32, u32> = HashMap::new();
-    let mut created = false;
-    let mut adopted = false;
     let mut claims: Vec<(u32, u32, String)> = Vec::new();
     let mut claimed: HashSet<u32> = HashSet::new();
     for (source_id, rec) in source {
@@ -122,7 +119,6 @@ pub(crate) fn reconcile_values_by_name(
                 fresh.remove("order");
                 target.insert(id, fresh);
                 name_to_id.insert(lower.clone(), id);
-                created = true;
                 id
             }
         };
@@ -135,13 +131,11 @@ pub(crate) fn reconcile_values_by_name(
         for (k, v) in rec {
             if k != "order" && !entry.contains_key(k) {
                 entry.insert(k.clone(), v.clone());
-                adopted = true;
             }
         }
         remap.insert(*source_id, target_id);
     }
     claims.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.2.cmp(&b.2)));
-    let changed = created || adopted || !claims.is_empty();
     let next_order = target
         .values()
         .filter_map(record_order)
@@ -153,7 +147,50 @@ pub(crate) fn reconcile_values_by_name(
             .unwrap()
             .insert("order".into(), (next_order + i as u32).into());
     }
-    (remap, changed)
+    remap
+}
+
+/// Get-or-create records in `meta` for `seeds` (case-insensitive on `name`), returning
+/// each seed's id in request order. A new seed is stored as-is under a fresh id above
+/// `floor`, except `order`, which is assigned past the current display order. Seeds
+/// without a usable `name` are rejected.
+fn intern(
+    meta: &mut HashMap<u32, ValueRecord>,
+    floor: u32,
+    seeds: &[ValueRecord],
+) -> AppResult<Vec<u32>> {
+    let mut name_to_id: HashMap<String, u32> = meta
+        .iter()
+        .filter_map(|(&id, r)| record_name(r).map(|n| (n.to_lowercase(), id)))
+        .collect();
+    let mut next_id = floor + 1;
+    let mut next_order = meta
+        .values()
+        .filter_map(record_order)
+        .max()
+        .map_or(1, |m| m + 1);
+    let mut resolved = Vec::with_capacity(seeds.len());
+    for seed in seeds {
+        let Some(name) = record_name(seed) else {
+            return Err(AppError("an interned value needs a name".into()));
+        };
+        let id = match name_to_id.get(&name.to_lowercase()) {
+            Some(&id) => id,
+            None => {
+                let id = next_id;
+                next_id += 1;
+                let mut rec = seed.clone();
+                rec.insert("name".into(), name.into());
+                rec.insert("order".into(), next_order.into());
+                meta.insert(id, rec);
+                next_order += 1;
+                name_to_id.insert(name.to_lowercase(), id);
+                id
+            }
+        };
+        resolved.push(id);
+    }
+    Ok(resolved)
 }
 
 impl Store {
@@ -162,6 +199,14 @@ impl Store {
         selections::BUILTIN_FIELDS
             .iter()
             .any(|f| f.key == field && f.interned)
+    }
+
+    /// `field`'s records as they stand.
+    pub(crate) fn records(&self, field: &str) -> HashMap<u32, ValueRecord> {
+        self.value_meta
+            .get(field)
+            .map(|m| (**m).clone())
+            .unwrap_or_default()
     }
 
     /// Every id `field`'s metadata or data already uses; fresh ids allocate above it.
@@ -182,85 +227,9 @@ impl Store {
         data_max.max(meta_max)
     }
 
-    /// Write `field`'s records to their disk home when they have unsaved edits.
-    /// Write-through: called beside every record edit, the same pattern
-    /// `register_fields` uses for field definitions.
-    pub(crate) fn persist_value_meta(&mut self, field: &str) {
-        let Some(map_id) = self.map_id.clone() else {
-            return;
-        };
-        let Some(meta) = self.value_meta.get_mut(field) else {
-            return;
-        };
-        if !meta.is_unsaved() {
-            return;
-        }
-        if let Ok(conn) = storage::open_db() {
-            let result = match field {
-                "tags" => storage::update_row::<maps::MapMeta>(
-                    &conn,
-                    "maps",
-                    &map_id,
-                    &Patch::<maps::MapMeta> {
-                        id: map_id.clone(),
-                        tags: Some(maps::TagRecords((**meta).clone())),
-                        ..Default::default()
-                    },
-                ),
-                _ => Ok(()),
-            };
-            match result {
-                Ok(()) => meta.mark_saved(),
-                Err(e) => log::error!("[values] persisting '{field}' records failed: {e}"),
-            }
-        }
-    }
-
-    /// Get-or-create records for `seeds` (case-insensitive on `name`), returning each
-    /// seed's id in request order. A new seed is stored as-is except `order`, which is
-    /// assigned past the current display order. Seeds without a usable `name` are
-    /// rejected.
-    pub(crate) fn intern(&mut self, field: &str, seeds: &[ValueRecord]) -> AppResult<Vec<u32>> {
-        let floor = self.intern_floor(field);
-        let meta = self.value_meta.entry(field.to_string()).or_default();
-        let mut name_to_id: HashMap<String, u32> = meta
-            .iter()
-            .filter_map(|(&id, r)| record_name(r).map(|n| (n.to_lowercase(), id)))
-            .collect();
-        let mut next_id = floor + 1;
-        let mut next_order = meta
-            .values()
-            .filter_map(record_order)
-            .max()
-            .map_or(1, |m| m + 1);
-        let mut resolved = Vec::with_capacity(seeds.len());
-        for seed in seeds {
-            let Some(name) = record_name(seed) else {
-                return Err(AppError("an interned value needs a name".into()));
-            };
-            let id = match name_to_id.get(&name.to_lowercase()) {
-                Some(&id) => id,
-                None => {
-                    let id = next_id;
-                    next_id += 1;
-                    let mut rec = seed.clone();
-                    rec.insert("name".into(), name.into());
-                    rec.insert("order".into(), next_order.into());
-                    meta.edit().insert(id, rec);
-                    next_order += 1;
-                    name_to_id.insert(name.to_lowercase(), id);
-                    id
-                }
-            };
-            resolved.push(id);
-        }
-        Ok(resolved)
-    }
-
-    /// Apply one batch of record edits to an interned field: create seeds, merge
-    /// patches, reorder. A rename collision merges values (rows move, one undoable
-    /// edit); everything else moves no rows. Membership goes through the ordinary
-    /// `ListSet` field op.
+    /// Apply one batch of record edits to an interned field as one undoable edit: create
+    /// seeds, merge patches, reorder. A rename collision merges values, moving rows too.
+    /// Membership goes through the ordinary `ListSet` field op.
     pub(crate) fn patch_field_values(
         &mut self,
         field: &str,
@@ -269,7 +238,11 @@ impl Store {
         if !Self::is_interned(field) {
             return Err(AppError(format!("'{field}' does not intern its values")));
         }
-        let resolved = self.intern(field, &patch.create)?;
+        let floor = self.intern_floor(field);
+        let before = self.records(field);
+        let mut meta = before.clone();
+        let resolved = intern(&mut meta, floor, &patch.create)?;
+        let mut touched = resolved.clone();
         let counted: HashSet<u32> = self
             .value_counts(field)
             .keys()
@@ -277,7 +250,6 @@ impl Store {
             .collect();
         let mut merges: HashMap<u32, u32> = HashMap::new();
         {
-            let meta = self.value_meta.entry(field.to_string()).or_default();
             for u in &patch.update {
                 let mut u = u.clone();
                 let Some(id) = u.remove("id").and_then(|v| v.as_u64()).map(|n| n as u32) else {
@@ -302,23 +274,31 @@ impl Store {
                 } else if meta.contains_key(&id) || counted.contains(&id) {
                     // A counted id without a record is a value data knows but metadata
                     // doesn't (foreign import); patching it materializes the pile.
-                    let rec = meta.edit().entry(id).or_default();
-                    merge_record(rec, u);
+                    merge_record(meta.entry(id).or_default(), u);
+                    touched.push(id);
                 }
             }
             if let Some(ordered) = &patch.reorder {
                 for (i, id) in ordered.iter().enumerate() {
-                    if let Some(r) = meta.edit().get_mut(id) {
+                    if let Some(r) = meta.get_mut(id) {
                         r.insert("order".into(), (i as u32).into());
+                        touched.push(*id);
                     }
                 }
             }
         }
-        self.persist_value_meta(field);
         let patches = self.plan_value_merges(field, &merges)?;
+        let piles = Piles::from([(field.to_string(), PileDelta::at(&before, &meta, touched))]);
         Ok(FieldValuesResult {
             resolved,
-            mutation: self.write(patches.into_iter().map(Edit::Put), UndoScope::Entry),
+            mutation: self.write(
+                patches.into_iter().map(Edit::Put),
+                &mut None,
+                Entry {
+                    piles,
+                    ..Default::default()
+                },
+            ),
         })
     }
 

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
 import {
-	createTags,
 	query,
 	getVisibleTags,
 	tagIdsToNames,
 	updateLocations,
 	useMapState,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 
@@ -36,8 +36,8 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 		setNames(next);
 		void (async () => {
 			try {
-				const resolved = next.length > 0 ? await createTags(next) : [];
-				await updateLocations([{ id: locationId, tags: resolved.map((x) => x.id) }]);
+				const tags = await edit.values("tags", { create: next.map((name) => ({ name })) });
+				await updateLocations([{ id: locationId, tags }]);
 			} catch (e) {
 				toast(e instanceof Error ? e.message : t("Could not update tags"));
 			}

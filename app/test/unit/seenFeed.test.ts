@@ -4,6 +4,7 @@ import { createElement, act } from "react";
 import { mount } from "./fixtures/harness";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
+import { LocationFlag } from "@/bindings.consts";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { useSeenFeed } from "@/components/editor/location/useSeenFeed";
@@ -93,8 +94,9 @@ describe("useSeenFeed", () => {
 		);
 	});
 
-	it("a virtual location stages with no locationId", () => {
-		render({ location: loc(-3, "A"), draft: loc(-3, "A") });
+	it("a preview stages with no locationId", () => {
+		const preview = { ...loc(3, "A"), flags: LocationFlag.SeenOverlay };
+		render({ location: preview, draft: preview });
 		expect(seenPanoChanged).toHaveBeenLastCalledWith(
 			expect.objectContaining({ locationId: null }),
 			null,

@@ -1,12 +1,12 @@
 import { memo, useState, useEffect, useRef } from "react";
 import {
 	applySelectionUpdate,
-	createTags,
+	getMapState,
 	getVisibleTags,
-	pruneDuplicates,
 	query,
 	useMapState,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import {
 	composeSelections,
@@ -200,7 +200,8 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleSaveAsTag = async () => {
 		const name = tagName.trim();
 		if (!name || count === 0) return;
-		await createTags([name], selection.selector);
+		const add = await edit.values("tags", { create: [{ name }] });
+		await edit.work(selection.selector, { kind: "listSet", key: "tags", add, remove: [] });
 		setSavingTag(false);
 		setTagName("");
 	};
@@ -327,10 +328,11 @@ export const SelectionRow = memo(function SelectionRow({
 											disabled={count === 0}
 											onClick={() =>
 												void (async () => {
-													const n = await pruneDuplicates(
-														selection.selector,
-														pruneDistance(selection)!,
-													);
+													const { changed: n } = await edit.work(selection.selector, {
+														kind: "pruneDuplicates",
+														distance: pruneDistance(selection)!,
+														score: getMapState().map?.settings.duplicateScore ?? null,
+													});
 													toast(
 														t(
 															{

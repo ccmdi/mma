@@ -10,10 +10,10 @@ import {
 	getMapState,
 	getVisibleTags,
 	addLocations,
-	createTags,
 	useMapState,
 	getTagCounts,
 } from "@/store/useMapStore";
+import * as edit from "@/store/edit";
 import { sortTagsByMode } from "@/lib/util/util";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -23,7 +23,7 @@ import { toast } from "@/lib/util/toast";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
-import { isVirtualLocation, dropLocation } from "@/types";
+import { dropLocation } from "@/types";
 import { cycle } from "@/types/util";
 import { reviewNext, reviewPrev, useReviewSession } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
@@ -126,10 +126,10 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 	/** The open location as it is right now: live camera, staged tags. */
 	const buildDrop = async (): Promise<Location | null> => {
-		if (!location || isVirtualLocation(location)) return null;
+		if (!location) return null;
 		const live = pano.capture();
 		if (!live) return null;
-		const tags = (await createTags(pendingTags)).map((tag) => tag.id);
+		const tags = await edit.values("tags", { create: pendingTags.map((name) => ({ name })) });
 		return dropLocation(location, live, live.panoId ?? location.panoId, tags);
 	};
 
@@ -202,7 +202,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 
 	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
 		const active = getMapState().openRow;
-		if (!active || isVirtualLocation(active)) return false;
+		if (!active) return false;
 		const tag = getVisibleTags().find((t) => t.id === tagId);
 		if (!tag) return false;
 		setPendingTags((cur) =>
@@ -221,7 +221,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
 		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
 			const loc = getMapState().openRow;
-			if (!loc || isVirtualLocation(loc)) return false;
+			if (!loc) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();
 			onDropToMap(mapId)

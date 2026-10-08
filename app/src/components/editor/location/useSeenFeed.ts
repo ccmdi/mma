@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { isVirtualLocation } from "@/types";
+import { isImportPreview, isSeenPreview } from "@/types";
 import { useMapState } from "@/store/useMapStore";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
@@ -25,7 +25,7 @@ export function useSeenFeed() {
 		if (!draft?.panoId || !location) return;
 		seenPanoChanged(
 			{
-				locationId: isVirtualLocation(location) ? null : location.id,
+				locationId: isSeenPreview(location) || isImportPreview(location) ? null : location.id,
 				panoId: draft.panoId,
 				lat: draft.lat,
 				lng: draft.lng,
