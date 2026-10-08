@@ -271,7 +271,7 @@ export async function reviewPrev(): Promise<void> {
 }
 
 /** Delete the current location and advance to the next one. Exits the pass if it
- *  was the last item. Emits `location:remove`. */
+ *  was the last item. */
 export async function reviewDelete(): Promise<void> {
 	if (!session) return;
 	const s = session;
@@ -437,7 +437,9 @@ function onActiveChange(id: number | null): void {
 }
 
 onEvent("active:change", (id) => onActiveChange(id));
-onEvent("location:remove", (ids) => reconcile(ids));
+onEvent("store:change", (e) => {
+	if (e.removed.length) reconcile(e.removed);
+});
 onEvent("map:close", () => {
 	clearProjectTimer();
 	flushSave();

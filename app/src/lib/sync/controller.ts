@@ -1,4 +1,4 @@
-import { bridgeAcrossWindows, emit, LOCATION_DATA_EVENTS, TAG_DATA_EVENTS } from "@/lib/events";
+import { bridgeAcrossWindows, emit, TAG_DATA_EVENTS } from "@/lib/events";
 import { reloadStorage } from "@/plugins/pluginStorage";
 import { isPluginEnabled } from "@/plugins/pluginHost";
 import { registerMapBadges } from "@/store/mapList";
@@ -303,7 +303,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 					onStatus: (s) => statusListeners.forEach((l) => l(s)),
 				},
 			);
-			unsubs = [...LOCATION_DATA_EVENTS, ...TAG_DATA_EVENTS].map((e) =>
+			unsubs = (["store:change", ...TAG_DATA_EVENTS] as const).map((e) =>
 				window.MMA.on(e, () => scheduler?.request()),
 			);
 			scheduler.start();

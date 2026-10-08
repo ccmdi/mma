@@ -167,11 +167,11 @@ fn a_frame_without_a_selection_section_says_so() {
 #[test]
 fn every_sink_gets_the_same_bytes() {
     let (a, b) = (Captured::default(), Captured::default());
-    let mut sinks = FrameSinks::default();
+    let mut sinks = Sinks::default();
     sinks.insert("a".into(), a.sink());
     sinks.insert("b".into(), b.sink());
 
-    sinks.send(&sample_frame());
+    sinks.send(FrameBytes(sample_frame().encode()));
 
     assert_eq!(a.bytes(), vec![sample_frame().encode()]);
     assert_eq!(b.bytes(), a.bytes());
@@ -180,15 +180,15 @@ fn every_sink_gets_the_same_bytes() {
 #[test]
 fn a_sink_that_cannot_take_a_frame_is_dropped() {
     let live = Captured::default();
-    let mut sinks = FrameSinks::default();
+    let mut sinks = Sinks::default();
     sinks.insert("live".into(), live.sink());
     sinks.insert(
         "gone".into(),
         Channel::new(|_| Err(tauri::Error::WebviewNotFound)),
     );
 
-    sinks.send(&sample_frame());
-    sinks.send(&sample_frame());
+    sinks.send(FrameBytes(sample_frame().encode()));
+    sinks.send(FrameBytes(sample_frame().encode()));
 
     assert_eq!(live.bytes().len(), 2, "the live window keeps receiving");
     assert!(!sinks.0.contains_key("gone"));

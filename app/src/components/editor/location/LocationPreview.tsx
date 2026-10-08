@@ -16,8 +16,6 @@ import {
 	getVisibleTags,
 	getTagCounts,
 } from "@/store/useMapStore";
-import { emit as emitEvent } from "@/lib/events";
-import { cmd } from "@/lib/commands";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/store/selections";
@@ -227,16 +225,12 @@ export function LocationPreview() {
 		// The draft as it stands, never waiting on enrichment: answers still in flight
 		// follow it onto the saved row, in the save's undo step. The camera is read live.
 		const wasPreview = isSeenPreview(location);
-		const savedId = await land({
+		await land({
 			...pano.captureView(),
 			tags: (await createTags(pendingTags)).map((t) => t.id),
 			// Keep LoadAsPanoId; drop the preview-kind bits.
 			flags: wasPreview ? draft.flags & ~VIRTUAL_FLAGS : draft.flags,
 		});
-		if (savedId != null) {
-			const saved = await cmd.storeRow({ kind: "map" }, savedId);
-			if (saved) emitEvent(wasPreview ? "location:add" : "location:update", [saved]);
-		}
 
 		if (!wasPreview && isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();

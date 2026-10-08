@@ -1,9 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { events } from "@/bindings.gen";
 import {
 	useMapState,
 	getMapState,
-	mutate,
 	removeLocations,
 	discardOpenMap,
 	getTags,
@@ -218,16 +216,6 @@ export function MapEditor() {
 			deactivatePlugins();
 		};
 	}, [map?.id]);
-
-	// Another window mutated this map
-	useEffect(() => {
-		const unlisten = events.storeExternalMutation.listen((e) => {
-			if (e.payload.mapId === getMapState().mapId) void mutate(() => Promise.resolve(e.payload));
-		});
-		return () => {
-			void unlisten.then((f) => f());
-		};
-	}, []);
 
 	// This map was deleted (here or in another window): drop it without flushing
 	// and back out to the list, which self-destructs the editor window on Tauri.

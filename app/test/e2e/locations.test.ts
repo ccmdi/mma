@@ -121,7 +121,7 @@ describe("Location CRUD", () => {
 		await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);
 			const merged = { ...(loc?.extra || {}), altitude: 150, country: "GB" };
-			await api.updateLocations([{ id: id, extra: merged }], { undoable: false });
+			await api.updateLocations([{ id: id, extra: merged }]);
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra?.altitude).toBe(150);
@@ -132,7 +132,7 @@ describe("Location CRUD", () => {
 		await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);
 			const merged = { ...(loc?.extra || {}), city: "London" };
-			await api.updateLocations([{ id: id, extra: merged }], { undoable: false });
+			await api.updateLocations([{ id: id, extra: merged }]);
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra?.altitude).toBe(150);
@@ -141,9 +141,7 @@ describe("Location CRUD", () => {
 
 	it("patch extra deletes key with null", async () => {
 		await withApi(async (api, id) => {
-			await api.updateLocations([{ id: id, extra: { altitude: null } }], {
-				undoable: false,
-			});
+			await api.updateLocations([{ id: id, extra: { altitude: null } }]);
 		}, singleLocId);
 		const loc = await getLoc(singleLocId);
 		expect(loc.extra?.altitude).toBeUndefined();
@@ -260,10 +258,9 @@ describe("Location persistence", () => {
 	it("extras survive save/load", async () => {
 		const extraLoc = await getLoc(persistLocIds[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations(
-				[{ id: l.id, extra: { altitude: 42, country: "US", note: "test" } }],
-				{ undoable: false },
-			);
+			await api.updateLocations([
+				{ id: l.id, extra: { altitude: 42, country: "US", note: "test" } },
+			]);
 		}, extraLoc);
 
 		await flushAndWait();

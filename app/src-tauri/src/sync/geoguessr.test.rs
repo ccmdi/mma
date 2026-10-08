@@ -236,9 +236,6 @@ fn gg_coordinate_deserializes_null_and_absent_codes_alike() {
 fn classifies_auth_and_version_conflict_errors() {
     assert_eq!(http_error("read", 401).0, "auth: read: HTTP 401");
     assert!(!http_error("read", 409).0.starts_with(ErrCode::Auth.wire()));
-    assert!(is_version_conflict(&http_error("write", 409)));
-    assert!(is_version_conflict(&http_error("write", 412)));
-    assert!(!is_version_conflict(&http_error("write", 401)));
 }
 
 #[test]

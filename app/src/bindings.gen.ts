@@ -238,6 +238,11 @@ export const commands = {
 	storeSyncSelections: (sels: ListedSelection[]) => __TAURI_INVOKE<MutationResult>("store_sync_selections", { sels }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
+	/**
+	 *  Hear every change to the open map's rows: `changes` receives the ids each landed
+	 *  change created, deleted and rewrote, whatever caused it.
+	 */
+	storeSubscribeChanges: (changes: Channel<ChangeEvent>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
@@ -387,12 +392,6 @@ export const commands = {
 	 *  rules already exist. Returns the number of rules imported.
 	 */
 	storeImportLegacySavedSelections: (json: string) => __TAURI_INVOKE<number>("store_import_legacy_saved_selections", { json }),
-	/**  Get all local-to-remote id mapping rows for a linked map. */
-	remoteMappingGet: (provider: string, mapId: string) => __TAURI_INVOKE<RemoteMappingRow[]>("remote_mapping_get", { provider, mapId }),
-	/**  Insert or update local-to-remote id mapping rows for a linked map. */
-	remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => __TAURI_INVOKE<null>("remote_mapping_upsert", { provider, mapId, rows }),
-	/**  Remove specific mapping rows by `localIds` for a linked map. */
-	remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => __TAURI_INVOKE<null>("remote_mapping_delete", { provider, mapId, localIds }),
 	/**  Drop all mapping rows for a linked map (unlink). */
 	remoteMappingClear: (provider: string, mapId: string) => __TAURI_INVOKE<null>("remote_mapping_clear", { provider, mapId }),
 	/**
@@ -484,7 +483,6 @@ export const events = {
 	sidecarInstallProgress: makeEvent<SidecarProgress>("sidecar-install-progress"),
 	sidecarLine: makeEvent<SidecarLine>("sidecar-line"),
 	sidecarLog: makeEvent<SidecarLog>("sidecar-log"),
-	storeExternalMutation: makeEvent<ExternalMutation>("store-external-mutation"),
 	storeWarning: makeEvent<StoreWarning>("store-warning"),
 	updateProgress: makeEvent<UpdateProgress>("update-progress"),
 	valiProgress: makeEvent<ValiProgress>("vali-progress"),
@@ -563,6 +561,19 @@ export type CameraFrame = {
 	pitch: number,
 };
 
+
+/**
+ *  One landed change as every watching window hears it: the change by key, and what
+ *  it moved in the map's values and selections.
+ */
+export type ChangeEvent = {
+	/**  The map version this change brought the map to. */
+	version: number,
+	/**  Map values this change moved; an untouched value is absent. */
+	values: EngineValues,
+	/**  Selection state after this change, when it touched any selection. */
+	selections: SelectionSync | null,
+} & Keys<number>;
 
 /**
  *  A commit's created and removed locations. An updated location appears in both
@@ -683,10 +694,6 @@ export type Edit =
 export type EditOpts = {
 	/**  Fold the pending layer's edits into the map after these land in it. */
 	land?: boolean,
-	/**  The undo step to fold into while it is still the newest. */
-	join?: number | null,
-	/**  `false` leaves no undo step. The default is `true`. */
-	recordUndo?: boolean | null,
 };
 
 /**
@@ -781,11 +788,6 @@ export type ExportProgress = {
 
 /**  Why an expression failed to parse. The sentence is TS's to write. */
 export type ExprError = { kind: "invalidNumber"; position: number } | { kind: "unterminatedString" } | { kind: "unexpectedCharacter"; character: string; position: number } | { kind: "expectedSymbol"; symbol: string } | { kind: "chainedComparison" } | { kind: "unexpectedEnd" } | { kind: "missingLeftOperand" } | { kind: "hasTakesFieldName" } | { kind: "unknownFunction"; name: string } | { kind: "wrongArgCount"; name: string; expected: number } | { kind: "unexpectedToken"; token: string } | { kind: "trailingToken"; token: string };
-
-/**  A change another window made to a map, identified by `mapId`. */
-export type ExternalMutation = {
-	mapId: string,
-} & MutationResult;
 
 /**
  *  Field presence count for the editor import preview dialog, letting
@@ -974,6 +976,16 @@ export type KeySpec =
 /**  Calendar component of a date (epoch seconds) or month ("YYYY-MM") field. */
 { kind: "datePart"; part: DatePart; tzLocal: boolean };
 
+/**  A change by key alone: which rows it created, deleted and rewrote. */
+export type Keys<K> = {
+	/**  The rows the change created. */
+	added: K[],
+	/**  The rows the change deleted. */
+	removed: K[],
+	/**  The rows the change rewrote. */
+	updated: K[],
+};
+
 /**  A selection as the sidebar lists it, plus whether it is ghosted. */
 export type ListedSelection = {
 	selection: Selection,
@@ -1126,19 +1138,15 @@ export type MmUser = {
 	username: string,
 };
 
-/**  What one change did to the open map. */
+/**
+ *  What one change did to the open map: its version, and the caller's own added rows.
+ *  Everything else a change moved arrives on the change feed.
+ */
 export type MutationResult = {
 	/**  The map version this change brought the map to. */
 	version: number,
-	selectionSync: SelectionSync | null,
-	values: EngineValues,
-	/**
-	 *  The newest undo step after this change, for a later change to join while it is
-	 *  still the newest.
-	 */
-	step: number | null,
-	/**  The id the first added row was given; the rest follow it in order. */
-	firstId: number | null,
+	/**  The id of each row this edit created, in the order they were written. */
+	added: number[],
 };
 
 /**
@@ -1501,14 +1509,6 @@ export type RateSpec = {
 	units: number,
 	perMs: number,
 	cost?: RateCost,
-};
-
-/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). */
-export type RemoteMappingRow = {
-	localId: number,
-	/**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
-	remoteId: number,
-	hash: string,
 };
 
 /**

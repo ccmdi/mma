@@ -11,8 +11,8 @@ registerPlugin({
     }
 
     // Subscribe to events
-    const unsub = on("location:add", (locations) => {
-      console.log(`[sample] ${(locations as unknown[]).length} location(s) added`);
+    const unsub = on("store:change", (change) => {
+      console.log(`[sample] change: +${change.added.length} -${change.removed.length}`);
     });
 
     // Read/write location extra fields

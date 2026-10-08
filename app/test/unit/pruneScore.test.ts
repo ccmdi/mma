@@ -28,15 +28,8 @@ vi.mock("@/lib/commands", async () => {
 			];
 			h.calls.push({ selector, distance: work.distance, score: work.score });
 			return {
-				mutation: {
-					version: 1,
-					selectionSync: null,
-					step: null,
-					active: null,
-					firstId: null,
-					values: { locationCount: 3 },
-				},
-				changed: 0,
+				mutation: { version: 1, added: [] },
+				changed: 2,
 				failed: [],
 			};
 		},

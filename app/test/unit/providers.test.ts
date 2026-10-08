@@ -6,7 +6,6 @@ vi.mock("@/lib/util/log", () => ({
 }));
 
 import {
-	derivedFrom,
 	registerProvider,
 	getProviders,
 	getEnrichFieldOptions,
@@ -124,52 +123,5 @@ describe("isFieldEnabled", () => {
 	it("respects an explicit enrichFields list", () => {
 		expect(isFieldEnabled(["datetime"], "datetime")).toBe(true);
 		expect(isFieldEnabled(["altitude"], "datetime")).toBe(false);
-	});
-});
-
-describe("derivedFrom", () => {
-	// pano -> meta(imageDate) -> exact(datetime) -> sun(sunAzimuth); tagsOnly reads tags.
-	const suffix = Math.random();
-	registerProvider({
-		id: `meta-${suffix}`,
-		label: "meta",
-		procedure: { ...procedure },
-		requires: ["panoId"],
-		fieldDefs: { [`imageDate${suffix}`]: createFieldDef("month", { label: "Image date" }) },
-	});
-	registerProvider({
-		id: `exact-${suffix}`,
-		label: "exact",
-		procedure: { ...procedure },
-		requires: [`imageDate${suffix}`],
-		fieldDefs: { [`datetime${suffix}`]: createFieldDef("date", { label: "Exact date" }) },
-	});
-	registerProvider({
-		id: `sun-${suffix}`,
-		label: "sun",
-		procedure: { ...procedure },
-		requires: [`datetime${suffix}`],
-		fieldDefs: { [`sunAzimuth${suffix}`]: createFieldDef("number", { label: "Sun" }) },
-	});
-	registerProvider({
-		id: `tagsOnly-${suffix}`,
-		label: "tagsOnly",
-		procedure: { ...procedure },
-		requires: ["tags"],
-		fieldDefs: { [`tagged${suffix}`]: createFieldDef("string", { label: "Tagged" }) },
-	});
-
-	it("follows requires transitively and leaves unrelated fields alone", () => {
-		const stale = derivedFrom(["panoId"]);
-		expect(stale.has(`imageDate${suffix}`)).toBe(true);
-		expect(stale.has(`datetime${suffix}`)).toBe(true);
-		expect(stale.has(`sunAzimuth${suffix}`)).toBe(true);
-		expect(stale.has(`tagged${suffix}`)).toBe(false);
-	});
-
-	it("starts wherever the change is", () => {
-		const stale = derivedFrom([`datetime${suffix}`]);
-		expect(stale.has(`sunAzimuth${suffix}`)).toBe(true);
-		expect(stale.has(`imageDate${suffix}`)).toBe(false);
 	});
 });

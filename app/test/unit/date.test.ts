@@ -1,16 +1,7 @@
 import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import {
-	parseTypedDate,
-	MONTHS,
-	ymParse,
-	ymFormat,
-	ymFromDate,
-	ymToDate,
-	ymOrdinal,
-	ymFromOrdinal,
-} from "@/lib/util/date";
+import { parseTypedDate, MONTHS, ymParse, ymFormat, ymToDate, ymOrdinal } from "@/lib/util/date";
 import {
 	partsToEpoch,
 	dateParts,
@@ -150,15 +141,6 @@ describe("YYYY-MM codec", () => {
 		expect(ymOrdinal("2020-06")! - ymOrdinal("2019-06")!).toBe(12);
 	});
 
-	it("round-trips through the ordinal", () => {
-		fc.assert(
-			fc.property(fc.integer({ min: 1000, max: 9999 }), fc.integer({ min: 1, max: 12 }), (y, m) => {
-				const s = ymFormat(y, m);
-				expect(ymFromOrdinal(ymOrdinal(s)!)).toBe(s);
-			}),
-		);
-	});
-
 	// `new Date("2019-06")` parses as UTC; every Date this gets compared to in the app is
 	// built locally. A UTC-framed parse lands on the wrong side of a month boundary in any
 	// non-zero offset, so ymToDate must agree with `new Date(y, m-1)` exactly.
@@ -170,15 +152,6 @@ describe("YYYY-MM codec", () => {
 				expect(d.getMonth()).toBe(m - 1);
 				expect(d.getDate()).toBe(1);
 				expect(d.getTime()).toBe(new Date(y, m - 1).getTime());
-			}),
-		);
-	});
-
-	it("ymFromDate is the inverse of ymToDate", () => {
-		fc.assert(
-			fc.property(fc.integer({ min: 1000, max: 9999 }), fc.integer({ min: 1, max: 12 }), (y, m) => {
-				const s = ymFormat(y, m);
-				expect(ymFromDate(ymToDate(s)!)).toBe(s);
 			}),
 		);
 	});

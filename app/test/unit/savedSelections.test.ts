@@ -60,7 +60,6 @@ import {
 	loadSavedSelections,
 	saveCurrentSelections,
 	savedParts,
-	savedSelector,
 } from "@/store/savedSelections";
 import {
 	buildSelection,
@@ -397,27 +396,5 @@ describe("the index and the bodies", () => {
 		await loadSavedSelections(["ghost"]);
 		await loadSavedSelections(["ghost"]);
 		expect(h.calls.filter((c) => c.startsWith("get:"))).toEqual(["get:ghost"]);
-	});
-});
-
-describe("savedSelector", () => {
-	it("matches nothing until the body arrives, then resolves it", async () => {
-		h.rows = [rule(untaggedSelector())];
-		// First read only knows the id: it starts the fetch and matches nothing meanwhile.
-		expect(savedSelector("s1")).toEqual(NOTHING);
-		await loadSavedSelections(["s1"]);
-		expect(savedSelector("s1")).toEqual(untaggedSelector());
-	});
-
-	it("is the whole rule as one resolved Selector", async () => {
-		await saveCurrentSelections("two", [sel(untaggedSelector()), sel(unpannedSelector())]);
-		const selector = savedSelector(getSavedSelectionIndex()[0].id);
-		expect(selector.type).toBe("Union");
-		if (selector.type !== "Union") return;
-		expect(selector.selections.map((c) => c.selector.type)).toEqual(["Filter", "Filter"]);
-	});
-
-	it("matches nothing for an unknown id", () => {
-		expect(savedSelector("nope")).toEqual(NOTHING);
 	});
 });

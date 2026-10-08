@@ -4,26 +4,11 @@ import { describe, it, expect, vi } from "vitest";
 // (absent under vitest). Stub it so the error-isolation test doesn't leak a rejection.
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import {
-	emit,
-	subscribe,
-	subscribeMany,
-	LOCATION_DATA_EVENTS,
-	SELECTION_EVENTS,
-} from "@/lib/events";
+import { emit, subscribe, subscribeMany, SELECTION_EVENTS } from "@/lib/events";
 
 // The group constants are derived from the event registry by prefix. If an event name
 // stops matching its prefix, a whole group silently drops it — pin them explicitly.
 describe("event group constants", () => {
-	it("LOCATION_DATA_EVENTS contains exactly the location:* events", () => {
-		expect([...LOCATION_DATA_EVENTS].sort()).toEqual([
-			"location:add",
-			"location:invalidate",
-			"location:remove",
-			"location:update",
-		]);
-	});
-
 	it("SELECTION_EVENTS is only user-facing selection state", () => {
 		expect([...SELECTION_EVENTS].sort()).toEqual(["selection:change"]);
 	});
@@ -32,13 +17,13 @@ describe("event group constants", () => {
 describe("subscribeMany", () => {
 	it("fans out to every event and the combined unsubscribe detaches all", () => {
 		const fn = vi.fn();
-		const off = subscribeMany(["location:add", "tag:add"], fn);
-		emit("location:add", []);
+		const off = subscribeMany(["tag:remove", "tag:add"], fn);
+		emit("tag:remove", []);
 		emit("tag:add", []);
 		expect(fn).toHaveBeenCalledTimes(2);
 
 		off();
-		emit("location:add", []);
+		emit("tag:remove", []);
 		emit("tag:add", []);
 		expect(fn).toHaveBeenCalledTimes(2);
 	});

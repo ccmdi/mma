@@ -19,12 +19,11 @@ import {
 	getTags,
 	query,
 } from "@/store/useMapStore";
-import { subscribe } from "@/lib/events";
 import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import type { FieldDef } from "@/bindings.gen";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
+import { subscribe } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/pluginStorage";
@@ -371,7 +370,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 
 	useEffect(() => {
 		void recompute();
-		const unsubLoc = subscribeMany(LOCATION_DATA_EVENTS, debouncedRecompute);
+		const unsubLoc = subscribe("store:change", debouncedRecompute);
 		const unsubSel = subscribe("selection:change", debouncedRecompute);
 		return () => {
 			unsubLoc();

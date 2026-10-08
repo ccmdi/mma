@@ -15,7 +15,6 @@ fn parses_name_version_and_serve() {
         r#"{"sidecar":{"name":"mma-vision","version":"1.0.0","serve":["search-text"],"sha256-windows-x64":"abc"}}"#,
     );
     assert_eq!(s.name, "mma-vision");
-    assert_eq!(s.version.as_deref(), Some("1.0.0"));
     assert_eq!(s.serve, vec!["search-text"]);
 }
 

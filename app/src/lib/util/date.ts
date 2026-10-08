@@ -45,10 +45,6 @@ export function ymFormat(y: number, m: number): string {
 	return `${String(y).padStart(4, "0")}-${pad2(m)}`;
 }
 
-export function ymFromDate(d: Date): string {
-	return ymFormat(d.getFullYear(), d.getMonth() + 1);
-}
-
 /** First of the month, local frame. */
 export function ymToDate(s: string): Date | null {
 	const p = ymParse(s);
@@ -65,10 +61,6 @@ export function civilToDate(s: string): Date | null {
 export function ymOrdinal(s: string): number | null {
 	const p = ymParse(s);
 	return p ? p.y * 12 + (p.m - 1) : null;
-}
-
-export function ymFromOrdinal(i: number): string {
-	return ymFormat(Math.floor(i / 12), (i % 12) + 1);
 }
 
 export interface TypedDateOpts {

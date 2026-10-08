@@ -21,7 +21,6 @@ import {
 /** Parsed-but-not-committed import shown while `workArea === "import"`. */
 export interface ImportStaging {
 	preview: EditorImportPreview;
-	source: "file" | "paste";
 }
 
 const EMPTY_IMPORT = { staging: null, positions: new Float32Array(0) };
@@ -48,7 +47,7 @@ export function resetImportState() {
 	void cmd.storeImportCancel().catch((e: unknown) => log.error("[import] cancel failed:", e));
 }
 
-async function setImportStaging(preview: EditorImportPreview, source: "file" | "paste") {
+async function setImportStaging(preview: EditorImportPreview) {
 	let positions = new Float32Array(0);
 	try {
 		const resp = await fetch(mmaBufUrl(preview.previewPositionsPath));
@@ -57,7 +56,7 @@ async function setImportStaging(preview: EditorImportPreview, source: "file" | "
 	} catch (e) {
 		log.error("[import] preview positions fetch failed:", e);
 	}
-	importState = { staging: { preview, source }, positions };
+	importState = { staging: { preview }, positions };
 	emitEvent("import-markers:changed");
 	setWorkArea("import");
 	if (getSettings().panToImported)
@@ -66,12 +65,12 @@ async function setImportStaging(preview: EditorImportPreview, source: "file" | "
 
 /** Import from a file path. */
 export async function beginImportFromPath(path: string) {
-	await setImportStaging(await cmd.storeImportPreview(path), "file");
+	await setImportStaging(await cmd.storeImportPreview(path));
 }
 
 /** Stage pasted text for preview. Throws if no locations are found. */
 export async function beginImportPaste(text: string) {
-	await setImportStaging(await cmd.storeImportPastePreview(text), "paste");
+	await setImportStaging(await cmd.storeImportPastePreview(text));
 }
 
 /** Commit the staged import, optionally dropping fields and applying bulk tags. */

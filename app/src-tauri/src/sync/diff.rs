@@ -111,13 +111,6 @@ pub(crate) fn compute_sync_plan(
 pub(crate) struct SyncPlanCounts {
     pub push: SideCounts,
     pub pull: SideCounts,
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub conflicts: u32,
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub converged: u32,
-    /// Actionable items (push + pull + conflicts); excludes converged base-only advances.
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub actionable: u32,
 }
 
 pub(crate) fn summarize(plan: &SyncPlan) -> SyncPlanCounts {
@@ -126,29 +119,10 @@ pub(crate) fn summarize(plan: &SyncPlan) -> SyncPlanCounts {
         update: s.update.len() as u32,
         delete: s.delete.len() as u32,
     };
-    let push = side(&plan.push);
-    let pull = side(&plan.pull);
-    let conflicts = plan.conflicts.len() as u32;
-    let actionable = push.create
-        + push.update
-        + push.delete
-        + pull.create
-        + pull.update
-        + pull.delete
-        + conflicts;
     SyncPlanCounts {
-        push,
-        pull,
-        conflicts,
-        converged: plan.converged.len() as u32,
-        actionable,
+        push: side(&plan.push),
+        pull: side(&plan.pull),
     }
-}
-
-/// True when there is nothing to push, pull, or resolve (converged base advances are not actionable).
-#[allow(dead_code, reason = "exercised by tests; no production caller")]
-pub(crate) fn is_noop(plan: &SyncPlan) -> bool {
-    summarize(plan).actionable == 0
 }
 
 #[cfg(test)]

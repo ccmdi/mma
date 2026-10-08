@@ -52,12 +52,12 @@ impl EditStacks {
 
     /// Record a new edit: it goes on top of undo, under the cap, and redo is gone.
     /// Returns the `seq` it was stored under.
-    pub(crate) fn record(&mut self, entry: Change) -> u64 {
+    pub(crate) fn record(&mut self, entry: Arc<Change>) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
         self.push_undo(LoggedEdit {
             seq,
-            entry: Some(Arc::new(entry)),
+            entry: Some(entry),
         });
         self.redo.clear();
         seq

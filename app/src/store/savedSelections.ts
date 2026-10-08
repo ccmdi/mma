@@ -15,7 +15,7 @@ import {
 } from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
-import { bridgeAcrossWindows, emit, useEventValue } from "@/lib/events";
+import { bridgeAcrossWindows, emit } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { applySelectionUpdate, getTag, getVisibleTags } from "./useMapStore";
 
@@ -127,11 +127,6 @@ export function getSavedSelectionIndex(): SavedSelectionInfo[] {
 	return index ?? NO_RULES;
 }
 
-/** React hook: the saved selection index, re-rendering on changes. */
-export function useSavedSelectionIndex(): SavedSelectionInfo[] {
-	return useEventValue("saved-selections:changed", getSavedSelectionIndex);
-}
-
 /** Load the full rule bodies for the given `ids`. */
 export async function loadSavedSelections(ids: string[]): Promise<SavedSelection[]> {
 	const missing = ids.filter((id) => !bodies.has(id));
@@ -147,20 +142,6 @@ export async function loadSavedSelections(ids: string[]): Promise<SavedSelection
 export async function loadAllSavedSelections(): Promise<SavedSelection[]> {
 	await loadIndex();
 	return loadSavedSelections((index ?? []).map((r) => r.id));
-}
-
-/** A saved rule as a single `Selector`, resolved against the open map. Matches nothing
- *  until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
- *  re-reads on that event gets the real tree. */
-export function savedSelector(id: string): Selector {
-	const saved = bodies.get(id);
-	if (saved) return remap(saved.selector, saved.tagNames);
-	if (!bodies.has(id)) {
-		void loadSavedSelections([id]).then((rows) => {
-			if (rows.length > 0) emit("saved-selections:changed");
-		});
-	}
-	return NOTHING;
 }
 
 /** A rule is only ever inserted or deleted, never edited, so id and name identify the

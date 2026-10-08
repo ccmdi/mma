@@ -142,16 +142,6 @@ export function displayColor(s: Selection): RGB {
 	return tag ? hexToRgb(tag.color) : s.color;
 }
 
-/** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
- *  inversion (`false`), or something else (`null`). Display-only. */
-export function panoIdOf(selector: Selector): boolean | null {
-	const { pano, types } = named();
-	if (!types.has(selector.type)) return null;
-	const key = buildSelection(selector).key;
-	if (key === pano.on) return true;
-	return key === pano.off ? false : null;
-}
-
 /** The name a selection carries of its own, when it is one the builders name. */
 function namedLabel(selector: Selector): string | undefined {
 	const { labels, types } = named();
@@ -162,7 +152,6 @@ function namedLabel(selector: Selector): string | undefined {
 let registry: {
 	labels: Map<string, () => string>;
 	types: Set<Selector["type"]>;
-	pano: { on: string; off: string };
 } | null = null;
 
 /** The selections that carry a name of their own, recognised by the key their builder
@@ -186,7 +175,6 @@ function named() {
 		registry = {
 			labels: new Map(all.map((n) => [n.key, n.label])),
 			types: new Set(all.map((n) => n.type)),
-			pano: { on: panoOn.key, off: panoOff.key },
 		};
 	}
 	return registry;

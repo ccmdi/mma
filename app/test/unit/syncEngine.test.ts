@@ -10,7 +10,6 @@ const h = vi.hoisted(() => ({
 	mapId: "map-a" as string | null,
 	reconciles: [] as unknown[][],
 	mutations: [] as unknown[],
-	removedEvents: [] as number[][],
 	result: null as SyncReconcileResult | null,
 }));
 
@@ -29,9 +28,7 @@ vi.mock("@/store/useMapStore", () => ({
 	},
 }));
 vi.mock("@/lib/events", () => ({
-	emit: (name: string, payload: number[]) => {
-		if (name === "location:remove") h.removedEvents.push(payload);
-	},
+	emit: () => {},
 }));
 
 import { reconcile } from "@/lib/sync/engine";
@@ -75,9 +72,6 @@ function memKv(): KeyValueStore {
 }
 
 const mapping: MappingBackend = {
-	get: async () => [],
-	upsert: async () => {},
-	delete: async () => {},
 	clear: async () => {},
 };
 
@@ -100,18 +94,16 @@ beforeEach(() => {
 	h.mapId = MAP;
 	h.reconciles = [];
 	h.mutations = [];
-	h.removedEvents = [];
 	h.result = RESULT;
 });
 
 describe("sync reconcile apply step", () => {
-	it("applies the landed change once, surfaces removals, and advances the link", async () => {
+	it("applies the landed change once and advances the link", async () => {
 		const store = linkedStore();
 		const out = await reconcile(provider, store);
 
 		expect(h.reconciles).toEqual([[PROVIDER, MAP, "r1", null, null]]);
 		expect(h.mutations).toEqual([MUTATION]);
-		expect(h.removedEvents).toEqual([[3]]);
 		expect(store.getLink()?.lastSyncedAt).toBeTruthy();
 		expect(out).toEqual({
 			pushed: RESULT.pushed,
@@ -126,7 +118,6 @@ describe("sync reconcile apply step", () => {
 		const store = linkedStore();
 		await reconcile(provider, store);
 		expect(h.mutations).toEqual([]);
-		expect(h.removedEvents).toEqual([]);
 	});
 
 	it("refuses when the linked map is not the open one, before anything runs", async () => {

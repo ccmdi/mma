@@ -40,18 +40,12 @@ pub struct EditOpts {
     /// Fold the pending layer's edits into the map after these land in it.
     #[specta(optional)]
     pub land: bool,
-    /// The undo step to fold into while it is still the newest.
-    #[specta(optional)]
-    pub join: Option<u64>,
-    /// `false` leaves no undo step. The default is `true`.
-    #[specta(optional)]
-    pub record_undo: Option<bool>,
 }
 
 /// Map state a change affected. Each field is `null` when it did not change.
 // The open-time form (`super::StoreStatus`) has every field present. The JS mirror's type
 // and merge are derived from this struct.
-#[derive(serde::Serialize, Clone, Default, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EngineValues {
     pub location_count: Option<usize>,
@@ -70,21 +64,43 @@ pub struct EngineValues {
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
 }
 
-/// What one change did to the open map.
-// `values` are merged into the JS state mirror (an untouched slice keeps its reference and its
-// subscribers sleep). The markers change through the render frame stamped with `version`.
+impl EngineValues {
+    /// Nothing moved.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.location_count.is_none()
+            && self.can_undo.is_none()
+            && self.can_redo.is_none()
+            && self.value_counts.is_none()
+            && self.value_meta.is_none()
+            && self.field_defs.is_none()
+    }
+}
+
+/// What one change did to the open map: its version, and the caller's own added rows.
+/// Everything else a change moved arrives on the change feed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct MutationResult {
     /// The map version this change brought the map to.
     pub version: u64,
-    pub selection_sync: Option<SelectionSync>,
+    /// The id of each row this edit created, in the order they were written.
+    pub added: Vec<u32>,
+}
+
+/// One landed change as every watching window hears it: the change by key, and what
+/// it moved in the map's values and selections.
+#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeEvent {
+    /// The map version this change brought the map to.
+    pub version: u64,
+    /// The change itself, by key.
+    #[serde(flatten)]
+    pub keys: mma_algebra::Keys<u32>,
+    /// Map values this change moved; an untouched value is absent.
     pub values: EngineValues,
-    /// The newest undo step after this change, for a later change to join while it is
-    /// still the newest.
-    pub step: Option<u64>,
-    /// The id the first added row was given; the rest follow it in order.
-    pub first_id: Option<u32>,
+    /// Selection state after this change, when it touched any selection.
+    pub selections: Option<SelectionSync>,
 }
 
 /// Where an edit lands or a row is read: the map's rows, or a named layer of pending
@@ -118,16 +134,6 @@ pub enum StoreWarning {
     DeltaSetAside,
 }
 
-/// A change another window made to a map, identified by `mapId`.
-#[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
-#[serde(rename_all = "camelCase")]
-#[tauri_specta(event_name = "store-external-mutation")]
-pub struct ExternalMutation {
-    #[serde(flatten)]
-    pub result: MutationResult,
-    pub map_id: String,
-}
-
 impl Store {
     /// Define every `extra` key the rows a change brought in carry that the map has no
     /// definition for yet, with an inferred one, on disk and in memory.
@@ -157,13 +163,10 @@ impl Store {
 /// batch of new locations becomes a mutation -- every add path (direct IPC, uploaded chunks)
 /// ends here, so they cannot drift in what they record.
 pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> MutationResult {
-    let first_id = (!locations.is_empty()).then_some(store.next_id);
     for loc in &mut locations {
         loc.id = store.alloc_id();
     }
-    let mut result = store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry);
-    result.first_id = first_id;
-    result
+    store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry)
 }
 
 /// How a patch batch lands in the undo history.
@@ -308,43 +311,43 @@ impl Store {
                 }
             }
         }
-        let change = Change::from_rows(order.into_iter().filter_map(|id| rows.remove(&id)));
+        let change = Arc::new(Change::from_rows(
+            order.into_iter().filter_map(|id| rows.remove(&id)),
+        ));
         self.put(&change);
-        let mut result = self.finish_mutation(&change);
-        if self.record(change, undo) {
-            self.report(&mut result);
-        }
-        result
+        self.record(&change, undo);
+        self.finish_mutation(&change)
     }
 
     /// The one edit: whole rows added, flat patches written, ids removed, where `target`
     /// says. Edits at an unlanded pending layer are held there until one says `land`;
     /// edits at a landed layer write through and join its step while it is the newest.
+    /// `join` is a run's tracker: the step recorded here is written back for the next
+    /// batch to join while it is still the newest.
     pub(crate) fn edit(
         &mut self,
         target: &Target,
         mut edits: Vec<Edit>,
         land: bool,
-        join: Option<u64>,
+        join: &mut Option<u64>,
         record_undo: bool,
     ) -> MutationResult {
-        let mut first_id = None;
+        let mut added = Vec::new();
         for edit in &mut edits {
             if let Edit::Set(row) = edit {
                 if row.id == 0 {
                     row.id = self.alloc_id();
-                    first_id.get_or_insert(row.id);
+                    added.push(row.id);
                 }
             }
         }
-        let mut join = join;
         let (edits, update_landed) = match target {
             Target::Map => (edits, None),
             Target::Pending { name } => {
                 let entry = self.pending.entry(name.clone()).or_default();
                 match entry.landed {
                     Some(seq) => {
-                        join = join.or(Some(seq));
+                        join.get_or_insert(seq);
                         (edits, Some(name.clone()))
                     }
                     None => {
@@ -356,7 +359,7 @@ impl Store {
                             }
                         }
                         if !land {
-                            return self.held(first_id);
+                            return self.held(added);
                         }
                         let pending = self.pending.remove(name).expect("entry just touched");
                         let (mut sets, mut removed) = (Vec::new(), Vec::new());
@@ -385,20 +388,19 @@ impl Store {
             }
         };
         let undo = match record_undo {
-            true => UndoScope::Run(&mut join),
+            true => UndoScope::Run(join),
             false => UndoScope::Skip,
         };
-        let mut result = self.write(edits, undo);
+        let result = self.write(edits, undo);
         if let Some(name) = update_landed {
             self.pending.insert(
                 name,
                 Pending {
-                    landed: join,
+                    landed: *join,
                     ..Default::default()
                 },
             );
         }
-        result.first_id = first_id;
         result
     }
 
@@ -436,13 +438,10 @@ impl Store {
     }
 
     /// The result of an edit a pending layer held: nothing on the map moved.
-    fn held(&self, first_id: Option<u32>) -> MutationResult {
+    fn held(&self, added: Vec<u32>) -> MutationResult {
         MutationResult {
             version: self.version,
-            selection_sync: None,
-            values: EngineValues::default(),
-            step: None,
-            first_id,
+            added,
         }
     }
 
@@ -458,31 +457,25 @@ impl Store {
     }
 
     /// Record `change` for undo as `undo` says: an entry of its own, or folded into the
-    /// entry of a run while that is still the newest. Whether anything was recorded.
-    fn record(&mut self, change: Change, undo: UndoScope) -> bool {
+    /// entry of a run while that is still the newest.
+    fn record(&mut self, change: &Arc<Change>, undo: UndoScope) {
         if change.is_empty() {
-            return false;
+            return;
         }
         let edits = self.edits.edit();
         match undo {
-            UndoScope::Skip => false,
+            UndoScope::Skip => {}
             UndoScope::Entry => {
-                edits.record(change);
-                true
+                edits.record(Arc::clone(change));
             }
             UndoScope::Run(group) => {
-                let change = match *group {
-                    Some(seq) => match edits.fold_into_newest(seq, change) {
-                        Ok(seq) => {
-                            *group = Some(seq);
-                            return true;
-                        }
-                        Err(change) => change,
-                    },
-                    None => change,
-                };
-                *group = Some(edits.record(change));
-                true
+                if let Some(seq) = *group {
+                    if let Ok(seq) = edits.fold_into_newest(seq, (**change).clone()) {
+                        *group = Some(seq);
+                        return;
+                    }
+                }
+                *group = Some(edits.record(Arc::clone(change)));
             }
         }
     }

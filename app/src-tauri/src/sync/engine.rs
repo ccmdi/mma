@@ -919,24 +919,21 @@ fn apply_pull(
         edits.push(Edit::Remove(id));
     }
 
-    store.edit(&target, Vec::new(), false, None, true);
+    store.edit(&target, Vec::new(), false, &mut None, true);
     if let Some(p) = store.pending.get_mut(&layer) {
         p.incoming.insert("tags".to_string(), piles);
     }
-    let result = store.edit(&target, edits, true, None, true);
-    let rows = match result.first_id {
-        Some(first) => out
-            .pull_creates
-            .iter()
-            .enumerate()
-            .map(|(i, c)| RemoteMappingRow {
-                local_id: first + i as u32,
-                remote_id: c.remote_id,
-                hash: c.hash.clone(),
-            })
-            .collect(),
-        None => Vec::new(),
-    };
+    let result = store.edit(&target, edits, true, &mut None, true);
+    let rows = result
+        .added
+        .iter()
+        .zip(&out.pull_creates)
+        .map(|(&local_id, c)| RemoteMappingRow {
+            local_id,
+            remote_id: c.remote_id,
+            hash: c.hash.clone(),
+        })
+        .collect();
     Ok((Some(result), rows))
 }
 

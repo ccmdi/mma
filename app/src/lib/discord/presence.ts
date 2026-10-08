@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { appWindow } from "@/lib/window";
 import { cmd } from "@/lib/commands";
 import { getMapState } from "@/store/useMapStore";
-import { subscribe, MAP_LIFECYCLE_EVENTS, LOCATION_DATA_EVENTS } from "@/lib/events";
+import { subscribe, MAP_LIFECYCLE_EVENTS } from "@/lib/events";
 import { useSetting } from "@/store/settings";
 import type { DiscordPresenceMode } from "@/store/settings";
 import type { PresenceActivity } from "@/bindings.gen";
@@ -83,7 +83,7 @@ export function useDiscordPresence(): void {
 			sessionStart = null;
 			push();
 		});
-		const unsubData = [...MAP_LIFECYCLE_EVENTS, ...LOCATION_DATA_EVENTS]
+		const unsubData = [...MAP_LIFECYCLE_EVENTS, "store:change" as const]
 			.filter((e) => e !== "map:open" && e !== "map:close")
 			.map((e) => subscribe(e, schedule));
 		// On focus gain, this window takes over presence; on blur, hold last state.

@@ -322,8 +322,6 @@ pub fn sidecar_installed_version(plugin_id: String) -> AppResult<Option<String>>
 #[derive(serde::Deserialize)]
 pub(crate) struct SidecarSpec {
     pub(crate) name: String,
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub(crate) version: Option<String>,
     /// Commands the resident process serves. Anything else runs as a one-shot child.
     #[serde(default)]
     serve: Vec<String>,

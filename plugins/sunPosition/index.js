@@ -167,12 +167,7 @@ async function load(host) {
   rays = daylightRays(lats, lngs, azimuths, altitudes);
   draw(host);
 }
-var DATA_EVENTS = [
-  "location:add",
-  "location:remove",
-  "location:update",
-  "location:invalidate"
-];
+var DATA_EVENTS = ["store:change"];
 function start(host) {
   overlay = host.createDeckOverlay();
   void load(host);

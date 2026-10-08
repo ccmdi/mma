@@ -82,11 +82,11 @@ pub(super) fn stage_parsed(
             engine::Edit::Set(loc)
         })
         .collect();
-    let result = store.edit(&import_target(window), edits, false, None, true);
+    let result = store.edit(&import_target(window), edits, false, &mut None, true);
     if let Some(p) = store.pending.get_mut(&key) {
         p.incoming.insert("tags".to_string(), parsed.tags);
     }
-    result.first_id
+    result.added.first().copied()
 }
 
 /// Write interleaved LE f32 `[lng, lat]` for every location to a temp file.
@@ -307,7 +307,7 @@ pub(crate) fn add_copied_to_store(
             engine::Edit::Set(loc)
         })
         .collect();
-    Ok(store.edit(&engine::Target::Map, edits, false, None, true))
+    Ok(store.edit(&engine::Target::Map, edits, false, &mut None, true))
 }
 
 /// Commit a previously previewed editor import into the open map, optionally
@@ -400,7 +400,7 @@ pub async fn store_import_file(
         if auto_commit {
             store.edits.edit().clear_redo();
         }
-        let mutation = store.edit(&target, edits, true, None, !auto_commit);
+        let mutation = store.edit(&target, edits, true, &mut None, !auto_commit);
         log::debug!(
             "[import] total={:.0}ms locs={}",
             t0.elapsed().as_millis(),

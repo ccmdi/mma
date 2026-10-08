@@ -304,8 +304,8 @@ export async function saveLocation() {
 		const id = api.getMapState().openRow?.id;
 		const saved = window as unknown as { __e2eSaved?: boolean };
 		saved.__e2eSaved = false;
-		const off = api.on("location:update", (updates) => {
-			if (!updates.some((u) => u.id === id)) return;
+		const off = api.on("store:change", (e) => {
+			if (id == null || !(e.updated.includes(id) || e.added.includes(id))) return;
 			off();
 			saved.__e2eSaved = true;
 		});

@@ -2,6 +2,7 @@ use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
 use crate::store::engine::frame::tests::Captured;
+use crate::store::engine::tests::FeedCapture;
 use crate::store::engine::{record_name, record_order, ValueRecord};
 use crate::store::engine::{Store, WindowLabel};
 use crate::store::maps;
@@ -942,7 +943,7 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
     stage_parsed(&mut store, "frames-win", parsed);
     assert!(frames.frames().is_empty());
 
-    store.edit(&import_target("frames-win"), vec![], true, None, true);
+    store.edit(&import_target("frames-win"), vec![], true, &mut None, true);
     let cells = frames.last().cells;
     assert_eq!(cells.iter().map(|c| c.add.len()).sum::<usize>(), 2);
     assert!(cells
@@ -975,10 +976,13 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         ..Default::default()
     };
 
+    let feed = FeedCapture::attach(&mut store);
     let r = add_copied_to_store(&mut store, parsed.locations, parsed.tags).unwrap();
+    let _ = r;
+    let event = feed.last();
 
     // Both copies landed in the target store.
-    assert_eq!(r.values.location_count, Some(2));
+    assert_eq!(event.values.location_count, Some(2));
     let stored = store.collect(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
@@ -1004,12 +1008,16 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     assert!(two_tag.tags.contains(&unique_id));
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
-    let counts = &r.values.value_counts.as_ref().expect("import moves counts")["tags"];
+    let counts = &event
+        .values
+        .value_counts
+        .as_ref()
+        .expect("import moves counts")["tags"];
     assert_eq!(counts["5"], 2);
     assert_eq!(counts[&unique_id.to_string()], 1);
 
     // The reconciled metadata ships on the same result (the receiver renders from it).
-    assert!(r
+    assert!(event
         .values
         .value_meta
         .as_ref()
@@ -1049,7 +1057,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
             })
         })
         .collect();
-    store.edit(&target, edits, true, None, true);
+    store.edit(&target, edits, true, &mut None, true);
 
     let meta = &store.value_meta["tags"];
     let (france, _) = meta

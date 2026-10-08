@@ -11,10 +11,6 @@ let lockedZoom = 0;
 
 const frameCache = new Map<string, CameraFrame>();
 
-export function isViewportLocked() {
-	return locked;
-}
-
 export function getViewportLockInfo() {
 	if (!locked) return null;
 	return { relHeading, relPitch, lockedZoom };
@@ -61,10 +57,4 @@ export async function toggleViewportLock(viewer: PanoViewer): Promise<boolean> {
 	locked = true;
 	emitEvent("viewport-lock:changed");
 	return true;
-}
-
-export function clearViewportLock() {
-	if (!locked) return;
-	locked = false;
-	emitEvent("viewport-lock:changed");
 }

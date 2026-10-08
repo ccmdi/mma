@@ -8,7 +8,6 @@ vi.mock("@/lib/events", () => ({
 	useEventValue: (_: string, get: () => unknown) => get(),
 	subscribeMany: () => () => {},
 	bridgeAcrossWindows: () => {},
-	LOCATION_DATA_EVENTS: [],
 }));
 vi.mock("@/store/useMapStore", () => ({
 	useMapState: (sel: (s: { map: null }) => unknown) => sel({ map: null }),

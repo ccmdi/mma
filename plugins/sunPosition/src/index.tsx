@@ -159,12 +159,7 @@ async function load(host: MapHost) {
 	draw(host);
 }
 
-const DATA_EVENTS = [
-	"location:add",
-	"location:remove",
-	"location:update",
-	"location:invalidate",
-] as const;
+const DATA_EVENTS = ["store:change"] as const;
 
 function start(host: MapHost): () => void {
 	overlay = host.createDeckOverlay();

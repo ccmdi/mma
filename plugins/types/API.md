@@ -736,7 +736,6 @@ addLocations(locs: Location[]): Promise<void>
 
 Add locations to the map. Real ids are assigned and written back into the passed
 objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
-Emits `location:add`.
 
 ### applyFieldOp
 
@@ -750,7 +749,7 @@ applyFieldOp(
 ): Promise<WorkResult>
 ```
 
-Apply a field operation across all locations matching `selector`. Emits `location:invalidate`.
+Apply a field operation across all locations matching `selector`.
 
 ### applySelectionUpdate
 
@@ -999,9 +998,9 @@ mutate<
 >(fn: () => Promise<R>, empty: R): Promise<R>
 ```
 
-Run a mutation, wait for the scene to draw it, apply its result to the map, and schedule a
-save. A result that wraps its mutation comes back whole; `empty` is its answer when no map
-is open. `sceneReached(version)` then tells what the change did to the markers.
+Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
+arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
+is its answer when no map is open.
 
 ### openDuplicateLocation
 
@@ -1416,13 +1415,7 @@ Undo the last edit.
 `stable` · since v0.6.3
 
 ```ts
-updateLocations(
-  updates: Patch<Location>[],
-  opts?: {
-    undoable?: boolean;
-    join?: number | null;
-  },
-): Promise<void>
+updateLocations(updates: Patch<Location>[]): Promise<void>
 ```
 
 Patch locations by id. Only include the fields you're changing; `extra` merges
@@ -2332,16 +2325,6 @@ ui.useCloseDialog(): () => void
 
 ## FieldDefs
 
-### derivedFrom
-
-`unstable` · since v0.10.3
-
-```ts
-derivedFrom(changed: Iterable<string>): Set<string>
-```
-
-Every field transitively derived from the `changed` keys via the provider graph.
-
 ### getAllEnrichKeys
 
 `unstable` · since v0.10.3
@@ -3040,17 +3023,6 @@ OP_LABELS: Record<
 Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
 operators are marked for translation.
 
-### panoIdOf
-
-`unstable` · since v0.11.1
-
-```ts
-panoIdOf(selector: Selector): boolean | null
-```
-
-Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
-inversion (`false`), or something else (`null`). Display-only.
-
 ### panoIdSelector
 
 `unstable` · since v0.11.1
@@ -3446,28 +3418,6 @@ savedParts(saved: SavedSelection): SavedPart[]
 
 A rule's parts: its top-level `Union` is the list it was saved from, anything else is
 a single part.
-
-### savedSelector
-
-`unstable` · since v0.10.0
-
-```ts
-savedSelector(id: string): Selector
-```
-
-A saved rule as a single `Selector`, resolved against the open map. Matches nothing
-until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
-re-reads on that event gets the real tree.
-
-### useSavedSelectionIndex
-
-`unstable` · since v0.10.3
-
-```ts
-useSavedSelectionIndex(): SavedSelectionInfo[]
-```
-
-React hook: the saved selection index, re-rendering on changes.
 
 ## Settings
 
@@ -4648,7 +4598,7 @@ reviewDelete(): Promise<void>
 ```
 
 Delete the current location and advance to the next one. Exits the pass if it
-was the last item. Emits `location:remove`.
+was the last item.
 
 ### reviewedHistoryIds
 
@@ -5413,44 +5363,6 @@ cmd.remoteMappingClear(provider: string, mapId: string): Promise<null>
 
 Drop all mapping rows for a linked map (unlink).
 
-#### cmd.remoteMappingDelete
-
-`unstable` · since v0.8.1
-
-```ts
-cmd.remoteMappingDelete(
-  provider: string,
-  mapId: string,
-  localIds: number[],
-): Promise<null>
-```
-
-Remove specific mapping rows by `localIds` for a linked map.
-
-#### cmd.remoteMappingGet
-
-`unstable` · since v0.8.1
-
-```ts
-cmd.remoteMappingGet(provider: string, mapId: string): Promise<RemoteMappingRow[]>
-```
-
-Get all local-to-remote id mapping rows for a linked map.
-
-#### cmd.remoteMappingUpsert
-
-`unstable` · since v0.8.1
-
-```ts
-cmd.remoteMappingUpsert(
-  provider: string,
-  mapId: string,
-  rows: RemoteMappingRow[],
-): Promise<null>
-```
-
-Insert or update local-to-remote id mapping rows for a linked map.
-
 #### cmd.revealWindow
 
 `unstable` · since v0.10.6
@@ -6199,6 +6111,17 @@ cmd.storeSetMarkerColor(color: [number, number, number]): Promise<null>
 ```
 
 Set the default marker color for new render updates.
+
+#### cmd.storeSubscribeChanges
+
+`unstable` · unreleased
+
+```ts
+cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
+```
+
+Hear every change to the open map's rows: `changes` receives the ids each landed
+change created, deleted and rewrote, whatever caused it.
 
 #### cmd.storeSubscribeFrames
 

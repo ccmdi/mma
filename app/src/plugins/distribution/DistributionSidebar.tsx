@@ -5,7 +5,7 @@ import { cmd } from "@/lib/commands";
 import { query } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
 
-import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
+import { subscribe } from "@/lib/events";
 import { usePluginState, storage } from "@/plugins/pluginStorage";
 import "./distribution.css";
 import { t } from "@/lib/i18n";
@@ -86,7 +86,7 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		const run = () => void refresh();
 		run();
-		return subscribeMany(LOCATION_DATA_EVENTS, run);
+		return subscribe("store:change", run);
 	}, [refresh]);
 
 	const maxCount = entries.length > 0 ? entries[0].count : 1;

@@ -48,11 +48,7 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 
 		// Extra: A and C contribute keys; B (survivor) wins the shared "k" key.
 		const patchExtra = (id: number, extra: Record<string, unknown>) =>
-			withApi(
-				async (api, i, e) => api.updateLocations([{ id: i, extra: e }], { undoable: false }),
-				id,
-				extra,
-			);
+			withApi(async (api, i, e) => api.updateLocations([{ id: i, extra: e }]), id, extra);
 		await patchExtra(A, { k: "fromA", x: "ax" });
 		await patchExtra(B, { k: "fromB" });
 		await patchExtra(C, { y: "cy" });

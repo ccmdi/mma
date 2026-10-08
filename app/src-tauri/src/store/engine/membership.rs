@@ -99,7 +99,7 @@ pub(super) struct MembershipDelta {
 }
 
 /// Updated selection state after a change. `counts` gives each selection's match count.
-#[derive(serde::Serialize, Clone, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SelectionSync {
     /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).

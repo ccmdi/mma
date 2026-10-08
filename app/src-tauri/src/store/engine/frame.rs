@@ -135,6 +135,7 @@ fn pad4(buf: &mut Vec<u8>) {
 }
 
 /// An encoded render frame.
+#[derive(Clone)]
 pub struct FrameBytes(pub Vec<u8>);
 
 impl IpcResponse for FrameBytes {
@@ -150,11 +151,16 @@ impl specta::Type for FrameBytes {
 }
 
 /// The windows watching one store, keyed by window label.
-#[derive(Default)]
-pub(crate) struct FrameSinks(HashMap<String, Channel<FrameBytes>>);
+pub(crate) struct Sinks<T>(HashMap<String, Channel<T>>);
 
-impl FrameSinks {
-    pub(crate) fn insert(&mut self, label: String, sink: Channel<FrameBytes>) {
+impl<T> Default for Sinks<T> {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
+}
+
+impl<T: Clone + IpcResponse> Sinks<T> {
+    pub(crate) fn insert(&mut self, label: String, sink: Channel<T>) {
         self.0.insert(label, sink);
     }
 
@@ -162,20 +168,19 @@ impl FrameSinks {
         self.0.remove(label);
     }
 
-    /// Encode once and hand the bytes to every window. A window that cannot take them is gone.
-    pub(crate) fn send(&mut self, frame: &Frame) {
-        if self.0.is_empty() {
-            return;
-        }
-        let bytes = frame.encode();
-        self.0
-            .retain(|label, sink| match sink.send(FrameBytes(bytes.clone())) {
-                Ok(()) => true,
-                Err(e) => {
-                    log::warn!("[frames] dropping sink for '{label}': {e}");
-                    false
-                }
-            });
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Hand `msg` to every window. A window that cannot take it is gone.
+    pub(crate) fn send(&mut self, msg: T) {
+        self.0.retain(|label, sink| match sink.send(msg.clone()) {
+            Ok(()) => true,
+            Err(e) => {
+                log::warn!("[sinks] dropping sink for '{label}': {e}");
+                false
+            }
+        });
     }
 }
 

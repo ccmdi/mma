@@ -57,7 +57,6 @@ export function useCommitDiff() {
 /** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
  *  interleaved `[lng, lat]` Float32Arrays. */
 export interface CommitDiffPreview {
-	commitId: string;
 	hash: string;
 	counts: CommitDiff;
 	added: Float32Array;
@@ -110,7 +109,6 @@ export async function beginCommitDiffPreview(commit: CommitInfo) {
 		await cmd.storeGetCommitDelta(commit.mapId, commit.id),
 	);
 	commitDiffPreview = {
-		commitId: commit.id,
 		hash: commit.id.slice(0, 7),
 		counts: { added: added.length, removed: removed.length, modified: modified.length },
 		added: diffPositions(added),

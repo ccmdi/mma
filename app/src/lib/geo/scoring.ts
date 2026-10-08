@@ -3,7 +3,7 @@ import type { LatLng, Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
 import { query, useMapState } from "@/store/useMapStore";
-import { subscribeMany, LOCATION_DATA_EVENTS } from "@/lib/events";
+import { subscribe } from "@/lib/events";
 import { distMeters } from "@/lib/geo/geo";
 import { boundsOfCoords } from "@/lib/map/host";
 
@@ -96,7 +96,7 @@ export function useScoreMaxError(override?: ScoreBounds): number {
 	useEffect(() => {
 		if (!isAuto) return;
 		void refresh();
-		return subscribeMany(LOCATION_DATA_EVENTS, () => void refresh());
+		return subscribe("store:change", () => void refresh());
 	}, [isAuto, refresh]);
 
 	if (isAuto) return resolveScoreMaxErrorFromBounds("auto", autoBbox);

@@ -44,7 +44,7 @@ fn given(state: &StoreState, map_id: &str, rows: Vec<Location>) -> Target {
         &target,
         rows.into_iter().map(Edit::Set).collect(),
         false,
-        None,
+        &mut None,
         true,
     );
     target

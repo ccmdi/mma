@@ -164,20 +164,17 @@ describe("Enrichment — single location via preview", () => {
 		// field a provider produces is not derived again, so the gap is what makes it run.
 		const dtLoc = await readLocation(enrichExistingMetaId);
 		await withApi(async (api, l) => {
-			await api.updateLocations(
-				[
-					{
-						id: l.id,
-						extra: {
-							imageDate: "2099-01",
-							altitude: null,
-							datetime: 9999999999,
-							timezone: "Fake/Zone",
-						},
+			await api.updateLocations([
+				{
+					id: l.id,
+					extra: {
+						imageDate: "2099-01",
+						altitude: null,
+						datetime: 9999999999,
+						timezone: "Fake/Zone",
 					},
-				],
-				{ undoable: false },
-			);
+				},
+			]);
 			return "ok";
 		}, dtLoc);
 
@@ -260,7 +257,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 		// Clear existing extra
 		const clearLoc = await readLocation(fieldsSelectiveId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: null }], { undoable: false });
+			await api.updateLocations([{ id: l.id, extra: null }]);
 			return "ok";
 		}, clearLoc);
 
@@ -344,7 +341,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		// Clear extra and re-enrich
 		const defLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: null }], { undoable: false });
+			await api.updateLocations([{ id: l.id, extra: null }]);
 			return "ok";
 		}, defLoc);
 
@@ -363,9 +360,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("extra patches auto-register known field keys", async () => {
 		const patchLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { datetime: 1700000000 } }], {
-				undoable: false,
-			});
+			await api.updateLocations([{ id: l.id, extra: { datetime: 1700000000 } }]);
 			return "ok";
 		}, patchLoc);
 
@@ -391,9 +386,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("unknown extra fields get auto-registered as known keys", async () => {
 		const customLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { randomCustomThing: "hello" } }], {
-				undoable: false,
-			});
+			await api.updateLocations([{ id: l.id, extra: { randomCustomThing: "hello" } }]);
 			return "ok";
 		}, customLoc);
 

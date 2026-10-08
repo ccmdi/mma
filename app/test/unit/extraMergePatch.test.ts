@@ -9,7 +9,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 type UpdateCall = { id: number; extra?: Record<string, unknown> | null }[];
 const wire = vi.hoisted(() => ({
 	updates: [] as UpdateCall[],
-	undoable: [] as boolean[],
 	gates: [] as (() => void)[],
 	gated: false,
 	active: null as unknown,
@@ -34,10 +33,9 @@ vi.mock("@/lib/commands", async () => {
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),
 		storeOpenMap: async () => openMapResult(),
-		storeEdit: (_target: unknown, edits: unknown, opts: unknown) => {
+		storeEdit: (_target: unknown, edits: unknown) => {
 			const puts = (edits as { put: Record<string, unknown> }[]).map((e) => e.put);
 			wire.updates.push(puts as UpdateCall);
-			wire.undoable.push((opts as { recordUndo?: boolean } | null)?.recordUndo as boolean);
 			if (!wire.gated) return Promise.resolve(mutationResult());
 			return new Promise((res) => wire.gates.push(() => res(mutationResult())));
 		},
@@ -54,12 +52,11 @@ function makeLoc(extra: Record<string, unknown> | null = null): Location {
 }
 
 function patchExtra(loc: Location, extra: Record<string, unknown>) {
-	return updateLocations([{ id: loc.id, extra }], { undoable: false });
+	return updateLocations([{ id: loc.id, extra }]);
 }
 
 beforeEach(async () => {
 	wire.updates.length = 0;
-	wire.undoable.length = 0;
 	wire.gates.length = 0;
 	wire.gated = false;
 	wire.active = null;
@@ -67,13 +64,12 @@ beforeEach(async () => {
 });
 
 describe("extra merge-patch writes via updateLocations", () => {
-	it("ships only the patched keys, non-undoable", async () => {
+	it("ships only the patched keys", async () => {
 		const loc = makeLoc({ existing: 1 });
 		openDuplicateLocation(loc);
 
 		await patchExtra(loc, { datetime: 111 });
 
 		expect(wire.updates[0][0].extra).toEqual({ datetime: 111 });
-		expect(wire.undoable[0]).toBe(false);
 	});
 });

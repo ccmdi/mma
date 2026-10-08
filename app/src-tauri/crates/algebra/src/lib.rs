@@ -192,6 +192,18 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
     }
 }
 
+/// A change by key alone: which rows it created, deleted and rewrote.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Keys<K> {
+    /// The rows the change created.
+    pub added: Vec<K>,
+    /// The rows the change deleted.
+    pub removed: Vec<K>,
+    /// The rows the change rewrote.
+    pub updated: Vec<K>,
+}
+
 /// What one write did to the rows: each row as it was and as it became. The inverse
 /// undoes it, and `then` composes two into one.
 #[derive(Clone, Debug, PartialEq)]
@@ -298,6 +310,15 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
     pub fn touches(&self, key: T::Key) -> bool {
         self.added.iter().any(|r| r.key() == key)
             || self.updated.iter().any(|(_, n)| n.key() == key)
+    }
+
+    /// What it did, by key.
+    pub fn keys(&self) -> Keys<T::Key> {
+        Keys {
+            added: self.added.iter().map(T::key).collect(),
+            removed: self.removed.iter().map(T::key).collect(),
+            updated: self.updated.iter().map(|(_, n)| n.key()).collect(),
+        }
     }
 
     pub fn len(&self) -> usize {

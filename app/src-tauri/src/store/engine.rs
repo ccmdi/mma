@@ -153,7 +153,9 @@ pub struct Store {
     pub(crate) spatial: Ensured<SpatialIndex>,
     /// The windows drawing this store. A store opened afresh has none: each window
     /// subscribes when it loads its scene.
-    pub(crate) frames: FrameSinks,
+    pub(crate) frames: Sinks<FrameBytes>,
+    /// The windows hearing this store's changes, as id summaries of each landed Change.
+    pub(crate) changes: Sinks<ChangeEvent>,
     /// Which fields are computed from which, as the providers declare them.
     pub(crate) derived: ComputedFrom,
     /// Named layers of pending edits held over the map's rows.
@@ -195,7 +197,8 @@ impl Store {
             edits: Tracked::default(),
             bounds: Ensured::default(),
             spatial: Ensured::default(),
-            frames: FrameSinks::default(),
+            frames: Sinks::default(),
+            changes: Sinks::default(),
             derived: ComputedFrom::default(),
             pending: HashMap::new(),
         }
@@ -244,20 +247,6 @@ impl Store {
             .filter(|f| f.field_type.index_shape() != maps::IndexShape::None)
             .map(|f| (f.key.to_string(), self.value_counts(f.key)))
             .collect()
-    }
-
-    /// Put on `result` every scalar JS has not seen at its current value, and remember
-    /// that it has now. Idempotent: a second call in the same mutation adds only what
-    /// moved in between (an undo entry pushed after `finish_mutation`, say).
-    pub(crate) fn report(&mut self, result: &mut MutationResult) {
-        if self.alive_count.ship() {
-            result.values.location_count = Some(*self.alive_count);
-        }
-        if self.edits.ship() {
-            result.values.can_undo = Some(self.edits.undo_len() > 0);
-            result.values.can_redo = Some(self.edits.redo_len() > 0);
-        }
-        result.step = self.edits.newest();
     }
 
     /// Bump version, project the semantic changeset onto the render cells and the
@@ -325,9 +314,11 @@ impl Store {
             cells: Frame::cells_of(cells),
             selection: restated.then(|| self.selection_section()),
         };
-        self.frames.send(&frame);
-        let selection_sync = (has_selections || selections_replaced).then(|| self.selection_sync());
+        if !self.frames.is_empty() {
+            self.frames.send(FrameBytes(frame.encode()));
+        }
 
+        let selections = (has_selections || selections_replaced).then(|| self.selection_sync());
         let value_counts = (!moved_fields.is_empty()).then(|| {
             moved_fields
                 .iter()
@@ -342,21 +333,32 @@ impl Store {
                 .collect();
             (!changed.is_empty()).then_some(changed)
         };
-        let field_defs = self.field_defs.take_changed();
-
-        let mut result = MutationResult {
-            version: self.version,
-            selection_sync,
-            values: EngineValues {
-                value_counts,
-                value_meta,
-                field_defs,
-                ..Default::default()
-            },
-            step: None,
-            first_id: None,
+        let mut values = EngineValues {
+            value_counts,
+            value_meta,
+            field_defs: self.field_defs.take_changed(),
+            ..Default::default()
         };
-        self.report(&mut result);
+        if self.alive_count.ship() {
+            values.location_count = Some(*self.alive_count);
+        }
+        if self.edits.ship() {
+            values.can_undo = Some(self.edits.undo_len() > 0);
+            values.can_redo = Some(self.edits.redo_len() > 0);
+        }
+        let keys = changes.keys();
+        let result = MutationResult {
+            version: self.version,
+            added: keys.added.clone(),
+        };
+        if !changes.is_empty() || !values.is_empty() || selections.is_some() {
+            self.changes.send(ChangeEvent {
+                version: self.version,
+                keys,
+                values,
+                selections,
+            });
+        }
         result
     }
 
@@ -642,6 +644,7 @@ impl StoreManager {
         let map_id = self.window_map.remove(label)?;
         if let Some(store) = self.stores.get_mut(&map_id) {
             store.frames.remove(label);
+            store.changes.remove(label);
         }
         if self.window_map.values().any(|v| v == &map_id) {
             log::debug!("[close_map] {map_id} still open in another window, skipping flush");
@@ -726,10 +729,6 @@ impl<T> At<T> {
 
     pub(crate) fn value(&self) -> &T {
         &self.value
-    }
-
-    pub(crate) fn into_value(self) -> T {
-        self.value
     }
 }
 
@@ -885,15 +884,6 @@ impl<T> Deref for Tracked<T> {
     }
 }
 
-/// Lightweight status for polling: count, version, and whether unsaved changes exist.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SummaryResult {
-    pub location_count: usize,
-    pub version: u64,
-    pub dirty_count: usize,
-}
-
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -923,7 +913,7 @@ mod values;
 
 #[cfg(test)]
 #[path = "engine.test.rs"]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(feature = "bench")]
 #[path = "engine.bench.rs"]

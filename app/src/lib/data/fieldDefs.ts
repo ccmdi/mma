@@ -153,22 +153,3 @@ export function getProviderForField(field: string): Provider | undefined {
 export function isFieldEnabled(enrichFields: string[] | null, key: string): boolean {
 	return (enrichFields ?? getDefaultEnrichKeys()).includes(key);
 }
-
-/** Every field transitively derived from the `changed` keys via the provider graph. @unstable */
-export function derivedFrom(changed: Iterable<string>): Set<string> {
-	const stale = new Set<string>();
-	const queue = [...changed];
-	while (queue.length > 0) {
-		const key = queue.pop()!;
-		for (const p of getProviders()) {
-			if (!p.requires?.includes(key)) continue;
-			for (const out of [...Object.keys(p.fieldDefs ?? {}), ...(p.provides ?? [])]) {
-				if (!stale.has(out)) {
-					stale.add(out);
-					queue.push(out);
-				}
-			}
-		}
-	}
-	return stale;
-}

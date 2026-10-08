@@ -217,13 +217,7 @@ pub fn store_edit(
     let _t = Instant::now();
     with_store!(label, state, |store| {
         let opts = opts.unwrap_or_default();
-        let result = store.edit(
-            &target,
-            edits,
-            opts.land,
-            opts.join,
-            opts.record_undo.unwrap_or(true),
-        );
+        let result = store.edit(&target, edits, opts.land, &mut None, true);
         log::debug!("[cmd] store_edit total={}ms", _t.elapsed().as_millis());
         Ok(result)
     })
@@ -468,9 +462,8 @@ fn copy_to_map(
 
     if mgr.stores.contains_key(&target_map_id) {
         // Target open in some window: insert through the import path (reconcile,
-        // id alloc, counts, field defs, undo, render cells) and emit the resulting
-        // MutationResult. The receiving window applies it via the same mutate() flow
-        // as a local edit - including the save - so we do NOT persist here.
+        // id alloc, counts, field defs, undo, render cells). The change feed tells the
+        // receiving window, whose save scheduling follows it - so we do NOT persist here.
         let target = mgr.store_for_map(&target_map_id)?;
         let t_scan = Instant::now();
         let existing = target.collect(&Selector::Everything);
@@ -480,17 +473,13 @@ fn copy_to_map(
         if copied > 0 {
             let tags = used_tags(&fresh);
             let t_add = Instant::now();
-            let result = import::add_copied_to_store(target, fresh, tags)?;
+            import::add_copied_to_store(target, fresh, tags)?;
             log::debug!(
                 "[cmd] copy_to_map open-target scan={}ms add={}ms total={}ms",
                 scan_ms,
                 t_add.elapsed().as_millis(),
                 _t.elapsed().as_millis()
             );
-            crate::emit_event(ExternalMutation {
-                result,
-                map_id: target_map_id.clone(),
-            });
         }
         return Ok(CopyToMapResult {
             copied,
@@ -645,6 +634,26 @@ pub async fn store_subscribe_frames(
     }
     mgr.store_for_map(&map_id)?
         .subscribe_frames(label.0, frames, &req);
+    Ok(())
+}
+
+/// Hear every change to the open map's rows: `changes` receives the ids each landed
+/// change created, deleted and rewrote, whatever caused it.
+#[tauri::command]
+#[specta::specta]
+pub async fn store_subscribe_changes(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    changes: Channel<ChangeEvent>,
+) -> AppResult<()> {
+    let mut mgr = state.lock()?;
+    let map_id = mgr.map_id_for_window(&label.0)?;
+    for (id, store) in &mut mgr.stores {
+        if *id != map_id {
+            store.changes.remove(&label.0);
+        }
+    }
+    mgr.store_for_map(&map_id)?.changes.insert(label.0, changes);
     Ok(())
 }
 

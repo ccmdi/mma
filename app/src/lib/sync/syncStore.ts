@@ -22,20 +22,6 @@ export interface SyncLink {
 	lastSyncedAt: string | null;
 }
 
-/**
- * One mapping row: stable local id -> the remote handle + last-synced fingerprint. What
- * `remoteId` means is provider-specific (a real remote id, or an index into a positional
- * document); the Rust reconcile owns that interpretation.
- */
-export interface RemoteMappingRow {
-	localId: number;
-	remoteId: number;
-	hash: string;
-}
-
-/** Stable identity key from the durable local id. */
-export const localKey = (localId: number): IdentityKey => `L:${localId}`;
-
 /** Tiny KV surface for the link singleton (matches `MMA.storage(pluginId)`). */
 export interface KeyValueStore {
 	get<T = unknown>(key: string, fallback?: T): T;
@@ -57,20 +43,14 @@ export function listLinks(kv: KeyValueStore, provider: string): SyncLink[] {
 		.filter((l): l is SyncLink => l !== null);
 }
 
-/** Row-oriented mapping persistence (the real impl wraps the Rust `remote_mapping_*` commands). */
+/** Mapping persistence (the real impl wraps the Rust `remote_mapping_clear` command). */
 export interface MappingBackend {
-	get(provider: string, mapId: string): Promise<RemoteMappingRow[]>;
-	upsert(provider: string, mapId: string, rows: RemoteMappingRow[]): Promise<void>;
-	delete(provider: string, mapId: string, localIds: number[]): Promise<void>;
 	clear(provider: string, mapId: string): Promise<void>;
 }
 
 export interface SyncStore {
 	getLink(): SyncLink | null;
 	setLink(link: SyncLink | null): void;
-	getMapping(): Promise<RemoteMappingRow[]>;
-	upsertMapping(rows: RemoteMappingRow[]): Promise<void>;
-	deleteMapping(localIds: number[]): Promise<void>;
 	/** Drop all sync metadata for this map (unlink): the link and every mapping row. */
 	clear(): Promise<void>;
 }
@@ -90,9 +70,6 @@ export function createSyncStore(
 	return {
 		getLink: () => kv.get<SyncLink | null>(key, null),
 		setLink: (link) => (link === null ? kv.remove(key) : kv.set(key, link)),
-		getMapping: () => mapping.get(provider, localMapId),
-		upsertMapping: (rows) => mapping.upsert(provider, localMapId, rows),
-		deleteMapping: (localIds) => mapping.delete(provider, localMapId, localIds),
 		clear: async () => {
 			kv.remove(key);
 			await mapping.clear(provider, localMapId);

@@ -51,6 +51,13 @@ fn nobase() -> HashMap<IdentityKey, String> {
     HashMap::new()
 }
 
+/// Nothing to push, pull, or resolve.
+fn is_noop(plan: &SyncPlan) -> bool {
+    let c = summarize(plan);
+    let side = |s: &SideCounts| s.create + s.update + s.delete == 0;
+    side(&c.push) && side(&c.pull) && plan.conflicts.is_empty()
+}
+
 #[test]
 fn no_changes_anywhere_is_a_noop() {
     let v = [("a", lat(1.0))];
@@ -108,7 +115,6 @@ fn local_modified_remote_unchanged_push_update() {
     let b = [("a", lat(1.0))];
     let plan = compute_sync_plan(&hashes(&b), &state(&[("a", lat(2.0))]), &state(&b));
     assert_eq!(plan.push.update, vec!["a"]);
-    assert_eq!(summarize(&plan).actionable, 1);
 }
 
 #[test]
@@ -222,8 +228,7 @@ fn classifies_a_mixed_batch_correctly_and_summarizes() {
     let c = summarize(&plan);
     assert_eq!((c.push.create, c.push.update, c.push.delete), (1, 1, 1));
     assert_eq!((c.pull.create, c.pull.update, c.pull.delete), (1, 1, 1));
-    assert_eq!(c.conflicts, 1);
-    assert_eq!(c.actionable, 7);
+    assert_eq!(plan.conflicts.len(), 1);
     assert_eq!(plan.push.create, vec!["locnew"]);
     assert_eq!(plan.pull.create, vec!["remnew"]);
     assert_eq!(plan.conflicts[0].key, "conflict");

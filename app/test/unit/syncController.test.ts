@@ -32,7 +32,7 @@ import { setPluginEnabled } from "@/plugins/pluginHost";
 import { getMapBadges } from "@/store/mapList";
 import { subscribe } from "@/lib/events";
 import type { SyncProvider } from "@/lib/sync/provider";
-import type { RemoteMappingRow } from "@/lib/sync/syncStore";
+type RemoteMappingRow = { localId: number; remoteId: number; hash: string };
 
 const PLUGIN = "test-plugin";
 const REMOTE = { id: "r1", name: "Remote", locationCount: 0 };

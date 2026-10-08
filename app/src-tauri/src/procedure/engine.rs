@@ -7,7 +7,7 @@ use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
 use crate::selections::{neighborhood, RowRef, Selector};
-use crate::store::engine::{Edit, ExternalMutation, Store, StoreState, Target, WindowLabel};
+use crate::store::engine::{Edit, Store, StoreState, Target, WindowLabel};
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
@@ -977,7 +977,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
     let mut entries = page.entries;
     if !page.updates.is_empty() {
         let ids: Vec<u32> = page.updates.iter().map(|(_, u)| u.id).collect();
-        let (result, held_rows) = ctx.with_store(|store| {
+        let held_rows = ctx.with_store(|store| {
             let edits = page
                 .updates
                 .iter()
@@ -993,27 +993,23 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 .undo_group
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            let result = store.edit(&ctx.target, edits, false, *group, true);
-            if let Some(step) = result.step {
-                *group = Some(step);
-            }
             // An edit a layer held reaches no window, so each row it now holds rides the
             // result stream instead, as the provider left it.
-            let held = result.step.is_none() && matches!(ctx.target, Target::Pending { .. });
-            Ok((result, held.then(|| store.rows_at(&ctx.target, Some(&ids)))))
-        })?;
-        match held_rows {
-            None => crate::emit_event(ExternalMutation {
-                result,
-                map_id: ctx.map_id.clone(),
-            }),
-            Some(rows) => {
-                for row in rows {
-                    entries.push(ResultEntry {
-                        id: row.id,
-                        json: serde_json::to_string(&row).map_err(|e| AppError(e.to_string()))?,
-                    });
+            let held = match &ctx.target {
+                Target::Pending { name } => {
+                    store.pending.get(name).is_none_or(|p| p.landed.is_none())
                 }
+                Target::Map => false,
+            };
+            store.edit(&ctx.target, edits, false, &mut group, true);
+            Ok(held.then(|| store.rows_at(&ctx.target, Some(&ids))))
+        })?;
+        if let Some(rows) = held_rows {
+            for row in rows {
+                entries.push(ResultEntry {
+                    id: row.id,
+                    json: serde_json::to_string(&row).map_err(|e| AppError(e.to_string()))?,
+                });
             }
         }
     }

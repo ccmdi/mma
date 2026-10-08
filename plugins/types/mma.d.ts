@@ -814,6 +814,12 @@ declare const commands$1: {
     storeSyncSelections: (sels: ListedSelection[]) => Promise<MutationResult>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
+    /**
+     *  Hear every change to the open map's rows: `changes` receives the ids each landed
+     *  change created, deleted and rewrote, whatever caused it.
+     *  @unstable
+     */
+    storeSubscribeChanges: (changes: Channel<ChangeEvent>) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
@@ -979,12 +985,6 @@ declare const commands$1: {
      *  @unstable
      */
     storeImportLegacySavedSelections: (json: string) => Promise<number>;
-    /**  Get all local-to-remote id mapping rows for a linked map. @unstable */
-    remoteMappingGet: (provider: string, mapId: string) => Promise<RemoteMappingRow[]>;
-    /**  Insert or update local-to-remote id mapping rows for a linked map. @unstable */
-    remoteMappingUpsert: (provider: string, mapId: string, rows: RemoteMappingRow[]) => Promise<null>;
-    /**  Remove specific mapping rows by `localIds` for a linked map. @unstable */
-    remoteMappingDelete: (provider: string, mapId: string, localIds: number[]) => Promise<null>;
     /**  Drop all mapping rows for a linked map (unlink). @unstable */
     remoteMappingClear: (provider: string, mapId: string) => Promise<null>;
     /**
@@ -1146,15 +1146,6 @@ declare const events: {
         listen: (cb: __TAURI_EVENT.EventCallback<SidecarLog>) => Promise<__TAURI_EVENT.UnlistenFn>;
         once: (cb: __TAURI_EVENT.EventCallback<SidecarLog>) => Promise<__TAURI_EVENT.UnlistenFn>;
         emit: (payload: SidecarLog) => Promise<void>;
-    };
-    storeExternalMutation: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
-        listen: (cb: __TAURI_EVENT.EventCallback<ExternalMutation>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        once: (cb: __TAURI_EVENT.EventCallback<ExternalMutation>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        emit: (payload: ExternalMutation) => Promise<void>;
-    }) & {
-        listen: (cb: __TAURI_EVENT.EventCallback<ExternalMutation>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        once: (cb: __TAURI_EVENT.EventCallback<ExternalMutation>) => Promise<__TAURI_EVENT.UnlistenFn>;
-        emit: (payload: ExternalMutation) => Promise<void>;
     };
     storeWarning: ((target: _tauri_apps_api_webview.Webview | _tauri_apps_api_window.Window) => {
         listen: (cb: __TAURI_EVENT.EventCallback<StoreWarning>) => Promise<__TAURI_EVENT.UnlistenFn>;
@@ -1333,6 +1324,18 @@ type CameraFrame = {
     pitch: number;
 };
 /**
+ *  One landed change as every watching window hears it: the change by key, and what
+ *  it moved in the map's values and selections.
+ */
+type ChangeEvent = {
+    /**  The map version this change brought the map to. */
+    version: number;
+    /**  Map values this change moved; an untouched value is absent. */
+    values: EngineValues;
+    /**  Selection state after this change, when it touched any selection. */
+    selections: SelectionSync | null;
+} & Keys<number>;
+/**
  *  A commit's created and removed locations. An updated location appears in both
  *  `created` (new version) and `removed` (old version).
  *  @unstable
@@ -1462,10 +1465,6 @@ type Edit =
 type EditOpts = {
     /**  Fold the pending layer's edits into the map after these land in it. */
     land?: boolean;
-    /**  The undo step to fold into while it is still the newest. */
-    join?: number | null;
-    /**  `false` leaves no undo step. The default is `true`. */
-    recordUndo?: boolean | null;
 };
 /**
  *  Preview data for importing a file into the currently open map.
@@ -1607,10 +1606,6 @@ type ExprError = {
     kind: "trailingToken";
     token: string;
 };
-/**  A change another window made to a map, identified by `mapId`. @unstable */
-type ExternalMutation = {
-    mapId: string;
-} & MutationResult;
 /**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
@@ -1846,6 +1841,15 @@ type KeySpec =
     part: DatePart;
     tzLocal: boolean;
 };
+/**  A change by key alone: which rows it created, deleted and rewrote. */
+type Keys<K> = {
+    /**  The rows the change created. */
+    added: K[];
+    /**  The rows the change deleted. */
+    removed: K[];
+    /**  The rows the change rewrote. */
+    updated: K[];
+};
 /**  A selection as the sidebar lists it, plus whether it is ghosted. @unstable */
 type ListedSelection = {
     selection: Selection;
@@ -2008,19 +2012,15 @@ type MmUser = {
     id: number;
     username: string;
 };
-/**  What one change did to the open map. */
+/**
+ *  What one change did to the open map: its version, and the caller's own added rows.
+ *  Everything else a change moved arrives on the change feed.
+ */
 type MutationResult = {
     /**  The map version this change brought the map to. */
     version: number;
-    selectionSync: SelectionSync | null;
-    values: EngineValues;
-    /**
-     *  The newest undo step after this change, for a later change to join while it is
-     *  still the newest.
-     */
-    step: number | null;
-    /**  The id the first added row was given; the rest follow it in order. */
-    firstId: number | null;
+    /**  The id of each row this edit created, in the order they were written. */
+    added: number[];
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -2375,13 +2375,6 @@ type RateSpec = {
     units: number;
     perMs: number;
     cost?: RateCost;
-};
-/**  One mapping row. `hash` is the plugin's content fingerprint (opaque text to us). @unstable */
-type RemoteMappingRow = {
-    localId: number;
-    /**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
-    remoteId: number;
-    hash: string;
 };
 /**
  *  Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
@@ -3426,9 +3419,6 @@ export interface UiState {
     workArea: WorkArea;
     /** @unstable */
     activePluginId: string | null;
-    /** The newest undo step, for a later change to join while it is still the newest.
-     *  @unstable */
-    step: number | null;
 }
 export type MapState = UiState & EngineState;
 /** Per-tag location counts: `valueCounts.tags` re-keyed by numeric id. */
@@ -3530,17 +3520,16 @@ declare const VIEWER: {
 /** The open row as the viewer's layer last read it. The layer is the single writer;
  *  everything else only looks. */
 declare function setOpenRow(row: Location | null): void;
-/** Run a mutation, wait for the scene to draw it, apply its result to the map, and schedule a
- *  save. A result that wraps its mutation comes back whole; `empty` is its answer when no map
- *  is open. `sceneReached(version)` then tells what the change did to the markers. @unstable */
+/** Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
+ *  arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
+ *  is its answer when no map is open. @unstable */
 declare function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
 /** @unstable */
 declare function mutate<R extends {
     mutation: MutationResult;
 }>(fn: () => Promise<R>, empty: R): Promise<R>;
 /** Add locations to the map. Real ids are assigned and written back into the passed
- *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
- *  Emits `location:add`. */
+ *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
 declare function addLocations(locs: Location[]): Promise<void>;
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 declare function duplicateLocation(id: number): Promise<number | null>;
@@ -3548,16 +3537,13 @@ declare function duplicateLocation(id: number): Promise<number | null>;
 declare function removeLocations(ids: ReadonlyIdSet): Promise<void>;
 /** Patch locations by id. Only include the fields you're changing; `extra` merges
  *  per-key (null deletes a key). Undoable by default. */
-declare function updateLocations(updates: Patch<Location>[], opts?: {
-    undoable?: boolean;
-    join?: number | null;
-}): Promise<void>;
+declare function updateLocations(updates: Patch<Location>[]): Promise<void>;
 /** Rename extra-field `from` to `to` across all locations, its definition, and selections.
  *  When a location already holds `to`, `winner` decides which value survives. */
 declare function renameField(from: string, to: string, winner?: MergeWinner): Promise<void>;
 /** Delete extra-field `key` from every location, its definition, and references. */
 declare function deleteField(key: string): Promise<void>;
-/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
+/** Apply a field operation across all locations matching `selector`. @unstable */
 declare function applyFieldOp(selector: Selector, op: Work, recordUndo: boolean): Promise<WorkResult>;
 /** Apply `op` to the listed selections and re-resolve them: the one way the selection changes.
  *  Lift an op over the active selections alone with `onActive`. No-op when nothing changed. @unstable */
@@ -3795,9 +3781,6 @@ declare const not: (selector: Selector) => Selector;
 declare function tagIdOf(selector: Selector): number | null;
 /** The color a selection displays as. @unstable */
 declare function displayColor(s: Selection): RGB;
-/** Whether a selector is the pinned composite `panoIdSelector` builds (`true`), its
- *  inversion (`false`), or something else (`null`). Display-only. @unstable */
-declare function panoIdOf(selector: Selector): boolean | null;
 /** Deterministic color derived from a selection key string. @unstable */
 declare function colorForKey(key: string): RGB;
 /** Key an id list by hashing it: the same ids in the same order give the same key.
@@ -3934,8 +3917,6 @@ declare const selectionOps_not: typeof not;
 /** @unstable */
 declare const selectionOps_onActive: typeof onActive;
 /** @unstable */
-declare const selectionOps_panoIdOf: typeof panoIdOf;
-/** @unstable */
 declare const selectionOps_panoIdSelector: typeof panoIdSelector;
 /** @unstable */
 declare const selectionOps_removeSelection: typeof removeSelection;
@@ -3976,7 +3957,7 @@ declare const selectionOps_untaggedSelector: typeof untaggedSelector;
 /** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_displayColor as displayColor, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdOf as panoIdOf, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_colorForKey as colorForKey, selectionOps_composeSelections as composeSelections, selectionOps_displayColor as displayColor, selectionOps_displayTagName as displayTagName, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_locationsKey as locationsKey, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_rewriteSelectionFields as rewriteSelectionFields, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
 }
 
@@ -4019,16 +4000,10 @@ declare function savedParts(saved: SavedSelection): SavedPart[];
 /** The rules that exist, as identity only. Empty until the index loads: the first
  *  call starts the read and `saved-selections:changed` announces it. @unstable */
 declare function getSavedSelectionIndex(): SavedSelectionInfo[];
-/** React hook: the saved selection index, re-rendering on changes. @unstable */
-declare function useSavedSelectionIndex(): SavedSelectionInfo[];
 /** Load the full rule bodies for the given `ids`. @unstable */
 declare function loadSavedSelections(ids: string[]): Promise<SavedSelection[]>;
 /** Every rule with its body. @unstable */
 declare function loadAllSavedSelections(): Promise<SavedSelection[]>;
-/** A saved rule as a single `Selector`, resolved against the open map. Matches nothing
- *  until the body arrives; fetching it emits `saved-selections:changed`, so a caller that
- *  re-reads on that event gets the real tree. @unstable */
-declare function savedSelector(id: string): Selector;
 /** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
 declare function saveCurrentSelections(name: string, selections: Selection[]): Promise<boolean>;
 /** Permanently delete a saved selection rule. @unstable */
@@ -4057,12 +4032,8 @@ declare const savedSelections_loadSavedSelections: typeof loadSavedSelections;
 declare const savedSelections_saveCurrentSelections: typeof saveCurrentSelections;
 /** @unstable */
 declare const savedSelections_savedParts: typeof savedParts;
-/** @unstable */
-declare const savedSelections_savedSelector: typeof savedSelector;
-/** @unstable */
-declare const savedSelections_useSavedSelectionIndex: typeof useSavedSelectionIndex;
 declare namespace savedSelections {
-  export { savedSelections_MAP_LOCAL_TYPES as MAP_LOCAL_TYPES, savedSelections_applySavedSelection as applySavedSelection, savedSelections_deleteSavedSelection as deleteSavedSelection, savedSelections_getSavedSelectionIndex as getSavedSelectionIndex, savedSelections_isSaveable as isSaveable, savedSelections_loadAllSavedSelections as loadAllSavedSelections, savedSelections_loadSavedSelections as loadSavedSelections, savedSelections_saveCurrentSelections as saveCurrentSelections, savedSelections_savedParts as savedParts, savedSelections_savedSelector as savedSelector, savedSelections_useSavedSelectionIndex as useSavedSelectionIndex };
+  export { savedSelections_MAP_LOCAL_TYPES as MAP_LOCAL_TYPES, savedSelections_applySavedSelection as applySavedSelection, savedSelections_deleteSavedSelection as deleteSavedSelection, savedSelections_getSavedSelectionIndex as getSavedSelectionIndex, savedSelections_isSaveable as isSaveable, savedSelections_loadAllSavedSelections as loadAllSavedSelections, savedSelections_loadSavedSelections as loadSavedSelections, savedSelections_saveCurrentSelections as saveCurrentSelections, savedSelections_savedParts as savedParts };
   export type { savedSelections_SavedPart as SavedPart };
 }
 
@@ -5039,7 +5010,6 @@ declare namespace settings {
 /** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
 export interface ImportStaging {
     preview: EditorImportPreview;
-    source: "file" | "paste";
 }
 /** The preview marker positions for the staged import. @unstable */
 declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
@@ -5090,7 +5060,6 @@ declare function useCommitDiff(): CommitDiff;
 /** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
  *  interleaved `[lng, lat]` Float32Arrays. @unstable */
 export interface CommitDiffPreview {
-    commitId: string;
     hash: string;
     counts: CommitDiff;
     added: Float32Array;
@@ -5193,12 +5162,9 @@ declare namespace picker {
 }
 
 declare const EVENT_DEFS: {
-    "location:add": Location[];
-    "location:remove": number[];
-    "location:update": Patch<Location>[];
-    /** Location data changed in bulk without per-location patches (e.g. a Rust-side
-     *  field op). Anything derived from location data must re-query. */
-    "location:invalidate": void;
+    /** The store's change feed: the ids every landed change created, deleted and
+     *  rewrote, whatever caused it. Anything derived from location data re-reads on it. */
+    "store:change": ChangeEvent;
     "tag:add": Tag[];
     "tag:remove": number[];
     "tag:update": Patch<Tag>[];
@@ -5413,7 +5379,7 @@ declare function reviewNext(): Promise<void>;
 /** Step back to the previous location in the session. @unstable */
 declare function reviewPrev(): Promise<void>;
 /** Delete the current location and advance to the next one. Exits the pass if it
- *  was the last item. Emits `location:remove`. @unstable */
+ *  was the last item. @unstable */
 declare function reviewDelete(): Promise<void>;
 /** Exit the review UI but keep the session resumable (persisted as active). @unstable */
 declare function cancelReview(): void;
@@ -6402,8 +6368,6 @@ declare function getProviders(): Provider[];
 declare function getProviderForField(field: string): Provider | undefined;
 /** True when `key` is in the given enrichment set (or in the default set when null). @unstable */
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
-/** Every field transitively derived from the `changed` keys via the provider graph. @unstable */
-declare function derivedFrom(changed: Iterable<string>): Set<string>;
 
 /** @unstable */
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
@@ -6411,8 +6375,6 @@ export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
 export type fieldDefs_ProcedureSpec<TCollected = unknown, TConfig = unknown> = ProcedureSpec<TCollected, TConfig>;
 /** @unstable */
 export type fieldDefs_Provider<TCollected = unknown, TConfig = unknown> = Provider<TCollected, TConfig>;
-/** @unstable */
-declare const fieldDefs_derivedFrom: typeof derivedFrom;
 /** @unstable */
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
 /** @unstable */
@@ -6428,7 +6390,7 @@ declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
 declare const fieldDefs_registerProvider: typeof registerProvider;
 declare namespace fieldDefs {
-  export { fieldDefs_derivedFrom as derivedFrom, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerProvider as registerProvider };
+  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerProvider as registerProvider };
   export type { fieldDefs_EnrichFieldOption as EnrichFieldOption, fieldDefs_ProcedureSpec as ProcedureSpec, fieldDefs_Provider as Provider };
 }
 
@@ -7952,4 +7914,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, SyncDirection, SyncTrigger, VIRTUAL_FLAGS, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, ExternalMutation, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RemoteMappingRow, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowPick, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, ChangeEvent, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowPick, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

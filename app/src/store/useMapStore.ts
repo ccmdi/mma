@@ -15,8 +15,9 @@ import type {
 	RowPick,
 } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
+import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
-import type { MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
+import type { ChangeEvent, MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { colorForName } from "@/lib/util/color";
@@ -73,9 +74,6 @@ export interface UiState {
 	workArea: WorkArea;
 	/** @unstable */
 	activePluginId: string | null;
-	/** The newest undo step, for a later change to join while it is still the newest.
-	 *  @unstable */
-	step: number | null;
 }
 
 export type MapState = UiState & EngineState;
@@ -101,7 +99,6 @@ const INITIAL_STATE: MapState = {
 	duplicateLocations: [],
 	workArea: "overview",
 	activePluginId: null,
-	step: null,
 };
 
 let state: MapState = INITIAL_STATE;
@@ -248,8 +245,7 @@ export function waitForInflightPersist() {
 export function scheduleAutoCommit(mapId: string, importedCount: number) {
 	inflightPersist = cmd
 		.storeCommit(mapId, `Import ${importedCount} locations`)
-		.then((r) => {
-			applyMutation(r.status);
+		.then(() => {
 			resetCommitDiffCounts();
 			void invalidateMapList();
 		})
@@ -316,6 +312,13 @@ function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 	mergeEngineValues(status.values);
 }
 
+/** Hear the store's change feed for this window's map and republish it locally. */
+async function subscribeChanges() {
+	const ch = new Channel<ChangeEvent>();
+	ch.onmessage = applyChange;
+	await cmd.storeSubscribeChanges(ch);
+}
+
 // --- Actions ---
 /** Open a map in this window, closing any currently open map first. */
 export async function openMap(id: string) {
@@ -336,6 +339,9 @@ export async function openMap(id: string) {
 			t.step("store_open_map");
 			mapOpen.mark("data");
 			applyOpenedMap(meta, openResult);
+			void subscribeChanges().catch((e: unknown) =>
+				log.error("[openMap] change feed subscription failed:", e),
+			);
 		} catch (e) {
 			log.error("[openMap] store_open_map failed:", e);
 			setState({ mapId: null, map: null });
@@ -473,8 +479,7 @@ export function patchMapMeta(patch: Patch<MapMeta>): Promise<void> {
 	const write = { patch: carried, done: Promise.resolve() };
 	write.done = metaWrites.then(async () => {
 		if (waitingMetaWrite === write) waitingMetaWrite = null;
-		const r = await cmd.storeUpdateMapMeta(write.patch);
-		if (r && state.mapId === write.patch.id) applyMutation(r);
+		await cmd.storeUpdateMapMeta(write.patch);
 		await invalidateMapList();
 	});
 	waitingMetaWrite = write;
@@ -507,17 +512,18 @@ function deadTagKeys(oldTags: Record<number, Tag>, newTags: Record<number, Tag>)
 		.map((id) => buildSelection(tagSelector(id)).key);
 }
 
-/** A MutationResult carries only what moved: every present field replaces its slice,
- *  every null field was untouched and keeps its reference. Announces its own writes. */
-function applyMutation(r: MutationResult) {
+/** A change event carries only what moved: every present value replaces its slice,
+ *  every null value was untouched and keeps its reference. */
+function applyChange(e: ChangeEvent) {
 	if (!state.map) return;
 	const oldTags = getTags();
-	mergeEngineValues(r.values);
-	if (r.step !== state.step) setState({ step: r.step });
+	mergeEngineValues(e.values);
 
 	if (getTags() !== oldTags)
 		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
-	if (r.selectionSync) applySelectionSync(r.selectionSync);
+	if (e.selections) applySelectionSync(e.selections);
+	if (e.added.length || e.removed.length || e.updated.length) scheduleSave();
+	emitEvent("store:change", e);
 	emitEvent("store:changed");
 }
 
@@ -539,22 +545,12 @@ export function setOpenRow(row: Location | null) {
 
 const EMPTY_MUTATION: MutationResult = {
 	version: 0,
-	selectionSync: null,
-	step: null,
-	firstId: null,
-	values: {
-		locationCount: null,
-		canUndo: null,
-		canRedo: null,
-		valueCounts: null,
-		valueMeta: null,
-		fieldDefs: null,
-	},
+	added: [],
 };
 
-/** Run a mutation, wait for the scene to draw it, apply its result to the map, and schedule a
- *  save. A result that wraps its mutation comes back whole; `empty` is its answer when no map
- *  is open. `sceneReached(version)` then tells what the change did to the markers. @unstable */
+/** Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
+ *  arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
+ *  is its answer when no map is open. @unstable */
 export function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
 export function mutate<R extends { mutation: MutationResult }>(
 	fn: () => Promise<R>,
@@ -570,7 +566,6 @@ export async function mutate<R extends MutationResult | { mutation: MutationResu
 	const m = "mutation" in answer ? answer.mutation : answer;
 	await inflightPersist;
 	await sceneReached(m.version);
-	applyMutation(m);
 	scheduleSave();
 	return r;
 }
@@ -600,8 +595,7 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 }
 
 /** Add locations to the map. Real ids are assigned and written back into the passed
- *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
- *  Emits `location:add`. */
+ *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
 export async function addLocations(locs: Location[]) {
 	if (locs.length === 0) return;
 	const t = trace("add");
@@ -615,9 +609,7 @@ export async function addLocations(locs: Location[]) {
 				),
 	);
 	t.end({ added: locs.length });
-	const first = r.firstId;
-	if (state.map && first != null) locs.forEach((l, i) => (l.id = first + i));
-	emitEvent("location:add", locs);
+	if (state.map) locs.forEach((l, i) => (l.id = r.added[i] ?? l.id));
 }
 
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
@@ -647,25 +639,20 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 			null,
 		),
 	).catch((e) => log.error("[delete] store_edit remove failed:", e));
-	emitEvent("location:remove", [...ids]);
 }
 
 /** Patch locations by id. Only include the fields you're changing; `extra` merges
  *  per-key (null deletes a key). Undoable by default. */
-export async function updateLocations(
-	updates: Patch<Location>[],
-	opts?: { undoable?: boolean; join?: number | null },
-) {
+export async function updateLocations(updates: Patch<Location>[]) {
 	if (updates.length === 0) return;
 	if (updates.some((u) => isVirtualLocation(u))) return;
 	await mutate(() =>
 		cmd.storeEdit(
 			MAP,
 			updates.map((put) => ({ put })),
-			{ join: opts?.join ?? undefined, recordUndo: opts?.undoable },
+			null,
 		),
 	);
-	emitEvent("location:update", updates);
 }
 
 // --- Bulk metadata-field operations ---
@@ -685,7 +672,7 @@ export async function deleteField(key: string) {
 	await migrateFieldReferences(key, null);
 }
 
-/** Apply a field operation across all locations matching `selector`. Emits `location:invalidate`. @unstable */
+/** Apply a field operation across all locations matching `selector`. @unstable */
 export async function applyFieldOp(
 	selector: Selector,
 	op: Work,
@@ -696,7 +683,6 @@ export async function applyFieldOp(
 		changed: 0,
 		failed: [],
 	});
-	emitEvent("location:invalidate");
 	return r;
 }
 
@@ -743,9 +729,7 @@ export async function syncSelections() {
 	]);
 	t.step("ipc");
 	await sceneReached(result.version);
-	t.step("apply");
-	applyMutation(result);
-	t.end({ selected: result.selectionSync?.selectedCount });
+	t.end();
 	emitEvent("selection:change", getActiveSelections());
 }
 
@@ -873,8 +857,7 @@ export async function mergeDuplicates(distance: number) {
  */
 export async function pruneDuplicates(selector: Selector, distance: number): Promise<number> {
 	if (!state.map) return 0;
-	const before = state.locationCount;
-	await mutate(
+	const r = await mutate(
 		() =>
 			cmd.storeWork(
 				selector,
@@ -883,7 +866,7 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
 			),
 		{ mutation: EMPTY_MUTATION, changed: 0, failed: [] },
 	);
-	return before - state.locationCount;
+	return r.changed;
 }
 
 /** Seed the viewer's layer with a copy of `loc` under `flag` and open it: the preview's
@@ -897,9 +880,10 @@ async function openPreview(loc: Location, flag: number) {
 		[{ set: { ...loc, id: 0, flags: loc.flags | flag } }],
 		null,
 	);
-	if (r.firstId == null) return;
-	const row = await cmd.storeRow(VIEWER, r.firstId);
-	setState({ openId: r.firstId, openRow: row, workArea: "location" });
+	const [added] = r.added;
+	if (added == null) return;
+	const row = await cmd.storeRow(VIEWER, added);
+	setState({ openId: added, openRow: row, workArea: "location" });
 	emitEvent("store:changed");
 	emitEvent("active:change", null);
 }
@@ -1167,7 +1151,6 @@ export async function commitMap(message?: string): Promise<string> {
 	const r = await cmd.storeCommit(state.mapId, message ?? null);
 	t.step("commit");
 	t.end();
-	applyMutation(r.status);
 	resetCommitDiffCounts();
 	void invalidateMapList();
 
@@ -1205,7 +1188,7 @@ export async function checkoutCommit(commitId: string) {
 		openId: null,
 	});
 	applyOpenedMap(map, openResult);
-	applyMutation(commitResult.status);
+	void commitResult;
 
 	void loadScene();
 	emitEvent("store:changed");

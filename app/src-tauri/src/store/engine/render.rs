@@ -237,7 +237,7 @@ impl Store {
         }
         self.frames.insert(label, sink);
         let frame = self.scene_frame();
-        self.frames.send(&frame);
+        self.frames.send(FrameBytes(frame.encode()));
     }
 
     /// Take over the windows `replaced` was drawing for, sending them this store's scene.
@@ -245,8 +245,9 @@ impl Store {
         self.render.arrow_style = replaced.render.arrow_style;
         self.render.marker_color = replaced.render.marker_color;
         self.frames = replaced.frames;
+        self.changes = replaced.changes;
         let frame = self.scene_frame();
-        self.frames.send(&frame);
+        self.frames.send(FrameBytes(frame.encode()));
     }
 
     /// Rebuild the render cells from every alive location in one pass and return the frame

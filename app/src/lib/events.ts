@@ -1,20 +1,18 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
 import type { Patch, Tag } from "@/types";
+import type { ChangeEvent } from "@/bindings.gen";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
 import { log } from "@/lib/util/log";
-import type { Location, MapMeta, Selection } from "@/bindings.gen";
+import type { MapMeta, Selection } from "@/bindings.gen";
 
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;
 
 const EVENT_DEFS = {
-	"location:add": event<Location[]>(),
-	"location:remove": event<number[]>(),
-	"location:update": event<Patch<Location>[]>(),
-	/** Location data changed in bulk without per-location patches (e.g. a Rust-side
-	 *  field op). Anything derived from location data must re-query. */
-	"location:invalidate": event<void>(),
+	/** The store's change feed: the ids every landed change created, deleted and
+	 *  rewrote, whatever caused it. Anything derived from location data re-reads on it. */
+	"store:change": event<ChangeEvent>(),
 	"tag:add": event<Tag[]>(),
 	"tag:remove": event<number[]>(),
 	"tag:update": event<Patch<Tag>[]>(),
@@ -171,11 +169,6 @@ export function useEvent(evt: AnyEvent | readonly AnyEvent[]): number {
 	return useSyncExternalStore(sub, snap);
 }
 
-/** Non-hook read of the version counter for a single event. */
-export function getEventVersion(evt: AnyEvent): number {
-	return versions.get(evt) ?? 0;
-}
-
 export function subscribe<E extends AnyEvent>(evt: E, handler: EventHandler<E>): () => void {
 	let set = handlers.get(evt);
 	if (!set) {
@@ -215,8 +208,6 @@ export const OVERLAY_REPAINT_EVENTS = [
 	"measure:changed",
 ] as const satisfies readonly EditorEvent[];
 
-/** The events that fire whenever location data changes. */
-export const LOCATION_DATA_EVENTS = eventsWithPrefix("location");
 /** Selection-related events. */
 export const SELECTION_EVENTS = eventsWithPrefix("selection");
 /** The events that fire whenever tag definitions change. */

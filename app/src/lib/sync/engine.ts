@@ -4,7 +4,6 @@ import type { SyncProvider } from "./provider";
 import type { IdentityKey, SyncStore } from "./syncStore";
 import { cmd } from "@/lib/commands";
 import { getMapState, mutate } from "@/store/useMapStore";
-import { emit as emitEvent } from "@/lib/events";
 
 export type { FirstSyncMode } from "@/bindings.consts";
 
@@ -56,8 +55,6 @@ export async function reconcile(
 		const mutation = result.mutation;
 		await mutate(() => Promise.resolve(mutation));
 	}
-	if (result.removedIds.length) emitEvent("location:remove", result.removedIds);
-
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 
 	return {

@@ -16,7 +16,7 @@ import {
 	fieldLabel,
 } from "@/lib/data/fieldDefRegistry";
 import { projectionsForType } from "@/lib/data/fieldProjections";
-import { getEventVersion } from "@/lib/events";
+import { subscribe } from "@/lib/events";
 import { initLocale } from "@/lib/i18n";
 import { pseudo } from "../../scripts/i18n-extract.mjs";
 
@@ -233,19 +233,22 @@ describe("placeholder does not shadow plugin def", () => {
 // plugin layer (invisible to state) signals through `fields:changed`.
 describe("change signals", () => {
 	it("plugin layer mutations bump fields:changed", () => {
-		const v0 = getEventVersion("fields:changed");
+		let fired = 0;
+		const off = subscribe("fields:changed", () => fired++);
 		registerPluginFieldDefs({ p: createFieldDef("number", { label: "P" }) });
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v0);
+		expect(fired).toBe(1);
 
-		const v1 = getEventVersion("fields:changed");
 		unregisterPluginFieldDefs(["p"]);
-		expect(getEventVersion("fields:changed")).toBeGreaterThan(v1);
+		expect(fired).toBe(2);
+		off();
 	});
 
 	it("does not bump when unregistering an empty key list", () => {
-		const v = getEventVersion("fields:changed");
+		let fired = 0;
+		const off = subscribe("fields:changed", () => fired++);
 		unregisterPluginFieldDefs([]);
-		expect(getEventVersion("fields:changed")).toBe(v);
+		expect(fired).toBe(0);
+		off();
 	});
 
 	it("getKnownFieldKeys holds its reference until the user layer moves", () => {
