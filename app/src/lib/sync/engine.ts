@@ -3,7 +3,7 @@ import type { FirstSyncMode } from "@/bindings.consts";
 import type { SyncProvider } from "./provider";
 import type { IdentityKey, SyncStore } from "./syncStore";
 import { cmd } from "@/lib/commands";
-import { getMapState, mutate } from "@/store/useMapStore";
+import { getMapState, settled } from "@/store/useMapStore";
 
 export type { FirstSyncMode } from "@/bindings.consts";
 
@@ -51,10 +51,7 @@ export async function reconcile(
 	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
 	if (!store.getLink()) throw new Error("map was unlinked during sync");
 
-	if (result.mutation) {
-		const mutation = result.mutation;
-		await mutate(() => Promise.resolve(mutation));
-	}
+	if (result.mutation) await settled(result.mutation);
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 
 	return {

@@ -738,11 +738,21 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
     .unwrap();
     let pending = |conn: &Connection| {
         let p = map_pending(conn, "m").unwrap();
-        (p.added, p.removed, p.modified)
+        (p.added, p.removed, p.updated)
     };
     assert_eq!(pending(&conn), (0, 0, 0), "a map starts clean");
 
-    set_map_counts(&conn, "m", 12, (5, 1, 2).into()).unwrap();
+    set_map_counts(
+        &conn,
+        "m",
+        12,
+        mma_algebra::Counts {
+            added: 5,
+            removed: 1,
+            updated: 2,
+        },
+    )
+    .unwrap();
     assert_eq!(pending(&conn), (5, 1, 2));
     let count: i64 = conn
         .query_row("SELECT location_count FROM maps WHERE id = 'm'", [], |r| {
@@ -751,7 +761,7 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
         .unwrap();
     assert_eq!(count, 12);
 
-    set_map_counts(&conn, "m", 12, crate::store::vcs::CommitDiff::default()).unwrap();
+    set_map_counts(&conn, "m", 12, mma_algebra::Counts::default()).unwrap();
     assert_eq!(pending(&conn), (0, 0, 0), "a commit leaves nothing pending");
 }
 

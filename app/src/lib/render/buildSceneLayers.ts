@@ -107,10 +107,10 @@ export const PERFECT_SCORE_LAYER_ID = "perfect-score";
 // Screen-pixel hit radius for "click the first vertex to close the loop" — also
 // the node's drawn radius, so the visible circle matches what's actually clickable.
 export const POLYGON_CLOSE_VERTEX_PX = 10;
-export const DIFF_COLORS: Record<"added" | "removed" | "modified", RGB> = {
+export const DIFF_COLORS: Record<"added" | "removed" | "updated", RGB> = {
 	added: [34, 197, 94],
 	removed: [239, 68, 68],
-	modified: [245, 158, 11],
+	updated: [245, 158, 11],
 };
 export type PolyGeom = {
 	poly: object;
@@ -158,7 +158,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 			for (const [kind, alpha] of [
 				["removed", 210],
 				["added", 210],
-				["modified", 220],
+				["updated", 220],
 			] as const) {
 				if (diff[kind].length === 0) continue;
 				layers.push(

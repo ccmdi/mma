@@ -9,7 +9,7 @@ import { getSettings } from "@/store/settings";
 import { whenSceneSettled } from "@/lib/render/sceneStore";
 import { emit as emitEvent } from "@/lib/events";
 import {
-	mutate,
+	settled,
 	getMapState,
 	setWorkArea,
 	updateMapMeta,
@@ -81,7 +81,7 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 	const settings = importState.staging.preview.settings;
 	const r = await cmd.storeImportFile(droppedFields, tagNames.map((n) => n.trim()).filter(Boolean));
 	cancelImport();
-	await mutate(() => Promise.resolve(r.mutation));
+	await settled(r.mutation);
 
 	const map = getMapState().map;
 	if (map && Object.keys(settings).length) {

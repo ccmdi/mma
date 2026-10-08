@@ -17,7 +17,7 @@ import type {
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
-import type { ChangeEvent, MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
+import type { ChangeEvent, MutationResult, EngineValues } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { colorForName } from "@/lib/util/color";
@@ -105,8 +105,9 @@ let state: MapState = INITIAL_STATE;
 
 /** Re-mint the state object with a shallow patch. Field values are hook
  *  snapshots: reassign, never mutate in place. */
-function setState(patch: Partial<UiState>) {
+function setState(patch: Partial<MapState>) {
 	state = { ...state, ...patch };
+	emitEvent("store:changed");
 }
 
 /** Merge the engine values Rust shipped (JSON merge patch: null = unchanged).
@@ -160,7 +161,7 @@ export const getTags: () => Record<number, Tag> = memoOnRefs(
 );
 
 function resetEngineState() {
-	state = { ...state, ...ENGINE_INITIAL };
+	setState(ENGINE_INITIAL);
 }
 
 /** Reactive slice of the map state. Re-renders only when the selected value's
@@ -329,7 +330,6 @@ export async function openMap(id: string) {
 
 	const t = trace("openMap");
 	setState({ mapId: id, map: null });
-	emitEvent("store:changed");
 	const meta = await cmd.storeGetMap(id);
 	t.step("getMap");
 
@@ -345,14 +345,12 @@ export async function openMap(id: string) {
 		} catch (e) {
 			log.error("[openMap] store_open_map failed:", e);
 			setState({ mapId: null, map: null });
-			emitEvent("store:changed");
 			return;
 		}
 		void cmd.storeTouchMapOpened(id);
 	}
 
 	clearEditState();
-	emitEvent("store:changed");
 	t.end();
 	if (state.map) emitEvent("map:open", state.map);
 }
@@ -366,7 +364,6 @@ function resetMapState() {
 
 	clearScene();
 	resetEngineState();
-	emitEvent("store:changed");
 }
 
 /** Close the open map, saving unsaved changes first. */
@@ -521,14 +518,10 @@ function applyChange(e: ChangeEvent) {
 
 	if (getTags() !== oldTags)
 		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
-	if (e.selections) applySelectionSync(e.selections);
+	if (e.selections) setState({ selectionCounts: e.selections.counts });
 	if (e.added.length || e.removed.length || e.updated.length) scheduleSave();
 	emitEvent("store:change", e);
 	emitEvent("store:changed");
-}
-
-function applySelectionSync(sync: SelectionSync) {
-	setState({ selectionCounts: sync.counts });
 }
 
 const MAP: Target = { kind: "map" };
@@ -548,9 +541,17 @@ const EMPTY_MUTATION: MutationResult = {
 	added: [],
 };
 
-/** Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
- *  arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
- *  is its answer when no map is open. @unstable */
+/** Settle a mutation that already ran: wait for the scene to draw its version and
+ *  schedule a save. @unstable */
+export async function settled(m: MutationResult): Promise<void> {
+	await inflightPersist;
+	await sceneReached(m.version);
+	scheduleSave();
+}
+
+/** Run a mutation and settle it; what it changed arrives on the change feed. A result
+ *  that wraps its mutation comes back whole; `empty` is its answer when no map is
+ *  open. @unstable */
 export function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
 export function mutate<R extends { mutation: MutationResult }>(
 	fn: () => Promise<R>,
@@ -563,10 +564,7 @@ export async function mutate<R extends MutationResult | { mutation: MutationResu
 	if (!state.map) return empty;
 	const r = await fn();
 	const answer: MutationResult | { mutation: MutationResult } = r;
-	const m = "mutation" in answer ? answer.mutation : answer;
-	await inflightPersist;
-	await sceneReached(m.version);
-	scheduleSave();
+	await settled("mutation" in answer ? answer.mutation : answer);
 	return r;
 }
 
@@ -884,7 +882,6 @@ async function openPreview(loc: Location, flag: number) {
 	if (added == null) return;
 	const row = await cmd.storeRow(VIEWER, added);
 	setState({ openId: added, openRow: row, workArea: "location" });
-	emitEvent("store:changed");
 	emitEvent("active:change", null);
 }
 
@@ -934,7 +931,6 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			setState({
 				workArea: wasStaged ? "import" : state.activePluginId ? "plugin" : "overview",
 			});
-			emitEvent("store:changed");
 			t.end();
 			return;
 		}
@@ -960,13 +956,11 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			if (nearby.length >= 2) {
 				setState({ duplicateLocations: nearby, workArea: "duplicates" });
 				clearActiveLocation();
-				emitEvent("store:changed");
 				t.end({ duplicates: nearby.length });
 				return;
 			}
 		}
 		setState({ openRow: loc ?? null, workArea: "location" });
-		emitEvent("store:changed");
 		emitEvent("active:change", state.openId);
 		t.end();
 		return;
@@ -976,7 +970,6 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 		duplicateLocations: [],
 		workArea: state.activePluginId ? "plugin" : "overview",
 	});
-	emitEvent("store:changed");
 	t.end();
 }
 
@@ -984,13 +977,11 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 export function openDuplicateLocation(loc: Location) {
 	setState({ openId: loc.id, openRow: loc, workArea: "location" });
 	void cmd.storeSetActive(loc.id);
-	emitEvent("store:changed");
 }
 
 /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 export function removeDuplicate(id: number) {
 	setState({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });
-	emitEvent("store:changed");
 }
 
 /** Close the duplicate-resolution panel and return to the overview. @unstable */
@@ -1005,7 +996,6 @@ export function setWorkArea(area: WorkArea) {
 	setState({ workArea: area });
 	if (area !== "location") clearActiveLocation();
 	if (area !== "plugin") setState({ activePluginId: null });
-	emitEvent("store:changed");
 }
 
 // --- Plugin mode ---
@@ -1191,6 +1181,5 @@ export async function checkoutCommit(commitId: string) {
 	void commitResult;
 
 	void loadScene();
-	emitEvent("store:changed");
 	await invalidateMapList();
 }

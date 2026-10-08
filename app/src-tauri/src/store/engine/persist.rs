@@ -3,10 +3,10 @@
 use super::*;
 use crate::store::arrow;
 use crate::store::storage;
-use crate::store::vcs::CommitDiff;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use arrow_array::RecordBatch;
+use mma_algebra::Counts;
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -82,7 +82,7 @@ pub(crate) struct Unsaved {
     delta: Option<At<RecordBatch>>,
     edits: Option<At<EditStacks>>,
     alive: usize,
-    pending: CommitDiff,
+    pending: Counts,
 }
 
 impl Unsaved {
@@ -120,7 +120,7 @@ impl Store {
                 .is_unsaved()
                 .then(|| self.edits.stamp((*self.edits).clone())),
             alive: *self.alive_count,
-            pending: self.overlay_diff_counts().into(),
+            pending: self.overlay_diff_counts(),
         }))
     }
 
@@ -267,6 +267,6 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     )?;
     let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
     let conn = storage::open_db()?;
-    storage::set_map_counts(&conn, map_id, count, CommitDiff::default())?;
+    storage::set_map_counts(&conn, map_id, count, Counts::default())?;
     Ok(())
 }

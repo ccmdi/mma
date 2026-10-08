@@ -3985,7 +3985,7 @@ body:not(.mm-tag-dragging) .tag-tree__row:hover {
 .diff-counts__removed {
 	color: var(--destructive-text);
 }
-.diff-counts__modified {
+.diff-counts__updated {
 	color: var(--deconstructive);
 }
 .map-meta__spacer {

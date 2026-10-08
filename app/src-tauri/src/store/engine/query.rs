@@ -385,10 +385,9 @@ impl Store {
     }
 
     /// Build an index for every field a selector could answer from one: the fields it
-    /// tests for existence, and the enumerable fields it filters on. Reached through the
-    /// selector entry points (`selector_read`, `apply_field_op`, the sync path), so
-    /// resolution never meets such a field without its index; a no-op on every call
-    /// after the first for a given field.
+    /// tests for existence, and the enumerable fields it filters on. Every selector
+    /// entry point passes through here, so resolution never meets such a field without
+    /// its index; a no-op on every call after the first for a given field.
     pub(crate) fn ensure_indexes_for(&mut self, selector: &Selector) {
         fn walk(sel: &Selector, out: &mut Vec<(String, bool)>) {
             match sel {

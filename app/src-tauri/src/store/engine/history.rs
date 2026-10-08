@@ -6,6 +6,10 @@ use std::sync::Arc;
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
+/// A change touching more rows than this leaves no undo entry (the entry would clone
+/// every row into the persisted history); redo is dropped as for any unrecorded change.
+pub(crate) const MAX_UNDO_ROWS: usize = 500_000;
+
 /// Which stack an edit sits in.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Stack {

@@ -4,7 +4,7 @@
 import {
 	closeMap as storeCloseMap,
 	getMapState,
-	mutate,
+	settled,
 	openMap as storeOpenMap,
 	query,
 	syncSelections as storeSyncSelections,
@@ -49,13 +49,13 @@ export function deleteMap(id: string) {
 export async function importPaste(text: string) {
 	await cmd.storeImportPastePreview(text);
 	const r = await cmd.storeImportFile([], []);
-	await mutate(() => Promise.resolve(r.mutation));
+	await settled(r.mutation);
 	return [r];
 }
 
 /** Import a previewed file, optionally assigning tags. */
 export async function importFile(droppedFields: string[], tagNames: string[] = []) {
 	const r = await cmd.storeImportFile(droppedFields, tagNames);
-	await mutate(() => Promise.resolve(r.mutation));
+	await settled(r.mutation);
 	return r;
 }

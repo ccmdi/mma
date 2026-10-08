@@ -23,8 +23,8 @@ vi.mock("@/lib/commands", () => ({
 }));
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
-	mutate: async (fn: () => Promise<unknown>) => {
-		h.mutations.push(await fn());
+	settled: async (m: unknown) => {
+		h.mutations.push(m);
 	},
 }));
 vi.mock("@/lib/events", () => ({

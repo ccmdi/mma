@@ -159,16 +159,6 @@ impl Store {
     }
 }
 
-/// Allocate IDs for `locations`, insert them, and record the undo entry. The one place a
-/// batch of new locations becomes a mutation -- every add path (direct IPC, uploaded chunks)
-/// ends here, so they cannot drift in what they record.
-pub(crate) fn apply_adds(store: &mut Store, mut locations: Vec<Location>) -> MutationResult {
-    for loc in &mut locations {
-        loc.id = store.alloc_id();
-    }
-    store.write(locations.into_iter().map(Edit::Set), UndoScope::Entry)
-}
-
 /// How a patch batch lands in the undo history.
 pub(crate) enum UndoScope<'a> {
     /// Not undoable.
@@ -330,7 +320,6 @@ impl Store {
         mut edits: Vec<Edit>,
         land: bool,
         join: &mut Option<u64>,
-        record_undo: bool,
     ) -> MutationResult {
         let mut added = Vec::new();
         for edit in &mut edits {
@@ -387,11 +376,7 @@ impl Store {
                 }
             }
         };
-        let undo = match record_undo {
-            true => UndoScope::Run(join),
-            false => UndoScope::Skip,
-        };
-        let result = self.write(edits, undo);
+        let result = self.write(edits, UndoScope::Run(join));
         if let Some(name) = update_landed {
             self.pending.insert(
                 name,
@@ -460,6 +445,10 @@ impl Store {
     /// entry of a run while that is still the newest.
     fn record(&mut self, change: &Arc<Change>, undo: UndoScope) {
         if change.is_empty() {
+            return;
+        }
+        if change.len() > MAX_UNDO_ROWS {
+            self.edits.edit().clear_redo();
             return;
         }
         let edits = self.edits.edit();

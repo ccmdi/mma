@@ -1,5 +1,5 @@
 ﻿import { SCRATCH_MAP_ID } from "@/bindings.consts";
-import { type CommitDiff, type MapMeta } from "@/bindings.gen";
+import { type Counts, type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import {
@@ -108,7 +108,7 @@ export async function deleteFolder(name: string) {
 }
 
 /** A mark drawn after a map's name in the map list: an icon, or a count of changes. */
-export type MapBadge = { key: string; title: string } & ({ icon: string } | { diff: CommitDiff });
+export type MapBadge = { key: string; title: string } & ({ icon: string } | { diff: Counts });
 
 /** A feature that marks map rows, shown or hidden as a unit in settings. */
 export interface BadgeSource {
@@ -179,8 +179,8 @@ registerMapBadges({
 	events: ["map-list:changed"],
 	*collect() {
 		for (const m of cachedMapList) {
-			const { added, removed, modified } = m.pending;
-			if (added + removed + modified === 0) continue;
+			const { added, removed, updated } = m.pending;
+			if (added + removed + updated === 0) continue;
 			yield [m.id, { key: "pending", diff: m.pending, title: t("Changes since the last commit") }];
 		}
 	},

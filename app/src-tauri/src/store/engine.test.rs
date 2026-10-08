@@ -30,12 +30,31 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::Mutex;
 
+fn net(added: u32, removed: u32, updated: u32) -> mma_algebra::Counts {
+    mma_algebra::Counts {
+        added,
+        removed,
+        updated,
+    }
+}
+
 fn apply_updates(
     store: &mut Store,
     updates: &[Patch<Location>],
     undo: UndoScope,
 ) -> MutationResult {
     store.write(updates.iter().cloned().map(Edit::Put), undo)
+}
+
+fn add_rows(store: &mut Store, locs: Vec<Location>) -> MutationResult {
+    let edits = locs
+        .into_iter()
+        .map(|mut l| {
+            l.id = 0;
+            Edit::Set(l)
+        })
+        .collect();
+    store.edit(&Target::Map, edits, false, &mut None)
 }
 
 fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Location, Location)> {
@@ -418,7 +437,7 @@ fn bake_skips_empty_overlay() {
 #[test]
 fn commit_diff_counts_session_adds() {
     let store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    assert_eq!(store.overlay_diff_counts(), (2, 0, 0));
+    assert_eq!(store.overlay_diff_counts(), net(2, 0, 0));
 }
 
 #[test]
@@ -427,10 +446,10 @@ fn commit_diff_counts_patch_on_base_row_without_undo() {
     // paths) must still show up in the commit diff.
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.bake_overlay();
-    assert_eq!(store.overlay_diff_counts(), (0, 0, 0));
+    assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
     overlay_update(&mut store, &patch!(1; lat: 5.0));
     assert!(store.edits.undo_len() == 0);
-    assert_eq!(store.overlay_diff_counts(), (0, 0, 1));
+    assert_eq!(store.overlay_diff_counts(), net(0, 0, 1));
 }
 
 #[test]
@@ -439,7 +458,7 @@ fn commit_diff_counts_removed_base_row() {
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     store.overlay_remove([l].iter());
-    assert_eq!(store.overlay_diff_counts(), (0, 1, 0));
+    assert_eq!(store.overlay_diff_counts(), net(0, 1, 0));
 }
 
 #[test]
@@ -447,7 +466,7 @@ fn commit_diff_add_then_remove_is_noop() {
     let l = loc(1, 0.0, 0.0);
     let mut store = setup_store_with(slice::from_ref(&l));
     store.overlay_remove([l].iter());
-    assert_eq!(store.overlay_diff_counts(), (0, 0, 0));
+    assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
 }
 
 // -----------------------------------------------------------------------
@@ -574,6 +593,23 @@ fn redo_stack_cleared_on_new_edit() {
         .edit()
         .record(Arc::new(Change::from_sides(vec![loc(1, 0.0, 0.0)], vec![])));
     assert_eq!(store.edits.redo_len(), 0, "a new edit drops redo by itself");
+}
+
+#[test]
+fn a_change_too_big_to_undo_records_nothing_and_drops_redo() {
+    let mut store = setup_store_with(&[]);
+    click_add(&mut store, 0.0, 0.0);
+    press_undo(&mut store);
+    assert_eq!(store.edits.redo_len(), 1);
+
+    let big: Vec<Edit> = (0..=MAX_UNDO_ROWS as u32)
+        .map(|_| Edit::Set(loc(0, 0.0, 0.0)))
+        .collect();
+    store.edit(&Target::Map, big, false, &mut None);
+
+    assert_eq!(*store.alive_count as usize, MAX_UNDO_ROWS + 1);
+    assert_eq!(store.edits.undo_len(), 0);
+    assert_eq!(store.edits.redo_len(), 0);
 }
 
 // -----------------------------------------------------------------------
@@ -2386,7 +2422,7 @@ fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_on
 fn an_add_reports_the_id_its_first_location_was_given() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    let added = apply_adds(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
+    let added = add_rows(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
     let ids: Vec<u32> = store
         .collect(&Selector::Everything)
         .iter()
@@ -3336,7 +3372,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     store.next_id = 10;
     assert_existence_matches_scan(&mut store, "k", &[1, 2]);
 
-    apply_adds(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
+    add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
     assert_existence_matches_scan(&mut store, "k", &[1, 2, 10]);
 
     let drop_k = patch!(1; extra: raw_extra(r#"{"k":null}"#));
@@ -6198,14 +6234,14 @@ fn expr_op_rejects_a_syntax_error_before_touching_rows() {
 fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let feed = FeedCapture::attach(&mut store);
-    apply_adds(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
+    add_rows(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
     assert!(store.field_defs.contains_key("zz"));
     assert!(feed
         .last()
         .values
         .field_defs
         .is_some_and(|d| d.contains_key("zz")));
-    apply_adds(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
+    add_rows(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
     assert!(feed.last().values.field_defs.is_none());
 
     let feed = FeedCapture::attach(&mut store);
@@ -6417,7 +6453,7 @@ fn uploaded_add_echoes_ids_in_staged_order() {
     ]);
     let uploaded = export::read_uploaded_chunks::<Location>(&session).unwrap();
     let frames = watch(&mut store);
-    apply_adds(&mut store, uploaded);
+    add_rows(&mut store, uploaded);
 
     let ids = added_ids(&frames);
     assert_eq!(ids.len(), 3);
@@ -6432,11 +6468,11 @@ fn uploaded_add_matches_direct_add() {
     let locs = vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0), loc(0, 3.0, 3.0)];
 
     let mut direct_store = setup_store_with(&[]);
-    let direct = apply_adds(&mut direct_store, locs.clone());
+    let direct = add_rows(&mut direct_store, locs.clone());
 
     let mut uploaded_store = setup_store_with(&[]);
     let session = stage_chunks(&[locs[..2].to_vec(), locs[2..].to_vec()]);
-    let uploaded = apply_adds(
+    let uploaded = add_rows(
         &mut uploaded_store,
         export::read_uploaded_chunks::<Location>(&session).unwrap(),
     );
@@ -6469,7 +6505,7 @@ fn uploaded_add_rejects_malformed_chunk_before_mutating() {
     let uploaded = export::read_uploaded_chunks::<Location>(&session);
     assert!(uploaded.is_err());
     if let Ok(locs) = uploaded {
-        apply_adds(&mut store, locs);
+        add_rows(&mut store, locs);
     }
 
     assert_eq!(*store.alive_count, 1);
@@ -6546,7 +6582,6 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
         vec![Edit::Put(heading(1, 90.0))],
         false,
         &mut None,
-        true,
     );
     assert_eq!(store.row_at(&Target::Map, 1).unwrap().heading, 0.0);
     assert_eq!(store.row_at(&viewer(), 1).unwrap().heading, 90.0);
@@ -6562,7 +6597,6 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
         vec![Edit::Put(heading(1, 90.0))],
         false,
         &mut None,
-        true,
     );
     store.write(
         [Edit::Put(Patch::<Location> {
@@ -6586,12 +6620,11 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
         vec![Edit::Put(heading(1, 90.0))],
         false,
         &mut None,
-        true,
     );
-    store.edit(&viewer(), vec![Edit::Remove(2)], false, &mut None, true);
+    store.edit(&viewer(), vec![Edit::Remove(2)], false, &mut None);
     assert_eq!(store.edits.undo_len(), 0);
 
-    store.edit(&viewer(), vec![], true, &mut None, true);
+    store.edit(&viewer(), vec![], true, &mut None);
     assert_eq!(store.edits.undo_len(), 1);
     assert_eq!(store.row_at(&Target::Map, 1).unwrap().heading, 90.0);
     assert!(store.row_at(&Target::Map, 2).is_none());
@@ -6610,7 +6643,6 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
         vec![Edit::Put(heading(1, 90.0))],
         true,
         &mut None,
-        true,
     );
     assert_eq!(store.edits.undo_len(), 1);
 
@@ -6623,7 +6655,6 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
         })],
         false,
         &mut None,
-        true,
     );
     let row = store.row_at(&Target::Map, 1).unwrap();
     assert_eq!((row.heading, row.pitch), (90.0, 5.0));
@@ -6643,7 +6674,6 @@ fn dropping_a_pending_layer_discards_what_it_held() {
         vec![Edit::Put(heading(1, 90.0))],
         false,
         &mut None,
-        true,
     );
     store.drop_pending("viewer");
     assert_eq!(store.row_at(&viewer(), 1).unwrap().heading, 0.0);
@@ -6658,13 +6688,12 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
         vec![Edit::Set(loc(0, 2.0, 2.0))],
         false,
         &mut None,
-        true,
     );
     assert_eq!(r.added, vec![2]);
     assert!(store.row_at(&Target::Map, 2).is_none());
     assert_eq!(store.row_at(&viewer(), 2).unwrap().lat, 2.0);
 
-    store.edit(&viewer(), vec![], true, &mut None, true);
+    store.edit(&viewer(), vec![], true, &mut None);
     assert_eq!(store.row_at(&Target::Map, 2).unwrap().lat, 2.0);
 }
 
@@ -6690,7 +6719,6 @@ fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
         vec![Edit::Put(heading(1, 45.0))],
         false,
         &mut None,
-        true,
     );
     undo_and_finish(&mut store);
 

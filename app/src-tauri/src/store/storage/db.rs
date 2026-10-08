@@ -1,9 +1,9 @@
 //! SQLite: connections, pragmas, the migration registry, row helpers.
 
 use super::*;
-use crate::store::vcs::CommitDiff;
 use crate::types::AppResult;
 use crate::util::now_iso;
+use mma_algebra::Counts;
 use mma_algebra::{Patch, Patchable};
 use rusqlite::types::Value as SqlValue;
 use rusqlite::Connection;
@@ -96,15 +96,15 @@ pub(super) fn configure_connection(conn: &Connection) -> AppResult<()> {
 }
 
 /// A map's changes since the last commit, as last recorded by [`set_map_counts`].
-pub(crate) fn map_pending(conn: &Connection, map_id: &str) -> AppResult<CommitDiff> {
+pub(crate) fn map_pending(conn: &Connection, map_id: &str) -> AppResult<Counts> {
     Ok(conn.query_row(
         "SELECT pending_added, pending_removed, pending_modified FROM maps WHERE id = ?1",
         [map_id],
         |row| {
-            Ok(CommitDiff {
+            Ok(Counts {
                 added: row.get(0)?,
                 removed: row.get(1)?,
-                modified: row.get(2)?,
+                updated: row.get(2)?,
             })
         },
     )?)
@@ -116,11 +116,11 @@ pub(crate) fn set_map_counts(
     conn: &Connection,
     map_id: &str,
     count: usize,
-    pending: CommitDiff,
+    pending: Counts,
 ) -> AppResult<()> {
     conn.execute(
         "UPDATE maps SET location_count = ?1, pending_added = ?2, pending_removed = ?3, pending_modified = ?4 WHERE id = ?5",
-        rusqlite::params![count, pending.added, pending.removed, pending.modified, map_id],
+        rusqlite::params![count, pending.added, pending.removed, pending.updated, map_id],
     )?;
     Ok(())
 }

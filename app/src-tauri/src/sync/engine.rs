@@ -919,11 +919,11 @@ fn apply_pull(
         edits.push(Edit::Remove(id));
     }
 
-    store.edit(&target, Vec::new(), false, &mut None, true);
+    store.edit(&target, Vec::new(), false, &mut None);
     if let Some(p) = store.pending.get_mut(&layer) {
         p.incoming.insert("tags".to_string(), piles);
     }
-    let result = store.edit(&target, edits, true, &mut None, true);
+    let result = store.edit(&target, edits, true, &mut None);
     let rows = result
         .added
         .iter()

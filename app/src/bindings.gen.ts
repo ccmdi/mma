@@ -229,8 +229,8 @@ export const commands = {
 	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo"),
 	/**  Redo the last undone edit. */
 	storeRedo: () => __TAURI_INVOKE<MutationResult>("store_redo"),
-	/**  Return the uncommitted change counts (added, removed, modified) since the last commit. */
-	storeCommitDiff: () => __TAURI_INVOKE<[number, number, number]>("store_commit_diff"),
+	/**  Return the uncommitted change counts since the last commit. */
+	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
 	/**
 	 *  Replace all active selections and resolve them against current data. Returns
 	 *  per-selection counts; the markers repaint through the render frame.
@@ -355,8 +355,8 @@ export const commands = {
 	 *  the map afterwards (undo/redo is cleared).
 	 */
 	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<null>("store_checkout_commit", { mapId, commitId }),
-	/**  Read a single commit's delta (created and removed locations). */
-	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<CommitDelta>("store_get_commit_delta", { mapId, commitId }).then((v) => (({...v,created:v.created.map(i=>i),removed:v.removed.map(i=>i)}) as typeof v)),
+	/**  Read a single commit's change: the locations it added, removed and updated. */
+	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<Change<Location>>("store_get_commit_delta", { mapId, commitId }),
 	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
 	storeSeenWrite: (entry: SeenWriteEntry) => __TAURI_INVOKE<null>("store_seen_write", { entry }),
 	/**  Returns a page of seen entries, newest first, with optional filtering. */
@@ -563,6 +563,19 @@ export type CameraFrame = {
 
 
 /**
+ *  What one write did to the rows: each row as it was and as it became. The inverse
+ *  undoes it, and `then` composes two into one.
+ */
+export type Change<T> = {
+	/**  The rows it created. */
+	added: T[],
+	/**  Removed rows in full, so a consumer can move off their old values. */
+	removed: T[],
+	/**  Each rewritten row as it was and as it became. */
+	updated: ([T, T])[],
+};
+
+/**
  *  One landed change as every watching window hears it: the change by key, and what
  *  it moved in the map's values and selections.
  */
@@ -575,22 +588,6 @@ export type ChangeEvent = {
 	selections: SelectionSync | null,
 } & Keys<number>;
 
-/**
- *  A commit's created and removed locations. An updated location appears in both
- *  `created` (new version) and `removed` (old version).
- */
-export type CommitDelta = {
-	created: Location[],
-	removed: Location[],
-};
-
-/**  Added, removed, and modified location counts of a set of changes. */
-export type CommitDiff = {
-	added: number,
-	removed: number,
-	modified: number,
-};
-
 /**  Metadata for a single commit. */
 export type CommitInfo = {
 	id: string,
@@ -600,7 +597,7 @@ export type CommitInfo = {
 	treeHash: string | null,
 	locationCount: number,
 	createdAt: string,
-} & CommitDiff;
+} & Counts;
 
 /**  The new commit's ID and the resulting state update. */
 export type CommitResult = {
@@ -647,6 +644,16 @@ export type CountBy = {
 	counts: ([string, number])[],
 	/**  Rows held by at least one group. */
 	covered: number,
+};
+
+/**  A change by cardinality alone: how many rows it created, deleted and rewrote. */
+export type Counts = {
+	/**  Rows the change created. */
+	added: number,
+	/**  Rows the change deleted. */
+	removed: number,
+	/**  Rows the change rewrote. */
+	updated: number,
 };
 
 /**  The active and default data-folder paths, plus whether a custom override is in effect. */
@@ -711,10 +718,7 @@ export type EditorImportPreview = {
 	previewPositionsPath: string,
 	/**  `[west, south, east, north]` bounding box of the import, for map auto-focus. */
 	bounds: [number, number, number, number] | null,
-	/**
-	 *  True when this import exceeds `IMPORT_AUTOCOMMIT_THRESHOLD` and will be
-	 *  committed automatically (not undoable). Drives the import warning modal.
-	 */
+	/**  True when this import is too large to undo and will be committed automatically. */
 	willAutoCommit: boolean,
 	/**  The id the first staged row was given; the rest follow it in order. */
 	firstId: number | null,
@@ -1071,7 +1075,7 @@ export type MapMeta = {
 	labels: string[],
 	locationCount: number,
 	/**  Location changes since the last commit. */
-	pending: CommitDiff,
+	pending: Counts,
 	createdAt: string,
 	updatedAt: string,
 	lastOpenedAt: string | null,

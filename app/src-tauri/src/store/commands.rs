@@ -154,7 +154,7 @@ async fn open_claimed_map(
     store.bounds.seed(At::new(store.version, bounds));
     {
         let conn = storage::open_db()?;
-        storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts().into())?;
+        storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts())?;
         let meta = maps::read_map_meta(&conn, &map_id)?;
         store
             .value_meta
@@ -217,7 +217,7 @@ pub fn store_edit(
     let _t = Instant::now();
     with_store!(label, state, |store| {
         let opts = opts.unwrap_or_default();
-        let result = store.edit(&target, edits, opts.land, &mut None, true);
+        let result = store.edit(&target, edits, opts.land, &mut None);
         log::debug!("[cmd] store_edit total={}ms", _t.elapsed().as_millis());
         Ok(result)
     })
@@ -260,11 +260,19 @@ pub async fn store_add_locations_uploaded(
     let _t = Instant::now();
     // Parse before taking the store lock: a malformed chunk must leave the store untouched.
     let locations =
-        task::spawn_blocking(move || export::read_uploaded_chunks(&session_dir)).await??;
+        task::spawn_blocking(move || export::read_uploaded_chunks::<Location>(&session_dir))
+            .await??;
     let _read = _t.elapsed().as_millis();
     with_store!(label, state, |store| {
         let n = locations.len();
-        let result = apply_adds(store, locations);
+        let edits = locations
+            .into_iter()
+            .map(|mut l| {
+                l.id = 0;
+                Edit::Set(l)
+            })
+            .collect();
+        let result = store.edit(&Target::Map, edits, false, &mut None);
         log::debug!(
             "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
             n,
@@ -365,8 +373,12 @@ pub async fn store_country_distribution(
     selector: Selector,
     level: String,
 ) -> AppResult<Vec<(String, u32)>> {
-    let coords: AppResult<Vec<(f64, f64)>> = selector_read!(label, state, selector, |scope| {
-        scope.rows().map(|row| (row.lat(), row.lng())).collect()
+    let coords: AppResult<Vec<(f64, f64)>> = with_store!(label, state, |store| {
+        Ok(store
+            .scope(&selector)
+            .rows()
+            .map(|row| (row.lat(), row.lng()))
+            .collect())
     });
     borders::tally_countries(&level, &coords?)
 }
@@ -720,7 +732,7 @@ fn log_history_step(step: &str, started: Instant, depth: usize, changes: &Change
     );
 }
 
-/// Return the uncommitted change counts (added, removed, modified) since the last commit.
+/// Return the uncommitted change counts since the last commit.
 // Derived from the overlay, not the undo stack: the stack is capped, and non-undoable edits
 // (enrichment, field renames, plugin batches) bypass it while still being part of the commit.
 #[tauri::command]
@@ -728,7 +740,7 @@ fn log_history_step(step: &str, started: Instant, depth: usize, changes: &Change
 pub fn store_commit_diff(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-) -> AppResult<(u32, u32, u32)> {
+) -> AppResult<mma_algebra::Counts> {
     with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
 }
 

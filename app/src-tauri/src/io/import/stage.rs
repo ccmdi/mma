@@ -44,8 +44,7 @@ pub struct EditorImportPreview {
     pub preview_positions_path: String,
     /// `[west, south, east, north]` bounding box of the import, for map auto-focus.
     pub bounds: Option<[f64; 4]>,
-    /// True when this import exceeds `IMPORT_AUTOCOMMIT_THRESHOLD` and will be
-    /// committed automatically (not undoable). Drives the import warning modal.
+    /// True when this import is too large to undo and will be committed automatically.
     pub will_auto_commit: bool,
     /// The id the first staged row was given; the rest follow it in order.
     pub first_id: Option<u32>,
@@ -82,7 +81,7 @@ pub(super) fn stage_parsed(
             engine::Edit::Set(loc)
         })
         .collect();
-    let result = store.edit(&import_target(window), edits, false, &mut None, true);
+    let result = store.edit(&import_target(window), edits, false, &mut None);
     if let Some(p) = store.pending.get_mut(&key) {
         p.incoming.insert("tags".to_string(), parsed.tags);
     }
@@ -178,7 +177,7 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
         } else {
             Some([west, south, east, north])
         },
-        will_auto_commit: n > IMPORT_AUTOCOMMIT_THRESHOLD,
+        will_auto_commit: n > engine::MAX_UNDO_ROWS,
         first_id: None,
         settings: parsed.settings.clone(),
     };
@@ -307,7 +306,7 @@ pub(crate) fn add_copied_to_store(
             engine::Edit::Set(loc)
         })
         .collect();
-    Ok(store.edit(&engine::Target::Map, edits, false, &mut None, true))
+    Ok(store.edit(&engine::Target::Map, edits, false, &mut None))
 }
 
 /// Commit a previously previewed editor import into the open map, optionally
@@ -396,11 +395,8 @@ pub async fn store_import_file(
         }
 
         let imported_count = rows.len() as u32;
-        let auto_commit = rows.len() > IMPORT_AUTOCOMMIT_THRESHOLD;
-        if auto_commit {
-            store.edits.edit().clear_redo();
-        }
-        let mutation = store.edit(&target, edits, true, &mut None, !auto_commit);
+        let auto_commit = rows.len() > engine::MAX_UNDO_ROWS;
+        let mutation = store.edit(&target, edits, true, &mut None);
         log::debug!(
             "[import] total={:.0}ms locs={}",
             t0.elapsed().as_millis(),

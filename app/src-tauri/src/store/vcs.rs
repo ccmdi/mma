@@ -19,6 +19,7 @@ use crate::store::engine::{StoreManager, StoreState};
 use crate::store::storage;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
+use mma_algebra::Counts;
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -26,25 +27,6 @@ use std::time::Instant;
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-/// Added, removed, and modified location counts of a set of changes.
-#[derive(Clone, Copy, Default, serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CommitDiff {
-    pub added: u32,
-    pub removed: u32,
-    pub modified: u32,
-}
-
-impl From<(u32, u32, u32)> for CommitDiff {
-    fn from((added, removed, modified): (u32, u32, u32)) -> Self {
-        Self {
-            added,
-            removed,
-            modified,
-        }
-    }
-}
 
 /// Metadata for a single commit.
 #[derive(serde::Serialize, specta::Type)]
@@ -56,18 +38,9 @@ pub struct CommitInfo {
     pub message: Option<String>,
     pub tree_hash: Option<String>,
     #[serde(flatten)]
-    pub diff: CommitDiff,
+    pub diff: Counts,
     pub location_count: u32,
     pub created_at: String,
-}
-
-/// A commit's created and removed locations. An updated location appears in both
-/// `created` (new version) and `removed` (old version).
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct CommitDelta {
-    pub created: Vec<Location>,
-    pub removed: Vec<Location>,
 }
 
 /// The new commit's ID and the resulting state update.
@@ -150,7 +123,7 @@ pub async fn store_commit(
     );
 
     let path = storage::commit_delta_path(&map_id, &id)?;
-    let (added, removed_n, modified) = match pre_bake {
+    let counts = match pre_bake {
         Some((delta, counts)) => {
             arrow::write_arrow_ipc(&path, &delta)?;
             counts
@@ -161,15 +134,19 @@ pub async fn store_commit(
             // reads a 12-column snapshot as all-created.
             let base_path = storage::arrow_path(&map_id)?;
             storage::atomic_copy(&base_path, &path)?;
-            (location_count, 0, 0)
+            Counts {
+                added: location_count,
+                ..Counts::default()
+            }
         }
         None => {
             // Clean overlay with a parent (revert/no-op commit): diff current vs parent.
             let parent_state =
                 delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
-            let (created, removed, a, r, m) = delta::diff_states(&parent_state, &current_fallback);
+            let change = delta::diff_states(&parent_state, &current_fallback);
+            let (created, removed) = change.sides();
             arrow::write_arrow_ipc(&path, &arrow::delta_to_batch(&created, &removed))?;
-            (a, r, m)
+            change.counts()
         }
     };
 
@@ -177,18 +154,13 @@ pub async fn store_commit(
 
     conn.execute(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, added, removed_n, modified],
+        params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, counts.added, counts.removed, counts.updated],
     )?;
-    storage::set_map_counts(
-        &conn,
-        &map_id,
-        location_count as usize,
-        CommitDiff::default(),
-    )?;
+    storage::set_map_counts(&conn, &map_id, location_count as usize, Counts::default())?;
 
     log::info!(
         "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",
-        &id[..7], location_count, added, removed_n, modified, _t.elapsed().as_millis(),
+        &id[..7], location_count, counts.added, counts.removed, counts.updated, _t.elapsed().as_millis(),
         t_bake.as_millis(), (t_delta - t_bake).as_millis(), (_t.elapsed() - t_delta).as_millis(), genesis
     );
     Ok(CommitResult { id, status })
@@ -211,10 +183,10 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
                 parent_id: row.get(2)?,
                 message: row.get(3)?,
                 tree_hash: row.get(4)?,
-                diff: CommitDiff {
+                diff: Counts {
                     added: row.get(5)?,
                     removed: row.get(6)?,
-                    modified: row.get(7)?,
+                    updated: row.get(7)?,
                 },
                 location_count: row.get(8)?,
                 created_at: row.get(9)?,
@@ -294,13 +266,13 @@ pub(crate) fn read_commit_delta(
     Ok(arrow::batch_to_delta(&batch))
 }
 
-/// Read a single commit's delta (created and removed locations).
+/// Read a single commit's change: the locations it added, removed and updated.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<CommitDelta> {
+pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<engine::Change> {
     let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
-    Ok(CommitDelta { created, removed })
+    Ok(engine::Change::from_sides(created, removed))
 }
 
 #[cfg(test)]

@@ -804,8 +804,8 @@ declare const commands$1: {
     storeUndo: () => Promise<MutationResult>;
     /**  Redo the last undone edit. @unstable */
     storeRedo: () => Promise<MutationResult>;
-    /**  Return the uncommitted change counts (added, removed, modified) since the last commit. @unstable */
-    storeCommitDiff: () => Promise<[number, number, number]>;
+    /**  Return the uncommitted change counts since the last commit. @unstable */
+    storeCommitDiff: () => Promise<Counts>;
     /**
      *  Replace all active selections and resolve them against current data. Returns
      *  per-selection counts; the markers repaint through the render frame.
@@ -947,8 +947,8 @@ declare const commands$1: {
      *  @unstable
      */
     storeCheckoutCommit: (mapId: string, commitId: string) => Promise<null>;
-    /**  Read a single commit's delta (created and removed locations). @unstable */
-    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<CommitDelta>;
+    /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
+    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
     storeSeenWrite: (entry: SeenWriteEntry) => Promise<null>;
     /**  Returns a page of seen entries, newest first, with optional filtering. @unstable */
@@ -1324,6 +1324,19 @@ type CameraFrame = {
     pitch: number;
 };
 /**
+ *  What one write did to the rows: each row as it was and as it became. The inverse
+ *  undoes it, and `then` composes two into one.
+ *  @unstable
+ */
+type Change<T> = {
+    /**  The rows it created. */
+    added: T[];
+    /**  Removed rows in full, so a consumer can move off their old values. */
+    removed: T[];
+    /**  Each rewritten row as it was and as it became. */
+    updated: ([T, T])[];
+};
+/**
  *  One landed change as every watching window hears it: the change by key, and what
  *  it moved in the map's values and selections.
  */
@@ -1335,21 +1348,6 @@ type ChangeEvent = {
     /**  Selection state after this change, when it touched any selection. */
     selections: SelectionSync | null;
 } & Keys<number>;
-/**
- *  A commit's created and removed locations. An updated location appears in both
- *  `created` (new version) and `removed` (old version).
- *  @unstable
- */
-type CommitDelta = {
-    created: Location[];
-    removed: Location[];
-};
-/**  Added, removed, and modified location counts of a set of changes. */
-type CommitDiff = {
-    added: number;
-    removed: number;
-    modified: number;
-};
 /**  Metadata for a single commit. @unstable */
 type CommitInfo = {
     id: string;
@@ -1359,7 +1357,7 @@ type CommitInfo = {
     treeHash: string | null;
     locationCount: number;
     createdAt: string;
-} & CommitDiff;
+} & Counts;
 /**  The new commit's ID and the resulting state update. @unstable */
 type CommitResult = {
     id: string;
@@ -1409,6 +1407,15 @@ type CountBy = {
     counts: ([string, number])[];
     /**  Rows held by at least one group. */
     covered: number;
+};
+/**  A change by cardinality alone: how many rows it created, deleted and rewrote. */
+type Counts = {
+    /**  Rows the change created. */
+    added: number;
+    /**  Rows the change deleted. */
+    removed: number;
+    /**  Rows the change rewrote. */
+    updated: number;
 };
 /**  The active and default data-folder paths, plus whether a custom override is in effect. @unstable */
 type DataLocation = {
@@ -1484,10 +1491,7 @@ type EditorImportPreview = {
     previewPositionsPath: string;
     /**  `[west, south, east, north]` bounding box of the import, for map auto-focus. */
     bounds: [number, number, number, number] | null;
-    /**
-     *  True when this import exceeds `IMPORT_AUTOCOMMIT_THRESHOLD` and will be
-     *  committed automatically (not undoable). Drives the import warning modal.
-     */
+    /**  True when this import is too large to undo and will be committed automatically. */
     willAutoCommit: boolean;
     /**  The id the first staged row was given; the rest follow it in order. */
     firstId: number | null;
@@ -1944,7 +1948,7 @@ type MapMeta = {
     labels: string[];
     locationCount: number;
     /**  Location changes since the last commit. */
-    pending: CommitDiff;
+    pending: Counts;
     createdAt: string;
     updatedAt: string;
     lastOpenedAt: string | null;
@@ -3520,9 +3524,12 @@ declare const VIEWER: {
 /** The open row as the viewer's layer last read it. The layer is the single writer;
  *  everything else only looks. */
 declare function setOpenRow(row: Location | null): void;
-/** Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
- *  arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
- *  is its answer when no map is open. @unstable */
+/** Settle a mutation that already ran: wait for the scene to draw its version and
+ *  schedule a save. @unstable */
+declare function settled(m: MutationResult): Promise<void>;
+/** Run a mutation and settle it; what it changed arrives on the change feed. A result
+ *  that wraps its mutation comes back whole; `empty` is its answer when no map is
+ *  open. @unstable */
 declare function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
 /** @unstable */
 declare function mutate<R extends {
@@ -3724,6 +3731,8 @@ declare const store_setSelectedLocationIds: typeof setSelectedLocationIds;
 declare const store_setTags: typeof setTags;
 /** @unstable */
 declare const store_setWorkArea: typeof setWorkArea;
+/** @unstable */
+declare const store_settled: typeof settled;
 declare const store_tagIdsToNames: typeof tagIdsToNames;
 declare const store_undo: typeof undo;
 declare const store_updateLocations: typeof updateLocations;
@@ -3733,7 +3742,7 @@ declare const store_useMapState: typeof useMapState;
 /** @unstable */
 declare const store_waitForInflightPersist: typeof waitForInflightPersist;
 declare namespace store {
-  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_createTags as createTags, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, query$1 as query, store_read as read, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resolveLocation as resolveLocation, store_rowsOf as rowsOf, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
+  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applyFieldOp as applyFieldOp, store_applySelectionUpdate as applySelectionUpdate, store_cancelAutosave as cancelAutosave, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_createTags as createTags, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_flushSave as flushSave, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_holdAutosave as holdAutosave, store_initStore as initStore, store_mergeDuplicates as mergeDuplicates, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_patchMapMeta as patchMapMeta, store_previewDuplicateGroups as previewDuplicateGroups, store_previewVirtualLocation as previewVirtualLocation, store_pruneDuplicates as pruneDuplicates, query$1 as query, store_read as read, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_renameTagsIn as renameTagsIn, store_reorderTags as reorderTags, store_resolveLocation as resolveLocation, store_rowsOf as rowsOf, store_scheduleAutoCommit as scheduleAutoCommit, store_scheduleSave as scheduleSave, store_selectEvenlySpacedFromSelection as selectEvenlySpacedFromSelection, store_selectRandomFromSelection as selectRandomFromSelection, store_selectSpacedFromSelection as selectSpacedFromSelection, store_setActiveLocation as setActiveLocation, store_setMapExtraFields as setMapExtraFields, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setTags as setTags, store_setWorkArea as setWorkArea, store_settled as settled, syncSelections$1 as syncSelections, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_updateMapMeta as updateMapMeta, store_updateTags as updateTags, store_useMapState as useMapState, store_waitForInflightPersist as waitForInflightPersist };
   export type { store_MapState as MapState, store_UiState as UiState };
 }
 
@@ -5051,20 +5060,20 @@ declare namespace importStaging {
   export type { importStaging_ImportStaging as ImportStaging };
 }
 
-/** Whether there are uncommitted changes (adds, removes, or modifications). @unstable */
+/** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
 declare function hasCommitDiff(): boolean;
 /** Reset the uncommitted-change counts to zero. @unstable */
 declare function resetCommitDiffCounts(): void;
 /** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. @unstable */
-declare function useCommitDiff(): CommitDiff;
+declare function useCommitDiff(): Counts;
 /** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
  *  interleaved `[lng, lat]` Float32Arrays. @unstable */
 export interface CommitDiffPreview {
     hash: string;
-    counts: CommitDiff;
+    counts: Counts;
     added: Float32Array;
     removed: Float32Array;
-    modified: Float32Array;
+    updated: Float32Array;
 }
 /** The current commit-diff preview, or null when not previewing. @unstable */
 declare function getCommitDiffPreview(): CommitDiffPreview | null;
@@ -5072,14 +5081,7 @@ declare function getCommitDiffPreview(): CommitDiffPreview | null;
 declare function resetCommitDiffState(): void;
 /** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
 declare function diffPositions(locs: LatLng[]): Float32Array;
-/** Split a commit delta into added, removed, and modified locations. A location on both
- *  sides of the delta counts as modified. @unstable */
-declare function categorizeCommitDelta(delta: CommitDelta): {
-    added: Location[];
-    removed: Location[];
-    modified: Location[];
-};
-/** Fetch a commit's delta and overlay its added/removed/modified locations on the map,
+/** Fetch a commit's change and overlay its added/removed/updated locations on the map,
  *  temporarily replacing the regular markers. @unstable */
 declare function beginCommitDiffPreview(commit: CommitInfo): Promise<void>;
 /** Leave commit-diff preview and restore the regular markers. @unstable */
@@ -5089,8 +5091,6 @@ declare function endCommitDiffPreview(): void;
 export type commitDiff_CommitDiffPreview = CommitDiffPreview;
 /** @unstable */
 declare const commitDiff_beginCommitDiffPreview: typeof beginCommitDiffPreview;
-/** @unstable */
-declare const commitDiff_categorizeCommitDelta: typeof categorizeCommitDelta;
 /** @unstable */
 declare const commitDiff_diffPositions: typeof diffPositions;
 /** @unstable */
@@ -5106,7 +5106,7 @@ declare const commitDiff_resetCommitDiffState: typeof resetCommitDiffState;
 /** @unstable */
 declare const commitDiff_useCommitDiff: typeof useCommitDiff;
 declare namespace commitDiff {
-  export { commitDiff_beginCommitDiffPreview as beginCommitDiffPreview, commitDiff_categorizeCommitDelta as categorizeCommitDelta, commitDiff_diffPositions as diffPositions, commitDiff_endCommitDiffPreview as endCommitDiffPreview, commitDiff_getCommitDiffPreview as getCommitDiffPreview, commitDiff_hasCommitDiff as hasCommitDiff, commitDiff_resetCommitDiffCounts as resetCommitDiffCounts, commitDiff_resetCommitDiffState as resetCommitDiffState, commitDiff_useCommitDiff as useCommitDiff };
+  export { commitDiff_beginCommitDiffPreview as beginCommitDiffPreview, commitDiff_diffPositions as diffPositions, commitDiff_endCommitDiffPreview as endCommitDiffPreview, commitDiff_getCommitDiffPreview as getCommitDiffPreview, commitDiff_hasCommitDiff as hasCommitDiff, commitDiff_resetCommitDiffCounts as resetCommitDiffCounts, commitDiff_resetCommitDiffState as resetCommitDiffState, commitDiff_useCommitDiff as useCommitDiff };
   export type { commitDiff_CommitDiffPreview as CommitDiffPreview };
 }
 
@@ -5265,7 +5265,7 @@ export type MapBadge = {
 } & ({
     icon: string;
 } | {
-    diff: CommitDiff;
+    diff: Counts;
 });
 /** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
 export interface BadgeSource {
@@ -7914,4 +7914,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, SyncDirection, SyncTrigger, VIRTUAL_FLAGS, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, ChangeEvent, CommitDelta, CommitDiff, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, DataLocation, DbStats, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowPick, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, EngineValues, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowPick, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionSync, Selector, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

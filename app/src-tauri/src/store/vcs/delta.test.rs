@@ -22,10 +22,10 @@ fn loc(id: u32, lat: f64, lng: f64) -> Location {
 fn diff_genesis_all_added() {
     let parent = BTreeMap::new();
     let current = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)];
-    let (created, removed, added, removed_n, modified) = diff_states(&parent, &current);
-    assert_eq!(created.len(), 3);
-    assert!(removed.is_empty());
-    assert_eq!((added, removed_n, modified), (3, 0, 0));
+    let change = diff_states(&parent, &current);
+    assert_eq!(change.added.len(), 3);
+    assert!(change.removed.is_empty());
+    assert!(change.updated.is_empty());
 }
 
 #[test]
@@ -38,17 +38,23 @@ fn diff_add_remove_modify() {
     two_changed.heading = 90.0;
     let current = vec![two_changed, loc(3, 50.0, 60.0)];
 
-    let (created, removed, added, removed_n, modified) = diff_states(&parent, &current);
-    assert_eq!((added, removed_n, modified), (1, 1, 1));
+    let change = diff_states(&parent, &current);
+    assert_eq!(
+        (
+            change.added.len(),
+            change.removed.len(),
+            change.updated.len()
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(change.added[0].id, 3);
+    assert_eq!(change.removed[0].id, 1);
+    let (old, new) = &change.updated[0];
+    assert_eq!((old.id, new.id), (2, 2));
+    assert_eq!((old.heading, new.heading), (0.0, 90.0));
 
-    let created_ids: Vec<u32> = created.iter().map(|l| l.id).collect();
-    let removed_ids: Vec<u32> = removed.iter().map(|l| l.id).collect();
-    assert!(created_ids.contains(&3)); // added
-    assert!(created_ids.contains(&2)); // modified-new
-    assert!(removed_ids.contains(&1)); // deleted
-    assert!(removed_ids.contains(&2)); // modified-old
-
-    // The update carries new on the created side, old on the removed side.
+    // The sides encoding carries the update's new row as created, its old as removed.
+    let (created, removed) = change.sides();
     assert_eq!(created.iter().find(|l| l.id == 2).unwrap().heading, 90.0);
     assert_eq!(removed.iter().find(|l| l.id == 2).unwrap().heading, 0.0);
 }
@@ -87,10 +93,8 @@ fn empty_commit_yields_empty_delta() {
     let mut parent = BTreeMap::new();
     parent.insert(1, loc(1, 10.0, 20.0));
     let current = vec![loc(1, 10.0, 20.0)];
-    let (created, removed, added, removed_n, modified) = diff_states(&parent, &current);
-    assert!(created.is_empty());
-    assert!(removed.is_empty());
-    assert_eq!((added, removed_n, modified), (0, 0, 0));
+    let change = diff_states(&parent, &current);
+    assert!(change.is_empty());
 }
 
 #[test]
@@ -376,14 +380,15 @@ proptest! {
                 apply_op(&mut model, op, &mut next_id);
             }
             let current: Vec<Location> = model.values().cloned().collect();
-            let (created, removed, added_n, removed_n, modified_n) = diff_states(&parent, &current);
+            let change = diff_states(&parent, &current);
 
             let (exp_added, exp_removed, exp_modified) = expected_counts(&parent, &model);
-            prop_assert_eq!(added_n, exp_added);
-            prop_assert_eq!(removed_n, exp_removed);
-            prop_assert_eq!(modified_n, exp_modified);
+            let counts = change.counts();
+            prop_assert_eq!(counts.added, exp_added);
+            prop_assert_eq!(counts.removed, exp_removed);
+            prop_assert_eq!(counts.updated, exp_modified);
 
-            deltas.push((created, removed));
+            deltas.push(change.sides());
         }
 
         let replayed = replay_deltas(&deltas);

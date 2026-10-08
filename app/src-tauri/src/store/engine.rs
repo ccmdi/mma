@@ -390,28 +390,32 @@ impl Store {
         Some(cols.location(cols.row_of(id)?))
     }
 
-    /// Net `(added, removed, modified)` since last commit, counted from the overlay.
-    /// Mirrors [`Overlay::to_delta`]'s categorization without cloning any locations:
-    /// adds are created, patches on base rows are modified (patches absent from the
+    /// Net change counts since last commit, from the overlay. Mirrors
+    /// [`Overlay::to_delta`]'s categorization without cloning any locations:
+    /// adds are created, patches on base rows are updated (patches absent from the
     /// base are net adds), dead base rows are removed. Added-then-removed ids never
     /// touch the base and count as nothing. O(overlay * log n).
-    pub(crate) fn overlay_diff_counts(&self) -> (u32, u32, u32) {
+    pub(crate) fn overlay_diff_counts(&self) -> mma_algebra::Counts {
         let in_base = |id: u32| {
             self.batch
                 .as_ref()
                 .is_some_and(|b| Columns::of(b).row_of(id).is_some())
         };
         let mut added = self.overlay.adds.len() as u32;
-        let mut modified = 0u32;
+        let mut updated = 0u32;
         for &id in self.overlay.patches.keys() {
             if in_base(id) {
-                modified += 1;
+                updated += 1;
             } else {
                 added += 1;
             }
         }
         let removed = self.overlay.dead.iter().filter(|&id| in_base(id)).count() as u32;
-        (added, removed, modified)
+        mma_algebra::Counts {
+            added,
+            removed,
+            updated,
+        }
     }
 
     /// Insert or restore locations in the overlay. `adds` stays sorted by id (the invariant
@@ -887,18 +891,6 @@ impl<T> Deref for Tracked<T> {
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
-
-/// One read through a selector: `view_for` (indexes, then the view), narrowed once to
-/// the scope the body projects.
-macro_rules! selector_read {
-    ($label:ident, $state:ident, $selector:ident, |$scope:ident| $body:expr) => {
-        with_store!($label, $state, |store| {
-            let $scope = store.scope(&$selector);
-            Ok($body)
-        })
-    };
-}
-pub(crate) use selector_read;
 
 pub(crate) mod delta_legacy;
 pub(crate) mod frame;

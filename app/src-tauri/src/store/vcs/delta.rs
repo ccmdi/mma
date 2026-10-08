@@ -10,6 +10,7 @@ use std::collections::{BTreeMap, HashSet};
 
 use rusqlite::{params, Connection};
 
+use crate::store::engine;
 use crate::store::vcs;
 use crate::types::Location;
 
@@ -63,41 +64,30 @@ pub(crate) fn materialize_commit(
     Ok(replay_deltas(&deltas))
 }
 
-/// Compute the delta from `parent` state to `current` state.
-/// Returns `(created, removed, added_count, removed_count, modified_count)`.
-/// `created` holds added + updated-new rows; `removed` holds deleted + updated-old
-/// rows. An updated id appears in both (old in `removed`, new in `created`).
+/// The change from `parent` state to `current` state.
 pub(crate) fn diff_states(
     parent: &BTreeMap<u32, Location>,
     current: &[Location],
-) -> (Vec<Location>, Vec<Location>, u32, u32, u32) {
+) -> engine::Change {
     let current_ids: HashSet<u32> = current.iter().map(|l| l.id).collect();
-    let mut created = Vec::new();
-    let mut removed = Vec::new();
-    let (mut added_n, mut removed_n, mut modified_n) = (0u32, 0u32, 0u32);
+    let mut change = engine::Change::default();
 
     for (id, ploc) in parent {
         if !current_ids.contains(id) {
-            removed.push(ploc.clone());
-            removed_n += 1;
+            change.removed.push(ploc.clone());
         }
     }
     for loc in current {
         match parent.get(&loc.id) {
-            None => {
-                created.push(loc.clone());
-                added_n += 1;
-            }
+            None => change.added.push(loc.clone()),
             Some(ploc) => {
                 if ploc != loc {
-                    removed.push(ploc.clone());
-                    created.push(loc.clone());
-                    modified_n += 1;
+                    change.updated.push((ploc.clone(), loc.clone()));
                 }
             }
         }
     }
-    (created, removed, added_n, removed_n, modified_n)
+    change
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 ﻿import { useEffect } from "react";
 import type { LatLng } from "@/types";
-import type { CommitDelta, CommitDiff, CommitInfo, Location } from "@/bindings.gen";
+import type { CommitInfo, Counts } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { fitMapToBounds } from "@/lib/map/mapState";
 import { boundsOfCoords } from "@/lib/map/host";
@@ -9,21 +9,19 @@ import { getMapState, setWorkArea } from "./useMapStore";
 
 // --- Uncommitted-diff counts (drives the Commit button + palette enablement) ---
 
-const ZERO_DIFF: CommitDiff = { added: 0, removed: 0, modified: 0 };
+const ZERO_DIFF: Counts = { added: 0, removed: 0, updated: 0 };
 let cachedCommitDiff = ZERO_DIFF;
 
-/** Whether there are uncommitted changes (adds, removes, or modifications). */
+/** Whether there are uncommitted changes (adds, removes, or updates). */
 export function hasCommitDiff(): boolean {
-	return (
-		cachedCommitDiff.added > 0 || cachedCommitDiff.removed > 0 || cachedCommitDiff.modified > 0
-	);
+	return cachedCommitDiff.added > 0 || cachedCommitDiff.removed > 0 || cachedCommitDiff.updated > 0;
 }
 
-function publishCommitDiff(next: CommitDiff) {
+function publishCommitDiff(next: Counts) {
 	if (
 		next.added === cachedCommitDiff.added &&
 		next.removed === cachedCommitDiff.removed &&
-		next.modified === cachedCommitDiff.modified
+		next.updated === cachedCommitDiff.updated
 	) {
 		return;
 	}
@@ -38,8 +36,7 @@ export function resetCommitDiffCounts() {
 
 async function refreshCommitDiff() {
 	if (!getMapState().map) return;
-	const [added, removed, modified] = await cmd.storeCommitDiff();
-	publishCommitDiff({ added, removed, modified });
+	publishCommitDiff(await cmd.storeCommitDiff());
 }
 
 /** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. */
@@ -58,10 +55,10 @@ export function useCommitDiff() {
  *  interleaved `[lng, lat]` Float32Arrays. */
 export interface CommitDiffPreview {
 	hash: string;
-	counts: CommitDiff;
+	counts: Counts;
 	added: Float32Array;
 	removed: Float32Array;
-	modified: Float32Array;
+	updated: Float32Array;
 }
 
 let commitDiffPreview: CommitDiffPreview | null = null;
@@ -85,39 +82,26 @@ export function diffPositions(locs: LatLng[]): Float32Array {
 	return a;
 }
 
-/** Split a commit delta into added, removed, and modified locations. A location on both
- *  sides of the delta counts as modified. */
-export function categorizeCommitDelta(delta: CommitDelta): {
-	added: Location[];
-	removed: Location[];
-	modified: Location[];
-} {
-	const removedIds = new Set(delta.removed.map((l) => l.id));
-	const createdIds = new Set(delta.created.map((l) => l.id));
-	return {
-		added: delta.created.filter((l) => !removedIds.has(l.id)),
-		removed: delta.removed.filter((l) => !createdIds.has(l.id)),
-		modified: delta.created.filter((l) => removedIds.has(l.id)),
-	};
-}
-
-/** Fetch a commit's delta and overlay its added/removed/modified locations on the map,
+/** Fetch a commit's change and overlay its added/removed/updated locations on the map,
  *  temporarily replacing the regular markers. */
 export async function beginCommitDiffPreview(commit: CommitInfo) {
 	if (!getMapState().map) return;
-	const { added, removed, modified } = categorizeCommitDelta(
-		await cmd.storeGetCommitDelta(commit.mapId, commit.id),
-	);
+	const change = await cmd.storeGetCommitDelta(commit.mapId, commit.id);
+	const updated = change.updated.map(([, next]) => next);
 	commitDiffPreview = {
 		hash: commit.id.slice(0, 7),
-		counts: { added: added.length, removed: removed.length, modified: modified.length },
-		added: diffPositions(added),
-		removed: diffPositions(removed),
-		modified: diffPositions(modified),
+		counts: {
+			added: change.added.length,
+			removed: change.removed.length,
+			updated: updated.length,
+		},
+		added: diffPositions(change.added),
+		removed: diffPositions(change.removed),
+		updated: diffPositions(updated),
 	};
 	emitEvent("diff-markers:changed");
 	setWorkArea("diff");
-	const bounds = boundsOfCoords([...added, ...removed, ...modified]);
+	const bounds = boundsOfCoords([...change.added, ...change.removed, ...updated]);
 	if (bounds) fitMapToBounds(bounds, 100);
 }
 

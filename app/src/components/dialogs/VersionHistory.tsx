@@ -64,7 +64,7 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 						</thead>
 						<tbody>
 							{commits.map((c, i) => {
-								const hasDiff = c.added > 0 || c.removed > 0 || c.modified > 0;
+								const hasDiff = c.added > 0 || c.removed > 0 || c.updated > 0;
 								return (
 									<tr
 										key={c.id}
@@ -81,7 +81,7 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 												<DiffCounts
 													added={c.added}
 													removed={c.removed}
-													modified={c.modified}
+													updated={c.updated}
 													hideZero
 												/>
 											) : (

@@ -204,13 +204,26 @@ pub struct Keys<K> {
     pub updated: Vec<K>,
 }
 
+/// A change by cardinality alone: how many rows it created, deleted and rewrote.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, specta::Type)]
+pub struct Counts {
+    /// Rows the change created.
+    pub added: u32,
+    /// Rows the change deleted.
+    pub removed: u32,
+    /// Rows the change rewrote.
+    pub updated: u32,
+}
+
 /// What one write did to the rows: each row as it was and as it became. The inverse
 /// undoes it, and `then` composes two into one.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
 pub struct Change<T> {
+    /// The rows it created.
     pub added: Vec<T>,
     /// Removed rows in full, so a consumer can move off their old values.
     pub removed: Vec<T>,
+    /// Each rewritten row as it was and as it became.
     pub updated: Vec<(T, T)>,
 }
 
@@ -310,6 +323,15 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
     pub fn touches(&self, key: T::Key) -> bool {
         self.added.iter().any(|r| r.key() == key)
             || self.updated.iter().any(|(_, n)| n.key() == key)
+    }
+
+    /// What it did, by cardinality.
+    pub fn counts(&self) -> Counts {
+        Counts {
+            added: self.added.len() as u32,
+            removed: self.removed.len() as u32,
+            updated: self.updated.len() as u32,
+        }
     }
 
     /// What it did, by key.

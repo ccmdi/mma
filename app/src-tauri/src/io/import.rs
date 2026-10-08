@@ -246,11 +246,6 @@ pub async fn bulk_import_cancel() -> AppResult<()> {
 // Single-file import into open map (editor import)
 // ---------------------------------------------------------------------------
 
-/// Imports larger than this are committed automatically instead of kept as a
-/// reversible undo diff (the undo entry would clone every imported location and
-/// bloat the persisted edit history). Raise to keep bigger imports undoable.
-pub const IMPORT_AUTOCOMMIT_THRESHOLD: usize = 500_000;
-
 #[cfg(test)]
 #[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "import.test.rs"]

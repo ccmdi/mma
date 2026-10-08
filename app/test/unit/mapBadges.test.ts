@@ -9,8 +9,8 @@ const keysOn = (mapId: string) =>
 	getMapBadges()
 		.get(mapId)
 		?.map((b) => b.key);
-const map = (id: string, added: number, removed: number, modified: number) =>
-	({ id, pending: { added, removed, modified } }) as MapMeta;
+const map = (id: string, added: number, removed: number, updated: number) =>
+	({ id, pending: { added, removed, updated } }) as MapMeta;
 
 describe("map badges", () => {
 	it("hides uncommitted changes by default", () => {
@@ -59,7 +59,7 @@ describe("map badges", () => {
 		expect(pending && "diff" in pending && pending.diff).toEqual({
 			added: 3,
 			removed: 0,
-			modified: 1,
+			updated: 1,
 		});
 		expect(
 			getMapBadges()

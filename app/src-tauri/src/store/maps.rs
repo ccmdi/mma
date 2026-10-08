@@ -11,7 +11,6 @@ use crate::store::engine::StoreState;
 use crate::store::engine::ValueRecord;
 use crate::store::map_defaults;
 use crate::store::storage;
-use crate::store::vcs::CommitDiff;
 use crate::sv::schema::PanoType;
 use crate::types;
 use crate::types::shape::MapShape;
@@ -20,6 +19,7 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
+use mma_algebra::Counts;
 use mma_algebra::Patch;
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
@@ -552,7 +552,7 @@ pub struct MapMeta {
     pub location_count: i64,
     /// Location changes since the last commit.
     #[patch(skip)]
-    pub pending: CommitDiff,
+    pub pending: Counts,
     #[patch(skip)]
     pub created_at: String,
     #[patch(skip)]
@@ -612,10 +612,10 @@ fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> 
         tags: storage::json_col(row, "tags")?,
         labels: storage::json_col(row, "labels")?,
         location_count: row.get("location_count")?,
-        pending: CommitDiff {
+        pending: Counts {
             added: row.get("pending_added")?,
             removed: row.get("pending_removed")?,
-            modified: row.get("pending_modified")?,
+            updated: row.get("pending_modified")?,
         },
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,

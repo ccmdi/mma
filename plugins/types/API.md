@@ -998,9 +998,9 @@ mutate<
 >(fn: () => Promise<R>, empty: R): Promise<R>
 ```
 
-Run a mutation, wait for the scene to draw it, and schedule a save; what it changed
-arrives on the change feed. A result that wraps its mutation comes back whole; `empty`
-is its answer when no map is open.
+Run a mutation and settle it; what it changed arrives on the change feed. A result
+that wraps its mutation comes back whole; `empty` is its answer when no map is
+open.
 
 ### openDuplicateLocation
 
@@ -1367,6 +1367,17 @@ Put `add` on every location the selector resolves to and strip `remove` from the
 in one undoable mutation. There is no tag-specific write path: `tags` is an ordinary
 list-valued field, so this is the same `listSet` any `array` field takes. Locations
 already in the requested state are untouched; `add` wins for a tag in both lists.
+
+### settled
+
+`unstable` · unreleased
+
+```ts
+settled(m: MutationResult): Promise<void>
+```
+
+Settle a mutation that already ran: wait for the scene to draw its version and
+schedule a save.
 
 ### setWorkArea
 
@@ -4132,23 +4143,8 @@ Uncommitted changes and their preview on the map.
 beginCommitDiffPreview(commit: CommitInfo): Promise<void>
 ```
 
-Fetch a commit's delta and overlay its added/removed/modified locations on the map,
+Fetch a commit's change and overlay its added/removed/updated locations on the map,
 temporarily replacing the regular markers.
-
-### categorizeCommitDelta
-
-`unstable` · since v0.5.1
-
-```ts
-categorizeCommitDelta(delta: CommitDelta): {
-  added: Location[];
-  removed: Location[];
-  modified: Location[];
-}
-```
-
-Split a commit delta into added, removed, and modified locations. A location on both
-sides of the delta counts as modified.
 
 ### diffPositions
 
@@ -4188,7 +4184,7 @@ The current commit-diff preview, or null when not previewing.
 hasCommitDiff(): boolean
 ```
 
-Whether there are uncommitted changes (adds, removes, or modifications).
+Whether there are uncommitted changes (adds, removes, or updates).
 
 ### resetCommitDiffCounts
 
@@ -4215,7 +4211,7 @@ Clear commit-diff preview state.
 `unstable` · since v0.4.0
 
 ```ts
-useCommitDiff(): CommitDiff
+useCommitDiff(): Counts
 ```
 
 React hook: the uncommitted add/remove/modify counts, kept in sync with the store.
@@ -5526,10 +5522,10 @@ Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/red
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeCommitDiff(): Promise<[number, number, number]>
+cmd.storeCommitDiff(): Promise<Counts>
 ```
 
-Return the uncommitted change counts (added, removed, modified) since the last commit.
+Return the uncommitted change counts since the last commit.
 
 #### cmd.storeCopyLocationsToMap
 
@@ -5691,10 +5687,10 @@ Export locations as a `{name, customCoordinates}` JSON file, including tags and 
 `unstable` · since v0.5.1
 
 ```ts
-cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<CommitDelta>
+cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Location>>
 ```
 
-Read a single commit's delta (created and removed locations).
+Read a single commit's change: the locations it added, removed and updated.
 
 #### cmd.storeGetMap
 

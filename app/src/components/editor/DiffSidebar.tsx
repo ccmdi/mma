@@ -35,10 +35,10 @@ export function DiffSidebar() {
 						<span className="diff-legend__count mono">{fmt.format(counts.removed)}</span>
 					</li>
 					<li>
-						<Swatch color={DIFF_COLORS.modified} size="sm" round />
+						<Swatch color={DIFF_COLORS.updated} size="sm" round />
 
 						{t("Modified")}
-						<span className="diff-legend__count mono">{fmt.format(counts.modified)}</span>
+						<span className="diff-legend__count mono">{fmt.format(counts.updated)}</span>
 					</li>
 				</ul>
 			</Section>

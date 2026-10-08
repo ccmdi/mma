@@ -47,7 +47,7 @@ async function listCommits(mapId: string): Promise<any[]> {
 	return withApi(async (api, id) => api.cmd.storeListCommits(id), mapId);
 }
 
-async function commitDiff(): Promise<[number, number, number]> {
+async function commitDiff(): Promise<{ added: number; removed: number; updated: number }> {
 	return withApi(async (api) => api.cmd.storeCommitDiff());
 }
 
@@ -168,31 +168,31 @@ describe("VCS commit-diff badge accuracy", () => {
 		await withApi(async (api) => api.commitMap("base"));
 	});
 	it("clean tree shows no diff right after commit", async () => {
-		expect(await commitDiff()).toEqual([0, 0, 0]);
+		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
 		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(false);
 	});
 
 	it("a pure modification counts as ~1, not an add/remove", async () => {
 		const loc0 = await getLoc(ids[0]);
 		await withApi(async (api, l) => api.updateLocations([{ id: l.id, heading: 123 }]), loc0);
-		const [added, removed, modified] = await commitDiff();
+		const { added, removed, updated } = await commitDiff();
 		expect([added, removed]).toEqual([0, 0]);
-		expect(modified).toBe(1);
+		expect(updated).toBe(1);
 		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(true);
 	});
 
 	it("add + remove + modify accumulate independently", async () => {
 		await addLocs([createLocation({ lat: 9, lng: 9 })]);
 		await withApi(async (api, d) => api.removeLocations(new Set([d])), ids[1]);
-		const [added, removed, modified] = await commitDiff();
+		const { added, removed, updated } = await commitDiff();
 		expect(added).toBe(1);
 		expect(removed).toBe(1);
-		expect(modified).toBe(1); // still the loc0 heading change
+		expect(updated).toBe(1); // still the loc0 heading change
 	});
 
 	it("committing resets the badge to zero", async () => {
 		await withApi(async (api) => api.commitMap("changes"));
-		expect(await commitDiff()).toEqual([0, 0, 0]);
+		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
 		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(false);
 	});
 });

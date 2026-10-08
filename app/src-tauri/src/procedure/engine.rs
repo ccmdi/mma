@@ -1001,7 +1001,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 }
                 Target::Map => false,
             };
-            store.edit(&ctx.target, edits, false, &mut group, true);
+            store.edit(&ctx.target, edits, false, &mut group);
             Ok(held.then(|| store.rows_at(&ctx.target, Some(&ids))))
         })?;
         if let Some(rows) = held_rows {
