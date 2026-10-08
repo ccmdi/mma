@@ -11,9 +11,9 @@ import {
 	query,
 	setMapExtraFields,
 	setTags,
+	read,
 } from "@/store/useMapStore";
 import type { CountBy, KeySpec, Location, PartitionBucket } from "@/bindings.gen";
-import { cmd } from "@/lib/commands";
 import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
@@ -39,9 +39,9 @@ export function getCurrentMapId() {
 	return getMapState().mapId;
 }
 
-/** @deprecated v0.8.2. Read `MMA.getMapState().activeLocation`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().openRow`. */
 export function getActiveLocation() {
-	return getMapState().activeLocation;
+	return getMapState().openRow;
 }
 
 /** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. */
@@ -73,9 +73,9 @@ export function getSelections() {
 	return getActiveSelections();
 }
 
-/** @deprecated v0.8.2. Read `(await MMA.cmd.storeGetSummary()).dirtyCount`. */
+/** @deprecated v0.8.2. Ask `MMA.read` for the summary and take `dirtyCount`. */
 export async function getDirtyCount(): Promise<number> {
-	return (await cmd.storeGetSummary()).dirtyCount;
+	return (await read({ type: "Everything" }, null, { kind: "summary" }, "summary")).dirtyCount;
 }
 
 /** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`. */

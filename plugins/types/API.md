@@ -1031,8 +1031,8 @@ Open a map in this window, closing any currently open map first.
 openStagedLocation(index: number): Promise<void>
 ```
 
-Open a staged-import location read-only, as if it were active. It is not on the map and
-cannot be edited.
+Open a staged-import location, as if it were active: the viewer previews a copy, and
+the staged row itself stays in the import layer until Confirm lands it.
 
 ### patchMapMeta
 
@@ -1063,7 +1063,7 @@ Read-only preview of transitive duplicate groups (size >= 2) within `distance` m
 previewVirtualLocation(loc: Location): void
 ```
 
-Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
+Open an arbitrary location read-only as a seen-preview: loads its pano without
 adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
 
 ### pruneDuplicates
@@ -1113,6 +1113,22 @@ query(selector: Selector): {
 
 Questions about the locations a selector resolves to. Each call answers once,
 against the map as it is now; ask again after a change.
+
+### read
+
+`stable` · unreleased
+
+```ts
+read<K extends Answer["kind"]>(
+  selector: Selector,
+  pick: RowPick | null,
+  ask: Ask,
+  kind: K,
+): Promise<AnswerOf<K>>
+```
+
+The one read: `ask` a question of the rows `selector` resolves to, optionally
+narrowed by `pick` first. Answers once, against the map as it is now.
 
 ### redo
 
@@ -1195,6 +1211,16 @@ resolveLocation(m: MaybeLocation): Promise<Location | null>
 ```
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
+
+### rowsOf
+
+`stable` · unreleased
+
+```ts
+rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
+```
+
+Full rows out of a rows answer, fetched from disk when they were many.
 
 ### scheduleAutoCommit
 
@@ -1294,6 +1320,17 @@ setMapExtraFields(fields: Record<string, FieldDef>): Promise<void>
 ```
 
 Replace the map's extra-field definitions (types/labels for `Location.extra` keys).
+
+### setOpenRow
+
+`stable` · unreleased
+
+```ts
+setOpenRow(row: Location | null): void
+```
+
+The open row as the viewer's layer last read it. The layer is the single writer;
+everything else only looks.
 
 ### setPluginMode
 
@@ -1424,6 +1461,17 @@ useMapState<T>(selector: (s: MapState) => T): T
 Reactive slice of the map state. Re-renders only when the selected value's
 reference changes (`Object.is`), so selectors must return state fields or
 memoized values, not a new value per call.
+
+### VIEWER
+
+`stable` · unreleased
+
+```ts
+VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
+```
+
+The viewer's own pending layer: its edits read over the map's rows as they are now,
+and nothing reaches the map until a save lands them.
 
 ### waitForInflightPersist
 
@@ -2375,19 +2423,6 @@ registerProvider(provider: Provider): void
 Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
 deactivates.
 
-### withoutDerivedFrom
-
-`unstable` · since v0.10.3
-
-```ts
-withoutDerivedFrom(
-  extra: Record<string, unknown> | null,
-  changed: Iterable<string>,
-): Record<string, unknown> | null
-```
-
-Remove fields transitively derived from `changed` from an `extra` record.
-
 ## FieldDefRegistry
 
 ### declaredValues
@@ -2611,23 +2646,6 @@ so a double-clicked button cannot start two.
 
 ## Types
 
-### applyPatch
-
-`stable` · unreleased
-
-```ts
-applyPatch<T extends object>(
-  row: T,
-  patch: {
-    [K in keyof T]?: unknown;
-  },
-  merged?: readonly string[],
-): T
-```
-
-`row` with `patch` written over it. An absent field is unchanged, and a `merged` field
-changes key by key, a null value deleting its key, and is null once empty.
-
 ### bboxTupleToBounds
 
 `unstable` · since v0.10.3
@@ -2751,31 +2769,6 @@ locId(m: MaybeLocation): number
 ```
 
 Extract the id from a MaybeLocation.
-
-### patchBetween
-
-`stable` · unreleased
-
-```ts
-patchBetween<T extends object>(
-  old: T,
-  next: T,
-  merged?: readonly string[],
-): Partial<T>
-```
-
-The patch that turns `old` into `next`: each field that changed, a `merged` field as only
-its changed keys, and null for a key `next` lacks.
-
-### sameRow
-
-`unstable` · since v0.10.3
-
-```ts
-sameRow(a: Location, b: Location): boolean
-```
-
-The same location on the same pano: what makes one row's answer another row's.
 
 ### scoreTupleToBounds
 
@@ -4156,6 +4149,16 @@ getImportStaging(): ImportStaging | null
 ```
 
 The current staged import, or null if none.
+
+### importTarget
+
+`unstable` · unreleased
+
+```ts
+importTarget(): Target
+```
+
+The pending layer holding this window's staged import rows.
 
 ### resetImportState
 
@@ -5575,18 +5578,6 @@ cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult>
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
 
-#### cmd.storeBounds
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeBounds(
-  selector: Selector,
-): Promise<[number, number, number, number] | null>
-```
-
-Bounding box `[west, south, east, north]`, or `null` when the set is empty.
-
 #### cmd.storeCheckoutCommit
 
 `unstable` · since v0.4.0
@@ -5607,27 +5598,6 @@ cmd.storeCloseMap(): Promise<null>
 ```
 
 Close the open map, saving unsaved changes first.
-
-#### cmd.storeCollect
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeCollect(selector: Selector): Promise<Rows>
-```
-
-Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
-`storeValues`) when only specific fields are needed.
-
-#### cmd.storeColumns
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeColumns(selector: Selector, fields: string[]): Promise<Columns>
-```
-
-Read specific fields across matched locations, returned as one column per field.
 
 #### cmd.storeCommit
 
@@ -5662,31 +5632,6 @@ cmd.storeCopyLocationsToMap(
 
 Copy locations already stored in this map into another map.
 
-#### cmd.storeCount
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeCount(selector: Selector): Promise<number>
-```
-
-Count how many locations the selector matches.
-
-#### cmd.storeCountBy
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeCountBy(
-  selector: Selector,
-  fields: string[],
-  key: KeySpec,
-): Promise<CountBy[]>
-```
-
-Group locations by a derived key of each field, returning counts only (no member ids)
-and how many distinct locations those groups cover, one result per field.
-
 #### cmd.storeCountryDistribution
 
 `unstable` · since v0.5.2
@@ -5700,17 +5645,6 @@ cmd.storeCountryDistribution(
 
 Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 `level` selects border precision, falling back to "light" if unavailable.
-
-#### cmd.storeCoverage
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeCoverage(selector: Selector): Promise<[string, number][]>
-```
-
-How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
-columns a row can lack.
 
 #### cmd.storeCreateMap
 
@@ -5772,17 +5706,6 @@ cmd.storeDrop(name: string): Promise<null>
 
 Drop a named pending layer and everything it holds.
 
-#### cmd.storeDuplicateGroups
-
-`unstable` · since v0.5.1
-
-```ts
-cmd.storeDuplicateGroups(distance: number): Promise<number[][]>
-```
-
-Find groups of locations within `distance` metres of each other (transitive).
-Returns groups of IDs, each with at least two members.
-
 #### cmd.storeDuplicateMap
 
 `unstable` · since v0.11.4
@@ -5808,22 +5731,6 @@ cmd.storeEdit(
 
 Edit rows where `target` says. Edits at a pending layer are held there until one says
 `land`; once landed they write through and join its step.
-
-#### cmd.storeEvenlySpaced
-
-`unstable` · since v0.11.0
-
-```ts
-cmd.storeEvenlySpaced(
-  selector: Selector,
-  targetCount: number | null,
-  spacingM: number | null,
-): Promise<SpacedPickResult>
-```
-
-An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
-N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
-closer than half of it).
 
 #### cmd.storeExportBulkZip
 
@@ -5867,30 +5774,6 @@ cmd.storeExportJson(opts: ExportOpts): Promise<string>
 
 Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs.
 
-#### cmd.storeFindNearby
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeFindNearby(
-  lat: number,
-  lng: number,
-  radiusM: number,
-): Promise<Location[]>
-```
-
-Find all locations within `radiusM` metres of (`lat`, `lng`).
-
-#### cmd.storeFindNearest
-
-`unstable` · since v0.11.3
-
-```ts
-cmd.storeFindNearest(lat: number, lng: number): Promise<Location | null>
-```
-
-The location closest to a coordinate, or null when the map has none.
-
 #### cmd.storeGetCommitDelta
 
 `unstable` · since v0.5.1
@@ -5931,36 +5814,12 @@ cmd.storeGetSavedSelections(ids: string[]): Promise<SavedSelection[]>
 
 Fetch the full saved selection rules for the given `ids`, including their selector trees.
 
-#### cmd.storeGetSummary
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeGetSummary(): Promise<SummaryResult>
-```
-
-Return the map's current location count, store version, and unsaved-change count.
-
-#### cmd.storeGroupBy
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeGroupBy(
-  selector: Selector,
-  field: string,
-  key: KeySpec,
-): Promise<PartitionBucket[]>
-```
-
-Group by a derived key, returning `{ key, ids, bin }` per group.
-
 #### cmd.storeImportCancel
 
 `unstable` · since v0.11.3
 
 ```ts
-cmd.storeImportCancel(): Promise<void>
+cmd.storeImportCancel(): Promise<null>
 ```
 
 Discard the staged import without importing it.
@@ -6013,17 +5872,6 @@ cmd.storeImportPreview(path: string): Promise<EditorImportPreview>
 Parse a file and return field-level statistics and preview positions for the
 editor import dialog. Call `storeImportFile` to commit the import.
 
-#### cmd.storeImportStagedLocation
-
-`unstable` · since v0.6.0
-
-```ts
-cmd.storeImportStagedLocation(index: number): Promise<Location>
-```
-
-Return one staged (not yet imported) location by its preview `index`, for
-read-only preview in the editor.
-
 #### cmd.storeListCommits
 
 `unstable` · since v0.4.0
@@ -6054,21 +5902,6 @@ cmd.storeListSavedSelections(): Promise<SavedSelectionInfo[]>
 
 List every saved selection rule (name, color, date), without their selector trees.
 
-#### cmd.storeNearAny
-
-`unstable` · since v0.7.0
-
-```ts
-cmd.storeNearAny(
-  lats: number[],
-  lngs: number[],
-  radiusM: number,
-): Promise<boolean[]>
-```
-
-For each input point, whether any existing location lies within `radiusM` metres.
-Batch form for probing many coordinates at once.
-
 #### cmd.storeOpenMap
 
 `unstable` · since v0.4.0
@@ -6095,6 +5928,21 @@ Patch an interned field's value metadata: get-or-create names, edit display
 metadata, reorder. Metadata only - membership writes go through the ordinary
 `listSet` field op. `tags` is the first (and so far only) interned field.
 
+#### cmd.storeRead
+
+`unstable` · unreleased
+
+```ts
+cmd.storeRead(
+  selector: Selector,
+  pick: RowPick | null,
+  ask: Ask,
+): Promise<Answer>
+```
+
+Answer one question about the rows a selector resolves to, optionally narrowed by a
+pick first.
+
 #### cmd.storeRedo
 
 `unstable` · since v0.4.0
@@ -6114,16 +5962,6 @@ cmd.storeRenameFolder(from: string, to: string): Promise<null>
 ```
 
 Rename a folder across all maps that reference it.
-
-#### cmd.storeResolve
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeResolve(selector: Selector): Promise<number[]>
-```
-
-Ids of every location the selector resolves to, ascending.
 
 #### cmd.storeResolvePick
 
@@ -6208,16 +6046,6 @@ cmd.storeRow(target: Target, id: number): Promise<Location | null>
 ```
 
 The row at `id` as `target` sees it.
-
-#### cmd.storeSample
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeSample(selector: Selector, n: number): Promise<number[]>
-```
-
-`n` ids drawn uniformly at random from the selected set, without replacement.
 
 #### cmd.storeSaveDirty
 
@@ -6372,21 +6200,6 @@ cmd.storeSetMarkerColor(color: [number, number, number]): Promise<null>
 
 Set the default marker color for new render updates.
 
-#### cmd.storeSpaced
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeSpaced(
-  selector: Selector,
-  targetCount: number | null,
-  minDistanceM: number | null,
-): Promise<SpacedPickResult>
-```
-
-An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
-spacing) or `minDistanceM` (keep as many as fit at that spacing).
-
 #### cmd.storeSubscribeFrames
 
 `unstable` · since v0.11.5
@@ -6481,16 +6294,6 @@ cmd.storeUploadFinish(sessionDir: string): Promise<string>
 
 Package an upload session's files into a single output and remove the session
 directory. Returns a temp path for `storeSaveExportFile`.
-
-#### cmd.storeValues
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeValues(selector: Selector, field: string): Promise<string[]>
-```
-
-Distinct values of `field` across the selected set, sorted.
 
 #### cmd.storeWork
 
@@ -7101,13 +6904,6 @@ runProviders<C extends readonly unknown[]>(
   rows: Selector,
   opts?: RunOpts,
 ): Promise<ProviderOutcomes>
-runProviders<C extends readonly unknown[]>(
-  items: {
-    [K in keyof C]: ProviderRun<C[K]>;
-  },
-  rows: Location[],
-  opts?: RunOpts,
-): Promise<RowsRun>
 ```
 
 Run a set of providers over `rows`. When `rows` is a Selector, matching locations
@@ -7714,21 +7510,6 @@ Step the zoom out.
 
 Enrichment passes over the open map.
 
-### enrich
-
-`unstable` · since v0.10.3
-
-```ts
-enrich(
-  loc: Location,
-  opts?: Omit<RunOpts, "onProgress">,
-): Promise<Location>
-```
-
-Enrich a single location with the map's enabled metadata fields. Existing fields are
-kept unless `force` re-derives all of them. Returns the enriched location without
-writing it. Returns the location unchanged when enrichment is disabled.
-
 ### enrichAll
 
 `unstable` · since v0.4.0
@@ -7739,6 +7520,21 @@ enrichAll(selector: Selector, opts?: RunOpts): Promise<EnrichOutcome[]>
 
 Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
 provider (metadata, exact date, timezone, subdivision).
+
+### enrichAt
+
+`unstable` · unreleased
+
+```ts
+enrichAt(
+  target: Target,
+  opts?: Omit<RunOpts, "onProgress" | "on">,
+): Promise<void>
+```
+
+Enrich the rows a target holds with the map's enabled metadata fields. Answers land in
+the target; each enriched row also reaches `onPartial` as it lands. Does nothing when
+enrichment is disabled.
 
 ## Providers
 
@@ -8855,7 +8651,7 @@ fieldValues(selector: Selector, field: string): Promise<string[]>
 getActiveLocation(): Location | null
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.getMapState().activeLocation`.
+**Deprecated in v0.8.2.** Read `MMA.getMapState().openRow`.
 
 ### getAllSelections
 
@@ -8895,7 +8691,7 @@ getCurrentMapId(): string | null
 getDirtyCount(): Promise<number>
 ```
 
-**Deprecated in v0.8.2.** Read `(await MMA.cmd.storeGetSummary()).dirtyCount`.
+**Deprecated in v0.8.2.** Ask `MMA.read` for the summary and take `dirtyCount`.
 
 ### getGhostedSelections
 

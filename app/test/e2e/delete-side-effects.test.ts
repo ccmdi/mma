@@ -18,6 +18,7 @@ import {
 	seedLocs,
 	select,
 	tagSelector,
+	getSummary,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
 
@@ -39,7 +40,7 @@ describe("Delete marks store dirty", () => {
 		}, locIds[0]);
 
 		// dirtyCount is 0-or-1 (boolean flag from Rust)
-		const dirty = await withApi(async (api) => (await api.cmd.storeGetSummary()).dirtyCount);
+		const dirty = await getSummary().then((s) => s.dirtyCount);
 		expect(dirty).toBe(1);
 	});
 });
@@ -96,14 +97,14 @@ describe("Delete clears active location", () => {
 	});
 	it("active location cleared when it is deleted", async () => {
 		await openLocation(locIds[0]);
-		const activeBefore = await withApi(async (api) => api.getMapState().activeLocation?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
 		expect(activeBefore).toBe(locIds[0]);
 
 		await withApi(async (api, id) => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[0]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().activeLocation?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
 		expect(activeAfter).toBeNull();
 	});
 
@@ -127,7 +128,7 @@ describe("Delete clears active location", () => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[3]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().activeLocation?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
 		expect(activeAfter).toBe(locIds[2]);
 	});
 });

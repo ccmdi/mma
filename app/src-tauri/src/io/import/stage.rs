@@ -1,4 +1,5 @@
-//! Editor import: preview a parsed file, stage its rows as virtual locations, then add them to the open store.
+//! Editor import: preview a parsed file, stage its rows as a pending layer over the open
+//! map, then land them on confirm.
 
 use super::*;
 use crate::store::engine;
@@ -8,15 +9,13 @@ use crate::store::engine::WindowLabel;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
+use mma_algebra::Patch;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::env;
 use std::fs;
-use std::mem;
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::Instant;
 use tokio::task;
 
@@ -48,12 +47,52 @@ pub struct EditorImportPreview {
     /// True when this import exceeds `IMPORT_AUTOCOMMIT_THRESHOLD` and will be
     /// committed automatically (not undoable). Drives the import warning modal.
     pub will_auto_commit: bool,
+    /// The id the first staged row was given; the rest follow it in order.
+    pub first_id: Option<u32>,
+    /// Map settings carried by the import (`extra.settings`).
+    #[specta(type = HashMap<String, specta_typescript::Any>)]
+    pub settings: serde_json::Map<String, Value>,
+}
+
+/// The pending layer holding `window`'s staged import.
+pub(crate) fn import_target(window: &str) -> engine::Target {
+    engine::Target::Pending {
+        name: import_layer(window),
+    }
+}
+
+pub(super) fn import_layer(window: &str) -> String {
+    format!("import:{window}")
+}
+
+/// Stage `parsed` as `window`'s import layer: rows take real ids, the file's tag piles
+/// ride the layer, and everything lands on confirm or drops on cancel.
+pub(super) fn stage_parsed(
+    store: &mut engine::Store,
+    window: &str,
+    parsed: ParsedMap,
+) -> Option<u32> {
+    let key = import_layer(window);
+    store.drop_pending(&key);
+    let edits = parsed
+        .locations
+        .into_iter()
+        .map(|mut loc| {
+            loc.id = 0;
+            engine::Edit::Set(loc)
+        })
+        .collect();
+    let result = store.edit(&import_target(window), edits, false, None, true);
+    if let Some(p) = store.pending.get_mut(&key) {
+        p.incoming.insert("tags".to_string(), parsed.tags);
+    }
+    result.first_id
 }
 
 /// Write interleaved LE f32 `[lng, lat]` for every location to a temp file.
 /// Build preview stats from a parsed map and cache the parse for commit by `window`.
 /// Single pass: field counts, positions buffer, and bounds are computed together.
-pub(super) fn build_preview(parsed: ParsedMap, window: &str) -> AppResult<EditorImportPreview> {
+pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<EditorImportPreview> {
     let n = parsed.locations.len();
     let (mut h, mut p, mut z, mut pano_c, mut tag_c) = (0u32, 0u32, 0u32, 0u32, 0u32);
     let mut extra_counts: HashMap<String, u32> = HashMap::new();
@@ -140,19 +179,13 @@ pub(super) fn build_preview(parsed: ParsedMap, window: &str) -> AppResult<Editor
             Some([west, south, east, north])
         },
         will_auto_commit: n > IMPORT_AUTOCOMMIT_THRESHOLD,
+        first_id: None,
+        settings: parsed.settings.clone(),
     };
-
-    EDITOR_IMPORT_CACHE
-        .lock()
-        .unwrap()
-        .insert(window.to_string(), parsed);
     Ok(preview)
 }
 
-pub(super) static EDITOR_IMPORT_CACHE: Mutex<BTreeMap<String, ParsedMap>> =
-    Mutex::new(BTreeMap::new());
-
-fn preview_positions_path(window: &str) -> PathBuf {
+pub(super) fn preview_positions_path(window: &str) -> PathBuf {
     let file_label: String = window
         .chars()
         .map(|c| {
@@ -166,31 +199,18 @@ fn preview_positions_path(window: &str) -> PathBuf {
     env::temp_dir().join(format!("mma_import_preview_{file_label}.bin"))
 }
 
-/// Remove `window`'s staged import and its preview file, handing back the parse if there was one.
-fn take_staged_import(window: &str) -> Option<ParsedMap> {
-    let _ = fs::remove_file(preview_positions_path(window));
-    EDITOR_IMPORT_CACHE.lock().unwrap().remove(window)
-}
-
 /// Discard the staged import without importing it.
 #[tauri::command]
 #[specta::specta]
-pub fn store_import_cancel(label: WindowLabel) {
-    take_staged_import(&label.0);
-}
-
-/// Return one staged (not yet imported) location by its preview `index`, for
-/// read-only preview in the editor.
-#[tauri::command]
-#[specta::specta]
-pub fn store_import_staged_location(label: WindowLabel, index: u32) -> AppResult<Location> {
-    let cache = EDITOR_IMPORT_CACHE.lock().unwrap();
-    let parsed = cache.get(&label.0).ok_or("no staged import")?;
-    parsed
-        .locations
-        .get(index as usize)
-        .cloned()
-        .ok_or_else(|| "staged index out of range".into())
+pub fn store_import_cancel(
+    label: WindowLabel,
+    state: tauri::State<'_, engine::StoreState>,
+) -> AppResult<()> {
+    let _ = fs::remove_file(preview_positions_path(&label.0));
+    with_store!(label, state, |store| {
+        store.drop_pending(&import_layer(&label.0));
+        Ok(())
+    })
 }
 
 /// Parse a file and return field-level statistics and preview positions for the
@@ -199,17 +219,19 @@ pub fn store_import_staged_location(label: WindowLabel, index: u32) -> AppResult
 #[specta::specta]
 pub async fn store_import_preview(
     label: WindowLabel,
+    state: tauri::State<'_, engine::StoreState>,
     path: String,
 ) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
     // thread (which the webview shares - a sync command here freezes the window).
-    task::spawn_blocking(move || {
+    let window = label.0.clone();
+    let (parsed, mut preview) = task::spawn_blocking(move || {
         let t0 = Instant::now();
         let mut buf = read_sequential(&path)?;
         let t_read = t0.elapsed();
         let parsed = parse_file(&mut buf);
         let t_parse = t0.elapsed();
-        let preview = build_preview(parsed, &label.0)?;
+        let preview = build_preview(&parsed, &window)?;
         log::debug!(
             "[import-preview] read={:.0}ms parse={:.0}ms build={:.0}ms locs={}",
             t_read.as_millis(),
@@ -217,9 +239,13 @@ pub async fn store_import_preview(
             (t0.elapsed() - t_parse).as_millis(),
             preview.location_count
         );
+        Ok::<_, crate::types::AppError>((parsed, preview))
+    })
+    .await??;
+    with_store!(label, state, |store| {
+        preview.first_id = stage_parsed(store, &label.0, parsed);
         Ok(preview)
     })
-    .await?
 }
 
 /// Parse pasted text (JSON or CSV) and stage it for preview. Works like
@@ -228,9 +254,11 @@ pub async fn store_import_preview(
 #[specta::specta]
 pub async fn store_import_paste_preview(
     label: WindowLabel,
+    state: tauri::State<'_, engine::StoreState>,
     text: String,
 ) -> AppResult<EditorImportPreview> {
-    task::spawn_blocking(move || {
+    let window = label.0.clone();
+    let (parsed, mut preview) = task::spawn_blocking(move || {
         let t0 = Instant::now();
         let mut buf = text.into_bytes();
         let parsed = parse_file(&mut buf);
@@ -242,9 +270,14 @@ pub async fn store_import_paste_preview(
             t0.elapsed().as_millis(),
             parsed.locations.len()
         );
-        build_preview(parsed, &label.0)
+        let preview = build_preview(&parsed, &window)?;
+        Ok::<_, crate::types::AppError>((parsed, preview))
     })
-    .await?
+    .await??;
+    with_store!(label, state, |store| {
+        preview.first_id = stage_parsed(store, &label.0, parsed);
+        Ok(preview)
+    })
 }
 
 /// Combined result of an editor import: the mutation it made
@@ -254,12 +287,8 @@ pub async fn store_import_paste_preview(
 pub struct EditorImportResult {
     pub mutation: engine::MutationResult,
     pub imported_count: u32,
-    pub warnings: Vec<String>,
     /// True when the import was large enough to autocommit; the caller commits it.
     pub auto_commit: bool,
-    /// Settings carried by the import (`extra.settings`)
-    #[specta(type = HashMap<String, specta_typescript::Any>)]
-    pub settings: serde_json::Map<String, Value>,
 }
 
 /// Insert pre-deduped copied locations (cross-map copy) through the same path
@@ -267,52 +296,18 @@ pub struct EditorImportResult {
 /// cell registration. `tags` are the source tag defs referenced by `locations`.
 pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
-    locations: Vec<Location>,
+    mut locations: Vec<Location>,
     tags: Vec<(u32, ValueRecord)>,
 ) -> AppResult<engine::MutationResult> {
-    let mut parsed = ParsedMap {
-        locations,
-        tags,
-        ..Default::default()
-    };
-    add_parsed_to_store(store, &mut parsed, &[])
-}
-
-/// Insert parsed locations into the open map's store via the overlay.
-///
-/// Imports up to `IMPORT_AUTOCOMMIT_THRESHOLD` get a single undo entry (reversible).
-/// Larger imports skip the undo entry; the caller autocommits them instead, so the
-/// baseline advances through the normal commit path rather than diverging silently.
-///
-/// Tag reconciliation (against the store-owned metadata, `values.rs`), render cell
-/// registration, and extra-field auto-registration happen regardless of size.
-pub(super) fn add_parsed_to_store(
-    store: &mut engine::Store,
-    parsed: &mut ParsedMap,
-    bulk_tags: &[String],
-) -> AppResult<engine::MutationResult> {
-    let _t = Instant::now();
-    let n = parsed.locations.len();
-    store.reconcile_incoming_tags(&parsed.tags, bulk_tags, &mut parsed.locations);
-    for loc in &mut parsed.locations {
-        loc.id = store.alloc_id();
-    }
-    let t_reconcile = _t.elapsed();
-
-    let locations = mem::take(&mut parsed.locations);
-    let undo = if locations.len() <= IMPORT_AUTOCOMMIT_THRESHOLD {
-        engine::UndoScope::Entry
-    } else {
-        store.edits.edit().clear_redo();
-        engine::UndoScope::Skip
-    };
-    let result = store.write(locations.into_iter().map(engine::Edit::Set), undo);
-    log::debug!(
-        "[import-insert] n={n} reconcile+alloc={:.0}ms insert={:.0}ms",
-        t_reconcile.as_millis(),
-        (_t.elapsed() - t_reconcile).as_millis()
-    );
-    Ok(result)
+    store.reconcile_incoming_tags(&tags, &[], &mut locations);
+    let edits = locations
+        .into_iter()
+        .map(|mut loc| {
+            loc.id = 0;
+            engine::Edit::Set(loc)
+        })
+        .collect();
+    Ok(store.edit(&engine::Target::Map, edits, false, None, true))
 }
 
 /// Commit a previously previewed editor import into the open map, optionally
@@ -329,59 +324,129 @@ pub async fn store_import_file(
     tag_names: Vec<String>,
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
-    let mut parsed =
-        take_staged_import(&label.0).ok_or("no cached import - call store_import_preview first")?;
-
+    let _ = fs::remove_file(preview_positions_path(&label.0));
+    let target = import_target(&label.0);
+    let key = import_layer(&label.0);
     let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
-    if !drop_set.is_empty() {
-        for loc in &mut parsed.locations {
-            if drop_set.contains("heading") {
-                loc.heading = 0.0;
-            }
-            if drop_set.contains("pitch") {
-                loc.pitch = 0.0;
-            }
-            if drop_set.contains("zoom") {
-                loc.zoom = 0.0;
-            }
-            if drop_set.contains("panoId") {
-                loc.pano_id = None;
-                loc.flags.remove(LocationFlags::LOAD_AS_PANO_ID);
-            }
-            if drop_set.contains("tags") {
-                loc.tags.clear();
-            }
-            if let Some(extra) = &loc.extra {
-                let mut m = extra.to_map();
-                m.retain(|k, _| !drop_set.contains(format!("extra.{k}").as_str()));
-                loc.extra = RawExtra::from_map(&m);
-            }
-        }
-        if drop_set.contains("tags") {
-            parsed.tags.clear();
-        }
-    }
-    // Capture before add_parsed_to_store, which consumes parsed.locations (moves them
-    // into the overlay) leaving the vec empty.
-    let imported_count = parsed.locations.len() as u32;
-    let auto_commit = parsed.locations.len() > IMPORT_AUTOCOMMIT_THRESHOLD;
-    log::debug!("[import] parse=cached locs={imported_count}");
 
     with_store!(label, state, |store| {
-        let mutation = add_parsed_to_store(store, &mut parsed, &tag_names)?;
+        let rows = store.rows_at(&target, None);
+        if rows.is_empty() {
+            return Err("no staged import - call store_import_preview first".into());
+        }
 
+        let bulk = if drop_set.contains("tags") {
+            Vec::new()
+        } else {
+            bulk_tag_ids(store, &key, &tag_names)
+        };
+        let mut edits: Vec<engine::Edit> = Vec::new();
+        for loc in &rows {
+            let mut patch = Patch::<Location>::default();
+            patch.id = loc.id;
+            if drop_set.contains("heading") {
+                patch.heading = Some(0.0);
+            }
+            if drop_set.contains("pitch") {
+                patch.pitch = Some(0.0);
+            }
+            if drop_set.contains("zoom") {
+                patch.zoom = Some(0.0);
+            }
+            if drop_set.contains("panoId") {
+                patch.pano_id = Some(None);
+                let mut flags = loc.flags;
+                flags.remove(LocationFlags::LOAD_AS_PANO_ID);
+                patch.flags = Some(flags);
+            }
+            let mut tags = if drop_set.contains("tags") {
+                Some(Vec::new())
+            } else {
+                None
+            };
+            if !bulk.is_empty() {
+                let mut next = loc.tags.clone();
+                for b in bulk.iter().copied() {
+                    if !next.contains(&b) {
+                        next.push(b);
+                    }
+                }
+                tags = Some(next);
+            }
+            patch.tags = tags;
+            if !drop_set.is_empty() {
+                if let Some(extra) = &loc.extra {
+                    let dropped: serde_json::Map<String, Value> = extra
+                        .to_map()
+                        .keys()
+                        .filter(|k| drop_set.contains(format!("extra.{k}").as_str()))
+                        .map(|k| (k.clone(), Value::Null))
+                        .collect();
+                    if !dropped.is_empty() {
+                        patch.extra = Some(RawExtra::from_map(&dropped));
+                    }
+                }
+            }
+            edits.push(engine::Edit::Put(patch));
+        }
+        if drop_set.contains("tags") {
+            if let Some(p) = store.pending.get_mut(&key) {
+                p.incoming.remove("tags");
+            }
+        }
+
+        let imported_count = rows.len() as u32;
+        let auto_commit = rows.len() > IMPORT_AUTOCOMMIT_THRESHOLD;
+        if auto_commit {
+            store.edits.edit().clear_redo();
+        }
+        let mutation = store.edit(&target, edits, true, None, !auto_commit);
         log::debug!(
             "[import] total={:.0}ms locs={}",
             t0.elapsed().as_millis(),
             imported_count
         );
-
         Ok(EditorImportResult {
             imported_count,
             auto_commit,
-            warnings: parsed.warnings,
-            settings: parsed.settings,
             mutation,
         })
     })
+}
+
+/// Intern `names` into `window`'s import layer as held tag piles, answering the
+/// provisional ids the staged rows reference them by.
+pub(super) fn bulk_tag_ids(store: &mut engine::Store, key: &str, names: &[String]) -> Vec<u32> {
+    let Some(p) = store.pending.get_mut(key) else {
+        return Vec::new();
+    };
+    let piles = p.incoming.entry("tags".to_string()).or_default();
+    let mut next = piles.iter().map(|(id, _)| *id).max().unwrap_or(0) + 1;
+    let mut ids = Vec::new();
+    for name in names {
+        let name = name.trim();
+        if name.is_empty() {
+            continue;
+        }
+        let found = piles.iter().find(|(_, r)| {
+            r.get("name")
+                .and_then(Value::as_str)
+                .is_some_and(|n| n.eq_ignore_ascii_case(name))
+        });
+        let id = match found {
+            Some((id, _)) => *id,
+            None => {
+                let mut seed = ValueRecord::new();
+                seed.insert("name".into(), name.into());
+                seed.insert("color".into(), crate::util::color_for_name(name).into());
+                piles.push((next, seed));
+                next += 1;
+                next - 1
+            }
+        };
+        if !ids.contains(&id) {
+            ids.push(id);
+        }
+    }
+    ids
 }

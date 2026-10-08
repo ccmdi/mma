@@ -148,6 +148,9 @@ export interface ProviderPart {
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
+	/** Run at this target instead of the map: its held rows are the run's rows, and
+	 *  answers land in it. */
+	on?: Target;
 	/** `done`/`total` reflect the slowest provider. `parts` carries each labeled
 	 *  provider's own counts, ordered as declared. */
 	onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
@@ -178,17 +181,11 @@ export async function runProviders<C extends readonly unknown[]>(
 	rows: Selector,
 	opts?: RunOpts,
 ): Promise<ProviderOutcomes>;
-export async function runProviders<C extends readonly unknown[]>(
-	items: { [K in keyof C]: ProviderRun<C[K]> },
-	rows: Location[],
-	opts?: RunOpts,
-): Promise<RowsRun>;
 export async function runProviders(
 	items: readonly ProviderRun[],
-	rows: Selector | Location[],
+	selector: Selector,
 	opts: RunOpts = {},
-): Promise<ProviderOutcomes | RowsRun> {
-	const selector: Selector = Array.isArray(rows) ? { type: "Everything" } : rows;
+): Promise<ProviderOutcomes> {
 	const decls: ProviderDecl[] = [];
 	for (const { provider: p, config, force: providerForce, fields: wanted } of items) {
 		const fields = wanted ?? Object.keys(p.fieldDefs ?? {});
@@ -205,55 +202,7 @@ export async function runProviders(
 		});
 		if (decl) decls.push(decl);
 	}
-	return Array.isArray(rows) ? runRows(decls, rows, opts) : runDecls(decls, opts);
-}
-
-/** Rows after a run over them, and the ids each provider failed. */
-export interface RowsRun {
-	rows: Location[];
-	failed: Record<string, number[]>;
-}
-
-/** The rows run on a pending layer of their own over the open map, so nothing reaches the
- *  map; each travels under the id the layer gave it and comes back under its own. */
-async function runRows(decls: ProviderDecl[], rows: Location[], opts: RunOpts): Promise<RowsRun> {
-	if (decls.length === 0 || rows.length === 0) return { rows, failed: {} };
-	const target: Target = { kind: "pending", name: `run:${crypto.randomUUID()}` };
-	const held = await cmd.storeEdit(
-		target,
-		rows.map((row) => ({ set: { ...row, id: 0 } })),
-		null,
-	);
-	const first = held.firstId ?? 0;
-	const mine = (id: number) => id >= first && id < first + rows.length;
-	const idOf = (id: number) => rows[id - first].id;
-	let unlisten: (() => void) | undefined;
-	try {
-		if (opts.onPartial) {
-			unlisten = await events.procedureResult.listen(({ payload }) => {
-				const entries = payload.entries.filter((e) => mine(e.id));
-				if (entries.length === 0) return;
-				opts.onPartial!(
-					entries.map((e) => ({ ...(JSON.parse(e.json) as Location), id: idOf(e.id) })),
-				);
-			});
-		}
-		const outcomes = await runDecls(decls, opts, target);
-		const out: Location[] = [];
-		for (let i = 0; i < rows.length; i++) {
-			const row = await cmd.storeRow(target, first + i);
-			out.push(row ? { ...row, id: rows[i].id } : rows[i]);
-		}
-		const failed = Object.fromEntries(
-			Object.entries(outcomes)
-				.filter(([, o]) => o.failed.length > 0)
-				.map(([provider, o]) => [provider, o.failed.map(idOf)]),
-		);
-		return { rows: out, failed };
-	} finally {
-		unlisten?.();
-		void cmd.storeDrop(target.name);
-	}
+	return runDecls(decls, opts, opts.on ?? null);
 }
 
 /** What a run may set on top of what the spec declares. */
@@ -352,6 +301,9 @@ async function runDecls(
 
 	const failed = new Map<string, number[]>();
 	const gather = (r: ProcedureResult) => {
+		if (target && opts.onPartial && r.entries.length > 0) {
+			opts.onPartial(r.entries.map((e) => JSON.parse(e.json) as Location));
+		}
 		if (r.entries.length > 0) {
 			const into = collected.get(r.providerId) ?? [];
 			for (const e of r.entries) into.push({ id: e.id, value: parseAnswer(r.providerId, e.json) });

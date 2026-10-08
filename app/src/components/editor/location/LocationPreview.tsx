@@ -1,7 +1,7 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Tag } from "@/types";
-import { createLocation, isImportPreview, isSeenPreview, patchBetween, setPinned } from "@/types";
-import { LOCATION_MERGED, VIRTUAL_FLAGS } from "@/bindings.consts";
+import { isImportPreview, isSeenPreview, setPinned } from "@/types";
+import { VIRTUAL_FLAGS } from "@/bindings.consts";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -9,15 +9,15 @@ import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
 import {
 	useMapState,
-	updateLocations,
 	getMapState,
 	removeLocations,
-	addLocations,
 	createTags,
 	setActiveLocation,
 	getVisibleTags,
 	getTagCounts,
 } from "@/store/useMapStore";
+import { emit as emitEvent } from "@/lib/events";
+import { cmd } from "@/lib/commands";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/store/selections";
@@ -169,13 +169,13 @@ const TagEditor = memo(function TagEditor({
 });
 
 export function LocationPreview() {
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const map = useMapState((s) => s.map);
 	const reviewSession = useReviewSession();
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, defaultPano, edit, settled, commit, geo, enriching } = usePanoViewer();
+	const { draft, defaultPano, edit, land, geo, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = usePendingTags(location);
 	const visibleTags = useMapState(getVisibleTags);
@@ -218,37 +218,32 @@ export function LocationPreview() {
 	);
 
 	const handleSave = useCallback(async () => {
-		if (!location || !pano.exists()) return;
-
-		// The draft as it stands, never waiting on enrichment; the camera is read live, it moves per frame.
-		const draft = await settled();
-		if (!draft) return;
-		const pov = pano.captureView();
-
-		if (isSeenPreview(location)) {
-			const added = createLocation({
-				...draft,
-				...pov,
-				flags: location.flags & ~VIRTUAL_FLAGS, // keep LoadAsPanoId; drop the preview-kind bits
-				tags: (await createTags(pendingTags)).map((t) => t.id),
-			});
-			await addLocations([added]);
-			commit(added.id, getMapState().step);
+		if (!location || !pano.exists() || !draft) return;
+		if (isImportPreview(location)) {
 			void setActiveLocation(null);
 			return;
 		}
 
-		const tags = (await createTags(pendingTags)).map((t) => t.id);
-		const saved = { ...draft, ...pov, tags };
-		await updateLocations([{ ...patchBetween(location, saved, LOCATION_MERGED), id: location.id }]);
-		commit(location.id, getMapState().step);
+		// The draft as it stands, never waiting on enrichment: answers still in flight
+		// follow it onto the saved row, in the save's undo step. The camera is read live.
+		const wasPreview = isSeenPreview(location);
+		const savedId = await land({
+			...pano.captureView(),
+			tags: (await createTags(pendingTags)).map((t) => t.id),
+			// Keep LoadAsPanoId; drop the preview-kind bits.
+			flags: wasPreview ? draft.flags & ~VIRTUAL_FLAGS : draft.flags,
+		});
+		if (savedId != null) {
+			const saved = await cmd.storeRow({ kind: "map" }, savedId);
+			if (saved) emitEvent(wasPreview ? "location:add" : "location:update", [saved]);
+		}
 
-		if (isReviewMode && reviewSession?.cursorId === location.id) {
+		if (!wasPreview && isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [pano, location, settled, commit, isReviewMode, reviewSession, pendingTags]);
+	}, [pano, location, draft, land, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
@@ -262,6 +257,10 @@ export function LocationPreview() {
 
 	const handleDelete = useCallback(() => {
 		if (!location) return;
+		if (isImportPreview(location) || isSeenPreview(location)) {
+			void setActiveLocation(null);
+			return;
+		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewDelete();
 		} else {
@@ -272,7 +271,7 @@ export function LocationPreview() {
 	// Reads the active location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		const loc = getMapState().activeLocation;
+		const loc = getMapState().openRow;
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
 		edit((d) => setPinned(d, false));

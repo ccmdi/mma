@@ -172,13 +172,3 @@ export function derivedFrom(changed: Iterable<string>): Set<string> {
 	}
 	return stale;
 }
-
-/** Remove fields transitively derived from `changed` from an `extra` record. @unstable */
-export function withoutDerivedFrom(
-	extra: Record<string, unknown> | null,
-	changed: Iterable<string>,
-): Record<string, unknown> | null {
-	if (!extra) return extra;
-	const stale = derivedFrom(changed);
-	return Object.fromEntries(Object.entries(extra).filter(([key]) => !stale.has(key)));
-}

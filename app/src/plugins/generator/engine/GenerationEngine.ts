@@ -1,3 +1,4 @@
+import { read, rowsOf } from "@/store/useMapStore";
 import type {
 	GeneratorSettings,
 	GeneratorRegion,
@@ -405,11 +406,19 @@ export class GenerationEngine {
 	private async withoutExisting(coords: LatLng[]): Promise<LatLng[]> {
 		if (!this.settings.skipExisting) return coords;
 		try {
-			const near = await cmd.storeNearAny(
-				coords.map((c) => c.lat),
-				coords.map((c) => c.lng),
-				this.settings.skipExistingRadius,
-			);
+			const near = (
+				await read(
+					{ type: "Everything" },
+					null,
+					{
+						kind: "nearAny",
+						lats: coords.map((c) => c.lat),
+						lngs: coords.map((c) => c.lng),
+						radiusM: this.settings.skipExistingRadius,
+					},
+					"booleans",
+				)
+			).values;
 			return coords.filter((_, i) => !near[i]);
 		} catch (e) {
 			log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
@@ -430,7 +439,16 @@ export class GenerationEngine {
 
 		let seeds: string[];
 		try {
-			const locs = await cmd.storeFindNearby(centroidLat, centroidLng, coveringRadius);
+			const locs = await rowsOf(
+				(
+					await read(
+						{ type: "Everything" },
+						{ kind: "nearby", lat: centroidLat, lng: centroidLng, radiusM: coveringRadius },
+						{ kind: "rows" },
+						"rows",
+					)
+				).rows,
+			);
 			const withPano = locs.filter((l) => l.panoId);
 			const inside = await regionContains(region, withPano);
 			seeds = withPano.filter((_, i) => inside[i]).map((l) => l.panoId!);
@@ -803,7 +821,14 @@ export class GenerationEngine {
 		// its probe coordinate didn't — final skip-existing gate before accepting.
 		if (s.skipExisting) {
 			try {
-				const covered = await cmd.storeNearAny([pano.lat], [pano.lng], s.skipExistingRadius);
+				const covered = (
+					await read(
+						{ type: "Everything" },
+						null,
+						{ kind: "nearAny", lats: [pano.lat], lngs: [pano.lng], radiusM: s.skipExistingRadius },
+						"booleans",
+					)
+				).values;
 				if (covered[0]) return;
 			} catch (e) {
 				log.warn("[generator] storeNearAny failed, accepting unchecked:", e);

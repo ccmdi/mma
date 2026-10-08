@@ -355,11 +355,6 @@ impl Store {
             },
             step: None,
             first_id: None,
-            active: self
-                .selections
-                .active_id
-                .filter(|&id| changes.touches(id))
-                .and_then(|id| self.get_loc_by_id(id)),
         };
         self.report(&mut result);
         result
@@ -921,7 +916,7 @@ mod history;
 mod membership;
 mod mutations;
 mod persist;
-mod query;
+pub(crate) mod query;
 mod render;
 mod tags;
 mod values;

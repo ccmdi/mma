@@ -260,7 +260,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
 	// active marker, which highlights whichever staged location is open — no per-index coloring.
-	const stagedActive = getMapState().activeLocation;
+	const stagedActive = getMapState().openRow;
 	if (
 		getMapState().workArea === "import" ||
 		(stagedActive != null && isImportPreview(stagedActive))
@@ -297,7 +297,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Active marker renders even with no committed locations so virtual previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
-	const activeLoc = getMapState().activeLocation;
+	const activeLoc = getMapState().openRow;
 	if (activeLoc) {
 		const activeColor: RGBA = [...ctx.activeLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];

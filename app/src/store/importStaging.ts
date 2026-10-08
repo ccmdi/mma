@@ -1,5 +1,6 @@
-﻿import { bboxTupleToBounds, isVirtualLocation } from "@/types";
-import type { EditorImportPreview } from "@/bindings.gen";
+﻿import { bboxTupleToBounds, isImportPreview } from "@/types";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
+import type { EditorImportPreview, Target } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
@@ -34,6 +35,11 @@ export function getImportPreviewPositions() {
 /** The current staged import, or null if none. */
 export function getImportStaging() {
 	return importState.staging;
+}
+
+/** The pending layer holding this window's staged import rows. */
+export function importTarget(): Target {
+	return { kind: "pending", name: `import:${getCurrentWebviewWindow().label}` };
 }
 
 /** Discard the staged import, freeing its parse. */
@@ -73,13 +79,14 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 	if (!importState.staging) return null;
 	await waitForInflightPersist();
 
+	const settings = importState.staging.preview.settings;
 	const r = await cmd.storeImportFile(droppedFields, tagNames.map((n) => n.trim()).filter(Boolean));
 	cancelImport();
 	await mutate(() => Promise.resolve(r.mutation));
 
 	const map = getMapState().map;
-	if (map && r.settings && Object.keys(r.settings).length) {
-		await updateMapMeta({ settings: { ...map.settings, ...r.settings } });
+	if (map && Object.keys(settings).length) {
+		await updateMapMeta({ settings: { ...map.settings, ...settings } });
 	}
 
 	if (r.autoCommit) {
@@ -98,8 +105,8 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 export function cancelImport() {
 	resetImportState();
 	emitEvent("import-markers:changed");
-	const active = getMapState().activeLocation;
-	if ((active && isVirtualLocation(active)) || getMapState().workArea === "import") {
+	const active = getMapState().openRow;
+	if ((active && isImportPreview(active)) || getMapState().workArea === "import") {
 		setWorkArea("overview");
 	} else {
 		emitEvent("store:changed");

@@ -802,7 +802,7 @@ fn bench_parse_real() {
         locs = parsed.locations.len();
 
         let t1 = Instant::now();
-        let _preview = build_preview(parsed, "bench").expect("build_preview");
+        let _preview = build_preview(&parsed, "bench").expect("build_preview");
         let t_build = t1.elapsed().as_secs_f64() * 1e3;
 
         eprintln!("iter {i}: parse={t_parse:.0}ms build_preview={t_build:.0}ms");
@@ -866,83 +866,83 @@ fn a_bulk_import_defines_every_field_its_rows_carry() {
 }
 
 #[test]
-fn staged_location_fetch_by_index() {
+fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let json = br#"{"name":"Pasted URLs","customCoordinates":[
         {"lat":10.5,"lng":20.5,"heading":90,"panoId":"abcdefghijklmnopqrstuv"},
         {"lat":-3.25,"lng":7.75}
     ]}"#;
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
-    let win = || WindowLabel("staged-fetch".into());
-    EDITOR_IMPORT_CACHE.lock().unwrap().insert(win().0, parsed);
+    let mut store = Store::new();
+    store.map_id = Some("test".into());
 
-    let first = store_import_staged_location(win(), 0).unwrap();
-    assert_eq!(first.id, 0); // staged sentinel id
+    let first_id = stage_parsed(&mut store, "staged-fetch", parsed).unwrap();
+    let target = import_target("staged-fetch");
+    let first = store.rows_at(&target, Some(&[first_id]))[0].clone();
     assert_eq!(first.lat, 10.5);
     assert_eq!(first.heading, 90.0);
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
-
-    let second = store_import_staged_location(win(), 1).unwrap();
+    let second = store.rows_at(&target, Some(&[first_id + 1]))[0].clone();
     assert_eq!(second.lng, 7.75);
-
-    assert!(store_import_staged_location(win(), 2).is_err());
-
-    EDITOR_IMPORT_CACHE.lock().unwrap().remove(&win().0);
-    assert!(store_import_staged_location(win(), 0).is_err());
+    // Staged rows are held by the layer, not on the map.
+    assert!(store.collect(&Selector::Everything).is_empty());
 }
 
 #[test]
-fn a_cancelled_preview_frees_its_parse_and_preview_file() {
+fn cancelling_a_staged_import_drops_its_layer() {
     let mut buf = br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
-    let preview = build_preview(parse_single_json_mut(&mut buf), "cancel-me").unwrap();
-    let file = std::path::PathBuf::from(&preview.preview_positions_path);
-    assert!(file.exists());
-
-    store_import_cancel(WindowLabel("cancel-me".into()));
-    assert!(!file.exists());
-    assert!(!EDITOR_IMPORT_CACHE
-        .lock()
-        .unwrap()
-        .contains_key("cancel-me"));
+    let parsed = parse_single_json_mut(&mut buf);
+    let mut store = Store::new();
+    store.map_id = Some("test".into());
+    stage_parsed(&mut store, "cancel-me", parsed).unwrap();
+    store.drop_pending(&import_layer("cancel-me"));
+    assert!(store.rows_at(&import_target("cancel-me"), None).is_empty());
 }
 
 #[test]
 fn two_windows_previewing_at_once_keep_their_own_import() {
-    let stage = |window: &str, lat: f64| {
+    let mut store = Store::new();
+    store.map_id = Some("test".into());
+    let stage = |store: &mut Store, window: &str, lat: f64| {
         let json = format!(r#"{{"customCoordinates":[{{"lat":{lat},"lng":1}}]}}"#);
         let mut buf = json.into_bytes();
-        build_preview(parse_single_json_mut(&mut buf), window).unwrap()
+        let parsed = parse_single_json_mut(&mut buf);
+        build_preview(&parsed, window).unwrap();
+        stage_parsed(store, window, parsed).unwrap()
     };
-    let a = stage("preview-a", 11.0);
-    let b = stage("preview-b", 22.0);
-    assert_ne!(a.preview_positions_path, b.preview_positions_path);
-
-    let lat_in = |window: &str| {
-        store_import_staged_location(WindowLabel(window.into()), 0)
-            .unwrap()
-            .lat
-    };
-    assert_eq!(lat_in("preview-a"), 11.0);
-    assert_eq!(lat_in("preview-b"), 22.0);
-
-    let mut cache = EDITOR_IMPORT_CACHE.lock().unwrap();
-    cache.remove("preview-a");
-    cache.remove("preview-b");
+    let a = stage(&mut store, "preview-a", 11.0);
+    let b = stage(&mut store, "preview-b", 22.0);
+    assert_ne!(
+        preview_positions_path("preview-a"),
+        preview_positions_path("preview-b")
+    );
+    assert_eq!(
+        store.rows_at(&import_target("preview-a"), Some(&[a]))[0].lat,
+        11.0
+    );
+    assert_eq!(
+        store.rows_at(&import_target("preview-b"), Some(&[b]))[0].lat,
+        22.0
+    );
+    let _ = std::fs::remove_file(preview_positions_path("preview-a"));
+    let _ = std::fs::remove_file(preview_positions_path("preview-b"));
 }
 
 #[test]
-fn editor_import_reports_marker_additions() {
+fn editor_import_reports_marker_additions_only_when_it_lands() {
     let mut store = Store::new();
     store.map_id = Some("test".into());
-    let mut parsed = ParsedMap {
+    let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, Vec::new()), loc_with_tags(0, Vec::new())],
         ..Default::default()
     };
 
     let frames = Captured::default();
     store.frames.insert("test".into(), frames.sink());
-    add_parsed_to_store(&mut store, &mut parsed, &[]).unwrap();
+    stage_parsed(&mut store, "frames-win", parsed);
+    assert!(frames.frames().is_empty());
 
+    store.edit(&import_target("frames-win"), vec![], true, None, true);
     let cells = frames.last().cells;
     assert_eq!(cells.iter().map(|c| c.add.len()).sum::<usize>(), 2);
     assert!(cells
@@ -975,7 +975,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         ..Default::default()
     };
 
-    let r = add_parsed_to_store(&mut store, &mut parsed, &[]).unwrap();
+    let r = add_copied_to_store(&mut store, parsed.locations, parsed.tags).unwrap();
 
     // Both copies landed in the target store.
     assert_eq!(r.values.location_count, Some(2));
@@ -1032,7 +1032,24 @@ fn bulk_tags_apply_every_name_to_every_import() {
     };
     let names = ["shared", " France ", "", "france"].map(String::from);
 
-    add_parsed_to_store(&mut store, &mut parsed, &names).unwrap();
+    stage_parsed(&mut store, "bulk-win", parsed);
+    let key = import_layer("bulk-win");
+    let target = import_target("bulk-win");
+    let bulk = bulk_tag_ids(&mut store, &key, &names);
+    let edits = store
+        .rows_at(&target, None)
+        .into_iter()
+        .map(|loc| {
+            let mut tags = loc.tags.clone();
+            tags.extend(bulk.iter().copied().filter(|b| !loc.tags.contains(b)));
+            engine::Edit::Put(mma_algebra::Patch::<Location> {
+                id: loc.id,
+                tags: Some(tags),
+                ..Default::default()
+            })
+        })
+        .collect();
+    store.edit(&target, edits, true, None, true);
 
     let meta = &store.value_meta["tags"];
     let (france, _) = meta

@@ -226,7 +226,7 @@ function ReturnToSpawnControl({
 	onReturnToSpawn: () => void | Promise<void>;
 }) {
 	const pano = usePano();
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const [hasChanged, setHasChanged] = useState(false);
 	const checkChanged = () => {
 		if (!location) return;
@@ -293,7 +293,7 @@ function CoordinateControl() {
 
 // The draft's extra: the location as a save would write it.
 function PanoMetadataControl() {
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const { draft } = usePanoViewer();
 	if (!location) return null;
 	const fields = draft?.extra ?? location.extra;
@@ -359,7 +359,7 @@ export const PanoControls = memo(function PanoControls({
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
 			const url = buildMapsUrl();
 			if (!url) return;
-			const location = getMapState().activeLocation;
+			const location = getMapState().openRow;
 			if (!noTags && location) appendLinkTags(url, location, getTags());
 			await flashCopy(() => copyMapsLink(url, { long }));
 		},

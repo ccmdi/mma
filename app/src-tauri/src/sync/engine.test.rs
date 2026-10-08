@@ -266,7 +266,7 @@ impl MemSink {
         out
     }
     /// What the apply step records once the pulls have landed locally.
-    fn apply_pulls(&mut self, out: &SyncReconcileResult) {
+    fn apply_pulls(&mut self, out: &ReconcileOutcome) {
         let rows: Vec<RemoteMappingRow> = out
             .pull_updates
             .iter()
@@ -304,7 +304,7 @@ fn drive(
     first_sync: Option<FirstSyncMode>,
     resolutions: &[(IdentityKey, ResolutionSide)],
     sink: &mut MemSink,
-) -> SyncReconcileResult {
+) -> ReconcileOutcome {
     let snapshot = provider.pull("r").unwrap();
     let token = snapshot.token;
     let input = ReconcileInput {
@@ -327,7 +327,7 @@ fn sync(
     mapping: &[RemoteMappingRow],
     tags: &HashMap<u32, String>,
     sink: &mut MemSink,
-) -> SyncReconcileResult {
+) -> ReconcileOutcome {
     drive(provider, locs, mapping, tags, None, &[], sink)
 }
 
@@ -1305,7 +1305,7 @@ const PULL_ONLY_POSITIONAL: ProviderSpec = ProviderSpec {
 
 /// Land a result the way the apply step does: pulled creates get a never-used local id and a row,
 /// pulled updates patch in place, pulled and mirrored deletes leave.
-fn land(out: &SyncReconcileResult, locs: &mut Vec<Location>, sink: &mut MemSink) {
+fn land(out: &ReconcileOutcome, locs: &mut Vec<Location>, sink: &mut MemSink) {
     static NEXT_ID: AtomicU32 = AtomicU32::new(100);
     for c in &out.pull_creates {
         let next = NEXT_ID.fetch_add(1, Ordering::Relaxed);
@@ -1335,7 +1335,7 @@ fn land(out: &SyncReconcileResult, locs: &mut Vec<Location>, sink: &mut MemSink)
 }
 
 /// One reconcile against the sink's own rows, landed.
-fn pull_once(provider: &Fake, locs: &mut Vec<Location>, sink: &mut MemSink) -> SyncReconcileResult {
+fn pull_once(provider: &Fake, locs: &mut Vec<Location>, sink: &mut MemSink) -> ReconcileOutcome {
     let mapping = sink.mapping();
     let out = sync(provider, locs, &mapping, &no_tags(), sink);
     land(&out, locs, sink);
@@ -1455,4 +1455,82 @@ fn pull_only_refuses_to_mirror_from_local() {
     })
     .err();
     assert!(err.is_some());
+}
+
+#[test]
+fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
+    use crate::store::engine::{record_name, Store, Tracked, ValueRecord};
+    let mut store = Store::new();
+    store.map_id = Some("sync-test".into());
+    store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
+    let mut old_tag = ValueRecord::new();
+    old_tag.insert("name".into(), "Old".into());
+    store.value_meta.insert(
+        "tags".into(),
+        Tracked::new([(5u32, old_tag)].into_iter().collect()),
+    );
+    store.put(&crate::store::engine::Change {
+        added: vec![
+            crate::test_util::loc(1, 0.0, 0.0),
+            crate::test_util::loc(2, 1.0, 1.0),
+        ],
+        ..Default::default()
+    });
+    store.next_id = 3;
+
+    let out = ReconcileOutcome {
+        pushed: SideCounts::default(),
+        pulled: SideCounts::default(),
+        adopted: 0,
+        conflicts: Vec::new(),
+        needed_tags: vec![RemoteTag {
+            name: "New".into(),
+            color: Some("#123456".into()),
+            order: None,
+        }],
+        pull_creates: vec![PullCreate {
+            fields: norm(|n| {
+                n.lat = 9.0;
+                n.lng = 9.0;
+                n.tags = vec!["Old".into(), "New".into()];
+            }),
+            remote_id: 77,
+            hash: "h-create".into(),
+        }],
+        pull_updates: vec![PullUpdate {
+            local_id: 1,
+            patch: Patch::<NormalizedSyncLocation> {
+                heading: Some(45.0),
+                ..Default::default()
+            },
+            remote_id: 88,
+            hash: "h-update".into(),
+        }],
+        pull_delete_ids: vec![2],
+        mirror_local_delete_ids: Vec::new(),
+    };
+
+    let (mutation, rows) = apply_pull(&mut store, &out).unwrap();
+    let mutation = mutation.expect("the pull landed a change");
+    assert_eq!(mutation.first_id, Some(3));
+    assert_eq!(store.edits.undo_len(), 1);
+
+    let created = store.get_loc_by_id(3).expect("create landed");
+    let meta = &store.value_meta["tags"];
+    let (new_id, new_rec) = meta
+        .iter()
+        .find(|(_, rec)| record_name(rec) == Some("New"))
+        .expect("New interned at land");
+    assert_eq!(created.tags, vec![5, *new_id]);
+    assert_eq!(
+        new_rec.get("color").and_then(|v| v.as_str()),
+        Some("#123456")
+    );
+    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 45.0);
+    assert!(store.get_loc_by_id(2).is_none());
+    assert_eq!(rows.len(), 1);
+    assert_eq!(
+        (rows[0].local_id, rows[0].remote_id, rows[0].hash.as_str()),
+        (3, 77, "h-create")
+    );
 }

@@ -3,20 +3,19 @@ import { getProviders, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { runProviders, type ProcedureOutcome, type RunOpts } from "@/lib/data/procedures";
 import { enrichRuns, panoResolveProvider } from "@/lib/sv/providers";
 import { all, any, lacks } from "@/store/selections";
-import type { Location, Selector } from "@/bindings.gen";
+import type { Selector, Target } from "@/bindings.gen";
 
-/** Enrich a single location with the map's enabled metadata fields. Existing fields are
- *  kept unless `force` re-derives all of them. Returns the enriched location without
- *  writing it. Returns the location unchanged when enrichment is disabled. */
-export async function enrich(
-	loc: Location,
-	opts: Omit<RunOpts, "onProgress"> = {},
-): Promise<Location> {
+/** Enrich the rows a target holds with the map's enabled metadata fields. Answers land in
+ *  the target; each enriched row also reaches `onPartial` as it lands. Does nothing when
+ *  enrichment is disabled. */
+export async function enrichAt(
+	target: Target,
+	opts: Omit<RunOpts, "onProgress" | "on"> = {},
+): Promise<void> {
 	const map = getMapState().map;
-	if (!map || !map.settings.enrichMetadata) return loc;
+	if (!map || !map.settings.enrichMetadata) return;
 	const runs = enrichRuns(map.settings.enrichFields ?? getDefaultEnrichKeys());
-	const { rows } = await runProviders(runs, [loc], opts);
-	return rows[0];
+	await runProviders(runs, { type: "Everything" }, { ...opts, on: target });
 }
 
 /** One summary row per pass that did work: the core metadata pass, then every

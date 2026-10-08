@@ -10,7 +10,11 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeSetDerived: async () => null,
 		storeResolvePick: (...a: unknown[]) => storeResolvePick(...a),
-		storeFindNearby: (...a: unknown[]) => storeFindNearby(...a),
+		storeRead: (...a: unknown[]) =>
+			(storeFindNearby(...a) as Promise<unknown[]>).then((locations) => ({
+				kind: "rows",
+				rows: { kind: "inline", locations },
+			})),
 		parseMapsUrl: (...a: unknown[]) => parseMapsUrl(...a),
 	},
 }));
@@ -126,7 +130,11 @@ describe("openHref (map-aware link opening)", () => {
 	it("adds the location when nothing is within the duplicate radius", async () => {
 		storeFindNearby.mockResolvedValue([]);
 		await openHref(HREF);
-		expect(storeFindNearby).toHaveBeenCalledWith(parsed.lat, parsed.lng, 2.0);
+		expect(storeFindNearby).toHaveBeenCalledWith(
+			{ type: "Everything" },
+			{ kind: "nearby", lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
+			{ kind: "rows" },
+		);
 		expect(openExternal).not.toHaveBeenCalled();
 		expect(addLocs).toHaveBeenCalledWith([
 			expect.objectContaining({ lat: 10, lng: 20, panoId: "PANO_A" }),

@@ -2,60 +2,97 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, useEffect, useState } from "react";
 import { mount } from "./fixtures/harness";
-import { createLocation, patchBetween } from "@/types";
+import { createLocation } from "@/types";
+import { LocationFlag } from "@/bindings.consts";
 import type { Location } from "@/bindings.gen";
 
+// The viewer's draft is a pending layer in the store: these tests pin the wire protocol
+// the context speaks (seed, put, read, land, drop) and its state plumbing. What the layer
+// itself guarantees (derived clearing, the landed rule, stale answers dropped) is pinned
+// by the store's own tests.
 const h = vi.hoisted(() => ({
 	activeLocation: null as unknown,
-	/** The map's per-save enrichment switch; off means `enrich` hands the row back untouched. */
-	enrichOn: true,
-	/** When set, `enrich` rejects instead of answering. */
-	enrichFails: false,
-	/** When set, `enrich` never answers, as a slow provider mid-run. */
+	/** The mock layer: rows by id, naive field merge, never the map. */
+	layer: new Map<number, Location>(),
+	nextId: 100,
+	/** Every storeEdit call: its edits and opts, in order. */
+	edits: [] as { edits: unknown[]; opts: { land?: boolean } | null }[],
+	drops: 0,
+	/** Each enrichAt run: its target and abort signal. */
+	runs: [] as { target: { name: string }; signal: AbortSignal | undefined }[],
+	/** When set, enrichAt never settles, as a slow provider mid-run. */
 	enrichHangs: false,
-	/** Rows `enrich` was handed, in order. */
-	enriched: [] as Location[],
-	written: [] as { id: number; patch: { extra?: Record<string, unknown> } }[],
-	/** The undo step each write asked to join. */
-	joins: [] as (number | null)[],
-	enrichDefer: false,
-	deferredResolvers: [] as Array<(loc: Location) => void>,
+	/** When set, enrichAt rejects instead of answering. */
+	enrichFails: false,
+	onPartials: [] as ((rows: Location[]) => void)[],
+	settleEnrich: [] as (() => void)[],
+	openRowPushes: [] as unknown[],
 }));
 
+type Put = { put: Partial<Location> & { id: number } };
+const applyPut = (row: Location, p: Put["put"]): Location => {
+	const { extra, ...fields } = p;
+	const merged = { ...(row.extra ?? {}), ...(extra ?? {}) };
+	for (const [k, v] of Object.entries(merged)) if (v === null) delete merged[k];
+	return {
+		...row,
+		...Object.fromEntries(Object.entries(fields).filter(([, v]) => v !== undefined)),
+		extra: extra === null ? null : Object.keys(merged).length > 0 ? merged : (row.extra ?? null),
+	};
+};
+
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		storeEdit: async (
+			_target: { name: string },
+			edits: ({ set?: Location } | Put)[],
+			opts: { land?: boolean } | null,
+		) => {
+			h.edits.push({ edits, opts });
+			let firstId: number | null = null;
+			for (const e of edits) {
+				if ("set" in e && e.set) {
+					const id = h.nextId++;
+					firstId ??= id;
+					h.layer.set(id, { ...e.set, id });
+				} else if ("put" in e && e.put) {
+					const row = h.layer.get(e.put.id);
+					if (row) h.layer.set(e.put.id, applyPut(row, e.put));
+					else h.layer.set(e.put.id, applyPut({ ...(h.activeLocation as Location) }, e.put));
+				}
+			}
+			return { version: 0, selectionSync: null, step: null, active: null, values: {}, firstId };
+		},
+		storeRow: async (_target: unknown, id: number) => h.layer.get(id) ?? null,
+		storeDrop: async () => {
+			h.drops++;
+			h.layer.clear();
+		},
+	},
+}));
 vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { activeLocation: unknown; map: unknown }) => unknown) =>
-		sel({ activeLocation: h.activeLocation, map: { settings: {} } }),
-	updateLocations: async (updates: typeof h.written, opts?: { join?: number | null }) => {
-		h.written.push(...updates);
-		h.joins.push(opts?.join ?? null);
+	VIEWER: { kind: "pending", name: "viewer" },
+	useMapState: (sel: (s: { openRow: unknown; map: unknown }) => unknown) =>
+		sel({ openRow: h.activeLocation, map: { settings: {} } }),
+	mutate: (fn: () => Promise<unknown>) => fn(),
+	getMapState: () => ({ map: { settings: {} } }),
+	setOpenRow: (row: unknown) => {
+		h.openRowPushes.push(row);
 	},
-	getMapState: () => ({ step: 9 }),
 }));
-// Enrichment answers the row with one field derived from its pano.
 vi.mock("@/lib/sv/enrich", () => ({
-	enrich: async (loc: Location, opts?: { onPartial?: (rows: Location[]) => void }) => {
-		h.enriched.push(loc);
-		if (h.enrichDefer) {
-			return new Promise<Location>((resolve) => {
-				h.deferredResolvers.push(resolve);
-			});
-		}
-		if (h.enrichHangs) {
-			// A fast provider answers while a slow one holds the run open.
-			opts?.onPartial?.([{ ...loc, extra: { ...loc.extra, partial: "early" } }]);
-			return new Promise<Location>(() => {});
-		}
-		if (h.enrichFails) throw new Error("network");
-		if (!h.enrichOn) return loc;
-		return { ...loc, extra: { ...loc.extra, enriched: loc.panoId } };
+	enrichAt: (
+		target: { name: string },
+		opts?: { signal?: AbortSignal; onPartial?: (rows: Location[]) => void },
+	) => {
+		h.runs.push({ target, signal: opts?.signal });
+		if (opts?.onPartial) h.onPartials.push(opts.onPartial);
+		if (h.enrichFails) return Promise.reject(new Error("network"));
+		if (h.enrichHangs) return new Promise<void>(() => {});
+		return new Promise<void>((resolve) => {
+			h.settleEnrich.push(resolve);
+		});
 	},
-}));
-// The one provider field in this harness, `enriched`, derives from the pano.
-vi.mock("@/lib/data/fieldDefs", () => ({
-	withoutDerivedFrom: (extra: Record<string, unknown> | null, changed: string[]) =>
-		extra && changed.includes("panoId")
-			? Object.fromEntries(Object.entries(extra).filter(([k]) => k !== "enriched"))
-			: extra,
 }));
 vi.mock("@/lib/sv/query", () => ({
 	svMetadata: async (panos: string[]) => panos.map((id) => ({ id, lat: 1, lng: 2, time: [] })),
@@ -103,31 +140,49 @@ const walk = (pano: string) =>
 	act(async () => {
 		viewer.edit({ panoId: pano, lat: 5, lng: 6 });
 	});
+const settleRun = () =>
+	act(async () => {
+		h.settleEnrich.shift()?.();
+	});
+const puts = () => h.edits.flatMap((e) => e.edits.filter((x): x is Put => "put" in (x as object)));
 
 beforeEach(() => {
-	h.enriched = [];
-	h.written = [];
-	h.joins = [];
-	h.enrichOn = true;
-	h.enrichFails = false;
+	h.layer = new Map();
+	h.nextId = 100;
+	h.edits = [];
+	h.drops = 0;
+	h.runs = [];
+	h.onPartials = [];
+	h.settleEnrich = [];
 	h.enrichHangs = false;
-	h.enrichDefer = false;
-	h.deferredResolvers = [];
+	h.enrichFails = false;
+	h.openRowPushes = [];
 	h.activeLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
 		panoId: "pA",
-		extra: { custom: "kept", enriched: "old" },
+		extra: { custom: "kept" },
 	} satisfies Location;
 });
 
-describe("the draft is the location as a save would write it", () => {
-	it("opens on the location's own pano, enriches the draft, and persists nothing", async () => {
+describe("the draft is the viewer's layer row", () => {
+	it("opening seeds the layer with the resolved pano and reads the draft from it", async () => {
+		const m = mountHost();
+		await open("pResolved");
+		expect(h.drops).toBe(1);
+		expect(puts()[0].put).toEqual({ id: 7, panoId: "pResolved" });
+		expect(viewer.draft).toMatchObject({ id: 7, panoId: "pResolved" });
+		expect(h.edits.every((e) => !e.opts?.land)).toBe(true);
+		m.unmount();
+	});
+
+	it("walking puts the new pano and position to the layer and persists nothing", async () => {
 		const m = mountHost();
 		await open("pA");
-		expect(viewer.draft).toMatchObject({ id: 7, panoId: "pA", extra: { enriched: "pA" } });
-		expect(h.enriched.map((l) => l.panoId)).toEqual(["pA"]);
-		expect(h.written).toEqual([]);
+		await walk("pB");
+		expect(puts().at(-1)!.put).toEqual({ id: 7, panoId: "pB", lat: 5, lng: 6 });
+		expect(viewer.draft).toMatchObject({ panoId: "pB", lat: 5, lng: 6 });
+		expect(h.edits.every((e) => !e.opts?.land)).toBe(true);
 		m.unmount();
 	});
 
@@ -141,108 +196,37 @@ describe("the draft is the location as a save would write it", () => {
 		m.unmount();
 	});
 
-	it("pinning and unpinning move the flag on the draft only", async () => {
+	it("a preview opens on its pre-seeded layer row without reseeding", async () => {
+		// The store seeded the preview copy into the layer before opening it.
+		h.activeLocation = {
+			...location(),
+			id: 100,
+			flags: LocationFlag.SeenOverlay,
+		} satisfies Location;
+		h.layer.set(100, h.activeLocation as Location);
 		const m = mountHost();
 		await open("pA");
-		await act(async () => viewer.edit((d) => ({ flags: d.flags | 1 })));
-		expect(viewer.draft!.flags & 1).toBe(1);
-		await act(async () => viewer.edit((d) => ({ flags: d.flags & ~1 })));
-		expect(viewer.draft!.flags & 1).toBe(0);
-		expect(h.written).toEqual([]);
+		expect(h.drops).toBe(0);
+		expect(puts()[0].put).toEqual({ id: 100, panoId: "pA" });
+		expect(viewer.draft).toMatchObject({ id: 100, panoId: "pA" });
 		m.unmount();
 	});
 
-	it("walking moves the draft, re-derives every provider field, and persists nothing", async () => {
+	it("edits before a location is open are dropped", async () => {
 		const m = mountHost();
-		await open("pA");
-		h.written = [];
 		await walk("pB");
-		expect(h.enriched.at(-1)).toMatchObject({
-			panoId: "pB",
-			lat: 5,
-			lng: 6,
-			extra: { custom: "kept" },
-		});
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
+		expect(h.edits).toEqual([]);
 		m.unmount();
 	});
 
-	it("with per-save enrichment off, opening keeps the row's own fields", async () => {
-		h.enrichOn = false;
-		const m = mountHost();
-		await open("pA");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "old" });
-		expect(await viewer.settled()).toMatchObject({ extra: { custom: "kept", enriched: "old" } });
-		m.unmount();
-	});
-
-	it("with per-save enrichment off, walking forgets the old pano's provider fields", async () => {
-		h.enrichOn = false;
-		const m = mountHost();
-		await open("pA");
-		await walk("pB");
-		expect(h.enriched.at(-1)!.extra).toEqual({ custom: "kept" });
-		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
-		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
-		expect(h.written).toEqual([]);
-		m.unmount();
-	});
-
-	it("a moved draft whose enrichment fails keeps nothing from the old pano", async () => {
-		const m = mountHost();
-		await open("pA");
-		h.enrichFails = true;
-		await walk("pB");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
-		expect(await viewer.settled()).toMatchObject({ panoId: "pB", extra: { custom: "kept" } });
-		m.unmount();
-	});
-
-	it("a save mid-enrichment takes the draft as it stands instead of waiting", async () => {
-		const m = mountHost();
-		await open("pA");
-		h.enrichHangs = true;
-		await walk("pB");
-		expect(await viewer.settled()).toMatchObject({
-			panoId: "pB",
-			extra: { custom: "kept", partial: "early" },
-		});
-		expect(viewer.enriching).toBe(true);
-		m.unmount();
-	});
-
-	it("a provider's answer lands on the draft while slower providers still run", async () => {
-		const m = mountHost();
-		await open("pA");
-		h.enrichHangs = true;
-		await walk("pB");
-		expect(viewer.enriching).toBe(true);
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", partial: "early" });
-		m.unmount();
-	});
-
-	it("a draft that did not move keeps its fields when enrichment fails", async () => {
-		const m = mountHost();
-		h.enrichFails = true;
-		await open("pA");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "old" });
-		m.unmount();
-	});
-
-	it("closing drops the draft, so reopening the same location starts from the stored row", async () => {
+	it("closing drops the layer, so reopening starts from the stored row", async () => {
 		const m = mountHost();
 		await open("pA");
 		await walk("pB");
 		h.activeLocation = null;
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
-		h.activeLocation = { ...location(), extra: { custom: "kept" } } satisfies Location;
-		h.enriched = [];
-		await act(async () => refresh());
-		expect(viewer.draft).toBeNull();
-		await open("pA");
-		expect(h.enriched.map((l) => l.panoId)).toEqual(["pA"]);
-		expect(h.enriched[0].extra).toEqual({ custom: "kept" });
+		expect(h.drops).toBe(2);
 		m.unmount();
 	});
 
@@ -253,163 +237,110 @@ describe("the draft is the location as a save would write it", () => {
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
 		expect(viewer.currentPano).toBeNull();
-		expect(viewer.timeline).toBeNull();
-		expect(h.enriched.map((l) => l.id)).toEqual([7]);
 		m.unmount();
 	});
 });
 
-describe("enriching", () => {
-	it("holds from the moment a location opens until its draft's enrichment answers", async () => {
-		h.enrichDefer = true;
+describe("enrichment runs at the viewer's layer", () => {
+	it("runs once per pano shown, and a partial updates the draft", async () => {
 		const m = mountHost();
-		expect(viewer.draft).toBeNull();
-		expect(viewer.enriching).toBe(true);
 		await open("pA");
+		expect(h.runs).toHaveLength(1);
+		expect(h.runs[0].target).toEqual({ kind: "pending", name: "viewer" });
 		expect(viewer.enriching).toBe(true);
-		await act(async () => h.deferredResolvers[0]({ ...location(), extra: { enriched: "pA" } }));
+		await act(async () => {
+			h.onPartials[0]([{ ...viewer.draft!, extra: { custom: "kept", enriched: "pA" } }]);
+		});
+		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pA" });
+		await settleRun();
 		expect(viewer.enriching).toBe(false);
 		m.unmount();
 	});
 
-	it("holds again when the same location reopens on the same pano", async () => {
+	it("another row's partial does not touch the draft", async () => {
 		const m = mountHost();
 		await open("pA");
-		expect(viewer.enriching).toBe(false);
-		const stored = location();
+		await act(async () => {
+			h.onPartials[0]([{ ...viewer.draft!, id: 999, extra: { enriched: "other" } }]);
+		});
+		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
+		m.unmount();
+	});
+
+	it("walking aborts the old run and starts one on the new pano", async () => {
+		h.enrichHangs = true;
+		const m = mountHost();
+		await open("pA");
+		expect(h.runs).toHaveLength(1);
+		await walk("pB");
+		expect(h.runs).toHaveLength(2);
+		expect(h.runs[0].signal?.aborted).toBe(true);
+		expect(h.runs[1].signal?.aborted).toBe(false);
+		m.unmount();
+	});
+
+	it("a failed run leaves the draft as the layer holds it", async () => {
+		h.enrichFails = true;
+		const m = mountHost();
+		await open("pA");
+		expect(viewer.draft).toMatchObject({ id: 7, panoId: "pA" });
+		m.unmount();
+	});
+
+	it("closing without saving aborts the run", async () => {
+		h.enrichHangs = true;
+		const m = mountHost();
+		await open("pA");
 		h.activeLocation = null;
 		await act(async () => refresh());
-		expect(viewer.enriching).toBe(false);
-		h.activeLocation = stored;
-		await act(async () => refresh());
-		expect(viewer.enriching).toBe(true);
+		expect(h.runs[0].signal?.aborted).toBe(true);
 		m.unmount();
 	});
 });
 
-describe("input invalidation", () => {
-	it("a pano change strips the old pano's derived fields before enrichment runs on the new pano", async () => {
+describe("saving lands the layer", () => {
+	it("one land call carries the save patch; the run keeps going and the layer drops after it", async () => {
 		const m = mountHost();
 		await open("pA");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pA" });
-		h.enriched = [];
-		await walk("pB");
-		expect(h.enriched).toHaveLength(1);
-		expect(h.enriched[0].panoId).toBe("pB");
-		expect(h.enriched[0].extra).toEqual({ custom: "kept" });
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
-		m.unmount();
-	});
-
-	it("walking back to the stored pano forgets the pano walked off", async () => {
-		const m = mountHost();
-		await open("pA");
-		await walk("pB");
-		h.enrichFails = true;
-		await act(async () => viewer.edit({ panoId: "pA", lat: 1, lng: 2 }));
-		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
-		expect(await viewer.settled()).toMatchObject({ panoId: "pA", extra: { custom: "kept" } });
-		m.unmount();
-	});
-
-	it("opening on a pano other than the stored one forgets the stored pano's fields", async () => {
-		h.enrichOn = false;
-		const m = mountHost();
-		await open("pResolved");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept" });
-		m.unmount();
-	});
-});
-
-describe("cancellation race", () => {
-	it("a late-arriving result from the old pano does not overwrite the current draft", async () => {
-		h.enrichDefer = true;
-		const m = mountHost();
-		await open("pA");
-		expect(viewer.enriching).toBe(true);
-		expect(h.deferredResolvers).toHaveLength(1);
-		h.enrichDefer = false;
-		await walk("pB");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
 		await act(async () => {
-			h.deferredResolvers[0]({
-				...createLocation({ lat: 1, lng: 2 }),
-				id: 7,
-				panoId: "pA",
-				extra: { custom: "kept", enriched: "pA_late", stale: true },
-			});
+			await viewer.land({ heading: 30, tags: [1] });
 		});
-		expect(viewer.draft!.panoId).toBe("pB");
-		expect(viewer.draft!.extra).toEqual({ custom: "kept", enriched: "pB" });
-		m.unmount();
-	});
-});
-
-describe("handleSave patchBetween", () => {
-	it("changed keys carry values, deleted keys carry null, unchanged keys are omitted", () => {
-		expect(
-			patchBetween<Record<string, unknown>>(
-				{ kept: 1, changed: "old", gone: "deleted" },
-				{ kept: 1, changed: "new", added: true },
-			),
-		).toEqual({ changed: "new", added: true, gone: null });
-	});
-
-	it("enrichment-then-save patches only what enrichment changed", async () => {
-		const m = mountHost();
-		await open("pA");
-		const settled = await viewer.settled();
-		const patch = patchBetween(location().extra ?? {}, settled!.extra ?? {});
-		expect(patch).toEqual({ enriched: "pA" });
-		expect("custom" in patch).toBe(false);
+		const landed = h.edits.find((e) => e.opts?.land);
+		expect(landed).toBeTruthy();
+		expect((landed!.edits[0] as Put).put).toEqual({ id: 7, heading: 30, tags: [1] });
+		// The in-flight run was not aborted by the save; its answers follow the row.
+		h.activeLocation = null;
+		await act(async () => refresh());
+		expect(h.runs[0].signal?.aborted).toBe(false);
+		const dropsBefore = h.drops;
+		await settleRun();
+		expect(h.drops).toBe(dropsBefore + 1);
 		m.unmount();
 	});
 
-	it("a stale derived field becomes null in the patch, not a wholesale extra replacement", async () => {
+	it("landing answers the layer row's id, so a preview save knows its map row", async () => {
+		h.activeLocation = {
+			...location(),
+			id: 100,
+			flags: LocationFlag.SeenOverlay,
+		} satisfies Location;
+		h.layer.set(100, h.activeLocation as Location);
 		const m = mountHost();
 		await open("pA");
-		h.enrichFails = true;
+		let saved: number | null = null;
+		await act(async () => {
+			saved = await viewer.land({});
+		});
+		expect(saved).toBe(100);
+		m.unmount();
+	});
+
+	it("every layer read is pushed into the store's open-row projection", async () => {
+		const m = mountHost();
+		await open("pA");
+		expect(h.openRowPushes.at(-1)).toMatchObject({ id: 7, panoId: "pA" });
 		await walk("pB");
-		const settled = await viewer.settled();
-		expect(settled!.extra).toEqual({ custom: "kept" });
-		const patch = patchBetween(location().extra ?? {}, settled!.extra ?? {});
-		expect(patch.enriched).toBeNull();
-		expect("custom" in patch).toBe(false);
-		m.unmount();
-	});
-});
-
-describe("an answer after Save", () => {
-	const close = () =>
-		act(async () => {
-			h.activeLocation = null;
-			refresh();
-		});
-	const answer = () =>
-		act(async () => {
-			const read = h.enriched[0];
-			h.deferredResolvers[0]({ ...read, extra: { ...read.extra, enriched: read.panoId } });
-		});
-
-	it("lands on the saved row, in the save's undo step", async () => {
-		const m = mountHost();
-		h.enrichDefer = true;
-		await open("pA");
-		await act(async () => viewer.commit(7, 5));
-		await close();
-		await answer();
-		expect(h.written).toEqual([{ id: 7, extra: { enriched: "pA" } }]);
-		expect(h.joins).toEqual([5]);
-		m.unmount();
-	});
-
-	it("writes nothing when the draft closed without saving", async () => {
-		const m = mountHost();
-		h.enrichDefer = true;
-		await open("pA");
-		await close();
-		await answer();
-		expect(h.written).toEqual([]);
+		expect(h.openRowPushes.at(-1)).toMatchObject({ panoId: "pB" });
 		m.unmount();
 	});
 });

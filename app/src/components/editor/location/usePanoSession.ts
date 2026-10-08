@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n";
 /** The pano session for the open location: resolve and show its pano, feed viewer walks
  *  into the draft and the trail. */
 export function usePanoSession() {
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const { edit, open } = usePanoViewer();
 	const pano = usePano();
 

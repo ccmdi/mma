@@ -73,41 +73,6 @@ export function setPinned(loc: Location, on: boolean): Location {
 	};
 }
 
-/** The patch that turns `old` into `next`: each field that changed, a `merged` field as only
- *  its changed keys, and null for a key `next` lacks. */
-export function patchBetween<T extends object>(
-	old: T,
-	next: T,
-	merged: readonly string[] = [],
-): Partial<T> {
-	const [a, b] = [old as Record<string, unknown>, next as Record<string, unknown>];
-	const patch: Record<string, unknown> = {};
-	for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
-		if (merged.includes(key)) {
-			const keys = patchBetween((a[key] ?? {}) as object, (b[key] ?? {}) as object);
-			if (Object.keys(keys).length > 0) patch[key] = keys;
-		} else if (!same(a[key] ?? null, b[key] ?? null)) {
-			patch[key] = b[key] ?? null;
-		}
-	}
-	return patch as Partial<T>;
-}
-
-/** Whether two values hold the same thing; an object's key order never matters. */
-function same(a: unknown, b: unknown): boolean {
-	if (a === b) return true;
-	if (typeof a !== "object" || typeof b !== "object" || !a || !b) return false;
-	if (Array.isArray(a) !== Array.isArray(b)) return false;
-	const [x, y] = [a as Record<string, unknown>, b as Record<string, unknown>];
-	const keys = Object.keys(x);
-	return keys.length === Object.keys(y).length && keys.every((k) => same(x[k], y[k]));
-}
-
-/** The same location on the same pano: what makes one row's answer another row's. @unstable */
-export function sameRow(a: Location, b: Location): boolean {
-	return a.id === b.id && a.panoId === b.panoId;
-}
-
 /** True for virtual (preview-only) locations, which have negative ids and are not
  *  part of the map. */
 export function isVirtualLocation(loc: { id: number }): boolean {
@@ -166,30 +131,6 @@ export function dropLocation(
 		tags,
 		extra: panoId === source.panoId ? source.extra : null,
 	});
-}
-
-/** `row` with `patch` written over it. An absent field is unchanged, and a `merged` field
- *  changes key by key, a null value deleting its key, and is null once empty. */
-export function applyPatch<T extends object>(
-	row: T,
-	patch: { [K in keyof T]?: unknown },
-	merged: readonly string[] = [],
-): T {
-	const next = { ...row } as Record<string, unknown>;
-	for (const [key, value] of Object.entries(patch)) {
-		if (value === undefined) continue;
-		if (value === null || !merged.includes(key)) {
-			next[key] = value;
-			continue;
-		}
-		const keys: Record<string, unknown> = { ...(next[key] as object | null) };
-		for (const [k, v] of Object.entries(value)) {
-			if (v === null) delete keys[k];
-			else keys[k] = v;
-		}
-		next[key] = Object.keys(keys).length > 0 ? keys : null;
-	}
-	return next as T;
 }
 
 export type SortMode = "name" | "created" | "opened" | "amount";

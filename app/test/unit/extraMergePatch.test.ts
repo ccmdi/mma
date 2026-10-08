@@ -45,10 +45,9 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { openMap, openDuplicateLocation, updateLocations, getMapState } from "@/store/useMapStore";
-import { createLocation, applyPatch } from "@/types";
+import { openMap, openDuplicateLocation, updateLocations } from "@/store/useMapStore";
+import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
-import { LOCATION_MERGED } from "@/bindings.consts";
 
 function makeLoc(extra: Record<string, unknown> | null = null): Location {
 	return { ...createLocation({ lat: 1, lng: 2 }), id: 7, extra };
@@ -76,39 +75,5 @@ describe("extra merge-patch writes via updateLocations", () => {
 
 		expect(wire.updates[0][0].extra).toEqual({ datetime: 111 });
 		expect(wire.undoable[0]).toBe(false);
-	});
-
-	it("the active location becomes the row the store hands back", async () => {
-		const loc = makeLoc({ existing: 1 });
-		openDuplicateLocation(loc);
-		const stored = { ...loc, extra: { existing: 1, datetime: 111 } };
-		wire.active = stored;
-
-		await patchExtra(loc, { datetime: 111 });
-
-		expect(getMapState().activeLocation).toEqual(stored);
-	});
-});
-
-describe("applyPatch — JS mirror of Rust overlay_update", () => {
-	const base = makeLoc({ a: 1, b: 2 });
-
-	it("merges extra keys and overwrites top-level fields", () => {
-		const next = applyPatch(base, { heading: 90, extra: { b: 3, c: 4 } }, LOCATION_MERGED);
-		expect(next.heading).toBe(90);
-		expect(next.extra).toEqual({ a: 1, b: 3, c: 4 });
-	});
-
-	it("null value deletes its key; empty result becomes null", () => {
-		expect(applyPatch(base, { extra: { a: null } }, LOCATION_MERGED).extra).toEqual({ b: 2 });
-		expect(applyPatch(makeLoc({ a: 1 }), { extra: { a: null } }, LOCATION_MERGED).extra).toBeNull();
-	});
-
-	it("null patch clears extra entirely", () => {
-		expect(applyPatch(base, { extra: null }, LOCATION_MERGED).extra).toBeNull();
-	});
-
-	it("absent extra leaves extra untouched", () => {
-		expect(applyPatch(base, { heading: 90 }, LOCATION_MERGED).extra).toEqual({ a: 1, b: 2 });
 	});
 });

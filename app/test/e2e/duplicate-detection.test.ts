@@ -1,3 +1,4 @@
+import type { Location } from "@/bindings.gen";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { addLocs, createLocation, refreshSelections, withApi, useMap, select } from "./helpers";
 describe("Duplicate detection via selectDuplicates", () => {
@@ -54,14 +55,26 @@ describe("findNearby API", () => {
 	});
 	it("finds locations within radius", async () => {
 		const nearby = await withApi(async (api) => {
-			return api.cmd.storeFindNearby(0, 0, 100); // 100m radius
+			return api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 0, lng: 0, radiusM: 100 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // 100m radius
 		});
 		expect(nearby.length).toBe(2);
 	});
 
 	it("does not find distant locations", async () => {
 		const nearby = await withApi(async (api) => {
-			return api.cmd.storeFindNearby(0, 0, 100);
+			return api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 0, lng: 0, radiusM: 100 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
 		});
 		// The location at (1,1) is ~157km away, should not be found at 100m
 		const hasDistant = nearby.some((l: any) => Math.abs(l.lat - 1) < 0.01);
@@ -70,7 +83,13 @@ describe("findNearby API", () => {
 
 	it("returns empty for location with no neighbors", async () => {
 		const nearby = await withApi(async (api) => {
-			return api.cmd.storeFindNearby(50, 50, 100); // no locations near (50,50)
+			return api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 50, lng: 50, radiusM: 100 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // no locations near (50,50)
 		});
 		expect(nearby.length).toBe(0);
 	});

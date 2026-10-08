@@ -9,39 +9,36 @@ import {
 	useState,
 	type ReactNode,
 } from "react";
-import { getMapState, updateLocations, useMapState } from "@/store/useMapStore";
+import { mutate, setOpenRow, useMapState, VIEWER } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
-import { LOCATION_MERGED, PanoType } from "@/bindings.consts";
+import { PanoType } from "@/bindings.consts";
 import { usePano } from "@/lib/hooks/usePano";
-import { applyPatch, patchBetween, sameRow, type LatLng } from "@/types";
-import type { Pano } from "@/bindings.gen";
-import type { Location } from "@/bindings.gen";
-import { withoutDerivedFrom } from "@/lib/data/fieldDefs";
+import { isImportPreview, isSeenPreview, type LatLng } from "@/types";
+import type { Location, Pano } from "@/bindings.gen";
+import { cmd } from "@/lib/commands";
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { geocodeGoogle, reverseGeocode, type GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
 import { SV_OFFICIAL_FALLBACK_RADIUS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
-import { enrich } from "@/lib/sv/enrich";
+import { enrichAt } from "@/lib/sv/enrich";
 import { log } from "@/lib/util/log";
 import { panoDates, type PanoDateState } from "./panoDate";
 import { onFullscreenMapChanged, onLocationCleared } from "./fullscreenModeState";
+import { useEvent } from "@/lib/events";
 
 interface PanoViewerContextValue {
-	/** The location as a save would write it: on the pano showing now, at its position,
-	 *  pinned or not, with what enrichment answered for it. Moves as the user walks;
-	 *  nothing here reaches the store until Save, and Close drops it. Null until open. */
+	/** The location as a save would write it: the viewer's layer row. Moves as the user
+	 *  walks; nothing here reaches the map until Save, and Close drops it. Null until open. */
 	draft: Location | null;
 	/** The location's pano is resolved and showing: `resolved` is the pano the open landed
 	 *  on, which an unpinned location does not store. */
 	open: (location: Location, resolved: string | null) => void;
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
-	/** What a save writes: the draft as it stands, never waiting on enrichment. */
-	settled: () => Promise<Location | null>;
-	/** The draft was saved as map row `id` in undo step `step`: enrichment still in flight
-	 *  lands there, in the same step while it is the newest. */
-	commit: (id: number, step: number | null) => void;
+	/** Land the draft with `patch` written over it: one undo step, with enrichment still
+	 *  in flight following it there. The map row's id once landed, or null with no draft. */
+	land: (patch: Partial<Location>) => Promise<number | null>;
 	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
 	 *  rather than off the draft; null until it lands. */
 	currentPano: Pano | null;
@@ -58,45 +55,102 @@ interface PanoViewerContextValue {
 
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
 
-/** An enrichment run, and the map row and undo step its draft was saved as, once saved. */
-interface Run {
-	saved?: { id: number; step: number | null };
-}
-
 /** Where the viewer is: the draft once the location is open, else the location. */
 export function viewerPosition(draft: Location | null, location: Location | null): LatLng {
 	return draft ?? location ?? { lat: 0, lng: 0 };
 }
 
-/** `to`, without the fields derived from any input it changed from `from`. */
-function moved(from: Location, to: Location): Location {
-	const changed = Object.keys(patchBetween(from, to)).filter((k) => k !== "extra");
-	return changed.length ? { ...to, extra: withoutDerivedFrom(to.extra, changed) } : to;
+/** A `Partial<Location>` as the wire patch for layer row `id`. */
+function put(id: number, patch: Partial<Location>) {
+	const { id: _, ...fields } = patch;
+	return { put: { ...fields, id } };
 }
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const pano = usePano();
-	const [state, setState] = useState<Location | null>(null);
-	// Keyed by the location that opened it: another location's draft is simply not this one.
-	const draft = state && state.id === location?.id ? state : null;
-
-	const open = useCallback((loc: Location, resolved: string | null) => {
-		setState(moved(loc, { ...loc, panoId: resolved ?? loc.panoId }));
+	const [row, setRow] = useState<Location | null>(null);
+	// Which location the layer is open for, and the layer row's id (a preview's differs).
+	const [held, setHeld] = useState<{ openFor: number; id: number } | null>(null);
+	const [enriching, setEnriching] = useState(false);
+	const rowRef = useRef(row);
+	rowRef.current = row;
+	const heldRef = useRef(held);
+	heldRef.current = held;
+	const landedRef = useRef(false);
+	// Layer calls land in order, so a walk's edit can never pass the open that seeds it.
+	const chain = useRef<Promise<unknown>>(Promise.resolve());
+	const queue = useCallback(<T,>(fn: () => Promise<T>): Promise<T | null> => {
+		const p = chain.current.then(fn, fn);
+		chain.current = p.catch((e: unknown) => log.error("[viewer] layer call failed:", e));
+		return p.catch(() => null);
 	}, []);
+
+	const draft = held && location && held.openFor === location.id ? row : null;
+
+	// A change landing underneath the open row (sync, bulk work, undo) shows through the
+	// layer; re-read so the projection follows.
+	const changed = useEvent("store:changed");
+	useEffect(() => {
+		const h = heldRef.current;
+		if (!h || landedRef.current) return;
+		void queue(async () => {
+			if (heldRef.current?.id !== h.id) return;
+			const fresh = await cmd.storeRow(VIEWER, h.id);
+			setRow(fresh);
+			setOpenRow(fresh);
+		});
+	}, [changed, queue]);
+
+	const open = useCallback(
+		(loc: Location, resolved: string | null) => {
+			void queue(async () => {
+				// A preview was already seeded into the layer by the store; a map row holds
+				// its key here from this moment.
+				if (!isSeenPreview(loc) && !isImportPreview(loc)) {
+					await cmd.storeDrop(VIEWER.name);
+				}
+				landedRef.current = false;
+				await cmd.storeEdit(
+					VIEWER,
+					[put(loc.id, { panoId: resolved ?? loc.panoId ?? null })],
+					null,
+				);
+				setHeld({ openFor: loc.id, id: loc.id });
+				const row = await cmd.storeRow(VIEWER, loc.id);
+				setRow(row);
+				setOpenRow(row);
+			});
+		},
+		[queue],
+	);
 
 	const edit = useCallback(
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
-			setState((prev) => {
-				if (!prev) return prev;
-				const next = moved(prev, {
-					...prev,
-					...(typeof patch === "function" ? patch(prev) : patch),
-				});
-				return Object.keys(patchBetween(prev, next)).length > 0 ? next : prev;
+			void queue(async () => {
+				const h = heldRef.current;
+				const base = rowRef.current;
+				if (!h || !base) return;
+				const p = typeof patch === "function" ? patch(base) : patch;
+				await mutate(() => cmd.storeEdit(VIEWER, [put(h.id, p)], null));
+				const row = await cmd.storeRow(VIEWER, h.id);
+				setRow(row);
+				setOpenRow(row);
 			});
 		},
-		[],
+		[queue],
+	);
+
+	const land = useCallback(
+		(patch: Partial<Location>) =>
+			queue(async () => {
+				const h = heldRef.current;
+				if (!h) return null;
+				await mutate(() => cmd.storeEdit(VIEWER, [put(h.id, patch)], { land: true }));
+				landedRef.current = true;
+				return h.id;
+			}),
+		[queue],
 	);
 
 	// The pano on screen as Google describes it, and the captures the date picker can offer
@@ -140,75 +194,48 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		[geocodeProvider, currentPano, lookup.data],
 	);
 
-	const draftKey = draft && `${draft.id}:${draft.panoId}`;
-	const [enrichedKey, setEnrichedKey] = useState<string | null>(null);
-	const enriching = location != null && (draftKey == null || enrichedKey !== draftKey);
-	const inFlight = useRef<Promise<Location | null>>(Promise.resolve(null));
-	const run = useRef<Run>({});
+	// One run per pano the draft shows. Answers land in the layer in Rust, clearing what
+	// the pano move invalidated and, once the draft is saved, following it onto the map
+	// row in the save's undo step; a run's stale answers are dropped at delivery.
 	useEffect(() => {
-		if (!draft) return;
+		const h = heldRef.current;
+		if (!h || !row || row.id !== h.id) return;
 		const ac = new AbortController();
-		const thisRun: Run = {};
-		run.current = thisRun;
-		// An answer is one patch over the row the run read, laid wherever that row lives now:
-		// on the draft, or once saved, on the map row it became, in the save's undo step.
-		let landing = Promise.resolve();
-		const land = (row: Location) => {
-			const patch = { extra: patchBetween(draft.extra ?? {}, row.extra ?? {}) };
-			landing = landing.then(async () => {
-				const saved = thisRun.saved;
-				if (!saved) {
-					setState((prev) =>
-						prev && sameRow(prev, draft) ? applyPatch(prev, patch, LOCATION_MERGED) : prev,
-					);
-					return;
-				}
-				await updateLocations([{ ...patch, id: saved.id }], { join: saved.step });
-				saved.step = getMapState().step ?? saved.step;
-			});
-		};
-		inFlight.current = enrich(draft, {
+		setEnriching(true);
+		enrichAt(VIEWER, {
 			signal: ac.signal,
-			onPartial: ([row]) => {
-				if (row && !ac.signal.aborted && sameRow(row, draft)) land(row);
+			onPartial: (rows) => {
+				const mine = rows.find((r) => r.id === h.id);
+				if (mine && !ac.signal.aborted) {
+					setRow(mine);
+					setOpenRow(mine);
+				}
 			},
 		})
-			.then((row) => {
-				if (ac.signal.aborted) return null;
-				land(row);
-				return row;
-			})
 			.catch((e: unknown) => {
-				if (ac.signal.aborted) return null;
-				log.error("[viewer] enrichment failed:", e);
-				if (!thisRun.saved) {
-					setState((prev) =>
-						prev && sameRow(prev, draft) ? { ...prev, extra: draft.extra } : prev,
-					);
-				}
-				return null;
+				if (!ac.signal.aborted) log.error("[viewer] enrichment failed:", e);
 			})
 			.finally(() => {
-				if (!ac.signal.aborted) setEnrichedKey(draftKey);
+				if (ac.signal.aborted) return;
+				setEnriching(false);
+				void queue(async () => {
+					if (heldRef.current?.id === h.id && !landedRef.current) {
+						const fresh = await cmd.storeRow(VIEWER, h.id);
+						setRow(fresh);
+						setOpenRow(fresh);
+					}
+					if (landedRef.current) await cmd.storeDrop(VIEWER.name);
+				});
 			});
 		return () => {
-			if (!thisRun.saved) ac.abort();
+			// A saved draft's run keeps going: its answers land on the map row it became.
+			if (!landedRef.current) {
+				ac.abort();
+				setEnriching(false);
+			}
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- runs per pano, reading the draft as it is then
-	}, [draft?.id, draft?.panoId]);
-	const commit = useCallback(
-		(id: number, step: number | null) => {
-			if (enriching) run.current.saved = { id, step };
-		},
-		[enriching],
-	);
-	const settled = useCallback(async () => {
-		if (!draft) return null;
-		if (enriching) return draft;
-		const row = await inFlight.current;
-		if (row && sameRow(row, draft)) return { ...draft, extra: row.extra };
-		return draft;
-	}, [draft, enriching]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps -- one run per pano shown
+	}, [held?.id, row?.panoId]);
 
 	const fullscreenMap = useSetting("fullscreenMap");
 	const prevFullscreenMap = useRef(fullscreenMap);
@@ -218,29 +245,32 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		onFullscreenMapChanged(fullscreenMap);
 	}, [fullscreenMap]);
 
-	// Location cleared (save/delete/close): drop the draft, reset fullscreen modes, hide the viewer.
+	// Location cleared (save/delete/close): drop the layer unless it landed, reset
+	// fullscreen modes, hide the viewer.
 	useEffect(() => {
 		if (location) return;
-		setState(null);
-		setEnrichedKey(null);
+		setHeld(null);
+		setRow(null);
+		if (!landedRef.current) {
+			void queue(() => cmd.storeDrop(VIEWER.name));
+		}
 		onLocationCleared();
 		pano.hide();
-	}, [pano, location]);
+	}, [pano, location, queue]);
 
 	const value = useMemo(
 		() => ({
 			draft,
 			open,
 			edit,
-			settled,
-			commit,
+			land,
 			currentPano,
 			timeline,
 			defaultPano,
 			geo,
 			enriching,
 		}),
-		[draft, open, edit, settled, commit, currentPano, timeline, defaultPano, geo, enriching],
+		[draft, open, edit, land, currentPano, timeline, defaultPano, geo, enriching],
 	);
 
 	return <PanoViewerContext.Provider value={value}>{children}</PanoViewerContext.Provider>;

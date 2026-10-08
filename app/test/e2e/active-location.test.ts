@@ -12,7 +12,7 @@ describe("Active location and work area", () => {
 		]);
 	});
 	it("starts with no active location", async () => {
-		const active = await withApi(async (api) => api.getMapState().activeLocation);
+		const active = await withApi(async (api) => api.getMapState().openRow);
 		expect(active).toBeNull();
 	});
 
@@ -29,7 +29,7 @@ describe("Active location and work area", () => {
 
 	it("active location returns the correct location data", async () => {
 		const active = await withApi(async (api) => {
-			const loc = api.getMapState().activeLocation;
+			const loc = api.getMapState().openRow;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active).not.toBeNull();
@@ -40,7 +40,7 @@ describe("Active location and work area", () => {
 	it("switching active location updates the data", async () => {
 		await withApi(async (api, id) => api.setActiveLocation(id), locIds[1]);
 		const active = await withApi(async (api) => {
-			const loc = api.getMapState().activeLocation;
+			const loc = api.getMapState().openRow;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active!.id).toBe(locIds[1]);
@@ -52,7 +52,7 @@ describe("Active location and work area", () => {
 		const area = await withApi(async (api) => api.getMapState().workArea);
 		expect(area).toBe("overview");
 
-		const active = await withApi(async (api) => api.getMapState().activeLocation);
+		const active = await withApi(async (api) => api.getMapState().openRow);
 		expect(active).toBeNull();
 	});
 
@@ -65,7 +65,7 @@ describe("Active location and work area", () => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[2]);
 
-		const active = await withApi(async (api) => api.getMapState().activeLocation);
+		const active = await withApi(async (api) => api.getMapState().openRow);
 		expect(active).toBeNull();
 	});
 });

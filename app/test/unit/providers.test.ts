@@ -7,7 +7,6 @@ vi.mock("@/lib/util/log", () => ({
 
 import {
 	derivedFrom,
-	withoutDerivedFrom,
 	registerProvider,
 	getProviders,
 	getEnrichFieldOptions,
@@ -172,12 +171,5 @@ describe("derivedFrom", () => {
 		const stale = derivedFrom([`datetime${suffix}`]);
 		expect(stale.has(`sunAzimuth${suffix}`)).toBe(true);
 		expect(stale.has(`imageDate${suffix}`)).toBe(false);
-	});
-
-	it("strips exactly the stale keys from extra", () => {
-		const extra = { [`imageDate${suffix}`]: "2020-01", [`tagged${suffix}`]: "x", custom: 1 };
-		expect(withoutDerivedFrom(extra, ["panoId"])).toEqual({ [`tagged${suffix}`]: "x", custom: 1 });
-		expect(withoutDerivedFrom(extra, ["heading"])).toEqual(extra);
-		expect(withoutDerivedFrom(null, ["panoId"])).toBeNull();
 	});
 });

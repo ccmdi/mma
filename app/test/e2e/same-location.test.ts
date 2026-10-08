@@ -1,3 +1,4 @@
+import type { Location } from "@/bindings.gen";
 import {
 	waitForReady,
 	createAndOpenMap,
@@ -23,7 +24,13 @@ describe("SameLocation — duplicate picker", () => {
 		]);
 
 		const nearby = await withApi(async (api) => {
-			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
+			return await api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
 		});
 		expect(nearby.length).toBe(3);
 	});
@@ -31,7 +38,13 @@ describe("SameLocation — duplicate picker", () => {
 	it("deleting one co-located location reduces count", async () => {
 		const before = await getLocCount();
 		const nearby = await withApi(async (api) => {
-			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
+			return await api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
 		});
 		const toDelete = nearby[0].id;
 
@@ -43,7 +56,13 @@ describe("SameLocation — duplicate picker", () => {
 		expect(after).toBe(before - 1);
 
 		const remaining = await withApi(async (api) => {
-			return await api.cmd.storeFindNearby(10.0, 20.0, 2.0);
+			return await api.cmd
+				.storeRead(
+					{ type: "Everything" },
+					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "rows" },
+				)
+				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
 		});
 		expect(remaining.length).toBe(2);
 		expect(remaining.every((l) => l.id !== toDelete)).toBe(true);

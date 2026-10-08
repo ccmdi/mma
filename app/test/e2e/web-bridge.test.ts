@@ -23,7 +23,15 @@ import { setFaults } from "./parityDriver";
 /** Markers this tab's scene holds, once it has applied every frame sent so far. */
 const sceneTotal = () =>
 	withApi(async (api) => {
-		await api.sceneReached((await api.cmd.storeGetSummary()).version);
+		await api.sceneReached(
+			(
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).version,
+		);
 		return api.getScene().totalCount;
 	});
 
@@ -186,7 +194,11 @@ describe("Web bridge", () => {
 					null,
 				)
 				.then(() => done.push("slow"));
-			await api.cmd.storeGetSummary();
+			(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				locationCount: number;
+				version: number;
+				dirtyCount: number;
+			};
 			done.push("fast");
 			await slow;
 			return done;

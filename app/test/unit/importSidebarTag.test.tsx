@@ -33,6 +33,8 @@ const preview: EditorImportPreview = {
 	warnings: [],
 	previewPositionsPath: "",
 	bounds: null,
+	firstId: 1,
+	settings: {},
 	willAutoCommit: false,
 };
 

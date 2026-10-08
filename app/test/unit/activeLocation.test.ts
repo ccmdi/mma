@@ -14,15 +14,20 @@ vi.mock("@/lib/commands", () => ({
 			h.setActiveCalls.push(id);
 			return Promise.resolve(null);
 		},
-		storeCollect: async (selector: { locations?: number[] }) => {
+		storeRead: async (selector: { locations?: number[] }, pick: { kind: string } | null) => {
+			if (pick?.kind === "nearby") {
+				return { kind: "rows", rows: { kind: "inline", locations: h.nearby } };
+			}
 			const ids = selector.locations ?? [];
 			await Promise.all(ids.map((id) => h.held.get(id)));
 			return {
-				kind: "inline",
-				locations: ids.map((id) => ({ id, lat: 0, lng: 0, tags: [] })),
+				kind: "rows",
+				rows: {
+					kind: "inline",
+					locations: ids.map((id) => ({ id, lat: 0, lng: 0, tags: [] })),
+				},
 			};
 		},
-		storeFindNearby: () => Promise.resolve(h.nearby),
 	},
 }));
 
@@ -40,18 +45,18 @@ describe("active location keeps Rust's active_id in step", () => {
 		h.nearby = [{ id: 7 }, { id: 8 }];
 		await setActiveLocation(7);
 
-		expect(getMapState().activeLocation).toBeNull();
+		expect(getMapState().openRow).toBeNull();
 		expect(h.setActiveCalls).toEqual([7, null]);
 	});
 
 	it("pushes null to Rust when leaving the location pane", async () => {
 		await setActiveLocation(7);
-		expect(getMapState().activeLocation?.id).toBe(7);
+		expect(getMapState().openRow?.id).toBe(7);
 
 		h.setActiveCalls = [];
 		setWorkArea("plugin");
 
-		expect(getMapState().activeLocation).toBeNull();
+		expect(getMapState().openRow).toBeNull();
 		expect(h.setActiveCalls).toEqual([null]);
 	});
 
@@ -63,8 +68,8 @@ describe("active location keeps Rust's active_id in step", () => {
 		release();
 		await slow;
 
-		expect(getMapState().activeLocationId).toBe(8);
-		expect(getMapState().activeLocation?.id).toBe(8);
+		expect(getMapState().openId).toBe(8);
+		expect(getMapState().openRow?.id).toBe(8);
 		setWorkArea("overview");
 	});
 

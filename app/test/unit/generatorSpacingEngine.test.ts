@@ -28,9 +28,11 @@ vi.mock("@/lib/commands", () => ({
 		polygonBounds: () => Promise.resolve([0, 0, 4, 4]),
 		polygonContainsPoints: (_polygon: PolygonGeometry, lats: number[]) =>
 			Promise.resolve(lats.map(() => true)),
-		storeNearAny: (lats: number[]) =>
-			new Promise<boolean[]>((resolve) => {
-				h.nearResolvers.push(() => resolve(lats.map(() => false)));
+		storeRead: (_selector: unknown, _pick: unknown, ask: { lats?: number[] }) =>
+			new Promise((resolve) => {
+				h.nearResolvers.push(() =>
+					resolve({ kind: "booleans", values: (ask.lats ?? []).map(() => false) }),
+				);
 			}),
 	},
 }));

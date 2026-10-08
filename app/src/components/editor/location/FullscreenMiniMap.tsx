@@ -60,7 +60,7 @@ async function ensureMinimapHost(
 
 export function FullscreenMiniMap() {
 	const { draft } = usePanoViewer();
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const { lat, lng } = viewerPosition(draft, location);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);

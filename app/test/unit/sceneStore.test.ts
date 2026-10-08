@@ -40,7 +40,7 @@ vi.mock("@/lib/events", () => ({
 
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({
-		activeLocation: h.activeId == null ? null : { id: h.activeId },
+		openRow: h.activeId == null ? null : { id: h.activeId },
 		selectedLocationIds: h.selected,
 	}),
 	setSelectedLocationIds: () => {},

@@ -283,7 +283,7 @@ export function MapEditor() {
 			if (isEditableElement(e.target)) return;
 			if (isActivationElement(document.activeElement)) return;
 			if (!getSettings().enterOpensCenter) return;
-			if (getMapState().activeLocation) return;
+			if (getMapState().openRow) return;
 			showMapCursorRef.current = true;
 			setShowMapCursor(true);
 		}

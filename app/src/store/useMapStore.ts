@@ -1,9 +1,19 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
-import { isVirtualLocation, isImportPreview, locId } from "@/types";
+import { isVirtualLocation, isImportPreview, isSeenPreview, locId } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import type { Location, MapMeta, FieldDef, StoreStatus, CountBy, Target } from "@/bindings.gen";
+import type {
+	Location,
+	MapMeta,
+	FieldDef,
+	StoreStatus,
+	CountBy,
+	Target,
+	Answer,
+	Ask,
+	RowPick,
+} from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { cmd } from "@/lib/commands";
 import type { MutationResult, EngineValues, SelectionSync } from "@/bindings.gen";
@@ -21,11 +31,11 @@ import type { MergeWinner } from "@/bindings.consts";
 import { SelectedIds, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { clearScene, loadScene, sceneReached } from "@/lib/render/sceneStore";
 import { refreshPolygonFills } from "@/lib/render/polygonFills";
-import { resetImportState } from "./importStaging";
+import { resetImportState, getImportStaging, importTarget } from "./importStaging";
 import { resetCommitDiffState, resetCommitDiffCounts } from "./commitDiff";
 import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 
-import type { ListedSelection, Selection, Selector, SpacedPickResult } from "@/bindings.gen";
+import type { ListedSelection, Selection, Selector } from "@/bindings.gen";
 import {
 	all,
 	any,
@@ -52,11 +62,11 @@ export interface UiState {
 	 *  the selection reads `getActiveSelections` instead. @unstable */
 	selectionList: ListedSelection[];
 	selectedLocationIds: SelectedIds;
-	/** @unstable */
-	activeLocationId: number | null;
-	/** The location open in the editor, or null. Virtual locations (staged
-	 *  imports, seen previews) live here with negative ids. */
-	activeLocation: Location | null;
+	/** The id of the row open in the editor, or null. A preview's is its viewer-layer id. */
+	openId: number | null;
+	/** The open row as the viewer's layer sees it: the one row projection JS keeps. The
+	 *  layer is the only writer; this mirrors its latest read. */
+	openRow: Location | null;
 	/** @unstable */
 	duplicateLocations: Location[];
 	/** @unstable */
@@ -86,8 +96,8 @@ const INITIAL_STATE: MapState = {
 	selectionCounts: {},
 	selectionList: [],
 	selectedLocationIds: SelectedIds.EMPTY,
-	activeLocationId: null,
-	activeLocation: null,
+	openId: null,
+	openRow: null,
 	duplicateLocations: [],
 	workArea: "overview",
 	activePluginId: null,
@@ -292,8 +302,8 @@ function clearEditState() {
 	setState({
 		selectionList: [],
 		selectedLocationIds: SelectedIds.EMPTY,
-		activeLocationId: null,
-		activeLocation: null,
+		openId: null,
+		openRow: null,
 		workArea: "overview",
 	});
 	resetImportState();
@@ -366,32 +376,58 @@ export function discardOpenMap() {
 	resetMapState();
 }
 
+type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
+
+/** The one read: `ask` a question of the rows `selector` resolves to, optionally
+ *  narrowed by `pick` first. Answers once, against the map as it is now. */
+export async function read<K extends Answer["kind"]>(
+	selector: Selector,
+	pick: RowPick | null,
+	ask: Ask,
+	kind: K,
+): Promise<AnswerOf<K>> {
+	const answer = await cmd.storeRead(selector, pick, ask);
+	if (answer.kind !== kind) throw new Error(`read answered ${answer.kind}, expected ${kind}`);
+	return answer as AnswerOf<K>;
+}
+
+/** Full rows out of a rows answer, fetched from disk when they were many. */
+export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]> {
+	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
+}
+
 /** Questions about the locations a selector resolves to. Each call answers once,
  *  against the map as it is now; ask again after a change. */
 export function query(selector: Selector) {
 	return {
 		/** The resolved ids, in map order. */
-		ids: (): Promise<number[]> => cmd.storeResolve(selector),
+		ids: async (): Promise<number[]> => (await read(selector, null, { kind: "ids" }, "ids")).ids,
 		/** How many locations resolve. */
-		count: (): Promise<number> => cmd.storeCount(selector),
+		count: async (): Promise<number> =>
+			(await read(selector, null, { kind: "count" }, "count")).count,
 		/** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
-		bounds: (): Promise<[number, number, number, number] | null> => cmd.storeBounds(selector),
+		bounds: async (): Promise<[number, number, number, number] | null> =>
+			(await read(selector, null, { kind: "bounds" }, "bounds")).bounds,
 		/** `n` ids drawn uniformly at random, without replacement. */
-		sample: (n: number): Promise<number[]> => cmd.storeSample(selector, n),
+		sample: async (n: number): Promise<number[]> =>
+			(await read(selector, { kind: "sample", n }, { kind: "ids" }, "ids")).ids,
 		/** Distinct values of `field`, sorted. */
-		values: (field: string): Promise<string[]> => cmd.storeValues(selector, field),
+		values: async (field: string): Promise<string[]> =>
+			(await read(selector, null, { kind: "values", field }, "values")).values,
 		/** Group each field by a derived key and count, one result per field. */
-		countBy: (fields: string[], key: KeySpec): Promise<CountBy[]> =>
-			cmd.storeCountBy(selector, fields, key),
+		countBy: async (fields: string[], key: KeySpec): Promise<CountBy[]> =>
+			(await read(selector, null, { kind: "countBy", fields, key }, "counts")).counts,
 		/** How many locations hold a value for each field, key-sorted. */
-		coverage: (): Promise<[string, number][]> => cmd.storeCoverage(selector),
+		coverage: async (): Promise<[string, number][]> =>
+			(await read(selector, null, { kind: "coverage" }, "coverage")).coverage,
 		/** One column per field. `null` where a location lacks the field; `"tags"`
 		 *  returns a column of tag-id arrays. */
-		columns: (fields: string[]): Promise<unknown[][]> => cmd.storeColumns(selector, fields),
+		columns: async (fields: string[]): Promise<unknown[][]> =>
+			(await read(selector, null, { kind: "columns", fields }, "columns")).columns,
 		/** Group by a derived key. Numeric bins arrive in bound order; other keys are
 		 *  sorted naturally. */
 		partition: async (field: string, key: KeySpec): Promise<PartitionBucket[]> => {
-			const groups = await cmd.storeGroupBy(selector, field, key);
+			const { groups } = await read(selector, null, { kind: "groupBy", field, key }, "groups");
 			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 			return groups;
 		},
@@ -399,10 +435,8 @@ export function query(selector: Selector) {
 		 *
 		 *  Every row lands in memory, so an unscoped call on a large map is expensive.
 		 *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
-		locations: async (): Promise<Location[]> => {
-			const rows = await cmd.storeCollect(selector);
-			return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
-		},
+		locations: async (): Promise<Location[]> =>
+			rowsOf((await read(selector, null, { kind: "rows" }, "rows")).rows),
 	};
 }
 
@@ -480,7 +514,7 @@ function applyMutation(r: MutationResult) {
 	const oldTags = getTags();
 	mergeEngineValues(r.values);
 	if (r.step !== state.step) setState({ step: r.step });
-	if (r.active && r.active.id === state.activeLocationId) setState({ activeLocation: r.active });
+
 	if (getTags() !== oldTags)
 		void applySelectionUpdate(removeSelection(...deadTagKeys(oldTags, getTags())));
 	if (r.selectionSync) applySelectionSync(r.selectionSync);
@@ -493,11 +527,20 @@ function applySelectionSync(sync: SelectionSync) {
 
 const MAP: Target = { kind: "map" };
 
+/** The viewer's own pending layer: its edits read over the map's rows as they are now,
+ *  and nothing reaches the map until a save lands them. */
+export const VIEWER = { kind: "pending", name: "viewer" } as const satisfies Target;
+
+/** The open row as the viewer's layer last read it. The layer is the single writer;
+ *  everything else only looks. */
+export function setOpenRow(row: Location | null) {
+	setState({ openRow: row });
+}
+
 const EMPTY_MUTATION: MutationResult = {
 	version: 0,
 	selectionSync: null,
 	step: null,
-	active: null,
 	firstId: null,
 	values: {
 		locationCount: null,
@@ -595,7 +638,7 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 		await setActiveLocation(null);
 		return;
 	}
-	if (state.activeLocationId && ids.has(state.activeLocationId)) setWorkArea("overview");
+	if (state.openId && ids.has(state.openId)) setWorkArea("overview");
 	emitEvent("store:changed");
 	await mutate(() =>
 		cmd.storeEdit(
@@ -740,7 +783,7 @@ export async function selectRandomFromSelection(
 /** Replace the current selection with what `pick` chooses from each pick bucket. Returns the
  *  count picked and the spacing they were picked at. */
 async function selectSpacedWith(
-	pick: (selector: Selector) => Promise<SpacedPickResult>,
+	pick: (selector: Selector) => Promise<{ ids: number[]; distanceM: number }>,
 	perSelection: boolean,
 ): Promise<{ picked: number; distanceM: number }> {
 	const results = await Promise.all(
@@ -763,7 +806,17 @@ export function selectSpacedFromSelection(
 	perSelection = false,
 ): Promise<{ picked: number; distanceM: number }> {
 	return selectSpacedWith(
-		(selector) => cmd.storeSpaced(selector, opts.count ?? null, opts.minDistanceM ?? null),
+		(selector) =>
+			read(
+				selector,
+				{
+					kind: "spaced",
+					targetCount: opts.count ?? null,
+					minDistanceM: opts.minDistanceM ?? null,
+				},
+				{ kind: "ids" },
+				"ids",
+			).then(({ ids, spacingM }) => ({ ids, distanceM: spacingM ?? 0 })),
 		perSelection,
 	);
 }
@@ -777,14 +830,26 @@ export function selectEvenlySpacedFromSelection(
 	perSelection = false,
 ): Promise<{ picked: number; distanceM: number }> {
 	return selectSpacedWith(
-		(selector) => cmd.storeEvenlySpaced(selector, opts.count ?? null, opts.spacingM ?? null),
+		(selector) =>
+			read(
+				selector,
+				{ kind: "evenlySpaced", targetCount: opts.count ?? null, spacingM: opts.spacingM ?? null },
+				{ kind: "ids" },
+				"ids",
+			).then(({ ids, spacingM }) => ({ ids, distanceM: spacingM ?? 0 })),
 		perSelection,
 	);
 }
 
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
-export function previewDuplicateGroups(distance: number): Promise<number[][]> {
-	return cmd.storeDuplicateGroups(distance);
+export async function previewDuplicateGroups(distance: number): Promise<number[][]> {
+	const { groups } = await read(
+		{ type: "Everything" },
+		null,
+		{ kind: "duplicateGroups", distance },
+		"idGroups",
+	);
+	return groups;
 }
 
 /** Merge each transitive duplicate group into one survivor (tags unioned), ranked by the
@@ -821,52 +886,46 @@ export async function pruneDuplicates(selector: Selector, distance: number): Pro
 	return before - state.locationCount;
 }
 
-let virtualIdSeq = 0;
-/** Each preview gets a fresh negative id so its identity changes between previews (the pano viewer re-resolves on active-id change). */
-const freshVirtualId = () => --virtualIdSeq;
-
-/** Open a staged-import location read-only, as if it were active. It is not on the map and
- *  cannot be edited. @unstable */
-export async function openStagedLocation(index: number) {
-	const loc = await cmd.storeImportStagedLocation(index);
+/** Seed the viewer's layer with a copy of `loc` under `flag` and open it: the preview's
+ *  edits live in the layer and are dropped on close, never the source. */
+async function openPreview(loc: Location, flag: number) {
 	// Rust's active_id must not stay pinned to the previous real location.
 	void cmd.storeSetActive(null);
-	setState({
-		activeLocationId: null,
-		activeLocation: {
-			...loc,
-			id: freshVirtualId(),
-			flags: loc.flags | LocationFlag.ImportPreview,
-		},
-		workArea: "location",
-	});
-	emitEvent("import-markers:changed");
+	await cmd.storeDrop(VIEWER.name);
+	const r = await cmd.storeEdit(
+		VIEWER,
+		[{ set: { ...loc, id: 0, flags: loc.flags | flag } }],
+		null,
+	);
+	if (r.firstId == null) return;
+	const row = await cmd.storeRow(VIEWER, r.firstId);
+	setState({ openId: r.firstId, openRow: row, workArea: "location" });
 	emitEvent("store:changed");
 	emitEvent("active:change", null);
 }
 
-/** Open an arbitrary location read-only as a virtual seen-preview: loads its pano without
+/** Open a staged-import location, as if it were active: the viewer previews a copy, and
+ *  the staged row itself stays in the import layer until Confirm lands it. @unstable */
+export async function openStagedLocation(index: number) {
+	const first = getImportStaging()?.preview.firstId;
+	if (first == null) return;
+	const loc = await cmd.storeRow(importTarget(), first + index);
+	if (!loc) return;
+	await openPreview(loc, LocationFlag.ImportPreview);
+	emitEvent("import-markers:changed");
+}
+
+/** Open an arbitrary location read-only as a seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 export function previewVirtualLocation(loc: Location) {
-	void cmd.storeSetActive(null);
-	setState({
-		activeLocationId: null,
-		activeLocation: {
-			...loc,
-			id: freshVirtualId(),
-			flags: loc.flags | LocationFlag.SeenOverlay,
-		},
-		workArea: "location",
-	});
-	emitEvent("store:changed");
-	emitEvent("active:change", null);
+	void openPreview(loc, LocationFlag.SeenOverlay);
 }
 
-/** Drop the active location, keeping Rust's `active_id` and `active:change` in step. */
+/** Drop the open row, keeping Rust's `active_id` and `active:change` in step. */
 function clearActiveLocation(): void {
-	if (state.activeLocationId == null && state.activeLocation == null) return;
-	if (state.activeLocationId != null) void cmd.storeSetActive(null);
-	setState({ activeLocationId: null, activeLocation: null });
+	if (state.openId == null && state.openRow == null) return;
+	void cmd.storeSetActive(null);
+	setState({ openId: null, openRow: null });
 	emitEvent("active:change", null);
 }
 
@@ -882,9 +941,9 @@ export async function resolveLocation(m: MaybeLocation): Promise<Location | null
 export async function setActiveLocation(target: MaybeLocation | null, checkDuplicates = true) {
 	const t = trace("setActive");
 	const id = target == null ? null : locId(target);
-	if (state.activeLocation && isVirtualLocation(state.activeLocation)) {
+	if (state.openRow && (isImportPreview(state.openRow) || isSeenPreview(state.openRow))) {
 		emitEvent("import-markers:changed");
-		const wasStaged = isImportPreview(state.activeLocation);
+		const wasStaged = isImportPreview(state.openRow);
 		if (id == null) {
 			clearActiveLocation();
 
@@ -896,15 +955,24 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			return;
 		}
 	}
-	setState({ activeLocationId: id });
+	setState({ openId: id });
 	void cmd.storeSetActive(id);
 	if (id) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
-		if (state.activeLocationId !== id) return t.end({ superseded: true });
+		if (state.openId !== id) return t.end({ superseded: true });
 		if (checkDuplicates && loc) {
-			const nearby = await cmd.storeFindNearby(loc.lat, loc.lng, 2.0);
-			if (state.activeLocationId !== id) return t.end({ superseded: true });
+			const nearby = await rowsOf(
+				(
+					await read(
+						{ type: "Everything" },
+						{ kind: "nearby", lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
+						{ kind: "rows" },
+						"rows",
+					)
+				).rows,
+			);
+			if (state.openId !== id) return t.end({ superseded: true });
 			if (nearby.length >= 2) {
 				setState({ duplicateLocations: nearby, workArea: "duplicates" });
 				clearActiveLocation();
@@ -913,9 +981,9 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 				return;
 			}
 		}
-		setState({ activeLocation: loc ?? null, workArea: "location" });
+		setState({ openRow: loc ?? null, workArea: "location" });
 		emitEvent("store:changed");
-		emitEvent("active:change", state.activeLocationId);
+		emitEvent("active:change", state.openId);
 		t.end();
 		return;
 	}
@@ -930,7 +998,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 export function openDuplicateLocation(loc: Location) {
-	setState({ activeLocationId: loc.id, activeLocation: loc, workArea: "location" });
+	setState({ openId: loc.id, openRow: loc, workArea: "location" });
 	void cmd.storeSetActive(loc.id);
 	emitEvent("store:changed");
 }
@@ -1072,7 +1140,7 @@ async function undoRedo(which: () => Promise<MutationResult>) {
 	try {
 		const r = await mutate(which);
 		const { removed } = await sceneReached(r.version);
-		if (state.activeLocationId && removed.includes(state.activeLocationId)) setWorkArea("overview");
+		if (state.openId && removed.includes(state.openId)) setWorkArea("overview");
 	} catch (e) {
 		log.debug(`[${which.name}] nothing or failed:`, e);
 	}
@@ -1134,7 +1202,7 @@ export async function checkoutCommit(commitId: string) {
 	setState({
 		selectionList: [],
 		selectedLocationIds: SelectedIds.EMPTY,
-		activeLocationId: null,
+		openId: null,
 	});
 	applyOpenedMap(map, openResult);
 	applyMutation(commitResult.status);

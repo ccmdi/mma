@@ -31,7 +31,7 @@ export function getScene(): CellManager {
 }
 
 function syncActive(): boolean {
-	return scene.setActive(getMapState().activeLocation?.id ?? null);
+	return scene.setActive(getMapState().openRow?.id ?? null);
 }
 
 /** Set the default marker color (RGB bytes). */

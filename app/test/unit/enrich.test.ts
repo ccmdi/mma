@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
 	enrichFields: null as string[] | null,
 	enrichMetadata: true,
 	ran: [] as [string, string[]][],
+	targets: [] as unknown[],
 	runs: 0,
 }));
 
@@ -18,14 +19,15 @@ vi.mock("@/store/useMapStore", () => ({
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProviders: async (items: { provider: { id: string }; fields?: string[] }[], rows: unknown) => {
+	runProviders: async (
+		items: { provider: { id: string }; fields?: string[] }[],
+		_rows: unknown,
+		opts?: { on?: unknown },
+	) => {
 		h.runs++;
 		h.ran = items.map((i) => [i.provider.id, i.fields ?? []]);
-		if (!Array.isArray(rows)) return {};
-		return {
-			rows: (rows as Location[]).map((r) => ({ ...r, extra: { ...r.extra, enriched: true } })),
-			failed: {},
-		};
+		h.targets.push(opts?.on ?? null);
+		return {};
 	},
 }));
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
@@ -41,7 +43,7 @@ const cmdMock = vi.hoisted(() => ({
 vi.mock("@/lib/commands", () => ({ cmd: cmdMock }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 
-import { enrich } from "@/lib/sv/enrich";
+import { enrichAt } from "@/lib/sv/enrich";
 import {
 	exactDateProvider,
 	panoResolveProvider,
@@ -49,31 +51,26 @@ import {
 	svMetaProvider,
 	timezoneProvider,
 } from "@/lib/sv/providers";
-import { createLocation } from "@/types";
-import type { Location } from "@/bindings.gen";
-
-function loc(extra: Record<string, unknown>): Location {
-	return { ...createLocation({ lat: 1, lng: 2 }), extra };
-}
 
 describe("enrich", () => {
 	beforeEach(() => {
 		h.enrichFields = null;
 		h.enrichMetadata = true;
 		h.ran = [];
+		h.targets = [];
 		h.runs = 0;
 	});
 
-	it("runs every field-producing provider over the one row and answers the engine's row", async () => {
-		const out = await enrich(loc({ keep: 1 }));
+	it("runs every field-producing provider at the given target", async () => {
+		await enrichAt({ kind: "pending", name: "viewer" });
 		expect(h.runs).toBe(1);
 		expect(h.ran.map(([id]) => id)).toEqual(["svMeta", "exactDate", "timezone", "subdivision"]);
-		expect(out.extra).toEqual({ keep: 1, enriched: true });
+		expect(h.targets).toEqual([{ kind: "pending", name: "viewer" }]);
 	});
 
 	it("narrows each provider to the map's enabled fields", async () => {
 		h.enrichFields = ["altitude", "timezone"];
-		await enrich(loc({}));
+		await enrichAt({ kind: "pending", name: "viewer" });
 		expect(h.ran).toEqual([
 			["svMeta", ["altitude"]],
 			["exactDate", []],
@@ -82,10 +79,9 @@ describe("enrich", () => {
 		]);
 	});
 
-	it("hands the row back untouched when the map's enrichment is off", async () => {
+	it("does nothing when the map's enrichment is off", async () => {
 		h.enrichMetadata = false;
-		const row = loc({ keep: 1 });
-		expect(await enrich(row)).toBe(row);
+		await enrichAt({ kind: "pending", name: "viewer" });
 		expect(h.runs).toBe(0);
 	});
 });

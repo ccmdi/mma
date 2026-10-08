@@ -157,7 +157,13 @@ describe("Location CRUD", () => {
 			const newId = await api.duplicateLocation(id);
 			const original = await api.fetchLocation(id);
 			const dup = await api.fetchLocation(newId!);
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			return { newId, originalLat: original?.lat, dupLat: dup?.lat, count };
 		}, singleLocId);
 		expect(result.newId).not.toBeNull();
@@ -214,7 +220,13 @@ describe("Location persistence", () => {
 
 		const result = await withApi(
 			async (api, id0, id50) => {
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				const loc0 = await api.fetchLocation(id0);
 				const loc50 = await api.fetchLocation(id50);
 				const allLocs = await api.fetchAllLocations();

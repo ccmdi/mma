@@ -1,6 +1,32 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { SyncLogEntry, SyncReconcileResult } from "@/bindings.gen";
+
+// The reconcile engine talks to the store directly; route its three doors through the
+// same fake state the window.MMA harness drives.
+const eng = vi.hoisted(() => ({
+	mapId: "map-a" as string | null,
+	gate: null as Promise<void> | null,
+	failWith: null as string | null,
+	result: null as unknown,
+}));
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		syncReconcile: async () => {
+			if (eng.gate) await eng.gate;
+			if (eng.failWith) throw new Error(eng.failWith);
+			return eng.result;
+		},
+	},
+}));
+vi.mock("@/store/useMapStore", () => ({
+	getMapState: () => ({
+		mapId: eng.mapId,
+		map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
+		locationCount: 0,
+	}),
+	mutate: async (fn: () => Promise<unknown>) => fn(),
+}));
 import { createSyncController } from "@/lib/sync/controller";
 import { setPluginEnabled } from "@/plugins/pluginHost";
 import { getMapBadges } from "@/store/mapList";
@@ -17,11 +43,8 @@ const EMPTY_RESULT: SyncReconcileResult = {
 	pulled: { create: 0, update: 0, delete: 0 },
 	adopted: 0,
 	conflicts: [],
-	neededTags: [],
-	pullCreates: [],
-	pullUpdates: [],
-	pullDeleteIds: [],
-	mirrorLocalDeleteIds: [],
+	mutation: null,
+	removedIds: [],
 };
 
 // --- fake window.MMA -------------------------------------------------------
@@ -30,10 +53,11 @@ const EMPTY_RESULT: SyncReconcileResult = {
 function makeMma() {
 	const storage = new Map<string, unknown>();
 	const mapping = new Map<string, RemoteMappingRow[]>(); // key = `${provider}:${mapId}`
-	let mapId: string | null = "map-a";
-	let gate: Promise<void> | null = null;
+	eng.mapId = "map-a";
+	eng.gate = null;
+	eng.failWith = null;
+	eng.result = EMPTY_RESULT;
 	let release: (() => void) | null = null;
-	let failWith: string | null = null;
 	const history: { provider: string; mapId: string; entry: SyncLogEntry }[] = [];
 
 	const kv = {
@@ -47,8 +71,8 @@ function makeMma() {
 	const api = {
 		storage: () => kv,
 		getMapState: () => ({
-			mapId,
-			map: mapId ? { id: mapId, locationCount: 0, tags: {} } : null,
+			mapId: eng.mapId,
+			map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
 			locationCount: 0,
 		}),
 		createLocation: (p: unknown) => p,
@@ -59,11 +83,6 @@ function makeMma() {
 		getTags: () => ({}),
 		on: () => () => {},
 		cmd: {
-			syncReconcile: async (): Promise<SyncReconcileResult> => {
-				if (gate) await gate;
-				if (failWith) throw new Error(failWith);
-				return EMPTY_RESULT;
-			},
 			syncLogAppend: async (provider: string, id: string, entry: SyncLogEntry) => {
 				history.push({ provider, mapId: id, entry });
 			},
@@ -98,16 +117,16 @@ function makeMma() {
 		mapping,
 		history,
 		fail: (message: string | null) => {
-			failWith = message;
+			eng.failWith = message;
 		},
 		install: () => {
 			(window as unknown as { MMA: unknown }).MMA = api;
 		},
 		setMapId: (id: string | null) => {
-			mapId = id;
+			eng.mapId = id;
 		},
 		block: () => {
-			gate = new Promise<void>((r) => (release = r));
+			eng.gate = new Promise<void>((r) => (release = r));
 		},
 		release: () => release?.(),
 	};

@@ -527,7 +527,11 @@ impl Store {
     /// How many rows `selector` resolves to hold a value for each field the map defines
     /// and each built-in column a row can lack, key-sorted: `has(field)` resolved in that
     /// scope. A field no row there holds is left out.
-    pub(crate) fn coverage(&mut self, selector: &Selector) -> Vec<(String, u32)> {
+    pub(crate) fn coverage(
+        &mut self,
+        selector: &Selector,
+        within: Option<&RoaringBitmap>,
+    ) -> Vec<(String, u32)> {
         let fields: Vec<(String, IndexShape)> = selections::optional_builtins()
             .iter()
             .map(|k| (*k).to_string())
@@ -539,6 +543,10 @@ impl Store {
             .collect();
         self.ensure_field_indexes(&fields);
         let scope = self.scope(selector);
+        let scope = match within {
+            Some(set) => scope.within(set),
+            None => scope,
+        };
         let mut out: Vec<(String, u32)> = fields
             .into_iter()
             .filter_map(|(field, _)| {
@@ -548,6 +556,317 @@ impl Store {
             .collect();
         out.sort_by(|a, b| a.0.cmp(&b.0));
         out
+    }
+}
+
+/// Matched rows: returned inline, or as a file path to read them from.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Rows {
+    Inline { locations: Vec<Location> },
+    File { path: String },
+}
+
+/// Above this many rows, a rows read stages a file instead of answering over IPC.
+pub(crate) const ROWS_INLINE_MAX: usize = 1024;
+
+fn rows_answer(map_id: &str, locations: Vec<Location>) -> AppResult<Rows> {
+    if locations.len() <= ROWS_INLINE_MAX {
+        return Ok(Rows::Inline { locations });
+    }
+    let path = rows_file_path(&crate::store::storage::temp_dir()?, map_id);
+    std::fs::write(&path, serde_json::to_vec(&locations)?)?;
+    Ok(Rows::File {
+        path: path.to_string_lossy().into_owned(),
+    })
+}
+
+/// A rotating slot per rows-file query: the file is fetched after the store lock is
+/// released, so two concurrent row reads must not share one path -- while the slot
+/// cycle keeps stale files bounded and self-overwriting like a fixed path.
+pub(crate) fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path::PathBuf {
+    static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
+    temp.join(format!("mma_rows_{map_id}_{slot}.json"))
+}
+
+/// A narrowing drawn from the selected rows before the question is asked.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum RowPick {
+    /// `n` rows drawn uniformly at random, without replacement.
+    Sample { n: u32 },
+    /// An evenly spaced subset: exactly one of `targetCount` (thin to that many,
+    /// maximizing spacing) or `minDistanceM` (keep as many as fit at that spacing).
+    Spaced {
+        target_count: Option<u32>,
+        min_distance_m: Option<f64>,
+    },
+    /// A honeycomb-spaced subset: exactly one of `targetCount` (at most that many, spaced
+    /// as widely as that allows) or `spacingM` (about that far apart, never closer than
+    /// half of it).
+    EvenlySpaced {
+        target_count: Option<u32>,
+        spacing_m: Option<f64>,
+    },
+    /// The rows within `radiusM` metres of a coordinate.
+    Nearby { lat: f64, lng: f64, radius_m: f64 },
+    /// The row closest to a coordinate.
+    Nearest { lat: f64, lng: f64 },
+}
+
+/// The question a read answers about the selected rows, after any pick.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Ask {
+    /// Their ids: ascending, or a ranked selector's order when nothing was picked.
+    Ids,
+    /// How many there are.
+    Count,
+    /// Every row in full.
+    Rows,
+    /// One column per field, `null` where a row lacks it; `tags` is a column of tag-id
+    /// arrays.
+    Columns { fields: Vec<String> },
+    /// Distinct values of `field`, sorted.
+    Values { field: String },
+    /// Groups by a derived key of `field`: `{ key, ids, bin }` per group.
+    GroupBy {
+        field: String,
+        key: selections::KeySpec,
+    },
+    /// Counts by a derived key of each field, with how many distinct rows the groups
+    /// cover, one result per field.
+    CountBy {
+        fields: Vec<String>,
+        key: selections::KeySpec,
+    },
+    /// How many rows hold a value for each field, key-sorted.
+    Coverage,
+    /// Bounding box `[west, south, east, north]`, or `null` when nothing matches.
+    Bounds,
+    /// The map's location count, store version, and unsaved-change count.
+    Summary,
+    /// Groups of rows within `distance` metres of each other, two or more per group.
+    DuplicateGroups { distance: f64 },
+    /// Per input coordinate, whether any selected row lies within `radiusM` metres.
+    NearAny {
+        lats: Vec<f64>,
+        lngs: Vec<f64>,
+        radius_m: f64,
+    },
+}
+
+/// What a read answers with; the arm follows from the ask.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum Answer {
+    /// The ids, with the spacing a spaced pick settled on.
+    Ids {
+        ids: Vec<u32>,
+        spacing_m: Option<i32>,
+    },
+    Count {
+        count: u32,
+    },
+    Rows {
+        rows: Rows,
+    },
+    Columns {
+        #[specta(type = Vec<Vec<specta_typescript::Unknown>>)]
+        columns: Vec<Vec<serde_json::Value>>,
+    },
+    Values {
+        values: Vec<String>,
+    },
+    Groups {
+        groups: Vec<selections::PartitionBucket>,
+    },
+    Counts {
+        counts: Vec<selections::CountBy>,
+    },
+    Coverage {
+        coverage: Vec<(String, u32)>,
+    },
+    Bounds {
+        bounds: Option<[f64; 4]>,
+    },
+    Summary {
+        location_count: usize,
+        version: u64,
+        dirty_count: usize,
+    },
+    IdGroups {
+        groups: Vec<Vec<u32>>,
+    },
+    Booleans {
+        values: Vec<bool>,
+    },
+}
+
+impl Store {
+    /// Answer one question about the rows a selector resolves to, optionally narrowed by
+    /// a pick first: the one read, with every question composed from the same parts.
+    pub(crate) fn read(
+        &mut self,
+        selector: &Selector,
+        pick: Option<&RowPick>,
+        ask: &Ask,
+    ) -> AppResult<Answer> {
+        match ask {
+            Ask::Summary => {
+                return Ok(Answer::Summary {
+                    location_count: *self.alive_count,
+                    version: self.version,
+                    dirty_count: usize::from(self.overlay.is_unsaved()),
+                })
+            }
+            Ask::Bounds if pick.is_none() && matches!(selector, Selector::Everything) => {
+                // The whole-map box is maintained incrementally; narrower ones scan.
+                return Ok(Answer::Bounds {
+                    bounds: self.cached_bounds(),
+                });
+            }
+            Ask::NearAny {
+                lats,
+                lngs,
+                radius_m,
+            } if pick.is_none() && matches!(selector, Selector::Everything) => {
+                if lats.len() != lngs.len() {
+                    return Err(AppError::from("read: lats/lngs length mismatch"));
+                }
+                return Ok(Answer::Booleans {
+                    values: lats
+                        .iter()
+                        .zip(lngs)
+                        .map(|(&la, &ln)| self.any_within(la, ln, *radius_m))
+                        .collect(),
+                });
+            }
+            _ => {}
+        }
+
+        let mut spacing_m: Option<i32> = None;
+        let picked: Option<RoaringBitmap> = match pick {
+            None => None,
+            Some(RowPick::Nearby { lat, lng, radius_m }) => Some(
+                self.find_nearby_ids(*lat, *lng, *radius_m)
+                    .into_iter()
+                    .collect(),
+            ),
+            Some(RowPick::Nearest { lat, lng }) => {
+                Some(self.find_nearest_id(*lat, *lng).into_iter().collect())
+            }
+            Some(RowPick::Sample { n }) => Some(
+                self.scope(selector)
+                    .sample(*n as usize)
+                    .into_iter()
+                    .collect(),
+            ),
+            Some(RowPick::Spaced {
+                target_count,
+                min_distance_m,
+            }) => {
+                let points = self.scope(selector).points();
+                let r = pick_spaced(points, *target_count, *min_distance_m)?;
+                spacing_m = Some(r.distance_m);
+                Some(r.ids.into_iter().collect())
+            }
+            Some(RowPick::EvenlySpaced {
+                target_count,
+                spacing_m: spacing,
+            }) => {
+                let points = self.scope(selector).points();
+                let r = pick_even(&points, *target_count, *spacing)?;
+                spacing_m = Some(r.distance_m);
+                Some(r.ids.into_iter().collect())
+            }
+        };
+
+        if let Ask::Coverage = ask {
+            return Ok(Answer::Coverage {
+                coverage: self.coverage(selector, picked.as_ref()),
+            });
+        }
+
+        let map_id = self.map_id.clone().unwrap_or_else(|| "default".into());
+        let scope = self.scope(selector);
+        let scope = match &picked {
+            Some(set) => scope.within(set),
+            None => scope,
+        };
+        Ok(match ask {
+            Ask::Ids => Answer::Ids {
+                ids: match selector {
+                    Selector::Ranked {
+                        expr, ascending, ..
+                    } if picked.is_none() => scope.ranked(expr, None, *ascending),
+                    _ => scope.rows().map(|row| row.id()).collect(),
+                },
+                spacing_m,
+            },
+            Ask::Count => Answer::Count {
+                count: scope.rows().count() as u32,
+            },
+            Ask::Rows => Answer::Rows {
+                rows: rows_answer(&map_id, scope.rows().map(|row| row.to_location()).collect())?,
+            },
+            Ask::Columns { fields } => Answer::Columns {
+                columns: scope.columns(fields),
+            },
+            Ask::Values { field } => Answer::Values {
+                values: scope.distinct_values(field),
+            },
+            Ask::GroupBy { field, key } => Answer::Groups {
+                groups: scope.partition(field, key),
+            },
+            Ask::CountBy { fields, key } => Answer::Counts {
+                counts: scope.count_by(fields, key),
+            },
+            Ask::Bounds => Answer::Bounds {
+                bounds: scope.bounds().map(BoundsAcc::resolve),
+            },
+            Ask::DuplicateGroups { distance } => Answer::IdGroups {
+                groups: scope.duplicate_groups(*distance),
+            },
+            Ask::NearAny {
+                lats,
+                lngs,
+                radius_m,
+            } => {
+                if lats.len() != lngs.len() {
+                    return Err(AppError::from("read: lats/lngs length mismatch"));
+                }
+                let points = scope.points();
+                let values = lats
+                    .iter()
+                    .zip(lngs)
+                    .map(|(&la, &ln)| {
+                        points.iter().any(|&(_, pla, pln)| {
+                            selections::haversine_m(la, ln, pla, pln) <= *radius_m
+                        })
+                    })
+                    .collect();
+                Answer::Booleans { values }
+            }
+            Ask::Summary | Ask::Coverage => unreachable!("answered above"),
+        })
     }
 }
 

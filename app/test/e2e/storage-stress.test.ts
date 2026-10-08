@@ -754,7 +754,13 @@ describe("Rapid fire-and-forget mutations", () => {
 				);
 			}
 			await Promise.all(promises);
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			return { count };
 		});
 		expect(result.count).toBe(20);
@@ -783,7 +789,13 @@ describe("Rapid fire-and-forget mutations", () => {
 			const addPromise = api.addLocations([api.createLocation({ lat: 99, lng: 99, zoom: 1 })]);
 			await Promise.all([removePromise, addPromise]);
 
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			// 10 - 5 + 1 = 6, plus the 20 from previous test
 			return { count };
 		});
@@ -848,7 +860,13 @@ describe("Autosave racing with mutations", () => {
 			// One more save to capture the post-save location
 			await api.flushSave();
 
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			return { count };
 		});
 		expect(result.count).toBe(51);
@@ -905,7 +923,13 @@ describe("Undo while save in-flight", () => {
 			const undoPromise = api.undo();
 			await Promise.all([savePromise, undoPromise]);
 
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			return { count };
 		});
 		// After undo of batch 2, should have 20

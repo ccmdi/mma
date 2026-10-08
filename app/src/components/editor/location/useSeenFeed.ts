@@ -9,7 +9,7 @@ import { usePanoViewer } from "./PanoViewerContext";
  *  patches it when the geocode answer lands, flushes it when the location closes. The
  *  location's stored countryCode outranks the geocoder's. */
 export function useSeenFeed() {
-	const location = useMapState((s) => s.activeLocation);
+	const location = useMapState((s) => s.openRow);
 	const { draft, geo } = usePanoViewer();
 	const pano = usePano();
 	const storedCountry =

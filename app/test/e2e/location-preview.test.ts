@@ -424,7 +424,7 @@ describe("LocationPreview — dead pano (fallback)", () => {
 		await waitForDates();
 		// The viewer should have resolved to a real pano via coord fallback
 		const resolvedPanoId = await withApi(async (api) => {
-			return api.getMapState().activeLocation?.panoId ?? null;
+			return api.getMapState().openRow?.panoId ?? null;
 		});
 		// The stored panoId is still the dead one (not saved yet), but the viewer resolved differently
 		expect(resolvedPanoId).toBe("DEAD_PANO_DOES_NOT_EXIST_12345");
@@ -544,7 +544,7 @@ describe("LocationPreview — switching between pano types", () => {
 		const area = await withApi(async (api) => api.getMapState().workArea);
 		expect(area).toBe("location");
 		const active = await withApi(async (api) => {
-			return api.getMapState().activeLocation?.id ?? null;
+			return api.getMapState().openRow?.id ?? null;
 		});
 		expect(active).toBe(swCoordId);
 	});
@@ -1387,7 +1387,7 @@ describe("LocationPreview — edge cases", () => {
 
 		// Active location should be B
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().activeLocation?.id ?? null;
+			return api.getMapState().openRow?.id ?? null;
 		});
 		expect(activeId).toBe(edgeBId);
 	});
@@ -1403,7 +1403,7 @@ describe("LocationPreview — edge cases", () => {
 		await waitForDates();
 
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().activeLocation?.id ?? null;
+			return api.getMapState().openRow?.id ?? null;
 		});
 		expect(activeId).toBe(edgeAId);
 		expect(await getDateCount()).toBeGreaterThan(0);

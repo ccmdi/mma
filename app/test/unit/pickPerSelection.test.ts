@@ -50,20 +50,32 @@ vi.mock("@/lib/commands", async () => {
 			}),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeSyncSelections: async () => selectionChange(),
-		storeResolve: async (selector: TestSelector) => resolvePool(selector),
-		storeSample: async (selector: TestSelector, n: number) => {
-			h.sampledSelectors.push(selector);
-			return (await resolvePool(selector)).slice(0, n);
-		},
-		storeSpaced: async (selector: TestSelector, targetCount: number | null) => {
-			h.spacedSelectors.push(selector);
+		storeRead: async (
+			selector: TestSelector,
+			pick: { kind: string; n?: number; targetCount?: number | null } | null,
+		) => {
 			const pool = await resolvePool(selector);
-			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 100 };
-		},
-		storeEvenlySpaced: async (selector: TestSelector, targetCount: number | null) => {
-			h.evenSelectors.push(selector);
-			const pool = await resolvePool(selector);
-			return { ids: pool.slice(0, targetCount ?? pool.length), distanceM: 250 };
+			if (pick?.kind === "sample") {
+				h.sampledSelectors.push(selector);
+				return { kind: "ids", ids: pool.slice(0, pick.n), spacingM: null };
+			}
+			if (pick?.kind === "spaced") {
+				h.spacedSelectors.push(selector);
+				return {
+					kind: "ids",
+					ids: pool.slice(0, pick.targetCount ?? pool.length),
+					spacingM: 100,
+				};
+			}
+			if (pick?.kind === "evenlySpaced") {
+				h.evenSelectors.push(selector);
+				return {
+					kind: "ids",
+					ids: pool.slice(0, pick.targetCount ?? pool.length),
+					spacingM: 250,
+				};
+			}
+			return { kind: "ids", ids: pool, spacingM: null };
 		},
 	};
 	return cmdProxy(handlers as Record<string, (...args: unknown[]) => unknown>);

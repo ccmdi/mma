@@ -118,7 +118,13 @@ describe("Rust bulk import — confirm and verify", () => {
 			const maps = await api.cmd.storeListMaps();
 			const denmark = maps.find((m: MapMeta) => m.name === "Denmark Antennae")!;
 			await api._test.openMap(denmark.id);
-			const locCount = (await api.cmd.storeGetSummary()).locationCount;
+			const locCount = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			const locs = await api.fetchAllLocations();
 			return {
 				locationCount: locCount,
@@ -163,7 +169,13 @@ describe("Rust bulk import — confirm and verify", () => {
 	it("imported locations survive save/load cycle", async () => {
 		const result = await withApi(async (api) => {
 			const id = api.getMapState().mapId!;
-			const beforeCount = (await api.cmd.storeGetSummary()).locationCount;
+			const beforeCount = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			const beforeLocs = await api.fetchAllLocations();
 			const beforeFirst = beforeLocs[0];
 
@@ -171,7 +183,13 @@ describe("Rust bulk import — confirm and verify", () => {
 			await api._test.closeMap();
 			await api._test.openMap(id);
 
-			const afterCount = (await api.cmd.storeGetSummary()).locationCount;
+			const afterCount = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			const afterLocs = await api.fetchAllLocations();
 			return {
 				beforeCount,

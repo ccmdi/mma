@@ -1,8 +1,10 @@
-import type { Conflict, Location, NormalizedSyncLocation, SideCounts } from "@/bindings.gen";
-import type { Patch } from "@/types";
+import type { Conflict, SideCounts } from "@/bindings.gen";
 import type { FirstSyncMode } from "@/bindings.consts";
 import type { SyncProvider } from "./provider";
-import type { IdentityKey, RemoteMappingRow, SyncStore } from "./syncStore";
+import type { IdentityKey, SyncStore } from "./syncStore";
+import { cmd } from "@/lib/commands";
+import { getMapState, mutate } from "@/store/useMapStore";
+import { emit as emitEvent } from "@/lib/events";
 
 export type { FirstSyncMode } from "@/bindings.consts";
 
@@ -20,63 +22,24 @@ export interface ReconcileOptions {
 	resolutions?: ReadonlyMap<IdentityKey, "local" | "remote">;
 }
 
-/** Resolve a remote tag name to a local tag id, or `undefined` when the map has no such tag. */
-type TagId = (name: string) => number | undefined;
-
-/** Project a normalized location onto our local columns, resolving tag names to local ids. */
-function fieldsToLocal(
-	n: NormalizedSyncLocation,
-	tagId: TagId,
-): Partial<Location> & { lat: number; lng: number } {
-	return {
-		lat: n.lat,
-		lng: n.lng,
-		heading: n.heading,
-		pitch: n.pitch,
-		zoom: n.zoom,
-		panoId: n.panoId,
-		flags: n.flags,
-		tags: n.tags.map(tagId).filter((id): id is number => id != null),
-		extra: n.extra,
-	};
-}
-
-/** A remote-originated patch as a local one, its tag names resolved to ids. */
-function patchToLocal(
-	{ tags, ...patch }: Partial<NormalizedSyncLocation>,
-	tagId: TagId,
-): Partial<Location> {
-	return tags
-		? { ...patch, tags: tags.map(tagId).filter((id): id is number => id != null) }
-		: patch;
-}
-
 /**
- * One reconcile pass for a linked, open map. The whole merge (pull, normalize, three-way diff,
- * push, and the push half's mapping rows) runs in Rust via `syncReconcile`; this applies the
- * pull half to the local store and advances the link.
+ * One reconcile pass for a linked, open map. The whole merge runs in Rust: push, the pull
+ * half landed as one undo step with its tags interned and its mapping rows written beside
+ * it. This applies the landed change to this window and advances the link.
  */
 export async function reconcile(
 	provider: SyncProvider,
 	store: SyncStore,
 	opts: ReconcileOptions = {},
 ): Promise<SyncOutcome> {
-	const M = window.MMA;
 	const { signal } = opts;
 	const link = store.getLink();
 	if (!link) throw new Error("map is not linked");
+	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
+	const open = getMapState().map;
+	if (!open || open.id !== link.localMapId) throw new Error("linked map is no longer open");
 
-	/** The linked map must still be the open one everywhere we touch the local store. */
-	const assertStillOpen = () => {
-		if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
-		const open = M.getMapState().map;
-		if (!open || open.id !== link.localMapId) throw new Error("linked map is no longer open");
-		return open;
-	};
-
-	assertStillOpen();
-
-	const result = await M.cmd.syncReconcile(
+	const result = await cmd.syncReconcile(
 		provider.id,
 		link.localMapId,
 		link.remoteMapId,
@@ -84,62 +47,16 @@ export async function reconcile(
 		opts.resolutions ? [...opts.resolutions.entries()] : null,
 	);
 
-	// The command is not abortable; it has already pushed and written the push half's mapping rows.
-	// Each pull's mapping row is written only after that pull applies, so an abort leaves it pending.
-	assertStillOpen();
-	const nameToId = new Map<string, number>();
-	for (const t of Object.values(M.getTags())) nameToId.set(t.name, t.id);
+	// The merge is already settled in the store either way; an abort or unlink that landed
+	// while it ran only stops this window's apply and keeps the pass out of the history.
+	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
+	if (!store.getLink()) throw new Error("map was unlinked during sync");
 
-	// Create any local tags the incoming pulls reference, then resolve names -> ids.
-	// A tag the sync creates adopts the source's color; an existing tag keeps its own.
-	if (result.neededTags.length) {
-		assertStillOpen();
-		const existing = new Set(nameToId.values());
-		const created = await M.createTags(result.neededTags.map((t) => t.name));
-		for (const t of created) nameToId.set(t.name, t.id);
-		const color = new Map(result.neededTags.map((t) => [t.name, t.color]));
-		const recolors = created
-			.filter((t) => !existing.has(t.id) && color.get(t.name) != null)
-			.map((t) => ({ id: t.id, color: color.get(t.name)! }));
-		if (recolors.length) await M.updateTags(recolors);
+	if (result.mutation) {
+		const mutation = result.mutation;
+		await mutate(() => Promise.resolve(mutation));
 	}
-	const tagId: TagId = (name) => nameToId.get(name);
-
-	if (result.pullCreates.length) {
-		assertStillOpen();
-		const newLocals: Location[] = result.pullCreates.map((c) =>
-			M.createLocation(fieldsToLocal(c.fields, tagId)),
-		);
-		await M.addLocations(newLocals); // assigns real ids in place
-		const rows: RemoteMappingRow[] = result.pullCreates.map((c, i) => ({
-			localId: newLocals[i]!.id,
-			remoteId: c.remoteId,
-			hash: c.hash,
-		}));
-		await store.upsertMapping(rows);
-	}
-
-	const updates: Patch<Location>[] = [];
-	for (const u of result.pullUpdates) {
-		const patch = patchToLocal(u.patch, tagId);
-		if (Object.keys(patch).length) updates.push({ ...patch, id: u.localId });
-	}
-	if (updates.length) {
-		assertStillOpen();
-		await M.updateLocations(updates);
-	}
-	if (result.pullUpdates.length) {
-		await store.upsertMapping(
-			result.pullUpdates.map((u) => ({ localId: u.localId, remoteId: u.remoteId, hash: u.hash })),
-		);
-	}
-
-	const removals = new Set<number>([...result.pullDeleteIds, ...result.mirrorLocalDeleteIds]);
-	if (removals.size) {
-		assertStillOpen();
-		await M.removeLocations(removals);
-	}
-	if (result.pullDeleteIds.length) await store.deleteMapping(result.pullDeleteIds);
+	if (result.removedIds.length) emitEvent("location:remove", result.removedIds);
 
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 

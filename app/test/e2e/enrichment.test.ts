@@ -12,6 +12,7 @@ import {
 	waitForPreview,
 	saveLocation,
 	withApi,
+	getSummary,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
@@ -756,7 +757,7 @@ describe("Enrichment — the read-only query surface", () => {
 	useMap("query-surface");
 
 	it("svMeta answers metadata for arbitrary panos without touching the store", async () => {
-		const before = await withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount);
+		const before = await getSummary().then((s) => s.locationCount);
 
 		const answers = (await withApi(
 			async (api, pano) =>
@@ -779,9 +780,7 @@ describe("Enrichment — the read-only query surface", () => {
 		expect(answers[0].worldSize).toEqual({ width: 16384, height: 8192 });
 		expect(answers[0].tileSize).toEqual({ width: 512, height: 512 });
 
-		expect(await withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount)).toBe(
-			before,
-		);
+		expect(await getSummary().then((s) => s.locationCount)).toBe(before);
 	});
 
 	it("the JS wrapper hands the module's answer over as plain data", async () => {

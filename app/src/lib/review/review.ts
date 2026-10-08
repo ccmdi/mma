@@ -422,7 +422,7 @@ function reconcile(removed: number[]): void {
 	setSession(next);
 	scheduleSave();
 	scheduleProjection();
-	if (cursorMoved && getMapState().activeLocation?.id !== next.cursorId) {
+	if (cursorMoved && getMapState().openRow?.id !== next.cursorId) {
 		void gotoCursor(next);
 	}
 }

@@ -175,8 +175,24 @@ export async function getAllLocs(): Promise<Location[]> {
 	return withApi(async (api) => api.fetchAllLocations());
 }
 
+/** The map's summary: location count, store version, unsaved-change count. */
+export async function getSummary(): Promise<{
+	locationCount: number;
+	version: number;
+	dirtyCount: number;
+}> {
+	return withApi(
+		async (api) =>
+			(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				locationCount: number;
+				version: number;
+				dirtyCount: number;
+			},
+	);
+}
+
 export async function getLocCount(): Promise<number> {
-	return withApi(async (api) => (await api.cmd.storeGetSummary()).locationCount);
+	return getSummary().then((s) => s.locationCount);
 }
 
 /** Node-side spellings of the simple selector shapes; the pinned composite carries
@@ -235,7 +251,7 @@ const WAIT = { interval: 50 } as const;
 /** Wait until the active location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
-		() => withApi((api, target) => (api.getMapState().activeLocation?.id ?? null) === target, id),
+		() => withApi((api, target) => (api.getMapState().openRow?.id ?? null) === target, id),
 		{ ...WAIT, timeoutMsg: `active location never became ${id}` },
 	);
 }
@@ -285,7 +301,7 @@ export async function waitForEnriched() {
 export async function saveLocation() {
 	await waitForEnriched();
 	await withApi((api) => {
-		const id = api.getMapState().activeLocation?.id;
+		const id = api.getMapState().openRow?.id;
 		const saved = window as unknown as { __e2eSaved?: boolean };
 		saved.__e2eSaved = false;
 		const off = api.on("location:update", (updates) => {

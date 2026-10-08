@@ -18,8 +18,8 @@ vi.mock("@/lib/hooks/usePano", () => {
 	return { usePano: () => viewer };
 });
 vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { activeLocation: Location | null }) => unknown) =>
-		sel({ activeLocation: scene.location }),
+	useMapState: (sel: (s: { openRow: Location | null }) => unknown) =>
+		sel({ openRow: scene.location }),
 }));
 vi.mock("@/components/editor/location/PanoViewerContext", () => ({
 	usePanoViewer: () => ({ draft: scene.draft, geo: scene.geo }),

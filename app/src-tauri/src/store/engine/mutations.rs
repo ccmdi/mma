@@ -83,8 +83,6 @@ pub struct MutationResult {
     /// The newest undo step after this change, for a later change to join while it is
     /// still the newest.
     pub step: Option<u64>,
-    /// The active location as this change left it, when the change touched it.
-    pub active: Option<Location>,
     /// The id the first added row was given; the rest follow it in order.
     pub first_id: Option<u32>,
 }
@@ -106,6 +104,9 @@ pub enum Target {
 pub(crate) struct Pending {
     pub(crate) layer: mma_algebra::Layer<Location>,
     pub(crate) landed: Option<u64>,
+    /// Value records the held rows reference, by field: the piles an import arrived
+    /// with, reconciled into the map's records when the rows land.
+    pub(crate) incoming: HashMap<String, Vec<(u32, ValueRecord)>>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -358,16 +359,25 @@ impl Store {
                             return self.held(first_id);
                         }
                         let pending = self.pending.remove(name).expect("entry just touched");
-                        let rows: Vec<_> = pending
+                        let (mut sets, mut removed) = (Vec::new(), Vec::new());
+                        for (id, _, after) in pending
                             .layer
                             .resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
-                            .collect();
-                        let edits = rows
+                        {
+                            match after {
+                                Some(row) => sets.push(row),
+                                None => removed.push(id),
+                            }
+                        }
+                        if let Some(piles) = pending.incoming.get("tags") {
+                            if !piles.is_empty() {
+                                self.reconcile_incoming_tags(piles, &[], &mut sets);
+                            }
+                        }
+                        let edits = sets
                             .into_iter()
-                            .map(|(id, _, after)| match after {
-                                Some(row) => Edit::Set(row),
-                                None => Edit::Remove(id),
-                            })
+                            .map(Edit::Set)
+                            .chain(removed.into_iter().map(Edit::Remove))
                             .collect();
                         (edits, Some(name.clone()))
                     }
@@ -383,8 +393,8 @@ impl Store {
             self.pending.insert(
                 name,
                 Pending {
-                    layer: Default::default(),
                     landed: join,
+                    ..Default::default()
                 },
             );
         }
@@ -432,7 +442,6 @@ impl Store {
             selection_sync: None,
             values: EngineValues::default(),
             step: None,
-            active: None,
             first_id,
         }
     }

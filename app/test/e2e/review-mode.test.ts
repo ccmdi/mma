@@ -21,7 +21,7 @@ describe("Review mode", () => {
 		const result = await withApi(async (api, ids) => {
 			await api.beginReview(ids);
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				workArea: api.getMapState().workArea,
 			};
 		}, reviewIds);
@@ -32,7 +32,7 @@ describe("Review mode", () => {
 	it("reviewNext advances to next location", async () => {
 		const result = await withApi(async (api) => {
 			await api.reviewNext();
-			return { activeId: api.getMapState().activeLocation?.id ?? null };
+			return { activeId: api.getMapState().openRow?.id ?? null };
 		});
 		expect(result.activeId).toBe(locIds[5]);
 	});
@@ -40,7 +40,7 @@ describe("Review mode", () => {
 	it("reviewNext again advances to third location", async () => {
 		const result = await withApi(async (api) => {
 			await api.reviewNext();
-			return { activeId: api.getMapState().activeLocation?.id ?? null };
+			return { activeId: api.getMapState().openRow?.id ?? null };
 		});
 		expect(result.activeId).toBe(locIds[7]);
 	});
@@ -49,7 +49,7 @@ describe("Review mode", () => {
 		const result = await withApi(async (api) => {
 			await api.reviewNext();
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				workArea: api.getMapState().workArea,
 			};
 		});
@@ -64,7 +64,7 @@ describe("Review mode", () => {
 			await api.reviewNext(); // -> locIds[1]
 			await api.reviewNext(); // -> locIds[2]
 			await api.reviewPrev(); // -> locIds[1]
-			return { activeId: api.getMapState().activeLocation?.id ?? null };
+			return { activeId: api.getMapState().openRow?.id ?? null };
 		}, reviewIds);
 		expect(result.activeId).toBe(locIds[1]);
 	});
@@ -74,7 +74,7 @@ describe("Review mode", () => {
 			await api.reviewPrev(); // -> locIds[0]
 			await api.reviewPrev(); // at start -> no-op, stays put
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				workArea: api.getMapState().workArea,
 				inReview: api.getReviewSession() !== null,
 			};
@@ -91,7 +91,7 @@ describe("Review mode", () => {
 			await api.beginReview(ids);
 			api.cancelReview();
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				workArea: api.getMapState().workArea,
 			};
 		}, reviewIds);
@@ -111,7 +111,7 @@ describe("Review mode", () => {
 		const validId = locIds[4];
 		const result = await withApi(async (api, id) => {
 			await api.beginReview([999999, id, 999998]);
-			return { activeId: api.getMapState().activeLocation?.id ?? null };
+			return { activeId: api.getMapState().openRow?.id ?? null };
 		}, validId);
 		expect(result.activeId).toBe(validId);
 		await withApi((api) => api.cancelReview());
@@ -141,10 +141,16 @@ describe("Review mode - delete", () => {
 		const nextId = locIds[1];
 		const result = await withApi(async (api, did) => {
 			await api.reviewDelete();
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			const deleted = await api.fetchLocation(did).catch(() => null);
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				count,
 				deleted,
 			};
@@ -159,7 +165,7 @@ describe("Review mode - delete", () => {
 			await api.reviewNext(); // -> locIds[2]
 			await api.reviewDelete(); // deletes locIds[2], no more -> exits
 			return {
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				workArea: api.getMapState().workArea,
 			};
 		});
@@ -200,7 +206,7 @@ describe("Review mode - skips deleted locations", () => {
 				await api.beginReview(ids);
 				await api.removeLocations(new Set([delId]));
 				await api.reviewNext(); // should skip locIds[1], land on locIds[2]
-				return { activeId: api.getMapState().activeLocation?.id ?? null };
+				return { activeId: api.getMapState().openRow?.id ?? null };
 			},
 			allIds,
 			deleteId,
@@ -239,7 +245,7 @@ describe("Review mode - reviewed tracking & peek", () => {
 			const s = api.getReviewSession();
 			const out = {
 				cursorId: s?.cursorId ?? null,
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 			};
 			api.cancelReview();
 			return out;
@@ -259,7 +265,7 @@ describe("Review mode - reviewed tracking & peek", () => {
 				const out = {
 					inReview: s !== null,
 					cursorId: s?.cursorId ?? null,
-					activeId: api.getMapState().activeLocation?.id ?? null,
+					activeId: api.getMapState().openRow?.id ?? null,
 				};
 				api.cancelReview();
 				return out;
@@ -281,7 +287,7 @@ describe("Review mode - reviewed tracking & peek", () => {
 			const s = api.getReviewSession();
 			const out = {
 				cursorId: s?.cursorId ?? null,
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 				order: s?.order ?? [],
 			};
 			api.cancelReview();
@@ -328,7 +334,7 @@ describe("Review mode - resume", () => {
 			const out = {
 				savedReviewed: saved.reviewed,
 				resumedCursor: resumed?.cursorId ?? null,
-				activeId: api.getMapState().activeLocation?.id ?? null,
+				activeId: api.getMapState().openRow?.id ?? null,
 			};
 			if (resumed) await api.deleteSession(resumed.id);
 			return out;
@@ -382,9 +388,9 @@ describe("Review mode - review order", () => {
 		const r = await withApi(
 			async (api, ids) => {
 				await api.beginReview(ids);
-				const first = api.getMapState().activeLocation?.id ?? null;
+				const first = api.getMapState().openRow?.id ?? null;
 				await api.reviewNext();
-				return { first, second: api.getMapState().activeLocation?.id ?? null };
+				return { first, second: api.getMapState().openRow?.id ?? null };
 			},
 			[locIds[0], locIds[1], locIds[2]],
 		);
@@ -398,7 +404,7 @@ describe("Review mode - review order", () => {
 		const r = await withApi(
 			async (api, ids) => {
 				await api.beginReview(ids);
-				return { first: api.getMapState().activeLocation?.id ?? null };
+				return { first: api.getMapState().openRow?.id ?? null };
 			},
 			[locIds[0], locIds[1], locIds[2]],
 		);

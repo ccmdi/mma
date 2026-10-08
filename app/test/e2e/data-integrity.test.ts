@@ -299,7 +299,13 @@ describe("Data integrity - concurrent operations", () => {
 			}
 			await api.addLocations(moreLocs);
 
-			const count = (await api.cmd.storeGetSummary()).locationCount;
+			const count = (
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).locationCount;
 			return { count };
 		});
 		expect(result.count).toBe(100); // 50 remaining from first batch + 50 new

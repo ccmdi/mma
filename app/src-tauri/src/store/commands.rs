@@ -19,37 +19,10 @@ use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
 use mma_algebra::Patch;
 use std::collections::{HashMap, HashSet};
-use std::fs;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{self, AtomicUsize};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::ipc::Channel;
 use tokio::task;
-
-/// Matched locations: returned inline, or as a file path to read them from.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum Rows {
-    Inline { locations: Vec<Location> },
-    File { path: String },
-}
-
-/// Above this many rows, `store_collect` stages a file instead of answering over IPC.
-pub(crate) const ROWS_INLINE_MAX: usize = 1024;
-
-/// A rotating slot per rows-file query: the file is fetched after the store lock is
-/// released, so two concurrent row reads must not share one path -- while the slot
-/// cycle keeps stale files bounded and self-overwriting like a fixed path.
-pub(crate) fn rows_file_path(temp: &Path, map_id: &str) -> PathBuf {
-    static SLOT: AtomicUsize = AtomicUsize::new(0);
-    let slot = SLOT.fetch_add(1, atomic::Ordering::Relaxed) % 8;
-    temp.join(format!("mma_rows_{map_id}_{slot}.json"))
-}
 
 /// Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
 /// Must be called before any other store commands.
@@ -654,29 +627,6 @@ pub async fn store_save_dirty(
     Ok(())
 }
 
-/// Return the map's current location count, store version, and unsaved-change count.
-#[tauri::command]
-#[specta::specta]
-pub fn store_get_summary(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-) -> AppResult<SummaryResult> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let count = *store.alive_count;
-        log::debug!(
-            "[cmd] store_get_summary total={}ms alive_count={}",
-            _t.elapsed().as_millis(),
-            count
-        );
-        Ok(SummaryResult {
-            location_count: count,
-            version: store.version,
-            dirty_count: usize::from(store.overlay.is_unsaved()),
-        })
-    })
-}
-
 /// Draw the open map's markers: `frames` receives the whole scene, then every change to it.
 #[tauri::command]
 #[specta::specta]
@@ -819,82 +769,6 @@ pub async fn store_sync_selections(
     Ok(result)
 }
 
-/// Ids of every location the selector resolves to, ascending.
-#[tauri::command]
-#[specta::specta]
-pub fn store_resolve(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |scope| match &selector {
-        Selector::Ranked {
-            expr, ascending, ..
-        } => scope.ranked(expr, None, *ascending),
-        _ => scope.rows().map(|row| row.id()).collect(),
-    })
-}
-
-/// Count how many locations the selector matches.
-#[tauri::command]
-#[specta::specta]
-pub fn store_count(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-) -> AppResult<u32> {
-    selector_read!(label, state, selector, |scope| scope.rows().count() as u32)
-}
-
-/// `n` ids drawn uniformly at random from the selected set, without replacement.
-#[tauri::command]
-#[specta::specta]
-pub fn store_sample(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    n: u32,
-) -> AppResult<Vec<u32>> {
-    selector_read!(label, state, selector, |scope| scope.sample(n as usize))
-}
-
-/// An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
-/// spacing) or `minDistanceM` (keep as many as fit at that spacing).
-#[tauri::command]
-#[specta::specta]
-pub fn store_spaced(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    target_count: Option<u32>,
-    min_distance_m: Option<f64>,
-) -> AppResult<SpacedPickResult> {
-    selector_read!(label, state, selector, |scope| pick_spaced(
-        scope.points(),
-        target_count,
-        min_distance_m
-    )?)
-}
-
-/// An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
-/// N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
-/// closer than half of it).
-#[tauri::command]
-#[specta::specta]
-pub fn store_evenly_spaced(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    target_count: Option<u32>,
-    spacing_m: Option<f64>,
-) -> AppResult<SpacedPickResult> {
-    selector_read!(label, state, selector, |scope| pick_even(
-        &scope.points(),
-        target_count,
-        spacing_m
-    )?)
-}
-
 /// One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
 /// apart.
 #[derive(serde::Serialize, specta::Type)]
@@ -1034,209 +908,21 @@ fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
 #[path = "commands.test.rs"]
 mod tests;
 
-/// Group by a derived key, returning `{ key, ids, bin }` per group.
+/// Answer one question about the rows a selector resolves to, optionally narrowed by a
+/// pick first.
 #[tauri::command]
 #[specta::specta]
-pub fn store_group_by(
+pub fn store_read(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     selector: Selector,
-    field: String,
-    key: selections::KeySpec,
-) -> AppResult<Vec<selections::PartitionBucket>> {
-    selector_read!(label, state, selector, |scope| scope
-        .partition(&field, &key))
-}
-
-/// Group locations by a derived key of each field, returning counts only (no member ids)
-/// and how many distinct locations those groups cover, one result per field.
-#[tauri::command]
-#[specta::specta]
-pub fn store_count_by(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    fields: Vec<String>,
-    key: selections::KeySpec,
-) -> AppResult<Vec<selections::CountBy>> {
-    selector_read!(label, state, selector, |scope| scope
-        .count_by(&fields, &key))
-}
-
-/// Distinct values of `field` across the selected set, sorted.
-#[tauri::command]
-#[specta::specta]
-pub fn store_values(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    field: String,
-) -> AppResult<Vec<String>> {
-    selector_read!(label, state, selector, |scope| scope
-        .distinct_values(&field))
-}
-
-/// How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
-/// columns a row can lack.
-#[tauri::command]
-#[specta::specta]
-pub fn store_coverage(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-) -> AppResult<Vec<(String, u32)>> {
-    with_store!(label, state, |store| { Ok(store.coverage(&selector)) })
-}
-
-/// Per-field columns of the selected set. One value per row per field, `null` where a
-/// row lacks it; `"tags"` is a column of tag-id arrays.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(transparent)]
-pub struct Columns(
-    #[specta(type = Vec<Vec<specta_typescript::Unknown>>)] pub Vec<Vec<serde_json::Value>>,
-);
-
-/// Read specific fields across matched locations, returned as one column per field.
-#[tauri::command]
-#[specta::specta]
-pub fn store_columns(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    fields: Vec<String>,
-) -> AppResult<Columns> {
-    selector_read!(label, state, selector, |scope| Columns(
-        scope.columns(&fields)
-    ))
-}
-
-/// Bounding box `[west, south, east, north]`, or `null` when the set is empty.
-#[tauri::command]
-#[specta::specta]
-pub fn store_bounds(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-) -> AppResult<Option<[f64; 4]>> {
-    // The whole-map box is maintained incrementally; narrower ones scan.
-    if matches!(selector, Selector::Everything) {
-        return with_store!(label, state, |store| { Ok(store.cached_bounds()) });
-    }
-    selector_read!(label, state, selector, |scope| scope
-        .bounds()
-        .map(BoundsAcc::resolve))
-}
-
-/// Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
-/// `storeValues`) when only specific fields are needed.
-#[tauri::command]
-#[specta::specta]
-pub fn store_collect(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-) -> AppResult<Rows> {
+    pick: Option<RowPick>,
+    ask: Ask,
+) -> AppResult<Answer> {
+    let _t = Instant::now();
     with_store!(label, state, |store| {
-        let locations = store.collect(&selector);
-        if locations.len() <= ROWS_INLINE_MAX {
-            return Ok(Rows::Inline { locations });
-        }
-        let map_id_str = store.map_id.as_deref().unwrap_or("default");
-        let path = rows_file_path(&storage::temp_dir()?, map_id_str);
-        fs::write(&path, serde_json::to_vec(&locations)?)?;
-        Ok(Rows::File {
-            path: path.to_string_lossy().into_owned(),
-        })
-    })
-}
-
-/// Find groups of locations within `distance` metres of each other (transitive).
-/// Returns groups of IDs, each with at least two members.
-#[tauri::command]
-#[specta::specta]
-pub fn store_duplicate_groups(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    distance: f64,
-) -> AppResult<Vec<Vec<u32>>> {
-    with_store!(label, state, |store| {
-        Ok(store.all().duplicate_groups(distance))
-    })
-}
-
-/// Find all locations within `radiusM` metres of (`lat`, `lng`).
-// Lazy spatial index: O(cells in radius) per query after a one-time O(N) build, maintained
-// incrementally. Called on every marker click (duplicate check), so it must not scan.
-#[tauri::command]
-#[specta::specta]
-pub fn store_find_nearby(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    lat: f64,
-    lng: f64,
-    radius_m: f64,
-) -> AppResult<Vec<Location>> {
-    with_store!(label, state, |store| {
-        let _t = Instant::now();
-        let mut ids = store.find_nearby_ids(lat, lng, radius_m);
-        ids.sort_unstable();
-        let result: Vec<Location> = ids
-            .iter()
-            .filter_map(|&id| store.get_loc_by_id(id))
-            .collect();
-        log::debug!(
-            "[cmd] store_find_nearby r={}m hits={} total={}ms",
-            radius_m,
-            result.len(),
-            _t.elapsed().as_millis()
-        );
-        Ok(result)
-    })
-}
-
-/// The location closest to a coordinate, or null when the map has none.
-#[tauri::command]
-#[specta::specta]
-pub fn store_find_nearest(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    lat: f64,
-    lng: f64,
-) -> AppResult<Option<Location>> {
-    with_store!(label, state, |store| {
-        Ok(store
-            .find_nearest_id(lat, lng)
-            .and_then(|id| store.get_loc_by_id(id)))
-    })
-}
-
-/// For each input point, whether any existing location lies within `radiusM` metres.
-/// Batch form for probing many coordinates at once.
-#[tauri::command]
-#[specta::specta]
-pub fn store_near_any(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    lats: Vec<f64>,
-    lngs: Vec<f64>,
-    radius_m: f64,
-) -> AppResult<Vec<bool>> {
-    if lats.len() != lngs.len() {
-        return Err(AppError::from("store_near_any: lats/lngs length mismatch"));
-    }
-    with_store!(label, state, |store| {
-        let _t = Instant::now();
-        let result: Vec<bool> = lats
-            .iter()
-            .zip(lngs.iter())
-            .map(|(&la, &ln)| store.any_within(la, ln, radius_m))
-            .collect();
-        log::debug!(
-            "[cmd] store_near_any n={} r={}m total={}ms",
-            result.len(),
-            radius_m,
-            _t.elapsed().as_millis()
-        );
-        Ok(result)
+        let answer = store.read(&selector, pick.as_ref(), &ask);
+        log::debug!("[cmd] store_read total={}ms", _t.elapsed().as_millis());
+        answer
     })
 }

@@ -1,35 +1,68 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SyncReconcileResult } from "@/bindings.gen";
+
+// The whole merge - push, pull landed as one undo step, tags interned, mapping rows -
+// runs in Rust; these tests pin what the thin apply step still owns: guarding the open
+// map, applying the landed change to this window, surfacing removals, and advancing the
+// link. The landing itself is pinned by the store's own tests.
+const h = vi.hoisted(() => ({
+	mapId: "map-a" as string | null,
+	reconciles: [] as unknown[][],
+	mutations: [] as unknown[],
+	removedEvents: [] as number[][],
+	result: null as SyncReconcileResult | null,
+}));
+
+vi.mock("@/lib/commands", () => ({
+	cmd: {
+		syncReconcile: async (...args: unknown[]) => {
+			h.reconciles.push(args);
+			return h.result;
+		},
+	},
+}));
+vi.mock("@/store/useMapStore", () => ({
+	getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
+	mutate: async (fn: () => Promise<unknown>) => {
+		h.mutations.push(await fn());
+	},
+}));
+vi.mock("@/lib/events", () => ({
+	emit: (name: string, payload: number[]) => {
+		if (name === "location:remove") h.removedEvents.push(payload);
+	},
+}));
+
 import { reconcile } from "@/lib/sync/engine";
 import type { SyncProvider } from "@/lib/sync/provider";
 import {
 	createSyncStore,
 	type KeyValueStore,
 	type MappingBackend,
-	type RemoteMappingRow,
+	type SyncStore,
 } from "@/lib/sync/syncStore";
 
 const MAP = "map-a";
 const PROVIDER = "geoguessr";
 
-/** Location 2 was edited remotely and location 3 was deleted remotely. */
-const RESULT: SyncReconcileResult = {
-	pushed: { create: 0, update: 0, delete: 0 },
-	pulled: { create: 0, update: 1, delete: 1 },
-	adopted: 0,
-	conflicts: [],
-	neededTags: [],
-	pullCreates: [],
-	pullUpdates: [{ localId: 2, patch: { lat: 22 }, remoteId: 8, hash: "remote-2" }],
-	pullDeleteIds: [3],
-	mirrorLocalDeleteIds: [],
+const MUTATION = {
+	version: 3,
+	selectionSync: null,
+	step: 7,
+	active: null,
+	firstId: null,
+	values: {},
 };
 
-const SEEDED: RemoteMappingRow[] = [
-	{ localId: 2, remoteId: 8, hash: "base-2" },
-	{ localId: 3, remoteId: 9, hash: "base-3" },
-];
+const RESULT = {
+	pushed: { create: 0, update: 1, delete: 0 },
+	pulled: { create: 1, update: 1, delete: 1 },
+	adopted: 2,
+	conflicts: [],
+	mutation: MUTATION,
+	removedIds: [3],
+} as unknown as SyncReconcileResult;
 
 function memKv(): KeyValueStore {
 	const m = new Map<string, unknown>();
@@ -41,50 +74,15 @@ function memKv(): KeyValueStore {
 	};
 }
 
-function memMapping(seed: RemoteMappingRow[]): MappingBackend {
-	const rows = new Map(seed.map((r) => [r.localId, { ...r }] as const));
-	return {
-		get: async () => [...rows.values()].sort((a, b) => a.localId - b.localId),
-		upsert: async (_p, _m, next) => next.forEach((r) => rows.set(r.localId, { ...r })),
-		delete: async (_p, _m, ids) => ids.forEach((id) => rows.delete(id)),
-		clear: async () => rows.clear(),
-	};
-}
+const mapping: MappingBackend = {
+	get: async () => [],
+	upsert: async () => {},
+	delete: async () => {},
+	clear: async () => {},
+};
 
-type Step = "reconcile" | "update" | "remove";
-
-/** Fake MMA whose open map switches away right after `switchAfter` completes. */
-function setup(switchAfter: Step | null, result: SyncReconcileResult = RESULT) {
-	let mapId = MAP;
-	const calls: Step[] = [];
-	const added: Record<string, unknown>[] = [];
-	const updated: unknown[] = [];
-	const step = (s: Step) => {
-		calls.push(s);
-		if (s === switchAfter) mapId = "map-b";
-	};
-	(window as unknown as { MMA: unknown }).MMA = {
-		getMapState: () => ({ mapId, map: { id: mapId } }),
-		getTags: () => ({}),
-		createTags: async () => [],
-		createLocation: (p: unknown) => p,
-		addLocations: async (locs: Record<string, unknown>[]) => {
-			locs.forEach((l, i) => (l.id = 50 + i));
-			added.push(...locs);
-		},
-		updateLocations: async (u: unknown[]) => {
-			updated.push(...u);
-			step("update");
-		},
-		removeLocations: async () => step("remove"),
-		cmd: {
-			syncReconcile: async () => {
-				step("reconcile");
-				return result;
-			},
-		},
-	};
-	const store = createSyncStore(memKv(), memMapping(SEEDED), PROVIDER, MAP);
+function linkedStore(): SyncStore {
+	const store = createSyncStore(memKv(), mapping, PROVIDER, MAP);
 	store.setLink({
 		localMapId: MAP,
 		remoteMapId: "r1",
@@ -93,70 +91,58 @@ function setup(switchAfter: Step | null, result: SyncReconcileResult = RESULT) {
 		linkedAt: "2026-01-01T00:00:00Z",
 		lastSyncedAt: null,
 	});
-	const provider = { id: PROVIDER } as SyncProvider;
-	return { store, calls, added, updated, run: () => reconcile(provider, store) };
+	return store;
 }
 
+const provider = { id: PROVIDER } as SyncProvider;
+
+beforeEach(() => {
+	h.mapId = MAP;
+	h.reconciles = [];
+	h.mutations = [];
+	h.removedEvents = [];
+	h.result = RESULT;
+});
+
 describe("sync reconcile apply step", () => {
-	it("leaves every pull's mapping row untouched when the map switches before any pull applies", async () => {
-		const { store, calls, run } = setup("reconcile");
+	it("applies the landed change once, surfaces removals, and advances the link", async () => {
+		const store = linkedStore();
+		const out = await reconcile(provider, store);
 
-		await expect(run()).rejects.toThrow("linked map is no longer open");
-
-		expect(calls).toEqual(["reconcile"]);
-		expect(await store.getMapping()).toEqual(SEEDED);
-	});
-
-	it("records an applied update but keeps an unapplied delete's row when the map switches between them", async () => {
-		const { store, calls, run } = setup("update");
-
-		await expect(run()).rejects.toThrow("linked map is no longer open");
-
-		expect(calls).toEqual(["reconcile", "update"]);
-		expect(await store.getMapping()).toEqual([
-			{ localId: 2, remoteId: 8, hash: "remote-2" },
-			{ localId: 3, remoteId: 9, hash: "base-3" },
-		]);
-	});
-
-	it("records every pull once all of them apply", async () => {
-		const { store, calls, run } = setup(null);
-
-		await run();
-
-		expect(calls).toEqual(["reconcile", "update", "remove"]);
-		expect(await store.getMapping()).toEqual([{ localId: 2, remoteId: 8, hash: "remote-2" }]);
-	});
-
-	it("lands custom fields: a pulled create carries them, a pulled update merges them", async () => {
-		const fields = {
-			lat: 1,
-			lng: 2,
-			heading: 0,
-			pitch: 0,
-			zoom: 0,
-			panoId: null,
-			flags: 0,
-			tags: [],
-			extra: { score: 3 },
-		};
-		const { added, updated, run } = setup(null, {
-			...RESULT,
-			pullCreates: [{ fields, remoteId: 0, hash: "h" }],
-			pullUpdates: [
-				{
-					localId: 2,
-					patch: { extra: { score: 4, note: null } },
-					remoteId: 8,
-					hash: "u",
-				},
-			],
-			pullDeleteIds: [],
+		expect(h.reconciles).toEqual([[PROVIDER, MAP, "r1", null, null]]);
+		expect(h.mutations).toEqual([MUTATION]);
+		expect(h.removedEvents).toEqual([[3]]);
+		expect(store.getLink()?.lastSyncedAt).toBeTruthy();
+		expect(out).toEqual({
+			pushed: RESULT.pushed,
+			pulled: RESULT.pulled,
+			adopted: 2,
+			conflicts: [],
 		});
+	});
 
-		await run();
+	it("an unchanged reconcile applies nothing and emits nothing", async () => {
+		h.result = { ...RESULT, mutation: null, removedIds: [] } as unknown as SyncReconcileResult;
+		const store = linkedStore();
+		await reconcile(provider, store);
+		expect(h.mutations).toEqual([]);
+		expect(h.removedEvents).toEqual([]);
+	});
 
-		expect(added[0]).toMatchObject({ extra: { score: 3 } });
-		expect(updated).toEqual([{ id: 2, extra: { score: 4, note: null } }]);
+	it("refuses when the linked map is not the open one, before anything runs", async () => {
+		h.mapId = "map-b";
+		const store = linkedStore();
+		await expect(reconcile(provider, store)).rejects.toThrow("linked map is no longer open");
+		expect(h.reconciles).toEqual([]);
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("passes the first-sync mode and conflict resolutions through", async () => {
+		const store = linkedStore();
+		await reconcile(provider, store, {
+			firstSync: "mirrorFromLocal",
+			resolutions: new Map([["k1", "remote"]]),
+		});
+		expect(h.reconciles[0]).toEqual([PROVIDER, MAP, "r1", "mirrorFromLocal", [["k1", "remote"]]]);
 	});
 });

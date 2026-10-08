@@ -5,7 +5,7 @@ use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, Selection, Selector};
 use crate::store::arrow::empty_batch;
-use crate::store::commands::rows_file_path;
+use crate::store::engine::query::rows_file_path;
 use crate::store::maps::IndexShape;
 use crate::test_util::Fx;
 use crate::test_util::TempDir;
@@ -3345,7 +3345,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
 /// Coverage of the fields a row's `extra` can hold, leaving out the builtin columns.
 fn extra_coverage(store: &mut Store, selector: &Selector) -> Vec<(String, u32)> {
     store
-        .coverage(selector)
+        .coverage(selector, None)
         .into_iter()
         .filter(|(k, _)| !selections::is_builtin_field(k))
         .collect()
@@ -3434,7 +3434,7 @@ fn coverage_counts_rows_per_key_across_the_overlay() {
         &["a", "b", "c"],
     );
     assert_eq!(
-        store.coverage(&Selector::Everything),
+        store.coverage(&Selector::Everything, None),
         counts(&[("a", 3), ("b", 1), ("c", 1)])
     );
 }
@@ -3451,7 +3451,7 @@ fn coverage_counts_an_optional_column_beside_the_extra_keys() {
     ];
     let mut store = coverage_store(&locs, Vec::new(), &[], &["a"]);
     assert_eq!(
-        store.coverage(&Selector::Everything),
+        store.coverage(&Selector::Everything, None),
         counts(&[("a", 2), ("modifiedAt", 1), ("panoId", 1)])
     );
 }
@@ -3460,7 +3460,7 @@ fn coverage_counts_an_optional_column_beside_the_extra_keys() {
 fn coverage_leaves_out_a_column_every_row_holds() {
     let mut store = coverage_store(&[loc(1, 1.0, 1.0)], Vec::new(), &[], &[]);
     // lat/lng/heading/pitch/zoom always hold a value, so counting them says nothing.
-    assert!(store.coverage(&Selector::Everything).is_empty());
+    assert!(store.coverage(&Selector::Everything, None).is_empty());
 }
 
 #[test]
@@ -3471,7 +3471,7 @@ fn coverage_decodes_escaped_base_row_keys() {
     l.extra = RawExtra::from_string_uncanonicalized("{\"caf\\u00e9\":1}");
     let mut store = coverage_store(&[l], Vec::new(), &[], &["café"]);
     assert_eq!(
-        store.coverage(&Selector::Everything),
+        store.coverage(&Selector::Everything, None),
         counts(&[("café", 1)])
     );
 }
@@ -3485,7 +3485,7 @@ fn coverage_does_not_descend_into_nested_objects() {
         &["outer", "inner"],
     );
     assert_eq!(
-        store.coverage(&Selector::Everything),
+        store.coverage(&Selector::Everything, None),
         counts(&[("outer", 1)])
     );
 }
@@ -3506,7 +3506,7 @@ fn coverage_honours_a_named_id_list() {
         locations: vec![2, 3],
         name: None,
     };
-    assert_eq!(store.coverage(&named), counts(&[("c", 2)]));
+    assert_eq!(store.coverage(&named, None), counts(&[("c", 2)]));
 }
 
 fn flag_filter(on: bool) -> Selector {
@@ -4781,17 +4781,6 @@ fn undo_to_base_clears_overlay_patch() {
         store.overlay.patches.is_empty(),
         "undo to base state should clear the patch"
     );
-}
-
-#[test]
-fn a_write_that_touches_the_active_row_hands_it_back() {
-    let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 0.0, 0.0)]);
-    store.selections.active_id = Some(1);
-    let r = apply_updates(&mut store, &[patch!(2; heading: 9.0)], UndoScope::Skip);
-    assert!(r.active.is_none(), "another row changed");
-    let r = apply_updates(&mut store, &[patch!(1; heading: 90.0)], UndoScope::Skip);
-    assert_eq!(r.active, store.get_loc_by_id(1));
-    assert_eq!(r.active.unwrap().heading, 90.0);
 }
 
 #[test]

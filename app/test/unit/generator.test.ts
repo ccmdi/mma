@@ -34,8 +34,19 @@ function rectOf(polygon: MockPolygon) {
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeFindNearby: () => Promise.resolve(h.seeds),
-		storeNearAny: (lats: number[]) => Promise.resolve(lats.map(() => false)),
+		storeRead: (
+			_selector: unknown,
+			pick: { kind: string } | null,
+			ask: { kind: string; lats?: number[] },
+		) => {
+			if (ask.kind === "nearAny") {
+				return Promise.resolve({ kind: "booleans", values: (ask.lats ?? []).map(() => false) });
+			}
+			if (pick?.kind === "nearby") {
+				return Promise.resolve({ kind: "rows", rows: { kind: "inline", locations: h.seeds } });
+			}
+			throw new Error(`unexpected read: ${ask.kind}`);
+		},
 		honeycombPoints: (_polygon: unknown, spacingM: number) => {
 			h.gridRequests.push(spacingM);
 			return Promise.resolve(h.gridRuns);

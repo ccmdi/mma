@@ -161,8 +161,6 @@ export const commands = {
 	 *  map's tag table.
 	 */
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
-	/**  Return the map's current location count, store version, and unsaved-change count. */
-	storeGetSummary: () => __TAURI_INVOKE<SummaryResult>("store_get_summary"),
 	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
 	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }),
 	/**
@@ -170,6 +168,11 @@ export const commands = {
 	 *  `land`; once landed they write through and join its step.
 	 */
 	storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
+	/**
+	 *  Answer one question about the rows a selector resolves to, optionally narrowed by a
+	 *  pick first.
+	 */
+	storeRead: (selector: Selector, pick: RowPick | null, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { selector, pick, ask }),
 	/**  The row at `id` as `target` sees it. */
 	storeRow: (target: Target, id: number) => __TAURI_INVOKE<Location | null>("store_row", { target, id }),
 	/**  Drop a named pending layer and everything it holds. */
@@ -183,23 +186,6 @@ export const commands = {
 	storeSetActive: (id: number | null) => __TAURI_INVOKE<null>("store_set_active", { id }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: [number, number, number]) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
-	/**  Ids of every location the selector resolves to, ascending. */
-	storeResolve: (selector: Selector) => __TAURI_INVOKE<number[]>("store_resolve", { selector }),
-	/**  Count how many locations the selector matches. */
-	storeCount: (selector: Selector) => __TAURI_INVOKE<number>("store_count", { selector }),
-	/**  `n` ids drawn uniformly at random from the selected set, without replacement. */
-	storeSample: (selector: Selector, n: number) => __TAURI_INVOKE<number[]>("store_sample", { selector, n }),
-	/**
-	 *  An evenly spaced subset: exactly one of `targetCount` (thin to N, maximizing
-	 *  spacing) or `minDistanceM` (keep as many as fit at that spacing).
-	 */
-	storeSpaced: (selector: Selector, targetCount: number | null, minDistanceM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_spaced", { selector, targetCount, minDistanceM }),
-	/**
-	 *  An evenly spaced subset laid out on a honeycomb: exactly one of `targetCount` (at most
-	 *  N, spaced as widely as that allows) or `spacingM` (about that far apart, and never
-	 *  closer than half of it).
-	 */
-	storeEvenlySpaced: (selector: Selector, targetCount: number | null, spacingM: number | null) => __TAURI_INVOKE<SpacedPickResult>("store_evenly_spaced", { selector, targetCount, spacingM }),
 	/**
 	 *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 	 *  one entry per row of points.
@@ -224,29 +210,6 @@ export const commands = {
 	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**  The area a polygon selects, as polygons whose edges never cross, for drawing its fill. */
 	polygonFill: (polygon: PolygonGeometry) => __TAURI_INVOKE<((([number, number])[])[])[]>("polygon_fill", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))) as typeof v)),
-	/**  Group by a derived key, returning `{ key, ids, bin }` per group. */
-	storeGroupBy: (selector: Selector, field: string, key: KeySpec) => __TAURI_INVOKE<PartitionBucket[]>("store_group_by", { selector, field, key }).then((v) => (v.map(i=>({...i,bin:i.bin==null?i.bin:i.bin.map(i=>i)})) as typeof v)),
-	/**
-	 *  Group locations by a derived key of each field, returning counts only (no member ids)
-	 *  and how many distinct locations those groups cover, one result per field.
-	 */
-	storeCountBy: (selector: Selector, fields: string[], key: KeySpec) => __TAURI_INVOKE<CountBy[]>("store_count_by", { selector, fields, key }),
-	/**  Distinct values of `field` across the selected set, sorted. */
-	storeValues: (selector: Selector, field: string) => __TAURI_INVOKE<string[]>("store_values", { selector, field }),
-	/**
-	 *  How many rows hold a value for each field, key-sorted: `extra` keys and the built-in
-	 *  columns a row can lack.
-	 */
-	storeCoverage: (selector: Selector) => __TAURI_INVOKE<([string, number])[]>("store_coverage", { selector }),
-	/**  Read specific fields across matched locations, returned as one column per field. */
-	storeColumns: (selector: Selector, fields: string[]) => __TAURI_INVOKE<Columns>("store_columns", { selector, fields }),
-	/**  Bounding box `[west, south, east, north]`, or `null` when the set is empty. */
-	storeBounds: (selector: Selector) => __TAURI_INVOKE<[number, number, number, number] | null>("store_bounds", { selector }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
-	/**
-	 *  Collect all matched locations as full rows. Prefer a projection (`storeColumns`,
-	 *  `storeValues`) when only specific fields are needed.
-	 */
-	storeCollect: (selector: Selector) => __TAURI_INVOKE<Rows>("store_collect", { selector }),
 	/**  Run work over every location matched by `selector`, landing the edits it derives. */
 	storeWork: (selector: Selector, work: Work, recordUndo: boolean | null) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work, recordUndo }),
 	/**  The parse error for `src`, or `null` when it parses. */
@@ -256,15 +219,6 @@ export const commands = {
 	 *  `level` selects border precision, falling back to "light" if unavailable.
 	 */
 	storeCountryDistribution: (selector: Selector, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
-	/**  Find all locations within `radiusM` metres of (`lat`, `lng`). */
-	storeFindNearby: (lat: number, lng: number, radiusM: number) => __TAURI_INVOKE<Location[]>("store_find_nearby", { lat, lng, radiusM }).then((v) => (v.map(i=>i) as typeof v)),
-	/**  The location closest to a coordinate, or null when the map has none. */
-	storeFindNearest: (lat: number, lng: number) => __TAURI_INVOKE<Location | null>("store_find_nearest", { lat, lng }),
-	/**
-	 *  For each input point, whether any existing location lies within `radiusM` metres.
-	 *  Batch form for probing many coordinates at once.
-	 */
-	storeNearAny: (lats: number[], lngs: number[], radiusM: number) => __TAURI_INVOKE<boolean[]>("store_near_any", { lats: lats.map(i=>i), lngs: lngs.map(i=>i), radiusM }),
 	/**
 	 *  Patch an interned field's value metadata: get-or-create names, edit display
 	 *  metadata, reorder. Metadata only - membership writes go through the ordinary
@@ -282,11 +236,6 @@ export const commands = {
 	 *  per-selection counts; the markers repaint through the render frame.
 	 */
 	storeSyncSelections: (sels: ListedSelection[]) => __TAURI_INVOKE<MutationResult>("store_sync_selections", { sels }),
-	/**
-	 *  Find groups of locations within `distance` metres of each other (transitive).
-	 *  Returns groups of IDs, each with at least two members.
-	 */
-	storeDuplicateGroups: (distance: number) => __TAURI_INVOKE<number[][]>("store_duplicate_groups", { distance }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
@@ -355,18 +304,13 @@ export const commands = {
 	 */
 	storeImportPastePreview: (text: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_paste_preview", { text }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
-	 *  Return one staged (not yet imported) location by its preview `index`, for
-	 *  read-only preview in the editor.
-	 */
-	storeImportStagedLocation: (index: number) => __TAURI_INVOKE<Location>("store_import_staged_location", { index }),
-	/**
 	 *  Commit a previously previewed editor import into the open map, optionally
 	 *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
 	 *  and/or applying each of `tagNames` to every imported location.
 	 */
 	storeImportFile: (droppedFields: string[], tagNames: string[]) => __TAURI_INVOKE<EditorImportResult>("store_import_file", { droppedFields, tagNames }),
 	/**  Discard the staged import without importing it. */
-	storeImportCancel: () => __TAURI_INVOKE<void>("store_import_cancel"),
+	storeImportCancel: () => __TAURI_INVOKE<null>("store_import_cancel"),
 	/**  The location a pasted Maps URL names, short links resolved. */
 	parseMapsUrl: (input: string) => __TAURI_INVOKE<ParsedLocation | null>("parse_maps_url", { input }),
 	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
@@ -557,6 +501,44 @@ export type AnonIssueRef = {
 	token: string,
 };
 
+/**  What a read answers with; the arm follows from the ask. */
+export type Answer = 
+/**  The ids, with the spacing a spaced pick settled on. */
+{ kind: "ids"; ids: number[]; spacingM: number | null } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groups"; groups: PartitionBucket[] } | { kind: "counts"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "summary"; locationCount: number; version: number; dirtyCount: number } | { kind: "idGroups"; groups: number[][] } | { kind: "booleans"; values: boolean[] };
+
+/**  The question a read answers about the selected rows, after any pick. */
+export type Ask = 
+/**  Their ids: ascending, or a ranked selector's order when nothing was picked. */
+{ kind: "ids" } | 
+/**  How many there are. */
+{ kind: "count" } | 
+/**  Every row in full. */
+{ kind: "rows" } | 
+/**
+ *  One column per field, `null` where a row lacks it; `tags` is a column of tag-id
+ *  arrays.
+ */
+{ kind: "columns"; fields: string[] } | 
+/**  Distinct values of `field`, sorted. */
+{ kind: "values"; field: string } | 
+/**  Groups by a derived key of `field`: `{ key, ids, bin }` per group. */
+{ kind: "groupBy"; field: string; key: KeySpec } | 
+/**
+ *  Counts by a derived key of each field, with how many distinct rows the groups
+ *  cover, one result per field.
+ */
+{ kind: "countBy"; fields: string[]; key: KeySpec } | 
+/**  How many rows hold a value for each field, key-sorted. */
+{ kind: "coverage" } | 
+/**  Bounding box `[west, south, east, north]`, or `null` when nothing matches. */
+{ kind: "bounds" } | 
+/**  The map's location count, store version, and unsaved-change count. */
+{ kind: "summary" } | 
+/**  Groups of rows within `distance` metres of each other, two or more per group. */
+{ kind: "duplicateGroups"; distance: number } | 
+/**  Per input coordinate, whether any selected row lies within `radiusM` metres. */
+{ kind: "nearAny"; lats: number[]; lngs: number[]; radiusM: number };
+
 /**  An image the reporter attached, once it is somewhere the issue can point at. */
 export type AttachmentRef = {
 	url: string,
@@ -581,12 +563,6 @@ export type CameraFrame = {
 	pitch: number,
 };
 
-
-/**
- *  Per-field columns of the selected set. One value per row per field, `null` where a
- *  row lacks it; `"tags"` is a column of tag-id arrays.
- */
-export type Columns = unknown[][];
 
 /**
  *  A commit's created and removed locations. An updated location appears in both
@@ -733,6 +709,10 @@ export type EditorImportPreview = {
 	 *  committed automatically (not undoable). Drives the import warning modal.
 	 */
 	willAutoCommit: boolean,
+	/**  The id the first staged row was given; the rest follow it in order. */
+	firstId: number | null,
+	/**  Map settings carried by the import (`extra.settings`). */
+	settings: { [key in string]: any },
 };
 
 /**
@@ -742,11 +722,8 @@ export type EditorImportPreview = {
 export type EditorImportResult = {
 	mutation: MutationResult,
 	importedCount: number,
-	warnings: string[],
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
-	/**  Settings carried by the import (`extra.settings`) */
-	settings: { [key in string]: any },
 };
 
 /**  Map state a change affected. Each field is `null` when it did not change. */
@@ -1160,8 +1137,6 @@ export type MutationResult = {
 	 *  still the newest.
 	 */
 	step: number | null,
-	/**  The active location as this change left it, when the change touched it. */
-	active: Location | null,
 	/**  The id the first added row was given; the rest follow it in order. */
 	firstId: number | null,
 };
@@ -1508,21 +1483,6 @@ export type ProviderDecl = {
 	instances?: number | null,
 } & ProcedureDecl;
 
-/**  A location created on the remote side, to add locally. */
-export type PullCreate = {
-	fields: NormalizedSyncLocation,
-	remoteId: number,
-	hash: string,
-};
-
-/**  A remote-originated update for JS to apply to an existing local id. */
-export type PullUpdate = {
-	localId: number,
-	patch: Partial<NormalizedSyncLocation>,
-	remoteId: number,
-	hash: string,
-};
-
 /**  The questions one procedure is answering, taken together. */
 export type QueryActivity = {
 	/**  The procedure answering. */
@@ -1549,19 +1509,6 @@ export type RemoteMappingRow = {
 	/**  Remote ids can exceed u32 (observed ~1.2e10), so i64. */
 	remoteId: number,
 	hash: string,
-};
-
-/**
- *  A tag as the source of a pull describes it. A tag the sync creates takes this
- *  look; a tag that already exists keeps its own.
- */
-export type RemoteTag = {
-	/**  The tag's name. */
-	name: string,
-	/**  The tag's color; null when the source names none. */
-	color: string | null,
-	/**  The tag's position in the source's ordering; null when the source keeps none. */
-	order: number | null,
 };
 
 /**
@@ -1618,7 +1565,27 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
-/**  Matched locations: returned inline, or as a file path to read them from. */
+/**  A narrowing drawn from the selected rows before the question is asked. */
+export type RowPick = 
+/**  `n` rows drawn uniformly at random, without replacement. */
+{ kind: "sample"; n: number } | 
+/**
+ *  An evenly spaced subset: exactly one of `targetCount` (thin to that many,
+ *  maximizing spacing) or `minDistanceM` (keep as many as fit at that spacing).
+ */
+{ kind: "spaced"; targetCount: number | null; minDistanceM: number | null } | 
+/**
+ *  A honeycomb-spaced subset: exactly one of `targetCount` (at most that many, spaced
+ *  as widely as that allows) or `spacingM` (about that far apart, never closer than
+ *  half of it).
+ */
+{ kind: "evenlySpaced"; targetCount: number | null; spacingM: number | null } | 
+/**  The rows within `radiusM` metres of a coordinate. */
+{ kind: "nearby"; lat: number; lng: number; radiusM: number } | 
+/**  The row closest to a coordinate. */
+{ kind: "nearest"; lat: number; lng: number };
+
+/**  Matched rows: returned inline, or as a file path to read them from. */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
 
 export type SavedSelection = {
@@ -1780,12 +1747,6 @@ export type SidecarProgress = {
 };
 
 
-/**  A spaced pick's answer: the picked ids plus the spacing they were picked at. */
-export type SpacedPickResult = {
-	ids: number[],
-	distanceM: number,
-};
-
 /**
  *  Open-time snapshot: the same `values` a mutation result carries, with every field
  *  present. The one full picture JS ever receives; everything after is a delta.
@@ -1799,13 +1760,6 @@ export type StoreStatus = {
 export type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 { kind: "deltaSetAside" };
-
-/**  Lightweight status for polling: count, version, and whether unsaved changes exist. */
-export type SummaryResult = {
-	locationCount: number,
-	version: number,
-	dirtyCount: number,
-};
 
 /**  One settled sync pass. */
 export type SyncLogEntry = {
@@ -1823,7 +1777,10 @@ export type SyncLogResult =
 /**  The pass stopped with this error. */
 { kind: "error"; message: string };
 
-/**  Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map. */
+/**
+ *  What a reconcile answers: both sides' counts, the conflicts held for the user, and the
+ *  local change the pull half landed.
+ */
 export type SyncReconcileResult = {
 	/**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
 	pushed: SideCounts,
@@ -1831,11 +1788,10 @@ export type SyncReconcileResult = {
 	pulled: SideCounts,
 	adopted: number,
 	conflicts: Conflict[],
-	neededTags: RemoteTag[],
-	pullCreates: PullCreate[],
-	pullUpdates: PullUpdate[],
-	pullDeleteIds: number[],
-	mirrorLocalDeleteIds: number[],
+	/**  The change the pull half made locally, or `null` when nothing was pulled. */
+	mutation: MutationResult | null,
+	/**  The rows the pull removed. */
+	removedIds: number[],
 };
 
 

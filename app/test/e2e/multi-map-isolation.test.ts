@@ -18,6 +18,7 @@ import {
 	seedLocs,
 	select,
 	tagSelector,
+	getSummary,
 } from "./helpers";
 import type { Location } from "@/bindings.gen";
 
@@ -116,7 +117,7 @@ describe("Dirty state isolation across maps", () => {
 		await closeMap();
 
 		await openMap(mapBId);
-		const dirty = await withApi(async (api) => (await api.cmd.storeGetSummary()).dirtyCount);
+		const dirty = await getSummary().then((s) => s.dirtyCount);
 		expect(dirty).toBe(0);
 		await closeMap();
 	});
@@ -315,7 +316,7 @@ describe("Active location isolation across maps", () => {
 
 	it("opening map B starts with no active location", async () => {
 		await openMap(mapBId);
-		const activeB = await withApi(async (api) => api.getMapState().activeLocation?.id ?? null);
+		const activeB = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
 		expect(activeB).toBeNull();
 
 		const area = await withApi(async (api) => api.getMapState().workArea);

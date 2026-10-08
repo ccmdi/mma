@@ -51,17 +51,15 @@ wire_str_enum! {
 /// A location created on the remote side, to add locally.
 // `remote_id` is the handle its mapping row must carry once created (a positional push
 // reindexes to its desired-document position).
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug)]
 pub struct PullCreate {
     pub fields: NormalizedSyncLocation,
     pub remote_id: i64,
     pub hash: String,
 }
 
-/// A remote-originated update for JS to apply to an existing local id.
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
+/// A remote-originated update to apply to an existing local id.
+#[derive(Clone, Debug)]
 pub struct PullUpdate {
     pub local_id: u32,
     pub patch: Patch<NormalizedSyncLocation>,
@@ -69,13 +67,11 @@ pub struct PullUpdate {
     pub hash: String,
 }
 
-/// Everything the reconcile settled to, for the JS side. Every array is empty on an unchanged map.
-#[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncReconcileResult {
-    /// Remote-applied counts; mirror-from-local deletes fold into `delete`.
+/// Everything the reconcile settled to: the pull half is applied locally before the wire
+/// result leaves. Every array is empty on an unchanged map.
+#[derive(Clone, Debug)]
+pub struct ReconcileOutcome {
     pub pushed: SideCounts,
-    /// Local-applied counts; mirror-from-remote deletes fold into `delete`.
     pub pulled: SideCounts,
     pub adopted: u32,
     pub conflicts: Vec<Conflict>,
@@ -84,6 +80,23 @@ pub struct SyncReconcileResult {
     pub pull_updates: Vec<PullUpdate>,
     pub pull_delete_ids: Vec<u32>,
     pub mirror_local_delete_ids: Vec<u32>,
+}
+
+/// What a reconcile answers: both sides' counts, the conflicts held for the user, and the
+/// local change the pull half landed.
+#[derive(Clone, Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncReconcileResult {
+    /// Remote-applied counts; mirror-from-local deletes fold into `delete`.
+    pub pushed: SideCounts,
+    /// Local-applied counts; mirror-from-remote deletes fold into `delete`.
+    pub pulled: SideCounts,
+    pub adopted: u32,
+    pub conflicts: Vec<Conflict>,
+    /// The change the pull half made locally, or `null` when nothing was pulled.
+    pub mutation: Option<crate::store::engine::MutationResult>,
+    /// The rows the pull removed.
+    pub removed_ids: Vec<u32>,
 }
 
 // --- Layer 1: pure planning -------------------------------------------------
@@ -584,7 +597,7 @@ pub(crate) fn execute<P: SyncProvider>(
     planned: PlannedReconcile<P::Raw>,
     token: Option<i64>,
     sink: &mut dyn MappingSink,
-) -> AppResult<SyncReconcileResult> {
+) -> AppResult<ReconcileOutcome> {
     if let Some(batch) = &planned.push_batch {
         let push_hashes = &planned.push_hashes;
         let mut commit = |pushed: &[PushedId]| -> AppResult<()> {
@@ -615,7 +628,7 @@ pub(crate) fn execute<P: SyncProvider>(
         sink.delete(&planned.mapping_delete_ids)?;
     }
 
-    Ok(SyncReconcileResult {
+    Ok(ReconcileOutcome {
         pushed: SideCounts {
             create: planned.counts_push.create,
             update: planned.counts_push.update,
@@ -672,7 +685,7 @@ fn reconcile_with<P: SyncProvider>(
     req: &ReconcileRequest<'_>,
     mapping: &[RemoteMappingRow],
     conn: &mut Connection,
-) -> AppResult<SyncReconcileResult> {
+) -> AppResult<ReconcileOutcome> {
     let t = Instant::now();
     let snapshot = provider.pull(req.remote_map_id)?;
     log::info!(
@@ -723,10 +736,7 @@ pub(crate) const PROVIDERS: [&ProviderSpec; 3] = [
     &FileProvider::SPEC,
 ];
 
-fn run_reconcile(
-    provider_name: &str,
-    req: &ReconcileRequest<'_>,
-) -> AppResult<SyncReconcileResult> {
+fn run_reconcile(provider_name: &str, req: &ReconcileRequest<'_>) -> AppResult<ReconcileOutcome> {
     let mut conn = storage::open_db()?;
     let mapping = remote_mapping::get(&conn, provider_name, req.map_id)?;
 
@@ -790,20 +800,186 @@ pub async fn sync_reconcile(
     };
     let resolutions = resolutions.unwrap_or_default();
 
-    async_runtime::spawn_blocking(move || {
-        run_reconcile(
-            &provider,
-            &ReconcileRequest {
-                map_id: &map_id,
-                remote_map_id: &remote_map_id,
-                local_locs: &local_locs,
-                tag_names: &tag_names,
-                first_sync,
-                resolutions: &resolutions,
-            },
-        )
+    let out = {
+        let provider = provider.clone();
+        let map_id = map_id.clone();
+        async_runtime::spawn_blocking(move || {
+            run_reconcile(
+                &provider,
+                &ReconcileRequest {
+                    map_id: &map_id,
+                    remote_map_id: &remote_map_id,
+                    local_locs: &local_locs,
+                    tag_names: &tag_names,
+                    first_sync,
+                    resolutions: &resolutions,
+                },
+            )
+        })
+        .await??
+    };
+
+    let (mutation, created_rows) = {
+        let mut mgr = state.lock()?;
+        let store = mgr.store_for_map(&map_id)?;
+        apply_pull(store, &out)?
+    };
+    let update_rows: Vec<RemoteMappingRow> = out
+        .pull_updates
+        .iter()
+        .map(|u| RemoteMappingRow {
+            local_id: u.local_id,
+            remote_id: u.remote_id,
+            hash: u.hash.clone(),
+        })
+        .collect();
+    if !created_rows.is_empty() || !update_rows.is_empty() || !out.pull_delete_ids.is_empty() {
+        let mut conn = crate::store::storage::open_db()?;
+        if !created_rows.is_empty() {
+            remote_mapping::upsert(&mut conn, &provider, &map_id, &created_rows)?;
+        }
+        if !update_rows.is_empty() {
+            remote_mapping::upsert(&mut conn, &provider, &map_id, &update_rows)?;
+        }
+        if !out.pull_delete_ids.is_empty() {
+            remote_mapping::delete(&mut conn, &provider, &map_id, &out.pull_delete_ids)?;
+        }
+    }
+
+    let mut removed_ids = out.pull_delete_ids;
+    removed_ids.extend(&out.mirror_local_delete_ids);
+    Ok(SyncReconcileResult {
+        pushed: out.pushed,
+        pulled: out.pulled,
+        adopted: out.adopted,
+        conflicts: out.conflicts,
+        mutation,
+        removed_ids,
     })
-    .await?
+}
+
+/// The pull half landed locally: creates, updates and deletes as one undo step, with the
+/// incoming tags riding the layer as piles and interning as the rows fold in. Answers the
+/// change and the created rows' mapping.
+fn apply_pull(
+    store: &mut crate::store::engine::Store,
+    out: &ReconcileOutcome,
+) -> AppResult<(
+    Option<crate::store::engine::MutationResult>,
+    Vec<RemoteMappingRow>,
+)> {
+    use crate::store::engine::{Edit, Target};
+    let edit_count = out.pull_creates.len()
+        + out.pull_updates.len()
+        + out.pull_delete_ids.len()
+        + out.mirror_local_delete_ids.len();
+    if edit_count == 0 {
+        return Ok((None, Vec::new()));
+    }
+    let layer = format!("sync:{}", store.map_id.as_deref().unwrap_or_default());
+    let target = Target::Pending {
+        name: layer.clone(),
+    };
+    store.drop_pending(&layer);
+
+    let needed: HashMap<&str, Option<&str>> = out
+        .needed_tags
+        .iter()
+        .map(|t| (t.name.as_str(), t.color.as_deref()))
+        .collect();
+    let mut piles: Vec<(u32, crate::store::engine::ValueRecord)> = Vec::new();
+    let mut pile_of: HashMap<String, u32> = HashMap::new();
+    let mut tag_of = |name: &str| -> u32 {
+        if let Some(&id) = pile_of.get(name) {
+            return id;
+        }
+        let id = piles.len() as u32 + 1;
+        let mut rec = crate::store::engine::ValueRecord::new();
+        rec.insert("name".into(), name.into());
+        if let Some(color) = needed.get(name).copied().flatten() {
+            rec.insert("color".into(), color.into());
+        }
+        piles.push((id, rec));
+        pile_of.insert(name.to_string(), id);
+        id
+    };
+
+    let mut edits: Vec<Edit> = Vec::new();
+    for c in &out.pull_creates {
+        edits.push(Edit::Set(pulled_location(&c.fields, &mut tag_of)));
+    }
+    for u in &out.pull_updates {
+        edits.push(Edit::Put(pulled_patch(u, &mut tag_of)));
+    }
+    for &id in out
+        .pull_delete_ids
+        .iter()
+        .chain(&out.mirror_local_delete_ids)
+    {
+        edits.push(Edit::Remove(id));
+    }
+
+    store.edit(&target, Vec::new(), false, None, true);
+    if let Some(p) = store.pending.get_mut(&layer) {
+        p.incoming.insert("tags".to_string(), piles);
+    }
+    let result = store.edit(&target, edits, true, None, true);
+    let rows = match result.first_id {
+        Some(first) => out
+            .pull_creates
+            .iter()
+            .enumerate()
+            .map(|(i, c)| RemoteMappingRow {
+                local_id: first + i as u32,
+                remote_id: c.remote_id,
+                hash: c.hash.clone(),
+            })
+            .collect(),
+        None => Vec::new(),
+    };
+    Ok((Some(result), rows))
+}
+
+/// A remote-created row as this map stores it, its tag names resolved through the layer.
+fn pulled_location(n: &NormalizedSyncLocation, tag_of: &mut impl FnMut(&str) -> u32) -> Location {
+    Location {
+        id: 0,
+        lat: n.lat,
+        lng: n.lng,
+        heading: n.heading,
+        pitch: n.pitch,
+        zoom: n.zoom,
+        pano_id: n.pano_id.as_deref().map(Into::into),
+        flags: crate::types::LocationFlags::from_bits_truncate(n.flags),
+        tags: n.tags.iter().map(|t| tag_of(t)).collect(),
+        extra: n.extra.as_ref().and_then(crate::types::RawExtra::from_map),
+        created_at: crate::util::now_unix(),
+        modified_at: None,
+    }
+}
+
+/// A remote-originated patch as a local one, its tag names resolved through the layer.
+fn pulled_patch(u: &PullUpdate, tag_of: &mut impl FnMut(&str) -> u32) -> Patch<Location> {
+    let p = &u.patch;
+    Patch::<Location> {
+        id: u.local_id,
+        lat: p.lat,
+        lng: p.lng,
+        heading: p.heading,
+        pitch: p.pitch,
+        zoom: p.zoom,
+        pano_id: p.pano_id.as_ref().map(|o| o.as_deref().map(Into::into)),
+        flags: p.flags.map(crate::types::LocationFlags::from_bits_truncate),
+        tags: p
+            .tags
+            .as_ref()
+            .map(|names| names.iter().map(|t| tag_of(t)).collect()),
+        extra: p
+            .extra
+            .as_ref()
+            .map(|o| o.as_ref().and_then(crate::types::RawExtra::from_map)),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]

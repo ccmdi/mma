@@ -22,6 +22,8 @@ import {
 	openStagedLocation,
 	resolveLocation,
 	setActiveLocation,
+	read,
+	rowsOf,
 } from "@/store/useMapStore";
 import { toggleManualSelection } from "@/store/selections";
 import { isVirtualLocation, isImportPreview, locId, createLocation } from "@/types";
@@ -84,7 +86,16 @@ export async function openHref(href: string) {
 		await openExternal(href);
 		return;
 	}
-	const nearby = await cmd.storeFindNearby(parsed.lat, parsed.lng, 2.0);
+	const nearby = await rowsOf(
+		(
+			await read(
+				{ type: "Everything" },
+				{ kind: "nearby", lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
+				{ kind: "rows" },
+				"rows",
+			)
+		).rows,
+	);
 	const match = nearby.find((l) => parsed.panoId && l.panoId === parsed.panoId) ?? nearby[0];
 	if (match) {
 		await setActiveLocation(match);
@@ -108,7 +119,7 @@ export async function createLocationAtLatLng(
 ): Promise<Location | null> {
 	const area = getMapState().workArea;
 	if (area === "plugin" || area === "import" || area === "diff") return null;
-	const active = getMapState().activeLocation;
+	const active = getMapState().openRow;
 	if (active != null && isImportPreview(active)) return null;
 
 	const tr = trace("add");
@@ -220,7 +231,19 @@ export async function handleMapClick(
 			return;
 		}
 		if (ctx.clickMode === "nearest") {
-			const nearest = await cmd.storeFindNearest(info.coordinate[1], info.coordinate[0]);
+			const nearest =
+				(
+					await rowsOf(
+						(
+							await read(
+								{ type: "Everything" },
+								{ kind: "nearest", lat: info.coordinate[1], lng: info.coordinate[0] },
+								{ kind: "rows" },
+								"rows",
+							)
+						).rows,
+					)
+				)[0] ?? null;
 			if (!nearest) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void applySelectionUpdate(toggleManualSelection(nearest.id));

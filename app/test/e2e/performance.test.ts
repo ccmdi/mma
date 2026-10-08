@@ -228,7 +228,16 @@ async function settleBaseline(message: string): Promise<void> {
 	await withApi(async (api, msg) => {
 		api.cancelAutosave();
 		await api.waitForInflightPersist();
-		if ((await api.cmd.storeGetSummary()).dirtyCount > 0) await api.commitMap(msg);
+		if (
+			(
+				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				}
+			).dirtyCount > 0
+		)
+			await api.commitMap(msg);
 	}, message);
 }
 
@@ -498,7 +507,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				if (api.getMapState().activeLocation?.id !== id) throw new Error(`not active: ${id}`);
+				if (api.getMapState().openRow?.id !== id) throw new Error(`not active: ${id}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, helperB),
 	});
@@ -641,7 +650,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				if (location.id <= 0 || count !== target + 1) {
 					throw new Error(`add gave id=${location.id} count=${count}, expected ${target + 1}`);
 				}
@@ -664,7 +679,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
-					const total = (await api.cmd.storeGetSummary()).locationCount;
+					const total = (
+						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+							locationCount: number;
+							version: number;
+							dirtyCount: number;
+						}
+					).locationCount;
 					if (total !== target + count)
 						throw new Error(`bulk add left ${total}, expected ${target + count}`);
 					return { durationMs: performance.now() - start, operationMs };
@@ -724,7 +745,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
-					const count = (await api.cmd.storeGetSummary()).locationCount;
+					const count = (
+						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+							locationCount: number;
+							version: number;
+							dirtyCount: number;
+						}
+					).locationCount;
 					if (count !== target - 1) throw new Error(`remove left ${count}, expected ${target - 1}`);
 					return { durationMs: performance.now() - start, operationMs };
 				},
@@ -755,7 +782,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				if (count !== target - removed) {
 					throw new Error(`delete left ${count}, expected ${target - removed}`);
 				}
@@ -775,7 +808,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				if (count !== 0) throw new Error(`remove-all left ${count} locations`);
 				return { durationMs: performance.now() - start, operationMs, metrics: { rows: ids.size } };
 			}),
@@ -803,7 +842,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				if (count !== target) throw new Error(`undo restored ${count}, expected ${target}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, baseline),
@@ -830,7 +875,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (await api.cmd.storeGetSummary()).locationCount;
+				const count = (
+					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						locationCount: number;
+						version: number;
+						dirtyCount: number;
+					}
+				).locationCount;
 				if (count >= target) throw new Error(`redo left ${count} of ${target}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, baseline),
@@ -866,7 +917,16 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				api.cancelAutosave();
 				await api.waitForInflightPersist();
-				if ((await api.cmd.storeGetSummary()).dirtyCount > 0) await api.commitMap("Bench setup");
+				if (
+					(
+						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+							locationCount: number;
+							version: number;
+							dirtyCount: number;
+						}
+					).dirtyCount > 0
+				)
+					await api.commitMap("Bench setup");
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`commit helper ${id} is missing`);
 				await api.updateLocations([{ id, pitch: (loc.pitch ?? 0) + 0.25 }]);
@@ -878,7 +938,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				const commitId = await api.commitMap("Bench one-row update");
 				const durationMs = performance.now() - start;
-				const summary = await api.cmd.storeGetSummary();
+				const summary = (await api.cmd.storeRead({ type: "Everything" }, null, {
+					kind: "summary",
+				})) as { locationCount: number; version: number; dirtyCount: number };
 				if (!commitId || summary.dirtyCount !== 0) {
 					throw new Error(`commit failed: id=${commitId} dirty=${summary.dirtyCount}`);
 				}

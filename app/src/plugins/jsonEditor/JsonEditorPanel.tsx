@@ -1,6 +1,5 @@
 import { useState, useRef } from "react";
-import { patchBetween, type Tag } from "@/types";
-import { LOCATION_MERGED } from "@/bindings.consts";
+import type { Tag } from "@/types";
 import type { Location } from "@/bindings.gen";
 import { createTags } from "@/store/useMapStore";
 import { locDate } from "@/lib/util/format";
@@ -29,7 +28,7 @@ async function resolveTagNames(names: string[]): Promise<number[]> {
 }
 
 export function JsonEditorPanel() {
-	const active = MMA.getMapState().activeLocation;
+	const active = MMA.getMapState().openRow;
 	const prevIdRef = useRef(active?.id);
 	const [text, setText] = useState(() => (active ? serializeActive(active) : ""));
 	const [error, setError] = useState<string | null>(null);
@@ -51,8 +50,10 @@ export function JsonEditorPanel() {
 				parsed.tags = await resolveTagNames(parsed.tags as unknown as string[]);
 			}
 			setError(null);
-			const patch = patchBetween(active, { ...active, ...parsed }, LOCATION_MERGED);
-			void MMA.updateLocations([{ ...patch, id: active.id }]);
+			// `extra` merges key by key, so a key the text dropped must be cleared with null.
+			const cleared = Object.fromEntries(Object.keys(active.extra ?? {}).map((k) => [k, null]));
+			const extra = parsed.extra ? { ...cleared, ...parsed.extra } : undefined;
+			void MMA.updateLocations([{ ...parsed, ...(extra && { extra }), id: active.id }]);
 			setSaved(true);
 		} catch (e: unknown) {
 			setError(errText(e));
