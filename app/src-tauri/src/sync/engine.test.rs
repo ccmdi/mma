@@ -1,4 +1,5 @@
 use super::*;
+use crate::store::engine::Stack;
 use crate::sync::{
     sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, RemoteSnapshot, SyncDirection,
 };
@@ -1516,7 +1517,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     let (mutation, rows) = apply_pull(&mut store, &out).unwrap();
     let mutation = mutation.expect("the pull landed a change");
     assert_eq!(mutation.added, vec![3]);
-    assert_eq!(store.edits.undo_len(), 1);
+    assert_eq!(store.edits.len(Stack::Undo), 1);
 
     let created = store.get_loc_by_id(3).expect("create landed");
     let meta = &store.value_meta["tags"];

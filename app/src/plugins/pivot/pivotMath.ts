@@ -1,4 +1,4 @@
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import type { RGB } from "@/lib/util/color";
 import { localeFormat } from "@/lib/util/format";
 

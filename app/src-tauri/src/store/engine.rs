@@ -7,10 +7,13 @@
 //! `Change` via `finish_mutation`.
 
 use crate::types::{AppError, AppResult};
+use mma_algebra::{Counts, Delta, Patch, Patchable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Mutex;
 
+mod dependencies;
+pub(crate) use dependencies::*;
 pub use frame::*;
 pub(crate) use history::*;
 pub use membership::*;
@@ -139,7 +142,7 @@ pub struct Store {
     /// overlay is folded in at query time, and `finish_mutation` moves changed rows
     /// through them, so a value's count is its postings' cardinality with no separate
     /// counter to keep in step.
-    pub(crate) field_indexes: selections::FieldIndexes,
+    field_indexes: selections::FieldIndexes,
     pub(crate) edits: Tracked<EditStacks>,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
@@ -182,11 +185,7 @@ impl Store {
                 arrow_style: false,
                 marker_color: [42, 42, 42],
             },
-            selections: SelectionState {
-                resolved: Vec::new(),
-                node_counts: HashMap::new(),
-                ids: RoaringBitmap::new(),
-            },
+            selections: SelectionState::default(),
             value_meta: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
             edits: Tracked::default(),
@@ -211,58 +210,74 @@ impl Store {
         self.alive_count.ship();
         self.edits.ship();
         self.meta.ship();
-        let value_counts = Some(self.eager_value_counts());
-        let value_meta = Some(
-            self.value_meta
-                .iter_mut()
-                .map(|(field, meta)| {
-                    meta.ship();
-                    (field.clone(), (**meta).clone())
-                })
-                .collect(),
-        );
+        let fields: Vec<_> = selections::BUILTIN_FIELDS
+            .iter()
+            .filter(|field| field.field_type.index_shape() != maps::IndexShape::None)
+            .map(|field| field.key.to_string())
+            .collect();
+        let field_values = self
+            .fields(fields.iter().map(String::as_str))
+            .into_iter()
+            .map(|values| (values.field().to_string(), values.project(values.keys())))
+            .collect();
         StoreStatus {
             version: self.version,
             derived: Derived {
                 location_count: Some(*self.alive_count),
-                can_undo: Some(self.edits.undo_len() > 0),
-                can_redo: Some(self.edits.redo_len() > 0),
-                value_counts,
-                value_meta,
+                meta: None,
+                history: Some(self.history()),
+                field_values: Some(field_values),
                 field_defs: Some(self.meta.extra.fields.clone()),
                 selection_counts: Some(self.selections.node_counts.clone()),
-                dead_values: None,
+                selection_list: Some(self.selection_list()),
             },
         }
     }
 
-    /// Per-value counts for every field indexed unconditionally (the enumerable
-    /// builtins) - the open-time full picture JS derives its views from.
-    fn eager_value_counts(&mut self) -> HashMap<String, HashMap<String, usize>> {
-        selections::BUILTIN_FIELDS
-            .iter()
-            .filter(|f| f.field_type.index_shape() != maps::IndexShape::None)
-            .map(|f| (f.key.to_string(), self.value_counts(f.key)))
-            .collect()
+    fn history(&self) -> History {
+        History {
+            undo: self.edits.len(Stack::Undo) > 0,
+            redo: self.edits.len(Stack::Redo) > 0,
+        }
     }
 
     /// Bump version, project the semantic changeset onto the render cells and the
     /// selection state, send every watching window the frame, and return the mutation
     /// result. The changeset is the single source of truth; the frame and the selection
     /// sync are two projections of it.
-    pub(crate) fn finish_mutation(&mut self, changes: &Change) -> MutationResult {
-        self.finish(changes, &Piles::new(), false)
+    #[cfg(test)]
+    pub(crate) fn finish_mutation(&mut self, changes: &Change) -> Mutation {
+        let mut entry = Entry {
+            rows: changes.clone(),
+            ..Default::default()
+        };
+        entry.selections = self.selection_consequences(&entry);
+        self.put_entry(&Entry {
+            selections: entry.selections.clone(),
+            ..Default::default()
+        });
+        self.finish_entry(&entry)
     }
 
     /// [`Store::finish_mutation`] for a write that also moved records.
-    pub(crate) fn finish_entry(&mut self, entry: &Entry) -> MutationResult {
-        self.finish(&entry.rows, &entry.piles, false)
+    pub(crate) fn finish_entry(&mut self, entry: &Entry) -> Mutation {
+        let meta = entry
+            .meta
+            .updated
+            .first()
+            .map(|(old, new)| maps::MapMeta::between(old, new));
+        self.finish(
+            &entry.rows,
+            &entry.piles,
+            !entry.selections.is_empty(),
+            meta,
+        )
     }
 
     /// Finish a change to the selection list itself: no row moves, and the frame restates
     /// every row's selection.
-    pub(crate) fn finish_selection_change(&mut self) -> MutationResult {
-        self.finish(&Change::default(), &Piles::new(), true)
+    pub(crate) fn finish_selection_change(&mut self) -> Mutation {
+        self.finish(&Change::default(), &Piles::new(), true, None)
     }
 
     fn finish(
@@ -270,69 +285,44 @@ impl Store {
         changes: &Change,
         piles: &Piles,
         selections_replaced: bool,
-    ) -> MutationResult {
-        self.register_fields(changes);
+        meta: Option<Patch<maps::MapMeta>>,
+    ) -> Mutation {
         let before = self.version;
         self.bump();
         self.update_bounds(changes, before);
 
-        // The indexes are a projection of the changeset like the frame is: postings
-        // follow the rows here, so no mutation path can move a row past its counts.
-        let removed: Vec<&Location> = changes
-            .removed
-            .iter()
-            .chain(changes.updated.iter().map(|(o, _)| o))
+        let mut moved = self.reindex(changes);
+        for (field, delta) in piles {
+            moved
+                .entry(field.clone())
+                .or_default()
+                .extend(delta.keys_iter().map(|id| id.to_string()));
+        }
+        let field_values: HashMap<String, HashMap<String, Option<HeldValue>>> = self
+            .fields(moved.keys().map(String::as_str))
+            .into_iter()
+            .map(|values| {
+                let field = values.field();
+                (
+                    field.to_string(),
+                    values.project(moved[field].iter().cloned()),
+                )
+            })
             .collect();
-        let added: Vec<&Location> = changes
-            .added
-            .iter()
-            .chain(changes.updated.iter().map(|(_, n)| n))
-            .collect();
-        let moved_fields = self.reindex(&removed, &added);
-        let dead_values = {
-            let dead: HashMap<String, Vec<u32>> = selections::BUILTIN_FIELDS
-                .iter()
-                .filter(|f| f.interned)
-                .filter_map(|f| {
-                    let mut dead: BTreeSet<u32> = removed
-                        .iter()
-                        .filter_map(|l| {
-                            match selections::RowRef::from_loc(l).resolve_field(f.key) {
-                                Some(serde_json::Value::Array(ids)) => Some(ids),
-                                _ => None,
-                            }
-                        })
-                        .flatten()
-                        .filter_map(|v| v.as_u64().map(|n| n as u32))
-                        .collect();
-                    if !dead.is_empty() {
-                        let counts = self.value_counts(f.key);
-                        dead.retain(|v| counts.get(&v.to_string()).copied().unwrap_or(0) == 0);
-                    }
-                    dead.extend(
-                        piles
-                            .get(f.key)
-                            .into_iter()
-                            .flat_map(|d| d.removed.iter().map(|(id, _)| *id)),
-                    );
-                    (!dead.is_empty()).then(|| (f.key.to_string(), dead.into_iter().collect()))
-                })
-                .collect();
-            (!dead.is_empty()).then_some(dead)
-        };
 
         // A metadata-only mutation (a value rename or reorder, a create with nothing to
         // assign) moves no rows, so there is no membership to re-test.
-        let has_selections = !changes.is_empty() && !self.selections.resolved.is_empty();
-        let full_resolve =
-            has_selections && (changes.len() > 100 || self.selections_need_full_resolve());
+        let has_selections =
+            (!changes.is_empty() || selections_replaced) && !self.selections.is_empty();
+        let full_resolve = has_selections
+            && (selections_replaced || changes.len() > 100 || self.selections.set_dependent);
 
-        let membership_delta = if has_selections {
-            if full_resolve {
+        let membership_delta = if has_selections || selections_replaced {
+            if full_resolve || selections_replaced {
                 self.resolve_selection_membership();
                 None
             } else {
-                Some(self.update_selection_membership(changes))
+                Some(self.selections.update(changes))
             }
         } else {
             None
@@ -348,7 +338,15 @@ impl Store {
         let frame = Frame {
             kind: FrameKind::PATCH,
             version: self.version,
-            palette: self.selections.palette(),
+            palette: self
+                .selections
+                .live()
+                .map(|root| {
+                    root.sel.display_color(&|field, id| {
+                        self.value_record(field, id).and_then(record_color)
+                    })
+                })
+                .collect(),
             cells: Frame::cells_of(cells),
             selection: restated.then(|| self.selection_section()),
         };
@@ -356,48 +354,34 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
-        let value_counts = (!moved_fields.is_empty()).then(|| {
-            moved_fields
-                .iter()
-                .map(|f| (f.clone(), self.value_counts(f)))
-                .collect()
-        });
-        let value_meta = {
-            let changed: HashMap<String, HashMap<u32, ValueRecord>> = self
-                .value_meta
-                .iter_mut()
-                .filter_map(|(field, meta)| meta.take_changed().map(|m| (field.clone(), m)))
-                .collect();
-            (!changed.is_empty()).then_some(changed)
-        };
         let mut derived = Derived {
-            value_counts,
-            value_meta,
+            meta,
+            field_values: (!field_values.is_empty()).then_some(field_values),
             field_defs: self.meta.ship().then(|| self.meta.extra.fields.clone()),
             selection_counts: (has_selections || selections_replaced)
                 .then(|| self.selections.node_counts.clone()),
-            dead_values,
+            selection_list: (selections_replaced || piles.values().any(|delta| !delta.is_empty()))
+                .then(|| self.selection_list()),
             ..Default::default()
         };
         if self.alive_count.ship() {
             derived.location_count = Some(*self.alive_count);
         }
         if self.edits.ship() {
-            derived.can_undo = Some(self.edits.undo_len() > 0);
-            derived.can_redo = Some(self.edits.redo_len() > 0);
+            derived.history = Some(self.history());
         }
         let keys = changes.keys();
-        let result = MutationResult {
+        let result = Mutation {
             version: self.version,
             added: keys.added.clone(),
         };
-        if !changes.is_empty() || !derived.is_empty() {
-            self.changes.send(ChangeEvent {
-                version: self.version,
-                keys,
-                derived,
-            });
-        }
+        // Unconditional: the feed is the observation contract, so every version is
+        // announced and a watcher can await "the feed reached my mutation".
+        self.changes.send(ChangeEvent {
+            version: self.version,
+            keys,
+            derived,
+        });
         result
     }
 
@@ -410,16 +394,7 @@ impl Store {
 
     /// Look up a location by ID across patches, overlay_adds (binary search), and batch.
     pub(crate) fn get_loc_by_id(&self, id: u32) -> Option<Location> {
-        if self.overlay.dead.contains(id) {
-            return None;
-        }
-        if let Some(patched) = self.overlay.patches.get(&id) {
-            return Some(patched.clone());
-        }
-        if let Ok(i) = self.overlay.adds.binary_search_by_key(&id, |l| l.id) {
-            return Some(self.overlay.adds[i].clone());
-        }
-        self.base_loc_by_id(id)
+        self.rows().get(id).map(|row| row.to_location())
     }
 
     /// Read a single location from the committed base batch by id (ignores the
@@ -434,7 +409,7 @@ impl Store {
     /// adds are created, patches on base rows are updated (patches absent from the
     /// base are net adds), dead base rows are removed. Added-then-removed ids never
     /// touch the base and count as nothing. O(overlay * log n).
-    pub(crate) fn overlay_diff_counts(&self) -> mma_algebra::Counts {
+    pub(crate) fn overlay_diff_counts(&self) -> Counts {
         let in_base = |id: u32| {
             self.batch
                 .as_ref()
@@ -450,7 +425,7 @@ impl Store {
             }
         }
         let removed = self.overlay.dead.iter().filter(|&id| in_base(id)).count() as u32;
-        mma_algebra::Counts {
+        Counts {
             added,
             removed,
             updated,
@@ -734,8 +709,8 @@ impl FunctionArg for WindowLabel {
 // Helpers
 // ---------------------------------------------------------------------------
 
-/// Open-time snapshot: the same derived state a change carries, with every field
-/// present. The one full picture JS ever receives; everything after is a delta.
+/// Map state as of a version: every field when a map opens, only what moved after an
+/// edit that answers with it.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStatus {
@@ -828,7 +803,7 @@ impl<T> Ensured<T> {
         self.0.as_mut()
     }
 
-    #[cfg(test)]
+    /// The value as last built, unchecked: for a reader whose doorway already ensured it.
     pub(crate) fn peek(&self) -> Option<&T> {
         self.0.as_ref()
     }
@@ -893,14 +868,6 @@ impl<T> Tracked<T> {
             self.shipped = At::new(self.rev, ());
         }
         changed
-    }
-
-    /// The value if edited since JS last saw it.
-    pub(crate) fn take_changed(&mut self) -> Option<T>
-    where
-        T: Clone,
-    {
-        self.ship().then(|| self.value.clone())
     }
 
     pub(crate) fn is_unsaved(&self) -> bool {

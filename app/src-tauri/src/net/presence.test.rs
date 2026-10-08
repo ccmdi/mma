@@ -28,8 +28,8 @@ fn submit_returns_while_connect_is_blocked() {
         Some(Fake)
     });
     let t = Instant::now();
-    w.submit(true, |_| Ok(()));
-    w.submit(true, |_| Ok(()));
+    w.submit(Reach::Connect, |_| Ok(()));
+    w.submit(Reach::Connect, |_| Ok(()));
     assert!(t.elapsed() < Duration::from_millis(100));
     let _ = gate_tx.send(());
     let _ = gate_tx.send(());
@@ -43,7 +43,7 @@ fn jobs_run_in_submission_order() {
     for i in 0..20 {
         let seen = seen.clone();
         let done_tx = done_tx.clone();
-        w.submit(true, move |_| {
+        w.submit(Reach::Connect, move |_| {
             seen.lock().unwrap().push(i);
             let _ = done_tx.send(());
             Ok(())
@@ -61,13 +61,13 @@ fn no_connect_jobs_are_dropped_when_disconnected() {
     let ran = Arc::new(AtomicUsize::new(0));
     {
         let ran = ran.clone();
-        w.submit(false, move |_| {
+        w.submit(Reach::IfConnected, move |_| {
             ran.fetch_add(1, Ordering::SeqCst);
             Ok(())
         });
     }
     // A connecting job after it proves the queue drained past the dropped one.
-    w.submit(true, move |_| {
+    w.submit(Reach::Connect, move |_| {
         let _ = done_tx.send(());
         Ok(())
     });
@@ -82,11 +82,11 @@ fn failed_job_drops_client_and_next_call_reconnects() {
     let w = Worker::spawn(counting_connect(connects.clone()));
     let (done_tx, done_rx) = channel();
     let d = done_tx.clone();
-    w.submit(true, move |_| {
+    w.submit(Reach::Connect, move |_| {
         let _ = d.send(());
         Err("pipe broke".into())
     });
-    w.submit(true, move |_| {
+    w.submit(Reach::Connect, move |_| {
         let _ = done_tx.send(());
         Ok(())
     });

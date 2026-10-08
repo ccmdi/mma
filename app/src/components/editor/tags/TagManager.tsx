@@ -12,7 +12,8 @@ import * as edit from "@/store/edit";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
-import type { Selector, VirtualTag } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { VirtualTag } from "@/bindings.gen";
 import {
 	Dialog,
 	DialogActions,
@@ -31,7 +32,7 @@ import { fmt } from "@/lib/util/format";
 import { hexToHsl, hslToHex, type HSL } from "@/lib/util/color";
 import { TagPill } from "@/components/primitives/TagPill";
 import { useSetting, setSetting } from "@/store/settings";
-import { sortTagsByMode } from "@/lib/util/util";
+import { sortTagsByMode } from "@/lib/data/tags";
 import { useMapSetting } from "@/store/useMapSetting";
 import { HotkeyInput } from "@/components/primitives/HotkeyInput";
 import { getConflicts } from "@/lib/util/hotkeys";
@@ -399,7 +400,8 @@ function RenameTagsDialog({
 		const [target] = await edit.values("tags", { create: [{ name: trimmed }] });
 		const sources = tagIds.filter((id) => id !== target);
 		if (sources.length === 0) return;
-		await edit.work(all(any(...sources.map(tagSelector)), scope), {
+		const carriers = any(...sources.map(tagSelector));
+		await edit.work(scope ? all(carriers, scope) : carriers, {
 			kind: "listSet",
 			key: "tags",
 			add: [target],

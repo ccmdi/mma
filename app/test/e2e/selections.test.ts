@@ -37,7 +37,7 @@ describe("Selections - basic types", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	// --- Everything ---
@@ -168,7 +168,7 @@ describe("Selections - basic types", () => {
 		};
 		const result = await withApi(async (api, crossed: PolygonGeometry) => {
 			const count = async (polygon: PolygonGeometry) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection({ type: "Polygon", polygon }));
 				return api.getMapState().selectedLocationIds.size;
 			};
@@ -218,7 +218,7 @@ describe("Selection operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("intersection of two selections", async () => {
@@ -276,7 +276,7 @@ describe("Selection operations", () => {
 
 		const result = await withApi(async (api) => {
 			const before = api.getActiveSelections().length;
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			const after = api.getActiveSelections().length;
 			return { before, after };
 		});
@@ -320,7 +320,7 @@ describe("Selection correctness after mutations", () => {
 			for (const l of locs) {
 				await api.updateLocations([{ id: l.id, flags: 1 }]);
 			}
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			const after = api.getMapState().selectedLocationIds.size;
 			return { before, after };
@@ -331,13 +331,13 @@ describe("Selection correctness after mutations", () => {
 
 	it("selection updates after adding locations", async () => {
 		const result = await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
 			const before = (await api._test.syncSelections()).ids.length;
 
 			await api.addLocations([api.createLocation({ lat: 50, lng: 50 })]);
 
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
 			const after = (await api._test.syncSelections()).ids.length;
 			return { before, after };
@@ -347,7 +347,7 @@ describe("Selection correctness after mutations", () => {
 
 	it("selection updates after removing locations", async () => {
 		const result = await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
 			const before = (await api._test.syncSelections()).ids;
 			const toRemove = before[before.length - 1];
@@ -361,7 +361,7 @@ describe("Selection correctness after mutations", () => {
 	it("PanoIds selection correct after undo of flag change", async () => {
 		const loc0 = await getLoc(locIds[0]);
 		await withApi(async (api, loc) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			await api.updateLocations([{ id: loc.id, flags: 0 }]);
 		}, loc0);
@@ -383,7 +383,7 @@ describe("Selection correctness after mutations", () => {
 		const tagLoc1 = await getLoc(locIds[1]);
 		await withApi(
 			async (api, l0, l1, tagId: number) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.updateLocations([{ id: l0.id, tags: [tagId] }]);
 				await api.updateLocations([{ id: l1.id, tags: [tagId] }]);
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
@@ -408,7 +408,7 @@ describe("Selection with Filter", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("filter by string equality", async () => {

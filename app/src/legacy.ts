@@ -4,19 +4,15 @@
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
 import { addSelection, removeSelection, tagSelector } from "@/store/selections";
-import {
-	applySelectionUpdate,
-	getMapState,
-	getActiveSelections,
-	query,
-	read,
-} from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, getActiveSelections, query } from "@/store/useMapStore";
+import { cmd } from "@/lib/commands";
 import * as edit from "@/store/edit";
 import type { CountBy, KeySpec, Location, PartitionBucket } from "@/bindings.gen";
 import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
-import type { FieldDef, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { FieldDef } from "@/bindings.gen";
 
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. */
 export function getGoogleMap(): google.maps.Map | null {
@@ -74,7 +70,7 @@ export function getSelections() {
 
 /** @deprecated v0.8.2. Ask `MMA.read` for the summary and take `dirtyCount`. */
 export async function getDirtyCount(): Promise<number> {
-	return (await read({ type: "Everything" }, null, { kind: "summary" }, "summary")).dirtyCount;
+	return (await cmd.storeSummary()).dirtyCount;
 }
 
 /** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`. */
@@ -224,7 +220,7 @@ export function removeSelections(keys: string[]) {
 	return applySelectionUpdate(removeSelection(...keys));
 }
 
-/** @deprecated v0.11.3. Use `MMA.applySelectionUpdate(() => [])`. */
+/** @deprecated v0.11.3. Use `MMA.applySelectionUpdate({ kind: "set", selections: [] })`. */
 export function resetSelections() {
-	return applySelectionUpdate(() => []);
+	return applySelectionUpdate({ kind: "set", selections: [] });
 }

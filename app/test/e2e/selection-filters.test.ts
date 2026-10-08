@@ -16,7 +16,7 @@ describe("Selection filters — extra field operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("filter eq on string field", async () => {
@@ -180,7 +180,7 @@ describe("Selection filters — core field operations", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("filter on heading field", async () => {

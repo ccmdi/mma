@@ -1,4 +1,4 @@
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import type { FieldType } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";

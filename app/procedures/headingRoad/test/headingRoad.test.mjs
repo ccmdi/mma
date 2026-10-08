@@ -72,7 +72,7 @@ const PANO = "aaaaaaaaaaaaaaaaaaaaaA";
 test("forwards writes the driving direction unchanged", () => {
 	const { patches, asked, progress, failed } = runProcedure([row(1, PANO)], (id) => facing(id, 90));
 	assert.deepEqual(asked, [[PANO]]);
-	assert.deepEqual(patches, [{ id: 1, patch: { heading: 90 } }]);
+	assert.deepEqual(patches, [{ id: 1, heading: 90 }]);
 	assert.equal(progress, 1);
 	assert.deepEqual(failed, []);
 });
@@ -82,7 +82,7 @@ test("backwards matches normalizeHeading(center - 180) exactly", () => {
 		const { patches } = runProcedure([row(1, PANO)], (id) => facing(id, center), {
 			direction: "backwards",
 		});
-		assert.equal(patches[0].patch.heading, normalizeHeading(center - 180), `center ${center}`);
+		assert.equal(patches[0].heading, normalizeHeading(center - 180), `center ${center}`);
 	}
 });
 
@@ -90,7 +90,7 @@ test("an unknown direction reads as forwards", () => {
 	const { patches } = runProcedure([row(1, PANO)], (id) => facing(id, 12), {
 		direction: "sideways",
 	});
-	assert.deepEqual(patches, [{ id: 1, patch: { heading: 12 } }]);
+	assert.deepEqual(patches, [{ id: 1, heading: 12 }]);
 });
 
 test("metadata with no pov leaves the heading alone without failing", () => {
@@ -123,7 +123,7 @@ test("rows sharing a pano each get the heading, in one host call", () => {
 	const { patches, asked } = runProcedure([row(1, PANO), row(2, PANO)], (id) => facing(id, 33));
 	assert.equal(asked.length, 1);
 	assert.deepEqual(patches, [
-		{ id: 1, patch: { heading: 33 } },
-		{ id: 2, patch: { heading: 33 } },
+		{ id: 1, heading: 33 },
+		{ id: 2, heading: 33 },
 	]);
 });

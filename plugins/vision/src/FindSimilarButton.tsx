@@ -2,7 +2,7 @@ import { embed, searchImage } from "./sidecar";
 
 const {
 	ui: { Button },
-	getMapState,
+	getActiveLocation,
 	useJob,
 	fetchAllLocations,
 	applySelectionUpdate,
@@ -12,7 +12,7 @@ const {
 const SIMILARITY_THRESHOLD = 0.85;
 
 export function FindSimilarButton() {
-	const active = getMapState().activeLocation;
+	const active = getActiveLocation();
 	const panoId = active?.panoId;
 
 	const job = useJob<number>(async ({ signal, report }) => {

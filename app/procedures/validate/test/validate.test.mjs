@@ -125,10 +125,10 @@ function runProcedure(
 
 	const raw = run(rows.map(toRow), { fields: [], force: false, config });
 	for (const a of raw) {
-		assert.deepEqual(Object.keys(a.patch).sort(), ["flags", "pinned"]);
-		assert.equal(typeof a.patch.flags, "number");
+		assert.deepEqual(Object.keys(a).sort(), ["flags", "id", "pinned"]);
+		assert.equal(typeof a.flags, "number");
 	}
-	const answers = raw.map((a) => ({ id: a.id, patch: a.patch.flags }));
+	const answers = raw.map((a) => ({ id: a.id, patch: a.flags }));
 	return { answers, raw, metaCalls, coordCalls, progress, hostCalls };
 }
 
@@ -436,7 +436,7 @@ test("an answer says whether its row was pinned", () => {
 		{ panos: { [A]: meta(A) }, coords: { "1,2": A } },
 	);
 	assert.deepEqual(
-		raw.map((a) => a.patch.pinned),
+		raw.map((a) => a.pinned),
 		[false, true, false],
 	);
 });

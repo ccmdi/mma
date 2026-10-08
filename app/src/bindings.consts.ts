@@ -141,6 +141,18 @@ export const Sink = {
 } as const;
 export type Sink = (typeof Sink)[keyof typeof Sink];
 
+/**
+ * Which way through the edit history: back over what was done, or forward over what
+ * was undone.
+ */
+export const Stack = {
+	/** The edits that can be undone. */
+	Undo: "undo",
+	/** The undone edits that can be redone. */
+	Redo: "redo",
+} as const;
+export type Stack = (typeof Stack)[keyof typeof Stack];
+
 /** What started a sync pass. @unstable */
 export const SyncTrigger = {
 	/** Sync now was pressed. */
@@ -162,10 +174,6 @@ export const LocationFlag = {
 	LoadAsPanoId: 1,
 	/** Legacy marker (web). Kept as imported, with no effect in the app. */
 	Informational: 2,
-	/** A location from a pending import, opened for preview and not yet on the map. */
-	ImportPreview: 4,
-	/** A pano opened from the seen history overlay, not yet on the map. */
-	SeenOverlay: 8,
 } as const;
 export type LocationFlag = (typeof LocationFlag)[keyof typeof LocationFlag];
 
@@ -268,6 +276,3 @@ export const SCRATCH_MAP_ID = "scratch" as const;
 
 /** @unstable */
 export const ERROR_CODES = ["auth","attachment-not-staged","attachment-too-large","attachment-not-image","upload-rejected","report-rejected","report-unreadable","sign-in-timed-out","sign-in-token-rejected","issue-rejected","geoguessr-polygonal","geoguessr-draft-too-large"] as const;
-
-/** The bits a preview carries that a real location must not. @unstable */
-export const PREVIEW_FLAGS = 12 as const;

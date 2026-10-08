@@ -266,19 +266,19 @@ pub(crate) fn proxy_gmaps(
     }
 }
 
-fn googl_url(id: &str, mapsapp: bool) -> String {
-    if mapsapp {
-        format!("https://maps.app.goo.gl/{id}")
-    } else {
-        format!("https://goo.gl/maps/{id}")
-    }
+/// Where each kind of Google Maps short link lives.
+pub(crate) const GOOGL_LINKS: &str = "https://goo.gl/maps/";
+pub(crate) const MAPS_APP_LINKS: &str = "https://maps.app.goo.gl/";
+
+fn googl_url(id: &str, links: &str) -> String {
+    format!("{links}{id}")
 }
 
 /// The URL a goo.gl / maps.app.goo.gl short link redirects to, from its `Location`
 /// header; `None` for a link that answers without one.
-pub(crate) fn short_link_target(id: &str, mapsapp: bool) -> AppResult<Option<String>> {
+pub(crate) fn short_link_target(id: &str, links: &str) -> AppResult<Option<String>> {
     let resp = resolve_client()
-        .get(googl_url(id, mapsapp))
+        .get(googl_url(id, links))
         .send()
         .map_err(|e| format!("googl fetch error: {e}"))?;
     Ok(resp
@@ -290,8 +290,8 @@ pub(crate) fn short_link_target(id: &str, mapsapp: bool) -> AppResult<Option<Str
 
 /// googl: resolve a goo.gl / maps.app.goo.gl short link by reading its redirect
 /// `Location` header; returns the target URL as a JSON string.
-pub(crate) fn resolve_googl(id: &str, mapsapp: bool) -> Reply {
-    match short_link_target(id, mapsapp) {
+pub(crate) fn resolve_googl(id: &str, links: &str) -> Reply {
+    match short_link_target(id, links) {
         Ok(Some(location)) => cors()
             .status(200)
             .header("Content-Type", "application/json")
@@ -397,13 +397,18 @@ pub(crate) const SCHEMES: &[Scheme] = &[
         preflight: None,
         sidecars: false,
         handle: |c| {
-            let mapsapp = c
+            let links = if c
                 .query
                 .as_deref()
                 .unwrap_or("")
                 .split('&')
-                .any(|kv| kv == "source=mapsapp");
-            resolve_googl(c.id(), mapsapp)
+                .any(|kv| kv == "source=mapsapp")
+            {
+                MAPS_APP_LINKS
+            } else {
+                GOOGL_LINKS
+            };
+            resolve_googl(c.id(), links)
         },
     },
 ];

@@ -20,13 +20,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
 
-/// Keep only the persisted flag bits. [`LocationFlags::PREVIEW`] and any bit not declared at
-/// all are excluded from the synced contract, so a new bit starts syncing only when it is
-/// both declared and left out of `PREVIEW`, never by accident.
+/// Keep only the declared flag bits, so a new bit starts syncing only once it is declared.
 pub fn sync_flags(bits: u32) -> u32 {
-    bits & LocationFlags::all()
-        .difference(LocationFlags::PREVIEW)
-        .bits()
+    bits & LocationFlags::all().bits()
 }
 
 /// How a provider identifies a location across syncs.

@@ -15,9 +15,9 @@ function runMap(rows, fields = null) {
 	failed.length = 0;
 	const patches = map(rows, { fields: fields ?? [], force: false, config: null });
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
-	return patches.map((p) => ({ id: p.id, patch: p.patch.extra }));
+	return patches.map((p) => ({ id: p.id, patch: p.extra }));
 }
 
 /** Sun positions at four fixed instants, to the two decimals the module writes. */

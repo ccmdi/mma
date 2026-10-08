@@ -7,7 +7,6 @@ import {
 	settled,
 	openMap as storeOpenMap,
 	query,
-	syncSelections as storeSyncSelections,
 } from "@/store/useMapStore";
 import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
@@ -20,8 +19,12 @@ export { runProcedure, procedureEntry } from "@/lib/data/procedures";
 
 /** Force a full selection re-resolve and return the selected IDs. */
 export async function syncSelections(): Promise<{ ids: number[] }> {
-	if (getMapState().selectionList.length === 0) return { ids: [] };
-	await storeSyncSelections();
+	const rows = getMapState().selectionList;
+	if (rows.length === 0) return { ids: [] };
+	await settled(
+		(await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }))
+			.mutation,
+	);
 	return { ids: await query({ type: "Selected" }).ids() };
 }
 

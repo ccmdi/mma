@@ -236,7 +236,7 @@ describe("Bounds cache - selected-only", () => {
 	});
 
 	after(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 		await closeMap();
 		await deleteMap(mapId);
 	});
@@ -262,7 +262,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only with no selection returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			return api.fetchBounds({ type: "Selected" });
 		});
 		expect(bounds).toBeNull();

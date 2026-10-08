@@ -20,7 +20,7 @@ import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
 import { applySelectionUpdate, getActiveSelections, query, useMapState } from "@/store/useMapStore";
-import { addSelection, displayColor } from "@/store/selections";
+import { addSelection } from "@/store/selections";
 import { rgbCss } from "@/lib/util/color";
 import { mapOpen } from "@/lib/util/debug";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
@@ -120,7 +120,7 @@ export function MapEmbed({
 	const [pickedOpacityTarget, setOpacityTarget] = useState<OpacityLayer>("sv");
 	const selectionTint = useMapState(() => {
 		const active = getActiveSelections();
-		return active.length > 0 ? rgbCss(displayColor(active[0])) : null;
+		return active.length > 0 ? rgbCss(active[0].color) : null;
 	});
 	const opacityTargets: OpacityLayer[] = selectionTint
 		? ["sv", "marker", "selected"]

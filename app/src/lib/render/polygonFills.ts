@@ -1,4 +1,5 @@
-import type { ListedSelection, Selection, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { ListedSelection, Selection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
 type PolygonSelection = Selection & { selector: Extract<Selector, { type: "Polygon" }> };

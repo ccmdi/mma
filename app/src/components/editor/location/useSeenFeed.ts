@@ -1,5 +1,4 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { isImportPreview, isSeenPreview } from "@/types";
 import { useMapState } from "@/store/useMapStore";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
@@ -10,6 +9,7 @@ import { usePanoViewer } from "./PanoViewerContext";
  *  location's stored countryCode outranks the geocoder's. */
 export function useSeenFeed() {
 	const location = useMapState((s) => s.openRow);
+	const origin = useMapState((s) => s.open?.origin);
 	const { draft, geo } = usePanoViewer();
 	const pano = usePano();
 	const storedCountry =
@@ -18,14 +18,14 @@ export function useSeenFeed() {
 		() => geo && { address: geo.address, countryCode: storedCountry ?? geo.countryCode },
 		[geo, storedCountry],
 	);
-	const getSeed = useEffectEvent(() => ({ draft, location, effectiveGeo }));
+	const getSeed = useEffectEvent(() => ({ draft, location, origin, effectiveGeo }));
 
 	useEffect(() => {
-		const { draft, location, effectiveGeo } = getSeed();
+		const { draft, location, origin, effectiveGeo } = getSeed();
 		if (!draft?.panoId || !location) return;
 		seenPanoChanged(
 			{
-				locationId: isSeenPreview(location) || isImportPreview(location) ? null : location.id,
+				locationId: origin === "map" ? location.id : null,
 				panoId: draft.panoId,
 				lat: draft.lat,
 				lng: draft.lng,

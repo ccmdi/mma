@@ -1,8 +1,8 @@
-import type { FieldDef, KeySpec, PartitionBucket, Selection } from "@/bindings.gen";
+import type { FieldDef, KeySpec, PartitionBucket, SelectionInput } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
 import { ymOrdinal } from "@/lib/util/date";
 import { partitionLabel } from "@/lib/util/format";
-import { buildSelection } from "@/store/selections";
+import { selection } from "@/store/selections";
 
 export function lerp(a: RGB, b: RGB, t: number): RGB {
 	return [
@@ -41,7 +41,7 @@ export function fieldScale(value: string, type: string | undefined): number | nu
 // color proportionally when every key has a numeric scale (e.g. months, numeric strings),
 // else by even spacing.
 //
-// Selection shape:
+// SelectionInput shape:
 //   - unscoped numeric bin  -> live Filter `between` (re-evaluates against the whole map)
 //   - unscoped value group  -> live Filter `eq`
 //   - everything else       -> static Locations (projections can't be expressed as a Filter;
@@ -57,7 +57,7 @@ export function colorPartition(
 		ordinal: boolean;
 		eqFilter: boolean;
 	},
-): Selection[] {
+): SelectionInput[] {
 	// Numeric bins keep their empties for the pivot; an empty selection is noise here.
 	groups = groups.filter((g) => g.ids.length > 0);
 	if (groups.length === 0) return [];
@@ -80,18 +80,18 @@ export function colorPartition(
 		}
 	}
 
-	return groups.map((g, i): Selection => {
+	return groups.map((g, i): SelectionInput => {
 		const color = gradientColor(stops, ts[i]);
 		if (!narrowed && g.bin) {
 			const [lo, hi] = g.bin;
 			const test = { op: "between", lo, hi } as const;
-			return { ...buildSelection({ type: "Filter", field: fieldKey, test }), color };
+			return { ...selection({ type: "Filter", field: fieldKey, test }), color };
 		}
 		if (!narrowed && eqFilter) {
 			const test = { op: "eq", value: g.key } as const;
-			return { ...buildSelection({ type: "Filter", field: fieldKey, test }), color };
+			return { ...selection({ type: "Filter", field: fieldKey, test }), color };
 		}
 		const name = partitionLabel(g.key, spec);
-		return { ...buildSelection({ type: "Locations", locations: g.ids, name }), color };
+		return { ...selection({ type: "Locations", locations: g.ids, name }), color };
 	});
 }

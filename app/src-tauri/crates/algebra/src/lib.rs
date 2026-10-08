@@ -218,7 +218,9 @@ pub struct Keys<K> {
 }
 
 /// A change by cardinality alone: how many rows it created, deleted and rewrote.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
+)]
 pub struct Counts {
     /// Rows the change created.
     pub added: u32,
@@ -347,6 +349,10 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
         }
     }
 
+    pub fn keys_iter(&self) -> impl Iterator<Item = T::Key> + '_ {
+        self.after().chain(self.removed.iter()).map(T::key)
+    }
+
     /// What it did, by key.
     pub fn keys(&self) -> Keys<T::Key> {
         Keys {
@@ -389,6 +395,191 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
             table.insert(k.clone(), v.clone());
         }
     }
+}
+
+pub trait Delta: Default + Sized {
+    fn inverse(&self) -> Self;
+    fn then(self, later: Self) -> Self;
+    fn is_empty(&self) -> bool;
+}
+
+impl<T: Keyed + PartialEq + Clone> Delta for Change<T> {
+    fn inverse(&self) -> Self {
+        Change::inverse(self)
+    }
+    fn then(self, later: Self) -> Self {
+        Change::then(self, later)
+    }
+    fn is_empty(&self) -> bool {
+        Change::is_empty(self)
+    }
+}
+
+impl<K: Clone + Eq + Hash, D: Delta> Delta for HashMap<K, D> {
+    fn inverse(&self) -> Self {
+        self.iter()
+            .map(|(key, delta)| (key.clone(), delta.inverse()))
+            .collect()
+    }
+
+    fn then(mut self, later: Self) -> Self {
+        for (key, delta) in later {
+            let before = self.remove(&key).unwrap_or_default();
+            self.insert(key, before.then(delta));
+        }
+        self
+    }
+
+    fn is_empty(&self) -> bool {
+        self.values().all(Delta::is_empty)
+    }
+}
+
+pub fn ordered_table<T: Keyed>(rows: impl IntoIterator<Item = T>) -> HashMap<T::Key, (u32, T)> {
+    rows.into_iter()
+        .enumerate()
+        .map(|(i, row)| (row.key(), (i as u32, row)))
+        .collect()
+}
+
+pub fn ordered_rows<K, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
+    let mut rows: Vec<_> = table.into_values().collect();
+    rows.sort_by_key(|(order, _)| *order);
+    rows.into_iter().map(|(_, row)| row).collect()
+}
+
+pub trait Dependencies<K> {
+    fn inputs_changed_by(&self, changed: impl Fn(&K) -> bool) -> Vec<K>;
+    fn outputs_of<'a>(
+        &'a self,
+        inputs: impl IntoIterator<Item = &'a K>,
+    ) -> std::collections::HashSet<K>
+    where
+        K: 'a;
+    fn invalidated(
+        &self,
+        inputs: Vec<K>,
+        written: impl Fn(&K) -> bool,
+    ) -> std::collections::HashSet<K>;
+}
+
+impl<K: Clone + Eq + Hash> Dependencies<K> for HashMap<K, Vec<K>> {
+    fn inputs_changed_by(&self, changed: impl Fn(&K) -> bool) -> Vec<K> {
+        self.keys().filter(|key| changed(key)).cloned().collect()
+    }
+
+    fn outputs_of<'a>(
+        &'a self,
+        inputs: impl IntoIterator<Item = &'a K>,
+    ) -> std::collections::HashSet<K>
+    where
+        K: 'a,
+    {
+        inputs
+            .into_iter()
+            .flat_map(|input| self.get(input).into_iter().flatten())
+            .cloned()
+            .collect()
+    }
+
+    fn invalidated(
+        &self,
+        mut inputs: Vec<K>,
+        written: impl Fn(&K) -> bool,
+    ) -> std::collections::HashSet<K> {
+        let mut stale = std::collections::HashSet::new();
+        while let Some(input) = inputs.pop() {
+            for output in self.get(&input).into_iter().flatten() {
+                if !written(output) && stale.insert(output.clone()) {
+                    inputs.push(output.clone());
+                }
+            }
+        }
+        stale
+    }
+}
+
+impl<T> Change<T> {
+    pub fn before(&self) -> impl Iterator<Item = &T> {
+        self.removed
+            .iter()
+            .chain(self.updated.iter().map(|(old, _)| old))
+    }
+
+    pub fn after(&self) -> impl Iterator<Item = &T> {
+        self.added
+            .iter()
+            .chain(self.updated.iter().map(|(_, new)| new))
+    }
+
+    pub fn count_by<K: Eq + Hash, I: IntoIterator<Item = K>>(
+        &self,
+        project: impl Fn(&T) -> I,
+    ) -> HashMap<K, i64> {
+        let mut counts = HashMap::new();
+        for row in self.before() {
+            for key in project(row) {
+                *counts.entry(key).or_default() -= 1;
+            }
+        }
+        for row in self.after() {
+            for key in project(row) {
+                *counts.entry(key).or_default() += 1;
+            }
+        }
+        counts
+    }
+
+    pub fn project<U: Keyed + PartialEq + Clone>(&self, project: impl Fn(&T) -> U) -> Change<U> {
+        Change::from_rows(
+            self.added
+                .iter()
+                .map(|row| (None, Some(project(row))))
+                .chain(self.removed.iter().map(|row| (Some(project(row)), None)))
+                .chain(
+                    self.updated
+                        .iter()
+                        .map(|(old, new)| (Some(project(old)), Some(project(new)))),
+                ),
+        )
+    }
+}
+
+pub fn rank_by<T, S>(
+    rows: impl IntoIterator<Item = T>,
+    take: Option<usize>,
+    score: impl Fn(&T) -> Option<S>,
+    compare: impl Fn(&S, &S) -> std::cmp::Ordering,
+) -> Vec<T> {
+    let mut scored: Vec<_> = rows
+        .into_iter()
+        .enumerate()
+        .map(|(order, row)| {
+            let value = score(&row);
+            (row, value, order)
+        })
+        .collect();
+    let better = |a: &(T, Option<S>, usize), b: &(T, Option<S>, usize)| {
+        use std::cmp::Ordering;
+        let order = match (&a.1, &b.1) {
+            (Some(a), Some(b)) => compare(a, b),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        };
+        order.then_with(|| a.2.cmp(&b.2))
+    };
+    if let Some(take) = take {
+        if take == 0 {
+            return Vec::new();
+        }
+        if take < scored.len() {
+            scored.select_nth_unstable_by(take - 1, &better);
+            scored.truncate(take);
+        }
+    }
+    scored.sort_by(better);
+    scored.into_iter().map(|(row, _, _)| row).collect()
 }
 
 #[cfg(test)]

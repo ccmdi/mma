@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::arrow;
-use crate::store::maps::{MapMeta, TagRecords};
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
@@ -49,8 +49,8 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
     }
     log::debug!(
         "[close_map] {map_id} flushed: undo={} redo={}",
-        store.edits.undo_len(),
-        store.edits.redo_len()
+        store.edits.len(Stack::Undo),
+        store.edits.len(Stack::Redo)
     );
     Ok(())
 }
@@ -120,12 +120,12 @@ impl Store {
     /// The open map's row as this store holds it, whole.
     pub(crate) fn meta_patch(&self) -> Patch<MapMeta> {
         let mut patch = self.meta.to_patch();
-        patch.tags = Some(TagRecords(
+        patch.tags = Some(
             self.value_meta
                 .get("tags")
                 .map(|t| (**t).clone())
                 .unwrap_or_default(),
-        ));
+        );
         patch
     }
 
@@ -198,7 +198,7 @@ pub(crate) fn save_edit_history(
         .query_map([map_id], |r| Ok((r.get::<_, i64>(0)? as u64, r.get(1)?)))?
         .collect::<Result<_, _>>()?;
     let tx = conn.unchecked_transaction()?;
-    let mut live = HashSet::with_capacity(edits.undo_len() + edits.redo_len());
+    let mut live = HashSet::with_capacity(edits.len(Stack::Undo) + edits.len(Stack::Redo));
     for (stack, edit) in edits.iter() {
         live.insert(edit.seq);
         let stack = stack_code(stack);

@@ -7,15 +7,14 @@ import {
 	getMapState,
 	getTagCounts,
 	getVisibleTags,
-	selectEvenlySpacedFromSelection,
-	selectRandomFromSelection,
-	selectSpacedFromSelection,
+	select,
+	read,
 	useMapState,
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
-import { addSelection, buildSelection, has } from "@/store/selections";
+import { addSelection, selection, has } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
-import { sortTagsByMode } from "@/lib/util/util";
+import { sortTagsByMode } from "@/lib/data/tags";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { useSetting } from "@/store/settings";
 
@@ -71,8 +70,16 @@ function RandomPickPanel() {
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!valid) return;
-				selectRandomFromSelection(count, perSelection)
-					.then((picked) => {
+				select(
+					(selector) =>
+						read(
+							{ type: "Sample", selection: selection(selector), n: count },
+							{ kind: "ids" },
+							"ids",
+						),
+					perSelection,
+				)
+					.then(({ picked }) => {
 						if (picked === 0) return;
 						toast(
 							perSelection
@@ -127,18 +134,22 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 		if (!valid) return;
 		const count = perSelection ? parsed : Math.min(parsed, total);
 		const distance = unit.fromDisplay(parsed);
-		const pick =
-			method === "even"
-				? selectEvenlySpacedFromSelection(
-						mode === "count" ? { count } : { spacingM: distance },
-						perSelection,
-					)
-				: selectSpacedFromSelection(
-						mode === "count" ? { count } : { minDistanceM: distance },
-						perSelection,
-					);
+		const pick = select(
+			(selector) =>
+				read(
+					{
+						type: method === "even" ? "EvenlySpaced" : "Spaced",
+						selection: selection(selector),
+						thin: mode === "count" ? { by: "count", n: count } : { by: "metres", m: distance },
+					},
+					{ kind: "spacing" },
+					"spacing",
+				),
+			perSelection,
+		);
 		pick
-			.then(({ picked, distanceM }) => {
+			.then(({ picked, results }) => {
+				const distanceM = results.length === 1 ? results[0].spacingM : 0;
 				if (picked === 0) return;
 				const base = perSelection
 					? t(
@@ -215,7 +226,7 @@ function RankedPanel({
 				void applySelectionUpdate(
 					addSelection({
 						type: "Ranked",
-						selection: buildSelection(has(field)),
+						selection: selection(has(field)),
 						expr: field,
 						k: count,
 						ascending,

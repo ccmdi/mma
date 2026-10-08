@@ -110,8 +110,8 @@ test("a resolved pano is written as a panoId patch", () => {
 	);
 	assert.equal(calls.length, 2);
 	assert.deepEqual(patches, [
-		{ id: 1, patch: { panoId: PANO } },
-		{ id: 2, patch: { panoId: PANO } },
+		{ id: 1, panoId: PANO },
+		{ id: 2, panoId: PANO },
 	]);
 	assert.equal(progress, 2);
 	assert.deepEqual(failed, []);
@@ -134,7 +134,7 @@ test("rows that already carry a pano id are left alone", () => {
 		() => found(PANO),
 	);
 	assert.equal(calls.length, 1);
-	assert.deepEqual(patches, [{ id: 2, patch: { panoId: PANO } }]);
+	assert.deepEqual(patches, [{ id: 2, panoId: PANO }]);
 	assert.equal(progress, 1);
 });
 
@@ -145,7 +145,7 @@ test("force re-resolves a pano the row already has", () => {
 		{ force: true },
 	);
 	assert.equal(calls.length, 1);
-	assert.deepEqual(patches, [{ id: 1, patch: { panoId: PANO } }]);
+	assert.deepEqual(patches, [{ id: 1, panoId: PANO }]);
 	assert.equal(progress, 1);
 	assert.deepEqual(failed, []);
 });
@@ -179,11 +179,11 @@ test("a capture pick moves a searched pano to that capture of its timeline", () 
 	const newest = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => withHistory(PANO), {
 		config: { capture: "newest" },
 	});
-	assert.deepEqual(newest.patches, [{ id: 1, patch: { panoId: OFFICIAL_NEW } }]);
+	assert.deepEqual(newest.patches, [{ id: 1, panoId: OFFICIAL_NEW }]);
 	const oldest = runProcedure([{ id: 1, lat: 1, lng: 2 }], () => withHistory(PANO), {
 		config: { capture: "oldest" },
 	});
-	assert.deepEqual(oldest.patches, [{ id: 1, patch: { panoId: OFFICIAL_OLD } }]);
+	assert.deepEqual(oldest.patches, [{ id: 1, panoId: OFFICIAL_OLD }]);
 });
 
 test("a forced capture pick reads the stored pano's timeline, not the coordinates", () => {
@@ -196,7 +196,7 @@ test("a forced capture pick reads the stored pano's timeline, not the coordinate
 		calls.map((c) => c.query),
 		[{ panoId: OFFICIAL_OLD }],
 	);
-	assert.deepEqual(patches, [{ id: 1, patch: { panoId: OFFICIAL_NEW } }]);
+	assert.deepEqual(patches, [{ id: 1, panoId: OFFICIAL_NEW }]);
 	assert.deepEqual(failed, []);
 });
 

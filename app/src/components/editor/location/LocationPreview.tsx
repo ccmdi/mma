@@ -1,7 +1,6 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
 import type { Tag } from "@/types";
-import { isImportPreview, isSeenPreview, setPinned } from "@/types";
-import { PREVIEW_FLAGS } from "@/bindings.consts";
+import { setPinned } from "@/types";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -16,9 +15,9 @@ import {
 	getTagCounts,
 } from "@/store/useMapStore";
 import * as mapEdit from "@/store/edit";
-import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/util/util";
+import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
-import { displayTagName } from "@/store/selections";
+import { displayTagName } from "@/lib/data/tags";
 import { ReviewBar } from "@/components/editor/location/ReviewBar";
 import {
 	useReviewSession,
@@ -168,6 +167,7 @@ const TagEditor = memo(function TagEditor({
 
 export function LocationPreview() {
 	const location = useMapState((s) => s.openRow);
+	const origin = useMapState((s) => s.open?.origin);
 	const map = useMapState((s) => s.map);
 	const reviewSession = useReviewSession();
 	const isReviewMode = reviewSession !== null;
@@ -217,7 +217,7 @@ export function LocationPreview() {
 
 	const handleSave = useCallback(async () => {
 		if (!location || !pano.exists() || !draft) return;
-		if (isImportPreview(location)) {
+		if (origin === "import") {
 			void setActiveLocation(null);
 			return;
 		}
@@ -227,7 +227,6 @@ export function LocationPreview() {
 		await land({
 			...pano.captureView(),
 			tags: await mapEdit.values("tags", { create: pendingTags.map((name) => ({ name })) }),
-			flags: draft.flags & ~PREVIEW_FLAGS,
 		});
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
@@ -235,7 +234,7 @@ export function LocationPreview() {
 		} else {
 			void setActiveLocation(null);
 		}
-	}, [pano, location, draft, land, isReviewMode, reviewSession, pendingTags]);
+	}, [pano, location, origin, draft, land, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
@@ -249,7 +248,7 @@ export function LocationPreview() {
 
 	const handleDelete = useCallback(() => {
 		if (!location) return;
-		if (isImportPreview(location) || isSeenPreview(location)) {
+		if (origin !== "map") {
 			void setActiveLocation(null);
 			return;
 		}
@@ -258,7 +257,7 @@ export function LocationPreview() {
 		} else {
 			void removeLocations(new Set([location.id]));
 		}
-	}, [location, isReviewMode, reviewSession]);
+	}, [location, origin, isReviewMode, reviewSession]);
 
 	// Reads the active location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
@@ -390,7 +389,7 @@ export function LocationPreview() {
 					</div>
 					<div className="location-preview__actions">
 						<Button variant="primary" onClick={() => void handleSave()} data-qa="location-save">
-							{isSeenPreview(location) ? t("Add to map") : t("Save")}
+							{origin === "seen" ? t("Add to map") : t("Save")}
 						</Button>
 						{isReviewMode ? (
 							<div style={{ display: "flex", justifyContent: "space-around" }}>
@@ -427,7 +426,7 @@ export function LocationPreview() {
 						<TagEditor
 							pendingTags={pendingTags}
 							onChangeTags={setPendingTags}
-							isImport={isImportPreview(location)}
+							isImport={origin === "import"}
 						/>
 					</div>
 					<PluginLocationPanels />

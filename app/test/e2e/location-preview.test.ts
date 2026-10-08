@@ -8,6 +8,7 @@ import {
 	createTag,
 	deleteMap,
 	getAllLocs,
+	getLoc,
 	getLocCount,
 	getLocOrNull,
 	openLocation,
@@ -422,12 +423,9 @@ describe("LocationPreview — dead pano (fallback)", () => {
 	it("resolved pano differs from the dead pano ID", async () => {
 		await openLocation(dead1Id);
 		await waitForDates();
-		// The viewer should have resolved to a real pano via coord fallback
-		const resolvedPanoId = await withApi(async (api) => {
-			return api.getMapState().openRow?.panoId ?? null;
-		});
-		// The stored panoId is still the dead one (not saved yet), but the viewer resolved differently
-		expect(resolvedPanoId).toBe("DEAD_PANO_DOES_NOT_EXIST_12345");
+		const draftPanoId = await withApi(async (api) => api.getMapState().openRow?.panoId ?? null);
+		expect((await getLoc(dead1Id)).panoId).toBe(DEAD_PANO);
+		expect(draftPanoId).not.toBe(DEAD_PANO);
 	});
 
 	it("save after fallback persists the resolved pano (not the dead one)", async () => {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { CountBy, KeySpec, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";

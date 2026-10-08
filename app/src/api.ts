@@ -50,6 +50,7 @@ import * as legacy from "@/legacy";
 import * as testSurface from "@/testSurface";
 import * as types from "@/types";
 import * as util from "@/lib/util/util";
+import * as tags from "@/lib/data/tags";
 
 type ConstsApi = typeof consts;
 type StoreApi = typeof store;
@@ -129,6 +130,7 @@ type TestApi = typeof testSurface;
 type TypesApi = typeof types;
 /** General-purpose helpers. @unstable */
 type UtilApi = typeof util;
+type TagsApi = typeof tags;
 
 /** The global `MMA` object (also `window.MMA`). */
 export interface MMA
@@ -177,6 +179,7 @@ export interface MMA
 		TestApi,
 		TypesApi,
 		UtilApi,
+		TagsApi,
 		LegacyApi {
 	/** Shared UI primitives for plugin sidebars and dialogs. */
 	ui: typeof primitives;
@@ -235,6 +238,7 @@ const mma: MMA = {
 	...testSurface,
 	...types,
 	...util,
+	...tags,
 	...legacy,
 	autosave,
 	edit,

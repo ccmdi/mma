@@ -26,8 +26,8 @@ describe("SameLocation — duplicate picker", () => {
 		const nearby = await withApi(async (api) => {
 			return await api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
@@ -40,8 +40,8 @@ describe("SameLocation — duplicate picker", () => {
 		const nearby = await withApi(async (api) => {
 			return await api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
@@ -58,8 +58,8 @@ describe("SameLocation — duplicate picker", () => {
 		const remaining = await withApi(async (api) => {
 			return await api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 10.0, lng: 20.0, radiusM: 2.0 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
@@ -111,8 +111,8 @@ describe("Close map persistence", () => {
 
 		const canUndo = await withApi(async (api) => {
 			const state = await {
-				canUndo: api.getMapState().canUndo,
-				canRedo: api.getMapState().canRedo,
+				canUndo: api.getMapState().history.undo,
+				canRedo: api.getMapState().history.redo,
 			};
 			return state.canUndo;
 		});

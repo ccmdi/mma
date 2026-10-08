@@ -1,5 +1,5 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 import { useMapState } from "./useMapStore";
 

@@ -58,16 +58,19 @@ fn layer_rows(state: &StoreState, map_id: &str, target: &Target) -> Vec<Location
         .unwrap()
         .store_for_map(map_id)
         .unwrap()
-        .rows_at(target, None)
+        .collect(target, &crate::selections::Selector::Everything)
 }
 
 fn read_extra(state: &StoreState, map_id: &str, id: u32) -> Option<serde_json::Value> {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    let rows = store.collect(&Selector::Locations {
-        locations: vec![id],
-        name: None,
-    });
+    let rows = store.collect(
+        &crate::store::engine::Target::Map,
+        &Selector::Locations {
+            locations: vec![id],
+            name: None,
+        },
+    );
     rows[0]
         .extra
         .as_ref()
@@ -78,10 +81,13 @@ fn read_loc(state: &StoreState, map_id: &str, id: u32) -> Location {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     store
-        .collect(&Selector::Locations {
-            locations: vec![id],
-            name: None,
-        })
+        .collect(
+            &crate::store::engine::Target::Map,
+            &Selector::Locations {
+                locations: vec![id],
+                name: None,
+            },
+        )
         .remove(0)
 }
 

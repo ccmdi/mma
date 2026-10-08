@@ -70,7 +70,7 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 			async (api, d) =>
 				api.edit.work(
 					{ type: "Everything" },
-					{ kind: "mergeDuplicates", distance: d, score: null },
+					{ kind: "merge", groups: await api.previewDuplicateGroups(d), score: null },
 				),
 			DIST,
 		);

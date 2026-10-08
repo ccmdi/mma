@@ -427,7 +427,7 @@ describe("Dirty tracking accuracy", () => {
 
 		const afterMutation = await withApi(async (api) => {
 			return (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -441,7 +441,7 @@ describe("Dirty tracking accuracy", () => {
 
 		const afterReopen = await withApi(async (api) => {
 			return (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -462,7 +462,7 @@ describe("Dirty tracking accuracy", () => {
 
 		const dirty = await withApi(async (api) => {
 			return (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -480,7 +480,7 @@ describe("Dirty tracking accuracy", () => {
 
 		const dirty = await withApi(async (api) => {
 			return (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;

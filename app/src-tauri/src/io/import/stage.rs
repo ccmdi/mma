@@ -284,7 +284,7 @@ pub async fn store_import_paste_preview(
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportResult {
-    pub mutation: engine::MutationResult,
+    pub mutation: engine::Mutation,
     pub imported_count: u32,
     /// True when the import was large enough to autocommit; the caller commits it.
     pub auto_commit: bool,
@@ -297,7 +297,7 @@ pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
     locations: Vec<Location>,
     tags: Vec<(u32, ValueRecord)>,
-) -> AppResult<engine::MutationResult> {
+) -> AppResult<engine::Mutation> {
     const LAYER: &str = "copy-to-map";
     store.drop_pending(LAYER);
     store
@@ -339,10 +339,10 @@ pub async fn store_import_file(
     let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
 
     with_store!(label, state, |store| {
-        let rows = store.rows_at(&target, None);
-        if rows.is_empty() {
+        if !store.pending.contains_key(&key) {
             return Err("no staged import - call store_import_preview first".into());
         }
+        let rows = store.collect(&target, &crate::selections::Selector::Everything);
 
         let bulk = if drop_set.contains("tags") {
             Vec::new()

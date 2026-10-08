@@ -1,4 +1,4 @@
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import {
 	noWork,
 	procedureEntry,

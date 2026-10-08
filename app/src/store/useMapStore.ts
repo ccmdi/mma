@@ -1,22 +1,12 @@
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
-import { isImportPreview, isSeenPreview, locId } from "@/types";
-import { LocationFlag } from "@/bindings.consts";
-import type {
-	Location,
-	MapMeta,
-	StoreStatus,
-	CountBy,
-	Target,
-	Answer,
-	Ask,
-	RowPick,
-} from "@/bindings.gen";
+import { locId } from "@/types";
+import type { Location, MapMeta, StoreStatus, CountBy, Target, Answer, Ask } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
-import type { ChangeEvent, MutationResult, Derived } from "@/bindings.gen";
+import type { ChangeEvent, Mutation, MutationResult, Derived, HeldValue } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { log } from "@/lib/util/log";
 import { colorForName } from "@/lib/util/color";
@@ -24,10 +14,9 @@ import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
-import { rewriteSelectionFields } from "@/store/selections";
 import { compareNatural } from "@/lib/util/util";
 import type { KeySpec, PartitionBucket, StoreWarning } from "@/bindings.gen";
-import type { MergeWinner } from "@/bindings.consts";
+import type { MergeWinner, Stack } from "@/bindings.consts";
 import { SelectedIds, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { clearScene, loadScene, sceneReached } from "@/lib/render/sceneStore";
 import { refreshPolygonFills } from "@/lib/render/polygonFills";
@@ -37,34 +26,25 @@ import { setCachedMapList, invalidateMapList, reloadMapList } from "./mapList";
 import * as autosave from "./autosave";
 import * as edit from "./edit";
 
-import type { ListedSelection, Selection, Selector } from "@/bindings.gen";
-import {
-	buildSelection,
-	displayColor,
-	removeSelection,
-	tagIdOf,
-	tagSelector,
-	onActive,
-} from "./selections";
+import type { Selector } from "@/types";
+import type { Selection } from "@/bindings.gen";
+import { selection, tagSelector, onActive, setSelections } from "./selections";
 
 // --- Map state ---
 
-/** The engine-owned mirror: the derived state Rust ships, with every field required. Dead
- *  values are an announcement the change handler consumes, never state. */
+/** The engine-owned mirror: the derived state Rust ships, with every field required. */
 type EngineState = {
-	[K in Exclude<keyof Derived, "deadValues">]: NonNullable<Derived[K]>;
+	[K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 };
 
 export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
-	/** The selections as the sidebar lists them, ghosted ones included. Everything that acts on
-	 *  the selection reads `getActiveSelections` instead. @unstable */
-	selectionList: ListedSelection[];
 	selectedLocationIds: SelectedIds;
-	/** The id of the row open in the editor, or null. A preview's is its viewer-layer id. */
-	openId: number | null;
+	/** The row open in the editor and where it came from, or null. A preview's id is its
+	 *  viewer-layer id. */
+	open: { id: number; origin: OpenOrigin } | null;
 	/** The open row as the viewer's layer sees it: the one row projection JS keeps. The
 	 *  layer is the only writer; this mirrors its latest read. */
 	openRow: Location | null;
@@ -76,25 +56,26 @@ export interface UiState {
 	activePluginId: string | null;
 }
 
+/** Where an open row came from: the map's rows, the seen history, or a pending import. */
+export type OpenOrigin = "map" | "seen" | "import";
+
 export type MapState = UiState & EngineState;
 
 const ENGINE_INITIAL: EngineState = {
 	locationCount: 0,
-	canUndo: false,
-	canRedo: false,
-	valueCounts: {},
-	valueMeta: {},
+	history: { undo: false, redo: false },
+	fieldValues: {},
 	fieldDefs: {},
 	selectionCounts: {},
+	selectionList: [],
 };
 
 const INITIAL_STATE: MapState = {
 	...ENGINE_INITIAL,
 	mapId: null,
 	map: null,
-	selectionList: [],
 	selectedLocationIds: SelectedIds.EMPTY,
-	openId: null,
+	open: null,
 	openRow: null,
 	duplicateLocations: [],
 	workArea: "overview",
@@ -111,56 +92,62 @@ function setState(patch: Partial<MapState>) {
 }
 
 /** Merge the derived state Rust shipped (JSON merge patch: null = unchanged).
- *  `valueCounts`/`valueMeta` merge per field: each present field replaces its whole
- *  map, absent fields keep theirs. */
-function mergeDerived(v: Omit<Derived, "deadValues">) {
-	const { valueCounts, valueMeta, ...rest } = v;
+ *  `fieldValues` merges per value: a present value replaces its entry, a null one is gone. */
+function mergeDerived(v: Derived) {
+	const { fieldValues, meta, ...rest } = v;
+	if (meta && state.map) state = { ...state, map: { ...state.map, ...meta } };
 	state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
-	if (valueCounts) state = { ...state, valueCounts: { ...state.valueCounts, ...valueCounts } };
-	if (valueMeta) state = { ...state, valueMeta: { ...state.valueMeta, ...valueMeta } };
+	if (!fieldValues) return;
+	const merged = { ...state.fieldValues };
+	for (const [field, values] of Object.entries(fieldValues)) {
+		const next = { ...merged[field] };
+		for (const [key, value] of Object.entries(values)) {
+			if (value) next[key] = value;
+			else delete next[key];
+		}
+		merged[field] = next;
+	}
+	state = { ...state, fieldValues: merged };
 }
 
-const NO_COUNTS: Record<string, number> = {};
-const NO_META: Record<number, Record<string, unknown>> = {};
+const NO_VALUES: Record<string, HeldValue | null> = {};
 
-/** Per-tag location counts: `valueCounts.tags` re-keyed by numeric id. */
+/** Per-tag location counts, keyed by numeric id. */
 export const getTagCounts: () => Record<number, number> = memoOnRefs(
-	() => [state.valueCounts["tags"] ?? NO_COUNTS] as const,
-	(counts) => Object.fromEntries(Object.entries(counts).map(([k, n]) => [Number(k), n])),
+	() => [state.fieldValues["tags"] ?? NO_VALUES] as const,
+	(values) =>
+		Object.fromEntries(Object.entries(values).map(([k, v]) => [Number(k), v?.count ?? 0])),
 );
 
-/** The tag view: `valueMeta.tags` piles dressed over the counts, recomputed only when
- *  either slice moves. A tag is visible exactly while something carries it (count > 0);
- *  a value present in data without metadata (foreign import) shows under a derived
- *  name/color; emptied metadata lingers dark until its name is reused. */
+/** The tag view: each value's record dressed as a tag. A tag is visible exactly while
+ *  something carries it (count > 0); a value present in data without a record (foreign
+ *  import) shows under a derived name/color; an emptied record lingers dark until its
+ *  name is reused. */
 export const getTags: () => Record<number, Tag> = memoOnRefs(
-	() => [state.valueMeta["tags"] ?? NO_META, getTagCounts()] as const,
-	(meta, counts) => {
+	() => [state.fieldValues["tags"] ?? NO_VALUES] as const,
+	(values) => {
 		const out: Record<number, Tag> = {};
-		for (const [k, rec] of Object.entries(meta)) {
+		for (const [k, v] of Object.entries(values)) {
+			if (!v) continue;
 			const id = Number(k);
+			const rec = v.record ?? {};
 			const name = typeof rec.name === "string" && rec.name ? rec.name : `Tag ${id}`;
 			out[id] = {
 				id,
 				name,
 				color: typeof rec.color === "string" ? rec.color : colorForName(name),
-				visible: (counts[id] ?? 0) > 0,
+				visible: v.count > 0,
 				order: typeof rec.order === "number" ? rec.order : null,
 				doclinks: Array.isArray(rec.doclinks) ? (rec.doclinks as string[]) : [],
 			};
-		}
-		for (const [k, n] of Object.entries(counts)) {
-			const id = Number(k);
-			if (n > 0 && !out[id]) {
-				const name = `Tag ${id}`;
-				out[id] = { id, name, color: colorForName(name), visible: true, order: null, doclinks: [] };
-			}
 		}
 		return out;
 	},
 );
 
 function resetEngineState() {
+	feedVersion = 0;
+	feedWaiters = [];
 	setState(ENGINE_INITIAL);
 }
 
@@ -208,9 +195,8 @@ export async function initStore() {
 /** Reset all per-map editing state to its initial values. */
 function clearEditState() {
 	setState({
-		selectionList: [],
 		selectedLocationIds: SelectedIds.EMPTY,
-		openId: null,
+		open: null,
 		openRow: null,
 		workArea: "overview",
 	});
@@ -220,6 +206,7 @@ function clearEditState() {
 
 /** Every (re)open: the meta identity slice, then the open-time engine full picture. */
 function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
+	feedVersion = status.version;
 	setState({ map: meta });
 	mergeDerived(status.derived);
 }
@@ -292,15 +279,15 @@ export function discardOpenMap() {
 
 type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
 
-/** The one read: `ask` a question of the rows `selector` resolves to, optionally
- *  narrowed by `pick` first. Answers once, against the map as it is now. */
+/** The one read: `ask` a question of the rows `selector` resolves to. Answers once,
+ *  against the map as it is now. */
 export async function read<K extends Answer["kind"]>(
 	selector: Selector,
-	pick: RowPick | null,
 	ask: Ask,
 	kind: K,
+	target: Target = MAP,
 ): Promise<AnswerOf<K>> {
-	const answer = await cmd.storeRead(selector, pick, ask);
+	const answer = await cmd.storeRead(target, selector, ask);
 	if (answer.kind !== kind) throw new Error(`read answered ${answer.kind}, expected ${kind}`);
 	return answer as AnswerOf<K>;
 }
@@ -312,36 +299,43 @@ export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]
 
 /** Questions about the locations a selector resolves to. Each call answers once,
  *  against the map as it is now; ask again after a change. */
-export function query(selector: Selector) {
+export function query(selector: Selector, target: Target = MAP) {
 	return {
 		/** The resolved ids, in map order. */
-		ids: async (): Promise<number[]> => (await read(selector, null, { kind: "ids" }, "ids")).ids,
+		ids: async (): Promise<number[]> => (await read(selector, { kind: "ids" }, "ids", target)).ids,
 		/** How many locations resolve. */
 		count: async (): Promise<number> =>
-			(await read(selector, null, { kind: "count" }, "count")).count,
+			(await read(selector, { kind: "count" }, "count", target)).count,
 		/** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
 		bounds: async (): Promise<[number, number, number, number] | null> =>
-			(await read(selector, null, { kind: "bounds" }, "bounds")).bounds,
+			(await read(selector, { kind: "bounds" }, "bounds", target)).bounds,
 		/** `n` ids drawn uniformly at random, without replacement. */
 		sample: async (n: number): Promise<number[]> =>
-			(await read(selector, { kind: "sample", n }, { kind: "ids" }, "ids")).ids,
+			(
+				await read(
+					{ type: "Sample", selection: selection(selector), n },
+					{ kind: "ids" },
+					"ids",
+					target,
+				)
+			).ids,
 		/** Distinct values of `field`, sorted. */
 		values: async (field: string): Promise<string[]> =>
-			(await read(selector, null, { kind: "values", field }, "values")).values,
+			(await read(selector, { kind: "values", field }, "values", target)).values,
 		/** Group each field by a derived key and count, one result per field. */
 		countBy: async (fields: string[], key: KeySpec): Promise<CountBy[]> =>
-			(await read(selector, null, { kind: "countBy", fields, key }, "counts")).counts,
+			(await read(selector, { kind: "countBy", fields, key }, "counts", target)).counts,
 		/** How many locations hold a value for each field, key-sorted. */
 		coverage: async (): Promise<[string, number][]> =>
-			(await read(selector, null, { kind: "coverage" }, "coverage")).coverage,
+			(await read(selector, { kind: "coverage" }, "coverage", target)).coverage,
 		/** One column per field. `null` where a location lacks the field; `"tags"`
 		 *  returns a column of tag-id arrays. */
 		columns: async (fields: string[]): Promise<unknown[][]> =>
-			(await read(selector, null, { kind: "columns", fields }, "columns")).columns,
+			(await read(selector, { kind: "columns", fields }, "columns", target)).columns,
 		/** Group by a derived key. Numeric bins arrive in bound order; other keys are
 		 *  sorted naturally. */
 		partition: async (field: string, key: KeySpec): Promise<PartitionBucket[]> => {
-			const { groups } = await read(selector, null, { kind: "groupBy", field, key }, "groups");
+			const { groups } = await read(selector, { kind: "groupBy", field, key }, "groups", target);
 			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 			return groups;
 		},
@@ -350,7 +344,7 @@ export function query(selector: Selector) {
 		 *  Every row lands in memory, so an unscoped call on a large map is expensive.
 		 *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
 		locations: async (): Promise<Location[]> =>
-			rowsOf((await read(selector, null, { kind: "rows" }, "rows")).rows),
+			rowsOf((await read(selector, { kind: "rows" }, "rows", target)).rows),
 	};
 }
 
@@ -372,19 +366,25 @@ export function setMap(map: MapMeta) {
 
 /** A change event carries only what moved: every present value replaces its slice,
  *  every null value was untouched and keeps its reference. */
-function applyChange(e: ChangeEvent) {
-	if (!state.map) return;
-	const { deadValues, ...derived } = e.derived;
-	mergeDerived(derived);
+let feedVersion = 0;
+let feedWaiters: { version: number; resolve: () => void }[] = [];
 
-	const deadTags = deadValues?.tags ?? [];
-	if (deadTags.length > 0)
-		void applySelectionUpdate(
-			removeSelection(...deadTags.map((id) => buildSelection(tagSelector(id)).key)),
-		);
-	if (derived.valueMeta?.tags && getActiveSelections().some((s) => tagIdOf(s.selector) != null))
-		void syncSelections();
-	if (e.added.length || e.removed.length || e.updated.length) autosave.schedule();
+/** Resolves once the change feed has delivered `version`'s event (or a later one). */
+function feedReached(version: number): Promise<void> {
+	if (feedVersion >= version) return Promise.resolve();
+	return new Promise((resolve) => feedWaiters.push({ version, resolve }));
+}
+
+function applyChange(e: ChangeEvent) {
+	feedVersion = Math.max(feedVersion, e.version);
+	feedWaiters = feedWaiters.filter((w) => {
+		if (e.version < w.version) return true;
+		w.resolve();
+		return false;
+	});
+	if (!state.map) return;
+	mergeDerived(e.derived);
+	autosave.schedule();
 	emitEvent("store:change", e);
 	emitEvent("store:changed");
 }
@@ -397,39 +397,26 @@ export const VIEWER = { kind: "pending", name: "viewer" } as const satisfies Tar
 
 /** The open row as the viewer's layer last read it. The layer is the single writer;
  *  everything else only looks. */
-export function setOpenRow(row: Location | null) {
+export function setOpenRow(row: Location | null, open: MapState["open"]) {
+	if (!open || state.open !== open) return;
 	setState({ openRow: row });
 }
 
-const EMPTY_MUTATION: MutationResult = {
-	version: 0,
-	added: [],
-};
+const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, added: [] } };
 
-/** Settle a mutation that already ran: wait for the scene to draw its version and
- *  schedule a save. @unstable */
-export async function settled(m: MutationResult): Promise<void> {
+export async function settled(m: Mutation): Promise<void> {
 	await autosave.waitForInflight();
-	await sceneReached(m.version);
+	await Promise.all([sceneReached(m.version), feedReached(m.version)]);
 	autosave.schedule();
 }
 
-/** Run a mutation and settle it; what it changed arrives on the change feed. A result
- *  that wraps its mutation comes back whole; `empty` is its answer when no map is
- *  open. @unstable */
-export function mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>;
-export function mutate<R extends { mutation: MutationResult }>(
+export async function mutate<R extends MutationResult = MutationResult>(
 	fn: () => Promise<R>,
-	empty: R,
-): Promise<R>;
-export async function mutate<R extends MutationResult | { mutation: MutationResult }>(
-	fn: () => Promise<R>,
-	empty: R = EMPTY_MUTATION as R,
+	...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
 ): Promise<R> {
-	if (!state.map) return empty;
+	if (!state.map) return (fallback[0] ?? EMPTY_MUTATION) as R;
 	const r = await fn();
-	const answer: MutationResult | { mutation: MutationResult } = r;
-	await settled("mutation" in answer ? answer.mutation : answer);
+	await settled(r.mutation);
 	return r;
 }
 
@@ -470,7 +457,7 @@ export async function addLocations(locs: Location[]) {
 					locs.map((l) => ({ set: l })),
 				);
 	t.end({ added: locs.length });
-	if (state.map) locs.forEach((l, i) => (l.id = r.added[i] ?? l.id));
+	if (state.map) locs.forEach((l, i) => (l.id = r.mutation.added[i] ?? l.id));
 }
 
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
@@ -487,7 +474,7 @@ export async function duplicateLocation(id: number): Promise<number | null> {
 /** Remove locations by id. Undoable. */
 export async function removeLocations(ids: ReadonlyIdSet) {
 	if (ids.size === 0) return;
-	if (state.openId && ids.has(state.openId)) setWorkArea("overview");
+	if (state.open && ids.has(state.open.id)) setWorkArea("overview");
 	emitEvent("store:changed");
 	await edit
 		.rows(
@@ -515,7 +502,6 @@ export async function updateLocations(updates: Patch<Location>[]) {
 export async function renameField(from: string, to: string, winner: MergeWinner = "from") {
 	if (!state.map || from === to || !to) return;
 	await edit.work({ type: "Everything" }, { kind: "move", from, to, winner });
-	await applySelectionUpdate(rewriteSelectionFields(from, to));
 }
 
 /** Delete extra-field `key` from every location, its definition, and the listed selections,
@@ -523,157 +509,57 @@ export async function renameField(from: string, to: string, winner: MergeWinner 
 export async function deleteField(key: string) {
 	if (!state.map) return;
 	await edit.work({ type: "Everything" }, { kind: "delete", keys: [key] });
-	await applySelectionUpdate(rewriteSelectionFields(key, null));
 }
 
 // --- Selections ---
 
-/** Apply `op` to the listed selections and re-resolve them: the one way the selection changes.
- *  Lift an op over the active selections alone with `onActive`. No-op when nothing changed. @unstable */
-export async function applySelectionUpdate(op: (rows: ListedSelection[]) => ListedSelection[]) {
+/** Apply `op` to the listed selections and have the store hold and resolve the result: the
+ *  one way the selection changes. Lift an op over the active selections alone with
+ *  `onActive`. No-op when nothing changed. @unstable */
+export async function applySelectionUpdate(op: import("@/bindings.gen").SelectionOp) {
 	if (!state.map) return;
-	const selectionList = op(state.selectionList);
-	if (selectionList === state.selectionList) return;
-	setState({ selectionList });
-	return syncSelections();
-}
-
-/** Re-resolve all selections against the current map data and update the overlay.
- *  Use when the underlying data changed but the selections themselves did not. @unstable */
-export async function syncSelections() {
-	if (!state.map) return;
-	const t = trace("selection", { summary: true });
-	const [result] = await Promise.all([
-		cmd.storeSyncSelections(
-			state.selectionList.map((r) => ({
-				...r,
-				selection: { ...r.selection, color: displayColor(r.selection) },
-			})),
-		),
-		refreshPolygonFills(state.selectionList),
-	]);
-	t.step("ipc");
-	await sceneReached(result.version);
-	t.end();
+	await mutate(() => cmd.storeEditSelections(op));
+	await refreshPolygonFills(state.selectionList);
 	emitEvent("selection:change", getActiveSelections());
 }
 
-/** The buckets a pick runs over: one per active selection when `perSelection`, else the
- *  whole selection as one. `null` means "whatever is currently selected" - the only way to
- *  express a selected-id set that no live selection produced. Falls back to that single
- *  bucket below two active selections, where per-bucket picking is the same operation. */
-function pickBuckets(perSelection: boolean): (Selector | null)[] {
+export async function select<R extends { ids: number[] }>(
+	pick: (selector: Selector) => Promise<R>,
+	perSelection = false,
+): Promise<{ picked: number; results: R[] }> {
 	const active = getActiveSelections();
-	if (!perSelection || active.length < 2) return [null];
-	return active.map((s) => s.selector);
-}
-
-/** Replace the current selection with up to `count` ids picked at random.
- *  With `perSelection`, picks up to `count` from each active selection separately.
- *  Returns the number of ids actually picked (0 when nothing is selected). @unstable */
-export async function selectRandomFromSelection(
-	count: number,
-	perSelection = false,
-): Promise<number> {
-	const buckets = await Promise.all(
-		pickBuckets(perSelection).map((selector) =>
-			query(selector ?? { type: "Selected" }).sample(count),
-		),
-	);
-	const picked = [...new Set(buckets.flat())];
-	if (picked.length === 0) return 0;
-	await applySelectionUpdate(
-		onActive(() => [buildSelection({ type: "Manual", locations: picked })]),
-	);
-
-	return picked.length;
-}
-
-/** Replace the current selection with what `pick` chooses from each pick bucket. Returns the
- *  count picked and the spacing they were picked at. */
-async function selectSpacedWith(
-	pick: (selector: Selector) => Promise<{ ids: number[]; distanceM: number }>,
-	perSelection: boolean,
-): Promise<{ picked: number; distanceM: number }> {
-	const results = await Promise.all(
-		pickBuckets(perSelection).map((selector) => pick(selector ?? { type: "Selected" })),
-	);
+	const buckets: Selector[] =
+		perSelection && active.length >= 2 ? active.map((s) => s.selector) : [{ type: "Selected" }];
+	const results = await Promise.all(buckets.map(pick));
 	const ids = [...new Set(results.flatMap((r) => r.ids))];
-	if (ids.length === 0) return { picked: 0, distanceM: 0 };
-	await applySelectionUpdate(onActive(() => [buildSelection({ type: "Manual", locations: ids })]));
-
-	// Spacing only holds within a bucket - two buckets can each pick a coincident location.
-	const distanceM = results.length === 1 ? results[0].distanceM : 0;
-	return { picked: ids.length, distanceM };
-}
-
-/** Replace the current selection with spatially spaced ids - either `count` ids maximizing
- *  spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
- *  is picked from separately. Returns the count picked and the minimum distance achieved. @unstable */
-export function selectSpacedFromSelection(
-	opts: { count?: number; minDistanceM?: number },
-	perSelection = false,
-): Promise<{ picked: number; distanceM: number }> {
-	return selectSpacedWith(
-		(selector) =>
-			read(
-				selector,
-				{
-					kind: "spaced",
-					targetCount: opts.count ?? null,
-					minDistanceM: opts.minDistanceM ?? null,
-				},
-				{ kind: "ids" },
-				"ids",
-			).then(({ ids, spacingM }) => ({ ids, distanceM: spacingM ?? 0 })),
-		perSelection,
-	);
-}
-
-/** Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
- *  most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
- *  picks sit closer than half the spacing. With `perSelection`, each active selection is
- *  picked from separately. Returns the count picked and the spacing used. @unstable */
-export function selectEvenlySpacedFromSelection(
-	opts: { count?: number; spacingM?: number },
-	perSelection = false,
-): Promise<{ picked: number; distanceM: number }> {
-	return selectSpacedWith(
-		(selector) =>
-			read(
-				selector,
-				{ kind: "evenlySpaced", targetCount: opts.count ?? null, spacingM: opts.spacingM ?? null },
-				{ kind: "ids" },
-				"ids",
-			).then(({ ids, spacingM }) => ({ ids, distanceM: spacingM ?? 0 })),
-		perSelection,
-	);
+	if (ids.length)
+		await applySelectionUpdate(
+			onActive(setSelections([selection({ type: "Manual", locations: ids })])),
+		);
+	return { picked: ids.length, results };
 }
 
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
 export async function previewDuplicateGroups(distance: number): Promise<number[][]> {
 	const { groups } = await read(
 		{ type: "Everything" },
-		null,
 		{ kind: "duplicateGroups", distance },
 		"idGroups",
 	);
 	return groups;
 }
 
-/** Seed the viewer's layer with a copy of `loc` under `flag` and open it: the preview's
+/** Seed the viewer's layer with a copy of `loc` and open it from `origin`: the preview's
  *  edits live in the layer and are dropped on close, never the source. */
-async function openPreview(loc: Location, flag: number) {
+async function openPreview(loc: Location, origin: OpenOrigin) {
 	await cmd.storeDrop(VIEWER.name);
-	const r = await cmd.storeEdit(
-		VIEWER,
-		[{ set: { ...loc, id: 0, flags: loc.flags | flag } }],
-		null,
-	);
-	const [added] = r.added;
+	const r = await cmd.storeEdit(VIEWER, [{ set: { ...loc, id: 0 } }], null);
+	const [added] = r.mutation.added;
 	if (added == null) return;
-	const row = await cmd.storeRow(VIEWER, added);
-	setState({ openId: added, openRow: row, workArea: "location" });
+	const row =
+		(await query({ type: "Locations", locations: [added], name: null }, VIEWER).locations())[0] ??
+		null;
+	setState({ open: { id: added, origin }, openRow: row, workArea: "location" });
 	emitEvent("active:change", null);
 }
 
@@ -682,22 +568,28 @@ async function openPreview(loc: Location, flag: number) {
 export async function openStagedLocation(index: number) {
 	const first = getImportStaging()?.preview.firstId;
 	if (first == null) return;
-	const loc = await cmd.storeRow(importTarget(), first + index);
+	const loc =
+		(
+			await query(
+				{ type: "Locations", locations: [first + index], name: null },
+				importTarget(),
+			).locations()
+		)[0] ?? null;
 	if (!loc) return;
-	await openPreview(loc, LocationFlag.ImportPreview);
+	await openPreview(loc, "import");
 	emitEvent("import-markers:changed");
 }
 
 /** Open an arbitrary location read-only as a seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 export function previewLocation(loc: Location) {
-	void openPreview(loc, LocationFlag.SeenOverlay);
+	void openPreview(loc, "seen");
 }
 
 /** Drop the open row, keeping `active:change` in step. */
 function clearActiveLocation(): void {
-	if (state.openId == null && state.openRow == null) return;
-	setState({ openId: null, openRow: null });
+	if (state.open == null && state.openRow == null) return;
+	setState({ open: null, openRow: null });
 	emitEvent("active:change", null);
 }
 
@@ -713,9 +605,9 @@ export async function resolveLocation(m: MaybeLocation): Promise<Location | null
 export async function setActiveLocation(target: MaybeLocation | null, checkDuplicates = true) {
 	const t = trace("setActive");
 	const id = target == null ? null : locId(target);
-	if (state.openRow && (isImportPreview(state.openRow) || isSeenPreview(state.openRow))) {
+	if (state.open && state.open.origin !== "map") {
 		emitEvent("import-markers:changed");
-		const wasStaged = isImportPreview(state.openRow);
+		const wasStaged = state.open.origin === "import";
 		if (id == null) {
 			clearActiveLocation();
 
@@ -726,23 +618,22 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			return;
 		}
 	}
-	setState({ openId: id });
+	setState({ open: id == null ? null : { id, origin: "map" } });
 	if (id) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
-		if (state.openId !== id) return t.end({ superseded: true });
+		if (state.open?.id !== id) return t.end({ superseded: true });
 		if (checkDuplicates && loc) {
 			const nearby = await rowsOf(
 				(
 					await read(
-						{ type: "Everything" },
-						{ kind: "nearby", lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
+						{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
 						{ kind: "rows" },
 						"rows",
 					)
 				).rows,
 			);
-			if (state.openId !== id) return t.end({ superseded: true });
+			if (state.open?.id !== id) return t.end({ superseded: true });
 			if (nearby.length >= 2) {
 				setState({ duplicateLocations: nearby, workArea: "duplicates" });
 				clearActiveLocation();
@@ -751,7 +642,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			}
 		}
 		setState({ openRow: loc ?? null, workArea: "location" });
-		emitEvent("active:change", state.openId);
+		emitEvent("active:change", state.open?.id ?? null);
 		t.end();
 		return;
 	}
@@ -765,7 +656,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 export function openDuplicateLocation(loc: Location) {
-	setState({ openId: loc.id, openRow: loc, workArea: "location" });
+	setState({ open: { id: loc.id, origin: "map" }, openRow: loc, workArea: "location" });
 }
 
 /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
@@ -806,31 +697,31 @@ export function exitPluginMode() {
  *  (count 0 hides them); undo restores the rows and the tags with them. */
 export function deleteTags(tagIds: number[]) {
 	return edit.work(
-		{ type: "Union", selections: tagIds.map((id) => buildSelection(tagSelector(id))) },
+		{ type: "Union", selections: tagIds.map((id) => selection(tagSelector(id))) },
 		{ kind: "listSet", key: "tags", add: [], remove: tagIds },
 	);
 }
 
 // --- Undo/redo ---
 
-/** Shared undo/redo handler: call the IPC, clear active if removed. */
-async function undoRedo(which: () => Promise<MutationResult>) {
+/** Step through the edit history one way, closing the open row if the step removed it. */
+async function step(stack: Stack) {
 	try {
-		const r = await mutate(which);
-		const { removed } = await sceneReached(r.version);
-		if (state.openId && removed.includes(state.openId)) setWorkArea("overview");
+		const r = await mutate(() => cmd.storeStep(stack));
+		const { removed } = await sceneReached(r.mutation.version);
+		if (state.open && removed.includes(state.open.id)) setWorkArea("overview");
 	} catch (e) {
-		log.debug(`[${which.name}] nothing or failed:`, e);
+		log.debug(`[${stack}] nothing or failed:`, e);
 	}
 }
 
 /** Undo the last edit. */
 export function undo() {
-	return undoRedo(cmd.storeUndo);
+	return step("undo");
 }
 /** Redo the last undone edit. */
 export function redo() {
-	return undoRedo(cmd.storeRedo);
+	return step("redo");
 }
 
 // --- Version control ---
@@ -847,10 +738,6 @@ export async function commitMap(message?: string): Promise<string> {
 	t.end();
 	resetCommitDiffCounts();
 	void invalidateMapList();
-
-	// Commit clears the overlay; commit-sensitive selections (e.g. Uncommitted) must
-	// re-resolve against the new baseline instead of showing now-committed rows.
-	if (state.selectionList.length > 0) await syncSelections();
 	return r.id;
 }
 
@@ -858,31 +745,10 @@ export async function commitMap(message?: string): Promise<string> {
 export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
 	await autosave.flush();
-	let openResult;
-	let commitResult;
-	try {
-		await cmd.storeCloseMap();
-		try {
-			await cmd.storeCheckoutCommit(state.mapId, commitId);
-		} finally {
-			openResult = await cmd.storeOpenMap(state.mapId);
-		}
-		const msg = `Revert to ${commitId.slice(0, 7)}`;
-		commitResult = await cmd.storeCommit(state.mapId, msg);
-	} catch (e) {
-		log.error("[checkout] restore failed:", e);
-		// The reopened store holds no selections; push the listed ones back before surfacing.
-		await syncSelections().catch(() => {});
-		throw e;
-	}
+	await mutate(() => cmd.storeCheckoutCommit(state.mapId!, commitId));
+	await cmd.storeCommit(state.mapId, `Revert to ${commitId.slice(0, 7)}`);
 	const map = await cmd.storeGetMap(state.mapId);
-	setState({
-		selectionList: [],
-		selectedLocationIds: SelectedIds.EMPTY,
-		openId: null,
-	});
-	applyOpenedMap(map, openResult);
-	void commitResult;
+	setState({ map, open: null, openRow: null });
 
 	void loadScene();
 	await invalidateMapList();

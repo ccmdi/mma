@@ -4,7 +4,10 @@ import { describe, it, expect, vi } from "vitest";
 // module loads in isolation.
 const store = vi.hoisted(() => ({
 	liveIds: [] as number[],
-	mapState: { mapId: null, map: null, activeLocation: null } as Record<string, unknown>,
+	mapState: { mapId: null, map: null, activeLocation: null, selectionList: [] } as Record<
+		string,
+		unknown
+	>,
 	active: [] as { key: string; selector: { type: string } }[],
 }));
 vi.mock("@/store/useMapStore", () => ({
@@ -30,7 +33,7 @@ vi.mock("@/store/selections", () => ({
 	selectionDisplayName: () => "x",
 	addSelection: vi.fn(),
 	removeSelection: vi.fn(),
-	buildSelection: () => ({ key: "" }),
+	selection: (selector: unknown) => ({ selector }),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

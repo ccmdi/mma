@@ -128,7 +128,7 @@ fn noop_updates(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     app.set_store(fx.rendered_store());
-                    app.sync_selections(vec![ListedSelection {
+                    app.edit_selections(vec![ListedSelection {
                         selection: Selection {
                             key: "tag:3".into(),
                             selector: Selector::tag(3),
@@ -260,10 +260,10 @@ fn selections(c: &mut Criterion) {
     });
 
     g.bench_function(format!("{n}/sync/tag"), |b| {
-        b.iter(|| black_box(app.sync_selections(vec![input("tag:3", &tag_leaf)])));
+        b.iter(|| black_box(app.edit_selections(vec![input("tag:3", &tag_leaf)])));
     });
     g.bench_function(format!("{n}/sync/intersection"), |b| {
-        b.iter(|| black_box(app.sync_selections(vec![input("int:1+2", &composite)])));
+        b.iter(|| black_box(app.edit_selections(vec![input("int:1+2", &composite)])));
     });
     g.finish();
 }

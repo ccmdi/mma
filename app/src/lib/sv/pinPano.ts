@@ -1,4 +1,4 @@
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import { PanoType, type CapturePick } from "@/bindings.consts";
 import { all, has, panoIdSelector } from "@/store/selections";
 import * as edit from "@/store/edit";

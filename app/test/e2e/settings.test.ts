@@ -5,6 +5,8 @@ import {
 	deleteMap,
 	withApi,
 	tagSelector,
+	useMap,
+	createTag,
 } from "./helpers";
 
 describe("Settings persistence", () => {
@@ -82,10 +84,12 @@ describe("Settings persistence", () => {
 });
 
 describe("Saved selections", () => {
+	useMap("E2E Saved Rules");
 	const created: string[] = [];
+	let tagId: number;
 
 	before(async () => {
-		await waitForReady();
+		tagId = (await createTag("Japan")).id;
 	});
 
 	after(async () => {
@@ -97,8 +101,10 @@ describe("Saved selections", () => {
 	});
 
 	it("stores a rule with its tag-name side table and reads it back", async () => {
-		const saved = await withApi(async (api) =>
-			api.cmd.storeSaveSelection("E2E Preset", api.tagSelector(7), { 7: "Japan" }, [255, 0, 0]),
+		const saved = await withApi(
+			async (api, tid) =>
+				api.cmd.storeSaveSelection("E2E Preset", api.tagSelector(tid), [255, 0, 0]),
+			tagId,
 		);
 		created.push(saved.id);
 
@@ -114,8 +120,8 @@ describe("Saved selections", () => {
 			async (api, id) => api.cmd.storeGetSavedSelections([id]),
 			saved.id,
 		);
-		expect(body.selector).toEqual(tagSelector(7));
-		expect(body.tagNames).toEqual({ 7: "Japan" });
+		expect(body.selector).toEqual(tagSelector(tagId));
+		expect(body.tagNames).toEqual({ [tagId]: "Japan" });
 	});
 
 	it("removes a rule", async () => {

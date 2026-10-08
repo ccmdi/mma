@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapMeta } from "@/bindings.gen";
-import { getMapState } from "@/store/useMapStore";
+import { getMapState, setMap } from "@/store/useMapStore";
 import * as autosave from "@/store/autosave";
 import { mapStorage, storage } from "@/plugins/pluginStorage";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
@@ -14,7 +14,11 @@ vi.mock("@/store/mapList", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeUpdateMapMeta: vi.fn(async () => null),
+		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
+			const state = getMapState();
+			if (state.map && state.mapId === patch.id) setMap({ ...state.map, ...patch });
+			return null;
+		}),
 		storeSaveDirty: vi.fn(async () => null),
 	},
 }));

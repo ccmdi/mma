@@ -11,14 +11,10 @@ import {
 	removeLocations,
 	setActiveLocation,
 } from "@/store/useMapStore";
-import {
-	addSelection,
-	buildSelection,
-	removeSelection,
-	selectionDisplayName,
-} from "@/store/selections";
+import { addSelection, selection, removeSelection, selectionDisplayName } from "@/store/selections";
 
-import type { ReviewSession, Selection, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { ReviewSession, Selection } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 
 // --- Pure helpers (unit-tested; no side effects) ---
@@ -188,7 +184,7 @@ function reviewOrdering(worklist: Selector, expr: string | null | undefined): Se
 	if (!order) return worklist;
 	return {
 		type: "Ranked",
-		selection: buildSelection(worklist),
+		selection: selection(worklist),
 		expr: order,
 		k: null,
 		ascending: false,
@@ -382,7 +378,11 @@ function scheduleProjection(): void {
 
 function clearProjection(id: string): void {
 	clearProjectTimer();
-	const keys = REVIEW_MODES.map((mode) => buildSelection(reviewSelector(id, mode)).key);
+	const keys = getMapState()
+		.selectionList.filter(
+			({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id,
+		)
+		.map(({ selection: s }) => s.key);
 	void applySelectionUpdate(removeSelection(...keys));
 }
 

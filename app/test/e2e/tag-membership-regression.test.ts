@@ -67,21 +67,21 @@ describe("Bulk add 50 locations split across 3 tags", () => {
 		await select(tagSelector(tagAId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(20);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tagB selection returns exactly 15 ids", async () => {
 		await select(tagSelector(tagBId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(15);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tagC selection returns exactly 15 ids", async () => {
 		await select(tagSelector(tagCId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(15);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 });
 
@@ -104,7 +104,7 @@ describe("Remove tagged locations shrinks tag selection", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(20);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("removing 5 locations drops selection to 15", async () => {
@@ -116,7 +116,7 @@ describe("Remove tagged locations shrinks tag selection", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(15);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tag count agrees with selection after removal", async () => {
@@ -168,7 +168,7 @@ describe("Undo bulk remove restores tag membership", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(12);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("redo re-applies the removal", async () => {
@@ -183,7 +183,7 @@ describe("Undo bulk remove restores tag membership", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(6);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 });
 
@@ -227,7 +227,7 @@ describe("Add locations to existing tag accumulates membership", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(25);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("addTagToLocations on existing untagged locations grows count", async () => {
@@ -254,7 +254,7 @@ describe("Add locations to existing tag accumulates membership", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(30);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 });
 
@@ -293,21 +293,21 @@ describe("Multiple tags on same location", () => {
 		await select(tagSelector(tag1Id));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(15);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tag2 selection includes only shared = 8", async () => {
 		await select(tagSelector(tag2Id));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tag3 selection includes only shared = 8", async () => {
 		await select(tagSelector(tag3Id));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("removing tag2 from shared locations does not affect tag1 or tag3", async () => {
@@ -316,7 +316,7 @@ describe("Multiple tags on same location", () => {
 				const locs = await Promise.all(ids.map((id: number) => api.fetchLocation(id)));
 				const updates = locs.map((l: any) => ({
 					id: l.id,
-					patch: { tags: l.tags.filter((t: number) => t !== tid) },
+					tags: l.tags.filter((t: number) => t !== tid),
 				}));
 				await api.updateLocations(updates);
 			},
@@ -333,12 +333,12 @@ describe("Multiple tags on same location", () => {
 		await select(tagSelector(tag1Id));
 		const tag1Ids = await refreshSelections();
 		expect(tag1Ids.length).toBe(15);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 
 		await select(tagSelector(tag3Id));
 		const tag3Ids = await refreshSelections();
 		expect(tag3Ids.length).toBe(8);
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("counts agree with selections after cross-tag mutation", async () => {
@@ -368,7 +368,7 @@ describe("Full scene reset preserves selectedLocationIds", () => {
 	});
 
 	after(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 		await closeMap();
 		await deleteMap(mapId);
 	});

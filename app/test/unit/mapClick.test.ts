@@ -11,7 +11,7 @@ vi.mock("@/lib/commands", () => ({
 		storeSetDerived: async () => null,
 		storeResolvePick: (...a: unknown[]) => storeResolvePick(...a),
 		storeRead: (...a: unknown[]) =>
-			(storeFindNearby(...a) as Promise<unknown[]>).then((locations) => ({
+			(storeFindNearby(...a.slice(1)) as Promise<unknown[]>).then((locations) => ({
 				kind: "rows",
 				rows: { kind: "inline", locations },
 			})),
@@ -131,8 +131,7 @@ describe("openHref (map-aware link opening)", () => {
 		storeFindNearby.mockResolvedValue([]);
 		await openHref(HREF);
 		expect(storeFindNearby).toHaveBeenCalledWith(
-			{ type: "Everything" },
-			{ kind: "nearby", lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
+			{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
 			{ kind: "rows" },
 		);
 		expect(openExternal).not.toHaveBeenCalled();

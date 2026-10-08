@@ -2,7 +2,8 @@
 // fields by how strongly they *separate* the groups (not by modal frequency).
 // Works on per-group value counts from the store; no location ever reaches JS.
 
-import type { CountBy, FieldDef, ComparisonType, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { CountBy, FieldDef, ComparisonType } from "@/bindings.gen";
 import { createFieldDef } from "@/types";
 import {
 	getFieldDef,

@@ -9,19 +9,24 @@ pub(crate) mod field_expr;
 pub(crate) mod saved;
 
 use crate::store::arrow::{Column, Columns};
+use crate::store::engine::{pick_even, pick_spaced, SpacedPickResult, SPATIAL_CELL_M};
 use crate::store::maps::IndexShape;
 use crate::types;
 use crate::types::{Location, LocationFlags, RawExtra};
 use arrow_array::RecordBatch;
+use mma_algebra::{rank_by, Change, Keyed};
+use mma_fields::Children;
 
 mod duplicates;
 mod filter;
 mod geometry;
 pub(crate) mod neighborhood;
 mod partition;
+pub(crate) mod tree;
 pub use duplicates::*;
 pub use filter::*;
 pub(crate) use geometry::*;
+use mma_geo::SpatialIndex;
 pub(crate) use mma_geo::{
     anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains,
 };
@@ -32,7 +37,6 @@ use rayon::prelude::*;
 use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
@@ -40,9 +44,9 @@ use std::collections::HashMap;
 /// for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
 /// inverted index when one covers the filtered field. Composites (Intersection, Union,
 /// Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type, Children)]
 #[serde(tag = "type")]
-pub enum Selector {
+pub enum Selector<S = Selection> {
     Locations {
         locations: Vec<u32>,
         name: Option<String>,
@@ -72,13 +76,16 @@ pub enum Selector {
         mode: String,
     },
     Intersection {
-        selections: Vec<Selection>,
+        #[children]
+        selections: Vec<S>,
     },
     Union {
-        selections: Vec<Selection>,
+        #[children]
+        selections: Vec<S>,
     },
     Invert {
-        selections: Vec<Selection>,
+        #[children]
+        selections: Vec<S>,
     },
     Filter {
         field: String,
@@ -91,11 +98,64 @@ pub enum Selector {
     #[serde(rename_all = "camelCase")]
     Ranked {
         /// What to rank; `null` ranks the whole map.
-        selection: Option<Box<Selection>>,
+        #[children]
+        selection: Option<Box<S>>,
         expr: String,
         k: Option<u32>,
         ascending: bool,
     },
+    /// `n` rows of a selection drawn uniformly at random, without replacement.
+    Sample {
+        /// What to draw from; `null` draws from the whole map.
+        #[children]
+        selection: Option<Box<S>>,
+        n: u32,
+    },
+    /// A selection thinned to a spread-out subset.
+    #[serde(rename_all = "camelCase")]
+    Spaced {
+        /// What to thin; `null` thins the whole map.
+        #[children]
+        selection: Option<Box<S>>,
+        thin: Thinning,
+    },
+    /// A selection thinned on a honeycomb, never two picks closer than half the spacing.
+    #[serde(rename_all = "camelCase")]
+    EvenlySpaced {
+        /// What to thin; `null` thins the whole map.
+        #[children]
+        selection: Option<Box<S>>,
+        thin: Thinning,
+    },
+    /// The rows of a selection within `radiusM` metres of a coordinate.
+    #[serde(rename_all = "camelCase")]
+    Nearby {
+        /// Where to look; `null` looks over the whole map.
+        #[children]
+        selection: Option<Box<S>>,
+        lat: f64,
+        lng: f64,
+        radius_m: f64,
+    },
+    /// The row of a selection closest to a coordinate.
+    Nearest {
+        /// Where to look; `null` looks over the whole map.
+        #[children]
+        selection: Option<Box<S>>,
+        lat: f64,
+        lng: f64,
+    },
+}
+
+/// How far a spaced pick thins: to a count, spread as widely as that allows, or to a
+/// spacing, keeping as many as fit.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
+#[serde(tag = "by", rename_all = "camelCase")]
+pub enum Thinning {
+    /// At most `n` rows.
+    Count { n: u32 },
+    /// Rows about `m` metres apart.
+    Metres { m: f64 },
 }
 
 /// A filter's predicate: the operator with its operands. Single source of truth: specta
@@ -187,7 +247,7 @@ impl FilterOp {
 
 /// GeoJSON-like polygon geometry. `coordinates` is the primary polygon (outer ring and
 /// optional holes); `extraPolygons` holds any further polygons of a multipolygon.
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PolygonGeometry {
     pub coordinates: Vec<Vec<[f64; 2]>>,
@@ -197,10 +257,7 @@ pub struct PolygonGeometry {
     pub properties: Option<serde_json::Value>,
 }
 
-/// A named, colored selection. `key` is deterministic (JS mints it) so selections can be
-/// diffed across syncs; `Selection::of` keys internal queries by their serialized selector.
-/// `color` is the RGB overlay color.
-#[derive(Clone, Serialize, Deserialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Selection {
     pub key: String,
@@ -208,16 +265,101 @@ pub struct Selection {
     pub selector: Selector,
 }
 
+impl<'de> Deserialize<'de> for Selection {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        tree::SelectionInput::deserialize(deserializer).map(tree::SelectionInput::compile)
+    }
+}
+
 impl Selection {
     /// A selection nobody displays, for code composing a query. The key is derived from
     /// the selector so equal queries share it.
     pub fn of(selector: Selector) -> Self {
+        let key = tree::key(&selector);
         Selection {
-            key: serde_json::to_string(&selector).unwrap_or_default(),
-            color: [0; 3],
+            color: tree::color(&key),
+            key,
             selector,
         }
     }
+    pub fn fold<T>(&self, combine: &mut impl FnMut(&Selection, Vec<T>) -> T) -> T {
+        let children = self
+            .selector
+            .children()
+            .into_iter()
+            .map(|child| child.fold(combine))
+            .collect();
+        combine(self, children)
+    }
+
+    pub fn mapped(&self, edit: &impl Fn(Selector) -> Selector) -> Self {
+        self.fold(&mut |node, children| {
+            let mut next = Selection::of(edit(node.selector.with_children_ref(children)));
+            next.color = node.color;
+            next
+        })
+    }
+
+    pub fn filter_map(&self, edit: &impl Fn(&Selector) -> Option<Selector>) -> Option<Self> {
+        let selector = edit(&self.selector)?;
+        let children = selector.children();
+        if children.is_empty() {
+            return Some(self.rebuilt(selector));
+        }
+        let children: Vec<_> = children
+            .into_iter()
+            .filter_map(|child| child.filter_map(edit))
+            .collect();
+        if children.is_empty() {
+            return None;
+        }
+        crate::selections::tree::rebuilt(
+            &Selection {
+                selector,
+                ..self.clone()
+            },
+            children,
+        )
+        .into_iter()
+        .next()
+    }
+
+    pub fn rebuilt(&self, selector: Selector) -> Self {
+        if selector == self.selector {
+            return self.clone();
+        }
+        let mut next = Selection::of(selector);
+        if next.key == self.key {
+            next.color = self.color;
+        }
+        next
+    }
+
+    pub fn display_color(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> [u8; 3] {
+        let inner = match &self.selector {
+            Selector::Invert { selections } => selections.first().unwrap_or(self),
+            _ => self,
+        };
+        inner
+            .selector
+            .member_test()
+            .and_then(|(field, id)| color(field, id))
+            .unwrap_or(self.color)
+    }
+
+    pub fn present(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> Self {
+        self.fold(&mut |node, children| Self {
+            key: node.key.clone(),
+            color: node.display_color(color),
+            selector: node.selector.with_children_ref(children),
+        })
+    }
+}
+
+pub(crate) enum Index {
+    Presence(String),
+    Values(String),
+    Spatial,
 }
 
 impl Selector {
@@ -278,6 +420,66 @@ impl Selector {
         }
     }
 
+    pub fn walk(&self, visit: &mut impl FnMut(&Selector)) {
+        visit(self);
+        for child in self.children() {
+            child.selector.walk(visit);
+        }
+    }
+
+    pub(crate) fn indexes(&self) -> Vec<Index> {
+        let mut indexes = Vec::new();
+        self.walk(&mut |selector| match selector {
+            Self::Filter {
+                field,
+                test: FilterOp::Has | FilterOp::Nothas,
+            } => indexes.push(Index::Presence(field.clone())),
+            Self::Filter { field, .. } => indexes.push(Index::Values(field.clone())),
+            Self::Nearby { .. } | Self::Nearest { .. } => indexes.push(Index::Spatial),
+            _ => {}
+        });
+        indexes
+    }
+
+    pub fn row_local(&self) -> bool {
+        match self {
+            Self::Everything
+            | Self::Locations { .. }
+            | Self::Manual { .. }
+            | Self::Validation { .. }
+            | Self::Reviewed { .. }
+            | Self::Polygon { .. }
+            | Self::Filter { .. } => true,
+            Self::Intersection { .. }
+            | Self::Union { .. }
+            | Self::Invert { .. }
+            | Self::Nearby { .. }
+            | Self::Ranked { k: None, .. } => self
+                .children()
+                .iter()
+                .all(|child| child.selector.row_local()),
+            Self::Selected
+            | Self::Uncommitted
+            | Self::Duplicates { .. }
+            | Self::Ranked { k: Some(_), .. }
+            | Self::Sample { .. }
+            | Self::Spaced { .. }
+            | Self::EvenlySpaced { .. }
+            | Self::Nearest { .. } => false,
+        }
+    }
+
+    /// The list field and member this tests membership of, when it is such a test.
+    pub fn member_test(&self) -> Option<(&str, u32)> {
+        match self {
+            Selector::Filter {
+                field,
+                test: FilterOp::Contains { value },
+            } => Some((field, u32::try_from(value.as_u64()?).ok()?)),
+            _ => None,
+        }
+    }
+
     /// Rows every selector keeps. Of none: no rows.
     pub fn all(selectors: impl IntoIterator<Item = Selector>) -> Selector {
         Selector::Intersection {
@@ -309,6 +511,80 @@ pub struct FieldIndex {
     /// Rows holding a value for the field.
     pub rows: RoaringBitmap,
     pub by_value: HashMap<String, RoaringBitmap>,
+}
+
+impl FieldIndex {
+    fn contribution(&self, value: Option<&serde_json::Value>) -> Option<Vec<String>> {
+        value.map(|value| {
+            let mut keys = index_keys(self.shape, value);
+            keys.sort();
+            keys.dedup();
+            keys
+        })
+    }
+
+    fn mark(&mut self, id: u32, keys: &Option<Vec<String>>, present: bool) {
+        let Some(keys) = keys else {
+            return;
+        };
+        let mark = |ids: &mut RoaringBitmap| {
+            if present {
+                ids.insert(id);
+            } else {
+                ids.remove(id);
+            }
+        };
+        mark(&mut self.rows);
+        for key in keys {
+            mark(self.by_value.entry(key.clone()).or_default());
+        }
+    }
+
+    pub fn insert(&mut self, id: u32, value: &serde_json::Value) {
+        let keys = self.contribution(Some(value));
+        self.mark(id, &keys, true);
+    }
+
+    pub fn project<T: Keyed<Key = u32>>(
+        &self,
+        change: &Change<T>,
+        value: impl Fn(&T) -> Option<serde_json::Value>,
+    ) -> Change<(u32, Option<Vec<String>>)> {
+        change.project(|row| (row.key(), self.contribution(value(row).as_ref())))
+    }
+
+    pub fn apply(&mut self, change: &Change<(u32, Option<Vec<String>>)>) -> BTreeSet<String> {
+        let mut moved = BTreeSet::new();
+        for (rows, present) in [
+            (change.before().collect::<Vec<_>>(), false),
+            (change.after().collect(), true),
+        ] {
+            for (id, keys) in rows {
+                self.mark(*id, keys, present);
+                moved.extend(keys.iter().flatten().cloned());
+            }
+        }
+        moved
+    }
+
+    pub fn absent_after(
+        &self,
+        change: &Change<(u32, Option<Vec<String>>)>,
+        touched: impl IntoIterator<Item = String>,
+    ) -> std::collections::HashSet<String> {
+        let mut counts =
+            change.count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
+        for key in touched {
+            counts.entry(key).or_default();
+        }
+        counts
+            .into_iter()
+            .filter_map(|(key, delta)| {
+                let count = self.by_value.get(&key).map_or(0, |ids| ids.len() as i64);
+                (count + delta <= 0).then_some(key)
+            })
+            .collect()
+    }
 }
 
 /// Inverted indexes by field. Built from the base batch; [`resolve`] folds the overlay in
@@ -360,6 +636,8 @@ pub struct LocView<'a> {
     /// The synced selected-id set, which a `Selected` leaf borrows instead of
     /// re-resolving the live selection tree.
     selected: Option<&'a RoaringBitmap>,
+    /// The store's spatial index, when built: the candidates a distance node tests.
+    spatial: Option<&'a SpatialIndex>,
 }
 
 /// One alive location yielded by [`Scope::rows`]. Provides uniform field
@@ -483,6 +761,51 @@ macro_rules! row_readers {
 crate::types::location_columns!(row_readers);
 
 impl<'a> LocView<'a> {
+    pub(crate) fn select<'v>(&self, selector: &Selector) -> Scope<'v, 'a> {
+        self.all().narrow(selector)
+    }
+
+    /// Every selection's rows and every node's count, keyed by `Selection.key`, resolved
+    /// over this source: a child's count is its full count.
+    pub fn resolve_forest(&self, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+        let scope = self.all();
+        let mut counts = HashMap::new();
+        let sets = sels
+            .iter()
+            .map(|selection| {
+                selection.fold(&mut |node, children: Vec<RoaringBitmap>| {
+                    let set = match &node.selector {
+                        Selector::Intersection { .. } => children
+                            .into_iter()
+                            .reduce(|left, right| left & right)
+                            .unwrap_or_default(),
+                        Selector::Union { .. } => children
+                            .into_iter()
+                            .fold(RoaringBitmap::new(), |left, right| left | right),
+                        Selector::Invert { .. } => match children.into_iter().next() {
+                            Some(first) => scope.ids() - first,
+                            None => scope.ids(),
+                        },
+                        _ => scope.resolve(&node.selector),
+                    };
+                    counts.insert(node.key.clone(), set.len() as u32);
+                    set
+                })
+            })
+            .collect();
+        (sets, counts)
+    }
+
+    pub(crate) fn indexed(
+        mut self,
+        fields: &'a FieldIndexes,
+        spatial: Option<&'a SpatialIndex>,
+    ) -> Self {
+        self.field_indexes = Some(fields);
+        self.spatial = spatial;
+        self
+    }
+
     pub fn new(
         batch: Option<&'a RecordBatch>,
         dead: &'a RoaringBitmap,
@@ -490,6 +813,7 @@ impl<'a> LocView<'a> {
         adds: &'a [Location],
         field_indexes: Option<&'a FieldIndexes>,
         selected: Option<&'a RoaringBitmap>,
+        spatial: Option<&'a SpatialIndex>,
     ) -> Self {
         Self {
             dead,
@@ -498,6 +822,7 @@ impl<'a> LocView<'a> {
             cols: batch.map(Columns::of),
             field_indexes,
             selected,
+            spatial,
         }
     }
 
@@ -540,6 +865,19 @@ impl<'a> LocView<'a> {
         }
     }
 
+    pub fn get(&self, id: u32) -> Option<RowRef<'a, '_>> {
+        if self.dead.contains(id) {
+            return None;
+        }
+        if let Some(row) = self.patches.get(&id) {
+            return Some(RowRef::from_loc(row));
+        }
+        if let Ok(i) = self.adds.binary_search_by_key(&id, |row| row.id) {
+            return Some(RowRef::from_loc(&self.adds[i]));
+        }
+        Some(self.row(self.cols?.row_of(id)?))
+    }
+
     /// Every alive row.
     pub fn all<'v>(&self) -> Scope<'v, 'a> {
         Scope {
@@ -571,7 +909,48 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
                 None => matches!(test, FilterOp::Nothas),
             }
         }
+        Selector::Intersection { selections } => {
+            !selections.is_empty() && selections.iter().all(|child| test_row(r, &child.selector))
+        }
+        Selector::Union { selections } => {
+            selections.iter().any(|child| test_row(r, &child.selector))
+        }
+        Selector::Invert { selections } => selections
+            .first()
+            .is_none_or(|child| !test_row(r, &child.selector)),
+        Selector::Ranked {
+            selection, k: None, ..
+        } => selection
+            .as_ref()
+            .is_none_or(|child| test_row(r, &child.selector)),
+        Selector::Nearby {
+            selection,
+            lat,
+            lng,
+            radius_m,
+        } => {
+            selection
+                .as_ref()
+                .is_none_or(|child| test_row(r, &child.selector))
+                && (DistanceTo {
+                    lat: *lat,
+                    lng: *lng,
+                })
+                .score(r)
+                    <= *radius_m
+        }
         _ => false,
+    }
+}
+
+/// A spaced pick's ids, or none when its thinning is out of range.
+fn picked(r: types::AppResult<SpacedPickResult>) -> RoaringBitmap {
+    match r {
+        Ok(r) => r.ids.into_iter().collect(),
+        Err(e) => {
+            log::warn!("[selections] {e}");
+            RoaringBitmap::new()
+        }
     }
 }
 
@@ -628,14 +1007,28 @@ impl<'v, 'a> Scope<'v, 'a> {
             return Walk::Dense(view.alive().filter(move |r| set.contains(r.id())));
         }
         let base = set.iter().filter_map(move |id| {
-            let i = view.cols?.row_of(id)?;
-            view.is_alive(i).then(|| view.row(i))
+            view.cols?.row_of(id)?;
+            view.get(id)
         });
         let adds = set.iter().filter_map(move |id| {
-            let i = view.adds.binary_search_by_key(&id, |loc| loc.id).ok()?;
-            Some(RowRef::from_loc(&view.adds[i]))
+            view.adds.binary_search_by_key(&id, |row| row.id).ok()?;
+            view.get(id)
         });
         Walk::Seek(base.chain(adds))
+    }
+
+    pub fn any_within(&self, lat: f64, lng: f64, radius_m: f64) -> bool {
+        let distance = DistanceTo { lat, lng };
+        let close = |row: RowRef<'_, '_>| distance.score(&row) <= radius_m;
+        if let Some(index) = self.view.spatial {
+            return index.any_candidate(lat, lng, radius_m, |id| {
+                if self.rows.as_deref().is_some_and(|rows| !rows.contains(id)) {
+                    return false;
+                }
+                self.view.get(id).is_some_and(close)
+            });
+        }
+        self.rows().any(close)
     }
 
     /// The ids in scope.
@@ -685,56 +1078,20 @@ impl<'v, 'a> Scope<'v, 'a> {
         }
     }
 
-    /// Every selection's rows and every node's count, keyed by `Selection.key`, resolved
-    /// in this scope without narrowing: a child's count is its full count.
-    pub fn resolve_forest(&self, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
-        fn walk(all: &Scope, sel: &Selection, counts: &mut HashMap<String, u32>) -> RoaringBitmap {
-            let set = match &sel.selector {
-                Selector::Intersection { selections } => {
-                    // No empty short-circuit: children's counts are reported regardless,
-                    // so they must resolve either way.
-                    let mut acc: Option<RoaringBitmap> = None;
-                    for c in selections {
-                        let child = walk(all, c, counts);
-                        acc = Some(match acc {
-                            Some(a) => a & child,
-                            None => child,
-                        });
-                    }
-                    acc.unwrap_or_default()
-                }
-                Selector::Union { selections } => {
-                    let mut acc = RoaringBitmap::new();
-                    for c in selections {
-                        acc |= walk(all, c, counts);
-                    }
-                    acc
-                }
-                Selector::Invert { selections } => {
-                    let mut children = selections.iter();
-                    let set = match children.next() {
-                        Some(first) => all.ids() - walk(all, first, counts),
-                        None => all.ids(),
-                    };
-                    // Invert is unary: extra children don't affect the set but their
-                    // counts are still reported, matching resolve semantics.
-                    for c in children {
-                        walk(all, c, counts);
-                    }
-                    set
-                }
-                _ => all.resolve(&sel.selector),
-            };
-            counts.insert(sel.key.clone(), set.len() as u32);
-            set
-        }
-        let mut counts = HashMap::new();
-        let sets = sels.iter().map(|s| walk(self, s, &mut counts)).collect();
-        (sets, counts)
+    pub(crate) fn coverage(&self, fields: &[String]) -> Vec<(String, u32)> {
+        let mut counts: Vec<_> = fields
+            .iter()
+            .filter_map(|field| {
+                let count = self.resolve(&Selector::has(field)).len() as u32;
+                (count > 0).then_some((field.clone(), count))
+            })
+            .collect();
+        counts.sort_by(|a, b| a.0.cmp(&b.0));
+        counts
     }
 
     /// A narrower scope: the rows here `selector` keeps. `Everything` keeps this scope.
-    pub fn narrow(&self, selector: &Selector) -> Scope<'v, 'a> {
+    fn narrow(&self, selector: &Selector) -> Scope<'v, 'a> {
         match selector {
             Selector::Everything => self.clone(),
             _ => Scope {
@@ -748,7 +1105,7 @@ impl<'v, 'a> Scope<'v, 'a> {
     /// intersection narrows the scope child by child, so `page AND has(field)` costs the
     /// page, not the map. Duplicates and top-k depend on rows outside the scope, so they
     /// resolve over the whole map and are clipped to it.
-    pub fn resolve(&self, selector: &Selector) -> RoaringBitmap {
+    fn resolve(&self, selector: &Selector) -> RoaringBitmap {
         match selector {
             Selector::Everything => self.ids(),
             Selector::Selected => match self.view.selected {
@@ -803,11 +1160,7 @@ impl<'v, 'a> Scope<'v, 'a> {
                 k,
                 ascending,
             } => {
-                let all = self.view.all();
-                let pool = match selection {
-                    Some(child) => all.narrow(&child.selector),
-                    None => all,
-                };
+                let pool = self.pool(selection);
                 let Some(k) = k else {
                     return self.clip(pool.ids());
                 };
@@ -817,7 +1170,54 @@ impl<'v, 'a> Scope<'v, 'a> {
                         .collect(),
                 )
             }
+            Selector::Sample { selection, n } => self.clip(
+                self.pool(selection)
+                    .sample(*n as usize)
+                    .into_iter()
+                    .collect(),
+            ),
+            Selector::Spaced { selection, thin } => {
+                self.clip(picked(pick_spaced(self.pool(selection).points(), *thin)))
+            }
+            Selector::EvenlySpaced { selection, thin } => {
+                self.clip(picked(pick_even(&self.pool(selection).points(), *thin)))
+            }
+            Selector::Nearby {
+                selection,
+                lat,
+                lng,
+                radius_m,
+            } => self.clip(
+                DistanceTo {
+                    lat: *lat,
+                    lng: *lng,
+                }
+                .within(&self.pool(selection), *radius_m),
+            ),
+            Selector::Nearest {
+                selection,
+                lat,
+                lng,
+            } => self.clip(
+                DistanceTo {
+                    lat: *lat,
+                    lng: *lng,
+                }
+                .minimum(&self.pool(selection))
+                .into_iter()
+                .collect(),
+            ),
             _ => self.keep(|r| test_row(r, selector)),
+        }
+    }
+
+    /// The whole map narrowed to a set-dependent node's child, which it reads in full
+    /// before this scope clips the answer.
+    fn pool(&self, selection: &Option<Box<Selection>>) -> Scope<'v, 'a> {
+        let all = self.view.all();
+        match selection {
+            Some(child) => all.narrow(&child.selector),
+            None => all,
         }
     }
 
@@ -855,46 +1255,35 @@ impl<'v, 'a> Scope<'v, 'a> {
         out
     }
 
-    /// Ids in scope best-ranked first: highest score, or lowest when `ascending`. A row
-    /// the expression cannot evaluate ranks below every row it can, whichever direction
-    /// is asked for. The sort is stable, so ties keep view order. `k` cuts to the best k
-    /// first, which costs a selection rather than a full sort.
-    pub fn ranked(&self, expr: &str, k: Option<usize>, ascending: bool) -> Vec<u32> {
+    pub fn rank_by(
+        &self,
+        score: impl Fn(&RowRef) -> Option<f64>,
+        take: Option<usize>,
+        ascending: bool,
+    ) -> Vec<u32> {
+        rank_by(self.rows(), take, score, |a, b| {
+            let order = a.total_cmp(b);
+            if ascending {
+                order
+            } else {
+                order.reverse()
+            }
+        })
+        .into_iter()
+        .map(|row| row.id())
+        .collect()
+    }
+
+    pub fn ranked(&self, expr: &str, take: Option<usize>, ascending: bool) -> Vec<u32> {
         let expr = field_expr::parse(expr).ok();
-        let mut scored: Vec<(u32, Option<f64>)> = self
-            .rows()
-            .map(|row| {
-                let score = expr
-                    .as_ref()
-                    .and_then(|e| field_expr::eval(e, &|name| row.resolve_field(name)));
-                (row.id(), score)
-            })
-            .collect();
-        // eval never yields NaN, so partial_cmp is total.
-        let better = |a: &(u32, Option<f64>), b: &(u32, Option<f64>)| match (a.1, b.1) {
-            (Some(x), Some(y)) => {
-                let c = x.partial_cmp(&y).unwrap_or(Ordering::Equal);
-                if ascending {
-                    c
-                } else {
-                    c.reverse()
-                }
-            }
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => Ordering::Equal,
-        };
-        if let Some(k) = k {
-            if k == 0 {
-                return Vec::new();
-            }
-            if k < scored.len() {
-                scored.select_nth_unstable_by(k - 1, better);
-                scored.truncate(k);
-            }
-        }
-        scored.sort_by(better);
-        scored.into_iter().map(|(id, _)| id).collect()
+        self.rank_by(
+            |row| {
+                expr.as_ref()
+                    .and_then(|expr| field_expr::eval(expr, &|name| row.resolve_field(name)))
+            },
+            take,
+            ascending,
+        )
     }
 
     /// `n` distinct ids in scope drawn uniformly at random. Partial Fisher-Yates, so drawing

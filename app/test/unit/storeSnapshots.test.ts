@@ -4,8 +4,8 @@ import { toggleGhost } from "@/store/selections";
 import type { ListedSelection } from "@/bindings.gen";
 
 vi.mock("@/lib/commands", async () => {
-	const { selectionChange } = await import("./fixtures/mocks");
-	return { cmd: { storeSyncSelections: vi.fn(async () => selectionChange()) } };
+	const { selectionsHeld } = await import("./fixtures/mocks");
+	return { cmd: { storeEditSelections: vi.fn(async (rows: unknown[]) => selectionsHeld(rows)) } };
 });
 
 const fakeRow = (key: string): ListedSelection => ({

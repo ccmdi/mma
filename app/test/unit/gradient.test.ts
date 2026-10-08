@@ -7,7 +7,7 @@ import {
 	fieldScale,
 	colorPartition,
 } from "@/plugins/gradient/gradientMath";
-import { locationsKey } from "@/store/selections";
+
 import type { KeySpec, PartitionBucket } from "@/bindings.gen";
 
 describe("lerp", () => {
@@ -194,7 +194,13 @@ describe("colorPartition", () => {
 			eqFilter: false,
 		});
 		expect(sels.every((s) => s.selector.type === "Filter")).toBe(true);
-		expect(sels.every((s) => s.key.startsWith("filter:altitude:between:"))).toBe(true);
+		expect(sels.map((s) => s.selector)).toEqual(
+			numericBins.map((g) => ({
+				type: "Filter",
+				field: "altitude",
+				test: { op: "between", lo: g.bin![0], hi: g.bin![1] },
+			})),
+		);
 	});
 
 	it("narrowed numeric bins emit static Locations selections keyed by their id list", () => {
@@ -212,7 +218,7 @@ describe("colorPartition", () => {
 		expect(ids.sort()).toEqual([1, 2, 3]);
 		const first = sels[0];
 		if (first.selector.type === "Locations") {
-			expect(first.key).toBe(locationsKey(first.selector.locations));
+			expect(first.selector.locations).toEqual(numericBins[0].ids);
 			// carries the group key as its name, so it isn't a generic "Selection"
 			expect(first.selector.name).toBe("0–50");
 		}
@@ -233,7 +239,9 @@ describe("colorPartition", () => {
 			eqFilter: true,
 		});
 		expect(sels.every((s) => s.selector.type === "Filter")).toBe(true);
-		expect(sels.map((s) => s.key)).toEqual(["filter:tag:eq:a", "filter:tag:eq:b"]);
+		expect(sels.map((s) => s.selector)).toEqual(
+			["a", "b"].map((value) => ({ type: "Filter", field: "tag", test: { op: "eq", value } })),
+		);
 	});
 
 	it("whole-map projection groups (no eqFilter, no bin) fall back to static Locations", () => {

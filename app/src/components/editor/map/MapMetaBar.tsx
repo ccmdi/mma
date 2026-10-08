@@ -51,8 +51,8 @@ function CommitControls() {
 }
 
 function UndoRedoControls() {
-	const canUndo = useMapState((s) => s.canUndo);
-	const canRedo = useMapState((s) => s.canRedo);
+	const canUndo = useMapState((s) => s.history.undo);
+	const canRedo = useMapState((s) => s.history.redo);
 	return (
 		<>
 			<IconButton

@@ -1,18 +1,15 @@
-import type { Patch } from "@/types";
+import type { Selector } from "@/types";
 import type {
 	Edit,
 	EditOpts,
 	FieldValuesPatch,
-	MapMeta,
 	MutationResult,
-	Selector,
 	Target,
 	Work,
 	WorkResult,
 } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { emit as emitEvent } from "@/lib/events";
-import { getMapState, mutate, setMap } from "./useMapStore";
+import { getMapState, mutate } from "./useMapStore";
 import { invalidateMapList } from "./mapList";
 import * as autosave from "./autosave";
 
@@ -24,16 +21,13 @@ export function rows(target: Target, edits: Edit[], opts?: EditOpts): Promise<Mu
 }
 
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
-export async function meta(patch: Partial<Patch<MapMeta>>): Promise<void> {
-	const { map, mapId } = getMapState();
+export async function meta(
+	patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & { id?: string },
+): Promise<void> {
+	const { mapId } = getMapState();
 	const id = patch.id ?? mapId;
 	if (!id) return;
-	const carried = Object.fromEntries(
-		Object.entries({ ...patch, id }).filter(([, v]) => v !== undefined),
-	) as Patch<MapMeta>;
-	if (map && mapId === id) setMap({ ...map, ...carried });
-	emitEvent("store:changed");
-	await cmd.storeUpdateMapMeta(carried);
+	await cmd.storeUpdateMapMeta({ ...patch, id });
 	autosave.schedule();
 	await invalidateMapList();
 }
@@ -46,7 +40,7 @@ export async function values(field: string, patch: FieldValuesPatch): Promise<nu
 	await mutate(async () => {
 		const r = await cmd.storePatchFieldValues(field, patch);
 		ids = r.resolved;
-		return r.mutation;
+		return { mutation: r.mutation };
 	});
 	return ids;
 }

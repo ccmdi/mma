@@ -47,8 +47,8 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 			await edit.work(
 				{ type: "Everything" },
 				{
-					kind: "mergeDuplicates",
-					distance,
+					kind: "merge",
+					groups: await previewDuplicateGroups(distance),
 					score: getMapState().map?.settings.duplicateScore ?? null,
 				},
 			);

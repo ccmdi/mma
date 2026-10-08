@@ -759,7 +759,7 @@ describe("Rapid fire-and-forget mutations", () => {
 			}
 			await Promise.all(promises);
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -794,7 +794,7 @@ describe("Rapid fire-and-forget mutations", () => {
 			await Promise.all([removePromise, addPromise]);
 
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -865,7 +865,7 @@ describe("Autosave racing with mutations", () => {
 			await api.autosave.flush();
 
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -928,7 +928,7 @@ describe("Undo while save in-flight", () => {
 			await Promise.all([savePromise, undoPromise]);
 
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -1076,7 +1076,7 @@ describe("Selection during mutation", () => {
 
 		// Re-select -- should now get 40
 		const count2 = await withApi(async (api, tid) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection(api.tagSelector(tid)));
 			return api.getMapState().selectedLocationIds.size;
 		}, tag.id);
@@ -1085,7 +1085,7 @@ describe("Selection during mutation", () => {
 
 	it("removing selected locations updates selection", async () => {
 		const result = await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
 			const beforeCount = api.getMapState().selectedLocationIds.size;
 			const ids = [...api.getMapState().selectedLocationIds].slice(0, 5);

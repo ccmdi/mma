@@ -28,9 +28,9 @@ function runMap(rows) {
 	failed.length = 0;
 	const patches = map(rows);
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
-	return { patches: patches.map((p) => ({ id: p.id, patch: p.patch.extra })), failed: [...failed] };
+	return { patches: patches.map((p) => ({ id: p.id, patch: p.extra })), failed: [...failed] };
 }
 
 const row = (id, lat, lng, extra = { datetime: 1719835200 }) => ({ id, lat, lng, extra });

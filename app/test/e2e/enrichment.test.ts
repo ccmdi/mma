@@ -557,12 +557,12 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 		expect(l.extra.datetime).toBe(1700000000);
 	});
 
-	it("bulk enrichAll merges every provider into the pre-existing extra", async () => {
+	it("bulk enrich merges every provider into the pre-existing extra", async () => {
 		// Only offline fields are selected, so the network-bound core providers (svMeta,
 		// exactDate) sit the run out and every write below comes from an offline module.
 		await updateMapSettings({ enrichFields: ["timezone", "sunAzimuth", "sunAltitude"] });
 		await withApi(async (api) => {
-			await api.enrichAll({ type: "Everything" }, { force: true });
+			await api.enrich({ type: "Everything" }, { force: true });
 			return "ok";
 		});
 		await browser.waitUntil(
@@ -659,7 +659,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string equality filter (countryCode = US) selects correct location", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(
 				api.addSelection({
 					type: "Filter",
@@ -677,7 +677,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("between filter (altitude 60-150) selects correct location", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(
 				api.addSelection({
 					type: "Filter",
@@ -695,7 +695,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string inequality filter (countryCode != US)", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(
 				api.addSelection({
 					type: "Filter",
@@ -713,7 +713,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("month comparison filter (imageDate >= 2024-01)", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(
 				api.addSelection({
 					type: "Filter",
@@ -730,7 +730,7 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("filter on missing field excludes locations without it", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(
 				api.addSelection({
 					type: "Filter",

@@ -32,7 +32,7 @@ describe("Live selection correctness after add/remove", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tag selection updates when matching locations are added (no reset)", async () => {
@@ -154,7 +154,7 @@ describe("Live selection correctness after update", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("updating location to ADD matching tag joins active tag selection", async () => {
@@ -269,7 +269,7 @@ describe("Review mode delete with active selections", () => {
 	});
 	beforeEach(async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			api.cancelReview();
 		});
 	});
@@ -357,7 +357,7 @@ describe("Selection correctness after undo/redo", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("undo of add shrinks active selection", async () => {
@@ -380,7 +380,7 @@ describe("Selection correctness after undo/redo", () => {
 		const id0 = locIds[0];
 		await withApi(
 			async (api, tagId: number, locId: number) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 				await api.removeLocations(new Set([locId]));
 			},
@@ -403,7 +403,7 @@ describe("Selection correctness after undo/redo", () => {
 		const loc5 = await getLoc(id5);
 		await withApi(
 			async (api, tagId: number, loc) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 				await api.updateLocations([{ id: loc.id, tags: [tagId] }]);
 			},
@@ -454,7 +454,7 @@ describe("Selection correctness after undo/redo", () => {
 
 	it("redo of add grows selection back", async () => {
 		await withApi(async (api, tagId: number) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 			await api.addLocations([api.createLocation({ lat: 80, lng: 80, tags: [tagId] })]);
 		}, tagUndoId);
@@ -510,7 +510,7 @@ describe("Composite selection correctness after mutations", () => {
 		locIds = await addLocs(locs);
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("intersection updates when location gains a tag to enter both children", async () => {
@@ -614,7 +614,7 @@ describe("Bulk operations with active selections", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("batchUpdateLocations adds tag to 50 locs, all join active tag selection", async () => {
@@ -702,7 +702,7 @@ describe("Slot reuse correctness", () => {
 		tagSlotId = tagSlot.id;
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("add, remove (freeing slots), add new (reusing slots) -- tag selection stays correct", async () => {
@@ -908,7 +908,7 @@ describe("Slot reuse correctness", () => {
 			}
 
 			const totalLocs = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;

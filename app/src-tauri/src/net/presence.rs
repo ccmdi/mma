@@ -18,19 +18,26 @@ const CLIENT_ID: &str = "1525958540181901475";
 
 type Job<C> = Box<dyn FnOnce(&mut C) -> Result<(), Box<dyn error::Error>> + Send>;
 
+/// Whether a job may open the connection, or runs only on one already open.
+#[derive(Clone, Copy, PartialEq)]
+enum Reach {
+    Connect,
+    IfConnected,
+}
+
 /// Serial executor owning the lazily connected client; IPC never runs on a command thread.
 struct Worker<C> {
-    tx: Sender<(bool, Job<C>)>,
+    tx: Sender<(Reach, Job<C>)>,
 }
 
 impl<C: Send + 'static> Worker<C> {
     fn spawn(connect: impl Fn() -> Option<C> + Send + 'static) -> Self {
-        let (tx, rx) = channel::<(bool, Job<C>)>();
+        let (tx, rx) = channel::<(Reach, Job<C>)>();
         thread::spawn(move || {
             let mut client: Option<C> = None;
-            for (may_connect, job) in rx {
+            for (reach, job) in rx {
                 if client.is_none() {
-                    if !may_connect {
+                    if reach == Reach::IfConnected {
                         continue;
                     }
                     client = connect();
@@ -45,13 +52,12 @@ impl<C: Send + 'static> Worker<C> {
         Worker { tx }
     }
 
-    /// With `may_connect` false the job is dropped unless already connected.
     fn submit(
         &self,
-        may_connect: bool,
+        reach: Reach,
         job: impl FnOnce(&mut C) -> Result<(), Box<dyn error::Error>> + Send + 'static,
     ) {
-        let _ = self.tx.send((may_connect, Box::new(job)));
+        let _ = self.tx.send((reach, Box::new(job)));
     }
 }
 
@@ -83,7 +89,7 @@ pub struct PresenceActivity {
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
-    worker().submit(true, move |client| {
+    worker().submit(Reach::Connect, move |client| {
         let mut act = Activity::new();
         if let Some(d) = activity.details.as_deref() {
             act = act.details(d);
@@ -117,7 +123,7 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub fn discord_presence_clear() -> AppResult<()> {
-    worker().submit(false, DiscordIpc::clear_activity);
+    worker().submit(Reach::IfConnected, DiscordIpc::clear_activity);
     Ok(())
 }
 
@@ -125,7 +131,7 @@ pub fn discord_presence_clear() -> AppResult<()> {
 pub fn shutdown() {
     let Some(w) = WORKER.get() else { return };
     let (tx, rx) = channel();
-    w.submit(false, move |client| {
+    w.submit(Reach::IfConnected, move |client| {
         let _ = client.clear_activity();
         let _ = client.close();
         let _ = tx.send(());

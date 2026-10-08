@@ -1,4 +1,4 @@
-﻿import { bboxTupleToBounds, isImportPreview } from "@/types";
+﻿import { bboxTupleToBounds } from "@/types";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { EditorImportPreview, Target } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
@@ -98,8 +98,7 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 export function cancelImport() {
 	resetImportState();
 	emitEvent("import-markers:changed");
-	const active = getMapState().openRow;
-	if ((active && isImportPreview(active)) || getMapState().workArea === "import") {
+	if (getMapState().open?.origin === "import" || getMapState().workArea === "import") {
 		setWorkArea("overview");
 	} else {
 		emitEvent("store:changed");

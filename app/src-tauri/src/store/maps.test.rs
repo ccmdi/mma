@@ -633,7 +633,7 @@ fn new_maps_start_from_the_saved_defaults_and_existing_maps_keep_theirs() {
     let created = create_map_row(&conn, "New", None).unwrap();
     let scratch = scratch_map_row(&conn).unwrap();
     let existing = conn
-        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], row_to_map_meta)
+        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], MapMeta::read)
         .unwrap();
 
     assert!(!created.settings.preferences.point_along_road);
@@ -689,7 +689,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     .unwrap();
 
     let source = conn
-        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], row_to_map_meta)
+        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], MapMeta::read)
         .unwrap();
     assert_eq!(copy.name, "Real (copy)");
     assert_eq!(copy.description, "about");
@@ -703,7 +703,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         serde_json::to_value(&copy.extra).unwrap(),
         serde_json::to_value(&source.extra).unwrap()
     );
-    assert_eq!(copy.tags.0.len(), 1);
+    assert_eq!(copy.tags.len(), 1);
     assert_eq!(copy.location_count, 2);
     assert_eq!(
         copy.pending.added, 0,
@@ -744,7 +744,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     )
     .unwrap();
     let source = conn
-        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], row_to_map_meta)
+        .query_row("SELECT * FROM maps WHERE id = 'm1'", [], MapMeta::read)
         .unwrap();
     assert_eq!(source.name, "Real");
     assert!(!source.settings.preferences.point_along_road);
@@ -767,9 +767,10 @@ fn duplicating_a_missing_map_writes_nothing() {
 #[test]
 fn tag_records_read_and_write_the_one_column_format() {
     let stored = r#"{"7":{"id":7,"name":"a","visible":true,"color":"red"},"x":{"name":"b"}}"#;
-    let records: TagRecords = serde_json::from_str(stored).unwrap();
+    let records: HashMap<u32, ValueRecord> =
+        crate::io::records::decode(&mut serde_json::Deserializer::from_str(stored)).unwrap();
     assert_eq!(
-        records.0,
+        records,
         HashMap::from([(
             7,
             serde_json::json!({ "name": "a", "color": "red" })
@@ -778,7 +779,7 @@ fn tag_records_read_and_write_the_one_column_format() {
                 .clone()
         )])
     );
-    let written = serde_json::to_value(&records).unwrap();
+    let written = crate::io::records::write(&records).unwrap();
     assert_eq!(
         written,
         serde_json::json!({ "7": { "id": 7, "name": "a", "color": "red" } })
@@ -791,7 +792,7 @@ fn open_m1(conn: &Connection) -> StoreManager {
     let mut meta = read_map_meta(conn, "m1").unwrap();
     store.value_meta.insert(
         "tags".into(),
-        engine::Tracked::new(std::mem::take(&mut meta.tags.0)),
+        engine::Tracked::new(std::mem::take(&mut meta.tags)),
     );
     store.meta = engine::Tracked::new(meta);
     let mut mgr = StoreManager::new();
@@ -861,7 +862,7 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     store.saved(&unsaved);
 
     let row = read_map_meta(&conn, "m1").unwrap();
-    assert_eq!(row.tags.0.len(), 1);
+    assert_eq!(row.tags.len(), 1);
     assert!(row.extra.fields.contains_key("altitude"));
     assert!(store.unsaved().unwrap().is_none());
 }
@@ -872,7 +873,7 @@ fn an_open_maps_tags_cannot_be_patched_behind_their_values() {
     let mut mgr = open_m1(&conn);
     let patch = Patch::<MapMeta> {
         id: "m1".into(),
-        tags: Some(TagRecords::default()),
+        tags: Some(HashMap::new()),
         ..Default::default()
     };
     assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
@@ -953,4 +954,38 @@ fn a_whole_row_as_a_patch_writes_every_column_back() {
     storage::update_row::<MapMeta>(&conn, "maps", "m1", &row.to_patch()).unwrap();
     let back = read_map_meta(&conn, "m1").unwrap();
     assert!(back == row);
+}
+
+#[test]
+fn declared_map_schema_matches_migration_history() {
+    let conn = setup_real_db();
+    let mut query = conn.prepare("PRAGMA table_info(maps)").unwrap();
+    let mut migrated: Vec<_> = query
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, i64>(3)? == 0,
+                row.get::<_, i64>(5)? != 0,
+                row.get::<_, Option<String>>(4)?,
+            ))
+        })
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    let mut declared: Vec<_> = MapMeta::COLUMNS
+        .iter()
+        .map(|column| {
+            (
+                column.name.to_string(),
+                column.sql_type.to_string(),
+                column.nullable,
+                column.primary_key,
+                column.default.map(str::to_string),
+            )
+        })
+        .collect();
+    migrated.sort();
+    declared.sort();
+    assert_eq!(declared, migrated);
 }

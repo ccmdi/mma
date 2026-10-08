@@ -216,9 +216,10 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 	await ensureOpen(mapId, 0);
 	await withApi(async (api) => {
 		await api.setActiveLocation(null);
-		for (let guard = 0; guard < 16 && api.getMapState().canUndo; guard += 1) await api.undo();
+		for (let guard = 0; guard < 16 && api.getMapState().history.undo; guard += 1) await api.undo();
 		api.autosave.cancel();
-		if (api.getMapState().canUndo) throw new Error("unwind did not reach the committed baseline");
+		if (api.getMapState().history.undo)
+			throw new Error("unwind did not reach the committed baseline");
 	});
 	await waitForScene(minimumMarkers);
 }
@@ -230,7 +231,7 @@ async function settleBaseline(message: string): Promise<void> {
 		await api.autosave.waitForInflight();
 		if (
 			(
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -539,7 +540,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		bench(route, scale, {
 			setup: async () => {
 				await ensureOpen(mapId, sceneFloor);
-				await withApi(async (api) => api.applySelectionUpdate(() => []));
+				await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 			},
 			run: () =>
 				withApi(
@@ -581,7 +582,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await ensureOpen(mapId, sceneFloor);
 				await withApi(
 					async (api, id, op) => {
-						await api.applySelectionUpdate(() => []);
+						await api.applySelectionUpdate({ kind: "set", selections: [] });
 						await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 						if (op !== "invert")
 							await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
@@ -616,7 +617,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
 			});
 		},
@@ -634,7 +635,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			}),
 	});
 	await unwind(mapId, sceneFloor);
-	await withApi(async (api) => api.applySelectionUpdate(() => []));
+	await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 
 	// --- mutation ---
 
@@ -651,7 +652,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;
@@ -680,7 +681,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
 					const total = (
-						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						(await api.cmd.storeSummary()) as {
 							locationCount: number;
 							version: number;
 							dirtyCount: number;
@@ -746,7 +747,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
 					const count = (
-						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						(await api.cmd.storeSummary()) as {
 							locationCount: number;
 							version: number;
 							dirtyCount: number;
@@ -764,7 +765,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				if (api.getMapState().selectedLocationIds.size === 0) {
 					throw new Error("delete setup selected nothing");
@@ -783,7 +784,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;
@@ -809,7 +810,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;
@@ -826,11 +827,11 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				api.autosave.cancel();
-				if (!api.getMapState().canUndo) throw new Error("bulk delete is not undoable");
+				if (!api.getMapState().history.undo) throw new Error("bulk delete is not undoable");
 			}, tagId);
 		},
 		run: () =>
@@ -843,7 +844,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;
@@ -858,12 +859,12 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);
 			await withApi(async (api, id) => {
-				await api.applySelectionUpdate(() => []);
+				await api.applySelectionUpdate({ kind: "set", selections: [] });
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				await api.undo();
 				api.autosave.cancel();
-				if (!api.getMapState().canRedo) throw new Error("bulk delete is not redoable");
+				if (!api.getMapState().history.redo) throw new Error("bulk delete is not redoable");
 			}, tagId);
 		},
 		run: () =>
@@ -876,7 +877,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;
@@ -887,7 +888,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			}, baseline),
 	});
 	await unwind(mapId, sceneFloor);
-	await withApi(async (api) => api.applySelectionUpdate(() => []));
+	await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 
 	// --- persistence ---
 
@@ -919,7 +920,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.autosave.waitForInflight();
 				if (
 					(
-						(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+						(await api.cmd.storeSummary()) as {
 							locationCount: number;
 							version: number;
 							dirtyCount: number;
@@ -938,9 +939,11 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				const commitId = await api.commitMap("Bench one-row update");
 				const durationMs = performance.now() - start;
-				const summary = (await api.cmd.storeRead({ type: "Everything" }, null, {
-					kind: "summary",
-				})) as { locationCount: number; version: number; dirtyCount: number };
+				const summary = (await api.cmd.storeSummary()) as {
+					locationCount: number;
+					version: number;
+					dirtyCount: number;
+				};
 				if (!commitId || summary.dirtyCount !== 0) {
 					throw new Error(`commit failed: id=${commitId} dirty=${summary.dirtyCount}`);
 				}

@@ -409,7 +409,6 @@ export class GenerationEngine {
 			const near = (
 				await read(
 					{ type: "Everything" },
-					null,
 					{
 						kind: "nearAny",
 						lats: coords.map((c) => c.lat),
@@ -442,8 +441,13 @@ export class GenerationEngine {
 			const locs = await rowsOf(
 				(
 					await read(
-						{ type: "Everything" },
-						{ kind: "nearby", lat: centroidLat, lng: centroidLng, radiusM: coveringRadius },
+						{
+							type: "Nearby",
+							selection: null,
+							lat: centroidLat,
+							lng: centroidLng,
+							radiusM: coveringRadius,
+						},
 						{ kind: "rows" },
 						"rows",
 					)
@@ -824,7 +828,6 @@ export class GenerationEngine {
 				const covered = (
 					await read(
 						{ type: "Everything" },
-						null,
 						{ kind: "nearAny", lats: [pano.lat], lngs: [pano.lng], radiusM: s.skipExistingRadius },
 						"booleans",
 					)

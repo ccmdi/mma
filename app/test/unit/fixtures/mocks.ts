@@ -109,23 +109,71 @@ export function openMapResult(
 	over: { tagCounts?: Record<string, number>; fieldDefs?: Record<string, unknown> } = {},
 ) {
 	return {
-		version: 0,
+		version: 1,
 		derived: {
 			locationCount: 0,
-			canUndo: false,
-			canRedo: false,
-			valueCounts: { tags: over.tagCounts ?? {} },
-			valueMeta: {},
+			history: { undo: false, redo: false },
+			fieldValues: {
+				tags: Object.fromEntries(
+					Object.entries(over.tagCounts ?? {}).map(([k, count]) => [k, { record: null, count }]),
+				),
+			},
 			fieldDefs: over.fieldDefs ?? {},
 			selectionCounts: {},
-			deadValues: null,
+			selectionList: [],
 		},
 	};
 }
 
-/** What `storeSyncSelections` answers: a change that moved no row. */
-export function selectionChange() {
-	return { version: 0, added: [] };
+export async function selectionsHeld(value: unknown) {
+	const { getMapState, setMap } = await import("@/store/useMapStore");
+	const { selectionFixture } = await import("./selection");
+	const op = value as import("@/bindings.gen").SelectionOp;
+	type Row = import("@/bindings.gen").ListedSelection;
+	const apply = (op: import("@/bindings.gen").SelectionOp, rows: Row[]): Row[] => {
+		switch (op.kind) {
+			case "set":
+				return op.selections.map((s) => ({
+					selection: selectionFixture(s.selector, s.color ?? [128, 128, 128]),
+					ghosted: false,
+				}));
+			case "add":
+				return [
+					...rows,
+					...op.selections.map((s) => ({
+						selection: selectionFixture(s.selector, s.color ?? [128, 128, 128]),
+						ghosted: false,
+					})),
+				];
+			case "ghost":
+				return rows.map((r, i) => ({ ...r, ghosted: r.ghosted !== (i === op.index) }));
+			case "remove":
+				return rows.filter((r) => !op.keys.includes(r.selection.key));
+			case "active": {
+				const next = apply(
+					op.op,
+					rows.filter((r) => !r.ghosted),
+				);
+				return rows
+					.flatMap((row) => (row.ghosted ? [row] : next.length ? [next.shift()!] : []))
+					.concat(next);
+			}
+			default:
+				throw new Error(`Unsupported test operation: ${op.kind}`);
+		}
+	};
+	const state = getMapState();
+	Object.assign(state, { selectionList: apply(op, state.selectionList) });
+	if (state.map) setMap(state.map);
+	return { mutation: { version: 0, added: [] } };
+}
+
+export async function metadataWritten(patch: unknown) {
+	const { getMapState, setMap } = await import("@/store/useMapStore");
+	const state = getMapState();
+	const change = patch as Partial<import("@/bindings.gen").MapMeta>;
+	if (state.map && state.mapId === change.id) setMap({ ...state.map, ...change });
+	return null;
 }
 
 export function cmdProxy(handlers: Handlers) {

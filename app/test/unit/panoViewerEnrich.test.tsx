@@ -3,7 +3,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act, useEffect, useState } from "react";
 import { mount } from "./fixtures/harness";
 import { createLocation } from "@/types";
-import { LocationFlag } from "@/bindings.consts";
 import type { Location } from "@/bindings.gen";
 
 // The viewer's draft is a pending layer in the store: these tests pin the wire protocol
@@ -12,17 +11,20 @@ import type { Location } from "@/bindings.gen";
 // by the store's own tests.
 const h = vi.hoisted(() => ({
 	activeLocation: null as unknown,
+	opened: null as { id: number; origin: string } | null,
+	listeners: new Set<() => void>(),
+	origin: "map",
 	/** The mock layer: rows by id, naive field merge, never the map. */
 	layer: new Map<number, Location>(),
 	nextId: 100,
 	/** Every storeEdit call: its edits and opts, in order. */
 	edits: [] as { edits: unknown[]; opts: { land?: boolean } | null }[],
 	drops: 0,
-	/** Each enrichAt run: its target and abort signal. */
+	/** Each enrich run: its target and abort signal. */
 	runs: [] as { target: { name: string }; signal: AbortSignal | undefined }[],
-	/** When set, enrichAt never settles, as a slow provider mid-run. */
+	/** When set, enrich never settles, as a slow provider mid-run. */
 	enrichHangs: false,
-	/** When set, enrichAt rejects instead of answering. */
+	/** When set, enrich rejects instead of answering. */
 	enrichFails: false,
 	onPartials: [] as ((rows: Location[]) => void)[],
 	settleEnrich: [] as (() => void)[],
@@ -61,31 +63,57 @@ vi.mock("@/lib/commands", () => ({
 					else h.layer.set(e.put.id, applyPut({ ...(h.activeLocation as Location) }, e.put));
 				}
 			}
-			return { version: 0, selectionSync: null, step: null, active: null, values: {}, firstId };
+			return { mutation: { version: 0, added: firstId == null ? [] : [firstId] } };
 		},
-		storeRow: async (_target: unknown, id: number) => h.layer.get(id) ?? null,
+
 		storeDrop: async () => {
 			h.drops++;
 			h.layer.clear();
 		},
 	},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	VIEWER: { kind: "pending", name: "viewer" },
-	useMapState: (sel: (s: { openRow: unknown; map: unknown }) => unknown) =>
-		sel({ openRow: h.activeLocation, map: { settings: {} } }),
-	mutate: (fn: () => Promise<unknown>) => fn(),
-	getMapState: () => ({ map: { settings: {} } }),
-	setOpenRow: (row: unknown) => {
-		h.openRowPushes.push(row);
-	},
-}));
+vi.mock("@/store/useMapStore", async () => {
+	const { useEffect, useState } = await import("react");
+	const state = () => {
+		const row = h.activeLocation as Location | null;
+		if (!row) h.opened = null;
+		else if (h.opened?.id !== row.id || h.opened.origin !== h.origin)
+			h.opened = { id: row.id, origin: h.origin };
+		return { openRow: row, open: h.opened, map: { settings: { enrichMetadata: true } } };
+	};
+	return {
+		query: (selector: { locations: number[] }) => ({
+			locations: async () =>
+				selector.locations.flatMap((id) => (h.layer.has(id) ? [h.layer.get(id)] : [])),
+		}),
+		VIEWER: { kind: "pending", name: "viewer" },
+		useMapState: (sel: (s: ReturnType<typeof state>) => unknown) => {
+			const [, tick] = useState(0);
+			useEffect(() => {
+				const changed = () => tick((n) => n + 1);
+				h.listeners.add(changed);
+				return () => {
+					h.listeners.delete(changed);
+				};
+			}, []);
+			return sel(state());
+		},
+		mutate: (fn: () => Promise<unknown>) => fn(),
+		getMapState: state,
+		setOpenRow: (row: unknown, owner: unknown) => {
+			if (state().open !== owner) return;
+			h.openRowPushes.push(row);
+			h.activeLocation = row;
+			for (const changed of h.listeners) changed();
+		},
+	};
+});
 vi.mock("@/lib/sv/enrich", () => ({
-	enrichAt: (
-		target: { name: string },
-		opts?: { signal?: AbortSignal; onPartial?: (rows: Location[]) => void },
+	enrich: (
+		_selector: unknown,
+		opts?: { on: { name: string }; signal?: AbortSignal; onPartial?: (rows: Location[]) => void },
 	) => {
-		h.runs.push({ target, signal: opts?.signal });
+		h.runs.push({ target: opts!.on, signal: opts?.signal });
 		if (opts?.onPartial) h.onPartials.push(opts.onPartial);
 		if (h.enrichFails) return Promise.reject(new Error("network"));
 		if (h.enrichHangs) return new Promise<void>(() => {});
@@ -147,6 +175,8 @@ const settleRun = () =>
 const puts = () => h.edits.flatMap((e) => e.edits.filter((x): x is Put => "put" in (x as object)));
 
 beforeEach(() => {
+	h.opened = null;
+	h.listeners.clear();
 	h.layer = new Map();
 	h.nextId = 100;
 	h.edits = [];
@@ -157,6 +187,7 @@ beforeEach(() => {
 	h.enrichHangs = false;
 	h.enrichFails = false;
 	h.openRowPushes = [];
+	h.origin = "map";
 	h.activeLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
@@ -198,11 +229,8 @@ describe("the draft is the viewer's layer row", () => {
 
 	it("a preview opens on its pre-seeded layer row without reseeding", async () => {
 		// The store seeded the preview copy into the layer before opening it.
-		h.activeLocation = {
-			...location(),
-			id: 100,
-			flags: LocationFlag.SeenOverlay,
-		} satisfies Location;
+		h.origin = "seen";
+		h.activeLocation = { ...location(), id: 100 } satisfies Location;
 		h.layer.set(100, h.activeLocation as Location);
 		const m = mountHost();
 		await open("pA");
@@ -319,11 +347,8 @@ describe("saving lands the layer", () => {
 	});
 
 	it("landing answers the layer row's id, so a preview save knows its map row", async () => {
-		h.activeLocation = {
-			...location(),
-			id: 100,
-			flags: LocationFlag.SeenOverlay,
-		} satisfies Location;
+		h.origin = "seen";
+		h.activeLocation = { ...location(), id: 100 } satisfies Location;
 		h.layer.set(100, h.activeLocation as Location);
 		const m = mountHost();
 		await open("pA");

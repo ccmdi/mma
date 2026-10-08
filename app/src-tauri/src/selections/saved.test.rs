@@ -168,7 +168,7 @@ fn get_ignores_ids_that_are_not_there() {
 fn a_topk_row_reads_as_a_ranked_over_the_rows_that_hold_the_field() {
     let old = r#"{"type":"TopK","field":"altitude","k":10,"ascending":true}"#;
     let selector: Selector =
-        serde_json::from_value(modernize(serde_json::from_str(old).unwrap())).unwrap();
+        serde_json::from_value::<Selector>(modernize(serde_json::from_str(old).unwrap())).unwrap();
     let Selector::Ranked {
         selection,
         expr,
@@ -198,7 +198,7 @@ fn a_filter_row_written_before_0_10_2_still_reads() {
         {"key":"c","color":[0,0,0],"selector":{"type":"Filter","field":"country","op":"neq","value":"US"}}
     ]}"#;
     let Selector::Intersection { selections } =
-        serde_json::from_value(modernize(serde_json::from_str(old).unwrap())).unwrap()
+        serde_json::from_value::<Selector>(modernize(serde_json::from_str(old).unwrap())).unwrap()
     else {
         panic!("not an intersection");
     };
@@ -253,4 +253,126 @@ fn a_flag_filter_row_written_as_zero_or_one_reads_as_a_boolean() {
             }
         );
     }
+}
+
+fn map_with_records() -> Store {
+    let mut store = Store::new();
+    let records = HashMap::from([
+        (
+            9,
+            serde_json::Map::from_iter([("name".into(), "japan".into())]),
+        ),
+        (
+            3,
+            serde_json::Map::from_iter([("name".into(), "Coastal".into())]),
+        ),
+    ]);
+    store
+        .value_meta
+        .insert("tags".into(), crate::store::engine::Tracked::new(records));
+    let mut row = crate::test_util::loc(1, 0.0, 0.0);
+    row.tags = vec![9];
+    store.write(
+        [crate::store::engine::Edit::Set(row)],
+        &mut None,
+        Default::default(),
+    );
+    store
+}
+
+#[test]
+fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
+    let conn = setup();
+    let saved = create(
+        &conn,
+        "rule".into(),
+        Selector::tag(5),
+        tag_names(&[(5, "Japan")]),
+        [1, 2, 3],
+    )
+    .unwrap();
+    let mut store = map_with_records();
+    let before = serde_json::to_value(&saved).unwrap();
+    assert_eq!(saved.resolved(&mut store), Selector::tag(9));
+    store
+        .value_meta
+        .get_mut("tags")
+        .unwrap()
+        .edit()
+        .get_mut(&9)
+        .unwrap()
+        .insert("name".into(), "Asia/Japan".into());
+    assert_eq!(
+        saved.resolved(&mut store),
+        Selector::Locations {
+            locations: vec![],
+            name: None
+        }
+    );
+    assert_eq!(serde_json::to_value(&saved).unwrap(), before);
+}
+
+#[test]
+fn saved_names_do_not_resurrect_dark_records() {
+    let conn = setup();
+    let saved = create(
+        &conn,
+        "rule".into(),
+        Selector::tag(3),
+        tag_names(&[(3, "Coastal")]),
+        [1, 2, 3],
+    )
+    .unwrap();
+    assert_eq!(
+        saved.resolved(&mut map_with_records()),
+        Selector::Locations {
+            locations: vec![],
+            name: None
+        }
+    );
+}
+
+#[test]
+fn a_missing_saved_leaf_preserves_its_composite_and_child_colors() {
+    let conn = setup();
+    let mut alive = Selection::of(Selector::tag(5));
+    alive.color = [8, 7, 6];
+    let saved = create(
+        &conn,
+        "rule".into(),
+        Selector::Intersection {
+            selections: vec![alive, Selection::of(Selector::tag(8))],
+        },
+        tag_names(&[(5, "Japan"), (8, "Gone")]),
+        [1, 2, 3],
+    )
+    .unwrap();
+    let Selector::Intersection { selections } = saved.resolved(&mut map_with_records()) else {
+        panic!("composite lost")
+    };
+    assert_eq!(selections[0].selector, Selector::tag(9));
+    assert_eq!(selections[0].color, [8, 7, 6]);
+    assert_eq!(
+        selections[1].selector,
+        Selector::Locations {
+            locations: vec![],
+            name: None
+        }
+    );
+}
+
+#[test]
+fn portable_names_are_captured_at_every_depth() {
+    let store = map_with_records();
+    let selector = Selector::Intersection {
+        selections: vec![
+            Selection::of(Selector::tag(9)),
+            Selection::of(Selector::Invert {
+                selections: vec![Selection::of(Selector::tag(3))],
+            }),
+        ],
+    };
+    let mut names = HashMap::new();
+    capture_names(&selector, "tags", &store, &mut names);
+    assert_eq!(names, tag_names(&[(9, "japan"), (3, "Coastal")]));
 }

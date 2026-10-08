@@ -14,11 +14,12 @@ import { t } from "@/lib/i18n";
  *  into the draft and the trail. */
 export function usePanoSession() {
 	const location = useMapState((s) => s.openRow);
+	const opened = useMapState((s) => s.open);
 	const { edit, open } = usePanoViewer();
 	const pano = usePano();
 
 	useEffect(() => {
-		if (!location) return;
+		if (!location || location.id !== opened?.id) return;
 		let cancelled = false;
 
 		const offStatus = pano.on("status_changed", () => {
@@ -51,5 +52,5 @@ export function usePanoSession() {
 			offStatus();
 			offLock();
 		};
-	}, [pano, location?.id]);
+	}, [pano, opened, location?.id]);
 }

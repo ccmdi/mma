@@ -35,14 +35,14 @@ function rectOf(polygon: MockPolygon) {
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeRead: (
-			_selector: unknown,
-			pick: { kind: string } | null,
+			_target: unknown,
+			selector: { type: string },
 			ask: { kind: string; lats?: number[] },
 		) => {
 			if (ask.kind === "nearAny") {
 				return Promise.resolve({ kind: "booleans", values: (ask.lats ?? []).map(() => false) });
 			}
-			if (pick?.kind === "nearby") {
+			if (selector.type === "Nearby") {
 				return Promise.resolve({ kind: "rows", rows: { kind: "inline", locations: h.seeds } });
 			}
 			throw new Error(`unexpected read: ${ask.kind}`);

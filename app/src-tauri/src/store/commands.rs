@@ -5,7 +5,8 @@
 use crate::io::export;
 use crate::io::import;
 use crate::plugins::borders;
-use crate::selections::{self, Selection, Selector};
+use crate::selections::tree::{SelectionInput, SelectionOp};
+use crate::selections::{self, Selector};
 use crate::store::arrow;
 use crate::store::arrow::schema;
 use crate::store::engine::*;
@@ -160,7 +161,7 @@ async fn open_claimed_map(
     let mut meta = maps::read_map_meta(&conn, &map_id)?;
     store
         .value_meta
-        .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags.0)));
+        .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
     store.meta = Tracked::new(meta);
     let status = store.open_status();
     store.derived = mgr.derived.clone();
@@ -201,52 +202,6 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
     }
 }
 
-/// Edit rows where `target` says. Edits at a pending layer are held there until one says
-/// `land`; once landed they write through and join its step.
-#[tauri::command]
-#[specta::specta]
-pub fn store_edit(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    target: Target,
-    edits: Vec<Edit>,
-    opts: Option<EditOpts>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let opts = opts.unwrap_or_default();
-        let result = store.edit(&target, edits, opts.land, &mut None);
-        log::debug!("[cmd] store_edit total={}ms", _t.elapsed().as_millis());
-        Ok(result)
-    })
-}
-
-/// The row at `id` as `target` sees it.
-#[tauri::command]
-#[specta::specta]
-pub fn store_row(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    target: Target,
-    id: u32,
-) -> AppResult<Option<Location>> {
-    with_store!(label, state, |store| { Ok(store.row_at(&target, id)) })
-}
-
-/// Drop a named pending layer and everything it holds.
-#[tauri::command]
-#[specta::specta]
-pub fn store_drop(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    name: String,
-) -> AppResult<()> {
-    with_store!(label, state, |store| {
-        store.drop_pending(&name);
-        Ok(())
-    })
-}
-
 /// Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
 #[tauri::command]
 #[specta::specta]
@@ -277,7 +232,7 @@ pub async fn store_add_locations_uploaded(
             _read,
             _t.elapsed().as_millis()
         );
-        Ok(result)
+        Ok(MutationResult { mutation: result })
     })
 }
 
@@ -296,39 +251,6 @@ pub fn store_set_derived(
         store.derived = derived.clone();
     }
     Ok(())
-}
-
-/// Run work over every location matched by `selector`, landing the edits it derives.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_work(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    work: Work,
-) -> AppResult<WorkResult> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let result = apply_work(store, &selector, &work)?;
-        log::debug!("[cmd] store_work total={}ms", _t.elapsed().as_millis());
-        Ok(result)
-    })
-}
-
-/// Patch an interned field's value metadata: get-or-create names, edit display
-/// metadata, reorder. Metadata only - membership writes go through the ordinary
-/// `listSet` field op. `tags` is the first (and so far only) interned field.
-#[tauri::command]
-#[specta::specta]
-pub fn store_patch_field_values(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    field: String,
-    patch: FieldValuesPatch,
-) -> AppResult<FieldValuesResult> {
-    with_store!(label, state, |store| {
-        store.patch_field_values(&field, &patch)
-    })
 }
 
 /// Set the default marker color for new render updates.
@@ -353,12 +275,12 @@ pub fn store_set_marker_color(
 pub async fn store_country_distribution(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    selector: Selector,
+    selector: Selector<SelectionInput>,
     level: String,
 ) -> AppResult<Vec<(String, u32)>> {
     let coords: AppResult<Vec<(f64, f64)>> = with_store!(label, state, |store| {
         Ok(store
-            .scope(&selector)
+            .scope(&selector.map_children(SelectionInput::compile))
             .rows()
             .map(|row| (row.lat(), row.lng()))
             .collect())
@@ -373,9 +295,14 @@ pub fn store_copy_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target_map_id: String,
-    selector: Selector,
+    selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
-    copy_to_map(label, state, target_map_id, |src| src.collect(&selector))
+    copy_to_map(label, state, target_map_id, |src| {
+        src.collect(
+            &Target::Map,
+            &selector.map_children(SelectionInput::compile),
+        )
+    })
 }
 
 /// Add caller-supplied locations to another map. Tags are matched by name against this
@@ -403,11 +330,6 @@ fn copy_to_map(
 ) -> AppResult<CopyToMapResult> {
     let _t = Instant::now();
     let conn = storage::open_db()?;
-    let target_name: String = conn.query_row(
-        "SELECT name FROM maps WHERE id = ?1",
-        [&target_map_id],
-        |r| r.get(0),
-    )?;
 
     // The manager lock is held for both paths: it serializes the closed-path
     // delta-file rewrite against a concurrent store_open_map of the same map.
@@ -444,7 +366,6 @@ fn copy_to_map(
         return Ok(CopyToMapResult {
             copied: 0,
             skipped: 0,
-            target_name,
         });
     }
 
@@ -461,7 +382,7 @@ fn copy_to_map(
         // receiving window, whose save scheduling follows it - so we do NOT persist here.
         let target = mgr.store_for_map(&target_map_id)?;
         let t_scan = Instant::now();
-        let existing = target.collect(&Selector::Everything);
+        let existing = target.collect(&Target::Map, &Selector::Everything);
         let (fresh, skipped) = split_new_locations(sources, &existing);
         let scan_ms = t_scan.elapsed().as_millis();
         let copied = fresh.len() as u32;
@@ -476,11 +397,7 @@ fn copy_to_map(
                 _t.elapsed().as_millis()
             );
         }
-        return Ok(CopyToMapResult {
-            copied,
-            skipped,
-            target_name,
-        });
+        return Ok(CopyToMapResult { copied, skipped });
     }
 
     // Target closed: append to the uncommitted delta sidecar (what autosave writes).
@@ -491,7 +408,7 @@ fn copy_to_map(
     let copied = fresh.len() as u32;
     if copied > 0 {
         let target_meta = maps::read_map_meta(&conn, &target_map_id)?;
-        let mut target_tags = target_meta.tags.0;
+        let mut target_tags = target_meta.tags;
         let data_max = existing
             .iter()
             .flat_map(|l| l.tags.iter().copied())
@@ -543,7 +460,7 @@ fn copy_to_map(
             &target_map_id,
             &Patch::<maps::MapMeta> {
                 id: target_map_id.clone(),
-                tags: Some(maps::TagRecords(target_tags)),
+                tags: Some(target_tags),
                 extra: Some(maps::MapExtra { fields }),
                 ..Default::default()
             },
@@ -556,11 +473,7 @@ fn copy_to_map(
             _t.elapsed().as_millis()
         );
     }
-    Ok(CopyToMapResult {
-        copied,
-        skipped,
-        target_name,
-    })
+    Ok(CopyToMapResult { copied, skipped })
 }
 
 /// Save uncommitted changes to disk. No-op when nothing has changed.
@@ -667,107 +580,42 @@ pub fn store_resolve_pick(
     })
 }
 
-/// Undo the last edit.
+/// Undo the newest edit, or redo the newest undone one.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_undo(
+pub async fn store_step(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
+    stack: Stack,
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
         let changes = store
-            .undo(|seq| load_edit(&storage::open_db()?, &map_id, seq))?
-            .ok_or("nothing to undo")?;
-        log_history_step("UNDO", _t, store.edits.undo_len(), &changes.rows);
-        Ok(store.finish_entry(&changes))
+            .step(stack, |seq| load_edit(&storage::open_db()?, &map_id, seq))?
+            .ok_or("nothing to step through")?;
+        log::debug!(
+            "[{stack:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
+            store.edits.len(stack),
+            _t.elapsed().as_millis(),
+            changes.rows.added.len(),
+            changes.rows.updated.len(),
+            changes.rows.removed.len()
+        );
+        Ok(MutationResult {
+            mutation: store.finish_entry(&changes),
+        })
     })
 }
 
-/// Redo the last undone edit.
+/// Compile unaddressed selections into keyed store inputs.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_redo(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-) -> AppResult<MutationResult> {
-    with_store!(label, state, |store| {
-        let _t = Instant::now();
-        let map_id = store.meta.id.clone();
-        let changes = store
-            .redo(|seq| load_edit(&storage::open_db()?, &map_id, seq))?
-            .ok_or("nothing to redo")?;
-        log_history_step("REDO", _t, store.edits.redo_len(), &changes.rows);
-        Ok(store.finish_entry(&changes))
-    })
-}
-
-fn log_history_step(step: &str, started: Instant, depth: usize, changes: &Change) {
-    log::debug!(
-        "[{step}] stack_depth={depth} apply_edit={}ms changes: +{} ~{} -{}",
-        started.elapsed().as_millis(),
-        changes.added.len(),
-        changes.updated.len(),
-        changes.removed.len()
-    );
-}
-
-/// Return the uncommitted change counts since the last commit.
-// Derived from the overlay, not the undo stack: the stack is capped, and non-undoable edits
-// (enrichment, field renames, plugin batches) bypass it while still being part of the commit.
-#[tauri::command]
-#[specta::specta]
-pub fn store_commit_diff(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-) -> AppResult<mma_algebra::Counts> {
-    with_store!(label, state, |store| { Ok(store.overlay_diff_counts()) })
-}
-
-/// Replace all active selections and resolve them against current data. Returns
-/// per-selection counts; the markers repaint through the render frame.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_sync_selections(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    sels: Vec<ListedSelection>,
-) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    let mut mgr = state.lock()?;
-    let store = mgr.store_for_window(&label.0)?;
-
-    // Faithful tree: real keys preserved so per-node counts come back keyed (incl. nested).
-    let sels_full: Vec<Selection> = sels.iter().map(|si| si.selection.clone()).collect();
-
-    // Resolve the whole forest in one pass: per-selection Roaring id-sets plus counts for
-    // every node (top-level and nested). Indexed filter leaves clone postings; composites
-    // combine natively. (Geometric leaves still scan.) Counts cover ghosted selections too;
-    // the overlay uses the non-ghosted subset.
-    let (sel_sets, counts) = store.resolve_forest(&sels_full);
-
-    // Keep every selection, ghosted flagged: a mutation recounts all of them, and
-    // `SelectionState::live` is the one rule that keeps ghosted out of the overlay and the
-    // selected set.
-    store.selections.resolved =
-        pair_selections(sels_full, sel_sets, sels.iter().map(|si| si.ghosted));
-    store.selections.ids = store.selections.live_ids();
-    store.selections.node_counts = counts;
-    let result = store.finish_selection_change();
-
-    log::debug!(
-        "[cmd] store_sync_selections total={}ms sels={} selected={} batch_rows={} overlay_adds={} dead={} alive={} render_total={}",
-        _t.elapsed().as_millis(),
-        sels.len(),
-        store.selections.ids.len(),
-        store.batch.as_ref().map_or(0, RecordBatch::num_rows),
-        store.overlay.adds.len(),
-        store.overlay.dead.len(),
-        *store.alive_count,
-        store.render.total_len(),
-    );
-    Ok(result)
+pub fn selection_build(selections: Vec<SelectionInput>) -> Vec<crate::selections::Selection> {
+    selections
+        .into_iter()
+        .map(SelectionInput::compile)
+        .collect()
 }
 
 /// One row of honeycomb points: `count` points from `lng` eastward, each `lngStep` degrees
@@ -909,21 +757,56 @@ fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
 #[path = "commands.test.rs"]
 mod tests;
 
-/// Answer one question about the rows a selector resolves to, optionally narrowed by a
-/// pick first.
-#[tauri::command]
-#[specta::specta]
-pub fn store_read(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector,
-    pick: Option<RowPick>,
-    ask: Ask,
-) -> AppResult<Answer> {
-    let _t = Instant::now();
-    with_store!(label, state, |store| {
-        let answer = store.read(&selector, pick.as_ref(), &ask);
-        log::debug!("[cmd] store_read total={}ms", _t.elapsed().as_millis());
-        answer
-    })
+macro_rules! command_table {
+    ($callback:ident, $extra:tt) => {
+        $callback! { $extra;
+            "Edit rows where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit>, opts: Option<EditOpts>) -> MutationResult => |store| {
+                let opts = opts.unwrap_or_default();
+                Ok(MutationResult { mutation: store.edit(&target, edits, opts.land, &mut None) })
+            };
+            "Drop a named pending layer and everything it holds." store_drop(name: String) -> () => |store| {
+                store.drop_pending(&name);
+                Ok(())
+            };
+            "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
+                apply_work(store, &selector.map_children(SelectionInput::compile), &work)
+            };
+            "Patch an interned field's value records; membership uses ordinary row edits." store_patch_field_values(field: String, patch: FieldValuesPatch) -> FieldValuesResult => |store| {
+                store.patch_field_values(&field, &patch)
+            };
+            "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {
+                Ok(store.overlay_diff_counts())
+            };
+            "Edit the selection tree as one undoable store mutation." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
+                Ok(store.edit_selections(&op))
+            };
+            "Answer one question about the target's rows matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
+                store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
+            };
+            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: String) -> MutationResult => |store| {
+                selections::saved::apply_saved_selection(store, &id)
+            };
+            "Return the open store's location count, version and dirty count." store_summary() -> Summary => |store| {
+                Ok(store.summary())
+            };
+ }
+    };
 }
+pub(crate) use command_table;
+
+macro_rules! define_commands {
+    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) -> $ret:ty => |$store:ident| $body:block; )*) => {
+        $(
+            #[doc = $doc]
+            #[tauri::command]
+            #[specta::specta]
+            pub fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
+                let started = Instant::now();
+                let result = with_store!(label, state, |$store| $body);
+                log::debug!("[cmd] {} total={}ms", stringify!($name), started.elapsed().as_millis());
+                result
+            }
+        )*
+    };
+}
+command_table!(define_commands, []);

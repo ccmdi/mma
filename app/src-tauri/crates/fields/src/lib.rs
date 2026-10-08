@@ -270,7 +270,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 /// between them is empty. Every other
 /// field is optional, stored in the column `#[patch(column = "...")]` names or its own. The
 /// wire type is `Partial<Struct>` narrowed the same way.
-#[proc_macro_derive(Patch, attributes(patch))]
+#[proc_macro_derive(Patch, attributes(patch, row, field))]
 pub fn derive_patch(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match expand_patch(&input) {
@@ -333,7 +333,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         if optional && !merge && !stamp {
             clears.push(key_name.clone());
         }
+        let codec = f.attrs.iter().filter(|attr| attr.path().is_ident("serde"));
         slots.push(quote! {
+            #(#codec)*
             #[serde(default, skip_serializing_if = "Option::is_none")] #de pub #name: Option<#ty>,
         });
         columns.push(quote! { (#key_name, #column), });
@@ -361,7 +363,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         wire = format!("{wire} & Pick<{ident}, {}>", keys.join(" | "));
     }
     let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
+    let row = expand_row(input)?;
     Ok(quote! {
+        #row
         /// A change to some of one value's fields: an absent field is unchanged.
         #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
         #(#serde)*
@@ -407,6 +411,302 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             D: serde::Deserializer<'de>,
         {
             Ok(Some(<Option<T> as serde::Deserialize>::deserialize(d)?))
+        }
+    })
+}
+
+fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
+    let Some(attr) = input.attrs.iter().find(|attr| attr.path().is_ident("row")) else {
+        return Ok(quote!());
+    };
+    let mut table = None;
+    attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("table") {
+            table = Some(meta.value()?.parse::<LitStr>()?);
+            Ok(())
+        } else {
+            Err(meta.error("expected table"))
+        }
+    })?;
+    let table = table.ok_or_else(|| syn::Error::new_spanned(attr, "row requires table"))?;
+    let ident = &input.ident;
+    let Data::Struct(data) = &input.data else {
+        unreachable!()
+    };
+    let mut reads = Vec::new();
+    let mut columns = Vec::new();
+    let mut names = Vec::new();
+    for field in &data.fields {
+        let name = field.ident.as_ref().expect("named row fields");
+        let ty = &field.ty;
+        let (mut json, mut codec, mut decode, mut default) = (false, None, None, None);
+        let mut flattened: Vec<(Ident, LitStr)> = Vec::new();
+        for attr in field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("field"))
+        {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("json") {
+                    json = true;
+                } else if meta.path.is_ident("codec") {
+                    codec = Some(meta.value()?.parse::<LitStr>()?.parse::<syn::Path>()?);
+                } else if meta.path.is_ident("decode") {
+                    decode = Some(meta.value()?.parse::<LitStr>()?.parse::<syn::Path>()?);
+                } else if meta.path.is_ident("default") {
+                    default = Some(meta.value()?.parse::<LitStr>()?);
+                } else if meta.path.is_ident("flatten") {
+                    meta.parse_nested_meta(|part| {
+                        let name = part
+                            .path
+                            .get_ident()
+                            .ok_or_else(|| part.error("expected member name"))?
+                            .clone();
+                        flattened.push((name, part.value()?.parse::<LitStr>()?));
+                        Ok(())
+                    })?;
+                } else {
+                    return Err(meta.error("unknown row field option"));
+                }
+                Ok(())
+            })?;
+        }
+        let default = default.map_or_else(|| quote!(None), |value| quote!(Some(#value)));
+        let mut key = false;
+        let mut column = name.to_string();
+        for attr in field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("patch"))
+        {
+            attr.parse_nested_meta(|meta| {
+                if meta.path.is_ident("key") {
+                    key = true;
+                } else if meta.path.is_ident("column") {
+                    column = meta.value()?.parse::<LitStr>()?.value();
+                }
+                Ok(())
+            })?;
+        }
+        if !flattened.is_empty() {
+            let mut members = Vec::new();
+            for (member, column) in flattened {
+                names.push(column.value());
+                members.push(quote!(#member: row.get(#column)?));
+                columns.push(quote!(crate::store::storage::sql_column(#column, |value: &Self| &value.#name.#member, false, #default)));
+            }
+            reads.push(quote!(#name: #ty { #(#members,)* }));
+            continue;
+        }
+        names.push(column.clone());
+        let read = if let Some(codec) = codec {
+            quote!(#codec(row, #column)?)
+        } else if let Some(decode) = decode {
+            quote!(#decode(&row.get::<_, String>(#column)?))
+        } else if json {
+            quote!(crate::store::storage::json_col(row, #column)?)
+        } else {
+            quote!(row.get(#column)?)
+        };
+        reads.push(quote!(#name: #read));
+        columns.push(if json {
+            quote!(crate::store::storage::Column { name: #column, sql_type: "TEXT", nullable: false, primary_key: #key, default: #default })
+        } else {
+            quote!(crate::store::storage::sql_column(#column, |value: &Self| &value.#name, #key, #default))
+        });
+    }
+    let select = names.join(", ");
+    Ok(quote! {
+        impl #ident {
+            pub(crate) const TABLE: &'static str = #table;
+            pub(crate) const COLUMNS: &'static [crate::store::storage::Column] = &[#(#columns,)*];
+            pub(crate) const SELECT: &'static str = #select;
+            pub(crate) fn read(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
+                Ok(Self { #(#reads,)* })
+            }
+        }
+    })
+}
+
+#[proc_macro_derive(Delta)]
+pub fn derive_delta(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let Data::Struct(data) = &input.data else {
+        return syn::Error::new_spanned(&input, "Delta derives on a named struct")
+            .to_compile_error()
+            .into();
+    };
+    let syn::Fields::Named(fields) = &data.fields else {
+        return syn::Error::new_spanned(&input, "Delta requires named fields")
+            .to_compile_error()
+            .into();
+    };
+    let name = &input.ident;
+    let mut generics = input.generics.clone();
+    for field in &fields.named {
+        let ty = &field.ty;
+        generics
+            .make_where_clause()
+            .predicates
+            .push(syn::parse_quote!(#ty: mma_algebra::Delta));
+    }
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let names: Vec<_> = fields
+        .named
+        .iter()
+        .map(|field| field.ident.as_ref().unwrap())
+        .collect();
+    quote! {
+        impl #impl_generics mma_algebra::Delta for #name #ty_generics #where_clause {
+            fn inverse(&self) -> Self {
+                Self { #(#names: mma_algebra::Delta::inverse(&self.#names)),* }
+            }
+            fn then(self, later: Self) -> Self {
+                Self { #(#names: mma_algebra::Delta::then(self.#names, later.#names)),* }
+            }
+            fn is_empty(&self) -> bool {
+                true #(&& mma_algebra::Delta::is_empty(&self.#names))*
+            }
+        }
+    }
+    .into()
+}
+
+#[proc_macro_derive(Children, attributes(children))]
+pub fn derive_children(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    match expand_children(&input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn expand_children(input: &DeriveInput) -> syn::Result<TokenStream2> {
+    let Data::Enum(data) = &input.data else {
+        return Err(syn::Error::new_spanned(
+            input,
+            "Children derives on an enum",
+        ));
+    };
+    let name = &input.ident;
+    let child = input
+        .generics
+        .type_params()
+        .next()
+        .ok_or_else(|| syn::Error::new_spanned(input, "Children needs a child type parameter"))?
+        .ident
+        .clone();
+    let mut refs = Vec::new();
+    let mut maps = Vec::new();
+    let mut replacements = Vec::new();
+    let mut ref_maps = Vec::new();
+    let mut ref_replacements = Vec::new();
+    for variant in &data.variants {
+        let v = &variant.ident;
+        if matches!(variant.fields, syn::Fields::Unit) {
+            refs.push(quote!(Self::#v => Vec::new()));
+            maps.push(quote!(Self::#v => #name::#v));
+            replacements.push(quote!(Self::#v => Self::#v));
+            ref_maps.push(quote!(Self::#v => #name::#v));
+            ref_replacements.push(quote!(Self::#v => #name::#v));
+            continue;
+        }
+        let syn::Fields::Named(fields) = &variant.fields else {
+            return Err(syn::Error::new_spanned(
+                variant,
+                "Children needs named variants",
+            ));
+        };
+        let names: Vec<_> = fields
+            .named
+            .iter()
+            .map(|f| f.ident.as_ref().unwrap())
+            .collect();
+        let recursive: Vec<_> = fields
+            .named
+            .iter()
+            .filter(|f| f.attrs.iter().any(|a| a.path().is_ident("children")))
+            .collect();
+        if recursive.len() > 1 {
+            return Err(syn::Error::new_spanned(
+                variant,
+                "one child container per variant",
+            ));
+        }
+        let mut mapped = Vec::new();
+        let mut replaced = Vec::new();
+        let mut ref_mapped = Vec::new();
+        let mut ref_replaced = Vec::new();
+        let mut borrowed = quote!(Vec::new());
+        for field in &fields.named {
+            let f = field.ident.as_ref().unwrap();
+            if !field.attrs.iter().any(|a| a.path().is_ident("children")) {
+                mapped.push(quote!(#f));
+                replaced.push(quote!(#f));
+                ref_mapped.push(quote!(#f: #f.clone()));
+                ref_replaced.push(quote!(#f: #f.clone()));
+                continue;
+            }
+            let ty = type_name(&field.ty);
+            if ty == format!("Vec<{child}>") {
+                borrowed = quote!(#f.iter().collect());
+                mapped.push(quote!(#f: #f.into_iter().map(&mut map).collect()));
+                replaced.push(quote!(#f: children.collect()));
+                ref_mapped.push(quote!(#f: #f.iter().map(&mut map).collect()));
+                ref_replaced.push(quote!(#f: children.collect()));
+            } else if ty == format!("Option<Box<{child}>>") {
+                borrowed = quote!(#f.as_deref().into_iter().collect());
+                mapped.push(quote!(#f: #f.map(|child| Box::new(map(*child)))));
+                replaced.push(quote!(#f: children.next().map(Box::new)));
+                ref_mapped.push(quote!(#f: #f.as_deref().map(|child| Box::new(map(child)))));
+                ref_replaced.push(quote!(#f: children.next().map(Box::new)));
+            } else {
+                return Err(syn::Error::new_spanned(
+                    field,
+                    "children must be Vec<S> or Option<Box<S>>",
+                ));
+            }
+        }
+        let container = recursive.first().map(|f| f.ident.as_ref().unwrap());
+        refs.push(match container {
+            Some(f) => quote!(Self::#v { #f, .. } => #borrowed),
+            None => quote!(Self::#v { .. } => Vec::new()),
+        });
+        maps.push(quote!(Self::#v { #(#names),* } => #name::#v { #(#mapped),* }));
+        ref_maps.push(quote!(Self::#v { #(#names),* } => #name::#v { #(#ref_mapped),* }));
+        let pattern: Vec<_> = names
+            .iter()
+            .map(|name| {
+                if container.is_some_and(|child| child == *name) {
+                    quote!(#name: _)
+                } else {
+                    quote!(#name)
+                }
+            })
+            .collect();
+        ref_replacements
+            .push(quote!(Self::#v { #(#pattern),* } => #name::#v { #(#ref_replaced),* }));
+        replacements.push(quote!(Self::#v { #(#pattern),* } => Self::#v { #(#replaced),* }));
+    }
+    Ok(quote! {
+        impl<#child> #name<#child> {
+            pub fn children(&self) -> Vec<&#child> {
+                match self { #(#refs),* }
+            }
+            pub fn map_children<T>(self, mut map: impl FnMut(#child) -> T) -> #name<T> {
+                match self { #(#maps),* }
+            }
+            pub fn map_children_ref<T>(&self, mut map: impl FnMut(&#child) -> T) -> #name<T> {
+                match self { #(#ref_maps),* }
+            }
+            pub fn with_children_ref<T>(&self, children: Vec<T>) -> #name<T> {
+                let mut children = children.into_iter();
+                match self { #(#ref_replacements),* }
+            }
+            pub fn with_children(self, children: Vec<#child>) -> Self {
+                let mut children = children.into_iter();
+                match self { #(#replacements),* }
+            }
         }
     })
 }

@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useState, type Dispatch, type SetStateAction } from "react";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 type DialogPayloads = {
 	commit: void;

@@ -7,6 +7,7 @@
 
 use crate::types::AppResult;
 use crate::types::RawExtra;
+use std::collections::HashMap;
 use std::sync::Mutex;
 
 pub(crate) mod parse;
@@ -122,7 +123,9 @@ fn write_map_to_db(
 
     let tx = conn.unchecked_transaction()?;
 
-    let tags_json = serde_json::to_string(&maps::TagRecords(map.tags.iter().cloned().collect()))?;
+    let tags_json =
+        crate::io::records::write(&map.tags.iter().cloned().collect::<HashMap<_, _>>())?
+            .to_string();
 
     tx.execute(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8, ?9)",

@@ -60,3 +60,43 @@ pub(crate) fn geometry_bbox(geom: &PolygonGeometry) -> Option<[f64; 4]> {
         None
     }
 }
+
+pub(crate) struct DistanceTo {
+    pub lat: f64,
+    pub lng: f64,
+}
+
+impl DistanceTo {
+    pub(crate) fn score(&self, row: &RowRef) -> f64 {
+        haversine_m(self.lat, self.lng, row.lat(), row.lng())
+    }
+
+    pub(crate) fn within(&self, scope: &Scope, radius: f64) -> RoaringBitmap {
+        let keep = |row: &RowRef| self.score(row) <= radius;
+        match scope.view.spatial {
+            Some(index) => {
+                let mut candidates = Vec::new();
+                index.candidates(self.lat, self.lng, radius, &mut candidates);
+                let candidates = candidates.into_iter().collect();
+                scope.within(&candidates).keep(keep)
+            }
+            None => scope.keep(keep),
+        }
+    }
+
+    pub(crate) fn minimum(&self, scope: &Scope) -> Option<u32> {
+        let mut radius = SPATIAL_CELL_M;
+        while radius < 1e8 {
+            let candidates = self.within(scope, radius);
+            if let Some(id) = scope
+                .within(&candidates)
+                .rank_by(|row| Some(self.score(row)), Some(1), true)
+                .first()
+            {
+                return Some(*id);
+            }
+            radius *= 8.0;
+        }
+        None
+    }
+}

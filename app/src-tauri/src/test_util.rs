@@ -125,6 +125,7 @@ impl Fx {
             &self.adds,
             indexes,
             self.selected.as_ref(),
+            None,
         )
     }
 }

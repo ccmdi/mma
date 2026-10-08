@@ -46,11 +46,10 @@ export function QuickCopyToMapDialog({
 			})
 			.then((res) => {
 				const container = contentRef.current;
+				const name = maps?.find((m) => m.id === targetMapId)?.name ?? "";
 				if (container)
 					toast(
-						res.copied > 0
-							? t('Copied to "{name}"', { name: res.targetName })
-							: t('Already in "{name}"', { name: res.targetName }),
+						res.copied > 0 ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
 						1500,
 						container,
 					);

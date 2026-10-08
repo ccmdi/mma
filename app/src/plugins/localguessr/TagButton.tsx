@@ -8,7 +8,7 @@ import { mdiTagPlusOutline } from "@mdi/js";
 import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
 import { toast } from "@/lib/util/toast";
-import { displayTagName } from "@/store/selections";
+import { displayTagName } from "@/lib/data/tags";
 import { getVisibleTags, useMapState } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 

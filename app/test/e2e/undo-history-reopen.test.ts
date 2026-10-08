@@ -25,7 +25,7 @@ async function snapshot(): Promise<Row[]> {
 async function history() {
 	return withApi(async (api) => {
 		const s = api.getMapState();
-		return { canUndo: s.canUndo, canRedo: s.canRedo };
+		return { canUndo: s.history.undo, canRedo: s.history.redo };
 	});
 }
 

@@ -76,9 +76,9 @@ function runProcedure(rows, respond, opts = {}) {
 	const state = install(respond, opts);
 	const patches = bundle.run(rows);
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
-	return { ...state, patches: patches.map((p) => ({ id: p.id, patch: p.patch.extra })) };
+	return { ...state, patches: patches.map((p) => ({ id: p.id, patch: p.extra })) };
 }
 
 /** Coverage exists in [start, end] iff the hidden capture time falls inside. */

@@ -1,12 +1,15 @@
+import { useAsync } from "@/lib/hooks/useAsync";
+import { cmd } from "@/lib/commands";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFieldDef } from "@/types";
-import type { PartitionBucket, Selection, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { PartitionBucket, Selection } from "@/bindings.gen";
 import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import {
 	all,
-	buildSelection,
+	selection,
 	selectionDisplayName,
 	tagSelector,
 	toggleSelection,
@@ -218,7 +221,7 @@ function resolveAxis(axis: Axis, scope: Selector, defOf: (key: string) => FieldD
 }
 
 const countBoth = (a: Selector, b: Selector) =>
-	query({ type: "Intersection", selections: [buildSelection(a), buildSelection(b)] }).count();
+	query({ type: "Intersection", selections: [selection(a), selection(b)] }).count();
 
 async function computePivot(
 	rows: Axis,
@@ -458,17 +461,13 @@ function PivotTable({
 
 	// Deterministic selection key per selectable member; parent recomputes on
 	// selection:change, so live-state highlighting stays in sync through the data prop.
-	const selectionKeys = useMemo(
-		() =>
-			new Map<PivotMember, string>(
-				[...data.columns, ...data.rows].flatMap((m) =>
-					m.pick ? [[m, buildSelection(m.pick).key]] : [],
-				),
-			),
-		[data],
-	);
+	const { data: selectionKeys } = useAsync(async () => {
+		const members = [...data.columns, ...data.rows].filter((m) => m.pick);
+		const selections = await cmd.selectionBuild(members.map((m) => selection(m.pick!)));
+		return new Map(members.map((m, i) => [m, selections[i].key]));
+	}, [data]);
 	const listedKeys = new Set(getMapState().selectionList.map((r) => r.selection.key));
-	const isSelected = (m: PivotMember) => listedKeys.has(selectionKeys.get(m) ?? "");
+	const isSelected = (m: PivotMember) => listedKeys.has(selectionKeys?.get(m) ?? "");
 
 	const handleSort = useCallback((key: SortKey) => {
 		setSortKey((prev) => {

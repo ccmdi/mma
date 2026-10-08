@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { getMapState } from "@/store/useMapStore";
+import { getMapState, setMap } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import * as autosave from "@/store/autosave";
 import { mapStorage } from "@/plugins/pluginStorage";
@@ -14,7 +14,11 @@ vi.mock("@/store/mapList", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeUpdateMapMeta: vi.fn(async () => null),
+		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
+			const state = getMapState();
+			if (state.map && state.mapId === patch.id) setMap({ ...state.map, ...patch });
+			return null;
+		}),
 		storeSaveDirty: vi.fn(async () => null),
 	},
 }));
@@ -43,7 +47,9 @@ const sentSettings = () =>
 beforeEach(() => openMap("a"));
 
 afterEach(async () => {
-	vi.mocked(cmd.storeUpdateMapMeta).mockImplementation(async () => null);
+	vi.mocked(cmd.storeUpdateMapMeta).mockImplementation(async (patch) =>
+		(await import("./fixtures/mocks")).metadataWritten(patch),
+	);
 	await autosave.flush();
 	const s = getMapState() as Record<string, unknown>;
 	s.mapId = null;

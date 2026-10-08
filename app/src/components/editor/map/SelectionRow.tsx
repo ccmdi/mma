@@ -10,7 +10,6 @@ import * as edit from "@/store/edit";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import {
 	composeSelections,
-	displayColor,
 	filterIsLocalTime,
 	isolateGhost,
 	moveSelection,
@@ -125,7 +124,7 @@ export const SelectionRow = memo(function SelectionRow({
 	ghosted: boolean;
 }) {
 	const map = useMapState((s) => s.map);
-	const colorBlockCss = useMapState(() => rgbCss(displayColor(selection)));
+	const colorBlockCss = rgbCss(selection.color);
 	const count = useMapState((s) => s.selectionCounts[selection.key] ?? 0);
 	const isTopLevel = depth === 0;
 	const onRemove = () => void applySelectionUpdate(removeSelectionAt(path));

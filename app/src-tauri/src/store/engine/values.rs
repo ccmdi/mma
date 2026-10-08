@@ -64,7 +64,7 @@ pub struct FieldValuesPatch {
 #[serde(rename_all = "camelCase")]
 pub struct FieldValuesResult {
     pub resolved: Vec<u32>,
-    pub mutation: MutationResult,
+    pub mutation: Mutation,
 }
 
 /// `patch` merged into a pile. Its `name` lands trimmed, and a blank or non-string one is
@@ -193,12 +193,127 @@ fn intern(
     Ok(resolved)
 }
 
+pub(crate) struct FieldValues<'a> {
+    field: &'a str,
+    index: &'a selections::FieldIndex,
+    records: Option<&'a HashMap<u32, ValueRecord>>,
+}
+
+impl<'a> FieldValues<'a> {
+    pub(super) fn new(
+        field: &'a str,
+        index: &'a selections::FieldIndex,
+        records: Option<&'a HashMap<u32, ValueRecord>>,
+    ) -> Self {
+        Self {
+            field,
+            index,
+            records,
+        }
+    }
+
+    pub(crate) fn field(&self) -> &'a str {
+        self.field
+    }
+
+    pub(crate) fn absent_after(
+        &self,
+        rows: &Change,
+        touched: impl IntoIterator<Item = String>,
+    ) -> BTreeSet<String> {
+        let delta = self.index.project(rows, |row| {
+            selections::RowRef::from_loc(row).resolve_field(self.field)
+        });
+        self.index
+            .absent_after(&delta, touched)
+            .into_iter()
+            .collect()
+    }
+
+    pub(crate) fn count(&self, key: &str) -> usize {
+        self.index
+            .by_value
+            .get(key)
+            .map_or(0, |ids| ids.len() as usize)
+    }
+
+    pub(crate) fn record(&self, id: u32) -> Option<&'a ValueRecord> {
+        self.records.and_then(|records| records.get(&id))
+    }
+
+    pub(crate) fn keys(&self) -> BTreeSet<String> {
+        self.index
+            .by_value
+            .keys()
+            .cloned()
+            .chain(
+                self.records
+                    .into_iter()
+                    .flat_map(|records| records.keys().map(u32::to_string)),
+            )
+            .collect()
+    }
+
+    pub(crate) fn get(&self, key: &str) -> Option<HeldValue> {
+        let record = key.parse().ok().and_then(|id| self.record(id)).cloned();
+        let count = self.count(key);
+        (record.is_some() || count > 0).then_some(HeldValue { record, count })
+    }
+
+    pub(crate) fn project(
+        &self,
+        keys: impl IntoIterator<Item = String>,
+    ) -> HashMap<String, Option<HeldValue>> {
+        keys.into_iter()
+            .map(|key| {
+                let value = self.get(&key);
+                (key, value)
+            })
+            .collect()
+    }
+
+    pub(crate) fn floor(&self) -> u32 {
+        self.keys()
+            .iter()
+            .filter_map(|key| key.parse::<f64>().ok().map(|id| id as u32))
+            .max()
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn named(&self, name: &str, visible: bool) -> Option<u32> {
+        let name = name.to_lowercase();
+        self.records?.iter().find_map(|(&id, record)| {
+            ((!visible || self.count(&id.to_string()) > 0)
+                && record_name(record).is_some_and(|current| current.to_lowercase() == name))
+            .then_some(id)
+        })
+    }
+}
+
+pub(crate) fn record_color(record: &ValueRecord) -> Option<[u8; 3]> {
+    hex_rgb(record.get("color")?.as_str()?)
+}
+
+fn hex_rgb(hex: &str) -> Option<[u8; 3]> {
+    let h = hex.trim_start_matches('#');
+    let h: String = match h.len() {
+        3 => h.chars().flat_map(|c| [c, c]).collect(),
+        _ => h.to_string(),
+    };
+    let n = u32::from_str_radix(h.get(..6)?, 16).ok()?;
+    Some([(n >> 16) as u8, (n >> 8) as u8, n as u8])
+}
+
 impl Store {
     /// Whether `field` declares interned values.
-    fn is_interned(field: &str) -> bool {
+    pub(super) fn is_interned(field: &str) -> bool {
         selections::BUILTIN_FIELDS
             .iter()
             .any(|f| f.key == field && f.interned)
+    }
+
+    pub(crate) fn value_record(&self, field: &str, id: u32) -> Option<&ValueRecord> {
+        self.value_meta.get(field)?.get(&id)
     }
 
     /// `field`'s records as they stand.
@@ -213,18 +328,7 @@ impl Store {
     /// The data side matters when metadata was deleted out from under rows that still
     /// carry the ids.
     pub(crate) fn intern_floor(&mut self, field: &str) -> u32 {
-        let data_max = self
-            .value_counts(field)
-            .keys()
-            .filter_map(|k| k.parse::<f64>().ok().map(|f| f as u32))
-            .max()
-            .unwrap_or(0);
-        let meta_max = self
-            .value_meta
-            .get(field)
-            .and_then(|m| m.keys().max().copied())
-            .unwrap_or(0);
-        data_max.max(meta_max)
+        self.fields([field])[0].floor()
     }
 
     /// Apply one batch of record edits to an interned field as one undoable edit: create
@@ -238,16 +342,21 @@ impl Store {
         if !Self::is_interned(field) {
             return Err(AppError(format!("'{field}' does not intern its values")));
         }
-        let floor = self.intern_floor(field);
+        let (floor, counted) = {
+            let fields = self.fields([field]);
+            let values = &fields[0];
+            let counted: HashSet<u32> = values
+                .keys()
+                .into_iter()
+                .filter(|key| values.count(key) > 0)
+                .filter_map(|key| key.parse::<f64>().ok().map(|id| id as u32))
+                .collect();
+            (values.floor(), counted)
+        };
         let before = self.records(field);
         let mut meta = before.clone();
         let resolved = intern(&mut meta, floor, &patch.create)?;
         let mut touched = resolved.clone();
-        let counted: HashSet<u32> = self
-            .value_counts(field)
-            .keys()
-            .filter_map(|k| k.parse::<f64>().ok().map(|f| f as u32))
-            .collect();
         let mut merges: HashMap<u32, u32> = HashMap::new();
         {
             for u in &patch.update {

@@ -13,7 +13,9 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({
-		map: { settings: { enrichMetadata: h.enrichMetadata, enrichFields: h.enrichFields } },
+		map: h.enrichMetadata
+			? { settings: { enrichMetadata: true, enrichFields: h.enrichFields } }
+			: null,
 	}),
 }));
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
@@ -43,7 +45,7 @@ const cmdMock = vi.hoisted(() => ({
 vi.mock("@/lib/commands", () => ({ cmd: cmdMock }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 
-import { enrichAt } from "@/lib/sv/enrich";
+import { enrich } from "@/lib/sv/enrich";
 import {
 	exactDateProvider,
 	panoResolveProvider,
@@ -62,7 +64,10 @@ describe("enrich", () => {
 	});
 
 	it("runs every field-producing provider at the given target", async () => {
-		await enrichAt({ kind: "pending", name: "viewer" });
+		await enrich(
+			{ type: "Everything" },
+			{ on: { kind: "pending", name: "viewer" }, resolve: false },
+		);
 		expect(h.runs).toBe(1);
 		expect(h.ran.map(([id]) => id)).toEqual(["svMeta", "exactDate", "timezone", "subdivision"]);
 		expect(h.targets).toEqual([{ kind: "pending", name: "viewer" }]);
@@ -70,7 +75,10 @@ describe("enrich", () => {
 
 	it("narrows each provider to the map's enabled fields", async () => {
 		h.enrichFields = ["altitude", "timezone"];
-		await enrichAt({ kind: "pending", name: "viewer" });
+		await enrich(
+			{ type: "Everything" },
+			{ on: { kind: "pending", name: "viewer" }, resolve: false },
+		);
 		expect(h.ran).toEqual([
 			["svMeta", ["altitude"]],
 			["exactDate", []],
@@ -79,9 +87,12 @@ describe("enrich", () => {
 		]);
 	});
 
-	it("does nothing when the map's enrichment is off", async () => {
+	it("does nothing without an open map", async () => {
 		h.enrichMetadata = false;
-		await enrichAt({ kind: "pending", name: "viewer" });
+		await enrich(
+			{ type: "Everything" },
+			{ on: { kind: "pending", name: "viewer" }, resolve: false },
+		);
 		expect(h.runs).toBe(0);
 	});
 });

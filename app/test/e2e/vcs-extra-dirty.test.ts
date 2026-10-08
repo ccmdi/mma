@@ -23,7 +23,11 @@ describe("VCS — extra-only change commit semantics", () => {
 		const loc = await getLoc(id);
 		await withApi(async (api, l) => api.updateLocations([{ id: l.id, extra: { score: 7 } }]), loc);
 		// Overlay-derived diff sees non-undoable extra writes.
-		expect(await withApi(async (api) => api.cmd.storeCommitDiff())).toEqual([0, 0, 1]);
+		expect(await withApi(async (api) => api.cmd.storeCommitDiff())).toEqual({
+			added: 0,
+			removed: 0,
+			updated: 1,
+		});
 		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(true);
 	});
 

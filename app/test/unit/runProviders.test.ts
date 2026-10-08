@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { KeySpec, ProcedureProgress, Selector } from "@/bindings.gen";
+import type { KeySpec, ProcedureProgress } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 // Bulk work is selector-first: JS never reads rows, it hands the Rust engine a set of
 // provider declarations plus the caller's Selector. These mocks record every declaration.
@@ -173,7 +174,7 @@ import {
 	type ProviderPart,
 } from "@/lib/data/procedures";
 import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
-import { enrichAll } from "@/lib/sv/enrich";
+import { enrich } from "@/lib/sv/enrich";
 import { enrichRuns, panoResolveProvider, svMetaProvider } from "@/lib/sv/providers";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
@@ -317,14 +318,14 @@ describe("the implicit provider set", () => {
 		expect(set).not.toContain("headingRoad");
 	});
 
-	it("enrichAll resolves pano ids first, then every active field provider", async () => {
+	it("enrich resolves pano ids first, then every active field provider", async () => {
 		// The default field set is the opt-out one, so only the metadata pass joins.
-		await enrichAll({ type: "Everything" });
+		await enrich({ type: "Everything" });
 		expect(ids()).toEqual(["panoResolve", "svMeta"]);
 
 		h.decls = [];
 		h.enrichFields = ["imageDate", "datetime", "timezone", "subdivision"];
-		await enrichAll({ type: "Everything" });
+		await enrich({ type: "Everything" });
 		expect(ids()[0]).toBe("panoResolve");
 		expect(ids()).toEqual(
 			expect.arrayContaining(["svMeta", "exactDate", "timezone", "subdivision"]),
@@ -332,16 +333,16 @@ describe("the implicit provider set", () => {
 		expect(ids()).not.toContain("headingRoad");
 	});
 
-	it("enrichAll resolves a pano only for a row still lacking a wanted field", async () => {
-		await enrichAll({ type: "Everything" });
+	it("enrich resolves a pano only for a row still lacking a wanted field", async () => {
+		await enrich({ type: "Everything" });
 		expect(h.decls[0].id).toBe("panoResolve");
 		const json = JSON.stringify(h.decls[0].select);
 		for (const key of getDefaultEnrichKeys()) expect(json).toContain(`"${key}"`);
 		expect(json).toContain('"nothas"');
 	});
 
-	it("a forced enrichAll re-derives fields but never re-resolves a stored pano", async () => {
-		await enrichAll({ type: "Everything" }, { force: true });
+	it("a forced enrich re-derives fields but never re-resolves a stored pano", async () => {
+		await enrich({ type: "Everything" }, { force: true });
 		expect(h.decls[0].id).toBe("panoResolve");
 		expect(h.decls[0].force).toBe(false);
 		expect(h.decls[0].select).toEqual({ type: "Everything" });

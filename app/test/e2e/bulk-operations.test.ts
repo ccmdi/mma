@@ -22,7 +22,7 @@ function loc(overrides: Partial<Location> = {}): Location {
 // Bulk enrichment
 // ============================================================================
 
-describe("Bulk operations -- enrichAll", () => {
+describe("Bulk operations -- enrich", () => {
 	const map = useMap("E2E Bulk Enrich");
 	let locIds: number[];
 
@@ -36,8 +36,10 @@ describe("Bulk operations -- enrichAll", () => {
 	});
 	it("resolves panoIds and reports a success count plus the failed ids", async () => {
 		const summary = await withApi(async (api) => {
-			const res = await api.enrichAll({ type: "Everything" }, { force: true });
-			return res.map((o) => ({ id: o.id, succeeded: o.succeeded, failed: o.failed }));
+			const res = await api.enrich({ type: "Everything" }, { force: true });
+			return Object.entries(res)
+				.filter(([, o]) => o.succeeded > 0 || o.failed.length > 0)
+				.map(([id, o]) => ({ id, succeeded: o.succeeded, failed: o.failed }));
 		});
 
 		// Only passes that did work are reported. Every fixture location resolves and
@@ -58,8 +60,8 @@ describe("Bulk operations -- enrichAll", () => {
 		// Open ocean: no coverage, so pano resolution fails the row by id.
 		const [oceanId] = await addLocs([loc({ lat: 0, lng: 0 })]);
 		const failed = await withApi(async (api) => {
-			const res = await api.enrichAll({ type: "Everything" }, { force: true });
-			return res.find((o) => o.id === "panoResolve")?.failed ?? null;
+			const res = await api.enrich({ type: "Everything" }, { force: true });
+			return res.panoResolve?.failed ?? null;
 		});
 		expect(failed).toEqual([oceanId]);
 	});
@@ -71,7 +73,7 @@ describe("Bulk operations -- enrichAll", () => {
 		if (hadPano) return; // already resolved from previous test run
 
 		await withApi(async (api) => {
-			return await api.enrichAll({ type: "Everything" }, { force: true });
+			return await api.enrich({ type: "Everything" }, { force: true });
 		});
 
 		const after = await getLoc(locIds[2]);
@@ -91,7 +93,7 @@ describe("Bulk operations -- enrichAll", () => {
 		expect(before.panoId).toBeFalsy();
 
 		await withApi(async (api) => {
-			await api.enrichAll({ type: "Everything" }, { force: true });
+			await api.enrich({ type: "Everything" }, { force: true });
 			return "ok";
 		});
 

@@ -180,15 +180,15 @@ describe("Undo history isolation across maps", () => {
 	it("undo state reports correctly per map", async () => {
 		await openMap(mapAId);
 		const stateA = await withApi(async (api) => ({
-			canUndo: api.getMapState().canUndo,
-			canRedo: api.getMapState().canRedo,
+			canUndo: api.getMapState().history.undo,
+			canRedo: api.getMapState().history.redo,
 		}));
 		await closeMap();
 
 		await openMap(mapBId);
 		const stateB = await withApi(async (api) => ({
-			canUndo: api.getMapState().canUndo,
-			canRedo: api.getMapState().canRedo,
+			canUndo: api.getMapState().history.undo,
+			canRedo: api.getMapState().history.redo,
 		}));
 		await closeMap();
 

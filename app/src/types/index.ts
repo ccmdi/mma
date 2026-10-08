@@ -1,3 +1,5 @@
+import type { Cmd } from "@/lib/commands";
+export type Selector = Parameters<Cmd["storeRead"]>[1];
 import type { FieldDef, Location } from "@/bindings.gen";
 import type { FieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";
@@ -79,16 +81,6 @@ export type MaybeLocation = Location | number;
 /** Extract the id from a MaybeLocation. */
 export function locId(m: MaybeLocation): number {
 	return typeof m === "number" ? m : m.id;
-}
-
-/** True when the location is an import preview (not yet committed). @unstable */
-export function isImportPreview(loc: Location): boolean {
-	return (loc.flags & LocationFlag.ImportPreview) !== 0;
-}
-
-/** True when the location is a seen-history overlay preview. @unstable */
-export function isSeenPreview(loc: Location): boolean {
-	return (loc.flags & LocationFlag.SeenOverlay) !== 0;
 }
 
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the

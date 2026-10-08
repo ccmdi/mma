@@ -267,18 +267,18 @@ fn parse_expanded(url: &Url, session: &Session) -> Option<ParsedLocation> {
 /// for a short link that fails to resolve.
 pub(crate) fn parse(input: &str) -> Option<ParsedLocation> {
     let mut url = Url::parse(input.trim()).ok()?;
-    let mapsapp = match url.host_str().unwrap_or_default() {
-        "maps.app.goo.gl" => Some(true),
-        "goo.gl" if url.path().starts_with("/maps/") => Some(false),
+    let links = match url.host_str().unwrap_or_default() {
+        "maps.app.goo.gl" => Some(proxy::MAPS_APP_LINKS),
+        "goo.gl" if url.path().starts_with("/maps/") => Some(proxy::GOOGL_LINKS),
         _ => None,
     };
-    if let Some(mapsapp) = mapsapp {
+    if let Some(links) = links {
         let id = url
             .path_segments()
             .and_then(|mut s| s.next_back().map(str::to_owned))
             .filter(|id| !id.is_empty());
         if let Some(id) = id {
-            let target = proxy::short_link_target(&id, mapsapp).ok()??;
+            let target = proxy::short_link_target(&id, links).ok()??;
             url = Url::parse(&target).ok()?;
         }
     }

@@ -91,7 +91,7 @@ describe("Tag visibility affecting selections", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("tag selection works for visible tag", async () => {
@@ -295,7 +295,13 @@ describe("Rename tags within a selection", () => {
 
 	it("merges every location of the tag when no selector narrows it", async () => {
 		await withApi(async (api, a) => {
-			await api.renameTagsIn([a], "Into", null);
+			const [into] = await api.edit.values("tags", { create: [{ name: "Into" }] });
+			await api.edit.work(api.tagSelector(a), {
+				kind: "listSet",
+				key: "tags",
+				add: [into],
+				remove: [a],
+			});
 		}, fromId);
 		expect(await counts()).toEqual({ from: 0, into: 7 });
 	});

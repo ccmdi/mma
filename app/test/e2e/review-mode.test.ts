@@ -142,7 +142,7 @@ describe("Review mode - delete", () => {
 		const result = await withApi(async (api, did) => {
 			await api.reviewDelete();
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;

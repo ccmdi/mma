@@ -247,7 +247,7 @@ function VisionSidebar({ onClose }) {
 var import_jsx_runtime2 = __toESM(require_jsx_runtime());
 var {
   ui: { Button: Button2 },
-  getMapState,
+  getActiveLocation,
   useJob: useJob2,
   fetchAllLocations: fetchAllLocations2,
   applySelectionUpdate: applySelectionUpdate2,
@@ -255,7 +255,7 @@ var {
 } = MMA;
 var SIMILARITY_THRESHOLD = 0.85;
 function FindSimilarButton() {
-  const active = getMapState().activeLocation;
+  const active = getActiveLocation();
   const panoId = active?.panoId;
   const job = useJob2(async ({ signal, report }) => {
     const locs = await fetchAllLocations2();

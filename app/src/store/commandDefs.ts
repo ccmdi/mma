@@ -162,7 +162,7 @@ const COMMANDS = {
 		group: msg("Map"),
 		defaultBinding: "Mod+z",
 		execute: undo,
-		enabled: () => getMapState().canUndo,
+		enabled: () => getMapState().history.undo,
 	},
 	redo: {
 		label: msg("Redo"),
@@ -170,7 +170,7 @@ const COMMANDS = {
 		group: msg("Map"),
 		defaultBinding: "Mod+y, Mod+Shift+z",
 		execute: redo,
-		enabled: () => getMapState().canRedo,
+		enabled: () => getMapState().history.redo,
 	},
 	export: {
 		label: msg("Export"),
@@ -290,7 +290,7 @@ const COMMANDS = {
 		icon: mdiSelectRemove,
 		group: msg("Selections"),
 		defaultBinding: "Mod+d",
-		execute: () => applySelectionUpdate(() => []),
+		execute: () => applySelectionUpdate({ kind: "set", selections: [] }),
 		enabled: hasAnySelections,
 	},
 	"find-duplicates": {

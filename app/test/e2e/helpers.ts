@@ -183,7 +183,7 @@ export async function getSummary(): Promise<{
 }> {
 	return withApi(
 		async (api) =>
-			(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+			(await api.cmd.storeSummary()) as {
 				locationCount: number;
 				version: number;
 				dirtyCount: number;
@@ -231,8 +231,7 @@ export async function selectCount(...selector: Selector[]): Promise<number> {
 export async function refreshSelections(): Promise<number[]> {
 	return withApi(async (api) => {
 		if (api.getActiveSelections().length === 0) return [] as number[];
-		await api.syncSelections();
-		return api.query({ type: "Selected" }).ids();
+		return (await api._test.syncSelections()).ids;
 	});
 }
 
@@ -305,26 +304,23 @@ export async function waitForEnriched() {
 }
 
 /** Save the open location once its enrichment has answered, so every enabled field
- *  reaches the store, and wait for the write to land; Save itself writes the draft as it stands. */
+ *  reaches the store, and wait for Save to finish: it leaves the location only after
+ *  the write has landed, and a save that changes nothing writes nothing. */
 export async function saveLocation() {
 	await waitForEnriched();
 	await withApi((api) => {
-		const id = api.getMapState().openRow?.id;
-		const saved = window as unknown as { __e2eSaved?: boolean };
-		saved.__e2eSaved = false;
-		const off = api.on("store:change", (e) => {
-			if (id == null || !(e.updated.includes(id) || e.added.includes(id))) return;
-			off();
-			saved.__e2eSaved = true;
-		});
+		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.getMapState().open;
 	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist();
 	await btn.click();
 	await browser.waitUntil(
 		() =>
-			browser.execute(() => (window as unknown as { __e2eSaved?: boolean }).__e2eSaved === true),
-		{ timeoutMsg: "Save never wrote the location" },
+			withApi(
+				(api) =>
+					api.getMapState().open !== (window as unknown as { __e2eSaving?: unknown }).__e2eSaving,
+			),
+		{ timeoutMsg: "Save never finished" },
 	);
 }
 

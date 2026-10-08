@@ -28,10 +28,10 @@ function runProc(rows, lines, { abort = false } = {}) {
 	Object.assign(host, { lines, abort, calls: [], failed: [], progress: [] });
 	const patches = run(rows.map((r) => ({ panoId: null, extra: null, ...r })));
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
 	return {
-		patches: patches.map((p) => ({ id: p.id, patch: p.patch.extra })),
+		patches: patches.map((p) => ({ id: p.id, patch: p.extra })),
 		calls: host.calls,
 		failed: host.failed,
 		progress: host.progress,

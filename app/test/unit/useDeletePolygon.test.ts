@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { tagSelector } from "@/store/selections";
-import type { PolygonGeometry, Selector } from "@/bindings.gen";
+import type { PolygonGeometry } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 const h = vi.hoisted(() => ({
 	selections: [] as { key: string; selector: Selector }[],

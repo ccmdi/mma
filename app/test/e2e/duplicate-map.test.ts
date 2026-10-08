@@ -42,7 +42,7 @@ describe("Duplicate map", () => {
 		expect(copy.description).toBe("about");
 		expect(copy.labels).toEqual(["wip"]);
 		expect(copy.locationCount).toBe(3);
-		expect(copy.pending).toEqual({ added: 0, removed: 0, modified: 0 });
+		expect(copy.pending).toEqual({ added: 0, removed: 0, updated: 0 });
 		expect(copy.settings.pluginData).toEqual({ e2e: { setup: { tag: "kept" } } });
 		expect(await withApi(async (api, id) => api.cmd.storeListCommits(id), copy.id)).toEqual([]);
 

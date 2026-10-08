@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Location, Selector } from "@/bindings.gen";
+import type { Location } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import type { ProcedureSpec } from "@/lib/data/fieldDefs";
 import type { PanoDownloadConfig } from "@/lib/sv/panoDownload";
 

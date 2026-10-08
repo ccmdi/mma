@@ -89,6 +89,7 @@ pub struct ProviderDecl {
     pub fields: Vec<String>,
     #[serde(default)]
     pub requires: Vec<String>,
+    #[specta(type = Selector<crate::selections::tree::SelectionInput>)]
     pub select: Selector,
     pub batch: BatchMode,
     #[serde(default)]
@@ -594,7 +595,8 @@ impl RunCtx<'_> {
                     neighborhood::Index::build(all.rows(), radius_m, fields)
                 }
                 Target::Pending { .. } => {
-                    let rows = store.rows_at(&self.target, None);
+                    let rows =
+                        store.collect(&self.target, &crate::selections::Selector::Everything);
                     neighborhood::Index::build(rows.iter().map(RowRef::from_loc), radius_m, fields)
                 }
             };
@@ -714,17 +716,12 @@ pub(crate) fn run_all(
 }
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
-    let ids: Vec<u32> = ctx.with_store(|store| match &ctx.target {
-        Target::Map => {
-            let scope = store.scope(&decl.select);
-            Ok(scope.rows().map(|row| row.id()).collect())
-        }
-        Target::Pending { .. } => Ok(store
-            .rows_at(&ctx.target, None)
-            .iter()
-            .filter(|r| RowRef::from_loc(r).matches(&decl.select))
-            .map(|r| r.id)
-            .collect()),
+    let ids: Vec<u32> = ctx.with_store(|store| {
+        Ok(store
+            .collect(&ctx.target, &decl.select)
+            .into_iter()
+            .map(|row| row.id)
+            .collect())
     })?;
     let total = ids.len() as u32;
     let started = Instant::now();
@@ -881,34 +878,44 @@ fn page_batches(
     };
     let (rows, unmet) = ctx.with_store(|store| match &ctx.target {
         Target::Map => {
-            let all = store.all();
-            let alive = all.resolve(&page_sel);
-            let todo = all.resolve(&todo);
-            prog.add_skipped((alive.len() - todo.len()) as u32);
+            let alive = store.scope(&page_sel).ids();
+            let todo_ids = store.scope(&todo).ids();
+            prog.add_skipped((alive.len() - todo_ids.len()) as u32);
             let workable = if decl.requires.is_empty() {
-                todo.clone()
+                todo_ids.clone()
             } else {
-                all.within(&todo).resolve(&has_every(&decl.requires))
+                store
+                    .scope(&Selector::all([todo, has_every(&decl.requires)]))
+                    .ids()
             };
             let unmet: Vec<u32> = page
                 .iter()
                 .copied()
-                .filter(|id| todo.contains(*id) && !workable.contains(*id))
+                .filter(|id| todo_ids.contains(*id) && !workable.contains(*id))
                 .collect();
-            let rows = store.collect(&Selector::Locations {
-                locations: page
-                    .iter()
-                    .copied()
-                    .filter(|id| workable.contains(*id))
-                    .collect(),
-                name: None,
-            });
+            let rows = store.collect(
+                &crate::store::engine::Target::Map,
+                &Selector::Locations {
+                    locations: page
+                        .iter()
+                        .copied()
+                        .filter(|id| workable.contains(*id))
+                        .collect(),
+                    name: None,
+                },
+            );
             Ok((rows, unmet))
         }
         Target::Pending { .. } => {
             let has = |row: &Location, f: &str| RowRef::from_loc(row).resolve_field(f).is_some();
             let (mut rows, mut unmet, mut skipped) = (Vec::new(), Vec::new(), 0);
-            for row in store.rows_at(&ctx.target, Some(page)) {
+            for row in store.collect(
+                &ctx.target,
+                &crate::selections::Selector::Locations {
+                    locations: (page).to_vec(),
+                    name: None,
+                },
+            ) {
                 let todo =
                     force || decl.fields.is_empty() || !decl.fields.iter().all(|f| has(&row, f));
                 if !todo {
@@ -982,8 +989,22 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 .updates
                 .iter()
                 .map(|(read, patch)| {
-                    let patch = match (read, store.row_at(&ctx.target, patch.id)) {
-                        (Some(read), Some(now)) => store.still_applies(patch.clone(), read, &now),
+                    let patch = match (
+                        read,
+                        store
+                            .collect(
+                                &ctx.target,
+                                &crate::selections::Selector::Locations {
+                                    locations: vec![patch.id],
+                                    name: None,
+                                },
+                            )
+                            .into_iter()
+                            .next(),
+                    ) {
+                        (Some(read), Some(now)) => {
+                            store.retain_valid_outputs(patch.clone(), read, &now)
+                        }
                         _ => patch.clone(),
                     };
                     Edit::Put(patch)
@@ -1002,7 +1023,15 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 Target::Map => false,
             };
             store.edit(&ctx.target, edits, false, &mut group);
-            Ok(held.then(|| store.rows_at(&ctx.target, Some(&ids))))
+            Ok(held.then(|| {
+                store.collect(
+                    &ctx.target,
+                    &crate::selections::Selector::Locations {
+                        locations: (&ids).to_vec(),
+                        name: None,
+                    },
+                )
+            }))
         })?;
         if let Some(rows) = held_rows {
             for row in rows {

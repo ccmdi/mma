@@ -1,3 +1,4 @@
+import { selectionFixture } from "./fixtures/selection";
 // @vitest-environment jsdom
 import { act } from "react";
 import { describe, expect, it, vi, beforeEach } from "vitest";
@@ -34,7 +35,7 @@ vi.mock("@/store/selectionActions", async (importOriginal) => ({
 
 import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";
 import { buildTagTree, type TagTreeNode } from "@/components/editor/tags/tagTreeModel";
-import { all, any, buildSelection, tagSelector } from "@/store/selections";
+import { all, any, tagSelector } from "@/store/selections";
 import { mountAsync } from "./fixtures/harness";
 import { findNode, mkTag } from "./fixtures/tagFixtures";
 
@@ -150,9 +151,9 @@ describe("tag context menu", () => {
 	});
 
 	it("renames every selected tag within the rest of the selection, merging them", async () => {
-		const manual = buildSelection({ type: "Manual", locations: [1, 2] });
+		const manual = selectionFixture({ type: "Manual", locations: [1, 2] });
 		h.selectedTagIds = new Set([4, 5, 6]);
-		h.active = [...[4, 5, 6].map((id) => buildSelection(tagSelector(id))), manual];
+		h.active = [...[4, 5, 6].map((id) => selectionFixture(tagSelector(id))), manual];
 		h.countIn.mockResolvedValue(2);
 		const items = await openMenu(node("c"));
 		act(() => items.find((i) => i.textContent?.startsWith("Rename 3 tags in selection"))!.click());
@@ -165,7 +166,7 @@ describe("tag context menu", () => {
 
 	it("renames every selected tag on all their locations when nothing else is selected", async () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
-		h.active = [4, 5, 6].map((id) => buildSelection(tagSelector(id)));
+		h.active = [4, 5, 6].map((id) => selectionFixture(tagSelector(id)));
 		countFor([4, 5, 6], 9);
 		const items = await openMenu(node("c"));
 		const renameAll = items.find((i) => i.textContent === "Rename 3 tags in all (9 locations)")!;
@@ -189,7 +190,7 @@ describe("tag context menu", () => {
 
 	it("never counts the targets' own selections as the selection", async () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
-		h.active = [4, 5, 6].map((id) => buildSelection(tagSelector(id)));
+		h.active = [4, 5, 6].map((id) => selectionFixture(tagSelector(id)));
 		h.countIn.mockResolvedValue(5);
 		const items = await openMenu(node("c"));
 		const fromSelection = items.find((i) => i.textContent?.includes("from selection"))!;
@@ -199,10 +200,10 @@ describe("tag context menu", () => {
 
 	it("removes only the clicked tag from the rest of the selection", async () => {
 		h.selectedTagIds = new Set([4, 5, 6]);
-		h.active = [4, 5, 6].map((id) => buildSelection(tagSelector(id)));
+		h.active = [4, 5, 6].map((id) => selectionFixture(tagSelector(id)));
 		const scope = {
 			type: "Union",
-			selections: [5, 6].map((id) => buildSelection(tagSelector(id))),
+			selections: [5, 6].map((id) => selectionFixture(tagSelector(id))),
 		};
 		h.countIn.mockImplementation(async (s) =>
 			JSON.stringify(s) === JSON.stringify(all(any(tagSelector(4)), scope as never)) ? 3 : 0,
@@ -221,9 +222,9 @@ describe("tag context menu", () => {
 	});
 
 	it("removes the targets from the rest of the selection only", async () => {
-		const polygon = buildSelection({ type: "Manual", locations: [1, 2] });
+		const polygon = selectionFixture({ type: "Manual", locations: [1, 2] });
 		h.selectedTagIds = new Set([4, 5, 6]);
-		h.active = [...[4, 5, 6].map((id) => buildSelection(tagSelector(id))), polygon];
+		h.active = [...[4, 5, 6].map((id) => selectionFixture(tagSelector(id))), polygon];
 		const carriers = any(...[4, 5, 6].map(tagSelector));
 		const scope = { type: "Union", selections: [polygon] };
 		h.countIn.mockImplementation(async (s) =>

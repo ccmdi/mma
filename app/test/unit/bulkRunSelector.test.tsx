@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { act } from "react";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

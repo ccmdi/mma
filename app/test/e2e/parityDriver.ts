@@ -172,16 +172,17 @@ export async function runEnrich(force = true): Promise<EnrichRun> {
 	return withApi(
 		async (api, doForce, scope) => {
 			const a = api as unknown as Record<string, unknown>;
-			const enrichAll = a.enrichAll as (t: unknown, o: unknown) => Promise<unknown>;
+			const enrich = a.enrich as (t: unknown, o: unknown) => Promise<unknown>;
 			const start = Date.now();
-			const res = (await enrichAll(scope, { force: doForce })) as
-				| { id?: string; success?: unknown[]; failed?: unknown[] }[]
-				| undefined;
+			const res = (await enrich(scope, { force: doForce })) as Record<
+				string,
+				{ succeeded: number; failed: number[] }
+			>;
 			const durationMs = Date.now() - start;
-			const outcomes = (res ?? []).map((o) => ({
-				id: String(o.id ?? "?"),
-				success: (o.success ?? []).length,
-				failed: (o.failed ?? []).length,
+			const outcomes = Object.entries(res ?? {}).map(([id, o]) => ({
+				id,
+				success: o.succeeded,
+				failed: o.failed.length,
 			}));
 			return { durationMs, outcomes };
 		},

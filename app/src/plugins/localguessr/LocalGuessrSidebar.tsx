@@ -22,7 +22,7 @@ import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
 import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import {
 	DEFAULT_CONFIG,
 	formatElapsed,

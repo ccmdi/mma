@@ -4,7 +4,6 @@ import { createElement, act } from "react";
 import { mount } from "./fixtures/harness";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
-import { LocationFlag } from "@/bindings.consts";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { useSeenFeed } from "@/components/editor/location/useSeenFeed";
@@ -19,14 +18,20 @@ vi.mock("@/lib/hooks/usePano", () => {
 	return { usePano: () => viewer };
 });
 vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { openRow: Location | null }) => unknown) =>
-		sel({ openRow: scene.location }),
+	useMapState: (sel: (s: { openRow: Location | null; open: { origin: string } }) => unknown) =>
+		sel({ openRow: scene.location, open: { origin: scene.origin } }),
 }));
 vi.mock("@/components/editor/location/PanoViewerContext", () => ({
 	usePanoViewer: () => ({ draft: scene.draft, geo: scene.geo }),
 }));
 
-const scene: { location: Location | null; draft: Location | null; geo: GeoDisplay | null } = {
+const scene: {
+	location: Location | null;
+	draft: Location | null;
+	geo: GeoDisplay | null;
+	origin: string;
+} = {
+	origin: "map",
 	location: null,
 	draft: null,
 	geo: null,
@@ -56,7 +61,7 @@ const loc = (id: number, panoId: string | null) => ({
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	Object.assign(scene, { location: null, draft: null, geo: null });
+	Object.assign(scene, { location: null, draft: null, geo: null, origin: "map" });
 });
 
 describe("useSeenFeed", () => {
@@ -95,7 +100,8 @@ describe("useSeenFeed", () => {
 	});
 
 	it("a preview stages with no locationId", () => {
-		const preview = { ...loc(3, "A"), flags: LocationFlag.SeenOverlay };
+		const preview = loc(3, "A");
+		scene.origin = "seen";
 		render({ location: preview, draft: preview });
 		expect(seenPanoChanged).toHaveBeenLastCalledWith(
 			expect.objectContaining({ locationId: null }),

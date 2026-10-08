@@ -13,7 +13,6 @@ import { getMarkerDefaultColor } from "@/lib/render/sceneStore";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { MarkerStyle } from "@/types";
 import type { LatLng } from "@/types";
-import { isImportPreview } from "@/types";
 import type { Location, SeenEntry } from "@/bindings.gen";
 import {
 	isSeenOverlayActive,
@@ -260,11 +259,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
 	// active marker, which highlights whichever staged location is open — no per-index coloring.
-	const stagedActive = getMapState().openRow;
-	if (
-		getMapState().workArea === "import" ||
-		(stagedActive != null && isImportPreview(stagedActive))
-	) {
+	if (getMapState().workArea === "import" || getMapState().open?.origin === "import") {
 		const previewPos = getImportPreviewPositions();
 		if (previewPos.length > 0) {
 			layers.push(

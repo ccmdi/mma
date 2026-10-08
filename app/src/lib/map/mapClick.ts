@@ -26,7 +26,7 @@ import {
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import { toggleManualSelection } from "@/store/selections";
-import { isImportPreview, isSeenPreview, locId, createLocation } from "@/types";
+import { locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
 import type { Location } from "@/bindings.gen";
 
@@ -89,8 +89,7 @@ export async function openHref(href: string) {
 	const nearby = await rowsOf(
 		(
 			await read(
-				{ type: "Everything" },
-				{ kind: "nearby", lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
+				{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
 				{ kind: "rows" },
 				"rows",
 			)
@@ -119,8 +118,7 @@ export async function createLocationAtLatLng(
 ): Promise<Location | null> {
 	const area = getMapState().workArea;
 	if (area === "plugin" || area === "import" || area === "diff") return null;
-	const active = getMapState().openRow;
-	if (active != null && isImportPreview(active)) return null;
+	if (getMapState().open?.origin === "import") return null;
 
 	const tr = trace("add");
 	const ms = getMapState().map?.settings;
@@ -216,7 +214,8 @@ export async function handleMapClick(
 	if (isLocationLayer(info.layer?.id)) {
 		const picked = await resolvePicked();
 		if (picked != null) {
-			if (typeof picked !== "number" && (isImportPreview(picked) || isSeenPreview(picked))) return;
+			const open = getMapState().open;
+			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void applySelectionUpdate(toggleManualSelection(locId(picked)));
 			else void setActiveLocation(picked);
@@ -236,8 +235,12 @@ export async function handleMapClick(
 					await rowsOf(
 						(
 							await read(
-								{ type: "Everything" },
-								{ kind: "nearest", lat: info.coordinate[1], lng: info.coordinate[0] },
+								{
+									type: "Nearest",
+									selection: null,
+									lat: info.coordinate[1],
+									lng: info.coordinate[0],
+								},
 								{ kind: "rows" },
 								"rows",
 							)

@@ -2,7 +2,7 @@
 //! All exports write to temp files and return the path -- the frontend
 //! triggers a native save dialog to move the file to its final destination.
 
-use crate::selections::Selector;
+use crate::selections::{tree::SelectionInput, Selector};
 use crate::store::engine;
 use crate::store::engine::{with_store, StoreState, WindowLabel};
 use crate::store::storage;
@@ -35,6 +35,7 @@ pub struct ExportOpts {
     /// How much of the map the file keeps.
     pub shape: MapShape,
     /// Which locations to export.
+    #[specta(type = Selector<SelectionInput>)]
     pub selector: Selector,
     pub map_name: String,
     /// Serialized `{id: {name, color}}` tag definitions from the store, used to
@@ -276,7 +277,7 @@ pub fn store_export_json(
     opts: ExportOpts,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let locs = store.collect(&opts.selector);
+        let locs = store.collect(&crate::store::engine::Target::Map, &opts.selector);
         let co = CoordOpts {
             export_zoom: opts.export_zoom,
             export_unpanned: opts.export_unpanned,
@@ -302,10 +303,13 @@ pub fn store_export_json(
 pub fn store_export_csv(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    selector: Selector,
+    selector: Selector<SelectionInput>,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let buf = csv_document(&store.collect(&selector));
+        let buf = csv_document(&store.collect(
+            &crate::store::engine::Target::Map,
+            &selector.map_children(SelectionInput::compile),
+        ));
         let path = export_temp_path("mma_export", "csv");
         fs::write(&path, &buf)?;
         Ok(path.to_string_lossy().into_owned())
@@ -320,11 +324,17 @@ pub fn store_export_csv(
 pub fn store_export_geojson(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    selector: Selector,
+    selector: Selector<SelectionInput>,
     tags_json: String,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let json = serde_json::to_string(&geojson_document(&store.collect(&selector), &tags_json))?;
+        let json = serde_json::to_string(&geojson_document(
+            &store.collect(
+                &crate::store::engine::Target::Map,
+                &selector.map_children(SelectionInput::compile),
+            ),
+            &tags_json,
+        ))?;
 
         let path = export_temp_path("mma_export", "geojson");
         fs::write(&path, &json)?;

@@ -88,9 +88,9 @@ function runMap(locs, status, body, fields = null) {
 	answer = () => ({ status, body: new TextEncoder().encode(body) });
 	const patches = run(toRows(locs), cfg(fields));
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
-	return { patches: patches.map((p) => ({ id: p.id, patch: p.patch.extra })), failed: [...failed] };
+	return { patches: patches.map((p) => ({ id: p.id, patch: p.extra })), failed: [...failed] };
 }
 
 // --- canned Open-Meteo response -----------------------------------------------

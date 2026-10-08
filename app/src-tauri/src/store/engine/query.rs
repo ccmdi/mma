@@ -1,14 +1,14 @@
 //! Read-only queries over the store: bounds, spatial lookups, spaced picks, aggregates.
 
 use super::*;
-use crate::selections::{self, FilterOp, Selector};
+use crate::selections::{self, Index, Selector, Thinning};
 use crate::store::arrow::Columns;
 use crate::store::maps::IndexShape;
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
 use roaring::RoaringBitmap;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 use std::f64::consts::PI;
 use std::time::Instant;
 
@@ -71,7 +71,7 @@ pub(crate) struct LocationAggregates {
 /// Incremental bounding-box accumulator. Tracks latitude min/max plus longitude
 /// min/max in *two* framings - raw `[-180,180]` and shifted `[0,360)` - so
 /// `resolve` can pick the tighter longitude span and emit an antimeridian-crossing
-/// box (`west > east`) when the data straddles 180°. Every field is a plain
+/// box (`west > east`) when the data straddles 180Â°. Every field is a plain
 /// min/max, so it grows in O(1) per point with no sort - the cache stays cheap.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundsAcc {
@@ -125,7 +125,7 @@ impl BoundsAcc {
     }
 
     /// `[west, south, east, north]`, choosing whichever longitude framing is
-    /// tighter. The shifted framing winning means the box crosses 180°, which
+    /// tighter. The shifted framing winning means the box crosses 180Â°, which
     /// maps back to `west > east` - the form Google/deck `fitBounds` zooms to the
     /// short way.
     pub(crate) fn resolve(self) -> [f64; 4] {
@@ -151,8 +151,6 @@ impl BoundsAcc {
 }
 
 /// A spaced pick's answer: the picked ids plus the spacing they were picked at.
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
 pub struct SpacedPickResult {
     pub ids: Vec<u32>,
     pub distance_m: i32,
@@ -201,87 +199,81 @@ impl Store {
     /// Current coordinates of an alive location, without cloning the full Location.
     #[inline]
     pub(super) fn coords_of(&self, id: u32) -> Option<(f64, f64)> {
-        let overlay = &self.overlay;
-        if overlay.dead.contains(id) {
-            return None;
-        }
-        if let Some(p) = overlay.patches.get(&id) {
-            return Some((p.lat, p.lng));
-        }
-        if let Ok(i) = overlay.adds.binary_search_by_key(&id, |l| l.id) {
-            let l = &overlay.adds[i];
-            return Some((l.lat, l.lng));
-        }
-        if let Some(b) = self.batch.as_ref() {
-            if let Some(idx) = Columns::of(b).row_of(id) {
-                return Some((Columns::lat(b).value(idx), Columns::lng(b).value(idx)));
-            }
-        }
-        None
-    }
-
-    /// Ids of alive locations within `radius_m` metres of the point. Index-backed:
-    /// O(cells in radius) instead of an O(N) scan.
-    pub(crate) fn find_nearby_ids(&mut self, lat: f64, lng: f64, radius_m: f64) -> Vec<u32> {
-        Ensured::<SpatialIndex>::with(self, |ix, store| {
-            let mut cand = Vec::new();
-            ix.candidates(lat, lng, radius_m, &mut cand);
-            cand.retain(|&id| {
-                store
-                    .coords_of(id)
-                    .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
-            });
-            cand
-        })
-    }
-
-    /// Id of the alive location closest to the point, or `None` on an empty map.
-    /// Widening `find_nearby_ids` passes: each is complete for its radius, so the first
-    /// non-empty one already holds the nearest. A disc wider than the planet cannot
-    /// gain candidates, so running past it means the map is empty.
-    pub(crate) fn find_nearest_id(&mut self, lat: f64, lng: f64) -> Option<u32> {
-        let mut radius = SPATIAL_CELL_M;
-        while radius < 1e8 {
-            let best = self
-                .find_nearby_ids(lat, lng, radius)
-                .into_iter()
-                .filter_map(|id| {
-                    self.coords_of(id)
-                        .map(|(la, ln)| (id, selections::haversine_m(lat, lng, la, ln)))
-                })
-                .min_by(|a, b| a.1.total_cmp(&b.1));
-            if let Some((id, _)) = best {
-                return Some(id);
-            }
-            radius *= 8.0;
-        }
-        None
-    }
-
-    /// Whether any alive location lies within `radius_m` metres of the point.
-    pub(crate) fn any_within(&mut self, lat: f64, lng: f64, radius_m: f64) -> bool {
-        Ensured::<SpatialIndex>::with(self, |ix, store| {
-            ix.any_candidate(lat, lng, radius_m, |id| {
-                store
-                    .coords_of(id)
-                    .is_some_and(|(la, ln)| selections::haversine_m(lat, lng, la, ln) <= radius_m)
-            })
-        })
+        self.rows().get(id).map(|row| (row.lat(), row.lng()))
     }
 
     /// Materialize the selected location set (`Everything` = every alive location).
     /// A named id list binary-searches each (marker click, enrich refetch ship a handful)
     /// and keeps the caller's order and duplicates; every other selector is one scan,
     /// sorted and deduped by the bitmap. O(N) time and space.
-    pub(crate) fn collect(&mut self, selector: &Selector) -> Vec<Location> {
-        if let Selector::Locations { locations, .. } = selector {
+    pub(crate) fn collect(&mut self, target: &Target, selector: &Selector) -> Vec<Location> {
+        if let (Target::Map, Selector::Locations { locations, .. }) = (target, selector) {
             return locations
                 .iter()
                 .filter_map(|&id| self.get_loc_by_id(id))
                 .collect();
         }
-        let scope = self.scope(selector);
-        scope.rows().map(|row| row.to_location()).collect()
+        self.with_scope(target, selector, None, |scope| {
+            scope.rows().map(|row| row.to_location()).collect()
+        })
+    }
+
+    fn with_scope<R>(
+        &mut self,
+        target: &Target,
+        selector: &Selector,
+        ask: Option<&Ask>,
+        read: impl FnOnce(selections::Scope<'_, '_>) -> R,
+    ) -> R {
+        match target {
+            Target::Map => {
+                let mut indexes = selector.indexes();
+                if let Some(ask) = ask {
+                    indexes.extend(ask.indexes(self.optional_fields()));
+                }
+                self.prepare(indexes);
+                read(
+                    self.rows()
+                        .indexed(&self.field_indexes, self.spatial.peek())
+                        .select(selector),
+                )
+            }
+            Target::Pending { name } => {
+                let pending = self.pending.get(name);
+                let keys: Vec<u32> = match selector {
+                    Selector::Locations { locations, .. } => locations.clone(),
+                    _ => pending
+                        .map(|p| p.layer.keys().collect())
+                        .unwrap_or_default(),
+                };
+                let mut rows: Vec<Location> = keys
+                    .into_iter()
+                    .filter_map(|id| {
+                        let below = self.get_loc_by_id(id);
+                        match pending {
+                            Some(p) => p
+                                .layer
+                                .get(id, below, |row, patch| self.applied(row, patch)),
+                            None => below,
+                        }
+                    })
+                    .collect();
+                rows.sort_unstable_by_key(|row| row.id);
+                rows.dedup_by_key(|row| row.id);
+                let dead = RoaringBitmap::new();
+                let patches = HashMap::new();
+                let view = selections::LocView::new(
+                    None,
+                    &dead,
+                    &patches,
+                    &rows,
+                    None,
+                    Some(&self.selections.ids),
+                    None,
+                );
+                read(view.select(selector))
+            }
+        }
     }
 
     /// Whole-map bounding box, cached. Recomputes O(N) only when stale (after a
@@ -340,14 +332,15 @@ impl Store {
 
     /// Every alive row: the scope for walks that resolve no selector.
     pub(crate) fn all(&self) -> selections::Scope<'_, '_> {
-        self.view().all()
+        self.rows().all()
     }
 
     /// The rows `selector` resolves to: the indexes it leans on built, then narrowed once.
-    /// The one doorway to resolving a selector.
     pub(crate) fn scope(&mut self, selector: &Selector) -> selections::Scope<'_, '_> {
-        self.ensure_indexes_for(selector);
-        self.view().all().narrow(selector)
+        self.prepare(selector.indexes());
+        self.rows()
+            .indexed(&self.field_indexes, self.spatial.peek())
+            .select(selector)
     }
 
     /// Every selection's rows and every node's count over the whole map, each selector's
@@ -356,20 +349,21 @@ impl Store {
         &mut self,
         sels: &[selections::Selection],
     ) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
-        for s in sels {
-            self.ensure_indexes_for(&s.selector);
-        }
-        self.all().resolve_forest(sels)
+        self.prepare(sels.iter().flat_map(|s| s.selector.indexes()));
+        self.rows()
+            .indexed(&self.field_indexes, self.spatial.peek())
+            .resolve_forest(sels)
     }
 
-    fn view(&self) -> selections::LocView<'_> {
+    pub(super) fn rows(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.dead,
             &self.overlay.patches,
             &self.overlay.adds,
-            Some(&self.field_indexes),
+            None,
             Some(&self.selections.ids),
+            None,
         )
     }
 
@@ -386,125 +380,74 @@ impl Store {
             .map_or(IndexShape::None, |d| d.field_type.index_shape())
     }
 
-    /// Build an index for every field a selector could answer from one: the fields it
-    /// tests for existence, and the enumerable fields it filters on. Every selector
-    /// entry point passes through here, so resolution never meets such a field without
-    /// its index; a no-op on every call after the first for a given field.
-    pub(crate) fn ensure_indexes_for(&mut self, selector: &Selector) {
-        fn walk(sel: &Selector, out: &mut Vec<(String, bool)>) {
-            match sel {
-                Selector::Filter { field, test } => out.push((
-                    field.clone(),
-                    matches!(test, FilterOp::Has | FilterOp::Nothas),
-                )),
-                Selector::Intersection { selections }
-                | Selector::Union { selections }
-                | Selector::Invert { selections } => {
-                    for s in selections {
-                        walk(&s.selector, out);
-                    }
-                }
-                _ => {}
-            }
-        }
-        let mut fields = Vec::new();
-        walk(selector, &mut fields);
-        let wanted: Vec<(String, IndexShape)> = fields
+    pub(crate) fn fields<'a>(
+        &'a mut self,
+        fields: impl IntoIterator<Item = &'a str>,
+    ) -> Vec<FieldValues<'a>> {
+        let fields: Vec<_> = fields.into_iter().collect();
+        self.prepare(
+            fields
+                .iter()
+                .map(|field| Index::Presence((*field).to_string())),
+        );
+        fields
             .into_iter()
-            .map(|(f, existence)| {
-                let shape = self.index_shape_of(&f);
-                (f, shape, existence)
+            .map(|field| {
+                FieldValues::new(
+                    field,
+                    &self.field_indexes[field],
+                    self.value_meta.get(field).map(|records| &**records),
+                )
             })
-            .filter(|(_, shape, existence)| *existence || *shape != IndexShape::None)
-            .map(|(f, shape, _)| (f, shape))
-            .collect();
-        self.ensure_field_indexes(&wanted);
+            .collect()
     }
 
-    /// Move the changed rows through every index that exists, so a value's count is its
-    /// postings' cardinality with no second structure to keep in step. Returns the fields
-    /// whose postings moved. Lazily-built extra indexes that were never built stay unbuilt.
-    pub(super) fn reindex(
-        &mut self,
-        removed: &[&Location],
-        added: &[&Location],
-    ) -> HashSet<String> {
-        // An enumerable builtin is always indexed: the engine reports its per-value
-        // counts, so the postings have to exist before a row moves, not on first query.
-        let enumerable: Vec<(String, IndexShape)> = selections::BUILTIN_FIELDS
-            .iter()
-            .map(|f| (f.key.to_string(), f.field_type.index_shape()))
-            .filter(|(_, shape)| *shape != IndexShape::None)
-            .collect();
-        self.ensure_field_indexes(&enumerable);
-        let mut moved: HashSet<String> = HashSet::new();
-        for (field, index) in &mut self.field_indexes {
-            let mut values_moved = false;
-            for (locs, present) in [(removed, false), (added, true)] {
-                for loc in locs {
-                    let Some(v) = selections::RowRef::from_loc(loc).resolve_field(field) else {
-                        continue;
-                    };
-                    let mark = |ids: &mut RoaringBitmap| {
-                        if present {
-                            ids.insert(loc.id);
-                        } else {
-                            ids.remove(loc.id);
-                        }
-                    };
-                    mark(&mut index.rows);
-                    for key in selections::index_keys(index.shape, &v) {
-                        mark(index.by_value.entry(key).or_default());
-                        values_moved = true;
-                    }
-                }
-            }
-            if values_moved {
-                moved.insert(field.clone());
-            }
-        }
-        moved
-    }
-
-    /// How many rows carry each value of `field`, straight off the postings. Builds the
-    /// index if it has none: a count is a query like any other.
-    pub(crate) fn value_counts(&mut self, field: &str) -> HashMap<String, usize> {
-        let shape = self.index_shape_of(field);
-        if shape == IndexShape::None {
-            return HashMap::new();
-        }
-        self.ensure_field_indexes(&[(field.to_string(), shape)]);
+    pub(super) fn reindex(&mut self, change: &Change) -> HashMap<String, BTreeSet<String>> {
+        self.prepare(
+            selections::BUILTIN_FIELDS
+                .iter()
+                .map(|field| Index::Values(field.key.to_string())),
+        );
         self.field_indexes
-            .get(field)
-            .map(|ix| {
-                ix.by_value
-                    .iter()
-                    .map(|(k, ids)| (k.clone(), ids.len() as usize))
-                    .collect()
+            .iter_mut()
+            .filter_map(|(field, index)| {
+                let delta = index.project(change, |row| {
+                    selections::RowRef::from_loc(row).resolve_field(field)
+                });
+                let moved = index.apply(&delta);
+                (!moved.is_empty()).then_some((field.clone(), moved))
             })
-            .unwrap_or_default()
+            .collect()
     }
 
-    /// Rows carrying one value of `field`.
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
-    pub(crate) fn value_count(&mut self, field: &str, value: &str) -> usize {
-        self.value_counts(field).get(value).copied().unwrap_or(0)
-    }
-
-    /// Build the index of every listed field that has none, in one pass over the rows.
-    /// Every field gets the rows holding it; an enumerable one also gets its value postings.
-    pub(crate) fn ensure_field_indexes(&mut self, fields: &[(String, IndexShape)]) {
-        let missing: Vec<&(String, IndexShape)> = fields
-            .iter()
-            .filter(|(field, _)| !self.field_indexes.contains_key(field))
-            .collect();
+    fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
+        let mut fields = HashMap::new();
+        let mut spatial = false;
+        for index in indexes {
+            let (field, presence) = match index {
+                Index::Presence(field) => (field, true),
+                Index::Values(field) => (field, false),
+                Index::Spatial => {
+                    spatial = true;
+                    continue;
+                }
+            };
+            let shape = self.index_shape_of(&field);
+            if (presence || shape != IndexShape::None) && !self.field_indexes.contains_key(&field) {
+                fields.insert(field, shape);
+            }
+        }
+        if spatial {
+            Ensured::<SpatialIndex>::with(self, |_, _| ());
+        }
+        let missing: Vec<_> = fields.into_iter().collect();
         if missing.is_empty() {
             return;
         }
         let mut built: Vec<selections::FieldIndex> = missing
             .iter()
-            .map(|&&(_, shape)| selections::FieldIndex {
-                shape,
+            .map(|(_, shape)| selections::FieldIndex {
+                shape: *shape,
                 rows: RoaringBitmap::new(),
                 by_value: HashMap::new(),
             })
@@ -514,49 +457,19 @@ impl Store {
             let id = row.id();
             row.resolve_fields(&names, |i, v| {
                 let index = &mut built[i];
-                index.rows.insert(id);
-                for key in selections::index_keys(index.shape, &v) {
-                    index.by_value.entry(key).or_default().insert(id);
-                }
+                index.insert(id, &v);
             });
         }
         for ((field, _), index) in missing.into_iter().zip(built) {
-            self.field_indexes.insert(field.clone(), index);
+            self.field_indexes.insert(field, index);
         }
     }
 
-    /// How many rows `selector` resolves to hold a value for each field the map defines
-    /// and each built-in column a row can lack, key-sorted: `has(field)` resolved in that
-    /// scope. A field no row there holds is left out.
-    pub(crate) fn coverage(
-        &mut self,
-        selector: &Selector,
-        within: Option<&RoaringBitmap>,
-    ) -> Vec<(String, u32)> {
-        let fields: Vec<(String, IndexShape)> = selections::optional_builtins()
+    fn optional_fields(&self) -> impl Iterator<Item = String> + '_ {
+        selections::optional_builtins()
             .iter()
-            .map(|k| (*k).to_string())
+            .map(|key| (*key).to_string())
             .chain(self.meta.extra.fields.keys().cloned())
-            .map(|k| {
-                let shape = self.index_shape_of(&k);
-                (k, shape)
-            })
-            .collect();
-        self.ensure_field_indexes(&fields);
-        let scope = self.scope(selector);
-        let scope = match within {
-            Some(set) => scope.within(set),
-            None => scope,
-        };
-        let mut out: Vec<(String, u32)> = fields
-            .into_iter()
-            .filter_map(|(field, _)| {
-                let n = scope.resolve(&Selector::has(&field)).len() as u32;
-                (n > 0).then_some((field, n))
-            })
-            .collect();
-        out.sort_by(|a, b| a.0.cmp(&b.0));
-        out
     }
 }
 
@@ -595,36 +508,7 @@ pub(crate) fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path:
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
-/// A narrowing drawn from the selected rows before the question is asked.
-#[derive(serde::Deserialize, specta::Type)]
-#[serde(
-    tag = "kind",
-    rename_all = "camelCase",
-    rename_all_fields = "camelCase"
-)]
-pub enum RowPick {
-    /// `n` rows drawn uniformly at random, without replacement.
-    Sample { n: u32 },
-    /// An evenly spaced subset: exactly one of `targetCount` (thin to that many,
-    /// maximizing spacing) or `minDistanceM` (keep as many as fit at that spacing).
-    Spaced {
-        target_count: Option<u32>,
-        min_distance_m: Option<f64>,
-    },
-    /// A honeycomb-spaced subset: exactly one of `targetCount` (at most that many, spaced
-    /// as widely as that allows) or `spacingM` (about that far apart, never closer than
-    /// half of it).
-    EvenlySpaced {
-        target_count: Option<u32>,
-        spacing_m: Option<f64>,
-    },
-    /// The rows within `radiusM` metres of a coordinate.
-    Nearby { lat: f64, lng: f64, radius_m: f64 },
-    /// The row closest to a coordinate.
-    Nearest { lat: f64, lng: f64 },
-}
-
-/// The question a read answers about the selected rows, after any pick.
+/// The question a read answers about the selected rows.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -632,8 +516,10 @@ pub enum RowPick {
     rename_all_fields = "camelCase"
 )]
 pub enum Ask {
-    /// Their ids: ascending, or a ranked selector's order when nothing was picked.
+    /// Their ids: ascending, or a ranked selector's order.
     Ids,
+    /// The ids a spaced pick at the root kept, with the spacing it settled on.
+    Spacing,
     /// How many there are.
     Count,
     /// Every row in full.
@@ -658,8 +544,6 @@ pub enum Ask {
     Coverage,
     /// Bounding box `[west, south, east, north]`, or `null` when nothing matches.
     Bounds,
-    /// The map's location count, store version, and unsaved-change count.
-    Summary,
     /// Groups of rows within `distance` metres of each other, two or more per group.
     DuplicateGroups { distance: f64 },
     /// Per input coordinate, whether any selected row lies within `radiusM` metres.
@@ -670,6 +554,25 @@ pub enum Ask {
     },
 }
 
+impl Ask {
+    fn indexes(&self, fields: impl Iterator<Item = String>) -> Vec<Index> {
+        match self {
+            Self::Coverage => fields.map(Index::Presence).collect(),
+            Self::NearAny { .. } => vec![Index::Spatial],
+            Self::Ids
+            | Self::Spacing
+            | Self::Count
+            | Self::Rows
+            | Self::Columns { .. }
+            | Self::Values { .. }
+            | Self::GroupBy { .. }
+            | Self::CountBy { .. }
+            | Self::Bounds
+            | Self::DuplicateGroups { .. } => Vec::new(),
+        }
+    }
+}
+
 /// What a read answers with; the arm follows from the ask.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
@@ -678,10 +581,12 @@ pub enum Ask {
     rename_all_fields = "camelCase"
 )]
 pub enum Answer {
-    /// The ids, with the spacing a spaced pick settled on.
     Ids {
         ids: Vec<u32>,
-        spacing_m: Option<i32>,
+    },
+    Spacing {
+        ids: Vec<u32>,
+        spacing_m: i32,
     },
     Count {
         count: u32,
@@ -708,11 +613,6 @@ pub enum Answer {
     Bounds {
         bounds: Option<[f64; 4]>,
     },
-    Summary {
-        location_count: usize,
-        version: u64,
-        dirty_count: usize,
-    },
     IdGroups {
         groups: Vec<Vec<u32>>,
     },
@@ -722,201 +622,170 @@ pub enum Answer {
 }
 
 impl Store {
-    /// Answer one question about the rows a selector resolves to, optionally narrowed by
-    /// a pick first: the one read, with every question composed from the same parts.
     pub(crate) fn read(
         &mut self,
+        target: &Target,
         selector: &Selector,
-        pick: Option<&RowPick>,
         ask: &Ask,
     ) -> AppResult<Answer> {
-        match ask {
-            Ask::Summary => {
-                return Ok(Answer::Summary {
-                    location_count: *self.alive_count,
-                    version: self.version,
-                    dirty_count: usize::from(self.overlay.is_unsaved()),
-                })
+        if let Ask::NearAny { lats, lngs, .. } = ask {
+            if lats.len() != lngs.len() {
+                return Err(AppError::from("read: lats/lngs length mismatch"));
             }
-            Ask::Bounds if pick.is_none() && matches!(selector, Selector::Everything) => {
-                // The whole-map box is maintained incrementally; narrower ones scan.
-                return Ok(Answer::Bounds {
-                    bounds: self.cached_bounds(),
-                });
+        }
+        if matches!(
+            (target, selector, ask),
+            (Target::Map, Selector::Everything, Ask::Bounds)
+        ) {
+            return Ok(Answer::Bounds {
+                bounds: self.cached_bounds(),
+            });
+        }
+        let map_id = self.meta.id.clone();
+        let fields: Vec<String> = if matches!(ask, Ask::Coverage) {
+            self.optional_fields().collect()
+        } else {
+            Vec::new()
+        };
+        let (pool, spaced) = match (selector, ask) {
+            (Selector::Spaced { selection, thin }, Ask::Spacing) => (
+                selection
+                    .as_ref()
+                    .map_or(&Selector::Everything, |s| &s.selector),
+                Some((*thin, false)),
+            ),
+            (Selector::EvenlySpaced { selection, thin }, Ask::Spacing) => (
+                selection
+                    .as_ref()
+                    .map_or(&Selector::Everything, |s| &s.selector),
+                Some((*thin, true)),
+            ),
+            (_, Ask::Spacing) => {
+                return Err(AppError::from("read: spacing is asked of a spaced pick"))
             }
-            Ask::NearAny {
-                lats,
-                lngs,
-                radius_m,
-            } if pick.is_none() && matches!(selector, Selector::Everything) => {
-                if lats.len() != lngs.len() {
-                    return Err(AppError::from("read: lats/lngs length mismatch"));
+            _ => (selector, None),
+        };
+        self.with_scope(target, pool, Some(ask), |scope| {
+            Ok(match ask {
+                Ask::Spacing => {
+                    let (thin, even) = spaced.expect("spacing validated before resolve");
+                    let points = scope.points();
+                    let picked = if even {
+                        pick_even(&points, thin)?
+                    } else {
+                        pick_spaced(points, thin)?
+                    };
+                    Answer::Spacing {
+                        ids: picked.ids,
+                        spacing_m: picked.distance_m,
+                    }
                 }
-                return Ok(Answer::Booleans {
+                Ask::Coverage => Answer::Coverage {
+                    coverage: scope.coverage(&fields),
+                },
+                Ask::Bounds => Answer::Bounds {
+                    bounds: scope.bounds().map(BoundsAcc::resolve),
+                },
+                Ask::NearAny {
+                    lats,
+                    lngs,
+                    radius_m,
+                } => Answer::Booleans {
                     values: lats
                         .iter()
                         .zip(lngs)
-                        .map(|(&la, &ln)| self.any_within(la, ln, *radius_m))
+                        .map(|(&lat, &lng)| scope.any_within(lat, lng, *radius_m))
                         .collect(),
-                });
-            }
-            _ => {}
-        }
-
-        let mut spacing_m: Option<i32> = None;
-        let picked: Option<RoaringBitmap> = match pick {
-            None => None,
-            Some(RowPick::Nearby { lat, lng, radius_m }) => Some(
-                self.find_nearby_ids(*lat, *lng, *radius_m)
-                    .into_iter()
-                    .collect(),
-            ),
-            Some(RowPick::Nearest { lat, lng }) => {
-                Some(self.find_nearest_id(*lat, *lng).into_iter().collect())
-            }
-            Some(RowPick::Sample { n }) => Some(
-                self.scope(selector)
-                    .sample(*n as usize)
-                    .into_iter()
-                    .collect(),
-            ),
-            Some(RowPick::Spaced {
-                target_count,
-                min_distance_m,
-            }) => {
-                let points = self.scope(selector).points();
-                let r = pick_spaced(points, *target_count, *min_distance_m)?;
-                spacing_m = Some(r.distance_m);
-                Some(r.ids.into_iter().collect())
-            }
-            Some(RowPick::EvenlySpaced {
-                target_count,
-                spacing_m: spacing,
-            }) => {
-                let points = self.scope(selector).points();
-                let r = pick_even(&points, *target_count, *spacing)?;
-                spacing_m = Some(r.distance_m);
-                Some(r.ids.into_iter().collect())
-            }
-        };
-
-        if let Ask::Coverage = ask {
-            return Ok(Answer::Coverage {
-                coverage: self.coverage(selector, picked.as_ref()),
-            });
-        }
-
-        let map_id = self.meta.id.clone();
-        let scope = self.scope(selector);
-        let scope = match &picked {
-            Some(set) => scope.within(set),
-            None => scope,
-        };
-        Ok(match ask {
-            Ask::Ids => Answer::Ids {
-                ids: match selector {
-                    Selector::Ranked {
-                        expr, ascending, ..
-                    } if picked.is_none() => scope.ranked(expr, None, *ascending),
-                    _ => scope.rows().map(|row| row.id()).collect(),
                 },
-                spacing_m,
-            },
-            Ask::Count => Answer::Count {
-                count: scope.rows().count() as u32,
-            },
-            Ask::Rows => Answer::Rows {
-                rows: rows_answer(&map_id, scope.rows().map(|row| row.to_location()).collect())?,
-            },
-            Ask::Columns { fields } => Answer::Columns {
-                columns: scope.columns(fields),
-            },
-            Ask::Values { field } => Answer::Values {
-                values: scope.distinct_values(field),
-            },
-            Ask::GroupBy { field, key } => Answer::Groups {
-                groups: scope.partition(field, key),
-            },
-            Ask::CountBy { fields, key } => Answer::Counts {
-                counts: scope.count_by(fields, key),
-            },
-            Ask::Bounds => Answer::Bounds {
-                bounds: scope.bounds().map(BoundsAcc::resolve),
-            },
-            Ask::DuplicateGroups { distance } => Answer::IdGroups {
-                groups: scope.duplicate_groups(*distance),
-            },
-            Ask::NearAny {
-                lats,
-                lngs,
-                radius_m,
-            } => {
-                if lats.len() != lngs.len() {
-                    return Err(AppError::from("read: lats/lngs length mismatch"));
-                }
-                let points = scope.points();
-                let values = lats
-                    .iter()
-                    .zip(lngs)
-                    .map(|(&la, &ln)| {
-                        points.iter().any(|&(_, pla, pln)| {
-                            selections::haversine_m(la, ln, pla, pln) <= *radius_m
-                        })
-                    })
-                    .collect();
-                Answer::Booleans { values }
-            }
-            Ask::Summary | Ask::Coverage => unreachable!("answered above"),
+                Ask::Ids => Answer::Ids {
+                    ids: match selector {
+                        Selector::Ranked {
+                            expr, ascending, ..
+                        } => scope.ranked(expr, None, *ascending),
+                        _ => scope.rows().map(|row| row.id()).collect(),
+                    },
+                },
+                Ask::Count => Answer::Count {
+                    count: scope.rows().count() as u32,
+                },
+                Ask::Rows => Answer::Rows {
+                    rows: rows_answer(
+                        &map_id,
+                        scope.rows().map(|row| row.to_location()).collect(),
+                    )?,
+                },
+                Ask::Columns { fields } => Answer::Columns {
+                    columns: scope.columns(fields),
+                },
+                Ask::Values { field } => Answer::Values {
+                    values: scope.distinct_values(field),
+                },
+                Ask::GroupBy { field, key } => Answer::Groups {
+                    groups: scope.partition(field, key),
+                },
+                Ask::CountBy { fields, key } => Answer::Counts {
+                    counts: scope.count_by(fields, key),
+                },
+                Ask::DuplicateGroups { distance } => Answer::IdGroups {
+                    groups: scope.duplicate_groups(*distance),
+                },
+            })
         })
+    }
+
+    pub(crate) fn summary(&self) -> Summary {
+        Summary {
+            location_count: *self.alive_count,
+            version: self.version,
+            dirty_count: usize::from(self.overlay.is_unsaved()),
+        }
     }
 }
 
-/// Evenly spaced subset of `candidates`: `target_count` thins to
-/// N ids maximizing spacing; `min_distance_m` keeps as many as fit at that
-/// spacing.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Summary {
+    pub location_count: usize,
+    pub version: u64,
+    pub dirty_count: usize,
+}
+
+/// Evenly spaced subset of `candidates`: a count thins to that many ids maximizing
+/// spacing; a distance keeps as many as fit at that spacing.
 pub(crate) fn pick_spaced(
     mut candidates: Vec<(u32, f64, f64)>,
-    target_count: Option<u32>,
-    min_distance_m: Option<f64>,
+    thin: Thinning,
 ) -> AppResult<SpacedPickResult> {
-    match (target_count, min_distance_m) {
-        (Some(_), Some(_)) => {
+    match thin {
+        Thinning::Metres { m } if !(m > 0.0) => {
             return Err(AppError::from(
-                "pick_spaced: pass exactly one of target_count or min_distance_m, not both",
+                "pick_spaced: the distance must be greater than 0",
             ))
         }
-        (None, None) => {
-            return Err(AppError::from(
-                "pick_spaced: pass exactly one of target_count or min_distance_m",
-            ))
-        }
-        (_, Some(d)) if !(d > 0.0) => {
-            return Err(AppError::from(
-                "pick_spaced: min_distance_m must be greater than 0",
-            ))
-        }
-        (_, Some(d)) if d > i32::MAX as f64 => {
-            return Err(AppError::from("pick_spaced: min_distance_m too large"))
+        Thinning::Metres { m } if m > i32::MAX as f64 => {
+            return Err(AppError::from("pick_spaced: the distance is too large"))
         }
         _ => {}
     }
 
     fastrand::shuffle(&mut candidates);
 
-    if let Some(n) = target_count {
-        if n as usize >= candidates.len() {
-            return Ok(SpacedPickResult {
-                ids: candidates.iter().map(|c| c.0).collect(),
-                distance_m: 0,
-            });
+    let d = match thin {
+        Thinning::Count { n } => {
+            if n as usize >= candidates.len() {
+                return Ok(SpacedPickResult {
+                    ids: candidates.iter().map(|c| c.0).collect(),
+                    distance_m: 0,
+                });
+            }
+            let coords: Vec<(f64, f64)> = candidates.iter().map(|c| (c.1, c.2)).collect();
+            let (idxs, distance_m) =
+                vali_geo::with_max_min_distance(&coords, n as usize, None, &[]);
+            let ids = idxs.into_iter().map(|i| candidates[i as usize].0).collect();
+            return Ok(SpacedPickResult { ids, distance_m });
         }
-        let coords: Vec<(f64, f64)> = candidates.iter().map(|c| (c.1, c.2)).collect();
-        let (idxs, distance_m) = vali_geo::with_max_min_distance(&coords, n as usize, None, &[]);
-        let ids = idxs.into_iter().map(|i| candidates[i as usize].0).collect();
-        return Ok(SpacedPickResult { ids, distance_m });
-    }
-
-    let d = min_distance_m.unwrap().round().max(1.0) as i32;
+        Thinning::Metres { m } => m.round().max(1.0) as i32,
+    };
     if candidates.is_empty() {
         return Ok(SpacedPickResult {
             ids: Vec::new(),
@@ -929,31 +798,19 @@ pub(crate) fn pick_spaced(
     Ok(SpacedPickResult { ids, distance_m: d })
 }
 
-/// Evenly spaced subset of `candidates` on a honeycomb: `spacing_m` keeps
-/// picks about that far apart and never closer than half of it; `target_count` searches
-/// for the spacing that keeps at most N.
+/// Evenly spaced subset of `candidates` on a honeycomb: a distance keeps picks about that
+/// far apart and never closer than half of it; a count searches for the spacing that
+/// keeps at most that many.
 pub(crate) fn pick_even(
     candidates: &[(u32, f64, f64)],
-    target_count: Option<u32>,
-    spacing_m: Option<f64>,
+    thin: Thinning,
 ) -> AppResult<SpacedPickResult> {
-    match (target_count, spacing_m) {
-        (Some(_), Some(_)) => {
+    if let Thinning::Metres { m } = thin {
+        if !(m.is_finite() && m > 0.0) {
             return Err(AppError::from(
-                "pick_even: pass exactly one of target_count or spacing_m, not both",
-            ))
+                "pick_even: the spacing must be greater than 0",
+            ));
         }
-        (None, None) => {
-            return Err(AppError::from(
-                "pick_even: pass exactly one of target_count or spacing_m",
-            ))
-        }
-        (_, Some(d)) if !(d.is_finite() && d > 0.0) => {
-            return Err(AppError::from(
-                "pick_even: spacing_m must be greater than 0",
-            ))
-        }
-        _ => {}
     }
 
     let Some(bounds) = candidates.iter().fold(None, |acc, &(_, lat, lng)| {
@@ -969,13 +826,15 @@ pub(crate) fn pick_even(
     let (lat, lng) = ((south + north) / 2.0, fold_lng((west + east) / 2.0, -180.0));
     let pick = |spacing: f64| even_picks(candidates, &HexGrid::new(lat, lng, spacing), spacing);
 
-    if let Some(spacing) = spacing_m {
-        return Ok(SpacedPickResult {
-            ids: pick(spacing),
-            distance_m: spacing.round() as i32,
-        });
-    }
-    let goal = target_count.unwrap() as usize;
+    let goal = match thin {
+        Thinning::Metres { m } => {
+            return Ok(SpacedPickResult {
+                ids: pick(m),
+                distance_m: m.round() as i32,
+            })
+        }
+        Thinning::Count { n } => n as usize,
+    };
     if goal >= candidates.len() {
         return Ok(SpacedPickResult {
             ids: candidates.iter().map(|c| c.0).collect(),

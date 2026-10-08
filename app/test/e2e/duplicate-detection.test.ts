@@ -18,7 +18,7 @@ describe("Duplicate detection via selectDuplicates", () => {
 		]);
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("selectDuplicates with tight radius finds nearby locations", async () => {
@@ -57,8 +57,8 @@ describe("findNearby API", () => {
 		const nearby = await withApi(async (api) => {
 			return api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 0, lng: 0, radiusM: 100 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 0, lng: 0, radiusM: 100 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // 100m radius
@@ -70,8 +70,8 @@ describe("findNearby API", () => {
 		const nearby = await withApi(async (api) => {
 			return api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 0, lng: 0, radiusM: 100 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 0, lng: 0, radiusM: 100 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
@@ -85,8 +85,8 @@ describe("findNearby API", () => {
 		const nearby = await withApi(async (api) => {
 			return api.cmd
 				.storeRead(
-					{ type: "Everything" },
-					{ kind: "nearby", lat: 50, lng: 50, radiusM: 100 },
+					{ kind: "map" },
+					{ type: "Nearby", selection: null, lat: 50, lng: 50, radiusM: 100 },
 					{ kind: "rows" },
 				)
 				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // no locations near (50,50)

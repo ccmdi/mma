@@ -4,7 +4,7 @@ import { procedureName } from "@/lib/data/procedures";
 import { google } from "@/lib/sv/opensv";
 import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { DEFAULTS, PRIVATE_SETTINGS, getSettings, type AppSettings } from "@/store/settings";
-import { getMapState, getTags, read } from "@/store/useMapStore";
+import { getMapState, getTags } from "@/store/useMapStore";
 import { formatBytes } from "@/lib/util/format";
 import { appVersion } from "@/lib/version";
 
@@ -174,8 +174,7 @@ async function mapDiagnostics(): Promise<MapDiagnostics | null> {
 	if (!state.map) return null;
 	let dirtyCount = 0;
 	try {
-		dirtyCount = (await read({ type: "Everything" }, null, { kind: "summary" }, "summary"))
-			.dirtyCount;
+		dirtyCount = (await cmd.storeSummary()).dirtyCount;
 	} catch {
 		// A report about a broken map must still send.
 	}

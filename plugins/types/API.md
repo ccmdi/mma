@@ -23,6 +23,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Toast](#toast)
 - [UseJob](#usejob)
 - [Types](#types)
+- [Tags](#tags)
 
 **Unstable surfaces**
 
@@ -455,16 +456,9 @@ LOCATION_MERGED: readonly ["extra"]
 
 ```ts
 LocationFlag: {
-  /** No flags set. */
-  None: 0;
-  /** When the location has a stored pano, it opens exactly that pano instead of the nearest coverage. */
-  LoadAsPanoId: 1;
-  /** Legacy marker (web). Kept as imported, with no effect in the app. */
-  Informational: 2;
-  /** A location from a pending import, opened for preview and not yet on the map. */
-  ImportPreview: 4;
-  /** A pano opened from the seen history overlay, not yet on the map. */
-  SeenOverlay: 8;
+  readonly None: 0;
+  readonly LoadAsPanoId: 1;
+  readonly Informational: 2;
 }
 ```
 
@@ -538,16 +532,6 @@ PLAIN_CALLS: readonly [
   "aborted",
 ]
 ```
-
-### PREVIEW_FLAGS
-
-`unstable` · unreleased
-
-```ts
-PREVIEW_FLAGS: 12
-```
-
-The bits a preview carries that a real location must not.
 
 ### PROJECTIONS
 
@@ -642,6 +626,17 @@ Sink: { readonly Patch: "patch"; readonly Collect: "collect" }
 Where a provider's results go. `Patch` applies them to the locations they name;
 `Collect` delivers them to the caller and writes nothing. The declaration decides
 this, never the contents of a result.
+
+### Stack
+
+`stable` · unreleased
+
+```ts
+Stack: { readonly Undo: "undo"; readonly Redo: "redo" }
+```
+
+Which way through the edit history: back over what was done, or forward over what
+was undone.
 
 ### SYNC_PROVIDERS
 
@@ -741,13 +736,12 @@ objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
 `unstable` · since v0.10.3
 
 ```ts
-applySelectionUpdate(
-  op: (rows: ListedSelection[]) => ListedSelection[],
-): Promise<void>
+applySelectionUpdate(op: SelectionOp): Promise<void>
 ```
 
-Apply `op` to the listed selections and re-resolve them: the one way the selection changes.
-Lift an op over the active selections alone with `onActive`. No-op when nothing changed.
+Apply `op` to the listed selections and have the store hold and resolve the result: the
+one way the selection changes. Lift an op over the active selections alone with
+`onActive`. No-op when nothing changed.
 
 ### checkoutCommit
 
@@ -880,7 +874,7 @@ Raw by-id tag lookup — includes dark metadata ghosts so stale references
 getTagCounts(): Record<number, number>
 ```
 
-Per-tag location counts: `valueCounts.tags` re-keyed by numeric id.
+Per-tag location counts, keyed by numeric id.
 
 ### getTags
 
@@ -890,10 +884,10 @@ Per-tag location counts: `valueCounts.tags` re-keyed by numeric id.
 getTags(): Record<number, Tag>
 ```
 
-The tag view: `valueMeta.tags` piles dressed over the counts, recomputed only when
-either slice moves. A tag is visible exactly while something carries it (count > 0);
-a value present in data without metadata (foreign import) shows under a derived
-name/color; emptied metadata lingers dark until its name is reused.
+The tag view: each value's record dressed as a tag. A tag is visible exactly while
+something carries it (count > 0); a value present in data without a record (foreign
+import) shows under a derived name/color; an emptied record lingers dark until its
+name is reused.
 
 ### getVisibleTags
 
@@ -919,20 +913,14 @@ One-time store startup. The app calls this; plugins never need to.
 
 ### mutate
 
-`unstable` · since v0.4.0
+`stable` · since v0.4.0
 
 ```ts
-mutate(fn: () => Promise<MutationResult>): Promise<MutationResult>
-mutate<
-  R extends {
-    mutation: MutationResult;
-  },
->(fn: () => Promise<R>, empty: R): Promise<R>
+mutate<R extends MutationResult = MutationResult>(
+  fn: () => Promise<R>,
+  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+): Promise<R>
 ```
-
-Run a mutation and settle it; what it changed arrives on the change feed. A result
-that wraps its mutation comes back whole; `empty` is its answer when no map is
-open.
 
 ### openDuplicateLocation
 
@@ -991,7 +979,10 @@ adding anything to the map. The caller sets LoadAsPanoId so the exact pano resol
 `stable` · since v0.11.3
 
 ```ts
-query(selector: Selector): {
+query(
+  selector: Selector,
+  target?: Target,
+): {
   /** The resolved ids, in map order. */
   ids: () => Promise<number[]>;
   /** How many locations resolve. */
@@ -1030,14 +1021,14 @@ against the map as it is now; ask again after a change.
 ```ts
 read<K extends Answer["kind"]>(
   selector: Selector,
-  pick: RowPick | null,
   ask: Ask,
   kind: K,
+  target?: Target,
 ): Promise<AnswerOf<K>>
 ```
 
-The one read: `ask` a question of the rows `selector` resolves to, optionally
-narrowed by `pick` first. Answers once, against the map as it is now.
+The one read: `ask` a question of the rows `selector` resolves to. Answers once,
+against the map as it is now.
 
 ### redo
 
@@ -1105,60 +1096,23 @@ rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
 
 Full rows out of a rows answer, fetched from disk when they were many.
 
-### selectEvenlySpacedFromSelection
+### select
 
-`unstable` · since v0.11.0
+`stable` · unreleased
 
 ```ts
-selectEvenlySpacedFromSelection(
-  opts: {
-    count?: number;
-    spacingM?: number;
+select<
+  R extends {
+    ids: number[];
   },
+>(
+  pick: (selector: Selector) => Promise<R>,
   perSelection?: boolean,
 ): Promise<{
   picked: number;
-  distanceM: number;
+  results: R[];
 }>
 ```
-
-Replace the current selection with evenly spaced ids laid out on a honeycomb - either at
-most `count` ids spaced as widely as that allows, or ids about `spacingM` apart. No two
-picks sit closer than half the spacing. With `perSelection`, each active selection is
-picked from separately. Returns the count picked and the spacing used.
-
-### selectRandomFromSelection
-
-`unstable` · since v0.5.2
-
-```ts
-selectRandomFromSelection(count: number, perSelection?: boolean): Promise<number>
-```
-
-Replace the current selection with up to `count` ids picked at random.
-With `perSelection`, picks up to `count` from each active selection separately.
-Returns the number of ids actually picked (0 when nothing is selected).
-
-### selectSpacedFromSelection
-
-`unstable` · since v0.7.4
-
-```ts
-selectSpacedFromSelection(
-  opts: {
-    count?: number;
-    minDistanceM?: number;
-  },
-  perSelection?: boolean,
-): Promise<{
-  picked: number;
-  distanceM: number;
-}>
-```
-
-Replace the current selection with spatially spaced ids - either `count` ids maximizing
-spacing, or as many as fit at `minDistanceM`. With `perSelection`, each active selection
-is picked from separately. Returns the count picked and the minimum distance achieved.
 
 ### setActiveLocation
 
@@ -1189,7 +1143,7 @@ Replace the open map's row in state; persisting it is the caller's.
 `stable` · unreleased
 
 ```ts
-setOpenRow(row: Location | null): void
+setOpenRow(row: Location | null, open: MapState["open"]): void
 ```
 
 The open row as the viewer's layer last read it. The layer is the single writer;
@@ -1217,14 +1171,11 @@ Overwrite the selected-id set directly, bypassing selection resolution. Rarely w
 
 ### settled
 
-`unstable` · unreleased
+`stable` · unreleased
 
 ```ts
-settled(m: MutationResult): Promise<void>
+settled(m: Mutation): Promise<void>
 ```
-
-Settle a mutation that already ran: wait for the scene to draw its version and
-schedule a save.
 
 ### setWorkArea
 
@@ -1236,17 +1187,6 @@ setWorkArea(area: WorkArea): void
 
 Transition the editor pane, enforcing state invariants:
 leaving "location" clears the active location, leaving "plugin" clears the plugin id.
-
-### syncSelections
-
-`unstable` · since v0.4.0
-
-```ts
-syncSelections(): Promise<void>
-```
-
-Re-resolve all selections against the current map data and update the overlay.
-Use when the underlying data changed but the selections themselves did not.
 
 ### tagIdsToNames
 
@@ -1878,16 +1818,6 @@ A new Location at the viewer's live camera, carrying `source`'s flags and the gi
 tags. `extra` describes the pano it was fetched for, so it only survives a drop that
 stayed on that pano.
 
-### isImportPreview
-
-`unstable` · since v0.10.3
-
-```ts
-isImportPreview(loc: Location): boolean
-```
-
-True when the location is an import preview (not yet committed).
-
 ### isPinned
 
 `stable` · since v0.10.3
@@ -1899,16 +1829,6 @@ isPinned(loc: Location): loc is Location & {
 ```
 
 Pinned: the location always opens this exact pano.
-
-### isSeenPreview
-
-`unstable` · since v0.10.3
-
-```ts
-isSeenPreview(loc: Location): boolean
-```
-
-True when the location is a seen-history overlay preview.
 
 ### isWorldBounds
 
@@ -1950,6 +1870,54 @@ setPinned(loc: Location, on: boolean): Location
 
 The location pinned to the pano it carries, or unpinned to float on default coverage.
 
+## Tags
+
+### appendTagName
+
+`stable` · since v0.10.3
+
+```ts
+appendTagName(pending: string[], name: string, tags: Tag[]): string[]
+```
+
+Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
+canonical casing. Returns the original array unchanged if already present.
+
+### displayTagName
+
+`stable` · since v0.10.3
+
+```ts
+displayTagName(name: string): string
+```
+
+Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
+the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
+
+### sortTagsByMode
+
+`stable` · since v0.10.3
+
+```ts
+sortTagsByMode(
+  tags: Tag[],
+  mode: TagSortMode,
+  counts: Record<number, number>,
+): Tag[]
+```
+
+Sort tags by the chosen mode: name, location count, or manual order.
+
+### tagColorFor
+
+`stable` · since v0.10.3
+
+```ts
+tagColorFor(name: string, tags: Tag[]): string
+```
+
+Color for a tag named `name`. An existing tag uses its stored color.
+
 # Unstable surfaces
 
 Everything below can change in any release.
@@ -1963,12 +1931,8 @@ Pure transforms over the selection list behind the sidebar.
 `unstable` · since v0.4.0
 
 ```ts
-addSelection(
-  ...selectors: Selector[]
-): (rows: ListedSelection[]) => ListedSelection[]
+addSelection(...selectors: Selector[]): SelectionOp
 ```
-
-List the selections built from `selectors`. One already listed is updated in place, ghost and all.
 
 ### all
 
@@ -1995,30 +1959,18 @@ Locations matching any of `selectors`; with none, no location.
 `unstable` · since v0.10.3
 
 ```ts
-buildSelection(selector: Selector): Selection
+buildSelection(selector: Selector): Promise<Selection>
 ```
-
-Create a Selection with a deterministic key and color from its selector.
 
 ### childSelections
 
 `unstable` · since v0.10.5
 
 ```ts
-childSelections(selector: Selector): Selection[]
+childSelections<S>(selector: Selector$1<S>): S[]
 ```
 
 Every child selection a selector wraps, whatever shape it wraps them in.
-
-### colorForKey
-
-`unstable` · since v0.10.3
-
-```ts
-colorForKey(key: string): RGB
-```
-
-Deterministic color derived from a selection key string.
 
 ### composeSelections
 
@@ -2029,32 +1981,8 @@ composeSelections(
   drag: SelectionPath,
   drop: SelectionPath,
   mode: GroupType,
-): (rows: ListedSelection[]) => ListedSelection[]
+): SelectionOp
 ```
-
-Merge the selection at `drag` into the one at `drop` as a `mode` composite, absorbing it into
-`drop` when that already is one. Nothing happens when either contains the other.
-
-### displayColor
-
-`unstable` · since v0.11.3
-
-```ts
-displayColor(s: Selection): RGB
-```
-
-The color a selection displays as.
-
-### displayTagName
-
-`unstable` · since v0.10.3
-
-```ts
-displayTagName(name: string): string
-```
-
-Display label for a tag name. In tree view with `truncateTagPaths` on, collapses
-the `/`-path to its shortest unique suffix; otherwise returns the name verbatim.
 
 ### filterIsLocalTime
 
@@ -2081,38 +2009,24 @@ Locations holding a value for `field`.
 `unstable` · since v0.10.3
 
 ```ts
-intersectSelections(
-  keys?: string[] | null,
-): (current: Selection[]) => Selection[]
+intersectSelections(keys?: string[] | null): SelectionOp
 ```
-
-Merge the targeted selections (or all, when `keys` is null) into a single Intersection.
 
 ### invertSelections
 
 `unstable` · since v0.10.3
 
 ```ts
-invertSelections(
-  keys?: string[] | null,
-): (current: Selection[]) => Selection[]
+invertSelections(keys?: string[] | null): SelectionOp
 ```
-
-Invert the targeted selections (or all, when `keys` is null). One is inverted, or restored when
-already inverted; several are inverted as their union.
 
 ### isolateGhost
 
 `unstable` · since v0.10.3
 
 ```ts
-isolateGhost(
-  index: number,
-): (state: ListedSelection[]) => ListedSelection[]
+isolateGhost(index: number): SelectionOp
 ```
-
-Ghost every listed selection but the one at `index`, or un-ghost them all when it already
-is the only one left.
 
 ### lacks
 
@@ -2124,17 +2038,6 @@ lacks(field: string): Selector
 
 Locations holding no value for `field`.
 
-### locationsKey
-
-`unstable` · since v0.10.7
-
-```ts
-locationsKey(ids: number[]): string
-```
-
-Key an id list by hashing it: the same ids in the same order give the same key.
-Order-sensitive, like the list it identifies. Key length is constant.
-
 ### moveSelection
 
 `unstable` · since v0.11.3
@@ -2144,11 +2047,8 @@ moveSelection(
   from: SelectionPath,
   to: SelectionPath,
   position: "before" | "after",
-): (rows: ListedSelection[]) => ListedSelection[]
+): SelectionOp
 ```
-
-Move the selection at `from` to just before or after the one at `to`, which must sit in the
-list or directly in a group. Nothing happens when `to` is inside the moved selection.
 
 ### not
 
@@ -2165,14 +2065,8 @@ Locations not matching `selector`.
 `unstable` · since v0.11.3
 
 ```ts
-onActive(
-  op: (active: Selection[]) => Selection[],
-): (rows: ListedSelection[]) => ListedSelection[]
+onActive(op: SelectionOp): SelectionOp
 ```
-
-Run `op` on the active selections only. Ghosted rows keep their places and the result fills
-the others in order; a selection already listed as a ghosted row updates that row and stays
-ghosted.
 
 ### OP_LABELS
 
@@ -2216,52 +2110,34 @@ Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
 `unstable` · since v0.4.0
 
 ```ts
-removeSelection(
-  ...keys: string[]
-): (rows: ListedSelection[]) => ListedSelection[]
+removeSelection(...keys: string[]): SelectionOp
 ```
-
-Remove the listed selections whose keys are `keys`. A removed group leaves its children behind in its place.
 
 ### removeSelectionAt
 
 `unstable` · since v0.11.3
 
 ```ts
-removeSelectionAt(
-  path: SelectionPath,
-): (rows: ListedSelection[]) => ListedSelection[]
+removeSelectionAt(path: SelectionPath): SelectionOp
 ```
-
-Remove the selection at `path`. A removed group, inverted or not, leaves its children
-behind in its place.
 
 ### replaceSelection
 
 `unstable` · since v0.10.3
 
 ```ts
-replaceSelection(
-  path: SelectionPath,
-  selector: Selector,
-): (rows: ListedSelection[]) => ListedSelection[]
+replaceSelection(path: SelectionPath, selector: Selector): SelectionOp
 ```
 
-Replace the selection at `path` with one built from `selector`. If that duplicates a sibling,
-the existing sibling wins and the replacement is dropped.
+### selection
 
-### rewriteSelectionFields
-
-`unstable` · since v0.10.3
+`unstable` · unreleased
 
 ```ts
-rewriteSelectionFields(
-  from: string,
-  to: string | null,
-): (rows: ListedSelection[]) => ListedSelection[]
+selection(selector: Selector, color?: RGB): SelectionInput
 ```
 
-Rename or remove a field across all Filter selections. When `to` is null, filters on that field are dropped.
+An unaddressed selection input; Rust supplies its key and default color.
 
 ### selectionAt
 
@@ -2274,14 +2150,15 @@ selectionAt(
 ): Selection | undefined
 ```
 
-The selection at `path`, or undefined when nothing sits there.
-
 ### selectionDisplayName
 
 `unstable` · since v0.10.3
 
 ```ts
-selectionDisplayName(sel: Selection, tagNames?: Record<number, string>): string
+selectionDisplayName(
+  sel: SelectionInput,
+  tagNames?: Record<number, string>,
+): string
 ```
 
 Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
@@ -2294,16 +2171,21 @@ rather than the open map's tags.
 ```ts
 SELECTIONS: {
   Duplicates: SelectionDescriptor<"Duplicates">;
+  EvenlySpaced: SelectionDescriptor<"EvenlySpaced">;
   Everything: SelectionDescriptor<"Everything">;
   Filter: SelectionDescriptor<"Filter">;
   Intersection: SelectionDescriptor<"Intersection">;
   Invert: SelectionDescriptor<"Invert">;
   Locations: SelectionDescriptor<"Locations">;
   Manual: SelectionDescriptor<"Manual">;
+  Nearby: SelectionDescriptor<"Nearby">;
+  Nearest: SelectionDescriptor<"Nearest">;
   Polygon: SelectionDescriptor<"Polygon">;
   Ranked: SelectionDescriptor<"Ranked">;
   Reviewed: SelectionDescriptor<"Reviewed">;
+  Sample: SelectionDescriptor<"Sample">;
   Selected: SelectionDescriptor<"Selected">;
+  Spaced: SelectionDescriptor<"Spaced">;
   Uncommitted: SelectionDescriptor<"Uncommitted">;
   Union: SelectionDescriptor<"Union">;
   Validation: SelectionDescriptor<"Validation">;
@@ -2317,26 +2199,24 @@ Per-type descriptor for each selector variant: key derivation, display label, an
 `unstable` · since v0.4.0
 
 ```ts
-setPolygonName(
-  path: SelectionPath,
-  name: string,
-): (rows: ListedSelection[]) => ListedSelection[]
+setPolygonName(path: SelectionPath, name: string): SelectionOp
 ```
-
-Rename a Polygon selection's display name.
 
 ### setSelectionColor
 
 `unstable` · since v0.4.0
 
 ```ts
-setSelectionColor(
-  path: SelectionPath,
-  color: RGB,
-): (rows: ListedSelection[]) => ListedSelection[]
+setSelectionColor(path: SelectionPath, color: RGB): SelectionOp
 ```
 
-Recolor the selection at `path`.
+### setSelections
+
+`unstable` · unreleased
+
+```ts
+setSelections(selections: SelectionInput[]): SelectionOp
+```
 
 ### tagIdOf
 
@@ -2365,58 +2245,40 @@ else, so there is no tag selector to build.
 `unstable` · since v0.10.3
 
 ```ts
-toggleGhost(
-  index: number,
-): (rows: ListedSelection[]) => ListedSelection[]
+toggleGhost(index: number): SelectionOp
 ```
-
-Ghost the listed selection at `index`, or un-ghost it.
 
 ### toggleGhostAll
 
 `unstable` · since v0.10.3
 
 ```ts
-toggleGhostAll(state: ListedSelection[]): ListedSelection[]
+toggleGhostAll: SelectionOp
 ```
-
-Ghost every listed selection, or un-ghost them all when every one already is.
 
 ### toggleInvert
 
 `unstable` · since v0.11.3
 
 ```ts
-toggleInvert(
-  path: SelectionPath,
-): (rows: ListedSelection[]) => ListedSelection[]
+toggleInvert(path: SelectionPath): SelectionOp
 ```
-
-Invert the selection at `path` in place, or restore it when it is already inverted.
 
 ### toggleManualSelection
 
 `unstable` · since v0.4.0
 
 ```ts
-toggleManualSelection(
-  locationId: number,
-): (rows: ListedSelection[]) => ListedSelection[]
+toggleManualSelection(id: number): SelectionOp
 ```
-
-Add or remove a location from the Manual selection, creating it if needed.
 
 ### toggleSelection
 
 `unstable` · since v0.11.3
 
 ```ts
-toggleSelection(
-  ...selectors: Selector[]
-): (rows: ListedSelection[]) => ListedSelection[]
+toggleSelection(...selectors: Selector[]): SelectionOp
 ```
-
-List each selection built from `selectors`, or remove it when it is already listed.
 
 ### UNARY_TYPES
 
@@ -2431,12 +2293,8 @@ UNARY_TYPES: readonly ["Invert"]
 `unstable` · since v0.10.3
 
 ```ts
-unionSelections(
-  keys?: string[] | null,
-): (current: Selection[]) => Selection[]
+unionSelections(keys?: string[] | null): SelectionOp
 ```
-
-Merge the targeted selections (or all, when `keys` is null) into a single Union.
 
 ### unpannedSelector
 
@@ -2463,7 +2321,7 @@ Locations with no tags: `tags` resolves to nothing on an untagged row.
 `unstable` · since v0.10.5
 
 ```ts
-withChildren(selector: Selector, children: Selection[]): Selector
+withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>
 ```
 
 `selector` with its children replaced, keeping the shape it wraps them in.
@@ -4546,6 +4404,16 @@ cmd.reverseGeocode(lat: number, lng: number): Promise<GeoResult | null>
 Return the nearest city, administrative region, and country for a coordinate.
 Never `null`: every landmass is covered.
 
+#### cmd.selectionBuild
+
+`unstable` · unreleased
+
+```ts
+cmd.selectionBuild(selections: SelectionInput[]): Promise<Selection[]>
+```
+
+Compile unaddressed selections into keyed store inputs.
+
 #### cmd.setDataLocation
 
 `unstable` · since v0.6.8
@@ -4652,16 +4520,25 @@ cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult>
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
 
+#### cmd.storeApplySavedSelection
+
+`unstable` · unreleased
+
+```ts
+cmd.storeApplySavedSelection(id: string): Promise<MutationResult>
+```
+
+Apply a saved rule with its value names resolved against the open map.
+
 #### cmd.storeCheckoutCommit
 
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeCheckoutCommit(mapId: string, commitId: string): Promise<null>
+cmd.storeCheckoutCommit(mapId: string, commitId: string): Promise<MutationResult>
 ```
 
-Restore a map to the state captured by a previous commit. The caller must reopen
-the map afterwards (undo/redo is cleared).
+Restore a map to a previous commit. An open map changes through its normal write path.
 
 #### cmd.storeCloseMap
 
@@ -4691,7 +4568,7 @@ Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/red
 cmd.storeCommitDiff(): Promise<Counts>
 ```
 
-Return the uncommitted change counts since the last commit.
+Return the uncommitted location change counts.
 
 #### cmd.storeCopyLocationsToMap
 
@@ -4700,7 +4577,7 @@ Return the uncommitted change counts since the last commit.
 ```ts
 cmd.storeCopyLocationsToMap(
   targetMapId: string,
-  selector: Selector,
+  selector: Selector$1<SelectionInput>,
 ): Promise<CopyToMapResult>
 ```
 
@@ -4712,7 +4589,7 @@ Copy locations already stored in this map into another map.
 
 ```ts
 cmd.storeCountryDistribution(
-  selector: Selector,
+  selector: Selector$1<SelectionInput>,
   level: string,
 ): Promise<[string, number][]>
 ```
@@ -4803,8 +4680,17 @@ cmd.storeEdit(
 ): Promise<MutationResult>
 ```
 
-Edit rows where `target` says. Edits at a pending layer are held there until one says
-`land`; once landed they write through and join its step.
+Edit rows where target says; a pending layer holds edits until land.
+
+#### cmd.storeEditSelections
+
+`unstable` · unreleased
+
+```ts
+cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult>
+```
+
+Edit the selection tree as one undoable store mutation.
 
 #### cmd.storeExportBulkZip
 
@@ -4822,7 +4708,7 @@ Emits `bulk-export-progress` per map.
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeExportCsv(selector: Selector): Promise<string>
+cmd.storeExportCsv(selector: Selector$1<SelectionInput>): Promise<string>
 ```
 
 Export locations as a minimal lat/lng CSV file.
@@ -4832,7 +4718,10 @@ Export locations as a minimal lat/lng CSV file.
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeExportGeojson(selector: Selector, tagsJson: string): Promise<string>
+cmd.storeExportGeojson(
+  selector: Selector$1<SelectionInput>,
+  tagsJson: string,
+): Promise<string>
 ```
 
 Export locations as a GeoJSON FeatureCollection of Point features.
@@ -4998,9 +4887,7 @@ cmd.storePatchFieldValues(
 ): Promise<FieldValuesResult>
 ```
 
-Patch an interned field's value metadata: get-or-create names, edit display
-metadata, reorder. Metadata only - membership writes go through the ordinary
-`listSet` field op. `tags` is the first (and so far only) interned field.
+Patch an interned field's value records; membership uses ordinary row edits.
 
 #### cmd.storeRead
 
@@ -5008,24 +4895,13 @@ metadata, reorder. Metadata only - membership writes go through the ordinary
 
 ```ts
 cmd.storeRead(
-  selector: Selector,
-  pick: RowPick | null,
+  target: Target,
+  selector: Selector$1<SelectionInput>,
   ask: Ask,
 ): Promise<Answer>
 ```
 
-Answer one question about the rows a selector resolves to, optionally narrowed by a
-pick first.
-
-#### cmd.storeRedo
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeRedo(): Promise<MutationResult>
-```
-
-Redo the last undone edit.
+Answer one question about the target's rows matched by selector.
 
 #### cmd.storeRenameFolder
 
@@ -5111,16 +4987,6 @@ cmd.storeReviewUpdate(
 
 Apply a partial update to a review session.
 
-#### cmd.storeRow
-
-`unstable` · unreleased
-
-```ts
-cmd.storeRow(target: Target, id: number): Promise<Location | null>
-```
-
-The row at `id` as `target` sees it.
-
 #### cmd.storeSaveDirty
 
 `unstable` · since v0.4.0
@@ -5148,8 +5014,7 @@ Move a temp export file to `destPath` and remove the temp source.
 ```ts
 cmd.storeSaveSelection(
   name: string,
-  selector: Selector,
-  tagNames: { [key in number]: string },
+  selector: Selector$1<SelectionInput>,
   color: [number, number, number],
 ): Promise<SavedSelection>
 ```
@@ -5264,6 +5129,16 @@ cmd.storeSetMarkerColor(color: [number, number, number]): Promise<null>
 
 Set the default marker color for new render updates.
 
+#### cmd.storeStep
+
+`unstable` · unreleased
+
+```ts
+cmd.storeStep(stack: Stack): Promise<MutationResult>
+```
+
+Undo the newest edit, or redo the newest undone one.
+
 #### cmd.storeSubscribeChanges
 
 `unstable` · unreleased
@@ -5288,16 +5163,15 @@ cmd.storeSubscribeFrames(
 
 Draw the open map's markers: `frames` receives the whole scene, then every change to it.
 
-#### cmd.storeSyncSelections
+#### cmd.storeSummary
 
-`unstable` · since v0.4.0
+`unstable` · unreleased
 
 ```ts
-cmd.storeSyncSelections(sels: ListedSelection[]): Promise<MutationResult>
+cmd.storeSummary(): Promise<Summary>
 ```
 
-Replace all active selections and resolve them against current data. Returns
-per-selection counts; the markers repaint through the render frame.
+Return the open store's location count, version and dirty count.
 
 #### cmd.storeTouchMapOpened
 
@@ -5308,16 +5182,6 @@ cmd.storeTouchMapOpened(mapId: string): Promise<null>
 ```
 
 Mark a map as opened now, for sorting the map list by recency.
-
-#### cmd.storeUndo
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeUndo(): Promise<MutationResult>
-```
-
-Undo the last edit.
 
 #### cmd.storeUpdateMapMeta
 
@@ -5376,10 +5240,13 @@ directory. Returns a temp path for `storeSaveExportFile`.
 `unstable` · unreleased
 
 ```ts
-cmd.storeWork(selector: Selector, work: Work): Promise<WorkResult>
+cmd.storeWork(
+  selector: Selector$1<SelectionInput>,
+  work: Work,
+): Promise<WorkResult>
 ```
 
-Run work over every location matched by `selector`, landing the edits it derives.
+Run work over every location matched by selector.
 
 #### cmd.syncLogAppend
 
@@ -6582,31 +6449,18 @@ Step the zoom out.
 
 Enrichment passes over the open map.
 
-### enrichAll
+### enrich
 
-`unstable` · since v0.4.0
-
-```ts
-enrichAll(selector: Selector, opts?: RunOpts): Promise<EnrichOutcome[]>
-```
-
-Bulk-enrich a selector: resolve missing pano ids, then run every field-producing
-provider (metadata, exact date, timezone, subdivision).
-
-### enrichAt
-
-`unstable` · unreleased
+`unstable` · since v0.10.3
 
 ```ts
-enrichAt(
-  target: Target,
-  opts?: Omit<RunOpts, "onProgress" | "on">,
-): Promise<void>
+enrich(
+  selector: Selector,
+  props?: RunOpts & {
+    resolve?: boolean;
+  },
+): Promise<ProviderOutcomes>
 ```
-
-Enrich the rows a target holds with the map's enabled metadata fields. Answers land in
-the target; each enriched row also reaches `onPartial` as it lands. Does nothing when
-enrichment is disabled.
 
 ## Providers
 
@@ -7338,17 +7192,6 @@ Force a full selection re-resolve and return the selected IDs.
 
 General-purpose helpers.
 
-### appendTagName
-
-`unstable` · since v0.10.3
-
-```ts
-appendTagName(pending: string[], name: string, tags: Tag[]): string[]
-```
-
-Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
-canonical casing. Returns the original array unchanged if already present.
-
 ### bestBy
 
 `unstable` · since v0.10.3
@@ -7508,20 +7351,6 @@ shuffle<T>(items: T[]): T[]
 
 Shuffle `items` in place (Fisher-Yates) and return them.
 
-### sortTagsByMode
-
-`unstable` · since v0.10.3
-
-```ts
-sortTagsByMode(
-  tags: Tag[],
-  mode: TagSortMode,
-  counts: Record<number, number>,
-): Tag[]
-```
-
-Sort tags by the chosen mode: name, location count, or manual order.
-
 ### splitVersion
 
 `unstable` · since v0.10.3
@@ -7531,16 +7360,6 @@ splitVersion(v: string): [core: string, pre: string]
 ```
 
 `["0.7.0", "rc.2"]` for `"v0.7.0-rc.2+build"`; the pre-release part is `""` when absent.
-
-### tagColorFor
-
-`unstable` · since v0.10.3
-
-```ts
-tagColorFor(name: string, tags: Tag[]): string
-```
-
-Color for a tag named `name`. An existing tag uses its stored color.
 
 ### toggleInSet
 
@@ -7910,7 +7729,7 @@ request<T>(
 resetSelections(): Promise<void>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.applySelectionUpdate(() => [])`.
+**Deprecated in v0.11.3.** Use `MMA.applySelectionUpdate({ kind: "set", selections: [] })`.
 
 ### resolveIds
 

@@ -72,8 +72,8 @@ function runProcedure(rows, lookup, { fields = null } = {}) {
 		rows.map((r) => ({ ...EMPTY_ROW, ...r })),
 		cfg,
 	).map((p) => {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patch entries must be LocationPatch-shaped");
-		return { id: p.id, patch: p.patch.extra };
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
+		return { id: p.id, patch: p.extra };
 	});
 	return { patches, asked: h.asked, ...h.state() };
 }

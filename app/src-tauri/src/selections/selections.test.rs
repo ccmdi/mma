@@ -1379,7 +1379,7 @@ fn node_counts_cover_nested_children() {
         },
     }];
 
-    let counts = view.all().resolve_forest(&tree).1;
+    let counts = view.resolve_forest(&tree).1;
     assert_eq!(counts.get("a"), Some(&2)); // tag 10: l1, l2
     assert_eq!(counts.get("b"), Some(&2)); // tag 20: l1, l3
     assert_eq!(counts.get("root"), Some(&1)); // intersection: only l1 has both
@@ -1408,7 +1408,7 @@ fn node_counts_invert_is_global_complement() {
         },
     }];
 
-    let counts = view.all().resolve_forest(&tree).1;
+    let counts = view.resolve_forest(&tree).1;
     assert_eq!(counts.get("t"), Some(&1)); // tag 10: l1
     assert_eq!(counts.get("inv"), Some(&2)); // NOT tag 10: l2, l3 (universe of 3 minus 1)
 }
@@ -1465,7 +1465,7 @@ fn resolve_forest_matches_individual_resolve() {
         },
     ];
 
-    let (sets, counts) = view.all().resolve_forest(&sels);
+    let (sets, counts) = view.resolve_forest(&sels);
     assert_eq!(sets.len(), sels.len());
     for (i, sel) in sels.iter().enumerate() {
         assert_eq!(
@@ -2709,7 +2709,7 @@ proptest! {
         let view = fx.view();
         let mut counter = 0u32;
         let sels: Vec<Selection> = trees.iter().map(|t| to_selection(t, &mut counter)).collect();
-        let (sets, _counts) = view.all().resolve_forest(&sels);
+        let (sets, _counts) = view.resolve_forest(&sels);
         prop_assert_eq!(sets.len(), sels.len());
         for (i, sel) in sels.iter().enumerate() {
             prop_assert_eq!(&sets[i], &view.all().resolve(&sel.selector));

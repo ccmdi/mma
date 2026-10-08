@@ -7,7 +7,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const feed = vi.hoisted(() => ({
 	onmessage: null as ((e: unknown) => void) | null,
-	sync: vi.fn(async () => ({ version: 0, added: [] })),
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -26,7 +25,6 @@ vi.mock("@/lib/commands", async () => {
 			}),
 		storeOpenMap: async () =>
 			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
-		storeSyncSelections: () => feed.sync(),
 		storeSubscribeChanges: async (...args: unknown[]) => {
 			feed.onmessage = (args[0] as { onmessage: (e: unknown) => void }).onmessage;
 		},
@@ -34,14 +32,7 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import {
-	applySelectionUpdate,
-	openMap,
-	getMapState,
-	getTags,
-	getTagCounts,
-} from "@/store/useMapStore";
-import { addSelection, tagSelector } from "@/store/selections";
+import { openMap, getMapState, getTags, getTagCounts, settled } from "@/store/useMapStore";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { ChangeEvent } from "@/bindings.gen";
 const event = (derived: Partial<ChangeEvent["derived"]> = {}): ChangeEvent => ({
@@ -51,13 +42,12 @@ const event = (derived: Partial<ChangeEvent["derived"]> = {}): ChangeEvent => ({
 	updated: [],
 	derived: {
 		locationCount: null,
-		canUndo: null,
-		canRedo: null,
-		valueCounts: null,
-		valueMeta: null,
+		meta: null,
+		history: null,
+		fieldValues: null,
 		fieldDefs: null,
 		selectionCounts: null,
-		deadValues: null,
+		selectionList: null,
 		...derived,
 	},
 });
@@ -69,6 +59,16 @@ beforeEach(async () => {
 });
 
 describe("change feed merge semantics", () => {
+	it("metadata arrives through the feed and preserves untouched map fields", () => {
+		const before = getMapState().map!;
+		arrive(event({ meta: { id: before.id, name: "Renamed" } }));
+		expect(getMapState().map).toEqual({ ...before, name: "Renamed" });
+		expect(getMapState().map!.settings).toBe(before.settings);
+		const updated = getMapState().map;
+		arrive(event());
+		expect(getMapState().map).toBe(updated);
+	});
+
 	it("null values are skipped: untouched slices keep their reference", () => {
 		const before = getMapState();
 		const tagsBefore = getTags();
@@ -80,32 +80,53 @@ describe("change feed merge semantics", () => {
 	});
 
 	it("present scalars replace, absent ones hold", () => {
-		arrive(event({ locationCount: 42, canUndo: true, canRedo: true }));
+		arrive(event({ locationCount: 42, history: { undo: true, redo: true } }));
 		let s = getMapState();
 		expect(s.locationCount).toBe(42);
-		expect(s.canUndo).toBe(true);
-		expect(s.canRedo).toBe(true);
-		arrive(event({ canRedo: false }));
+		expect(s.history).toEqual({ undo: true, redo: true });
+		arrive(event({ history: { undo: true, redo: false } }));
 		s = getMapState();
 		expect(s.locationCount).toBe(42);
-		expect(s.canUndo).toBe(true);
-		expect(s.canRedo).toBe(false);
+		expect(s.history).toEqual({ undo: true, redo: false });
 	});
 
 	it("present values replace their slice; a tag change never re-mints the map", () => {
 		const mapBefore = getMapState().map;
 		arrive(
 			event({
-				valueMeta: {
-					tags: { 1: { name: "red", color: "#ff0000" }, 2: { name: "blue", color: "#0000ff" } },
+				fieldValues: {
+					tags: {
+						1: { record: { name: "red", color: "#ff0000" }, count: 5 },
+						2: { record: { name: "blue", color: "#0000ff" }, count: 0 },
+					},
 				},
-				valueCounts: { tags: { 1: 5, 2: 0 } },
 			}),
 		);
 		expect(getTags()[1]).toMatchObject({ id: 1, name: "red", color: "#ff0000", visible: true });
 		expect(getTags()[2].visible).toBe(false);
 		expect(getTagCounts()).toEqual({ 1: 5, 2: 0 });
 		expect(getMapState().map).toBe(mapBefore);
+	});
+
+	it("field values merge per value: a present one replaces itself, a null one is gone", () => {
+		arrive(
+			event({
+				fieldValues: {
+					tags: {
+						1: { record: { name: "red" }, count: 1 },
+						2: { record: { name: "blue" }, count: 1 },
+					},
+				},
+			}),
+		);
+		arrive(event({ fieldValues: { tags: { 1: { record: { name: "red" }, count: 3 }, 2: null } } }));
+		expect(getTagCounts()).toEqual({ 1: 3 });
+		expect(getTags()[2]).toBeUndefined();
+	});
+
+	it("a counted value without a record shows under a derived name", () => {
+		arrive(event({ fieldValues: { tags: { 9: { record: null, count: 2 } } } }));
+		expect(getTags()[9]).toMatchObject({ id: 9, name: "Tag 9", visible: true });
 	});
 
 	// The field registry ships whole when it changed; the known-key set is its key set
@@ -128,25 +149,31 @@ describe("change feed merge semantics", () => {
 		expect(getMapState().selectionCounts).toEqual({ "tag:1": 7 });
 	});
 
-	it("dead values drop their tag selections and never enter state", async () => {
-		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
-		arrive(event({ deadValues: { tags: [1] } }));
-		await new Promise((r) => setTimeout(r));
-		const left = getMapState().selectionList.map((r) => r.selection.selector);
-		expect(left).toEqual([tagSelector(2)]);
-		expect("deadValues" in getMapState()).toBe(false);
+	it("the store's selection list replaces the listed selections when present", () => {
+		const row = {
+			selection: {
+				key: "tag:1",
+				color: [1, 2, 3] as [number, number, number],
+				selector: {
+					type: "Filter" as const,
+					field: "tags",
+					test: { op: "contains" as const, value: 1 },
+				},
+			},
+			ghosted: false,
+		};
+		arrive(event({ selectionList: [row] }));
+		expect(getMapState().selectionList).toEqual([row]);
+		const held = getMapState().selectionList;
+		arrive(event());
+		expect(getMapState().selectionList).toBe(held);
 	});
 
-	it("a tag record change resyncs only while a selection names a tag", async () => {
-		const { sync } = feed;
-		await applySelectionUpdate(() => []);
-		sync.mockClear();
-		arrive(event({ valueMeta: { tags: { 1: { name: "red", color: "#00ff00" } } } }));
-		expect(sync).not.toHaveBeenCalled();
-
-		await applySelectionUpdate(addSelection(tagSelector(1)));
-		sync.mockClear();
-		arrive(event({ valueMeta: { tags: { 1: { name: "red", color: "#0000ff" } } } }));
-		expect(sync).toHaveBeenCalledTimes(1);
+	it("a write the open already covers settles without waiting for the feed", async () => {
+		const outcome = await Promise.race([
+			settled({ version: 1, added: [] }).then(() => "settled"),
+			new Promise((r) => setTimeout(() => r("waiting"), 50)),
+		]);
+		expect(outcome).toBe("settled");
 	});
 });

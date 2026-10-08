@@ -25,7 +25,7 @@ const sceneTotal = () =>
 	withApi(async (api) => {
 		await api.sceneReached(
 			(
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -194,7 +194,7 @@ describe("Web bridge", () => {
 					null,
 				)
 				.then(() => done.push("slow"));
-			(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+			(await api.cmd.storeSummary()) as {
 				locationCount: number;
 				version: number;
 				dirtyCount: number;

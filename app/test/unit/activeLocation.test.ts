@@ -9,8 +9,8 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeRead: async (selector: { locations?: number[] }, pick: { kind: string } | null) => {
-			if (pick?.kind === "nearby") {
+		storeRead: async (_target: unknown, selector: { type: string; locations?: number[] }) => {
+			if (selector.type === "Nearby") {
 				return { kind: "rows", rows: { kind: "inline", locations: h.nearby } };
 			}
 			const ids = selector.locations ?? [];
@@ -59,7 +59,7 @@ describe("active location", () => {
 		release();
 		await slow;
 
-		expect(getMapState().openId).toBe(8);
+		expect(getMapState().open?.id).toBe(8);
 		expect(getMapState().openRow?.id).toBe(8);
 		setWorkArea("overview");
 	});

@@ -1,7 +1,3 @@
-import type { TagSortMode } from "@/types";
-import type { Tag } from "@/types";
-import { colorForName } from "@/lib/util/color";
-
 /** Base URL for a custom URI scheme, platform-adjusted. */
 export function schemeBase(scheme: string): string {
 	return navigator.platform.startsWith("Win")
@@ -133,35 +129,6 @@ export async function copyImageToClipboard(blob: Blob): Promise<boolean> {
 /** Compare strings with natural (numeric-aware) ordering. */
 export function compareNatural(a: string, b: string): number {
 	return a.localeCompare(b, undefined, { numeric: true });
-}
-
-/** Sort tags by the chosen mode: name, location count, or manual order. */
-export function sortTagsByMode(
-	tags: Tag[],
-	mode: TagSortMode,
-	counts: Record<number, number>,
-): Tag[] {
-	const sorted = [...tags];
-	if (mode === "name") return sorted.sort((a, b) => a.name.localeCompare(b.name));
-	if (mode === "amount") return sorted.sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0));
-	return sorted.sort(
-		(a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name),
-	);
-}
-
-/** Color for a tag named `name`. An existing tag uses its stored color. */
-export function tagColorFor(name: string, tags: Tag[]): string {
-	const existing = tags.find((t) => t.name.toLowerCase() === name.toLowerCase());
-	return existing?.color ?? colorForName(name);
-}
-
-/** Add a name to a staged list: dedup case-insensitively, normalizing to an existing tag's
- *  canonical casing. Returns the original array unchanged if already present. */
-export function appendTagName(pending: string[], name: string, tags: Tag[]): string[] {
-	const lower = name.toLowerCase();
-	if (pending.some((n) => n.toLowerCase() === lower)) return pending;
-	const existing = tags.find((t) => t.name.toLowerCase() === lower);
-	return [...pending, existing ? existing.name : name];
 }
 
 /** Current time as Unix seconds, the form Location timestamps use. */

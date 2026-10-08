@@ -14,7 +14,7 @@ import {
 	getTagCounts,
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
-import { sortTagsByMode } from "@/lib/util/util";
+import { sortTagsByMode } from "@/lib/data/tags";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
@@ -22,6 +22,7 @@ import { followLinkedPanos } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
+import { getMapList } from "@/store/mapList";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
 import { cycle } from "@/types/util";
@@ -228,10 +229,9 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 				.then((res) => {
 					log.debug(`[copyToMap] ipc=${Math.round(performance.now() - t0)}ms`);
 					if (!res || !container) return;
+					const name = getMapList().find((m) => m.id === mapId)?.name ?? "";
 					toast(
-						res.copied > 0
-							? t('Copied to "{name}"', { name: res.targetName })
-							: t('Already in "{name}"', { name: res.targetName }),
+						res.copied > 0 ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
 						1500,
 						container,
 					);

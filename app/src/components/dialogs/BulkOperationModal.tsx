@@ -20,7 +20,8 @@ import * as edit from "@/store/edit";
 
 import { addSelection, all, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
-import type { Selector, Work } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { Work } from "@/bindings.gen";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
 import {
 	getFieldDef,
@@ -39,8 +40,14 @@ import {
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
 } from "@/lib/sv/validationCategories";
-import { enrichAll, type EnrichOutcome } from "@/lib/sv/enrich";
-import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
+import { enrich } from "@/lib/sv/enrich";
+import type { ProviderOutcomes } from "@/lib/data/procedures";
+import {
+	getProviders,
+	getEnrichFieldOptions,
+	getDefaultEnrichKeys,
+	isFieldEnabled,
+} from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
 import {
@@ -242,7 +249,7 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 					disabled: enabledFields.length === 0 || (!force && !needsAny),
 					onClick: () =>
 						onReady(async ({ selector, signal, onProgress }) => {
-							const er = await enrichAll(selector, { signal, force, onProgress });
+							const er = await enrich(selector, { signal, force, onProgress });
 							return {
 								doneContent: <EnrichSummary result={er} />,
 							};
@@ -825,8 +832,9 @@ export function SelectFailedButton({
 	);
 }
 
-function EnrichSummary({ result }: { result: EnrichOutcome[] }) {
-	if (result.length === 0) {
+function EnrichSummary({ result }: { result: ProviderOutcomes }) {
+	const rows = Object.entries(result).filter(([, r]) => r.succeeded > 0 || r.failed.length > 0);
+	if (rows.length === 0) {
 		return (
 			<div>
 				<div>{t("Nothing to process.")}</div>
@@ -835,9 +843,9 @@ function EnrichSummary({ result }: { result: EnrichOutcome[] }) {
 	}
 	return (
 		<div>
-			{result.map((r) => (
-				<div key={r.id}>
-					{t(r.label)}
+			{rows.map(([id, r]) => (
+				<div key={id}>
+					{t(getProviders().find((p) => p.id === id)?.label ?? id)}
 					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.succeeded })}
 					{r.failed.length > 0 &&
 						t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}

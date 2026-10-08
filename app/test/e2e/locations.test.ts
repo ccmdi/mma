@@ -156,7 +156,7 @@ describe("Location CRUD", () => {
 			const original = await api.fetchLocation(id);
 			const dup = await api.fetchLocation(newId!);
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;
@@ -219,7 +219,7 @@ describe("Location persistence", () => {
 		const result = await withApi(
 			async (api, id0, id50) => {
 				const count = (
-					(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+					(await api.cmd.storeSummary()) as {
 						locationCount: number;
 						version: number;
 						dirtyCount: number;

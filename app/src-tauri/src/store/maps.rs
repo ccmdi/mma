@@ -506,26 +506,49 @@ pub fn infer_field_defs(
 // ---------------------------------------------------------------------------
 
 /// Full metadata for a map.
-#[derive(Clone, Default, serde::Serialize, specta::Type, mma_fields::Patch)]
+#[derive(
+    Clone, Debug, Default, serde::Serialize, serde::Deserialize, specta::Type, mma_fields::Patch,
+)]
 #[serde(rename_all = "camelCase")]
+#[row(table = "maps")]
 pub struct MapMeta {
     #[patch(key)]
     pub id: String,
+    #[field(default = "''")]
     pub name: String,
+    #[field(default = "''")]
     pub description: String,
     pub folder: Option<String>,
+    #[field(json, default = "'{}'")]
     pub settings: MapSettings,
+    #[field(json, default = "'\"auto\"'")]
     pub score_bounds: ScoreBounds,
+    #[field(json, decode = "MapExtra::from_json", default = "'{}'")]
     pub extra: MapExtra,
     /// The map's tag value records (opaque piles keyed by id-as-string), an open-time
     /// snapshot of the `maps.tags` column. JS coerces them to its tag view.
     #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
-    pub tags: TagRecords,
+    #[serde(
+        serialize_with = "crate::io::records::encode",
+        deserialize_with = "crate::io::records::decode"
+    )]
+    #[field(json, codec = "crate::io::records::read", default = "'{}'")]
+    pub tags: HashMap<u32, ValueRecord>,
+    #[field(json, default = "'[]'")]
     pub labels: Vec<String>,
     #[patch(skip)]
+    #[field(default = "0")]
     pub location_count: i64,
     /// Location changes since the last commit.
     #[patch(skip)]
+    #[field(
+        flatten(
+            added = "pending_added",
+            removed = "pending_removed",
+            updated = "pending_modified"
+        ),
+        default = "0"
+    )]
     pub pending: Counts,
     #[patch(skip)]
     pub created_at: String,
@@ -535,66 +558,24 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
-/// A map's tag records by id, as the `maps.tags` column spells them: string keys, each
-/// record carrying its id for older builds to read, and the legacy `id` and `visible` keys
-/// dropped on read, since identity is the key and visibility is derived.
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct TagRecords(pub HashMap<u32, ValueRecord>);
-
-impl serde::Serialize for TagRecords {
-    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        s.collect_map(self.0.iter().map(|(id, rec)| {
-            let mut rec = rec.clone();
-            rec.insert("id".into(), (*id).into());
-            (id.to_string(), rec)
-        }))
-    }
-}
-
-impl<'de> serde::Deserialize<'de> for TagRecords {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw: HashMap<String, ValueRecord> = serde::Deserialize::deserialize(d)?;
-        let records = raw.into_iter().filter_map(|(key, mut rec)| {
-            rec.remove("id");
-            rec.remove("visible");
-            Some((key.parse().ok()?, rec))
-        });
-        Ok(Self(records.collect()))
+impl mma_algebra::Keyed for MapMeta {
+    type Key = String;
+    fn key(&self) -> String {
+        self.id.clone()
     }
 }
 
 /// The map `id`'s metadata.
 pub(crate) fn read_map_meta(conn: &Connection, id: &str) -> rusqlite::Result<MapMeta> {
     conn.query_row(
-        "SELECT * FROM maps WHERE id = ?1",
+        &format!(
+            "SELECT {} FROM {} WHERE id = ?1",
+            MapMeta::SELECT,
+            MapMeta::TABLE
+        ),
         params![id],
-        row_to_map_meta,
+        MapMeta::read,
     )
-}
-
-/// Deserialize a SQLite row into `MapMeta`, parsing JSON columns with
-/// fallback defaults for forward compatibility.
-fn row_to_map_meta(row: &rusqlite::Row<'_>) -> Result<MapMeta, rusqlite::Error> {
-    Ok(MapMeta {
-        id: row.get("id")?,
-        name: row.get("name")?,
-        description: row.get("description")?,
-        folder: row.get("folder")?,
-        settings: storage::json_col(row, "settings")?,
-        score_bounds: storage::json_col(row, "score_bounds")?,
-        extra: MapExtra::from_json(&row.get::<_, String>("extra")?),
-        tags: storage::json_col(row, "tags")?,
-        labels: storage::json_col(row, "labels")?,
-        location_count: row.get("location_count")?,
-        pending: Counts {
-            added: row.get("pending_added")?,
-            removed: row.get("pending_removed")?,
-            updated: row.get("pending_modified")?,
-        },
-        created_at: row.get("created_at")?,
-        updated_at: row.get("updated_at")?,
-        last_opened_at: row.get("last_opened_at")?,
-    })
 }
 
 // ---------------------------------------------------------------------------
@@ -625,8 +606,12 @@ pub const SCRATCH_MAP_ID: &str = "scratch";
 
 /// Every map except the scratch one.
 fn list_map_rows(conn: &Connection) -> rusqlite::Result<Vec<MapMeta>> {
-    let mut stmt = conn.prepare("SELECT * FROM maps WHERE id != ?1")?;
-    let rows = stmt.query_map(params![SCRATCH_MAP_ID], row_to_map_meta)?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {} FROM {} WHERE id != ?1",
+        MapMeta::SELECT,
+        MapMeta::TABLE
+    ))?;
+    let rows = stmt.query_map(params![SCRATCH_MAP_ID], MapMeta::read)?;
     rows.collect()
 }
 
@@ -836,10 +821,15 @@ fn update_map_meta(
         ));
     }
     let next = store.meta.patched(&patch);
-    store.meta.replace(next);
-    if patch.extra.is_some() {
-        store.finish_mutation(&engine::Change::default());
-    }
+    let meta = mma_algebra::Change::from_rows([(Some((*store.meta).clone()), Some(next))]);
+    store.write(
+        [],
+        &mut None,
+        engine::Entry {
+            meta,
+            ..Default::default()
+        },
+    );
     Ok(())
 }
 
@@ -899,7 +889,18 @@ pub async fn store_delete_folder(
 fn refolder(state: &StoreState, from: &str, to: Option<&str>) -> AppResult<()> {
     for store in state.lock()?.stores.values_mut() {
         if store.meta.folder.as_deref() == Some(from) {
-            store.meta.edit().folder = to.map(str::to_string);
+            let before = (*store.meta).clone();
+            let mut after = before.clone();
+            after.folder = to.map(str::to_string);
+            let meta = mma_algebra::Change::from_rows([(Some(before), Some(after))]);
+            store.write(
+                [],
+                &mut None,
+                engine::Entry {
+                    meta,
+                    ..Default::default()
+                },
+            );
         }
     }
     Ok(())

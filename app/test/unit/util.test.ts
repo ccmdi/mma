@@ -1,14 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import type { Tag } from "@/types";
-import {
-	compareNatural,
-	sortTagsByMode,
-	tagColorFor,
-	appendTagName,
-	phaseRate,
-	type PhaseRate,
-} from "@/lib/util/util";
+import { compareNatural, phaseRate, type PhaseRate } from "@/lib/util/util";
+import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
 import { colorForName } from "@/lib/util/color";

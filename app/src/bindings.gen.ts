@@ -2,10 +2,28 @@
 
 import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
-import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MapShape, MergeWinner, RateCost, ResolutionSide, Sink, SyncTrigger } from "./bindings.consts";
+import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MapShape, MergeWinner, RateCost, ResolutionSide, Sink, Stack, SyncTrigger } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
+	/** Edit rows where target says; a pending layer holds edits until land. */
+	storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
+	/** Drop a named pending layer and everything it holds. */
+	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
+	/** Run work over every location matched by selector. */
+	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
+	/** Patch an interned field's value records; membership uses ordinary row edits. */
+	storePatchFieldValues: (field: string, patch: FieldValuesPatch) => __TAURI_INVOKE<FieldValuesResult>("store_patch_field_values", { field, patch }),
+	/** Return the uncommitted location change counts. */
+	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
+	/** Edit the selection tree as one undoable store mutation. */
+	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult>("store_edit_selections", { op }),
+	/** Answer one question about the target's rows matched by selector. */
+	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
+	/** Apply a saved rule with its value names resolved against the open map. */
+	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult>("store_apply_saved_selection", { id }),
+	/** Return the open store's location count, version and dirty count. */
+	storeSummary: () => __TAURI_INVOKE<Summary>("store_summary"),
 	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
@@ -155,7 +173,7 @@ export const commands = {
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
 	/**  Copy locations already stored in this map into another map. */
-	storeCopyLocationsToMap: (targetMapId: string, selector: Selector) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
+	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**
 	 *  Add caller-supplied locations to another map. Tags are matched by name against this
 	 *  map's tag table.
@@ -163,20 +181,6 @@ export const commands = {
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
 	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
 	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }),
-	/**
-	 *  Edit rows where `target` says. Edits at a pending layer are held there until one says
-	 *  `land`; once landed they write through and join its step.
-	 */
-	storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
-	/**
-	 *  Answer one question about the rows a selector resolves to, optionally narrowed by a
-	 *  pick first.
-	 */
-	storeRead: (selector: Selector, pick: RowPick | null, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { selector, pick, ask }),
-	/**  The row at `id` as `target` sees it. */
-	storeRow: (target: Target, id: number) => __TAURI_INVOKE<Location | null>("store_row", { target, id }),
-	/**  Drop a named pending layer and everything it holds. */
-	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/**
 	 *  Declare which fields are computed from which: each input field and the fields derived
 	 *  from it. A write that changes an input clears what was derived from it.
@@ -208,32 +212,17 @@ export const commands = {
 	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
 	/**  The area a polygon selects, as polygons whose edges never cross, for drawing its fill. */
 	polygonFill: (polygon: PolygonGeometry) => __TAURI_INVOKE<((([number, number])[])[])[]>("polygon_fill", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))) as typeof v)),
-	/**  Run work over every location matched by `selector`, landing the edits it derives. */
-	storeWork: (selector: Selector, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/**  The parse error for `src`, or `null` when it parses. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**
 	 *  Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.
 	 *  `level` selects border precision, falling back to "light" if unavailable.
 	 */
-	storeCountryDistribution: (selector: Selector, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
-	/**
-	 *  Patch an interned field's value metadata: get-or-create names, edit display
-	 *  metadata, reorder. Metadata only - membership writes go through the ordinary
-	 *  `listSet` field op. `tags` is the first (and so far only) interned field.
-	 */
-	storePatchFieldValues: (field: string, patch: FieldValuesPatch) => __TAURI_INVOKE<FieldValuesResult>("store_patch_field_values", { field, patch }),
-	/**  Undo the last edit. */
-	storeUndo: () => __TAURI_INVOKE<MutationResult>("store_undo"),
-	/**  Redo the last undone edit. */
-	storeRedo: () => __TAURI_INVOKE<MutationResult>("store_redo"),
-	/**  Return the uncommitted change counts since the last commit. */
-	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
-	/**
-	 *  Replace all active selections and resolve them against current data. Returns
-	 *  per-selection counts; the markers repaint through the render frame.
-	 */
-	storeSyncSelections: (sels: ListedSelection[]) => __TAURI_INVOKE<MutationResult>("store_sync_selections", { sels }),
+	storeCountryDistribution: (selector: Selector<SelectionInput>, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
+	/**  Undo the newest edit, or redo the newest undone one. */
+	storeStep: (stack: Stack) => __TAURI_INVOKE<MutationResult>("store_step", { stack }),
+	/**  Compile unaddressed selections into keyed store inputs. */
+	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
 	/**
@@ -320,12 +309,12 @@ export const commands = {
 	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
 	storeExportJson: (opts: ExportOpts) => __TAURI_INVOKE<string>("store_export_json", { opts }),
 	/**  Export locations as a minimal lat/lng CSV file. */
-	storeExportCsv: (selector: Selector) => __TAURI_INVOKE<string>("store_export_csv", { selector }),
+	storeExportCsv: (selector: Selector<SelectionInput>) => __TAURI_INVOKE<string>("store_export_csv", { selector }),
 	/**
 	 *  Export locations as a GeoJSON FeatureCollection of Point features.
 	 *  Each feature carries its tag names in `properties.tags`.
 	 */
-	storeExportGeojson: (selector: Selector, tagsJson: string) => __TAURI_INVOKE<string>("store_export_geojson", { selector, tagsJson }),
+	storeExportGeojson: (selector: Selector<SelectionInput>, tagsJson: string) => __TAURI_INVOKE<string>("store_export_geojson", { selector, tagsJson }),
 	/**  Move a temp export file to `destPath` and remove the temp source. */
 	storeSaveExportFile: (srcPath: string, destPath: string) => __TAURI_INVOKE<null>("store_save_export_file", { srcPath, destPath }),
 	/**
@@ -349,11 +338,8 @@ export const commands = {
 	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<CommitResult>("store_commit", { mapId, message }),
 	/**  List all commits for a map, newest first. */
 	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),
-	/**
-	 *  Restore a map to the state captured by a previous commit. The caller must reopen
-	 *  the map afterwards (undo/redo is cleared).
-	 */
-	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<null>("store_checkout_commit", { mapId, commitId }),
+	/**  Restore a map to a previous commit. An open map changes through its normal write path. */
+	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<MutationResult>("store_checkout_commit", { mapId, commitId }),
 	/**  Read a single commit's change: the locations it added, removed and updated. */
 	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<Change<Location>>("store_get_commit_delta", { mapId, commitId }),
 	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
@@ -383,7 +369,7 @@ export const commands = {
 	/**  Fetch the full saved selection rules for the given `ids`, including their selector trees. */
 	storeGetSavedSelections: (ids: string[]) => __TAURI_INVOKE<SavedSelection[]>("store_get_saved_selections", { ids }),
 	/**  Save a new selection rule. */
-	storeSaveSelection: (name: string, selector: Selector, tagNames: { [key in number]: string }, color: [number, number, number]) => __TAURI_INVOKE<SavedSelection>("store_save_selection", { name, selector, tagNames, color }),
+	storeSaveSelection: (name: string, selector: Selector<SelectionInput>, color: [number, number, number]) => __TAURI_INVOKE<SavedSelection>("store_save_selection", { name, selector, color }),
 	/**  Delete a saved selection rule by `id`. */
 	storeDeleteSavedSelection: (id: string) => __TAURI_INVOKE<null>("store_delete_saved_selection", { id }),
 	/**
@@ -499,14 +485,14 @@ export type AnonIssueRef = {
 };
 
 /**  What a read answers with; the arm follows from the ask. */
-export type Answer = 
-/**  The ids, with the spacing a spaced pick settled on. */
-{ kind: "ids"; ids: number[]; spacingM: number | null } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groups"; groups: PartitionBucket[] } | { kind: "counts"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "summary"; locationCount: number; version: number; dirtyCount: number } | { kind: "idGroups"; groups: number[][] } | { kind: "booleans"; values: boolean[] };
+export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groups"; groups: PartitionBucket[] } | { kind: "counts"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "idGroups"; groups: number[][] } | { kind: "booleans"; values: boolean[] };
 
-/**  The question a read answers about the selected rows, after any pick. */
+/**  The question a read answers about the selected rows. */
 export type Ask = 
-/**  Their ids: ascending, or a ranked selector's order when nothing was picked. */
+/**  Their ids: ascending, or a ranked selector's order. */
 { kind: "ids" } | 
+/**  The ids a spaced pick at the root kept, with the spacing it settled on. */
+{ kind: "spacing" } | 
 /**  How many there are. */
 { kind: "count" } | 
 /**  Every row in full. */
@@ -529,8 +515,6 @@ export type Ask =
 { kind: "coverage" } | 
 /**  Bounding box `[west, south, east, north]`, or `null` when nothing matches. */
 { kind: "bounds" } | 
-/**  The map's location count, store version, and unsaved-change count. */
-{ kind: "summary" } | 
 /**  Groups of rows within `distance` metres of each other, two or more per group. */
 { kind: "duplicateGroups"; distance: number } | 
 /**  Per input coordinate, whether any selected row lies within `radiusM` metres. */
@@ -599,7 +583,7 @@ export type CommitInfo = {
 /**  The new commit's ID and the resulting state update. */
 export type CommitResult = {
 	id: string,
-	status: MutationResult,
+	status: Mutation,
 };
 
 /**
@@ -609,6 +593,8 @@ export type CommitResult = {
  *  everything else is inferred from `FieldType`.
  */
 export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
+
+export type Composition = "intersection" | "union" | "invert";
 
 export type Conflict = {
 	key: string,
@@ -630,7 +616,6 @@ export type ConflictKind =
 export type CopyToMapResult = {
 	copied: number,
 	skipped: number,
-	targetName: string,
 };
 
 /**
@@ -680,28 +665,19 @@ export type DbStats = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 export type Derived = {
 	locationCount: number | null,
-	canUndo: boolean | null,
-	canRedo: boolean | null,
+	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id"> | null,
+	history: History | null,
 	/**
-	 *  Per-value row counts, keyed by field then by index key: one complete map per
-	 *  indexed field whose postings moved. Fields that did not move are absent.
+	 *  Each value that moved, keyed by field then by value; `null` where the value is
+	 *  gone: no record and no row holding it.
 	 */
-	valueCounts: { [key in string]: { [key in string]: number } } | null,
-	/**
-	 *  Per-value records (opaque piles), keyed by field then by interned id: one
-	 *  complete map per interned field whose records changed. JS coerces piles to its
-	 *  typed views (a tag) at its own boundary.
-	 */
-	valueMeta: { [key in string]: { [key in number]: { [key in string]: unknown } } } | null,
+	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
 	/**  The whole extra-field registry, when the map's row changed. */
 	fieldDefs: { [key in string]: FieldDef } | null,
 	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
 	selectionCounts: { [key in string]: number } | null,
-	/**
-	 *  Ids of each interned field's values this change left on no row or whose record it
-	 *  removed, keyed by field.
-	 */
-	deadValues: { [key in string]: number[] } | null,
+	/**  The listed selections, when the list changed. */
+	selectionList: ListedSelection[] | null,
 };
 
 /**  What the user needs in order to authorize: the code to type and where to type it. */
@@ -755,7 +731,7 @@ export type EditorImportPreview = {
  *  plus import-specific metadata.
  */
 export type EditorImportResult = {
-	mutation: MutationResult,
+	mutation: Mutation,
 	importedCount: number,
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
@@ -771,7 +747,7 @@ export type ExportOpts = {
 	/**  How much of the map the file keeps. */
 	shape: MapShape,
 	/**  Which locations to export. */
-	selector: Selector,
+	selector: Selector<SelectionInput>,
 	mapName: string,
 	/**
 	 *  Serialized `{id: {name, color}}` tag definitions from the store, used to
@@ -854,7 +830,7 @@ export type FieldValuesPatch = {
  */
 export type FieldValuesResult = {
 	resolved: number[],
-	mutation: MutationResult,
+	mutation: Mutation,
 };
 
 /**  A map file as the link picker shows it. */
@@ -893,6 +869,22 @@ export type GgUser = {
 export type GhUser = {
 	login: string,
 	avatarUrl: string | null,
+};
+
+/**  One value of a field as the map holds it. */
+export type HeldValue = {
+	/**  The value's record, for a field that interns its values; an opaque pile. */
+	record: { [key in string]: unknown } | null,
+	/**  How many rows hold the value. */
+	count: number,
+};
+
+/**  Whether there is an edit to step through each way. */
+export type History = {
+	/**  An edit can be undone. */
+	undo: boolean,
+	/**  An undone edit can be redone. */
+	redo: boolean,
 };
 
 /**
@@ -1059,6 +1051,30 @@ export type MapKeyBinding = {
 	action: MapKeyAction,
 };
 
+
+/**  Full metadata for a map. */
+export type MapMeta_Deserialize = {
+	id: string,
+	name: string,
+	description: string,
+	folder: string | null,
+	settings: MapSettings,
+	scoreBounds: ScoreBounds,
+	extra: MapExtra,
+	/**
+	 *  The map's tag value records (opaque piles keyed by id-as-string), an open-time
+	 *  snapshot of the `maps.tags` column. JS coerces them to its tag view.
+	 */
+	tags: { [key in string]: { [key in string]: unknown } },
+	labels: string[],
+	locationCount: number,
+	/**  Location changes since the last commit. */
+	pending: Counts,
+	createdAt: string,
+	updatedAt: string,
+	lastOpenedAt: string | null,
+};
+
 /**  Full metadata for a map. */
 export type MapMeta = {
 	id: string,
@@ -1147,11 +1163,15 @@ export type MmUser = {
  *  What one change did to the open map: its version, and the caller's own added rows.
  *  Everything else a change moved arrives on the change feed.
  */
-export type MutationResult = {
+export type Mutation = {
 	/**  The map version this change brought the map to. */
 	version: number,
 	/**  The id of each row this edit created, in the order they were written. */
 	added: number[],
+};
+
+export type MutationResult = {
+	mutation: Mutation,
 };
 
 /**
@@ -1480,7 +1500,7 @@ export type ProviderDecl = {
 	label?: string | null,
 	fields?: string[],
 	requires?: string[],
-	select: Selector,
+	select: Selector<SelectionInput>,
 	batch: BatchMode,
 	sink?: Sink,
 	/**
@@ -1571,7 +1591,7 @@ export type ReviewSession = {
 };
 
 /**  Work that derives each selected row's edit from that row alone. */
-export type RowOp = 
+export type RowOp<E = string> = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
  *  where nothing holds `to` -- so `winner` decides only where a row holds both.
@@ -1588,7 +1608,7 @@ export type RowOp =
  *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
  *  missing or non-numeric field, a non-finite result) is reported back by id.
  */
-{ kind: "expr"; key: string; expr: string } | 
+{ kind: "expr"; key: string; expr: E } | 
 /**
  *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
  *  reads the row's current value as a set rather than replacing it, which is what
@@ -1597,26 +1617,6 @@ export type RowOp =
  *  state keeps its member order.
  */
 { kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
-
-/**  A narrowing drawn from the selected rows before the question is asked. */
-export type RowPick = 
-/**  `n` rows drawn uniformly at random, without replacement. */
-{ kind: "sample"; n: number } | 
-/**
- *  An evenly spaced subset: exactly one of `targetCount` (thin to that many,
- *  maximizing spacing) or `minDistanceM` (keep as many as fit at that spacing).
- */
-{ kind: "spaced"; targetCount: number | null; minDistanceM: number | null } | 
-/**
- *  A honeycomb-spaced subset: exactly one of `targetCount` (at most that many, spaced
- *  as widely as that allows) or `spacingM` (about that far apart, never closer than
- *  half of it).
- */
-{ kind: "evenlySpaced"; targetCount: number | null; spacingM: number | null } | 
-/**  The rows within `radiusM` metres of a coordinate. */
-{ kind: "nearby"; lat: number; lng: number; radiusM: number } | 
-/**  The row closest to a coordinate. */
-{ kind: "nearest"; lat: number; lng: number };
 
 /**  Matched rows: returned inline, or as a file path to read them from. */
 export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
@@ -1714,16 +1714,18 @@ export type SeenWriteEntry = {
 	thumbnail: string | null,
 };
 
-/**
- *  A named, colored selection. `key` is deterministic (JS mints it) so selections can be
- *  diffed across syncs; `Selection::of` keys internal queries by their serialized selector.
- *  `color` is the RGB overlay color.
- */
 export type Selection = {
 	key: string,
 	color: [number, number, number],
 	selector: Selector,
 };
+
+export type SelectionInput = {
+	selector: Selector<SelectionInput>,
+	color?: [number, number, number] | null,
+};
+
+export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: [number, number, number] } | { kind: "polygonName"; path: number[]; name: string };
 
 /**
  *  Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
@@ -1731,9 +1733,13 @@ export type Selection = {
  *  inverted index when one covers the filtered field. Composites (Intersection, Union,
  *  Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
  */
-export type Selector = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
+export type Selector<S = {
+	key: string,
+	color: [number, number, number],
+	selector: Selector,
+}> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
 /**  The locations currently selected in the editor. */
-{ type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: Selection[] } | { type: "Union"; selections: Selection[] } | { type: "Invert"; selections: Selection[] } | { type: "Filter"; field: string; test: FilterOp } | 
+{ type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: S[] } | { type: "Union"; selections: S[] } | { type: "Invert"; selections: S[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
  *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
  *  a ranked root in rank order, where every other selector answers ascending. With no
@@ -1742,16 +1748,30 @@ export type Selector = { type: "Locations"; locations: number[]; name: string | 
  */
 { type: "Ranked"; 
 /**  What to rank; `null` ranks the whole map. */
-selection: Selection | null; expr: string; k: number | null; ascending: boolean };
+selection: S | null; expr: string; k: number | null; ascending: boolean } | 
+/**  `n` rows of a selection drawn uniformly at random, without replacement. */
+{ type: "Sample"; 
+/**  What to draw from; `null` draws from the whole map. */
+selection: S | null; n: number } | 
+/**  A selection thinned to a spread-out subset. */
+{ type: "Spaced"; 
+/**  What to thin; `null` thins the whole map. */
+selection: S | null; thin: Thinning } | 
+/**  A selection thinned on a honeycomb, never two picks closer than half the spacing. */
+{ type: "EvenlySpaced"; 
+/**  What to thin; `null` thins the whole map. */
+selection: S | null; thin: Thinning } | 
+/**  The rows of a selection within `radiusM` metres of a coordinate. */
+{ type: "Nearby"; 
+/**  Where to look; `null` looks over the whole map. */
+selection: S | null; lat: number; lng: number; radiusM: number } | 
+/**  The row of a selection closest to a coordinate. */
+{ type: "Nearest"; 
+/**  Where to look; `null` looks over the whole map. */
+selection: S | null; lat: number; lng: number };
 
 /**  Work that derives its edits from the selected rows as a set. */
-export type SetOp = 
-/**
- *  Merge each duplicate group within `distance` metres into one survivor, unioning
- *  tags and extra fields. `score` ranks which survives; absent uses the default
- *  ranking.
- */
-{ kind: "mergeDuplicates"; distance: number; score: string | null } | 
+export type SetOp = { kind: "merge"; groups: number[][]; score: string | null } | 
 /**
  *  Remove duplicates within `distance` metres of each other, keeping the best-scored
  *  survivor per cluster.
@@ -1787,9 +1807,10 @@ export type SidecarProgress = {
 };
 
 
+
 /**
- *  Open-time snapshot: the same derived state a change carries, with every field
- *  present. The one full picture JS ever receives; everything after is a delta.
+ *  Map state as of a version: every field when a map opens, only what moved after an
+ *  edit that answers with it.
  */
 export type StoreStatus = {
 	version: number,
@@ -1800,6 +1821,12 @@ export type StoreStatus = {
 export type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 { kind: "deltaSetAside" };
+
+export type Summary = {
+	locationCount: number,
+	version: number,
+	dirtyCount: number,
+};
 
 /**  One settled sync pass. */
 export type SyncLogEntry = {
@@ -1829,7 +1856,7 @@ export type SyncReconcileResult = {
 	adopted: number,
 	conflicts: Conflict[],
 	/**  The change the pull half made locally, or `null` when nothing was pulled. */
-	mutation: MutationResult | null,
+	mutation: Mutation | null,
 	/**  The rows the pull removed. */
 	removedIds: number[],
 };
@@ -1847,6 +1874,16 @@ export type Target =
  *  over the map's rows as they are now, and land when an edit says so.
  */
 { kind: "pending"; name: string };
+
+/**
+ *  How far a spaced pick thins: to a count, spread as widely as that allows, or to a
+ *  spacing, keeping as many as fit.
+ */
+export type Thinning = 
+/**  At most `n` rows. */
+{ by: "count"; n: number } | 
+/**  Rows about `m` metres apart. */
+{ by: "metres"; m: number };
 
 export type UpdateAvailable = {
 	version: string,
@@ -1905,7 +1942,7 @@ export type Work = RowOp | SetOp;
 
 /**  The work's outcome for the caller: the mutation plus what its message needs. */
 export type WorkResult = {
-	mutation: MutationResult,
+	mutation: Mutation,
 	/**  Rows the work edited. */
 	changed: number,
 	/**  Rows an expression could not evaluate. */

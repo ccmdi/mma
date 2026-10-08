@@ -19,7 +19,7 @@ use crate::store::engine::{StoreManager, StoreState};
 use crate::store::storage;
 use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
-use mma_algebra::Counts;
+use mma_algebra::{Change, Counts};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -48,7 +48,7 @@ pub struct CommitInfo {
 #[serde(rename_all = "camelCase")]
 pub struct CommitResult {
     pub id: String,
-    pub status: engine::MutationResult,
+    pub status: engine::Mutation,
 }
 
 // ---------------------------------------------------------------------------
@@ -106,12 +106,13 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store.collect(&Selector::Everything)
+            store.collect(&crate::store::engine::Target::Map, &Selector::Everything)
         } else {
             Vec::new()
         };
 
-        let status = store.finish_mutation(&engine::Change::default());
+        store.resolve_selection_membership();
+        let status = store.finish_selection_change();
         (pre_bake, current_fallback, location_count, status)
     };
     let t_bake = _t.elapsed();
@@ -202,25 +203,35 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
     .await
 }
 
-/// Restore a map to the state captured by a previous commit. The caller must reopen
-/// the map afterwards (undo/redo is cleared).
-// Materializes the commit by replaying ancestor deltas, rewrites the base Arrow file,
-// and clears the uncommitted delta.
+/// Restore a map to a previous commit. An open map changes through its normal write path.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_checkout_commit(
+    label: engine::WindowLabel,
     state: State<'_, StoreState>,
     map_id: String,
     commit_id: String,
-) -> AppResult<()> {
+) -> AppResult<engine::MutationResult> {
     let conn = storage::open_db()?;
     let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
     // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
     // base batch requires.
     let locs: Vec<Location> = materialized.into_values().collect();
 
-    let mgr = state.lock()?;
+    let mut mgr = state.lock()?;
+    if mgr
+        .window_map
+        .iter()
+        .any(|(window, map)| map == &map_id && window != &label.0)
+    {
+        return Err(AppError(
+            "close this map in every other window before restoring a version".into(),
+        ));
+    }
+    if let Some(store) = mgr.stores.get_mut(&map_id) {
+        return Ok(restore_rows(store, locs));
+    }
     write_checkout(
         &mgr,
         &map_id,
@@ -235,7 +246,39 @@ pub fn store_checkout_commit(
         map_id,
         locs.len()
     );
-    Ok(())
+    Ok(engine::MutationResult {
+        mutation: engine::Mutation {
+            version: 0,
+            added: vec![],
+        },
+    })
+}
+
+fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
+    let current = store.collect(&engine::Target::Map, &Selector::Everything);
+    store.next_id = store.next_id.max(
+        locs.iter()
+            .map(|row| row.id)
+            .max()
+            .unwrap_or(0)
+            .saturating_add(1),
+    );
+    let before = store.selections.table();
+    let selections = Change::at(&before, &Default::default(), before.keys().cloned());
+    store.pending.clear();
+    let edits = current
+        .into_iter()
+        .map(|row| engine::Edit::Remove(row.id))
+        .chain(locs.into_iter().map(engine::Edit::Set));
+    let mutation = store.write(
+        edits,
+        &mut None,
+        engine::Entry {
+            selections,
+            ..Default::default()
+        },
+    );
+    engine::MutationResult { mutation }
 }
 
 /// Replace a closed map's base with `locs` and drop its uncommitted delta.

@@ -1,10 +1,11 @@
 //! Global saved selection rules.
 //!
 //! A saved rule is one `Selector` tree plus the names its tag-membership leaves carried
-//! at save time. Tag ids are map-local, so JS resolves them through the names at apply time; the
+//! at save time. Tag ids are map-local, so Rust resolves them through the names at apply time; the
 //! tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
-use crate::selections::Selector;
+use crate::selections::{Selection, Selector};
+use crate::store::engine::{with_store, MutationResult, Store, StoreState, WindowLabel};
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::now_iso;
@@ -274,12 +275,111 @@ pub async fn store_get_saved_selections(ids: Vec<String>) -> AppResult<Vec<Saved
 #[tauri::command]
 #[specta::specta]
 pub async fn store_save_selection(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
     name: String,
-    selector: Selector,
-    tag_names: HashMap<u32, String>,
+    selector: Selector<super::tree::SelectionInput>,
     color: [u8; 3],
 ) -> AppResult<SavedSelection> {
+    let selector = selector.map_children(super::tree::SelectionInput::compile);
+    // A rule saved with no map open keeps an empty side table: names resolve per map.
+    let tag_names = {
+        let mut mgr = state.lock()?;
+        let mut names = HashMap::new();
+        if let Ok(store) = mgr.store_for_window(&label.0) {
+            capture_names(&selector, "tags", store, &mut names);
+        }
+        names
+    };
     storage::with_db(move |conn| create(conn, name, selector, tag_names, color)).await
+}
+
+fn capture_names(
+    selector: &Selector,
+    field: &str,
+    store: &Store,
+    names: &mut HashMap<u32, String>,
+) {
+    selector.walk(&mut |selector| {
+        if let Some((name, id)) = selector.member_test() {
+            if name == field {
+                if let Some(name) = store
+                    .value_record(field, id)
+                    .and_then(crate::store::engine::record_name)
+                {
+                    names.insert(id, name.to_string());
+                }
+            }
+        }
+    });
+}
+
+fn remap(selector: &Selector, field: &str, resolve: &impl Fn(u32) -> Option<u32>) -> Selector {
+    let edit = |selector: Selector| {
+        if let Some((name, id)) = selector.member_test() {
+            if name == field {
+                return resolve(id).map_or_else(
+                    || Selector::Locations {
+                        locations: vec![],
+                        name: None,
+                    },
+                    |id| Selector::Filter {
+                        field: field.to_string(),
+                        test: super::FilterOp::Contains { value: id.into() },
+                    },
+                );
+            }
+        }
+        selector
+    };
+    edit(selector.map_children_ref(|child| child.mapped(&edit)))
+}
+
+pub(crate) fn apply_saved_selection(store: &mut Store, id: &str) -> AppResult<MutationResult> {
+    let conn = storage::open_db()?;
+    let saved = get(&conn, &[id.to_string()])?
+        .into_iter()
+        .next()
+        .ok_or_else(|| crate::types::AppError("saved selection not found".into()))?;
+    let selector = saved.resolved(store);
+    let selections = match selector {
+        Selector::Union { selections } => selections
+            .into_iter()
+            .map(|selection| super::tree::SelectionInput {
+                selector: selection.selector.map_children(input),
+                color: Some(selection.color),
+            })
+            .collect(),
+        selector => vec![super::tree::SelectionInput {
+            selector: selector.map_children(input),
+            color: Some(saved.info.color),
+        }],
+    };
+    Ok(store.edit_selections(&super::tree::SelectionOp::Add { selections }))
+}
+
+impl SavedSelection {
+    fn resolved(&self, store: &mut Store) -> Selector {
+        let saved = self;
+        let field = "tags";
+        let fields = store.fields([field]);
+        let values = &fields[0];
+        remap(
+            &saved.selector,
+            field,
+            &|id| match saved.tag_names.get(&id) {
+                None => values.record(id).map(|_| id),
+                Some(name) => values.named(name, true),
+            },
+        )
+    }
+}
+
+fn input(selection: Selection) -> super::tree::SelectionInput {
+    super::tree::SelectionInput {
+        selector: selection.selector.map_children(input),
+        color: Some(selection.color),
+    }
 }
 
 /// Delete a saved selection rule by `id`.

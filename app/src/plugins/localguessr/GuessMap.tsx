@@ -22,7 +22,7 @@ import { clamp, range } from "@/types/util";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 
 import { t } from "@/lib/i18n";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import type { LatLng, MapTypeKey } from "@/types";
 import { hexToRgb, resolveSvColorHex, type RGB } from "@/lib/util/color";
 import { packedPositions } from "@/lib/render/packedPositions";

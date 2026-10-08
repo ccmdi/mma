@@ -1,71 +1,61 @@
 //! Undo and redo: each edit is the `Entry` it made, replayed forward or as its inverse.
 
 use super::*;
+use crate::types::wire_str_enum;
 use crate::types::Location;
+use mma_algebra::Change;
+use mma_fields::Delta;
 use std::sync::Arc;
 
 /// What one write did to an interned field's records.
-pub(crate) type PileDelta = mma_algebra::Change<(u32, ValueRecord)>;
+pub(crate) type PileDelta = Change<(u32, ValueRecord)>;
 
 /// What one write did to every interned field's records, by field.
 pub(crate) type Piles = HashMap<String, PileDelta>;
 
 /// What one write did to the map's extra-field definitions.
-pub(crate) type DefsDelta = mma_algebra::Change<(String, maps::FieldDef)>;
+pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 
 /// What one write did: to the rows, to the records of each interned field, and to the
 /// field definitions. The rows persist as Arrow; the rest as JSON.
-#[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
 pub(crate) struct Entry {
     #[serde(skip)]
-    pub rows: Change,
+    pub rows: Change<Location>,
     pub piles: Piles,
     pub defs: DefsDelta,
-}
-
-impl Entry {
-    pub(crate) fn inverse(&self) -> Self {
-        Self {
-            rows: self.rows.inverse(),
-            piles: self
-                .piles
-                .iter()
-                .map(|(field, d)| (field.clone(), d.inverse()))
-                .collect(),
-            defs: self.defs.inverse(),
-        }
-    }
-
-    /// This entry and then `later`, as one.
-    pub(crate) fn then(self, later: Self) -> Self {
-        let mut piles = self.piles;
-        for (field, d) in later.piles {
-            let held = piles.remove(&field).unwrap_or_default();
-            piles.insert(field, held.then(d));
-        }
-        Self {
-            rows: self.rows.then(later.rows),
-            piles,
-            defs: self.defs.then(later.defs),
-        }
-    }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.rows.is_empty() && self.piles.values().all(PileDelta::is_empty) && self.defs.is_empty()
-    }
+    #[serde(default)]
+    pub meta: Change<maps::MapMeta>,
+    #[serde(default)]
+    pub selections: SelectionDelta,
 }
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
 /// A change touching more rows than this leaves no undo entry (the entry would clone
-/// every row into the persisted history); redo is dropped as for any unrecorded change.
+/// every row into the persisted history), and clears all history: an older entry undone
+/// over it would restore stale rows.
 pub(crate) const MAX_UNDO_ROWS: usize = 500_000;
 
-/// Which stack an edit sits in.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Stack {
-    Undo,
-    Redo,
+wire_str_enum! {
+    /// Which way through the edit history: back over what was done, or forward over what
+    /// was undone.
+    derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq, Eq, Debug)
+    pub enum Stack {
+        /// The edits that can be undone.
+        Undo = "undo",
+        /// The undone edits that can be redone.
+        Redo = "redo",
+    }
+}
+
+impl Stack {
+    fn other(self) -> Self {
+        match self {
+            Stack::Undo => Stack::Redo,
+            Stack::Redo => Stack::Undo,
+        }
+    }
 }
 
 /// The undo and redo stacks. Undo holds ascending `seq`, redo descending, and every undo
@@ -110,10 +100,13 @@ impl EditStacks {
     pub(crate) fn record(&mut self, entry: Arc<Entry>) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
-        self.push_undo(LoggedEdit {
-            seq,
-            entry: Some(entry),
-        });
+        self.push(
+            Stack::Undo,
+            LoggedEdit {
+                seq,
+                entry: Some(entry),
+            },
+        );
         self.redo.clear();
         seq
     }
@@ -137,35 +130,33 @@ impl EditStacks {
         Ok(top.seq)
     }
 
-    fn push_undo(&mut self, edit: LoggedEdit) {
-        self.undo.push(edit);
-        if self.undo.len() > MAX_UNDO_ENTRIES {
-            let excess = self.undo.len() - MAX_UNDO_ENTRIES;
-            self.undo.drain(..excess);
+    fn stack_mut(&mut self, stack: Stack) -> &mut Vec<LoggedEdit> {
+        match stack {
+            Stack::Undo => &mut self.undo,
+            Stack::Redo => &mut self.redo,
+        }
+    }
+
+    fn push(&mut self, stack: Stack, edit: LoggedEdit) {
+        let edits = self.stack_mut(stack);
+        edits.push(edit);
+        if edits.len() > MAX_UNDO_ENTRIES {
+            let excess = edits.len() - MAX_UNDO_ENTRIES;
+            edits.drain(..excess);
         }
     }
 
     /// Forget redo, for a change that leaves no undo entry of its own.
-    pub(crate) fn clear_redo(&mut self) {
-        self.redo.clear();
-    }
-
     pub(crate) fn clear(&mut self) {
         self.undo.clear();
         self.redo.clear();
     }
 
-    /// The `seq` of the newest undoable edit.
-    pub(crate) fn newest(&self) -> Option<u64> {
-        self.undo.last().map(|e| e.seq)
-    }
-
-    pub(crate) fn undo_len(&self) -> usize {
-        self.undo.len()
-    }
-
-    pub(crate) fn redo_len(&self) -> usize {
-        self.redo.len()
+    pub(crate) fn len(&self, stack: Stack) -> usize {
+        match stack {
+            Stack::Undo => self.undo.len(),
+            Stack::Redo => self.redo.len(),
+        }
     }
 
     /// Every edit with its stack: undo bottom to top, then redo bottom to top.
@@ -185,35 +176,16 @@ pub(crate) fn seed_next_id(base_max: u32, adds: &[Location], history_max: u32) -
 }
 
 impl Store {
-    /// Reverse the newest edit and move it to redo. `fetch` reads an edit that is only on
-    /// disk; when it fails the whole history goes, since replaying around a gap would
-    /// corrupt the map. `None` when there is nothing to undo.
-    pub(crate) fn undo(
-        &mut self,
-        fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Entry>> {
-        self.step(Stack::Undo, fetch)
-    }
-
-    /// Re-apply the newest undone edit and move it back to undo. As [`Store::undo`].
-    pub(crate) fn redo(
-        &mut self,
-        fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Entry>> {
-        self.step(Stack::Redo, fetch)
-    }
-
-    fn step(
+    /// Take the newest edit off `from` and move it to the other stack: an undo reverses
+    /// it, a redo re-applies it. `fetch` reads an edit that is only on disk; when it fails
+    /// the whole history goes, since replaying around a gap would corrupt the map. `None`
+    /// when `from` is empty.
+    pub(crate) fn step(
         &mut self,
         from: Stack,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let edits = self.edits.edit();
-        let popped = match from {
-            Stack::Undo => edits.undo.pop(),
-            Stack::Redo => edits.redo.pop(),
-        };
-        let Some(mut edit) = popped else {
+        let Some(mut edit) = self.edits.edit().stack_mut(from).pop() else {
             return Ok(None);
         };
         let entry = match edit.entry.take() {
@@ -226,11 +198,7 @@ impl Store {
         };
         self.put_entry(&changes);
         edit.entry = Some(entry);
-        let edits = self.edits.edit();
-        match from {
-            Stack::Undo => edits.redo.push(edit),
-            Stack::Redo => edits.push_undo(edit),
-        }
+        self.edits.edit().push(from.other(), edit);
         Ok(Some(changes))
     }
 }

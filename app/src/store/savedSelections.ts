@@ -2,22 +2,15 @@
  *  `Selector` tree plus the tag names its `Tag` leaves carried at save time, so it can
  *  re-resolve against whatever map is open. */
 
-import type { SavedSelection, SavedSelectionInfo, Selection, Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { SavedSelection, SavedSelectionInfo, Selection, SelectionInput } from "@/bindings.gen";
 import type { RGB } from "@/lib/util/color";
-import {
-	addSelection,
-	buildSelection,
-	childSelections,
-	selectionDisplayName,
-	tagIdOf,
-	tagSelector,
-	withChildren,
-} from "./selections";
+import { selection, childSelections, selectionDisplayName } from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
 import { bridgeAcrossWindows, emit } from "@/lib/events";
 import { log } from "@/lib/util/log";
-import { applySelectionUpdate, getTag, getVisibleTags } from "./useMapStore";
+import { mutate } from "./useMapStore";
 
 /** Selection types that cannot be saved as rules because they are bound to the open map. */
 export const MAP_LOCAL_TYPES = [
@@ -30,57 +23,10 @@ export const MAP_LOCAL_TYPES = [
 
 const MAP_LOCAL_SET: ReadonlySet<string> = new Set(MAP_LOCAL_TYPES);
 
-/** A selector that matches nothing -- what a `Tag` leaf becomes when its saved name
- *  doesn't exist on this map. The rule stays intact; the dead leaf just contributes
- *  nothing to it. */
-const NOTHING: Selector = { type: "Locations", locations: [], name: null };
-
 /** Whether the selector tree contains only portable types (no map-local leaves). */
 export function isSaveable(selector: Selector): boolean {
 	if (MAP_LOCAL_SET.has(selector.type)) return false;
 	return childSelections(selector).every((c) => isSaveable(c.selector));
-}
-
-/** The name of every `Tag` leaf in the tree, keyed by id. */
-function captureTagNames(selector: Selector, out: Record<number, string> = {}) {
-	const tagId = tagIdOf(selector);
-	if (tagId != null) {
-		const tag = getTag(tagId);
-		if (tag) out[tagId] = tag.name;
-	} else {
-		for (const child of childSelections(selector)) captureTagNames(child.selector, out);
-	}
-	return out;
-}
-
-/** Visible tags only -- a saved selection must not resurrect a soft-deleted ghost. */
-function resolveTagByName(tagName: string): number | null {
-	const lower = tagName.toLowerCase();
-	for (const tag of getVisibleTags()) {
-		if (tag.name.toLowerCase() === lower) return tag.id;
-	}
-	return null;
-}
-
-/** The saved tree against the open map: each `Tag` leaf re-resolves by the name it was
- *  saved under, and one whose name is gone here selects nothing. Composites are rebuilt
- *  so their keys follow the remapped ids; per-child colors survive. */
-function remap(selector: Selector, tagNames: Record<number, string>): Selector {
-	const tagId = tagIdOf(selector);
-	if (tagId != null) {
-		const name = tagNames[tagId];
-		const id = name != null ? resolveTagByName(name) : getTag(tagId) ? tagId : null;
-		return id === null ? NOTHING : tagSelector(id);
-	}
-	const children = childSelections(selector);
-	if (children.length === 0) return selector;
-	return withChildren(
-		selector,
-		children.map((child) => ({
-			...buildSelection(remap(child.selector, tagNames)),
-			color: child.color,
-		})),
-	);
 }
 
 /** One part of a saved rule: what its chip reads as, and what it resolves to here. The
@@ -96,14 +42,14 @@ export interface SavedPart {
  *  a single part. */
 export function savedParts(saved: SavedSelection): SavedPart[] {
 	const { selector, tagNames } = saved;
-	const parts: Selection[] =
+	const parts: SelectionInput[] =
 		selector.type === "Union"
-			? selector.selections.map((s) => ({ ...buildSelection(s.selector), color: s.color }))
-			: [{ ...buildSelection(selector), color: saved.color }];
+			? selector.selections.map((s) => ({ ...selection(s.selector), color: s.color }))
+			: [{ ...selection(selector), color: saved.color }];
 	return parts.map((part) => ({
 		label: selectionDisplayName(part, tagNames),
-		color: part.color,
-		selector: remap(part.selector, tagNames),
+		color: part.color!,
+		selector: part.selector,
 	}));
 }
 
@@ -184,12 +130,7 @@ export async function saveCurrentSelections(
 	if (saveable.length === 0) return false;
 	const selector: Selector =
 		saveable.length === 1 ? saveable[0].selector : { type: "Union", selections: saveable };
-	const saved = await cmd.storeSaveSelection(
-		name,
-		selector,
-		captureTagNames(selector),
-		saveable[0].color,
-	);
+	const saved = await cmd.storeSaveSelection(name, selector, saveable[0].color);
 	bodies.set(saved.id, saved);
 	await reloadIndex();
 	return true;
@@ -204,7 +145,7 @@ export async function deleteSavedSelection(id: string): Promise<void> {
 /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
  *  were added. */
 export function applySavedSelection(saved: SavedSelection): number {
-	const parts = savedParts(saved);
-	if (parts.length > 0) void applySelectionUpdate(addSelection(...parts.map((p) => p.selector)));
-	return parts.length;
+	const count = saved.selector.type === "Union" ? saved.selector.selections.length : 1;
+	void mutate(() => cmd.storeApplySavedSelection(saved.id));
+	return count;
 }

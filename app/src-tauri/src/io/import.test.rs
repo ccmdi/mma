@@ -2,9 +2,9 @@ use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
 use crate::store::engine::frame::tests::Captured;
-use crate::store::engine::tests::FeedCapture;
+use crate::store::engine::tests::{shipped_count, shipped_record, FeedCapture};
+use crate::store::engine::Store;
 use crate::store::engine::{record_name, record_order, ValueRecord};
-use crate::store::engine::{Store, WindowLabel};
 use crate::store::maps;
 use crate::store::maps::VirtualTag;
 use crate::store::maps::{MapPreferences, MapSettings};
@@ -879,14 +879,30 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
 
     let first_id = stage_parsed(&mut store, "staged-fetch", parsed).unwrap();
     let target = import_target("staged-fetch");
-    let first = store.rows_at(&target, Some(&[first_id]))[0].clone();
+    let first = store.collect(
+        &target,
+        &crate::selections::Selector::Locations {
+            locations: (&[first_id]).to_vec(),
+            name: None,
+        },
+    )[0]
+    .clone();
     assert_eq!(first.lat, 10.5);
     assert_eq!(first.heading, 90.0);
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
-    let second = store.rows_at(&target, Some(&[first_id + 1]))[0].clone();
+    let second = store.collect(
+        &target,
+        &crate::selections::Selector::Locations {
+            locations: (&[first_id + 1]).to_vec(),
+            name: None,
+        },
+    )[0]
+    .clone();
     assert_eq!(second.lng, 7.75);
     // Staged rows are held by the layer, not on the map.
-    assert!(store.collect(&Selector::Everything).is_empty());
+    assert!(store
+        .collect(&crate::store::engine::Target::Map, &Selector::Everything)
+        .is_empty());
 }
 
 #[test]
@@ -900,7 +916,12 @@ fn cancelling_a_staged_import_drops_its_layer() {
     });
     stage_parsed(&mut store, "cancel-me", parsed).unwrap();
     store.drop_pending(&import_layer("cancel-me"));
-    assert!(store.rows_at(&import_target("cancel-me"), None).is_empty());
+    assert!(store
+        .collect(
+            &import_target("cancel-me"),
+            &crate::selections::Selector::Everything
+        )
+        .is_empty());
 }
 
 #[test]
@@ -924,11 +945,25 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
         preview_positions_path("preview-b")
     );
     assert_eq!(
-        store.rows_at(&import_target("preview-a"), Some(&[a]))[0].lat,
+        store.collect(
+            &import_target("preview-a"),
+            &crate::selections::Selector::Locations {
+                locations: (&[a]).to_vec(),
+                name: None
+            }
+        )[0]
+        .lat,
         11.0
     );
     assert_eq!(
-        store.rows_at(&import_target("preview-b"), Some(&[b]))[0].lat,
+        store.collect(
+            &import_target("preview-b"),
+            &crate::selections::Selector::Locations {
+                locations: (&[b]).to_vec(),
+                name: None
+            }
+        )[0]
+        .lat,
         22.0
     );
     let _ = std::fs::remove_file(preview_positions_path("preview-a"));
@@ -963,7 +998,7 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
 // -----------------------------------------------------------------------
 // Cross-map copy producer (add_copied_to_store): the core of the open-target
 // branch of store_copy_locations_to_map. The cross-window event ships exactly
-// this MutationResult for the receiving window's mutate(), so it must carry the
+// this Mutation for the receiving window's mutate(), so it must carry the
 // copied locations with allocated ids, name-reconciled tags, and bumped counts.
 // (The open-target branch is two-window-only, unreachable from a single webview,
 // so this is its sole regression guard. e2e covers the closed-target branch.)
@@ -995,7 +1030,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(event.derived.location_count, Some(2));
-    let stored = store.collect(&Selector::Everything);
+    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate created);
@@ -1020,21 +1055,14 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     assert!(two_tag.tags.contains(&unique_id));
 
     // Counts in the result match membership: Shared on both copies, Unique on one.
-    let counts = &event
-        .derived
-        .value_counts
-        .as_ref()
-        .expect("import moves counts")["tags"];
-    assert_eq!(counts["5"], 2);
-    assert_eq!(counts[&unique_id.to_string()], 1);
+    assert_eq!(shipped_count(&event.derived, "tags", "5"), Some(2));
+    assert_eq!(
+        shipped_count(&event.derived, "tags", &unique_id.to_string()),
+        Some(1)
+    );
 
     // The reconciled metadata ships on the same result (the receiver renders from it).
-    assert!(event
-        .derived
-        .value_meta
-        .as_ref()
-        .and_then(|m| m.get("tags"))
-        .is_some_and(|t| t.contains_key(&unique_id)));
+    assert!(shipped_record(&event.derived, "tags", unique_id).is_some());
 }
 
 #[test]
@@ -1060,7 +1088,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     let target = import_target("bulk-win");
     let bulk = bulk_tag_ids(&mut store, &key, &names);
     let edits = store
-        .rows_at(&target, None)
+        .collect(&target, &crate::selections::Selector::Everything)
         .into_iter()
         .map(|loc| {
             let mut tags = loc.tags.clone();
@@ -1081,7 +1109,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
         .expect("France created");
     let france = *france;
     assert_eq!(meta.values().count(), 2);
-    let stored = store.collect(&Selector::Everything);
+    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
     assert_eq!(stored.len(), 2);
     for l in &stored {
         assert_eq!(l.tags, vec![5, france]);

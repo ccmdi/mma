@@ -139,7 +139,7 @@ fn gmaps_url_empty_path() {
 #[test]
 fn googl_url_mapsapp_variant() {
     assert_eq!(
-        googl_url("abc123XYZ", true),
+        googl_url("abc123XYZ", MAPS_APP_LINKS),
         "https://maps.app.goo.gl/abc123XYZ"
     );
 }
@@ -147,7 +147,7 @@ fn googl_url_mapsapp_variant() {
 #[test]
 fn googl_url_legacy_variant() {
     assert_eq!(
-        googl_url("abc123XYZ", false),
+        googl_url("abc123XYZ", GOOGL_LINKS),
         "https://goo.gl/maps/abc123XYZ"
     );
 }
@@ -162,11 +162,11 @@ fn googl_url_stays_on_origin() {
         "%2e%2e/secret",
     ] {
         assert!(
-            googl_url(id, true).starts_with("https://maps.app.goo.gl/"),
+            googl_url(id, MAPS_APP_LINKS).starts_with("https://maps.app.goo.gl/"),
             "mapsapp id {id:?} escaped origin"
         );
         assert!(
-            googl_url(id, false).starts_with("https://goo.gl/maps/"),
+            googl_url(id, GOOGL_LINKS).starts_with("https://goo.gl/maps/"),
             "legacy id {id:?} escaped origin"
         );
     }
@@ -176,11 +176,11 @@ fn googl_url_stays_on_origin() {
 fn googl_url_ssrf_localhost() {
     for id in ["@localhost/admin", "//127.0.0.1/", "//[::1]/"] {
         assert!(
-            googl_url(id, true).starts_with("https://maps.app.goo.gl/"),
+            googl_url(id, MAPS_APP_LINKS).starts_with("https://maps.app.goo.gl/"),
             "mapsapp id {id:?} must not redirect"
         );
         assert!(
-            googl_url(id, false).starts_with("https://goo.gl/maps/"),
+            googl_url(id, GOOGL_LINKS).starts_with("https://goo.gl/maps/"),
             "legacy id {id:?} must not redirect"
         );
     }
@@ -188,14 +188,14 @@ fn googl_url_ssrf_localhost() {
 
 #[test]
 fn googl_url_empty_id() {
-    assert_eq!(googl_url("", true), "https://maps.app.goo.gl/");
-    assert_eq!(googl_url("", false), "https://goo.gl/maps/");
+    assert_eq!(googl_url("", MAPS_APP_LINKS), "https://maps.app.goo.gl/");
+    assert_eq!(googl_url("", GOOGL_LINKS), "https://goo.gl/maps/");
 }
 
 #[test]
 fn googl_url_null_byte_in_id() {
-    assert!(googl_url("abc\0def", true).starts_with("https://maps.app.goo.gl/"));
-    assert!(googl_url("abc\0def", false).starts_with("https://goo.gl/maps/"));
+    assert!(googl_url("abc\0def", MAPS_APP_LINKS).starts_with("https://maps.app.goo.gl/"));
+    assert!(googl_url("abc\0def", GOOGL_LINKS).starts_with("https://goo.gl/maps/"));
 }
 
 // ---------------------------------------------------------------------------

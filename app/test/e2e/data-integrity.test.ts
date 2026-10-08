@@ -300,7 +300,7 @@ describe("Data integrity - concurrent operations", () => {
 			await api.addLocations(moreLocs);
 
 			const count = (
-				(await api.cmd.storeRead({ type: "Everything" }, null, { kind: "summary" })) as {
+				(await api.cmd.storeSummary()) as {
 					locationCount: number;
 					version: number;
 					dirtyCount: number;

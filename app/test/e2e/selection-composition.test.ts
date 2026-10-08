@@ -21,7 +21,7 @@ describe("Selection composition", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("compose two selections into intersection", async () => {
@@ -75,7 +75,7 @@ describe("Selection composition", () => {
 
 	it("removeChildFromSelection removes without extracting", async () => {
 		const result = await withApi(async (api, tagId) => {
-			await api.applySelectionUpdate(() => []);
+			await api.applySelectionUpdate({ kind: "set", selections: [] });
 			await api.applySelectionUpdate(api.addSelection(api.panoIdSelector(true)));
 			await api.applySelectionUpdate(api.addSelection(api.tagSelector(tagId)));
 			await api.applySelectionUpdate(api.addSelection(api.untaggedSelector()));
@@ -112,7 +112,7 @@ describe("Selection composition edge cases", () => {
 		}));
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate(() => []));
+		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
 	});
 
 	it("intersection of non-overlapping selections = empty", async () => {

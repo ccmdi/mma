@@ -41,9 +41,9 @@ function runProc(rows, names, { abort = false } = {}) {
 	};
 	const patches = bundle.run(rows);
 	for (const p of patches) {
-		assert.deepEqual(Object.keys(p.patch), ["extra"], "patches must be LocationPatch-shaped");
+		assert.deepEqual(Object.keys(p).sort(), ["extra", "id"], "outputs are flat row patches");
 	}
-	return { patches: patches.map((p) => ({ id: p.id, patch: p.patch.extra })), calls, progress };
+	return { patches: patches.map((p) => ({ id: p.id, patch: p.extra })), calls, progress };
 }
 
 test("run is the module's only entry point", () => {

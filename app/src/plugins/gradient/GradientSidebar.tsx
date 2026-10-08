@@ -179,7 +179,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			});
 			if (sels.length === 0) return;
 
-			await applySelectionUpdate(onActive(() => sels));
+			await applySelectionUpdate(onActive({ kind: "set", selections: sels }));
 		} finally {
 			setApplying(false);
 		}

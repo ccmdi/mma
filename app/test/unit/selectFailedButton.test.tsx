@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { act } from "react";
-import type { ListedSelection } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({ applySelectionUpdate: vi.fn() }));
 
@@ -28,12 +27,10 @@ describe("the Select failed button", () => {
 		const m = mount(<SelectFailedButton outcome={{ succeeded: 1, failed: [4, 9] }} />);
 		act(() => m.container.querySelector("button")!.click());
 
-		const op = h.applySelectionUpdate.mock.calls[0][0] as (
-			rows: ListedSelection[],
-		) => ListedSelection[];
-		expect(op([]).map((r) => r.selection.selector)).toEqual([
-			{ type: "Manual", locations: [4, 9] },
-		]);
+		expect(h.applySelectionUpdate.mock.calls[0][0]).toEqual({
+			kind: "add",
+			selections: [{ selector: { type: "Manual", locations: [4, 9] } }],
+		});
 		m.unmount();
 	});
 });

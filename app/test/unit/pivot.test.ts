@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Selector } from "@/bindings.gen";
+import type { Selector } from "@/types";
 import {
 	buildPivot,
 	crossCounts,

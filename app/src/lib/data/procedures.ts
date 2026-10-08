@@ -2,7 +2,8 @@
 // providers are gated on their dependencies, locations are paged, and each procedure's
 // answers are delivered as patches or back to the caller.
 
-import type { KeySpec, Location, ProcedureDecl, Selector, Target } from "@/bindings.gen";
+import type { Selector } from "@/types";
+import type { KeySpec, Location, ProcedureDecl, Target } from "@/bindings.gen";
 import * as autosave from "@/store/autosave";
 import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";

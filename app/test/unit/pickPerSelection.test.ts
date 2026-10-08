@@ -1,3 +1,4 @@
+import { selectionFixture } from "./fixtures/selection";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Pins per-selection picking (issue #139): a count is a per-bucket cap, buckets are the
@@ -10,7 +11,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult, selectionChange } = await import("./fixtures/mocks");
+	const { cmdProxy, testMap, openMapResult, selectionsHeld } = await import("./fixtures/mocks");
 	// Tag 1 and tag 2 overlap on ids 4 and 5; tag 3 is disjoint from both.
 	const byTag: Record<number, number[]> = {
 		1: [1, 2, 3, 4, 5],
@@ -49,33 +50,31 @@ vi.mock("@/lib/commands", async () => {
 				},
 			}),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
-		storeSyncSelections: async () => selectionChange(),
+		storeEditSelections: async (rows: unknown[]) => selectionsHeld(rows),
 		storeRead: async (
-			selector: TestSelector,
-			pick: { kind: string; n?: number; targetCount?: number | null } | null,
+			_target: unknown,
+			node: TestSelector & {
+				selection?: { selector: TestSelector };
+				n?: number;
+				thin?: { by: string; n?: number };
+			},
 		) => {
+			const selector = node.selection?.selector ?? node;
 			const pool = await resolvePool(selector);
-			if (pick?.kind === "sample") {
+			const take = node.thin?.by === "count" ? node.thin.n : pool.length;
+			if (node.type === "Sample") {
 				h.sampledSelectors.push(selector);
-				return { kind: "ids", ids: pool.slice(0, pick.n), spacingM: null };
+				return { kind: "ids", ids: pool.slice(0, node.n) };
 			}
-			if (pick?.kind === "spaced") {
+			if (node.type === "Spaced") {
 				h.spacedSelectors.push(selector);
-				return {
-					kind: "ids",
-					ids: pool.slice(0, pick.targetCount ?? pool.length),
-					spacingM: 100,
-				};
+				return { kind: "spacing", ids: pool.slice(0, take), spacingM: 100 };
 			}
-			if (pick?.kind === "evenlySpaced") {
+			if (node.type === "EvenlySpaced") {
 				h.evenSelectors.push(selector);
-				return {
-					kind: "ids",
-					ids: pool.slice(0, pick.targetCount ?? pool.length),
-					spacingM: 250,
-				};
+				return { kind: "spacing", ids: pool.slice(0, take), spacingM: 250 };
 			}
-			return { kind: "ids", ids: pool, spacingM: null };
+			return { kind: "ids", ids: pool };
 		},
 	};
 	return cmdProxy(handlers as Record<string, (...args: unknown[]) => unknown>);
@@ -87,11 +86,30 @@ import {
 	getActiveSelections,
 	getMapState,
 	openMap,
-	selectEvenlySpacedFromSelection,
-	selectRandomFromSelection,
-	selectSpacedFromSelection,
+	select,
+	read,
 } from "@/store/useMapStore";
-import { addSelection, buildSelection, tagSelector } from "@/store/selections";
+import { addSelection, tagSelector } from "@/store/selections";
+
+async function sample(n: number, perSelection = false) {
+	return (
+		await select(
+			(s) => read({ type: "Sample", selection: selectionFixture(s), n }, { kind: "ids" }, "ids"),
+			perSelection,
+		)
+	).picked;
+}
+async function spaced(
+	type: "Spaced" | "EvenlySpaced",
+	thin: import("@/bindings.gen").Thinning,
+	perSelection = false,
+) {
+	const { picked, results } = await select(
+		(s) => read({ type, selection: selectionFixture(s), thin }, { kind: "spacing" }, "spacing"),
+		perSelection,
+	);
+	return { picked, distanceM: results.length === 1 ? results[0].spacingM : 0 };
+}
 
 /** The whole live selection, as every whole-selection pick now names it. */
 const selectedLeaf = { type: "Selected" };
@@ -109,7 +127,7 @@ function pickedIds(): number[] {
 
 beforeEach(async () => {
 	await openMap("m1");
-	await applySelectionUpdate(() => []);
+	await applySelectionUpdate({ kind: "set", selections: [] });
 	h.sampledSelectors = [];
 	h.spacedSelectors = [];
 	h.evenSelectors = [];
@@ -119,7 +137,7 @@ describe("random pick, per selection", () => {
 	it("caps each selection separately instead of the union", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(3)));
 
-		const picked = await selectRandomFromSelection(2, true);
+		const picked = await sample(2, true);
 
 		expect(picked).toBe(4);
 		const ids = pickedIds();
@@ -131,7 +149,7 @@ describe("random pick, per selection", () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
 
 		// 5 from each of two 5-id selections that share 2 ids.
-		const picked = await selectRandomFromSelection(5, true);
+		const picked = await sample(5, true);
 
 		expect(picked).toBe(8);
 		expect(new Set(pickedIds()).size).toBe(8);
@@ -140,7 +158,7 @@ describe("random pick, per selection", () => {
 	it("falls back to the whole selection below two selections", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1)));
 
-		const picked = await selectRandomFromSelection(2, true);
+		const picked = await sample(2, true);
 
 		expect(picked).toBe(2);
 		expect(h.sampledSelectors).toEqual([selectedLeaf]);
@@ -150,10 +168,10 @@ describe("random pick, per selection", () => {
 	it("ignores ghosted selections", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
 		const { toggleGhost } = await import("@/store/selections");
-		const ghostKey = buildSelection(tagSelector(2)).key;
+		const ghostKey = selectionFixture(tagSelector(2)).key;
 		await applySelectionUpdate(toggleGhost(1));
 
-		await selectRandomFromSelection(2, true);
+		await sample(2, true);
 
 		// One live selection left, so the pick runs once over the whole selection,
 		// which the ghosted selection is not part of.
@@ -161,7 +179,7 @@ describe("random pick, per selection", () => {
 		expect(pickedIds().every((id) => byTagIds(1).includes(id))).toBe(true);
 		// The pick replaces only what it picked from: the ghosted selection stays, still ghosted.
 		expect(getMapState().selectionList.map((r) => [r.selection.key, r.ghosted])).toEqual([
-			["manual", false],
+			[selectionFixture({ type: "Manual", locations: pickedIds() }).key, false],
 			[ghostKey, true],
 		]);
 	});
@@ -171,7 +189,7 @@ describe("spaced pick, per selection", () => {
 	it("runs once per selection, scoped to that selection's props", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
 
-		const { picked, distanceM } = await selectSpacedFromSelection({ count: 2 }, true);
+		const { picked, distanceM } = await spaced("Spaced", { by: "count", n: 2 }, true);
 
 		expect(h.spacedSelectors).toEqual([tagSelector(1), tagSelector(2)]);
 		expect(picked).toBe(4);
@@ -182,7 +200,7 @@ describe("spaced pick, per selection", () => {
 	it("sends the Selected leaf for a whole-selection pick", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(2)));
 
-		const { distanceM } = await selectSpacedFromSelection({ count: 3 }, false);
+		const { distanceM } = await spaced("Spaced", { by: "count", n: 3 }, false);
 
 		expect(h.spacedSelectors).toEqual([selectedLeaf]);
 		expect(distanceM).toBe(100);
@@ -193,7 +211,7 @@ describe("evenly spaced pick, per selection", () => {
 	it("runs once per selection on its own command and claims no spacing across them", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1), tagSelector(3)));
 
-		const { picked, distanceM } = await selectEvenlySpacedFromSelection({ count: 2 }, true);
+		const { picked, distanceM } = await spaced("EvenlySpaced", { by: "count", n: 2 }, true);
 
 		expect(h.evenSelectors).toEqual([tagSelector(1), tagSelector(3)]);
 		expect(h.spacedSelectors).toEqual([]);
@@ -204,7 +222,7 @@ describe("evenly spaced pick, per selection", () => {
 	it("reports the spacing of a whole-selection pick", async () => {
 		await applySelectionUpdate(addSelection(tagSelector(1)));
 
-		const { distanceM } = await selectEvenlySpacedFromSelection({ spacingM: 250 }, false);
+		const { distanceM } = await spaced("EvenlySpaced", { by: "metres", m: 250 }, false);
 
 		expect(h.evenSelectors).toEqual([selectedLeaf]);
 		expect(distanceM).toBe(250);

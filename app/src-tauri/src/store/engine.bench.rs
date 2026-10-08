@@ -23,7 +23,7 @@ use tauri::test;
 use tauri::test::MockRuntime;
 
 pub use crate::selections::{Selection, Selector};
-pub use crate::store::engine::{Change, ListedSelection, MutationResult, RenderRequest, Store};
+pub use crate::store::engine::{Change, ListedSelection, Mutation, RenderRequest, Store};
 pub use crate::types::{Location, LocationFlags, Patch};
 
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
@@ -271,19 +271,15 @@ impl BenchApp {
             .insert("bench".into(), store);
     }
 
-    pub fn add_locations(&self, locations: Vec<Location>) -> MutationResult {
+    pub fn add_locations(&self, locations: Vec<Location>) -> Mutation {
         store_add_locations(label(), self.state(), locations).expect("add_locations")
     }
 
-    pub fn remove_locations(&self, ids: Vec<u32>) -> MutationResult {
+    pub fn remove_locations(&self, ids: Vec<u32>) -> Mutation {
         store_remove_locations(label(), self.state(), ids).expect("remove_locations")
     }
 
-    pub fn update_locations(
-        &self,
-        updates: Vec<Patch<Location>>,
-        record_undo: bool,
-    ) -> MutationResult {
+    pub fn update_locations(&self, updates: Vec<Patch<Location>>, record_undo: bool) -> Mutation {
         async_runtime::block_on(store_update_locations(
             label(),
             self.state(),
@@ -294,20 +290,20 @@ impl BenchApp {
         .expect("update_locations")
     }
 
-    pub fn undo(&self) -> MutationResult {
+    pub fn undo(&self) -> Mutation {
         async_runtime::block_on(store_undo(label(), self.state())).expect("undo")
     }
 
-    pub fn redo(&self) -> MutationResult {
+    pub fn redo(&self) -> Mutation {
         async_runtime::block_on(store_redo(label(), self.state())).expect("redo")
     }
 
-    pub fn sync_selections(&self, sels: Vec<ListedSelection>) -> usize {
-        async_runtime::block_on(store_sync_selections(label(), self.state(), sels))
-            .expect("sync_selections")
-            .selection_sync
-            .expect("a selection change reports its counts")
-            .selected_count
+    pub fn edit_selections(&self, sels: Vec<ListedSelection>) -> usize {
+        async_runtime::block_on(store_edit_selections(label(), self.state(), sels))
+            .expect("edit_selections")
+            .derived
+            .selection_counts
+            .map_or(0, |c| c.values().map(|&n| n as usize).sum())
     }
 
     /// Full scene via the real command: build, encode and send. Returns the frame's size.
@@ -348,7 +344,7 @@ pub fn update_locations(
     store: &mut Store,
     updates: &[Patch<Location>],
     record_undo: bool,
-) -> MutationResult {
+) -> Mutation {
     store.write(
         updates.iter().cloned().map(Edit::Put),
         UndoScope::entry_if(record_undo),

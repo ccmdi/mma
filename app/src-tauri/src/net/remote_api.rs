@@ -27,7 +27,7 @@ use tokio::task;
 const DEFAULT_ADDR: &str = "127.0.0.1:1429";
 const CALL_TIMEOUT: Duration = Duration::from_secs(60);
 
-type Reply = (bool, serde_json::Value);
+type Reply = Result<serde_json::Value, serde_json::Value>;
 
 struct State {
     key: Mutex<String>,
@@ -92,7 +92,7 @@ pub fn remote_api_stop() -> AppResult<()> {
 pub fn remote_api_respond(id: u32, ok: bool, payload: String) {
     if let Some(tx) = state().pending.lock().unwrap().remove(&id) {
         let value = serde_json::from_str(&payload).unwrap_or(serde_json::Value::Null);
-        let _ = tx.send((ok, value));
+        let _ = tx.send(if ok { Ok(value) } else { Err(value) });
     }
 }
 
@@ -198,8 +198,8 @@ fn dispatch(mma_path: &str, args: &serde_json::Value, map_id: Option<&str>) -> (
     }
 
     match rx.recv_timeout(CALL_TIMEOUT) {
-        Ok((true, result)) => (200, result.to_string()),
-        Ok((false, err)) => (500, serde_json::json!({ "error": err }).to_string()),
+        Ok(Ok(result)) => (200, result.to_string()),
+        Ok(Err(err)) => (500, serde_json::json!({ "error": err }).to_string()),
         Err(_) => {
             state().pending.lock().unwrap().remove(&id);
             (504, r#"{"error":"call timed out"}"#.into())

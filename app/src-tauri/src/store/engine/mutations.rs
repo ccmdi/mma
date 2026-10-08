@@ -1,4 +1,4 @@
-//! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `MutationResult` they report.
+//! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `Mutation` they report.
 
 use super::*;
 use crate::selections::field_expr;
@@ -11,7 +11,7 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, LocationFlags};
 use crate::util;
-use mma_algebra::{number_value, same_field_value, Merge, Op, Patch, Patchable};
+use mma_algebra::{number_value, same_field_value, Keys, Layer, Merge, Op, Patch, Patchable};
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -48,48 +48,65 @@ pub struct EditOpts {
 #[serde(rename_all = "camelCase")]
 pub struct Derived {
     pub location_count: Option<usize>,
-    pub can_undo: Option<bool>,
-    pub can_redo: Option<bool>,
-    /// Per-value row counts, keyed by field then by index key: one complete map per
-    /// indexed field whose postings moved. Fields that did not move are absent.
-    pub value_counts: Option<HashMap<String, HashMap<String, usize>>>,
-    /// Per-value records (opaque piles), keyed by field then by interned id: one
-    /// complete map per interned field whose records changed. JS coerces piles to its
-    /// typed views (a tag) at its own boundary.
-    #[specta(type = Option<HashMap<String, HashMap<u32, HashMap<String, specta_typescript::Unknown>>>>)]
-    pub value_meta: Option<HashMap<String, HashMap<u32, ValueRecord>>>,
+    pub meta: Option<Patch<maps::MapMeta>>,
+    pub history: Option<History>,
+    /// Each value that moved, keyed by field then by value; `null` where the value is
+    /// gone: no record and no row holding it.
+    pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
     /// The whole extra-field registry, when the map's row changed.
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
     /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).
     pub selection_counts: Option<HashMap<String, u32>>,
-    /// Ids of each interned field's values this change left on no row or whose record it
-    /// removed, keyed by field.
-    pub dead_values: Option<HashMap<String, Vec<u32>>>,
+    /// The listed selections, when the list changed.
+    pub selection_list: Option<Vec<ListedSelection>>,
 }
 
 impl Derived {
     /// Nothing moved.
     pub(crate) fn is_empty(&self) -> bool {
         self.location_count.is_none()
-            && self.can_undo.is_none()
-            && self.can_redo.is_none()
-            && self.value_counts.is_none()
-            && self.value_meta.is_none()
+            && self.meta.is_none()
+            && self.history.is_none()
+            && self.field_values.is_none()
             && self.field_defs.is_none()
             && self.selection_counts.is_none()
-            && self.dead_values.is_none()
+            && self.selection_list.is_none()
     }
+}
+
+/// Whether there is an edit to step through each way.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, specta::Type)]
+pub struct History {
+    /// An edit can be undone.
+    pub undo: bool,
+    /// An undone edit can be redone.
+    pub redo: bool,
+}
+
+/// One value of a field as the map holds it.
+#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
+pub struct HeldValue {
+    /// The value's record, for a field that interns its values; an opaque pile.
+    #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
+    pub record: Option<ValueRecord>,
+    /// How many rows hold the value.
+    pub count: usize,
 }
 
 /// What one change did to the open map: its version, and the caller's own added rows.
 /// Everything else a change moved arrives on the change feed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct MutationResult {
+pub struct Mutation {
     /// The map version this change brought the map to.
     pub version: u64,
     /// The id of each row this edit created, in the order they were written.
     pub added: Vec<u32>,
+}
+
+#[derive(serde::Serialize, specta::Type)]
+pub struct MutationResult {
+    pub mutation: Mutation,
 }
 
 /// One landed change as every watching window hears it: the change by key, and the
@@ -101,7 +118,7 @@ pub struct ChangeEvent {
     pub version: u64,
     /// The change itself, by key.
     #[serde(flatten)]
-    pub keys: mma_algebra::Keys<u32>,
+    pub keys: Keys<u32>,
     /// State this change moved; an untouched field is absent.
     pub derived: Derived,
 }
@@ -121,7 +138,7 @@ pub enum Target {
 /// A named layer of pending edits and, once landed, the undo step its edits join.
 #[derive(Default)]
 pub(crate) struct Pending {
-    pub(crate) layer: mma_algebra::Layer<Location>,
+    pub(crate) layer: Layer<Location>,
     pub(crate) landed: Option<u64>,
     /// Value records the held rows reference, by field: the piles an import arrived
     /// with, reconciled into the map's records when the rows land.
@@ -138,105 +155,6 @@ pub enum StoreWarning {
 }
 
 impl Store {
-    /// Define every `extra` key the rows a change brought in carry that the map has no
-    /// definition for yet, with an inferred one.
-    pub(super) fn register_fields(&mut self, changes: &Change) {
-        let extras: Vec<&RawExtra> = changes
-            .added
-            .iter()
-            .chain(changes.updated.iter().map(|(_, new)| new))
-            .filter_map(|l| l.extra.as_ref())
-            .collect();
-        if let Some(new_defs) =
-            maps::infer_field_defs(|k| self.meta.extra.fields.contains_key(k), &extras)
-        {
-            self.meta.edit().extra.fields.extend(new_defs);
-        }
-    }
-}
-
-/// Each input field's direct outputs: the fields computed from it.
-pub type ComputedFrom = Arc<HashMap<String, Vec<String>>>;
-
-impl Store {
-    /// `row` as the store keeps it after `patch`: written over, and every field computed
-    /// from one the patch changes cleared along with it, unless the patch writes it itself.
-    pub(super) fn applied(&self, row: &Location, patch: &Patch<Location>) -> Location {
-        let mut new = row.patched(patch);
-        let derived = &self.derived;
-        let (before, after) = (
-            selections::RowRef::from_loc(row),
-            selections::RowRef::from_loc(&new),
-        );
-        let mut queue: Vec<&str> = derived
-            .keys()
-            .filter(|k| {
-                !same_field_value(
-                    before.resolve_field(k).as_ref(),
-                    after.resolve_field(k).as_ref(),
-                )
-            })
-            .map(String::as_str)
-            .collect();
-        let writes = |key: &str| {
-            <Location as Patchable>::WRITES
-                .iter()
-                .any(|(k, _)| *k == key)
-                || matches!(&patch.extra, Some(Some(e)) if e.get(key).is_some())
-        };
-        let mut stale = serde_json::Map::new();
-        while let Some(key) = queue.pop() {
-            for out in derived.get(key).into_iter().flatten() {
-                if !writes(out) && stale.insert(out.clone(), serde_json::Value::Null).is_none() {
-                    queue.push(out);
-                }
-            }
-        }
-        if !stale.is_empty() {
-            new.extra = Merge::merged(&new.extra, &RawExtra::from_map(&stale));
-        }
-        new
-    }
-
-    /// `patch` with every extra key dropped whose declared inputs changed between the row
-    /// the writer read and the row as it is now: an answer computed from a row that moved
-    /// keeps only what still applies.
-    pub(crate) fn still_applies(
-        &self,
-        mut patch: Patch<Location>,
-        read: &Location,
-        now: &Location,
-    ) -> Patch<Location> {
-        let Some(Some(extra)) = &patch.extra else {
-            return patch;
-        };
-        let (read, now) = (
-            selections::RowRef::from_loc(read),
-            selections::RowRef::from_loc(now),
-        );
-        let moved: Vec<&String> = self
-            .derived
-            .iter()
-            .filter(|(input, _)| {
-                !same_field_value(
-                    read.resolve_field(input).as_ref(),
-                    now.resolve_field(input).as_ref(),
-                )
-            })
-            .flat_map(|(_, outs)| outs)
-            .collect();
-        if moved.is_empty() {
-            return patch;
-        }
-        let mut m = extra.to_map();
-        let before = m.len();
-        m.retain(|k, _| !moved.iter().any(|o| *o == k));
-        if m.len() != before {
-            patch.extra = RawExtra::from_map(&m).map(|r| Some(r));
-        }
-        patch
-    }
-
     /// The only way rows, records and definitions change: each edit resolved against the
     /// row it touches, put with the rest of `entry`, projected, and recorded for undo.
     /// `join` names the step a run joins while it is still the newest, and is pointed at
@@ -246,7 +164,7 @@ impl Store {
         edits: impl IntoIterator<Item = Edit>,
         join: &mut Option<u64>,
         entry: Entry,
-    ) -> MutationResult {
+    ) -> Mutation {
         let mut order: Vec<u32> = Vec::new();
         let mut rows: HashMap<u32, (Option<Location>, Option<Location>)> = HashMap::new();
         for edit in edits {
@@ -278,10 +196,29 @@ impl Store {
                 }
             }
         }
-        let entry = Arc::new(Entry {
+        let mut entry = Entry {
             rows: Change::from_rows(order.into_iter().filter_map(|id| rows.remove(&id))),
             ..entry
-        });
+        };
+        let mut fields = self.meta.extra.fields.clone();
+        entry.defs.apply_to(&mut fields);
+        let extras: Vec<&RawExtra> = entry
+            .rows
+            .added
+            .iter()
+            .chain(entry.rows.updated.iter().map(|(_, row)| row))
+            .filter_map(|row| row.extra.as_ref())
+            .collect();
+        if let Some(inferred) = maps::infer_field_defs(|key| fields.contains_key(key), &extras) {
+            fields.extend(inferred);
+        }
+        entry.defs = DefsDelta::at(
+            &self.meta.extra.fields,
+            &fields,
+            self.meta.extra.fields.keys().chain(fields.keys()).cloned(),
+        );
+        entry.selections = self.selection_consequences(&entry);
+        let entry = Arc::new(entry);
         self.put_entry(&entry);
         self.record(&entry, join);
         self.finish_entry(&entry)
@@ -298,7 +235,7 @@ impl Store {
         mut edits: Vec<Edit>,
         land: bool,
         join: &mut Option<u64>,
-    ) -> MutationResult {
+    ) -> Mutation {
         let mut added = Vec::new();
         for edit in &mut edits {
             if let Edit::Set(row) = edit {
@@ -339,21 +276,39 @@ impl Store {
                                 None => removed.push(id),
                             }
                         }
-                        let piles = match pending.incoming.get("tags") {
-                            Some(incoming) if !incoming.is_empty() => {
-                                let floor = self.intern_floor("tags");
-                                let before = self.records("tags");
-                                let mut after = before.clone();
-                                let remap = reconcile_values_by_name(incoming, &mut after, floor);
-                                for row in &mut sets {
-                                    row.tags.retain(|old| remap.contains_key(old));
-                                    row.tags.iter_mut().for_each(|old| *old = remap[old]);
-                                }
-                                let delta = PileDelta::at(&before, &after, remap.into_values());
-                                Piles::from([("tags".to_string(), delta)])
+                        let mut piles = Piles::new();
+                        for (field, incoming) in pending.incoming {
+                            if incoming.is_empty() {
+                                continue;
                             }
-                            _ => Piles::new(),
-                        };
+                            let floor = self.intern_floor(&field);
+                            let before = self.records(&field);
+                            let mut after = before.clone();
+                            let remap = reconcile_values_by_name(&incoming, &mut after, floor);
+                            for row in &mut sets {
+                                let Some(serde_json::Value::Array(values)) =
+                                    selections::RowRef::from_loc(row).resolve_field(&field)
+                                else {
+                                    continue;
+                                };
+                                let values = values
+                                    .into_iter()
+                                    .filter_map(|value| {
+                                        let id = u32::try_from(value.as_u64()?).ok()?;
+                                        remap.get(&id).copied().map(serde_json::Value::from)
+                                    })
+                                    .collect();
+                                let fields = serde_json::Map::from_iter([(
+                                    field.clone(),
+                                    serde_json::Value::Array(values),
+                                )]);
+                                let patch = assign_patch(row.id, &fields, row.flags)
+                                    .expect("declared interned fields hold id lists");
+                                *row = row.patched(&patch);
+                            }
+                            piles
+                                .insert(field, PileDelta::at(&before, &after, remap.into_values()));
+                        }
                         let edits = sets
                             .into_iter()
                             .map(Edit::Set)
@@ -384,42 +339,14 @@ impl Store {
         result
     }
 
-    /// The row at `id` as `target` sees it.
-    pub(crate) fn row_at(&self, target: &Target, id: u32) -> Option<Location> {
-        let below = self.get_loc_by_id(id);
-        match target {
-            Target::Map => below,
-            Target::Pending { name } => match self.pending.get(name) {
-                Some(p) => p.layer.get(id, below, |r, patch| self.applied(r, patch)),
-                None => below,
-            },
-        }
-    }
-
-    /// The rows `target` holds, read through its layer: every one, or just `ids`.
-    pub(crate) fn rows_at(&self, target: &Target, ids: Option<&[u32]>) -> Vec<Location> {
-        let keys: Vec<u32> = match (ids, target) {
-            (Some(ids), _) => ids.to_vec(),
-            (None, Target::Map) => return Vec::new(),
-            (None, Target::Pending { name }) => self
-                .pending
-                .get(name)
-                .map(|p| p.layer.keys().collect())
-                .unwrap_or_default(),
-        };
-        keys.iter()
-            .filter_map(|&id| self.row_at(target, id))
-            .collect()
-    }
-
     /// Drop the named pending layer and everything it holds.
     pub(crate) fn drop_pending(&mut self, name: &str) {
         self.pending.remove(name);
     }
 
     /// The result of an edit a pending layer held: nothing on the map moved.
-    fn held(&self, added: Vec<u32>) -> MutationResult {
-        MutationResult {
+    fn held(&self, added: Vec<u32>) -> Mutation {
+        Mutation {
             version: self.version,
             added,
         }
@@ -427,6 +354,13 @@ impl Store {
 
     /// Make the store hold every row, record and definition as `entry` leaves them.
     pub(crate) fn put_entry(&mut self, entry: &Entry) {
+        for (old, new) in &entry.meta.updated {
+            self.meta
+                .replace(self.meta.patched(&maps::MapMeta::between(old, new)));
+        }
+        if !entry.selections.is_empty() {
+            self.selections.apply(&entry.selections);
+        }
         self.put(&entry.rows);
         for (field, delta) in entry.piles.iter().filter(|(_, d)| !d.is_empty()) {
             delta.apply_to(self.value_meta.entry(field.clone()).or_default().edit());
@@ -450,11 +384,13 @@ impl Store {
     /// Record `entry` for undo: folded into the step `join` names while that is still the
     /// newest, else a step of its own.
     fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
-        if entry.is_empty() {
+        // A selections-only edit stays out of history: selection changes undo only as
+        // the cascades of the data change that caused them.
+        if entry.rows.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
             return;
         }
         if entry.rows.len() > MAX_UNDO_ROWS {
-            self.edits.edit().clear_redo();
+            self.edits.edit().clear();
             return;
         }
         let edits = self.edits.edit();
@@ -490,7 +426,7 @@ pub enum Work {
 /// Work that derives each selected row's edit from that row alone.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum RowOp {
+pub enum RowOp<E = String> {
     /// Rename `from` into `to`. Merge is the same operation -- rename is just the case
     /// where nothing holds `to` -- so `winner` decides only where a row holds both.
     Move {
@@ -509,7 +445,7 @@ pub enum RowOp {
     },
     /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
     /// missing or non-numeric field, a non-finite result) is reported back by id.
-    Expr { key: String, expr: String },
+    Expr { key: String, expr: E },
     /// Add `add` and strip `remove` from a list-valued field, per row. The only op that
     /// reads the row's current value as a set rather than replacing it, which is what
     /// membership needs: `tags` is this op's first caller, `array` extras its second.
@@ -524,15 +460,59 @@ pub enum RowOp {
     },
 }
 
+impl RowOp {
+    fn prepare(&self) -> AppResult<RowOp<field_expr::Expr>> {
+        Ok(match self {
+            Self::Set { key, value } => {
+                check_target(key, KeyWrite::Assign)?;
+                if selections::flag_field(key).is_some() {
+                    flag_assignment(key, value)?;
+                }
+                RowOp::Set {
+                    key: key.clone(),
+                    value: value.clone(),
+                }
+            }
+            Self::Expr { key, expr } => {
+                let expr = field_expr::parse(expr)?;
+                check_target(key, KeyWrite::Assign)?;
+                RowOp::Expr {
+                    key: key.clone(),
+                    expr,
+                }
+            }
+            Self::ListSet { key, add, remove } => {
+                check_target(key, KeyWrite::Assign)?;
+                RowOp::ListSet {
+                    key: key.clone(),
+                    add: add.clone(),
+                    remove: remove.clone(),
+                }
+            }
+            Self::Delete { keys } => {
+                keys.iter()
+                    .try_for_each(|key| check_target(key, KeyWrite::Clear))?;
+                RowOp::Delete { keys: keys.clone() }
+            }
+            Self::Move { from, to, winner } => {
+                check_target(from, KeyWrite::Clear)?;
+                check_target(to, KeyWrite::Assign)?;
+                RowOp::Move {
+                    from: from.clone(),
+                    to: to.clone(),
+                    winner: *winner,
+                }
+            }
+        })
+    }
+}
+
 /// Work that derives its edits from the selected rows as a set.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
-    /// Merge each duplicate group within `distance` metres into one survivor, unioning
-    /// tags and extra fields. `score` ranks which survives; absent uses the default
-    /// ranking.
-    MergeDuplicates {
-        distance: f64,
+    Merge {
+        groups: Vec<Vec<u32>>,
         score: Option<String>,
     },
     /// Remove duplicates within `distance` metres of each other, keeping the best-scored
@@ -563,7 +543,7 @@ pub(super) struct WorkPlan {
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkResult {
-    pub mutation: MutationResult,
+    pub mutation: Mutation,
     /// Rows the work edited.
     pub changed: u32,
     /// Rows an expression could not evaluate.
@@ -621,27 +601,33 @@ pub(super) fn assign_patch(
     Ok(patch)
 }
 
+/// What an op does to a key: writes a value into it, or empties it.
+#[derive(Clone, Copy)]
+enum KeyWrite {
+    Assign,
+    Clear,
+}
+
 /// Reject a key an op cannot actually write, rather than reporting rows changed and
 /// leaving the column standing. An `extra` key is always both. A built-in is assignable
 /// when it is declared writable, and clearable when a null in its patch empties it.
-fn check_target(key: &str, assigning: bool) -> AppResult<()> {
+fn check_target(key: &str, write: KeyWrite) -> AppResult<()> {
     if !selections::is_builtin_field(key) {
         return Ok(());
     }
-    let ok = if assigning {
-        selections::BUILTIN_FIELDS
-            .iter()
-            .any(|f| f.key == key && matches!(f.kind, Some(selections::BuiltinFieldKind::Writable)))
-    } else {
-        <Location as Patchable>::CLEARS.contains(&key)
+    let (ok, verb) = match write {
+        KeyWrite::Assign => (
+            selections::BUILTIN_FIELDS.iter().any(|f| {
+                f.key == key && matches!(f.kind, Some(selections::BuiltinFieldKind::Writable))
+            }),
+            "assigned",
+        ),
+        KeyWrite::Clear => (<Location as Patchable>::CLEARS.contains(&key), "removed"),
     };
     if ok {
         return Ok(());
     }
-    Err(AppError(format!(
-        "'{key}' cannot be {}",
-        if assigning { "assigned" } else { "removed" }
-    )))
+    Err(AppError(format!("'{key}' cannot be {verb}")))
 }
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
@@ -652,37 +638,19 @@ pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<Wo
             return Ok(WorkPlan::default());
         }
     }
-    let expr = match op {
-        RowOp::Expr { expr, .. } => Some(field_expr::parse(expr)?),
-        _ => None,
-    };
-    match op {
-        RowOp::Set { key, value } => {
-            check_target(key, true)?;
-            if selections::flag_field(key).is_some() {
-                flag_assignment(key, value)?;
-            }
-        }
-        RowOp::Expr { key, .. } | RowOp::ListSet { key, .. } => check_target(key, true)?,
-        RowOp::Delete { keys } => keys.iter().try_for_each(|k| check_target(k, false))?,
-        RowOp::Move { from, to, .. } => {
-            check_target(from, false)?;
-            check_target(to, true)?;
-        }
-    }
+    let op = op.prepare()?;
     let mut plan = WorkPlan::default();
     let mut err: Option<AppError> = None;
     for row in scope.rows() {
         let id = row.id();
         let mut merge = serde_json::Map::new();
-        match op {
+        match &op {
             RowOp::Set { key, value } => {
                 if !same_field_value(row.resolve_field(key).as_ref(), Some(value)) {
                     merge.insert(key.clone(), value.clone());
                 }
             }
-            RowOp::Expr { key, .. } => {
-                let expr = expr.as_ref().expect("parsed above");
+            RowOp::Expr { key, expr } => {
                 let field = |name: &str| row.resolve_field(name);
                 match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
                     None => plan.failed.push(id),
@@ -755,27 +723,41 @@ pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<Wo
 /// Plan set-level work over the selected rows as a whole.
 fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<WorkPlan> {
     Ok(match op {
-        SetOp::MergeDuplicates { distance, score } => {
+        SetOp::Merge { groups, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
+            let allowed = store.scope(selector).ids();
+            let mut seen = HashSet::new();
             let mut plan = WorkPlan::default();
-            for group in store.scope(selector).duplicate_groups(*distance) {
-                let members: Vec<Location> = group
+            for group in groups {
+                let ids: BTreeSet<u32> = group
                     .iter()
-                    .filter_map(|&id| store.get_loc_by_id(id))
+                    .copied()
+                    .filter(|id| allowed.contains(*id))
+                    .collect();
+                if ids.iter().any(|id| !seen.insert(*id)) {
+                    return Err(AppError::from("merge groups must be disjoint"));
+                }
+                let members: Vec<Location> = ids
+                    .into_iter()
+                    .filter_map(|id| store.get_loc_by_id(id))
                     .collect();
                 if members.len() < 2 {
                     continue;
                 }
                 let survivor = merge_group(&members, &score);
-                plan.edits
-                    .extend(members.iter().map(|m| Edit::Remove(m.id)));
+                plan.edits.extend(
+                    members
+                        .iter()
+                        .filter(|m| m.id != survivor.id)
+                        .map(|m| Edit::Remove(m.id)),
+                );
                 plan.edits.push(Edit::Set(survivor));
             }
             plan
         }
         SetOp::PruneDuplicates { distance, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> = store.collect(selector);
+            let locs: Vec<Location> = store.collect(&crate::store::engine::Target::Map, selector);
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()
@@ -801,6 +783,34 @@ pub(crate) fn apply_work(
         }
         Work::Sets(op) => (plan_sets(store, selector, op)?, DefsDelta::default()),
     };
+    let selections = if let Work::Rows(op) = work {
+        store
+            .selections
+            .change(&SelectionDelta::default(), |mut rows| {
+                for (field, _) in &defs.removed {
+                    let to = match op {
+                        RowOp::Move { from, to, .. } if from == field => Some(to.as_str()),
+                        _ => None,
+                    };
+                    rows = rows
+                        .into_iter()
+                        .filter_map(|row| {
+                            Some(ListedSelection {
+                                selection: crate::selections::tree::rewrite(
+                                    &row.selection,
+                                    field,
+                                    to,
+                                )?,
+                                ..row
+                            })
+                        })
+                        .collect();
+                }
+                rows
+            })
+    } else {
+        Default::default()
+    };
     Ok(WorkResult {
         changed: plan.edits.len() as u32,
         failed: plan.failed,
@@ -809,6 +819,7 @@ pub(crate) fn apply_work(
             &mut None,
             Entry {
                 defs,
+                selections,
                 ..Default::default()
             },
         ),
@@ -859,7 +870,6 @@ fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit]) -> DefsDelta {
 pub struct CopyToMapResult {
     pub copied: u32,
     pub skipped: u32,
-    pub target_name: String,
 }
 
 /// Cross-map dedup: a source is a duplicate of a target location if they share a
@@ -896,8 +906,8 @@ pub(crate) fn split_new_locations(
     (fresh, skipped)
 }
 
-/// Fold a duplicate group into one survivor, picked by [`selections::better`]. Tags are
-/// set-unioned; `extra` is merged with the survivor winning key conflicts; all other
+/// Fold a duplicate group into one survivor, picked by [`selections::better`]. Interned
+/// lists are set-unioned; `extra` is merged with the survivor winning key conflicts; all other
 /// survivor fields are kept. `members` must be non-empty. The returned survivor keeps
 /// its original id (so callers represent the merge as an update of the survivor plus
 /// removal of the rest).
@@ -906,11 +916,6 @@ pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
         .iter()
         .max_by(|a, b| selections::better(a, b, score))
         .expect("merge_group requires a non-empty group");
-
-    let mut tagset: BTreeSet<u32> = BTreeSet::new();
-    for m in members {
-        tagset.extend(m.tags.iter().copied());
-    }
 
     // Non-survivors in id order first, survivor last so its values win conflicts.
     let mut others: Vec<&Location> = members.iter().filter(|m| m.id != survivor.id).collect();
@@ -922,7 +927,31 @@ pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
         .fold(None, |held, m| Merge::merged(&held, &m.extra));
 
     let mut new_survivor = survivor.clone();
-    new_survivor.tags = tagset.into_iter().collect();
+    for field in selections::BUILTIN_FIELDS
+        .iter()
+        .filter(|field| field.interned)
+    {
+        let values: BTreeSet<u32> = members
+            .iter()
+            .flat_map(|row| {
+                selections::RowRef::from_loc(row)
+                    .resolve_field(field.key)
+                    .into_iter()
+                    .flat_map(|value| {
+                        selections::index_keys(field.field_type.index_shape(), &value)
+                    })
+                    .filter_map(|key| key.parse().ok())
+            })
+            .collect();
+        let value = match field.field_type.index_shape() {
+            maps::IndexShape::Multi => serde_json::json!(values),
+            _ => continue,
+        };
+        let fields = serde_json::Map::from_iter([(field.key.to_string(), value)]);
+        let patch = assign_patch(new_survivor.id, &fields, new_survivor.flags)
+            .expect("interned list values satisfy their field's rules");
+        new_survivor = new_survivor.patched(&patch);
+    }
     new_survivor.extra = extra;
     new_survivor.modified_at = Some(util::now_unix());
     new_survivor

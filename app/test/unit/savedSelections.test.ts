@@ -1,19 +1,20 @@
+import { selectionFixture } from "./fixtures/selection";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
-import type { ListedSelection, SavedSelection, Selection, Selector } from "@/bindings.gen";
+import type { SavedSelection, Selection } from "@/bindings.gen";
+import type { Selector } from "@/types";
 
 // The store binds tag lookups internally; back them with a settable fake tag set. The
 // Rust table is a plain array here, so the module's cache/refresh path is exercised.
 const h = vi.hoisted(() => ({
 	tags: {} as Record<number, { id: number; name: string; color: string; visible: boolean }>,
 	rows: [] as SavedSelection[],
-	added: [] as Selector[][],
+	added: [] as string[],
 	calls: [] as string[],
 }));
 
 vi.mock("@/store/useMapStore", () => ({
-	applySelectionUpdate: (op: (rows: ListedSelection[]) => ListedSelection[]) =>
-		h.added.push(op([]).map((r) => r.selection.selector)),
+	mutate: (fn: () => Promise<unknown>) => fn(),
 	getTag: (id: number) => h.tags[id],
 	getVisibleTags: () => Object.values(h.tags).filter((t) => t.visible !== false),
 	getMapState: () => ({ fieldDefs: {} }),
@@ -33,13 +34,23 @@ vi.mock("@/lib/commands", () => ({
 			h.calls.push(`get:${ids.join(",")}`);
 			return structuredClone(h.rows.filter((r) => ids.includes(r.id)));
 		},
+		storeApplySavedSelection: async (id: string) => {
+			h.added.push(id);
+			return { mutation: { version: 0, added: [] } };
+		},
 		storeSaveSelection: async (
 			name: string,
 			selector: Selector,
-			tagNames: Record<number, string>,
 			color: [number, number, number],
 		) => {
-			const row = { id: `s${h.rows.length + 1}`, name, selector, tagNames, color, createdAt: "" };
+			const row = {
+				id: `s${h.rows.length + 1}`,
+				name,
+				selector: selectionFixture(selector).selector,
+				tagNames: {},
+				color,
+				createdAt: "",
+			};
 			h.rows.push(row);
 			return row;
 		},
@@ -61,27 +72,19 @@ import {
 	saveCurrentSelections,
 	savedParts,
 } from "@/store/savedSelections";
-import {
-	buildSelection,
-	tagSelector,
-	unpannedSelector,
-	untaggedSelector,
-} from "@/store/selections";
-
-/** Matches nothing: what a `Tag` leaf resolves to when its saved name is gone here. */
-const NOTHING: Selector = { type: "Locations", locations: [], name: null };
+import { tagSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 
 const rule = (selector: Selector, tagNames: Record<number, string> = {}): SavedSelection => ({
 	id: "s1",
 	name: "rule",
-	selector,
+	selector: selectionFixture(selector).selector,
 	tagNames,
 	color: [1, 2, 3],
 	createdAt: "2026-01-01T00:00:00.000Z",
 });
 
 const sel = (selector: Selector, color: [number, number, number] = [0, 0, 0]): Selection => ({
-	...buildSelection(selector),
+	...selectionFixture(selector),
 	color,
 });
 
@@ -103,48 +106,6 @@ beforeEach(async () => {
 // ============================================================================
 
 describe("saved selections survive map-local renames untouched", () => {
-	const deepFreeze = <T>(obj: T): T => {
-		if (obj && typeof obj === "object") {
-			Object.values(obj).forEach(deepFreeze);
-			Object.freeze(obj);
-		}
-		return obj;
-	};
-
-	it("a Tag leaf tracks the current map's tags by name, not by stored id", () => {
-		const saved = deepFreeze(rule(tagSelector(5), { 5: "Japan" }));
-
-		// The name resolves to a different id here: the leaf follows the name.
-		h.tags = { 9: { id: 9, name: "japan", color: "#0f0", visible: true } };
-		expect(savedParts(saved)[0].selector).toEqual(tagSelector(9));
-
-		// Renamed away: the rule is not rewritten, its leaf just stops matching.
-		h.tags = { 9: { id: 9, name: "Asia/Japan", color: "#0f0", visible: true } };
-		expect(savedParts(saved)[0].selector).toEqual(NOTHING);
-		expect(saved.selector).toEqual(tagSelector(5));
-	});
-
-	it("a soft-deleted tag is never resurrected by name", () => {
-		h.tags = { 3: { id: 3, name: "Coastal", color: "#00f", visible: false } };
-		const saved = rule(tagSelector(3), { 3: "Coastal" });
-		expect(savedParts(saved)[0].selector).toEqual(NOTHING);
-	});
-
-	it("a dead leaf leaves the composite around it intact", () => {
-		h.tags = { 1: { id: 1, name: "Valid", color: "#aaa", visible: true } };
-		const saved = rule(
-			{
-				type: "Intersection",
-				selections: [sel(tagSelector(7)), sel(tagSelector(8))],
-			},
-			{ 7: "Valid", 8: "Gone" },
-		);
-		const resolved = savedParts(saved)[0].selector;
-		expect(resolved.type).toBe("Intersection");
-		if (resolved.type !== "Intersection") return;
-		expect(resolved.selections.map((c) => c.selector)).toEqual([tagSelector(1), NOTHING]);
-	});
-
 	it("a Filter rule outlives its field's deletion in the current map", () => {
 		// JS holds no field registry per rule: the Filter passes through verbatim and Rust
 		// treats a missing field as non-matching. Deletion must not drop the rule.
@@ -241,6 +202,11 @@ describe("Selector coverage", () => {
 			k: 5,
 			ascending: false,
 		},
+		Sample: { type: "Sample", selection: null, n: 5 },
+		Spaced: { type: "Spaced", selection: null, thin: { by: "count", n: 5 } },
+		EvenlySpaced: { type: "EvenlySpaced", selection: null, thin: { by: "metres", m: 100 } },
+		Nearby: { type: "Nearby", selection: null, lat: 1, lng: 2, radiusM: 50 },
+		Nearest: { type: "Nearest", selection: null, lat: 1, lng: 2 },
 	};
 
 	// Read the variants off the generated union so a new Rust variant fails here. A
@@ -248,7 +214,7 @@ describe("Selector coverage", () => {
 	// block rather than its first line.
 	const generatedTypes = (): string[] => {
 		const src = readFileSync(new URL("../../src/bindings.gen.ts", import.meta.url), "utf8");
-		const decl = src.slice(src.indexOf("export type Selector =")).split("\n\n")[0];
+		const decl = src.slice(src.indexOf("export type Selector<")).split("\n\n")[0];
 		return [...decl.matchAll(/type: "(\w+)"/g)].map((m) => m[1]);
 	};
 
@@ -302,13 +268,13 @@ describe("Selector coverage", () => {
 // ============================================================================
 
 describe("saveCurrentSelections", () => {
-	it("stores one selection as itself and its tag names beside it", async () => {
+	it("sends the rule and requested color to Rust", async () => {
 		h.tags = { 4: { id: 4, name: "Japan", color: "#f00", visible: true } };
 		expect(await saveCurrentSelections("japan", [sel(tagSelector(4), [9, 9, 9])])).toBe(true);
 		expect(h.rows[0]).toMatchObject({
 			name: "japan",
 			selector: tagSelector(4),
-			tagNames: { 4: "Japan" },
+			tagNames: {},
 			color: [9, 9, 9],
 		});
 	});
@@ -324,20 +290,6 @@ describe("saveCurrentSelections", () => {
 			[1, 1, 1],
 			[2, 2, 2],
 		]);
-	});
-
-	it("captures tag names from every depth of the tree", async () => {
-		h.tags = {
-			1: { id: 1, name: "A", color: "#a", visible: true },
-			2: { id: 2, name: "B", color: "#b", visible: true },
-		};
-		await saveCurrentSelections("nested", [
-			sel({
-				type: "Intersection",
-				selections: [sel(tagSelector(1)), sel(tagSelector(2))],
-			}),
-		]);
-		expect(h.rows[0].tagNames).toEqual({ 1: "A", 2: "B" });
 	});
 
 	it("refuses a save with nothing saveable in it", async () => {
@@ -356,12 +308,12 @@ describe("applySavedSelection", () => {
 			{ 5: "Japan" },
 		);
 		expect(applySavedSelection(saved)).toBe(2);
-		expect(h.added[0]).toEqual([tagSelector(9), untaggedSelector()]);
+		expect(h.added[0]).toBe(saved.id);
 	});
 
 	it("adds a non-union rule as a single selection", () => {
 		expect(applySavedSelection(rule(untaggedSelector()))).toBe(1);
-		expect(h.added[0]).toEqual([untaggedSelector()]);
+		expect(h.added[0]).toBe("s1");
 	});
 });
 

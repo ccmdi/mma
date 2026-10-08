@@ -94,7 +94,7 @@ pub struct SyncReconcileResult {
     pub adopted: u32,
     pub conflicts: Vec<Conflict>,
     /// The change the pull half made locally, or `null` when nothing was pulled.
-    pub mutation: Option<crate::store::engine::MutationResult>,
+    pub mutation: Option<crate::store::engine::Mutation>,
     /// The rows the pull removed.
     pub removed_ids: Vec<u32>,
 }
@@ -865,7 +865,7 @@ fn apply_pull(
     store: &mut crate::store::engine::Store,
     out: &ReconcileOutcome,
 ) -> AppResult<(
-    Option<crate::store::engine::MutationResult>,
+    Option<crate::store::engine::Mutation>,
     Vec<RemoteMappingRow>,
 )> {
     use crate::store::engine::{Edit, Target};

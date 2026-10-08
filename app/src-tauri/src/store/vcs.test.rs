@@ -55,3 +55,42 @@ fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
     assert_eq!(ids, [1, 2]);
     assert!(!delta.exists());
 }
+
+#[test]
+fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
+    let mut store = Store::new();
+    store.write(
+        [engine::Edit::Set(loc(1, 1.0, 1.0))],
+        &mut None,
+        Default::default(),
+    );
+    store.edit_selections(&crate::selections::tree::SelectionOp::Add {
+        selections: vec![crate::selections::tree::SelectionInput {
+            selector: Selector::Everything,
+            color: None,
+        }],
+    });
+    store.edit(
+        &engine::Target::Pending {
+            name: "viewer".into(),
+        },
+        vec![engine::Edit::Set(loc(1, 3.0, 3.0))],
+        false,
+        &mut None,
+    );
+    let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
+    assert_eq!(result.mutation.version, store.version);
+    assert!(store.get_loc_by_id(1).is_none());
+    assert_eq!(store.get_loc_by_id(7).unwrap().lat, 7.0);
+    assert!(store.selections.ids.is_empty());
+    assert!(store.pending.is_empty());
+    assert_eq!(store.alloc_id(), 8);
+    let entry = store
+        .step(engine::Stack::Undo, |_| panic!("in-memory edit"))
+        .unwrap()
+        .unwrap();
+    store.finish_entry(&entry);
+    assert!(store.get_loc_by_id(7).is_none());
+    assert_eq!(store.get_loc_by_id(1).unwrap().lat, 1.0);
+    assert!(store.selections.ids.contains(1));
+}

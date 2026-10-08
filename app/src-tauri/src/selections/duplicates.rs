@@ -5,6 +5,7 @@ use super::*;
 use crate::selections::field_expr::{self, Expr};
 use crate::selections::neighborhood::{exact_coord_groups, for_pairs_within, Grid};
 use crate::types::{AppResult, Location};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 /// Grid-accelerated spatial duplicate detection: `mask[global_idx] = true` for every
