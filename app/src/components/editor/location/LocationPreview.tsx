@@ -182,7 +182,7 @@ export function LocationPreview() {
 	const chipMode = appSettings.fullscreenMap && appSettings.showFullscreenMiniLocationPreview;
 	usePanoSession();
 	useSeenFeed();
-	usePanoDisplay(panoContainerRef, chipMode);
+	const panoMount = usePanoDisplay(panoContainerRef);
 
 	const bottomTrayRef = useRef<HTMLDivElement>(null);
 	// Written straight to the CSS var, not through state: the tray animates its height, so
@@ -295,7 +295,7 @@ export function LocationPreview() {
 			<>
 				<ReviewBar />
 				<FullscreenMiniLocationPreview>
-					<div ref={panoContainerRef} className="fullscreen-mini-location__pano" />
+					<div ref={panoMount} className="fullscreen-mini-location__pano" />
 				</FullscreenMiniLocationPreview>
 			</>
 		);
@@ -320,7 +320,7 @@ export function LocationPreview() {
 					}
 				>
 					<div className="location-preview__embed">
-						<div style={{ position: "absolute", inset: 0 }} ref={panoContainerRef} />
+						<div style={{ position: "absolute", inset: 0 }} ref={panoMount} />
 						{appSettings.defaultMovementMode === "nmpz" && (
 							<div style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 						)}
