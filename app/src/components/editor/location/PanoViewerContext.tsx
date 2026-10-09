@@ -16,7 +16,7 @@ import {
 	setOpenRow,
 	useMapState,
 	VIEWER,
-	type MapState,
+	type Open,
 } from "@/store/useMapStore";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
@@ -61,7 +61,9 @@ interface PanoViewerContextValue {
 	enriching: boolean;
 }
 
-type ViewerSession = { open: NonNullable<MapState["open"]>; landed: boolean };
+type ViewerSession = { open: Open; landed: boolean };
+
+const isOpen = (session: number | undefined) => getMapState().open?.session === session;
 
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
 
@@ -77,16 +79,16 @@ function put(id: number, patch: Partial<Location>) {
 }
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
-	const location = useMapState((s) => s.openRow);
 	const opened = useMapState((s) => s.open);
+	const location = opened?.row ?? null;
 	const pano = usePano();
 	const [enriching, setEnriching] = useState(false);
 	const session = useRef<ViewerSession | null>(null);
 	// Layer calls land in order, so a walk's edit can never pass the open that seeds it.
 	const chain = useRef<Promise<unknown>>(Promise.resolve());
 	const queue = useCallback(
-		<T,>(fn: () => Promise<T>, owner = getMapState().open): Promise<T | null> => {
-			const run = () => (getMapState().open === owner ? fn() : Promise.resolve(null));
+		<T,>(fn: () => Promise<T>, owner = getMapState().open?.session): Promise<T | null> => {
+			const run = () => (isOpen(owner) ? fn() : Promise.resolve(null));
 			const p = chain.current.then(run, run);
 			chain.current = p.catch((e: unknown) => log.error("[viewer] layer call failed:", e));
 			return p.catch(() => null);
@@ -96,22 +98,21 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 	const currentSession = useCallback(() => {
 		const h = session.current;
-		return h && h.open === getMapState().open && !h.landed ? h : null;
+		return h && isOpen(h.open.session) && !h.landed ? h : null;
 	}, []);
 
-	const draft = session.current?.open === opened && location?.id === opened?.id ? location : null;
+	const draft = session.current?.open.session === opened?.session ? location : null;
 
 	const refresh = useCallback(async (h: ViewerSession) => {
 		const [fresh] = await query(
 			{ type: "Locations", locations: [h.open.id], name: null },
 			VIEWER,
 		).locations();
-		setOpenRow(fresh ?? null, h.open);
+		setOpenRow(fresh ?? null, h.open.session);
 	}, []);
 
 	const release = useCallback(async (h: ViewerSession | null) => {
-		const opened = getMapState().open;
-		if (opened && opened !== h?.open) return;
+		if (getMapState().open && !isOpen(h?.open.session)) return;
 		await cmd.storeDrop(VIEWER.name);
 	}, []);
 
@@ -119,7 +120,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const changed = useEvent("store:change");
 	useEffect(() => {
 		const h = currentSession();
-		if (h) void queue(() => refresh(h), h.open);
+		if (h) void queue(() => refresh(h), h.open.session);
 	}, [changed, currentSession, queue, refresh]);
 
 	const open = useCallback(
@@ -145,7 +146,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			void queue(async () => {
 				const h = currentSession();
-				const base = getMapState().openRow;
+				const base = getMapState().open?.row;
 				if (!h || !base) return;
 				const p = typeof patch === "function" ? patch(base) : patch;
 				await mutate(() => cmd.storeEdit(VIEWER, [put(h.open.id, p)], null));
@@ -226,7 +227,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				onPartial: (rows) => {
 					const mine = rows.find((r) => r.id === h.open.id);
 					if (mine && !ac.signal.aborted) {
-						setOpenRow(mine, h.open);
+						setOpenRow(mine, h.open.session);
 					}
 				},
 			},
@@ -236,9 +237,9 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			})
 			.finally(() => {
 				if (ac.signal.aborted) return;
-				if (getMapState().open === h.open) setEnriching(false);
+				if (isOpen(h.open.session)) setEnriching(false);
 				if (h.landed) void queue(() => release(h));
-				else void queue(() => refresh(h), h.open);
+				else void queue(() => refresh(h), h.open.session);
 			});
 		return () => {
 			// A saved draft's run keeps going: its answers land on the map row it became.
@@ -248,7 +249,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			}
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- one run per pano shown
-	}, [opened, draft?.panoId, currentSession, queue, refresh, release]);
+	}, [opened?.session, draft?.panoId, currentSession, queue, refresh, release]);
 
 	const fullscreenMap = useSetting("fullscreenMap");
 	const prevFullscreenMap = useRef(fullscreenMap);

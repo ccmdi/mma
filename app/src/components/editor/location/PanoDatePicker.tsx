@@ -58,7 +58,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const { draft, currentPano, timeline, enriching } = usePanoViewer();
 	const entries = timeline ?? [];
 	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
-	const location = useMapState((s) => s.openRow);
+	const location = useMapState((s) => s.open?.row ?? null);
 	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
 	// An exact date is on its way: the field is on, and what the draft holds is not this pano's yet.
 	const resolvingExact =

@@ -166,7 +166,7 @@ const TagEditor = memo(function TagEditor({
 });
 
 export function LocationPreview() {
-	const location = useMapState((s) => s.openRow);
+	const location = useMapState((s) => s.open?.row ?? null);
 	const origin = useMapState((s) => s.open?.origin);
 	const map = useMapState((s) => s.map);
 	const reviewSession = useReviewSession();
@@ -262,7 +262,7 @@ export function LocationPreview() {
 	// Reads the active location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		const loc = getMapState().openRow;
+		const loc = getMapState().open?.row;
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
 		edit((d) => setPinned(d, false));

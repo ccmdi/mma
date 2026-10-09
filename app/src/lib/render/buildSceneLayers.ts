@@ -292,7 +292,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Active marker renders even with no committed locations so previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
-	const activeLoc = getMapState().openRow;
+	const activeLoc = getMapState().open?.row;
 	if (activeLoc) {
 		const activeColor: RGBA = [...ctx.activeLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];

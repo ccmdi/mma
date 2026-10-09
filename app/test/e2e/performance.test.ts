@@ -508,7 +508,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				if (api.getMapState().openRow?.id !== id) throw new Error(`not active: ${id}`);
+				if (api.getMapState().open?.row?.id !== id) throw new Error(`not active: ${id}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, helperB),
 	});

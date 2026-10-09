@@ -128,14 +128,14 @@ describe("Delete active location + undo", () => {
 	});
 	it("delete active location clears active and work area", async () => {
 		await withApi(async (api, lid) => await api.setActiveLocation(lid, false), locIds[2]);
-		const activeBefore = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeBefore).toBe(locIds[2]);
 
 		await withApi(async (api, id) => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[2]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeAfter).toBeNull();
 
 		const area = await withApi(async (api) => api.getMapState().workArea);

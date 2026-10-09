@@ -3517,15 +3517,8 @@ export interface UiState {
     /** Persisted identity slice (metadata + settings). Changes rarely. */
     map: MapMeta | null;
     selectedLocationIds: SelectedIds;
-    /** The row open in the editor and where it came from, or null. A preview's id is its
-     *  viewer-layer id. */
-    open: {
-        id: number;
-        origin: OpenOrigin;
-    } | null;
-    /** The open row as the viewer's layer sees it: the one row projection JS keeps. The
-     *  layer is the only writer; this mirrors its latest read. */
-    openRow: Location | null;
+    /** The location open in the editor, or null. */
+    open: Open | null;
     /** @unstable */
     duplicateLocations: Location[];
     /** @unstable */
@@ -3535,6 +3528,15 @@ export interface UiState {
 }
 /** Where an open row came from: the map's rows, the seen history, or a pending import. */
 export type OpenOrigin = "map" | "seen" | "import";
+/** A location open in the editor. A preview's id is its viewer-layer id. */
+export interface Open {
+    id: number;
+    origin: OpenOrigin;
+    /** Which opening this is: opening the same location again starts a new session. */
+    session: number;
+    /** The row as the viewer's layer last read it; null until the first read lands. */
+    row: Location | null;
+}
 export type MapState = UiState & EngineState;
 /** Per-tag location counts, keyed by numeric id. */
 declare const getTagCounts: () => Record<number, number>;
@@ -3615,9 +3617,9 @@ declare const VIEWER: {
     readonly kind: "pending";
     readonly name: "viewer";
 };
-/** The open row as the viewer's layer last read it. The layer is the single writer;
- *  everything else only looks. */
-declare function setOpenRow(row: Location | null, open: MapState["open"]): void;
+/** The open row as the viewer's layer last read it, dropped unless `session` is still open.
+ *  The layer is the single writer; everything else only looks. */
+declare function setOpenRow(row: Location | null, session: number): void;
 declare function settled(m: Mutation): Promise<void>;
 declare function mutate<R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]): Promise<R>;
 /** Add locations to the map. Real ids are assigned and written back into the passed
@@ -3658,7 +3660,8 @@ declare function previewLocation(loc: Location): void;
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 declare function resolveLocation(m: MaybeLocation): Promise<Location | null>;
 /** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
- *  with 2+ locations within 2m opens the duplicate-resolution panel instead. */
+ *  with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
+ *  opening of any kind supersedes one still loading. */
 declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 declare function openDuplicateLocation(loc: Location): void;
@@ -3687,6 +3690,8 @@ declare function checkoutCommit(commitId: string): Promise<void>;
 
 /** @unstable */
 export type store_MapState = MapState;
+/** @unstable */
+export type store_Open = Open;
 /** @unstable */
 export type store_OpenOrigin = OpenOrigin;
 /** @unstable */
@@ -3748,7 +3753,7 @@ declare const store_updateLocations: typeof updateLocations;
 declare const store_useMapState: typeof useMapState;
 declare namespace store {
   export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, query$1 as query, store_read as read, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
-  export type { store_MapState as MapState, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
+  export type { store_MapState as MapState, store_Open as Open, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
 }
 
 /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
@@ -7469,7 +7474,7 @@ declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 declare function getCurrentMap(): MapMeta | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
-/** @deprecated v0.8.2. Read `MMA.getMapState().openRow`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.getMapState().open?.row`. @unstable */
 declare function getActiveLocation(): Location | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;

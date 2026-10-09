@@ -1126,7 +1126,8 @@ setActiveLocation(
 ```
 
 Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
-with 2+ locations within 2m opens the duplicate-resolution panel instead.
+with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
+opening of any kind supersedes one still loading.
 
 ### setMap
 
@@ -1143,11 +1144,11 @@ Replace the open map's row in state; persisting it is the caller's.
 `stable` · unreleased
 
 ```ts
-setOpenRow(row: Location | null, open: MapState["open"]): void
+setOpenRow(row: Location | null, session: number): void
 ```
 
-The open row as the viewer's layer last read it. The layer is the single writer;
-everything else only looks.
+The open row as the viewer's layer last read it, dropped unless `session` is still open.
+The layer is the single writer; everything else only looks.
 
 ### setPluginMode
 
@@ -7539,7 +7540,7 @@ fieldValues(selector: Selector, field: string): Promise<string[]>
 getActiveLocation(): Location | null
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.getMapState().openRow`.
+**Deprecated in v0.8.2.** Read `MMA.getMapState().open?.row`.
 
 ### getAllSelections
 

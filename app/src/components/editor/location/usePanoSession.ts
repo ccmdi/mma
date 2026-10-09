@@ -13,13 +13,13 @@ import { t } from "@/lib/i18n";
 /** The pano session for the open location: resolve and show its pano, feed viewer walks
  *  into the draft and the trail. */
 export function usePanoSession() {
-	const location = useMapState((s) => s.openRow);
 	const opened = useMapState((s) => s.open);
+	const location = opened?.row ?? null;
 	const { edit, open } = usePanoViewer();
 	const pano = usePano();
 
 	useEffect(() => {
-		if (!location || location.id !== opened?.id) return;
+		if (!location) return;
 		let cancelled = false;
 
 		const offStatus = pano.on("status_changed", () => {
@@ -52,5 +52,5 @@ export function usePanoSession() {
 			offStatus();
 			offLock();
 		};
-	}, [pano, opened, location?.id]);
+	}, [pano, opened?.session, location != null]);
 }

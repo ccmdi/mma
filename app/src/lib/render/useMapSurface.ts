@@ -162,14 +162,14 @@ export function useMapSurface(
 		if (!host || !opts.followActive) return;
 		return subscribe("active:change", (id) => {
 			if (id == null || !getReviewSession() || !getSettings().followActiveInReview) return;
-			const loc = getMapState().openRow;
+			const loc = getMapState().open?.row;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});
 	}, [host, opts.followActive]);
 
 	useHotkey(useBinding("panToLocation"), () => {
 		if (!host || !opts.panToActiveHotkey) return;
-		const loc = getMapState().openRow;
+		const loc = getMapState().open?.row;
 		if (loc) host.panTo({ lat: loc.lat, lng: loc.lng });
 	});
 

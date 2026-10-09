@@ -258,7 +258,7 @@ const WAIT = { interval: 50 } as const;
 /** Wait until the active location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
-		() => withApi((api, target) => (api.getMapState().openRow?.id ?? null) === target, id),
+		() => withApi((api, target) => (api.getMapState().open?.row?.id ?? null) === target, id),
 		{ ...WAIT, timeoutMsg: `active location never became ${id}` },
 	);
 }
@@ -309,7 +309,7 @@ export async function waitForEnriched() {
 export async function saveLocation() {
 	await waitForEnriched();
 	await withApi((api) => {
-		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.getMapState().open;
+		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.getMapState().open?.session;
 	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist();
@@ -318,7 +318,8 @@ export async function saveLocation() {
 		() =>
 			withApi(
 				(api) =>
-					api.getMapState().open !== (window as unknown as { __e2eSaving?: unknown }).__e2eSaving,
+					api.getMapState().open?.session !==
+					(window as unknown as { __e2eSaving?: unknown }).__e2eSaving,
 			),
 		{ timeoutMsg: "Save never finished" },
 	);

@@ -11,7 +11,8 @@ import type { Location } from "@/bindings.gen";
 // by the store's own tests.
 const h = vi.hoisted(() => ({
 	activeLocation: null as unknown,
-	opened: null as { id: number; origin: string } | null,
+	opened: null as { id: number; origin: string; session: number } | null,
+	sessions: 0,
 	listeners: new Set<() => void>(),
 	origin: "map",
 	/** The mock layer: rows by id, naive field merge, never the map. */
@@ -78,8 +79,8 @@ vi.mock("@/store/useMapStore", async () => {
 		const row = h.activeLocation as Location | null;
 		if (!row) h.opened = null;
 		else if (h.opened?.id !== row.id || h.opened.origin !== h.origin)
-			h.opened = { id: row.id, origin: h.origin };
-		return { openRow: row, open: h.opened, map: { settings: { enrichMetadata: true } } };
+			h.opened = { id: row.id, origin: h.origin, session: ++h.sessions };
+		return { open: h.opened && { ...h.opened, row }, map: { settings: { enrichMetadata: true } } };
 	};
 	return {
 		query: (selector: { locations: number[] }) => ({
@@ -100,8 +101,8 @@ vi.mock("@/store/useMapStore", async () => {
 		},
 		mutate: (fn: () => Promise<unknown>) => fn(),
 		getMapState: state,
-		setOpenRow: (row: unknown, owner: unknown) => {
-			if (state().open !== owner) return;
+		setOpenRow: (row: unknown, session: number) => {
+			if (state().open?.session !== session) return;
 			h.openRowPushes.push(row);
 			h.activeLocation = row;
 			for (const changed of h.listeners) changed();

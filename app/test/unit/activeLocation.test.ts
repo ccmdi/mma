@@ -26,7 +26,8 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-import { setActiveLocation, setWorkArea, getMapState } from "@/store/useMapStore";
+import { setActiveLocation, setWorkArea, getMapState, setOpenRow } from "@/store/useMapStore";
+import type { Location } from "@/bindings.gen";
 import { subscribe } from "@/lib/events";
 
 beforeEach(() => {
@@ -39,16 +40,16 @@ describe("active location", () => {
 		h.nearby = [{ id: 7 }, { id: 8 }];
 		await setActiveLocation(7);
 
-		expect(getMapState().openRow).toBeNull();
+		expect(getMapState().open).toBeNull();
 	});
 
 	it("drops the open row when leaving the location pane", async () => {
 		await setActiveLocation(7);
-		expect(getMapState().openRow?.id).toBe(7);
+		expect(getMapState().open?.row?.id).toBe(7);
 
 		setWorkArea("plugin");
 
-		expect(getMapState().openRow).toBeNull();
+		expect(getMapState().open).toBeNull();
 	});
 
 	it("a slow switch that lands after a newer one leaves the newer location active", async () => {
@@ -60,7 +61,7 @@ describe("active location", () => {
 		await slow;
 
 		expect(getMapState().open?.id).toBe(8);
-		expect(getMapState().openRow?.id).toBe(8);
+		expect(getMapState().open?.row?.id).toBe(8);
 		setWorkArea("overview");
 	});
 
@@ -74,5 +75,37 @@ describe("active location", () => {
 
 		unsub();
 		expect(seen).toEqual([7, null]);
+	});
+
+	it("a row read for an earlier opening never lands on a reopening of the same location", async () => {
+		await setActiveLocation(7);
+		const earlier = getMapState().open!.session;
+		await setActiveLocation(7);
+
+		setOpenRow({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
+
+		expect(getMapState().open?.row?.lat).toBe(0);
+		setWorkArea("overview");
+	});
+
+	it("switching locations keeps the current one open until the next has its row", async () => {
+		await setActiveLocation(7);
+		const seen: { id: number; row: boolean }[] = [];
+		const unsub = subscribe("store:changed", () => {
+			const open = getMapState().open;
+			if (open) seen.push({ id: open.id, row: open.row != null });
+		});
+		let release!: () => void;
+		h.held.set(8, new Promise((r) => (release = r)));
+
+		const switching = setActiveLocation(8);
+		expect(getMapState().open?.id).toBe(7);
+		release();
+		await switching;
+		unsub();
+
+		expect(seen.every((s) => s.row)).toBe(true);
+		expect(getMapState().open?.row?.id).toBe(8);
+		setWorkArea("overview");
 	});
 });

@@ -26,7 +26,7 @@ async function resolveTagNames(names: string[]): Promise<number[]> {
 }
 
 export function JsonEditorPanel() {
-	const active = MMA.getMapState().openRow;
+	const active = MMA.getMapState().open?.row;
 	const prevIdRef = useRef(active?.id);
 	const [text, setText] = useState(() => (active ? serializeActive(active) : ""));
 	const [error, setError] = useState<string | null>(null);

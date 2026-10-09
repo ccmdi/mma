@@ -97,14 +97,14 @@ describe("Delete clears active location", () => {
 	});
 	it("active location cleared when it is deleted", async () => {
 		await openLocation(locIds[0]);
-		const activeBefore = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeBefore).toBe(locIds[0]);
 
 		await withApi(async (api, id) => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[0]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeAfter).toBeNull();
 	});
 
@@ -128,7 +128,7 @@ describe("Delete clears active location", () => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[3]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().openRow?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeAfter).toBe(locIds[2]);
 	});
 });

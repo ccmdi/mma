@@ -49,7 +49,7 @@ interface LocationHotkeyDeps {
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const { draft, timeline } = usePanoViewer();
 	const pano = usePano();
-	const location = useMapState((s) => s.openRow);
+	const location = useMapState((s) => s.open?.row ?? null);
 	const isReviewMode = useReviewSession() !== null;
 	const {
 		pendingTags,
@@ -202,7 +202,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	};
 
 	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
-		const active = getMapState().openRow;
+		const active = getMapState().open?.row;
 		if (!active) return false;
 		const tag = getVisibleTags().find((t) => t.id === tagId);
 		if (!tag) return false;
@@ -221,7 +221,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!hasLocation) return;
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
 		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
-			const loc = getMapState().openRow;
+			const loc = getMapState().open?.row;
 			if (!loc) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();

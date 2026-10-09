@@ -161,7 +161,7 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
 
 	if (existing) {
-		const active = getMapState().openRow;
+		const active = getMapState().open?.row;
 		if (active?.id !== existing.id) {
 			await setActiveLocation(existing.id);
 			return;

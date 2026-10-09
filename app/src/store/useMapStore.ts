@@ -42,12 +42,8 @@ export interface UiState {
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
 	selectedLocationIds: SelectedIds;
-	/** The row open in the editor and where it came from, or null. A preview's id is its
-	 *  viewer-layer id. */
-	open: { id: number; origin: OpenOrigin } | null;
-	/** The open row as the viewer's layer sees it: the one row projection JS keeps. The
-	 *  layer is the only writer; this mirrors its latest read. */
-	openRow: Location | null;
+	/** The location open in the editor, or null. */
+	open: Open | null;
 	/** @unstable */
 	duplicateLocations: Location[];
 	/** @unstable */
@@ -58,6 +54,24 @@ export interface UiState {
 
 /** Where an open row came from: the map's rows, the seen history, or a pending import. */
 export type OpenOrigin = "map" | "seen" | "import";
+
+/** A location open in the editor. A preview's id is its viewer-layer id. */
+export interface Open {
+	id: number;
+	origin: OpenOrigin;
+	/** Which opening this is: opening the same location again starts a new session. */
+	session: number;
+	/** The row as the viewer's layer last read it; null until the first read lands. */
+	row: Location | null;
+}
+
+let lastSession = 0;
+const opening = (id: number, origin: OpenOrigin, row: Location | null = null): Open => ({
+	id,
+	origin,
+	session: ++lastSession,
+	row,
+});
 
 export type MapState = UiState & EngineState;
 
@@ -76,7 +90,6 @@ const INITIAL_STATE: MapState = {
 	map: null,
 	selectedLocationIds: SelectedIds.EMPTY,
 	open: null,
-	openRow: null,
 	duplicateLocations: [],
 	workArea: "overview",
 	activePluginId: null,
@@ -197,7 +210,6 @@ function clearEditState() {
 	setState({
 		selectedLocationIds: SelectedIds.EMPTY,
 		open: null,
-		openRow: null,
 		workArea: "overview",
 	});
 	resetImportState();
@@ -395,11 +407,11 @@ const MAP: Target = { kind: "map" };
  *  and nothing reaches the map until a save lands them. */
 export const VIEWER = { kind: "pending", name: "viewer" } as const satisfies Target;
 
-/** The open row as the viewer's layer last read it. The layer is the single writer;
- *  everything else only looks. */
-export function setOpenRow(row: Location | null, open: MapState["open"]) {
-	if (!open || state.open !== open) return;
-	setState({ openRow: row });
+/** The open row as the viewer's layer last read it, dropped unless `session` is still open.
+ *  The layer is the single writer; everything else only looks. */
+export function setOpenRow(row: Location | null, session: number) {
+	if (state.open?.session !== session) return;
+	setState({ open: { ...state.open, row } });
 }
 
 const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, added: [] } };
@@ -559,7 +571,7 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 	const row =
 		(await query({ type: "Locations", locations: [added], name: null }, VIEWER).locations())[0] ??
 		null;
-	setState({ open: { id: added, origin }, openRow: row, workArea: "location" });
+	setState({ open: opening(added, origin, row), workArea: "location" });
 	emitEvent("active:change", null);
 }
 
@@ -588,8 +600,8 @@ export function previewLocation(loc: Location) {
 
 /** Drop the open row, keeping `active:change` in step. */
 function clearActiveLocation(): void {
-	if (state.open == null && state.openRow == null) return;
-	setState({ open: null, openRow: null });
+	if (state.open == null) return;
+	setState({ open: null });
 	emitEvent("active:change", null);
 }
 
@@ -601,10 +613,12 @@ export async function resolveLocation(m: MaybeLocation): Promise<Location | null
 }
 
 /** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
- *  with 2+ locations within 2m opens the duplicate-resolution panel instead. */
+ *  with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
+ *  opening of any kind supersedes one still loading. */
 export async function setActiveLocation(target: MaybeLocation | null, checkDuplicates = true) {
 	const t = trace("setActive");
 	const id = target == null ? null : locId(target);
+	const activation = ++lastSession;
 	if (state.open && state.open.origin !== "map") {
 		emitEvent("import-markers:changed");
 		const wasStaged = state.open.origin === "import";
@@ -618,11 +632,10 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 			return;
 		}
 	}
-	setState({ open: id == null ? null : { id, origin: "map" } });
-	if (id) {
+	if (id != null) {
 		const loc = await resolveLocation(target!);
 		t.step("ipc");
-		if (state.open?.id !== id) return t.end({ superseded: true });
+		if (activation !== lastSession) return t.end({ superseded: true });
 		if (checkDuplicates && loc) {
 			const nearby = await rowsOf(
 				(
@@ -633,7 +646,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 					)
 				).rows,
 			);
-			if (state.open?.id !== id) return t.end({ superseded: true });
+			if (activation !== lastSession) return t.end({ superseded: true });
 			if (nearby.length >= 2) {
 				setState({ duplicateLocations: nearby, workArea: "duplicates" });
 				clearActiveLocation();
@@ -641,8 +654,8 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 				return;
 			}
 		}
-		setState({ openRow: loc ?? null, workArea: "location" });
-		emitEvent("active:change", state.open?.id ?? null);
+		setState({ open: opening(id, "map", loc), workArea: "location" });
+		emitEvent("active:change", id);
 		t.end();
 		return;
 	}
@@ -656,7 +669,7 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 export function openDuplicateLocation(loc: Location) {
-	setState({ open: { id: loc.id, origin: "map" }, openRow: loc, workArea: "location" });
+	setState({ open: opening(loc.id, "map", loc), workArea: "location" });
 }
 
 /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
@@ -748,7 +761,7 @@ export async function checkoutCommit(commitId: string) {
 	await mutate(() => cmd.storeCheckoutCommit(state.mapId!, commitId));
 	await cmd.storeCommit(state.mapId, `Revert to ${commitId.slice(0, 7)}`);
 	const map = await cmd.storeGetMap(state.mapId);
-	setState({ map, open: null, openRow: null });
+	setState({ map, open: null });
 
 	void loadScene();
 	await invalidateMapList();

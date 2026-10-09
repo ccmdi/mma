@@ -34,9 +34,9 @@ export function getCurrentMapId() {
 	return getMapState().mapId;
 }
 
-/** @deprecated v0.8.2. Read `MMA.getMapState().openRow`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().open?.row`. */
 export function getActiveLocation() {
-	return getMapState().openRow;
+	return getMapState().open?.row ?? null;
 }
 
 /** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. */
