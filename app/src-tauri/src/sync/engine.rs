@@ -868,7 +868,8 @@ fn apply_pull(
     Option<crate::store::engine::Mutation>,
     Vec<RemoteMappingRow>,
 )> {
-    use crate::store::engine::{Edit, Target};
+    use crate::store::engine::Target;
+    use mma_algebra::{Edit, Op};
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
         + out.pull_delete_ids.len()
@@ -904,19 +905,19 @@ fn apply_pull(
         id
     };
 
-    let mut edits: Vec<Edit> = Vec::new();
+    let mut edits: Vec<Edit<Location>> = Vec::new();
     for c in &out.pull_creates {
-        edits.push(Edit::Set(pulled_location(&c.fields, &mut tag_of)));
+        edits.push(Op::Set(pulled_location(&c.fields, &mut tag_of)));
     }
     for u in &out.pull_updates {
-        edits.push(Edit::Put(pulled_patch(u, &mut tag_of)));
+        edits.push(Op::Put(pulled_patch(u, &mut tag_of)));
     }
     for &id in out
         .pull_delete_ids
         .iter()
         .chain(&out.mirror_local_delete_ids)
     {
-        edits.push(Edit::Remove(id));
+        edits.push(Op::Remove(id));
     }
 
     store.edit(&target, Vec::new(), false, &mut None);
@@ -965,16 +966,13 @@ fn pulled_patch(u: &PullUpdate, tag_of: &mut impl FnMut(&str) -> u32) -> Patch<L
         heading: p.heading,
         pitch: p.pitch,
         zoom: p.zoom,
-        pano_id: p.pano_id.as_ref().map(|o| o.as_deref().map(Into::into)),
+        pano_id: p.pano_id.as_ref().map(|s| s.as_str().into()),
         flags: p.flags.map(crate::types::LocationFlags::from_bits_truncate),
         tags: p
             .tags
             .as_ref()
             .map(|names| names.iter().map(|t| tag_of(t)).collect()),
-        extra: p
-            .extra
-            .as_ref()
-            .map(|o| o.as_ref().and_then(crate::types::RawExtra::from_map)),
+        extra: p.extra.as_ref().and_then(crate::types::RawExtra::from_map),
         ..Default::default()
     }
 }

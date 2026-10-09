@@ -563,7 +563,7 @@ declare namespace consts {
 /** Commands @unstable */
 declare const commands$1: {
     /** Edit rows where target says; a pending layer holds edits until land. @unstable */
-    storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => Promise<MutationResult>;
+    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult>;
     /** Drop a named pending layer and everything it holds. @unstable */
     storeDrop: (name: string) => Promise<null>;
     /** Run work over every location matched by selector. @unstable */
@@ -1452,29 +1452,6 @@ type DeviceCodeInfo = {
     /**  Seconds until `userCode` stops working. */
     expiresIn: number;
 };
-/**  One keyed edit. @unstable */
-type Edit = 
-/**  The row exactly as given; id zero adds it under a fresh id. */
-(({
-    set: Location;
-}) & {
-    put?: never;
-    remove?: never;
-}) | (
-/**  A patch written over the row it names, stamped when that changes it. */
-({
-    put: Partial<Location> & Pick<Location, "id">;
-}) & {
-    remove?: never;
-    set?: never;
-}) | (
-/**  The row at this id removed. */
-({
-    remove: number;
-}) & {
-    put?: never;
-    set?: never;
-});
 /**  How an edit lands. @unstable */
 type EditOpts = {
     /**  Fold the pending layer's edits into the map after these land in it. */
@@ -2073,6 +2050,29 @@ type NumericBinning = {
     by: "width";
     w: number;
 };
+/**  An intent for the row at one key: what it becomes, a patch over it, or that it goes. @unstable */
+type Op<T, P, K> = 
+/**  The row exactly as given. */
+(({
+    set: T;
+}) & {
+    put?: never;
+    remove?: never;
+}) | (
+/**  A patch written over the row it names. */
+({
+    put: P;
+}) & {
+    remove?: never;
+    set?: never;
+}) | (
+/**  The row at this key removed. */
+({
+    remove: K;
+}) & {
+    put?: never;
+    set?: never;
+});
 /**  A decoded Street View panorama: flat data with no live objects. */
 type Pano = {
     /**  This image's own pano id, "" when the response carries no key. */
@@ -3793,7 +3793,7 @@ declare namespace autosave {
 }
 
 /** Land `edits` where `target` says, in one undoable step. @unstable */
-declare function rows(target: Target, edits: Edit[], opts?: EditOpts): Promise<MutationResult>;
+declare function rows(target: Target, edits: Parameters<typeof cmd.storeEdit>[1], opts?: EditOpts): Promise<MutationResult>;
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
 declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
     id?: string;
@@ -7939,4 +7939,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, Edit, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

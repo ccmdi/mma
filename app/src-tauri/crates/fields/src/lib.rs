@@ -285,12 +285,10 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     };
     let ident = &input.ident;
     let patch = format_ident!("{ident}Patch");
-    let nullable = format_ident!("{}_patch_nullable", snake(&ident.to_string()));
-    let nullable_path = nullable.to_string();
     let (mut slots, mut writes, mut reads) = (Vec::new(), Vec::new(), Vec::new());
     let (mut keys, mut skips, mut whole) = (Vec::new(), Vec::new(), Vec::new());
     let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
-    let mut clears = Vec::new();
+    let (mut clears, mut key_fields) = (Vec::new(), Vec::new());
     for f in &data.fields {
         let name = f.ident.as_ref().expect("named fields");
         let ty = &f.ty;
@@ -318,6 +316,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let wire = format!("\"{key_name}\"");
         if key {
             keys.push(wire);
+            key_fields.push((name, ty));
             slots.push(quote! { pub #name: #ty, });
             reads.push(quote! { #name: new.#name.clone(), });
             whole.push(quote! { #name: self.#name.clone(), });
@@ -328,30 +327,45 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             skips.push(wire);
             continue;
         }
-        let optional = type_name(ty).starts_with("Option<");
-        let de = optional.then(|| quote!(#[serde(deserialize_with = #nullable_path)]));
-        if optional && !merge && !stamp {
-            clears.push(key_name.clone());
-        }
         let codec = f.attrs.iter().filter(|attr| attr.path().is_ident("serde"));
+        columns.push(quote! { (#key_name, #column), });
+        let Some(inner) = option_inner(ty) else {
+            slots.push(quote! {
+                #(#codec)*
+                #[serde(default, skip_serializing_if = "Option::is_none")] pub #name: Option<#ty>,
+            });
+            whole.push(quote! { #name: Some(self.#name.clone()), });
+            writes.push(quote! { if let Some(v) = &patch.#name { out.#name = v.clone(); } });
+            let change = quote! { (old.#name != new.#name).then(|| new.#name.clone()) };
+            if stamp {
+                reads.push(quote! { #name: None, });
+            } else {
+                same.push(quote! { (#change).is_none() });
+                reads.push(quote! { #name: #change, });
+            }
+            continue;
+        };
         slots.push(quote! {
             #(#codec)*
-            #[serde(default, skip_serializing_if = "Option::is_none")] #de pub #name: Option<#ty>,
+            #[serde(default, skip_serializing_if = "::mma_algebra::Field::is_keep")]
+            pub #name: ::mma_algebra::Field<#inner>,
         });
-        columns.push(quote! { (#key_name, #column), });
-        whole.push(quote! { #name: Some(self.#name.clone()), });
+        whole.push(quote! { #name: ::mma_algebra::Field::from(self.#name.clone()), });
         let change = if merge {
             merged.push(key_name);
-            writes.push(quote! { if let Some(v) = &patch.#name { out.#name = ::mma_algebra::Merge::merged(&out.#name, v); } });
+            writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Merge::merged(&out.#name, &patch.#name); } });
             quote! { ::mma_algebra::Merge::between(&old.#name, &new.#name) }
         } else {
-            writes.push(quote! { if let Some(v) = &patch.#name { out.#name = v.clone(); } });
-            quote! { (old.#name != new.#name).then(|| new.#name.clone()) }
+            if !stamp {
+                clears.push(key_name);
+            }
+            writes.push(quote! { if !patch.#name.is_keep() { out.#name = patch.#name.applied(&out.#name); } });
+            quote! { ::mma_algebra::Field::between(&old.#name, &new.#name) }
         };
         if stamp {
-            reads.push(quote! { #name: None, });
+            reads.push(quote! { #name: ::mma_algebra::Field::Keep, });
         } else {
-            same.push(quote! { (#change).is_none() });
+            same.push(quote! { (#change).is_keep() });
             reads.push(quote! { #name: #change, });
         }
     }
@@ -364,8 +378,27 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     }
     let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
     let row = expand_row(input)?;
+    let keyed = match key_fields.as_slice() {
+        [(name, ty)] => quote! {
+            impl ::mma_algebra::Keyed for #ident {
+                type Key = #ty;
+                fn key(&self) -> #ty {
+                    self.#name.clone()
+                }
+            }
+
+            impl ::mma_algebra::Keyed for #patch {
+                type Key = #ty;
+                fn key(&self) -> #ty {
+                    self.#name.clone()
+                }
+            }
+        },
+        _ => quote!(),
+    };
     Ok(quote! {
         #row
+        #keyed
         /// A change to some of one value's fields: an absent field is unchanged.
         #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
         #(#serde)*
@@ -404,15 +437,21 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 #patch { #(#whole)* }
             }
         }
-
-        fn #nullable<'de, T, D>(d: D) -> Result<Option<Option<T>>, D::Error>
-        where
-            T: serde::Deserialize<'de>,
-            D: serde::Deserializer<'de>,
-        {
-            Ok(Some(<Option<T> as serde::Deserialize>::deserialize(d)?))
-        }
     })
+}
+
+fn option_inner(ty: &Type) -> Option<&Type> {
+    let Type::Path(path) = ty else {
+        return None;
+    };
+    let last = path.path.segments.last()?;
+    let syn::PathArguments::AngleBracketed(args) = &last.arguments else {
+        return None;
+    };
+    match args.args.first()? {
+        syn::GenericArgument::Type(inner) if last.ident == "Option" => Some(inner),
+        _ => None,
+    }
 }
 
 fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
@@ -561,8 +600,11 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
             fn inverse(&self) -> Self {
                 Self { #(#names: mma_algebra::Delta::inverse(&self.#names)),* }
             }
-            fn then(self, later: Self) -> Self {
-                Self { #(#names: mma_algebra::Delta::then(self.#names, later.#names)),* }
+            fn meets(&self, later: &Self) -> bool {
+                true #(&& mma_algebra::Delta::meets(&self.#names, &later.#names))*
+            }
+            fn compose(self, later: Self) -> Self {
+                Self { #(#names: mma_algebra::Delta::compose(self.#names, later.#names)),* }
             }
             fn is_empty(&self) -> bool {
                 true #(&& mma_algebra::Delta::is_empty(&self.#names))*

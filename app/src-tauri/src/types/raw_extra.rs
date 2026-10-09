@@ -345,7 +345,7 @@ impl<'de> Visitor<'de> for BinRawExtraVisitor {
 }
 
 impl mma_algebra::Merge for RawExtra {
-    fn merged(old: &Option<Self>, patch: &Option<Self>) -> Option<Self> {
+    fn merged(old: &Option<Self>, patch: &mma_algebra::Field<Self>) -> Option<Self> {
         let m = mma_algebra::Merge::merged(
             &old.as_ref().map(RawExtra::to_map),
             &patch.as_ref().map(RawExtra::to_map),
@@ -353,11 +353,11 @@ impl mma_algebra::Merge for RawExtra {
         RawExtra::from_map(&m?)
     }
 
-    fn between(old: &Option<Self>, new: &Option<Self>) -> Option<Option<Self>> {
-        let patch = mma_algebra::Merge::between(
+    fn between(old: &Option<Self>, new: &Option<Self>) -> mma_algebra::Field<Self> {
+        mma_algebra::Merge::between(
             &old.as_ref().map(RawExtra::to_map),
             &new.as_ref().map(RawExtra::to_map),
-        )?;
-        Some(patch.and_then(|m| RawExtra::from_map(&m)))
+        )
+        .and_then(|m| RawExtra::from_map(&m))
     }
 }

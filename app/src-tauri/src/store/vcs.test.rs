@@ -60,7 +60,7 @@ fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
 fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     let mut store = Store::new();
     store.write(
-        [engine::Edit::Set(loc(1, 1.0, 1.0))],
+        [mma_algebra::Op::Set(loc(1, 1.0, 1.0))],
         &mut None,
         Default::default(),
     );
@@ -74,7 +74,7 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
         &engine::Target::Pending {
             name: "viewer".into(),
         },
-        vec![engine::Edit::Set(loc(1, 3.0, 3.0))],
+        vec![mma_algebra::Op::Set(loc(1, 3.0, 3.0))],
         false,
         &mut None,
     );

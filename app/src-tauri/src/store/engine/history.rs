@@ -3,7 +3,7 @@
 use super::*;
 use crate::types::wire_str_enum;
 use crate::types::Location;
-use mma_algebra::Change;
+use mma_algebra::{Change, Delta};
 use mma_fields::Delta;
 use std::sync::Arc;
 
@@ -111,10 +111,10 @@ impl EditStacks {
         seq
     }
 
-    /// Fold `later` into the newest edit when it is `seq` and in memory, and give it a
-    /// fresh `seq`: a stored row keeps the edit as it was when stored, so the grown edit is
-    /// stored anew and the old row goes on the next save. Redo is gone, as for any new
-    /// edit. Hands `later` back when the newest edit is another.
+    /// Fold `later` into the newest edit when it is `seq`, in memory, and ends where `later`
+    /// starts, and give it a fresh `seq`: a stored row keeps the edit as it was when stored,
+    /// so the grown edit is stored anew and the old row goes on the next save. Redo is gone,
+    /// as for any new edit. Hands `later` back otherwise.
     pub(crate) fn fold_into_newest(&mut self, seq: u64, later: Entry) -> Result<u64, Entry> {
         let Some(top) = self.undo.last_mut().filter(|top| top.seq == seq) else {
             return Err(later);
@@ -123,7 +123,13 @@ impl EditStacks {
             return Err(later);
         };
         let held = Arc::make_mut(entry);
-        *held = mem::take(held).then(later);
+        match mem::take(held).then(later) {
+            Ok(grown) => *held = grown,
+            Err((kept, later)) => {
+                *held = kept;
+                return Err(later);
+            }
+        }
         top.seq = self.next_seq;
         self.next_seq += 1;
         self.redo.clear();

@@ -11,7 +11,9 @@ use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::types::{Location, LocationFlags};
 use crate::util;
-use mma_algebra::{number_value, same_field_value, Keys, Layer, Merge, Op, Patch, Patchable};
+use mma_algebra::{
+    number_value, same_field_value, Delta, Edit, Keys, Layer, Merge, Op, Patch, Patchable,
+};
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -19,18 +21,6 @@ use std::sync::Arc;
 /// What one write did to the rows. The render frame, the indexes, the selection sync and
 /// undo all read it, and undo writes its inverse.
 pub type Change = mma_algebra::Change<Location>;
-
-/// One keyed edit.
-#[derive(Clone, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum Edit {
-    /// The row exactly as given; id zero adds it under a fresh id.
-    Set(Location),
-    /// A patch written over the row it names, stamped when that changes it.
-    Put(Patch<Location>),
-    /// The row at this id removed.
-    Remove(u32),
-}
 
 /// How an edit lands.
 #[derive(Default, serde::Deserialize, specta::Type)]
@@ -161,52 +151,29 @@ impl Store {
     /// the step this write recorded.
     pub(crate) fn write(
         &mut self,
-        edits: impl IntoIterator<Item = Edit>,
+        edits: impl IntoIterator<Item = Edit<Location>>,
         join: &mut Option<u64>,
         entry: Entry,
     ) -> Mutation {
-        let mut order: Vec<u32> = Vec::new();
-        let mut rows: HashMap<u32, (Option<Location>, Option<Location>)> = HashMap::new();
-        for edit in edits {
-            let id = match &edit {
-                Edit::Set(loc) => loc.id,
-                Edit::Put(patch) => patch.id,
-                Edit::Remove(id) => *id,
-            };
-            let held = match rows.get(&id) {
-                Some((_, after)) => after.clone(),
-                None => self.get_loc_by_id(id),
-            };
-            let after = match edit {
-                Edit::Set(loc) => Some(loc),
-                Edit::Remove(_) => None,
-                Edit::Put(patch) => held.as_ref().map(|old| {
-                    let mut new = self.applied(old, &patch);
+        let layer: Layer<Location> = edits.into_iter().collect();
+        let rows = layer
+            .resolve(
+                |id| self.get_loc_by_id(id),
+                |old, patch| {
+                    let mut new = self.applied(old, patch);
                     if new != *old {
                         touch(&mut new);
                     }
                     new
-                }),
-            };
-            match rows.get_mut(&id) {
-                Some(row) => row.1 = after,
-                None => {
-                    order.push(id);
-                    rows.insert(id, (held, after));
-                }
-            }
-        }
-        let mut entry = Entry {
-            rows: Change::from_rows(order.into_iter().filter_map(|id| rows.remove(&id))),
-            ..entry
-        };
+                },
+            )
+            .collect();
+        let mut entry = Entry { rows, ..entry };
         let mut fields = self.meta.extra.fields.clone();
         entry.defs.apply_to(&mut fields);
         let extras: Vec<&RawExtra> = entry
             .rows
-            .added
-            .iter()
-            .chain(entry.rows.updated.iter().map(|(_, row)| row))
+            .after()
             .filter_map(|row| row.extra.as_ref())
             .collect();
         if let Some(inferred) = maps::infer_field_defs(|key| fields.contains_key(key), &extras) {
@@ -232,13 +199,13 @@ impl Store {
     pub(crate) fn edit(
         &mut self,
         target: &Target,
-        mut edits: Vec<Edit>,
+        mut edits: Vec<Edit<Location>>,
         land: bool,
         join: &mut Option<u64>,
     ) -> Mutation {
         let mut added = Vec::new();
         for edit in &mut edits {
-            if let Edit::Set(row) = edit {
+            if let Op::Set(row) = edit {
                 if row.id == 0 {
                     row.id = self.alloc_id();
                     added.push(row.id);
@@ -255,25 +222,20 @@ impl Store {
                         (edits, Some(name.clone()), Piles::new())
                     }
                     None => {
-                        for edit in edits {
-                            match edit {
-                                Edit::Set(row) => entry.layer.push(row.id, Op::Set(row)),
-                                Edit::Put(p) => entry.layer.push(p.id, Op::Put(p)),
-                                Edit::Remove(id) => entry.layer.push(id, Op::Remove),
-                            }
-                        }
+                        entry.layer.extend(edits);
                         if !land {
                             return self.held(added);
                         }
                         let pending = self.pending.remove(name).expect("entry just touched");
                         let (mut sets, mut removed) = (Vec::new(), Vec::new());
-                        for (id, _, after) in pending
+                        for row in pending
                             .layer
                             .resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
                         {
-                            match after {
-                                Some(row) => sets.push(row),
-                                None => removed.push(id),
+                            match (row.before, row.after) {
+                                (_, Some(row)) => sets.push(row),
+                                (Some(row), None) => removed.push(row.id),
+                                (None, None) => {}
                             }
                         }
                         let mut piles = Piles::new();
@@ -311,8 +273,8 @@ impl Store {
                         }
                         let edits = sets
                             .into_iter()
-                            .map(Edit::Set)
-                            .chain(removed.into_iter().map(Edit::Remove))
+                            .map(Op::Set)
+                            .chain(removed.into_iter().map(Op::Remove))
                             .collect();
                         (edits, Some(name.clone()), piles)
                     }
@@ -375,10 +337,8 @@ impl Store {
         if change.is_empty() {
             return;
         }
-        let old = change.updated.iter().map(|(o, _)| o);
-        self.overlay_remove(change.removed.iter().chain(old));
-        let new = change.updated.iter().map(|(_, n)| n);
-        self.overlay_add(change.added.iter().chain(new).cloned().collect());
+        self.overlay_remove(change.before());
+        self.overlay_add(change.after().cloned().collect());
     }
 
     /// Record `entry` for undo: folded into the step `join` names while that is still the
@@ -535,7 +495,7 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
 /// no longer exist on any row, and the rows an expression could not evaluate.
 #[derive(Default)]
 pub(super) struct WorkPlan {
-    pub(super) edits: Vec<Edit>,
+    pub(super) edits: Vec<Edit<Location>>,
     pub(super) failed: Vec<u32>,
 }
 
@@ -596,7 +556,7 @@ pub(super) fn assign_patch(
     }
     let mut patch: Patch<Location> = serde_json::from_value(columns.into())?;
     if !extra.is_empty() {
-        patch.extra = Some(RawExtra::from_map(&extra));
+        patch.extra = RawExtra::from_map(&extra).into();
     }
     Ok(patch)
 }
@@ -709,7 +669,7 @@ pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<Wo
         }
         if !merge.is_empty() {
             match assign_patch(id, &merge, row.flags()) {
-                Ok(patch) => plan.edits.push(Edit::Put(patch)),
+                Ok(patch) => plan.edits.push(Op::Put(patch)),
                 Err(e) => err = Some(e),
             }
         }
@@ -749,9 +709,9 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
                     members
                         .iter()
                         .filter(|m| m.id != survivor.id)
-                        .map(|m| Edit::Remove(m.id)),
+                        .map(|m| Op::Remove(m.id)),
                 );
-                plan.edits.push(Edit::Set(survivor));
+                plan.edits.push(Op::Set(survivor));
             }
             plan
         }
@@ -761,7 +721,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()
-                    .map(Edit::Remove)
+                    .map(Op::Remove)
                     .collect(),
                 failed: Vec::new(),
             }
@@ -828,7 +788,7 @@ pub(crate) fn apply_work(
 
 /// What a field move or delete does to the definitions: a move target without one takes
 /// the source's, and a key no row still holds after `edits` loses its own.
-fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit]) -> DefsDelta {
+fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit<Location>]) -> DefsDelta {
     let (vacated, into) = match op {
         RowOp::Move { from, to, .. } if from != to && !to.is_empty() => {
             (std::slice::from_ref(from), Some(to))
@@ -847,7 +807,7 @@ fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit]) -> DefsDelta {
     let edited: HashSet<u32> = edits
         .iter()
         .filter_map(|e| match e {
-            Edit::Put(p) => Some(p.id),
+            Op::Put(p) => Some(p.id),
             _ => None,
         })
         .collect();
@@ -924,7 +884,9 @@ pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
         .into_iter()
         .chain([survivor])
         .filter(|m| m.extra.is_some())
-        .fold(None, |held, m| Merge::merged(&held, &m.extra));
+        .fold(None, |held, m| {
+            Merge::merged(&held, &m.extra.clone().into())
+        });
 
     let mut new_survivor = survivor.clone();
     for field in selections::BUILTIN_FIELDS

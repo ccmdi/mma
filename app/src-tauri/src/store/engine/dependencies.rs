@@ -1,6 +1,6 @@
 use super::*;
 use crate::types::{Location, RawExtra};
-use mma_algebra::{same_field_value, Dependencies, Merge, Patch, Patchable};
+use mma_algebra::{same_field_value, Dependencies, Field, Merge, Patch, Patchable};
 use std::sync::Arc;
 
 pub type ComputedFrom = Arc<HashMap<String, Vec<String>>>;
@@ -15,14 +15,14 @@ impl Store {
             <Location as Patchable>::WRITES
                 .iter()
                 .any(|(k, _)| *k == key)
-                || matches!(&patch.extra, Some(Some(extra)) if extra.get(key).is_some())
+                || matches!(&patch.extra, Field::Set(extra) if extra.get(key).is_some())
         });
         if !stale.is_empty() {
             let clears = stale
                 .into_iter()
                 .map(|key| (key, serde_json::Value::Null))
                 .collect();
-            new.extra = Merge::merged(&new.extra, &RawExtra::from_map(&clears));
+            new.extra = Merge::merged(&new.extra, &RawExtra::from_map(&clears).into());
         }
         new
     }
@@ -33,7 +33,7 @@ impl Store {
         read: &Location,
         now: &Location,
     ) -> Patch<Location> {
-        let Some(Some(extra)) = &patch.extra else {
+        let Field::Set(extra) = &patch.extra else {
             return patch;
         };
         let inputs = self
@@ -47,7 +47,7 @@ impl Store {
         let before = values.len();
         values.retain(|key, _| !stale.contains(key));
         if values.len() != before {
-            patch.extra = RawExtra::from_map(&values).map(Some);
+            patch.extra = RawExtra::from_map(&values).map_or(Field::Keep, Field::Set);
         }
         patch
     }

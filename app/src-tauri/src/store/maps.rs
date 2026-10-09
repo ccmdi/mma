@@ -558,13 +558,6 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
-impl mma_algebra::Keyed for MapMeta {
-    type Key = String;
-    fn key(&self) -> String {
-        self.id.clone()
-    }
-}
-
 /// The map `id`'s metadata.
 pub(crate) fn read_map_meta(conn: &Connection, id: &str) -> rusqlite::Result<MapMeta> {
     conn.query_row(
@@ -821,7 +814,10 @@ fn update_map_meta(
         ));
     }
     let next = store.meta.patched(&patch);
-    let meta = mma_algebra::Change::from_rows([(Some((*store.meta).clone()), Some(next))]);
+    let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+        Some((*store.meta).clone()),
+        Some(next),
+    )]);
     store.write(
         [],
         &mut None,
@@ -892,7 +888,10 @@ fn refolder(state: &StoreState, from: &str, to: Option<&str>) -> AppResult<()> {
             let before = (*store.meta).clone();
             let mut after = before.clone();
             after.folder = to.map(str::to_string);
-            let meta = mma_algebra::Change::from_rows([(Some(before), Some(after))]);
+            let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+                Some(before),
+                Some(after),
+            )]);
             store.write(
                 [],
                 &mut None,

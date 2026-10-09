@@ -2,10 +2,11 @@ use super::*;
 use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT_STATUSES};
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
-use crate::store::engine::{render_cell_idx, Change, Edit, Store, StoreManager};
+use crate::store::engine::{render_cell_idx, Change, Store, StoreManager};
 use crate::test_util::loc;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
+use mma_algebra::Op;
 use mma_algebra::{Patch, Patchable};
 use std::env;
 use std::thread;
@@ -45,7 +46,7 @@ fn given(state: &StoreState, map_id: &str, rows: Vec<Location>) -> Target {
     let store = mgr.store_for_map(map_id).unwrap();
     store.edit(
         &target,
-        rows.into_iter().map(Edit::Set).collect(),
+        rows.into_iter().map(Op::Set).collect(),
         false,
         &mut None,
     );
@@ -948,12 +949,12 @@ fn patch_keys_cover_every_location_patch_field() {
         ("heading", heading.is_some()),
         ("pitch", pitch.is_some()),
         ("zoom", zoom.is_some()),
-        ("panoId", pano_id.is_some()),
+        ("panoId", !pano_id.is_keep()),
         ("flags", flags.is_some()),
         ("tags", tags.is_some()),
-        ("extra", extra.is_some()),
+        ("extra", !extra.is_keep()),
         ("createdAt", created_at.is_some()),
-        ("modifiedAt", modified_at.is_some()),
+        ("modifiedAt", !modified_at.is_keep()),
     ] {
         assert!(set, "`{name}` was not set by its wire key");
     }

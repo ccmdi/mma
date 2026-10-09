@@ -13,7 +13,7 @@ use crate::test_util::{loc, patch};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use frame::tests::Captured;
-use mma_algebra::Patch;
+use mma_algebra::{Delta, Edit, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
@@ -43,11 +43,7 @@ fn apply_updates(
     updates: &[Patch<Location>],
     join: &mut Option<u64>,
 ) -> Mutation {
-    store.write(
-        updates.iter().cloned().map(Edit::Put),
-        join,
-        Entry::default(),
-    )
+    store.write(updates.iter().cloned().map(Op::Put), join, Entry::default())
 }
 
 fn entry(rows: Change) -> Entry {
@@ -62,7 +58,7 @@ fn add_rows(store: &mut Store, locs: Vec<Location>) -> Mutation {
         .into_iter()
         .map(|mut l| {
             l.id = 0;
-            Edit::Set(l)
+            Op::Set(l)
         })
         .collect();
     store.edit(&Target::Map, edits, false, &mut None)
@@ -74,7 +70,10 @@ fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Locatio
     if new != old {
         touch(&mut new);
     }
-    store.put(&Change::from_rows([(Some(old.clone()), Some(new))]));
+    store.put(&Change::from_iter([mma_algebra::Transition::new(
+        Some(old.clone()),
+        Some(new),
+    )]));
     Some((old, store.get_loc_by_id(patch.id)?))
 }
 
@@ -96,9 +95,9 @@ fn reverse(store: &mut Store, change: &Change) -> Change {
 }
 
 fn undoable(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> Mutation {
-    let removes = remove.into_iter().map(|l| Edit::Remove(l.id));
+    let removes = remove.into_iter().map(|l| Op::Remove(l.id));
     store.write(
-        removes.chain(create.into_iter().map(Edit::Set)),
+        removes.chain(create.into_iter().map(Op::Set)),
         &mut None,
         Entry::default(),
     )
@@ -626,8 +625,8 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     assert_eq!(store.edits.len(Stack::Undo), 1);
     assert_eq!(store.edits.len(Stack::Redo), 1);
 
-    let big: Vec<Edit> = (0..=MAX_UNDO_ROWS as u32)
-        .map(|_| Edit::Set(loc(0, 0.0, 0.0)))
+    let big: Vec<Edit<Location>> = (0..=MAX_UNDO_ROWS as u32)
+        .map(|_| Op::Set(loc(0, 0.0, 0.0)))
         .collect();
     store.edit(&Target::Map, big, false, &mut None);
 
@@ -5851,17 +5850,13 @@ fn apply_model_op(
             let old = store.get_loc_by_id(id).unwrap();
             overlay_update(store, &patch!(id; heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
-            store.reindex(&Change::from_rows([(
+            store.reindex(&Change::from_iter([mma_algebra::Transition::new(
                 Some(old.clone()),
                 Some(new_loc.clone()),
             )]));
-            store
-                .edits
-                .edit()
-                .record(Arc::new(entry(Change::from_rows([(
-                    Some(old),
-                    Some(new_loc.clone()),
-                )]))));
+            store.edits.edit().record(Arc::new(entry(Change::from_iter([
+                mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
+            ]))));
             model.insert(id, new_loc);
         }
     }
@@ -5964,7 +5959,11 @@ fn loc_with_extra(id: u32, json: &str) -> Location {
 }
 
 fn planned_extra(u: &Patch<Location>) -> serde_json::Value {
-    serde_json::from_str(u.extra.as_ref().unwrap().as_ref().unwrap().as_str()).unwrap()
+    serde_json::from_str(match &u.extra {
+        mma_algebra::Field::Set(e) => e.as_str(),
+        other => panic!("extra is {other:?}"),
+    })
+    .unwrap()
 }
 
 struct Planned {
@@ -5972,11 +5971,11 @@ struct Planned {
     failed: Vec<u32>,
 }
 
-fn puts(edits: Vec<Edit>) -> Vec<Patch<Location>> {
+fn puts(edits: Vec<Edit<Location>>) -> Vec<Patch<Location>> {
     edits
         .into_iter()
         .map(|e| match e {
-            Edit::Put(p) => p,
+            Op::Put(p) => p,
             _ => panic!("field work plans only patches"),
         })
         .collect()
@@ -6152,7 +6151,7 @@ fn set_op_patches_a_writable_builtin_column() {
     let out = plan(&locs, &set_op("heading", serde_json::json!(90)));
     assert_eq!(out.len(), 2);
     assert_eq!(out[0].heading, Some(90.0));
-    assert!(out[0].extra.is_none());
+    assert!(out[0].extra.is_keep());
 }
 
 #[test]
@@ -6174,7 +6173,7 @@ fn set_op_toggles_a_flag_field_bit_and_keeps_the_others() {
         on[0].flags,
         Some(informational | LocationFlags::LOAD_AS_PANO_ID)
     );
-    assert!(on[0].extra.is_none());
+    assert!(on[0].extra.is_keep());
     let off = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(false)));
     assert_eq!(off.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2]);
     assert_eq!(off[0].flags, Some(LocationFlags::empty()));
@@ -6223,8 +6222,12 @@ fn delete_clears_a_nullable_builtin_column_rather_than_a_phantom_extra_key() {
     let locs = [pinned_loc(1, "abc"), pinned_loc(2, "def")];
     let out = plan(&locs, &del_op(&["panoId"]));
     assert_eq!(out.len(), 2);
-    assert_eq!(out[0].pano_id, Some(None), "the column is cleared");
-    assert!(out[0].extra.is_none(), "nothing lands in extra");
+    assert_eq!(
+        out[0].pano_id,
+        mma_algebra::Field::Clear,
+        "the column is cleared"
+    );
+    assert!(out[0].extra.is_keep(), "nothing lands in extra");
 }
 
 #[test]
@@ -6242,7 +6245,7 @@ fn one_delete_of_a_column_and_an_extra_key_is_one_patch() {
     }];
     let out = plan(&locs, &del_op(&["panoId", "a"]));
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].pano_id, Some(None));
+    assert_eq!(out[0].pano_id, mma_algebra::Field::Clear);
     assert_eq!(planned_extra(&out[0]), serde_json::json!({ "a": null }));
 }
 
@@ -6269,7 +6272,7 @@ fn an_op_that_cannot_write_a_builtin_fails_instead_of_reporting_rows_changed() {
 fn a_move_may_take_a_nullable_column_but_never_fill_one() {
     let locs = [pinned_loc(1, "abc")];
     let moved = plan(&locs, &move_op("panoId", "oldPano", MergeWinner::From));
-    assert_eq!(moved[0].pano_id, Some(None));
+    assert_eq!(moved[0].pano_id, mma_algebra::Field::Clear);
     assert_eq!(
         planned_extra(&moved[0]),
         serde_json::json!({ "oldPano": "abc" })
@@ -6358,7 +6361,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
         &mut store,
         &[Patch::<Location> {
             id: 1,
-            extra: Some(RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into())),
+            extra: RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into()).into(),
             ..Default::default()
         }],
         &mut None,
@@ -6378,7 +6381,7 @@ fn registering_fields_keeps_the_existing_def() {
     user.label = Some("User edited".into());
     store.meta.edit().extra.fields.insert("k".into(), user);
     store.write(
-        [Edit::Set(loc_with_extra(1, r#"{"k":1}"#))],
+        [Op::Set(loc_with_extra(1, r#"{"k":1}"#))],
         &mut None,
         Entry::default(),
     );
@@ -6706,12 +6709,7 @@ fn heading(id: u32, heading: f64) -> Patch<Location> {
 fn a_pending_edit_is_held_and_read_through_until_it_lands() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 90.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     assert_eq!(
         store
             .collect(
@@ -6749,14 +6747,9 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
 fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 90.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.write(
-        [Edit::Put(Patch::<Location> {
+        [Op::Put(Patch::<Location> {
             id: 1,
             pitch: Some(5.0),
             ..Default::default()
@@ -6783,13 +6776,8 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
 fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
     store.next_id = 3;
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 90.0))],
-        false,
-        &mut None,
-    );
-    store.edit(&viewer(), vec![Edit::Remove(2)], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Remove(2)], false, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 0);
 
     store.edit(&viewer(), vec![], true, &mut None);
@@ -6854,17 +6842,12 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
 fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 90.0))],
-        true,
-        &mut None,
-    );
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], true, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 1);
 
     store.edit(
         &viewer(),
-        vec![Edit::Put(Patch::<Location> {
+        vec![Op::Put(Patch::<Location> {
             id: 1,
             pitch: Some(5.0),
             ..Default::default()
@@ -6905,12 +6888,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 90.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.drop_pending("viewer");
     assert_eq!(
         store
@@ -6933,12 +6911,7 @@ fn dropping_a_pending_layer_discards_what_it_held() {
 fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
-    let r = store.edit(
-        &viewer(),
-        vec![Edit::Set(loc(0, 2.0, 2.0))],
-        false,
-        &mut None,
-    );
+    let r = store.edit(&viewer(), vec![Op::Set(loc(0, 2.0, 2.0))], false, &mut None);
     assert_eq!(r.added, vec![2]);
     assert!(store
         .collect(
@@ -7002,12 +6975,7 @@ fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
     store.changes.insert("win".into(), sink);
 
     apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
-    store.edit(
-        &viewer(),
-        vec![Edit::Put(heading(1, 45.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], false, &mut None);
     undo_and_finish(&mut store);
 
     let events: Vec<serde_json::Value> = got
@@ -7049,23 +7017,24 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
                 .as_object()
                 .unwrap(),
         )
-        .map(Some),
+        .into(),
         ..Default::default()
     };
 
     let kept = store.retain_valid_outputs(answer(), &read, &now);
-    let extra = kept.extra.unwrap().unwrap().to_map();
+    let mma_algebra::Field::Set(extra) = kept.extra else {
+        panic!("the fresh output is kept");
+    };
+    let extra = extra.to_map();
     assert!(extra.get("countryCode").is_none());
     assert_eq!(extra.get("altitude"), Some(&serde_json::json!(9)));
     assert_eq!(kept.heading, Some(2.0));
 
     let same = store.retain_valid_outputs(answer(), &read, &read);
-    assert!(same
-        .extra
-        .unwrap()
-        .unwrap()
-        .to_map()
-        .contains_key("countryCode"));
+    let mma_algebra::Field::Set(extra) = same.extra else {
+        panic!("nothing went stale");
+    };
+    assert!(extra.to_map().contains_key("countryCode"));
 
     let all_stale = Patch::<Location> {
         id: 1,
@@ -7074,12 +7043,12 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
                 .as_object()
                 .unwrap(),
         )
-        .map(Some),
+        .into(),
         ..Default::default()
     };
     assert_eq!(
         store.retain_valid_outputs(all_stale, &read, &now).extra,
-        None
+        mma_algebra::Field::Keep
     );
 }
 
@@ -7578,7 +7547,10 @@ fn metadata_edits_apply_and_ship_but_stay_out_of_history() {
         [],
         &mut None,
         Entry {
-            meta: mma_algebra::Change::from_rows([(Some(before.clone()), Some(after))]),
+            meta: mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+                Some(before.clone()),
+                Some(after),
+            )]),
             ..Default::default()
         },
     );
@@ -7595,7 +7567,7 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
     let mut store = setup_store_with(&[]);
     let mut row = loc(1, 0.0, 0.0);
     row.extra = RawExtra::from_map(&serde_json::Map::from_iter([("height".into(), 12.into())]));
-    store.write([Edit::Set(row)], &mut None, Entry::default());
+    store.write([Op::Set(row)], &mut None, Entry::default());
     assert_eq!(
         store.meta.extra.fields["height"].field_type,
         maps::FieldType::Number
@@ -7632,7 +7604,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
     let before = store.selection_list();
     let mut row = store.get_loc_by_id(1).unwrap();
     row.tags.clear();
-    store.write([Edit::Set(row)], &mut None, Entry::default());
+    store.write([Op::Set(row)], &mut None, Entry::default());
     assert!(store.selection_list().is_empty());
     assert!(store.selections.ids.is_empty());
     let entry = store
@@ -7681,12 +7653,7 @@ fn indexed_proximity_respects_the_scope_and_pending_reads_use_overlaid_rows() {
     let pending = Target::Pending {
         name: "test".into(),
     };
-    store.edit(
-        &pending,
-        vec![Edit::Set(loc(2, 0.0, 0.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&pending, vec![Op::Set(loc(2, 0.0, 0.0))], false, &mut None);
     assert!(
         matches!(store.read(&pending, &pick, &ask).unwrap(), Answer::Booleans { values } if values == vec![true, false])
     );
@@ -7790,7 +7757,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
     let mut store = setup_store_with(&rows);
     assert_eq!(tag_count(&mut store, 10), 12);
 
-    let removes = (1..=6).map(Edit::Remove);
+    let removes = (1..=6).map(Op::Remove);
     store.write(removes, &mut None, Entry::default());
     assert_eq!(tag_count(&mut store, 10), 6);
 

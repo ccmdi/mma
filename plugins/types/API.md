@@ -4676,7 +4676,7 @@ edit history, sync links, and review sessions stay with the original.
 ```ts
 cmd.storeEdit(
   target: Target,
-  edits: Edit[],
+  edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
   opts: EditOpts | null,
 ): Promise<MutationResult>
 ```

@@ -2,7 +2,7 @@
 //! behind. Nothing here knows what the values are.
 
 use serde_json::Value;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hash;
 
 type Json = serde_json::Map<String, Value>;
@@ -43,7 +43,7 @@ pub fn number_value(v: f64) -> Value {
 /// A type whose values change by patch: each field a patch can set, written over a
 /// value or read off two of them. `#[derive(mma_fields::Patch)]` implements it.
 pub trait Patchable: Sized {
-    type Patch: Clone + PartialEq + std::fmt::Debug + serde::Serialize;
+    type Patch: Clone + PartialEq + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned;
     /// The wire name and column of each field a patch writes.
     const WRITES: &'static [(&'static str, &'static str)];
     /// The wire names of the fields a patch changes key by key.
@@ -61,18 +61,116 @@ pub trait Patchable: Sized {
 /// A change to some of a `T`'s fields: an absent field is unchanged.
 pub type Patch<T> = <T as Patchable>::Patch;
 
-/// A map a patch changes key by key: a null value deletes its key, a null patch clears
+/// What a patch does to one optional field. On the wire `Keep` is an absent key, `Clear`
+/// is null, and `Set` is the value. Writes compose, the later winning: a monoid, `Keep`
+/// its identity.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub enum Field<T> {
+    #[default]
+    Keep,
+    Clear,
+    Set(T),
+}
+
+impl<T> Field<T> {
+    pub fn is_keep(&self) -> bool {
+        matches!(self, Field::Keep)
+    }
+
+    /// This and then `later`, as one write.
+    pub fn then(self, later: Self) -> Self {
+        match later {
+            Field::Keep => self,
+            later => later,
+        }
+    }
+
+    pub fn as_ref(&self) -> Field<&T> {
+        match self {
+            Field::Keep => Field::Keep,
+            Field::Clear => Field::Clear,
+            Field::Set(v) => Field::Set(v),
+        }
+    }
+
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> Field<U> {
+        match self {
+            Field::Keep => Field::Keep,
+            Field::Clear => Field::Clear,
+            Field::Set(v) => Field::Set(f(v)),
+        }
+    }
+
+    /// Like `map`, where a value that maps to nothing clears.
+    pub fn and_then<U>(self, f: impl FnOnce(T) -> Option<U>) -> Field<U> {
+        match self {
+            Field::Keep => Field::Keep,
+            Field::Clear => Field::Clear,
+            Field::Set(v) => f(v).into(),
+        }
+    }
+}
+
+impl<T: Clone> Field<T> {
+    /// `old` with this written over it.
+    pub fn applied(&self, old: &Option<T>) -> Option<T> {
+        match self {
+            Field::Keep => old.clone(),
+            Field::Clear => None,
+            Field::Set(v) => Some(v.clone()),
+        }
+    }
+}
+
+impl<T: Clone + PartialEq> Field<T> {
+    /// What turns `old` into `new`.
+    pub fn between(old: &Option<T>, new: &Option<T>) -> Self {
+        if old == new {
+            Field::Keep
+        } else {
+            new.clone().into()
+        }
+    }
+}
+
+/// A whole value written over a field: absent clears it.
+impl<T> From<Option<T>> for Field<T> {
+    fn from(v: Option<T>) -> Self {
+        v.map_or(Field::Clear, Field::Set)
+    }
+}
+
+impl<T: serde::Serialize> serde::Serialize for Field<T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Field::Set(v) => s.serialize_some(v),
+            Field::Keep | Field::Clear => s.serialize_none(),
+        }
+    }
+}
+
+impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Field<T> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(Option::<T>::deserialize(d)?.into())
+    }
+}
+
+/// A map a patch changes key by key: a null value deletes its key, a cleared patch clears
 /// the map, and an absent map is empty.
 pub trait Merge: Sized {
     /// `old` with `patch` written over it.
-    fn merged(old: &Option<Self>, patch: &Option<Self>) -> Option<Self>;
-    /// The patch that turns `old` into `new`, or `None` when they hold the same.
-    fn between(old: &Option<Self>, new: &Option<Self>) -> Option<Option<Self>>;
+    fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self>;
+    /// The patch that turns `old` into `new`.
+    fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self>;
 }
 
 impl Merge for Json {
-    fn merged(old: &Option<Self>, patch: &Option<Self>) -> Option<Self> {
-        let patch = patch.as_ref()?;
+    fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self> {
+        let patch = match patch {
+            Field::Keep => return old.clone(),
+            Field::Clear => return None,
+            Field::Set(patch) => patch,
+        };
         let mut m = old.clone().unwrap_or_default();
         for (k, v) in patch {
             if v.is_null() {
@@ -84,7 +182,7 @@ impl Merge for Json {
         (!m.is_empty()).then_some(m)
     }
 
-    fn between(old: &Option<Self>, new: &Option<Self>) -> Option<Option<Self>> {
+    fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self> {
         let none = Json::new();
         let (old, new) = (old.as_ref().unwrap_or(&none), new.as_ref().unwrap_or(&none));
         let mut patch: Json = new
@@ -95,7 +193,11 @@ impl Merge for Json {
         for k in old.keys().filter(|k| !new.contains_key(*k)) {
             patch.insert(k.clone(), Value::Null);
         }
-        (!patch.is_empty()).then_some(Some(patch))
+        if patch.is_empty() {
+            Field::Keep
+        } else {
+            Field::Set(patch)
+        }
     }
 }
 
@@ -114,11 +216,43 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
 }
 
 /// An intent for the row at one key: what it becomes, a patch over it, or that it goes.
-#[derive(Clone, Debug, PartialEq)]
-pub enum Op<T: Patchable> {
+#[derive(Clone, Debug, PartialEq, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum Op<T, P, K> {
+    /// The row exactly as given.
     Set(T),
-    Put(Patch<T>),
-    Remove,
+    /// A patch written over the row it names.
+    Put(P),
+    /// The row at this key removed.
+    Remove(K),
+}
+
+/// An op on a keyed row a patch can change.
+pub type Edit<T> = Op<T, Patch<T>, <T as Keyed>::Key>;
+
+impl<T: Patchable + Keyed> Edit<T>
+where
+    Patch<T>: Keyed<Key = T::Key>,
+{
+    pub fn key(&self) -> T::Key {
+        match self {
+            Op::Set(row) => row.key(),
+            Op::Put(patch) => patch.key(),
+            Op::Remove(key) => key.clone(),
+        }
+    }
+}
+
+impl<T: Patchable + Keyed + Clone> Edit<T> {
+    /// The row `below` as this leaves it, a patch written by `apply`. A patch on a row that
+    /// does not exist is nothing.
+    pub fn applied(&self, below: Option<T>, apply: impl Fn(&T, &Patch<T>) -> T) -> Option<T> {
+        match self {
+            Op::Set(row) => Some(row.clone()),
+            Op::Remove(_) => None,
+            Op::Put(patch) => below.map(|row| apply(&row, patch)),
+        }
+    }
 }
 
 /// Intents held over whatever holds the rows below. Per key the ops land in order, and
@@ -126,7 +260,7 @@ pub enum Op<T: Patchable> {
 /// show through instead of being masked.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer<T: Patchable + Keyed> {
-    ops: BTreeMap<T::Key, Vec<Op<T>>>,
+    ops: BTreeMap<T::Key, Vec<Edit<T>>>,
 }
 
 impl<T: Patchable + Keyed> Default for Layer<T> {
@@ -137,19 +271,36 @@ impl<T: Patchable + Keyed> Default for Layer<T> {
     }
 }
 
-impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
-    /// Land `op` at `key`. A set or a remove replaces everything the row meant before;
-    /// a patch lands on top of it.
-    pub fn push(&mut self, key: T::Key, op: Op<T>) {
-        let ops = self.ops.entry(key).or_default();
-        if matches!(op, Op::Set(_) | Op::Remove) {
-            ops.clear();
+/// Each op lands at its key. A set or a remove replaces everything the row meant before;
+/// a patch lands on top of it.
+impl<T: Patchable + Keyed> Extend<Edit<T>> for Layer<T>
+where
+    Patch<T>: Keyed<Key = T::Key>,
+{
+    fn extend<I: IntoIterator<Item = Edit<T>>>(&mut self, ops: I) {
+        for op in ops {
+            let held = self.ops.entry(op.key()).or_default();
+            if !matches!(op, Op::Put(_)) {
+                held.clear();
+            }
+            held.push(op);
         }
-        ops.push(op);
     }
+}
 
-    /// The row at `key`: this layer's intents applied in order to `below`. A patch on a
-    /// row that does not exist is nothing.
+impl<T: Patchable + Keyed> FromIterator<Edit<T>> for Layer<T>
+where
+    Patch<T>: Keyed<Key = T::Key>,
+{
+    fn from_iter<I: IntoIterator<Item = Edit<T>>>(ops: I) -> Self {
+        let mut layer = Self::default();
+        layer.extend(ops);
+        layer
+    }
+}
+
+impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
+    /// The row at `key`: this layer's intents applied in order to `below`.
     pub fn get(
         &self,
         key: T::Key,
@@ -160,25 +311,20 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
             .get(&key)
             .into_iter()
             .flatten()
-            .fold(below, |row, op| match op {
-                Op::Set(r) => Some(r.clone()),
-                Op::Remove => None,
-                Op::Put(p) => row.map(|r| apply(&r, p)),
-            })
+            .fold(below, |row, op| op.applied(row, &apply))
     }
 
-    /// Each key's row before and after, read over `below`: what folding this layer in
-    /// would change.
+    /// Each held key's row before and after, read over `below`: what folding this layer
+    /// in would do.
     pub fn resolve<'a>(
         &'a self,
         below: impl Fn(T::Key) -> Option<T> + 'a,
         apply: impl Fn(&T, &Patch<T>) -> T + 'a,
-    ) -> impl Iterator<Item = (T::Key, Option<T>, Option<T>)> + 'a {
+    ) -> impl Iterator<Item = Transition<T>> + 'a {
         self.ops.keys().map(move |key| {
             let before = below(key.clone());
             let after = self.get(key.clone(), before.clone(), &apply);
-            let key = key.clone();
-            (key, before, after)
+            Transition::new(before, after)
         })
     }
 
@@ -202,6 +348,46 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
 
     pub fn len(&self) -> usize {
         self.ops.len()
+    }
+}
+
+/// One row's move: as it was and as it became, `None` where it does not exist. Moves
+/// compose when one starts where the other ends, and a move that ends where it began is
+/// an identity.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Transition<T> {
+    pub before: Option<T>,
+    pub after: Option<T>,
+}
+
+impl<T> Transition<T> {
+    pub fn new(before: Option<T>, after: Option<T>) -> Self {
+        Self { before, after }
+    }
+
+    pub fn inverse(self) -> Self {
+        Self::new(self.after, self.before)
+    }
+}
+
+impl<T: PartialEq> Transition<T> {
+    /// This and then `later`, when `later` starts where this ends.
+    pub fn then(self, later: Self) -> Option<Self> {
+        (self.after == later.before).then(|| Self {
+            before: self.before,
+            after: later.after,
+        })
+    }
+
+    pub fn is_identity(&self) -> bool {
+        self.before == self.after
+    }
+}
+
+impl<T: Keyed> Transition<T> {
+    /// The key of the row it moves; `None` for a row absent on both sides.
+    pub fn key(&self) -> Option<T::Key> {
+        self.after.as_ref().or(self.before.as_ref()).map(T::key)
     }
 }
 
@@ -252,13 +438,12 @@ impl<T> Default for Change<T> {
     }
 }
 
-impl<T: Keyed + PartialEq + Clone> Change<T> {
-    /// From each row's state before and after. A row absent on both sides, or the same on
-    /// both, is no change.
-    pub fn from_rows(rows: impl IntoIterator<Item = (Option<T>, Option<T>)>) -> Self {
+/// The rows that moved, each sorted by its shape. An identity is no change.
+impl<T: PartialEq> FromIterator<Transition<T>> for Change<T> {
+    fn from_iter<I: IntoIterator<Item = Transition<T>>>(rows: I) -> Self {
         let mut change = Self::default();
         for row in rows {
-            match row {
+            match (row.before, row.after) {
                 (None, Some(new)) => change.added.push(new),
                 (Some(old), None) => change.removed.push(old),
                 (Some(old), Some(new)) if old != new => change.updated.push((old, new)),
@@ -267,77 +452,46 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
         }
         change
     }
+}
 
-    /// From the rows it created and the rows it removed: a row on both sides was updated.
-    pub fn from_sides(created: Vec<T>, removed: Vec<T>) -> Self {
-        let mut before: HashMap<T::Key, T> = removed.into_iter().map(|r| (r.key(), r)).collect();
-        let mut rows: Vec<_> = created
-            .into_iter()
-            .map(|r| (before.remove(&r.key()), Some(r)))
-            .collect();
-        rows.extend(before.into_values().map(|r| (Some(r), None)));
-        Self::from_rows(rows)
+impl<T> Change<T> {
+    pub fn transitions(&self) -> impl Iterator<Item = Transition<&T>> {
+        shaped(
+            self.added.iter(),
+            self.removed.iter(),
+            self.updated.iter().map(|(o, n)| (o, n)),
+        )
+    }
+
+    pub fn into_transitions(self) -> impl Iterator<Item = Transition<T>> {
+        shaped(
+            self.added.into_iter(),
+            self.removed.into_iter(),
+            self.updated.into_iter(),
+        )
+    }
+
+    pub fn before(&self) -> impl Iterator<Item = &T> {
+        self.transitions().filter_map(|t| t.before)
+    }
+
+    pub fn after(&self) -> impl Iterator<Item = &T> {
+        self.transitions().filter_map(|t| t.after)
     }
 
     /// The rows it created and the rows it removed.
-    pub fn sides(&self) -> (Vec<T>, Vec<T>) {
-        let created = self.added.iter().chain(self.updated.iter().map(|(_, n)| n));
-        let removed = self
-            .removed
-            .iter()
-            .chain(self.updated.iter().map(|(o, _)| o));
-        (created.cloned().collect(), removed.cloned().collect())
+    pub fn sides(&self) -> (Vec<T>, Vec<T>)
+    where
+        T: Clone,
+    {
+        (
+            self.after().cloned().collect(),
+            self.before().cloned().collect(),
+        )
     }
 
-    /// The change that undoes this one.
-    pub fn inverse(&self) -> Self {
-        Self {
-            added: self.removed.clone(),
-            removed: self.added.clone(),
-            updated: self
-                .updated
-                .iter()
-                .map(|(o, n)| (n.clone(), o.clone()))
-                .collect(),
-        }
-    }
-
-    /// This change and then `later`, as one: each row keeps its first state before and its
-    /// last after.
-    pub fn then(self, later: Self) -> Self {
-        let mut order: Vec<T::Key> = Vec::new();
-        let mut rows: HashMap<T::Key, (Option<T>, Option<T>)> = HashMap::new();
-        for (before, after) in self.into_rows().chain(later.into_rows()) {
-            let Some(key) = after.as_ref().or(before.as_ref()).map(T::key) else {
-                continue;
-            };
-            match rows.get_mut(&key) {
-                Some(row) => row.1 = after,
-                None => {
-                    order.push(key.clone());
-                    rows.insert(key, (before, after));
-                }
-            }
-        }
-        Self::from_rows(order.into_iter().filter_map(|key| rows.remove(&key)))
-    }
-
-    pub fn into_rows(self) -> impl Iterator<Item = (Option<T>, Option<T>)> {
-        let added = self.added.into_iter().map(|r| (None, Some(r)));
-        let removed = self.removed.into_iter().map(|r| (Some(r), None));
-        let updated = self.updated.into_iter().map(|(o, n)| (Some(o), Some(n)));
-        added.chain(removed).chain(updated)
-    }
-
-    /// No rows moved.
-    pub fn is_empty(&self) -> bool {
-        self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
-    }
-
-    /// Whether it created or updated the row at `key`.
-    pub fn touches(&self, key: T::Key) -> bool {
-        self.added.iter().any(|r| r.key() == key)
-            || self.updated.iter().any(|(_, n)| n.key() == key)
+    pub fn len(&self) -> usize {
+        self.added.len() + self.removed.len() + self.updated.len()
     }
 
     /// What it did, by cardinality.
@@ -349,8 +503,65 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
         }
     }
 
+    pub fn count_by<K: Eq + Hash, I: IntoIterator<Item = K>>(
+        &self,
+        project: impl Fn(&T) -> I,
+    ) -> HashMap<K, i64> {
+        let mut counts = HashMap::new();
+        for row in self.before() {
+            for key in project(row) {
+                *counts.entry(key).or_default() -= 1;
+            }
+        }
+        for row in self.after() {
+            for key in project(row) {
+                *counts.entry(key).or_default() += 1;
+            }
+        }
+        counts
+    }
+
+    pub fn project<U: PartialEq>(&self, project: impl Fn(&T) -> U) -> Change<U> {
+        self.transitions()
+            .map(|t| Transition::new(t.before.map(&project), t.after.map(&project)))
+            .collect()
+    }
+}
+
+/// Rows sorted by shape as the moves they are.
+fn shaped<T>(
+    added: impl Iterator<Item = T>,
+    removed: impl Iterator<Item = T>,
+    updated: impl Iterator<Item = (T, T)>,
+) -> impl Iterator<Item = Transition<T>> {
+    let added = added.map(|r| Transition::new(None, Some(r)));
+    let removed = removed.map(|r| Transition::new(Some(r), None));
+    added
+        .chain(removed)
+        .chain(updated.map(|(o, n)| Transition::new(Some(o), Some(n))))
+}
+
+impl<T: Keyed + PartialEq> Change<T> {
+    /// From the rows it created and the rows it removed: a row on both sides was updated.
+    pub fn from_sides(created: Vec<T>, removed: Vec<T>) -> Self {
+        let mut before: HashMap<T::Key, T> = removed.into_iter().map(|r| (r.key(), r)).collect();
+        let mut rows: Vec<_> = created
+            .into_iter()
+            .map(|r| Transition::new(before.remove(&r.key()), Some(r)))
+            .collect();
+        rows.extend(before.into_values().map(|r| Transition::new(Some(r), None)));
+        rows.into_iter().collect()
+    }
+
+    /// Whether it created or updated the row at `key`.
+    pub fn touches(&self, key: T::Key) -> bool {
+        self.after().any(|r| r.key() == key)
+    }
+
     pub fn keys_iter(&self) -> impl Iterator<Item = T::Key> + '_ {
-        self.after().chain(self.removed.iter()).map(T::key)
+        self.transitions()
+            .filter_map(|t| t.after.or(t.before))
+            .map(T::key)
     }
 
     /// What it did, by key.
@@ -362,15 +573,9 @@ impl<T: Keyed + PartialEq + Clone> Change<T> {
         }
     }
 
-    pub fn len(&self) -> usize {
-        self.added.len() + self.removed.len() + self.updated.len()
-    }
-
     /// The highest key on either side.
     pub fn max_key(&self) -> Option<T::Key> {
-        let (added, removed) = (self.added.iter(), self.removed.iter());
-        let updated = self.updated.iter().map(|(_, n)| n);
-        added.chain(removed).chain(updated).map(T::key).max()
+        self.keys_iter().max()
     }
 }
 
@@ -383,51 +588,109 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
     ) -> Self {
         let row = |table: &HashMap<K, V>, k: &K| table.get(k).map(|v| (k.clone(), v.clone()));
         let keys: BTreeSet<K> = keys.into_iter().collect();
-        Self::from_rows(keys.iter().map(|k| (row(before, k), row(after, k))))
+        keys.iter()
+            .map(|k| Transition::new(row(before, k), row(after, k)))
+            .collect()
     }
 
     /// Make `table` hold every row as this change leaves it.
     pub fn apply_to(&self, table: &mut HashMap<K, V>) {
-        for (k, _) in &self.removed {
+        for (k, _) in self.before() {
             table.remove(k);
         }
-        for (k, v) in self.added.iter().chain(self.updated.iter().map(|(_, n)| n)) {
+        for (k, v) in self.after() {
             table.insert(k.clone(), v.clone());
         }
     }
 }
 
+/// A change that undoes, and composes with a later one that starts where it ends: a
+/// groupoid, the empty change its identity.
 pub trait Delta: Default + Sized {
+    /// Whether `later` starts where this ends.
+    fn meets(&self, later: &Self) -> bool;
+    /// This and then `later`, which meets it.
+    fn compose(self, later: Self) -> Self;
     fn inverse(&self) -> Self;
-    fn then(self, later: Self) -> Self;
     fn is_empty(&self) -> bool;
+
+    /// This and then `later`, or both handed back when `later` does not start where this
+    /// ends.
+    fn then(self, later: Self) -> Result<Self, (Self, Self)> {
+        if self.meets(&later) {
+            Ok(self.compose(later))
+        } else {
+            Err((self, later))
+        }
+    }
 }
 
 impl<T: Keyed + PartialEq + Clone> Delta for Change<T> {
+    fn meets(&self, later: &Self) -> bool {
+        let ends: HashMap<T::Key, Option<&T>> = self
+            .transitions()
+            .filter_map(|t| Some((t.after.or(t.before)?.key(), t.after)))
+            .collect();
+        later.transitions().all(|t| {
+            t.after
+                .or(t.before)
+                .and_then(|row| ends.get(&row.key()))
+                .is_none_or(|end| *end == t.before)
+        })
+    }
+
+    /// Each row keeps its first state before and its last after.
+    fn compose(self, later: Self) -> Self {
+        let mut order: Vec<T::Key> = Vec::new();
+        let mut rows: HashMap<T::Key, Transition<T>> = HashMap::new();
+        for t in self.into_transitions().chain(later.into_transitions()) {
+            let Some(key) = t.key() else {
+                continue;
+            };
+            match rows.entry(key) {
+                hash_map::Entry::Occupied(mut held) => held.get_mut().after = t.after,
+                hash_map::Entry::Vacant(slot) => {
+                    order.push(slot.key().clone());
+                    slot.insert(t);
+                }
+            }
+        }
+        order
+            .into_iter()
+            .filter_map(|key| rows.remove(&key))
+            .collect()
+    }
+
     fn inverse(&self) -> Self {
-        Change::inverse(self)
+        self.transitions()
+            .map(|t| Transition::new(t.after.cloned(), t.before.cloned()))
+            .collect()
     }
-    fn then(self, later: Self) -> Self {
-        Change::then(self, later)
-    }
+
     fn is_empty(&self) -> bool {
-        Change::is_empty(self)
+        self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
     }
 }
 
 impl<K: Clone + Eq + Hash, D: Delta> Delta for HashMap<K, D> {
+    fn meets(&self, later: &Self) -> bool {
+        later
+            .iter()
+            .all(|(key, delta)| self.get(key).is_none_or(|held| held.meets(delta)))
+    }
+
+    fn compose(mut self, later: Self) -> Self {
+        for (key, delta) in later {
+            let held = self.remove(&key).unwrap_or_default();
+            self.insert(key, held.compose(delta));
+        }
+        self
+    }
+
     fn inverse(&self) -> Self {
         self.iter()
             .map(|(key, delta)| (key.clone(), delta.inverse()))
             .collect()
-    }
-
-    fn then(mut self, later: Self) -> Self {
-        for (key, delta) in later {
-            let before = self.remove(&key).unwrap_or_default();
-            self.insert(key, before.then(delta));
-        }
-        self
     }
 
     fn is_empty(&self) -> bool {
@@ -496,52 +759,6 @@ impl<K: Clone + Eq + Hash> Dependencies<K> for HashMap<K, Vec<K>> {
             }
         }
         stale
-    }
-}
-
-impl<T> Change<T> {
-    pub fn before(&self) -> impl Iterator<Item = &T> {
-        self.removed
-            .iter()
-            .chain(self.updated.iter().map(|(old, _)| old))
-    }
-
-    pub fn after(&self) -> impl Iterator<Item = &T> {
-        self.added
-            .iter()
-            .chain(self.updated.iter().map(|(_, new)| new))
-    }
-
-    pub fn count_by<K: Eq + Hash, I: IntoIterator<Item = K>>(
-        &self,
-        project: impl Fn(&T) -> I,
-    ) -> HashMap<K, i64> {
-        let mut counts = HashMap::new();
-        for row in self.before() {
-            for key in project(row) {
-                *counts.entry(key).or_default() -= 1;
-            }
-        }
-        for row in self.after() {
-            for key in project(row) {
-                *counts.entry(key).or_default() += 1;
-            }
-        }
-        counts
-    }
-
-    pub fn project<U: Keyed + PartialEq + Clone>(&self, project: impl Fn(&T) -> U) -> Change<U> {
-        Change::from_rows(
-            self.added
-                .iter()
-                .map(|row| (None, Some(project(row))))
-                .chain(self.removed.iter().map(|row| (Some(project(row)), None)))
-                .chain(
-                    self.updated
-                        .iter()
-                        .map(|(old, new)| (Some(project(old)), Some(project(new)))),
-                ),
-        )
     }
 }
 

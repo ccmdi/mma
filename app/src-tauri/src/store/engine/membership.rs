@@ -250,12 +250,7 @@ impl SelectionState {
     /// selections, where union membership never flips but the winning colour does - so the
     /// render frame can state their new selection state.
     pub(super) fn update(&mut self, changes: &Change<Location>) -> HashSet<u32> {
-        let drop_ids: HashSet<u32> = changes
-            .removed
-            .iter()
-            .map(|l| l.id)
-            .chain(changes.updated.iter().map(|(_, n)| n.id))
-            .collect();
+        let drop_ids: HashSet<u32> = changes.before().map(|l| l.id).collect();
         // Paint before the mutation, snapshotted while the sets still reflect it. Paint is
         // the compared fact - not union membership - because a row that moves between
         // overlapping selections changes colour without ever leaving the union.
@@ -274,11 +269,7 @@ impl SelectionState {
             }
         }
 
-        let test_locs: Vec<&Location> = changes
-            .added
-            .iter()
-            .chain(changes.updated.iter().map(|(_, n)| n))
-            .collect();
+        let test_locs: Vec<&Location> = changes.after().collect();
         // Split the borrow so membership and the union can be updated in one pass.
         let SelectionState { resolved, ids, .. } = self;
         for r in resolved.iter_mut() {
@@ -310,11 +301,7 @@ impl SelectionState {
         }
 
         let mut changed = HashSet::new();
-        for loc in changes
-            .added
-            .iter()
-            .chain(changes.updated.iter().map(|(_, n)| n))
-        {
+        for loc in changes.after() {
             // Added rows have no snapshot: their previous paint is None, and they compare
             // against whatever they resolve to now.
             let before = prev_paint.get(&loc.id).copied().flatten();

@@ -1,6 +1,5 @@
 import type { Selector } from "@/types";
 import type {
-	Edit,
 	EditOpts,
 	FieldValuesPatch,
 	MutationResult,
@@ -16,7 +15,11 @@ import * as autosave from "./autosave";
 const NO_WORK: WorkResult = { mutation: { version: 0, added: [] }, changed: 0, failed: [] };
 
 /** Land `edits` where `target` says, in one undoable step. @unstable */
-export function rows(target: Target, edits: Edit[], opts?: EditOpts): Promise<MutationResult> {
+export function rows(
+	target: Target,
+	edits: Parameters<typeof cmd.storeEdit>[1],
+	opts?: EditOpts,
+): Promise<MutationResult> {
 	return mutate(() => cmd.storeEdit(target, edits, opts ?? null));
 }
 

@@ -146,7 +146,10 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
     assert_eq!(second.pull_updates.len(), 1);
     assert_eq!(
         second.pull_updates[0].patch.extra,
-        Some(json!({ "score": 4, "note": null }).as_object().cloned())
+        json!({ "score": 4, "note": null })
+            .as_object()
+            .cloned()
+            .into()
     );
     assert!(second.push_batch.is_none());
 }

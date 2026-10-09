@@ -15,10 +15,18 @@ impl Keyed for Row {
     }
 }
 
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 struct RowPatch {
+    id: u32,
     name: Option<String>,
-    extra: Option<Option<Json>>,
+    extra: Field<Json>,
+}
+
+impl Keyed for RowPatch {
+    type Key = u32;
+    fn key(&self) -> u32 {
+        self.id
+    }
 }
 
 impl Patchable for Row {
@@ -32,14 +40,13 @@ impl Patchable for Row {
         if let Some(v) = &patch.name {
             out.name = v.clone();
         }
-        if let Some(v) = &patch.extra {
-            out.extra = Merge::merged(&out.extra, v);
-        }
+        out.extra = Merge::merged(&out.extra, &patch.extra);
         out
     }
 
     fn between(old: &Self, new: &Self) -> RowPatch {
         RowPatch {
+            id: new.id,
             name: (old.name != new.name).then(|| new.name.clone()),
             extra: Merge::between(&old.extra, &new.extra),
         }
@@ -47,8 +54,9 @@ impl Patchable for Row {
 
     fn to_patch(&self) -> RowPatch {
         RowPatch {
+            id: self.id,
             name: Some(self.name.clone()),
-            extra: Some(self.extra.clone()),
+            extra: self.extra.clone().into(),
         }
     }
 }
@@ -98,8 +106,39 @@ fn a_whole_value_as_a_patch_writes_it_over_any_row_with_nothing_merged_in() {
     assert_eq!(v.patched(&row(1, "w").to_patch()), row(1, "w"));
     assert_eq!(
         Row::between(&v, &v.patched(&v.to_patch())),
-        RowPatch::default()
+        RowPatch {
+            id: 1,
+            ..RowPatch::default()
+        }
     );
+}
+
+#[test]
+fn a_field_written_over_its_old_value_yields_the_new_one() {
+    let cases = [None, Some(1), Some(2)];
+    for old in &cases {
+        for new in &cases {
+            assert_eq!(Field::between(old, new).applied(old), *new);
+        }
+    }
+}
+
+#[test]
+fn a_field_is_absent_null_or_a_value_on_the_wire() {
+    #[derive(Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+    struct Slot {
+        #[serde(default, skip_serializing_if = "Field::is_keep")]
+        v: Field<u32>,
+    }
+    for (field, wire) in [
+        (Field::Keep, json!({})),
+        (Field::Clear, json!({ "v": null })),
+        (Field::Set(7), json!({ "v": 7 })),
+    ] {
+        let slot = Slot { v: field };
+        assert_eq!(serde_json::to_value(&slot).unwrap(), wire);
+        assert_eq!(serde_json::from_value::<Slot>(wire).unwrap(), slot);
+    }
 }
 
 #[test]
@@ -112,11 +151,11 @@ fn merging_the_patch_between_two_maps_yields_the_second() {
     for old in &cases {
         for new in &cases {
             match Merge::between(old, new) {
-                Some(patch) => assert_eq!(Merge::merged(old, &patch), *new),
-                None => assert!(same_field_value(
+                Field::Keep => assert!(same_field_value(
                     old.clone().map(Value::Object).as_ref(),
                     new.clone().map(Value::Object).as_ref(),
                 )),
+                patch => assert_eq!(Merge::merged(old, &patch), *new),
             }
         }
     }
@@ -124,12 +163,12 @@ fn merging_the_patch_between_two_maps_yields_the_second() {
 
 #[test]
 fn a_change_drops_rows_that_did_not_change() {
-    let change = Change::from_rows([
-        (None, Some(row(1, "a"))),
-        (Some(row(2, "b")), None),
-        (Some(row(3, "c")), Some(row(3, "c"))),
-        (Some(row(4, "d")), Some(row(4, "e"))),
-        (None, None),
+    let change = Change::from_iter([
+        t(None, Some(row(1, "a"))),
+        t(Some(row(2, "b")), None),
+        t(Some(row(3, "c")), Some(row(3, "c"))),
+        t(Some(row(4, "d")), Some(row(4, "e"))),
+        t(None, None),
     ]);
     assert_eq!(change.added, vec![row(1, "a")]);
     assert_eq!(change.removed, vec![row(2, "b")]);
@@ -156,27 +195,32 @@ fn the_inverse_of_an_inverse_is_the_change_itself() {
 
 #[test]
 fn composed_changes_keep_the_first_before_and_the_last_after() {
-    let first = Change::from_rows([
-        (None, Some(row(1, "a"))),
-        (Some(row(2, "old")), Some(row(2, "mid"))),
+    let first = Change::from_iter([
+        t(None, Some(row(1, "a"))),
+        t(Some(row(2, "old")), Some(row(2, "mid"))),
     ]);
-    let second = Change::from_rows([
-        (Some(row(2, "mid")), Some(row(2, "new"))),
-        (Some(row(1, "a")), None),
+    let second = Change::from_iter([
+        t(Some(row(2, "mid")), Some(row(2, "new"))),
+        t(Some(row(1, "a")), None),
     ]);
-    let both = first.then(second);
+    let both = first.then(second).unwrap();
     assert!(both.added.is_empty() && both.removed.is_empty());
     assert_eq!(both.updated, vec![(row(2, "old"), row(2, "new"))]);
 
-    let there = Change::from_rows([(Some(row(5, "x")), Some(row(5, "y")))]);
+    let there = Change::from_iter([t(Some(row(5, "x")), Some(row(5, "y")))]);
     let back = there.clone().inverse();
-    assert!(there.then(back).is_empty());
+    assert!(there.then(back).unwrap().is_empty());
 }
 
-fn rename(name: &str) -> RowPatch {
+fn t(before: Option<Row>, after: Option<Row>) -> Transition<Row> {
+    Transition::new(before, after)
+}
+
+fn rename(id: u32, name: &str) -> RowPatch {
     RowPatch {
+        id,
         name: Some(name.into()),
-        extra: None,
+        extra: Field::Keep,
     }
 }
 
@@ -187,7 +231,7 @@ fn apply(r: &Row, p: &RowPatch) -> Row {
 #[test]
 fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.push(1, Op::Put(rename("mine")));
+    layer.extend([Op::Put(rename(1, "mine"))]);
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "mine"))
@@ -213,40 +257,40 @@ fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
 #[test]
 fn intents_land_in_order_and_a_set_or_remove_replaces_what_came_before() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.push(1, Op::Put(rename("first")));
-    layer.push(1, Op::Put(rename("second")));
+    layer.extend([Op::Put(rename(1, "first"))]);
+    layer.extend([Op::Put(rename(1, "second"))]);
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "second"))
     );
 
-    layer.push(1, Op::Remove);
+    layer.extend([Op::Remove(1)]);
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
-    layer.push(1, Op::Put(rename("after remove")));
+    layer.extend([Op::Put(rename(1, "after remove"))]);
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
 
-    layer.push(1, Op::Set(row(1, "set")));
-    layer.push(1, Op::Put(rename("edited")));
+    layer.extend([Op::Set(row(1, "set"))]);
+    layer.extend([Op::Put(rename(1, "edited"))]);
     assert_eq!(layer.get(1, None, apply), Some(row(1, "edited")));
 }
 
 #[test]
 fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.push(1, Op::Put(rename("new")));
-    layer.push(2, Op::Remove);
-    layer.push(3, Op::Set(row(3, "added")));
+    layer.extend([Op::Put(rename(1, "new"))]);
+    layer.extend([Op::Remove(2)]);
+    layer.extend([Op::Set(row(3, "added"))]);
     let below = |key: u32| (key < 3).then(|| row(key, "old"));
     let resolved: Vec<_> = layer.resolve(below, apply).collect();
     assert_eq!(
         resolved,
         vec![
-            (1, Some(row(1, "old")), Some(row(1, "new"))),
-            (2, Some(row(2, "old")), None),
-            (3, None, Some(row(3, "added"))),
+            t(Some(row(1, "old")), Some(row(1, "new"))),
+            t(Some(row(2, "old")), None),
+            t(None, Some(row(3, "added"))),
         ]
     );
-    let change = Change::from_rows(resolved.into_iter().map(|(_, b, a)| (b, a)));
+    let change = Change::from_iter(resolved);
     assert_eq!(change.len(), 3);
     assert!(layer.holds(2) && !layer.holds(4));
 }
@@ -295,7 +339,9 @@ fn an_owned_key_composes_like_a_copied_one() {
     let mid: HashMap<String, i32> = HashMap::from([("b".into(), 2), ("c".into(), 1)]);
     let after: HashMap<String, i32> = HashMap::from([("c".into(), 9)]);
     let keys = || ["a", "b", "c"].map(String::from);
-    let both = Change::at(&before, &mid, keys()).then(Change::at(&mid, &after, keys()));
+    let both = Change::at(&before, &mid, keys())
+        .then(Change::at(&mid, &after, keys()))
+        .unwrap();
     assert_eq!(both, Change::at(&before, &after, keys()));
 
     let mut table = before.clone();
@@ -303,4 +349,79 @@ fn an_owned_key_composes_like_a_copied_one() {
     assert_eq!(table, after);
     both.inverse().apply_to(&mut table);
     assert_eq!(table, before);
+}
+
+#[test]
+fn field_writes_compose_with_the_later_winning() {
+    let writes = [Field::Keep, Field::Clear, Field::Set(1), Field::Set(2)];
+    for old in [None, Some(0)] {
+        for a in &writes {
+            for b in &writes {
+                let both = a.clone().then(b.clone());
+                assert_eq!(both.applied(&old), b.applied(&a.applied(&old)));
+            }
+            assert_eq!(Field::Keep.then(a.clone()), *a);
+            assert_eq!(a.clone().then(Field::Keep), *a);
+        }
+    }
+}
+
+#[test]
+fn a_transition_composes_only_from_where_the_last_one_ended() {
+    let up = Transition::new(Some(1), Some(2));
+    let on = Transition::new(Some(2), None);
+    assert_eq!(
+        up.clone().then(on.clone()),
+        Some(Transition::new(Some(1), None))
+    );
+    assert_eq!(on.clone().then(up.clone()), None);
+    assert!(up.clone().then(up.clone().inverse()).unwrap().is_identity());
+}
+
+fn table(rows: &[(u32, i32)]) -> HashMap<u32, i32> {
+    rows.iter().copied().collect()
+}
+
+#[test]
+fn changes_form_a_groupoid() {
+    let states = [
+        table(&[(1, 1), (2, 2)]),
+        table(&[(1, 5), (3, 3)]),
+        table(&[(3, 4)]),
+        table(&[(1, 1), (2, 7), (3, 4)]),
+    ];
+    let keys = [1, 2, 3];
+    let step = |i: usize, j: usize| Change::at(&states[i], &states[j], keys);
+    let (a, b, c) = (step(0, 1), step(1, 2), step(2, 3));
+
+    let left = a.clone().then(b.clone()).unwrap().then(c.clone()).unwrap();
+    let right = a.clone().then(b.clone().then(c.clone()).unwrap()).unwrap();
+    assert_eq!(left, right, "composition is associative");
+
+    let mut reached = states[0].clone();
+    left.apply_to(&mut reached);
+    assert_eq!(reached, states[3], "composing steps walks the whole way");
+
+    assert_eq!(Change::default().then(a.clone()).unwrap(), a);
+    assert_eq!(a.clone().then(Change::default()).unwrap(), a);
+    assert!(a.clone().then(a.inverse()).unwrap().is_empty());
+
+    let undone = a.clone().then(b.clone()).unwrap().inverse();
+    let mut table = states[2].clone();
+    undone.apply_to(&mut table);
+    let mut stepped = states[2].clone();
+    b.inverse()
+        .then(a.inverse())
+        .unwrap()
+        .apply_to(&mut stepped);
+    assert_eq!(
+        table, stepped,
+        "the inverse of a composite undoes it in reverse"
+    );
+    assert_eq!(table, states[0]);
+
+    assert!(
+        a.clone().then(c.clone()).is_err(),
+        "a change that does not start where the last ended does not compose"
+    );
 }

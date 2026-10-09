@@ -4,6 +4,7 @@ use crate::test_util::TempDir;
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use crate::util;
+use mma_algebra::Delta;
 use std::collections::BTreeMap;
 use std::slice;
 

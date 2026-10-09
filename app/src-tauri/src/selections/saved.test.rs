@@ -272,11 +272,7 @@ fn map_with_records() -> Store {
         .insert("tags".into(), crate::store::engine::Tracked::new(records));
     let mut row = crate::test_util::loc(1, 0.0, 0.0);
     row.tags = vec![9];
-    store.write(
-        [crate::store::engine::Edit::Set(row)],
-        &mut None,
-        Default::default(),
-    );
+    store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
     store
 }
 

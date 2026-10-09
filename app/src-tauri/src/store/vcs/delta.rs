@@ -6,13 +6,14 @@
 //! from genesis forward. `diff_states` produces the delta between two states.
 
 use crate::types::AppResult;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{params, Connection};
 
 use crate::store::engine;
 use crate::store::vcs;
 use crate::types::Location;
+use mma_algebra::Transition;
 
 /// Ordered chain of commit ids from genesis (first) to `commit_id` (last),
 /// walked via `parent_id` links.
@@ -69,25 +70,16 @@ pub(crate) fn diff_states(
     parent: &BTreeMap<u32, Location>,
     current: &[Location],
 ) -> engine::Change {
-    let current_ids: HashSet<u32> = current.iter().map(|l| l.id).collect();
-    let mut change = engine::Change::default();
-
-    for (id, ploc) in parent {
-        if !current_ids.contains(id) {
-            change.removed.push(ploc.clone());
-        }
-    }
-    for loc in current {
-        match parent.get(&loc.id) {
-            None => change.added.push(loc.clone()),
-            Some(ploc) => {
-                if ploc != loc {
-                    change.updated.push((ploc.clone(), loc.clone()));
-                }
-            }
-        }
-    }
-    change
+    let current: BTreeMap<u32, &Location> = current.iter().map(|l| (l.id, l)).collect();
+    let ids: BTreeSet<u32> = parent.keys().chain(current.keys()).copied().collect();
+    ids.into_iter()
+        .map(|id| {
+            Transition::new(
+                parent.get(&id).cloned(),
+                current.get(&id).map(|l| (*l).clone()),
+            )
+        })
+        .collect()
 }
 
 #[cfg(test)]

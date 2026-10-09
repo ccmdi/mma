@@ -78,7 +78,7 @@ pub(super) fn stage_parsed(
         .into_iter()
         .map(|mut loc| {
             loc.id = 0;
-            engine::Edit::Set(loc)
+            mma_algebra::Op::Set(loc)
         })
         .collect();
     let result = store.edit(&import_target(window), edits, false, &mut None);
@@ -310,7 +310,7 @@ pub(crate) fn add_copied_to_store(
         .into_iter()
         .map(|mut loc| {
             loc.id = 0;
-            engine::Edit::Set(loc)
+            mma_algebra::Op::Set(loc)
         })
         .collect();
     let target = engine::Target::Pending {
@@ -349,7 +349,7 @@ pub async fn store_import_file(
         } else {
             bulk_tag_ids(store, &key, &tag_names)
         };
-        let mut edits: Vec<engine::Edit> = Vec::new();
+        let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
         for loc in &rows {
             let mut patch = Patch::<Location>::default();
             patch.id = loc.id;
@@ -363,7 +363,7 @@ pub async fn store_import_file(
                 patch.zoom = Some(0.0);
             }
             if drop_set.contains("panoId") {
-                patch.pano_id = Some(None);
+                patch.pano_id = mma_algebra::Field::Clear;
                 let mut flags = loc.flags;
                 flags.remove(LocationFlags::LOAD_AS_PANO_ID);
                 patch.flags = Some(flags);
@@ -392,11 +392,11 @@ pub async fn store_import_file(
                         .map(|k| (k.clone(), Value::Null))
                         .collect();
                     if !dropped.is_empty() {
-                        patch.extra = Some(RawExtra::from_map(&dropped));
+                        patch.extra = RawExtra::from_map(&dropped).into();
                     }
                 }
             }
-            edits.push(engine::Edit::Put(patch));
+            edits.push(mma_algebra::Op::Put(patch));
         }
         if drop_set.contains("tags") {
             if let Some(p) = store.pending.get_mut(&key) {

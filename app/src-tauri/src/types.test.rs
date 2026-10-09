@@ -2,7 +2,7 @@ use super::*;
 use serde_json::value::RawValue;
 use std::collections::HashSet;
 
-type ExtraField = Option<Option<RawExtra>>;
+type ExtraField = mma_algebra::Field<RawExtra>;
 
 fn extra(json: &str) -> RawExtra {
     RawExtra::wrap(RawValue::from_string(json.to_owned()).unwrap())
@@ -85,12 +85,14 @@ fn decode_json_key_decodes_only_escapes() {
 
 #[test]
 fn human_readable_json_round_trips_transparently() {
-    let field: ExtraField = Some(Some(extra(r#"{"k":[1,2,3]}"#)));
+    let field: ExtraField = mma_algebra::Field::Set(extra(r#"{"k":[1,2,3]}"#));
     let json = serde_json::to_string(&field).unwrap();
     // Emitted inline as an object, not a quoted string.
     assert_eq!(json, r#"{"k":[1,2,3]}"#);
-    let back: ExtraField = serde_json::from_str(&json).unwrap();
-    assert_eq!(back.unwrap().unwrap().as_str(), r#"{"k":[1,2,3]}"#);
+    let mma_algebra::Field::Set(back) = serde_json::from_str::<ExtraField>(&json).unwrap() else {
+        panic!("the extra round-trips as a value");
+    };
+    assert_eq!(back.as_str(), r#"{"k":[1,2,3]}"#);
 }
 
 #[test]

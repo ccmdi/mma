@@ -7,10 +7,11 @@ use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
 use crate::selections::{neighborhood, RowRef, Selector};
-use crate::store::engine::{Edit, Store, StoreState, Target, WindowLabel};
+use crate::store::engine::{Store, StoreState, Target, WindowLabel};
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::wire_str_enum;
 use crate::types::{AppError, AppResult, Location};
+use mma_algebra::{Edit, Op};
 use mma_algebra::{Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
@@ -1007,7 +1008,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                         }
                         _ => patch.clone(),
                     };
-                    Edit::Put(patch)
+                    Op::Put(patch)
                 })
                 .collect();
             let mut group = ctx

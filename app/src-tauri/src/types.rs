@@ -85,13 +85,6 @@ pub struct Location {
 )]
 pub(crate) use {location_columns, location_fields};
 
-impl mma_algebra::Keyed for Location {
-    type Key = u32;
-    fn key(&self) -> u32 {
-        self.id
-    }
-}
-
 impl Default for Location {
     fn default() -> Self {
         Location {

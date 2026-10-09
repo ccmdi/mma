@@ -346,7 +346,7 @@ pub fn update_locations(
     record_undo: bool,
 ) -> Mutation {
     store.write(
-        updates.iter().cloned().map(Edit::Put),
+        updates.iter().cloned().map(Op::Put),
         UndoScope::entry_if(record_undo),
         Piles::new(),
     )

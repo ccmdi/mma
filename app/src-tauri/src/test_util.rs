@@ -137,13 +137,13 @@ macro_rules! patch {
     ($id:expr; $($field:ident: $value:expr),* $(,)?) => {
         mma_algebra::Patch::<crate::types::Location> {
             id: $id,
-            $($field: Some($value),)*
+            $($field: $value.into(),)*
             ..Default::default()
         }
     };
     ($($field:ident: $value:expr),* $(,)?) => {
         mma_algebra::Patch::<crate::types::Location> {
-            $($field: Some($value),)*
+            $($field: $value.into(),)*
             ..Default::default()
         }
     };

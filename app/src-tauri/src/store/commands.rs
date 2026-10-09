@@ -18,7 +18,7 @@ use crate::types::{AppError, AppResult};
 use crate::util;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
-use mma_algebra::Patch;
+use mma_algebra::{Edit, Op, Patch};
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::sync::Arc;
@@ -222,7 +222,7 @@ pub async fn store_add_locations_uploaded(
             .into_iter()
             .map(|mut l| {
                 l.id = 0;
-                Edit::Set(l)
+                Op::Set(l)
             })
             .collect();
         let result = store.edit(&Target::Map, edits, false, &mut None);
@@ -760,7 +760,7 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit rows where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit>, opts: Option<EditOpts>) -> MutationResult => |store| {
+            "Edit rows where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit<Location>>, opts: Option<EditOpts>) -> MutationResult => |store| {
                 let opts = opts.unwrap_or_default();
                 Ok(MutationResult { mutation: store.edit(&target, edits, opts.land, &mut None) })
             };

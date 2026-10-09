@@ -1093,7 +1093,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
         .map(|loc| {
             let mut tags = loc.tags.clone();
             tags.extend(bulk.iter().copied().filter(|b| !loc.tags.contains(b)));
-            engine::Edit::Put(mma_algebra::Patch::<Location> {
+            mma_algebra::Op::Put(mma_algebra::Patch::<Location> {
                 id: loc.id,
                 tags: Some(tags),
                 ..Default::default()

@@ -305,13 +305,8 @@ impl Store {
                 return;
             }
         }
-        for (lat, lng) in changes
-            .added
-            .iter()
-            .map(|l| (l.lat, l.lng))
-            .chain(changes.updated.iter().map(|(_, nw)| (nw.lat, nw.lng)))
-        {
-            acc = Some(BoundsAcc::fold(acc, lat, lng));
+        for loc in changes.after() {
+            acc = Some(BoundsAcc::fold(acc, loc.lat, loc.lng));
         }
         self.bounds.seed(At::new(self.version, acc));
     }

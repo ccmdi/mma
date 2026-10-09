@@ -17,7 +17,7 @@
 use super::*;
 use crate::selections;
 use crate::types::{AppError, AppResult};
-use mma_algebra::{Merge, Patch};
+use mma_algebra::{Merge, Op, Patch};
 use std::collections::HashMap;
 
 /// One interned value's record: just a pile of data.
@@ -74,7 +74,7 @@ fn merge_record(rec: &mut ValueRecord, mut patch: ValueRecord) {
         Some(name) => patch.insert("name".into(), name.into()),
         None => patch.remove("name"),
     };
-    *rec = Merge::merged(&Some(rec.clone()), &Some(patch)).unwrap_or_default();
+    *rec = Merge::merged(&Some(rec.clone()), &mma_algebra::Field::Set(patch)).unwrap_or_default();
 }
 
 /// Merge `source` piles into `target` by case-insensitive `name` matching: matches
@@ -401,7 +401,7 @@ impl Store {
         Ok(FieldValuesResult {
             resolved,
             mutation: self.write(
-                patches.into_iter().map(Edit::Put),
+                patches.into_iter().map(Op::Put),
                 &mut None,
                 Entry {
                     piles,

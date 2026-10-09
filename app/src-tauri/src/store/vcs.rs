@@ -268,8 +268,8 @@ fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutat
     store.pending.clear();
     let edits = current
         .into_iter()
-        .map(|row| engine::Edit::Remove(row.id))
-        .chain(locs.into_iter().map(engine::Edit::Set));
+        .map(|row| mma_algebra::Op::Remove(row.id))
+        .chain(locs.into_iter().map(mma_algebra::Op::Set));
     let mutation = store.write(
         edits,
         &mut None,

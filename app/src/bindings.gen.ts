@@ -7,7 +7,7 @@ import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, Issue
 /** Commands */
 export const commands = {
 	/** Edit rows where target says; a pending layer holds edits until land. */
-	storeEdit: (target: Target, edits: Edit[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
+	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
 	/** Drop a named pending layer and everything it holds. */
 	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/** Run work over every location matched by selector. */
@@ -688,15 +688,6 @@ export type DeviceCodeInfo = {
 	expiresIn: number,
 };
 
-/**  One keyed edit. */
-export type Edit = 
-/**  The row exactly as given; id zero adds it under a fresh id. */
-({ set: Location }) & { put?: never; remove?: never } | 
-/**  A patch written over the row it names, stamped when that changes it. */
-({ put: Partial<Location> & Pick<Location, "id"> }) & { remove?: never; set?: never } | 
-/**  The row at this id removed. */
-({ remove: number }) & { put?: never; set?: never };
-
 /**  How an edit lands. */
 export type EditOpts = {
 	/**  Fold the pending layer's edits into the map after these land in it. */
@@ -1195,6 +1186,15 @@ export type NormalizedSyncLocation = {
 
 /**  Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it. */
 export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: number };
+
+/**  An intent for the row at one key: what it becomes, a patch over it, or that it goes. */
+export type Op<T, P, K> = 
+/**  The row exactly as given. */
+({ set: T }) & { put?: never; remove?: never } | 
+/**  A patch written over the row it names. */
+({ put: P }) & { remove?: never; set?: never } | 
+/**  The row at this key removed. */
+({ remove: K }) & { put?: never; set?: never };
 
 /**  A decoded Street View panorama: flat data with no live objects. */
 export type Pano = {
