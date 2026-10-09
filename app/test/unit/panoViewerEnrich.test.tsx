@@ -10,6 +10,8 @@ import type { Location } from "@/bindings.gen";
 // itself guarantees (derived clearing, the landed rule, stale answers dropped) is pinned
 // by the store's own tests.
 const h = vi.hoisted(() => ({
+	/** Pending reverse-geocode answers, in request order. */
+	geocodes: [] as (() => void)[],
 	activeLocation: null as unknown,
 	opened: null as { id: number; origin: string; session: number } | null,
 	sessions: 0,
@@ -132,6 +134,11 @@ vi.mock("@/lib/hooks/usePano", () => {
 	const viewer = { hide: () => {} };
 	return { usePano: () => viewer };
 });
+vi.mock("@/lib/geo/reverseGeocode", () => ({
+	reverseGeocode: (lat: number, lng: number) =>
+		new Promise((resolve) => h.geocodes.push(() => resolve({ address: `${lat},${lng}` }))),
+	geocodeGoogle: () => null,
+}));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 const { PanoViewerProvider, usePanoViewer } =
@@ -176,6 +183,7 @@ const settleRun = () =>
 const puts = () => h.edits.flatMap((e) => e.edits.filter((x): x is Put => "put" in (x as object)));
 
 beforeEach(() => {
+	h.geocodes = [];
 	h.opened = null;
 	h.listeners.clear();
 	h.layer = new Map();
@@ -368,5 +376,23 @@ describe("saving lands the layer", () => {
 		await walk("pB");
 		expect(h.openRowPushes.at(-1)).toMatchObject({ panoId: "pB" });
 		m.unmount();
+	});
+
+	it("the geocode holds through a walk and starts empty on another location", async () => {
+		mountHost();
+		await open("pA");
+		await act(async () => h.geocodes.shift()?.());
+		expect(viewer.geo?.address).toBe("1,2");
+
+		await walk("pB");
+		expect(viewer.geo?.address).toBe("1,2");
+		await act(async () => h.geocodes.pop()?.());
+		expect(viewer.geo?.address).toBe("5,6");
+
+		await act(async () => {
+			h.activeLocation = { ...location(), id: 8, lat: 9, lng: 9 };
+			refresh();
+		});
+		expect(viewer.geo).toBeNull();
 	});
 });

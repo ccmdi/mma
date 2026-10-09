@@ -24,7 +24,7 @@ import { usePano } from "@/lib/hooks/usePano";
 import type { LatLng } from "@/types";
 import type { Location, Pano } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
+import { useAsyncSticky } from "@/lib/hooks/useAsync";
 import { geocodeGoogle, reverseGeocode, type GeoDisplay } from "@/lib/geo/reverseGeocode";
 import { panosAt, svMetadata } from "@/lib/sv/query";
 import { allUnofficial, mergeTimelines } from "@/lib/sv/panoId";
@@ -200,14 +200,15 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const defaultPano = onScreen?.defaultPano ?? null;
 
 	const geocodeProvider = useSetting("geocodeProvider");
-	const lookup = useAsync(
+	const looked = useAsyncSticky(
 		() =>
 			location && geocodeProvider !== "google" ? reverseGeocode(location.lat, location.lng) : null,
 		[location?.lat, location?.lng, geocodeProvider],
+		location?.id ?? null,
 	);
 	const geo = useMemo(
-		() => (geocodeProvider === "google" ? geocodeGoogle(currentPano) : lookup.data),
-		[geocodeProvider, currentPano, lookup.data],
+		() => (geocodeProvider === "google" ? geocodeGoogle(currentPano) : looked),
+		[geocodeProvider, currentPano, looked],
 	);
 
 	// One run per pano the draft shows. Answers land in the layer in Rust, clearing what
