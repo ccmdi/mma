@@ -1027,8 +1027,12 @@
 	"Rename in selection ({n} locations)": {
 		"other": "選択内で名前を変更（{n} 地点）"
 	},
+	"Rename tags": "タグの名前を変更",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"other": "{n} 件の地点で {from} を {to} に変更します。この操作は取り消せません。"
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"other": "{tags} 個のタグをすべてで名前変更（{n} 地点）"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"other": "{tags} 個のタグを選択内で名前変更（{n} 地点）"

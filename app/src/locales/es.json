@@ -1093,10 +1093,16 @@
 		"many": "Renombrar en la selección ({n} ubicaciones)",
 		"other": "Renombrar en la selección ({n} ubicaciones)"
 	},
+	"Rename tags": "Renombrar etiquetas",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Renombrar {from} como {to} en {n} ubicación. Esta acción no se puede deshacer.",
 		"many": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer.",
 		"other": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer."
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"one": "Renombrar {tags} etiquetas en todo ({n} ubicación)",
+		"many": "Renombrar {tags} etiquetas en todo ({n} ubicaciones)",
+		"other": "Renombrar {tags} etiquetas en todo ({n} ubicaciones)"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"one": "Renombrar {tags} etiquetas en la selección ({n} ubicación)",

@@ -1027,8 +1027,12 @@
 	"Rename in selection ({n} locations)": {
 		"other": "在选择中重命名（{n} 个位置）"
 	},
+	"Rename tags": "重命名标签",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"other": "将 {from} 重命名为 {to}，影响 {n} 个位置。此操作无法撤销。"
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"other": "在全部中重命名 {tags} 个标签（{n} 个位置）"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"other": "在选择中重命名 {tags} 个标签（{n} 个位置）"

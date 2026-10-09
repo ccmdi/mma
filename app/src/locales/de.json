@@ -1060,9 +1060,14 @@
 		"one": "In Auswahl umbenennen ({n} Standort)",
 		"other": "In Auswahl umbenennen ({n} Standorte)"
 	},
+	"Rename tags": "Tags umbenennen",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "{from} an {n} Standort in {to} umbenennen. Das kann nicht rückgängig gemacht werden.",
 		"other": "{from} an {n} Standorten in {to} umbenennen. Das kann nicht rückgängig gemacht werden."
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"one": "{tags} Tags überall umbenennen ({n} Standort)",
+		"other": "{tags} Tags überall umbenennen ({n} Standorte)"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"one": "{tags} Tags in Auswahl umbenennen ({n} Standort)",

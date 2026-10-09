@@ -1093,10 +1093,16 @@
 		"many": "Renommer dans la sélection ({n} lieux)",
 		"other": "Renommer dans la sélection ({n} lieux)"
 	},
+	"Rename tags": "Renommer les tags",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Renommer {from} en {to} sur {n} lieu. Cette action est irréversible.",
 		"many": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible.",
 		"other": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible."
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"one": "Renommer {tags} tags partout ({n} lieu)",
+		"many": "Renommer {tags} tags partout ({n} lieux)",
+		"other": "Renommer {tags} tags partout ({n} lieux)"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"one": "Renommer {tags} tags dans la sélection ({n} lieu)",

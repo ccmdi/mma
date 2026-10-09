@@ -1126,11 +1126,18 @@
 		"many": "Zmień nazwę w zaznaczeniu ({n} lokalizacji)",
 		"other": "Zmień nazwę w zaznaczeniu ({n} lokalizacji)"
 	},
+	"Rename tags": "Zmień nazwy tagów",
 	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
 		"one": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć.",
 		"few": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"many": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
 		"other": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć."
+	},
+	"Rename {tags} tags in all ({n} locations)": {
+		"one": "Zmień nazwę wszędzie (tagów: {tags}, {n} lokalizacja)",
+		"few": "Zmień nazwę wszędzie (tagów: {tags}, {n} lokalizacje)",
+		"many": "Zmień nazwę wszędzie (tagów: {tags}, {n} lokalizacji)",
+		"other": "Zmień nazwę wszędzie (tagów: {tags}, {n} lokalizacji)"
 	},
 	"Rename {tags} tags in selection ({n} locations)": {
 		"one": "Zmień nazwę w zaznaczeniu (tagów: {tags}, {n} lokalizacja)",
