@@ -232,7 +232,7 @@ impl Store {
                 field_values: Some(field_values),
                 field_defs: Some(self.meta.extra.fields.clone()),
                 selection_counts: Some(self.selections.node_counts.clone()),
-                selection_list: Some(self.selection_list()),
+                selection_list: Some(self.selections.list()),
             },
         }
     }
@@ -345,15 +345,7 @@ impl Store {
         let frame = Frame {
             kind: FrameKind::PATCH,
             version: self.version,
-            palette: self
-                .selections
-                .live()
-                .map(|root| {
-                    root.sel.display_color(&|field, id| {
-                        self.value_record(field, id).and_then(record_color)
-                    })
-                })
-                .collect(),
+            palette: self.selections.palette(),
             cells: Frame::cells_of(cells),
             selection: restated.then(|| self.selection_section()),
         };
@@ -368,7 +360,7 @@ impl Store {
             selection_counts: (has_selections || selections_replaced)
                 .then(|| self.selections.node_counts.clone()),
             selection_list: (selections_replaced || piles.values().any(|delta| !delta.is_empty()))
-                .then(|| self.selection_list()),
+                .then(|| self.selections.list()),
             ..Default::default()
         };
         if self.alive_count.ship() {

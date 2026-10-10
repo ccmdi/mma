@@ -85,6 +85,32 @@ pub struct ListedSelection {
 
 impl Store {
     pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
+        let pruned = self.pruned_selections(entry);
+        let colors: HashMap<(&str, u32), [u8; 3]> = entry
+            .piles
+            .iter()
+            .flat_map(|(field, pile)| {
+                pile.after()
+                    .filter_map(move |(id, rec)| Some(((field.as_str(), *id), record_color(rec)?)))
+            })
+            .collect();
+        if colors.is_empty() {
+            return pruned;
+        }
+        self.selections.change(&pruned, |rows| {
+            rows.into_iter()
+                .map(|row| ListedSelection {
+                    selection: row
+                        .selection
+                        .recolored(&|field, id| colors.get(&(field, id)).copied()),
+                    ..row
+                })
+                .collect()
+        })
+    }
+
+    /// The selections a write leaves standing: one naming a value the write emptied goes.
+    fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
         let fields: Vec<_> = selections::BUILTIN_FIELDS
             .iter()
             .filter(|field| field.interned)
@@ -120,11 +146,6 @@ impl Store {
                 Some(selector.clone())
             }
         })
-    }
-
-    pub(crate) fn selection_list(&self) -> Vec<ListedSelection> {
-        self.selections
-            .present(&|field, id| self.value_record(field, id).and_then(record_color))
     }
 
     /// Full selection membership resolve: recomputes every member set, the union, and the
@@ -176,17 +197,9 @@ impl SelectionState {
             .collect()
     }
 
-    pub(crate) fn present(
-        &self,
-        color: &impl Fn(&str, u32) -> Option<[u8; 3]>,
-    ) -> Vec<ListedSelection> {
-        self.resolved
-            .iter()
-            .map(|root| ListedSelection {
-                selection: root.sel.present(color),
-                ghosted: root.ghosted,
-            })
-            .collect()
+    /// Each live selection's colour, in the order frames index it.
+    pub(crate) fn palette(&self) -> Vec<[u8; 3]> {
+        self.live().map(|r| r.sel.color).collect()
     }
 
     pub(crate) fn table(&self) -> HashMap<String, (u32, ListedSelection)> {
@@ -319,7 +332,21 @@ impl Store {
         &mut self,
         op: &crate::selections::tree::SelectionOp,
     ) -> MutationResult {
-        self.replace_selections(op.apply(&self.selections.list()))
+        let before = self.selections.table();
+        let rows = op
+            .apply(&self.selections.list())
+            .into_iter()
+            .map(|row| match before.contains_key(&row.selection.key) {
+                true => row,
+                false => ListedSelection {
+                    selection: row.selection.recolored(&|field, id| {
+                        self.value_record(field, id).and_then(record_color)
+                    }),
+                    ..row
+                },
+            })
+            .collect();
+        self.replace_selections(rows)
     }
 
     pub(crate) fn valid_selections(&mut self, rows: Vec<ListedSelection>) -> Vec<ListedSelection> {

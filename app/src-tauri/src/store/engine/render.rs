@@ -309,15 +309,7 @@ impl Store {
         let frame = Frame {
             kind: FrameKind::REPLACE,
             version: self.version,
-            palette: self
-                .selections
-                .live()
-                .map(|root| {
-                    root.sel.display_color(&|field, id| {
-                        self.value_record(field, id).and_then(record_color)
-                    })
-                })
-                .collect(),
+            palette: self.selections.palette(),
             cells: Frame::cells_of(cells),
             selection: None,
         };

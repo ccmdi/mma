@@ -335,7 +335,7 @@ impl Selection {
         next
     }
 
-    pub fn display_color(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> [u8; 3] {
+    fn named_value_color(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> [u8; 3] {
         let inner = match &self.selector {
             Selector::Invert { selections } => selections.first().unwrap_or(self),
             _ => self,
@@ -347,10 +347,11 @@ impl Selection {
             .unwrap_or(self.color)
     }
 
-    pub fn present(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> Self {
+    /// Every node that names one value takes that value's colour, where `color` has one.
+    pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> Self {
         self.fold(&mut |node, children| Self {
             key: node.key.clone(),
-            color: node.display_color(color),
+            color: node.named_value_color(color),
             selector: node.selector.with_children_ref(children),
         })
     }
