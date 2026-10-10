@@ -1,5 +1,4 @@
-//! Editor import: preview a parsed file, stage its rows as a pending layer over the open
-//! map, then land them on confirm.
+//! Preview and stage editor imports, then apply them to the open map on confirmation.
 
 use super::*;
 use crate::store::engine;
@@ -35,7 +34,7 @@ pub struct FieldCount {
 #[serde(rename_all = "camelCase")]
 pub struct EditorImportPreview {
     pub location_count: u32,
-    /// The file's tag piles, for the preview's tag list; ids are not meaningful yet.
+    /// Tag records from the file, shown in the preview before map-local ids are assigned.
     #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
     pub tags: Vec<ValueRecord>,
     pub fields: Vec<FieldCount>,
@@ -64,8 +63,8 @@ pub(super) fn import_layer(window: &str) -> String {
     format!("import:{window}")
 }
 
-/// Stage `parsed` as `window`'s import layer: rows take real ids, the file's tag piles
-/// ride the layer, and everything lands on confirm or drops on cancel.
+/// Stage rows and tag records in this window's import layer.
+/// Confirm applies them to the map; cancel discards them.
 pub(super) fn stage_parsed(
     store: &mut engine::Store,
     window: &str,
@@ -88,9 +87,7 @@ pub(super) fn stage_parsed(
     result.added.first().copied()
 }
 
-/// Write interleaved LE f32 `[lng, lat]` for every location to a temp file.
-/// Build preview stats from a parsed map and cache the parse for commit by `window`.
-/// Single pass: field counts, positions buffer, and bounds are computed together.
+/// Build preview field counts, bounds, and a temp file of interleaved LE f32 `[lng, lat]` positions.
 pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<EditorImportPreview> {
     let n = parsed.locations.len();
     let (mut h, mut p, mut z, mut pano_c, mut tag_c) = (0u32, 0u32, 0u32, 0u32, 0u32);
@@ -290,9 +287,7 @@ pub struct EditorImportResult {
     pub auto_commit: bool,
 }
 
-/// Insert pre-deduped copied locations (cross-map copy) through the same path
-/// as editor import: a pending layer landing with the source tag defs `locations`
-/// reference, so tag reconcile, id alloc, field defs and the undo entry are its.
+/// Copy pre-deduplicated locations through the import path, with tag reconciliation and undo.
 pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
     locations: Vec<Location>,
@@ -420,8 +415,7 @@ pub async fn store_import_file(
     })
 }
 
-/// Intern `names` into `window`'s import layer as held tag piles, answering the
-/// provisional ids the staged rows reference them by.
+/// Create tag records in the import layer and return their provisional ids.
 pub(super) fn bulk_tag_ids(store: &mut engine::Store, key: &str, names: &[String]) -> Vec<u32> {
     let Some(p) = store.pending.get_mut(key) else {
         return Vec::new();

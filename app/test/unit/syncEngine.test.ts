@@ -2,10 +2,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { SyncReconcileResult } from "@/bindings.gen";
 
-// The whole merge - push, pull landed as one undo step, tags interned, mapping rows -
-// runs in Rust; these tests pin what the thin apply step still owns: guarding the open
-// map, applying the landed change to this window, surfacing removals, and advancing the
-// link. The landing itself is pinned by the store's own tests.
+// Rust applies sync changes. These tests cover map guards, waiting for the change feed,
+// and updating the link after completion.
 const h = vi.hoisted(() => ({
 	mapId: "map-a" as string | null,
 	reconciles: [] as unknown[][],

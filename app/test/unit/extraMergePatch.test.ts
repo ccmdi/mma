@@ -1,10 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// Pins the extra-write invariants: `LocationPatch.extra` is a JSON Merge Patch
-// (RFC 7386) — writers ship only the keys they touch and the store composes them
-// against the authoritative base, so concurrent writers can never clobber each
-// other's keys (the enrich-batch vs exact-date-hook race). applyPatch is
-// the JS mirror of Rust's overlay_update and must agree with it.
+// updateLocations sends only changed extra keys, leaving the store to merge them.
 
 type UpdateCall = { id: number; extra?: Record<string, unknown> | null }[];
 const wire = vi.hoisted(() => ({

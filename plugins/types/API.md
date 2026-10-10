@@ -639,8 +639,7 @@ this, never the contents of a result.
 Stack: { readonly Undo: "undo"; readonly Redo: "redo" }
 ```
 
-Which way through the edit history: back over what was done, or forward over what
-was undone.
+Which edit history stack to step through.
 
 ### SYNC_PROVIDERS
 
@@ -743,9 +742,7 @@ objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
 applySelectionUpdate(op: SelectionOp): Promise<void>
 ```
 
-Apply `op` to the listed selections and have the store hold and resolve the result: the
-one way the selection changes. Lift an op over the active selections alone with
-`onActive`. No-op when nothing changed.
+Update and resolve the listed selections. Use `onActive` to affect only active selections.
 
 ### checkoutCommit
 
@@ -755,7 +752,7 @@ one way the selection changes. Lift an op over the active selections alone with
 checkoutCommit(commitId: string): Promise<void>
 ```
 
-Restore the map to a previous commit's state and reopen it. Clears undo/redo.
+Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
 
 ### closeDuplicates
 
@@ -806,8 +803,8 @@ in one undoable step.
 deleteTags(tagIds: number[]): Promise<WorkResult>
 ```
 
-Strip `tagIds` from every location in one undoable step. The emptied records go dark
-(count 0 hides them); undo restores the rows and the tags with them.
+Remove tags from every location in one undoable step.
+Unreferenced tags are hidden; undo restores them.
 
 ### discardOpenMap
 
@@ -888,10 +885,8 @@ Per-tag location counts, keyed by numeric id.
 getTags(): Record<number, Tag>
 ```
 
-The tag view: each value's record dressed as a tag. A tag is visible exactly while
-something carries it (count > 0); a value present in data without a record (foreign
-import) shows under a derived name/color; an emptied record lingers dark until its
-name is reused.
+Tag records with visibility based on location references.
+Missing metadata uses a generated name and colour.
 
 ### getVisibleTags
 
@@ -968,8 +963,7 @@ Open a map in this window, closing any currently open map first.
 openStagedLocation(index: number): Promise<void>
 ```
 
-Open a staged-import location, as if it were active: the viewer previews a copy, and
-the staged row itself stays in the import layer until Confirm lands it.
+Preview a copy of a staged-import location. The import row stays staged until Confirm.
 
 ### previewDuplicateGroups
 
@@ -1001,7 +995,7 @@ query(
   selector: Selector,
   target?: Target,
 ): {
-  /** The resolved ids, in map order. */
+  /** Resolved ids in ascending order, or a ranked selector's order. */
   ids: () => Promise<number[]>;
   /** How many locations resolve. */
   count: () => Promise<number>;
@@ -1021,10 +1015,8 @@ query(
   /** Group by a derived key. Numeric bins arrive in bound order; other keys are
    *  sorted naturally. */
   partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-  /** Every matching location as a full row; missing ids are skipped.
-   *
-   *  Every row lands in memory, so an unscoped call on a large map is expensive.
-   *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+  /** Full matching locations, skipping missing ids. All results are loaded into memory;
+   *  use narrower selectors or projections for large maps. */
   locations: () => Promise<Location[]>;
 }
 ```
@@ -1045,8 +1037,7 @@ read<K extends Answer["kind"]>(
 ): Promise<AnswerOf<K>>
 ```
 
-The one read: `ask` a question of the rows `selector` resolves to. Answers once,
-against the map as it is now.
+Query matching rows against the map's current state.
 
 ### redo
 
@@ -1132,7 +1123,7 @@ Undo the last selection change without undoing data edits.
 rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
 ```
 
-Full rows out of a rows answer, fetched from disk when they were many.
+Unpack a row query, fetching large results from its temp file.
 
 ### select
 
@@ -1185,8 +1176,7 @@ Replace the open map's row in state; persisting it is the caller's.
 setOpenRow(row: Location | null, session: number): void
 ```
 
-The open row as the viewer's layer last read it, dropped unless `session` is still open.
-The layer is the single writer; everything else only looks.
+Set the open row if `session` is still current.
 
 ### setPluginMode
 
@@ -1278,8 +1268,7 @@ memoized values, not a new value per call.
 VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
 ```
 
-The viewer's own pending layer: its edits read over the map's rows as they are now,
-and nothing reaches the map until a save lands them.
+The viewer's pending edits, applied to the map only on Save.
 
 ## Registry
 
@@ -3192,7 +3181,7 @@ The pending layer holding this window's staged import rows.
 resetImportState(): void
 ```
 
-Discard the staged import, freeing its parse.
+Discard the staged import and its pending layer.
 
 ## CommitDiff
 
@@ -5144,8 +5133,7 @@ Record a panorama visit. The history is capped; oldest entries are evicted when 
 cmd.storeSetDerived(edges: { [key in string]: string[] }): Promise<null>
 ```
 
-Declare which fields are computed from which: each input field and the fields derived
-from it. A write that changes an input clears what was derived from it.
+Register field dependencies. Changing an input clears fields derived from it.
 
 #### cmd.storeSetMapDefaults
 
@@ -5186,8 +5174,7 @@ Undo the newest edit, or redo the newest undone one.
 cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
 ```
 
-Hear every change to the open map's rows: `changes` receives the ids each landed
-change created, deleted and rewrote, whatever caused it.
+Subscribe to map changes, including the ids of added, removed, and updated rows.
 
 #### cmd.storeSubscribeFrames
 
@@ -5238,9 +5225,8 @@ cmd.storeUpdateMapMeta(
 ): Promise<null>
 ```
 
-Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
-map's store takes the update and saves it with the map; its tags change only through
-their values.
+Patch map metadata, leaving omitted fields unchanged.
+Open maps save through their store; tag records are edited separately.
 
 #### cmd.storeUploadAbort
 
@@ -5475,14 +5461,8 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
+invoke: any
 ```
-
-Sends a message to the backend.
 
 ### shell
 

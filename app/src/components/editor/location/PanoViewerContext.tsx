@@ -36,26 +36,22 @@ import { onFullscreenMapChanged, onLocationCleared } from "./fullscreenModeState
 import { useEvent } from "@/lib/events";
 
 interface PanoViewerContextValue {
-	/** The location as a save would write it: the viewer's layer row. Moves as the user
-	 *  walks; nothing here reaches the map until Save, and Close drops it. Null until open. */
+	/** The viewer's draft, or null before opening. Save applies it to the map; Close discards it. */
 	draft: Location | null;
-	/** The location's pano is resolved and showing: `resolved` is the pano the open landed
-	 *  on, which an unpinned location does not store. */
+	/** Start a viewer draft for the location and its resolved pano. */
 	open: (location: Location, resolved: string | null) => void;
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
-	/** Land the draft with `patch` written over it: one undo step, with enrichment still
-	 *  in flight following it there. The map row's id once landed, or null with no draft. */
+	/** Save the draft with `patch` as one undo step. Pending enrichment joins that step.
+	 * Returns the saved row id, or null if there is no draft. */
 	land: (patch: Partial<Location>) => Promise<number | null>;
-	/** The draft's pano as Google describes it, for what the UI shows off the pano itself
-	 *  rather than off the draft; null until it lands. */
+	/** Metadata for the draft's pano, or null while loading. */
 	currentPano: Pano | null;
-	/** The captures the date picker can offer at the draft's pano; null until it lands. */
+	/** Available captures for the date picker, or null while loading. */
 	timeline: Pano["time"] | null;
 	/** The pano Google resolves for the draft's position: what "Default" means there. */
 	defaultPano: Pano | null;
-	/** The geocoder's answer for the location's position (the google provider answers from
-	 *  the pano on screen); null until it lands. */
+	/** Geocoded position, or null while loading. Google uses the pano on screen. */
 	geo: GeoDisplay | null;
 	/** The draft's enrichment is still in flight. */
 	enriching: boolean;
@@ -84,7 +80,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const pano = usePano();
 	const [enriching, setEnriching] = useState(false);
 	const session = useRef<ViewerSession | null>(null);
-	// Layer calls land in order, so a walk's edit can never pass the open that seeds it.
+	// Serialize layer calls so draft edits cannot run before initialization.
 	const chain = useRef<Promise<unknown>>(Promise.resolve());
 	const queue = useCallback(
 		<T,>(fn: () => Promise<T>, owner = getMapState().open?.session): Promise<T | null> => {
@@ -211,9 +207,8 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		[geocodeProvider, currentPano, looked],
 	);
 
-	// One run per pano the draft shows. Answers land in the layer in Rust, clearing what
-	// the pano move invalidated and, once the draft is saved, following it onto the map
-	// row in the save's undo step; a run's stale answers are dropped at delivery.
+	// Enrich once per pano. Results update the draft or its saved row;
+	// stale results are discarded by the store.
 	useEffect(() => {
 		const h = currentSession();
 		if (!h || !draft || !getMapState().map?.settings.enrichMetadata) return;

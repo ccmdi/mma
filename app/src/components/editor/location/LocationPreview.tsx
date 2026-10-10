@@ -222,8 +222,8 @@ export function LocationPreview() {
 			return;
 		}
 
-		// The draft as it stands, never waiting on enrichment: answers still in flight
-		// follow it onto the saved row, in the save's undo step. The camera is read live.
+		// Save with the live camera. Pending enrichment joins the saved row
+		// and its undo step when it finishes.
 		await land({
 			...pano.captureView(),
 			tags: await mapEdit.values("tags", { create: pendingTags.map((name) => ({ name })) }),

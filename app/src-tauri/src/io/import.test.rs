@@ -995,14 +995,8 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
         .all(|c| c.remove.is_empty() && c.patch.len() == 0));
 }
 
-// -----------------------------------------------------------------------
-// Cross-map copy producer (add_copied_to_store): the core of the open-target
-// branch of store_copy_locations_to_map. The cross-window event ships exactly
-// this Mutation for the receiving window's mutate(), so it must carry the
-// copied locations with allocated ids, name-reconciled tags, and bumped counts.
-// (The open-target branch is two-window-only, unreachable from a single webview,
-// so this is its sole regression guard. e2e covers the closed-target branch.)
-// -----------------------------------------------------------------------
+// Cross-map copy into an open target: reconcile tags and publish counts on the change feed.
+// The closed-target path is covered by e2e tests.
 
 #[test]
 fn copied_locations_reconcile_tags_and_report_counts() {
@@ -1054,14 +1048,14 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     assert!(two_tag.tags.contains(&5));
     assert!(two_tag.tags.contains(&unique_id));
 
-    // Counts in the result match membership: Shared on both copies, Unique on one.
+    // The change feed reports Shared on both copies and Unique on one.
     assert_eq!(shipped_count(&event.derived, "tags", "5"), Some(2));
     assert_eq!(
         shipped_count(&event.derived, "tags", &unique_id.to_string()),
         Some(1)
     );
 
-    // The reconciled metadata ships on the same result (the receiver renders from it).
+    // The same event includes the reconciled tag metadata.
     assert!(shipped_record(&event.derived, "tags", unique_id).is_some());
 }
 

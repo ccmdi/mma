@@ -35,7 +35,7 @@ export function importTarget(): Target {
 	return { kind: "pending", name: `import:${getCurrentWebviewWindow().label}` };
 }
 
-/** Discard the staged import, freeing its parse. */
+/** Discard the staged import and its pending layer. */
 export function resetImportState() {
 	importState = EMPTY_IMPORT;
 	void cmd.storeImportCancel().catch((e: unknown) => log.error("[import] cancel failed:", e));

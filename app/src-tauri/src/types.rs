@@ -331,8 +331,7 @@ wire_enum! {
     }
 }
 
-/// A bitflags set Rust owns. Docs are captured once here and travel with the value to
-/// the wire.
+/// Define flag values and documentation for Rust and TypeScript.
 macro_rules! wire_bitflags {
     (
         $(#[doc = $doc:literal])*

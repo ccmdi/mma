@@ -127,7 +127,7 @@ export function registerProvider(provider: Provider) {
 	}
 }
 
-/** Tell the store which fields are computed from which, as the providers now declare. */
+/** Register provider field dependencies with the store. */
 function declareComputedFrom() {
 	const edges: Record<string, string[]> = {};
 	for (const p of providers) {

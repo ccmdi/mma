@@ -1,6 +1,5 @@
-/** Saved selection rules: portable named rules that persist across maps. A rule stores a
- *  `Selector` tree plus the tag names its `Tag` leaves carried at save time, so it can
- *  re-resolve against whatever map is open. */
+/** Saved selection rules shared across maps. Tag membership is stored by name
+ * so rules can be applied on maps with different tag ids. */
 
 import type { Selector } from "@/types";
 import type { SavedSelection, SavedSelectionInfo, Selection, SelectionInput } from "@/bindings.gen";

@@ -41,7 +41,7 @@ import { selection, tagSelector, onActive, setSelections } from "./selections";
 
 // --- Map state ---
 
-/** The engine-owned mirror: the derived state Rust ships, with every field required. */
+/** The full local mirror of the store's derived state. */
 type EngineState = {
 	[K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 };
@@ -68,9 +68,9 @@ export type OpenOrigin = "map" | "seen" | "import";
 export interface Open {
 	id: number;
 	origin: OpenOrigin;
-	/** Which opening this is: opening the same location again starts a new session. */
+	/** Identifies this editor session, even when reopening the same location. */
 	session: number;
-	/** The row as the viewer's layer last read it; null until the first read lands. */
+	/** The last row read from the viewer's layer, or null while loading. */
 	row: Location | null;
 }
 
@@ -113,8 +113,8 @@ function setState(patch: Partial<MapState>) {
 	emitEvent("store:changed");
 }
 
-/** Merge the derived state Rust shipped (JSON merge patch: null = unchanged).
- *  `fieldValues` merges per value: a present value replaces its entry, a null one is gone. */
+/** Merge derived updates: null fields stay unchanged.
+ * Within `fieldValues`, null removes a value; other entries replace it. */
 function mergeDerived(v: Derived) {
 	const { fieldValues, meta, ...rest } = v;
 	if (meta && state.map) state = { ...state, map: { ...state.map, ...meta } };
@@ -141,10 +141,8 @@ export const getTagCounts: () => Record<number, number> = memoOnRefs(
 		Object.fromEntries(Object.entries(values).map(([k, v]) => [Number(k), v?.count ?? 0])),
 );
 
-/** The tag view: each value's record dressed as a tag. A tag is visible exactly while
- *  something carries it (count > 0); a value present in data without a record (foreign
- *  import) shows under a derived name/color; an emptied record lingers dark until its
- *  name is reused. */
+/** Tag records with visibility based on location references.
+ * Missing metadata uses a generated name and colour. */
 export const getTags: () => Record<number, Tag> = memoOnRefs(
 	() => [state.fieldValues["tags"] ?? NO_VALUES] as const,
 	(values) => {
@@ -225,14 +223,14 @@ function clearEditState() {
 	resetCommitDiffState();
 }
 
-/** Every (re)open: the meta identity slice, then the open-time engine full picture. */
+/** Initialize map metadata and derived state on each open. */
 function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 	feedVersion = status.version;
 	setState({ map: meta });
 	mergeDerived(status.derived);
 }
 
-/** Hear the store's change feed for this window's map and republish it locally. */
+/** Republish this window's map change feed as local events. */
 async function subscribeChanges() {
 	const ch = new Channel<ChangeEvent>();
 	ch.onmessage = applyChange;
@@ -300,8 +298,7 @@ export function discardOpenMap() {
 
 type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
 
-/** The one read: `ask` a question of the rows `selector` resolves to. Answers once,
- *  against the map as it is now. */
+/** Query matching rows against the map's current state. */
 export async function read<K extends Answer["kind"]>(
 	selector: Selector,
 	ask: Ask,
@@ -313,7 +310,7 @@ export async function read<K extends Answer["kind"]>(
 	return answer as AnswerOf<K>;
 }
 
-/** Full rows out of a rows answer, fetched from disk when they were many. */
+/** Unpack a row query, fetching large results from its temp file. */
 export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]> {
 	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
 }
@@ -322,7 +319,7 @@ export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]
  *  against the map as it is now; ask again after a change. */
 export function query(selector: Selector, target: Target = MAP) {
 	return {
-		/** The resolved ids, in map order. */
+		/** Resolved ids in ascending order, or a ranked selector's order. */
 		ids: async (): Promise<number[]> => (await read(selector, { kind: "ids" }, "ids", target)).ids,
 		/** How many locations resolve. */
 		count: async (): Promise<number> =>
@@ -360,10 +357,8 @@ export function query(selector: Selector, target: Target = MAP) {
 			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 			return groups;
 		},
-		/** Every matching location as a full row; missing ids are skipped.
-		 *
-		 *  Every row lands in memory, so an unscoped call on a large map is expensive.
-		 *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+		/** Full matching locations, skipping missing ids. All results are loaded into memory;
+		 *  use narrower selectors or projections for large maps. */
 		locations: async (): Promise<Location[]> =>
 			rowsOf((await read(selector, { kind: "rows" }, "rows", target)).rows),
 	};
@@ -412,12 +407,10 @@ function applyChange(e: ChangeEvent) {
 
 const MAP: Target = { kind: "map" };
 
-/** The viewer's own pending layer: its edits read over the map's rows as they are now,
- *  and nothing reaches the map until a save lands them. */
+/** The viewer's pending edits, applied to the map only on Save. */
 export const VIEWER = { kind: "pending", name: "viewer" } as const satisfies Target;
 
-/** The open row as the viewer's layer last read it, dropped unless `session` is still open.
- *  The layer is the single writer; everything else only looks. */
+/** Set the open row if `session` is still current. */
 export function setOpenRow(row: Location | null, session: number) {
 	if (state.open?.session !== session) return;
 	setState({ open: { ...state.open, row } });
@@ -441,9 +434,7 @@ export async function mutate<R extends MutationResult = MutationResult>(
 	return r;
 }
 
-/** Locations per staged chunk. A serialized Location averages ~250 bytes, so a chunk is a
- *  ~1MB POST body: small enough that peak JS memory stays flat at any batch size, large
- *  enough that the per-chunk round trip disappears into the parse. */
+/** Upload chunk size, targeting roughly 1 MB of JSON per request. */
 const ADD_CHUNK = 5000;
 
 /** Stage `locs` as chunked JSON in an upload session, then commit them in one mutation.
@@ -534,9 +525,7 @@ export async function deleteField(key: string) {
 
 // --- Selections ---
 
-/** Apply `op` to the listed selections and have the store hold and resolve the result: the
- *  one way the selection changes. Lift an op over the active selections alone with
- *  `onActive`. No-op when nothing changed. @unstable */
+/** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
 export async function applySelectionUpdate(op: import("@/bindings.gen").SelectionOp) {
 	await updateSelections(() => cmd.storeEditSelections(op));
 }
@@ -584,8 +573,7 @@ export async function previewDuplicateGroups(distance: number): Promise<number[]
 	return groups;
 }
 
-/** Seed the viewer's layer with a copy of `loc` and open it from `origin`: the preview's
- *  edits live in the layer and are dropped on close, never the source. */
+/** Open a copy of `loc` in the viewer's layer. Closing discards draft edits. */
 async function openPreview(loc: Location, origin: OpenOrigin) {
 	await cmd.storeDrop(VIEWER.name);
 	const r = await cmd.storeEdit(VIEWER, [{ set: { ...loc, id: 0 } }], null);
@@ -598,8 +586,7 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 	emitEvent("active:change", null);
 }
 
-/** Open a staged-import location, as if it were active: the viewer previews a copy, and
- *  the staged row itself stays in the import layer until Confirm lands it. @unstable */
+/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
 export async function openStagedLocation(index: number) {
 	const first = getImportStaging()?.preview.firstId;
 	if (first == null) return;
@@ -729,8 +716,8 @@ export function exitPluginMode() {
 
 // --- Tags ---
 
-/** Strip `tagIds` from every location in one undoable step. The emptied records go dark
- *  (count 0 hides them); undo restores the rows and the tags with them. */
+/** Remove tags from every location in one undoable step.
+ * Unreferenced tags are hidden; undo restores them. */
 export function deleteTags(tagIds: number[]) {
 	return edit.work(
 		{ type: "Union", selections: tagIds.map((id) => selection(tagSelector(id))) },
@@ -787,7 +774,7 @@ export async function commitMap(message?: string): Promise<string> {
 	return r.id;
 }
 
-/** Restore the map to a previous commit's state and reopen it. Clears undo/redo. @unstable */
+/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
 export async function checkoutCommit(commitId: string) {
 	if (!state.mapId) return;
 	await autosave.flush();

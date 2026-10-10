@@ -21,11 +21,8 @@ export interface ReconcileOptions {
 	resolutions?: ReadonlyMap<IdentityKey, "local" | "remote">;
 }
 
-/**
- * One reconcile pass for a linked, open map. The whole merge runs in Rust: push, the pull
- * half landed as one undo step with its tags interned and its mapping rows written beside
- * it. This applies the landed change to this window and advances the link.
- */
+/** Sync a linked, open map. Rust applies the merge; wait for the local change feed
+ * before updating the link's sync timestamp. */
 export async function reconcile(
 	provider: SyncProvider,
 	store: SyncStore,
@@ -46,8 +43,8 @@ export async function reconcile(
 		opts.resolutions ? [...opts.resolutions.entries()] : null,
 	);
 
-	// The merge is already settled in the store either way; an abort or unlink that landed
-	// while it ran only stops this window's apply and keeps the pass out of the history.
+	// Rust has already applied the merge. Abort or unlink stops completion reporting,
+	// without rolling back those changes.
 	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
 	if (!store.getLink()) throw new Error("map was unlinked during sync");
 

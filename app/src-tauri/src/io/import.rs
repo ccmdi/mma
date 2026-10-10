@@ -245,10 +245,6 @@ pub async fn bulk_import_cancel() -> AppResult<()> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------
-// Single-file import into open map (editor import)
-// ---------------------------------------------------------------------------
-
 #[cfg(test)]
 #[allow(clippy::print_stdout, clippy::print_stderr)]
 #[path = "import.test.rs"]

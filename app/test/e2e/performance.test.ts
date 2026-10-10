@@ -616,8 +616,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	await compositeCase("select-union", "union");
 	await compositeCase("select-invert", "invert");
 
-	// The "edit while a large selection is active" path: one add re-syncs the
-	// affected cell but scans the whole selection overlay.
+	// Add a row while a large selection is active, including its render update.
 	await bench("edit-while-selected", scale, {
 		setup: async () => {
 			await unwind(mapId, sceneFloor);

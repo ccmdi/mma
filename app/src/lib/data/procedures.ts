@@ -149,8 +149,7 @@ export interface ProviderPart {
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
-	/** Run at this target instead of the map: its held rows are the run's rows, and
-	 *  answers land in it. */
+	/** Read rows and write results at this target instead of the map. */
 	on?: Target;
 	/** `done`/`total` reflect the slowest provider. `parts` carries each labeled
 	 *  provider's own counts, ordered as declared. */

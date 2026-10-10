@@ -2469,17 +2469,9 @@ fn bound_label_matches_js_fmt() {
     assert_eq!(bound_label(-500.0, 0.0), "-500–0");
 }
 
-// -----------------------------------------------------------------------
-// Property-based oracle tests for resolve / resolve / resolve_forest.
-//
-// The oracle is a naive HashSet-based evaluator over an explicit alive-id
-// snapshot (id -> effective tags), built to mirror LocView's overlay rules:
-// dead batch rows are excluded, a patch's tags win over the batch row's, and
-// adds carry their own tags untouched. Composite semantics are copied
-// verbatim from resolve: Intersection([]) = empty (not universe), Union
-// = fold with |, Invert uses only its FIRST child (extra children ignored
-// for the set, only for resolve_forest's per-node counts).
-// -----------------------------------------------------------------------
+// Property-based selection tests against a simple HashSet oracle.
+// The oracle accounts for overlay adds, patches, and removals. Empty intersections
+// select nothing; Invert uses its first child, while node counts include every child.
 
 use proptest::prelude::*;
 

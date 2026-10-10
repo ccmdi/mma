@@ -1,21 +1,10 @@
-//! QuickJS procedure host. Loads a plugin-authored ES module bundle and drives it
-//! through the `Procedure` shapes. No provider logic lives here.
+//! QuickJS host for bundled procedure modules.
+//! `map` computes results; `run` can call external services; optional `query` handles read-only requests.
+//! Rows and results cross the boundary as JSON. Host calls use the synchronous global `mma` object;
+//! pass a list to batch requests. External calls are available only in `run` and `query`.
 //!
-//! The module's named exports are the entry points: `map` (Map) or `run` (Run).
-//! `query` is a second optional export outside the shapes. Each entry point receives its
-//! run configuration as a trailing argument. The boundary is JSON: a batch arrives as
-//! `JSON.parse`d rows and every entry point answers with plain JS values.
-//!
-//! Host services live on a global `mma` object: `fetch`, `panos`, `classify`, `sidecar`,
-//! `log`, `progress`, `fail`, `aborted`. They are synchronous -- the guest blocks while
-//! the host works, which is how a procedure gets request width out of handing `fetch` a
-//! list. `fetch`, `panos` and `sidecar` reach outside the process, so they are limited to
-//! `run` and `query`; the rest are open to `map` as well.
-//!
-//! The `mma` natives have to be `'static` while the host is only borrowed for one
-//! call, so the guest runs on a scoped thread and the natives reach the host over a
-//! channel serviced by the calling thread. That loop is also where `host.aborted()`
-//! is polled, so a guest that never yields can still be interrupted.
+//! The guest runs on a scoped thread, with host calls handled over a channel.
+//! The calling thread checks cancellation even when the guest does not yield.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

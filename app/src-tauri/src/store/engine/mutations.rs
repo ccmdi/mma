@@ -19,15 +19,14 @@ use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-/// What one write did to the rows. The render frame, the indexes, the selection sync and
-/// undo all read it, and undo writes its inverse.
+/// A reversible row change shared by rendering, indexes, selections, and undo.
 pub type Change = mma_algebra::Change<Location>;
 
-/// How an edit lands.
+/// Options for applying an edit.
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct EditOpts {
-    /// Fold the pending layer's edits into the map after these land in it.
+    /// Apply the pending layer to the map after these edits.
     #[specta(optional)]
     pub land: bool,
 }
@@ -41,8 +40,7 @@ pub struct Derived {
     pub location_count: Option<usize>,
     pub meta: Option<Patch<maps::MapMeta>>,
     pub history: Option<HashMap<EntryKey, History>>,
-    /// Each value that moved, keyed by field then by value; `null` where the value is
-    /// gone: no record and no row holding it.
+    /// Changed values, keyed by field and value. Null removes a value with no record or rows.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
     /// The whole extra-field registry, when the map's row changed.
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
@@ -65,7 +63,7 @@ impl Derived {
     }
 }
 
-/// Whether there is an edit to step through each way.
+/// Whether undo and redo are available.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Default, specta::Type)]
 pub struct History {
     /// An edit can be undone.
@@ -77,15 +75,14 @@ pub struct History {
 /// One value of a field as the map holds it.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 pub struct HeldValue {
-    /// The value's record, for a field that interns its values; an opaque pile.
+    /// Optional metadata for an interned value.
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
     pub record: Option<ValueRecord>,
     /// How many rows hold the value.
     pub count: usize,
 }
 
-/// What one change did to the open map: its version, and the caller's own added rows.
-/// Everything else a change moved arrives on the change feed.
+/// The mutation's version and newly allocated ids. Other updates arrive on the change feed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Mutation {
@@ -100,8 +97,7 @@ pub struct MutationResult {
     pub mutation: Mutation,
 }
 
-/// One landed change as every watching window hears it: the change by key, and the
-/// state it moved.
+/// A map change broadcast to subscribers, with affected ids and derived state.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeEvent {
@@ -110,19 +106,18 @@ pub struct ChangeEvent {
     /// The change itself, by key.
     #[serde(flatten)]
     pub keys: Keys<u32>,
-    /// State this change moved; an untouched field is absent.
+    /// Changed derived state. Null fields are unchanged.
     pub derived: Derived,
 }
 
-/// Where an edit lands or a row is read: the map's rows, or a named layer of pending
-/// edits held over them.
+/// Read or edit map rows directly, or through a named pending layer.
 #[derive(serde::Deserialize, serde::Serialize, specta::Type, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Target {
     /// The map's rows.
     Map,
-    /// The named layer of pending edits over the map, made on first use. Its edits read
-    /// over the map's rows as they are now, and land when an edit says so.
+    /// A pending layer, created on first use. Reads include current underlying map data;
+    /// edits reach the map when the layer is applied.
     Pending { name: String },
 }
 
@@ -131,8 +126,7 @@ pub enum Target {
 pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
     pub(crate) landed: Option<u64>,
-    /// Value records the held rows reference, by field: the piles an import arrived
-    /// with, reconciled into the map's records when the rows land.
+    /// Incoming value records to reconcile when the pending rows are applied to the map.
     pub(crate) incoming: HashMap<String, Vec<(u32, ValueRecord)>>,
 }
 
@@ -146,10 +140,8 @@ pub enum StoreWarning {
 }
 
 impl Store {
-    /// The only way rows, records and definitions change: each edit resolved against the
-    /// row it touches, put with the rest of `entry`, projected, and recorded for undo.
-    /// `join` names the step a run joins while it is still the newest, and is pointed at
-    /// the step this write recorded.
+    /// Apply a complete edit, update derived state, and record it for undo.
+    /// `join` tracks the newest undo step for grouping later batches.
     pub(crate) fn write(
         &mut self,
         edits: impl IntoIterator<Item = Edit<Location>>,
@@ -192,11 +184,8 @@ impl Store {
         self.finish_entry(&entry)
     }
 
-    /// The one edit: whole rows added, flat patches written, ids removed, where `target`
-    /// says. Edits at an unlanded pending layer are held there until one says `land`;
-    /// edits at a landed layer write through and join its step while it is the newest.
-    /// `join` is a run's tracker: the step recorded here is written back for the next
-    /// batch to join while it is still the newest.
+    /// Add, patch, or remove rows at `target`. Pending edits stay staged until `land`.
+    /// After landing, later edits write through and join that undo step while it remains newest.
     pub(crate) fn edit(
         &mut self,
         target: &Target,
@@ -312,7 +301,7 @@ impl Store {
         self.pending.remove(name);
     }
 
-    /// The result of an edit a pending layer held: nothing on the map moved.
+    /// Result for a staged edit that did not change the map.
     fn held(&self, added: Vec<u32>) -> Mutation {
         Mutation {
             version: self.version,
@@ -320,7 +309,7 @@ impl Store {
         }
     }
 
-    /// Make the store hold every row, record and definition as `entry` leaves them.
+    /// Apply row, value-record, and field-definition changes to the store.
     pub(crate) fn put_entry(&mut self, entry: &Entry) {
         for (old, new) in &entry.meta.updated {
             self.meta
@@ -338,7 +327,7 @@ impl Store {
         }
     }
 
-    /// Make the store hold every row as `change` leaves it.
+    /// Apply row changes to the store.
     pub(crate) fn put(&mut self, change: &Change) {
         if change.is_empty() {
             return;
@@ -347,8 +336,7 @@ impl Store {
         self.overlay_add(change.after().cloned().collect());
     }
 
-    /// Record `entry` for undo: folded into the step `join` names while that is still the
-    /// newest, else a step of its own.
+    /// Join the newest undo step named by `join`, or record a new step.
     fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
         if entry.rows.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
             if entry.keys().eq([EntryKey::Selections]) {
@@ -386,7 +374,7 @@ wire_str_enum! {
     }
 }
 
-/// Work the store runs over the selected rows to derive their edits.
+/// Operations over selected rows.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(untagged)]
 pub enum Work {
@@ -394,7 +382,7 @@ pub enum Work {
     Sets(SetOp),
 }
 
-/// Work that derives each selected row's edit from that row alone.
+/// Operations computed independently for each selected row.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum RowOp {
@@ -407,8 +395,8 @@ pub enum RowOp {
     },
     /// Drop `keys` from every row that has them.
     Delete { keys: Vec<String> },
-    /// Assign `value` to `key` on every row where it differs. A writable built-in key
-    /// (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+    /// Assign a value to a writable field on each row. Builtins update their stored
+    /// fields; other keys update `extra`.
     Set {
         key: String,
         #[specta(type = specta_typescript::Unknown)]
@@ -417,11 +405,8 @@ pub enum RowOp {
     /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
     /// missing or non-numeric field, a non-finite result) is reported back by id.
     Expr { key: String, expr: String },
-    /// Add `add` and strip `remove` from a list-valued field, per row. The only op that
-    /// reads the row's current value as a set rather than replacing it, which is what
-    /// membership needs: `tags` is this op's first caller, `array` extras its second.
-    /// `add` wins for a value named in both lists, and a row already in the requested
-    /// state keeps its member order.
+    /// Add and remove list members. `add` wins if a value appears in both lists.
+    /// Rows already in the requested state keep their member order.
     ListSet {
         key: String,
         #[specta(type = Vec<specta_typescript::Unknown>)]
@@ -495,7 +480,7 @@ enum Prepared<'o> {
     },
 }
 
-/// Work that derives its edits from the selected rows as a set.
+/// Operations computed over the selected rows as a group.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
@@ -527,7 +512,7 @@ pub(super) struct WorkPlan {
     pub(super) failed: Vec<u32>,
 }
 
-/// The work's outcome for the caller: the mutation plus what its message needs.
+/// The mutation and operation-specific results.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkResult {
@@ -557,8 +542,7 @@ pub(super) fn row_patch(id: u32) -> Patch<Location> {
     }
 }
 
-/// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
-/// nothing, so the edit list is the changed set. Pure.
+/// Compute patches for rows changed by `op`, without applying them.
 pub(super) fn plan_fields(
     fields: FieldRegistry<'_>,
     scope: &selections::Scope,
@@ -705,7 +689,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
     })
 }
 
-/// Run `work` over the selected rows in one pass, deriving and landing their edits.
+/// Compute and apply edits for `work` over selected rows.
 pub(crate) fn apply_work(
     store: &mut Store,
     selector: &Selector,
@@ -763,8 +747,8 @@ pub(crate) fn apply_work(
     })
 }
 
-/// What a field move or delete does to the definitions: a move target without one takes
-/// the source's, and a key no row still holds after `edits` loses its own.
+/// Update definitions after a move or delete. A new target inherits the source definition;
+/// fields no longer held by any row lose their definitions.
 fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit<Location>]) -> DefsDelta {
     let (vacated, into) = match op {
         RowOp::Move { from, to, .. } if from != to && !to.is_empty() => {
@@ -843,11 +827,9 @@ pub(crate) fn split_new_locations(
     (fresh, skipped)
 }
 
-/// Fold a duplicate group into one survivor, picked by [`selections::better`]. Interned
-/// lists are set-unioned; `extra` is merged with the survivor winning key conflicts; all other
-/// survivor fields are kept. `members` must be non-empty. The returned survivor keeps
-/// its original id (so callers represent the merge as an update of the survivor plus
-/// removal of the rest).
+/// Merge a non-empty duplicate group into its best-scored survivor.
+/// Union interned lists and merge `extra`, with the survivor winning conflicts.
+/// Keep the survivor's id and other fields.
 pub(crate) fn merge_group(
     fields: FieldRegistry<'_>,
     members: &[Location],

@@ -16,11 +16,9 @@ registerPlugin({
     });
 
     // Read/write location extra fields
-    // const loc = MMA.getMapState().activeLocation;
+    // const loc = MMA.getMapState().open?.row;
     // if (loc) {
-    //   MMA.updateLocation(loc, {
-    //     extra: { ...loc.extra, myField: "hello from plugin" },
-    //   });
+    //   MMA.updateLocations([{ id: loc.id, extra: { myField: "hello from plugin" } }]);
     // }
 
     // Spawn a subprocess
@@ -30,9 +28,6 @@ registerPlugin({
 
     // File dialogs
     // const path = await MMA.dialog.open({ filters: [{ name: "JSON", extensions: ["json"] }] });
-
-    // Raw Tauri IPC
-    // const locs = await MMA.invoke("store_get_all_locations");
 
     // Cleanup — called on deactivate
     return () => {

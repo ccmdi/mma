@@ -141,10 +141,7 @@ export const Sink = {
 } as const;
 export type Sink = (typeof Sink)[keyof typeof Sink];
 
-/**
- * Which way through the edit history: back over what was done, or forward over what
- * was undone.
- */
+/** Which edit history stack to step through. */
 export const Stack = {
 	/** The edits that can be undone. */
 	Undo: "undo",

@@ -68,11 +68,8 @@ pub(crate) struct LocationAggregates {
     pub(crate) bounds: Option<BoundsAcc>,
 }
 
-/// Incremental bounding-box accumulator. Tracks latitude min/max plus longitude
-/// min/max in *two* framings - raw `[-180,180]` and shifted `[0,360)` - so
-/// `resolve` can pick the tighter longitude span and emit an antimeridian-crossing
-/// box (`west > east`) when the data straddles 180Â°. Every field is a plain
-/// min/max, so it grows in O(1) per point with no sort - the cache stays cheap.
+/// Incremental bounds using two longitude ranges to choose the shorter span.
+/// Antimeridian-crossing boxes use `west > east`.
 #[derive(Clone, Copy)]
 pub(crate) struct BoundsAcc {
     s: f64,
@@ -124,10 +121,7 @@ impl BoundsAcc {
         }
     }
 
-    /// `[west, south, east, north]`, choosing whichever longitude framing is
-    /// tighter. The shifted framing winning means the box crosses 180Â°, which
-    /// maps back to `west > east` - the form Google/deck `fitBounds` zooms to the
-    /// short way.
+    /// Return `[west, south, east, north]` using the shorter longitude span.
     pub(crate) fn resolve(self) -> [f64; 4] {
         if self.es - self.ws < self.e - self.w {
             let unshift = |v: f64| if v >= 180.0 { v - 360.0 } else { v };
@@ -202,10 +196,8 @@ impl Store {
         self.rows().get(id).map(|row| (row.lat(), row.lng()))
     }
 
-    /// Materialize the selected location set (`Everything` = every alive location).
-    /// A named id list binary-searches each (marker click, enrich refetch ship a handful)
-    /// and keeps the caller's order and duplicates; every other selector is one scan,
-    /// sorted and deduped by the bitmap. O(N) time and space.
+    /// Read matching rows. Explicit map ids preserve request order and duplicates;
+    /// other reads return unique rows sorted by id.
     pub(crate) fn collect(&mut self, target: &Target, selector: &Selector) -> Vec<Location> {
         if let (Target::Map, Selector::Locations { locations, .. }) = (target, selector) {
             return locations
@@ -283,11 +275,8 @@ impl Store {
         Ensured::<At<Option<BoundsAcc>>>::with(self, |b, _| b.value().map(BoundsAcc::resolve))
     }
 
-    /// Carry the bounds from `before` to the current version when this mutation can only
-    /// have grown the box (added / updated-new positions, O(changed)). A removal, or an
-    /// update whose OLD position sat on an edge, can shrink it, which needs the next
-    /// extreme point: the bounds are left at `before` and the next read rescans.
-    /// `removed` carries ids only (no coords), so any removal is conservative.
+    /// Update cached bounds if the change can only grow them.
+    /// Removals or updates at an old edge invalidate the cache for the next read.
     pub(super) fn update_bounds(&mut self, changes: &Change, before: u64) {
         let Some(at) = self.bounds.if_built_mut().filter(|b| b.current(before)) else {
             return;
@@ -487,16 +476,15 @@ fn rows_answer(map_id: &str, locations: Vec<Location>) -> AppResult<Rows> {
     })
 }
 
-/// A rotating slot per rows-file query: the file is fetched after the store lock is
-/// released, so two concurrent row reads must not share one path -- while the slot
-/// cycle keeps stale files bounded and self-overwriting like a fixed path.
+/// Rotate temp-file slots to avoid collisions between concurrent row reads
+/// and limit leftover files.
 pub(crate) fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path::PathBuf {
     static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))
 }
 
-/// The question a read answers about the selected rows.
+/// A query over selected rows.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -561,7 +549,7 @@ impl Ask {
     }
 }
 
-/// What a read answers with; the arm follows from the ask.
+/// The result of a row query.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",

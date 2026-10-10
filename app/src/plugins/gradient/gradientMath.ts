@@ -34,18 +34,10 @@ export function fieldScale(value: string, type: string | undefined): number | nu
 	return value.trim() !== "" && Number.isFinite(n) ? n : null;
 }
 
-// Color a partition's groups along the ramp and turn each into a selection — the
-// gradient sink over the shared `partition()` kernel.
-//
-// Coloring: numeric range bins color by ordinal position (`ordinal`). Categorical groups
-// color proportionally when every key has a numeric scale (e.g. months, numeric strings),
-// else by even spacing.
-//
-// SelectionInput shape:
-//   - unscoped numeric bin  -> live Filter `between` (re-evaluates against the whole map)
-//   - unscoped value group  -> live Filter `eq`
-//   - everything else       -> static Locations (projections can't be expressed as a Filter;
-//                              narrowed groups are inherently a fixed id subset)
+// Colour partition groups along the ramp: numeric bins use ordinal position;
+// numeric categories use their scale; other categories are evenly spaced.
+// Whole-map bins and values become live filters; scoped or projected groups use fixed ids.
+
 export function colorPartition(
 	groups: PartitionBucket[],
 	opts: {

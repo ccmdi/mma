@@ -14,7 +14,7 @@ import * as autosave from "./autosave";
 
 const NO_WORK: WorkResult = { mutation: { version: 0, added: [] }, changed: 0, failed: [] };
 
-/** Land `edits` where `target` says, in one undoable step. @unstable */
+/** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
 export function rows(
 	target: Target,
 	edits: Parameters<typeof cmd.storeEdit>[1],
@@ -35,8 +35,8 @@ export async function meta(
 	await invalidateMapList();
 }
 
-/** Create, patch, or reorder an interned field's value records in one undoable step,
- *  answering the id each `create` seed resolved to, in order. */
+/** Create, patch, or reorder value records in one undoable step.
+ * Returns resolved ids for `create`, in request order. */
 export async function values(field: string, patch: FieldValuesPatch): Promise<number[]> {
 	if (!patch.create?.length && !patch.update?.length && !patch.reorder) return [];
 	let ids: number[] = [];

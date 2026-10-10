@@ -4,9 +4,8 @@ import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecord
 import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
 
-/** Sole feeder of the seen ledger: stages an entry for each pano the viewer walks to,
- *  patches it when the geocode answer lands, flushes it when the location closes. The
- *  location's stored countryCode outranks the geocoder's. */
+/** Record viewed panos, add geocoding when ready, and flush on close.
+ *  The location's stored countryCode takes precedence over geocoding. */
 export function useSeenFeed() {
 	const location = useMapState((s) => s.open?.row ?? null);
 	const origin = useMapState((s) => s.open?.origin);

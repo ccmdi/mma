@@ -88,9 +88,7 @@ async function getDateCount(): Promise<number> {
 /** Read a location from Rust by numeric ID. */
 const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
-// ============================================================================
 // Tests
-// ============================================================================
 
 describe("LocationPreview — basics", () => {
 	useMap("E2E LP Basics", { closeLocation: true });
@@ -143,8 +141,6 @@ describe("LocationPreview — basics", () => {
 		expect(fetched).toBeNull();
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — official pano", () => {
 	useMap("E2E LP Official", { closeLocation: true });
@@ -283,8 +279,6 @@ describe("LocationPreview — official pano", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — unofficial pano", () => {
 	useMap("E2E LP Unofficial", { closeLocation: true });
 	let unoff1Id: number;
@@ -343,8 +337,6 @@ describe("LocationPreview — unofficial pano", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — trekker pano", () => {
 	useMap("E2E LP Trekker", { closeLocation: true });
 	let trek1Id: number;
@@ -389,8 +381,6 @@ describe("LocationPreview — trekker pano", () => {
 		expect(await getDateCount()).toBeGreaterThan(0);
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — dead pano (fallback)", () => {
 	useMap("E2E LP Dead Pano", { closeLocation: true });
@@ -439,8 +429,6 @@ describe("LocationPreview — dead pano (fallback)", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — coord-only location (no panoId)", () => {
 	useMap("E2E LP Coord Only", { closeLocation: true });
 	let coord1Id: number;
@@ -471,8 +459,6 @@ describe("LocationPreview — coord-only location (no panoId)", () => {
 		expect(saved.lng).not.toBe(0);
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — switching between pano types", () => {
 	useMap("E2E LP Switching", { closeLocation: true });
@@ -548,8 +534,6 @@ describe("LocationPreview — switching between pano types", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — location with tags", () => {
 	useMap("E2E LP Tags", { closeLocation: true });
 	let tagRedId: number;
@@ -596,8 +580,6 @@ describe("LocationPreview — location with tags", () => {
 		expect(saved.tags).toContain(tagBlueId);
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — exact date resolution", () => {
 	useMap("E2E LP Exact Date", { closeLocation: true });
@@ -697,8 +679,6 @@ describe("LocationPreview — exact date resolution", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — save captures full pano state", () => {
 	useMap("E2E LP Save State", { closeLocation: true });
 	let saveFullId: number;
@@ -737,8 +717,6 @@ describe("LocationPreview — save captures full pano state", () => {
 		expect(typeof saved.zoom).toBe("number");
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — return to spawn", () => {
 	useMap("E2E LP Return Spawn", { closeLocation: true });
@@ -784,8 +762,6 @@ describe("LocationPreview — return to spawn", () => {
 		expect(text).toContain("Default");
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — next/prev date hotkeys", () => {
 	useMap("E2E LP Date Hotkeys", { closeLocation: true });
@@ -847,8 +823,6 @@ describe("LocationPreview — next/prev date hotkeys", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — duplicate location", () => {
 	useMap("E2E LP Duplicate", { closeLocation: true });
 	let dupSrcId: number;
@@ -903,8 +877,6 @@ describe("LocationPreview — duplicate location", () => {
 		expect(dup!.lng).toBe(src!.lng);
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — tag management in preview", () => {
 	useMap("E2E LP Tag Mgmt", { closeLocation: true });
@@ -1024,8 +996,6 @@ describe("LocationPreview — tag management in preview", () => {
 	});
 });
 
-// ============================================================================
-
 describe("LocationPreview — camera type badges", () => {
 	let mapId: string;
 	let badgeOfficialId: number;
@@ -1114,8 +1084,6 @@ describe("LocationPreview — camera type badges", () => {
 		);
 	});
 });
-
-// ============================================================================
 
 const EXACT_ENRICH_FIELDS = [
 	"altitude",
@@ -1322,8 +1290,6 @@ describe("LocationPreview — settings toggles", () => {
 		});
 	});
 });
-
-// ============================================================================
 
 describe("LocationPreview — edge cases", () => {
 	useMap("E2E LP Edge Cases", { closeLocation: true });

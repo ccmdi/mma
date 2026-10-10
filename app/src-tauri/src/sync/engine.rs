@@ -1,13 +1,6 @@
-//! The reconcile pass: composes keying + diff + the provider seam into one pure plan, then
-//! executes the push and rewrites the mapping. One pass end to end, EXCEPT pull application:
-//! pulls are returned as instructions for the JS side to apply (it owns store-mutation events
-//! and undo).
-//!
-//! Three layers:
-//!  - [`plan`]: pure, IO-free, fully testable. Everything the sync settled to.
-//!  - [`execute`]: drives the provider push and writes rows through a [`MappingSink`].
-//!  - [`sync_reconcile`]: the tauri command; thin glue that snapshots local state, builds the
-//!    provider, and runs plan+execute off the async thread.
+//! Reconcile local and remote maps.
+//! `plan` computes changes and conflicts; `execute` pushes remote changes and updates mappings.
+//! The command also applies pulls locally as one undoable edit.
 
 use crate::types::wire_str_enum;
 use std::collections::{HashMap, HashSet};
@@ -67,8 +60,7 @@ pub struct PullUpdate {
     pub hash: String,
 }
 
-/// Everything the reconcile settled to: the pull half is applied locally before the wire
-/// result leaves. Every array is empty on an unchanged map.
+/// Planned pull changes. The command applies them before returning to the caller.
 #[derive(Clone, Debug)]
 pub struct ReconcileOutcome {
     pub pushed: SideCounts,
@@ -82,8 +74,7 @@ pub struct ReconcileOutcome {
     pub mirror_local_delete_ids: Vec<u32>,
 }
 
-/// What a reconcile answers: both sides' counts, the conflicts held for the user, and the
-/// local change the pull half landed.
+/// Sync counts, unresolved conflicts, and the locally applied pull mutation.
 #[derive(Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SyncReconcileResult {
@@ -112,7 +103,7 @@ pub(crate) struct ReconcileInput<'a, P: SyncProvider> {
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
 
-/// The full outcome of planning. Public fields are the IPC result; the rest drive [`execute`].
+/// Planned pushes, pulls, conflicts, and mapping updates.
 pub(crate) struct PlannedReconcile<R> {
     pub counts_push: SideCounts,
     pub counts_pull: SideCounts,
@@ -858,9 +849,8 @@ pub async fn sync_reconcile(
     })
 }
 
-/// The pull half landed locally: creates, updates and deletes as one undo step, with the
-/// incoming tags riding the layer as piles and interning as the rows fold in. Answers the
-/// change and the created rows' mapping.
+/// Apply pulled rows and reconcile their tags as one undoable edit.
+/// Return the mutation and mappings for newly created rows.
 fn apply_pull(
     store: &mut crate::store::engine::Store,
     out: &ReconcileOutcome,

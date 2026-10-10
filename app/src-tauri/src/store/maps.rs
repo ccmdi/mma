@@ -584,8 +584,7 @@ pub struct MapMeta {
     pub score_bounds: ScoreBounds,
     #[field(json, decode = "MapExtra::from_json", default = "'{}'")]
     pub extra: MapExtra,
-    /// The map's tag value records (opaque piles keyed by id-as-string), an open-time
-    /// snapshot of the `maps.tags` column. JS coerces them to its tag view.
+    /// Tag records keyed by id, loaded from `maps.tags` when opening the map.
     #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
     #[serde(
         serialize_with = "crate::io::records::encode",
@@ -643,7 +642,7 @@ pub async fn store_list_maps(state: tauri::State<'_, StoreState>) -> AppResult<V
     Ok(rows.into_iter().map(|row| live_row(&mgr, row)).collect())
 }
 
-/// `row` as the store holding its map open has it, when one does.
+/// Use current metadata from the open store when available.
 fn live_row(mgr: &StoreManager, row: MapMeta) -> MapMeta {
     match mgr.stores.get(&row.id) {
         Some(store) => row.patched(&store.meta_patch()),
@@ -846,9 +845,8 @@ pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppR
     Ok(())
 }
 
-/// Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
-/// map's store takes the update and saves it with the map; its tags change only through
-/// their values.
+/// Patch map metadata, leaving omitted fields unchanged.
+/// Open maps save through their store; tag records are edited separately.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]

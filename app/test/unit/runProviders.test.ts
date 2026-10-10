@@ -925,9 +925,7 @@ describe("provider dependency declarations propagate requires through a chain", 
 	});
 });
 
-// --- Streaming (rows run) ------------------------------------------------------------
-
-// --- Concurrent provider progress independence ---------------------------------------
+// Concurrent provider progress independence
 
 describe("concurrent providers report progress independently", () => {
 	const fast: Provider = {

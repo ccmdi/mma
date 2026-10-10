@@ -1,14 +1,8 @@
 /**
- * The surface a procedure module runs against: the global `mma` object and the values
- * that cross the boundary. Every host call is synchronous -- the guest blocks while the
- * host works, which is how handing `fetch` a list (never a loop of single fetches) buys a
- * procedure its request concurrency.
- *
- * A procedure is an ES module bundled to one file. Its named exports are the entry
- * points: `map` (pure compute, no effectful calls) or `run`, plus the optional `query`.
- * Every entry point receives the run's `{ fields, force, config }` as its last argument.
- * Rows arrive as `Location`s and `run`/`map` answer with `Patch<Location>`s under
- * the `patch` sink, or `Update<T>` of the module's own answer under `collect`.
+ * The global `mma` API available inside procedure modules. Calls are synchronous;
+ * pass request lists for concurrency. `map` and `run` receive location rows;
+ * `query` handles read-only requests. Each entry point receives `{ fields, force, config }`.
+ * Results are location patches under `patch`, or module-defined answers under `collect`.
  */
 
 import type { PanoAnswer, PanoQuery } from "@/bindings.gen";
@@ -40,19 +34,13 @@ export interface ProcedureHost {
 	 *  rest survive. */
 	fetch(req: ProcedureRequest): ProcedureResponse;
 	fetch(reqs: ProcedureRequest[]): ProcedureResponse[];
-	/** Every query resolved to its pano, aligned to `queries`: an id query over
-	 *  GetMetadata (deduped, batched, bisection-retried), a search query over
-	 *  SingleImageSearch. `skipped` is a query the host never answered: an aborted run,
-	 *  or an id query whose id is empty. */
+	/** Resolve pano ids or coordinate searches, returning answers in input order.
+	 *  `skipped` means the run was aborted or the requested id was empty. */
 	panos(queries: PanoQuery[]): PanoAnswer[];
 	classify(dataset: string, lat: number, lng: number): string | null;
-	/** Locations within `radiusM` metres of a coordinate, nearest first, each carrying
-	 *  whichever of `fields` it had. The host builds one index per (radius, fields) pair
-	 *  and holds it for the run, so asking once per row is the intended use; varying
-	 *  either argument mid-run rebuilds it. A location at the exact coordinate is
-	 *  included, so a caller probing its own row drops itself by id, and a radius of 0
-	 *  answers exactly that coordinate. Only a run has locations to search; a query that
-	 *  asks throws. */
+	/** Nearby run locations, nearest first, with the requested fields when present.
+	 *  Includes the queried row itself; radius 0 matches exact coordinates.
+	 *  Keep radius and fields constant to reuse the index. Unavailable in queries. */
 	neighbors(lat: number, lng: number, radiusM: number, fields?: string[]): ProcedureNeighbor[];
 	/** Run one sidecar command. `onLine` sees each output line as it arrives, so a
 	 *  procedure can report progress mid-run; the lines are also returned together. */

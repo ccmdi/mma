@@ -548,7 +548,7 @@ struct BuiltIndex {
 pub(crate) struct RunCtx<'a> {
     pub state: &'a StoreState,
     pub map_id: String,
-    /// Where the run reads its rows and lands its answers.
+    /// Where the run reads rows and writes results.
     pub target: Target,
     pub run_id: u32,
     pub force: bool,
@@ -1015,8 +1015,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 .undo_group
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
-            // An edit a layer held reaches no window, so each row it now holds rides the
-            // result stream instead, as the provider left it.
+            // Pending edits emit no map change event, so stream the updated rows to the caller.
             let held = match &ctx.target {
                 Target::Pending { name } => {
                     store.pending.get(name).is_none_or(|p| p.landed.is_none())
@@ -1054,10 +1053,9 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
     Ok(())
 }
 
-/// Gathers batch products by page and delivers each page as it completes. Whatever has
-/// completed of a page when the queue closes (a cancel) is delivered too: an applied batch
-/// is never thrown away.
-// The receiver rides into the applier thread, so it is owned even though only `recv` is called.
+/// Deliver results as each page completes. On cancellation, keep completed batches
+/// from partially finished pages too.
+// Own the receiver so it can move into the applier thread.
 #[allow(clippy::needless_pass_by_value)]
 fn apply_pages(ctx: &RunCtx, decl: &ProviderDecl, rx: mpsc::Receiver<Produced>) -> AppResult<()> {
     #[derive(Default)]
@@ -1215,8 +1213,7 @@ fn config_json(fields: &[String], force: bool, config: Option<&str>) -> String {
 /// sink: a `Patch` provider yields store updates, a `Collect` provider yields answers.
 #[derive(Default)]
 struct PageOutput {
-    /// Each patch beside the row its procedure read, when that row was materialized:
-    /// delivery keeps only what still applies to the row as it is then.
+    /// Patches paired with the rows they were computed from, so delivery can discard stale fields.
     updates: Vec<(Option<Location>, Patch<Location>)>,
     entries: Vec<ResultEntry>,
     /// Rows the procedure failed, plus every row of a batch whose call failed.
@@ -1445,7 +1442,7 @@ impl ProcHost for QueryHost {
         self.session.fetch(&self.endpoint, 1, reqs)
     }
 
-    /// Search answers stream out the moment each lands, under its query index.
+    /// Stream each pano answer as it arrives, keyed by query index.
     fn panos(&mut self, queries: &[PanoQuery]) -> Vec<PanoAnswer> {
         let partials = self.partials.as_deref();
         pano::resolve_panos(&self.session, queries, &mut |i, answer| {

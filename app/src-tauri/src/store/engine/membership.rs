@@ -109,7 +109,7 @@ impl Store {
         })
     }
 
-    /// The selections a write leaves standing: one naming a value the write emptied goes.
+    /// Remove selections naming values that this write emptied.
     fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
         let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
         let gone: HashSet<_> = self
@@ -144,8 +144,7 @@ impl Store {
         })
     }
 
-    /// Full selection membership resolve: recomputes every member set, the union, and the
-    /// per-node counts from scratch. O(S * N). Does NOT build the bitmask.
+    /// Recompute selection membership and per-node counts. Render bitmasks are built separately.
     pub(crate) fn resolve_selection_membership(&mut self) {
         let sels: Vec<Selection> = self
             .selections
@@ -254,15 +253,11 @@ impl SelectionState {
         self.ids = self.live_ids();
     }
 
-    /// Update selection membership sets for incremental changes (adds/removes/updates).
-    /// Returns the ids whose paint changed - including moves between overlapping
-    /// selections, where union membership never flips but the winning colour does - so the
-    /// render frame can state their new selection state.
+    /// Update membership for changed rows and return ids whose selection colour changed.
+    /// This includes moves between overlapping selections.
     pub(super) fn update(&mut self, changes: &Change<Location>) -> HashSet<u32> {
         let drop_ids: HashSet<u32> = changes.before().map(|l| l.id).collect();
-        // Paint before the mutation, snapshotted while the sets still reflect it. Paint is
-        // the compared fact - not union membership - because a row that moves between
-        // overlapping selections changes colour without ever leaving the union.
+        // Compare selection colours, since overlap can change a row's colour without deselecting it.
         let mut prev_paint: HashMap<u32, Option<u32>> = HashMap::new();
         if !drop_ids.is_empty() {
             for id in &drop_ids {

@@ -3,9 +3,7 @@ import { useSettings, getSettings, panoDisplayOptions } from "@/store/settings";
 import { usePano, usePanoEvent } from "@/lib/hooks/usePano";
 import { sendHideCar } from "./PanoControls";
 
-/** Keeps the pano presentable: display options follow settings, the car and
- *  crosshair overlays follow theirs, and its persistent div lives in whichever
- *  container element is mounted. Returns the ref that container takes. */
+/** Apply pano display settings and overlays, and attach the persistent viewer to its container. */
 export function usePanoDisplay(panoContainerRef: RefObject<HTMLDivElement | null>) {
 	const appSettings = useSettings();
 	const pano = usePano();

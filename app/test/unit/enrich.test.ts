@@ -1,8 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-// enrich.add pulls in Tauri/store/SV modules at import; stub the ones the single-location
-// path doesn't use so it is drivable in a node environment. The real filterEnrichPatch
-// (from fieldDefs.add) is kept -- the bug lived in its interaction.
+// Stub procedure execution to test enrichment field selection and pending-layer targeting.
 const h = vi.hoisted(() => ({
 	enrichFields: null as string[] | null,
 	enrichMetadata: true,

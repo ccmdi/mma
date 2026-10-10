@@ -1,47 +1,17 @@
-//! Criterion suite over the store's hot paths.
-//!
-//! Every case is named for the app operation it measures and runs against a
-//! realistically populated store (22-char pano ids, 0-5 tags, ~120B of `extra` on
-//! a quarter of rows). Nothing here asserts an absolute time; the suite exists to
-//! be diffed against itself.
-//!
-//! Running it:
+//! Store benchmarks for comparing the same workload across revisions.
 //!
 //! ```sh
-//! # (a) quick smoke -- 10k rows, one pass, no statistics
+//! # Smoke run
 //! cargo bench --features bench --bench store -- --quick
 //!
-//! # (b) full scale -- 200k rows (or 1000000), full sampling
-//! MMA_BENCH_SCALE=200000 cargo bench --features bench --bench store
-//!
-//! # a single case or group
-//! cargo bench --features bench --bench store -- update_locations
-//! ```
-//!
-//! A/B across a change:
-//!
-//! ```sh
-//! git stash                                                     # or check out the base rev
+//! # Save a baseline, then repeat on the changed revision with --baseline before
 //! MMA_BENCH_SCALE=200000 cargo bench --features bench --bench store -- --save-baseline before
-//! git stash pop
-//! MMA_BENCH_SCALE=200000 cargo bench --features bench --bench store -- --baseline before
 //! ```
 //!
-//! The second run prints a change percentage and a significance verdict per case.
-//! Keep `MMA_BENCH_SCALE` identical across the two halves -- it is part of the
-//! bench id, so a mismatched run silently compares nothing. Baselines live in
-//! `$CARGO_TARGET_DIR/criterion/`, so both halves must use the same target dir.
-//!
-//! The bench profile inherits `[profile.release]`, fat LTO included, so a rebuild
-//! after touching the store costs ~6 min. Halve that while iterating:
-//!
-//! ```sh
-//! cargo bench --features bench --bench store \
-//!   --config 'profile.bench.lto=false' --config 'profile.bench.codegen-units=16'
-//! ```
-//!
-//! Absolute numbers shift under it (less cross-crate inlining of arrow/roaring), so
-//! use it for both halves of an A/B or neither.
+//! Keep scale, target directory, and compiler settings identical across comparisons.
+//! Baselines live in `$CARGO_TARGET_DIR/criterion/`.
+//! To shorten rebuilds, use these options for both runs:
+//! `--config 'profile.bench.lto=false' --config 'profile.bench.codegen-units=16'`.
 
 use app_lib::bench_api as bench;
 use bench::{Change, ListedSelection, Location, Patch, Selection, Selector};

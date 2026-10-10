@@ -1,7 +1,5 @@
-// Toggleable overlay of every Street View pano ever seen (across all maps). The dots are
-// rendered as a layer *inside the core scene* (buildSceneLayers), exactly like the staged
-// import preview — so picking, hover cursor, and clicks flow through the one deck pass with
-// no second overlay or interceptors. This module just owns the toggle + data + reactivity.
+// Toggle the seen-pano overlay and keep its data current.
+// The shared map scene renders its dots and handles picking.
 
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";

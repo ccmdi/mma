@@ -1,5 +1,4 @@
-//! How keyed values change: patches, merges, one equality, and the change a write leaves
-//! behind. Nothing here knows what the values are.
+//! Patches, pending edits, and reversible changes to keyed values.
 
 use serde_json::Value;
 use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap};
@@ -7,13 +6,12 @@ use std::hash::Hash;
 
 type Json = serde_json::Map<String, Value>;
 
-/// Two field values are the same when their canonical spellings are.
+/// Compare field values after normalizing their JSON representation.
 pub fn same_field_value(a: Option<&Value>, b: Option<&Value>) -> bool {
     a == b || matches!((a, b), (Some(a), Some(b)) if canonical(a) == canonical(b))
 }
 
-/// `v` spelled one way: object keys sorted, and every number as the JSON a JS writer would
-/// store, so `45` and `45.0` are one value.
+/// Normalize object keys and numbers so equivalent JSON values compare equal (e.g. `45` and `45.0`).
 pub fn canonical(v: &Value) -> Value {
     match v {
         Value::Number(n) => n.as_f64().map_or_else(|| v.clone(), number_value),
@@ -40,30 +38,28 @@ pub fn number_value(v: f64) -> Value {
     }
 }
 
-/// A type whose values change by patch: each field a patch can set, written over a
-/// value or read off two of them. `#[derive(mma_fields::Patch)]` implements it.
+/// A value that supports field patches. Implemented by `#[derive(mma_fields::Patch)]`.
 pub trait Patchable: Sized {
     type Patch: Clone + PartialEq + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned;
     /// The wire name and column of each field a patch writes.
     const WRITES: &'static [(&'static str, &'static str)];
     /// The wire names of the fields a patch changes key by key.
     const MERGED: &'static [&'static str];
-    /// The wire names of the fields a null in a patch leaves empty.
+    /// Wire names of fields that can be cleared with null.
     const CLEARS: &'static [&'static str];
-    /// This value with `patch` written over it.
+    /// Apply `patch` to this value.
     fn patched(&self, patch: &Self::Patch) -> Self;
     /// The patch that turns `old` into `new`.
     fn between(old: &Self, new: &Self) -> Self::Patch;
-    /// This whole value as a patch: every field a patch writes, set.
+    /// A patch setting every writable field to its current value.
     fn to_patch(&self) -> Self::Patch;
 }
 
 /// A change to some of a `T`'s fields: an absent field is unchanged.
 pub type Patch<T> = <T as Patchable>::Patch;
 
-/// What a patch does to one optional field. On the wire `Keep` is an absent key, `Clear`
-/// is null, and `Set` is the value. Writes compose, the later winning: a monoid, `Keep`
-/// its identity.
+/// An optional field update: absent keeps it, null clears it, and a value replaces it.
+/// When updates are combined, the later update wins.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub enum Field<T> {
     #[default]
@@ -77,7 +73,7 @@ impl<T> Field<T> {
         matches!(self, Field::Keep)
     }
 
-    /// This and then `later`, as one write.
+    /// Combine two updates, applying `later` last.
     pub fn then(self, later: Self) -> Self {
         match later {
             Field::Keep => self,
@@ -112,7 +108,7 @@ impl<T> Field<T> {
 }
 
 impl<T: Clone> Field<T> {
-    /// `old` with this written over it.
+    /// Apply this update to `old`.
     pub fn applied(&self, old: &Option<T>) -> Option<T> {
         match self {
             Field::Keep => old.clone(),
@@ -123,7 +119,7 @@ impl<T: Clone> Field<T> {
 }
 
 impl<T: Clone + PartialEq> Field<T> {
-    /// What turns `old` into `new`.
+    /// The update that turns `old` into `new`.
     pub fn between(old: &Option<T>, new: &Option<T>) -> Self {
         if old == new {
             Field::Keep
@@ -133,7 +129,7 @@ impl<T: Clone + PartialEq> Field<T> {
     }
 }
 
-/// A whole value written over a field: absent clears it.
+/// Replace a field with a whole value; `None` clears it.
 impl<T> From<Option<T>> for Field<T> {
     fn from(v: Option<T>) -> Self {
         v.map_or(Field::Clear, Field::Set)
@@ -155,10 +151,10 @@ impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Field<T> {
     }
 }
 
-/// A map a patch changes key by key: a null value deletes its key, a cleared patch clears
-/// the map, and an absent map is empty.
+/// A map updated key by key. Null deletes a key; clearing the field removes the map.
+/// A missing map is treated as empty when merging.
 pub trait Merge: Sized {
-    /// `old` with `patch` written over it.
+    /// Apply `patch` to `old`.
     fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self>;
     /// The patch that turns `old` into `new`.
     fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self>;
@@ -215,7 +211,7 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
     }
 }
 
-/// An intent for the row at one key: what it becomes, a patch over it, or that it goes.
+/// An edit to one keyed row: replace it, patch it, or remove it.
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Op<T, P, K> {
@@ -227,7 +223,7 @@ pub enum Op<T, P, K> {
     Remove(K),
 }
 
-/// An op on a keyed row a patch can change.
+/// An edit to a keyed, patchable row.
 pub type Edit<T> = Op<T, Patch<T>, <T as Keyed>::Key>;
 
 impl<T: Patchable + Keyed> Edit<T>
@@ -244,8 +240,7 @@ where
 }
 
 impl<T: Patchable + Keyed + Clone> Edit<T> {
-    /// The row `below` as this leaves it, a patch written by `apply`. A patch on a row that
-    /// does not exist is nothing.
+    /// Apply this edit to the underlying row. Patching a missing row has no effect.
     pub fn applied(&self, below: Option<T>, apply: impl Fn(&T, &Patch<T>) -> T) -> Option<T> {
         match self {
             Op::Set(row) => Some(row.clone()),
@@ -255,9 +250,8 @@ impl<T: Patchable + Keyed + Clone> Edit<T> {
     }
 }
 
-/// Intents held over whatever holds the rows below. Per key the ops land in order, and
-/// reading a row applies them to the row below as it is now, so writes landing underneath
-/// show through instead of being masked.
+/// Pending edits applied over the current underlying rows.
+/// Underlying changes remain visible in fields the layer has not overwritten.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Layer<T: Patchable + Keyed> {
     ops: BTreeMap<T::Key, Vec<Edit<T>>>,
@@ -271,8 +265,7 @@ impl<T: Patchable + Keyed> Default for Layer<T> {
     }
 }
 
-/// Each op lands at its key. A set or a remove replaces everything the row meant before;
-/// a patch lands on top of it.
+/// Append edits by key. Replacing or removing a row discards its earlier edits.
 impl<T: Patchable + Keyed> Extend<Edit<T>> for Layer<T>
 where
     Patch<T>: Keyed<Key = T::Key>,
@@ -300,7 +293,7 @@ where
 }
 
 impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
-    /// The row at `key`: this layer's intents applied in order to `below`.
+    /// Read a row with this layer's pending edits applied to `below`.
     pub fn get(
         &self,
         key: T::Key,
@@ -314,8 +307,7 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
             .fold(below, |row, op| op.applied(row, &apply))
     }
 
-    /// Each held key's row before and after, read over `below`: what folding this layer
-    /// in would do.
+    /// The before and after states of each row affected by this layer.
     pub fn resolve<'a>(
         &'a self,
         below: impl Fn(T::Key) -> Option<T> + 'a,
@@ -332,12 +324,12 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
         self.ops.keys().cloned()
     }
 
-    /// Whether `key` has an intent here.
+    /// Whether this layer has pending edits for `key`.
     pub fn holds(&self, key: T::Key) -> bool {
         self.ops.contains_key(&key)
     }
 
-    /// Drop the intent at `key`.
+    /// Discard pending edits for `key`.
     pub fn remove(&mut self, key: T::Key) {
         self.ops.remove(&key);
     }
@@ -351,9 +343,8 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
     }
 }
 
-/// One row's move: as it was and as it became, `None` where it does not exist. Moves
-/// compose when one starts where the other ends, and a move that ends where it began is
-/// an identity.
+/// A row's before and after states; `None` means the row does not exist.
+/// Transitions can be combined when their adjacent states match.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Transition<T> {
     pub before: Option<T>,
@@ -371,7 +362,7 @@ impl<T> Transition<T> {
 }
 
 impl<T: PartialEq> Transition<T> {
-    /// This and then `later`, when `later` starts where this ends.
+    /// Combine transitions when this one ends where `later` starts.
     pub fn then(self, later: Self) -> Option<Self> {
         (self.after == later.before).then(|| Self {
             before: self.before,
@@ -385,13 +376,13 @@ impl<T: PartialEq> Transition<T> {
 }
 
 impl<T: Keyed> Transition<T> {
-    /// The key of the row it moves; `None` for a row absent on both sides.
+    /// The row's key, or `None` if it is absent on both sides.
     pub fn key(&self) -> Option<T::Key> {
         self.after.as_ref().or(self.before.as_ref()).map(T::key)
     }
 }
 
-/// A change by key alone: which rows it created, deleted and rewrote.
+/// Keys of added, removed, and updated rows.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Keys<K> {
@@ -403,7 +394,7 @@ pub struct Keys<K> {
     pub updated: Vec<K>,
 }
 
-/// A change by cardinality alone: how many rows it created, deleted and rewrote.
+/// Counts of added, removed, and updated rows.
 #[derive(
     Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, specta::Type,
 )]
@@ -416,15 +407,14 @@ pub struct Counts {
     pub updated: u32,
 }
 
-/// What one write did to the rows: each row as it was and as it became. The inverse
-/// undoes it, and `then` composes two into one.
+/// Added, removed, and updated rows, with enough information to undo or combine changes.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct Change<T> {
     /// The rows it created.
     pub added: Vec<T>,
-    /// Removed rows in full, so a consumer can move off their old values.
+    /// Removed rows, including their old values.
     pub removed: Vec<T>,
-    /// Each rewritten row as it was and as it became.
+    /// Updated rows as before/after pairs.
     pub updated: Vec<(T, T)>,
 }
 
@@ -438,7 +428,7 @@ impl<T> Default for Change<T> {
     }
 }
 
-/// The rows that moved, each sorted by its shape. An identity is no change.
+/// Group transitions into additions, removals, and updates, ignoring unchanged rows.
 impl<T: PartialEq> FromIterator<Transition<T>> for Change<T> {
     fn from_iter<I: IntoIterator<Item = Transition<T>>>(rows: I) -> Self {
         let mut change = Self::default();
@@ -479,7 +469,7 @@ impl<T> Change<T> {
         self.transitions().filter_map(|t| t.after)
     }
 
-    /// The rows it created and the rows it removed.
+    /// All new and old rows, including both sides of updates.
     pub fn sides(&self) -> (Vec<T>, Vec<T>)
     where
         T: Clone,
@@ -494,7 +484,7 @@ impl<T> Change<T> {
         self.added.len() + self.removed.len() + self.updated.len()
     }
 
-    /// What it did, by cardinality.
+    /// Counts of added, removed, and updated rows.
     pub fn counts(&self) -> Counts {
         Counts {
             added: self.added.len() as u32,
@@ -528,7 +518,7 @@ impl<T> Change<T> {
     }
 }
 
-/// Rows sorted by shape as the moves they are.
+/// Pair old and new rows into transitions by key.
 fn shaped<T>(
     added: impl Iterator<Item = T>,
     removed: impl Iterator<Item = T>,
@@ -542,7 +532,7 @@ fn shaped<T>(
 }
 
 impl<T: Keyed + PartialEq> Change<T> {
-    /// From the rows it created and the rows it removed: a row on both sides was updated.
+    /// Build a change from new and old rows. A key present on both sides is an update.
     pub fn from_sides(created: Vec<T>, removed: Vec<T>) -> Self {
         let mut before: HashMap<T::Key, T> = removed.into_iter().map(|r| (r.key(), r)).collect();
         let mut rows: Vec<_> = created
@@ -553,7 +543,7 @@ impl<T: Keyed + PartialEq> Change<T> {
         rows.into_iter().collect()
     }
 
-    /// Whether it created or updated the row at `key`.
+    /// Whether this change adds or updates `key`.
     pub fn touches(&self, key: T::Key) -> bool {
         self.after().any(|r| r.key() == key)
     }
@@ -564,7 +554,7 @@ impl<T: Keyed + PartialEq> Change<T> {
             .map(T::key)
     }
 
-    /// What it did, by key.
+    /// Keys of added, removed, and updated rows.
     pub fn keys(&self) -> Keys<T::Key> {
         Keys {
             added: self.added.iter().map(T::key).collect(),
@@ -580,7 +570,7 @@ impl<T: Keyed + PartialEq> Change<T> {
 }
 
 impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
-    /// What turning table `before` into `after` did at `keys`.
+    /// Compare `before` and `after` at the given keys.
     pub fn at(
         before: &HashMap<K, V>,
         after: &HashMap<K, V>,
@@ -593,7 +583,7 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
             .collect()
     }
 
-    /// Make `table` hold every row as this change leaves it.
+    /// Apply this change to `table`.
     pub fn apply_to(&self, table: &mut HashMap<K, V>) {
         for (k, _) in self.before() {
             table.remove(k);
@@ -604,18 +594,16 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
     }
 }
 
-/// A change that undoes, and composes with a later one that starts where it ends: a
-/// groupoid, the empty change its identity.
+/// A reversible change that can be combined with a compatible later change.
 pub trait Delta: Default + Sized {
-    /// Whether `later` starts where this ends.
+    /// Whether this change's final state matches `later`'s initial state.
     fn meets(&self, later: &Self) -> bool;
-    /// This and then `later`, which meets it.
+    /// Combine with a compatible later change.
     fn compose(self, later: Self) -> Self;
     fn inverse(&self) -> Self;
     fn is_empty(&self) -> bool;
 
-    /// This and then `later`, or both handed back when `later` does not start where this
-    /// ends.
+    /// Combine compatible changes; otherwise return both unchanged.
     fn then(self, later: Self) -> Result<Self, (Self, Self)> {
         if self.meets(&later) {
             Ok(self.compose(later))
@@ -639,7 +627,7 @@ impl<T: Keyed + PartialEq + Clone> Delta for Change<T> {
         })
     }
 
-    /// Each row keeps its first state before and its last after.
+    /// Keep each row's earliest before state and latest after state.
     fn compose(self, later: Self) -> Self {
         let mut order: Vec<T::Key> = Vec::new();
         let mut rows: HashMap<T::Key, Transition<T>> = HashMap::new();

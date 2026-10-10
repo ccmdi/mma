@@ -115,8 +115,7 @@ fn tag_count(store: &mut Store, id: u32) -> usize {
     store.fields(["tags"])[0].count(&id.to_string())
 }
 
-/// Replay an edit the way store_undo/store_redo do: `finish_mutation` over the
-/// changeset is what moves the postings.
+/// Replay a row change and update derived state, as undo and redo do.
 fn edit_and_finish(store: &mut Store, entry: &Change, forward: bool) {
     let changes = if forward {
         self::forward(store, entry)
@@ -878,7 +877,7 @@ fn samey_tag_only_change_skips_render() {
 }
 
 // -----------------------------------------------------------------------
-// store_status / finish_mutation
+// Derived state and change feed
 // -----------------------------------------------------------------------
 
 #[test]
@@ -1168,8 +1167,7 @@ fn bake_overlay_removes_dead() {
 }
 
 // -----------------------------------------------------------------------
-// Edge cases: no-op updates should not create undo entries
-// (mirrors the filter in store_update_locations)
+// No-op updates should not create undo entries
 // -----------------------------------------------------------------------
 
 #[test]
@@ -1181,7 +1179,7 @@ fn noop_update_produces_no_undo_entry() {
     overlay_update(&mut store, &patch!(1; heading: 45.0));
     let new = store.get_loc_by_id(1).unwrap();
 
-    // simulate the filter from store_update_locations
+    // Unchanged before/after pairs contribute no edit.
     let pairs: Vec<_> = vec![(l.clone(), new.clone())]
         .into_iter()
         .filter(|(o, n)| o != n)
@@ -4400,7 +4398,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened
 }
 
-// store_add_locations: alloc an id and add, with the same undo entry it records.
+// Allocate an id and add a row through the store write path.
 fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
     let id = store.alloc_id();
     let l = loc(id, lat, lng);
@@ -4412,7 +4410,7 @@ fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
     id
 }
 
-// store_remove_locations: remove with the same undo entry it records.
+// Remove a row through the store write path.
 fn delete_loc(store: &mut Store, id: u32) {
     let l = store.get_loc_by_id(id).unwrap();
     store
@@ -4422,7 +4420,7 @@ fn delete_loc(store: &mut Store, id: u32) {
     store.overlay_remove(slice::from_ref(&l).iter());
 }
 
-// store_undo / store_redo replay.
+// Replay undo or redo through the store history.
 fn press_undo(store: &mut Store) {
     store.step(Stack::Undo, fetch_stored).unwrap().unwrap();
 }
@@ -5766,9 +5764,8 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     let LocationAggregates { alive, .. } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
 
-    // SUSPECTED BUG: loc_view's for_each has no dedup between base rows and
-    // overlay.adds, so a stale post-bake delta double-counts every id it
-    // re-adds. This pins the current (corrupt) behavior, not a fixed one.
+    // Known bug: a stale delta re-adds rows already in the base.
+    // This test records the duplicate rows produced by the current behaviour.
     assert_eq!(
         *store.alive_count, 4,
         "stale delta double-counts ids already in the baked base"
@@ -5876,8 +5873,7 @@ fn arb_ops() -> impl Strategy<Value = Vec<ModelOp>> {
     collection::vec(op, 0..15)
 }
 
-// Apply one op to both the real store (mirroring store_add_locations /
-// store_remove_locations / store_update_locations exactly) and the parallel model.
+// Apply the same operation to the store and the reference model.
 fn apply_model_op(
     store: &mut Store,
     model: &mut BTreeMap<u32, Location>,
@@ -6768,7 +6764,7 @@ fn a_save_stamped_with_an_older_rev_leaves_the_value_unsaved() {
 }
 
 // ---------------------------------------------------------------------------
-// Pending layers: edits held over the map until they land
+// Pending layers: stage edits before applying them to the map
 // ---------------------------------------------------------------------------
 
 fn viewer() -> Target {
@@ -7376,7 +7372,7 @@ fn a_stored_edit_keeps_its_definition_moves() {
 }
 
 // -----------------------------------------------------------------------
-// Pick nodes, the spacing ask, and the open picture of field values
+// Pick queries, spacing, and initial field values
 // -----------------------------------------------------------------------
 
 #[test]

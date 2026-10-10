@@ -185,8 +185,7 @@ export interface MMA
 	ui: typeof primitives;
 	/** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
 	autosave: typeof autosave;
-	/** Every write to the open map: its rows, its metadata, an interned field's values, and
-	 *  work run over a selection. */
+	/** Edit map locations, metadata, value records, and selections. */
 	edit: typeof edit;
 }
 

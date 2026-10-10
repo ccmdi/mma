@@ -245,8 +245,7 @@ pub async fn store_add_locations_uploaded(
     })
 }
 
-/// Declare which fields are computed from which: each input field and the fields derived
-/// from it. A write that changes an input clears what was derived from it.
+/// Register field dependencies. Changing an input clears fields derived from it.
 #[tauri::command]
 #[specta::specta]
 pub fn store_set_derived(
@@ -386,9 +385,8 @@ fn copy_to_map(
     };
 
     if mgr.stores.contains_key(&target_map_id) {
-        // Target open in some window: insert through the import path (reconcile,
-        // id alloc, counts, field defs, undo, render cells). The change feed tells the
-        // receiving window, whose save scheduling follows it - so we do NOT persist here.
+        // The import path handles an open target. Its window receives the change feed
+        // and schedules autosave.
         let target = mgr.store_for_map(&target_map_id)?;
         let t_scan = Instant::now();
         let existing = target.collect(&Target::Map, &Selector::Everything);
@@ -552,8 +550,7 @@ pub async fn store_subscribe_frames(
     Ok(())
 }
 
-/// Hear every change to the open map's rows: `changes` receives the ids each landed
-/// change created, deleted and rewrote, whatever caused it.
+/// Subscribe to map changes, including the ids of added, removed, and updated rows.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_subscribe_changes(

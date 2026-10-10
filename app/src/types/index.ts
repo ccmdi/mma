@@ -25,7 +25,7 @@ export interface Tag {
 	doclinks: string[];
 }
 
-/** Partial update to a tag's editable display metadata; `null` clears the field. */
+/** A change to some fields of row `id`. */
 /** A change to some of row `id`'s fields. */
 export type Patch<T extends { id: unknown }> = Partial<T> & Pick<T, "id">;
 

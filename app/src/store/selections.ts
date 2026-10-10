@@ -21,7 +21,7 @@ import { getSettings } from "@/store/settings";
 import { dayMonthFmt } from "@/lib/util/format";
 import { t, msg } from "@/lib/i18n";
 
-/** Selector variants that wrap child selections (Intersection, Union, Invert). */
+/** Selector variants with child selections. */
 export type CompositeType = Extract<Selector, { selections: SelectionInput[] }>["type"];
 /** Composite variants that wrap exactly one child (e.g. Invert). */
 export type UnaryType = "Invert";

@@ -1,10 +1,4 @@
-//! Radius queries over a point set: the grid broad phase, and nothing about what a
-//! caller makes of it.
-//!
-//! Cell sizing, coordinate quantization and the neighborhood walk live here once, so
-//! every sweep built on the grid agrees about what "within N metres" covers. What a
-//! neighborhood *means* stays with the caller: duplicate detection reads connected
-//! components out of it.
+//! Shared spatial grid for radius queries over a point set.
 
 use super::RowRef;
 #[cfg(test)]
@@ -13,12 +7,8 @@ use mma_geo::equirect_m2;
 use serde::Serialize;
 use std::collections::HashMap;
 
-/// Cell-hashed spatial grid in CSR layout (Müller, "Blazing Fast Neighbor Search
-/// with Spatial Hashing"). Cells are hashed into a fixed table sized to the point
-/// count, so the structure is O(n) regardless of spatial extent - no dense world
-/// array. Build is two linear passes (count → prefix-sum → scatter); neighbor
-/// iteration walks a contiguous slice. Hash collisions are harmless: distinct cells
-/// may share a bucket, and the caller's distance test rejects any foreign points.
+/// Spatial hash with contiguous buckets and storage proportional to the point count.
+/// Hash collisions are filtered by the caller's distance test.
 struct SpatialHash {
     table_size: usize,
     cell_start: Vec<u32>, // len table_size + 1; CSR offsets
@@ -75,10 +65,8 @@ impl SpatialHash {
     }
 }
 
-/// Index groups keyed by exact coordinate, the degenerate-radius fallback every caller
-/// shares: "within 0 m" means exact-coordinate equality. The grid would divide by zero,
-/// saturate every point to one cell, and collapse to O(n^2). Hashing on exact coords
-/// instead is O(n); non-finite coordinates never match anything. (#69)
+/// Group exact coordinates for zero-radius queries, avoiding a degenerate grid.
+/// Non-finite coordinates never match. (#69)
 pub(super) fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<usize>> {
     let mut groups: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
     for (i, &(lat, lng)) in pts.iter().enumerate() {
@@ -306,7 +294,7 @@ impl Index {
     }
 }
 
-/// The exact position a point sits at, as a key: -0.0 and +0.0 are one position.
+/// An exact coordinate key, treating -0.0 and +0.0 as equal.
 pub(crate) fn coord_key(lat: f64, lng: f64) -> (u64, u64) {
     ((lat + 0.0).to_bits(), (lng + 0.0).to_bits())
 }

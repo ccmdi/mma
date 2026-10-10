@@ -1,32 +1,14 @@
-//! `#[derive(Fields)]`: the field-system declaration lives on the `Location` struct.
+//! Generate field tables and patch types from struct attributes.
 //!
-//! Each struct field carries a `#[field(...)]` attribute (or `#[field(skip)]`); the
-//! derive turns the struct into two table macros named after it, `<struct>_fields!` and
-//! `<struct>_columns!`. Consumers hand one a callback macro and expand the table where
-//! their context lives, so a field added to the struct cannot be forgotten by anything
-//! built from it. The crate knows nothing about what a consumer builds.
+//! `Fields` generates `<struct>_fields!` and `<struct>_columns!` callback macros.
+//! The field table describes selectable fields; the column table lists stored fields
+//! in declaration order, including skipped fields.
 //!
-//! Row shape handed to the callback, one per field:
-//! `{ key, label, type-ident, kind-ident, comparison-tt, interned-ident, category-ident,
-//!    column-ident, field-ident }`
-//! - `type` names a `FieldType` variant, inferred from the Rust type (`f64`/`u32` ->
-//!   `Number`, `Vec<u32>` -> `Array`, `Option<CompactString>` -> `String`) unless
-//!   overridden by `date`.
-//! - `kind` is `identity` / `virtual_` / `writable` / `readonly` (the picker taxonomy).
-//! - `comparison` is `none` or `(circular <period>)`.
-//! - `category` picks the resolver body: how the value reads off a `Location` and off an
-//!   Arrow column. Residual quirks are categories, not closures: `absent_when_empty`
-//!   turns a string into `opt_str_empty` and a list into `u32_list_empty`.
-//! - `column` is the struct field whose storage the row reads: the field itself, the list
-//!   a `derived_len` counts, or the flags field a `flag` reads.
+//! Field rows: `{ key, label, type, kind, comparison, interned, category, column, field }`.
+//! Column rows: `{ index, field, type }`.
 //!
-//! `<struct>_columns!` has one row per struct field, skipped ones included, in declaration
-//! order: `{ index, field-ident, type }`. It is the struct's storage layout, for a
-//! columnar encoding to build from.
-//!
-//! Struct-level `#[fields(...)]` declares the rows with no struct field of their own:
-//! `derived_len(key, label, of = <field>)` (a list's length as a virtual field) and
-//! `flag(key, label, bit = <CONST>)` (a `LocationFlags` bit read as a boolean).
+//! `#[field(...)]` configures a struct field; `#[field(skip)]` excludes it from the field table.
+//! `#[fields(derived_len(...), flag(...))]` adds virtual fields without separate storage.
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -263,13 +245,10 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
-/// `#[derive(Patch)]`: implements `Patchable`, generating the struct's patch type.
-/// `#[patch(key)]` fields name the row and are required, `#[patch(skip)]` fields are never
-/// written, `#[patch(merge)]` fields change key by key through `Merge`, and `#[patch(stamp)]`
-/// fields are written but never read as a change. Two values are equal exactly when the patch
-/// between them is empty. Every other
-/// field is optional, stored in the column `#[patch(column = "...")]` names or its own. The
-/// wire type is `Partial<Struct>` narrowed the same way.
+/// Generate a struct's patch type and implement `Patchable`.
+/// `key` fields are required; `skip` fields are excluded; `merge` fields update key by key.
+/// `stamp` fields can be written but are ignored when comparing values.
+/// Other fields are optional; `column` overrides their storage column name.
 #[proc_macro_derive(Patch, attributes(patch, row, field))]
 pub fn derive_patch(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

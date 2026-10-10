@@ -143,8 +143,6 @@ function makeProvider(): SyncProvider {
 	};
 }
 
-// ---------------------------------------------------------------------------
-
 describe("createSyncController", () => {
 	it("unlink waits for the in-flight sync before clearing, so an aborted run cannot resurrect the link", async () => {
 		const mma = makeMma();

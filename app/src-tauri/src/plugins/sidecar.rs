@@ -1,21 +1,11 @@
-//! Sidecar binaries for plugins: distribution and supervision.
+//! Install and supervise plugin sidecar binaries.
+//! Binaries and models are downloaded from GitHub Releases into the plugin's app-data directory.
 //!
-//! A plugin whose manifest declares a `sidecar` gets its native binary + models
-//! downloaded from GitHub Releases on install (one click, no PATH setup) and extracted
-//! under `{appData}/plugins/{plugin_id}/sidecar/`.
+//! Manifest commands listed under `serve` use a resident process; other requests start a child.
+//! Both return `sidecar-line` events followed by `sidecar-done`. stderr goes to the app log
+//! and, for one-shot requests, `sidecar-log`.
 //!
-//! The app owns the processes, not the plugin. A plugin issues *requests*
-//! (`sidecar_request`) and the app decides how to service them: commands the manifest
-//! lists under `serve` go to a single resident process per plugin, everything else to a
-//! one-shot child. Either way the plugin sees the same thing -- `sidecar-line` events
-//! carrying one JSON object per unit of work, then `sidecar-done`. stderr is the
-//! diagnostics channel: it goes to the app log, and for one-shot runs also to
-//! `sidecar-log` (a resident's stderr has no request to attach to).
-//!
-//! Every sidecar takes the same argv (see `build_args`), so the app can construct it
-//! without the plugin describing it: variable input travels as JSON, never as flags.
-//! Imagery a sidecar needs comes from the app's schemes over loopback, so every sidecar
-//! is started knowing where they are.
+//! Requests carry JSON input. Sidecars can fetch imagery through the app's loopback schemes.
 
 use crate::emit_event;
 use crate::net::loopback;

@@ -1,10 +1,5 @@
-/**
- * `api.ts` decides nothing per member. A module listed there has its whole export list
- * on the surface and a module that is not listed has nothing on it, so whether a symbol
- * is public is settled by the file it lives in. The surface literal may spread a module
- * flat or mount a whole module namespace under one key -- both are all-or-nothing -- but
- * never build an object of its own or pick members.
- */
+/** `api.ts` exposes whole modules, either flat or under a namespace.
+ * Public members are determined by their source module; the API must not pick individual exports. */
 export default {
 	meta: {
 		type: "problem",

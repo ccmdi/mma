@@ -39,7 +39,7 @@ describe("Delete marks store dirty", () => {
 			await api.removeLocations(new Set([id]));
 		}, locIds[0]);
 
-		// dirtyCount is 0-or-1 (boolean flag from Rust)
+		// A deletion after saving marks the map unsaved again.
 		const dirty = await getSummary().then((s) => s.dirtyCount);
 		expect(dirty).toBe(1);
 	});

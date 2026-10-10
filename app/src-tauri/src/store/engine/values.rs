@@ -1,18 +1,7 @@
-//! Interned field values: the per-map record store for fields whose values are ids the
-//! store allocates. Which fields those are is declared on the field table
-//! (`FieldDef::interned`); `tags` is the first. The engine owns the records for the
-//! open map - ids are allocated here, import/copy reconcile through here, and every
-//! change ships on the mutation result - so no second writer can race the allocation.
-//!
-//! A record is a pile of data: `id -> opaque JSON object`. This layer stores, merges,
-//! persists, and ships piles without a schema; a typed shape (a `Tag`) exists only
-//! where a consumer coerces a pile to one at its own boundary. The layer interprets
-//! exactly two keys: `name` (the interned identity - matching, collision) and `order`
-//! (the display order the reorder op writes). Everything else passes through unread.
-//!
-//! Visibility is never stored: a value shows while rows carry it (its count is its
-//! postings' cardinality), so undo restoring rows revives a deleted value with no
-//! machinery, and an emptied record just lingers dark until its name is reused.
+//! Metadata for interned field values, such as tags.
+//! Records are JSON objects keyed by id. Names identify values, order controls display,
+//! and missing colours are derived from names. Other metadata is preserved.
+//! Values are visible while rows reference them; empty records remain available for reuse.
 
 use super::*;
 use crate::selections;
@@ -20,10 +9,10 @@ use crate::types::{AppError, AppResult};
 use mma_algebra::{Merge, Op, Patch};
 use std::collections::HashMap;
 
-/// One interned value's record: just a pile of data.
+/// Metadata for one interned value.
 pub type ValueRecord = serde_json::Map<String, serde_json::Value>;
 
-/// The pile's `name` key, when it holds a usable one.
+/// The record's non-blank name, if present.
 pub(crate) fn record_name(rec: &ValueRecord) -> Option<&str> {
     rec.get("name")
         .and_then(|v| v.as_str())
@@ -31,7 +20,7 @@ pub(crate) fn record_name(rec: &ValueRecord) -> Option<&str> {
         .filter(|s| !s.is_empty())
 }
 
-/// Give `rec` its name's colour when it carries none; whether it had to.
+/// Fill in a missing colour from the record's name. Returns whether it changed.
 pub(crate) fn ensure_color(rec: &mut ValueRecord) -> bool {
     if rec.get("color").is_some_and(serde_json::Value::is_string) {
         return false;
@@ -43,7 +32,7 @@ pub(crate) fn ensure_color(rec: &mut ValueRecord) -> bool {
     true
 }
 
-/// The pile's `order` key, when it holds one.
+/// The record's display order, if present.
 pub(crate) fn record_order(rec: &ValueRecord) -> Option<u32> {
     rec.get("order")
         .and_then(serde_json::Value::as_u64)
@@ -54,24 +43,18 @@ pub(crate) fn record_order(rec: &ValueRecord) -> Option<u32> {
 #[derive(serde::Deserialize, specta::Type, Default)]
 #[serde(default, rename_all = "camelCase")]
 pub struct FieldValuesPatch {
-    /// Seed piles to get-or-create, matched case-insensitively on their `name`.
-    /// An existing name resolves to its id and the seed is dropped; a new one is
-    /// interned as the seed.
+    /// Create records by name, reusing existing ids case-insensitively.
     #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
     pub create: Vec<ValueRecord>,
-    /// Merge patches into existing piles, each naming its pile's `id` (null deletes a
-    /// key). A patch whose `name` collides with another record's merges the two values
-    /// instead of renaming: every row is remapped to the survivor in one undoable edit
-    /// and the emptied record goes dark.
+    /// Patch records by id; null deletes a metadata key.
+    /// Renaming to an existing name merges the values and remaps their rows in one undoable edit.
     #[specta(type = Vec<HashMap<String, specta_typescript::Unknown>>)]
     pub update: Vec<ValueRecord>,
     /// New display order: each id gets its index in this list as `order`.
     pub reorder: Option<Vec<u32>>,
 }
 
-/// The id resolved for each `create` seed in request order, plus the mutation carrying
-/// the updated records (and any rows a merge moved). JS coerces piles to its own view;
-/// nothing typed rides here.
+/// Resolved ids for `create`, in request order, and the mutation result.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldValuesResult {
@@ -79,8 +62,7 @@ pub struct FieldValuesResult {
     pub mutation: Mutation,
 }
 
-/// `patch` merged into a pile. Its `name` lands trimmed, and a blank or non-string one is
-/// ignored, so the identity never goes blank.
+/// Merge a record patch, trimming names and ignoring blank or non-string names.
 fn merge_record(rec: &mut ValueRecord, mut patch: ValueRecord) {
     match record_name(&patch).map(str::to_string) {
         Some(name) => patch.insert("name".into(), name.into()),
@@ -89,21 +71,9 @@ fn merge_record(rec: &mut ValueRecord, mut patch: ValueRecord) {
     *rec = Merge::merged(&Some(rec.clone()), &mma_algebra::Field::Set(patch)).unwrap_or_default();
 }
 
-/// Merge `source` piles into `target` by case-insensitive `name` matching: matches
-/// remap to the existing target id; misses are inserted as a clone of the source pile
-/// under a fresh id above `floor` (the highest id the target's data or metadata
-/// already uses). Returns the `{source_id -> target_id}` remap table, whose targets are
-/// every record it touched. Single source of truth for value reconciliation - used by
-/// import and cross-map copy.
-///
-/// Order semantics: source order values are never stored verbatim. Every ordered
-/// source pile whose target has no order yet (newly created, or an existing record
-/// without one) is appended after the target's max order, dense, sorted by
-/// (source order, name). Targets with a concrete order keep it; unordered sources stay
-/// unordered.
-///
-/// Every other key follows a claim-if-empty rule: a matched target adopts each source
-/// key it lacks; keys it already holds are never overwritten by import.
+/// Match source records to target records by name, case-insensitively, and return the id remap.
+/// New ids are allocated above `floor`; existing metadata wins conflicts.
+/// Source display order is appended after the target's order, preserving existing target positions.
 pub(crate) fn reconcile_values_by_name(
     source: &[(u32, ValueRecord)],
     target: &mut HashMap<u32, ValueRecord>,
@@ -162,10 +132,8 @@ pub(crate) fn reconcile_values_by_name(
     remap
 }
 
-/// Get-or-create records in `meta` for `seeds` (case-insensitive on `name`), returning
-/// each seed's id in request order. A new seed is stored as-is under a fresh id above
-/// `floor`, except `order`, which is assigned past the current display order. Seeds
-/// without a usable `name` are rejected.
+/// Create or reuse records by name and return ids in request order.
+/// New ids exceed `floor`; new records are appended to the display order. Blank names are rejected.
 fn intern(
     meta: &mut HashMap<u32, ValueRecord>,
     floor: u32,
@@ -330,16 +298,12 @@ impl Store {
             .unwrap_or_default()
     }
 
-    /// Every id `field`'s metadata or data already uses; fresh ids allocate above it.
-    /// The data side matters when metadata was deleted out from under rows that still
-    /// carry the ids.
+    /// Highest id used by either metadata or rows, including rows with missing records.
     pub(crate) fn intern_floor(&mut self, field: &str) -> u32 {
         self.fields([field])[0].floor()
     }
 
-    /// Apply one batch of record edits to an interned field as one undoable edit: create
-    /// seeds, merge patches, reorder. A rename collision merges values, moving rows too.
-    /// Membership goes through the ordinary `ListSet` field op.
+    /// Create, patch, or reorder value records in one undoable edit. Rename collisions merge values.
     pub(crate) fn patch_field_values(
         &mut self,
         field: &str,
@@ -387,8 +351,7 @@ impl Store {
                 if let Some(target_id) = target {
                     merges.insert(id, target_id);
                 } else if meta.contains_key(&id) || counted.contains(&id) {
-                    // A counted id without a record is a value data knows but metadata
-                    // doesn't (foreign import); patching it materializes the pile.
+                    // Patching an id referenced by rows creates its missing metadata record.
                     merge_record(meta.entry(id).or_default(), u);
                     touched.push(id);
                 }
@@ -417,9 +380,7 @@ impl Store {
         })
     }
 
-    /// Patches that rewrite rows so every id in `merges` disappears from the data in favor of its
-    /// target. One scan of the live view; chains (a target that is itself merged) are
-    /// followed in the map, so a batch of colliding renames lands in one edit.
+    /// Remap merged value ids in one pass, following merge chains to their final target.
     fn plan_value_merges(
         &mut self,
         field: &str,

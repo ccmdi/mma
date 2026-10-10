@@ -43,7 +43,7 @@ export function listLinks(kv: KeyValueStore, provider: string): SyncLink[] {
 		.filter((l): l is SyncLink => l !== null);
 }
 
-/** Mapping persistence (the real impl wraps the Rust `remote_mapping_clear` command). */
+/** Backend for clearing a map's sync mappings. */
 export interface MappingBackend {
 	clear(provider: string, mapId: string): Promise<void>;
 }

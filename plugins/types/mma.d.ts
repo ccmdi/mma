@@ -144,10 +144,7 @@ declare const Sink: {
     readonly Collect: "collect";
 };
 type Sink = (typeof Sink)[keyof typeof Sink];
-/**
- * Which way through the edit history: back over what was done, or forward over what
- * was undone.
- */
+/** Which edit history stack to step through. */
 declare const Stack: {
     /** The edits that can be undone. */
     readonly Undo: "undo";
@@ -776,11 +773,7 @@ declare const commands$1: {
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
     storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult>;
-    /**
-     *  Declare which fields are computed from which: each input field and the fields derived
-     *  from it. A write that changes an input clears what was derived from it.
-     *  @unstable
-     */
+    /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
     storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
     storeSetMarkerColor: (color: [number, number, number]) => Promise<null>;
@@ -826,11 +819,7 @@ declare const commands$1: {
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
-    /**
-     *  Hear every change to the open map's rows: `changes` receives the ids each landed
-     *  change created, deleted and rewrote, whatever caused it.
-     *  @unstable
-     */
+    /**  Subscribe to map changes, including the ids of added, removed, and updated rows. @unstable */
     storeSubscribeChanges: (changes: Channel<ChangeEvent>) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
@@ -855,9 +844,8 @@ declare const commands$1: {
      */
     storeDuplicateMap: (id: string, name: string) => Promise<MapMeta>;
     /**
-     *  Apply a partial update to a map's metadata. Omitted fields are left unchanged. An open
-     *  map's store takes the update and saves it with the map; its tags change only through
-     *  their values.
+     *  Patch map metadata, leaving omitted fields unchanged.
+     *  Open maps save through their store; tag records are edited separately.
      *  @unstable
      */
     storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => Promise<null>;
@@ -1194,7 +1182,7 @@ type AnonIssueRef = {
      */
     token: string;
 };
-/**  What a read answers with; the arm follows from the ask. */
+/**  The result of a row query. */
 type Answer = {
     kind: "ids";
     ids: number[];
@@ -1233,7 +1221,7 @@ type Answer = {
     kind: "booleans";
     values: boolean[];
 };
-/**  The question a read answers about the selected rows. */
+/**  A query over selected rows. */
 type Ask = 
 /**  Their ids: ascending, or a ranked selector's order. */
 {
@@ -1328,27 +1316,20 @@ type CameraFrame = {
     heading: number;
     pitch: number;
 };
-/**
- *  What one write did to the rows: each row as it was and as it became. The inverse
- *  undoes it, and `then` composes two into one.
- *  @unstable
- */
+/**  Added, removed, and updated rows, with enough information to undo or combine changes. @unstable */
 type Change<T> = {
     /**  The rows it created. */
     added: T[];
-    /**  Removed rows in full, so a consumer can move off their old values. */
+    /**  Removed rows, including their old values. */
     removed: T[];
-    /**  Each rewritten row as it was and as it became. */
+    /**  Updated rows as before/after pairs. */
     updated: ([T, T])[];
 };
-/**
- *  One landed change as every watching window hears it: the change by key, and the
- *  state it moved.
- */
+/**  A map change broadcast to subscribers, with affected ids and derived state. */
 type ChangeEvent = {
     /**  The map version this change brought the map to. */
     version: number;
-    /**  State this change moved; an untouched field is absent. */
+    /**  Changed derived state. Null fields are unchanged. */
     derived: Derived;
 } & Keys<number>;
 /**  Metadata for a single commit. @unstable */
@@ -1412,7 +1393,7 @@ type CountBy = {
     /**  Rows held by at least one group. */
     covered: number;
 };
-/**  A change by cardinality alone: how many rows it created, deleted and rewrote. */
+/**  Counts of added, removed, and updated rows. */
 type Counts = {
     /**  Rows the change created. */
     added: number;
@@ -1449,10 +1430,7 @@ type Derived = {
     history: Partial<{
         [key in EntryKey]: History;
     }> | null;
-    /**
-     *  Each value that moved, keyed by field then by value; `null` where the value is
-     *  gone: no record and no row holding it.
-     */
+    /**  Changed values, keyed by field and value. Null removes a value with no record or rows. */
     fieldValues: {
         [key in string]: {
             [key in string]: HeldValue | null;
@@ -1476,9 +1454,9 @@ type DeviceCodeInfo = {
     /**  Seconds until `userCode` stops working. */
     expiresIn: number;
 };
-/**  How an edit lands. @unstable */
+/**  Options for applying an edit. @unstable */
 type EditOpts = {
-    /**  Fold the pending layer's edits into the map after these land in it. */
+    /**  Apply the pending layer to the map after these edits. */
     land?: boolean;
 };
 /**
@@ -1489,7 +1467,7 @@ type EditOpts = {
  */
 type EditorImportPreview = {
     locationCount: number;
-    /**  The file's tag piles, for the preview's tag list; ids are not meaningful yet. */
+    /**  Tag records from the file, shown in the preview before map-local ids are assigned. */
     tags: {
         [key in string]: unknown;
     }[];
@@ -1631,19 +1609,13 @@ type FieldValue = {
 };
 /**  One batch of record edits for an interned field's values. */
 type FieldValuesPatch = {
-    /**
-     *  Seed piles to get-or-create, matched case-insensitively on their `name`.
-     *  An existing name resolves to its id and the seed is dropped; a new one is
-     *  interned as the seed.
-     */
+    /**  Create records by name, reusing existing ids case-insensitively. */
     create?: {
         [key in string]: unknown;
     }[];
     /**
-     *  Merge patches into existing piles, each naming its pile's `id` (null deletes a
-     *  key). A patch whose `name` collides with another record's merges the two values
-     *  instead of renaming: every row is remapped to the survivor in one undoable edit
-     *  and the emptied record goes dark.
+     *  Patch records by id; null deletes a metadata key.
+     *  Renaming to an existing name merges the values and remaps their rows in one undoable edit.
      */
     update?: {
         [key in string]: unknown;
@@ -1651,12 +1623,7 @@ type FieldValuesPatch = {
     /**  New display order: each id gets its index in this list as `order`. */
     reorder?: number[] | null;
 };
-/**
- *  The id resolved for each `create` seed in request order, plus the mutation carrying
- *  the updated records (and any rows a merge moved). JS coerces piles to its own view;
- *  nothing typed rides here.
- *  @unstable
- */
+/**  Resolved ids for `create`, in request order, and the mutation result. @unstable */
 type FieldValuesResult = {
     resolved: number[];
     mutation: Mutation;
@@ -1743,14 +1710,14 @@ type GhUser = {
 };
 /**  One value of a field as the map holds it. */
 type HeldValue = {
-    /**  The value's record, for a field that interns its values; an opaque pile. */
+    /**  Optional metadata for an interned value. */
     record: {
         [key in string]: unknown;
     } | null;
     /**  How many rows hold the value. */
     count: number;
 };
-/**  Whether there is an edit to step through each way. */
+/**  Whether undo and redo are available. */
 type History = {
     /**  An edit can be undone. */
     undo: boolean;
@@ -1849,7 +1816,7 @@ type KeySpec =
     part: DatePart;
     tzLocal: boolean;
 };
-/**  A change by key alone: which rows it created, deleted and rewrote. */
+/**  Keys of added, removed, and updated rows. */
 type Keys<K> = {
     /**  The rows the change created. */
     added: K[];
@@ -1940,10 +1907,7 @@ type MapMeta_Deserialize = {
     settings: MapSettings;
     scoreBounds: ScoreBounds;
     extra: MapExtra;
-    /**
-     *  The map's tag value records (opaque piles keyed by id-as-string), an open-time
-     *  snapshot of the `maps.tags` column. JS coerces them to its tag view.
-     */
+    /**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
     tags: {
         [key in string]: {
             [key in string]: unknown;
@@ -1966,10 +1930,7 @@ type MapMeta = {
     settings: MapSettings;
     scoreBounds: ScoreBounds;
     extra: MapExtra;
-    /**
-     *  The map's tag value records (opaque piles keyed by id-as-string), an open-time
-     *  snapshot of the `maps.tags` column. JS coerces them to its tag view.
-     */
+    /**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
     tags: {
         [key in string]: {
             [key in string]: unknown;
@@ -2046,10 +2007,7 @@ type MmUser = {
     id: number;
     username: string;
 };
-/**
- *  What one change did to the open map: its version, and the caller's own added rows.
- *  Everything else a change moved arrives on the change feed.
- */
+/**  The mutation's version and newly allocated ids. Other updates arrive on the change feed. */
 type Mutation = {
     /**  The map version this change brought the map to. */
     version: number;
@@ -2088,7 +2046,7 @@ type NumericBinning = {
     by: "width";
     w: number;
 };
-/**  An intent for the row at one key: what it becomes, a patch over it, or that it goes. @unstable */
+/**  An edit to one keyed row: replace it, patch it, or remove it. @unstable */
 type Op<T, P, K> = 
 /**  The row exactly as given. */
 (({
@@ -2486,7 +2444,7 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
-/**  Work that derives each selected row's edit from that row alone. @unstable */
+/**  Operations computed independently for each selected row. @unstable */
 type RowOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
@@ -2504,8 +2462,8 @@ type RowOp =
     keys: string[];
 } | 
 /**
- *  Assign `value` to `key` on every row where it differs. A writable built-in key
- *  (`heading`, `pitch`, `zoom`) patches its column; anything else writes `extra`.
+ *  Assign a value to a writable field on each row. Builtins update their stored
+ *  fields; other keys update `extra`.
  */
 {
     kind: "set";
@@ -2522,11 +2480,8 @@ type RowOp =
     expr: string;
 } | 
 /**
- *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
- *  reads the row's current value as a set rather than replacing it, which is what
- *  membership needs: `tags` is this op's first caller, `array` extras its second.
- *  `add` wins for a value named in both lists, and a row already in the requested
- *  state keeps its member order.
+ *  Add and remove list members. `add` wins if a value appears in both lists.
+ *  Rows already in the requested state keep their member order.
  */
 {
     kind: "listSet";
@@ -2720,12 +2675,7 @@ type SelectionOp = {
     path: number[];
     name: string;
 };
-/**
- *  Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
- *  for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
- *  inverted index when one covers the filtered field. Composites (Intersection, Union,
- *  Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
- */
+/**  Selection predicates and composites, serialized with a `type` discriminator. */
 type Selector$1<S = {
     key: string;
     color: [number, number, number];
@@ -2775,10 +2725,8 @@ type Selector$1<S = {
     test: FilterOp;
 } | 
 /**
- *  Rank a selection by a field expression, optionally keeping only the first `k`. Emits
- *  a ranked root in rank order, where every other selector answers ascending. With no
- *  `k` this selects its child unchanged and states only how to walk it. A member the
- *  expression cannot score ranks last, so ranking never drops anything.
+ *  Rank by a field expression, optionally keeping only the first `k`.
+ *  Unscorable rows rank last; without `k`, all child rows are kept.
  */
 {
     type: "Ranked";
@@ -2826,7 +2774,7 @@ type Selector$1<S = {
     lat: number;
     lng: number;
 };
-/**  Work that derives its edits from the selected rows as a set. @unstable */
+/**  Operations computed over the selected rows as a group. @unstable */
 type SetOp = {
     kind: "merge";
     groups: number[][];
@@ -2868,11 +2816,7 @@ type SidecarProgress = {
     downloaded: number;
     total: number;
 };
-/**
- *  Map state as of a version: every field when a map opens, only what moved after an
- *  edit that answers with it.
- *  @unstable
- */
+/** @unstable */
 type StoreStatus = {
     version: number;
     derived: Derived;
@@ -2912,11 +2856,7 @@ type SyncLogResult =
     kind: "error";
     message: string;
 };
-/**
- *  What a reconcile answers: both sides' counts, the conflicts held for the user, and the
- *  local change the pull half landed.
- *  @unstable
- */
+/**  Sync counts, unresolved conflicts, and the locally applied pull mutation. @unstable */
 type SyncReconcileResult = {
     /**  Remote-applied counts; mirror-from-local deletes fold into `delete`. */
     pushed: SideCounts;
@@ -2929,27 +2869,21 @@ type SyncReconcileResult = {
     /**  The rows the pull removed. */
     removedIds: number[];
 };
-/**
- *  Where an edit lands or a row is read: the map's rows, or a named layer of pending
- *  edits held over them.
- */
+/**  Read or edit map rows directly, or through a named pending layer. */
 type Target = 
 /**  The map's rows. */
 {
     kind: "map";
 } | 
 /**
- *  The named layer of pending edits over the map, made on first use. Its edits read
- *  over the map's rows as they are now, and land when an edit says so.
+ *  A pending layer, created on first use. Reads include current underlying map data;
+ *  edits reach the map when the layer is applied.
  */
 {
     kind: "pending";
     name: string;
 };
-/**
- *  How far a spaced pick thins: to a count, spread as widely as that allows, or to a
- *  spacing, keeping as many as fit.
- */
+/**  Limit a spaced pick by count or minimum spacing. */
 type Thinning = 
 /**  At most `n` rows. */
 {
@@ -3030,9 +2964,9 @@ type VirtualTag = {
     /**  Where the folder sorts while it holds no tags, on the same scale as tag order. */
     order?: number | null;
 };
-/**  Work the store runs over the selected rows to derive their edits. @unstable */
+/**  Operations over selected rows. @unstable */
 type Work = RowOp | SetOp;
-/**  The work's outcome for the caller: the mutation plus what its message needs. */
+/**  The mutation and operation-specific results. */
 type WorkResult = {
     mutation: Mutation;
     /**  Rows the work edited. */
@@ -3042,16 +2976,10 @@ type WorkResult = {
 };
 
 /**
- * The surface a procedure module runs against: the global `mma` object and the values
- * that cross the boundary. Every host call is synchronous -- the guest blocks while the
- * host works, which is how handing `fetch` a list (never a loop of single fetches) buys a
- * procedure its request concurrency.
- *
- * A procedure is an ES module bundled to one file. Its named exports are the entry
- * points: `map` (pure compute, no effectful calls) or `run`, plus the optional `query`.
- * Every entry point receives the run's `{ fields, force, config }` as its last argument.
- * Rows arrive as `Location`s and `run`/`map` answer with `Patch<Location>`s under
- * the `patch` sink, or `Update<T>` of the module's own answer under `collect`.
+ * The global `mma` API available inside procedure modules. Calls are synchronous;
+ * pass request lists for concurrency. `map` and `run` receive location rows;
+ * `query` handles read-only requests. Each entry point receives `{ fields, force, config }`.
+ * Results are location patches under `patch`, or module-defined answers under `collect`.
  *  @unstable
  */
 
@@ -3082,19 +3010,13 @@ interface ProcedureHost {
      *  rest survive. */
     fetch(req: ProcedureRequest): ProcedureResponse;
     fetch(reqs: ProcedureRequest[]): ProcedureResponse[];
-    /** Every query resolved to its pano, aligned to `queries`: an id query over
-     *  GetMetadata (deduped, batched, bisection-retried), a search query over
-     *  SingleImageSearch. `skipped` is a query the host never answered: an aborted run,
-     *  or an id query whose id is empty. */
+    /** Resolve pano ids or coordinate searches, returning answers in input order.
+     *  `skipped` means the run was aborted or the requested id was empty. */
     panos(queries: PanoQuery[]): PanoAnswer[];
     classify(dataset: string, lat: number, lng: number): string | null;
-    /** Locations within `radiusM` metres of a coordinate, nearest first, each carrying
-     *  whichever of `fields` it had. The host builds one index per (radius, fields) pair
-     *  and holds it for the run, so asking once per row is the intended use; varying
-     *  either argument mid-run rebuilds it. A location at the exact coordinate is
-     *  included, so a caller probing its own row drops itself by id, and a radius of 0
-     *  answers exactly that coordinate. Only a run has locations to search; a query that
-     *  asks throws. */
+    /** Nearby run locations, nearest first, with the requested fields when present.
+     *  Includes the queried row itself; radius 0 matches exact coordinates.
+     *  Keep radius and fields constant to reuse the index. Unavailable in queries. */
     neighbors(lat: number, lng: number, radiusM: number, fields?: string[]): ProcedureNeighbor[];
     /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
      *  procedure can report progress mid-run; the lines are also returned together. */
@@ -3176,7 +3098,7 @@ export interface Tag {
     order: number | null;
     doclinks: string[];
 }
-/** Partial update to a tag's editable display metadata; `null` clears the field. */
+/** A change to some fields of row `id`. */
 /** A change to some of row `id`'s fields. */
 export type Patch<T extends {
     id: unknown;
@@ -3546,7 +3468,7 @@ declare class CellManager {
     clear(): void;
 }
 
-/** The engine-owned mirror: the derived state Rust ships, with every field required. */
+/** The full local mirror of the store's derived state. */
 export type EngineState = {
     [K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 };
@@ -3570,18 +3492,16 @@ export type OpenOrigin = "map" | "seen" | "import";
 export interface Open {
     id: number;
     origin: OpenOrigin;
-    /** Which opening this is: opening the same location again starts a new session. */
+    /** Identifies this editor session, even when reopening the same location. */
     session: number;
-    /** The row as the viewer's layer last read it; null until the first read lands. */
+    /** The last row read from the viewer's layer, or null while loading. */
     row: Location | null;
 }
 export type MapState = UiState & EngineState;
 /** Per-tag location counts, keyed by numeric id. */
 declare const getTagCounts: () => Record<number, number>;
-/** The tag view: each value's record dressed as a tag. A tag is visible exactly while
- *  something carries it (count > 0); a value present in data without a record (foreign
- *  import) shows under a derived name/color; an emptied record lingers dark until its
- *  name is reused. */
+/** Tag records with visibility based on location references.
+ * Missing metadata uses a generated name and colour. */
 declare const getTags: () => Record<number, Tag>;
 /** Reactive slice of the map state. Re-renders only when the selected value's
  *  reference changes (`Object.is`), so selectors must return state fields or
@@ -3609,15 +3529,14 @@ declare function discardOpenMap(): void;
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
     kind: K;
 }>;
-/** The one read: `ask` a question of the rows `selector` resolves to. Answers once,
- *  against the map as it is now. */
+/** Query matching rows against the map's current state. */
 declare function read<K extends Answer["kind"]>(selector: Selector, ask: Ask, kind: K, target?: Target): Promise<AnswerOf<K>>;
-/** Full rows out of a rows answer, fetched from disk when they were many. */
+/** Unpack a row query, fetching large results from its temp file. */
 declare function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>;
 /** Questions about the locations a selector resolves to. Each call answers once,
  *  against the map as it is now; ask again after a change. */
 declare function query$1(selector: Selector, target?: Target): {
-    /** The resolved ids, in map order. */
+    /** Resolved ids in ascending order, or a ranked selector's order. */
     ids: () => Promise<number[]>;
     /** How many locations resolve. */
     count: () => Promise<number>;
@@ -3637,10 +3556,8 @@ declare function query$1(selector: Selector, target?: Target): {
     /** Group by a derived key. Numeric bins arrive in bound order; other keys are
      *  sorted naturally. */
     partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /** Every matching location as a full row; missing ids are skipped.
-     *
-     *  Every row lands in memory, so an unscoped call on a large map is expensive.
-     *  Prefer a narrower selector or a projection (`columns`, `countBy`) when possible. */
+    /** Full matching locations, skipping missing ids. All results are loaded into memory;
+     *  use narrower selectors or projections for large maps. */
     locations: () => Promise<Location[]>;
 };
 /** The selection: every listed selection that is not ghosted. */
@@ -3649,14 +3566,12 @@ declare const getActiveSelections: () => Selection[];
 declare function setSelectedLocationIds(ids: SelectedIds): void;
 /** Replace the open map's row in state; persisting it is the caller's. @unstable */
 declare function setMap(map: MapMeta): void;
-/** The viewer's own pending layer: its edits read over the map's rows as they are now,
- *  and nothing reaches the map until a save lands them. */
+/** The viewer's pending edits, applied to the map only on Save. */
 declare const VIEWER: {
     readonly kind: "pending";
     readonly name: "viewer";
 };
-/** The open row as the viewer's layer last read it, dropped unless `session` is still open.
- *  The layer is the single writer; everything else only looks. */
+/** Set the open row if `session` is still current. */
 declare function setOpenRow(row: Location | null, session: number): void;
 declare function settled(m: Mutation): Promise<void>;
 declare function mutate<R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]): Promise<R>;
@@ -3677,9 +3592,7 @@ declare function renameField(from: string, to: string, winner?: MergeWinner): Pr
 /** Delete extra-field `key` from every location, its definition, and the listed selections,
  *  in one undoable step. */
 declare function deleteField(key: string): Promise<void>;
-/** Apply `op` to the listed selections and have the store hold and resolve the result: the
- *  one way the selection changes. Lift an op over the active selections alone with
- *  `onActive`. No-op when nothing changed. @unstable */
+/** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
 declare function applySelectionUpdate(op: SelectionOp): Promise<void>;
 /** Undo the last selection change without undoing data edits. @unstable */
 declare function restoreSelections(): Promise<void>;
@@ -3693,8 +3606,7 @@ declare function select<R extends {
 }>;
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
 declare function previewDuplicateGroups(distance: number): Promise<number[][]>;
-/** Open a staged-import location, as if it were active: the viewer previews a copy, and
- *  the staged row itself stays in the import layer until Confirm lands it. @unstable */
+/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
 declare function openStagedLocation(index: number): Promise<void>;
 /** Open an arbitrary location read-only as a seen-preview: loads its pano without
  *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
@@ -3718,8 +3630,8 @@ declare function setWorkArea(area: WorkArea): void;
 declare function setPluginMode(pluginId: string): void;
 /** Close the plugin sidebar and return to the overview. */
 declare function exitPluginMode(): void;
-/** Strip `tagIds` from every location in one undoable step. The emptied records go dark
- *  (count 0 hides them); undo restores the rows and the tags with them. */
+/** Remove tags from every location in one undoable step.
+ * Unreferenced tags are hidden; undo restores them. */
 declare function deleteTags(tagIds: number[]): Promise<WorkResult>;
 /** Whether a history action is available for one part or for the data edit as a whole. @unstable */
 declare function historyAvailable(history: MapState["history"], stack: Stack, key?: EntryKey): boolean;
@@ -3729,7 +3641,7 @@ declare function undo(): Promise<void>;
 declare function redo(): Promise<void>;
 /** Commit all pending changes to the map's version history. Clears the undo stack. */
 declare function commitMap(message?: string): Promise<string>;
-/** Restore the map to a previous commit's state and reopen it. Clears undo/redo. @unstable */
+/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
 declare function checkoutCommit(commitId: string): Promise<void>;
 
 /** @unstable */
@@ -3842,14 +3754,14 @@ declare namespace autosave {
   };
 }
 
-/** Land `edits` where `target` says, in one undoable step. @unstable */
+/** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
 declare function rows(target: Target, edits: Parameters<typeof cmd.storeEdit>[1], opts?: EditOpts): Promise<MutationResult>;
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
 declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
     id?: string;
 }): Promise<void>;
-/** Create, patch, or reorder an interned field's value records in one undoable step,
- *  answering the id each `create` seed resolved to, in order. */
+/** Create, patch, or reorder value records in one undoable step.
+ * Returns resolved ids for `create`, in request order. */
 declare function values(field: string, patch: FieldValuesPatch): Promise<number[]>;
 /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
 declare function work(selector: Selector, op: Work): Promise<WorkResult>;
@@ -3871,7 +3783,7 @@ declare namespace edit {
 
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
-/** Selector variants that wrap child selections (Intersection, Union, Invert). @unstable */
+/** Selector variants with child selections. @unstable */
 export type CompositeType = Extract<Selector, {
     selections: SelectionInput[];
 }>["type"];
@@ -4083,9 +3995,8 @@ declare namespace selectionActions {
   };
 }
 
-/** Saved selection rules: portable named rules that persist across maps. A rule stores a
- *  `Selector` tree plus the tag names its `Tag` leaves carried at save time, so it can
- *  re-resolve against whatever map is open. */
+/** Saved selection rules shared across maps. Tag membership is stored by name
+ * so rules can be applied on maps with different tag ids. */
 
 /** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
 declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
@@ -5139,7 +5050,7 @@ declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
 declare function getImportStaging(): ImportStaging | null;
 /** The pending layer holding this window's staged import rows. @unstable */
 declare function importTarget(): Target;
-/** Discard the staged import, freeing its parse. @unstable */
+/** Discard the staged import and its pending layer. @unstable */
 declare function resetImportState(): void;
 /** Import from a file path. @unstable */
 declare function beginImportFromPath(path: string): Promise<void>;
@@ -5275,8 +5186,7 @@ declare namespace picker {
 }
 
 declare const EVENT_DEFS: {
-    /** The store's change feed: the ids every landed change created, deleted and
-     *  rewrote, whatever caused it. Anything derived from location data re-reads on it. */
+    /** Map changes with affected location ids. Consumers re-read derived location data on this event. */
     "store:change": ChangeEvent;
     "selection:change": Selection[];
     "active:change": number | null;
@@ -6627,8 +6537,7 @@ export interface ProviderPart {
 export interface RunOpts {
     signal?: AbortSignal;
     force?: boolean;
-    /** Run at this target instead of the map: its held rows are the run's rows, and
-     *  answers land in it. */
+    /** Read rows and write results at this target instead of the map. */
     on?: Target;
     /** `done`/`total` reflect the slowest provider. `parts` carries each labeled
      *  provider's own counts, ordered as declared. */
@@ -7993,8 +7902,7 @@ interface MMA extends ConstsApi, StoreApi, SelectionOpsApi, SelectionActionsApi,
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
     autosave: typeof autosave;
-    /** Every write to the open map: its rows, its metadata, an interned field's values, and
-     *  work run over a selection. */
+    /** Edit map locations, metadata, value records, and selections. */
     edit: typeof edit;
 }
 

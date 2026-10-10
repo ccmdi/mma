@@ -1122,7 +1122,7 @@ describe("Implicit save on close", () => {
 		const original = await getLoc(ids[0]);
 		await withApi((api, l) => api.updateLocations([{ id: l.id, heading: 222.22 }]), original);
 
-		// Close immediately (bake happens in close)
+		// Close immediately; closing must save the pending edits.
 		await closeMap();
 		await openMap(mapId);
 

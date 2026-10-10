@@ -142,7 +142,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 			groups.map((g) => g.key),
 			key,
 		);
-		// Groups sharing a label land on one tag: creating a name that exists reuses it.
+		// Groups with the same label reuse one tag.
 		const tagInto = async (name: string, selector: Selector) => {
 			const add = await edit.values("tags", { create: [{ name }] });
 			await edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });

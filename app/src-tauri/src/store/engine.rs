@@ -1,10 +1,6 @@
-//! Core data engine: immutable Arrow RecordBatch base + in-memory overlay for mutations.
-//!
-//! All location data lives here. The overlay (adds, patches, dead set) accumulates mutations
-//! between saves; `bake_overlay` merges them back into the batch. IDs are kept strictly sorted
-//! in the batch to enable O(log n) lookups via `Columns::row_of`. Render cells (32 geohash-1
-//! buckets) and the render frame every watching window receives are derived from the same
-//! `Change` via `finish_mutation`.
+//! Location store: a committed Arrow batch plus an overlay of uncommitted edits.
+//! Commits merge the overlay into the batch. Rows stay sorted by id for fast lookup;
+//! render frames and selection membership are updated from the same row changes.
 
 use crate::types::{AppError, AppResult};
 use mma_algebra::{Counts, Delta, Patch, Patchable};
@@ -121,8 +117,7 @@ impl Overlay {
 }
 
 pub struct Store {
-    /// The open map's row, its extra-field registry included; its tags live in
-    /// `value_meta`. A store no map was opened into holds a default row.
+    /// The open map's metadata and field definitions. Tag records live in `value_meta`.
     pub(crate) meta: Tracked<maps::MapMeta>,
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
@@ -134,14 +129,10 @@ pub struct Store {
     pub(crate) overlay: Tracked<Overlay>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
-    /// Records for interned field values (`values.rs`), keyed by field: opaque piles
-    /// this engine never reads a shape into. `tags` is the only interned field today.
+    /// Per-field value records. `tags` is currently the only interned field.
     pub(crate) value_meta: HashMap<String, Tracked<HashMap<u32, ValueRecord>>>,
-    /// Lazy inverted indexes over enumerable fields, built on the first query that could
-    /// use one and keyed by field. Postings snapshot the live view at build time; the
-    /// overlay is folded in at query time, and `finish_mutation` moves changed rows
-    /// through them, so a value's count is its postings' cardinality with no separate
-    /// counter to keep in step.
+    /// Lazy per-field indexes of live rows, maintained on mutation.
+    /// Per-value counts come from index membership.
     field_indexes: selections::FieldIndexes,
     pub(crate) edits: Tracked<EditStacks>,
     pub(crate) histories: Tracked<HashMap<EntryKey, EditStacks>>,
@@ -156,9 +147,9 @@ pub struct Store {
     /// The windows drawing this store. A store opened afresh has none: each window
     /// subscribes when it loads its scene.
     pub(crate) frames: Sinks<FrameBytes>,
-    /// The windows hearing this store's changes, as id summaries of each landed Change.
+    /// Subscribers to map changes and derived state updates.
     pub(crate) changes: Sinks<ChangeEvent>,
-    /// Which fields are computed from which, as the providers declare them.
+    /// Field dependencies declared by providers.
     pub(crate) derived: ComputedFrom,
     /// Named layers of pending edits held over the map's rows.
     pub(crate) pending: HashMap<String, Pending>,
@@ -211,8 +202,7 @@ impl Store {
         self.version
     }
 
-    /// The full engine-values picture, for a window that has nothing yet. Every later
-    /// mutation result is a delta against this, so it also marks everything shipped.
+    /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
         self.edits.ship();
@@ -254,10 +244,7 @@ impl Store {
         histories
     }
 
-    /// Bump version, project the semantic changeset onto the render cells and the
-    /// selection state, send every watching window the frame, and return the mutation
-    /// result. The changeset is the single source of truth; the frame and the selection
-    /// sync are two projections of it.
+    /// Finish a row change: update derived state, broadcast frames and changes, and return its result.
     #[cfg(test)]
     pub(crate) fn finish_mutation(&mut self, changes: &Change) -> Mutation {
         let mut entry = Entry {
@@ -272,7 +259,7 @@ impl Store {
         self.finish_entry(&entry)
     }
 
-    /// [`Store::finish_mutation`] for a write that also moved records.
+    /// Finish a change to rows, value records, or field definitions.
     pub(crate) fn finish_entry(&mut self, entry: &Entry) -> Mutation {
         let meta = entry
             .meta
@@ -381,8 +368,7 @@ impl Store {
             version: self.version,
             added: keys.added.clone(),
         };
-        // Unconditional: the feed is the observation contract, so every version is
-        // announced and a watcher can await "the feed reached my mutation".
+        // Announce every version, including no-ops, so callers can await their mutation.
         self.changes.send(ChangeEvent {
             version: self.version,
             keys,
@@ -410,11 +396,8 @@ impl Store {
         Some(cols.location(cols.row_of(id)?))
     }
 
-    /// Net change counts since last commit, from the overlay. Mirrors
-    /// [`Overlay::to_delta`]'s categorization without cloning any locations:
-    /// adds are created, patches on base rows are updated (patches absent from the
-    /// base are net adds), dead base rows are removed. Added-then-removed ids never
-    /// touch the base and count as nothing. O(overlay * log n).
+    /// Net row changes since the last commit, counted without cloning rows.
+    /// Rows added and then removed contribute nothing.
     pub(crate) fn overlay_diff_counts(&self) -> Counts {
         let in_base = |id: u32| {
             self.batch
@@ -625,7 +608,7 @@ impl Store {
 pub struct StoreManager {
     pub(crate) stores: HashMap<String, Store>,
     pub(crate) window_map: HashMap<String, String>,
-    /// Which fields are computed from which, handed to every store it opens.
+    /// Field dependencies shared with each opened store.
     pub(crate) derived: ComputedFrom,
 }
 
@@ -711,12 +694,7 @@ impl FunctionArg for WindowLabel {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/// Map state as of a version: every field when a map opens, only what moved after an
-/// edit that answers with it.
+// Versioned map state: all derived fields on open, changed fields after an edit.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct StoreStatus {
@@ -756,10 +734,7 @@ impl<T> At<T> {
     }
 }
 
-/// What a value derived from the store declares: when it is still valid, how to rebuild
-/// itself, and where in the store it lives. The slot passthroughs are what let `valid`
-/// and `build` read the whole store the value sits inside: [`Ensured::with`] takes the
-/// value out of its slot, consults the store unencumbered, and puts it back.
+/// A derived cache's validity check, rebuild function, and storage slot.
 pub(crate) trait Cached: Sized {
     fn valid(&self, store: &Store) -> bool;
     fn build(store: &Store) -> Self;
@@ -767,11 +742,7 @@ pub(crate) trait Cached: Sized {
     fn slot_ref(store: &Store) -> &Ensured<Self>;
 }
 
-/// A derived value that cannot be read without proving it is ready: access runs the
-/// declared validity check and rebuilds on failure, so absence and staleness are one
-/// case and no read path can skip the check. The dual of [`Tracked`]: `Tracked` guards
-/// source data leaving memory (does disk owe a write?), `Ensured` guards derived data
-/// entering use (can this cache be trusted?).
+/// A cache that checks validity and rebuilds before use.
 #[derive(Debug)]
 pub(crate) struct Ensured<T>(Option<T>);
 
@@ -809,16 +780,14 @@ impl<T> Ensured<T> {
         self.0.as_mut()
     }
 
-    /// The value as last built, unchecked: for a reader whose doorway already ensured it.
+    /// Read the cached value without checking validity. The caller must ensure it first.
     pub(crate) fn peek(&self) -> Option<&T> {
         self.0.as_ref()
     }
 }
 
-/// State with two consumers, JS and disk, each holding it as of some revision. Every edit
-/// bumps `rev`; reads deref; the only `&mut` is [`Tracked::edit`], so an edit that forgot
-/// to mark itself cannot be written. `finish_mutation` ships what JS has not seen; a save
-/// records the rev it wrote, so an edit racing an async write stays unsaved.
+/// Revision-tracked state, with separate delivery and save progress.
+/// Edits made during an asynchronous save remain unsaved.
 #[derive(Debug, Default)]
 pub(crate) struct Tracked<T> {
     value: T,

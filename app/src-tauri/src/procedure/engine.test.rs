@@ -908,10 +908,8 @@ fn a_patch_that_sets_nothing_changes_nothing() {
     }
 }
 
-/// Every key `<Location as Patchable>::WRITES` names must actually deserialize into its field: the keys
-/// come from serializing the type, so a `rename_all` or attribute mismatch between the
-/// two directions would otherwise pass silently. The destructuring below has no `..`,
-/// so a new `Patch<Location>` field breaks this test at compile time.
+/// Every declared patch key must deserialize into its field.
+/// Destructuring without `..` makes newly added fields require coverage here.
 #[test]
 fn patch_keys_cover_every_location_patch_field() {
     let mut obj = serde_json::Map::new();
@@ -2369,8 +2367,7 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
     }));
     let target = given(&state, &map_id, vec![loc(1, 1.0, 0.0), loc(2, 2.0, 0.0)]);
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
-    // A held layer's writes reach no window, so every written row streams through the
-    // result sink as a full parseable row.
+    // Pending edits emit no map change event, so results must include the updated rows.
     let streamed: Arc<Mutex<Vec<(String, Vec<u32>)>>> = Arc::default();
     let results: Arc<ResultSink> = {
         let streamed = streamed.clone();

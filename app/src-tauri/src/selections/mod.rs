@@ -40,10 +40,7 @@ use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
-/// Discriminated union of all selection types. Serialized with `{ "type": "..." }` tag
-/// for JS interop. Simple types resolve in O(N) with parallel batch scans, or from an
-/// inverted index when one covers the filtered field. Composites (Intersection, Union,
-/// Invert) recursively resolve children. Duplicates uses a grid-accelerated spatial scan.
+/// Selection predicates and composites, serialized with a `type` discriminator.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type, Children)]
 #[serde(tag = "type")]
 pub enum Selector<S = Selection> {
@@ -91,10 +88,8 @@ pub enum Selector<S = Selection> {
         field: String,
         test: FilterOp,
     },
-    /// Rank a selection by a field expression, optionally keeping only the first `k`. Emits
-    /// a ranked root in rank order, where every other selector answers ascending. With no
-    /// `k` this selects its child unchanged and states only how to walk it. A member the
-    /// expression cannot score ranks last, so ranking never drops anything.
+    /// Rank by a field expression, optionally keeping only the first `k`.
+    /// Unscorable rows rank last; without `k`, all child rows are kept.
     #[serde(rename_all = "camelCase")]
     Ranked {
         /// What to rank; `null` ranks the whole map.
@@ -147,8 +142,7 @@ pub enum Selector<S = Selection> {
     },
 }
 
-/// How far a spaced pick thins: to a count, spread as widely as that allows, or to a
-/// spacing, keeping as many as fit.
+/// Limit a spaced pick by count or minimum spacing.
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "by", rename_all = "camelCase")]
 pub enum Thinning {
@@ -347,7 +341,7 @@ impl Selection {
             .unwrap_or(self.color)
     }
 
-    /// Every node that names one value takes that value's colour, where `color` has one.
+    /// Use the named value's colour for membership nodes when available.
     pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> Self {
         self.fold(&mut |node, children| Self {
             key: node.key.clone(),
@@ -470,7 +464,7 @@ impl Selector {
         }
     }
 
-    /// The list field and member this tests membership of, when it is such a test.
+    /// The field and value of a list-membership test, if this is one.
     pub fn member_test(&self) -> Option<(&str, u32)> {
         match self {
             Selector::Filter {
@@ -588,8 +582,7 @@ impl FieldIndex {
     }
 }
 
-/// Inverted indexes by field. Built from the base batch; [`resolve`] folds the overlay in
-/// at query time, so an edit never invalidates one.
+/// Per-field indexes of live rows, maintained as rows change.
 pub type FieldIndexes = HashMap<String, FieldIndex>;
 
 /// Canonical index key for a scalar value. Numbers render through `f64` so a value written
@@ -764,8 +757,7 @@ impl<'a> LocView<'a> {
         self.all().narrow(selector)
     }
 
-    /// Every selection's rows and every node's count, keyed by `Selection.key`, resolved
-    /// over this source: a child's count is its full count.
+    /// Resolve selection memberships and per-node counts. Child counts are independent of their parents.
     pub fn resolve_forest(&self, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
         let scope = self.all();
         let mut counts = HashMap::new();
@@ -1210,8 +1202,7 @@ impl<'v, 'a> Scope<'v, 'a> {
         }
     }
 
-    /// The whole map narrowed to a set-dependent node's child, which it reads in full
-    /// before this scope clips the answer.
+    /// Resolve a set-dependent child over the whole map before clipping to this scope.
     fn pool(&self, selection: &Option<Box<Selection>>) -> Scope<'v, 'a> {
         let all = self.view.all();
         match selection {

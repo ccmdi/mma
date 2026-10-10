@@ -9,8 +9,7 @@ import type { MapMeta, Selection } from "@/bindings.gen";
 const event = <T>() => null as T;
 
 const EVENT_DEFS = {
-	/** The store's change feed: the ids every landed change created, deleted and
-	 *  rewrote, whatever caused it. Anything derived from location data re-reads on it. */
+	/** Map changes with affected location ids. Consumers re-read derived location data on this event. */
 	"store:change": event<ChangeEvent>(),
 	"selection:change": event<Selection[]>(),
 	"active:change": event<number | null>(),

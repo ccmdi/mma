@@ -1,4 +1,4 @@
-//! Everything that touches disk or SQLite for an open store: Arrow snapshots, the uncommitted delta, edit history, the map's row.
+//! Persist an open map's locations, metadata, and edit history.
 
 use super::*;
 use crate::store::arrow;
@@ -77,8 +77,7 @@ pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>
     Ok(locs)
 }
 
-/// What an open map owes disk: its delta, its row and its undo history, each stamped with
-/// the revision it reflects, so edits made while the write runs stay unsaved.
+/// Unsaved map data with revision stamps, so concurrent edits stay unsaved.
 pub(crate) struct Unsaved {
     delta: Option<At<RecordBatch>>,
     meta: Option<MetaRow>,
@@ -87,7 +86,7 @@ pub(crate) struct Unsaved {
     pending: Counts,
 }
 
-/// The map's row whole, and the revision of each source it was read from.
+/// A metadata patch and the revisions it includes.
 struct MetaRow {
     patch: Patch<MapMeta>,
     meta: u64,
@@ -117,7 +116,7 @@ impl Unsaved {
 }
 
 impl Store {
-    /// The open map's row as this store holds it, whole.
+    /// The map's current metadata as a complete patch.
     pub(crate) fn meta_patch(&self) -> Patch<MapMeta> {
         let mut patch = self.meta.to_patch();
         patch.tags = Some(

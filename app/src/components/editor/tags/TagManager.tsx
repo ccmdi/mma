@@ -52,7 +52,7 @@ import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
-/** `order` rides the optimistic overlay only; persisted order goes through `edit.values`. */
+/** Preview order changes locally; persist them through `edit.values`. */
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -92,10 +92,8 @@ export function TagManager() {
 	// selection toggles (which never touch tags) and fresh on any tag mutation.
 	const storeTags = useMapState(getVisibleTags);
 
-	// Optimistic overlay: `commitTags`/`commitReorder` apply pending name/color/order patches
-	// over the store tags for the lifetime of the mutation; React drops them once the transition
-	// settles (by which point the store reflects the change), so a rename/recolor/drag-reorder
-	// renders in the same frame as the virtualTags/expansion updates
+	// Preview tag edits immediately, then drop the optimistic patches once
+	// the store has applied them.
 	const [tags, addOptimisticTags] = useOptimistic(storeTags, (cur: Tag[], updates: Patch<Tag>[]) =>
 		cur.map((t) => {
 			const u = updates.find((x) => x.id === t.id);

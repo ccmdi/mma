@@ -61,8 +61,7 @@ pub(crate) fn json_col<T: Default + DeserializeOwned>(
     Ok(serde_json::from_str(&s).unwrap_or_default())
 }
 
-/// Write the fields `patch` sets to row `id` of `table` and stamp `updated_at`. A list or
-/// object lands as JSON text.
+/// Update the fields present in `patch` and stamp `updated_at`. Lists and objects are stored as JSON.
 pub(crate) fn update_row<T: Patchable>(
     conn: &Connection,
     table: &str,
@@ -103,10 +102,7 @@ pub(crate) fn update_row<T: Patchable>(
     Ok(())
 }
 
-/// Open (or create) the SQLite database, ensuring the parent directory exists.
-/// The one place that owns per-connection setup (busy timeout, pragmas).
-/// Run `f` against a fresh connection on the blocking pool, so a busy-timeout
-/// wait never lands on a command thread.
+/// Run `f` with a fresh database connection on a blocking thread.
 pub(crate) async fn with_db<T: Send + 'static>(
     f: impl FnOnce(&mut Connection) -> AppResult<T> + Send + 'static,
 ) -> AppResult<T> {

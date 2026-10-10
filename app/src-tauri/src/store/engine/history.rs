@@ -1,4 +1,4 @@
-//! Undo and redo: each edit is the `Entry` it made, replayed forward or as its inverse.
+//! Undo and redo by replaying edits forward or in reverse.
 
 use super::*;
 use crate::types::wire_str_enum;
@@ -16,8 +16,7 @@ pub(crate) type Piles = HashMap<String, PileDelta>;
 /// What one write did to the map's extra-field definitions.
 pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 
-/// What one write did: to the rows, to the records of each interned field, and to the
-/// field definitions. The rows persist as Arrow; the rest as JSON.
+/// An undoable change to locations, value records, and field definitions.
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
 pub struct Entry {
     #[serde(skip)]
@@ -32,14 +31,12 @@ pub struct Entry {
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
-/// A change touching more rows than this leaves no undo entry (the entry would clone
-/// every row into the persisted history), and clears all history: an older entry undone
-/// over it would restore stale rows.
+/// Maximum rows in an undoable edit. Larger edits clear history to limit memory
+/// and prevent older undo entries from restoring stale rows.
 pub(crate) const MAX_UNDO_ROWS: usize = 500_000;
 
 wire_str_enum! {
-    /// Which way through the edit history: back over what was done, or forward over what
-    /// was undone.
+    /// Which edit history stack to step through.
     derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq, Eq, Debug)
     pub enum Stack {
         /// The edits that can be undone.
@@ -122,10 +119,8 @@ impl EditStacks {
         seq
     }
 
-    /// Fold `later` into the newest edit when it is `seq`, in memory, and ends where `later`
-    /// starts, and give it a fresh `seq`: a stored row keeps the edit as it was when stored,
-    /// so the grown edit is stored anew and the old row goes on the next save. Redo is gone,
-    /// as for any new edit. Hands `later` back otherwise.
+    /// Join `later` to the newest edit if its sequence and states match.
+    /// Assign a fresh sequence so persistence replaces the old entry; return `later` if it cannot join.
     pub(crate) fn fold_into_newest(&mut self, seq: u64, later: Entry) -> Result<u64, Entry> {
         let Some(top) = self.undo.last_mut().filter(|top| top.seq == seq) else {
             return Err(later);
@@ -164,7 +159,7 @@ impl EditStacks {
         }
     }
 
-    /// Forget redo, for a change that leaves no undo entry of its own.
+    /// Clear both undo and redo history.
     pub(crate) fn clear(&mut self) {
         self.undo.clear();
         self.redo.clear();
@@ -212,10 +207,8 @@ impl EditStacks {
         histories
     }
 
-    /// Take the newest edit off `from` and move it to the other stack: an undo reverses
-    /// it, a redo re-applies it. `fetch` reads an edit that is only on disk; when it fails
-    /// the whole history goes, since replaying around a gap would corrupt the map. `None`
-    /// when `from` is empty.
+    /// Move the newest edit to the other stack, reversing it for undo.
+    /// Load disk-only entries with `fetch`; a read failure clears history to avoid replaying across a gap.
     pub(crate) fn step(
         &mut self,
         from: Stack,

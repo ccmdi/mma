@@ -1,6 +1,6 @@
 import type { MappingBackend } from "./syncStore";
 
-/** Real mapping persistence over the Rust `remote_mapping_clear` command (cmd proxy auto-unwraps). */
+/** Clear persisted sync mappings through the Rust backend. */
 export function createMappingBackend(): MappingBackend {
 	const { cmd } = window.MMA;
 	return {

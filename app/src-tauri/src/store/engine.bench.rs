@@ -335,11 +335,9 @@ impl BenchApp {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Direct engine calls (real fns, no command plumbing)
-// ---------------------------------------------------------------------------
-
-/// The real bulk-update path -- `store_update_locations` is this plus the state lock.
+// Direct engine calls
+//
+// Bulk location patches without the command's state lock.
 pub fn update_locations(
     store: &mut Store,
     updates: &[Patch<Location>],
@@ -410,7 +408,7 @@ pub fn base_loc_by_id(store: &Store, id: u32) -> Option<Location> {
     store.base_loc_by_id(id)
 }
 
-/// The step every write ends in: make the store hold each row as `change` leaves it.
+/// Apply a row change to the store.
 pub fn put(store: &mut Store, change: &Change) {
     store.put(change);
 }
