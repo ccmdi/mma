@@ -149,7 +149,8 @@ function bindingLabels() {
 					? decl.initializer.expression
 					: decl.initializer;
 				// The file is prettier-formatted, so its literals are JS objects, not JSON.
-				for (const f of new Function(`return ${init.getText(sf)}`)()) {
+				const table = new Function(`return ${init.getText(sf)}`)();
+				for (const f of Array.isArray(table) ? table : Object.values(table)) {
 					if (f.label) labels.push(f.label);
 					for (const [, label] of f.labels ?? []) labels.push(label);
 				}

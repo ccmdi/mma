@@ -200,6 +200,11 @@ impl Store {
         }
     }
 
+    /// Every field this map's rows can hold, built-in or the map's own.
+    pub(crate) fn registry(&self) -> selections::FieldRegistry<'_> {
+        selections::FieldRegistry::new(&self.meta.extra.fields)
+    }
+
     /// Increment the store version counter. JS uses this to detect stale responses.
     pub(crate) fn bump(&mut self) -> u64 {
         self.version += 1;
@@ -213,10 +218,11 @@ impl Store {
         self.edits.ship();
         self.histories.ship();
         self.meta.ship();
-        let fields: Vec<_> = selections::BUILTIN_FIELDS
+        let fields: Vec<_> = self
+            .registry()
             .iter()
-            .filter(|field| field.field_type.index_shape() != maps::IndexShape::None)
-            .map(|field| field.key.to_string())
+            .filter(|(_, def)| def.builtin.is_some() && def.index_shape() != maps::IndexShape::None)
+            .map(|(key, _)| key.to_string())
             .collect();
         let field_values = self
             .fields(fields.iter().map(String::as_str))

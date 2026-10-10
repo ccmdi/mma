@@ -231,94 +231,119 @@ declare const SyncDirection: {
 };
 /** @unstable */
 type SyncDirection = (typeof SyncDirection)[keyof typeof SyncDirection];
-declare const BUILTIN_FIELDS: readonly [{
-    readonly key: "id";
-    readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "lat";
-    readonly label: "Latitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "lng";
-    readonly label: "Longitude";
-    readonly type: "number";
-    readonly kind: "identity";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "heading";
-    readonly label: "Heading";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: {
-        readonly type: "circular";
-        readonly period: 360;
+declare const BUILTIN_FIELDS: {
+    readonly id: {
+        readonly type: "number";
+        readonly label: "ID";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "identity";
+        readonly clearable: false;
     };
-    readonly interned: false;
-}, {
-    readonly key: "pitch";
-    readonly label: "Pitch";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "zoom";
-    readonly label: "Zoom";
-    readonly type: "number";
-    readonly kind: "writable";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "panoId";
-    readonly label: "Pano ID";
-    readonly type: "string";
-    readonly kind: null;
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "tags";
-    readonly label: "Tags";
-    readonly type: "array";
-    readonly kind: "writable";
-    readonly comparison: null;
-    readonly interned: true;
-}, {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "tagCount";
-    readonly label: "Tag count";
-    readonly type: "number";
-    readonly kind: "virtual";
-    readonly comparison: null;
-    readonly interned: false;
-}, {
-    readonly key: "loadAsPanoId";
-    readonly label: "Load as pano ID";
-    readonly type: "boolean";
-    readonly kind: "writable";
-    readonly comparison: null;
-    readonly interned: false;
-}];
+    readonly lat: {
+        readonly type: "number";
+        readonly label: "Latitude";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "identity";
+        readonly clearable: false;
+    };
+    readonly lng: {
+        readonly type: "number";
+        readonly label: "Longitude";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "identity";
+        readonly clearable: false;
+    };
+    readonly heading: {
+        readonly type: "number";
+        readonly label: "Heading";
+        readonly values: null;
+        readonly comparison: {
+            readonly type: "circular";
+            readonly period: 360;
+        };
+        readonly interned: false;
+        readonly kind: "writable";
+        readonly clearable: false;
+    };
+    readonly pitch: {
+        readonly type: "number";
+        readonly label: "Pitch";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "writable";
+        readonly clearable: false;
+    };
+    readonly zoom: {
+        readonly type: "number";
+        readonly label: "Zoom";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "writable";
+        readonly clearable: false;
+    };
+    readonly panoId: {
+        readonly type: "string";
+        readonly label: "Pano ID";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: null;
+        readonly clearable: true;
+    };
+    readonly tags: {
+        readonly type: "array";
+        readonly label: "Tags";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: true;
+        readonly kind: "writable";
+        readonly clearable: false;
+    };
+    readonly createdAt: {
+        readonly type: "date";
+        readonly label: "Created";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: null;
+        readonly clearable: false;
+    };
+    readonly modifiedAt: {
+        readonly type: "date";
+        readonly label: "Modified";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: null;
+        readonly clearable: false;
+    };
+    readonly tagCount: {
+        readonly type: "number";
+        readonly label: "Tag count";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "virtual";
+        readonly clearable: false;
+    };
+    readonly loadAsPanoId: {
+        readonly type: "boolean";
+        readonly label: "Load as pano ID";
+        readonly values: null;
+        readonly comparison: null;
+        readonly interned: false;
+        readonly kind: "writable";
+        readonly clearable: false;
+    };
+};
 /** What a render frame does to the scene. @unstable */
 declare const FrameKind: {
     /** Clears the scene, then adds every row the frame carries. @unstable */
@@ -331,8 +356,6 @@ type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
 /** @unstable */
 declare const NO_SEL: 4294967295;
 declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
-/** @unstable */
-declare const CLEARABLE_BUILTINS: readonly ["panoId"];
 /** @unstable */
 declare const EFFECT_CALLS: readonly ["fetch", "panos", "sidecar"];
 /** @unstable */
@@ -479,7 +502,6 @@ declare const SCRATCH_MAP_ID: "scratch";
 declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"];
 
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
-declare const consts_CLEARABLE_BUILTINS: typeof CLEARABLE_BUILTINS;
 declare const consts_CameraType: typeof CameraType;
 /** @unstable */
 export type consts_CameraType = CameraType;
@@ -556,7 +578,7 @@ declare const consts_ValidationFlag: typeof ValidationFlag;
 /** @unstable */
 export type consts_ValidationFlag = ValidationFlag;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_CLEARABLE_BUILTINS as CLEARABLE_BUILTINS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_LOCATION_MERGED as LOCATION_MERGED, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_LOCATION_MERGED as LOCATION_MERGED, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
   export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_ValidationFlag as ValidationFlag };
 }
 
@@ -1583,9 +1605,10 @@ type FieldCount = {
     count: number;
 };
 /**
- *  Schema definition for a single `Location.extra` field. Stored in the map's
- *  `extra.fields` JSON. For enumerable types, `values` declares the value space in
- *  display order, each member carrying its own display name.
+ *  What a field is: its type, display name and declared values. A map's own fields are
+ *  stored in its `extra.fields` JSON; the built-ins come from the location itself. For
+ *  enumerable types, `values` declares the value space in display order, each member
+ *  carrying its own display name.
  */
 type FieldDef = {
     type: FieldType;
@@ -1594,6 +1617,8 @@ type FieldDef = {
     values: FieldValue[] | null;
     /**  How this field is compared during disambiguation. `null` infers it from the field type. */
     comparison: ComparisonType | null;
+    /**  The field's values are ids the map allocates, each wearing its own display record. */
+    interned?: boolean;
 };
 /**
  *  One member of an enumerable field's value space: the stored value plus its display
@@ -2462,7 +2487,7 @@ type ReviewSession = {
     updatedAt: string;
 };
 /**  Work that derives each selected row's edit from that row alone. @unstable */
-type RowOp<E = string> = 
+type RowOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
  *  where nothing holds `to` -- so `winner` decides only where a row holds both.
@@ -2494,7 +2519,7 @@ type RowOp<E = string> =
 {
     kind: "expr";
     key: string;
-    expr: E;
+    expr: string;
 } | 
 /**
  *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
@@ -7980,5 +8005,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
 export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

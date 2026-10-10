@@ -3290,8 +3290,14 @@ fn tags_is_indexed_because_it_is_an_array_field_not_because_it_is_tags() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
     let t = tag_onto(&mut store, 7, &[1]);
 
-    assert_eq!(store.index_shape_of("tags"), IndexShape::Multi);
-    assert_eq!(store.index_shape_of("panoId"), IndexShape::None);
+    assert_eq!(
+        store.registry().get("tags").unwrap().index_shape(),
+        IndexShape::Multi
+    );
+    assert_eq!(
+        store.registry().get("panoId").unwrap().index_shape(),
+        IndexShape::None
+    );
 
     store.scope(&tag_filter(t));
     assert!(store.field_indexes.contains_key("tags"));
@@ -3447,7 +3453,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
 fn extra_coverage(store: &mut Store, selector: &Selector) -> Vec<(String, u32)> {
     coverage(store, selector)
         .into_iter()
-        .filter(|(k, _)| !selections::is_builtin_field(k))
+        .filter(|(k, _)| selections::FieldRegistry::builtins().get(k).is_none())
         .collect()
 }
 
@@ -3645,7 +3651,10 @@ fn a_boolean_field_answers_from_the_postings_over_stored_and_overlay_rows() {
     ]);
     store.scope(&flag_filter(true));
 
-    assert_eq!(store.index_shape_of("loadAsPanoId"), IndexShape::Scalar);
+    assert_eq!(
+        store.registry().get("loadAsPanoId").unwrap().index_shape(),
+        IndexShape::Scalar
+    );
     assert_eq!(store.fields(["loadAsPanoId"])[0].count("true"), 2);
     assert_eq!(resolved(&mut store, &flag_filter(true)), vec![1, 3]);
     assert_eq!(resolved(&mut store, &flag_filter(false)), vec![2, 4]);
@@ -4093,7 +4102,11 @@ fn loc_full(id: u32, tags: Vec<u32>, created_at: u32) -> Location {
 fn merge_group_survivor_is_most_tags() {
     let a = loc_full(1, vec![1], 2020);
     let b = loc_full(2, vec![1, 2, 3], 2021);
-    let s = merge_group(&[a, b], &default_score());
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &default_score(),
+    );
     assert_eq!(s.id, 2);
     assert_eq!(s.tags, vec![1, 2, 3]);
 }
@@ -4102,7 +4115,11 @@ fn merge_group_survivor_is_most_tags() {
 fn merge_group_tie_breaks_on_earliest_created() {
     let a = loc_full(1, vec![1], 2021);
     let b = loc_full(2, vec![9], 2019); // fewer-tag tie, but earlier
-    let s = merge_group(&[a, b], &default_score());
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &default_score(),
+    );
     assert_eq!(s.id, 2);
 }
 
@@ -4110,7 +4127,11 @@ fn merge_group_tie_breaks_on_earliest_created() {
 fn merge_group_tie_breaks_on_lowest_id() {
     let a = loc_full(5, vec![1], 2020);
     let b = loc_full(2, vec![9], 2020); // same tags+created, lower id
-    let s = merge_group(&[a, b], &default_score());
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &default_score(),
+    );
     assert_eq!(s.id, 2);
 }
 
@@ -4118,7 +4139,11 @@ fn merge_group_tie_breaks_on_lowest_id() {
 fn merge_group_unions_and_dedupes_tags() {
     let a = loc_full(1, vec![1, 2], 2020);
     let b = loc_full(2, vec![2, 3], 2020);
-    let s = merge_group(&[a, b], &default_score());
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &default_score(),
+    );
     assert_eq!(s.tags, vec![1, 2, 3]);
 }
 
@@ -4128,7 +4153,11 @@ fn merge_group_extra_survivor_wins_and_unions_keys() {
     a.extra = Some(serde_json::from_str(r#"{"k":"survivor"}"#).unwrap());
     let mut b = loc_full(2, vec![3], 2020);
     b.extra = Some(serde_json::from_str(r#"{"k":"other","x":"y"}"#).unwrap());
-    let s = merge_group(&[a, b], &default_score());
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &default_score(),
+    );
     let extra = s.extra.unwrap();
     assert_eq!(extra.get("k").unwrap(), "survivor"); // conflict -> survivor wins
     assert_eq!(extra.get("x").unwrap(), "y"); // non-conflicting key from other is kept
@@ -4152,15 +4181,35 @@ fn merge_group_default_scores_more_than_tag_count() {
     finished.heading = 90.0;
     let bare = loc_full(2, vec![1, 2, 3], 2021);
     let group = [finished, bare];
-    assert_eq!(merge_group(&group, &default_score()).id, 1);
-    assert_eq!(merge_group(&group, &score_expr("tagCount")).id, 2);
+    assert_eq!(
+        merge_group(
+            selections::FieldRegistry::builtins(),
+            &group,
+            &default_score()
+        )
+        .id,
+        1
+    );
+    assert_eq!(
+        merge_group(
+            selections::FieldRegistry::builtins(),
+            &group,
+            &score_expr("tagCount")
+        )
+        .id,
+        2
+    );
 }
 
 #[test]
 fn merge_group_score_expression_replaces_tag_count() {
     let a = loc_full(1, vec![1, 2, 3], 2020);
     let b = loc_full(2, vec![], 2021);
-    let s = merge_group(&[a, b], &score_expr("id"));
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &score_expr("id"),
+    );
     assert_eq!(s.id, 2); // highest id wins despite having no tags at all
 }
 
@@ -4168,7 +4217,11 @@ fn merge_group_score_expression_replaces_tag_count() {
 fn merge_group_score_ties_still_fall_to_created_then_id() {
     let a = loc_full(1, vec![1], 2021);
     let b = loc_full(2, vec![9], 2019);
-    let s = merge_group(&[a, b], &score_expr("1"));
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &score_expr("1"),
+    );
     assert_eq!(s.id, 2); // only the earlier created_at explains this: a has the lower id
 }
 
@@ -4177,7 +4230,11 @@ fn merge_group_unscorable_member_ranks_below_a_scored_one() {
     let a = loc_full(1, vec![1, 2, 3], 2019); // wins on every built-in key
     let mut b = loc_full(2, vec![], 2021);
     b.extra = Some(serde_json::from_str(r#"{"q":1}"#).unwrap());
-    let s = merge_group(&[a, b], &score_expr("q"));
+    let s = merge_group(
+        selections::FieldRegistry::builtins(),
+        &[a, b],
+        &score_expr("q"),
+    );
     assert_eq!(s.id, 2);
 }
 
@@ -4189,7 +4246,11 @@ fn merge_group_applies_and_undo_restores() {
     assert_eq!(*store.alive_count, 2);
 
     let members = vec![a.clone(), b.clone()];
-    let survivor = merge_group(&members, &default_score());
+    let survivor = merge_group(
+        selections::FieldRegistry::builtins(),
+        &members,
+        &default_score(),
+    );
     assert_eq!(survivor.id, 1); // tie on tags+created -> lowest id survives
     let entry = Change::from_sides(vec![survivor], members);
 
@@ -6001,7 +6062,7 @@ fn plan(locs: &[Location], op: &RowOp) -> Vec<Patch<Location>> {
 
 fn plan_full(locs: &[Location], op: &RowOp) -> Planned {
     let fx = Fx::base(locs);
-    let p = plan_fields(&fx.view().all(), op).unwrap();
+    let p = plan_fields(selections::FieldRegistry::builtins(), &fx.view().all(), op).unwrap();
     Planned {
         updates: puts(p.edits),
         failed: p.failed,
@@ -6130,6 +6191,7 @@ fn field_op_honours_the_selector() {
     let set: RoaringBitmap = [2u32].into_iter().collect();
     let out = puts(
         plan_fields(
+            selections::FieldRegistry::builtins(),
             &fx.view().all().within(&set),
             &move_op("a", "b", MergeWinner::From),
         )
@@ -6219,7 +6281,7 @@ fn pinned_loc(id: u32, pano: &str) -> Location {
 /// The message a rejected op answers with, or a panic naming what was wrongly accepted.
 fn plan_err(locs: &[Location], op: &RowOp) -> String {
     let fx = Fx::base(locs);
-    match plan_fields(&fx.view().all(), op) {
+    match plan_fields(selections::FieldRegistry::builtins(), &fx.view().all(), op) {
         Err(e) => e.to_string(),
         Ok(_) => panic!("op was accepted"),
     }
@@ -6348,9 +6410,13 @@ fn expr_op_reads_builtin_columns_and_may_write_one() {
 #[test]
 fn expr_op_rejects_a_syntax_error_before_touching_rows() {
     let fx = Fx::base(&[loc_with_extra(1, r#"{"a":5}"#)]);
-    let err = plan_fields(&fx.view().all(), &expr_op("a", "a +"))
-        .err()
-        .unwrap();
+    let err = plan_fields(
+        selections::FieldRegistry::builtins(),
+        &fx.view().all(),
+        &expr_op("a", "a +"),
+    )
+    .err()
+    .unwrap();
     assert!(err.0.contains("unexpected end of expression"), "{}", err.0);
 }
 
@@ -8138,4 +8204,11 @@ fn ensuring_a_colour_fills_only_a_colourless_record_and_reports_it() {
     coloured.insert("color".into(), "#123456".into());
     assert!(!ensure_color(&mut coloured));
     assert_eq!(coloured["color"], "#123456");
+}
+
+#[test]
+fn a_key_an_op_cannot_write_fails_even_where_no_row_would_change() {
+    let locs = [loc(1, 1.0, 1.0)];
+    let err = plan_err(&locs, &del_op(&["tags"]));
+    assert!(err.contains("'tags' cannot be removed"), "{err}");
 }

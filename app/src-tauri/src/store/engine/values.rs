@@ -1,6 +1,6 @@
 //! Interned field values: the per-map record store for fields whose values are ids the
 //! store allocates. Which fields those are is declared on the field table
-//! (`BuiltinField::interned`); `tags` is the first. The engine owns the records for the
+//! (`FieldDef::interned`); `tags` is the first. The engine owns the records for the
 //! open map - ids are allocated here, import/copy reconcile through here, and every
 //! change ships on the mutation result - so no second writer can race the allocation.
 //!
@@ -318,13 +318,6 @@ fn hex_rgb(hex: &str) -> Option<[u8; 3]> {
 }
 
 impl Store {
-    /// Whether `field` declares interned values.
-    pub(super) fn is_interned(field: &str) -> bool {
-        selections::BUILTIN_FIELDS
-            .iter()
-            .any(|f| f.key == field && f.interned)
-    }
-
     pub(crate) fn value_record(&self, field: &str, id: u32) -> Option<&ValueRecord> {
         self.value_meta.get(field)?.get(&id)
     }
@@ -352,7 +345,7 @@ impl Store {
         field: &str,
         patch: &FieldValuesPatch,
     ) -> AppResult<FieldValuesResult> {
-        if !Self::is_interned(field) {
+        if !self.registry().get(field).is_some_and(|def| def.interned) {
             return Err(AppError(format!("'{field}' does not intern its values")));
         }
         let (floor, counted) = {
@@ -435,6 +428,7 @@ impl Store {
         if merges.is_empty() {
             return Ok(Vec::new());
         }
+        let to = self.registry().assign(field)?;
         let resolve = |mut id: u32| {
             let mut seen = HashSet::new();
             while let Some(&next) = merges.get(&id) {
@@ -466,11 +460,9 @@ impl Store {
                         next.push(mapped);
                     }
                 }
-                let assignment = [(field.to_string(), serde_json::json!(next))]
-                    .into_iter()
-                    .collect();
-                match assign_patch(row.id(), &assignment, row.flags()) {
-                    Ok(p) => patches.push(p),
+                let mut patch = row_patch(row.id());
+                match to.write(&mut patch, row.flags(), &serde_json::json!(next)) {
+                    Ok(()) => patches.push(patch),
                     Err(e) => err = Some(e),
                 }
             }

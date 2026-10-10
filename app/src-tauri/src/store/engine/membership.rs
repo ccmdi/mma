@@ -111,11 +111,7 @@ impl Store {
 
     /// The selections a write leaves standing: one naming a value the write emptied goes.
     fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
-        let fields: Vec<_> = selections::BUILTIN_FIELDS
-            .iter()
-            .filter(|field| field.interned)
-            .map(|field| field.key.to_string())
-            .collect();
+        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
         let gone: HashSet<_> = self
             .fields(fields.iter().map(String::as_str))
             .into_iter()
@@ -350,11 +346,7 @@ impl Store {
     }
 
     pub(crate) fn valid_selections(&mut self, rows: Vec<ListedSelection>) -> Vec<ListedSelection> {
-        let fields: Vec<_> = selections::BUILTIN_FIELDS
-            .iter()
-            .filter(|field| field.interned)
-            .map(|field| field.key.to_string())
-            .collect();
+        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
         let values = self.fields(fields.iter().map(String::as_str));
         rows.into_iter()
             .filter_map(|row| {

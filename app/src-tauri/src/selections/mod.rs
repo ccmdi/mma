@@ -675,12 +675,10 @@ impl<'a, 'v> RowRef<'a, 'v> {
     pub fn resolve_fields(&self, fields: &[&str], mut f: impl FnMut(usize, serde_json::Value)) {
         let mut wanted = 0;
         for (i, field) in fields.iter().enumerate() {
-            if !is_builtin_field(field) {
-                wanted += 1;
-                continue;
-            }
-            if let Some(v) = builtin_value(self, field) {
-                f(i, v);
+            match builtin_value(self, field) {
+                Some(Some(v)) => f(i, v),
+                Some(None) => {}
+                None => wanted += 1,
             }
         }
         if wanted == 0 {
@@ -689,7 +687,7 @@ impl<'a, 'v> RowRef<'a, 'v> {
         let mut found = 0;
         let mut member = |key: &str, raw: &str| {
             for (i, field) in fields.iter().enumerate() {
-                if *field != key || is_builtin_field(field) {
+                if *field != key || builtin_value(self, field).is_some() {
                     continue;
                 }
                 found += 1;

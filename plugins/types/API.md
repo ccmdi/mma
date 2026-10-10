@@ -67,104 +67,116 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 `stable` · since v0.10.3
 
 ```ts
-BUILTIN_FIELDS: readonly [
-  {
-    readonly key: "id";
+BUILTIN_FIELDS: {
+  id: {
+    readonly type: "number";
     readonly label: "ID";
-    readonly type: "number";
-    readonly kind: "identity";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "lat";
+    readonly kind: "identity";
+    readonly clearable: false;
+  };
+  lat: {
+    readonly type: "number";
     readonly label: "Latitude";
-    readonly type: "number";
-    readonly kind: "identity";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "lng";
+    readonly kind: "identity";
+    readonly clearable: false;
+  };
+  lng: {
+    readonly type: "number";
     readonly label: "Longitude";
-    readonly type: "number";
-    readonly kind: "identity";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "heading";
-    readonly label: "Heading";
+    readonly kind: "identity";
+    readonly clearable: false;
+  };
+  heading: {
     readonly type: "number";
-    readonly kind: "writable";
+    readonly label: "Heading";
+    readonly values: null;
     readonly comparison: { readonly type: "circular"; readonly period: 360 };
     readonly interned: false;
-  },
-  {
-    readonly key: "pitch";
+    readonly kind: "writable";
+    readonly clearable: false;
+  };
+  pitch: {
+    readonly type: "number";
     readonly label: "Pitch";
-    readonly type: "number";
-    readonly kind: "writable";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "zoom";
+    readonly kind: "writable";
+    readonly clearable: false;
+  };
+  zoom: {
+    readonly type: "number";
     readonly label: "Zoom";
-    readonly type: "number";
-    readonly kind: "writable";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "panoId";
-    readonly label: "Pano ID";
+    readonly kind: "writable";
+    readonly clearable: false;
+  };
+  panoId: {
     readonly type: "string";
-    readonly kind: null;
+    readonly label: "Pano ID";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-  {
-    readonly key: "tags";
-    readonly label: "Tags";
+    readonly kind: null;
+    readonly clearable: true;
+  };
+  tags: {
     readonly type: "array";
-    readonly kind: "writable";
+    readonly label: "Tags";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: true;
-  },
-  {
-    readonly key: "createdAt";
-    readonly label: "Created";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-    readonly interned: false;
-  },
-  {
-    readonly key: "modifiedAt";
-    readonly label: "Modified";
-    readonly type: "date";
-    readonly kind: null;
-    readonly comparison: null;
-    readonly interned: false;
-  },
-  {
-    readonly key: "tagCount";
-    readonly label: "Tag count";
-    readonly type: "number";
-    readonly kind: "virtual";
-    readonly comparison: null;
-    readonly interned: false;
-  },
-  {
-    readonly key: "loadAsPanoId";
-    readonly label: "Load as pano ID";
-    readonly type: "boolean";
     readonly kind: "writable";
+    readonly clearable: false;
+  };
+  createdAt: {
+    readonly type: "date";
+    readonly label: "Created";
+    readonly values: null;
     readonly comparison: null;
     readonly interned: false;
-  },
-]
+    readonly kind: null;
+    readonly clearable: false;
+  };
+  modifiedAt: {
+    readonly type: "date";
+    readonly label: "Modified";
+    readonly values: null;
+    readonly comparison: null;
+    readonly interned: false;
+    readonly kind: null;
+    readonly clearable: false;
+  };
+  tagCount: {
+    readonly type: "number";
+    readonly label: "Tag count";
+    readonly values: null;
+    readonly comparison: null;
+    readonly interned: false;
+    readonly kind: "virtual";
+    readonly clearable: false;
+  };
+  loadAsPanoId: {
+    readonly type: "boolean";
+    readonly label: "Load as pano ID";
+    readonly values: null;
+    readonly comparison: null;
+    readonly interned: false;
+    readonly kind: "writable";
+    readonly clearable: false;
+  };
+}
 ```
 
 ### CameraType
@@ -197,14 +209,6 @@ CapturePick: { readonly Newest: "newest"; readonly Oldest: "oldest" }
 ```
 
 A capture of a pano's timeline to settle on.
-
-### CLEARABLE_BUILTINS
-
-`unstable` · since v0.10.3
-
-```ts
-CLEARABLE_BUILTINS: readonly ["panoId"]
-```
 
 ### DatePart
 

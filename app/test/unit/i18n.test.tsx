@@ -120,7 +120,7 @@ describe("i18n catalogs", () => {
 	// un-translating every field picker.
 	it("carry every Rust-side field and enum label", () => {
 		const labels = [
-			...BUILTIN_FIELDS.map((f) => f.label),
+			...Object.values(BUILTIN_FIELDS).map((f) => f.label),
 			...KNOWN_FIELDS.flatMap((f) => [f.label, ...f.labels.map(([, l]) => l)]),
 		];
 		expect(labels.filter((l) => !(l in en.catalog))).toEqual([]);

@@ -72,10 +72,10 @@ vi.mock("@/bindings.consts", () => ({
 	SCRATCH_MAP_ID: "scratch",
 	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
 	PanoType: { Official: 2, Unknown: 3, UserUploaded: 10 },
-	BUILTIN_FIELDS: [
-		{ key: "panoId", label: "Pano ID", type: "string", kind: null, comparison: null },
-		{ key: "heading", label: "Heading", type: "number", kind: "writable", comparison: null },
-	],
+	BUILTIN_FIELDS: {
+		panoId: { label: "Pano ID", type: "string", kind: null, comparison: null },
+		heading: { label: "Heading", type: "number", kind: "writable", comparison: null },
+	},
 	KNOWN_FIELDS: [
 		{ key: "altitude", type: "number", label: "Altitude", defaultOff: false },
 		{ key: "countryCode", type: "string", label: "Country code", defaultOff: false },

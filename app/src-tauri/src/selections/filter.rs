@@ -1,15 +1,19 @@
 //! Field filters: the built-in field table and value comparison rules.
 
 use super::*;
-use crate::store::maps::{ComparisonType, FieldType};
-use crate::types::Location;
+use crate::store::maps::{ComparisonType, FieldDef, FieldType};
+use crate::types::{AppError, AppResult, Location, RawExtra};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
+use mma_algebra::Patch;
 use serde::Serialize;
 use std::cmp::Ordering;
+use std::collections::HashMap;
+use std::ptr;
+use std::sync::OnceLock;
 
-/// How a built-in field may be accessed by the field system on the TS side.
+/// How a built-in field may be accessed by the field system.
 /// `None` means listable and filterable but read-only.
-#[derive(Clone, Serialize, specta::Type)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum BuiltinFieldKind {
     /// Composes the location itself. Never writable, never offered in pickers.
@@ -20,27 +24,100 @@ pub enum BuiltinFieldKind {
     Writable,
 }
 
-/// One entry of the built-in field vocabulary. Exported to TS as a specta constant so
-/// `fieldDefRegistry` derives its table from here rather than restating it.
-#[derive(Clone, Serialize, specta::Type)]
+/// Where a built-in field physically lives and how field ops may touch it. Never part of
+/// a map's own stored definitions.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct BuiltinField {
-    pub key: &'static str,
-    pub label: &'static str,
-    #[serde(rename = "type")]
-    pub field_type: FieldType,
+pub struct Builtin {
     pub kind: Option<BuiltinFieldKind>,
-    pub comparison: Option<ComparisonType>,
-    /// The field's values are ids the store allocates, wearing per-value display
-    /// metadata (`store_patch_field_values`). Tags are the first such field.
-    pub interned: bool,
+    /// A null in the field's patch empties it.
+    pub clearable: bool,
+    #[serde(skip)]
+    pub optional: bool,
+    /// Where a write lands; a derived field has nowhere.
+    #[serde(skip)]
+    pub address: Option<Address>,
+}
+
+/// Where a field's value is written on a row patch.
+#[derive(Clone, Copy, Debug)]
+pub enum Address {
+    Column(fn(&mut Patch<Location>, &serde_json::Value) -> AppResult<()>),
+    Flag(LocationFlags),
+    Extra,
+}
+
+impl PartialEq for Address {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Column(a), Self::Column(b)) => ptr::fn_addr_eq(*a, *b),
+            (Self::Flag(a), Self::Flag(b)) => a == b,
+            (Self::Extra, Self::Extra) => true,
+            _ => false,
+        }
+    }
+}
+
+/// Leave to write one field, granted only when the field takes the write.
+#[derive(Clone, Copy)]
+pub struct FieldWriter<'k> {
+    key: &'k str,
+    address: Address,
+}
+
+impl<'k> FieldWriter<'k> {
+    pub fn key(&self) -> &'k str {
+        self.key
+    }
+
+    pub fn is_flag(&self) -> bool {
+        matches!(self.address, Address::Flag(_))
+    }
+
+    pub fn is_extra(&self) -> bool {
+        matches!(self.address, Address::Extra)
+    }
+
+    /// Write `value` onto `patch`, a row whose flags stand at `flags`. A null clears.
+    pub fn write(
+        &self,
+        patch: &mut Patch<Location>,
+        flags: LocationFlags,
+        value: &serde_json::Value,
+    ) -> AppResult<()> {
+        match self.address {
+            Address::Column(write) => write(patch, value),
+            Address::Flag(bit) => {
+                let mut next = patch.flags.unwrap_or(flags);
+                next.set(bit, flag_assignment(self.key, value)?);
+                patch.flags = Some(next);
+                Ok(())
+            }
+            Address::Extra => {
+                let mut extra = match &patch.extra {
+                    mma_algebra::Field::Set(raw) => raw.to_map(),
+                    _ => serde_json::Map::new(),
+                };
+                extra.insert(self.key.to_string(), value.clone());
+                patch.extra = RawExtra::from_map(&extra).into();
+                Ok(())
+            }
+        }
+    }
+}
+
+/// A flag field's assigned value as the bit it sets: a boolean, nothing else.
+pub fn flag_assignment(key: &str, value: &serde_json::Value) -> AppResult<bool> {
+    value
+        .as_bool()
+        .ok_or_else(|| AppError(format!("'{key}' takes true or false, not {value}")))
 }
 
 // The field vocabulary is declared once, on the `Location` struct (`#[derive(Fields)]`,
 // see `mma-fields`): `location_fields!` hands the declared table to the callback below,
-// which expands it into the exported field table, `is_builtin_field`, and both
-// resolvers. The helper macros translate each row's tokens; resolver bodies are chosen
-// by the row's category, so a quirk is a declared category, never a one-off closure.
+// which expands it into the built-in definitions and the value resolver. The helper
+// macros translate each row's tokens; resolver bodies are chosen by the row's category,
+// so a quirk is a declared category, never a one-off closure.
 
 macro_rules! field_kind {
     (identity) => {
@@ -107,45 +184,50 @@ macro_rules! field_value {
     };
 }
 
-macro_rules! field_flag_bit {
-    (flag, $f:ident) => {
-        Some(LocationFlags::$f)
+macro_rules! field_address {
+    (flag, $c:ident, $f:ident) => {
+        Some(Address::Flag(LocationFlags::$f))
     };
-    ($cat:ident, $f:ident) => {
+    (len_of, $c:ident, $f:ident) => {
         None
+    };
+    ($cat:ident, $c:ident, $f:ident) => {
+        Some(Address::Column(|patch, value| {
+            patch.$c = serde_json::from_value(value.clone())?;
+            Ok(())
+        }))
     };
 }
 
 macro_rules! expand_location_fields {
     ($({ $key:literal, $label:literal, $ty:ident, $kind:ident, $cmp:tt, $interned:ident,
          $cat:ident, $col:ident, $f:ident }),* $(,)?) => {
-        pub const BUILTIN_FIELDS: &[BuiltinField] = &[$(BuiltinField {
-            key: $key,
-            label: $label,
-            field_type: FieldType::$ty,
-            kind: field_kind!($kind),
-            comparison: field_cmp!($cmp),
-            interned: field_interned!($interned),
-        }),*];
-
-        /// True for fields backed by a Location column rather than the `extras` blob.
-        pub fn is_builtin_field(field: &str) -> bool {
-            matches!(field, $($key)|*)
+        /// Every built-in field's definition, in declaration order. Nullability is probed
+        /// rather than declared: whatever a default location lacks, a row can lack.
+        fn builtin_defs() -> Vec<(&'static str, FieldDef)> {
+            let empty = Location::default();
+            let empty = RowRef::from_loc(&empty);
+            vec![$(($key, FieldDef {
+                field_type: FieldType::$ty,
+                label: Some($label.into()),
+                values: None,
+                comparison: field_cmp!($cmp),
+                interned: field_interned!($interned),
+                builtin: Some(Builtin {
+                    kind: field_kind!($kind),
+                    clearable: <Location as mma_algebra::Patchable>::CLEARS.contains(&$key),
+                    optional: builtin_value(&empty, $key).flatten().is_none(),
+                    address: field_address!($cat, $col, $f),
+                }),
+            })),*]
         }
 
-        /// The flag bit a built-in field reads and writes as a boolean.
-        pub fn flag_field(field: &str) -> Option<LocationFlags> {
+        /// A built-in field's value on `row`: `None` when `field` is no built-in, and
+        /// `Some(None)` when the row lacks it. That inner `None` is the one meaning of
+        /// absence: resolving an `extra` key holding JSON null agrees.
+        pub(super) fn builtin_value(row: &RowRef, field: &str) -> Option<Option<serde_json::Value>> {
             match field {
-                $($key => field_flag_bit!($cat, $f),)*
-                _ => None,
-            }
-        }
-
-        /// A built-in field's value on `row`, `None` when the row lacks it. `None` is the
-        /// one meaning of absence: resolving an `extra` key holding JSON null agrees.
-        pub(super) fn builtin_value(row: &RowRef, field: &str) -> Option<serde_json::Value> {
-            match field {
-                $($key => field_value!($cat, row, $col, $f),)*
+                $($key => Some(field_value!($cat, row, $col, $f)),)*
                 _ => None,
             }
         }
@@ -155,20 +237,111 @@ macro_rules! expand_location_fields {
 use crate::types::location_fields;
 location_fields!(expand_location_fields);
 
-/// The columns a row can lack, derived from the resolvers rather than declared
-/// beside them: a default location holds every always-present field, so whatever
-/// it answers `None` for is a column an op may clear.
-pub fn optional_builtins() -> &'static [&'static str] {
-    use std::sync::OnceLock;
-    static KEYS: OnceLock<Vec<&'static str>> = OnceLock::new();
-    KEYS.get_or_init(|| {
-        let empty = Location::default();
-        BUILTIN_FIELDS
-            .iter()
-            .filter(|f| RowRef::from_loc(&empty).resolve_field(f.key).is_none())
-            .map(|f| f.key)
-            .collect()
+struct Builtins {
+    order: Vec<&'static str>,
+    defs: HashMap<&'static str, FieldDef>,
+}
+
+fn builtins() -> &'static Builtins {
+    static BUILTINS: OnceLock<Builtins> = OnceLock::new();
+    BUILTINS.get_or_init(|| {
+        let defs = builtin_defs();
+        Builtins {
+            order: defs.iter().map(|(key, _)| *key).collect(),
+            defs: defs.into_iter().collect(),
+        }
     })
+}
+
+/// Every field a map's rows can hold, by key: the built-ins in declaration order, then
+/// the map's own definitions. A built-in shadows a map definition of the same key.
+#[derive(Clone, Copy)]
+pub struct FieldRegistry<'a> {
+    map: &'a HashMap<String, FieldDef>,
+}
+
+impl<'a> FieldRegistry<'a> {
+    pub fn new(map: &'a HashMap<String, FieldDef>) -> Self {
+        Self { map }
+    }
+
+    /// The registry of a map that defines no fields of its own.
+    pub fn builtins() -> FieldRegistry<'static> {
+        static NONE: OnceLock<HashMap<String, FieldDef>> = OnceLock::new();
+        FieldRegistry::new(NONE.get_or_init(HashMap::new))
+    }
+
+    pub fn get(&self, key: &str) -> Option<&'a FieldDef> {
+        builtins().defs.get(key).or_else(|| self.map.get(key))
+    }
+
+    /// Leave to assign `key`. A key no field declares is an `extra` key, always writable.
+    pub fn assign<'k>(&self, key: &'k str) -> AppResult<FieldWriter<'k>> {
+        self.grant(key, FieldDef::assignable, "assigned")
+    }
+
+    /// Leave to remove `key`. A key no field declares is an `extra` key, always removable.
+    pub fn clear<'k>(&self, key: &'k str) -> AppResult<FieldWriter<'k>> {
+        self.grant(key, FieldDef::clearable, "removed")
+    }
+
+    fn grant<'k>(
+        &self,
+        key: &'k str,
+        allows: fn(&FieldDef) -> bool,
+        verb: &str,
+    ) -> AppResult<FieldWriter<'k>> {
+        let address = match self.get(key) {
+            None => Some(Address::Extra),
+            Some(def) if allows(def) => def.address(),
+            Some(_) => None,
+        };
+        address
+            .map(|address| FieldWriter { key, address })
+            .ok_or_else(|| AppError(format!("'{key}' cannot be {verb}")))
+    }
+
+    /// The fields whose values are ids the map allocates.
+    pub fn interned(&self) -> impl Iterator<Item = &'a str> + 'a {
+        self.iter()
+            .filter(|(_, def)| def.interned)
+            .map(|(key, _)| key)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&'a str, &'a FieldDef)> + 'a {
+        let builtins = builtins();
+        builtins
+            .order
+            .iter()
+            .map(|key| (*key, &builtins.defs[key]))
+            .chain(
+                self.map
+                    .iter()
+                    .filter(|(key, _)| !builtins.defs.contains_key(key.as_str()))
+                    .map(|(key, def)| (key.as_str(), def)),
+            )
+    }
+}
+
+impl Serialize for FieldRegistry<'_> {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        #[derive(Serialize)]
+        struct Entry<'d> {
+            #[serde(flatten)]
+            def: &'d FieldDef,
+            #[serde(flatten)]
+            builtin: Option<&'d Builtin>,
+        }
+        serializer.collect_map(self.iter().map(|(key, def)| {
+            (
+                key,
+                Entry {
+                    def,
+                    builtin: def.builtin.as_ref(),
+                },
+            )
+        }))
+    }
 }
 
 /// A flag bit as the boolean its field holds.

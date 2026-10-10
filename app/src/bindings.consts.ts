@@ -233,7 +233,7 @@ export const SyncDirection = {
 } as const;
 export type SyncDirection = (typeof SyncDirection)[keyof typeof SyncDirection];
 
-export const BUILTIN_FIELDS = [{"key":"id","label":"ID","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"lat","label":"Latitude","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"lng","label":"Longitude","type":"number","kind":"identity","comparison":null,"interned":false},{"key":"heading","label":"Heading","type":"number","kind":"writable","comparison":{"type":"circular","period":360.0},"interned":false},{"key":"pitch","label":"Pitch","type":"number","kind":"writable","comparison":null,"interned":false},{"key":"zoom","label":"Zoom","type":"number","kind":"writable","comparison":null,"interned":false},{"key":"panoId","label":"Pano ID","type":"string","kind":null,"comparison":null,"interned":false},{"key":"tags","label":"Tags","type":"array","kind":"writable","comparison":null,"interned":true},{"key":"createdAt","label":"Created","type":"date","kind":null,"comparison":null,"interned":false},{"key":"modifiedAt","label":"Modified","type":"date","kind":null,"comparison":null,"interned":false},{"key":"tagCount","label":"Tag count","type":"number","kind":"virtual","comparison":null,"interned":false},{"key":"loadAsPanoId","label":"Load as pano ID","type":"boolean","kind":"writable","comparison":null,"interned":false}] as const;
+export const BUILTIN_FIELDS = {"id":{"type":"number","label":"ID","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"lat":{"type":"number","label":"Latitude","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"lng":{"type":"number","label":"Longitude","values":null,"comparison":null,"interned":false,"kind":"identity","clearable":false},"heading":{"type":"number","label":"Heading","values":null,"comparison":{"type":"circular","period":360.0},"interned":false,"kind":"writable","clearable":false},"pitch":{"type":"number","label":"Pitch","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false},"zoom":{"type":"number","label":"Zoom","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false},"panoId":{"type":"string","label":"Pano ID","values":null,"comparison":null,"interned":false,"kind":null,"clearable":true},"tags":{"type":"array","label":"Tags","values":null,"comparison":null,"interned":true,"kind":"writable","clearable":false},"createdAt":{"type":"date","label":"Created","values":null,"comparison":null,"interned":false,"kind":null,"clearable":false},"modifiedAt":{"type":"date","label":"Modified","values":null,"comparison":null,"interned":false,"kind":null,"clearable":false},"tagCount":{"type":"number","label":"Tag count","values":null,"comparison":null,"interned":false,"kind":"virtual","clearable":false},"loadAsPanoId":{"type":"boolean","label":"Load as pano ID","values":null,"comparison":null,"interned":false,"kind":"writable","clearable":false}} as const;
 
 /** What a render frame does to the scene. @unstable */
 export const FrameKind = {
@@ -248,9 +248,6 @@ export type FrameKind = (typeof FrameKind)[keyof typeof FrameKind];
 export const NO_SEL = 4294967295 as const;
 
 export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
-
-/** @unstable */
-export const CLEARABLE_BUILTINS = ["panoId"] as const;
 
 /** @unstable */
 export const EFFECT_CALLS = ["fetch","panos","sidecar"] as const;

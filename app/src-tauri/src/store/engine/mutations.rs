@@ -5,11 +5,12 @@ use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::neighborhood::coord_key;
 use crate::selections::{self, Selector};
+use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
 use crate::types::wire_str_enum;
+use crate::types::Location;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
-use crate::types::{Location, LocationFlags};
 use crate::util;
 use mma_algebra::{
     number_value, same_field_value, Delta, Edit, Keys, Layer, Merge, Op, Patch, Patchable,
@@ -260,11 +261,16 @@ impl Store {
                                         remap.get(&id).copied().map(serde_json::Value::from)
                                     })
                                     .collect();
-                                let fields = serde_json::Map::from_iter([(
-                                    field.clone(),
-                                    serde_json::Value::Array(values),
-                                )]);
-                                let patch = assign_patch(row.id, &fields, row.flags)
+                                let mut patch = row_patch(row.id);
+                                self.registry()
+                                    .assign(&field)
+                                    .and_then(|to| {
+                                        to.write(
+                                            &mut patch,
+                                            row.flags,
+                                            &serde_json::Value::Array(values),
+                                        )
+                                    })
                                     .expect("declared interned fields hold id lists");
                                 *row = row.patched(&patch);
                             }
@@ -391,7 +397,7 @@ pub enum Work {
 /// Work that derives each selected row's edit from that row alone.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum RowOp<E = String> {
+pub enum RowOp {
     /// Rename `from` into `to`. Merge is the same operation -- rename is just the case
     /// where nothing holds `to` -- so `winner` decides only where a row holds both.
     Move {
@@ -410,7 +416,7 @@ pub enum RowOp<E = String> {
     },
     /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
     /// missing or non-numeric field, a non-finite result) is reported back by id.
-    Expr { key: String, expr: E },
+    Expr { key: String, expr: String },
     /// Add `add` and strip `remove` from a list-valued field, per row. The only op that
     /// reads the row's current value as a set rather than replacing it, which is what
     /// membership needs: `tags` is this op's first caller, `array` extras its second.
@@ -426,50 +432,67 @@ pub enum RowOp<E = String> {
 }
 
 impl RowOp {
-    fn prepare(&self) -> AppResult<RowOp<field_expr::Expr>> {
+    /// The op with its expression parsed and leave granted for every key it writes, so a
+    /// key the op cannot write is rejected before any row reports a change.
+    fn prepare<'o>(&'o self, fields: FieldRegistry<'_>) -> AppResult<Prepared<'o>> {
         Ok(match self {
             Self::Set { key, value } => {
-                check_target(key, KeyWrite::Assign)?;
-                if selections::flag_field(key).is_some() {
-                    flag_assignment(key, value)?;
+                let to = fields.assign(key)?;
+                if to.is_flag() {
+                    selections::flag_assignment(key, value)?;
                 }
-                RowOp::Set {
-                    key: key.clone(),
-                    value: value.clone(),
-                }
+                Prepared::Set { to, value }
             }
             Self::Expr { key, expr } => {
                 let expr = field_expr::parse(expr)?;
-                check_target(key, KeyWrite::Assign)?;
-                RowOp::Expr {
-                    key: key.clone(),
+                Prepared::Expr {
+                    to: fields.assign(key)?,
                     expr,
                 }
             }
-            Self::ListSet { key, add, remove } => {
-                check_target(key, KeyWrite::Assign)?;
-                RowOp::ListSet {
-                    key: key.clone(),
-                    add: add.clone(),
-                    remove: remove.clone(),
-                }
-            }
-            Self::Delete { keys } => {
-                keys.iter()
-                    .try_for_each(|key| check_target(key, KeyWrite::Clear))?;
-                RowOp::Delete { keys: keys.clone() }
-            }
-            Self::Move { from, to, winner } => {
-                check_target(from, KeyWrite::Clear)?;
-                check_target(to, KeyWrite::Assign)?;
-                RowOp::Move {
-                    from: from.clone(),
-                    to: to.clone(),
-                    winner: *winner,
-                }
-            }
+            Self::ListSet { key, add, remove } => Prepared::ListSet {
+                to: fields.assign(key)?,
+                add,
+                remove,
+            },
+            Self::Delete { keys } => Prepared::Delete {
+                keys: keys
+                    .iter()
+                    .map(|key| fields.clear(key))
+                    .collect::<AppResult<_>>()?,
+            },
+            Self::Move { from, to, winner } => Prepared::Move {
+                from: fields.clear(from)?,
+                to: fields.assign(to)?,
+                winner: *winner,
+            },
         })
     }
+}
+
+/// A [`RowOp`] ready to run: each key it writes holds its writer.
+enum Prepared<'o> {
+    Set {
+        to: FieldWriter<'o>,
+        value: &'o serde_json::Value,
+    },
+    Expr {
+        to: FieldWriter<'o>,
+        expr: Expr,
+    },
+    Move {
+        from: FieldWriter<'o>,
+        to: FieldWriter<'o>,
+        winner: MergeWinner,
+    },
+    Delete {
+        keys: Vec<FieldWriter<'o>>,
+    },
+    ListSet {
+        to: FieldWriter<'o>,
+        add: &'o [serde_json::Value],
+        remove: &'o [serde_json::Value],
+    },
 }
 
 /// Work that derives its edits from the selected rows as a set.
@@ -515,15 +538,8 @@ pub struct WorkResult {
     pub failed: Vec<u32>,
 }
 
-/// A flag field's assigned value as the bit it sets: a boolean, nothing else.
-fn flag_assignment(key: &str, value: &serde_json::Value) -> AppResult<bool> {
-    value
-        .as_bool()
-        .ok_or_else(|| AppError(format!("'{key}' takes true or false, not {value}")))
-}
-
-fn expr_value(key: &str, v: f64) -> Option<serde_json::Value> {
-    if selections::flag_field(key).is_none() {
+fn expr_value(to: FieldWriter<'_>, v: f64) -> Option<serde_json::Value> {
+    if !to.is_flag() {
         return Some(number_value(v));
     }
     match v {
@@ -533,117 +549,67 @@ fn expr_value(key: &str, v: f64) -> Option<serde_json::Value> {
     }
 }
 
-/// The patch applying row `id`'s assignments: a built-in column is set directly, a flag
-/// field toggles its bit in the row's `flags`, anything else merges into `extra` (null
-/// deletes). Every field op writes through here, so what `set` targets and what `delete`
-/// targets cannot drift apart.
-pub(super) fn assign_patch(
-    id: u32,
-    assignments: &serde_json::Map<String, serde_json::Value>,
-    flags: LocationFlags,
-) -> AppResult<Patch<Location>> {
-    let mut columns = serde_json::Map::new();
-    columns.insert("id".into(), id.into());
-    let mut extra = serde_json::Map::new();
-    let mut next_flags = flags;
-    for (key, value) in assignments {
-        if let Some(bit) = selections::flag_field(key) {
-            next_flags.set(bit, flag_assignment(key, value)?);
-            columns.insert("flags".into(), next_flags.bits().into());
-            continue;
-        }
-        let dest = if selections::is_builtin_field(key) {
-            &mut columns
-        } else {
-            &mut extra
-        };
-        dest.insert(key.clone(), value.clone());
+/// A patch naming row `id` and changing nothing yet.
+pub(super) fn row_patch(id: u32) -> Patch<Location> {
+    Patch::<Location> {
+        id,
+        ..Default::default()
     }
-    let mut patch: Patch<Location> = serde_json::from_value(columns.into())?;
-    if !extra.is_empty() {
-        patch.extra = RawExtra::from_map(&extra).into();
-    }
-    Ok(patch)
-}
-
-/// What an op does to a key: writes a value into it, or empties it.
-#[derive(Clone, Copy)]
-enum KeyWrite {
-    Assign,
-    Clear,
-}
-
-/// Reject a key an op cannot actually write, rather than reporting rows changed and
-/// leaving the column standing. An `extra` key is always both. A built-in is assignable
-/// when it is declared writable, and clearable when a null in its patch empties it.
-fn check_target(key: &str, write: KeyWrite) -> AppResult<()> {
-    if !selections::is_builtin_field(key) {
-        return Ok(());
-    }
-    let (ok, verb) = match write {
-        KeyWrite::Assign => (
-            selections::BUILTIN_FIELDS.iter().any(|f| {
-                f.key == key && matches!(f.kind, Some(selections::BuiltinFieldKind::Writable))
-            }),
-            "assigned",
-        ),
-        KeyWrite::Clear => (<Location as Patchable>::CLEARS.contains(&key), "removed"),
-    };
-    if ok {
-        return Ok(());
-    }
-    Err(AppError(format!("'{key}' cannot be {verb}")))
 }
 
 /// Derive the patch each selected row needs for `op`. Rows the op wouldn't change yield
 /// nothing, so the edit list is the changed set. Pure.
-pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<WorkPlan> {
+pub(super) fn plan_fields(
+    fields: FieldRegistry<'_>,
+    scope: &selections::Scope,
+    op: &RowOp,
+) -> AppResult<WorkPlan> {
     if let RowOp::Move { from, to, .. } = op {
         if from == to || to.is_empty() {
             return Ok(WorkPlan::default());
         }
     }
-    let op = op.prepare()?;
+    let op = op.prepare(fields)?;
     let mut plan = WorkPlan::default();
     let mut err: Option<AppError> = None;
     for row in scope.rows() {
         let id = row.id();
-        let mut merge = serde_json::Map::new();
+        let mut writes: Vec<(FieldWriter<'_>, serde_json::Value)> = Vec::new();
         match &op {
-            RowOp::Set { key, value } => {
-                if !same_field_value(row.resolve_field(key).as_ref(), Some(value)) {
-                    merge.insert(key.clone(), value.clone());
+            Prepared::Set { to, value } => {
+                if !same_field_value(row.resolve_field(to.key()).as_ref(), Some(value)) {
+                    writes.push((*to, (*value).clone()));
                 }
             }
-            RowOp::Expr { key, expr } => {
+            Prepared::Expr { to, expr } => {
                 let field = |name: &str| row.resolve_field(name);
-                match field_expr::eval(expr, &field).and_then(|v| expr_value(key, v)) {
+                match field_expr::eval(expr, &field).and_then(|v| expr_value(*to, v)) {
                     None => plan.failed.push(id),
                     Some(value) => {
-                        if !same_field_value(row.resolve_field(key).as_ref(), Some(&value)) {
-                            merge.insert(key.clone(), value);
+                        if !same_field_value(row.resolve_field(to.key()).as_ref(), Some(&value)) {
+                            writes.push((*to, value));
                         }
                     }
                 }
             }
-            RowOp::Move { from, to, winner } => {
-                if let Some(value) = row.resolve_field(from) {
-                    merge.insert(from.clone(), serde_json::Value::Null);
+            Prepared::Move { from, to, winner } => {
+                if let Some(value) = row.resolve_field(from.key()) {
+                    writes.push((*from, serde_json::Value::Null));
                     // Winner decides only where the row already holds `to`.
-                    if *winner == MergeWinner::From || row.resolve_field(to).is_none() {
-                        merge.insert(to.clone(), value);
+                    if *winner == MergeWinner::From || row.resolve_field(to.key()).is_none() {
+                        writes.push((*to, value));
                     }
                 }
             }
-            RowOp::Delete { keys } => {
+            Prepared::Delete { keys } => {
                 for key in keys {
-                    if row.resolve_field(key).is_some() {
-                        merge.insert(key.clone(), serde_json::Value::Null);
+                    if row.resolve_field(key.key()).is_some() {
+                        writes.push((*key, serde_json::Value::Null));
                     }
                 }
             }
-            RowOp::ListSet { key, add, remove } => {
-                let current = match row.resolve_field(key) {
+            Prepared::ListSet { to, add, remove } => {
+                let current = match row.resolve_field(to.key()) {
                     Some(serde_json::Value::Array(a)) => a,
                     Some(v) => vec![v],
                     None => Vec::new(),
@@ -653,7 +619,7 @@ pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<Wo
                     .filter(|v| !contains_value(remove, v) || contains_value(add, v))
                     .cloned()
                     .collect();
-                for v in add {
+                for v in *add {
                     if !contains_value(&next, v) {
                         next.push(v.clone());
                     }
@@ -661,22 +627,27 @@ pub(super) fn plan_fields(scope: &selections::Scope, op: &RowOp) -> AppResult<Wo
                 if next != current {
                     // A builtin column is non-null, so an emptied list is `[]`. An
                     // emptied `extra` key carries nothing, so it is deleted instead.
-                    merge.insert(
-                        key.clone(),
-                        if next.is_empty() && !selections::is_builtin_field(key) {
+                    writes.push((
+                        *to,
+                        if next.is_empty() && to.is_extra() {
                             serde_json::Value::Null
                         } else {
                             serde_json::Value::Array(next)
                         },
-                    );
+                    ));
                 }
             }
         }
-        if !merge.is_empty() {
-            match assign_patch(id, &merge, row.flags()) {
-                Ok(patch) => plan.edits.push(Op::Put(patch)),
-                Err(e) => err = Some(e),
-            }
+        if writes.is_empty() {
+            continue;
+        }
+        let mut patch = row_patch(id);
+        match writes
+            .iter()
+            .try_for_each(|(to, value)| to.write(&mut patch, row.flags(), value))
+        {
+            Ok(()) => plan.edits.push(Op::Put(patch)),
+            Err(e) => err = Some(e),
         }
     }
     if let Some(e) = err {
@@ -709,7 +680,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
                 if members.len() < 2 {
                     continue;
                 }
-                let survivor = merge_group(&members, &score);
+                let survivor = merge_group(store.registry(), &members, &score);
                 plan.edits.extend(
                     members
                         .iter()
@@ -742,7 +713,8 @@ pub(crate) fn apply_work(
 ) -> AppResult<WorkResult> {
     let (plan, defs) = match work {
         Work::Rows(op) => {
-            let plan = plan_fields(&store.scope(selector), op)?;
+            let defs = store.meta.extra.fields.clone();
+            let plan = plan_fields(FieldRegistry::new(&defs), &store.scope(selector), op)?;
             let defs = plan_defs(store, op, &plan.edits);
             (plan, defs)
         }
@@ -876,7 +848,11 @@ pub(crate) fn split_new_locations(
 /// survivor fields are kept. `members` must be non-empty. The returned survivor keeps
 /// its original id (so callers represent the merge as an update of the survivor plus
 /// removal of the rest).
-pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
+pub(crate) fn merge_group(
+    fields: FieldRegistry<'_>,
+    members: &[Location],
+    score: &Expr,
+) -> Location {
     let survivor = members
         .iter()
         .max_by(|a, b| selections::better(a, b, score))
@@ -894,28 +870,24 @@ pub(crate) fn merge_group(members: &[Location], score: &Expr) -> Location {
         });
 
     let mut new_survivor = survivor.clone();
-    for field in selections::BUILTIN_FIELDS
-        .iter()
-        .filter(|field| field.interned)
-    {
+    for key in fields.interned() {
+        if fields.get(key).map(maps::FieldDef::index_shape) != Some(maps::IndexShape::Multi) {
+            continue;
+        }
         let values: BTreeSet<u32> = members
             .iter()
             .flat_map(|row| {
                 selections::RowRef::from_loc(row)
-                    .resolve_field(field.key)
+                    .resolve_field(key)
                     .into_iter()
-                    .flat_map(|value| {
-                        selections::index_keys(field.field_type.index_shape(), &value)
-                    })
+                    .flat_map(|value| selections::index_keys(maps::IndexShape::Multi, &value))
                     .filter_map(|key| key.parse().ok())
             })
             .collect();
-        let value = match field.field_type.index_shape() {
-            maps::IndexShape::Multi => serde_json::json!(values),
-            _ => continue,
-        };
-        let fields = serde_json::Map::from_iter([(field.key.to_string(), value)]);
-        let patch = assign_patch(new_survivor.id, &fields, new_survivor.flags)
+        let mut patch = row_patch(new_survivor.id);
+        fields
+            .assign(key)
+            .and_then(|to| to.write(&mut patch, new_survivor.flags, &serde_json::json!(values)))
             .expect("interned list values satisfy their field's rules");
         new_survivor = new_survivor.patched(&patch);
     }

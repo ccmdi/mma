@@ -5,6 +5,7 @@
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
+use crate::selections::{Address, Builtin, BuiltinFieldKind};
 use crate::store::arrow;
 use crate::store::engine;
 use crate::store::engine::ValueRecord;
@@ -16,7 +17,7 @@ use crate::types;
 use crate::types::shape::MapShape;
 use crate::types::wire_str_enum;
 use crate::types::RawExtra;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, LocationFlags};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
 use mma_algebra::Counts;
@@ -196,9 +197,10 @@ impl FieldType {
     }
 }
 
-/// Schema definition for a single `Location.extra` field. Stored in the map's
-/// `extra.fields` JSON. For enumerable types, `values` declares the value space in
-/// display order, each member carrying its own display name.
+/// What a field is: its type, display name and declared values. A map's own fields are
+/// stored in its `extra.fields` JSON; the built-ins come from the location itself. For
+/// enumerable types, `values` declares the value space in display order, each member
+/// carrying its own display name.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct FieldDef {
@@ -209,6 +211,48 @@ pub struct FieldDef {
     pub values: Option<Vec<FieldValue>>,
     /// How this field is compared during disambiguation. `null` infers it from the field type.
     pub comparison: Option<ComparisonType>,
+    /// The field's values are ids the map allocates, each wearing its own display record.
+    #[serde(default)]
+    #[specta(optional)]
+    pub interned: bool,
+    #[serde(skip)]
+    #[specta(skip)]
+    pub builtin: Option<Builtin>,
+}
+
+impl FieldDef {
+    pub const fn index_shape(&self) -> IndexShape {
+        self.field_type.index_shape()
+    }
+
+    /// Where a write to this field lands: a built-in's own storage, else `extra`.
+    pub fn address(&self) -> Option<Address> {
+        self.builtin.map_or(Some(Address::Extra), |b| b.address)
+    }
+
+    /// The `Location.flags` bit this field reads and writes as a boolean.
+    pub fn flag(&self) -> Option<LocationFlags> {
+        match self.builtin?.address? {
+            Address::Flag(bit) => Some(bit),
+            _ => None,
+        }
+    }
+
+    /// Whether a field op may assign it: a built-in only when declared writable.
+    pub fn assignable(&self) -> bool {
+        self.builtin
+            .is_none_or(|b| matches!(b.kind, Some(BuiltinFieldKind::Writable)))
+    }
+
+    /// Whether a field op may remove it: a built-in only when a null in its patch empties it.
+    pub fn clearable(&self) -> bool {
+        self.builtin.is_none_or(|b| b.clearable)
+    }
+
+    /// Whether a row can lack it.
+    pub fn optional(&self) -> bool {
+        self.builtin.is_none_or(|b| b.optional)
+    }
 }
 
 /// One member of an enumerable field's value space: the stored value plus its display
@@ -289,6 +333,17 @@ fn modernize_field_defs(raw: &mut serde_json::Value) {
 }
 
 impl MapExtra {
+    /// Refuse a definition no map can hold: interned values need record storage, which
+    /// only the built-in `tags` field has.
+    pub fn check(&self) -> AppResult<()> {
+        match self.fields.iter().find(|(_, def)| def.interned) {
+            Some((key, _)) => Err(AppError(format!(
+                "'{key}': interned map fields are not supported yet"
+            ))),
+            None => Ok(()),
+        }
+    }
+
     /// Parse from the `maps.extra` JSON column. Field defs registered before ingest
     /// canonicalized keys can carry escapes and match no location, so decode them
     /// here; the next def write persists the repair. Default on invalid JSON.
@@ -438,6 +493,8 @@ pub fn known_field_def(key: &str) -> Option<FieldDef> {
             comparison: f
                 .circular_period
                 .map(|p| ComparisonType::Circular { period: p }),
+            interned: false,
+            builtin: None,
         })
 }
 
@@ -489,6 +546,8 @@ pub fn infer_field_defs(
                     label: None,
                     values: None,
                     comparison: None,
+                    interned: false,
+                    builtin: None,
                 }
             });
             new_defs.insert(key.to_owned(), def);
@@ -805,6 +864,9 @@ fn update_map_meta(
     conn: &Connection,
     patch: Patch<MapMeta>,
 ) -> AppResult<()> {
+    if let Some(extra) = &patch.extra {
+        extra.check()?;
+    }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         return storage::update_row::<MapMeta>(conn, "maps", &patch.id, &patch);
     };

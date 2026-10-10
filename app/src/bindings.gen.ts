@@ -783,9 +783,10 @@ export type FieldCount = {
 };
 
 /**
- *  Schema definition for a single `Location.extra` field. Stored in the map's
- *  `extra.fields` JSON. For enumerable types, `values` declares the value space in
- *  display order, each member carrying its own display name.
+ *  What a field is: its type, display name and declared values. A map's own fields are
+ *  stored in its `extra.fields` JSON; the built-ins come from the location itself. For
+ *  enumerable types, `values` declares the value space in display order, each member
+ *  carrying its own display name.
  */
 export type FieldDef = {
 	type: FieldType,
@@ -794,6 +795,8 @@ export type FieldDef = {
 	values: FieldValue[] | null,
 	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
 	comparison: ComparisonType | null,
+	/**  The field's values are ids the map allocates, each wearing its own display record. */
+	interned?: boolean,
 };
 
 
@@ -1603,7 +1606,7 @@ export type ReviewSession = {
 };
 
 /**  Work that derives each selected row's edit from that row alone. */
-export type RowOp<E = string> = 
+export type RowOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
  *  where nothing holds `to` -- so `winner` decides only where a row holds both.
@@ -1620,7 +1623,7 @@ export type RowOp<E = string> =
  *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
  *  missing or non-numeric field, a non-finite result) is reported back by id.
  */
-{ kind: "expr"; key: string; expr: E } | 
+{ kind: "expr"; key: string; expr: string } | 
 /**
  *  Add `add` and strip `remove` from a list-valued field, per row. The only op that
  *  reads the row's current value as a set rather than replacing it, which is what

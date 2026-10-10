@@ -164,7 +164,8 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
         let on_flag = obj
             .get("field")
             .and_then(Value::as_str)
-            .is_some_and(|f| super::flag_field(f).is_some());
+            .and_then(|f| super::FieldRegistry::builtins().get(f))
+            .is_some_and(|def| def.flag().is_some());
         if on_flag {
             if let Some(value) = obj
                 .get_mut("test")

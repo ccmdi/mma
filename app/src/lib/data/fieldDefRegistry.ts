@@ -11,28 +11,22 @@
 import { emit } from "@/lib/events";
 import { getMapState } from "@/store/useMapStore";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
-import { createFieldDef } from "@/types";
-import { BUILTIN_FIELDS, CLEARABLE_BUILTINS } from "@/bindings.consts";
+import { BUILTIN_FIELDS } from "@/bindings.consts";
 import type { FieldDef } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 
 // Field kind: identity (position), virtual (derived), term (expression-only),
 // writable (bulk-editable), or undefined (read-only, listable).
-type FieldKind = NonNullable<(typeof BUILTIN_FIELDS)[number]["kind"]>;
+type FieldKind = NonNullable<(typeof BUILTIN_FIELDS)[keyof typeof BUILTIN_FIELDS]["kind"]>;
 
 interface RegistryFieldDef extends FieldDef {
 	kind?: FieldKind;
+	clearable?: boolean;
 }
 
-// Built-in field definitions, derived from the shared BUILTIN_FIELDS table.
+// Built-in field definitions, the shared BUILTIN_FIELDS table as field definitions.
 const FIELDS: Record<string, RegistryFieldDef> = Object.fromEntries(
-	BUILTIN_FIELDS.map((f) => [
-		f.key,
-		{
-			...createFieldDef(f.type, { label: f.label, comparison: f.comparison }),
-			kind: f.kind ?? undefined,
-		},
-	]),
+	Object.entries(BUILTIN_FIELDS).map(([key, f]) => [key, { ...f, kind: f.kind ?? undefined }]),
 );
 
 /** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
@@ -52,7 +46,7 @@ export function isWritableField(key: string): boolean {
 
 /** True when the field can be bulk-cleared. @unstable */
 export function isClearableField(key: string): boolean {
-	return key in FIELDS ? (CLEARABLE_BUILTINS as readonly string[]).includes(key) : true;
+	return key in FIELDS ? FIELDS[key].clearable === true : true;
 }
 
 /** True when the field should appear in field pickers. @unstable */
@@ -101,6 +95,7 @@ function mergeDef(user: FieldDef | undefined, plugin: FieldDef | undefined): Fie
 		label: user.label ?? plugin.label,
 		values: user.values ?? plugin.values,
 		comparison: user.comparison ?? plugin.comparison,
+		interned: user.interned ?? plugin.interned,
 	};
 }
 

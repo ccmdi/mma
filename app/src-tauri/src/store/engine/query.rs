@@ -3,7 +3,7 @@
 use super::*;
 use crate::selections::{self, Index, Selector, Thinning};
 use crate::store::arrow::Columns;
-use crate::store::maps::IndexShape;
+use crate::store::maps::{FieldDef, IndexShape};
 use crate::types::Location;
 use crate::types::{AppError, AppResult};
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
@@ -362,19 +362,6 @@ impl Store {
         )
     }
 
-    /// The index shape for a field key: builtins from the field table, `extra` keys from
-    /// the map's own definitions. An undeclared key is unindexable - it has no type to ask.
-    pub(crate) fn index_shape_of(&self, field: &str) -> IndexShape {
-        if let Some(f) = selections::BUILTIN_FIELDS.iter().find(|f| f.key == field) {
-            return f.field_type.index_shape();
-        }
-        self.meta
-            .extra
-            .fields
-            .get(field)
-            .map_or(IndexShape::None, |d| d.field_type.index_shape())
-    }
-
     pub(crate) fn fields<'a>(
         &'a mut self,
         fields: impl IntoIterator<Item = &'a str>,
@@ -398,11 +385,13 @@ impl Store {
     }
 
     pub(super) fn reindex(&mut self, change: &Change) -> HashMap<String, BTreeSet<String>> {
-        self.prepare(
-            selections::BUILTIN_FIELDS
-                .iter()
-                .map(|field| Index::Values(field.key.to_string())),
-        );
+        let builtins: Vec<_> = self
+            .registry()
+            .iter()
+            .filter(|(_, def)| def.builtin.is_some())
+            .map(|(key, _)| Index::Values(key.to_string()))
+            .collect();
+        self.prepare(builtins);
         self.field_indexes
             .iter_mut()
             .filter_map(|(field, index)| {
@@ -427,7 +416,11 @@ impl Store {
                     continue;
                 }
             };
-            let shape = self.index_shape_of(&field);
+            // An undeclared key is unindexable: it has no type to ask.
+            let shape = self
+                .registry()
+                .get(&field)
+                .map_or(IndexShape::None, FieldDef::index_shape);
             if (presence || shape != IndexShape::None) && !self.field_indexes.contains_key(&field) {
                 fields.insert(field, shape);
             }
@@ -461,10 +454,10 @@ impl Store {
     }
 
     fn optional_fields(&self) -> impl Iterator<Item = String> + '_ {
-        selections::optional_builtins()
+        self.registry()
             .iter()
-            .map(|key| (*key).to_string())
-            .chain(self.meta.extra.fields.keys().cloned())
+            .filter(|(_, def)| def.optional())
+            .map(|(key, _)| key.to_string())
     }
 }
 

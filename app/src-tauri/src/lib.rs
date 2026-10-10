@@ -396,16 +396,15 @@ fn export_consts() -> Result<(), String> {
         ("RankingStrategy", sv::schema::RankingStrategy::ts_const()),
         ("ValidationFlag", types::ValidationFlag::ts_const()),
         ("SyncDirection", sync::SyncDirection::ts_const().unstable()),
-        ("BUILTIN_FIELDS", TsConst::value(selections::BUILTIN_FIELDS)),
+        (
+            "BUILTIN_FIELDS",
+            TsConst::value(selections::FieldRegistry::builtins()),
+        ),
         ("FrameKind", store::engine::FrameKind::ts_const().unstable()),
         ("NO_SEL", TsConst::value(store::engine::NO_SEL).unstable()),
         (
             "OFFICIAL_ID_PATTERN",
             TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN),
-        ),
-        (
-            "CLEARABLE_BUILTINS",
-            TsConst::value(<types::Location as mma_algebra::Patchable>::CLEARS).unstable(),
         ),
         (
             "EFFECT_CALLS",

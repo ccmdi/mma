@@ -989,3 +989,81 @@ fn declared_map_schema_matches_migration_history() {
     declared.sort();
     assert_eq!(declared, migrated);
 }
+
+#[test]
+fn a_stored_field_def_without_interned_reads_as_not_interned() {
+    let stored = r#"{"type":"enum","label":"Camera","values":null,"comparison":null}"#;
+    let def: FieldDef = serde_json::from_str(stored).unwrap();
+    assert!(!def.interned);
+    assert_eq!(def.builtin, None);
+    assert_eq!(
+        serde_json::to_string(&def).unwrap(),
+        r#"{"type":"enum","label":"Camera","values":null,"comparison":null,"interned":false}"#
+    );
+
+    let interned = FieldDef {
+        interned: true,
+        ..def
+    };
+    let json = serde_json::to_string(&interned).unwrap();
+    assert_eq!(
+        json,
+        r#"{"type":"enum","label":"Camera","values":null,"comparison":null,"interned":true}"#
+    );
+    assert_eq!(serde_json::from_str::<FieldDef>(&json).unwrap(), interned);
+}
+
+#[test]
+fn a_builtins_physical_address_never_serializes_with_its_definition() {
+    let tags = crate::selections::FieldRegistry::builtins()
+        .get("tags")
+        .unwrap();
+    assert!(tags.builtin.is_some());
+    assert_eq!(
+        serde_json::to_value(tags).unwrap(),
+        serde_json::json!({
+            "type": "array",
+            "label": "Tags",
+            "values": null,
+            "comparison": null,
+            "interned": true,
+        })
+    );
+}
+
+#[test]
+fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
+    let conn = setup_real_db();
+    let patch = || Patch::<MapMeta> {
+        id: "m1".into(),
+        extra: Some(MapExtra {
+            fields: HashMap::from([(
+                "plates".to_string(),
+                FieldDef {
+                    interned: true,
+                    ..known_field_def("altitude").unwrap()
+                },
+            )]),
+        }),
+        ..Default::default()
+    };
+    let refused = |result: AppResult<()>| {
+        assert!(result
+            .unwrap_err()
+            .0
+            .contains("interned map fields are not supported yet"));
+    };
+
+    let mut mgr = open_m1(&conn);
+    refused(update_map_meta(&mut mgr, &conn, patch()));
+    let store = mgr.store_for_map("m1").unwrap();
+    assert!(!store.meta.extra.fields.contains_key("plates"));
+    assert!(store.unsaved().unwrap().is_none());
+
+    refused(update_map_meta(&mut StoreManager::new(), &conn, patch()));
+    assert!(!read_map_meta(&conn, "m1")
+        .unwrap()
+        .extra
+        .fields
+        .contains_key("plates"));
+}

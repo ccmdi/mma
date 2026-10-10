@@ -2,7 +2,9 @@
 use super::*;
 use crate::store::arrow::locations_to_batch;
 use crate::store::engine::merge_group;
+use crate::store::maps::{FieldDef, FieldType};
 use crate::test_util::{loc, Fx};
+use crate::types::AppResult;
 use crate::types::Location;
 use crate::types::RawExtra;
 use chrono::TimeZone;
@@ -881,9 +883,14 @@ fn builtin_fields_resolve_on_every_path() {
     let mut l = loc(1, 12.0, 34.0);
     l.tags = vec![10, 11];
     l.modified_at = Some(99);
-    let shadow: serde_json::Map<String, serde_json::Value> = BUILTIN_FIELDS
+    let builtins: Vec<&str> = FieldRegistry::builtins()
         .iter()
-        .map(|f| (f.key.to_string(), serde_json::json!("SHADOW")))
+        .filter(|(_, def)| def.builtin.is_some())
+        .map(|(key, _)| key)
+        .collect();
+    let shadow: serde_json::Map<String, serde_json::Value> = builtins
+        .iter()
+        .map(|key| (key.to_string(), serde_json::json!("SHADOW")))
         .chain(iter::once((
             "timezone".to_string(),
             serde_json::json!("UTC"),
@@ -898,30 +905,26 @@ fn builtin_fields_resolve_on_every_path() {
     };
 
     let sentinel = Some(serde_json::json!("SHADOW"));
-    for f in BUILTIN_FIELDS {
-        assert!(is_builtin_field(f.key), "{} not a builtin", f.key);
+    for key in builtins {
         assert_ne!(
-            RowRef::from_loc(&l).resolve_field(f.key),
+            RowRef::from_loc(&l).resolve_field(key),
             sentinel,
-            "{} falls through to extras on the Location path",
-            f.key
+            "{key} falls through to extras on the Location path"
         );
         assert_ne!(
-            base_row.resolve_field(f.key),
+            base_row.resolve_field(key),
             sentinel,
-            "{} falls through to extras on the Arrow path",
-            f.key
+            "{key} falls through to extras on the Arrow path"
         );
         assert_ne!(
-            base_row.resolve_field_and_tz(f.key).0,
+            base_row.resolve_field_and_tz(key).0,
             sentinel,
-            "{} falls through to extras on the tz path",
-            f.key
+            "{key} falls through to extras on the tz path"
         );
     }
 
     // Non-builtin keys still come from extras on every path.
-    assert!(!is_builtin_field("timezone"));
+    assert!(FieldRegistry::builtins().get("timezone").is_none());
     let utc = Some(serde_json::json!("UTC"));
     assert_eq!(RowRef::from_loc(&l).resolve_field("timezone"), utc);
     assert_eq!(base_row.resolve_field("timezone"), utc);
@@ -3274,7 +3277,12 @@ fn optional_builtins_are_the_columns_a_row_can_lack() {
     // `tags` is here because an untagged row lacks it, which is what makes "untagged" an
     // ordinary `Nothas` rather than its own selector. Lacking a value is not the same as
     // being clearable, which `Patchable::CLEARS` declares separately.
-    assert_eq!(optional_builtins(), &["panoId", "tags", "modifiedAt"]);
+    let optional: Vec<&str> = FieldRegistry::builtins()
+        .iter()
+        .filter(|(_, def)| def.optional())
+        .map(|(key, _)| key)
+        .collect();
+    assert_eq!(optional, ["panoId", "tags", "modifiedAt"]);
 }
 
 fn pinned(id: u32, pano: Option<&str>, flag: bool) -> Location {
@@ -3565,7 +3573,7 @@ fn prune_and_merge_keep_the_same_survivor() {
         .find(|id| !removed.contains(id))
         .as_ref()
         .expect("one survivor");
-    let merged = merge_group(&group, &default_score());
+    let merged = merge_group(FieldRegistry::builtins(), &group, &default_score());
     assert_eq!(kept, merged.id);
 }
 
@@ -4106,4 +4114,171 @@ fn a_scope_walks_only_the_alive_rows_of_its_set() {
     assert_eq!(walked.len(), 1_000);
     assert!(!walked.contains(&3) && !walked.contains(&500) && !walked.contains(&9_999));
     assert_eq!(view.all().within(&dense).ids(), view.all().ids());
+}
+
+fn map_def(field_type: FieldType) -> FieldDef {
+    FieldDef {
+        field_type,
+        label: None,
+        values: None,
+        comparison: None,
+        interned: false,
+        builtin: None,
+    }
+}
+
+#[test]
+fn builtins_and_map_fields_answer_through_one_lookup() {
+    let map = HashMap::from([
+        ("cameraType".to_string(), map_def(FieldType::Enum)),
+        ("heading".to_string(), map_def(FieldType::String)),
+    ]);
+    let fields = FieldRegistry::new(&map);
+
+    let tags = fields.get("tags").unwrap();
+    assert!(tags.interned);
+    assert_eq!(tags.index_shape(), IndexShape::Multi);
+    assert!(tags.assignable() && !tags.clearable() && tags.optional());
+    assert_eq!(tags.flag(), None);
+
+    let camera = fields.get("cameraType").unwrap();
+    assert!(!camera.interned);
+    assert_eq!(camera.index_shape(), IndexShape::Scalar);
+    assert!(camera.assignable() && camera.clearable() && camera.optional());
+    assert_eq!(camera.flag(), None);
+
+    let flag = fields.get("loadAsPanoId").unwrap();
+    assert_eq!(flag.flag(), Some(LocationFlags::LOAD_AS_PANO_ID));
+    assert_eq!(flag.index_shape(), IndexShape::Scalar);
+
+    let id = fields.get("id").unwrap();
+    assert!(!id.assignable() && !id.clearable() && !id.optional());
+    assert!(fields.get("panoId").unwrap().clearable());
+    assert!(fields.get("nowhere").is_none());
+
+    let heading = fields.get("heading").unwrap();
+    assert!(
+        heading.builtin.is_some(),
+        "a built-in shadows a map field of its name"
+    );
+    assert_eq!(heading.field_type, FieldType::Number);
+    let keys: Vec<&str> = fields.iter().map(|(key, _)| key).collect();
+    assert_eq!(keys.iter().filter(|key| **key == "heading").count(), 1);
+    assert_eq!(keys.first(), Some(&"id"));
+    assert_eq!(keys.last(), Some(&"cameraType"));
+    assert_eq!(fields.interned().collect::<Vec<_>>(), ["tags"]);
+}
+
+#[test]
+fn a_fields_index_shape_is_read_off_its_definition() {
+    for (field_type, shape) in [
+        (FieldType::Enum, IndexShape::Scalar),
+        (FieldType::Boolean, IndexShape::Scalar),
+        (FieldType::Array, IndexShape::Multi),
+        (FieldType::String, IndexShape::None),
+        (FieldType::Number, IndexShape::None),
+        (FieldType::Date, IndexShape::None),
+        (FieldType::Month, IndexShape::None),
+    ] {
+        assert_eq!(map_def(field_type).index_shape(), shape);
+    }
+}
+
+fn written(
+    writer: AppResult<FieldWriter<'_>>,
+    flags: LocationFlags,
+    value: serde_json::Value,
+) -> AppResult<mma_algebra::Patch<Location>> {
+    let mut patch = mma_algebra::Patch::<Location> {
+        id: 1,
+        ..Default::default()
+    };
+    writer?.write(&mut patch, flags, &value)?;
+    Ok(patch)
+}
+
+#[test]
+fn a_column_writer_sets_its_slot_and_refuses_a_value_of_the_wrong_type() {
+    let fields = FieldRegistry::builtins();
+    let heading = written(fields.assign("heading"), LocationFlags::empty(), 90.into()).unwrap();
+    assert_eq!(heading.heading, Some(90.0));
+    assert!(heading.extra.is_keep());
+    let err = written(fields.assign("heading"), LocationFlags::empty(), "x".into()).unwrap_err();
+    assert_eq!(err.0, r#"invalid type: string "x", expected f64"#);
+
+    let tags = written(
+        fields.assign("tags"),
+        LocationFlags::empty(),
+        serde_json::json!([3, 1]),
+    )
+    .unwrap();
+    assert_eq!(tags.tags, Some(vec![3, 1]));
+    let pano = written(
+        fields.clear("panoId"),
+        LocationFlags::empty(),
+        serde_json::json!(null),
+    )
+    .unwrap();
+    assert_eq!(pano.pano_id, mma_algebra::Field::Clear);
+}
+
+#[test]
+fn a_flag_writer_toggles_its_bit_and_keeps_the_others() {
+    let fields = FieldRegistry::builtins();
+    let flags = LocationFlags::INFORMATIONAL;
+    let on = written(fields.assign("loadAsPanoId"), flags, true.into()).unwrap();
+    assert_eq!(on.flags, Some(flags | LocationFlags::LOAD_AS_PANO_ID));
+    let off = written(
+        fields.assign("loadAsPanoId"),
+        flags | LocationFlags::LOAD_AS_PANO_ID,
+        false.into(),
+    )
+    .unwrap();
+    assert_eq!(off.flags, Some(flags));
+    let err = written(fields.assign("loadAsPanoId"), flags, 1.into()).unwrap_err();
+    assert_eq!(err.0, "'loadAsPanoId' takes true or false, not 1");
+}
+
+#[test]
+fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
+    let map = HashMap::from([("cameraType".to_string(), map_def(FieldType::Enum))]);
+    let fields = FieldRegistry::new(&map);
+    let camera = fields.assign("cameraType").unwrap();
+    let loose = fields.clear("loose").unwrap();
+    assert!(camera.is_extra() && loose.is_extra());
+
+    let mut patch = mma_algebra::Patch::<Location> {
+        id: 1,
+        ..Default::default()
+    };
+    camera
+        .write(&mut patch, LocationFlags::empty(), &"gen4".into())
+        .unwrap();
+    loose
+        .write(&mut patch, LocationFlags::empty(), &serde_json::json!(null))
+        .unwrap();
+    let mma_algebra::Field::Set(extra) = &patch.extra else {
+        panic!("extra keys write into extra");
+    };
+    assert_eq!(
+        serde_json::Value::Object(extra.to_map()),
+        serde_json::json!({ "cameraType": "gen4", "loose": null })
+    );
+}
+
+#[test]
+fn a_field_that_cannot_take_a_write_grants_no_writer() {
+    let fields = FieldRegistry::builtins();
+    for key in ["id", "lat", "panoId", "createdAt", "modifiedAt", "tagCount"] {
+        assert_eq!(
+            fields.assign(key).err().map(|e| e.0),
+            Some(format!("'{key}' cannot be assigned"))
+        );
+    }
+    for key in ["id", "lat", "heading", "tags", "tagCount", "loadAsPanoId"] {
+        assert_eq!(
+            fields.clear(key).err().map(|e| e.0),
+            Some(format!("'{key}' cannot be removed"))
+        );
+    }
 }
