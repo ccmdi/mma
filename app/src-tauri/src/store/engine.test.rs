@@ -8110,3 +8110,32 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
     assert_eq!(section[4..7], [255, 0, 0]);
     assert_eq!(store.selections.list()[0].selection.color, [255, 0, 0]);
 }
+
+#[test]
+fn a_created_tag_without_a_colour_gets_its_names() {
+    let mut store = setup_store_with(&[]);
+    let id = store
+        .patch_field_values("tags", &creates(&["Urban"]))
+        .unwrap()
+        .resolved[0];
+    assert_eq!(
+        record_color(&tag_records(&store)[&id]),
+        crate::util::hex_to_rgb(&crate::util::color_for_name("Urban"))
+    );
+}
+
+#[test]
+fn ensuring_a_colour_fills_only_a_colourless_record_and_reports_it() {
+    let mut colourless = seed("Rural");
+    assert!(ensure_color(&mut colourless));
+    assert_eq!(
+        colourless["color"],
+        crate::util::color_for_name("Rural").as_str()
+    );
+    assert!(!ensure_color(&mut colourless), "nothing left to fill");
+
+    let mut coloured = seed("Urban");
+    coloured.insert("color".into(), "#123456".into());
+    assert!(!ensure_color(&mut coloured));
+    assert_eq!(coloured["color"], "#123456");
+}

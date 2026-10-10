@@ -31,6 +31,18 @@ pub(crate) fn record_name(rec: &ValueRecord) -> Option<&str> {
         .filter(|s| !s.is_empty())
 }
 
+/// Give `rec` its name's colour when it carries none; whether it had to.
+pub(crate) fn ensure_color(rec: &mut ValueRecord) -> bool {
+    if rec.get("color").is_some_and(serde_json::Value::is_string) {
+        return false;
+    }
+    let Some(color) = record_name(rec).map(util::color_for_name) else {
+        return false;
+    };
+    rec.insert("color".into(), color.into());
+    true
+}
+
 /// The pile's `order` key, when it holds one.
 pub(crate) fn record_order(rec: &ValueRecord) -> Option<u32> {
     rec.get("order")
@@ -182,6 +194,7 @@ fn intern(
                 let mut rec = seed.clone();
                 rec.insert("name".into(), name.into());
                 rec.insert("order".into(), next_order.into());
+                ensure_color(&mut rec);
                 meta.insert(id, rec);
                 next_order += 1;
                 name_to_id.insert(name.to_lowercase(), id);

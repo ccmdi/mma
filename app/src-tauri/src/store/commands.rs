@@ -159,9 +159,18 @@ async fn open_claimed_map(
 
     let mut mgr = state.lock()?;
     let mut meta = maps::read_map_meta(&conn, &map_id)?;
-    store
-        .value_meta
-        .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
+    let mut tags = mem::take(&mut meta.tags);
+    let filled = tags
+        .values_mut()
+        .fold(false, |any, rec| ensure_color(rec) | any);
+    store.value_meta.insert(
+        "tags".into(),
+        if filled {
+            Tracked::unsaved(tags)
+        } else {
+            Tracked::new(tags)
+        },
+    );
     store.meta = Tracked::new(meta);
     let status = store.open_status();
     store.derived = mgr.derived.clone();
