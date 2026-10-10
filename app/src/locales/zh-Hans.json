@@ -980,6 +980,7 @@
 		"other": "更改 {n} 个标签的颜色..."
 	},
 	"Redo": "重做",
+	"Redo selection change": "重做选择更改",
 	"Refresh document": "刷新文档",
 	"Refresh panorama": "刷新全景",
 	"Regenerate": "重新生成",
@@ -1373,6 +1374,7 @@
 	"Uncommitted changes": "未提交的更改",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "无法读取未提交的更改，已将其另存为 .corrupt 文件。地图已从上次提交的状态打开。",
 	"Undo": "撤销",
+	"Undo selection change": "撤销选择更改",
 	"Unexpected \"{token}\"": "意外的“{token}”",
 	"Unexpected \"{token}\" after expression": "表达式后出现意外的“{token}”",
 	"Unexpected character \"{character}\" at position {position}": "位置 {position} 处出现意外字符“{character}”",

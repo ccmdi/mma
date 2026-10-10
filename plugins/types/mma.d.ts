@@ -572,7 +572,7 @@ declare const commands$1: {
     storePatchFieldValues: (field: string, patch: FieldValuesPatch) => Promise<FieldValuesResult>;
     /** Return the uncommitted location change counts. @unstable */
     storeCommitDiff: () => Promise<Counts>;
-    /** Edit the selection tree as one undoable store mutation. @unstable */
+    /** Edit the selection tree. @unstable */
     storeEditSelections: (op: SelectionOp) => Promise<MutationResult>;
     /** Answer one question about the target's rows matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
@@ -799,7 +799,7 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack) => Promise<MutationResult>;
+    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
@@ -1424,7 +1424,9 @@ type DbStats = {
 type Derived = {
     locationCount: number | null;
     meta: (Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) | null;
-    history: History | null;
+    history: Partial<{
+        [key in EntryKey]: History;
+    }> | null;
     /**
      *  Each value that moved, keyed by field then by value; `null` where the value is
      *  gone: no record and no row holding it.
@@ -1495,6 +1497,17 @@ type EditorImportResult = {
     /**  True when the import was large enough to autocommit; the caller commits it. */
     autoCommit: boolean;
 };
+type EntryKey = 
+/** Changes to rows. */
+"rows" | 
+/** Changes to piles. */
+"piles" | 
+/** Changes to defs. */
+"defs" | 
+/** Changes to meta. */
+"meta" | 
+/** Changes to selections. */
+"selections";
 /**
  *  Configuration for JSON export. Controls which fields are included and
  *  whether the export covers all locations or a specific selection.
@@ -3643,6 +3656,10 @@ declare function deleteField(key: string): Promise<void>;
  *  one way the selection changes. Lift an op over the active selections alone with
  *  `onActive`. No-op when nothing changed. @unstable */
 declare function applySelectionUpdate(op: SelectionOp): Promise<void>;
+/** Undo the last selection change without undoing data edits. @unstable */
+declare function restoreSelections(): Promise<void>;
+/** Redo the last undone selection change without redoing data edits. @unstable */
+declare function redoSelections(): Promise<void>;
 declare function select<R extends {
     ids: number[];
 }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean): Promise<{
@@ -3679,6 +3696,8 @@ declare function exitPluginMode(): void;
 /** Strip `tagIds` from every location in one undoable step. The emptied records go dark
  *  (count 0 hides them); undo restores the rows and the tags with them. */
 declare function deleteTags(tagIds: number[]): Promise<WorkResult>;
+/** Whether a history action is available for one part or for the data edit as a whole. @unstable */
+declare function historyAvailable(history: MapState["history"], stack: Stack, key?: EntryKey): boolean;
 /** Undo the last edit. */
 declare function undo(): Promise<void>;
 /** Redo the last undone edit. */
@@ -3718,6 +3737,8 @@ declare const store_getTagCounts: typeof getTagCounts;
 declare const store_getTags: typeof getTags;
 declare const store_getVisibleTags: typeof getVisibleTags;
 /** @unstable */
+declare const store_historyAvailable: typeof historyAvailable;
+/** @unstable */
 declare const store_initStore: typeof initStore;
 declare const store_mutate: typeof mutate;
 /** @unstable */
@@ -3731,10 +3752,14 @@ declare const store_previewLocation: typeof previewLocation;
 declare const store_read: typeof read;
 declare const store_redo: typeof redo;
 /** @unstable */
+declare const store_redoSelections: typeof redoSelections;
+/** @unstable */
 declare const store_removeDuplicate: typeof removeDuplicate;
 declare const store_removeLocations: typeof removeLocations;
 declare const store_renameField: typeof renameField;
 declare const store_resolveLocation: typeof resolveLocation;
+/** @unstable */
+declare const store_restoreSelections: typeof restoreSelections;
 declare const store_rowsOf: typeof rowsOf;
 declare const store_select: typeof select;
 declare const store_setActiveLocation: typeof setActiveLocation;
@@ -3752,7 +3777,7 @@ declare const store_undo: typeof undo;
 declare const store_updateLocations: typeof updateLocations;
 declare const store_useMapState: typeof useMapState;
 declare namespace store {
-  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, query$1 as query, store_read as read, store_redo as redo, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
+  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, query$1 as query, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
   export type { store_MapState as MapState, store_Open as Open, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
 }
 
@@ -4292,6 +4317,23 @@ declare const COMMANDS: {
         defaultBinding: string;
         execute: () => Promise<void>;
         enabled: typeof hasAnySelections;
+    };
+    reselect: {
+        label: "Undo selection change";
+        aliases: string[];
+        icon: string;
+        group: "Selections";
+        defaultBinding: string;
+        execute: typeof restoreSelections;
+        enabled: () => boolean;
+    };
+    "redo-selection": {
+        label: "Redo selection change";
+        icon: string;
+        group: "Selections";
+        defaultBinding: string;
+        execute: typeof redoSelections;
+        enabled: () => boolean;
     };
     "find-duplicates": {
         label: "Find duplicates...";
@@ -7939,4 +7981,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CLEARABLE_BUILTINS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };

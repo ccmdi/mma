@@ -1055,6 +1055,7 @@
 		"other": "Изменить цвет {n} тегов..."
 	},
 	"Redo": "Вернуть",
+	"Redo selection change": "Повторить изменение выделения",
 	"Refresh document": "Обновить документ",
 	"Refresh panorama": "Обновить панораму",
 	"Regenerate": "Сгенерировать заново",
@@ -1508,6 +1509,7 @@
 	"Uncommitted changes": "Незафиксированные изменения",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Не удалось прочитать незафиксированные изменения, они отложены в файл .corrupt. Карта открыта из последнего зафиксированного состояния.",
 	"Undo": "Отменить",
+	"Undo selection change": "Отменить изменение выделения",
 	"Unexpected \"{token}\"": "Неожиданное «{token}»",
 	"Unexpected \"{token}\" after expression": "Неожиданное «{token}» после выражения",
 	"Unexpected character \"{character}\" at position {position}": "Неожиданный символ «{character}» в позиции {position}",

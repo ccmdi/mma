@@ -1005,6 +1005,7 @@
 		"other": "{n} Tags umfärben..."
 	},
 	"Redo": "Wiederherstellen",
+	"Redo selection change": "Auswahländerung wiederholen",
 	"Refresh document": "Dokument aktualisieren",
 	"Refresh panorama": "Panorama aktualisieren",
 	"Regenerate": "Neu erzeugen",
@@ -1418,6 +1419,7 @@
 	"Uncommitted changes": "Nicht committete Änderungen",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Nicht committete Änderungen konnten nicht gelesen werden und wurden als .corrupt-Datei beiseitegelegt. Die Karte wurde aus ihrem letzten Commit-Stand geöffnet.",
 	"Undo": "Rückgängig",
+	"Undo selection change": "Auswahländerung rückgängig machen",
 	"Unexpected \"{token}\"": "Unerwartetes \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Unerwartetes \"{token}\" nach dem Ausdruck",
 	"Unexpected character \"{character}\" at position {position}": "Unerwartetes Zeichen \"{character}\" an Position {position}",

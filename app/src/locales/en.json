@@ -1005,6 +1005,7 @@
 		"other": "Recolor {n} tags..."
 	},
 	"Redo": "Redo",
+	"Redo selection change": "Redo selection change",
 	"Refresh document": "Refresh document",
 	"Refresh panorama": "Refresh panorama",
 	"Regenerate": "Regenerate",
@@ -1418,6 +1419,7 @@
 	"Uncommitted changes": "Uncommitted changes",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.",
 	"Undo": "Undo",
+	"Undo selection change": "Undo selection change",
 	"Unexpected \"{token}\"": "Unexpected \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Unexpected \"{token}\" after expression",
 	"Unexpected character \"{character}\" at position {position}": "Unexpected character \"{character}\" at position {position}",

@@ -587,13 +587,18 @@ pub async fn store_step(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     stack: Stack,
+    key: Option<EntryKey>,
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
-        let changes = store
-            .step(stack, |seq| load_edit(&storage::open_db()?, &map_id, seq))?
-            .ok_or("nothing to step through")?;
+        let changes = match key {
+            Some(key) => store.step_key(stack, key, |seq| {
+                load_edit(&storage::open_db()?, &map_id, seq)
+            })?,
+            None => store.step(stack, |seq| load_edit(&storage::open_db()?, &map_id, seq))?,
+        }
+        .ok_or("nothing to step through")?;
         log::debug!(
             "[{stack:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
             store.edits.len(stack),
@@ -777,7 +782,7 @@ macro_rules! command_table {
             "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {
                 Ok(store.overlay_diff_counts())
             };
-            "Edit the selection tree as one undoable store mutation." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
+            "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
                 Ok(store.edit_selections(&op))
             };
             "Answer one question about the target's rows matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {

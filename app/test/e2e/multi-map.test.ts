@@ -95,8 +95,8 @@ describe("Multi-map isolation", () => {
 		// Open map B, check undo state
 		await openMap(mapBId);
 		await withApi(async (api) => ({
-			canUndo: api.getMapState().history.undo,
-			canRedo: api.getMapState().history.redo,
+			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
+			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
 		}));
 		await closeMap();
 

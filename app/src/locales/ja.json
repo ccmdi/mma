@@ -980,6 +980,7 @@
 		"other": "{n} 個のタグの色を変更..."
 	},
 	"Redo": "やり直し",
+	"Redo selection change": "選択の変更をやり直す",
 	"Refresh document": "ドキュメントを更新",
 	"Refresh panorama": "パノラマを更新",
 	"Regenerate": "再生成",
@@ -1373,6 +1374,7 @@
 	"Uncommitted changes": "未コミットの変更",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "コミットされていない変更を読み取れなかったため、.corrupt ファイルとして退避しました。マップは最後にコミットされた状態で開かれました。",
 	"Undo": "元に戻す",
+	"Undo selection change": "選択の変更を元に戻す",
 	"Unexpected \"{token}\"": "予期しない「{token}」",
 	"Unexpected \"{token}\" after expression": "式の後に予期しない「{token}」",
 	"Unexpected character \"{character}\" at position {position}": "位置 {position} に予期しない文字「{character}」",

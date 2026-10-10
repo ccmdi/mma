@@ -144,6 +144,7 @@ pub struct Store {
     /// counter to keep in step.
     field_indexes: selections::FieldIndexes,
     pub(crate) edits: Tracked<EditStacks>,
+    pub(crate) histories: Tracked<HashMap<EntryKey, EditStacks>>,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
     /// the next read rescans. Resolved to `[w,s,e,n]` on read.
@@ -189,6 +190,7 @@ impl Store {
             value_meta: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
             edits: Tracked::default(),
+            histories: Tracked::default(),
             bounds: Ensured::default(),
             spatial: Ensured::default(),
             frames: Sinks::default(),
@@ -209,6 +211,7 @@ impl Store {
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
         self.edits.ship();
+        self.histories.ship();
         self.meta.ship();
         let fields: Vec<_> = selections::BUILTIN_FIELDS
             .iter()
@@ -234,11 +237,15 @@ impl Store {
         }
     }
 
-    fn history(&self) -> History {
-        History {
-            undo: self.edits.len(Stack::Undo) > 0,
-            redo: self.edits.len(Stack::Redo) > 0,
+    fn history(&self) -> HashMap<EntryKey, History> {
+        let mut histories = self.edits.availability();
+        histories.remove(&EntryKey::Selections);
+        for (key, stack) in &*self.histories {
+            if let Some(history) = stack.availability().get(key) {
+                histories.insert(*key, *history);
+            }
         }
+        histories
     }
 
     /// Bump version, project the semantic changeset onto the render cells and the
@@ -367,7 +374,8 @@ impl Store {
         if self.alive_count.ship() {
             derived.location_count = Some(*self.alive_count);
         }
-        if self.edits.ship() {
+        let history_changed = self.histories.ship();
+        if self.edits.ship() || history_changed {
             derived.history = Some(self.history());
         }
         let keys = changes.keys();

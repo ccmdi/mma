@@ -901,6 +901,20 @@ Tags that exist from the user's point of view: the ones something carries. Raw
 `tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
 should enumerate those.
 
+### historyAvailable
+
+`unstable` · unreleased
+
+```ts
+historyAvailable(
+  history: MapState["history"],
+  stack: Stack,
+  key?: EntryKey,
+): boolean
+```
+
+Whether a history action is available for one part or for the data edit as a whole.
+
 ### initStore
 
 `unstable` · since v0.4.0
@@ -1040,6 +1054,16 @@ redo(): Promise<void>
 
 Redo the last undone edit.
 
+### redoSelections
+
+`unstable` · unreleased
+
+```ts
+redoSelections(): Promise<void>
+```
+
+Redo the last undone selection change without redoing data edits.
+
 ### removeDuplicate
 
 `unstable` · since v0.4.0
@@ -1085,6 +1109,16 @@ resolveLocation(m: MaybeLocation): Promise<Location | null>
 ```
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
+
+### restoreSelections
+
+`unstable` · unreleased
+
+```ts
+restoreSelections(): Promise<void>
+```
+
+Undo the last selection change without undoing data edits.
 
 ### rowsOf
 
@@ -4691,7 +4725,7 @@ Edit rows where target says; a pending layer holds edits until land.
 cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult>
 ```
 
-Edit the selection tree as one undoable store mutation.
+Edit the selection tree.
 
 #### cmd.storeExportBulkZip
 
@@ -5135,7 +5169,7 @@ Set the default marker color for new render updates.
 `unstable` · unreleased
 
 ```ts
-cmd.storeStep(stack: Stack): Promise<MutationResult>
+cmd.storeStep(stack: Stack, key: EntryKey | null): Promise<MutationResult>
 ```
 
 Undo the newest edit, or redo the newest undone one.

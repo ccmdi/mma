@@ -2,7 +2,16 @@ import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { locId } from "@/types";
-import type { Location, MapMeta, StoreStatus, CountBy, Target, Answer, Ask } from "@/bindings.gen";
+import type {
+	EntryKey,
+	Location,
+	MapMeta,
+	StoreStatus,
+	CountBy,
+	Target,
+	Answer,
+	Ask,
+} from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
@@ -77,7 +86,7 @@ export type MapState = UiState & EngineState;
 
 const ENGINE_INITIAL: EngineState = {
 	locationCount: 0,
-	history: { undo: false, redo: false },
+	history: {},
 	fieldValues: {},
 	fieldDefs: {},
 	selectionCounts: {},
@@ -529,8 +538,22 @@ export async function deleteField(key: string) {
  *  one way the selection changes. Lift an op over the active selections alone with
  *  `onActive`. No-op when nothing changed. @unstable */
 export async function applySelectionUpdate(op: import("@/bindings.gen").SelectionOp) {
+	await updateSelections(() => cmd.storeEditSelections(op));
+}
+
+/** Undo the last selection change without undoing data edits. @unstable */
+export async function restoreSelections() {
+	await updateSelections(() => cmd.storeStep("undo", "selections"));
+}
+
+/** Redo the last undone selection change without redoing data edits. @unstable */
+export async function redoSelections() {
+	await updateSelections(() => cmd.storeStep("redo", "selections"));
+}
+
+async function updateSelections(write: () => Promise<MutationResult>) {
 	if (!state.map) return;
-	await mutate(() => cmd.storeEditSelections(op));
+	await mutate(write);
 	await refreshPolygonFills(state.selectionList);
 	emitEvent("selection:change", getActiveSelections());
 }
@@ -717,10 +740,20 @@ export function deleteTags(tagIds: number[]) {
 
 // --- Undo/redo ---
 
+/** Whether a history action is available for one part or for the data edit as a whole. @unstable */
+export function historyAvailable(
+	history: MapState["history"],
+	stack: Stack,
+	key?: EntryKey,
+): boolean {
+	if (key) return history[key]?.[stack] ?? false;
+	return Object.entries(history).some(([key, history]) => key !== "selections" && history?.[stack]);
+}
+
 /** Step through the edit history one way, closing the open row if the step removed it. */
 async function step(stack: Stack) {
 	try {
-		const r = await mutate(() => cmd.storeStep(stack));
+		const r = await mutate(() => cmd.storeStep(stack, null));
 		const { removed } = await sceneReached(r.mutation.version);
 		if (state.open && removed.includes(state.open.id)) setWorkArea("overview");
 	} catch (e) {

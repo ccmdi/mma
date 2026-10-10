@@ -111,8 +111,8 @@ describe("Close map persistence", () => {
 
 		const canUndo = await withApi(async (api) => {
 			const state = await {
-				canUndo: api.getMapState().history.undo,
-				canRedo: api.getMapState().history.redo,
+				canUndo: api.historyAvailable(api.getMapState().history, "undo"),
+				canRedo: api.historyAvailable(api.getMapState().history, "redo"),
 			};
 			return state.canUndo;
 		});

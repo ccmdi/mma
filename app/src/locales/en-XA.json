@@ -1005,6 +1005,7 @@
 		"other": "[Ŕéçöĺöŕ {n} ţåǧş... åéîöüåé]"
 	},
 	"Redo": "[Ŕéðö åé]",
+	"Redo selection change": "[Ŕéðö şéĺéçţîöñ çĥåñǧé åéîöüåéîö]",
 	"Refresh document": "[Ŕéƒŕéşĥ ðöçüɱéñţ åéîöüåé]",
 	"Refresh panorama": "[Ŕéƒŕéşĥ ƥåñöŕåɱå åéîöüåé]",
 	"Regenerate": "[Ŕéǧéñéŕåţé åéîö]",
@@ -1418,6 +1419,7 @@
 	"Uncommitted changes": "[Üñçöɱɱîţţéð çĥåñǧéş åéîöüåéî]",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "[Üñçöɱɱîţţéð çĥåñǧéş çöüĺð ñöţ ƀé ŕéåð åñð ŵéŕé şéţ åşîðé åş å .çöŕŕüƥţ ƒîĺé. Ţĥé ɱåƥ öƥéñéð ƒŕöɱ îţş ĺåşţ çöɱɱîţţéð şţåţé. åéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
 	"Undo": "[Üñðö åé]",
+	"Undo selection change": "[Üñðö şéĺéçţîöñ çĥåñǧé åéîöüåéîö]",
 	"Unexpected \"{token}\"": "[Üñéẋƥéçţéð \"{token}\" åéîöüå]",
 	"Unexpected \"{token}\" after expression": "[Üñéẋƥéçţéð \"{token}\" åƒţéŕ éẋƥŕéşşîöñ åéîöüåéîöüåé]",
 	"Unexpected character \"{character}\" at position {position}": "[Üñéẋƥéçţéð çĥåŕåçţéŕ \"{character}\" åţ ƥöşîţîöñ {position} åéîöüåéîöüåéîöü]",

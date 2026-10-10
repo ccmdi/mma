@@ -888,28 +888,34 @@ fn open_status_reflects_undo_redo() {
 
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| (h.undo, h.redo)),
+        s.derived.history.map(|h| h
+            .get(&EntryKey::Rows)
+            .map_or((false, false), |h| (h.undo, h.redo))),
         Some((false, false))
     );
 
-    store
-        .edits
-        .edit()
-        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(2, 0.0, 0.0)],
+        vec![],
+    ))));
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| (h.undo, h.redo)),
+        s.derived.history.map(|h| h
+            .get(&EntryKey::Rows)
+            .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
 
-    store
-        .edits
-        .edit()
-        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(2, 0.0, 0.0)],
+        vec![],
+    ))));
     press_undo(&mut store);
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| (h.undo, h.redo)),
+        s.derived.history.map(|h| h
+            .get(&EntryKey::Rows)
+            .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, true))
     );
 }
@@ -918,17 +924,19 @@ fn open_status_reflects_undo_redo() {
 fn finish_mutation_reports_correct_state() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[l]);
-    store
-        .edits
-        .edit()
-        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(2, 0.0, 0.0)],
+        vec![],
+    ))));
 
     let feed = FeedCapture::attach(&mut store);
     let result = store.finish_mutation(&Change::default());
     let e = feed.last();
     assert_eq!(e.derived.location_count, Some(1));
     assert_eq!(
-        e.derived.history.map(|h| (h.undo, h.redo)),
+        e.derived.history.map(|h| h
+            .get(&EntryKey::Rows)
+            .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false)),
         "stack change ships both flags"
     );
@@ -947,23 +955,29 @@ fn finish_mutation_reports_correct_state() {
 fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let feed = FeedCapture::attach(&mut store);
-    store
-        .edits
-        .edit()
-        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(2, 0.0, 0.0)],
+        vec![],
+    ))));
     store.finish_mutation(&Change::default());
-    assert!(feed.last().derived.history.is_some_and(|h| h.undo));
+    assert!(feed
+        .last()
+        .derived
+        .history
+        .is_some_and(|h| h.get(&EntryKey::Rows).is_some_and(|h| h.undo)));
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
     store.edits.edit().clear();
 
-    store
-        .edits
-        .edit()
-        .record(Arc::new(entry(Change::from_sides(vec![], vec![]))));
+    store.edits.edit().record(Arc::new(entry(Change::from_sides(
+        vec![loc(2, 0.0, 0.0)],
+        vec![],
+    ))));
     store.finish_mutation(&Change::default());
     assert_eq!(
-        feed.last().derived.history.map(|h| (h.undo, h.redo)),
+        feed.last().derived.history.map(|h| h
+            .get(&EntryKey::Rows)
+            .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
 }
@@ -7617,7 +7631,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
 }
 
 #[test]
-fn clearing_the_selection_list_clears_membership_and_records_nothing() {
+fn clearing_the_selection_list_clears_membership_and_preserves_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.edit_selections(&crate::selections::tree::SelectionOp::Add {
         selections: vec![crate::selections::tree::SelectionInput {
@@ -7778,7 +7792,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
 }
 
 #[test]
-fn selections_and_meta_only_edits_stay_out_of_history() {
+fn selections_and_meta_only_edits_stay_out_of_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
     click_add(&mut store, 1.0, 1.0);
@@ -7792,4 +7806,253 @@ fn selections_and_meta_only_edits_stay_out_of_history() {
         1,
         "redo survives a selection edit"
     );
+}
+
+#[test]
+fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
+    let feed = FeedCapture::attach(&mut store);
+    store.edit_selections(&SelectionOp::Set {
+        selections: vec![
+            SelectionInput {
+                selector: Selector::Everything,
+                color: Some([1, 2, 3]),
+            },
+            SelectionInput {
+                selector: Selector::Locations {
+                    locations: vec![1],
+                    name: None,
+                },
+                color: Some([4, 5, 6]),
+            },
+        ],
+    });
+    store.edit_selections(&SelectionOp::Ghost { index: 1 });
+    let before = store.selection_list();
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    assert_eq!(
+        feed.last().derived.history.unwrap()[&EntryKey::Selections].undo,
+        true
+    );
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.heading = 90.0;
+    store.write([Op::Set(row.clone())], &mut None, Entry::default());
+    let undo = store.edits.len(Stack::Undo);
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(store.selection_list(), before);
+    assert_eq!(store.get_loc_by_id(1).unwrap(), row);
+    assert_eq!(store.edits.len(Stack::Undo), undo);
+    assert_eq!(store.selections.ids, RoaringBitmap::from_iter([1, 2]));
+    assert_eq!(
+        feed.last().derived.history.unwrap()[&EntryKey::Selections].redo,
+        true
+    );
+    press_undo(&mut store);
+    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.selection_list(), before);
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(store.edits.len(Stack::Redo), 1);
+    press_redo(&mut store);
+    assert_eq!(store.get_loc_by_id(1).unwrap(), row);
+}
+
+#[test]
+fn selection_history_undoes_and_redoes_each_change_in_order() {
+    use crate::selections::tree::SelectionOp;
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    assert!(store
+        .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
+        .unwrap()
+        .is_none());
+    store.edit_selections(&SelectionOp::Manual { id: 1 });
+    let before = store.selection_list();
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(store.selection_list(), before);
+    step_selection(&mut store, Stack::Undo);
+    assert!(store.selection_list().is_empty());
+    step_selection(&mut store, Stack::Redo);
+    assert_eq!(store.selection_list(), before);
+    step_selection(&mut store, Stack::Redo);
+    assert!(store.selection_list().is_empty());
+    assert!(!setup_store_with(&[loc(1, 0.0, 0.0)])
+        .history()
+        .contains_key(&EntryKey::Selections));
+}
+
+#[test]
+fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    store.edit_selections(&SelectionOp::Set {
+        selections: vec![
+            SelectionInput {
+                selector: Selector::Filter {
+                    field: "tags".into(),
+                    test: selections::FilterOp::Contains { value: 7.into() },
+                },
+                color: None,
+            },
+            SelectionInput {
+                selector: Selector::Everything,
+                color: None,
+            },
+        ],
+    });
+    store.edit_selections(&SelectionOp::Combine {
+        mode: crate::selections::tree::Composition::Union,
+        keys: None,
+    });
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.tags.clear();
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(store.selection_list().len(), 1);
+    assert_eq!(
+        store.selection_list()[0].selection.selector,
+        Selector::Everything
+    );
+    assert!(store.selections.ids.contains(1));
+}
+
+#[test]
+fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    let feed = FeedCapture::attach(&mut store);
+    store.edit_selections(&SelectionOp::Set {
+        selections: vec![SelectionInput {
+            selector: Selector::Filter {
+                field: "tags".into(),
+                test: selections::FilterOp::Contains { value: 7.into() },
+            },
+            color: None,
+        }],
+    });
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.tags.clear();
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    step_selection(&mut store, Stack::Undo);
+    assert!(store.selection_list().is_empty());
+    assert_eq!(
+        feed.last().derived.history.unwrap()[&EntryKey::Selections].redo,
+        true
+    );
+}
+
+fn step_selection(store: &mut Store, stack: Stack) {
+    if let Some(entry) = store
+        .step_key(stack, EntryKey::Selections, fetch_stored)
+        .unwrap()
+    {
+        store.finish_entry(&entry);
+    }
+}
+
+#[test]
+fn delta_keys_follow_named_fields_and_only_report_populated_parts() {
+    #[derive(Default, mma_fields::Delta)]
+    struct Example<T: Default> {
+        extra_rows: T,
+        r#type: T,
+    }
+    #[derive(Default, mma_fields::Delta)]
+    struct Empty {}
+    assert!(Empty::default().keys().next().is_none());
+    let mut change = Example::<mma_algebra::Change<Location>>::default();
+    assert!(change.keys().next().is_none());
+    change.extra_rows = Change::from_sides(vec![loc(1, 0.0, 0.0)], vec![]);
+    assert_eq!(change.keys().collect::<Vec<_>>(), [ExampleKey::ExtraRows]);
+    change.r#type = Change::from_sides(vec![loc(2, 1.0, 1.0)], vec![]);
+    assert_eq!(
+        change.keys().collect::<Vec<_>>(),
+        [ExampleKey::ExtraRows, ExampleKey::Type]
+    );
+    assert_eq!(
+        serde_json::to_string(&ExampleKey::ExtraRows).unwrap(),
+        "\"extraRows\""
+    );
+    assert_eq!(
+        serde_json::from_str::<ExampleKey>("\"type\"").unwrap(),
+        ExampleKey::Type
+    );
+    assert_eq!(
+        change.inverse().keys().collect::<Vec<_>>(),
+        change.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    store.edit_selections(&crate::selections::tree::SelectionOp::Set {
+        selections: vec![crate::selections::tree::SelectionInput {
+            selector: Selector::Filter {
+                field: "tags".into(),
+                test: selections::FilterOp::Contains { value: 7.into() },
+            },
+            color: None,
+        }],
+    });
+    let before = store.selection_list();
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.tags.clear();
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    let changes = store
+        .step_key(Stack::Undo, EntryKey::Rows, fetch_stored)
+        .unwrap()
+        .unwrap();
+    store.finish_entry(&changes);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, [7]);
+    assert_eq!(store.selection_list(), before);
+    assert!(store.history()[&EntryKey::Rows].redo);
+}
+
+#[test]
+fn selection_key_never_replays_a_data_cascade_without_selection_history() {
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    edit_selection_fixture(&mut store, |rows| {
+        rows.push(ListedSelection {
+            selection: Selection::of(Selector::Filter {
+                field: "tags".into(),
+                test: selections::FilterOp::Contains { value: 7.into() },
+            }),
+            ghosted: false,
+        })
+    });
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.tags.clear();
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    assert!(!store.history().contains_key(&EntryKey::Selections));
+    assert!(store
+        .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
+        .unwrap()
+        .is_none());
+    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+}
+
+#[test]
+fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let mut row = store.get_loc_by_id(1).unwrap();
+    row.heading = 45.0;
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    let before = store.edits.availability();
+    with_history_db(|conn| {
+        save_edit_history(conn, "m", &store.edits).unwrap();
+        let reopened = load_edit_history(conn, "m").unwrap();
+        assert!(reopened.iter().all(|(_, edit)| edit.entry.is_none()));
+        let after = reopened.availability();
+        assert_eq!(
+            before.keys().collect::<Vec<_>>(),
+            after.keys().collect::<Vec<_>>()
+        );
+        assert_eq!(after[&EntryKey::Rows].undo, before[&EntryKey::Rows].undo);
+        assert_eq!(after[&EntryKey::Rows].redo, before[&EntryKey::Rows].redo);
+    });
 }

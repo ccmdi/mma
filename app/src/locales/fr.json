@@ -1030,6 +1030,7 @@
 		"other": "Recolorer {n} tags..."
 	},
 	"Redo": "Rétablir",
+	"Redo selection change": "Rétablir la modification de sélection",
 	"Refresh document": "Actualiser le document",
 	"Refresh panorama": "Actualiser le panorama",
 	"Regenerate": "Régénérer",
@@ -1463,6 +1464,7 @@
 	"Uncommitted changes": "Modifications non validées",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Les modifications non validées n'ont pas pu être lues et ont été mises de côté dans un fichier .corrupt. La carte a été ouverte depuis son dernier état validé.",
 	"Undo": "Annuler",
+	"Undo selection change": "Annuler la modification de sélection",
 	"Unexpected \"{token}\"": "« {token} » inattendu",
 	"Unexpected \"{token}\" after expression": "« {token} » inattendu après l'expression",
 	"Unexpected character \"{character}\" at position {position}": "Caractère « {character} » inattendu à la position {position}",

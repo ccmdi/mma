@@ -1055,6 +1055,7 @@
 		"other": "Zmień kolor {n} tagów..."
 	},
 	"Redo": "Ponów",
+	"Redo selection change": "Ponów zmianę zaznaczenia",
 	"Refresh document": "Odśwież dokument",
 	"Refresh panorama": "Odśwież panoramę",
 	"Regenerate": "Wygeneruj ponownie",
@@ -1508,6 +1509,7 @@
 	"Uncommitted changes": "Niezatwierdzone zmiany",
 	"Uncommitted changes could not be read and were set aside as a .corrupt file. The map opened from its last committed state.": "Nie udało się odczytać niezatwierdzonych zmian i odłożono je jako plik .corrupt. Mapa została otwarta z ostatniego zatwierdzonego stanu.",
 	"Undo": "Cofnij",
+	"Undo selection change": "Cofnij zmianę zaznaczenia",
 	"Unexpected \"{token}\"": "Nieoczekiwane \"{token}\"",
 	"Unexpected \"{token}\" after expression": "Nieoczekiwane \"{token}\" po wyrażeniu",
 	"Unexpected character \"{character}\" at position {position}": "Nieoczekiwany znak \"{character}\" na pozycji {position}",

@@ -581,6 +581,41 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
             .into();
     };
     let name = &input.ident;
+    let visibility = &input.vis;
+    let key = format_ident!("{}Key", name);
+    let variants: Vec<_> = fields
+        .named
+        .iter()
+        .map(|field| {
+            let field = camel(&field.ident.as_ref().unwrap().to_string().replace("r#", ""));
+            let mut chars = field.chars();
+            format_ident!(
+                "{}{}",
+                chars.next().unwrap().to_uppercase().to_string(),
+                chars.as_str()
+            )
+        })
+        .collect();
+    let docs: Vec<_> = fields
+        .named
+        .iter()
+        .map(|field| {
+            let docs: Vec<_> = field
+                .attrs
+                .iter()
+                .filter(|attr| attr.path().is_ident("doc"))
+                .collect();
+            if docs.is_empty() {
+                let doc = format!(
+                    "Changes to {}.",
+                    field.ident.as_ref().unwrap().to_string().replace('_', " ")
+                );
+                quote!(#[doc = #doc])
+            } else {
+                quote!(#(#docs)*)
+            }
+        })
+        .collect();
     let mut generics = input.generics.clone();
     for field in &fields.named {
         let ty = &field.ty;
@@ -595,7 +630,21 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
         .iter()
         .map(|field| field.ident.as_ref().unwrap())
         .collect();
+    let count = names.len();
     quote! {
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, specta::Type)]
+        #[serde(rename_all = "camelCase")]
+        #visibility enum #key {
+            #(#docs #variants),*
+        }
+
+        impl #impl_generics #name #ty_generics #where_clause {
+            #visibility fn keys(&self) -> impl Iterator<Item = #key> + '_ {
+                let fields: [(#key, bool); #count] = [#((#key::#variants, mma_algebra::Delta::is_empty(&self.#names))),*];
+                fields.into_iter().filter_map(|(key, empty)| (!empty).then_some(key))
+            }
+        }
+
         impl #impl_generics mma_algebra::Delta for #name #ty_generics #where_clause {
             fn inverse(&self) -> Self {
                 Self { #(#names: mma_algebra::Delta::inverse(&self.#names)),* }

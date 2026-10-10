@@ -1,5 +1,7 @@
 import {
 	mdiUndo,
+	mdiRestore,
+	mdiSelectionSearch,
 	mdiRedo,
 	mdiFileImportOutline,
 	mdiFileExportOutline,
@@ -68,6 +70,9 @@ import {
 	redo,
 	removeLocations,
 	undo,
+	restoreSelections,
+	redoSelections,
+	historyAvailable,
 } from "./useMapStore";
 import { hasCommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
@@ -162,7 +167,7 @@ const COMMANDS = {
 		group: msg("Map"),
 		defaultBinding: "Mod+z",
 		execute: undo,
-		enabled: () => getMapState().history.undo,
+		enabled: () => historyAvailable(getMapState().history, "undo"),
 	},
 	redo: {
 		label: msg("Redo"),
@@ -170,7 +175,7 @@ const COMMANDS = {
 		group: msg("Map"),
 		defaultBinding: "Mod+y, Mod+Shift+z",
 		execute: redo,
-		enabled: () => getMapState().history.redo,
+		enabled: () => historyAvailable(getMapState().history, "redo"),
 	},
 	export: {
 		label: msg("Export"),
@@ -292,6 +297,23 @@ const COMMANDS = {
 		defaultBinding: "Mod+d",
 		execute: () => applySelectionUpdate({ kind: "set", selections: [] }),
 		enabled: hasAnySelections,
+	},
+	reselect: {
+		label: msg("Undo selection change"),
+		aliases: ["restore previous selection", "reselect"],
+		icon: mdiRestore,
+		group: msg("Selections"),
+		defaultBinding: "Mod+Alt+d",
+		execute: restoreSelections,
+		enabled: () => requiresMap() && historyAvailable(getMapState().history, "undo", "selections"),
+	},
+	"redo-selection": {
+		label: msg("Redo selection change"),
+		icon: mdiSelectionSearch,
+		group: msg("Selections"),
+		defaultBinding: "Mod+Alt+Shift+d",
+		execute: redoSelections,
+		enabled: () => requiresMap() && historyAvailable(getMapState().history, "redo", "selections"),
 	},
 	"find-duplicates": {
 		label: msg("Find duplicates..."),

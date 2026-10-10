@@ -112,7 +112,7 @@ export function openMapResult(
 		version: 1,
 		derived: {
 			locationCount: 0,
-			history: { undo: false, redo: false },
+			history: {},
 			fieldValues: {
 				tags: Object.fromEntries(
 					Object.entries(over.tagCounts ?? {}).map(([k, count]) => [k, { record: null, count }]),

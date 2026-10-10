@@ -3,7 +3,7 @@
 use super::*;
 use crate::types::wire_str_enum;
 use crate::types::Location;
-use mma_algebra::{Change, Delta};
+use mma_algebra::{ordered_rows, Change, Delta};
 use mma_fields::Delta;
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 /// What one write did: to the rows, to the records of each interned field, and to the
 /// field definitions. The rows persist as Arrow; the rest as JSON.
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
-pub(crate) struct Entry {
+pub struct Entry {
     #[serde(skip)]
     pub rows: Change<Location>,
     pub piles: Piles,
@@ -75,17 +75,27 @@ pub(crate) struct EditStacks {
 pub(crate) struct LoggedEdit {
     pub seq: u64,
     pub entry: Option<Arc<Entry>>,
+    pub keys: Vec<EntryKey>,
 }
 
 impl EditStacks {
     /// Stacks for edits that are only on disk, from each one's `seq` and stack. New edits
     /// number after every stored one.
-    pub(crate) fn on_disk(mut rows: Vec<(u64, Stack)>) -> Self {
-        rows.sort_unstable_by_key(|&(seq, _)| seq);
-        let next_seq = rows.last().map_or(0, |&(seq, _)| seq + 1);
+    pub(crate) fn on_disk(mut rows: Vec<(u64, Stack, Vec<EntryKey>)>) -> Self {
+        rows.sort_unstable_by_key(|(seq, _, _)| *seq);
+        let next_seq = rows.last().map_or(0, |(seq, _, _)| seq + 1);
         let (undo, mut redo): (Vec<_>, Vec<_>) = rows
             .into_iter()
-            .map(|(seq, stack)| (LoggedEdit { seq, entry: None }, stack))
+            .map(|(seq, stack, keys)| {
+                (
+                    LoggedEdit {
+                        seq,
+                        entry: None,
+                        keys,
+                    },
+                    stack,
+                )
+            })
             .partition(|(_, stack)| *stack == Stack::Undo);
         redo.reverse();
         Self {
@@ -104,6 +114,7 @@ impl EditStacks {
             Stack::Undo,
             LoggedEdit {
                 seq,
+                keys: entry.keys().collect(),
                 entry: Some(entry),
             },
         );
@@ -130,6 +141,7 @@ impl EditStacks {
                 return Err(later);
             }
         }
+        top.keys = held.keys().collect();
         top.seq = self.next_seq;
         self.next_seq += 1;
         self.redo.clear();
@@ -181,7 +193,25 @@ pub(crate) fn seed_next_id(base_max: u32, adds: &[Location], history_max: u32) -
     base_max.max(max_add).max(history_max) + 1
 }
 
-impl Store {
+impl EditStacks {
+    pub(crate) fn availability(&self) -> HashMap<EntryKey, History> {
+        let mut histories: HashMap<EntryKey, History> = HashMap::new();
+        for stack in [Stack::Undo, Stack::Redo] {
+            let top = match stack {
+                Stack::Undo => self.undo.last(),
+                Stack::Redo => self.redo.last(),
+            };
+            for key in top.into_iter().flat_map(|edit| &edit.keys) {
+                let history = histories.entry(*key).or_default();
+                match stack {
+                    Stack::Undo => history.undo = true,
+                    Stack::Redo => history.redo = true,
+                }
+            }
+        }
+        histories
+    }
+
     /// Take the newest edit off `from` and move it to the other stack: an undo reverses
     /// it, a redo re-applies it. `fetch` reads an edit that is only on disk; when it fails
     /// the whole history goes, since replaying around a gap would corrupt the map. `None`
@@ -191,20 +221,66 @@ impl Store {
         from: Stack,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let Some(mut edit) = self.edits.edit().stack_mut(from).pop() else {
+        let Some(mut edit) = self.stack_mut(from).pop() else {
             return Ok(None);
         };
         let entry = match edit.entry.take() {
             Some(entry) => entry,
-            None => Arc::new(fetch(edit.seq).inspect_err(|_| self.edits.edit().clear())?),
+            None => Arc::new(fetch(edit.seq).inspect_err(|_| self.clear())?),
         };
         let changes = match from {
             Stack::Undo => entry.inverse(),
             Stack::Redo => (*entry).clone(),
         };
-        self.put_entry(&changes);
         edit.entry = Some(entry);
-        self.edits.edit().push(from.other(), edit);
+        self.push(from.other(), edit);
+        Ok(Some(changes))
+    }
+}
+
+impl Store {
+    pub(crate) fn step(
+        &mut self,
+        from: Stack,
+        fetch: impl FnOnce(u64) -> AppResult<Entry>,
+    ) -> AppResult<Option<Entry>> {
+        let changes = self.edits.edit().step(from, fetch)?;
+        if let Some(changes) = &changes {
+            self.put_entry(changes);
+        }
+        Ok(changes)
+    }
+
+    pub(crate) fn step_key(
+        &mut self,
+        from: Stack,
+        key: EntryKey,
+        fetch: impl FnOnce(u64) -> AppResult<Entry>,
+    ) -> AppResult<Option<Entry>> {
+        if !self.histories.contains_key(&key) {
+            let available = self.history().get(&key).is_some_and(|history| match from {
+                Stack::Undo => history.undo,
+                Stack::Redo => history.redo,
+            });
+            return if available {
+                self.step(from, fetch)
+            } else {
+                Ok(None)
+            };
+        }
+        let Some(history) = self.histories.edit().get_mut(&key) else {
+            return Ok(None);
+        };
+        let Some(mut changes) =
+            history.step(from, |_| Err("history entry is not resident".into()))?
+        else {
+            return Ok(None);
+        };
+        let mut rows = self.selections.table();
+        changes.selections.apply_to(&mut rows);
+        let rows = self.valid_selections(ordered_rows(rows));
+        changes.selections = self.selections.change(&SelectionDelta::default(), |_| rows);
+        self.put_entry(&changes);
         Ok(Some(changes))
     }
 }

@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useDialog, useDialogState } from "@/store/dialogBus";
-import { useMapState, undo, redo, commitMap } from "@/store/useMapStore";
+import { useMapState, undo, redo, commitMap, historyAvailable } from "@/store/useMapStore";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
 import { useCommitDiff, hasCommitDiff } from "@/store/commitDiff";
 import { beginImportFromPath } from "@/store/importStaging";
@@ -51,8 +51,8 @@ function CommitControls() {
 }
 
 function UndoRedoControls() {
-	const canUndo = useMapState((s) => s.history.undo);
-	const canRedo = useMapState((s) => s.history.redo);
+	const canUndo = useMapState((s) => historyAvailable(s.history, "undo"));
+	const canRedo = useMapState((s) => historyAvailable(s.history, "redo"));
 	return (
 		<>
 			<IconButton

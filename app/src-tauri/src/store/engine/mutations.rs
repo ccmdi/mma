@@ -39,7 +39,7 @@ pub struct EditOpts {
 pub struct Derived {
     pub location_count: Option<usize>,
     pub meta: Option<Patch<maps::MapMeta>>,
-    pub history: Option<History>,
+    pub history: Option<HashMap<EntryKey, History>>,
     /// Each value that moved, keyed by field then by value; `null` where the value is
     /// gone: no record and no row holding it.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
@@ -65,7 +65,7 @@ impl Derived {
 }
 
 /// Whether there is an edit to step through each way.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Default, specta::Type)]
 pub struct History {
     /// An edit can be undone.
     pub undo: bool,
@@ -344,9 +344,14 @@ impl Store {
     /// Record `entry` for undo: folded into the step `join` names while that is still the
     /// newest, else a step of its own.
     fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
-        // A selections-only edit stays out of history: selection changes undo only as
-        // the cascades of the data change that caused them.
         if entry.rows.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
+            if entry.keys().eq([EntryKey::Selections]) {
+                self.histories
+                    .edit()
+                    .entry(EntryKey::Selections)
+                    .or_default()
+                    .record(Arc::clone(entry));
+            }
             return;
         }
         if entry.rows.len() > MAX_UNDO_ROWS {

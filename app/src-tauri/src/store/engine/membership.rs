@@ -319,9 +319,36 @@ impl Store {
         &mut self,
         op: &crate::selections::tree::SelectionOp,
     ) -> MutationResult {
-        let selections = self
-            .selections
-            .change(&SelectionDelta::default(), |rows| op.apply(&rows));
+        self.replace_selections(op.apply(&self.selections.list()))
+    }
+
+    pub(crate) fn valid_selections(&mut self, rows: Vec<ListedSelection>) -> Vec<ListedSelection> {
+        let fields: Vec<_> = selections::BUILTIN_FIELDS
+            .iter()
+            .filter(|field| field.interned)
+            .map(|field| field.key.to_string())
+            .collect();
+        let values = self.fields(fields.iter().map(String::as_str));
+        rows.into_iter()
+            .filter_map(|row| {
+                let selection = row.selection.filter_map(&|selector| {
+                    if selector.member_test().is_some_and(|(field, id)| {
+                        values.iter().any(|values| {
+                            values.field() == field && values.count(&id.to_string()) == 0
+                        })
+                    }) {
+                        None
+                    } else {
+                        Some(selector.clone())
+                    }
+                })?;
+                Some(ListedSelection { selection, ..row })
+            })
+            .collect()
+    }
+
+    fn replace_selections(&mut self, rows: Vec<ListedSelection>) -> MutationResult {
+        let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
         MutationResult {
             mutation: self.write(
                 [],

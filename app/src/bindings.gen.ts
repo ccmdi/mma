@@ -16,7 +16,7 @@ export const commands = {
 	storePatchFieldValues: (field: string, patch: FieldValuesPatch) => __TAURI_INVOKE<FieldValuesResult>("store_patch_field_values", { field, patch }),
 	/** Return the uncommitted location change counts. */
 	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
-	/** Edit the selection tree as one undoable store mutation. */
+	/** Edit the selection tree. */
 	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult>("store_edit_selections", { op }),
 	/** Answer one question about the target's rows matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
@@ -220,7 +220,7 @@ export const commands = {
 	 */
 	storeCountryDistribution: (selector: Selector<SelectionInput>, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
 	/**  Undo the newest edit, or redo the newest undone one. */
-	storeStep: (stack: Stack) => __TAURI_INVOKE<MutationResult>("store_step", { stack }),
+	storeStep: (stack: Stack, key: EntryKey | null) => __TAURI_INVOKE<MutationResult>("store_step", { stack, key }),
 	/**  Compile unaddressed selections into keyed store inputs. */
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
@@ -666,7 +666,7 @@ export type DbStats = {
 export type Derived = {
 	locationCount: number | null,
 	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id"> | null,
-	history: History | null,
+	history: Partial<{ [key in EntryKey]: History }> | null,
 	/**
 	 *  Each value that moved, keyed by field then by value; `null` where the value is
 	 *  gone: no record and no row holding it.
@@ -727,6 +727,18 @@ export type EditorImportResult = {
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
 };
+
+export type EntryKey = 
+/** Changes to rows. */
+"rows" | 
+/** Changes to piles. */
+"piles" | 
+/** Changes to defs. */
+"defs" | 
+/** Changes to meta. */
+"meta" | 
+/** Changes to selections. */
+"selections";
 
 /**
  *  Configuration for JSON export. Controls which fields are included and

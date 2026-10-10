@@ -216,9 +216,14 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 	await ensureOpen(mapId, 0);
 	await withApi(async (api) => {
 		await api.setActiveLocation(null);
-		for (let guard = 0; guard < 16 && api.getMapState().history.undo; guard += 1) await api.undo();
+		for (
+			let guard = 0;
+			guard < 16 && api.historyAvailable(api.getMapState().history, "undo");
+			guard += 1
+		)
+			await api.undo();
 		api.autosave.cancel();
-		if (api.getMapState().history.undo)
+		if (api.historyAvailable(api.getMapState().history, "undo"))
 			throw new Error("unwind did not reach the committed baseline");
 	});
 	await waitForScene(minimumMarkers);
@@ -831,7 +836,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.applySelectionUpdate(api.addSelection(api.tagSelector(id)));
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				api.autosave.cancel();
-				if (!api.getMapState().history.undo) throw new Error("bulk delete is not undoable");
+				if (!api.historyAvailable(api.getMapState().history, "undo"))
+					throw new Error("bulk delete is not undoable");
 			}, tagId);
 		},
 		run: () =>
@@ -864,7 +870,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.removeLocations(api.getMapState().selectedLocationIds);
 				await api.undo();
 				api.autosave.cancel();
-				if (!api.getMapState().history.redo) throw new Error("bulk delete is not redoable");
+				if (!api.historyAvailable(api.getMapState().history, "redo"))
+					throw new Error("bulk delete is not redoable");
 			}, tagId);
 		},
 		run: () =>
