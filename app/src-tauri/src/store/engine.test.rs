@@ -8578,3 +8578,22 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
 
 #[path = "engine/operation_sequences.test.rs"]
 mod operation_sequences;
+
+#[test]
+fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
+    let mut store = setup_store_with(&[]);
+    store.edit(
+        &Target::Map,
+        vec![Op::Set(loc(5, 0.0, 0.0))],
+        false,
+        &mut None,
+    );
+    let fresh = store.edit(
+        &Target::Map,
+        vec![Op::Set(loc(0, 1.0, 1.0)), Op::Set(loc(0, 2.0, 2.0))],
+        false,
+        &mut None,
+    );
+    assert!(fresh.keys.iter().all(|id| id.get() > 5));
+    assert_eq!(store.get_loc_by_id(Id::new(5)).unwrap().lat, 0.0);
+}

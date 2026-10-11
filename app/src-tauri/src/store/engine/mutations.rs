@@ -195,6 +195,8 @@ impl Store {
                 if row.id == Id::UNSET {
                     row.id = self.alloc_id();
                     added.push(row.id);
+                } else {
+                    self.next_id = self.next_id.max(Id::new(row.id.get().saturating_add(1)));
                 }
             }
         }
