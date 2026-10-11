@@ -73,7 +73,7 @@ import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { loadGeoJSON, polygonFeatureCollection } from "@/lib/util/geojson";
 import { downloadBlob } from "@/lib/util/util";
 import { toggleSeenOverlay } from "@/lib/seen/seenOverlay";
-import { selectReviewedHistory } from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { openDialog } from "./dialogBus";
 import { panoIdSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 import { msg } from "@/lib/i18n";
@@ -239,7 +239,7 @@ const COMMANDS = {
 		label: msg("Select reviewed locations"),
 		icon: mdiEyeCheckOutline,
 		group: msg("Selections"),
-		execute: () => selectReviewedHistory(),
+		execute: () => Review.selectReviewed(),
 		enabled: requiresMap,
 	},
 	"invert-selection": {

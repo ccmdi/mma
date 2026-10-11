@@ -30,7 +30,7 @@ import {
 	filterPropsToSeed,
 	useExtraFieldKeys,
 } from "@/components/editor/map/FilterBuilder";
-import { beginReview } from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { PromptDialog } from "@/components/primitives/Dialog";
 import { RgbPicker } from "@/components/primitives/ColorPicker";
 import {
@@ -301,7 +301,7 @@ export const SelectionRow = memo(function SelectionRow({
 										onClick={() =>
 											void (async () => {
 												const ids = await Query.read(currentSelection.selector, { kind: "ids" });
-												void beginReview(ids, currentSelection);
+												void Review.begin(ids, currentSelection);
 											})()
 										}
 									>

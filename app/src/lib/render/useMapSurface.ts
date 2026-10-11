@@ -8,7 +8,7 @@ import { useSetting, getSettings } from "@/store/settings";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { handleMapClick, handleMapHover } from "@/lib/map/mapClick";
 import { subscribe, subscribeMany, OVERLAY_REPAINT_EVENTS } from "@/lib/events";
-import { getReviewSession } from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useMapKeyboardNav } from "@/lib/hooks/useMapKeyboardNav";
@@ -160,7 +160,7 @@ export function useMapSurface(
 	useEffect(() => {
 		if (!host || !opts.followOpen) return;
 		return subscribe("open:change", (id) => {
-			if (id == null || !getReviewSession() || !getSettings().followActiveInReview) return;
+			if (id == null || !Review.session() || !getSettings().followActiveInReview) return;
 			const loc = Store.get().open?.location;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});

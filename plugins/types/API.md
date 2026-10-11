@@ -43,7 +43,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [SelectionOps](#selectionops)
 - [Settings](#settings)
 - [SelectorPick](#selectorpick)
-- [Review](#review)
 - [Commands](#commands)
 - [Tauri](#tauri)
 - [PluginHost](#pluginhost)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [SavedSelection](#savedselection)
 - [Scene](#scene)
 - [MapHost](#maphost)
+- [Review](#review)
 
 ## Consts
 
@@ -5464,258 +5464,6 @@ useSelectorPick(initial?: SelectorPick): SelectorPickController
 React hook: selector state with live counts. Defaults to the current selection when one
 exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector.
 
-## Review
-
-Review sessions and their history.
-
-### advance
-
-`unstable` · since v0.5.2
-
-```ts
-advance(s: ReviewSession): {
-  session: ReviewSession;
-  done: boolean;
-}
-```
-
-Mark the current cursor reviewed and step forward. `done` is true when the
-session has no remaining items.
-
-### beginReview
-
-`unstable` · since v0.4.0
-
-```ts
-beginReview(ids: number[], source?: Selection): Promise<void>
-```
-
-Start or resume a review over `ids`. When `source` is a selection, re-reviewing
-that selection resumes any in-progress session for it.
-
-### cancelReview
-
-`unstable` · since v0.4.0
-
-```ts
-cancelReview(): void
-```
-
-Exit the review UI but keep the session resumable (persisted as active).
-
-### deleteSession
-
-`unstable` · since v0.5.2
-
-```ts
-deleteSession(id: string): Promise<void>
-```
-
-Delete a review session (its progress, not the locations).
-
-### getReviewSession
-
-`unstable` · since v0.5.2
-
-```ts
-getReviewSession(): ReviewSession | null
-```
-
-The active review session, or null.
-
-### isAtEnd
-
-`unstable` · since v0.11.3
-
-```ts
-isAtEnd(s: ReviewSession): boolean
-```
-
-True when the cursor is on the session's last location.
-
-### isAtStart
-
-`unstable` · since v0.5.2
-
-```ts
-isAtStart(s: ReviewSession): boolean
-```
-
-True when the cursor is on the session's first location.
-
-### isCurrentReviewed
-
-`unstable` · since v0.5.2
-
-```ts
-isCurrentReviewed(s: ReviewSession): boolean
-```
-
-Current cursor location is in the reviewed set.
-
-### listSessions
-
-`unstable` · since v0.5.2
-
-```ts
-listSessions(status?: "active" | "done"): Promise<ReviewSession[]>
-```
-
-Review sessions for the open map, optionally filtered by status.
-
-### positionOf
-
-`unstable` · since v0.10.7
-
-```ts
-positionOf(s: ReviewSession, id: number): number
-```
-
-Position of `id` in the session's worklist, or -1. O(1) per step.
-
-### pruneSession
-
-`unstable` · since v0.5.2
-
-```ts
-pruneSession(s: ReviewSession, removed: Set<number>): PruneResult
-```
-
-Remove `removed` ids from a session's worklist and reviewed set. Advances the
-cursor when the cursor id itself was removed.
-
-### renameReview
-
-`unstable` · since v0.6.3
-
-```ts
-renameReview(id: string, name: string): Promise<void>
-```
-
-Rename a review session.
-
-### resumeReview
-
-`unstable` · since v0.5.2
-
-```ts
-resumeReview(s: ReviewSession): Promise<void>
-```
-
-Resume a session picked from the resume modal.
-
-### retreat
-
-`unstable` · since v0.5.2
-
-```ts
-retreat(s: ReviewSession): ReviewSession | null
-```
-
-Step backward without marking anything reviewed. Null when already at the start.
-
-### reviewDelete
-
-`unstable` · since v0.4.0
-
-```ts
-reviewDelete(): Promise<void>
-```
-
-Delete the current location and advance to the next one. Exits the pass if it
-was the last item.
-
-### reviewedHistoryIds
-
-`unstable` · since v0.6.3
-
-```ts
-reviewedHistoryIds(sessions: ReviewSession[]): number[]
-```
-
-Union of reviewed ids across sessions, de-duplicated.
-
-### reviewIndex
-
-`unstable` · since v0.5.2
-
-```ts
-reviewIndex(s: ReviewSession): number
-```
-
-Position of the session cursor within its review order.
-
-### reviewNext
-
-`unstable` · since v0.4.0
-
-```ts
-reviewNext(): Promise<void>
-```
-
-Mark the current location reviewed and step to the next one.
-
-### reviewPrev
-
-`unstable` · since v0.4.0
-
-```ts
-reviewPrev(): Promise<void>
-```
-
-Step back to the previous location in the session.
-
-### reviewSelected
-
-`unstable` · since v0.11.3
-
-```ts
-reviewSelected(): Promise<void>
-```
-
-Review the selected locations. With one active selection, the review belongs to it and
-resumes with it.
-
-### reviewSet
-
-`unstable` · since v0.11.3
-
-```ts
-reviewSet(s: ReviewSession, mode: ReviewMode): number[]
-```
-
-The session's locations in `mode`: those reviewed, or those still to review.
-
-### reviewSetSelector
-
-`unstable` · since v0.11.3
-
-```ts
-reviewSetSelector(s: ReviewSession, mode: ReviewMode): Selector
-```
-
-The locations of review session `s` that are reviewed, or still to review.
-
-### selectReviewedHistory
-
-`unstable` · since v0.6.3
-
-```ts
-selectReviewedHistory(): Promise<void>
-```
-
-Select every location marked reviewed across all sessions on this map.
-
-### useReviewSession
-
-`unstable` · since v0.5.2
-
-```ts
-useReviewSession(): ReviewSession | null
-```
-
-Reactive active review session, or null.
-
 ## Commands
 
 The raw command layer under the app-level API; any of them can change in a release.
@@ -9825,3 +9573,259 @@ MapHost.wait(): Promise<MapHost>
 ```
 
 Wait for the main editor map to be ready.
+
+## Review
+
+### Review
+
+`unstable` · unreleased
+
+Review sessions and their history.
+
+#### Review.advance
+
+`unstable` · unreleased
+
+```ts
+Review.advance(s: ReviewSession): {
+  session: ReviewSession;
+  done: boolean;
+}
+```
+
+Mark the current cursor reviewed and step forward. `done` is true when the
+session has no remaining items.
+
+#### Review.begin
+
+`unstable` · unreleased
+
+```ts
+Review.begin(ids: number[], source?: Selection): Promise<void>
+```
+
+Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+that selection resumes any in-progress session for it.
+
+#### Review.beginSelected
+
+`unstable` · unreleased
+
+```ts
+Review.beginSelected(): Promise<void>
+```
+
+Review the selected locations. With one active selection, the review belongs to it and
+resumes with it.
+
+#### Review.cancel
+
+`unstable` · unreleased
+
+```ts
+Review.cancel(): void
+```
+
+Exit the review UI but keep the session resumable (persisted as active).
+
+#### Review.deleteCurrent
+
+`unstable` · unreleased
+
+```ts
+Review.deleteCurrent(): Promise<void>
+```
+
+Delete the current location and advance to the next one. Exits the pass if it
+was the last item.
+
+#### Review.ids
+
+`unstable` · unreleased
+
+```ts
+Review.ids(s: ReviewSession, mode: ReviewMode): number[]
+```
+
+The session's locations in `mode`: those reviewed, or those still to review.
+
+#### Review.index
+
+`unstable` · unreleased
+
+```ts
+Review.index(s: ReviewSession): number
+```
+
+Position of the session cursor within its review order.
+
+#### Review.isAtEnd
+
+`unstable` · unreleased
+
+```ts
+Review.isAtEnd(s: ReviewSession): boolean
+```
+
+True when the cursor is on the session's last location.
+
+#### Review.isAtStart
+
+`unstable` · unreleased
+
+```ts
+Review.isAtStart(s: ReviewSession): boolean
+```
+
+True when the cursor is on the session's first location.
+
+#### Review.isCurrentReviewed
+
+`unstable` · unreleased
+
+```ts
+Review.isCurrentReviewed(s: ReviewSession): boolean
+```
+
+Current cursor location is in the reviewed set.
+
+#### Review.next
+
+`unstable` · unreleased
+
+```ts
+Review.next(): Promise<void>
+```
+
+Mark the current location reviewed and step to the next one.
+
+#### Review.positionOf
+
+`unstable` · unreleased
+
+```ts
+Review.positionOf(s: ReviewSession, id: number): number
+```
+
+Position of `id` in the session's worklist, or -1. O(1) per step.
+
+#### Review.prev
+
+`unstable` · unreleased
+
+```ts
+Review.prev(): Promise<void>
+```
+
+Step back to the previous location in the session.
+
+#### Review.prune
+
+`unstable` · unreleased
+
+```ts
+Review.prune(s: ReviewSession, removed: Set<number>): PruneResult
+```
+
+Remove `removed` ids from a session's worklist and reviewed set. Advances the
+cursor when the cursor id itself was removed.
+
+#### Review.removeSession
+
+`unstable` · unreleased
+
+```ts
+Review.removeSession(id: string): Promise<void>
+```
+
+Delete a review session (its progress, not the locations).
+
+#### Review.rename
+
+`unstable` · unreleased
+
+```ts
+Review.rename(id: string, name: string): Promise<void>
+```
+
+Rename a review session.
+
+#### Review.resume
+
+`unstable` · unreleased
+
+```ts
+Review.resume(s: ReviewSession): Promise<void>
+```
+
+Resume a session picked from the resume modal.
+
+#### Review.retreat
+
+`unstable` · unreleased
+
+```ts
+Review.retreat(s: ReviewSession): ReviewSession | null
+```
+
+Step backward without marking anything reviewed. Null when already at the start.
+
+#### Review.reviewedIds
+
+`unstable` · unreleased
+
+```ts
+Review.reviewedIds(sessions: ReviewSession[]): number[]
+```
+
+Union of reviewed ids across sessions, de-duplicated.
+
+#### Review.selector
+
+`unstable` · unreleased
+
+```ts
+Review.selector(s: ReviewSession, mode: ReviewMode): Selector
+```
+
+The locations of review session `s` that are reviewed, or still to review.
+
+#### Review.selectReviewed
+
+`unstable` · unreleased
+
+```ts
+Review.selectReviewed(): Promise<void>
+```
+
+Select every location marked reviewed across all sessions on this map.
+
+#### Review.session
+
+`unstable` · unreleased
+
+```ts
+Review.session(): ReviewSession | null
+```
+
+The active review session, or null.
+
+#### Review.sessions
+
+`unstable` · unreleased
+
+```ts
+Review.sessions(status?: "active" | "done"): Promise<ReviewSession[]>
+```
+
+Review sessions for the open map, optionally filtered by status.
+
+#### Review.useSession
+
+`unstable` · unreleased
+
+```ts
+Review.useSession(): ReviewSession | null
+```
+
+Reactive active review session, or null.

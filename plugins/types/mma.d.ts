@@ -5057,6 +5057,73 @@ declare const MapHost: {
     create: (kind: MapHostKind, container: HTMLElement, prefs: MapEmbedPrefs, opts: CreateHostOpts) => Promise<MapHost>;
 };
 
+/** @unstable */
+export interface PruneResult {
+    session: ReviewSession | null;
+    cursorMoved: boolean;
+}
+/** @unstable */
+export type ReviewMode = "reviewed" | "unreviewed";
+/** @unstable */
+declare const Review: {
+    /** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
+    positionOf: (s: ReviewSession, id: number) => number;
+    /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
+     *  cursor when the cursor id itself was removed. @unstable */
+    prune: (s: ReviewSession, removed: Set<number>) => PruneResult;
+    /** Mark the current cursor reviewed and step forward. `done` is true when the
+     *  session has no remaining items. @unstable */
+    advance: (s: ReviewSession) => {
+        session: ReviewSession;
+        done: boolean;
+    };
+    /** Step backward without marking anything reviewed. Null when already at the start. @unstable */
+    retreat: (s: ReviewSession) => ReviewSession | null;
+    /** Position of the session cursor within its review order. @unstable */
+    index: (s: ReviewSession) => number;
+    /** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
+    ids: (s: ReviewSession, mode: ReviewMode) => number[];
+    /** Union of reviewed ids across sessions, de-duplicated. @unstable */
+    reviewedIds: (sessions: ReviewSession[]) => number[];
+    /** True when the cursor is on the session's first location. @unstable */
+    isAtStart: (s: ReviewSession) => boolean;
+    /** True when the cursor is on the session's last location. @unstable */
+    isAtEnd: (s: ReviewSession) => boolean;
+    /** Current cursor location is in the reviewed set. @unstable */
+    isCurrentReviewed: (s: ReviewSession) => boolean;
+    /** Reactive active review session, or null. @unstable */
+    useSession: () => ReviewSession | null;
+    /** The active review session, or null. @unstable */
+    session: () => ReviewSession | null;
+    /** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+     *  that selection resumes any in-progress session for it. @unstable */
+    begin: (ids: number[], source?: Selection) => Promise<void>;
+    /** Review the selected locations. With one active selection, the review belongs to it and
+     *  resumes with it. @unstable */
+    beginSelected: () => Promise<void>;
+    /** Resume a session picked from the resume modal. @unstable */
+    resume: (s: ReviewSession) => Promise<void>;
+    /** Mark the current location reviewed and step to the next one. @unstable */
+    next: () => Promise<void>;
+    /** Step back to the previous location in the session. @unstable */
+    prev: () => Promise<void>;
+    /** Delete the current location and advance to the next one. Exits the pass if it
+     *  was the last item. @unstable */
+    deleteCurrent: () => Promise<void>;
+    /** Exit the review UI but keep the session resumable (persisted as active). @unstable */
+    cancel: () => void;
+    /** Rename a review session. @unstable */
+    rename: (id: string, name: string) => Promise<void>;
+    /** Delete a review session (its progress, not the locations). @unstable */
+    removeSession: (id: string) => Promise<void>;
+    /** Review sessions for the open map, optionally filtered by status. @unstable */
+    sessions: (status?: "active" | "done") => Promise<ReviewSession[]>;
+    /** Select every location marked reviewed across all sessions on this map. @unstable */
+    selectReviewed: () => Promise<void>;
+    /** The locations of review session `s` that are reviewed, or still to review. @unstable */
+    selector: (s: ReviewSession, mode: ReviewMode) => Selector;
+};
+
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 /** Selector variants with child selections. @unstable */
@@ -5303,127 +5370,6 @@ declare const picker_useSelectorPick: typeof useSelectorPick;
 declare namespace picker {
   export { picker_createSelectorPick as createSelectorPick, picker_selectorForPick as selectorForPick, picker_useSelectorPick as useSelectorPick };
   export type { picker_SelectorPick as SelectorPick, picker_SelectorPickController as SelectorPickController, picker_SelectorPickHandle as SelectorPickHandle };
-}
-
-/** @unstable */
-export interface PruneResult {
-    session: ReviewSession | null;
-    cursorMoved: boolean;
-}
-/** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
-declare function positionOf(s: ReviewSession, id: number): number;
-/** Remove `removed` ids from a session's worklist and reviewed set. Advances the
- *  cursor when the cursor id itself was removed. @unstable */
-declare function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult;
-/** Mark the current cursor reviewed and step forward. `done` is true when the
- *  session has no remaining items. @unstable */
-declare function advance(s: ReviewSession): {
-    session: ReviewSession;
-    done: boolean;
-};
-/** Step backward without marking anything reviewed. Null when already at the start. @unstable */
-declare function retreat(s: ReviewSession): ReviewSession | null;
-/** Position of the session cursor within its review order. @unstable */
-declare function reviewIndex(s: ReviewSession): number;
-/** @unstable */
-export type ReviewMode = "reviewed" | "unreviewed";
-/** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
-declare function reviewSet(s: ReviewSession, mode: ReviewMode): number[];
-/** Union of reviewed ids across sessions, de-duplicated. @unstable */
-declare function reviewedHistoryIds(sessions: ReviewSession[]): number[];
-/** True when the cursor is on the session's first location. @unstable */
-declare function isAtStart(s: ReviewSession): boolean;
-/** True when the cursor is on the session's last location. @unstable */
-declare function isAtEnd(s: ReviewSession): boolean;
-/** Current cursor location is in the reviewed set. @unstable */
-declare function isCurrentReviewed(s: ReviewSession): boolean;
-/** Reactive active review session, or null. @unstable */
-declare function useReviewSession(): ReviewSession | null;
-/** The active review session, or null. @unstable */
-declare function getReviewSession(): ReviewSession | null;
-/** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
- *  that selection resumes any in-progress session for it. @unstable */
-declare function beginReview(ids: number[], source?: Selection): Promise<void>;
-/** Review the selected locations. With one active selection, the review belongs to it and
- *  resumes with it. @unstable */
-declare function reviewSelected(): Promise<void>;
-/** Resume a session picked from the resume modal. @unstable */
-declare function resumeReview(s: ReviewSession): Promise<void>;
-/** Mark the current location reviewed and step to the next one. @unstable */
-declare function reviewNext(): Promise<void>;
-/** Step back to the previous location in the session. @unstable */
-declare function reviewPrev(): Promise<void>;
-/** Delete the current location and advance to the next one. Exits the pass if it
- *  was the last item. @unstable */
-declare function reviewDelete(): Promise<void>;
-/** Exit the review UI but keep the session resumable (persisted as active). @unstable */
-declare function cancelReview(): void;
-/** Rename a review session. @unstable */
-declare function renameReview(id: string, name: string): Promise<void>;
-/** Delete a review session (its progress, not the locations). @unstable */
-declare function deleteSession(id: string): Promise<void>;
-/** Review sessions for the open map, optionally filtered by status. @unstable */
-declare function listSessions(status?: "active" | "done"): Promise<ReviewSession[]>;
-/** Select every location marked reviewed across all sessions on this map. @unstable */
-declare function selectReviewedHistory(): Promise<void>;
-/** The locations of review session `s` that are reviewed, or still to review. @unstable */
-declare function reviewSetSelector(s: ReviewSession, mode: ReviewMode): Selector;
-
-/** @unstable */
-export type review_PruneResult = PruneResult;
-/** @unstable */
-export type review_ReviewMode = ReviewMode;
-/** @unstable */
-declare const review_advance: typeof advance;
-/** @unstable */
-declare const review_beginReview: typeof beginReview;
-/** @unstable */
-declare const review_cancelReview: typeof cancelReview;
-/** @unstable */
-declare const review_deleteSession: typeof deleteSession;
-/** @unstable */
-declare const review_getReviewSession: typeof getReviewSession;
-/** @unstable */
-declare const review_isAtEnd: typeof isAtEnd;
-/** @unstable */
-declare const review_isAtStart: typeof isAtStart;
-/** @unstable */
-declare const review_isCurrentReviewed: typeof isCurrentReviewed;
-/** @unstable */
-declare const review_listSessions: typeof listSessions;
-/** @unstable */
-declare const review_positionOf: typeof positionOf;
-/** @unstable */
-declare const review_pruneSession: typeof pruneSession;
-/** @unstable */
-declare const review_renameReview: typeof renameReview;
-/** @unstable */
-declare const review_resumeReview: typeof resumeReview;
-/** @unstable */
-declare const review_retreat: typeof retreat;
-/** @unstable */
-declare const review_reviewDelete: typeof reviewDelete;
-/** @unstable */
-declare const review_reviewIndex: typeof reviewIndex;
-/** @unstable */
-declare const review_reviewNext: typeof reviewNext;
-/** @unstable */
-declare const review_reviewPrev: typeof reviewPrev;
-/** @unstable */
-declare const review_reviewSelected: typeof reviewSelected;
-/** @unstable */
-declare const review_reviewSet: typeof reviewSet;
-/** @unstable */
-declare const review_reviewSetSelector: typeof reviewSetSelector;
-/** @unstable */
-declare const review_reviewedHistoryIds: typeof reviewedHistoryIds;
-/** @unstable */
-declare const review_selectReviewedHistory: typeof selectReviewedHistory;
-/** @unstable */
-declare const review_useReviewSession: typeof useReviewSession;
-declare namespace review {
-  export { review_advance as advance, review_beginReview as beginReview, review_cancelReview as cancelReview, review_deleteSession as deleteSession, review_getReviewSession as getReviewSession, review_isAtEnd as isAtEnd, review_isAtStart as isAtStart, review_isCurrentReviewed as isCurrentReviewed, review_listSessions as listSessions, review_positionOf as positionOf, review_pruneSession as pruneSession, review_renameReview as renameReview, review_resumeReview as resumeReview, review_retreat as retreat, review_reviewDelete as reviewDelete, review_reviewIndex as reviewIndex, review_reviewNext as reviewNext, review_reviewPrev as reviewPrev, review_reviewSelected as reviewSelected, review_reviewSet as reviewSet, review_reviewSetSelector as reviewSetSelector, review_reviewedHistoryIds as reviewedHistoryIds, review_selectReviewedHistory as selectReviewedHistory, review_useReviewSession as useReviewSession };
-  export type { review_PruneResult as PruneResult, review_ReviewMode as ReviewMode };
 }
 
 /** Low-level command, shell, and file dialog access. @unstable */
@@ -7868,8 +7814,6 @@ export type SelectionOpsApi = typeof selectionOps;
 export type SettingsApi = typeof settings;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 export type SelectorPickApi = typeof picker;
-/** Review sessions and their history. @unstable */
-export type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 export type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
@@ -7925,7 +7869,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -7964,6 +7908,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     Scene: typeof Scene;
     /** The embedded map host, its preferences, and click interceptors. @unstable */
     MapHost: typeof MapHost;
+    /** Review sessions and their history. @unstable */
+    Review: typeof Review;
 }
 
 declare global {

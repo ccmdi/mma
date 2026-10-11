@@ -12,8 +12,6 @@ import type { Selector } from "@/types";
 import type { ReviewSession, Selection } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 
-// --- Pure helpers (unit-tested; no side effects) ---
-
 export interface PruneResult {
 	session: ReviewSession | null;
 	cursorMoved: boolean;
@@ -23,89 +21,13 @@ export interface PruneResult {
 // new array, so a map can never index an order it no longer describes.
 const worklistIndexes = new WeakMap<number[], Map<number, number>>();
 
-/** Position of `id` in the session's worklist, or -1. O(1) per step. */
-export function positionOf(s: ReviewSession, id: number): number {
-	let index = worklistIndexes.get(s.order);
-	if (!index) {
-		index = new Map(s.order.map((locId, i) => [locId, i]));
-		worklistIndexes.set(s.order, index);
-	}
-	return index.get(id) ?? -1;
-}
-
-/** Remove `removed` ids from a session's worklist and reviewed set. Advances the
- *  cursor when the cursor id itself was removed. */
-export function pruneSession(s: ReviewSession, removed: Set<number>): PruneResult {
-	if (!s.order.some((id) => removed.has(id))) return { session: s, cursorMoved: false };
-	const order = s.order.filter((id) => !removed.has(id));
-	const reviewed = s.reviewed.filter((id) => !removed.has(id));
-	if (order.length === 0) return { session: null, cursorMoved: true };
-	let cursorId = s.cursorId;
-	if (removed.has(cursorId)) {
-		const oldIdx = positionOf(s, cursorId);
-		cursorId = order[Math.min(oldIdx, order.length - 1)];
-	}
-	return { session: { ...s, order, reviewed, cursorId }, cursorMoved: cursorId !== s.cursorId };
-}
-
-/** Mark the current cursor reviewed and step forward. `done` is true when the
- *  session has no remaining items. */
-export function advance(s: ReviewSession): { session: ReviewSession; done: boolean } {
-	const reviewed = isCurrentReviewed(s) ? s.reviewed : [...s.reviewed, s.cursorId];
-	if (isAtEnd(s)) return { session: { ...s, reviewed, status: "done" }, done: true };
-	return { session: { ...s, reviewed, cursorId: s.order[reviewIndex(s) + 1] }, done: false };
-}
-
-/** Step backward without marking anything reviewed. Null when already at the start. */
-export function retreat(s: ReviewSession): ReviewSession | null {
-	if (isAtStart(s)) return null;
-	return { ...s, cursorId: s.order[reviewIndex(s) - 1] };
-}
-
-/** Position of the session cursor within its review order. */
-export function reviewIndex(s: ReviewSession): number {
-	return positionOf(s, s.cursorId);
-}
-
 export type ReviewMode = "reviewed" | "unreviewed";
 
 const REVIEW_MODES: ReviewMode[] = ["reviewed", "unreviewed"];
 
-/** The session's locations in `mode`: those reviewed, or those still to review. */
-export function reviewSet(s: ReviewSession, mode: ReviewMode): number[] {
-	if (mode === "reviewed") return s.reviewed;
-	const reviewed = new Set(s.reviewed);
-	return s.order.filter((id) => !reviewed.has(id));
-}
-
 function reviewSelector(sessionId: string, mode: ReviewMode, locations: number[] = []): Selector {
 	return { type: "Reviewed", locations, sessionId, mode };
 }
-
-/** Union of reviewed ids across sessions, de-duplicated. */
-export function reviewedHistoryIds(sessions: ReviewSession[]): number[] {
-	const ids = new Set<number>();
-	for (const s of sessions) for (const id of s.reviewed) ids.add(id);
-	return [...ids];
-}
-
-/** True when the cursor is on the session's first location. */
-export function isAtStart(s: ReviewSession): boolean {
-	return reviewIndex(s) <= 0;
-}
-
-/** True when the cursor is on the session's last location. */
-export function isAtEnd(s: ReviewSession): boolean {
-	const i = reviewIndex(s);
-	return i < 0 || i >= s.order.length - 1;
-}
-
-/** Current cursor location is in the reviewed set. */
-export function isCurrentReviewed(s: ReviewSession): boolean {
-	return s.reviewed.includes(s.cursorId);
-}
-
-// --- Module state + reactivity ---
 
 let session: ReviewSession | null = null;
 
@@ -121,18 +43,6 @@ function closeSession(): void {
 	if (s) clearProjection(s.id);
 	Editor.close();
 }
-
-/** Reactive active review session, or null. */
-export function useReviewSession(): ReviewSession | null {
-	return useEventValue("review:changed", () => session);
-}
-
-/** The active review session, or null. */
-export function getReviewSession(): ReviewSession | null {
-	return session;
-}
-
-// --- Persistence (debounced; review stepping is a hot path) ---
 
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -171,8 +81,6 @@ async function gotoCursor(s: ReviewSession): Promise<void> {
 	await Editor.open(s.cursorId, false);
 }
 
-// --- Public API ---
-
 /** The map's review order over `worklist`. */
 function reviewOrdering(worklist: Selector, expr: string | null | undefined): Selector {
 	const order = expr?.trim();
@@ -186,162 +94,10 @@ function reviewOrdering(worklist: Selector, expr: string | null | undefined): Se
 	};
 }
 
-/** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
- *  that selection resumes any in-progress session for it. */
-export async function beginReview(ids: number[], source?: Selection): Promise<void> {
-	const mapId = Store.get().mapId;
-	const map = Store.get().map;
-	if (!mapId || !map || ids.length === 0) return;
-
-	const sourceKey = source?.key ?? "manual";
-	if (source && source.selector.type !== "Manual") {
-		try {
-			const existing = await cmd.storeReviewGet(mapId, sourceKey);
-			if (existing) {
-				await adopt(existing);
-				return;
-			}
-		} catch (e) {
-			log.error("[review] resume lookup failed:", e);
-		}
-	}
-
-	// Freeze the worklist to ids that still exist, in the map's review order.
-	const worklist: Selector = { type: "Locations", locations: ids, name: null };
-	const order = await Query.read(reviewOrdering(worklist, map.settings.reviewOrder), {
-		kind: "ids",
-	});
-	if (order.length === 0) return;
-
-	const name = source ? selectionDisplayName(source) : t("Selected locations");
-	const sourceProps = source?.selector ?? { type: "Manual", locations: order };
-	try {
-		const created = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
-		setSession(created);
-		refreshProjection();
-		await gotoCursor(created);
-	} catch (e) {
-		log.error("[review] create failed:", e);
-	}
-}
-
-/** Review the selected locations. With one active selection, the review belongs to it and
- *  resumes with it. */
-export function reviewSelected(): Promise<void> {
-	const active = SelectionList.active();
-	const ids = [...Store.get().selectedLocationIds];
-	return beginReview(ids, active.length === 1 ? active[0] : undefined);
-}
-
-/** Resume a session picked from the resume modal. */
-export async function resumeReview(s: ReviewSession): Promise<void> {
-	await adopt(s);
-}
-
-/** Mark the current location reviewed and step to the next one. */
-export async function reviewNext(): Promise<void> {
-	if (!session) return;
-	const { session: next, done } = advance(session);
-	setSession(next);
-	if (done) {
-		flushSave();
-		closeSession();
-		return;
-	}
-	scheduleSave();
-	scheduleProjection();
-	await gotoCursor(next);
-}
-
-/** Step back to the previous location in the session. */
-export async function reviewPrev(): Promise<void> {
-	if (!session) return;
-	const prev = retreat(session);
-	if (!prev) return;
-	setSession(prev);
-	scheduleSave();
-	await gotoCursor(prev);
-}
-
-/** Delete the current location and advance to the next one. Exits the pass if it
- *  was the last item. */
-export async function reviewDelete(): Promise<void> {
-	if (!session) return;
-	const s = session;
-	const deleted = s.cursorId;
-	const next = pruneSession(s, new Set([deleted])).session;
-	if (next && !isAtEnd(s)) {
-		setSession(next);
-		await gotoCursor(next);
-		flushSave();
-		scheduleProjection();
-	} else {
-		if (next) persist({ ...next, status: "done" }); // survivors remain, resumable as done
-		else cmd.storeReviewDelete(s.id).catch(() => {});
-		closeSession();
-	}
-	await Location.remove(new Set([deleted]));
-}
-
-/** Exit the review UI but keep the session resumable (persisted as active). */
-export function cancelReview(): void {
-	if (!session) return;
-	flushSave();
-	closeSession();
-}
-
-/** Rename a review session. */
-export async function renameReview(id: string, name: string): Promise<void> {
-	const trimmed = name.trim();
-	if (!trimmed) return;
-	try {
-		await cmd.storeReviewUpdate({
-			id,
-			name: trimmed,
-		});
-	} catch (e) {
-		log.error("[review] rename failed:", e);
-		return;
-	}
-	if (session?.id === id) {
-		setSession({ ...session, name: trimmed });
-	}
-}
-
-/** Delete a review session (its progress, not the locations). */
-export async function deleteSession(id: string): Promise<void> {
-	try {
-		await cmd.storeReviewDelete(id);
-	} catch (e) {
-		log.error("[review] session delete failed:", e);
-	}
-	if (session?.id === id) cancelReview();
-}
-
-/** Review sessions for the open map, optionally filtered by status. */
-export function listSessions(status?: "active" | "done"): Promise<ReviewSession[]> {
-	const mapId = Store.get().mapId;
-	if (!mapId) return Promise.resolve([]);
-	return cmd.storeReviewList(mapId, status ?? null);
-}
-
 // Sentinel session id for the cross-session "everything reviewed on this map" selection.
 // Real sessions are UUID-keyed, so this never collides with a live projection's keys.
 const HISTORY_SESSION_ID = "history";
 
-/** Select every location marked reviewed across all sessions on this map. */
-export async function selectReviewedHistory(): Promise<void> {
-	const ids = reviewedHistoryIds(await listSessions());
-	if (ids.length === 0) return;
-	await SelectionList.update(addSelection(reviewSelector(HISTORY_SESSION_ID, "reviewed", ids)));
-}
-
-/** The locations of review session `s` that are reviewed, or still to review. */
-export function reviewSetSelector(s: ReviewSession, mode: ReviewMode): Selector {
-	return reviewSelector(s.id, mode, reviewSet(s, mode));
-}
-
-// --- Selection projection (auto, debounced) ---
 //
 // While a review is active, two overlay selections mirror its progress: "reviewed" and
 // "unreviewed". They're re-added by their deterministic keys (dedupe replaces the prior
@@ -360,9 +116,7 @@ function clearProjectTimer() {
 function refreshProjection(): void {
 	const s = session;
 	if (!s) return;
-	void SelectionList.update(
-		addSelection(...REVIEW_MODES.map((mode) => reviewSetSelector(s, mode))),
-	);
+	void SelectionList.update(addSelection(...REVIEW_MODES.map((mode) => Review.selector(s, mode))));
 }
 
 function scheduleProjection(): void {
@@ -390,7 +144,7 @@ async function adopt(s: ReviewSession): Promise<void> {
 		const liveIds = new Set(
 			await Query.read({ type: "Locations", locations: s.order, name: null }, { kind: "ids" }),
 		);
-		v = pruneSession(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
+		v = Review.prune(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
 	} catch (e) {
 		log.error("[review] validate failed:", e);
 	}
@@ -404,12 +158,10 @@ async function adopt(s: ReviewSession): Promise<void> {
 	await gotoCursor(v);
 }
 
-// --- Reconciliation (event-bus) ---
-
 function reconcile(removed: number[]): void {
 	if (!session) return;
 	const prev = session;
-	const { session: next, cursorMoved } = pruneSession(prev, new Set(removed));
+	const { session: next, cursorMoved } = Review.prune(prev, new Set(removed));
 	if (next === prev) return; // nothing overlapped
 	if (!next) {
 		cmd.storeReviewDelete(prev.id).catch(() => {});
@@ -428,7 +180,7 @@ function reconcile(removed: number[]): void {
  *  jumps the cursor there; clicking off-queue leaves the session untouched. */
 function onOpenChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
-	if (positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
+	if (Review.positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
 	setSession({ ...session, cursorId: id });
 	scheduleSave();
 }
@@ -446,3 +198,217 @@ onEvent("map:open", () => {
 	clearProjectTimer();
 	setSession(null);
 });
+
+export const Review = {
+	/** Position of `id` in the session's worklist, or -1. O(1) per step. */
+	positionOf: (s: ReviewSession, id: number): number => {
+		let index = worklistIndexes.get(s.order);
+		if (!index) {
+			index = new Map(s.order.map((locId, i) => [locId, i]));
+			worklistIndexes.set(s.order, index);
+		}
+		return index.get(id) ?? -1;
+	},
+	/** Remove `removed` ids from a session's worklist and reviewed set. Advances the
+	 *  cursor when the cursor id itself was removed. */
+	prune: (s: ReviewSession, removed: Set<number>): PruneResult => {
+		if (!s.order.some((id) => removed.has(id))) return { session: s, cursorMoved: false };
+		const order = s.order.filter((id) => !removed.has(id));
+		const reviewed = s.reviewed.filter((id) => !removed.has(id));
+		if (order.length === 0) return { session: null, cursorMoved: true };
+		let cursorId = s.cursorId;
+		if (removed.has(cursorId)) {
+			const oldIdx = Review.positionOf(s, cursorId);
+			cursorId = order[Math.min(oldIdx, order.length - 1)];
+		}
+		return { session: { ...s, order, reviewed, cursorId }, cursorMoved: cursorId !== s.cursorId };
+	},
+	/** Mark the current cursor reviewed and step forward. `done` is true when the
+	 *  session has no remaining items. */
+	advance: (s: ReviewSession): { session: ReviewSession; done: boolean } => {
+		const reviewed = Review.isCurrentReviewed(s) ? s.reviewed : [...s.reviewed, s.cursorId];
+		if (Review.isAtEnd(s)) return { session: { ...s, reviewed, status: "done" }, done: true };
+		return { session: { ...s, reviewed, cursorId: s.order[Review.index(s) + 1] }, done: false };
+	},
+	/** Step backward without marking anything reviewed. Null when already at the start. */
+	retreat: (s: ReviewSession): ReviewSession | null => {
+		if (Review.isAtStart(s)) return null;
+		return { ...s, cursorId: s.order[Review.index(s) - 1] };
+	},
+	/** Position of the session cursor within its review order. */
+	index: (s: ReviewSession): number => {
+		return Review.positionOf(s, s.cursorId);
+	},
+	/** The session's locations in `mode`: those reviewed, or those still to review. */
+	ids: (s: ReviewSession, mode: ReviewMode): number[] => {
+		if (mode === "reviewed") return s.reviewed;
+		const reviewed = new Set(s.reviewed);
+		return s.order.filter((id) => !reviewed.has(id));
+	},
+	/** Union of reviewed ids across sessions, de-duplicated. */
+	reviewedIds: (sessions: ReviewSession[]): number[] => {
+		const ids = new Set<number>();
+		for (const s of sessions) for (const id of s.reviewed) ids.add(id);
+		return [...ids];
+	},
+	/** True when the cursor is on the session's first location. */
+	isAtStart: (s: ReviewSession): boolean => {
+		return Review.index(s) <= 0;
+	},
+	/** True when the cursor is on the session's last location. */
+	isAtEnd: (s: ReviewSession): boolean => {
+		const i = Review.index(s);
+		return i < 0 || i >= s.order.length - 1;
+	},
+	/** Current cursor location is in the reviewed set. */
+	isCurrentReviewed: (s: ReviewSession): boolean => {
+		return s.reviewed.includes(s.cursorId);
+	},
+	/** Reactive active review session, or null. */
+	useSession: (): ReviewSession | null => {
+		return useEventValue("review:changed", () => session);
+	},
+	/** The active review session, or null. */
+	session: (): ReviewSession | null => {
+		return session;
+	},
+	/** Start or resume a review over `ids`. When `source` is a selection, re-reviewing
+	 *  that selection resumes any in-progress session for it. */
+	begin: async (ids: number[], source?: Selection): Promise<void> => {
+		const mapId = Store.get().mapId;
+		const map = Store.get().map;
+		if (!mapId || !map || ids.length === 0) return;
+
+		const sourceKey = source?.key ?? "manual";
+		if (source && source.selector.type !== "Manual") {
+			try {
+				const existing = await cmd.storeReviewGet(mapId, sourceKey);
+				if (existing) {
+					await adopt(existing);
+					return;
+				}
+			} catch (e) {
+				log.error("[review] resume lookup failed:", e);
+			}
+		}
+
+		// Freeze the worklist to ids that still exist, in the map's review order.
+		const worklist: Selector = { type: "Locations", locations: ids, name: null };
+		const order = await Query.read(reviewOrdering(worklist, map.settings.reviewOrder), {
+			kind: "ids",
+		});
+		if (order.length === 0) return;
+
+		const name = source ? selectionDisplayName(source) : t("Selected locations");
+		const sourceProps = source?.selector ?? { type: "Manual", locations: order };
+		try {
+			const created = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
+			setSession(created);
+			refreshProjection();
+			await gotoCursor(created);
+		} catch (e) {
+			log.error("[review] create failed:", e);
+		}
+	},
+	/** Review the selected locations. With one active selection, the review belongs to it and
+	 *  resumes with it. */
+	beginSelected: (): Promise<void> => {
+		const active = SelectionList.active();
+		const ids = [...Store.get().selectedLocationIds];
+		return Review.begin(ids, active.length === 1 ? active[0] : undefined);
+	},
+	/** Resume a session picked from the resume modal. */
+	resume: async (s: ReviewSession): Promise<void> => {
+		await adopt(s);
+	},
+	/** Mark the current location reviewed and step to the next one. */
+	next: async (): Promise<void> => {
+		if (!session) return;
+		const { session: next, done } = Review.advance(session);
+		setSession(next);
+		if (done) {
+			flushSave();
+			closeSession();
+			return;
+		}
+		scheduleSave();
+		scheduleProjection();
+		await gotoCursor(next);
+	},
+	/** Step back to the previous location in the session. */
+	prev: async (): Promise<void> => {
+		if (!session) return;
+		const prev = Review.retreat(session);
+		if (!prev) return;
+		setSession(prev);
+		scheduleSave();
+		await gotoCursor(prev);
+	},
+	/** Delete the current location and advance to the next one. Exits the pass if it
+	 *  was the last item. */
+	deleteCurrent: async (): Promise<void> => {
+		if (!session) return;
+		const s = session;
+		const deleted = s.cursorId;
+		const next = Review.prune(s, new Set([deleted])).session;
+		if (next && !Review.isAtEnd(s)) {
+			setSession(next);
+			await gotoCursor(next);
+			flushSave();
+			scheduleProjection();
+		} else {
+			if (next) persist({ ...next, status: "done" }); // survivors remain, resumable as done
+			else cmd.storeReviewDelete(s.id).catch(() => {});
+			closeSession();
+		}
+		await Location.remove(new Set([deleted]));
+	},
+	/** Exit the review UI but keep the session resumable (persisted as active). */
+	cancel: (): void => {
+		if (!session) return;
+		flushSave();
+		closeSession();
+	},
+	/** Rename a review session. */
+	rename: async (id: string, name: string): Promise<void> => {
+		const trimmed = name.trim();
+		if (!trimmed) return;
+		try {
+			await cmd.storeReviewUpdate({
+				id,
+				name: trimmed,
+			});
+		} catch (e) {
+			log.error("[review] rename failed:", e);
+			return;
+		}
+		if (session?.id === id) {
+			setSession({ ...session, name: trimmed });
+		}
+	},
+	/** Delete a review session (its progress, not the locations). */
+	removeSession: async (id: string): Promise<void> => {
+		try {
+			await cmd.storeReviewDelete(id);
+		} catch (e) {
+			log.error("[review] session delete failed:", e);
+		}
+		if (session?.id === id) Review.cancel();
+	},
+	/** Review sessions for the open map, optionally filtered by status. */
+	sessions: (status?: "active" | "done"): Promise<ReviewSession[]> => {
+		const mapId = Store.get().mapId;
+		if (!mapId) return Promise.resolve([]);
+		return cmd.storeReviewList(mapId, status ?? null);
+	},
+	/** Select every location marked reviewed across all sessions on this map. */
+	selectReviewed: async (): Promise<void> => {
+		const ids = Review.reviewedIds(await Review.sessions());
+		if (ids.length === 0) return;
+		await SelectionList.update(addSelection(reviewSelector(HISTORY_SESSION_ID, "reviewed", ids)));
+	},
+	/** The locations of review session `s` that are reviewed, or still to review. */
+	selector: (s: ReviewSession, mode: ReviewMode): Selector => {
+		return reviewSelector(s.id, mode, Review.ids(s, mode));
+	},
+};

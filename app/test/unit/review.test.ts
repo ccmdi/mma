@@ -56,24 +56,7 @@ vi.mock("@/store/selections", () => ({
 	selection: (selector: unknown) => ({ selector }),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-
-import {
-	pruneSession,
-	advance,
-	retreat,
-	reviewIndex,
-	isAtStart,
-	isAtEnd,
-	reviewSet,
-	reviewDelete,
-	isCurrentReviewed,
-	reviewedHistoryIds,
-	positionOf,
-	resumeReview,
-	getReviewSession,
-	cancelReview,
-	reviewSelected,
-} from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { cmd } from "@/lib/commands";
 import type { ReviewSession } from "@/bindings.gen";
 
@@ -93,10 +76,10 @@ function mk(order: number[], cursorId: number, reviewed: number[] = []): ReviewS
 	};
 }
 
-describe("pruneSession (the desync invariant)", () => {
+describe("Review.prune (the desync invariant)", () => {
 	it("deleting any non-cursor location never moves the cursor", () => {
 		const s = mk([1, 2, 3, 4, 5], 3, [1, 2]);
-		const { session, cursorMoved } = pruneSession(s, new Set([2, 4]));
+		const { session, cursorMoved } = Review.prune(s, new Set([2, 4]));
 		expect(cursorMoved).toBe(false);
 		expect(session?.cursorId).toBe(3);
 		expect(session?.order).toEqual([1, 3, 5]);
@@ -105,14 +88,14 @@ describe("pruneSession (the desync invariant)", () => {
 
 	it("returns the same reference when nothing overlaps the worklist", () => {
 		const s = mk([1, 2, 3], 2);
-		const r = pruneSession(s, new Set([99]));
+		const r = Review.prune(s, new Set([99]));
 		expect(r.session).toBe(s);
 		expect(r.cursorMoved).toBe(false);
 	});
 
 	it("advances cursor to the next survivor when the cursor itself is deleted", () => {
 		const s = mk([1, 2, 3, 4, 5], 3);
-		const { session, cursorMoved } = pruneSession(s, new Set([3]));
+		const { session, cursorMoved } = Review.prune(s, new Set([3]));
 		expect(cursorMoved).toBe(true);
 		expect(session?.cursorId).toBe(4);
 		expect(session?.order).toEqual([1, 2, 4, 5]);
@@ -120,13 +103,13 @@ describe("pruneSession (the desync invariant)", () => {
 
 	it("clamps to the last item when the deleted cursor was last", () => {
 		const s = mk([1, 2, 3], 3);
-		const { session } = pruneSession(s, new Set([3]));
+		const { session } = Review.prune(s, new Set([3]));
 		expect(session?.cursorId).toBe(2);
 	});
 
 	it("returns null when the worklist empties", () => {
 		const s = mk([1], 1, [1]);
-		const { session } = pruneSession(s, new Set([1]));
+		const { session } = Review.prune(s, new Set([1]));
 		expect(session).toBeNull();
 	});
 });
@@ -135,127 +118,127 @@ describe("resuming a session", () => {
 	it("places the cursor where a live delete would when its location died while closed", async () => {
 		const s = mk([1, 2, 3, 4, 5], 3, [1, 2]);
 		store.liveIds = [1, 2, 4, 5];
-		await resumeReview(s);
-		expect(getReviewSession()).toEqual(pruneSession(s, new Set([3])).session);
-		cancelReview();
+		await Review.resume(s);
+		expect(Review.session()).toEqual(Review.prune(s, new Set([3])).session);
+		Review.cancel();
 	});
 });
 
 describe("deleting the current location", () => {
 	it("moves to the location that takes its place", async () => {
 		store.liveIds = [1, 2, 3, 4, 5];
-		await resumeReview(mk([1, 2, 3, 4, 5], 3));
-		await reviewDelete();
-		expect(getReviewSession()?.order).toEqual([1, 2, 4, 5]);
-		expect(getReviewSession()?.cursorId).toBe(4);
-		cancelReview();
+		await Review.resume(mk([1, 2, 3, 4, 5], 3));
+		await Review.deleteCurrent();
+		expect(Review.session()?.order).toEqual([1, 2, 4, 5]);
+		expect(Review.session()?.cursorId).toBe(4);
+		Review.cancel();
 	});
 
 	it("ends the pass when it was the last location", async () => {
 		store.liveIds = [1, 2, 3];
-		await resumeReview(mk([1, 2, 3], 3));
-		await reviewDelete();
-		expect(getReviewSession()).toBeNull();
+		await Review.resume(mk([1, 2, 3], 3));
+		await Review.deleteCurrent();
+		expect(Review.session()).toBeNull();
 	});
 });
 
-describe("reviewedHistoryIds (cross-session union)", () => {
+describe("Review.reviewedIds (cross-session union)", () => {
 	it("unions reviewed ids across sessions and de-duplicates", () => {
 		const a = mk([1, 2, 3], 3, [1, 2]);
 		const b = mk([2, 4, 5], 5, [2, 4]);
-		expect(reviewedHistoryIds([a, b]).sort((x, y) => x - y)).toEqual([1, 2, 4]);
+		expect(Review.reviewedIds([a, b]).sort((x, y) => x - y)).toEqual([1, 2, 4]);
 	});
 
 	it("ignores the worklist; only reviewed ids count", () => {
 		const s = mk([1, 2, 3], 1, []);
-		expect(reviewedHistoryIds([s])).toEqual([]);
+		expect(Review.reviewedIds([s])).toEqual([]);
 	});
 
 	it("returns empty for no sessions", () => {
-		expect(reviewedHistoryIds([])).toEqual([]);
+		expect(Review.reviewedIds([])).toEqual([]);
 	});
 });
 
 describe("advance / retreat", () => {
 	it("advance marks the current location reviewed and steps to next", () => {
-		const { session, done } = advance(mk([1, 2, 3], 1));
+		const { session, done } = Review.advance(mk([1, 2, 3], 1));
 		expect(done).toBe(false);
 		expect(session.cursorId).toBe(2);
 		expect(session.reviewed).toContain(1);
 	});
 
 	it("advance on the last item marks reviewed and reports done", () => {
-		const { session, done } = advance(mk([1, 2], 2, [1]));
+		const { session, done } = Review.advance(mk([1, 2], 2, [1]));
 		expect(done).toBe(true);
 		expect(session.status).toBe("done");
 		expect(session.reviewed).toContain(2);
 	});
 
 	it("advance does not duplicate an already-reviewed id", () => {
-		const { session } = advance(mk([1, 2, 3], 1, [1]));
+		const { session } = Review.advance(mk([1, 2, 3], 1, [1]));
 		expect(session.reviewed.filter((x) => x === 1)).toHaveLength(1);
 	});
 
 	it("retreat steps back without marking reviewed, and is null at the start", () => {
-		const prev = retreat(mk([1, 2, 3], 2));
+		const prev = Review.retreat(mk([1, 2, 3], 2));
 		expect(prev?.cursorId).toBe(1);
 		expect(prev?.reviewed).toEqual([]);
-		expect(retreat(mk([1, 2, 3], 1))).toBeNull();
+		expect(Review.retreat(mk([1, 2, 3], 1))).toBeNull();
 	});
 });
 
 describe("helpers", () => {
 	it("reviewIndex / isAtStart / isAtEnd / isCurrentReviewed", () => {
-		expect(reviewIndex(mk([1, 2, 3], 2))).toBe(1);
-		expect(isAtStart(mk([1, 2, 3], 1))).toBe(true);
-		expect(isAtStart(mk([1, 2, 3], 2))).toBe(false);
-		expect(isAtEnd(mk([1, 2, 3], 3))).toBe(true);
-		expect(isAtEnd(mk([1, 2, 3], 2))).toBe(false);
-		expect(isCurrentReviewed(mk([1, 2, 3], 2, [2]))).toBe(true);
-		expect(isCurrentReviewed(mk([1, 2, 3], 2, [1]))).toBe(false);
+		expect(Review.index(mk([1, 2, 3], 2))).toBe(1);
+		expect(Review.isAtStart(mk([1, 2, 3], 1))).toBe(true);
+		expect(Review.isAtStart(mk([1, 2, 3], 2))).toBe(false);
+		expect(Review.isAtEnd(mk([1, 2, 3], 3))).toBe(true);
+		expect(Review.isAtEnd(mk([1, 2, 3], 2))).toBe(false);
+		expect(Review.isCurrentReviewed(mk([1, 2, 3], 2, [2]))).toBe(true);
+		expect(Review.isCurrentReviewed(mk([1, 2, 3], 2, [1]))).toBe(false);
 	});
 
 	it("reviewSet splits the worklist into reviewed and still to review", () => {
 		const s = mk([1, 2, 3, 4], 3, [1, 2]);
-		expect(reviewSet(s, "reviewed")).toEqual([1, 2]);
-		expect(reviewSet(s, "unreviewed")).toEqual([3, 4]);
+		expect(Review.ids(s, "reviewed")).toEqual([1, 2]);
+		expect(Review.ids(s, "unreviewed")).toEqual([3, 4]);
 	});
 });
 
 describe("worklist positions", () => {
 	it("answers the same positions indexOf would", () => {
 		const s = mk([7, 3, 9, 4], 9);
-		for (const id of [...s.order, 99]) expect(positionOf(s, id)).toBe(s.order.indexOf(id));
+		for (const id of [...s.order, 99]) expect(Review.positionOf(s, id)).toBe(s.order.indexOf(id));
 	});
 
 	it("re-indexes after a prune instead of answering from the old worklist", () => {
 		const s = mk([1, 2, 3, 4, 5], 5, []);
-		expect(positionOf(s, 5)).toBe(4);
-		const { session } = pruneSession(s, new Set([1, 2]));
+		expect(Review.positionOf(s, 5)).toBe(4);
+		const { session } = Review.prune(s, new Set([1, 2]));
 		expect(session).not.toBeNull();
-		expect(positionOf(session!, 5)).toBe(2);
-		expect(positionOf(session!, 1)).toBe(-1);
-		expect(reviewIndex(session!)).toBe(2);
-		expect(positionOf(s, 5)).toBe(4); // the pruned-from session is untouched
+		expect(Review.positionOf(session!, 5)).toBe(2);
+		expect(Review.positionOf(session!, 1)).toBe(-1);
+		expect(Review.index(session!)).toBe(2);
+		expect(Review.positionOf(s, 5)).toBe(4); // the pruned-from session is untouched
 	});
 
 	it("steps a long worklist by position, not by scanning it", () => {
 		const order = Array.from({ length: 50_000 }, (_, i) => i + 1);
 		let s = mk(order, order[0]);
-		for (let i = 0; i < 5; i += 1) s = advance(s).session;
+		for (let i = 0; i < 5; i += 1) s = Review.advance(s).session;
 		expect(s.cursorId).toBe(6);
-		expect(reviewIndex(s)).toBe(5);
-		expect(retreat(s)?.cursorId).toBe(5);
+		expect(Review.index(s)).toBe(5);
+		expect(Review.retreat(s)?.cursorId).toBe(5);
 	});
 });
 
-describe("reviewSelected", () => {
+describe("Review.beginSelected", () => {
 	it("belongs to the one active selection, whatever is ghosted beside it", async () => {
 		const mapState = store.mapState;
 		store.mapState = { mapId: "m", map: { settings: {} }, selectedLocationIds: new Set([1]) };
 		store.active = [{ key: "tag:1", selector: { type: "Filter" } }];
 
-		await reviewSelected();
+		await Review.beginSelected();
 
 		expect(cmd.storeReviewGet).toHaveBeenCalledWith("m", "tag:1");
 		store.mapState = mapState;

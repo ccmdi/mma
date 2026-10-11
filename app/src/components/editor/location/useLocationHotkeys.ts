@@ -21,7 +21,7 @@ import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
 import { cycle } from "@/types/util";
-import { reviewNext, reviewPrev, useReviewSession } from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { registerMapKeyActionHandler } from "@/lib/map/mapKeyBindings";
 import { log } from "@/lib/util/log";
 import { toggleViewportLock } from "@/lib/sv/viewportLock";
@@ -45,7 +45,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const { draft, timeline } = usePanoViewer();
 	const pano = usePano();
 	const location = Store.use((s) => s.open?.location ?? null);
-	const isReviewMode = useReviewSession() !== null;
+	const isReviewMode = Review.useSession() !== null;
 	const {
 		pendingTags,
 		setPendingTags,
@@ -68,10 +68,10 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (location) void Promise.resolve(handleDelete());
 	});
 	useHotkey(useBinding("reviewNext"), () => {
-		if (isReviewMode) void reviewNext();
+		if (isReviewMode) void Review.next();
 	});
 	useHotkey(useBinding("reviewPrev"), () => {
-		if (isReviewMode) void reviewPrev();
+		if (isReviewMode) void Review.prev();
 	});
 	useHotkey(useBinding("returnToSpawn"), () => {
 		void Promise.resolve(handleReturnToSpawn());

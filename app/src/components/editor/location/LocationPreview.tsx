@@ -14,13 +14,7 @@ import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/lib/data/tags";
 import { ReviewBar } from "@/components/editor/location/ReviewBar";
-import {
-	useReviewSession,
-	reviewNext,
-	reviewPrev,
-	reviewDelete,
-	isAtStart,
-} from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import {
 	useSettings,
 	useSetting,
@@ -163,7 +157,7 @@ export function LocationPreview() {
 	const location = Store.use((s) => s.open?.location ?? null);
 	const origin = Store.use((s) => s.open?.origin);
 	const map = Store.use((s) => s.map);
-	const reviewSession = useReviewSession();
+	const reviewSession = Review.useSession();
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
@@ -229,7 +223,7 @@ export function LocationPreview() {
 		});
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
-			void reviewNext();
+			void Review.next();
 		} else {
 			Editor.close();
 		}
@@ -239,7 +233,7 @@ export function LocationPreview() {
 		if (exitPanoFullscreen()) return;
 		if (exitFullscreenMap()) return;
 		if (isReviewMode) {
-			void reviewNext();
+			void Review.next();
 		} else {
 			Editor.close();
 		}
@@ -252,7 +246,7 @@ export function LocationPreview() {
 			return;
 		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
-			void reviewDelete();
+			void Review.deleteCurrent();
 		} else {
 			void Location.remove(new Set([location.id]));
 		}
@@ -394,8 +388,8 @@ export function LocationPreview() {
 							<div style={{ display: "flex", justifyContent: "space-around" }}>
 								<Tooltip content={t("Go to previous location (Control+Left)")}>
 									<Button
-										onClick={() => void reviewPrev()}
-										disabled={reviewSession ? isAtStart(reviewSession) : true}
+										onClick={() => void Review.prev()}
+										disabled={reviewSession ? Review.isAtStart(reviewSession) : true}
 										aria-label={t("Go to previous location (Control+Left)")}
 										data-qa="review-prev"
 									>

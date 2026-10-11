@@ -270,21 +270,21 @@ describe("Review mode delete with active selections", () => {
 	beforeEach(async () => {
 		await withApi(async (api) => {
 			await api.SelectionList.update({ kind: "set", selections: [] });
-			api.cancelReview();
+			api.Review.cancel();
 		});
 	});
 
-	it("reviewDelete decreases active tag selection count", async () => {
+	it("Review.deleteCurrent decreases active tag selection count", async () => {
 		const taggedIds = locIds.slice(0, 5);
 		const result = await withApi(
 			async (api, tagId: number, reviewIds: number[]) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
 				const before = api.Store.get().selectedLocationIds.size;
-				await api.beginReview(reviewIds);
-				await api.reviewDelete();
+				await api.Review.begin(reviewIds);
+				await api.Review.deleteCurrent();
 				const result = await api._test.syncSelections();
 				const after = result.ids;
-				api.cancelReview();
+				api.Review.cancel();
 				return { before, after: after.length };
 			},
 			tagRvId,
@@ -300,9 +300,9 @@ describe("Review mode delete with active selections", () => {
 			async (api, tagId: number, rvIds: number[]) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
 				const before = api.Store.get().selectedLocationIds.size;
-				await api.beginReview(rvIds);
-				await api.reviewDelete();
-				api.cancelReview();
+				await api.Review.begin(rvIds);
+				await api.Review.deleteCurrent();
+				api.Review.cancel();
 				const result = await api._test.syncSelections();
 				const after = result.ids;
 				return { before, after: after.length };
@@ -326,11 +326,11 @@ describe("Review mode delete with active selections", () => {
 			const before = api.Store.get().selectedLocationIds.size;
 			const allLocs = await api.fetchAllLocations();
 			const ids = allLocs.slice(0, 3).map((l) => l.id);
-			await api.beginReview(ids);
-			await api.reviewDelete();
+			await api.Review.begin(ids);
+			await api.Review.deleteCurrent();
 			const result = await api._test.syncSelections();
 			const after = result.ids;
-			api.cancelReview();
+			api.Review.cancel();
 			return { before, after: after.length };
 		});
 		expect(result.after).toBe(result.before - 1);

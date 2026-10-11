@@ -16,7 +16,7 @@ import { ApplyFieldAsTagsDialog } from "@/components/editor/tags/ApplyFieldAsTag
 import { TagFindReplaceDialog } from "@/components/editor/tags/TagFindReplaceDialog";
 import { MergeDuplicatesModal } from "@/components/dialogs/MergeDuplicatesModal";
 import { ReviewSessionsModal } from "@/components/dialogs/ReviewSessions";
-import { reviewSelected } from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
@@ -353,7 +353,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 	const [showApplySaved, setShowApplySaved] = useDialogState("apply-saved-selection");
 	const [saveSelName, setSaveSelName] = useState("");
 
-	useDialog("review-selected", () => void reviewSelected());
+	useDialog("review-selected", () => void Review.beginSelected());
 
 	if (!map) return null;
 

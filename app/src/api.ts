@@ -19,11 +19,11 @@ import { Import } from "@/store/import";
 import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
 import { MapHost } from "@/lib/map/host";
+import { Review } from "@/lib/review/review";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as settings from "@/store/settings";
 import * as picker from "@/store/selectorPick";
-import * as review from "@/lib/review/review";
 import * as commands from "@/lib/commands";
 import * as tauri from "@/lib/tauri";
 import * as registry from "@/plugins/registry";
@@ -67,8 +67,6 @@ type SelectionOpsApi = typeof selectionOps;
 type SettingsApi = typeof settings;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 type SelectorPickApi = typeof picker;
-/** Review sessions and their history. @unstable */
-type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
 type CommandsApi = typeof commands;
 /** Raw command, shell, and file dialog access. @unstable */
@@ -131,7 +129,6 @@ export interface MMA
 		SelectionOpsApi,
 		SettingsApi,
 		SelectorPickApi,
-		ReviewApi,
 		CommandsApi,
 		TauriApi,
 		RegistryApi,
@@ -203,6 +200,8 @@ export interface MMA
 	Scene: typeof Scene;
 	/** The embedded map host, its preferences, and click interceptors. @unstable */
 	MapHost: typeof MapHost;
+	/** Review sessions and their history. @unstable */
+	Review: typeof Review;
 }
 
 export type { MMA as MMAApi };
@@ -212,7 +211,6 @@ const mma: MMA = {
 	...selectionOps,
 	...settings,
 	...picker,
-	...review,
 	...commands,
 	...tauri,
 	...registry,
@@ -265,6 +263,7 @@ const mma: MMA = {
 	SavedSelection,
 	Scene,
 	MapHost,
+	Review,
 };
 
 declare global {

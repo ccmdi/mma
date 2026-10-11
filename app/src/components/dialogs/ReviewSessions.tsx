@@ -10,13 +10,7 @@ import { Button } from "@/components/primitives/Button";
 import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Bar } from "@/components/primitives/Bar";
 import { mdiCheckCircleOutline, mdiCircleOutline, mdiPlay, mdiDelete } from "@mdi/js";
-import {
-	listSessions,
-	resumeReview,
-	deleteSession,
-	reviewSetSelector,
-	renameReview,
-} from "@/lib/review/review";
+import { Review } from "@/lib/review/review";
 import { shortDateFmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
@@ -40,7 +34,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	const reload = useCallback(async () => {
 		setLoading(true);
 		try {
-			setSessions(await listSessions(filter));
+			setSessions(await Review.sessions(filter));
 		} finally {
 			setLoading(false);
 		}
@@ -51,17 +45,17 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	}, [open, reload]);
 
 	const handleResume = (s: ReviewSession) => {
-		void resumeReview(s);
+		void Review.resume(s);
 		onOpenChange(false);
 	};
 
 	const handleDelete = async (id: string) => {
 		setSessions((prev) => prev.filter((s) => s.id !== id)); // drop in place
-		await deleteSession(id);
+		await Review.removeSession(id);
 	};
 
 	const handleSelect = (s: ReviewSession, mode: "reviewed" | "unreviewed") => {
-		void SelectionList.update(addSelection(reviewSetSelector(s, mode)));
+		void SelectionList.update(addSelection(Review.selector(s, mode)));
 		onOpenChange(false);
 	};
 
@@ -77,7 +71,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 		setEditingId(null);
 		if (!id || !name) return;
 		setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, name } : s))); // patch in place
-		await renameReview(id, name);
+		await Review.rename(id, name);
 	};
 
 	return (
