@@ -894,3 +894,7 @@ pub mod bench;
 fn touch(loc: &mut Location) {
     loc.modified_at = Some(util::now_unix());
 }
+
+#[cfg(test)]
+#[path = "engine/save_concurrency.test.rs"]
+mod save_concurrency_tests;

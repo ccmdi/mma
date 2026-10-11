@@ -326,3 +326,7 @@ pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
     storage::set_map_counts(&conn, map_id, count, Counts::default())?;
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "persist.test.rs"]
+mod tests;

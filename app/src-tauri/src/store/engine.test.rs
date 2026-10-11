@@ -8284,3 +8284,6 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
         "bake preserves the rows"
     );
 }
+
+#[path = "engine/operation_sequences.test.rs"]
+mod operation_sequences;

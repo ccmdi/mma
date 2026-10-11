@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, useState } from "react";
 import type React from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mount } from "./fixtures/harness";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
 
@@ -27,9 +27,9 @@ function openDialog(container: HTMLElement) {
 describe("Dialog focus", () => {
 	it("opens with focus parked on the content, not a ring on the close button", async () => {
 		openDialog(mount(<Harness />).container);
-		// base-ui applies initial focus a tick after mount
+
 		await act(async () => {
-			await new Promise((r) => setTimeout(r, 0));
+			await vi.waitFor(() => expect(document.activeElement).toBe(document.querySelector(".modal")));
 		});
 		expect(document.activeElement).toBe(document.querySelector(".modal"));
 	});
@@ -53,7 +53,7 @@ describe("Dialog focus", () => {
 		const close = document.querySelector(".modal button") as HTMLButtonElement;
 		await act(async () => {
 			close.click();
-			await new Promise((r) => setTimeout(r, 0));
+			await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 		});
 
 		expect(document.activeElement).toBe(trigger);

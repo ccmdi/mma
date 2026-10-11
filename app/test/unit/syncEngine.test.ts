@@ -147,6 +147,43 @@ describe("sync reconcile apply step", () => {
 		expect(store.getLink()?.lastSyncedAt).toBeTruthy();
 	});
 
+	it("does not mark a canceled sync complete if cancellation arrives during feed settlement", async () => {
+		const store = linkedStore();
+		const controller = new AbortController();
+		let release!: () => void;
+		h.settlement = new Promise<void>((resolve) => (release = resolve));
+
+		const completion = reconcile(provider, store, { signal: controller.signal });
+		await Promise.resolve();
+		controller.abort();
+		release();
+
+		await expect(completion).rejects.toMatchObject({ name: "AbortError" });
+		expect(h.mutations).toEqual([MUTATION]);
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("does not overwrite a replacement link after the old result settles", async () => {
+		const store = linkedStore();
+		let release!: () => void;
+		h.settlement = new Promise<void>((resolve) => (release = resolve));
+
+		const completion = reconcile(provider, store);
+		await Promise.resolve();
+		store.setLink({
+			localMapId: MAP,
+			remoteMapId: "replacement",
+			remoteMapName: "New remote",
+			remoteUserId: null,
+			linkedAt: "2026-02-01T00:00:00Z",
+			lastSyncedAt: null,
+		});
+		release();
+
+		await expect(completion).rejects.toThrow("map was relinked during sync");
+		expect(store.getLink()?.remoteMapId).toBe("replacement");
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
 	it("leaves the sync timestamp unchanged when waiting for the feed fails", async () => {
 		const store = linkedStore();
 		h.settlement = Promise.reject(new Error("feed failed"));
