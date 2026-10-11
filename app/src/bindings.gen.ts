@@ -6,19 +6,19 @@ import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, Issue
 
 /** Commands */
 export const commands = {
-	/** Edit rows where target says; a pending layer holds edits until land. */
+	/** Edit locations where target says; a pending layer holds edits until land. */
 	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
 	/** Drop a named pending layer and everything it holds. */
 	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
-	/** Edit an interned field's value records; membership uses ordinary row edits. */
+	/** Edit an interned field's value records; membership uses ordinary location edits. */
 	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Return the uncommitted location change counts. */
 	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
 	/** Edit the selection tree. */
 	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult>("store_edit_selections", { op }),
-	/** Answer one question about the target's rows matched by selector. */
+	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/** Apply a saved rule with its value names resolved against the open map. */
 	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult>("store_apply_saved_selection", { id }),
@@ -443,7 +443,7 @@ export const commands = {
 	 */
 	procedureQuery: (procedure: ProcedureDecl, input: string, runId: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, runId }),
 	/**
-	 *  Reserve a run id up front, for a query or row run that answers only when it is over:
+	 *  Reserve a run id up front, for a query or location run that answers only when it is over:
 	 *  its streamed results carry the id, and `procedureCancel` stops it.
 	 */
 	procedureReserveRun: () => __TAURI_INVOKE<number>("procedure_reserve_run"),
@@ -491,7 +491,7 @@ export type Ask =
 /**  Every location in full. */
 { kind: "locations" } | 
 /**
- *  One column per field, `null` where a row lacks it; `tags` is a column of tag-id
+ *  One column per field, `null` where a location lacks it; `tags` is a column of tag-id
  *  arrays.
  */
 { kind: "columns"; fields: string[] } | 
@@ -500,17 +500,17 @@ export type Ask =
 /**  Groups by a derived key of `field`: `{ key, ids, bin }` per group. */
 { kind: "groupBy"; field: string; key: KeySpec } | 
 /**
- *  Counts by a derived key of each field, with how many distinct rows the groups
+ *  Counts by a derived key of each field, with how many distinct locations the groups
  *  cover, one result per field.
  */
 { kind: "countBy"; fields: string[]; key: KeySpec } | 
-/**  How many rows hold a value for each field, key-sorted. */
+/**  How many locations hold a value for each field, key-sorted. */
 { kind: "coverage" } | 
 /**  Bounding box `[west, south, east, north]`, or `null` when nothing matches. */
 { kind: "bounds" } | 
-/**  Groups of rows within `distance` metres of each other, two or more per group. */
+/**  Groups of locations within `distance` metres of each other, two or more per group. */
 { kind: "duplicateGroups"; distance: number } | 
-/**  Per input coordinate, whether any selected row lies within `radiusM` metres. */
+/**  Per input coordinate, whether any selected location lies within `radiusM` metres. */
 { kind: "nearAny"; lats: number[]; lngs: number[]; radiusM: number };
 
 /**  An image the reporter attached, once it is somewhere the issue can point at. */
@@ -523,11 +523,11 @@ export type AttachmentRef = {
 	name: string,
 };
 
-/**  How a page of rows is cut into procedure calls. */
+/**  How a page of locations is cut into procedure calls. */
 export type BatchMode = { mode: "chunk"; size: number } | { mode: "perRow" } | 
 /**
- *  Group rows by a row field; the procedure sees one representative per distinct
- *  value and its patch fans back out to every row sharing it. v1 key: `panoId`.
+ *  Group locations by a location field; the procedure sees one representative per distinct
+ *  value and its patch fans back out to every location sharing it. v1 key: `panoId`.
  */
 { mode: "dedupeBy"; key: string };
 
@@ -606,12 +606,12 @@ export type CopyToMapResult = {
 };
 
 /**
- *  Group counts. A list field puts one row in several groups, so the counts do not sum to
- *  the rows grouped.
+ *  Group counts. A list field puts one location in several groups, so the counts do not sum to
+ *  the locations grouped.
  */
 export type CountBy = {
 	counts: ([string, number])[],
-	/**  Rows held by at least one group. */
+	/**  Locations held by at least one group. */
 	covered: number,
 };
 
@@ -654,7 +654,7 @@ export type Derived = {
 	locationCount: number | null,
 	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id"> | null,
 	history: Partial<{ [key in EntryKey]: History }> | null,
-	/**  Changed values, keyed by field and value. Null removes a value with no record or rows. */
+	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
 	/**  The whole extra-field registry, when the map's row changed. */
 	fieldDefs: { [key in string]: FieldDef } | null,
@@ -695,7 +695,7 @@ export type EditorImportPreview = {
 	bounds: [number, number, number, number] | null,
 	/**  True when this import is too large to undo and will be committed automatically. */
 	willAutoCommit: boolean,
-	/**  The id the first staged row was given; the rest follow it in order. */
+	/**  The id the first staged location was given; the rest follow it in order. */
 	firstId: number | null,
 	/**  Map settings carried by the import (`extra.settings`). */
 	settings: { [key in string]: any },
@@ -804,7 +804,7 @@ export type FileSource = {
 /**
  *  A filter's predicate: the operator with its operands. Single source of truth: specta
  *  renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
- *  The range operators can read a date in the row's own timezone (`tzLocal`); the
+ *  The range operators can read a date in the location's own timezone (`tzLocal`); the
  *  `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
  */
 export type FilterOp = { op: "has" } | { op: "nothas" } | { op: "eq"; value: any } | { op: "neq"; value: any } | { op: "contains"; value: any } | { op: "notcontains"; value: any } | { op: "gt"; value: any; tzLocal?: boolean } | { op: "lt"; value: any; tzLocal?: boolean } | { op: "gte"; value: any; tzLocal?: boolean } | { op: "lte"; value: any; tzLocal?: boolean } | { op: "between"; lo: any; hi: any; tzLocal?: boolean } | { op: "between_anyyear"; lo: string; hi: string; tzLocal?: boolean } | { op: "between_anytime"; lo: string; hi: string; tzLocal?: boolean };
@@ -836,7 +836,7 @@ export type GhUser = {
 export type HeldValue = {
 	/**  Optional metadata for an interned value. */
 	record: { [key in string]: unknown } | null,
-	/**  How many rows hold the value. */
+	/**  How many locations hold the value. */
 	count: number,
 };
 
@@ -959,7 +959,7 @@ export type ListedSelection = {
  *  within a map and assigned by the store's monotonic allocator.
  */
 export type Location = {
-	/**  Monotonically increasing within a map. Zero until the store numbers the row. */
+	/**  Monotonically increasing within a map. Zero until the store assigns one. */
 	id: number,
 	lat: number,
 	lng: number,
@@ -993,24 +993,24 @@ export type LocationList = { kind: "inline"; locations: Location[] } | { kind: "
 export type LocationOp = 
 /**
  *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ *  where nothing holds `to` -- so `winner` decides only where a location holds both.
  */
 { kind: "move"; from: string; to: string; winner: MergeWinner } | 
-/**  Drop `keys` from every row that has them. */
+/**  Drop `keys` from every location that has them. */
 { kind: "delete"; keys: string[] } | 
 /**
- *  Assign a value to a writable field on each row. Builtins update their stored
+ *  Assign a value to a writable field on each location. Builtins update their stored
  *  fields; other keys update `extra`.
  */
 { kind: "set"; key: string; value: unknown } | 
 /**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  Assign `key = expr(location)` per location. A location where the expression cannot evaluate (a
  *  missing or non-numeric field, a non-finite result) is reported back by id.
  */
 { kind: "expr"; key: string; expr: string } | 
 /**
  *  Add and remove list members. `add` wins if a value appears in both lists.
- *  Rows already in the requested state keep their member order.
+ *  Locations already in the requested state keep their member order.
  */
 { kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
 
@@ -1140,14 +1140,66 @@ export type MmUser = {
 };
 
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-export type Mutation<_T = Location> = {
+export type Mutation<_T = {
+	/**  Monotonically increasing within a map. Zero until the store assigns one. */
+	id: number,
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	/**  The empty string means absent, the same absence a missing key has. */
+	panoId: string | null,
+	/**  The location's bits, such as whether it opens exactly its stored pano. */
+	flags: number,
+	/**
+	 *  Tag IDs applied to this location. References interned values of the `tags`
+	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+	 *  `Nothas` on an absent field.
+	 */
+	tags: number[],
+	/**
+	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+	 *  name past the builtins.
+	 */
+	extra: { [key in string]: unknown } | null,
+	/**  Unix timestamp (seconds) */
+	createdAt: number,
+	modifiedAt: number | null,
+}> = {
 	/**  The map version this change brought the map to. */
 	version: number,
 	/**  The key the store gave each keyless set, in the order they were written. */
 	keys: number[],
 };
 
-export type MutationResult<T = Location> = {
+export type MutationResult<T = {
+	/**  Monotonically increasing within a map. Zero until the store assigns one. */
+	id: number,
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	/**  The empty string means absent, the same absence a missing key has. */
+	panoId: string | null,
+	/**  The location's bits, such as whether it opens exactly its stored pano. */
+	flags: number,
+	/**
+	 *  Tag IDs applied to this location. References interned values of the `tags`
+	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+	 *  `Nothas` on an absent field.
+	 */
+	tags: number[],
+	/**
+	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+	 *  name past the builtins.
+	 */
+	extra: { [key in string]: unknown } | null,
+	/**  Unix timestamp (seconds) */
+	createdAt: number,
+	modifiedAt: number | null,
+}> = {
 	mutation: Mutation<T>,
 };
 
@@ -1402,7 +1454,7 @@ export type ProcedureActivity = {
 export type ProcedureConfig<T> = {
 	/**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
 	fields: string[],
-	/**  Recompute rows that already hold every wanted field. */
+	/**  Recompute locations that already hold every wanted field. */
 	force: boolean,
 	/**  The procedure's own configuration, or null when none was declared or it did not parse. */
 	config: T | null,
@@ -1429,7 +1481,7 @@ export type ProcedureProgress = {
 	total: number,
 	failed: number,
 	/**
-	 *  Rows counted as done without being worked, because they already held every field
+	 *  Locations counted as done without being worked, because they already held every field
 	 *  the provider produces. Callers subtract these to report what a run actually did.
 	 */
 	skipped: number,
@@ -1438,14 +1490,14 @@ export type ProcedureProgress = {
 
 /**
  *  What one page hands back to the caller: a `Collect` provider's answers, delivered
- *  instead of being written, and for every sink the rows that failed. Emitted only when
+ *  instead of being written, and for every sink the locations that failed. Emitted only when
  *  there is something in it.
  */
 export type ProcedureResult = {
 	runId: number,
 	providerId: string,
 	entries: ResultEntry[],
-	/**  Rows the procedure failed, or every row of a batch whose call failed. */
+	/**  Locations the procedure failed, or every location of a batch whose call failed. */
 	failed: number[],
 };
 
@@ -1686,17 +1738,21 @@ export type SelectionInput = {
 export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: RGB } | { kind: "polygonName"; path: number[]; name: string };
 
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
-export type Selector<S = Selection> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
+export type Selector<S = {
+	key: string,
+	color: RGB,
+	selector: Selector,
+}> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
 /**  The locations currently selected in the editor. */
 { type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: S[] } | { type: "Union"; selections: S[] } | { type: "Invert"; selections: S[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
  *  Rank by a field expression, optionally keeping only the first `k`.
- *  Unscorable rows rank last; without `k`, all child rows are kept.
+ *  Unscorable locations rank last; without `k`, all child locations are kept.
  */
 { type: "Ranked"; 
 /**  What to rank; `null` ranks the whole map. */
 selection: S | null; expr: string; k: number | null; ascending: boolean } | 
-/**  `n` rows of a selection drawn uniformly at random, without replacement. */
+/**  `n` locations of a selection drawn uniformly at random, without replacement. */
 { type: "Sample"; 
 /**  What to draw from; `null` draws from the whole map. */
 selection: S | null; n: number } | 
@@ -1708,16 +1764,16 @@ selection: S | null; thin: Thinning } |
 { type: "EvenlySpaced"; 
 /**  What to thin; `null` thins the whole map. */
 selection: S | null; thin: Thinning } | 
-/**  The rows of a selection within `radiusM` metres of a coordinate. */
+/**  The locations of a selection within `radiusM` metres of a coordinate. */
 { type: "Nearby"; 
 /**  Where to look; `null` looks over the whole map. */
 selection: S | null; lat: number; lng: number; radiusM: number } | 
-/**  The row of a selection closest to a coordinate. */
+/**  The location of a selection closest to a coordinate. */
 { type: "Nearest"; 
 /**  Where to look; `null` looks over the whole map. */
 selection: S | null; lat: number; lng: number };
 
-/**  Operations computed over the selected rows as a group. */
+/**  Operations computed over the selected locations as a group. */
 export type SetOp = { kind: "merge"; groups: number[][]; score: string | null } | 
 /**
  *  Remove duplicates within `distance` metres of each other, keeping the best-scored
@@ -1797,7 +1853,7 @@ export type SyncReconcileResult = {
 	conflicts: Conflict[],
 	/**  The change the pull half made locally, or `null` when nothing was pulled. */
 	mutation: Mutation | null,
-	/**  The rows the pull removed. */
+	/**  The locations the pull removed. */
 	removedIds: number[],
 };
 
@@ -1814,9 +1870,9 @@ export type Target =
 
 /**  Limit a spaced pick by count or minimum spacing. */
 export type Thinning = 
-/**  At most `n` rows. */
+/**  At most `n` locations. */
 { by: "count"; n: number } | 
-/**  Rows about `m` metres apart. */
+/**  Locations about `m` metres apart. */
 { by: "metres"; m: number };
 
 export type UpdateAvailable = {
@@ -1886,9 +1942,9 @@ export type Work = LocationOp | SetOp;
 /**  The mutation and operation-specific results. */
 export type WorkResult = {
 	mutation: Mutation,
-	/**  Rows the work edited. */
+	/**  Locations the work edited. */
 	changed: number,
-	/**  Rows an expression could not evaluate. */
+	/**  Locations an expression could not evaluate. */
 	failed: number[],
 };
 

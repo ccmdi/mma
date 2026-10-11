@@ -1776,9 +1776,22 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 `unstable` · unreleased
 
 ```ts
-edit.locations(
-  ...props: Parameters<typeof cmd.storeEdit>
-): Promise<MutationResult<Location>>
+edit.locations(...props: Parameters<typeof cmd.storeEdit>): Promise<
+  MutationResult<{
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    panoId: string | null;
+    flags: number;
+    tags: number[];
+    extra: { [key in string]: unknown } | null;
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -3589,9 +3602,22 @@ Edit map locations, metadata, value records, and selections.
 `unstable` · unreleased
 
 ```ts
-Edit.locations(
-  ...props: Parameters<typeof cmd.storeEdit>
-): Promise<MutationResult<Location>>
+Edit.locations(...props: Parameters<typeof cmd.storeEdit>): Promise<
+  MutationResult<{
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    panoId: string | null;
+    flags: number;
+    tags: number[];
+    extra: { [key in string]: unknown } | null;
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -6066,7 +6092,7 @@ under it and lets `procedureCancel` stop the query.
 cmd.procedureReserveRun(): Promise<number>
 ```
 
-Reserve a run id up front, for a query or row run that answers only when it is over:
+Reserve a run id up front, for a query or location run that answers only when it is over:
 its streamed results carry the id, and `procedureCancel` stops it.
 
 #### cmd.procedureRun
@@ -6267,7 +6293,35 @@ map's tag table.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location>>
+cmd.storeAddLocationsUploaded(sessionDir: string): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
@@ -6277,7 +6331,35 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location>>
+cmd.storeApplySavedSelection(id: string): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Apply a saved rule with its value names resolved against the open map.
@@ -6290,7 +6372,35 @@ Apply a saved rule with its value names resolved against the open map.
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<MutationResult<Location>>
+): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Restore a map to a previous commit. An open map changes through its normal write path.
@@ -6432,17 +6542,73 @@ cmd.storeEdit(
   target: Target,
   edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
   opts: EditOpts | null,
-): Promise<MutationResult<Location>>
+): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
-Edit rows where target says; a pending layer holds edits until land.
+Edit locations where target says; a pending layer holds edits until land.
 
 #### cmd.storeEditSelections
 
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location>>
+cmd.storeEditSelections(op: SelectionOp): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Edit the selection tree.
@@ -6458,7 +6624,7 @@ cmd.storeEditValues(
 ): Promise<MutationResult<ValueRecord>>
 ```
 
-Edit an interned field's value records; membership uses ordinary row edits.
+Edit an interned field's value records; membership uses ordinary location edits.
 
 #### cmd.storeExportBulkZip
 
@@ -6656,7 +6822,7 @@ cmd.storeRead(
 ): Promise<Answer>
 ```
 
-Answer one question about the target's rows matched by selector.
+Answer one question about the target's locations matched by selector.
 
 #### cmd.storeRenameFolder
 
@@ -6891,7 +7057,35 @@ Set the default marker color for new render updates.
 cmd.storeStep(
   stack: Stack,
   key: EntryKey | null,
-): Promise<MutationResult<Location>>
+): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Undo the newest edit, or redo the newest undone one.
