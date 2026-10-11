@@ -17,7 +17,7 @@ import { ts, withProgram } from "../app/scripts/native-ts.mjs";
 // How far back the promise reaches: the oldest release whose stable surface is still
 // guaranteed. Every release from here to HEAD is checked -- an API that shipped stable in any
 // of them is a promise. Raising the floor ages out every older guarantee at once.
-const SUPPORT_FLOOR = "0.12.0";
+const SUPPORT_FLOOR = "0.12.1";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
 const typesDir = join(pluginsDir, "types");

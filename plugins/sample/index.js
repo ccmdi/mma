@@ -1,8 +1,8 @@
 // sample/src/index.ts
-var { registerPlugin, getMapState, on } = MMA;
+var { registerPlugin, Store, on } = MMA;
 registerPlugin({
   activate() {
-    const map = getMapState().map;
+    const map = Store.get().map;
     if (map) {
       console.log(`[sample] Activated on "${map.name}"`);
     }
