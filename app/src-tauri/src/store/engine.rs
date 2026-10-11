@@ -889,11 +889,6 @@ pub(crate) mod tests;
 #[path = "engine.bench.rs"]
 pub mod bench;
 
-/// The engine's own write on every real change to a row.
-fn touch(loc: &mut Location) {
-    loc.modified_at = Some(util::now_unix());
-}
-
 #[cfg(test)]
 #[path = "engine/save_concurrency.test.rs"]
 mod save_concurrency_tests;

@@ -4,6 +4,7 @@
 //! Arrow IPC on disk, JSON over IPC to the JS frontend, and used throughout the
 //! store, import, and selection engines.
 
+use crate::util;
 use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::error;
@@ -101,6 +102,13 @@ impl Default for Location {
             created_at: 0,
             modified_at: None,
         }
+    }
+}
+
+impl Location {
+    /// The engine's own write on every real change to a row.
+    pub fn touch(&mut self) {
+        self.modified_at = Some(util::now_unix());
     }
 }
 

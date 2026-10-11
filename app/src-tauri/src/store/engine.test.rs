@@ -68,7 +68,7 @@ fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Locatio
     let old = store.get_loc_by_id(patch.id)?;
     let mut new = store.applied(&old, patch);
     if new != old {
-        touch(&mut new);
+        new.touch();
     }
     store.put(&Change::from_iter([mma_algebra::Transition::new(
         Some(old.clone()),

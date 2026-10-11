@@ -11,7 +11,6 @@ use crate::types::wire_str_enum;
 use crate::types::Location;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
-use crate::util;
 use mma_algebra::{
     number_value, same_field_value, Delta, Edit, Keys, Layer, Merge, Op, Patch, Patchable,
 };
@@ -155,7 +154,7 @@ impl Store {
                 |old, patch| {
                     let mut new = self.applied(old, patch);
                     if new != *old {
-                        touch(&mut new);
+                        new.touch();
                     }
                     new
                 },
@@ -878,6 +877,6 @@ pub(crate) fn merge_group(
         new_survivor = new_survivor.patched(&patch);
     }
     new_survivor.extra = extra;
-    new_survivor.modified_at = Some(util::now_unix());
+    new_survivor.touch();
     new_survivor
 }
