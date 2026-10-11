@@ -217,6 +217,7 @@ export default defineConfig({
 		],
 		"local/no-ipc-in-loop": "warn",
 		"local/domain-objects": "error",
+		"local/deprecated-format": "error",
 		"local/no-redundant-mutate-guard": "warn",
 		"local/no-selection-alias": "warn",
 		"local/no-primitive-class": "error",

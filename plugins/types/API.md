@@ -2316,7 +2316,7 @@ Preview a copy of a staged-import location. The import row stays staged until Co
 
 ```ts
 partition(
-  Field: string,
+  field: string,
   key: KeySpec,
   selector: Selector,
 ): Promise<PartitionBucket[]>

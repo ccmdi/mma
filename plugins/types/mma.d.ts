@@ -7417,8 +7417,24 @@ declare function fetchLocationsByIds(ids: number[]): Promise<Location$1[]>;
 declare function fetchAllLocations(): Promise<Location$1[]>;
 /** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
-declare function currentSelection(): Selector;
+/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
+declare function registerEnrichmentProvider(provider: Provider): void;
+/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+ *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+ *  for plugin-owned defs. @unstable */
+declare function setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
+declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
+declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
+/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
+declare function removeTagFromAllLocations(tagId: number): Promise<WorkResult>;
+/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
+declare function createPluginStorage(id: string): PluginStorage;
+/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
+declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
+/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
+declare function installedVersion(pluginId: string): Promise<string | null>;
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "ids" })`. @unstable */
 declare function resolveIds(selector: Selector): Promise<number[]>;
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "count" })`. @unstable */
@@ -7436,36 +7452,20 @@ declare function coverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "columns", fields })`. @unstable */
 declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`. @unstable */
-declare function partition(Field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
+declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "locations" })`. @unstable */
 declare function fetchLocations(selector: Selector): Promise<Location[]>;
-/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
-declare function registerEnrichmentProvider(provider: Provider): void;
 /** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
  *  own; set `defaultOff` on the provider to make them opt-in. @unstable */
 declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
-/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
- *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
- *  for plugin-owned defs. @unstable */
-declare function setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>;
-/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
-declare function createPluginStorage(id: string): PluginStorage;
-/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
-declare function request<T>(pluginId: string, command: string, payload?: unknown, opts?: SidecarOptions<T>): Promise<T | null>;
-/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
-declare function installedVersion(pluginId: string): Promise<string | null>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
-declare function addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-declare function removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>;
-/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-declare function removeTagFromAllLocations(tagId: number): Promise<WorkResult>;
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @unstable */
 declare function addSelections(selectors: Selector[]): Promise<void>;
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.removeSelection(...keys))`. @unstable */
 declare function removeSelections(keys: string[]): Promise<void>;
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @unstable */
 declare function resetSelections(): Promise<void>;
+/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
+declare function currentSelection(): Selector;
 /** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @unstable */
 declare function query(selector: Selector, target?: Target): {
     /** Resolved ids in ascending order, or in ranked-selector order. */

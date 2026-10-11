@@ -1,3 +1,4 @@
+import deprecatedFormat from "./deprecated-format.js";
 import domainObjects from "./domain-objects.js";
 import noDuplicateCommandIcons from "./no-duplicate-command-icons.js";
 import noEffectEventInMemo from "./no-effect-event-in-memo.js";
@@ -16,6 +17,7 @@ import restrictedSyntax from "./restricted-syntax.js";
 export default {
 	meta: { name: "local" },
 	rules: {
+		"deprecated-format": deprecatedFormat,
 		"domain-objects": domainObjects,
 		"no-duplicate-command-icons": noDuplicateCommandIcons,
 		"no-effect-event-in-memo": noEffectEventInMemo,

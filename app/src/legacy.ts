@@ -104,9 +104,57 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 	return query(selector).coverage();
 }
 
-/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
-export function currentSelection(): Selector {
-	return { type: "Selected" };
+/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
+export function registerEnrichmentProvider(provider: Provider): void {
+	registerProvider(provider);
+}
+
+/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+ *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+ *  for plugin-owned defs. @unstable */
+export function setUserFieldDefs(fields: Record<string, FieldDef>) {
+	return Edit.meta({ extra: { ...Store.get().map?.extra, fields } });
+}
+
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
+export function addTagToLocations(tagId: number, locationIds: number[]) {
+	return Edit.work(
+		{ type: "Locations", locations: locationIds, name: null },
+		{ kind: "listSet", key: "tags", add: [tagId], remove: [] },
+	);
+}
+
+/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
+export function removeTagFromLocations(tagId: number, locationIds: number[]) {
+	return Edit.work(
+		{ type: "Locations", locations: locationIds, name: null },
+		{ kind: "listSet", key: "tags", add: [], remove: [tagId] },
+	);
+}
+
+/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
+export function removeTagFromAllLocations(tagId: number) {
+	return Edit.work(tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] });
+}
+
+/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
+export function createPluginStorage(id: string) {
+	return storage(id);
+}
+
+/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
+export function request<T>(
+	pluginId: string,
+	command: string,
+	payload?: unknown,
+	opts?: SidecarOptions<T>,
+) {
+	return sidecar.request(pluginId, command, payload, opts);
+}
+
+/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
+export function installedVersion(pluginId: string) {
+	return sidecar.installedVersion(pluginId);
 }
 
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "ids" })`. @unstable */
@@ -152,11 +200,11 @@ export function fetchColumns(selector: Selector, fields: string[]): Promise<unkn
 
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`. @unstable */
 export function partition(
-	Field: string,
+	field: string,
 	key: KeySpec,
 	selector: Selector,
 ): Promise<PartitionBucket[]> {
-	return query(selector).partition(Field, key);
+	return query(selector).partition(field, key);
 }
 
 /** @deprecated v0.11.3. Use `MMA.Query.read(selector, { kind: "locations" })`. @unstable */
@@ -164,62 +212,9 @@ export function fetchLocations(selector: Selector): Promise<Location[]> {
 	return query(selector).locations();
 }
 
-/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
-export function registerEnrichmentProvider(provider: Provider): void {
-	registerProvider(provider);
-}
-
 /** @deprecated v0.11.3. A provider's `fieldDefs` are offered as enrichment options on their
  *  own; set `defaultOff` on the provider to make them opt-in. @unstable */
 export function registerEnrichFields(_fields: EnrichFieldOption[]): void {}
-
-/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
- *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
- *  for plugin-owned defs. @unstable */
-export function setUserFieldDefs(fields: Record<string, FieldDef>) {
-	return Edit.meta({ extra: { ...Store.get().map?.extra, fields } });
-}
-
-/** @deprecated v0.11.0. Use `MMA.storage()`. @unstable */
-export function createPluginStorage(id: string) {
-	return storage(id);
-}
-
-/** @deprecated v0.11.0. Use `MMA.sidecar.request()`. @unstable */
-export function request<T>(
-	pluginId: string,
-	command: string,
-	payload?: unknown,
-	opts?: SidecarOptions<T>,
-) {
-	return sidecar.request(pluginId, command, payload, opts);
-}
-
-/** @deprecated v0.11.0. Use `MMA.sidecar.installedVersion()`. @unstable */
-export function installedVersion(pluginId: string) {
-	return sidecar.installedVersion(pluginId);
-}
-
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */
-export function addTagToLocations(tagId: number, locationIds: number[]) {
-	return Edit.work(
-		{ type: "Locations", locations: locationIds, name: null },
-		{ kind: "listSet", key: "tags", add: [tagId], remove: [] },
-	);
-}
-
-/** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-export function removeTagFromLocations(tagId: number, locationIds: number[]) {
-	return Edit.work(
-		{ type: "Locations", locations: locationIds, name: null },
-		{ kind: "listSet", key: "tags", add: [], remove: [tagId] },
-	);
-}
-
-/** @deprecated v0.10.5. Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`. @unstable */
-export function removeTagFromAllLocations(tagId: number) {
-	return Edit.work(tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] });
-}
 
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @unstable */
 export function addSelections(selectors: Selector[]) {
@@ -234,6 +229,11 @@ export function removeSelections(keys: string[]) {
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @unstable */
 export function resetSelections() {
 	return SelectionList.update({ kind: "set", selections: [] });
+}
+
+/** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
+export function currentSelection(): Selector {
+	return { type: "Selected" };
 }
 
 /** @deprecated v0.12.0. Use MMA.Query.read(selector, ask) instead. @unstable */
@@ -423,6 +423,7 @@ export const discardOpenMap: typeof Maps.discard = Maps.discard;
 
 /** @deprecated v0.12.1. Use `MMA.SelectionList.tagIds`. @unstable */
 export const getSelectedTagIds: typeof SelectionList.tagIds = SelectionList.tagIds;
+
 /** @deprecated v0.12.1. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
 export const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep = SelectionList.tagIdsDeep;
 
