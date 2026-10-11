@@ -695,6 +695,43 @@ fn insert_map(conn: &Connection, id: &str, name: &str) {
 }
 
 #[test]
+fn failed_migration_record_rolls_back_schema_and_can_retry() {
+    let conn = Connection::open_in_memory().unwrap();
+    apply_prefix(&conn, MIGRATIONS.len() - 1);
+    let version = MIGRATIONS.last().unwrap().0;
+    conn.execute_batch(&format!(
+        "CREATE TRIGGER reject_migration BEFORE INSERT ON _mma_migrations
+         WHEN NEW.version = {version}
+         BEGIN SELECT RAISE(ABORT, 'simulated record failure'); END;"
+    ))
+    .unwrap();
+    let schema_before = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE name = 'edit_entries'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .unwrap();
+    let versions_before = migration_versions(&conn);
+
+    assert!(run_migrations_on(&conn).is_err());
+    assert_eq!(
+        conn.query_row(
+            "SELECT sql FROM sqlite_master WHERE name = 'edit_entries'",
+            [],
+            |r| r.get::<_, String>(0)
+        )
+        .unwrap(),
+        schema_before
+    );
+    assert_eq!(migration_versions(&conn), versions_before);
+
+    conn.execute_batch("DROP TRIGGER reject_migration").unwrap();
+    run_migrations_on(&conn).unwrap();
+    assert_eq!(migration_versions(&conn), all_versions());
+}
+
+#[test]
 fn fresh_full_chain_succeeds() {
     let conn = Connection::open_in_memory().unwrap();
     configure_connection(&conn).unwrap();

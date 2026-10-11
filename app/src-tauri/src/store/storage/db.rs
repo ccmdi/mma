@@ -206,12 +206,14 @@ pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
             continue;
         }
         log::info!("[migrations] applying v{version}");
-        conn.execute_batch(sql)
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(sql)
             .map_err(|e| format!("migration v{version} failed: {e}"))?;
-        conn.execute(
+        tx.execute(
             "INSERT INTO _mma_migrations (version, applied_at) VALUES (?1, datetime('now'))",
             rusqlite::params![version],
         )?;
+        tx.commit()?;
         if *version == 16 {
             wiped_blobs = true;
         }
