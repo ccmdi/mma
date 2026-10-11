@@ -99,7 +99,7 @@ async function moveMap(center: { lat: number; lng: number }, zoom: number): Prom
 	return browser.executeAsync(
 		(lat: number, lng: number, z: number, done: (r: boolean) => void) => {
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any -- in-page global
-			const host = (window as any).MMA.getMapHost();
+			const host = (window as any).MMA.MapHost.get();
 			if (!host) return done(false);
 			host.once("idle", () => done(true));
 			host.moveCamera({ center: { lat, lng }, zoom: z });
@@ -202,7 +202,7 @@ describe("Content Security Policy", function () {
 			async () => {
 				await withApi(
 					async (api, la, ln) => {
-						const host = api.getMapHost();
+						const host = api.MapHost.get();
 						if (!host) throw new Error("no map host");
 						host.triggerClickAt({ lat: la, lng: ln });
 					},

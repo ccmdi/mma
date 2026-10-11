@@ -12,8 +12,7 @@ import { Editor } from "@/store/editor";
 import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
-import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
-import { hostInstance } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 import { addSelection, removeSelection, tagSelector, selection } from "@/store/selections";
 import { emit, subscribe } from "@/lib/events";
 import { cmd } from "@/lib/commands";
@@ -25,14 +24,14 @@ import type { MaybeLocation, Selector } from "@/types";
 import type { FieldDef } from "@/bindings.gen";
 import { compareNatural } from "@/lib/util/util";
 
-/** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
+/** @deprecated v0.8.1. Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`. @unstable */
 export function getGoogleMap(): google.maps.Map | null {
-	return hostInstance(getMapHost(), "google");
+	return MapHost.instance(MapHost.get(), "google");
 }
 
-/** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. @unstable */
+/** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
 export function waitForGoogleMap(): Promise<google.maps.Map | null> {
-	return waitForMapHost().then((host) => hostInstance(host, "google"));
+	return MapHost.wait().then((host) => MapHost.instance(host, "google"));
 }
 
 /** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */
@@ -489,3 +488,9 @@ export const edit: typeof Edit = Edit;
 
 /** @deprecated v0.12.1. Use `MMA.Autosave`. */
 export const autosave: typeof Autosave = Autosave;
+
+/** @deprecated v0.12.1. Use `MMA.MapHost.get`. */
+export const getMapHost: typeof MapHost.get = MapHost.get;
+
+/** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
+export const waitForMapHost: typeof MapHost.wait = MapHost.wait;

@@ -1,7 +1,6 @@
 // The generator's own deck.gl overlay for the search-coverage "fog of war".
 // Mirrors the heatmap plugin: get the map host, stack our own deck overlay on
 // it, render into it, tear it down on deactivate. Core is never touched.
-
 import { BitmapLayer } from "@deck.gl/layers";
 import type { DeckOverlayHandle } from "@/lib/map/host";
 import { subscribe, getCoverageImage } from "./searchCoverage";
@@ -20,7 +19,7 @@ function redraw(): void {
 		return;
 	}
 	if (!overlay) {
-		const host = MMA.getMapHost();
+		const host = MMA.MapHost.get();
 		if (!host) return; // no map yet; the next probe's redraw will retry
 		overlay = host.createDeckOverlay();
 	}

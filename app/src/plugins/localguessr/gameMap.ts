@@ -2,12 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import { IconLayer, PathLayer, TextLayer } from "@deck.gl/layers";
 import { PathStyleExtension } from "@deck.gl/extensions";
 import { mdiFlagVariant } from "@mdi/js";
-import {
-	createMapHost,
-	hostKindForMapType,
-	type DeckOverlayHandle,
-	type MapHost,
-} from "@/lib/map/host";
+import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
 import { cmd } from "@/lib/commands";
@@ -38,7 +33,7 @@ export function useGameMap(
 	const [ready, setReady] = useState(false);
 	const latest = useRef({ prefs, prepare, onReady });
 	latest.current = { prefs, prepare, onReady };
-	const kind = hostKindForMapType(prefs.mapType);
+	const kind = MapHost.kindForMapType(prefs.mapType);
 
 	useLayoutEffect(() => {
 		const container = containerRef.current;
@@ -51,7 +46,7 @@ export function useGameMap(
 		void (async () => {
 			try {
 				const [host] = await Promise.all([
-					createMapHost(kind, div, latest.current.prefs, {
+					MapHost.create(kind, div, latest.current.prefs, {
 						customStyles: getLocal<CustomStyle[]>(CUSTOM_STYLES_KEY, []),
 						camera: { center: { lat: 20, lng: 0 }, zoom: 1.5 },
 						scaleControl: false,
@@ -84,7 +79,7 @@ export function useGameMap(
 
 	useEffect(() => {
 		const host = hostRef.current;
-		if (!host || !ready || hostKindForMapType(prefs.mapType) !== host.kind) return;
+		if (!host || !ready || MapHost.kindForMapType(prefs.mapType) !== host.kind) return;
 		host.applyPrefs(latest.current.prefs, {
 			customStyles: getLocal<CustomStyle[]>(CUSTOM_STYLES_KEY, []),
 		});

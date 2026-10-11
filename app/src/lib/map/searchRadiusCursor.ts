@@ -8,14 +8,14 @@
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { Store } from "@/store/store";
 import { clickSearchRadius } from "@/lib/sv/lookup";
-import { getMapHost } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import type { LatLng } from "@/types";
 
 const LAYER_ID = "mma-search-radius-cursor";
 
 /** Mount the cursor picker. Returns a teardown for the caller's effect cleanup. */
 export function mountSearchRadiusCursor(): () => void {
-	const host = getMapHost();
+	const host = MapHost.get();
 	if (!host) return () => {};
 
 	const overlay = host.createDeckOverlay();

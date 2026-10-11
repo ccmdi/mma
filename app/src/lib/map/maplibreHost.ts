@@ -8,7 +8,6 @@
 // SV tiles: MapLibre raster sources take URL templates, not functions, so the
 // source uses a fake `mma-sv://{z}/{x}/{y}` template and `transformRequest`
 // rewrites each request through the current SV tile source.
-
 import * as maplibregl from "maplibre-gl";
 import { type MapMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";

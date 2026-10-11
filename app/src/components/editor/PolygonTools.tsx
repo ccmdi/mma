@@ -1,8 +1,7 @@
 import { useEffect, useState, useEffectEvent } from "react";
 import { Icon, polygonOutline, rectangleOutline } from "@/components/primitives/Icon";
 import { mdiPencil } from "@mdi/js";
-import type { MapHost } from "@/lib/map/host";
-import { addClickInterceptor } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { latLngToWorld } from "@/lib/geo/mercator";
 import { densifyRing, unwrapLng } from "@/lib/geo/geo";
 import { POLYGON_CLOSE_VERTEX_PX } from "@/lib/render/buildSceneLayers";
@@ -63,7 +62,7 @@ function claimClicks(handle?: (lat: number, lng: number, shiftKey: boolean) => v
 		off = null;
 		window.removeEventListener("mousedown", release, true);
 	};
-	off = addClickInterceptor((lat, lng, shiftKey) => {
+	off = MapHost.addClickInterceptor((lat, lng, shiftKey) => {
 		if (lingering) release();
 		else handle?.(lat, lng, shiftKey);
 		return true;

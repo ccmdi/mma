@@ -8,7 +8,7 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { goTo, leaveToList } from "@/store/router";
 import { activatePlugins, deactivatePlugins } from "@/plugins/pluginHost";
-import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { addParsedLocations } from "@/lib/map/mapClick";
 import { cmd } from "@/lib/commands";
 import { pluginsReady } from "@/plugins";
@@ -203,7 +203,7 @@ export function MapEditor() {
 
 	useEffect(() => {
 		let cancelled = false;
-		void Promise.all([pluginsReady, waitForMapHost()]).then(() => {
+		void Promise.all([pluginsReady, MapHost.wait()]).then(() => {
 			if (cancelled) return;
 			activatePlugins();
 		});
@@ -277,7 +277,7 @@ export function MapEditor() {
 			showMapCursorRef.current = false;
 			setShowMapCursor(false);
 			if (!wasShowing) return;
-			const host = getMapHost();
+			const host = MapHost.get();
 			const center = host?.getCenter();
 			if (!host || !center) return;
 			host.triggerClickAt(center);

@@ -59,7 +59,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [PinPano](#pinpano)
 - [Validate](#validate)
 - [ValidationCategories](#validationcategories)
-- [MapState](#mapstate)
 - [ScenePositions](#scenepositions)
 - [Color](#color)
 - [Jobs](#jobs)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Import](#import)
 - [SavedSelection](#savedselection)
 - [Scene](#scene)
+- [MapHost](#maphost)
 
 ## Consts
 
@@ -1994,7 +1994,7 @@ getGhostedSelections(): Set<string>
 getGoogleMap(): google.maps.Map | null
 ```
 
-**Deprecated in v0.8.1.** Use `MMA.getMapHost()` and narrow via `hostInstance`.
+**Deprecated in v0.8.1.** Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`.
 
 ### getMapBadges
 
@@ -2019,6 +2019,18 @@ getMapBadgeSources(): readonly BadgeSource[]
 **Deprecated in v0.12.1.** Use `MMA.Maps.badgeSources`.
 
 Every registered badge source, in registration order.
+
+### getMapHost
+
+`unstable` · `deprecated` · since v0.8.0
+
+```ts
+getMapHost(): MapHost | null
+```
+
+**Deprecated in v0.12.1.** Use `MMA.MapHost.get`.
+
+Return the main editor map host, or null if not mounted.
 
 ### getMapList
 
@@ -2845,7 +2857,19 @@ VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
 waitForGoogleMap(): Promise<google.maps.Map | null>
 ```
 
-**Deprecated in v0.8.1.** Use `MMA.waitForMapHost()`.
+**Deprecated in v0.8.1.** Use `MMA.MapHost.wait()`.
+
+### waitForMapHost
+
+`unstable` · `deprecated` · since v0.8.0
+
+```ts
+waitForMapHost(): Promise<MapHost>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.MapHost.wait`.
+
+Wait for the main editor map to be ready.
 
 ## Ui
 
@@ -8684,95 +8708,6 @@ validationCategory(key: string): ValidationCategory | null
 
 The category a key names, or null for one this version does not know.
 
-## MapState
-
-The embedded map host, its preferences, and click interceptors.
-
-### addClickInterceptor
-
-`unstable` · since v0.10.3
-
-```ts
-addClickInterceptor(fn: ClickInterceptor): () => void
-```
-
-Register a map-click interceptor. Returns a removal function. The most recently
-added interceptor that returns true consumes the click.
-
-### fitMapToBounds
-
-`unstable` · since v0.10.3
-
-```ts
-fitMapToBounds(
-  bounds: Bounds | null,
-  padding?: number,
-  minExtent?: number,
-): void
-```
-
-Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas.
-
-### getMapHost
-
-`unstable` · since v0.8.0
-
-```ts
-getMapHost(): MapHost | null
-```
-
-Return the main editor map host, or null if not mounted.
-
-### setDrawInterceptor
-
-`unstable` · since v0.10.3
-
-```ts
-setDrawInterceptor(fn: DrawInterceptor | null): void
-```
-
-Set the callback for completed polygon draws. Null clears it.
-
-### setMapHost
-
-`unstable` · since v0.10.3
-
-```ts
-setMapHost(host: MapHost | null): void
-```
-
-Set or clear the main editor map host.
-
-### tryInterceptClick
-
-`unstable` · since v0.10.3
-
-```ts
-tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean
-```
-
-Run registered click interceptors (newest first). True if one consumed the click.
-
-### tryInterceptDraw
-
-`unstable` · since v0.10.3
-
-```ts
-tryInterceptDraw(rings: number[][][]): boolean
-```
-
-Pass completed polygon rings to the draw interceptor. True if it consumed them.
-
-### waitForMapHost
-
-`unstable` · since v0.8.0
-
-```ts
-waitForMapHost(): Promise<MapHost>
-```
-
-Wait for the main editor map to be ready.
-
 ## ScenePositions
 
 Screen positions of the rendered markers.
@@ -9763,3 +9698,130 @@ Scene.start(): () => void
 ```
 
 Start following open-location changes. Returns a stop function.
+
+## MapHost
+
+### MapHost
+
+`unstable` · unreleased
+
+The embedded map host, its preferences, and click interceptors.
+
+#### MapHost.addClickInterceptor
+
+`unstable` · unreleased
+
+```ts
+MapHost.addClickInterceptor(fn: ClickInterceptor): () => void
+```
+
+Register a map-click interceptor. Returns a removal function. The most recently
+added interceptor that returns true consumes the click.
+
+#### MapHost.create
+
+`unstable` · unreleased
+
+```ts
+MapHost.create(
+  kind: MapHostKind,
+  container: HTMLElement,
+  prefs: MapEmbedPrefs,
+  opts: CreateHostOpts,
+): Promise<MapHost>
+```
+
+#### MapHost.fitToBounds
+
+`unstable` · unreleased
+
+```ts
+MapHost.fitToBounds(
+  bounds: Bounds | null,
+  padding?: number,
+  minExtent?: number,
+): void
+```
+
+Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas.
+
+#### MapHost.get
+
+`unstable` · unreleased
+
+```ts
+MapHost.get(): MapHost | null
+```
+
+Return the main editor map host, or null if not mounted.
+
+#### MapHost.instance
+
+`unstable` · unreleased
+
+```ts
+MapHost.instance<K extends MapHostKind>(
+  host: MapHost | null,
+  kind: K,
+): HostInstances[K] | null
+```
+
+The raw engine instance if `host` is of the given kind, else null.
+
+#### MapHost.kindForMapType
+
+`unstable` · unreleased
+
+```ts
+MapHost.kindForMapType(mapType: MapTypeKey): MapHostKind
+```
+
+#### MapHost.set
+
+`unstable` · unreleased
+
+```ts
+MapHost.set(host: MapHost | null): void
+```
+
+Set or clear the main editor map host.
+
+#### MapHost.setDrawInterceptor
+
+`unstable` · unreleased
+
+```ts
+MapHost.setDrawInterceptor(fn: DrawInterceptor | null): void
+```
+
+Set the callback for completed polygon draws. Null clears it.
+
+#### MapHost.tryInterceptClick
+
+`unstable` · unreleased
+
+```ts
+MapHost.tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean
+```
+
+Run registered click interceptors (newest first). True if one consumed the click.
+
+#### MapHost.tryInterceptDraw
+
+`unstable` · unreleased
+
+```ts
+MapHost.tryInterceptDraw(rings: number[][][]): boolean
+```
+
+Pass completed polygon rings to the draw interceptor. True if it consumed them.
+
+#### MapHost.wait
+
+`unstable` · unreleased
+
+```ts
+MapHost.wait(): Promise<MapHost>
+```
+
+Wait for the main editor map to be ready.

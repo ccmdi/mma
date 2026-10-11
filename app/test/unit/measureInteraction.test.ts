@@ -16,31 +16,29 @@ vi.mock("@/store/store", () => ({
 }));
 
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
-
 import {
 	startMeasure,
 	endMeasure,
 	getMeasurePoints,
 	useMeasureInteraction,
 } from "@/lib/sv/measure";
-import { addClickInterceptor, tryInterceptClick } from "@/lib/map/mapState";
-import type { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 
 describe("click interceptor priority", () => {
 	it("calls the most recently registered interceptor first", () => {
 		const calls: string[] = [];
-		const off1 = addClickInterceptor(() => {
+		const off1 = MapHost.addClickInterceptor(() => {
 			calls.push("first");
 			return true;
 		});
-		const off2 = addClickInterceptor(() => {
+		const off2 = MapHost.addClickInterceptor(() => {
 			calls.push("second");
 			return true;
 		});
-		expect(tryInterceptClick(0, 0)).toBe(true);
+		expect(MapHost.tryInterceptClick(0, 0)).toBe(true);
 		expect(calls).toEqual(["second"]);
 		off2();
-		expect(tryInterceptClick(0, 0)).toBe(true);
+		expect(MapHost.tryInterceptClick(0, 0)).toBe(true);
 		expect(calls).toEqual(["second", "first"]);
 		off1();
 	});
@@ -91,7 +89,7 @@ describe("measure drag then click", () => {
 		// Next gesture on empty map: its click must place a point, not be eaten.
 		down(300, 10);
 		up();
-		expect(tryInterceptClick(0.01, 0.3)).toBe(true);
+		expect(MapHost.tryInterceptClick(0.01, 0.3)).toBe(true);
 		expect(getMeasurePoints()).toEqual([
 			[0.2, 0.01],
 			[0.3, 0.01],
@@ -104,7 +102,7 @@ describe("measure drag then click", () => {
 		down(10, 10);
 		up();
 		// The engine does fire a click for a stationary press; it must not add a point.
-		expect(tryInterceptClick(0.01, 0.01)).toBe(true);
+		expect(MapHost.tryInterceptClick(0.01, 0.01)).toBe(true);
 		expect(getMeasurePoints()).toEqual([[0.01, 0.01]]);
 	});
 });

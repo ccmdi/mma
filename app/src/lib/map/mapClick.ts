@@ -7,13 +7,13 @@ import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { ClickMode } from "@/store/mapEmbedPrefs";
-import { boundsOfCoords, type MapHost } from "@/lib/map/host";
+import { boundsOfCoords } from "@/lib/geo/geo";
 import { LOCATION_LAYER_ID } from "@/lib/render/buildSceneLayers";
 import { cmd } from "@/lib/commands";
 import { lookupStreetView } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
-import { tryInterceptClick, fitMapToBounds } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { getSettings } from "@/store/settings";
 import type { ParsedLocation } from "@/bindings.gen";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
@@ -48,7 +48,7 @@ export async function resolvePickedId(cm: CellManager, info: PickingInfo): Promi
 
 function zoomToPasted(bounds: Bounds | null, padding = 0) {
 	if (!getSettings().panToImported) return;
-	fitMapToBounds(bounds, padding, getSettings().pastePadding);
+	MapHost.fitToBounds(bounds, padding, getSettings().pastePadding);
 }
 
 /** Add already-parsed locations (paste, URL lists, doc links): resolve tag
@@ -195,7 +195,7 @@ export async function handleMapClick(
 	// Interceptors first: the measure tool consumes the click to place a node.
 	if (
 		info.coordinate &&
-		tryInterceptClick(
+		MapHost.tryInterceptClick(
 			info.coordinate[1],
 			info.coordinate[0],
 			domEvent instanceof MouseEvent && domEvent.shiftKey,

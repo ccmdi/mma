@@ -115,3 +115,19 @@ export function bearingDeg(a: LatLng, b: LatLng): number {
 	const x = Math.cos(f1) * Math.sin(f2) - Math.sin(f1) * Math.cos(f2) * Math.cos(dl);
 	return normalizeHeading((Math.atan2(y, x) * 180) / Math.PI);
 }
+
+/** Axis-aligned bounds of [lng, lat] coords (or LatLng points). */
+export function boundsOfCoords(coords: Iterable<LatLng>): Bounds | null {
+	let west = Infinity,
+		south = Infinity,
+		east = -Infinity,
+		north = -Infinity;
+	for (const p of coords) {
+		if (p.lng < west) west = p.lng;
+		if (p.lat < south) south = p.lat;
+		if (p.lng > east) east = p.lng;
+		if (p.lat > north) north = p.lat;
+	}
+	if (!Number.isFinite(west)) return null;
+	return { west, south, east, north };
+}

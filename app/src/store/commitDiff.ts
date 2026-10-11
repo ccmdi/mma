@@ -4,8 +4,8 @@ import { Editor } from "@/store/editor";
 import type { LatLng } from "@/types";
 import type { CommitInfo, Counts } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { fitMapToBounds } from "@/lib/map/mapState";
-import { boundsOfCoords } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
+import { boundsOfCoords } from "@/lib/geo/geo";
 import { emit as emitEvent, subscribe, useEventValue } from "@/lib/events";
 
 const ZERO_DIFF: Counts = { added: 0, removed: 0, updated: 0 };
@@ -96,7 +96,7 @@ export const CommitDiff = {
 		emitEvent("diff-markers:changed");
 		Editor.setArea("diff");
 		const bounds = boundsOfCoords([...change.added, ...change.removed, ...updated]);
-		if (bounds) fitMapToBounds(bounds, 100);
+		if (bounds) MapHost.fitToBounds(bounds, 100);
 	},
 	/** Leave commit-diff preview and restore the regular markers. */
 	end: () => {

@@ -9,7 +9,7 @@ import type { EditorImportPreview, Target } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
-import { fitMapToBounds } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { getSettings } from "@/store/settings";
 import { Scene } from "@/lib/render/scene";
 import { emit as emitEvent } from "@/lib/events";
@@ -35,7 +35,7 @@ async function setImportStaging(preview: EditorImportPreview) {
 	emitEvent("import-markers:changed");
 	Editor.setArea("import");
 	if (getSettings().panToImported)
-		fitMapToBounds(bboxTupleToBounds(preview.bounds), 100, getSettings().pastePadding);
+		MapHost.fitToBounds(bboxTupleToBounds(preview.bounds), 100, getSettings().pastePadding);
 }
 
 export const Import = {

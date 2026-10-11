@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import type { LatLng } from "@/types";
-import type { MapHost } from "@/lib/map/host";
-import { addClickInterceptor } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { latLngToWorld } from "@/lib/geo/mercator";
 import { distMeters } from "@/lib/geo/geo";
 import { formatDistance } from "@/lib/util/format";
@@ -129,7 +128,7 @@ export function useMeasureInteraction(host: MapHost | null) {
 	useEffect(() => {
 		if (!host || !isMeasuring) return;
 
-		const offClick = addClickInterceptor((lat, lng) => {
+		const offClick = MapHost.addClickInterceptor((lat, lng) => {
 			if (suppressClick) suppressClick = false;
 			else addMeasurePoint({ lat, lng });
 			return true;

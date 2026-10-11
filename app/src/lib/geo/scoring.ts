@@ -5,8 +5,7 @@ import type { LatLng, Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
 import { subscribe } from "@/lib/events";
-import { distMeters } from "@/lib/geo/geo";
-import { boundsOfCoords } from "@/lib/map/host";
+import { boundsOfCoords, distMeters } from "@/lib/geo/geo";
 
 const SCORE_BASE = 0.99866017;
 const DEFAULT_MAX_ERROR = 185.34781;

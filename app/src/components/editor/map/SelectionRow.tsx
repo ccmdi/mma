@@ -44,8 +44,7 @@ import {
 import { Menu } from "@base-ui-components/react/menu";
 import { fmt } from "@/lib/util/format";
 import { rgbCss } from "@/lib/util/color";
-import { getMapHost } from "@/lib/map/mapState";
-import type { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -253,7 +252,7 @@ export const SelectionRow = memo(function SelectionRow({
 					style={{ paddingLeft: `${depth * 2}rem` }}
 					onClick={() => {
 						if (drag) return;
-						const host = getMapHost();
+						const host = MapHost.get();
 						if (host && map) void fitSelectionBounds(host, currentSelection);
 					}}
 				>

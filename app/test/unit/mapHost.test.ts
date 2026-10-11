@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { boundsOfCoords, hostKindForMapType } from "@/lib/map/host";
+import { boundsOfCoords } from "@/lib/geo/geo";
+import { MapHost } from "@/lib/map/host";
 
 describe("boundsOfCoords", () => {
 	it("returns the axis-aligned bounds", () => {
@@ -17,11 +18,11 @@ describe("boundsOfCoords", () => {
 	});
 });
 
-describe("hostKindForMapType", () => {
+describe("MapHost.kindForMapType", () => {
 	it("routes vector to maplibre, everything else to google", () => {
-		expect(hostKindForMapType("vector")).toBe("maplibre");
-		expect(hostKindForMapType("map")).toBe("google");
-		expect(hostKindForMapType("satellite")).toBe("google");
-		expect(hostKindForMapType("osm")).toBe("google");
+		expect(MapHost.kindForMapType("vector")).toBe("maplibre");
+		expect(MapHost.kindForMapType("map")).toBe("google");
+		expect(MapHost.kindForMapType("satellite")).toBe("google");
+		expect(MapHost.kindForMapType("osm")).toBe("google");
 	});
 });

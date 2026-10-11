@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { addClickInterceptor } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 import { getBinding } from "@/lib/util/hotkeys";
 import type { HotkeyAction } from "@/lib/util/hotkeys";
 import { parseHotkey, matchesKey, eventKey, isEditableElement } from "@/lib/hooks/useHotkey";
@@ -57,7 +57,7 @@ export function useHeldHotkeyClick(
 			}
 		};
 
-		const dispose = addClickInterceptor((lat, lng, shiftKey) => {
+		const dispose = MapHost.addClickInterceptor((lat, lng, shiftKey) => {
 			if (!held) return false;
 			handlerRef.current(lat, lng, shiftKey);
 			return true;

@@ -6,8 +6,7 @@
 import { Scene } from "@/lib/render/scene";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { MARKER_STYLE } from "@/lib/render/markerLayer";
-import { getMapHost } from "@/lib/map/mapState";
-import type { MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import type { Bounds, MarkerStyle } from "@/types";
 import {
@@ -105,7 +104,7 @@ function currentPrefs(): MapEmbedPrefs {
 }
 
 export function computeRenderStats(): RenderStats | null {
-	const host = getMapHost();
+	const host = MapHost.get();
 	const bounds = host?.getBounds();
 	if (!host || !bounds) return null;
 	const scene = Scene.get();
@@ -167,7 +166,7 @@ if (typeof window !== "undefined") {
 		frames: frameStats,
 		render: computeRenderStats,
 		deck: getDeckMetrics,
-		host: getMapHost,
+		host: MapHost.get,
 		setMarkerStyle: (style) =>
 			setLocal(MAP_EMBED_PREFS, {
 				...getLocal(MAP_EMBED_PREFS),

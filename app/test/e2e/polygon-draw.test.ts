@@ -13,7 +13,7 @@ type Px = [number, number];
 
 async function mapCenter(): Promise<Px> {
 	return withApi((api) => {
-		const r = api.getMapHost()!.container.getBoundingClientRect();
+		const r = api.MapHost.get()!.container.getBoundingClientRect();
 		return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)] as Px;
 	});
 }
@@ -24,7 +24,7 @@ type LL = { lat: number; lng: number };
 const latLngAt = ([x, y]: Px) =>
 	withApi(
 		(api, px, py) => {
-			const host = api.getMapHost()!;
+			const host = api.MapHost.get()!;
 			const r = host.container.getBoundingClientRect();
 			return host.containerPxToLatLng(px - r.left, py - r.top)!;
 		},
@@ -37,7 +37,7 @@ const latLngAt = ([x, y]: Px) =>
 const pixelOf = (ll: LL) =>
 	withApi(
 		(api, lat, lng) => {
-			const host = api.getMapHost()!;
+			const host = api.MapHost.get()!;
 			const r = host.container.getBoundingClientRect();
 			const a = host.containerPxToLatLng(0, 0)!;
 			const b = host.containerPxToLatLng(r.width, r.height)!;
@@ -88,7 +88,7 @@ const toolArmed = () =>
 
 async function armTool() {
 	await withApi((api) => {
-		api.getMapHost()!.moveCamera({ center: { lat: 0.5, lng: 10 }, zoom: 13 });
+		api.MapHost.get()!.moveCamera({ center: { lat: 0.5, lng: 10 }, zoom: 13 });
 		return api.SelectionList.update({ kind: "set", selections: [] });
 	});
 	if (await toolArmed()) await browser.$(TOOL).click();

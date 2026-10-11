@@ -36,9 +36,8 @@ vi.mock("@/store/settings", async (orig) => ({
 	...(await orig()),
 	getSettings: () => ({ panToImported: false }),
 }));
-
 import { resolvePickedId, openHref, handleMapClick } from "@/lib/map/mapClick";
-import { addClickInterceptor } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 
 const pick = (id: string | undefined, index: number): PickingInfo =>
 	({ index, layer: id == null ? null : { id } }) as unknown as PickingInfo;
@@ -158,7 +157,7 @@ describe("handleMapClick", () => {
 	} as unknown as Parameters<typeof handleMapClick>[2];
 	const intercepted = async (domEvent: Event) => {
 		const seen: [number, number][] = [];
-		const off = addClickInterceptor((lat, lng) => seen.push([lat, lng]) > 0);
+		const off = MapHost.addClickInterceptor((lat, lng) => seen.push([lat, lng]) > 0);
 		await handleMapClick(at, domEvent, ctx);
 		off();
 		return seen;

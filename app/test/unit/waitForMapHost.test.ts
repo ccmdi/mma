@@ -1,38 +1,37 @@
 import { describe, it, expect, afterEach } from "vitest";
-import type { MapHost } from "@/lib/map/host";
-import { setMapHost, getMapHost, waitForMapHost } from "@/lib/map/mapState";
+import { MapHost } from "@/lib/map/host";
 
 const host = (id: string) => ({ id }) as unknown as MapHost;
 
-afterEach(() => setMapHost(null));
+afterEach(() => MapHost.set(null));
 
-describe("waitForMapHost", () => {
+describe("MapHost.wait", () => {
 	it("resolves immediately once a host is set", async () => {
-		setMapHost(host("a"));
-		await expect(waitForMapHost()).resolves.toBe(getMapHost());
+		MapHost.set(host("a"));
+		await expect(MapHost.wait()).resolves.toBe(MapHost.get());
 	});
 
 	it("resolves a waiter that predates the host", async () => {
-		const pending = waitForMapHost();
+		const pending = MapHost.wait();
 		const h = host("b");
-		setMapHost(h);
+		MapHost.set(h);
 		await expect(pending).resolves.toBe(h);
 	});
 
 	it("still settles a waiter across an intervening close", async () => {
-		const pending = waitForMapHost();
-		setMapHost(null);
+		const pending = MapHost.wait();
+		MapHost.set(null);
 		const h = host("c");
-		setMapHost(h);
+		MapHost.set(h);
 		await expect(pending).resolves.toBe(h);
 	});
 
 	it("gives every waiter across a close the same host", async () => {
-		const first = waitForMapHost();
-		setMapHost(null);
-		const second = waitForMapHost();
+		const first = MapHost.wait();
+		MapHost.set(null);
+		const second = MapHost.wait();
 		const h = host("d");
-		setMapHost(h);
+		MapHost.set(h);
 		expect(await Promise.all([first, second])).toEqual([h, h]);
 	});
 });

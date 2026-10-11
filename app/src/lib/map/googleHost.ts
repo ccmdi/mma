@@ -1,5 +1,4 @@
 // Google Maps (opensv) MapHost. Wraps google.maps.Map + GoogleMapsOverlay behind the host contract.
-
 import { GoogleMapsOverlay } from "@deck.gl/google-maps";
 import type { GoogleMapsOverlayProps } from "@deck.gl/google-maps";
 import type { PickingInfo } from "@deck.gl/core";

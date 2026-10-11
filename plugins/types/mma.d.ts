@@ -4,13 +4,13 @@ import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
+import { Layer, PickingInfo } from '@deck.gl/core';
+import * as maplibregl from 'maplibre-gl';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import * as react from 'react';
 import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Dialog as Dialog$1 } from '@base-ui-components/react/dialog';
-import { Layer, PickingInfo } from '@deck.gl/core';
-import * as maplibregl from 'maplibre-gl';
 
 declare const CameraType: {
     /** First-generation Street View camera. */
@@ -3915,203 +3915,6 @@ declare const Scene: {
     start: () => (() => void);
 };
 
-/** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
-
-/** Selector variants with child selections. @unstable */
-export type CompositeType = Extract<Selector, {
-    selections: SelectionInput[];
-}>["type"];
-/** Composite variants that wrap exactly one child (e.g. Invert). @unstable */
-export type UnaryType = "Invert";
-/** Composite variants that are flat n-ary groups. @unstable */
-export type GroupType = Exclude<CompositeType, UnaryType>;
-/** @unstable */
-declare const UNARY_TYPES: readonly ["Invert"];
-/** @unstable */
-export type FilterOpKind = FilterOp["op"];
-/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
-declare const filterIsLocalTime: (test: FilterOp) => boolean;
-/** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
- *  operators are marked for translation. @unstable */
-declare const OP_LABELS: Record<FilterOpKind, string>;
-/** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
- *  else, so there is no tag selector to build. @unstable */
-declare const tagSelector: (tagId: number) => Selector;
-/** Locations with no tags: `tags` resolves to nothing on an untagged location. @unstable */
-declare const untaggedSelector: () => Selector;
-/** Locations whose heading was never set. @unstable */
-declare const unpannedSelector: () => Selector;
-/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
- *  `Selector::pano_ids`), or the locations not pinned. @unstable */
-declare function panoIdSelector(on: boolean): Selector;
-/** Locations holding a value for `field`. @unstable */
-declare const has: (field: string) => Selector;
-/** Locations holding no value for `field`. @unstable */
-declare const lacks: (field: string) => Selector;
-/** Locations matching every one of `selectors`; with none, every location. @unstable */
-declare const all: (...selectors: Selector[]) => Selector;
-/** Locations matching any of `selectors`; with none, no location. @unstable */
-declare const any: (...selectors: Selector[]) => Selector;
-/** Locations not matching `selector`. @unstable */
-declare const not: (selector: Selector) => Selector;
-/** The tag a selector names, or null when it names something else. The single place that
- *  recognises tag membership, so nothing else has to know its shape. @unstable */
-declare function tagIdOf(selector: Selector): number | null;
-/** What one selection type answers about itself; optional answers default at the lookup. @unstable */
-export interface SelectionDescriptor<K extends Selector["type"]> {
-    label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
-}
-/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. @unstable */
-declare const SELECTIONS: {
-    [K in Selector["type"]]: SelectionDescriptor<K>;
-};
-/** Every child selection a selector wraps, whatever shape it wraps them in. @unstable */
-declare function childSelections<S>(selector: Selector$1<S>): S[];
-/** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
-declare function withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>;
-/** An unaddressed selection input; Rust supplies its key and default color. @unstable */
-declare function selection(selector: Selector, color?: RGB): SelectionInput;
-/** @unstable */
-declare function buildSelection(selector: Selector): Promise<Selection>;
-/** @unstable */
-export type SelectionPath = readonly number[];
-/** @unstable */
-declare function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined;
-/** @unstable */
-declare const addSelection: (...selectors: Selector[]) => SelectionOp;
-/** @unstable */
-declare const setSelections: (selections: SelectionInput[]) => SelectionOp;
-/** @unstable */
-declare const removeSelection: (...keys: string[]) => SelectionOp;
-/** @unstable */
-declare const toggleSelection: (...selectors: Selector[]) => SelectionOp;
-/** @unstable */
-declare const toggleManualSelection: (id: number) => SelectionOp;
-/** @unstable */
-declare const onActive: (op: SelectionOp) => SelectionOp;
-/** @unstable */
-declare const intersectSelections: (keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const unionSelections: (keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const invertSelections: (keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const toggleGhost: (index: number) => SelectionOp;
-/** @unstable */
-declare const isolateGhost: (index: number) => SelectionOp;
-/** @unstable */
-declare const toggleGhostAll: SelectionOp;
-/** @unstable */
-declare const toggleInvert: (path: SelectionPath) => SelectionOp;
-/** @unstable */
-declare const composeSelections: (drag: SelectionPath, drop: SelectionPath, mode: GroupType) => SelectionOp;
-/** @unstable */
-declare const moveSelection: (from: SelectionPath, to: SelectionPath, position: "before" | "after") => SelectionOp;
-/** @unstable */
-declare const removeSelectionAt: (path: SelectionPath) => SelectionOp;
-/** @unstable */
-declare const replaceSelection: (path: SelectionPath, selector: Selector) => SelectionOp;
-/** @unstable */
-declare const setSelectionColor: (path: SelectionPath, color: RGB) => SelectionOp;
-/** @unstable */
-declare const setPolygonName: (path: SelectionPath, name: string) => SelectionOp;
-/** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
- *  rather than the open map's tags. @unstable */
-declare function selectionDisplayName(sel: SelectionInput, tagNames?: Record<number, string>): string;
-
-/** @unstable */
-export type selectionOps_CompositeType = CompositeType;
-/** @unstable */
-export type selectionOps_FilterOpKind = FilterOpKind;
-/** @unstable */
-export type selectionOps_GroupType = GroupType;
-/** @unstable */
-declare const selectionOps_OP_LABELS: typeof OP_LABELS;
-/** @unstable */
-declare const selectionOps_SELECTIONS: typeof SELECTIONS;
-/** @unstable */
-export type selectionOps_SelectionPath = SelectionPath;
-/** @unstable */
-declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
-/** @unstable */
-export type selectionOps_UnaryType = UnaryType;
-/** @unstable */
-declare const selectionOps_addSelection: typeof addSelection;
-/** @unstable */
-declare const selectionOps_all: typeof all;
-/** @unstable */
-declare const selectionOps_any: typeof any;
-/** @unstable */
-declare const selectionOps_buildSelection: typeof buildSelection;
-/** @unstable */
-declare const selectionOps_childSelections: typeof childSelections;
-/** @unstable */
-declare const selectionOps_composeSelections: typeof composeSelections;
-/** @unstable */
-declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
-/** @unstable */
-declare const selectionOps_has: typeof has;
-/** @unstable */
-declare const selectionOps_intersectSelections: typeof intersectSelections;
-/** @unstable */
-declare const selectionOps_invertSelections: typeof invertSelections;
-/** @unstable */
-declare const selectionOps_isolateGhost: typeof isolateGhost;
-/** @unstable */
-declare const selectionOps_lacks: typeof lacks;
-/** @unstable */
-declare const selectionOps_moveSelection: typeof moveSelection;
-/** @unstable */
-declare const selectionOps_not: typeof not;
-/** @unstable */
-declare const selectionOps_onActive: typeof onActive;
-/** @unstable */
-declare const selectionOps_panoIdSelector: typeof panoIdSelector;
-/** @unstable */
-declare const selectionOps_removeSelection: typeof removeSelection;
-/** @unstable */
-declare const selectionOps_removeSelectionAt: typeof removeSelectionAt;
-/** @unstable */
-declare const selectionOps_replaceSelection: typeof replaceSelection;
-/** @unstable */
-declare const selectionOps_selection: typeof selection;
-/** @unstable */
-declare const selectionOps_selectionAt: typeof selectionAt;
-/** @unstable */
-declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
-/** @unstable */
-declare const selectionOps_setPolygonName: typeof setPolygonName;
-/** @unstable */
-declare const selectionOps_setSelectionColor: typeof setSelectionColor;
-/** @unstable */
-declare const selectionOps_setSelections: typeof setSelections;
-/** @unstable */
-declare const selectionOps_tagIdOf: typeof tagIdOf;
-/** @unstable */
-declare const selectionOps_tagSelector: typeof tagSelector;
-/** @unstable */
-declare const selectionOps_toggleGhost: typeof toggleGhost;
-/** @unstable */
-declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
-/** @unstable */
-declare const selectionOps_toggleInvert: typeof toggleInvert;
-/** @unstable */
-declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
-/** @unstable */
-declare const selectionOps_toggleSelection: typeof toggleSelection;
-/** @unstable */
-declare const selectionOps_unionSelections: typeof unionSelections;
-/** @unstable */
-declare const selectionOps_unpannedSelector: typeof unpannedSelector;
-/** @unstable */
-declare const selectionOps_untaggedSelector: typeof untaggedSelector;
-/** @unstable */
-declare const selectionOps_withChildren: typeof withChildren;
-declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
-  export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
-}
-
 /** A value saved in local storage: its key and its defaults. @unstable */
 export interface PersistedStore<T> {
     /** @unstable */
@@ -5097,6 +4900,358 @@ declare const settings_useSettings: typeof useSettings;
 declare namespace settings {
   export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_ARCHIVE_BYTES as BORDER_ARCHIVE_BYTES, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
   export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
+}
+
+/** @unstable */
+export interface MapEmbedPrefs {
+    svOpacity: number;
+    svVisible: boolean;
+    svColor: SvColor;
+    showLabels: boolean;
+    showTerrain: boolean;
+    svPanoramas: boolean;
+    svCoverageType: SvCoverageType;
+    svThickness: SvThickness;
+    svBlobby: boolean;
+    boldCountryBorders: boolean;
+    boldSubdivisionBorders: boolean;
+    hideRoadLabels: boolean;
+    hidePoi: boolean;
+    hideTransit: boolean;
+    hideHighways: boolean;
+    mapStyleName: string;
+    vectorStyleName: string;
+    mapType: MapTypeKey;
+    markerStyle: MarkerStyle;
+    markerOpacity: number;
+    markerVisible: boolean;
+    selectedOpacity: number;
+    selectedVisible: boolean;
+    markerSize: number;
+    showPerfectScoreCircle: boolean;
+    showSearchRadiusCursor: boolean;
+    showPreviews: boolean;
+    clickMode: ClickMode;
+}
+/** What clicking empty map does: create a location, nothing, or snap to the nearest one. @unstable */
+export type ClickMode = "default" | "selectOnly" | "nearest";
+
+/** @unstable */
+export interface MapStyle {
+    featureType?: string;
+    elementType?: string;
+    stylers: Record<string, any>[];
+}
+
+/** @unstable */
+export interface CustomStyle {
+    name: string;
+    style: MapStyle[];
+}
+
+/** @unstable */
+export interface HostInstances {
+    google: google.maps.Map;
+    maplibre: maplibregl.Map;
+}
+/** @unstable */
+export type MapHostKind = keyof HostInstances;
+/** @unstable */
+export interface DeckOverlayProps {
+    layers: Layer[];
+    onClick?: (info: PickingInfo, domEvent?: Event) => void;
+    onHover?: (info: PickingInfo, domEvent?: Event) => void;
+    onError?: (e: unknown) => void;
+}
+/** @unstable */
+export interface DeckOverlayHandle {
+    setProps(props: Partial<DeckOverlayProps>): void;
+    finalize(): void;
+}
+/** @unstable */
+export interface MapHostEvents {
+    mousemove: LatLng;
+    mousedown: LatLng;
+    mouseup: LatLng;
+    mouseout: void;
+    zoom: void;
+    camera: void;
+    /** The camera came to rest after a pan/zoom (Google `idle`, maplibre `idle`). */
+    idle: void;
+    tilesloaded: void;
+}
+/** @unstable */
+export interface BasemapOpts {
+    customStyles: CustomStyle[];
+}
+/** @unstable */
+export interface MapHostContract<K extends MapHostKind = MapHostKind> {
+    readonly kind: K;
+    readonly container: HTMLElement;
+    getHostInstance(): HostInstances[K];
+    getZoom(): number;
+    setZoom(zoom: number): void;
+    getCenter(): LatLng | null;
+    getBounds(): Bounds | null;
+    panTo(p: LatLng): void;
+    moveCamera(opts: {
+        center?: LatLng;
+        zoom?: number;
+    }): void;
+    fitBounds(bounds: Bounds, padding?: number, opts?: {
+        snap?: boolean;
+    }): void;
+    on<K extends keyof MapHostEvents>(event: K, fn: (arg: MapHostEvents[K]) => void): () => void;
+    once<K extends keyof MapHostEvents>(event: K, fn: (arg: MapHostEvents[K]) => void): () => void;
+    containerPxToLatLng(x: number, y: number): LatLng | null;
+    setDraggable(v: boolean): void;
+    /** CSS cursor over the map; null restores the host's default. */
+    setCursor(v: string | null): void;
+    setDoubleClickZoom(v: boolean): void;
+    createDeckOverlay(): DeckOverlayHandle;
+    triggerClickAt(latLng: LatLng): void;
+    applyPrefs(prefs: MapEmbedPrefs, opts: BasemapOpts): void;
+    resize(): void;
+    destroy(): void;
+}
+/** @unstable */
+export interface CreateHostOpts extends BasemapOpts {
+    camera?: {
+        center: LatLng;
+        zoom: number;
+    };
+    scaleControl?: boolean;
+}
+/** @unstable */
+export type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => boolean;
+/** @unstable */
+export type DrawInterceptor = (rings: number[][][]) => boolean;
+/** @unstable */
+export type MapHost = {
+    [K in MapHostKind]: MapHostContract<K>;
+}[MapHostKind];
+/** @unstable */
+declare const MapHost: {
+    /** Set or clear the main editor map host. @unstable */
+    set: (host: MapHost | null) => void;
+    /** Return the main editor map host, or null if not mounted. @unstable */
+    get: () => MapHost | null;
+    /** Wait for the main editor map to be ready. @unstable */
+    wait: () => Promise<MapHost>;
+    /** Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas. @unstable */
+    fitToBounds: (bounds: Bounds | null, padding?: number, minExtent?: number) => void;
+    /** Register a map-click interceptor. Returns a removal function. The most recently
+     *  added interceptor that returns true consumes the click. @unstable */
+    addClickInterceptor: (fn: ClickInterceptor) => (() => void);
+    /** Run registered click interceptors (newest first). True if one consumed the click. @unstable */
+    tryInterceptClick: (lat: number, lng: number, shiftKey?: boolean) => boolean;
+    /** Set the callback for completed polygon draws. Null clears it. @unstable */
+    setDrawInterceptor: (fn: DrawInterceptor | null) => void;
+    /** Pass completed polygon rings to the draw interceptor. True if it consumed them. @unstable */
+    tryInterceptDraw: (rings: number[][][]) => boolean;
+    /** The raw engine instance if `host` is of the given kind, else null. @unstable */
+    instance: <K extends MapHostKind>(host: MapHost | null, kind: K) => HostInstances[K] | null;
+    /** @unstable */
+    kindForMapType: (mapType: MapTypeKey) => MapHostKind;
+    /** @unstable */
+    create: (kind: MapHostKind, container: HTMLElement, prefs: MapEmbedPrefs, opts: CreateHostOpts) => Promise<MapHost>;
+};
+
+/** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
+
+/** Selector variants with child selections. @unstable */
+export type CompositeType = Extract<Selector, {
+    selections: SelectionInput[];
+}>["type"];
+/** Composite variants that wrap exactly one child (e.g. Invert). @unstable */
+export type UnaryType = "Invert";
+/** Composite variants that are flat n-ary groups. @unstable */
+export type GroupType = Exclude<CompositeType, UnaryType>;
+/** @unstable */
+declare const UNARY_TYPES: readonly ["Invert"];
+/** @unstable */
+export type FilterOpKind = FilterOp["op"];
+/** Whether a predicate reads the location's clock in its own timezone. Only a range can. @unstable */
+declare const filterIsLocalTime: (test: FilterOp) => boolean;
+/** Display symbol/word for each filter operator. Symbols are language-neutral; only the worded
+ *  operators are marked for translation. @unstable */
+declare const OP_LABELS: Record<FilterOpKind, string>;
+/** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
+ *  else, so there is no tag selector to build. @unstable */
+declare const tagSelector: (tagId: number) => Selector;
+/** Locations with no tags: `tags` resolves to nothing on an untagged location. @unstable */
+declare const untaggedSelector: () => Selector;
+/** Locations whose heading was never set. @unstable */
+declare const unpannedSelector: () => Selector;
+/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
+ *  `Selector::pano_ids`), or the locations not pinned. @unstable */
+declare function panoIdSelector(on: boolean): Selector;
+/** Locations holding a value for `field`. @unstable */
+declare const has: (field: string) => Selector;
+/** Locations holding no value for `field`. @unstable */
+declare const lacks: (field: string) => Selector;
+/** Locations matching every one of `selectors`; with none, every location. @unstable */
+declare const all: (...selectors: Selector[]) => Selector;
+/** Locations matching any of `selectors`; with none, no location. @unstable */
+declare const any: (...selectors: Selector[]) => Selector;
+/** Locations not matching `selector`. @unstable */
+declare const not: (selector: Selector) => Selector;
+/** The tag a selector names, or null when it names something else. The single place that
+ *  recognises tag membership, so nothing else has to know its shape. @unstable */
+declare function tagIdOf(selector: Selector): number | null;
+/** What one selection type answers about itself; optional answers default at the lookup. @unstable */
+export interface SelectionDescriptor<K extends Selector["type"]> {
+    label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
+}
+/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. @unstable */
+declare const SELECTIONS: {
+    [K in Selector["type"]]: SelectionDescriptor<K>;
+};
+/** Every child selection a selector wraps, whatever shape it wraps them in. @unstable */
+declare function childSelections<S>(selector: Selector$1<S>): S[];
+/** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
+declare function withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>;
+/** An unaddressed selection input; Rust supplies its key and default color. @unstable */
+declare function selection(selector: Selector, color?: RGB): SelectionInput;
+/** @unstable */
+declare function buildSelection(selector: Selector): Promise<Selection>;
+/** @unstable */
+export type SelectionPath = readonly number[];
+/** @unstable */
+declare function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined;
+/** @unstable */
+declare const addSelection: (...selectors: Selector[]) => SelectionOp;
+/** @unstable */
+declare const setSelections: (selections: SelectionInput[]) => SelectionOp;
+/** @unstable */
+declare const removeSelection: (...keys: string[]) => SelectionOp;
+/** @unstable */
+declare const toggleSelection: (...selectors: Selector[]) => SelectionOp;
+/** @unstable */
+declare const toggleManualSelection: (id: number) => SelectionOp;
+/** @unstable */
+declare const onActive: (op: SelectionOp) => SelectionOp;
+/** @unstable */
+declare const intersectSelections: (keys?: string[] | null) => SelectionOp;
+/** @unstable */
+declare const unionSelections: (keys?: string[] | null) => SelectionOp;
+/** @unstable */
+declare const invertSelections: (keys?: string[] | null) => SelectionOp;
+/** @unstable */
+declare const toggleGhost: (index: number) => SelectionOp;
+/** @unstable */
+declare const isolateGhost: (index: number) => SelectionOp;
+/** @unstable */
+declare const toggleGhostAll: SelectionOp;
+/** @unstable */
+declare const toggleInvert: (path: SelectionPath) => SelectionOp;
+/** @unstable */
+declare const composeSelections: (drag: SelectionPath, drop: SelectionPath, mode: GroupType) => SelectionOp;
+/** @unstable */
+declare const moveSelection: (from: SelectionPath, to: SelectionPath, position: "before" | "after") => SelectionOp;
+/** @unstable */
+declare const removeSelectionAt: (path: SelectionPath) => SelectionOp;
+/** @unstable */
+declare const replaceSelection: (path: SelectionPath, selector: Selector) => SelectionOp;
+/** @unstable */
+declare const setSelectionColor: (path: SelectionPath, color: RGB) => SelectionOp;
+/** @unstable */
+declare const setPolygonName: (path: SelectionPath, name: string) => SelectionOp;
+/** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
+ *  rather than the open map's tags. @unstable */
+declare function selectionDisplayName(sel: SelectionInput, tagNames?: Record<number, string>): string;
+
+/** @unstable */
+export type selectionOps_CompositeType = CompositeType;
+/** @unstable */
+export type selectionOps_FilterOpKind = FilterOpKind;
+/** @unstable */
+export type selectionOps_GroupType = GroupType;
+/** @unstable */
+declare const selectionOps_OP_LABELS: typeof OP_LABELS;
+/** @unstable */
+declare const selectionOps_SELECTIONS: typeof SELECTIONS;
+/** @unstable */
+export type selectionOps_SelectionPath = SelectionPath;
+/** @unstable */
+declare const selectionOps_UNARY_TYPES: typeof UNARY_TYPES;
+/** @unstable */
+export type selectionOps_UnaryType = UnaryType;
+/** @unstable */
+declare const selectionOps_addSelection: typeof addSelection;
+/** @unstable */
+declare const selectionOps_all: typeof all;
+/** @unstable */
+declare const selectionOps_any: typeof any;
+/** @unstable */
+declare const selectionOps_buildSelection: typeof buildSelection;
+/** @unstable */
+declare const selectionOps_childSelections: typeof childSelections;
+/** @unstable */
+declare const selectionOps_composeSelections: typeof composeSelections;
+/** @unstable */
+declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
+/** @unstable */
+declare const selectionOps_has: typeof has;
+/** @unstable */
+declare const selectionOps_intersectSelections: typeof intersectSelections;
+/** @unstable */
+declare const selectionOps_invertSelections: typeof invertSelections;
+/** @unstable */
+declare const selectionOps_isolateGhost: typeof isolateGhost;
+/** @unstable */
+declare const selectionOps_lacks: typeof lacks;
+/** @unstable */
+declare const selectionOps_moveSelection: typeof moveSelection;
+/** @unstable */
+declare const selectionOps_not: typeof not;
+/** @unstable */
+declare const selectionOps_onActive: typeof onActive;
+/** @unstable */
+declare const selectionOps_panoIdSelector: typeof panoIdSelector;
+/** @unstable */
+declare const selectionOps_removeSelection: typeof removeSelection;
+/** @unstable */
+declare const selectionOps_removeSelectionAt: typeof removeSelectionAt;
+/** @unstable */
+declare const selectionOps_replaceSelection: typeof replaceSelection;
+/** @unstable */
+declare const selectionOps_selection: typeof selection;
+/** @unstable */
+declare const selectionOps_selectionAt: typeof selectionAt;
+/** @unstable */
+declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
+/** @unstable */
+declare const selectionOps_setPolygonName: typeof setPolygonName;
+/** @unstable */
+declare const selectionOps_setSelectionColor: typeof setSelectionColor;
+/** @unstable */
+declare const selectionOps_setSelections: typeof setSelections;
+/** @unstable */
+declare const selectionOps_tagIdOf: typeof tagIdOf;
+/** @unstable */
+declare const selectionOps_tagSelector: typeof tagSelector;
+/** @unstable */
+declare const selectionOps_toggleGhost: typeof toggleGhost;
+/** @unstable */
+declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
+/** @unstable */
+declare const selectionOps_toggleInvert: typeof toggleInvert;
+/** @unstable */
+declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
+/** @unstable */
+declare const selectionOps_toggleSelection: typeof toggleSelection;
+/** @unstable */
+declare const selectionOps_unionSelections: typeof unionSelections;
+/** @unstable */
+declare const selectionOps_unpannedSelector: typeof unpannedSelector;
+/** @unstable */
+declare const selectionOps_untaggedSelector: typeof untaggedSelector;
+/** @unstable */
+declare const selectionOps_withChildren: typeof withChildren;
+declare namespace selectionOps {
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
+  export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
 }
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
@@ -6855,174 +7010,6 @@ declare namespace query$1 {
   export type { query$1_SearchOpts as SearchOpts };
 }
 
-/** @unstable */
-export interface MapEmbedPrefs {
-    svOpacity: number;
-    svVisible: boolean;
-    svColor: SvColor;
-    showLabels: boolean;
-    showTerrain: boolean;
-    svPanoramas: boolean;
-    svCoverageType: SvCoverageType;
-    svThickness: SvThickness;
-    svBlobby: boolean;
-    boldCountryBorders: boolean;
-    boldSubdivisionBorders: boolean;
-    hideRoadLabels: boolean;
-    hidePoi: boolean;
-    hideTransit: boolean;
-    hideHighways: boolean;
-    mapStyleName: string;
-    vectorStyleName: string;
-    mapType: MapTypeKey;
-    markerStyle: MarkerStyle;
-    markerOpacity: number;
-    markerVisible: boolean;
-    selectedOpacity: number;
-    selectedVisible: boolean;
-    markerSize: number;
-    showPerfectScoreCircle: boolean;
-    showSearchRadiusCursor: boolean;
-    showPreviews: boolean;
-    clickMode: ClickMode;
-}
-/** What clicking empty map does: create a location, nothing, or snap to the nearest one. @unstable */
-export type ClickMode = "default" | "selectOnly" | "nearest";
-
-/** @unstable */
-export interface MapStyle {
-    featureType?: string;
-    elementType?: string;
-    stylers: Record<string, any>[];
-}
-
-/** @unstable */
-export interface CustomStyle {
-    name: string;
-    style: MapStyle[];
-}
-
-/** @unstable */
-export interface HostInstances {
-    google: google.maps.Map;
-    maplibre: maplibregl.Map;
-}
-/** @unstable */
-export type MapHostKind = keyof HostInstances;
-/** @unstable */
-export interface DeckOverlayProps {
-    layers: Layer[];
-    onClick?: (info: PickingInfo, domEvent?: Event) => void;
-    onHover?: (info: PickingInfo, domEvent?: Event) => void;
-    onError?: (e: unknown) => void;
-}
-/** @unstable */
-export interface DeckOverlayHandle {
-    setProps(props: Partial<DeckOverlayProps>): void;
-    finalize(): void;
-}
-/** @unstable */
-export interface MapHostEvents {
-    mousemove: LatLng;
-    mousedown: LatLng;
-    mouseup: LatLng;
-    mouseout: void;
-    zoom: void;
-    camera: void;
-    /** The camera came to rest after a pan/zoom (Google `idle`, maplibre `idle`). */
-    idle: void;
-    tilesloaded: void;
-}
-/** @unstable */
-export interface BasemapOpts {
-    customStyles: CustomStyle[];
-}
-/** @unstable */
-export interface MapHostContract<K extends MapHostKind = MapHostKind> {
-    readonly kind: K;
-    readonly container: HTMLElement;
-    getHostInstance(): HostInstances[K];
-    getZoom(): number;
-    setZoom(zoom: number): void;
-    getCenter(): LatLng | null;
-    getBounds(): Bounds | null;
-    panTo(p: LatLng): void;
-    moveCamera(opts: {
-        center?: LatLng;
-        zoom?: number;
-    }): void;
-    fitBounds(bounds: Bounds, padding?: number, opts?: {
-        snap?: boolean;
-    }): void;
-    on<K extends keyof MapHostEvents>(event: K, fn: (arg: MapHostEvents[K]) => void): () => void;
-    once<K extends keyof MapHostEvents>(event: K, fn: (arg: MapHostEvents[K]) => void): () => void;
-    containerPxToLatLng(x: number, y: number): LatLng | null;
-    setDraggable(v: boolean): void;
-    /** CSS cursor over the map; null restores the host's default. */
-    setCursor(v: string | null): void;
-    setDoubleClickZoom(v: boolean): void;
-    createDeckOverlay(): DeckOverlayHandle;
-    triggerClickAt(latLng: LatLng): void;
-    applyPrefs(prefs: MapEmbedPrefs, opts: BasemapOpts): void;
-    resize(): void;
-    destroy(): void;
-}
-/** @unstable */
-export type MapHost = {
-    [K in MapHostKind]: MapHostContract<K>;
-}[MapHostKind];
-
-/** Set or clear the main editor map host. @unstable */
-declare function setMapHost(host: MapHost | null): void;
-/** Return the main editor map host, or null if not mounted. @unstable */
-declare function getMapHost(): MapHost | null;
-/** Wait for the main editor map to be ready. @unstable */
-declare function waitForMapHost(): Promise<MapHost>;
-/** Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on tiny areas. @unstable */
-declare function fitMapToBounds(bounds: Bounds | null, padding?: number, minExtent?: number): void;
-/** @unstable */
-export type ClickInterceptor = (lat: number, lng: number, shiftKey: boolean) => boolean;
-/** Register a map-click interceptor. Returns a removal function. The most recently
- *  added interceptor that returns true consumes the click. @unstable */
-declare function addClickInterceptor(fn: ClickInterceptor): () => void;
-/** Run registered click interceptors (newest first). True if one consumed the click. @unstable */
-declare function tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean;
-/** @unstable */
-export type DrawInterceptor = (rings: number[][][]) => boolean;
-/** Set the callback for completed polygon draws. Null clears it. @unstable */
-declare function setDrawInterceptor(fn: DrawInterceptor | null): void;
-/** Pass completed polygon rings to the draw interceptor. True if it consumed them. @unstable */
-declare function tryInterceptDraw(rings: number[][][]): boolean;
-
-/** @unstable */
-declare const mapState_addClickInterceptor: typeof addClickInterceptor;
-/** @unstable */
-declare const mapState_fitMapToBounds: typeof fitMapToBounds;
-/** @unstable */
-declare const mapState_getMapHost: typeof getMapHost;
-/** @unstable */
-declare const mapState_setDrawInterceptor: typeof setDrawInterceptor;
-/** @unstable */
-declare const mapState_setMapHost: typeof setMapHost;
-/** @unstable */
-declare const mapState_tryInterceptClick: typeof tryInterceptClick;
-/** @unstable */
-declare const mapState_tryInterceptDraw: typeof tryInterceptDraw;
-/** @unstable */
-declare const mapState_waitForMapHost: typeof waitForMapHost;
-declare namespace mapState {
-  export {
-    mapState_addClickInterceptor as addClickInterceptor,
-    mapState_fitMapToBounds as fitMapToBounds,
-    mapState_getMapHost as getMapHost,
-    mapState_setDrawInterceptor as setDrawInterceptor,
-    mapState_setMapHost as setMapHost,
-    mapState_tryInterceptClick as tryInterceptClick,
-    mapState_tryInterceptDraw as tryInterceptDraw,
-    mapState_waitForMapHost as waitForMapHost,
-  };
-}
-
 /** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @unstable */
 declare function getScenePositions(): {
     ids: Uint32Array;
@@ -7182,9 +7169,9 @@ declare namespace useJob$1 {
   export type { useJob$1_Job as Job, useJob$1_JobContext as JobContext };
 }
 
-/** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
+/** @deprecated v0.8.1. Use `MMA.MapHost.get()` and narrow via `MMA.MapHost.instance`. @unstable */
 declare function getGoogleMap(): google.maps.Map | null;
-/** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. @unstable */
+/** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
 declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 /** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */
 declare function getCurrentMap(): MapMeta | null;
@@ -7426,6 +7413,10 @@ declare const useMapBadges: typeof Maps.useBadges;
 declare const edit: typeof Edit;
 /** @deprecated v0.12.1. Use `MMA.Autosave`. */
 declare const autosave: typeof Autosave;
+/** @deprecated v0.12.1. Use `MMA.MapHost.get`. */
+declare const getMapHost: typeof MapHost.get;
+/** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
+declare const waitForMapHost: typeof MapHost.wait;
 
 declare const legacy_VIEWER: typeof VIEWER;
 declare const legacy_addLocations: typeof addLocations;
@@ -7492,6 +7483,7 @@ declare const legacy_getGhostedSelections: typeof getGhostedSelections;
 declare const legacy_getGoogleMap: typeof getGoogleMap;
 declare const legacy_getMapBadgeSources: typeof getMapBadgeSources;
 declare const legacy_getMapBadges: typeof getMapBadges;
+declare const legacy_getMapHost: typeof getMapHost;
 declare const legacy_getMapList: typeof getMapList;
 declare const legacy_getMapState: typeof getMapState;
 /** @unstable */
@@ -7574,6 +7566,7 @@ declare const legacy_useMapList: typeof useMapList;
 declare const legacy_useMapState: typeof useMapState;
 /** @unstable */
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
+declare const legacy_waitForMapHost: typeof waitForMapHost;
 declare namespace legacy {
   export {
     legacy_VIEWER as VIEWER,
@@ -7621,6 +7614,7 @@ declare namespace legacy {
     legacy_getGoogleMap as getGoogleMap,
     legacy_getMapBadgeSources as getMapBadgeSources,
     legacy_getMapBadges as getMapBadges,
+    legacy_getMapHost as getMapHost,
     legacy_getMapList as getMapList,
     legacy_getMapState as getMapState,
     legacy_getSelectedLocationIds as getSelectedLocationIds,
@@ -7686,6 +7680,7 @@ declare namespace legacy {
     legacy_useMapList as useMapList,
     legacy_useMapState as useMapState,
     legacy_waitForGoogleMap as waitForGoogleMap,
+    legacy_waitForMapHost as waitForMapHost,
   };
 }
 
@@ -7913,8 +7908,6 @@ export type ValidateApi = typeof validate;
 /** The validation categories users pick from, over the flags a check answers. @unstable */
 export type ValidationCategoriesApi = typeof validationCategories;
 export type QueryApi = typeof query$1;
-/** The embedded map host, its preferences, and click interceptors. @unstable */
-export type MapStateApi = typeof mapState;
 /** Screen positions of the rendered markers. @unstable */
 export type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
@@ -7932,7 +7925,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -7969,6 +7962,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     SavedSelection: typeof SavedSelection;
     /** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
     Scene: typeof Scene;
+    /** The embedded map host, its preferences, and click interceptors. @unstable */
+    MapHost: typeof MapHost;
 }
 
 declare global {

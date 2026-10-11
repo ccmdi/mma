@@ -6,12 +6,7 @@ import { useSetting } from "@/store/settings";
 import { range } from "@/types/util";
 import { useLocalStorage, getLocal } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import {
-	createMapHost,
-	hostKindForMapType,
-	type MapHost,
-	type DeckOverlayHandle,
-} from "@/lib/map/host";
+import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
 import { usePanoViewer, viewerPosition } from "./PanoViewerContext";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
@@ -33,7 +28,7 @@ async function ensureMinimapHost(
 	lat: number,
 	lng: number,
 ): Promise<{ host: MapHost; div: HTMLDivElement; overlay: DeckOverlayHandle }> {
-	const kind = hostKindForMapType(prefs.mapType);
+	const kind = MapHost.kindForMapType(prefs.mapType);
 	if (minimapHost && minimapHost.kind !== kind) {
 		minimapOverlay?.finalize();
 		minimapOverlay = null;
@@ -46,7 +41,7 @@ async function ensureMinimapHost(
 		minimapDiv.style.cssText = "width:100%;height:100%";
 	}
 	if (!minimapHost) {
-		minimapHost = await createMapHost(kind, minimapDiv, prefs, {
+		minimapHost = await MapHost.create(kind, minimapDiv, prefs, {
 			customStyles: getLocal<CustomStyle[]>(CUSTOM_STYLES_KEY, []),
 			camera: { center: { lat, lng }, zoom: 14 },
 			scaleControl: false,

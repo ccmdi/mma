@@ -12,7 +12,7 @@ import {
 	mdiMagnifyMinusOutline,
 	mdiScatterPlot,
 } from "@mdi/js";
-import { hostInstance } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 import { google } from "@/lib/sv/opensv";
 import type * as maplibregl from "maplibre-gl";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
@@ -170,14 +170,14 @@ export function GuessMap({
 			if (!lockedRef.current) onGuessRef.current(p);
 		};
 
-		const gmap = hostInstance(host, "google");
+		const gmap = MapHost.instance(host, "google");
 		if (gmap) {
 			const listener = gmap.addListener("click", (e: google.maps.MapMouseEvent) => {
 				if (e.latLng) place({ lat: e.latLng.lat(), lng: e.latLng.lng() });
 			});
 			return () => google.maps.event.removeListener(listener);
 		}
-		const ml = hostInstance(host, "maplibre");
+		const ml = MapHost.instance(host, "maplibre");
 		if (ml) {
 			const onClick = (e: maplibregl.MapMouseEvent) =>
 				place({ lat: e.lngLat.lat, lng: e.lngLat.lng });

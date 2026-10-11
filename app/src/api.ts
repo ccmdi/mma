@@ -18,6 +18,7 @@ import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
+import { MapHost } from "@/lib/map/host";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as settings from "@/store/settings";
@@ -47,7 +48,6 @@ import * as pinPano from "@/lib/sv/pinPano";
 import * as validate from "@/lib/sv/validate";
 import * as validationCategories from "@/lib/sv/validationCategories";
 import * as query from "@/lib/sv/query";
-import * as mapState from "@/lib/map/mapState";
 import * as scenePositions from "@/lib/render/scenePositions";
 import * as colorUtils from "@/lib/util/color";
 import * as toast from "@/lib/util/toast";
@@ -107,8 +107,6 @@ type ValidateApi = typeof validate;
 /** The validation categories users pick from, over the flags a check answers. @unstable */
 type ValidationCategoriesApi = typeof validationCategories;
 type QueryApi = typeof query;
-/** The embedded map host, its preferences, and click interceptors. @unstable */
-type MapStateApi = typeof mapState;
 /** Screen positions of the rendered markers. @unstable */
 type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
@@ -157,7 +155,6 @@ export interface MMA
 		ValidateApi,
 		ValidationCategoriesApi,
 		QueryApi,
-		MapStateApi,
 		ScenePositionsApi,
 		ColorApi,
 		ToastApi,
@@ -204,6 +201,8 @@ export interface MMA
 	SavedSelection: typeof SavedSelection;
 	/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
 	Scene: typeof Scene;
+	/** The embedded map host, its preferences, and click interceptors. @unstable */
+	MapHost: typeof MapHost;
 }
 
 export type { MMA as MMAApi };
@@ -238,7 +237,6 @@ const mma: MMA = {
 	...validate,
 	...validationCategories,
 	...query,
-	...mapState,
 	...scenePositions,
 	...colorUtils,
 	...toast,
@@ -266,6 +264,7 @@ const mma: MMA = {
 	Import,
 	SavedSelection,
 	Scene,
+	MapHost,
 };
 
 declare global {

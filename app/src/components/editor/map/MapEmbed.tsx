@@ -26,8 +26,7 @@ import { addSelection } from "@/store/selections";
 import { rgbCss } from "@/lib/util/color";
 import { mapOpen } from "@/lib/util/debug";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { setMapHost, tryInterceptDraw } from "@/lib/map/mapState";
-import { createMapHost, hostKindForMapType, type MapHost } from "@/lib/map/host";
+import { MapHost } from "@/lib/map/host";
 import { mountSearchRadiusCursor } from "@/lib/map/searchRadiusCursor";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -168,7 +167,7 @@ export function MapEmbed({
 		null,
 	);
 
-	const hostKind = hostKindForMapType(mapType);
+	const hostKind = MapHost.kindForMapType(mapType);
 
 	useEffect(() => {
 		if (!containerRef.current || !map) return;
@@ -190,7 +189,7 @@ export function MapEmbed({
 			containerRef.current.appendChild(hostDiv);
 
 			const { prefs: p, customStyles: cs } = buildRef.current;
-			created = await createMapHost(hostKind, hostDiv, p, {
+			created = await MapHost.create(hostKind, hostDiv, p, {
 				customStyles: cs,
 				camera: savedCameraRef.current ?? undefined,
 			});
@@ -209,7 +208,7 @@ export function MapEmbed({
 			);
 
 			hostRef.current = created;
-			setMapHost(created);
+			MapHost.set(created);
 			setHost(created);
 			if (first) {
 				mapOpen.mark("map-ready");
@@ -237,7 +236,7 @@ export function MapEmbed({
 			}
 			hostDiv?.remove();
 			hostRef.current = null;
-			setMapHost(null);
+			MapHost.set(null);
 			setHost(null);
 		};
 	}, [hostKind]);
@@ -398,7 +397,7 @@ export function MapEmbed({
 							host={host}
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
-								if (tryInterceptDraw(rings)) return;
+								if (MapHost.tryInterceptDraw(rings)) return;
 								void SelectionList.update(
 									addSelection({
 										type: "Polygon",

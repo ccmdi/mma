@@ -13,7 +13,7 @@ const OCEAN = { lat: 0, lng: 0 };
 async function clickAt(lat: number, lng: number) {
 	await withApi(
 		async (api, la, ln) => {
-			const host = api.getMapHost();
+			const host = api.MapHost.get();
 			if (!host) throw new Error("no map host");
 			host.triggerClickAt({ lat: la, lng: ln });
 		},
