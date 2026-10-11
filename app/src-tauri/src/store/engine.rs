@@ -359,8 +359,7 @@ impl Store {
         if self.alive_count.ship() {
             derived.location_count = Some(*self.alive_count);
         }
-        let history_changed = self.histories.ship();
-        if self.edits.ship() || history_changed {
+        if self.edits.ship() | self.histories.ship() {
             derived.history = Some(self.history());
         }
         let keys = changes.keys();
@@ -838,11 +837,12 @@ impl<T> Tracked<T> {
 
     /// Mark the current revision as seen by JS; true when it had not been.
     pub(crate) fn ship(&mut self) -> bool {
-        let changed = !self.shipped.covers(self.rev);
-        if changed {
+        if self.shipped.covers(self.rev) {
+            false
+        } else {
             self.shipped = At::new(self.rev, ());
+            true
         }
-        changed
     }
 
     pub(crate) fn is_unsaved(&self) -> bool {
