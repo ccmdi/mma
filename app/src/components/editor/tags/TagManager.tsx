@@ -27,6 +27,8 @@ import { Field } from "@/components/primitives/Sidebar";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
+import { IconButton } from "@/components/primitives/IconButton";
+import { mdiFileTreeOutline } from "@mdi/js";
 import { TextInput } from "@/components/primitives/TextInput";
 import { fmt } from "@/lib/util/format";
 import { hexToHsl, hslToHex, type HSL } from "@/lib/util/color";
@@ -237,6 +239,12 @@ export function TagManager() {
 							placeholder={t("Filter tags...")}
 							value={filterText}
 							onChange={(e) => setFilterText(e.target.value)}
+						/>
+						<IconButton
+							icon={mdiFileTreeOutline}
+							label={t("Tree")}
+							active={tagViewMode === "tree"}
+							onClick={() => setSetting("tagViewMode", tagViewMode === "tree" ? "flat" : "tree")}
 						/>
 						<span className="tag-manager__spacer"></span>
 						{tagViewMode === "tree" && (
