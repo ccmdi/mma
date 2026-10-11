@@ -28,97 +28,8 @@ import { msg, t } from "@/lib/i18n";
 
 let cachedMapList: MapMeta[] = [];
 
-/** Reactive list of all maps (metadata only). */
-function useMapList(): MapMeta[] {
-	return useEventValue("map-list:changed", () => cachedMapList);
-}
-
-/** The list of all maps (metadata only). */
-function getMapList() {
-	return cachedMapList;
-}
-
-/** Refresh the map list from disk. @unstable */
-async function reloadMapList() {
-	cachedMapList = await cmd.storeListMaps();
-	emitEvent("map-list:changed");
-}
-
-/** Refresh the map list and notify other windows of the change. @unstable */
-async function invalidateMapList() {
-	await reloadMapList();
-	await tauriEmit("map-list-changed");
-}
-
-/** Set the map list directly without a disk read. @unstable */
-function setCachedMapList(list: MapMeta[]) {
-	cachedMapList = list;
-}
-
-/** Create a new empty map and return its metadata. */
-async function createMap(name: string, folder: string | null = null) {
-	const meta = await cmd.storeCreateMap(name, folder);
-	await invalidateMapList();
-	return meta;
-}
-
-/** The name a copy of the map named `name` starts with. @unstable */
-function copyName(name: string): string {
-	return t("{name} (copy)", { name: name || t("(unnamed)") });
-}
-
-/** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-async function duplicateMap(id: string, name: string) {
-	const meta = await cmd.storeDuplicateMap(id, name);
-	await invalidateMapList();
-	return meta;
-}
-
-/** Open the scratch map, creating it on first use. */
-async function openScratchMap() {
-	const meta = await cmd.storeScratchMap();
-	await openWindow({ type: "editor", mapId: meta.id }, meta.name);
-}
-
 /** Ids the app keeps for its own fixtures. */
 const RESERVED_MAP_IDS: ReadonlySet<string> = new Set([SCRATCH_MAP_ID]);
-
-/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
-function isReservedMap(id: string | null): boolean {
-	return id != null && RESERVED_MAP_IDS.has(id);
-}
-
-/** Permanently delete a map and all its data. Not undoable. */
-async function deleteMap(id: string) {
-	await cmd.storeDeleteMap(id);
-	await invalidateMapList();
-	await tauriEmit("map-deleted", id);
-}
-
-/** Rename a folder, moving all its maps to the new name. */
-async function renameFolder(from: string, to: string) {
-	cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
-	emitEvent("map-list:changed");
-	await cmd.storeRenameFolder(from, to);
-	await invalidateMapList();
-}
-
-/** Move a map into a folder, or to the root when `folder` is null. */
-async function moveMapToFolder(mapId: string, folder: string | null) {
-	const idx = cachedMapList.findIndex((m) => m.id === mapId);
-	if (idx !== -1) {
-		cachedMapList = cachedMapList.map((m) => (m.id === mapId ? { ...m, folder } : m));
-		emitEvent("map-list:changed");
-	}
-	await cmd.storeUpdateMapMeta({ id: mapId, folder });
-	await tauriEmit("map-list-changed");
-}
-
-/** Delete a folder. Maps in it become unfoldered. */
-async function deleteFolder(name: string) {
-	await cmd.storeDeleteFolder(name);
-	await invalidateMapList();
-}
 
 /** A mark drawn after a map's name in the map list: an icon, or a count of changes. */
 export type MapBadge = { key: string; title: string } & ({ icon: string } | { diff: Counts });
@@ -156,41 +67,6 @@ function invalidateMapBadges() {
 	emitEvent("map-badges:changed");
 }
 
-/** Add a source of map-row badges. @unstable */
-function registerMapBadges(source: BadgeSource) {
-	badgeSources.push(source);
-	subscribeMany(source.events, invalidateMapBadges);
-	invalidateMapBadges();
-}
-
-/** Every registered badge source, in registration order. @unstable */
-function getMapBadgeSources(): readonly BadgeSource[] {
-	return badgeSources;
-}
-
-/** Badges per map id, from every registered source. @unstable */
-function getMapBadges(): Map<string, MapBadge[]> {
-	if (!collected) {
-		const hidden = getSettings().hiddenMapBadges;
-		collected = { hidden, badges: collectMapBadges(hidden) };
-	}
-	return collected.badges;
-}
-
-/** Reactive {@link getMapBadges}. @unstable */
-function useMapBadges(): Map<string, MapBadge[]> {
-	return useEventValue("map-badges:changed", getMapBadges);
-}
-
-/** One-time store startup. The app calls this; plugins never need to. @unstable */
-async function init() {
-	setCachedMapList(await cmd.storeListMaps());
-	emitEvent("store:changed");
-	// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
-	void listen("map-list-changed", () => void reloadMapList());
-	void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
-}
-
 /** Reset all per-map editing state to its initial values. */
 function clearEditState() {
 	Store.patch({
@@ -209,41 +85,6 @@ function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 	Store.merge(status.derived);
 }
 
-/** Open a map in this window, closing any currently open map first. */
-async function open(id: string) {
-	mapOpen.begin();
-
-	Autosave.cancel();
-	await Autosave.waitForInflight();
-
-	const t = trace("openMap");
-	Store.patch({ mapId: id, map: null });
-	const meta = await cmd.storeGetMap(id);
-	t.step("getMap");
-
-	if (meta) {
-		try {
-			const openResult = await cmd.storeOpenMap(id);
-			t.step("store_open_map");
-			mapOpen.mark("data");
-			applyOpenedMap(meta, openResult);
-			void Feed.start().catch((e: unknown) =>
-				log.error("[openMap] change feed subscription failed:", e),
-			);
-		} catch (e) {
-			log.error("[openMap] store_open_map failed:", e);
-			Store.patch({ mapId: null, map: null });
-			return;
-		}
-		void cmd.storeTouchMapOpened(id);
-	}
-
-	clearEditState();
-	t.end();
-	const opened = Store.get().map;
-	if (opened) emitEvent("map:open", opened);
-}
-
 /** Tear down all in-memory state for the open map. */
 function resetMapState() {
 	emitEvent("map:close");
@@ -256,49 +97,164 @@ function resetMapState() {
 	Store.resetDerived();
 }
 
-/** Close the open map, saving unsaved changes first. */
-async function close() {
-	await Autosave.flush();
-	resetMapState();
-	await cmd.storeCloseMap();
-}
-
-/** Drop the open map without persisting anything @unstable */
-function discard() {
-	Autosave.cancel();
-	resetMapState();
-}
-
 export const Maps = {
-	init,
-	open,
-	close,
-	discard,
-	useList: useMapList,
-	list: getMapList,
-	reload: reloadMapList,
-	invalidate: invalidateMapList,
-	setList: setCachedMapList,
-	create: createMap,
-	duplicate: duplicateMap,
-	remove: deleteMap,
-	openScratch: openScratchMap,
-	isReserved: isReservedMap,
-	copyName,
-	renameFolder,
-	moveToFolder: moveMapToFolder,
-	removeFolder: deleteFolder,
-	registerBadges: registerMapBadges,
-	badgeSources: getMapBadgeSources,
-	badges: getMapBadges,
-	useBadges: useMapBadges,
+	/** One-time store startup. The app calls this; plugins never need to. @unstable */
+	init: async () => {
+		Maps.setList(await cmd.storeListMaps());
+		emitEvent("store:changed");
+		// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
+		void listen("map-list-changed", () => void Maps.reload());
+		void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
+	},
+	/** Open a map in this window, closing any currently open map first. */
+	open: async (id: string) => {
+		mapOpen.begin();
+
+		Autosave.cancel();
+		await Autosave.waitForInflight();
+
+		const t = trace("openMap");
+		Store.patch({ mapId: id, map: null });
+		const meta = await cmd.storeGetMap(id);
+		t.step("getMap");
+
+		if (meta) {
+			try {
+				const openResult = await cmd.storeOpenMap(id);
+				t.step("store_open_map");
+				mapOpen.mark("data");
+				applyOpenedMap(meta, openResult);
+				void Feed.start().catch((e: unknown) =>
+					log.error("[openMap] change feed subscription failed:", e),
+				);
+			} catch (e) {
+				log.error("[openMap] store_open_map failed:", e);
+				Store.patch({ mapId: null, map: null });
+				return;
+			}
+			void cmd.storeTouchMapOpened(id);
+		}
+
+		clearEditState();
+		t.end();
+		const opened = Store.get().map;
+		if (opened) emitEvent("map:open", opened);
+	},
+	/** Close the open map, saving unsaved changes first. */
+	close: async () => {
+		await Autosave.flush();
+		resetMapState();
+		await cmd.storeCloseMap();
+	},
+	/** Drop the open map without persisting anything @unstable */
+	discard: () => {
+		Autosave.cancel();
+		resetMapState();
+	},
+	/** Reactive list of all maps (metadata only). */
+	useList: (): MapMeta[] => {
+		return useEventValue("map-list:changed", () => cachedMapList);
+	},
+	/** The list of all maps (metadata only). */
+	list: () => {
+		return cachedMapList;
+	},
+	/** Refresh the map list from disk. @unstable */
+	reload: async () => {
+		cachedMapList = await cmd.storeListMaps();
+		emitEvent("map-list:changed");
+	},
+	/** Refresh the map list and notify other windows of the change. @unstable */
+	invalidate: async () => {
+		await Maps.reload();
+		await tauriEmit("map-list-changed");
+	},
+	/** Set the map list directly without a disk read. @unstable */
+	setList: (list: MapMeta[]) => {
+		cachedMapList = list;
+	},
+	/** Create a new empty map and return its metadata. */
+	create: async (name: string, folder: string | null = null) => {
+		const meta = await cmd.storeCreateMap(name, folder);
+		await Maps.invalidate();
+		return meta;
+	},
+	/** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
+	duplicate: async (id: string, name: string) => {
+		const meta = await cmd.storeDuplicateMap(id, name);
+		await Maps.invalidate();
+		return meta;
+	},
+	/** Permanently delete a map and all its data. Not undoable. */
+	remove: async (id: string) => {
+		await cmd.storeDeleteMap(id);
+		await Maps.invalidate();
+		await tauriEmit("map-deleted", id);
+	},
+	/** Open the scratch map, creating it on first use. */
+	openScratch: async () => {
+		const meta = await cmd.storeScratchMap();
+		await openWindow({ type: "editor", mapId: meta.id }, meta.name);
+	},
+	/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
+	isReserved: (id: string | null): boolean => {
+		return id != null && RESERVED_MAP_IDS.has(id);
+	},
+	/** The name a copy of the map named `name` starts with. @unstable */
+	copyName: (name: string): string => {
+		return t("{name} (copy)", { name: name || t("(unnamed)") });
+	},
+	/** Rename a folder, moving all its maps to the new name. */
+	renameFolder: async (from: string, to: string) => {
+		cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
+		emitEvent("map-list:changed");
+		await cmd.storeRenameFolder(from, to);
+		await Maps.invalidate();
+	},
+	/** Move a map into a folder, or to the root when `folder` is null. */
+	moveToFolder: async (mapId: string, folder: string | null) => {
+		const idx = cachedMapList.findIndex((m) => m.id === mapId);
+		if (idx !== -1) {
+			cachedMapList = cachedMapList.map((m) => (m.id === mapId ? { ...m, folder } : m));
+			emitEvent("map-list:changed");
+		}
+		await cmd.storeUpdateMapMeta({ id: mapId, folder });
+		await tauriEmit("map-list-changed");
+	},
+	/** Delete a folder. Maps in it become unfoldered. */
+	removeFolder: async (name: string) => {
+		await cmd.storeDeleteFolder(name);
+		await Maps.invalidate();
+	},
+	/** Add a source of map-row badges. @unstable */
+	registerBadges: (source: BadgeSource) => {
+		badgeSources.push(source);
+		subscribeMany(source.events, invalidateMapBadges);
+		invalidateMapBadges();
+	},
+	/** Every registered badge source, in registration order. @unstable */
+	badgeSources: (): readonly BadgeSource[] => {
+		return badgeSources;
+	},
+	/** Badges per map id, from every registered source. @unstable */
+	badges: (): Map<string, MapBadge[]> => {
+		if (!collected) {
+			const hidden = getSettings().hiddenMapBadges;
+			collected = { hidden, badges: collectMapBadges(hidden) };
+		}
+		return collected.badges;
+	},
+	/** Reactive {@link Maps.badges}. @unstable */
+	useBadges: (): Map<string, MapBadge[]> => {
+		return useEventValue("map-badges:changed", Maps.badges);
+	},
 };
 
 subscribe("settings:changed", () => {
 	if (collected && collected.hidden !== getSettings().hiddenMapBadges) invalidateMapBadges();
 });
 
-registerMapBadges({
+Maps.registerBadges({
 	id: "pending",
 	label: msg("Uncommitted changes"),
 	events: ["map-list:changed"],

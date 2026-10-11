@@ -38,71 +38,61 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 	return cmd.storeAddLocationsUploaded(session);
 }
 
-/** Add locations to the map. Real ids are assigned and written back into the passed
- *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
-async function add(locs: Location[]) {
-	if (locs.length === 0) return;
-	const t = trace("add");
-	const r =
-		locs.length > ADD_CHUNK
-			? await Mutation.run(() => addViaUpload(locs))
-			: await Edit.locations(
-					MAP,
-					locs.map((l) => ({ set: l })),
-					null,
-				);
-	t.end({ added: locs.length });
-	if (Store.get().map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
-}
-
-/** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
-async function duplicate(id: number): Promise<number | null> {
-	const state = Store.get();
-	if (!state.map) return null;
-	const [loc] = await Query.read(
-		{ type: "Locations", locations: [id], name: null },
-		{ kind: "locations" },
-	);
-	if (!loc) return null;
-	const now = nowUnix();
-	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
-	await add([clone]);
-	return clone.id;
-}
-
-/** Remove locations by id. Undoable. */
-async function remove(ids: ReadonlyIdSet) {
-	const state = Store.get();
-	if (ids.size === 0) return;
-	if (state.open && ids.has(state.open.id)) Editor.setArea("overview");
-	emitEvent("store:changed");
-	await Edit.locations(
-		MAP,
-		[...ids].map((id) => ({ remove: id })),
-		null,
-	).catch((e) => log.error("[delete] store_edit remove failed:", e));
-}
-
-/** Patch locations by id. Only include the fields you're changing; `extra` merges
- *  per-key (null deletes a key). Undoable by default. */
-async function update(updates: Patch<Location>[]) {
-	if (updates.length === 0) return;
-	await Edit.locations(
-		MAP,
-		updates.map((put) => ({ put })),
-		null,
-	);
-}
-
-/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
-async function duplicateGroups(distance: number): Promise<number[][]> {
-	return Query.read({ type: "Everything" }, { kind: "duplicateGroups", distance });
-}
-
 export const Location = {
-	add,
-	duplicate,
-	remove,
-	update,
-	duplicateGroups,
+	/** Add locations to the map. Real ids are assigned and written back into the passed
+	 *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
+	add: async (locs: Location[]) => {
+		if (locs.length === 0) return;
+		const t = trace("add");
+		const r =
+			locs.length > ADD_CHUNK
+				? await Mutation.run(() => addViaUpload(locs))
+				: await Edit.locations(
+						MAP,
+						locs.map((l) => ({ set: l })),
+						null,
+					);
+		t.end({ added: locs.length });
+		if (Store.get().map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
+	},
+	/** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
+	duplicate: async (id: number): Promise<number | null> => {
+		const state = Store.get();
+		if (!state.map) return null;
+		const [loc] = await Query.read(
+			{ type: "Locations", locations: [id], name: null },
+			{ kind: "locations" },
+		);
+		if (!loc) return null;
+		const now = nowUnix();
+		const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
+		await Location.add([clone]);
+		return clone.id;
+	},
+	/** Remove locations by id. Undoable. */
+	remove: async (ids: ReadonlyIdSet) => {
+		const state = Store.get();
+		if (ids.size === 0) return;
+		if (state.open && ids.has(state.open.id)) Editor.setArea("overview");
+		emitEvent("store:changed");
+		await Edit.locations(
+			MAP,
+			[...ids].map((id) => ({ remove: id })),
+			null,
+		).catch((e) => log.error("[delete] store_edit remove failed:", e));
+	},
+	/** Patch locations by id. Only include the fields you're changing; `extra` merges
+	 *  per-key (null deletes a key). Undoable by default. */
+	update: async (updates: Patch<Location>[]) => {
+		if (updates.length === 0) return;
+		await Edit.locations(
+			MAP,
+			updates.map((put) => ({ put })),
+			null,
+		);
+	},
+	/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
+	duplicateGroups: async (distance: number): Promise<number[][]> => {
+		return Query.read({ type: "Everything" }, { kind: "duplicateGroups", distance });
+	},
 };

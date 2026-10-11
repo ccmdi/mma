@@ -2117,7 +2117,7 @@ Per-tag location counts, keyed by numeric id.
 `stable` · `deprecated` · since v0.11.1
 
 ```ts
-getTags(): Record<number, Tag>
+getTags(): Record<number, Tag$1>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Tag.all`.
@@ -2129,7 +2129,7 @@ Tag records, including unreferenced records and generated display defaults.
 `stable` · `deprecated` · since v0.4.0
 
 ```ts
-getVisibleTags(): Tag[]
+getVisibleTags(): Tag$1[]
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Tag.visible`.
@@ -2799,7 +2799,7 @@ useMapBadges(): Map<string, MapBadge[]>
 
 **Deprecated in v0.12.1.** Use `MMA.Maps.useBadges`.
 
-Reactive getMapBadges.
+Reactive Maps.badges.
 
 ### useMapList
 
@@ -3682,7 +3682,7 @@ Manage tag records and their assignment to locations.
 `stable` · unreleased
 
 ```ts
-Tag.all(): Record<number, Tag>
+Tag.all(): Record<number, Tag$1>
 ```
 
 Tag records, including unreferenced records and generated display defaults.
@@ -3792,7 +3792,7 @@ Update tag display records in one undoable edit.
 `stable` · unreleased
 
 ```ts
-Tag.visible(): Tag[]
+Tag.visible(): Tag$1[]
 ```
 
 Tag records referenced by at least one location.
@@ -4311,7 +4311,7 @@ Set the map list directly without a disk read.
 Maps.useBadges(): Map<string, MapBadge[]>
 ```
 
-Reactive getMapBadges.
+Reactive Maps.badges.
 
 #### Maps.useList
 

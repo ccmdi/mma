@@ -10,12 +10,6 @@ import { log } from "@/lib/util/log";
 
 export type History = bindings.History;
 
-/** Whether a history action is available for one part or for the data edit as a whole. @unstable */
-function available(history: MapState["history"], stack: Stack, key?: EntryKey): boolean {
-	if (key) return history[key]?.[stack] ?? false;
-	return Object.entries(history).some(([key, history]) => key !== "selections" && history?.[stack]);
-}
-
 /** Step through the edit history one way, closing the open location if the step removed it. */
 async function step(stack: Stack) {
 	try {
@@ -28,17 +22,20 @@ async function step(stack: Stack) {
 	}
 }
 
-/** Undo the last edit. */
-function undo() {
-	return step("undo");
-}
-/** Redo the last undone edit. */
-function redo() {
-	return step("redo");
-}
-
 export const History = {
-	available,
-	undo,
-	redo,
+	/** Whether a history action is available for one part or for the data edit as a whole. @unstable */
+	available: (history: MapState["history"], stack: Stack, key?: EntryKey): boolean => {
+		if (key) return history[key]?.[stack] ?? false;
+		return Object.entries(history).some(
+			([key, history]) => key !== "selections" && history?.[stack],
+		);
+	},
+	/** Undo the last edit. */
+	undo: () => {
+		return step("undo");
+	},
+	/** Redo the last undone edit. */
+	redo: () => {
+		return step("redo");
+	},
 };

@@ -45,11 +45,11 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const procedureEntry: \(/);
 	});
 
-	it("object method references and their implementation carry the unstable tag", () => {
+	it("domain object members carry their doc and unstable tag on the property", () => {
 		const hold = membersOf("Autosave").find((member) => member.member === "hold");
 		expect(hold).toBeDefined();
 		expect(hold?.doc).toContain("@unstable");
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare function hold\(/);
+		expect(dts).toMatch(/@unstable \*\/\n\s*hold: \(\) =>/);
 	});
 
 	it("a type only unstable members reach is unstable", () => {

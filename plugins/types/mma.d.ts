@@ -5,7 +5,7 @@ import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
 import { Command } from '@tauri-apps/plugin-shell';
-import { open as open$2, save } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import * as react from 'react';
 import { ComponentType, SetStateAction, ComponentPropsWithRef, ReactNode, ComponentProps, CSSProperties, ElementType, ReactElement } from 'react';
 import { Dialog as Dialog$1 } from '@base-ui-components/react/dialog';
@@ -3406,32 +3406,23 @@ export interface Open {
     location: Location$1 | null;
 }
 export type MapState = UiState & EngineState;
-/** Replace state fields and notify subscribers. @unstable */
-declare function patch(patch: Partial<MapState>): void;
-/** Merge derived updates, preserving null fields and removing null field values. @unstable */
-declare function merge(v: Derived): void;
-/** Reactive slice of the map state. Re-renders only when the selected value's
- *  reference changes (`Object.is`), so selectors must return state fields or
- *  memoized values, not a new value per call. */
-declare function use<T>(selector: (s: MapState) => T): T;
-/** Imperative snapshot of the map state. */
-declare function get$1(): Readonly<MapState>;
-/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
-declare function setSelected(ids: SelectedIds): void;
-/** Replace the open map's row in state; persisting it is the caller's. @unstable */
-declare function setMeta(map: MapMeta): void;
-/** Clear derived state when the map closes. @unstable */
-declare function resetDerived(): void;
 declare const Store: {
-    patch: typeof patch;
-    merge: typeof merge;
-    use: typeof use;
-    get: typeof get$1;
-    /** @unstable */
-    setSelected: typeof setSelected;
-    /** @unstable */
-    setMeta: typeof setMeta;
-    resetDerived: typeof resetDerived;
+    /** Replace state fields and notify subscribers. @unstable */
+    patch: (patch: Partial<MapState>) => void;
+    /** Merge derived updates, preserving null fields and removing null field values. @unstable */
+    merge: (v: Derived) => void;
+    /** Reactive slice of the map state. Re-renders only when the selected value's
+     *  reference changes (`Object.is`), so selectors must return state fields or
+     *  memoized values, not a new value per call. */
+    use: <T>(selector: (s: MapState) => T) => T;
+    /** Imperative snapshot of the map state. */
+    get: () => Readonly<MapState>;
+    /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
+    setSelected: (ids: SelectedIds) => void;
+    /** Replace the open map's row in state; persisting it is the caller's. @unstable */
+    setMeta: (map: MapMeta) => void;
+    /** Clear derived state when the map closes. @unstable */
+    resetDerived: () => void;
 };
 
 declare const EVENT_DEFS: {
@@ -3501,34 +3492,6 @@ export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
 export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
 export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
 
-/** Reactive list of all maps (metadata only). */
-declare function useMapList$1(): MapMeta[];
-/** The list of all maps (metadata only). */
-declare function getMapList$1(): MapMeta[];
-/** Refresh the map list from disk. @unstable */
-declare function reloadMapList$1(): Promise<void>;
-/** Refresh the map list and notify other windows of the change. @unstable */
-declare function invalidateMapList$1(): Promise<void>;
-/** Set the map list directly without a disk read. @unstable */
-declare function setCachedMapList$1(list: MapMeta[]): void;
-/** Create a new empty map and return its metadata. */
-declare function createMap$1(name: string, folder?: string | null): Promise<MapMeta>;
-/** The name a copy of the map named `name` starts with. @unstable */
-declare function copyName$1(name: string): string;
-/** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-declare function duplicateMap$1(id: string, name: string): Promise<MapMeta>;
-/** Open the scratch map, creating it on first use. */
-declare function openScratchMap$1(): Promise<void>;
-/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
-declare function isReservedMap$1(id: string | null): boolean;
-/** Permanently delete a map and all its data. Not undoable. */
-declare function deleteMap$2(id: string): Promise<void>;
-/** Rename a folder, moving all its maps to the new name. */
-declare function renameFolder$1(from: string, to: string): Promise<void>;
-/** Move a map into a folder, or to the root when `folder` is null. */
-declare function moveMapToFolder$1(mapId: string, folder: string | null): Promise<void>;
-/** Delete a folder. Maps in it become unfoldered. */
-declare function deleteFolder$1(name: string): Promise<void>;
 /** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
 export type MapBadge = {
     key: string;
@@ -3549,56 +3512,51 @@ export interface BadgeSource {
     /** Yields the badges to show, each paired with its map id. */
     collect(): Iterable<[mapId: string, badge: MapBadge]>;
 }
-/** Add a source of map-row badges. @unstable */
-declare function registerMapBadges$1(source: BadgeSource): void;
-/** Every registered badge source, in registration order. @unstable */
-declare function getMapBadgeSources$1(): readonly BadgeSource[];
-/** Badges per map id, from every registered source. @unstable */
-declare function getMapBadges$1(): Map<string, MapBadge[]>;
-/** Reactive {@link getMapBadges}. @unstable */
-declare function useMapBadges$1(): Map<string, MapBadge[]>;
-/** One-time store startup. The app calls this; plugins never need to. @unstable */
-declare function init(): Promise<void>;
-/** Open a map in this window, closing any currently open map first. */
-declare function open$1(id: string): Promise<void>;
-/** Close the open map, saving unsaved changes first. */
-declare function close$1(): Promise<void>;
-/** Drop the open map without persisting anything @unstable */
-declare function discard(): void;
 declare const Maps: {
-    /** @unstable */
-    init: typeof init;
-    open: typeof open$1;
-    close: typeof close$1;
-    /** @unstable */
-    discard: typeof discard;
-    useList: typeof useMapList$1;
-    list: typeof getMapList$1;
-    /** @unstable */
-    reload: typeof reloadMapList$1;
-    /** @unstable */
-    invalidate: typeof invalidateMapList$1;
-    /** @unstable */
-    setList: typeof setCachedMapList$1;
-    create: typeof createMap$1;
-    duplicate: typeof duplicateMap$1;
-    remove: typeof deleteMap$2;
-    openScratch: typeof openScratchMap$1;
-    /** @unstable */
-    isReserved: typeof isReservedMap$1;
-    /** @unstable */
-    copyName: typeof copyName$1;
-    renameFolder: typeof renameFolder$1;
-    moveToFolder: typeof moveMapToFolder$1;
-    removeFolder: typeof deleteFolder$1;
-    /** @unstable */
-    registerBadges: typeof registerMapBadges$1;
-    /** @unstable */
-    badgeSources: typeof getMapBadgeSources$1;
-    /** @unstable */
-    badges: typeof getMapBadges$1;
-    /** @unstable */
-    useBadges: typeof useMapBadges$1;
+    /** One-time store startup. The app calls this; plugins never need to. @unstable */
+    init: () => Promise<void>;
+    /** Open a map in this window, closing any currently open map first. */
+    open: (id: string) => Promise<void>;
+    /** Close the open map, saving unsaved changes first. */
+    close: () => Promise<void>;
+    /** Drop the open map without persisting anything @unstable */
+    discard: () => void;
+    /** Reactive list of all maps (metadata only). */
+    useList: () => MapMeta[];
+    /** The list of all maps (metadata only). */
+    list: () => MapMeta[];
+    /** Refresh the map list from disk. @unstable */
+    reload: () => Promise<void>;
+    /** Refresh the map list and notify other windows of the change. @unstable */
+    invalidate: () => Promise<void>;
+    /** Set the map list directly without a disk read. @unstable */
+    setList: (list: MapMeta[]) => void;
+    /** Create a new empty map and return its metadata. */
+    create: (name: string, folder?: string | null) => Promise<MapMeta>;
+    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
+    duplicate: (id: string, name: string) => Promise<MapMeta>;
+    /** Permanently delete a map and all its data. Not undoable. */
+    remove: (id: string) => Promise<void>;
+    /** Open the scratch map, creating it on first use. */
+    openScratch: () => Promise<void>;
+    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
+    isReserved: (id: string | null) => boolean;
+    /** The name a copy of the map named `name` starts with. @unstable */
+    copyName: (name: string) => string;
+    /** Rename a folder, moving all its maps to the new name. */
+    renameFolder: (from: string, to: string) => Promise<void>;
+    /** Move a map into a folder, or to the root when `folder` is null. */
+    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
+    /** Delete a folder. Maps in it become unfoldered. */
+    removeFolder: (name: string) => Promise<void>;
+    /** Add a source of map-row badges. @unstable */
+    registerBadges: (source: BadgeSource) => void;
+    /** Every registered badge source, in registration order. @unstable */
+    badgeSources: () => readonly BadgeSource[];
+    /** Badges per map id, from every registered source. @unstable */
+    badges: () => Map<string, MapBadge[]>;
+    /** Reactive {@link Maps.badges}. @unstable */
+    useBadges: () => Map<string, MapBadge[]>;
 };
 
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
@@ -3609,37 +3567,20 @@ export type Payload<T> = {
 }[keyof T];
 export type Materialized<T> = T extends LocationList ? Location$1[] : T;
 export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
-/** Ask one question about the locations `selector` matches. A full-location answer loads any
- *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
-declare function read$1<A extends Ask>(selector: Selector, ask: A, target?: Target): Promise<ReadResult<AnswerOf<A["kind"]>>>;
-/** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
-declare function locationsOf$1(list: LocationList): Promise<Location$1[]>;
 declare const Query: {
-    read: typeof read$1;
-    locationsOf: typeof locationsOf$1;
+    /** Ask one question about the locations `selector` matches. A full-location answer loads any
+     *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
+    read: <A extends Ask>(selector: Selector, ask: A, target?: Target) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
+    /** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
+    locationsOf: (list: LocationList) => Promise<Location$1[]>;
 };
 
-declare function settle(m: Mutation): Promise<void>;
-declare function run<R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]): Promise<R>;
 type Mutation<T = Location$1> = Mutation$1<T>;
 declare const Mutation: {
-    settle: typeof settle;
-    run: typeof run;
+    settle: (m: Mutation) => Promise<void>;
+    run: <R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]) => Promise<R>;
 };
 
-/** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
-declare function applySelectionUpdate$1(op: SelectionOp): Promise<void>;
-/** Undo the last selection change without undoing data edits. @unstable */
-declare function restoreSelections$1(): Promise<void>;
-/** Redo the last undone selection change without redoing data edits. @unstable */
-declare function redoSelections$1(): Promise<void>;
-/** @unstable */
-declare function select$1<R extends number[] | {
-    ids: number[];
-}>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean): Promise<{
-    picked: number;
-    results: R[];
-}>;
 /** @unstable */
 declare const SelectionList: {
     /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
@@ -3648,206 +3589,152 @@ declare const SelectionList: {
     tagIdsDeep: () => readonly number[];
     /** Listed selections that are not ghosted. @unstable */
     active: () => Selection[];
+    /** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
+    update: (op: SelectionOp) => Promise<void>;
+    /** Undo the last selection change without undoing data edits. @unstable */
+    undo: () => Promise<void>;
+    /** Redo the last undone selection change without redoing data edits. @unstable */
+    redo: () => Promise<void>;
     /** @unstable */
-    update: typeof applySelectionUpdate$1;
-    /** @unstable */
-    undo: typeof restoreSelections$1;
-    /** @unstable */
-    redo: typeof redoSelections$1;
-    /** @unstable */
-    select: typeof select$1;
+    select: <R extends number[] | {
+        ids: number[];
+    }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean) => Promise<{
+        picked: number;
+        results: R[];
+    }>;
 };
 
-/** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-declare function hold(): () => void;
-/** Schedule a debounced autosave. Mutations call this automatically. @unstable */
-declare function schedule(): void;
-/** Cancel any pending autosave timer. @unstable */
-declare function cancel(): void;
-/** Wait for any in-progress save to finish. @unstable */
-declare function waitForInflight(): Promise<void> | null;
-/** Background auto-commit after an import with autoCommit set. @unstable */
-declare function scheduleAutoCommit(mapId: string, importedCount: number): void;
-/** Save any unsaved changes now instead of waiting for the timer. @unstable */
-declare function flush(): Promise<void>;
 declare const Autosave: {
-    /** @unstable */
-    hold: typeof hold;
-    /** @unstable */
-    schedule: typeof schedule;
-    /** @unstable */
-    cancel: typeof cancel;
-    /** @unstable */
-    waitForInflight: typeof waitForInflight;
-    /** @unstable */
-    scheduleAutoCommit: typeof scheduleAutoCommit;
-    /** @unstable */
-    flush: typeof flush;
+    /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
+    hold: () => (() => void);
+    /** Schedule a debounced autosave. Mutations call this automatically. @unstable */
+    schedule: () => void;
+    /** Cancel any pending autosave timer. @unstable */
+    cancel: () => void;
+    /** Wait for any in-progress save to finish. @unstable */
+    waitForInflight: () => Promise<void> | null;
+    /** Background auto-commit after an import with autoCommit set. @unstable */
+    scheduleAutoCommit: (mapId: string, importedCount: number) => void;
+    /** Save any unsaved changes now instead of waiting for the timer. @unstable */
+    flush: () => Promise<void>;
 };
 
-/** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
-declare function locations(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>): Promise<MutationResult<Location$1>>;
-/** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
-declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
-    id?: string;
-}): Promise<void>;
-/** Edit an interned field's value records in one undoable step. */
-declare function values(...[field, edits]: Parameters<typeof cmd.storeEditValues>): Promise<MutationResult<ValueRecord>>;
-/** Run `op` across every location `selector` matches, in one undoable step. @unstable */
-declare function work(selector: Selector, op: Work): Promise<WorkResult>;
 declare const Edit: {
-    /** @unstable */
-    locations: typeof locations;
-    meta: typeof meta;
-    values: typeof values;
-    /** @unstable */
-    work: typeof work;
+    /** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
+    locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<Location$1>>;
+    /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
+    meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
+        id?: string;
+    }) => Promise<void>;
+    /** Edit an interned field's value records in one undoable step. */
+    values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => Promise<MutationResult<ValueRecord>>;
+    /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
+    work: (selector: Selector, op: Work) => Promise<WorkResult>;
 };
 
-/** Look up a tag record, including unreferenced tags. */
-declare function get(id: number): Tag | undefined;
-/** Tag names for the given ids, skipping any that no longer resolve. */
-declare function names(ids: number[]): string[];
-/** Remove tags from every location in one undoable step.
- * Unreferenced tags are hidden; undo restores them. */
-declare function remove$2(tagIds: number[]): Promise<WorkResult>;
-/** Update tag display records in one undoable edit. */
-declare function update$1(updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]): Promise<MutationResult<ValueRecord>>;
-/** Get or create tag records by name and return their ids. */
-declare function create$1(records: Omit<ValueRecord, "id">[]): Promise<number[]>;
-/** Set tag display order from an ordered list of ids. */
-declare function reorder(ids: number[]): Promise<MutationResult<ValueRecord>>;
-/** Move matching locations to a tag with the given name, optionally within a selector. */
-declare function rename$1(ids: number[], name: string, scope?: Selector | null): Promise<void>;
-/** Get or create tag records and assign them to matching locations. */
-declare function assign(selector: Selector, records: Omit<ValueRecord, "id">[]): Promise<WorkResult>;
 export type Tag = Tag$1;
 declare const Tag: {
     /** Per-tag location counts, keyed by numeric id. */
     counts: () => Record<number, number>;
     /** Tag records, including unreferenced records and generated display defaults. */
-    all: () => Record<number, Tag>;
+    all: () => Record<number, Tag$1>;
     /** Tag records referenced by at least one location. */
-    visible: () => Tag[];
-    get: typeof get;
-    names: typeof names;
-    remove: typeof remove$2;
-    update: typeof update$1;
-    create: typeof create$1;
-    reorder: typeof reorder;
-    rename: typeof rename$1;
-    assign: typeof assign;
+    visible: () => Tag$1[];
+    /** Look up a tag record, including unreferenced tags. */
+    get: (id: number) => Tag | undefined;
+    /** Tag names for the given ids, skipping any that no longer resolve. */
+    names: (ids: number[]) => string[];
+    /** Remove tags from every location in one undoable step.
+     * Unreferenced tags are hidden; undo restores them. */
+    remove: (tagIds: number[]) => Promise<WorkResult>;
+    /** Update tag display records in one undoable edit. */
+    update: (updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]) => Promise<MutationResult<ValueRecord>>;
+    /** Get or create tag records by name and return their ids. */
+    create: (records: Omit<ValueRecord, "id">[]) => Promise<number[]>;
+    /** Set tag display order from an ordered list of ids. */
+    reorder: (ids: number[]) => Promise<MutationResult<ValueRecord>>;
+    /** Move matching locations to a tag with the given name, optionally within a selector. */
+    rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
+    /** Get or create tag records and assign them to matching locations. */
+    assign: (selector: Selector, records: Omit<ValueRecord, "id">[]) => Promise<WorkResult>;
 };
 
-/** Add locations to the map. Real ids are assigned and written back into the passed
- *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
-declare function add(locs: Location[]): Promise<void>;
-/** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
-declare function duplicate(id: number): Promise<number | null>;
-/** Remove locations by id. Undoable. */
-declare function remove$1(ids: ReadonlyIdSet): Promise<void>;
-/** Patch locations by id. Only include the fields you're changing; `extra` merges
- *  per-key (null deletes a key). Undoable by default. */
-declare function update(updates: Patch<Location>[]): Promise<void>;
-/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
-declare function duplicateGroups(distance: number): Promise<number[][]>;
 type Location = Location$1;
 declare const Location: {
-    add: typeof add;
-    duplicate: typeof duplicate;
-    remove: typeof remove$1;
-    update: typeof update;
-    /** @unstable */
-    duplicateGroups: typeof duplicateGroups;
+    /** Add locations to the map. Real ids are assigned and written back into the passed
+     *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
+    add: (locs: Location[]) => Promise<void>;
+    /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
+    duplicate: (id: number) => Promise<number | null>;
+    /** Remove locations by id. Undoable. */
+    remove: (ids: ReadonlyIdSet) => Promise<void>;
+    /** Patch locations by id. Only include the fields you're changing; `extra` merges
+     *  per-key (null deletes a key). Undoable by default. */
+    update: (updates: Patch<Location>[]) => Promise<void>;
+    /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
+    duplicateGroups: (distance: number) => Promise<number[][]>;
 };
 
-/** Set the open location if `session` is still current. */
-declare function setLocation(location: Location$1 | null, session: number): void;
-/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
-declare function openImport(index: number): Promise<void>;
-/** Open an arbitrary location read-only as a seen-preview: loads its pano without
- *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
-declare function preview(loc: Location$1): void;
-/** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
-declare function resolve(m: MaybeLocation): Promise<Location$1 | null>;
-/** Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
- *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
- *  supersedes one still loading. */
-declare function open(target: MaybeLocation, checkDuplicates?: boolean): Promise<void>;
-/** Close the open location and return to the pane it was opened from. */
-declare function close(): void;
-/** Open one location from the duplicate-resolution panel in the editor. @unstable */
-declare function openDuplicate(loc: Location$1): void;
-/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
-declare function removeDuplicate$1(id: number): void;
-/** Close the duplicate-resolution panel and return to the overview. @unstable */
-declare function closeDuplicates$1(): void;
-/** Transition the editor pane, enforcing state invariants:
- *  leaving "location" closes the open location, leaving "plugin" clears the plugin id. @unstable */
-declare function setArea(area: WorkArea): void;
-/** Open a plugin's sidebar (switches the editor pane to "plugin"). */
-declare function openPlugin(pluginId: string): void;
-/** Close the plugin sidebar and return to the overview. */
-declare function closePlugin(): void;
 declare const Editor: {
     VIEWER: {
         readonly kind: "pending";
         readonly name: "viewer";
     };
-    setLocation: typeof setLocation;
-    /** @unstable */
-    openImport: typeof openImport;
-    /** @unstable */
-    preview: typeof preview;
-    resolve: typeof resolve;
-    open: typeof open;
-    close: typeof close;
-    /** @unstable */
-    openDuplicate: typeof openDuplicate;
-    /** @unstable */
-    removeDuplicate: typeof removeDuplicate$1;
-    /** @unstable */
-    closeDuplicates: typeof closeDuplicates$1;
-    /** @unstable */
-    setArea: typeof setArea;
-    openPlugin: typeof openPlugin;
-    closePlugin: typeof closePlugin;
+    /** Set the open location if `session` is still current. */
+    setLocation: (location: Location$1 | null, session: number) => void;
+    /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
+    openImport: (index: number) => Promise<void>;
+    /** Open an arbitrary location read-only as a seen-preview: loads its pano without
+     *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
+    preview: (loc: Location$1) => void;
+    /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
+    resolve: (m: MaybeLocation) => Promise<Location$1 | null>;
+    /** Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+     *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
+     *  supersedes one still loading. */
+    open: (target: MaybeLocation, checkDuplicates?: boolean) => Promise<void>;
+    /** Close the open location and return to the pane it was opened from. */
+    close: () => void;
+    /** Open one location from the duplicate-resolution panel in the editor. @unstable */
+    openDuplicate: (loc: Location$1) => void;
+    /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
+    removeDuplicate: (id: number) => void;
+    /** Close the duplicate-resolution panel and return to the overview. @unstable */
+    closeDuplicates: () => void;
+    /** Transition the editor pane, enforcing state invariants:
+     *  leaving "location" closes the open location, leaving "plugin" clears the plugin id. @unstable */
+    setArea: (area: WorkArea) => void;
+    /** Open a plugin's sidebar (switches the editor pane to "plugin"). */
+    openPlugin: (pluginId: string) => void;
+    /** Close the plugin sidebar and return to the overview. */
+    closePlugin: () => void;
 };
 
-/** Whether a history action is available for one part or for the data edit as a whole. @unstable */
-declare function available(history: MapState["history"], stack: Stack, key?: EntryKey): boolean;
-/** Undo the last edit. */
-declare function undo$1(): Promise<void>;
-/** Redo the last undone edit. */
-declare function redo$1(): Promise<void>;
 type History = History$1;
 declare const History: {
-    /** @unstable */
-    available: typeof available;
-    undo: typeof undo$1;
-    redo: typeof redo$1;
+    /** Whether a history action is available for one part or for the data edit as a whole. @unstable */
+    available: (history: MapState["history"], stack: Stack, key?: EntryKey) => boolean;
+    /** Undo the last edit. */
+    undo: () => Promise<void>;
+    /** Redo the last undone edit. */
+    redo: () => Promise<void>;
 };
 
-/** Commit all pending changes to the map's version history. Clears the undo stack. */
-declare function create(message?: string): Promise<string>;
-/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
-declare function checkout(commitId: string): Promise<void>;
 declare const Commit: {
-    create: typeof create;
-    /** @unstable */
-    checkout: typeof checkout;
+    /** Commit all pending changes to the map's version history. Clears the undo stack. */
+    create: (message?: string) => Promise<string>;
+    /** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
+    checkout: (commitId: string) => Promise<void>;
 };
 
-/** Rename extra-field `from` to `to` across all locations, its definition, and the listed
- *  selections, in one undoable step. When a location already holds `to`, `winner` decides
- *  which value survives. Saved selections are map-independent rules and keep their names. */
-declare function rename(from: string, to: string, winner?: MergeWinner): Promise<void>;
-/** Delete extra-field `key` from every location, its definition, and the listed selections,
- *  in one undoable step. */
-declare function remove(key: string): Promise<void>;
 declare const Field$1: {
-    rename: typeof rename;
-    remove: typeof remove;
+    /** Rename extra-field `from` to `to` across all locations, its definition, and the listed
+     *  selections, in one undoable step. When a location already holds `to`, `winner` decides
+     *  which value survives. Saved selections are map-independent rules and keep their names. */
+    rename: (from: string, to: string, winner?: MergeWinner) => Promise<void>;
+    /** Delete extra-field `key` from every location, its definition, and the listed selections,
+     *  in one undoable step. */
+    remove: (key: string) => Promise<void>;
 };
 
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
@@ -5364,7 +5251,7 @@ declare const shell: {
 /** @unstable */
 declare const dialog: {
     /** @unstable */
-    open: typeof open$2;
+    open: typeof open;
     /** @unstable */
     save: typeof save;
 };
@@ -7638,16 +7525,12 @@ declare const legacy_addLocations: typeof addLocations;
 declare const legacy_addSelections: typeof addSelections;
 /** @unstable */
 declare const legacy_addTagToLocations: typeof addTagToLocations;
-/** @unstable */
 declare const legacy_applySelectionUpdate: typeof applySelectionUpdate;
 declare const legacy_autosave: typeof autosave;
-/** @unstable */
 declare const legacy_checkoutCommit: typeof checkoutCommit;
-/** @unstable */
 declare const legacy_closeDuplicates: typeof closeDuplicates;
 declare const legacy_closeLocation: typeof closeLocation;
 declare const legacy_commitMap: typeof commitMap;
-/** @unstable */
 declare const legacy_copyName: typeof copyName;
 /** @unstable */
 declare const legacy_countBy: typeof countBy;
@@ -7663,7 +7546,6 @@ declare const legacy_currentSelection: typeof currentSelection;
 declare const legacy_deleteField: typeof deleteField;
 declare const legacy_deleteFolder: typeof deleteFolder;
 declare const legacy_deleteTags: typeof deleteTags;
-/** @unstable */
 declare const legacy_discardOpenMap: typeof discardOpenMap;
 declare const legacy_duplicateLocation: typeof duplicateLocation;
 declare const legacy_duplicateMap: typeof duplicateMap;
@@ -7700,9 +7582,7 @@ declare const legacy_getDirtyCount: typeof getDirtyCount;
 declare const legacy_getGhostedSelections: typeof getGhostedSelections;
 /** @unstable */
 declare const legacy_getGoogleMap: typeof getGoogleMap;
-/** @unstable */
 declare const legacy_getMapBadgeSources: typeof getMapBadgeSources;
-/** @unstable */
 declare const legacy_getMapBadges: typeof getMapBadges;
 declare const legacy_getMapList: typeof getMapList;
 declare const legacy_getMapState: typeof getMapState;
@@ -7718,46 +7598,34 @@ declare const legacy_getTags: typeof getTags;
 declare const legacy_getVisibleTags: typeof getVisibleTags;
 /** @unstable */
 declare const legacy_getWorkArea: typeof getWorkArea;
-/** @unstable */
 declare const legacy_historyAvailable: typeof historyAvailable;
-/** @unstable */
 declare const legacy_initStore: typeof initStore;
 /** @unstable */
 declare const legacy_installedVersion: typeof installedVersion;
-/** @unstable */
 declare const legacy_invalidateMapList: typeof invalidateMapList;
-/** @unstable */
 declare const legacy_isReservedMap: typeof isReservedMap;
 declare const legacy_locationsOf: typeof locationsOf;
 declare const legacy_moveMapToFolder: typeof moveMapToFolder;
 declare const legacy_mutate: typeof mutate;
-/** @unstable */
 declare const legacy_openDuplicateLocation: typeof openDuplicateLocation;
 declare const legacy_openLocation: typeof openLocation;
 declare const legacy_openScratchMap: typeof openScratchMap;
-/** @unstable */
 declare const legacy_openStagedLocation: typeof openStagedLocation;
 /** @unstable */
 declare const legacy_partition: typeof partition;
-/** @unstable */
 declare const legacy_previewDuplicateGroups: typeof previewDuplicateGroups;
-/** @unstable */
 declare const legacy_previewLocation: typeof previewLocation;
 /** @unstable */
 declare const legacy_query: typeof query;
 declare const legacy_read: typeof read;
 declare const legacy_redo: typeof redo;
-/** @unstable */
 declare const legacy_redoSelections: typeof redoSelections;
 /** @unstable */
 declare const legacy_registerEnrichFields: typeof registerEnrichFields;
 /** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
-/** @unstable */
 declare const legacy_registerMapBadges: typeof registerMapBadges;
-/** @unstable */
 declare const legacy_reloadMapList: typeof reloadMapList;
-/** @unstable */
 declare const legacy_removeDuplicate: typeof removeDuplicate;
 declare const legacy_removeLocations: typeof removeLocations;
 /** @unstable */
@@ -7775,30 +7643,24 @@ declare const legacy_resetSelections: typeof resetSelections;
 /** @unstable */
 declare const legacy_resolveIds: typeof resolveIds;
 declare const legacy_resolveLocation: typeof resolveLocation;
-/** @unstable */
 declare const legacy_restoreSelections: typeof restoreSelections;
 /** @unstable */
 declare const legacy_sampleFrom: typeof sampleFrom;
 declare const legacy_select: typeof select;
 /** @unstable */
 declare const legacy_setActiveLocation: typeof setActiveLocation;
-/** @unstable */
 declare const legacy_setCachedMapList: typeof setCachedMapList;
-/** @unstable */
 declare const legacy_setMap: typeof setMap;
 declare const legacy_setOpenLocation: typeof setOpenLocation;
 declare const legacy_setPluginMode: typeof setPluginMode;
-/** @unstable */
 declare const legacy_setSelectedLocationIds: typeof setSelectedLocationIds;
 /** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
-/** @unstable */
 declare const legacy_setWorkArea: typeof setWorkArea;
 declare const legacy_settled: typeof settled;
 declare const legacy_tagIdsToNames: typeof tagIdsToNames;
 declare const legacy_undo: typeof undo;
 declare const legacy_updateLocations: typeof updateLocations;
-/** @unstable */
 declare const legacy_useMapBadges: typeof useMapBadges;
 declare const legacy_useMapList: typeof useMapList;
 declare const legacy_useMapState: typeof useMapState;

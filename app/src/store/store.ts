@@ -60,55 +60,49 @@ const INITIAL_STATE: MapState = {
 
 let state: MapState = INITIAL_STATE;
 
-/** Replace state fields and notify subscribers. @unstable */
-function patch(patch: Partial<MapState>) {
-	state = { ...state, ...patch };
-	emitEvent("store:changed");
-}
-
-/** Merge derived updates, preserving null fields and removing null field values. @unstable */
-function merge(v: Derived) {
-	const { fieldValues, meta, ...rest } = v;
-	if (meta && state.map) state = { ...state, map: { ...state.map, ...meta } };
-	state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
-	if (!fieldValues) return;
-	const merged = { ...state.fieldValues };
-	for (const [field, values] of Object.entries(fieldValues)) {
-		const next = { ...merged[field] };
-		for (const [key, value] of Object.entries(values)) {
-			if (value) next[key] = value;
-			else delete next[key];
+export const Store = {
+	/** Replace state fields and notify subscribers. @unstable */
+	patch: (patch: Partial<MapState>) => {
+		state = { ...state, ...patch };
+		emitEvent("store:changed");
+	},
+	/** Merge derived updates, preserving null fields and removing null field values. @unstable */
+	merge: (v: Derived) => {
+		const { fieldValues, meta, ...rest } = v;
+		if (meta && state.map) state = { ...state, map: { ...state.map, ...meta } };
+		state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
+		if (!fieldValues) return;
+		const merged = { ...state.fieldValues };
+		for (const [field, values] of Object.entries(fieldValues)) {
+			const next = { ...merged[field] };
+			for (const [key, value] of Object.entries(values)) {
+				if (value) next[key] = value;
+				else delete next[key];
+			}
+			merged[field] = next;
 		}
-		merged[field] = next;
-	}
-	state = { ...state, fieldValues: merged };
-}
-
-/** Reactive slice of the map state. Re-renders only when the selected value's
- *  reference changes (`Object.is`), so selectors must return state fields or
- *  memoized values, not a new value per call. */
-function use<T>(selector: (s: MapState) => T): T {
-	return useEventValue("store:changed", () => selector(state));
-}
-
-/** Imperative snapshot of the map state. */
-function get(): Readonly<MapState> {
-	return state;
-}
-
-/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
-function setSelected(ids: SelectedIds) {
-	patch({ selectedLocationIds: ids });
-}
-
-/** Replace the open map's row in state; persisting it is the caller's. @unstable */
-function setMeta(map: MapMeta) {
-	patch({ map });
-}
-
-/** Clear derived state when the map closes. @unstable */
-function resetDerived() {
-	patch(ENGINE_INITIAL);
-}
-
-export const Store = { patch, merge, use, get, setSelected, setMeta, resetDerived };
+		state = { ...state, fieldValues: merged };
+	},
+	/** Reactive slice of the map state. Re-renders only when the selected value's
+	 *  reference changes (`Object.is`), so selectors must return state fields or
+	 *  memoized values, not a new value per call. */
+	use: <T>(selector: (s: MapState) => T): T => {
+		return useEventValue("store:changed", () => selector(state));
+	},
+	/** Imperative snapshot of the map state. */
+	get: (): Readonly<MapState> => {
+		return state;
+	},
+	/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
+	setSelected: (ids: SelectedIds) => {
+		Store.patch({ selectedLocationIds: ids });
+	},
+	/** Replace the open map's row in state; persisting it is the caller's. @unstable */
+	setMeta: (map: MapMeta) => {
+		Store.patch({ map });
+	},
+	/** Clear derived state when the map closes. @unstable */
+	resetDerived: () => {
+		Store.patch(ENGINE_INITIAL);
+	},
+};
