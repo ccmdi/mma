@@ -8,7 +8,7 @@ import { formatDistance } from "@/lib/util/format";
 import { Flag } from "@/components/primitives/Flag";
 import { TagButton } from "./TagButton";
 import { useStartingThumbnails } from "./storage";
-import { loadSeenPano } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import type { RoundResult } from "./game";
 import { ReplayMap } from "./ReplayMap";
@@ -30,7 +30,7 @@ export function Summary({
 	const pano = usePano();
 	const [highlighted, setHighlighted] = useState<number | null>(null);
 	const openRound = ({ location, truth }: RoundResult) =>
-		void loadSeenPano(
+		void Seen.loadPano(
 			{
 				locationId: location.id,
 				panoId: location.panoId,

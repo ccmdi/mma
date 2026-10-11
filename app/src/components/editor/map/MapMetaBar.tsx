@@ -14,7 +14,7 @@ import { SeenDialog } from "@/components/dialogs/SeenDialog";
 import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
 import { SaveAsDialog } from "@/components/editor/SaveAsDialog";
-import { loadSeenPano } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import { Button } from "@/components/primitives/Button";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
@@ -118,7 +118,7 @@ export function MapMetaBar() {
 				<SeenDialog
 					open
 					onOpenChange={setShowSeen}
-					onLoadPano={(entry) => void loadSeenPano(entry, pano)}
+					onLoadPano={(entry) => void Seen.loadPano(entry, pano)}
 				/>
 			)}
 			{showCopyToMap && <CopyToMapDialog open onOpenChange={setShowCopyToMap} />}

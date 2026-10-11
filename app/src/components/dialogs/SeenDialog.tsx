@@ -10,13 +10,7 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { NSelect } from "@/components/primitives/NSelect";
 import { Button } from "@/components/primitives/Button";
 import { Flag } from "@/components/primitives/Flag";
-import {
-	getSeenEntries,
-	getSeenCount,
-	clearSeen,
-	getSeenCountries,
-	getSeenMaps,
-} from "@/lib/seen/seen";
+import { Seen } from "@/lib/seen/seen";
 import { dayMonthFmt } from "@/lib/util/format";
 import { getLocale, t } from "@/lib/i18n";
 import type { SeenEntry, SeenFilter } from "@/bindings.gen";
@@ -91,8 +85,8 @@ export function SeenDialog({
 	const load = useCallback(async (p: number, filter?: SeenFilter) => {
 		setLoading(true);
 		const [rows, count] = await Promise.all([
-			getSeenEntries(PAGE_SIZE, p * PAGE_SIZE, filter),
-			getSeenCount(filter),
+			Seen.entries(PAGE_SIZE, p * PAGE_SIZE, filter),
+			Seen.count(filter),
 		]);
 		setEntries(rows);
 		setTotal(count);
@@ -108,8 +102,8 @@ export function SeenDialog({
 			setFilterSearch("");
 			void Promise.all([
 				load(0),
-				getSeenCountries().then(setCountries),
-				getSeenMaps().then(setMaps),
+				Seen.countries().then(setCountries),
+				Seen.maps().then(setMaps),
 			]).then(() => setReady(true));
 		}
 	}, [open, load]);
@@ -134,7 +128,7 @@ export function SeenDialog({
 	};
 
 	const handleClear = async () => {
-		await clearSeen();
+		await Seen.clear();
 		setEntries([]);
 		setTotal(0);
 	};

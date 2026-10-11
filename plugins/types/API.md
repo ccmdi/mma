@@ -50,8 +50,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Scope](#scope)
 - [FieldProjections](#fieldprojections)
 - [Procedures](#procedures)
-- [Seen](#seen)
-- [SeenRecorder](#seenrecorder)
 - [Pano](#pano)
 - [Enrich](#enrich)
 - [Providers](#providers)
@@ -70,6 +68,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Scene](#scene)
 - [MapHost](#maphost)
 - [Review](#review)
+- [Seen](#seen)
 
 ## Consts
 
@@ -7636,136 +7635,6 @@ runProviders<C extends readonly unknown[]>(
 Run a set of providers over the locations `selector` matches and write their results back.
 Resolves once every provider finishes, or on abort.
 
-## Seen
-
-The seen-location history.
-
-### clearSeen
-
-`unstable` · since v0.4.0
-
-```ts
-clearSeen(): Promise<void>
-```
-
-Delete the entire seen history. Not undoable.
-
-### getSeenCount
-
-`unstable` · since v0.4.0
-
-```ts
-getSeenCount(filter?: SeenFilter): Promise<number>
-```
-
-Number of seen entries matching the filter (all when omitted).
-
-### getSeenCountries
-
-`unstable` · since v0.10.3
-
-```ts
-getSeenCountries(): Promise<string[]>
-```
-
-Distinct country codes that appear in the seen history.
-
-### getSeenEntries
-
-`unstable` · since v0.4.0
-
-```ts
-getSeenEntries(
-  limit?: number,
-  offset?: number,
-  filter?: SeenFilter,
-  thumbnails?: boolean,
-): Promise<SeenEntry[]>
-```
-
-Fetch a page of the seen (visited-panorama) history.
-
-### getSeenMaps
-
-`unstable` · since v0.10.3
-
-```ts
-getSeenMaps(): Promise<SeenMapInfo[]>
-```
-
-Maps that have seen-history entries.
-
-## SeenRecorder
-
-How the app records panorama visits into the seen history.
-
-### loadSeenPano
-
-`unstable` · since v0.4.0
-
-```ts
-loadSeenPano(entry: SeenPano, viewer: PanoViewer): Promise<void>
-```
-
-Open a seen entry's panorama in the Street View viewer.
-
-### seenFlush
-
-`unstable` · since v0.10.3
-
-```ts
-seenFlush(viewer: PanoViewer): void
-```
-
-Write the pending seen entry to disk, if any.
-
-### seenPanoChanged
-
-`unstable` · since v0.10.3
-
-```ts
-seenPanoChanged(
-  location: PendingEntryLocation,
-  geo: GeoDisplay | null,
-  viewer: PanoViewer,
-): void
-```
-
-Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
-
-### seenRecord
-
-`unstable` · since v0.11.0
-
-```ts
-seenRecord(
-  location: PendingEntryLocation & LocationPOV,
-  viewer: PanoViewer,
-): Promise<void>
-```
-
-Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
-
-### seenSkipNext
-
-`unstable` · since v0.10.3
-
-```ts
-seenSkipNext(panoId: string): void
-```
-
-Suppress the next seen-history entry for `panoId`.
-
-### seenUpdateGeo
-
-`unstable` · since v0.10.3
-
-```ts
-seenUpdateGeo(geo: GeoDisplay): void
-```
-
-Update the pending seen entry's geocode info (country, address).
-
 ## Pano
 
 The shared panorama viewer.
@@ -9829,3 +9698,133 @@ Review.useSession(): ReviewSession | null
 ```
 
 Reactive active review session, or null.
+
+## Seen
+
+### Seen
+
+`unstable` · unreleased
+
+The seen-location history and how panorama visits are recorded into it.
+
+#### Seen.clear
+
+`unstable` · unreleased
+
+```ts
+Seen.clear(): Promise<void>
+```
+
+Delete the entire seen history. Not undoable.
+
+#### Seen.count
+
+`unstable` · unreleased
+
+```ts
+Seen.count(filter?: SeenFilter): Promise<number>
+```
+
+Number of seen entries matching the filter (all when omitted).
+
+#### Seen.countries
+
+`unstable` · unreleased
+
+```ts
+Seen.countries(): Promise<string[]>
+```
+
+Distinct country codes that appear in the seen history.
+
+#### Seen.entries
+
+`unstable` · unreleased
+
+```ts
+Seen.entries(
+  limit?: number,
+  offset?: number,
+  filter?: SeenFilter,
+  thumbnails?: boolean,
+): Promise<SeenEntry[]>
+```
+
+Fetch a page of the seen (visited-panorama) history.
+
+#### Seen.flush
+
+`unstable` · unreleased
+
+```ts
+Seen.flush(viewer: PanoViewer): void
+```
+
+Write the pending seen entry to disk, if any.
+
+#### Seen.loadPano
+
+`unstable` · unreleased
+
+```ts
+Seen.loadPano(entry: SeenPano, viewer: PanoViewer): Promise<void>
+```
+
+Open a seen entry's panorama in the Street View viewer.
+
+#### Seen.maps
+
+`unstable` · unreleased
+
+```ts
+Seen.maps(): Promise<SeenMapInfo[]>
+```
+
+Maps that have seen-history entries.
+
+#### Seen.panoChanged
+
+`unstable` · unreleased
+
+```ts
+Seen.panoChanged(
+  location: PendingEntryLocation,
+  geo: GeoDisplay | null,
+  viewer: PanoViewer,
+): void
+```
+
+Record a panorama change for the seen history. Flushes the previous entry and stages the new one.
+
+#### Seen.record
+
+`unstable` · unreleased
+
+```ts
+Seen.record(
+  location: PendingEntryLocation & LocationPOV,
+  viewer: PanoViewer,
+): Promise<void>
+```
+
+Record a pano visit now at its starting view, with a thumbnail if that view is still on screen once imagery arrives.
+
+#### Seen.skipNext
+
+`unstable` · unreleased
+
+```ts
+Seen.skipNext(panoId: string): void
+```
+
+Suppress the next seen-history entry for `panoId`.
+
+#### Seen.updateGeo
+
+`unstable` · unreleased
+
+```ts
+Seen.updateGeo(geo: GeoDisplay): void
+```
+
+Update the pending seen entry's geocode info (country, address).

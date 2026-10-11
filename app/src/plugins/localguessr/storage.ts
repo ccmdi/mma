@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { storage } from "@/plugins/pluginStorage";
-import { getSeenCount, getSeenEntries } from "@/lib/seen/seen";
+import { Seen } from "@/lib/seen/seen";
 import type { Game, PastGame, StreakMode } from "./game";
 
 const store = storage("localguessr");
@@ -108,7 +108,7 @@ export async function startingThumbnails(
 		since: Math.min(...rounds.map((r) => r.startedAt)),
 		locationIds: [...new Set(rounds.map((r) => r.locationId))],
 	};
-	const newestFirst = await getSeenEntries(await getSeenCount(filter), 0, filter);
+	const newestFirst = await Seen.entries(await Seen.count(filter), 0, filter);
 	const byLocation = Map.groupBy(
 		newestFirst.toReversed().filter((e) => e.locationId != null),
 		(e) => e.locationId,

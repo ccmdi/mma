@@ -23,6 +23,7 @@ const OBJECTS = {
 	"lib/render/scene": "Scene",
 	"lib/map/host": "MapHost",
 	"lib/review/review": "Review",
+	"lib/seen/seen": "Seen",
 };
 const objects = new Map(
 	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),

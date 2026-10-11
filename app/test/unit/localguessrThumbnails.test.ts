@@ -7,8 +7,10 @@ const getSeenEntries = vi.fn(async (_limit: number, _offset: number, _filter: Se
 const getSeenCount = vi.fn(async (_filter: SeenFilter) => seen.length);
 
 vi.mock("@/lib/seen/seen", () => ({
-	getSeenEntries: (...a: [number, number, SeenFilter]) => getSeenEntries(...a),
-	getSeenCount: (...a: [SeenFilter]) => getSeenCount(...a),
+	Seen: {
+		entries: (...a: [number, number, SeenFilter]) => getSeenEntries(...a),
+		count: (...a: [SeenFilter]) => getSeenCount(...a),
+	},
 }));
 
 import { startingThumbnails } from "@/plugins/localguessr/storage";

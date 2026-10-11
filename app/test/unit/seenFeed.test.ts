@@ -5,13 +5,11 @@ import { mount } from "./fixtures/harness";
 import { createLocation } from "@/types";
 import type { Location } from "@/bindings.gen";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
-import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 import { useSeenFeed } from "@/components/editor/location/useSeenFeed";
 
-vi.mock("@/lib/seen/seenRecorder", () => ({
-	seenPanoChanged: vi.fn(),
-	seenUpdateGeo: vi.fn(),
-	seenFlush: vi.fn(),
+vi.mock("@/lib/seen/seen", () => ({
+	Seen: { panoChanged: vi.fn(), updateGeo: vi.fn(), flush: vi.fn() },
 }));
 vi.mock("@/lib/hooks/usePano", () => {
 	const viewer = { exists: () => true, captureView: () => ({ heading: 0, pitch: 0, zoom: 0 }) };
@@ -76,11 +74,11 @@ beforeEach(() => {
 describe("useSeenFeed", () => {
 	it("stages exactly once per walked pano", () => {
 		const view = render({ location: loc(7, "A"), draft: loc(7, "A") });
-		expect(seenPanoChanged).toHaveBeenCalledTimes(1);
+		expect(Seen.panoChanged).toHaveBeenCalledTimes(1);
 
 		view.rerender({ draft: { ...loc(7, "B"), lat: 3, lng: 4 } });
-		expect(seenPanoChanged).toHaveBeenCalledTimes(2);
-		expect(seenPanoChanged).toHaveBeenLastCalledWith(
+		expect(Seen.panoChanged).toHaveBeenCalledTimes(2);
+		expect(Seen.panoChanged).toHaveBeenLastCalledWith(
 			{ locationId: 7, panoId: "B", lat: 3, lng: 4 },
 			null,
 			expect.anything(),
@@ -91,8 +89,8 @@ describe("useSeenFeed", () => {
 		const view = render({ location: loc(7, "A"), draft: loc(7, "A") });
 		view.rerender({ draft: loc(7, "A") });
 		view.rerender({ geo: { address: "Somewhere", countryCode: "FR" } });
-		expect(seenPanoChanged).toHaveBeenCalledTimes(1);
-		expect(seenUpdateGeo).toHaveBeenCalledWith({ address: "Somewhere", countryCode: "FR" });
+		expect(Seen.panoChanged).toHaveBeenCalledTimes(1);
+		expect(Seen.updateGeo).toHaveBeenCalledWith({ address: "Somewhere", countryCode: "FR" });
 	});
 
 	it("the location's stored countryCode outranks the geocoder's", () => {
@@ -101,7 +99,7 @@ describe("useSeenFeed", () => {
 			draft: loc(7, "A"),
 			geo: { address: "Somewhere", countryCode: "FR" },
 		});
-		expect(seenPanoChanged).toHaveBeenLastCalledWith(
+		expect(Seen.panoChanged).toHaveBeenLastCalledWith(
 			expect.anything(),
 			{ address: "Somewhere", countryCode: "JP" },
 			expect.anything(),
@@ -112,7 +110,7 @@ describe("useSeenFeed", () => {
 		const preview = loc(3, "A");
 		scene.origin = "seen";
 		render({ location: preview, draft: preview });
-		expect(seenPanoChanged).toHaveBeenLastCalledWith(
+		expect(Seen.panoChanged).toHaveBeenLastCalledWith(
 			expect.objectContaining({ locationId: null }),
 			null,
 			expect.anything(),
@@ -121,8 +119,8 @@ describe("useSeenFeed", () => {
 
 	it("flushes when the location closes", () => {
 		const view = render({ location: loc(7, "A"), draft: loc(7, "A") });
-		expect(seenFlush).not.toHaveBeenCalled();
+		expect(Seen.flush).not.toHaveBeenCalled();
 		view.rerender({ location: null, draft: null });
-		expect(seenFlush).toHaveBeenCalledTimes(1);
+		expect(Seen.flush).toHaveBeenCalledTimes(1);
 	});
 });

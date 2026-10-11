@@ -24,7 +24,7 @@ const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 
 async function getSeenEntries(limit = 100) {
 	return withApi(async (api, lim) => {
-		return await api.getSeenEntries(lim);
+		return await api.Seen.entries(lim);
 	}, limit);
 }
 
@@ -37,13 +37,13 @@ async function waitForSeenPano(panoId: string) {
 
 async function getSeenCount(): Promise<number> {
 	return withApi(async (api) => {
-		return await api.getSeenCount();
+		return await api.Seen.count();
 	});
 }
 
 async function clearSeen() {
 	await withApi(async (api) => {
-		await api.clearSeen();
+		await api.Seen.clear();
 		return "ok";
 	});
 }
@@ -220,7 +220,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 		// Create a seen entry and load it
 		await withApi(
 			async (api, pano, lat, lng, locId) => {
-				await api.loadSeenPano(
+				await api.Seen.loadPano(
 					{
 						panoId: pano,
 						lat,
@@ -254,7 +254,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 		// Use a numeric ID that doesn't exist (seen table location_id for a nonexistent location)
 		await withApi(
 			async (api, pano, lat, lng) => {
-				return api.loadSeenPano(
+				return api.Seen.loadPano(
 					{
 						panoId: pano,
 						lat,

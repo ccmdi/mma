@@ -20,6 +20,7 @@ import { SavedSelection } from "@/store/savedSelection";
 import { Scene } from "@/lib/render/scene";
 import { MapHost } from "@/lib/map/host";
 import { Review } from "@/lib/review/review";
+import { Seen } from "@/lib/seen/seen";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as settings from "@/store/settings";
@@ -39,8 +40,6 @@ import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as fieldProjections from "@/lib/data/fieldProjections";
 import * as procedures from "@/lib/data/procedures";
-import * as seen from "@/lib/seen/seen";
-import * as seenRecorder from "@/lib/seen/seenRecorder";
 import * as panoSurface from "@/lib/sv/pano";
 import * as enrich from "@/lib/sv/enrich";
 import * as providers from "@/lib/sv/providers";
@@ -88,10 +87,6 @@ type FieldDefRegistryApi = typeof fieldDefRegistry;
 type FieldProjectionsApi = typeof fieldProjections;
 /** Running procedures directly, outside a registered provider. @unstable */
 type ProceduresApi = typeof procedures;
-/** The seen-location history. @unstable */
-type SeenApi = typeof seen;
-/** How the app records panorama visits into the seen history. @unstable */
-type SeenRecorderApi = typeof seenRecorder;
 /** The shared panorama viewer. @unstable */
 type PanoApi = typeof panoSurface;
 /** Enrichment passes over the open map. @unstable */
@@ -143,8 +138,6 @@ export interface MMA
 		FieldDefRegistryApi,
 		FieldProjectionsApi,
 		ProceduresApi,
-		SeenApi,
-		SeenRecorderApi,
 		PanoApi,
 		EnrichApi,
 		ProvidersApi,
@@ -202,6 +195,8 @@ export interface MMA
 	MapHost: typeof MapHost;
 	/** Review sessions and their history. @unstable */
 	Review: typeof Review;
+	/** The seen-location history and how panorama visits are recorded into it. @unstable */
+	Seen: typeof Seen;
 }
 
 export type { MMA as MMAApi };
@@ -226,8 +221,6 @@ const mma: MMA = {
 	...fieldDefRegistry,
 	...fieldProjections,
 	...procedures,
-	...seen,
-	...seenRecorder,
 	...panoSurface,
 	...enrich,
 	...providers,
@@ -264,6 +257,7 @@ const mma: MMA = {
 	Scene,
 	MapHost,
 	Review,
+	Seen,
 };
 
 declare global {

@@ -1,6 +1,6 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
 import { Store } from "@/store/store";
-import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
 
@@ -22,7 +22,7 @@ export function useSeenFeed() {
 	useEffect(() => {
 		const { draft, location, origin, effectiveGeo } = getSeed();
 		if (!draft?.panoId || !location) return;
-		seenPanoChanged(
+		Seen.panoChanged(
 			{
 				locationId: origin === "map" ? location.id : null,
 				panoId: draft.panoId,
@@ -35,13 +35,13 @@ export function useSeenFeed() {
 	}, [pano, draft?.panoId]);
 
 	useEffect(() => {
-		if (effectiveGeo) seenUpdateGeo(effectiveGeo);
+		if (effectiveGeo) Seen.updateGeo(effectiveGeo);
 	}, [effectiveGeo]);
 
 	useEffect(() => {
 		if (!location) return;
 		return () => {
-			if (pano.exists()) seenFlush(pano);
+			if (pano.exists()) Seen.flush(pano);
 		};
 	}, [pano, location?.id]);
 }

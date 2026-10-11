@@ -6,8 +6,7 @@ import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import { getSeenCount, getSeenEntries } from "./seen";
-import { seenSkipNext } from "./seenRecorder";
+import { Seen } from "./seen";
 import type { SeenEntry } from "@/bindings.gen";
 import type { RGBA } from "@/lib/util/color";
 
@@ -68,8 +67,8 @@ export function toggleSeenOverlay(): void {
 
 async function load() {
 	try {
-		const count = await getSeenCount();
-		entries = count > 0 ? await getSeenEntries(count, 0, undefined, false) : [];
+		const count = await Seen.count();
+		entries = count > 0 ? await Seen.entries(count, 0, undefined, false) : [];
 		onMapIds = await computeOnMap(entries);
 	} catch (e) {
 		log.error("[seen-overlay] load failed:", e);
@@ -84,7 +83,7 @@ async function load() {
 export async function openSeenEntry(index: number): Promise<void> {
 	const entry = entries[index];
 	if (!entry) return;
-	seenSkipNext(entry.panoId);
+	Seen.skipNext(entry.panoId);
 	if (entry.locationId != null) {
 		const [existing] = await Query.read(
 			{ type: "Locations", locations: [entry.locationId], name: null },

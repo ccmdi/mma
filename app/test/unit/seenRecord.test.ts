@@ -26,8 +26,7 @@ vi.mock("@/store/editor", () => ({
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-
-import { seenRecord } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 
 const START = {
 	locationId: 7,
@@ -62,7 +61,7 @@ afterEach(() => {
 describe("seenRecord", () => {
 	it("writes the starting view with a thumbnail once imagery arrives", async () => {
 		const scene = { panoId: "PANO", heading: 450, pitch: 5, imagery: false };
-		const recording = seenRecord(START, viewer(scene));
+		const recording = Seen.record(START, viewer(scene));
 		await vi.advanceTimersByTimeAsync(300);
 		expect(storeSeenWrite).not.toHaveBeenCalled();
 		scene.imagery = true;
@@ -83,7 +82,7 @@ describe("seenRecord", () => {
 
 	it("keeps the entry but drops the thumbnail once the camera leaves the starting view", async () => {
 		const scene = { panoId: "PANO", heading: 90, pitch: 5, imagery: false };
-		const recording = seenRecord(START, viewer(scene));
+		const recording = Seen.record(START, viewer(scene));
 		scene.heading = 140;
 		scene.imagery = true;
 		await vi.advanceTimersByTimeAsync(100);
@@ -95,7 +94,7 @@ describe("seenRecord", () => {
 
 	it("drops the thumbnail once the viewer moves to another pano", async () => {
 		const scene = { panoId: "PANO", heading: 90, pitch: 5, imagery: false };
-		const recording = seenRecord(START, viewer(scene));
+		const recording = Seen.record(START, viewer(scene));
 		scene.panoId = "OTHER";
 		scene.imagery = true;
 		await vi.advanceTimersByTimeAsync(100);
@@ -104,7 +103,7 @@ describe("seenRecord", () => {
 	});
 
 	it("gives up on the thumbnail when imagery never arrives", async () => {
-		const recording = seenRecord(
+		const recording = Seen.record(
 			START,
 			viewer({ panoId: "PANO", heading: 90, pitch: 5, imagery: false }),
 		);
@@ -115,13 +114,13 @@ describe("seenRecord", () => {
 
 	it("skips the thumbnail when thumbnails are off", async () => {
 		settings.enableSeenThumbnails = false;
-		await seenRecord(START, viewer({ panoId: "PANO", heading: 90, pitch: 5, imagery: true }));
+		await Seen.record(START, viewer({ panoId: "PANO", heading: 90, pitch: 5, imagery: true }));
 		expect(storeSeenWrite).toHaveBeenCalledWith(expect.objectContaining({ thumbnail: null }));
 	});
 
 	it("records nothing when seen history is off", async () => {
 		settings.enableSeen = false;
-		await seenRecord(START, viewer({ panoId: "PANO", heading: 90, pitch: 5, imagery: true }));
+		await Seen.record(START, viewer({ panoId: "PANO", heading: 90, pitch: 5, imagery: true }));
 		expect(storeSeenWrite).not.toHaveBeenCalled();
 	});
 });

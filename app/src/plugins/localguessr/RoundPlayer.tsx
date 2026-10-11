@@ -22,7 +22,7 @@ import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
 import { panosAt } from "@/lib/sv/query";
 import { usePano } from "@/lib/hooks/usePano";
-import { seenRecord } from "@/lib/seen/seenRecorder";
+import { Seen } from "@/lib/seen/seen";
 import type { LatLng } from "@/types";
 import {
 	currentRound,
@@ -156,7 +156,7 @@ export function RoundPlayer({
 		const panoId = pano.panoId();
 		if (!panoId) return;
 		recordedRound.current = game.index;
-		void seenRecord(
+		void Seen.record(
 			{
 				locationId: round.id,
 				panoId,

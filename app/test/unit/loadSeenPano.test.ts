@@ -29,14 +29,13 @@ vi.mock("@/store/editor", () => ({
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
+import { Seen } from "@/lib/seen/seen";
 
-import { loadSeenPano } from "@/lib/seen/seenRecorder";
-
-describe("loadSeenPano", () => {
+describe("Seen.loadPano", () => {
 	it("jumps the open location by position when it has no pano id", async () => {
 		const jump = vi.fn();
 		const viewer = { exists: () => true, jump } as unknown as PanoViewer;
-		await loadSeenPano(
+		await Seen.loadPano(
 			{
 				locationId: 7,
 				panoId: null,

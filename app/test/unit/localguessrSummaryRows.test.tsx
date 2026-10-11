@@ -7,8 +7,8 @@ import type { RoundResult, Session } from "@/plugins/localguessr/game";
 const loadSeenPano = vi.fn();
 const viewer = { name: "tree viewer" };
 
-vi.mock("@/lib/seen/seenRecorder", () => ({
-	loadSeenPano: (...a: unknown[]) => loadSeenPano(...a),
+vi.mock("@/lib/seen/seen", () => ({
+	Seen: { loadPano: (...a: unknown[]) => loadSeenPano(...a) },
 }));
 vi.mock("@/lib/hooks/usePano", () => ({ usePano: () => viewer }));
 vi.mock("@/plugins/localguessr/storage", () => ({ useStartingThumbnails: () => [] }));
