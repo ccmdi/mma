@@ -131,6 +131,7 @@ export const Editor = {
 			open: { id: loc.id, origin: "map", session: ++lastSession, location: loc },
 			workArea: "location",
 		});
+		emitEvent("open:change", loc.id);
 	},
 	/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 	removeDuplicate: (id: number) => {

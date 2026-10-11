@@ -84,6 +84,15 @@ describe("open location", () => {
 		Editor.setArea("overview");
 	});
 
+	it("opening a location from the duplicate panel announces it like any opening", () => {
+		const seen: (number | null)[] = [];
+		const unsub = subscribe("open:change", (id) => seen.push(id));
+		Editor.openDuplicate({ id: 9, lat: 0, lng: 0, tags: [] } as unknown as Location);
+		Editor.setArea("overview");
+		unsub();
+		expect(seen).toEqual([9, null]);
+	});
+
 	it("emits open:change exactly once per close, and not when nothing was open", async () => {
 		const seen: (number | null)[] = [];
 		const unsub = subscribe("open:change", (id) => seen.push(id));
