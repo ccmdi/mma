@@ -503,9 +503,14 @@ impl<T: Patchable + Keyed> Layer<T>
 where
     Patch<T>: Keyed<Key = T::Key>,
 {
+    /// Every pending edit, each row's in the order it was made.
+    pub fn into_edits(self) -> impl Iterator<Item = Edit<T>> {
+        self.ops.into_values().flatten()
+    }
+
     /// Rewrite every pending edit, keeping each row's edits in order.
     pub fn map_edits(self, f: impl FnMut(Edit<T>) -> Edit<T>) -> Self {
-        self.ops.into_values().flatten().map(f).collect()
+        self.into_edits().map(f).collect()
     }
 }
 

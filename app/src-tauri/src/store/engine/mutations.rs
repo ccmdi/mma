@@ -238,22 +238,7 @@ impl Store {
                             piles
                                 .insert(field, PileDelta::at(&before, &after, remap.into_values()));
                         }
-                        let (mut sets, mut removed) = (Vec::new(), Vec::new());
-                        for row in
-                            layer.resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
-                        {
-                            match (row.before, row.after) {
-                                (_, Some(row)) => sets.push(row),
-                                (Some(row), None) => removed.push(row.id),
-                                (None, None) => {}
-                            }
-                        }
-                        let edits = sets
-                            .into_iter()
-                            .map(Op::Set)
-                            .chain(removed.into_iter().map(Op::Remove))
-                            .collect();
-                        (edits, Some(name.clone()), piles)
+                        (layer.into_edits().collect(), Some(name.clone()), piles)
                     }
                 }
             }

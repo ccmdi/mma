@@ -8597,3 +8597,20 @@ fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
     assert!(fresh.keys.iter().all(|id| id.get() > 5));
     assert_eq!(store.get_loc_by_id(Id::new(5)).unwrap().lat, 0.0);
 }
+
+#[test]
+fn an_edit_landed_from_a_pending_layer_stamps_its_modified_time() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let viewer = Target::Pending {
+        name: "viewer".into(),
+    };
+    let mut patch = Patch::<Location> {
+        id: Id::new(1),
+        ..Default::default()
+    };
+    patch.heading = Some(90.0);
+    store.edit(&viewer, vec![Op::Put(patch)], true, &mut None);
+    let landed = store.get_loc_by_id(Id::new(1)).unwrap();
+    assert_eq!(landed.heading, 90.0);
+    assert!(landed.modified_at.is_some());
+}
