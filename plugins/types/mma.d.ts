@@ -582,7 +582,7 @@ declare namespace consts {
 /** Commands @unstable */
 declare const commands$1: {
     /** Edit rows where target says; a pending layer holds edits until land. @unstable */
-    storeEdit: (target: Target, edits: (Op<Location$1, Partial<Location$1> & Pick<Location$1, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult<Location$1>>;
+    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult<Location>>;
     /** Drop a named pending layer and everything it holds. @unstable */
     storeDrop: (name: string) => Promise<null>;
     /** Run work over every location matched by selector. @unstable */
@@ -592,11 +592,11 @@ declare const commands$1: {
     /** Return the uncommitted location change counts. @unstable */
     storeCommitDiff: () => Promise<Counts>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<Location$1>>;
+    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<Location>>;
     /** Answer one question about the target's rows matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /** Apply a saved rule with its value names resolved against the open map. @unstable */
-    storeApplySavedSelection: (id: string) => Promise<MutationResult<Location$1>>;
+    storeApplySavedSelection: (id: string) => Promise<MutationResult<Location>>;
     /** Return the open store's location count, version and dirty count. @unstable */
     storeSummary: () => Promise<Summary>;
     /**  Milliseconds from app launch until the window was ready. @unstable */
@@ -770,9 +770,9 @@ declare const commands$1: {
      *  map's tag table.
      *  @unstable
      */
-    storeAddLocationsToMap: (targetMapId: string, locations: Location$1[]) => Promise<CopyToMapResult>;
+    storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
-    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<Location$1>>;
+    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<Location>>;
     /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
     storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
@@ -814,7 +814,7 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<Location$1>>;
+    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<Location>>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
@@ -943,9 +943,9 @@ declare const commands$1: {
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**  Restore a map to a previous commit. An open map changes through its normal write path. @unstable */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location$1>>;
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location>>;
     /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
-    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location$1>>;
+    storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
     storeSeenWrite: (entry: SeenWriteEntry) => Promise<null>;
     /**  Returns a page of seen entries, newest first, with optional filtering. @unstable */
@@ -1345,7 +1345,7 @@ type CommitInfo = {
 /**  The new commit's ID and the resulting state update. @unstable */
 type CommitResult = {
     id: string;
-    status: Mutation$1;
+    status: Mutation;
 };
 /**
  *  How a field's values are compared when measuring how strongly it separates
@@ -1428,7 +1428,7 @@ type Derived = {
     locationCount: number | null;
     meta: (Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) | null;
     history: Partial<{
-        [key in EntryKey]: History$1;
+        [key in EntryKey]: History;
     }> | null;
     /**  Changed values, keyed by field and value. Null removes a value with no record or rows. */
     fieldValues: {
@@ -1492,7 +1492,7 @@ type EditorImportPreview = {
  *  @unstable
  */
 type EditorImportResult = {
-    mutation: Mutation$1;
+    mutation: Mutation;
     importedCount: number;
     /**  True when the import was large enough to autocommit; the caller commits it. */
     autoCommit: boolean;
@@ -1697,7 +1697,7 @@ type HeldValue = {
     count: number;
 };
 /**  Whether undo and redo are available. */
-type History$1 = {
+type History = {
     /**  An edit can be undone. */
     undo: boolean;
     /**  An undone edit can be redone. */
@@ -1817,7 +1817,7 @@ type ListedSelection = {
  *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
  */
-type Location$1 = {
+type Location = {
     /**  Monotonically increasing within a map. Zero until the store numbers the row. */
     id: number;
     lat: number;
@@ -1849,7 +1849,7 @@ type Location$1 = {
 /**  Matched locations: returned inline, or as a file path to read them from. */
 type LocationList = {
     kind: "inline";
-    locations: Location$1[];
+    locations: Location[];
 } | {
     kind: "file";
     path: string;
@@ -2033,14 +2033,14 @@ type MmUser = {
     username: string;
 };
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-type Mutation$1<_T = Location$1> = {
+type Mutation<_T = Location> = {
     /**  The map version this change brought the map to. */
     version: number;
     /**  The key the store gave each keyless set, in the order they were written. */
     keys: number[];
 };
-type MutationResult<T = Location$1> = {
-    mutation: Mutation$1<T>;
+type MutationResult<T = Location> = {
+    mutation: Mutation<T>;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -2835,7 +2835,7 @@ type SyncReconcileResult = {
     adopted: number;
     conflicts: Conflict[];
     /**  The change the pull half made locally, or `null` when nothing was pulled. */
-    mutation: Mutation$1 | null;
+    mutation: Mutation | null;
     /**  The rows the pull removed. */
     removedIds: number[];
 };
@@ -2948,7 +2948,7 @@ type VirtualTag = {
 type Work = LocationOp | SetOp;
 /**  The mutation and operation-specific results. */
 type WorkResult = {
-    mutation: Mutation$1;
+    mutation: Mutation;
     /**  Rows the work edited. */
     changed: number;
     /**  Rows an expression could not evaluate. */
@@ -3258,7 +3258,7 @@ type Selector = Parameters<Cmd["storeRead"]>[1];
 /** A field definition with every optional attribute spelled absent. */
 declare function createFieldDef(type: FieldType, over?: Partial<Omit<FieldDef, "type">>): FieldDef;
 /** A tag's display identity: name, color, sidebar order, and document links. */
-export interface Tag$1 {
+export interface Tag {
     id: number;
     name: string;
     color: string;
@@ -3273,11 +3273,11 @@ export type Patch<T extends {
     id: unknown;
 }> = Partial<T> & Pick<T, "id">;
 /** Street View camera orientation (POV). @unstable */
-export type LocationPOV = Pick<Location$1, "heading" | "pitch" | "zoom">;
+export type LocationPOV = Pick<Location, "heading" | "pitch" | "zoom">;
 /** A view on a specific panorama. @unstable */
-export type PanoView = LocationPOV & RequireNonNull<Pick<Location$1, "panoId">>;
+export type PanoView = LocationPOV & RequireNonNull<Pick<Location, "panoId">>;
 /** The camera fields a Location and the live Street View viewer share. @unstable */
-export type PanoCapture = LocationPOV & Pick<Location$1, "lat" | "lng" | "panoId">;
+export type PanoCapture = LocationPOV & Pick<Location, "lat" | "lng" | "panoId">;
 /** A {lat, lng} coordinate pair. */
 export type LatLng = google.maps.LatLngLiteral;
 /** A {west, south, east, north} bounding box. */
@@ -3291,22 +3291,22 @@ declare function bboxTupleToBounds(t: [number, number, number, number] | null): 
 /** Convert a Bounds object to a [south, west, north, east] tuple. @unstable */
 declare function boundsToScoreTuple(b: Bounds): [number, number, number, number];
 /** Pinned: the location always opens this exact pano. */
-declare function isPinned(loc: Location$1): loc is Location$1 & {
+declare function isPinned(loc: Location): loc is Location & {
     panoId: string;
 };
 /** The location pinned to the pano it carries, or unpinned to float on default coverage. */
-declare function setPinned(loc: Location$1, on: boolean): Location$1;
+declare function setPinned(loc: Location, on: boolean): Location;
 /** A full location or just its id (to be fetched on demand). */
-export type MaybeLocation = Location$1 | number;
+export type MaybeLocation = Location | number;
 /** Extract the id from a MaybeLocation. */
 declare function locId(m: MaybeLocation): number;
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
  *  overrides hold, until `addLocations` writes the real id back into the object. */
-declare function createLocation(partial: Partial<Location$1> & LatLng): Location$1;
+declare function createLocation(partial: Partial<Location> & LatLng): Location;
 /** A new Location at the viewer's live camera, carrying `source`'s flags and the given
  *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
  *  stayed on that pano. @unstable */
-declare function dropLocation(source: Location$1, live: PanoCapture, panoId: string | null, tags: number[]): Location$1;
+declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location;
 /** @unstable */
 export type SortMode = "name" | "created" | "opened" | "amount";
 export type TagSortMode = "default" | "name" | "amount";
@@ -3373,7 +3373,7 @@ declare const types_scoreTupleToBounds: typeof scoreTupleToBounds;
 declare const types_setPinned: typeof setPinned;
 declare namespace types {
   export { types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_isPinned as isPinned, types_isWorldBounds as isWorldBounds, types_locId as locId, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
-  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_Selector as Selector, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, Tag$1 as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
+  export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_Selector as Selector, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, Tag as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
 /** The full local mirror of the store's derived state. */
@@ -3388,7 +3388,7 @@ export interface UiState {
     /** The location open in the editor, or null. */
     open: Open | null;
     /** @unstable */
-    duplicateLocations: Location$1[];
+    duplicateLocations: Location[];
     /** @unstable */
     workArea: WorkArea;
     /** @unstable */
@@ -3403,7 +3403,7 @@ export interface Open {
     /** Identifies this editor session, even when reopening the same location. */
     session: number;
     /** The location as last read from the viewer's layer, or null while loading. */
-    location: Location$1 | null;
+    location: Location | null;
 }
 export type MapState = UiState & EngineState;
 declare const Store: {
@@ -3565,17 +3565,16 @@ export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
 export type Payload<T> = {
     [K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
 }[keyof T];
-export type Materialized<T> = T extends LocationList ? Location$1[] : T;
+export type Materialized<T> = T extends LocationList ? Location[] : T;
 export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
 declare const Query: {
     /** Ask one question about the locations `selector` matches. A full-location answer loads any
      *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
     read: <A extends Ask>(selector: Selector, ask: A, target?: Target) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
     /** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
-    locationsOf: (list: LocationList) => Promise<Location$1[]>;
+    locationsOf: (list: LocationList) => Promise<Location[]>;
 };
 
-type Mutation<T = Location$1> = Mutation$1<T>;
 declare const Mutation: {
     settle: (m: Mutation) => Promise<void>;
     run: <R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]) => Promise<R>;
@@ -3621,7 +3620,7 @@ declare const Autosave: {
 
 declare const Edit: {
     /** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
-    locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<Location$1>>;
+    locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<Location>>;
     /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
     meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
         id?: string;
@@ -3632,14 +3631,13 @@ declare const Edit: {
     work: (selector: Selector, op: Work) => Promise<WorkResult>;
 };
 
-export type Tag = Tag$1;
 declare const Tag: {
     /** Per-tag location counts, keyed by numeric id. */
     counts: () => Record<number, number>;
     /** Tag records, including unreferenced records and generated display defaults. */
-    all: () => Record<number, Tag$1>;
+    all: () => Record<number, Tag>;
     /** Tag records referenced by at least one location. */
-    visible: () => Tag$1[];
+    visible: () => Tag[];
     /** Look up a tag record, including unreferenced tags. */
     get: (id: number) => Tag | undefined;
     /** Tag names for the given ids, skipping any that no longer resolve. */
@@ -3659,7 +3657,6 @@ declare const Tag: {
     assign: (selector: Selector, records: Omit<ValueRecord, "id">[]) => Promise<WorkResult>;
 };
 
-type Location = Location$1;
 declare const Location: {
     /** Add locations to the map. Real ids are assigned and written back into the passed
      *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
@@ -3681,14 +3678,14 @@ declare const Editor: {
         readonly name: "viewer";
     };
     /** Set the open location if `session` is still current. */
-    setLocation: (location: Location$1 | null, session: number) => void;
+    setLocation: (location: Location | null, session: number) => void;
     /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
     openImport: (index: number) => Promise<void>;
     /** Open an arbitrary location read-only as a seen-preview: loads its pano without
      *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
-    preview: (loc: Location$1) => void;
+    preview: (loc: Location) => void;
     /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
-    resolve: (m: MaybeLocation) => Promise<Location$1 | null>;
+    resolve: (m: MaybeLocation) => Promise<Location | null>;
     /** Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
      *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
      *  supersedes one still loading. */
@@ -3696,7 +3693,7 @@ declare const Editor: {
     /** Close the open location and return to the pane it was opened from. */
     close: () => void;
     /** Open one location from the duplicate-resolution panel in the editor. @unstable */
-    openDuplicate: (loc: Location$1) => void;
+    openDuplicate: (loc: Location) => void;
     /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
     removeDuplicate: (id: number) => void;
     /** Close the duplicate-resolution panel and return to the overview. @unstable */
@@ -3710,7 +3707,6 @@ declare const Editor: {
     closePlugin: () => void;
 };
 
-type History = History$1;
 declare const History: {
     /** Whether a history action is available for one part or for the data edit as a whole. @unstable */
     available: (history: MapState["history"], stack: Stack, key?: EntryKey) => boolean;
@@ -6312,7 +6308,7 @@ export interface RunOpts {
     onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
     /** Each location as a provider finishes with it (locations-only runs). The same location arrives
      *  again from each subsequent provider. */
-    onPartial?: (rows: Location$1[]) => void;
+    onPartial?: (rows: Location[]) => void;
 }
 /** @unstable */
 export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
@@ -6435,7 +6431,7 @@ export type PanoViewer = ReturnType<typeof createPano>;
 /** Create an independent pano viewer with its own camera, requests, listeners and mounts. @unstable */
 declare function createPano(): {
     /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
-    show: (loc: Location$1, { concealUntilReady }?: {
+    show: (loc: Location, { concealUntilReady }?: {
         concealUntilReady?: boolean;
     }) => Promise<ShowResult>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
@@ -6445,7 +6441,7 @@ declare function createPano(): {
     /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. */
     jumpAhead: (headingOffset: number) => Promise<boolean>;
     /** Stage a location's pano while nothing newer is pending, so a later show is instant. */
-    preload: (loc: Location$1) => Promise<void>;
+    preload: (loc: Location) => Promise<void>;
     /** Rebuild a stuck viewer in place, keeping its pano and camera. */
     reload: (fallback: google.maps.LatLngLiteral) => void;
     /** Whether the viewer has been created. */
@@ -6512,7 +6508,7 @@ declare function createPano(): {
 /** The app's default pano viewer. @unstable */
 declare const pano: {
     /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. @unstable */
-    show: (loc: Location$1, { concealUntilReady }?: {
+    show: (loc: Location, { concealUntilReady }?: {
         concealUntilReady?: boolean;
     }) => Promise<ShowResult>;
     /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. @unstable */
@@ -6522,7 +6518,7 @@ declare const pano: {
     /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. @unstable */
     jumpAhead: (headingOffset: number) => Promise<boolean>;
     /** Stage a location's pano while nothing newer is pending, so a later show is instant. @unstable */
-    preload: (loc: Location$1) => Promise<void>;
+    preload: (loc: Location) => Promise<void>;
     /** Rebuild a stuck viewer in place, keeping its pano and camera. @unstable */
     reload: (fallback: google.maps.LatLngLiteral) => void;
     /** Whether the viewer has been created. @unstable */
@@ -7283,7 +7279,7 @@ declare function getCurrentMap(): MapMeta | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().open?.location`. @unstable */
-declare function getActiveLocation(): Location$1 | null;
+declare function getActiveLocation(): Location | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().selectedLocationIds`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;
 /** @deprecated v0.8.2. Read `MMA.Store.get().workArea`. @unstable */
@@ -7297,11 +7293,11 @@ declare function getSelections(): Selection[];
 /** @deprecated v0.8.2. Ask `MMA.Query.read` for the summary and take `dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
-declare function fetchLocation(id: number): Promise<Location$1>;
+declare function fetchLocation(id: number): Promise<Location>;
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @unstable */
-declare function fetchLocationsByIds(ids: number[]): Promise<Location$1[]>;
+declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`. @unstable */
-declare function fetchAllLocations(): Promise<Location$1[]>;
+declare function fetchAllLocations(): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
@@ -8071,4 +8067,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History$1 as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location$1 as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation$1 as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

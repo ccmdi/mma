@@ -91,6 +91,10 @@ ${line}`);
     for (const name of ["Selection", "Plugin", "MMA"]) {
       content = content.replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);
     }
+    // A store companion re-declares its type as `type X = X$1`; give the original its name back.
+    for (const [line, name] of content.matchAll(/^(?:export )?type (\w+)(?:<[^>]*>)? = \1\$1(?:<[^>]*>)?;\n/gm)) {
+      content = content.replace(line, "").replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);
+    }
 
     const alreadyExported = new Set();
     for (const m of content.matchAll(/^export (?:type )?\{([^}]*)\}/gm)) {

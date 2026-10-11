@@ -57,9 +57,8 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("a type a stable member reaches stays a promise", () => {
-		expect(dts).toMatch(/type Location = Location\$1;/);
-		expect(dts).toMatch(/\*\/\n\s*type Location\$1 = /);
-		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location\$1 = /);
+		expect(dts).toMatch(/\*\/\n\s*type Location = \{/);
+		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location = \{/);
 	});
 
 	it("a bundler namespace alias is never a promise", () => {

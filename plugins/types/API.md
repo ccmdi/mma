@@ -1304,7 +1304,7 @@ A field definition with every optional attribute spelled absent.
 `stable` · since v0.3.1
 
 ```ts
-createLocation(partial: Partial<Location$1> & LatLng): Location$1
+createLocation(partial: Partial<Location> & LatLng): Location
 ```
 
 Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
@@ -1316,11 +1316,11 @@ overrides hold, until `addLocations` writes the real id back into the object.
 
 ```ts
 dropLocation(
-  source: Location$1,
+  source: Location,
   live: PanoCapture,
   panoId: string | null,
   tags: number[],
-): Location$1
+): Location
 ```
 
 A new Location at the viewer's live camera, carrying `source`'s flags and the given
@@ -1332,7 +1332,7 @@ stayed on that pano.
 `stable` · since v0.10.3
 
 ```ts
-isPinned(loc: Location$1): loc is Location$1 & {
+isPinned(loc: Location): loc is Location & {
   panoId: string;
 }
 ```
@@ -1374,7 +1374,7 @@ Convert a [south, west, north, east] tuple to a Bounds object.
 `stable` · since v0.10.7
 
 ```ts
-setPinned(loc: Location$1, on: boolean): Location$1
+setPinned(loc: Location, on: boolean): Location
 ```
 
 The location pinned to the pano it carries, or unpinned to float on default coverage.
@@ -1779,7 +1779,7 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 ```ts
 edit.locations(
   ...props: Parameters<typeof cmd.storeEdit>
-): Promise<MutationResult<Location$1>>
+): Promise<MutationResult<Location>>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -1837,7 +1837,7 @@ Close the plugin sidebar and return to the overview.
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-fetchAllLocations(): Promise<Location$1[]>
+fetchAllLocations(): Promise<Location[]>
 ```
 
 **Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`.
@@ -1869,7 +1869,7 @@ fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-fetchLocation(id: number): Promise<Location$1>
+fetchLocation(id: number): Promise<Location>
 ```
 
 **Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`.
@@ -1889,7 +1889,7 @@ fetchLocations(selector: Selector): Promise<Location[]>
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-fetchLocationsByIds(ids: number[]): Promise<Location$1[]>
+fetchLocationsByIds(ids: number[]): Promise<Location[]>
 ```
 
 **Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`.
@@ -1919,7 +1919,7 @@ fieldValues(selector: Selector, field: string): Promise<string[]>
 `unstable` · `deprecated` · since v0.3.1
 
 ```ts
-getActiveLocation(): Location$1 | null
+getActiveLocation(): Location | null
 ```
 
 **Deprecated in v0.8.2.** Read `MMA.Store.get().open?.location`.
@@ -2117,7 +2117,7 @@ Per-tag location counts, keyed by numeric id.
 `stable` · `deprecated` · since v0.11.1
 
 ```ts
-getTags(): Record<number, Tag$1>
+getTags(): Record<number, Tag>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Tag.all`.
@@ -2129,7 +2129,7 @@ Tag records, including unreferenced records and generated display defaults.
 `stable` · `deprecated` · since v0.4.0
 
 ```ts
-getVisibleTags(): Tag$1[]
+getVisibleTags(): Tag[]
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Tag.visible`.
@@ -2213,7 +2213,7 @@ Whether `id` belongs to an app fixture rather than a user-created map.
 `stable` · `deprecated` · unreleased
 
 ```ts
-locationsOf(list: LocationList): Promise<Location$1[]>
+locationsOf(list: LocationList): Promise<Location[]>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Query.locationsOf`.
@@ -2250,7 +2250,7 @@ mutate<R extends MutationResult = MutationResult>(
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-openDuplicateLocation(loc: Location$1): void
+openDuplicateLocation(loc: Location): void
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Editor.openDuplicate`.
@@ -2341,7 +2341,7 @@ Read-only preview of transitive duplicate groups (size >= 2) within `distance` m
 `unstable` · `deprecated` · since v0.12.0
 
 ```ts
-previewLocation(loc: Location$1): void
+previewLocation(loc: Location): void
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Editor.preview`.
@@ -2593,7 +2593,7 @@ resolveIds(selector: Selector): Promise<number[]>
 `stable` · `deprecated` · since v0.6.6
 
 ```ts
-resolveLocation(m: MaybeLocation): Promise<Location$1 | null>
+resolveLocation(m: MaybeLocation): Promise<Location | null>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Editor.resolve`.
@@ -2686,7 +2686,7 @@ Replace the open map's row in state; persisting it is the caller's.
 `stable` · `deprecated` · unreleased
 
 ```ts
-setOpenLocation(location: Location$1 | null, session: number): void
+setOpenLocation(location: Location | null, session: number): void
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Editor.setLocation`.
@@ -3568,7 +3568,7 @@ Edit map locations, metadata, value records, and selections.
 ```ts
 Edit.locations(
   ...props: Parameters<typeof cmd.storeEdit>
-): Promise<MutationResult<Location$1>>
+): Promise<MutationResult<Location>>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -3682,7 +3682,7 @@ Manage tag records and their assignment to locations.
 `stable` · unreleased
 
 ```ts
-Tag.all(): Record<number, Tag$1>
+Tag.all(): Record<number, Tag>
 ```
 
 Tag records, including unreferenced records and generated display defaults.
@@ -3792,7 +3792,7 @@ Update tag display records in one undoable edit.
 `stable` · unreleased
 
 ```ts
-Tag.visible(): Tag$1[]
+Tag.visible(): Tag[]
 ```
 
 Tag records referenced by at least one location.
@@ -3855,7 +3855,7 @@ supersedes one still loading.
 `unstable` · unreleased
 
 ```ts
-Editor.openDuplicate(loc: Location$1): void
+Editor.openDuplicate(loc: Location): void
 ```
 
 Open one location from the duplicate-resolution panel in the editor.
@@ -3885,7 +3885,7 @@ Open a plugin's sidebar (switches the editor pane to "plugin").
 `unstable` · unreleased
 
 ```ts
-Editor.preview(loc: Location$1): void
+Editor.preview(loc: Location): void
 ```
 
 Open an arbitrary location read-only as a seen-preview: loads its pano without
@@ -3906,7 +3906,7 @@ Drop a location from the duplicate-resolution panel (does not delete it).
 `stable` · unreleased
 
 ```ts
-Editor.resolve(m: MaybeLocation): Promise<Location$1 | null>
+Editor.resolve(m: MaybeLocation): Promise<Location | null>
 ```
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
@@ -3927,7 +3927,7 @@ leaving "location" closes the open location, leaving "plugin" clears the plugin 
 `stable` · unreleased
 
 ```ts
-Editor.setLocation(location: Location$1 | null, session: number): void
+Editor.setLocation(location: Location | null, session: number): void
 ```
 
 Set the open location if `session` is still current.
@@ -4336,7 +4336,7 @@ Read locations and summaries for a selector.
 `stable` · unreleased
 
 ```ts
-Query.locationsOf(list: LocationList): Promise<Location$1[]>
+Query.locationsOf(list: LocationList): Promise<Location[]>
 ```
 
 The locations an answer carries, fetched from its temp file when it was too large to send inline.
@@ -6759,7 +6759,7 @@ Stop all sidecar processes across every plugin.
 ```ts
 cmd.storeAddLocationsToMap(
   targetMapId: string,
-  locations: Location$1[],
+  locations: Location[],
 ): Promise<CopyToMapResult>
 ```
 
@@ -6771,7 +6771,7 @@ map's tag table.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location$1>>
+cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location>>
 ```
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
@@ -6781,7 +6781,7 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location$1>>
+cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location>>
 ```
 
 Apply a saved rule with its value names resolved against the open map.
@@ -6794,7 +6794,7 @@ Apply a saved rule with its value names resolved against the open map.
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<MutationResult<Location$1>>
+): Promise<MutationResult<Location>>
 ```
 
 Restore a map to a previous commit. An open map changes through its normal write path.
@@ -6934,9 +6934,9 @@ edit history, sync links, and review sessions stay with the original.
 ```ts
 cmd.storeEdit(
   target: Target,
-  edits: Op<Location$1, Partial<Location$1> & Pick<Location$1, "id">, number>[],
+  edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
   opts: EditOpts | null,
-): Promise<MutationResult<Location$1>>
+): Promise<MutationResult<Location>>
 ```
 
 Edit rows where target says; a pending layer holds edits until land.
@@ -6946,7 +6946,7 @@ Edit rows where target says; a pending layer holds edits until land.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location$1>>
+cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location>>
 ```
 
 Edit the selection tree.
@@ -7014,7 +7014,7 @@ Export locations as a `{name, customCoordinates}` JSON file, including tags and 
 `unstable` · since v0.5.1
 
 ```ts
-cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Location$1>>
+cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Location>>
 ```
 
 Read a single commit's change: the locations it added, removed and updated.
@@ -7395,7 +7395,7 @@ Set the default marker color for new render updates.
 cmd.storeStep(
   stack: Stack,
   key: EntryKey | null,
-): Promise<MutationResult<Location$1>>
+): Promise<MutationResult<Location>>
 ```
 
 Undo the newest edit, or redo the newest undone one.
@@ -8281,7 +8281,7 @@ The shared panorama viewer.
 createPano(): {
   /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
   show: (
-    loc: Location$1,
+    loc: Location,
     {
       concealUntilReady,
     }?: {
@@ -8295,7 +8295,7 @@ createPano(): {
   /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. */
   jumpAhead: (headingOffset: number) => Promise<boolean>;
   /** Stage a location's pano while nothing newer is pending, so a later show is instant. */
-  preload: (loc: Location$1) => Promise<void>;
+  preload: (loc: Location) => Promise<void>;
   /** Rebuild a stuck viewer in place, keeping its pano and camera. */
   reload: (fallback: google.maps.LatLngLiteral) => void;
   /** Whether the viewer has been created. */
@@ -8584,7 +8584,7 @@ The camera heading and pitch.
 `unstable` · since v0.11.0
 
 ```ts
-pano.preload(loc: Location$1): Promise<void>
+pano.preload(loc: Location): Promise<void>
 ```
 
 Stage a location's pano while nothing newer is pending, so a later show is instant.
@@ -8625,7 +8625,7 @@ Zoom fully out.
 
 ```ts
 pano.show(
-  loc: Location$1,
+  loc: Location,
   props?: {
     concealUntilReady?: boolean;
   },
