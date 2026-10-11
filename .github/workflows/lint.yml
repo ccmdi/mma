@@ -14,6 +14,8 @@ jobs:
           # check-legacy and check-floors read mma.d.ts out of release tags.
           fetch-depth: 0
       - uses: ./.github/actions/setup
+        with:
+          plugins: true
       - uses: actions/cache@v5
         with:
           path: app/node_modules/.vitest-cache

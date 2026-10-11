@@ -5,6 +5,9 @@ inputs:
   rust:
     description: Install the Rust toolchain, its build cache and Tauri's system libraries.
     default: 'false'
+  plugins:
+    description: Install plugin dependencies before running Node gates.
+    default: 'false'
   rust-targets:
     description: Extra Rust compilation targets, comma-separated.
     default: ''
@@ -37,3 +40,7 @@ runs:
     - shell: bash
       working-directory: app
       run: npm ci
+
+    - if: inputs.plugins == 'true'
+      shell: bash
+      run: node plugins/build-all.mjs --install

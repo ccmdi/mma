@@ -6,6 +6,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { pathToFileURL } = require("url");
+const { generateAndPublish } = require("./generated-output.js");
 
 const repoRoot = path.resolve(__dirname, "../..");
 const appDir = path.join(repoRoot, "app");
@@ -106,11 +107,15 @@ ${line}`);
     // so no appended global block is needed.
     content = `/// <reference types="google.maps" />\n\n` + content;
     rejectBackendSpelling(content);
-    fs.writeFileSync(out, content);
     const native = await import(pathToFileURL(path.join(appDir, "scripts", "native-ts.mjs")).href);
-    propagateUnstable(native);
-    stampUnpromisedExports(native);
-    await generateApiMarkdown(native);
+    content = propagateUnstable(native, content);
+    content = stampUnpromisedExports(native, content);
+    const markdown = await generateApiMarkdown(native, content);
+    const apiPath = path.resolve(__dirname, "API.md");
+    await generateAndPublish(async () => ({ [out]: content, [apiPath]: markdown }), [
+      { key: out, path: out },
+      { key: apiPath, path: apiPath },
+    ]);
     console.log("Generated plugins/types/mma.d.ts");
   } finally {
     fs.rmSync(tmp, { recursive: true, force: true });
@@ -140,9 +145,8 @@ function rejectBackendSpelling(content) {
   }
 }
 
-// One program over the bundle as it stands on disk, with its `MMA` interface.
-function withBundle({ ts, withProgram }, use) {
-  const text = fs.readFileSync(out, "utf-8");
+// One program over the staged bundle at its final virtual path, with its `MMA` interface.
+function withBundle({ ts, withProgram }, text, use) {
   const options = { skipLibCheck: true, target: "esnext" };
   return withProgram([out], options, ({ checker, program }) => {
     const source = program.getSourceFile(out);
@@ -197,9 +201,9 @@ function memberUnstable(ts, checker) {
 // `@unstable` is declared once -- on a surface (`type ReviewApi`) or a namespace (`cmd`) --
 // but a plugin author hovers the member, not the surface. Stamp it onto every member the
 // tag covers so the warning is visible where the call is written.
-function propagateUnstable(native) {
+function propagateUnstable(native, text) {
   const { ts } = native;
-  const edits = withBundle(native, ({ checker, source, root }) => {
+  const edits = withBundle(native, text, ({ checker, source, root }) => {
     const tagged = (sym) => sym.getJsDocTags(checker).some((t) => t.name === "unstable");
 
     // Where a doc comment can actually go. A symbol's declaration is sometimes the type
@@ -260,7 +264,9 @@ function propagateUnstable(native) {
     return stampEdits(source, targets);
   });
 
-  console.log(`Propagated @unstable to ${applyEdits(edits)} members`);
+  const result = applyEdits(edits, text);
+  console.log(`Propagated @unstable to ${result.count} members`);
+  return result.text;
 }
 
 // The edits that add `@unstable` to the doc comment of each node, or give it one.
@@ -293,21 +299,19 @@ function stampEdits(source, nodes) {
 }
 
 // Rewrites the d.ts with `edits`, highest offset first so earlier edits keep their positions.
-function applyEdits(edits) {
+function applyEdits(edits, text) {
   edits.sort((a, b) => b.at - a.at);
-  let text = fs.readFileSync(out, "utf-8");
   for (const e of edits) text = text.slice(0, e.at) + e.insert + text.slice(e.at);
-  fs.writeFileSync(out, text);
-  return edits.length;
+  return { text, count: edits.length };
 }
 
 // A type is promised only while a stable member's signature can reach it. Everything else
 // the bundle exports -- a command's result, a settings shape, a bundler namespace alias --
 // is stamped `@unstable`, so the type gate in check-legacy holds exactly what plugins can
 // get their hands on through the stable surface.
-function stampUnpromisedExports(native) {
+function stampUnpromisedExports(native, text) {
   const { ts } = native;
-  const edits = withBundle(native, ({ checker, source, root }) => {
+  const edits = withBundle(native, text, ({ checker, source, root }) => {
     const taggedNode = (n) => jsDocTagNames(ts, n).includes("unstable");
     const unstableMember = memberUnstable(ts, checker);
     const resolve = (sym) => (sym && sym.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(sym) : sym);
@@ -355,7 +359,9 @@ function stampUnpromisedExports(native) {
     }
     return stampEdits(source, unpromised);
   });
-  console.log(`Stamped @unstable on ${applyEdits(edits)} exports no stable member reaches`);
+  const result = applyEdits(edits, text);
+  console.log(`Stamped @unstable on ${result.count} exports no stable member reaches`);
+  return result.text;
 }
 
 // The release each member path (`addLocations`, `ui.Sidebar`) first shipped in, read from the
@@ -443,10 +449,9 @@ function memberNames({ ts, withProgram }, files) {
 // The human-readable companion to mma.d.ts: one section per API surface on the MMA
 // interface, each member with its badges, signature and doc. Stable surfaces come first.
 // Output-only -- regenerated with the d.ts, never hand-edited.
-async function generateApiMarkdown(native) {
+async function generateApiMarkdown(native, text, since = firstReleases(native)) {
   const { ts } = native;
   const { format } = await import(pathToFileURL(path.join(appDir, "node_modules", "oxfmt", "dist", "index.js")).href);
-  const since = firstReleases(native);
   const flags = ts.NodeBuilderFlags.NoTruncation | ts.NodeBuilderFlags.UseAliasDefinedOutsideCurrentScope;
   const NL = "\n";
 
@@ -491,7 +496,7 @@ async function generateApiMarkdown(native) {
     ...(info.doc ? [info.doc, ""] : []),
   ];
 
-  const surfaces = withBundle(native, ({ checker, source, root }) => {
+  const surfaces = withBundle(native, text, ({ checker, source, root }) => {
     const unstableMember = memberUnstable(ts, checker);
     const hopsOf = declarationHops(ts, checker);
     const typeText = (type) => checker.typeToString(type, root, flags);
@@ -645,8 +650,8 @@ async function generateApiMarkdown(native) {
     "",
     ...unstable.flatMap(section),
   ].join(NL);
-  fs.writeFileSync(path.resolve(__dirname, "API.md"), md);
   console.log(`Generated plugins/types/API.md (${stable.length} stable, ${unstable.length} unstable surfaces)`);
+  return md;
 }
 
 main().catch((e) => {

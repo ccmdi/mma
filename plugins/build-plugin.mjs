@@ -55,8 +55,7 @@ function bumpedSinceHead(pluginDir) {
 	const head = committedBytes(manifestPath);
 	if (!head || !existsSync(manifestPath)) return false;
 	return (
-		JSON.parse(head.toString()).version !==
-		JSON.parse(readFileSync(manifestPath, "utf8")).version
+		JSON.parse(head.toString()).version !== JSON.parse(readFileSync(manifestPath, "utf8")).version
 	);
 }
 
@@ -150,6 +149,12 @@ function discoverPlugins() {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 	const args = process.argv.slice(2);
 	const watch = args.includes("--watch");
+	const check = args.includes("--check");
+	if (
+		args.some((arg) => arg.startsWith("--") && !["--watch", "--check"].includes(arg)) ||
+		(watch && check)
+	)
+		throw new Error("Use either --watch or --check; unknown options are not accepted");
 	const dirs = args.filter((a) => !a.startsWith("--"));
 
 	const targets = dirs.length > 0 ? dirs.map((d) => resolve(d)) : discoverPlugins();
@@ -178,7 +183,13 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
 				const changed = opts.some(
 					(o, i) => committed[i] === null || !committed[i].equals(readFileSync(o.outfile)),
 				);
-				if (changed && !bumpedSinceHead(dir)) bumpPatch(dir);
+				if (changed && !bumpedSinceHead(dir)) {
+					if (check)
+						throw new Error(
+							`[${name}] built artifacts changed without a plugin version bump; rebuild and review them before checking gates`,
+						);
+					bumpPatch(dir);
+				}
 				return name;
 			}),
 		);
