@@ -1561,3 +1561,67 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         (Id::new(3), 77, "h-create")
     );
 }
+
+#[test]
+fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
+    use crate::store::engine::{Store, Tracked, ValueRecord};
+    let mut store = Store::new();
+    store.meta = Tracked::new(MapMeta {
+        id: Id::new("sync-test".into()),
+        ..Default::default()
+    });
+    store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
+    let records = [(7, "Kept"), (8, "Pulled")].map(|(id, name)| {
+        (
+            Id::new(id),
+            ValueRecord {
+                id: Id::new(id),
+                name: Some(name.into()),
+                ..Default::default()
+            },
+        )
+    });
+    store
+        .value_meta
+        .insert("tags".into(), Tracked::new(records.into_iter().collect()));
+    let mut tagged = crate::test_util::loc(1, 0.0, 0.0);
+    tagged.tags = crate::test_util::tag_ids([7]);
+    store.put(&crate::store::engine::Change {
+        added: vec![tagged],
+        ..Default::default()
+    });
+    store.next_id = Id::new(2);
+
+    let out = ReconcileOutcome {
+        pushed: SideCounts::default(),
+        pulled: SideCounts::default(),
+        adopted: 0,
+        conflicts: Vec::new(),
+        needed_tags: Vec::new(),
+        pull_creates: vec![PullCreate {
+            fields: norm(|n| n.tags = vec!["Pulled".into()]),
+            remote_id: 77,
+            hash: "h-create".into(),
+        }],
+        pull_updates: vec![PullUpdate {
+            local_id: Id::new(1),
+            patch: Patch::<NormalizedSyncLocation> {
+                heading: Some(45.0),
+                ..Default::default()
+            },
+            remote_id: 88,
+            hash: "h-update".into(),
+        }],
+        pull_delete_ids: Vec::new(),
+        mirror_local_delete_ids: Vec::new(),
+    };
+
+    apply_pull(&mut store, &out).unwrap();
+    let updated = store.get_loc_by_id(Id::new(1)).unwrap();
+    assert_eq!(updated.heading, 45.0);
+    assert_eq!(updated.tags, crate::test_util::tag_ids([7]));
+    assert_eq!(
+        store.get_loc_by_id(Id::new(2)).unwrap().tags,
+        crate::test_util::tag_ids([8])
+    );
+}

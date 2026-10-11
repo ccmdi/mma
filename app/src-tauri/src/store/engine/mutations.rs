@@ -212,20 +212,14 @@ impl Store {
                         if !land {
                             return self.held(added);
                         }
-                        let pending = self.pending.remove(name).expect("entry just touched");
-                        let (mut sets, mut removed) = (Vec::new(), Vec::new());
-                        for row in pending
-                            .layer
-                            .resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
-                        {
-                            match (row.before, row.after) {
-                                (_, Some(row)) => sets.push(row),
-                                (Some(row), None) => removed.push(row.id),
-                                (None, None) => {}
-                            }
-                        }
+                        let Pending {
+                            mut layer,
+                            incoming,
+                            ..
+                        } = self.pending.remove(name).expect("entry just touched");
+                        // Incoming ids live only in the layer's edits, never in the rows below.
                         let mut piles = Piles::new();
-                        for (field, incoming) in pending.incoming {
+                        for (field, incoming) in incoming {
                             if incoming.is_empty() {
                                 continue;
                             }
@@ -234,34 +228,23 @@ impl Store {
                             let mut after = before.clone();
                             let remap =
                                 reconcile_values_by_name(incoming.values(), &mut after, floor);
-                            for row in &mut sets {
-                                let Some(serde_json::Value::Array(values)) =
-                                    selections::RowRef::from_loc(row).resolve_field(&field)
-                                else {
-                                    continue;
-                                };
-                                let values = values
-                                    .into_iter()
-                                    .filter_map(|value| {
-                                        let id = Id::new(u32::try_from(value.as_u64()?).ok()?);
-                                        remap.get(&id).map(|id| id.get().into())
-                                    })
-                                    .collect();
-                                let mut patch = row_patch(row.id);
-                                self.registry()
-                                    .assign(&field)
-                                    .and_then(|to| {
-                                        to.write(
-                                            &mut patch,
-                                            row.flags,
-                                            &serde_json::Value::Array(values),
-                                        )
-                                    })
-                                    .expect("declared interned fields hold id lists");
-                                *row = row.patched(&patch);
-                            }
+                            let to = self
+                                .registry()
+                                .assign(&field)
+                                .expect("declared interned fields are writable");
+                            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
                             piles
                                 .insert(field, PileDelta::at(&before, &after, remap.into_values()));
+                        }
+                        let (mut sets, mut removed) = (Vec::new(), Vec::new());
+                        for row in
+                            layer.resolve(|id| self.get_loc_by_id(id), |r, p| self.applied(r, p))
+                        {
+                            match (row.before, row.after) {
+                                (_, Some(row)) => sets.push(row),
+                                (Some(row), None) => removed.push(row.id),
+                                (None, None) => {}
+                            }
                         }
                         let edits = sets
                             .into_iter()
@@ -531,6 +514,48 @@ fn expr_value(to: FieldWriter<'_>, v: f64) -> Option<serde_json::Value> {
         0.0 => Some(serde_json::Value::Bool(false)),
         1.0 => Some(serde_json::Value::Bool(true)),
         _ => None,
+    }
+}
+
+/// `edit` with the incoming ids it writes to `to`'s field replaced by their map ids.
+/// An edit that writes no ids there, including a patch that leaves the field alone, is unchanged.
+fn remap_written(
+    edit: Edit<Location>,
+    to: &FieldWriter<'_>,
+    remap: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
+) -> Edit<Location> {
+    let written = |row: &Location| match selections::RowRef::from_loc(row).resolve_field(to.key()) {
+        Some(serde_json::Value::Array(ids)) if !ids.is_empty() => Some(serde_json::Value::Array(
+            ids.into_iter()
+                .filter_map(|id| {
+                    let id = Id::new(u32::try_from(id.as_u64()?).ok()?);
+                    remap.get(&id).map(|id| id.get().into())
+                })
+                .collect(),
+        )),
+        _ => None,
+    };
+    let write = |patch: &mut Patch<Location>, row: &Location, ids: &serde_json::Value| {
+        to.write(patch, row.flags, ids)
+            .expect("declared interned fields hold id lists");
+    };
+    match edit {
+        Op::Set(row) => match written(&row) {
+            Some(ids) => {
+                let mut patch = row_patch(row.id);
+                write(&mut patch, &row, &ids);
+                Op::Set(row.patched(&patch))
+            }
+            None => Op::Set(row),
+        },
+        Op::Put(mut patch) => {
+            let probe = Location::default().patched(&patch);
+            if let Some(ids) = written(&probe) {
+                write(&mut patch, &probe, &ids);
+            }
+            Op::Put(patch)
+        }
+        remove => remove,
     }
 }
 

@@ -494,6 +494,16 @@ where
     }
 }
 
+impl<T: Patchable + Keyed> Layer<T>
+where
+    Patch<T>: Keyed<Key = T::Key>,
+{
+    /// Rewrite every pending edit, keeping each row's edits in order.
+    pub fn map_edits(self, f: impl FnMut(Edit<T>) -> Edit<T>) -> Self {
+        self.ops.into_values().flatten().map(f).collect()
+    }
+}
+
 impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
     /// Read a row with this layer's pending edits applied to `below`.
     pub fn get(
