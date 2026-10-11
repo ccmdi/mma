@@ -599,9 +599,9 @@ pub async fn store_step(
             "[{stack:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
             store.edits.len(stack),
             _t.elapsed().as_millis(),
-            changes.rows.added.len(),
-            changes.rows.updated.len(),
-            changes.rows.removed.len()
+            changes.locations.added.len(),
+            changes.locations.updated.len(),
+            changes.locations.removed.len()
         );
         Ok(MutationResult {
             mutation: store.finish_entry(&changes),
@@ -761,7 +761,7 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit rows where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit<Location>>, opts: Option<EditOpts>) -> MutationResult => |store| {
+            "Edit locations where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit<Location>>, opts: Option<EditOpts>) -> MutationResult => |store| {
                 let opts = opts.unwrap_or_default();
                 Ok(MutationResult { mutation: store.edit(&target, edits, opts.land, &mut None) })
             };
@@ -772,7 +772,7 @@ macro_rules! command_table {
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)
             };
-            "Edit an interned field's value records; membership uses ordinary row edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
+            "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
                 Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
             "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {
@@ -781,7 +781,7 @@ macro_rules! command_table {
             "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
                 Ok(store.edit_selections(&op))
             };
-            "Answer one question about the target's rows matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
+            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
                 store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
             };
             "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult => |store| {

@@ -41,7 +41,7 @@ pub use raw_extra::*;
     flag(key = "loadAsPanoId", label = "Load as pano ID", bit = LOAD_AS_PANO_ID)
 )]
 pub struct Location {
-    /// Monotonically increasing within a map. Zero until the store numbers the row.
+    /// Monotonically increasing within a map. Zero until the store assigns one.
     #[field(label = "ID", kind = identity)]
     #[patch(key)]
     pub id: Id<Location>,

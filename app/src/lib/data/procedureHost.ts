@@ -1,6 +1,6 @@
 /**
  * The global `mma` API available inside procedure modules. Calls are synchronous;
- * pass request lists for concurrency. `map` and `run` receive location rows;
+ * pass request lists for concurrency. `map` and `run` receive locations;
  * `query` handles read-only requests. Each entry point receives `{ fields, force, config }`.
  * Results are location patches under `patch`, or module-defined answers under `collect`.
  */
@@ -39,7 +39,7 @@ export interface ProcedureHost {
 	panos(queries: PanoQuery[]): PanoAnswer[];
 	classify(dataset: string, lat: number, lng: number): string | null;
 	/** Nearby run locations, nearest first, with the requested fields when present.
-	 *  Includes the queried row itself; radius 0 matches exact coordinates.
+	 *  Includes the queried location itself; radius 0 matches exact coordinates.
 	 *  Keep radius and fields constant to reuse the index. Unavailable in queries. */
 	neighbors(lat: number, lng: number, radiusM: number, fields?: string[]): ProcedureNeighbor[];
 	/** Run one sidecar command. `onLine` sees each output line as it arrives, so a
@@ -56,7 +56,7 @@ export interface ProcedureHost {
 	/** IANA timezone at a coordinate, or null outside the valid range. Pure compute,
 	 *  available to every procedure shape. @unstable */
 	tz(lat: number, lng: number): string | null;
-	/** Marks a row as failed rather than skipped. */
+	/** Marks a location as failed rather than skipped. */
 	fail(id: number): void;
 	/** Delivers one partial result to the caller while the call is still running, under
 	 *  an id of the procedure's choosing. Queries stream these to whoever asked; runs

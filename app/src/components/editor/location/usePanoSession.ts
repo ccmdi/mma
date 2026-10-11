@@ -14,7 +14,7 @@ import { t } from "@/lib/i18n";
  *  into the draft and the trail. */
 export function usePanoSession() {
 	const opened = useMapState((s) => s.open);
-	const location = opened?.row ?? null;
+	const location = opened?.location ?? null;
 	const { edit, open } = usePanoViewer();
 	const pano = usePano();
 

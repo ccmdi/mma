@@ -477,10 +477,10 @@ export type AnonIssueRef = {
 	token: string,
 };
 
-/**  The result of a row query. */
-export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groupBy"; groups: PartitionBucket[] } | { kind: "countBy"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "duplicateGroups"; groups: number[][] } | { kind: "nearAny"; values: boolean[] };
+/**  The answer to a question about the selected locations. */
+export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "locations"; locations: LocationList } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groupBy"; groups: PartitionBucket[] } | { kind: "countBy"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "duplicateGroups"; groups: number[][] } | { kind: "nearAny"; values: boolean[] };
 
-/**  A query over selected rows. */
+/**  A question about the selected locations. */
 export type Ask = 
 /**  Their ids: ascending, or a ranked selector's order. */
 { kind: "ids" } | 
@@ -488,8 +488,8 @@ export type Ask =
 { kind: "spacing" } | 
 /**  How many there are. */
 { kind: "count" } | 
-/**  Every row in full. */
-{ kind: "rows" } | 
+/**  Every location in full. */
+{ kind: "locations" } | 
 /**
  *  One column per field, `null` where a row lacks it; `tags` is a column of tag-id
  *  arrays.
@@ -713,8 +713,8 @@ export type EditorImportResult = {
 };
 
 export type EntryKey = 
-/** Changes to rows. */
-"rows" | 
+/** Changes to locations. */
+"locations" | 
 /** Changes to piles. */
 "piles" | 
 /** Changes to defs. */
@@ -986,6 +986,34 @@ export type Location = {
 	modifiedAt: number | null,
 };
 
+/**  Matched locations: returned inline, or as a file path to read them from. */
+export type LocationList = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
+
+/**  Operations computed independently for each selected location. */
+export type LocationOp = 
+/**
+ *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
+ *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ */
+{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
+/**  Drop `keys` from every row that has them. */
+{ kind: "delete"; keys: string[] } | 
+/**
+ *  Assign a value to a writable field on each row. Builtins update their stored
+ *  fields; other keys update `extra`.
+ */
+{ kind: "set"; key: string; value: unknown } | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
+ */
+{ kind: "expr"; key: string; expr: string } | 
+/**
+ *  Add and remove list members. `add` wins if a value appears in both lists.
+ *  Rows already in the requested state keep their member order.
+ */
+{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
+
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -995,7 +1023,7 @@ export type MapExtra = {
 };
 
 /**
- *  Action performed by a per-map key binding on the active location.
+ *  Action performed by a per-map key binding on the open location.
  *  New action kinds (e.g. copy-to-map) are added as variants here.
  */
 export type MapKeyAction = { type: "applyTag"; tagId: number } | { type: "copyToMap"; mapId: string };
@@ -1551,34 +1579,6 @@ export type ReviewSession = {
 	updatedAt: string,
 };
 
-/**  Operations computed independently for each selected row. */
-export type RowOp = 
-/**
- *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
- */
-{ kind: "move"; from: string; to: string; winner: MergeWinner } | 
-/**  Drop `keys` from every row that has them. */
-{ kind: "delete"; keys: string[] } | 
-/**
- *  Assign a value to a writable field on each row. Builtins update their stored
- *  fields; other keys update `extra`.
- */
-{ kind: "set"; key: string; value: unknown } | 
-/**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is reported back by id.
- */
-{ kind: "expr"; key: string; expr: string } | 
-/**
- *  Add and remove list members. `add` wins if a value appears in both lists.
- *  Rows already in the requested state keep their member order.
- */
-{ kind: "listSet"; key: string; add: unknown[]; remove: unknown[] };
-
-/**  Matched rows: returned inline, or as a file path to read them from. */
-export type Rows = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
-
 export type SavedSelection = {
 	selector: Selector,
 	/**  Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable. */
@@ -1880,8 +1880,8 @@ export type VirtualTag = {
 	order?: number | null,
 };
 
-/**  Operations over selected rows. */
-export type Work = RowOp | SetOp;
+/**  Operations over the selected locations. */
+export type Work = LocationOp | SetOp;
 
 /**  The mutation and operation-specific results. */
 export type WorkResult = {

@@ -110,9 +110,9 @@ export interface CollectedEntry<T = unknown> {
 }
 
 export interface BatchOutcome {
-	/** Count of rows the procedure processed successfully. */
+	/** Count of locations the procedure processed successfully. */
 	succeeded: number;
-	/** IDs of rows the procedure failed on. */
+	/** IDs of locations the procedure failed on. */
 	failed: number[];
 }
 
@@ -137,7 +137,7 @@ function parseAnswer(providerId: string, json: string): unknown {
 	}
 }
 
-/** One provider's own progress. Counts are net of skipped rows. */
+/** One provider's own progress. Counts are net of skipped locations. */
 export interface ProviderPart {
 	label: string;
 	done: number;
@@ -149,12 +149,12 @@ export interface ProviderPart {
 export interface RunOpts {
 	signal?: AbortSignal;
 	force?: boolean;
-	/** Read rows and write results at this target instead of the map. */
+	/** Read locations and write results at this target instead of the map. */
 	on?: Target;
 	/** `done`/`total` reflect the slowest provider. `parts` carries each labeled
 	 *  provider's own counts, ordered as declared. */
 	onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
-	/** Each row as a provider finishes with it (rows-only runs). The same row arrives
+	/** Each location as a provider finishes with it (locations-only runs). The same location arrives
 	 *  again from each subsequent provider. */
 	onPartial?: (rows: Location[]) => void;
 }
@@ -172,13 +172,11 @@ export interface ProviderRun<TConfig = unknown> {
 	fields?: string[];
 }
 
-/** Run a set of providers over `rows`. When `rows` is a Selector, matching locations
- *  are processed in place and results are written back. When `rows` is a Location array,
- *  locations are processed independently and returned as modified copies. Resolves once
- *  every provider finishes, or on abort. */
+/** Run a set of providers over the locations `selector` matches and write their results back.
+ *  Resolves once every provider finishes, or on abort. */
 export async function runProviders<C extends readonly unknown[]>(
 	items: { [K in keyof C]: ProviderRun<C[K]> },
-	rows: Selector,
+	selector: Selector,
 	opts?: RunOpts,
 ): Promise<ProviderOutcomes>;
 export async function runProviders(
@@ -288,7 +286,7 @@ async function runDecls(
 	const handle = (p: ProcedureProgress) => {
 		seen.set(p.providerId, p);
 		const parts = partsOf();
-		// Overall is rows finished through every provider: the slowest one's count. A
+		// Overall is locations finished through every provider: the slowest one's count. A
 		// provider that skipped its whole universe carries no work and counts for nothing.
 		const counting = decls
 			.map((d) => net(seen.get(d.id)))
@@ -350,7 +348,7 @@ async function runDecls(
 
 	for (const [id, s] of seen) {
 		result[id] = {
-			// Skipped rows were not work.
+			// Skipped locations were not work.
 			succeeded: Math.max(0, s.done - s.failed - s.skipped),
 			failed: failed.get(id) ?? [],
 			...(collected.has(id) ? { collected: collected.get(id) } : {}),

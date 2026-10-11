@@ -1,11 +1,11 @@
 #![allow(clippy::needless_pass_by_value)]
-use super::frame::Rows;
+use super::frame::CellRows;
 use super::*;
 use crate::io::export;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, field_expr, Selection, Selector, Thinning};
 use crate::store::arrow::empty_batch;
-use crate::store::engine::query::rows_file_path;
+use crate::store::engine::query::locations_file_path;
 use crate::store::maps::IndexShape;
 use crate::test_util::{loc, loc_ids, patch, tag_ids, Fx, TempDir};
 use crate::types::{LocationFlags, RawExtra};
@@ -37,9 +37,9 @@ fn apply_updates(
     store.write(updates.iter().cloned().map(Op::Put), join, Entry::default())
 }
 
-fn entry(rows: Change) -> Entry {
+fn entry(locations: Change) -> Entry {
     Entry {
-        rows,
+        locations,
         ..Default::default()
     }
 }
@@ -644,12 +644,12 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     assert_eq!(store.edits.len(Stack::Undo), 1);
     assert_eq!(store.edits.len(Stack::Redo), 1);
 
-    let big: Vec<Edit<Location>> = (0..=MAX_UNDO_ROWS as u32)
+    let big: Vec<Edit<Location>> = (0..=MAX_UNDO_LOCATIONS as u32)
         .map(|_| Op::Set(loc(0, 0.0, 0.0)))
         .collect();
     store.edit(&Target::Map, big, false, &mut None);
 
-    assert_eq!(*store.alive_count as usize, MAX_UNDO_ROWS + 2);
+    assert_eq!(*store.alive_count as usize, MAX_UNDO_LOCATIONS + 2);
     assert_eq!(store.edits.len(Stack::Undo), 0);
     assert_eq!(store.edits.len(Stack::Redo), 0);
 }
@@ -725,7 +725,7 @@ struct FrameRow {
 }
 
 fn frame_rows(cells: &[CellFrame], patches: bool) -> Vec<FrameRow> {
-    fn flatten<K>(cell: u8, rows: &Rows<K>, raw: impl Fn(&K) -> u32) -> Vec<FrameRow> {
+    fn flatten<K>(cell: u8, rows: &CellRows<K>, raw: impl Fn(&K) -> u32) -> Vec<FrameRow> {
         (0..rows.len())
             .map(|i| FrameRow {
                 cell,
@@ -919,7 +919,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Rows)
+            .get(&EntryKey::Locations)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((false, false))
     );
@@ -931,7 +931,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Rows)
+            .get(&EntryKey::Locations)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
@@ -944,7 +944,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Rows)
+            .get(&EntryKey::Locations)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, true))
     );
@@ -965,7 +965,7 @@ fn finish_mutation_reports_correct_state() {
     assert_eq!(e.derived.location_count, Some(1));
     assert_eq!(
         e.derived.history.map(|h| h
-            .get(&EntryKey::Rows)
+            .get(&EntryKey::Locations)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false)),
         "stack change ships both flags"
@@ -994,7 +994,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         .last()
         .derived
         .history
-        .is_some_and(|h| h.get(&EntryKey::Rows).is_some_and(|h| h.undo)));
+        .is_some_and(|h| h.get(&EntryKey::Locations).is_some_and(|h| h.undo)));
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
     store.edits.edit().clear();
@@ -1006,7 +1006,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     store.finish_mutation(&Change::default());
     assert_eq!(
         feed.last().derived.history.map(|h| h
-            .get(&EntryKey::Rows)
+            .get(&EntryKey::Locations)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
@@ -1710,7 +1710,11 @@ fn stored_round_trip(entries: &[Change]) -> Vec<Change> {
     with_history_db(|conn| {
         save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         seqs.iter()
-            .map(|&seq| load_edit(conn, &Id::new("m".into()), seq).unwrap().rows)
+            .map(|&seq| {
+                load_edit(conn, &Id::new("m".into()), seq)
+                    .unwrap()
+                    .locations
+            })
             .collect()
     })
 }
@@ -3310,7 +3314,7 @@ fn stripping_the_last_member_reports_a_zero_count() {
 /// Membership write through the generic field op: `tags` is an ordinary list-valued
 /// field, so it goes through the same `ListSet` any `array` field would.
 fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Mutation {
-    let op = Work::Rows(RowOp::ListSet {
+    let op = Work::Locations(LocationOp::ListSet {
         key: "tags".into(),
         add: add.iter().map(|&i| serde_json::json!(i)).collect(),
         remove: remove.iter().map(|&i| serde_json::json!(i)).collect(),
@@ -3484,7 +3488,7 @@ fn an_indexed_filter_agrees_with_the_scan_it_replaces() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1), loc(3, 10.2, 20.2)]);
     let t = tag_onto(&mut store, 7, &[1, 3]);
     let scanned: Vec<u32> = store
-        .rows()
+        .view()
         .select(&Selector::tag(t))
         .ids()
         .iter()
@@ -3664,7 +3668,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
         counts(&[("a", 3), ("b", 1)])
     );
 
-    apply_work(&mut store, &all, &Work::Rows(del_op(&["b"]))).unwrap();
+    apply_work(&mut store, &all, &Work::Locations(del_op(&["b"]))).unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
     let gain_b = patch!(2; extra: raw_extra(r#"{"b":5}"#));
@@ -4708,7 +4712,7 @@ fn newest_undo(store: &Store) -> Change {
         .as_deref()
         .cloned()
         .unwrap_or_else(|| fetch_stored(edit.seq).unwrap())
-        .rows
+        .locations
 }
 
 fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
@@ -4725,7 +4729,7 @@ fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
             (
                 e.seq,
                 entry
-                    .rows
+                    .locations
                     .sides()
                     .0
                     .iter()
@@ -6336,11 +6340,11 @@ fn puts(edits: Vec<Edit<Location>>) -> Vec<Patch<Location>> {
         .collect()
 }
 
-fn plan(locs: &[Location], op: &RowOp) -> Vec<Patch<Location>> {
+fn plan(locs: &[Location], op: &LocationOp) -> Vec<Patch<Location>> {
     plan_full(locs, op).updates
 }
 
-fn plan_full(locs: &[Location], op: &RowOp) -> Planned {
+fn plan_full(locs: &[Location], op: &LocationOp) -> Planned {
     let fx = Fx::base(locs);
     let p = plan_fields(selections::FieldRegistry::builtins(), &fx.view().all(), op).unwrap();
     Planned {
@@ -6349,22 +6353,22 @@ fn plan_full(locs: &[Location], op: &RowOp) -> Planned {
     }
 }
 
-fn set_op(key: &str, value: serde_json::Value) -> RowOp {
-    RowOp::Set {
+fn set_op(key: &str, value: serde_json::Value) -> LocationOp {
+    LocationOp::Set {
         key: key.into(),
         value,
     }
 }
 
-fn expr_op(key: &str, expr: &str) -> RowOp {
-    RowOp::Expr {
+fn expr_op(key: &str, expr: &str) -> LocationOp {
+    LocationOp::Expr {
         key: key.into(),
         expr: expr.into(),
     }
 }
 
-fn move_op(from: &str, to: &str, winner: MergeWinner) -> RowOp {
-    RowOp::Move {
+fn move_op(from: &str, to: &str, winner: MergeWinner) -> LocationOp {
+    LocationOp::Move {
         from: from.into(),
         to: to.into(),
         winner,
@@ -6438,7 +6442,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
             loc_with_extra(1, r#"{"a":5,"b":9}"#),
             loc_with_extra(2, r#"{"b":1}"#),
         ],
-        &RowOp::Delete {
+        &LocationOp::Delete {
             keys: vec!["a".into()],
         },
     );
@@ -6451,7 +6455,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
 fn field_delete_takes_several_keys_at_once() {
     let out = plan(
         &[loc_with_extra(1, r#"{"a":5,"b":9,"c":1}"#)],
-        &RowOp::Delete {
+        &LocationOp::Delete {
             keys: vec!["a".into(), "c".into(), "missing".into()],
         },
     );
@@ -6562,7 +6566,7 @@ fn pinned_loc(id: u32, pano: &str) -> Location {
 }
 
 /// The message a rejected op answers with, or a panic naming what was wrongly accepted.
-fn plan_err(locs: &[Location], op: &RowOp) -> String {
+fn plan_err(locs: &[Location], op: &LocationOp) -> String {
     let fx = Fx::base(locs);
     match plan_fields(selections::FieldRegistry::builtins(), &fx.view().all(), op) {
         Err(e) => e.to_string(),
@@ -6570,8 +6574,8 @@ fn plan_err(locs: &[Location], op: &RowOp) -> String {
     }
 }
 
-fn del_op(keys: &[&str]) -> RowOp {
-    RowOp::Delete {
+fn del_op(keys: &[&str]) -> LocationOp {
+    LocationOp::Delete {
         keys: keys.iter().map(|k| (*k).to_string()).collect(),
     }
 }
@@ -6758,7 +6762,7 @@ fn apply_field_op_clears_a_nullable_column() {
     let out = apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(del_op(&["panoId"])),
+        &Work::Locations(del_op(&["panoId"])),
     )
     .unwrap();
     assert_eq!(out.changed, 1);
@@ -6771,7 +6775,7 @@ fn work_wire_kinds_land_in_their_tier() {
     let work = |v: serde_json::Value| serde_json::from_value::<Work>(v).unwrap();
     assert!(matches!(
         work(serde_json::json!({ "kind": "delete", "keys": ["a"] })),
-        Work::Rows(RowOp::Delete { .. })
+        Work::Locations(LocationOp::Delete { .. })
     ));
     assert!(matches!(
         work(serde_json::json!({ "kind": "pruneDuplicates", "distance": 25.0, "score": null })),
@@ -6790,7 +6794,7 @@ fn apply_field_op_refuses_to_clear_the_column_the_engine_stamps() {
     let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(del_op(&["modifiedAt"])),
+        &Work::Locations(del_op(&["modifiedAt"])),
     ) else {
         panic!("cleared the stamped column");
     };
@@ -6807,7 +6811,7 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
     let out = apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(expr_op("h", "a + 1")),
+        &Work::Locations(expr_op("h", "a + 1")),
     )
     .unwrap();
     assert_eq!(out.changed, 1);
@@ -6821,7 +6825,7 @@ fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
         let out = apply_work(
             &mut store,
             &Selector::Everything,
-            &Work::Rows(set_op("loadAsPanoId", serde_json::json!(on))),
+            &Work::Locations(set_op("loadAsPanoId", serde_json::json!(on))),
         )
         .unwrap();
         assert_eq!(out.changed, 1);
@@ -6842,7 +6846,7 @@ fn apply_field_op_refuses_a_column_it_cannot_clear() {
     let Err(err) = apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(del_op(&["heading"])),
+        &Work::Locations(del_op(&["heading"])),
     ) else {
         panic!("heading is writable, never clearable")
     };
@@ -6855,7 +6859,7 @@ fn apply_field_op_refuses_a_non_numeric_assignment() {
     assert!(apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(set_op("heading", serde_json::json!("north"))),
+        &Work::Locations(set_op("heading", serde_json::json!("north"))),
     )
     .is_err());
 }
@@ -6896,8 +6900,8 @@ fn concurrent_rows_file_queries_get_distinct_paths() {
     // The rows file is fetched after the store lock is released; queries in flight at the
     // same time must never stage into the same path.
     let temp = env::temp_dir();
-    let a = rows_file_path(&temp, &Id::new("m".into()));
-    let b = rows_file_path(&temp, &Id::new("m".into()));
+    let a = locations_file_path(&temp, &Id::new("m".into()));
+    let b = locations_file_path(&temp, &Id::new("m".into()));
     assert_ne!(a, b);
 }
 
@@ -7589,7 +7593,7 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
         .insert("a".into(), labelled_def("a"));
     let steps = store.edits.len(Stack::Undo);
 
-    let rename = Work::Rows(move_op("a", "b", MergeWinner::From));
+    let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
     assert_eq!(store.edits.len(Stack::Undo), steps + 1);
     assert!(!store.meta.extra.fields.contains_key("a"));
@@ -7623,13 +7627,13 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
         locations: loc_ids([1]),
         name: None,
     };
-    apply_work(&mut store, &one, &Work::Rows(del_op(&["a"]))).unwrap();
+    apply_work(&mut store, &one, &Work::Locations(del_op(&["a"]))).unwrap();
     assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
 
     apply_work(
         &mut store,
         &Selector::Everything,
-        &Work::Rows(del_op(&["a"])),
+        &Work::Locations(del_op(&["a"])),
     )
     .unwrap();
     assert!(!store.meta.extra.fields.contains_key("a"));
@@ -7653,7 +7657,7 @@ fn a_stored_edit_keeps_its_definition_moves() {
         .extra
         .fields
         .insert("a".into(), labelled_def("a"));
-    let rename = Work::Rows(move_op("a", "b", MergeWinner::From));
+    let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
     let (_, newest) = store.edits.iter().last().unwrap();
     let held = (**newest.entry.as_ref().unwrap()).clone();
@@ -8094,7 +8098,7 @@ fn redo_reapplies_a_bulk_tag_removal() {
             locations: loc_ids(removed),
             name: None,
         },
-        &Work::Rows(RowOp::ListSet {
+        &Work::Locations(LocationOp::ListSet {
             key: "tags".into(),
             add: vec![],
             remove: vec![serde_json::json!(10)],
@@ -8352,13 +8356,13 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     let changes = store
-        .step_key(Stack::Undo, EntryKey::Rows, fetch_stored)
+        .step_key(Stack::Undo, EntryKey::Locations, fetch_stored)
         .unwrap()
         .unwrap();
     store.finish_entry(&changes);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
-    assert!(store.history()[&EntryKey::Rows].redo);
+    assert!(store.history()[&EntryKey::Locations].redo);
 }
 
 #[test]
@@ -8400,8 +8404,14 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
             before.keys().collect::<Vec<_>>(),
             after.keys().collect::<Vec<_>>()
         );
-        assert_eq!(after[&EntryKey::Rows].undo, before[&EntryKey::Rows].undo);
-        assert_eq!(after[&EntryKey::Rows].redo, before[&EntryKey::Rows].redo);
+        assert_eq!(
+            after[&EntryKey::Locations].undo,
+            before[&EntryKey::Locations].undo
+        );
+        assert_eq!(
+            after[&EntryKey::Locations].redo,
+            before[&EntryKey::Locations].redo
+        );
     });
 }
 

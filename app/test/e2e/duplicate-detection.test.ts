@@ -59,9 +59,9 @@ describe("findNearby API", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 0, lng: 0, radiusM: 100 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // 100m radius
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations); // 100m radius
 		});
 		expect(nearby.length).toBe(2);
 	});
@@ -72,9 +72,9 @@ describe("findNearby API", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 0, lng: 0, radiusM: 100 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		// The location at (1,1) is ~157km away, should not be found at 100m
 		const hasDistant = nearby.some((l: any) => Math.abs(l.lat - 1) < 0.01);
@@ -87,9 +87,9 @@ describe("findNearby API", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 50, lng: 50, radiusM: 100 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations); // no locations near (50,50)
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations); // no locations near (50,50)
 		});
 		expect(nearby.length).toBe(0);
 	});

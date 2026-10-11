@@ -67,7 +67,10 @@ import { IconButton } from "@/components/primitives/IconButton";
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
 	const ids = await read({ type: "Sample", selection: selection(selector), n }, { kind: "ids" });
 	if (ids.length === 0) return [];
-	const locations = await read({ type: "Locations", locations: ids, name: null }, { kind: "rows" });
+	const locations = await read(
+		{ type: "Locations", locations: ids, name: null },
+		{ kind: "locations" },
+	);
 	return locations.map(toRoundLocation);
 }
 

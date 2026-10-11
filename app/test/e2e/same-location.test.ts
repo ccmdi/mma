@@ -28,9 +28,9 @@ describe("SameLocation — duplicate picker", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		expect(nearby.length).toBe(3);
 	});
@@ -42,9 +42,9 @@ describe("SameLocation — duplicate picker", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		const toDelete = nearby[0].id;
 
@@ -60,9 +60,9 @@ describe("SameLocation — duplicate picker", () => {
 				.storeRead(
 					{ kind: "map" },
 					{ type: "Nearby", selection: null, lat: 10.0, lng: 20.0, radiusM: 2.0 },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
-				.then((a) => (a as { rows: { locations: Location[] } }).rows.locations);
+				.then((a) => (a as { locations: { locations: Location[] } }).locations.locations);
 		});
 		expect(remaining.length).toBe(2);
 		expect(remaining.every((l) => l.id !== toDelete)).toBe(true);

@@ -13,7 +13,7 @@ import {
 	getMapState,
 	read,
 	mutate,
-	setOpenRow,
+	setOpenLocation,
 	useMapState,
 	VIEWER,
 	type Open,
@@ -43,7 +43,7 @@ interface PanoViewerContextValue {
 	/** The draft changed: the viewer moved, a date was chosen, a pin toggled. */
 	edit: (patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => void;
 	/** Save the draft with `patch` as one undo step. Pending enrichment joins that step.
-	 * Returns the saved row id, or null if there is no draft. */
+	 * Returns the saved location id, or null if there is no draft. */
 	land: (patch: Partial<Location>) => Promise<number | null>;
 	/** Metadata for the draft's pano, or null while loading. */
 	currentPano: Pano | null;
@@ -68,7 +68,7 @@ export function viewerPosition(draft: Location | null, location: Location | null
 	return draft ?? location ?? { lat: 0, lng: 0 };
 }
 
-/** A `Partial<Location>` as the wire patch for layer row `id`. */
+/** A `Partial<Location>` as the wire patch for layer location `id`. */
 function put(id: number, patch: Partial<Location>) {
 	const { id: _, ...fields } = patch;
 	return { put: { ...fields, id } };
@@ -76,7 +76,7 @@ function put(id: number, patch: Partial<Location>) {
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const opened = useMapState((s) => s.open);
-	const location = opened?.row ?? null;
+	const location = opened?.location ?? null;
 	const pano = usePano();
 	const [enriching, setEnriching] = useState(false);
 	const session = useRef<ViewerSession | null>(null);
@@ -102,10 +102,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const refresh = useCallback(async (h: ViewerSession) => {
 		const [fresh] = await read(
 			{ type: "Locations", locations: [h.open.id], name: null },
-			{ kind: "rows" },
+			{ kind: "locations" },
 			VIEWER,
 		);
-		setOpenRow(fresh ?? null, h.open.session);
+		setOpenLocation(fresh ?? null, h.open.session);
 	}, []);
 
 	const release = useCallback(async (h: ViewerSession | null) => {
@@ -143,7 +143,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			void queue(async () => {
 				const h = currentSession();
-				const base = getMapState().open?.row;
+				const base = getMapState().open?.location;
 				if (!h || !base) return;
 				const p = typeof patch === "function" ? patch(base) : patch;
 				await mutate(() => cmd.storeEdit(VIEWER, [put(h.open.id, p)], null));
@@ -208,7 +208,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		[geocodeProvider, currentPano, looked],
 	);
 
-	// Enrich once per pano. Results update the draft or its saved row;
+	// Enrich once per pano. Results update the draft or its saved location;
 	// stale results are discarded by the store.
 	useEffect(() => {
 		const h = currentSession();
@@ -224,7 +224,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				onPartial: (rows) => {
 					const mine = rows.find((r) => r.id === h.open.id);
 					if (mine && !ac.signal.aborted) {
-						setOpenRow(mine, h.open.session);
+						setOpenLocation(mine, h.open.session);
 					}
 				},
 			},
@@ -239,7 +239,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				else void queue(() => refresh(h), h.open.session);
 			});
 		return () => {
-			// A saved draft's run keeps going: its answers land on the map row it became.
+			// A saved draft's run keeps going: its answers land on the map location it became.
 			if (!h.landed) {
 				ac.abort();
 				setEnriching(false);

@@ -43,9 +43,9 @@ export function getCurrentMapId() {
 	return getMapState().mapId;
 }
 
-/** @deprecated v0.8.2. Read `MMA.getMapState().open?.row`. */
+/** @deprecated v0.8.2. Read `MMA.getMapState().open?.location`. */
 export function getActiveLocation() {
-	return getMapState().open?.row ?? null;
+	return getMapState().open?.location ?? null;
 }
 
 /** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. */
@@ -82,17 +82,17 @@ export async function getDirtyCount(): Promise<number> {
 	return (await cmd.storeSummary()).dirtyCount;
 }
 
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" })`. */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. */
 export async function fetchLocation(id: number) {
 	return (await query({ type: "Locations", locations: [id], name: null }).locations())[0] ?? null;
 }
 
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" })`. */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. */
 export function fetchLocationsByIds(ids: number[]) {
 	return query({ type: "Locations", locations: ids, name: null }).locations();
 }
 
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Everything" }, { kind: "rows" })`. */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Everything" }, { kind: "locations" })`. */
 export function fetchAllLocations() {
 	return query({ type: "Everything" }).locations();
 }
@@ -157,7 +157,7 @@ export function partition(
 	return query(selector).partition(field, key);
 }
 
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "rows" })`. */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "locations" })`. */
 export function fetchLocations(selector: Selector): Promise<Location[]> {
 	return query(selector).locations();
 }
@@ -265,7 +265,7 @@ export function query(selector: Selector, target: Target = { kind: "map" }) {
 			return groups;
 		},
 		/** Full matching locations, loading any large result from its temporary file. */
-		locations: async (): Promise<Location[]> => read(selector, { kind: "rows" }, target),
+		locations: async (): Promise<Location[]> => read(selector, { kind: "locations" }, target),
 	};
 }
 

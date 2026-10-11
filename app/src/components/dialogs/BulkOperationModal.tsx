@@ -81,7 +81,7 @@ type BulkRunContext = { selector: Selector } & Required<BulkOpts>;
 
 interface BulkRunResult {
 	doneMessage?: string;
-	/** What the run did, so one button can offer back the rows it could not work. */
+	/** What the run did, so one button can offer back the locations it could not work. */
 	outcome?: BatchOutcome;
 	doneContent?: React.ReactNode;
 	/** Extra buttons shown beside Close when done. */
@@ -91,13 +91,13 @@ interface BulkRunResult {
 type BulkRunner = (ctx: BulkRunContext) => Promise<BulkRunResult>;
 
 /** Everything the setup screens display about the current selector, read as projections --
- *  no location rows. */
+ *  no locations. */
 interface TargetInfo {
 	total: number;
 	pinned: number;
-	/** Selected rows holding a value for `key`. */
+	/** Selected locations holding a value for `key`. */
 	have: (key: string) => number;
-	/** Selected rows lacking one. */
+	/** Selected locations lacking one. */
 	missing: (key: string) => number;
 }
 
@@ -723,7 +723,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 					onClick: () => {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
-							const locations = await read(selector, { kind: "rows" });
+							const locations = await read(selector, { kind: "locations" });
 							const result = await bulkDownloadPanoramas(locations, config, {
 								signal,
 								onProgress,

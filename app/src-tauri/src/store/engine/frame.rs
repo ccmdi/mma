@@ -35,7 +35,7 @@ unsafe impl bytemuck::Pod for PaletteIdx {}
 
 /// Rows of one cell, column by column.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct Rows<K = Id<Location>> {
+pub(crate) struct CellRows<K = Id<Location>> {
     pub key: Vec<K>,
     /// `lng, lat` pairs.
     pub pos: Vec<f32>,
@@ -43,7 +43,7 @@ pub(crate) struct Rows<K = Id<Location>> {
     pub sel: Vec<PaletteIdx>,
 }
 
-impl<K> Rows<K> {
+impl<K> CellRows<K> {
     pub(crate) fn push(&mut self, key: K, lng: f64, lat: f64, angle: f32, sel: PaletteIdx) {
         self.key.push(key);
         self.pos.push(lng as f32);
@@ -70,8 +70,8 @@ impl<K> Rows<K> {
 pub(crate) struct CellFrame {
     pub cell: u8,
     pub remove: Vec<u32>,
-    pub add: Rows,
-    pub patch: Rows<u32>,
+    pub add: CellRows,
+    pub patch: CellRows<u32>,
 }
 
 impl CellFrame {

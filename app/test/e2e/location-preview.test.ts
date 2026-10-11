@@ -413,7 +413,9 @@ describe("LocationPreview — dead pano (fallback)", () => {
 	it("resolved pano differs from the dead pano ID", async () => {
 		await openLocation(dead1Id);
 		await waitForDates();
-		const draftPanoId = await withApi(async (api) => api.getMapState().open?.row?.panoId ?? null);
+		const draftPanoId = await withApi(
+			async (api) => api.getMapState().open?.location?.panoId ?? null,
+		);
 		expect((await getLoc(dead1Id)).panoId).toBe(DEAD_PANO);
 		expect(draftPanoId).not.toBe(DEAD_PANO);
 	});
@@ -528,7 +530,7 @@ describe("LocationPreview — switching between pano types", () => {
 		const area = await withApi(async (api) => api.getMapState().workArea);
 		expect(area).toBe("location");
 		const active = await withApi(async (api) => {
-			return api.getMapState().open?.row?.id ?? null;
+			return api.getMapState().open?.location?.id ?? null;
 		});
 		expect(active).toBe(swCoordId);
 	});
@@ -1351,7 +1353,7 @@ describe("LocationPreview — edge cases", () => {
 
 		// Open location should be B
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().open?.row?.id ?? null;
+			return api.getMapState().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeBId);
 	});
@@ -1367,7 +1369,7 @@ describe("LocationPreview — edge cases", () => {
 		await waitForDates();
 
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().open?.row?.id ?? null;
+			return api.getMapState().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeAId);
 		expect(await getDateCount()).toBeGreaterThan(0);

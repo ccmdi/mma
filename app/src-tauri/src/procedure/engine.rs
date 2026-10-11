@@ -42,7 +42,7 @@ const PROGRESS_INTERVAL: Duration = Duration::from_millis(250);
 // Declarations (from JS)
 // ---------------------------------------------------------------------------
 
-/// How a page of rows is cut into procedure calls.
+/// How a page of locations is cut into procedure calls.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(tag = "mode", rename_all = "camelCase")]
 pub enum BatchMode {
@@ -50,8 +50,8 @@ pub enum BatchMode {
         size: u32,
     },
     PerRow,
-    /// Group rows by a row field; the procedure sees one representative per distinct
-    /// value and its patch fans back out to every row sharing it. v1 key: `panoId`.
+    /// Group locations by a location field; the procedure sees one representative per distinct
+    /// value and its patch fans back out to every location sharing it. v1 key: `panoId`.
     DedupeBy {
         key: String,
     },
@@ -134,7 +134,7 @@ impl ProcedureDecl {
 pub struct ProcedureConfig<T> {
     /// The extra-field keys the run wants written. Empty means every key the procedure produces.
     pub fields: Vec<String>,
-    /// Recompute rows that already hold every wanted field.
+    /// Recompute locations that already hold every wanted field.
     pub force: bool,
     /// The procedure's own configuration, or null when none was declared or it did not parse.
     pub config: Option<T>,
@@ -149,14 +149,14 @@ pub struct ProcedureProgress {
     pub done: u32,
     pub total: u32,
     pub failed: u32,
-    /// Rows counted as done without being worked, because they already held every field
+    /// Locations counted as done without being worked, because they already held every field
     /// the provider produces. Callers subtract these to report what a run actually did.
     pub skipped: u32,
     pub finished: bool,
 }
 
 /// What one page hands back to the caller: a `Collect` provider's answers, delivered
-/// instead of being written, and for every sink the rows that failed. Emitted only when
+/// instead of being written, and for every sink the locations that failed. Emitted only when
 /// there is something in it.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
@@ -165,7 +165,7 @@ pub struct ProcedureResult {
     pub run_id: u32,
     pub provider_id: String,
     pub entries: Vec<ResultEntry>,
-    /// Rows the procedure failed, or every row of a batch whose call failed.
+    /// Locations the procedure failed, or every location of a batch whose call failed.
     pub failed: Vec<Id<Location>>,
 }
 
@@ -1546,7 +1546,7 @@ pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
     Ok(())
 }
 
-/// Reserve a run id up front, for a query or row run that answers only when it is over:
+/// Reserve a run id up front, for a query or location run that answers only when it is over:
 /// its streamed results carry the id, and `procedureCancel` stops it.
 #[tauri::command]
 #[specta::specta]

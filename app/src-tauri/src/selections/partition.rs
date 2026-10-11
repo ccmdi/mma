@@ -250,13 +250,13 @@ pub(super) fn partition_keyed(scope: &Scope, field: &str, spec: &KeySpec) -> Vec
     groups
 }
 
-/// Group counts. A list field puts one row in several groups, so the counts do not sum to
-/// the rows grouped.
+/// Group counts. A list field puts one location in several groups, so the counts do not sum to
+/// the locations grouped.
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CountBy {
     pub counts: Vec<(String, u32)>,
-    /// Rows held by at least one group.
+    /// Locations held by at least one group.
     pub covered: u32,
 }
 

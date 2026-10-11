@@ -86,7 +86,7 @@ pub struct SyncReconcileResult {
     pub conflicts: Vec<Conflict>,
     /// The change the pull half made locally, or `null` when nothing was pulled.
     pub mutation: Option<crate::store::engine::Mutation>,
-    /// The rows the pull removed.
+    /// The locations the pull removed.
     pub removed_ids: Vec<Id<Location>>,
 }
 

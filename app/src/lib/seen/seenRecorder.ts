@@ -158,13 +158,13 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 		entry.locationId != null
 			? await read(
 					{ type: "Locations", locations: [entry.locationId], name: null },
-					{ kind: "rows" },
+					{ kind: "locations" },
 				)
 			: [];
 	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
 
 	if (existing) {
-		const active = getMapState().open?.row;
+		const active = getMapState().open?.location;
 		if (active?.id !== existing.id) {
 			await openLocation(existing.id);
 			return;

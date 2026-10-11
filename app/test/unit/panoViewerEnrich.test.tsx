@@ -31,7 +31,7 @@ const h = vi.hoisted(() => ({
 	enrichFails: false,
 	onPartials: [] as ((rows: Location[]) => void)[],
 	settleEnrich: [] as (() => void)[],
-	openRowPushes: [] as unknown[],
+	openLocationPushes: [] as unknown[],
 }));
 
 type Put = { put: Partial<Location> & { id: number } };
@@ -78,11 +78,14 @@ vi.mock("@/lib/commands", () => ({
 vi.mock("@/store/useMapStore", async () => {
 	const { useEffect, useState } = await import("react");
 	const state = () => {
-		const row = h.openLocation as Location | null;
-		if (!row) h.opened = null;
-		else if (h.opened?.id !== row.id || h.opened.origin !== h.origin)
-			h.opened = { id: row.id, origin: h.origin, session: ++h.sessions };
-		return { open: h.opened && { ...h.opened, row }, map: { settings: { enrichMetadata: true } } };
+		const location = h.openLocation as Location | null;
+		if (!location) h.opened = null;
+		else if (h.opened?.id !== location.id || h.opened.origin !== h.origin)
+			h.opened = { id: location.id, origin: h.origin, session: ++h.sessions };
+		return {
+			open: h.opened && { ...h.opened, location },
+			map: { settings: { enrichMetadata: true } },
+		};
 	};
 	return {
 		read: async (selector: { locations: number[] }) =>
@@ -101,10 +104,10 @@ vi.mock("@/store/useMapStore", async () => {
 		},
 		mutate: (fn: () => Promise<unknown>) => fn(),
 		getMapState: state,
-		setOpenRow: (row: unknown, session: number) => {
+		setOpenLocation: (location: unknown, session: number) => {
 			if (state().open?.session !== session) return;
-			h.openRowPushes.push(row);
-			h.openLocation = row;
+			h.openLocationPushes.push(location);
+			h.openLocation = location;
 			for (const changed of h.listeners) changed();
 		},
 	};
@@ -193,7 +196,7 @@ beforeEach(() => {
 	h.settleEnrich = [];
 	h.enrichHangs = false;
 	h.enrichFails = false;
-	h.openRowPushes = [];
+	h.openLocationPushes = [];
 	h.origin = "map";
 	h.openLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
@@ -370,9 +373,9 @@ describe("saving lands the layer", () => {
 	it("every layer read is pushed into the store's open-row projection", async () => {
 		const m = mountHost();
 		await open("pA");
-		expect(h.openRowPushes.at(-1)).toMatchObject({ id: 7, panoId: "pA" });
+		expect(h.openLocationPushes.at(-1)).toMatchObject({ id: 7, panoId: "pA" });
 		await walk("pB");
-		expect(h.openRowPushes.at(-1)).toMatchObject({ panoId: "pB" });
+		expect(h.openLocationPushes.at(-1)).toMatchObject({ panoId: "pB" });
 		m.unmount();
 	});
 

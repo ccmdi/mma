@@ -8,7 +8,7 @@ const active = { ...createLocation({ lat: 1, lng: 2, panoId: null }), id: 7 };
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
 vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ open: { row: active } }),
+	getMapState: () => ({ open: { location: active } }),
 	read: async () => [active],
 	addLocations: vi.fn(),
 	openLocation: vi.fn(),

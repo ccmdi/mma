@@ -30,7 +30,7 @@ export function getImportStaging() {
 	return importState.staging;
 }
 
-/** The pending layer holding this window's staged import rows. */
+/** The pending layer holding this window's staged import locations. */
 export function importTarget(): Target {
 	return { kind: "pending", name: `import:${getCurrentWebviewWindow().label}` };
 }

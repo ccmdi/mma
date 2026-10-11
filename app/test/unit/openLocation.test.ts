@@ -11,12 +11,12 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeRead: async (_target: unknown, selector: { type: string; locations?: number[] }) => {
 			if (selector.type === "Nearby") {
-				return { kind: "rows", rows: { kind: "inline", locations: h.nearby } };
+				return { kind: "locations", locations: { kind: "inline", locations: h.nearby } };
 			}
 			const ids = selector.locations ?? [];
 			await Promise.all(ids.map((id) => h.held.get(id)));
 			return {
-				kind: "rows",
+				kind: "locations",
 				rows: {
 					kind: "inline",
 					locations: ids.map((id) => ({ id, lat: 0, lng: 0, tags: [] })),
@@ -31,7 +31,7 @@ import {
 	openLocation,
 	setWorkArea,
 	getMapState,
-	setOpenRow,
+	setOpenLocation,
 } from "@/store/useMapStore";
 import type { Location } from "@/bindings.gen";
 import { subscribe } from "@/lib/events";
@@ -51,7 +51,7 @@ describe("open location", () => {
 
 	it("drops the open row when leaving the location pane", async () => {
 		await openLocation(7);
-		expect(getMapState().open?.row?.id).toBe(7);
+		expect(getMapState().open?.location?.id).toBe(7);
 
 		setWorkArea("plugin");
 
@@ -67,7 +67,7 @@ describe("open location", () => {
 		await slow;
 
 		expect(getMapState().open?.id).toBe(8);
-		expect(getMapState().open?.row?.id).toBe(8);
+		expect(getMapState().open?.location?.id).toBe(8);
 		setWorkArea("overview");
 	});
 
@@ -100,9 +100,9 @@ describe("open location", () => {
 		const earlier = getMapState().open!.session;
 		await openLocation(7);
 
-		setOpenRow({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
+		setOpenLocation({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
 
-		expect(getMapState().open?.row?.lat).toBe(0);
+		expect(getMapState().open?.location?.lat).toBe(0);
 		setWorkArea("overview");
 	});
 
@@ -111,7 +111,7 @@ describe("open location", () => {
 		const seen: { id: number; row: boolean }[] = [];
 		const unsub = subscribe("store:changed", () => {
 			const open = getMapState().open;
-			if (open) seen.push({ id: open.id, row: open.row != null });
+			if (open) seen.push({ id: open.id, row: open.location != null });
 		});
 		let release!: () => void;
 		h.held.set(8, new Promise((r) => (release = r)));
@@ -123,7 +123,7 @@ describe("open location", () => {
 		unsub();
 
 		expect(seen.every((s) => s.row)).toBe(true);
-		expect(getMapState().open?.row?.id).toBe(8);
+		expect(getMapState().open?.location?.id).toBe(8);
 		setWorkArea("overview");
 	});
 });

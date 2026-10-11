@@ -1,5 +1,5 @@
 import type { Selector } from "@/types";
-import type { MutationResult, Work, WorkResult } from "@/bindings.gen";
+import type { Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { getMapState, mutate } from "./useMapStore";
 import { invalidateMapList } from "./mapList";
@@ -7,8 +7,8 @@ import * as autosave from "./autosave";
 
 const NO_WORK: WorkResult = { mutation: { version: 0, keys: [] }, changed: 0, failed: [] };
 
-/** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
-export function rows(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) {
+/** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
+export function locations(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) {
 	return mutate(() => cmd.storeEdit(target, edits, opts));
 }
 
@@ -27,7 +27,7 @@ export async function meta(
 /** Edit an interned field's value records in one undoable step. */
 export function values(
 	...[field, edits]: Parameters<typeof cmd.storeEditValues>
-): Promise<MutationResult> {
+) {
 	return mutate(() => cmd.storeEditValues(field, edits));
 }
 

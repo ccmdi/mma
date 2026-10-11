@@ -221,9 +221,9 @@ pub(crate) fn save_edit_history(
                     map_id.raw(),
                     edit.seq as i64,
                     stack,
-                    entry.rows.max_key().map_or(0, Id::get),
+                    entry.locations.max_key().map_or(0, Id::get),
                     arrow::arrow_ipc_bytes(&{
-                        let (created, removed) = entry.rows.sides();
+                        let (created, removed) = entry.locations.sides();
                         arrow::delta_to_batch(&created, &removed)
                     })?,
                     serde_json::to_string(&**entry)?
@@ -265,7 +265,7 @@ pub(crate) fn load_edit_history(
             })?;
             let mut keys: Vec<_> = entry.keys().collect();
             if r.get::<_, u32>(2)? > 0 {
-                keys.push(EntryKey::Rows);
+                keys.push(EntryKey::Locations);
             }
             Ok((r.get::<_, i64>(0)? as u64, stack, keys))
         })?
@@ -287,7 +287,7 @@ pub(crate) fn load_edit(
     )?;
     let (created, removed) = arrow::batch_to_delta(&arrow::read_arrow_ipc_bytes(&bytes)?);
     Ok(Entry {
-        rows: Change::from_sides(created, removed),
+        locations: Change::from_sides(created, removed),
         ..serde_json::from_str(&json)?
     })
 }

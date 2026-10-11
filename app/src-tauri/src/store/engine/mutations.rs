@@ -36,7 +36,7 @@ pub struct Derived {
     pub location_count: Option<usize>,
     pub meta: Option<Patch<maps::MapMeta>>,
     pub history: Option<HashMap<EntryKey, History>>,
-    /// Changed values, keyed by field and value. Null removes a value with no record or rows.
+    /// Changed values, keyed by field and value. Null removes a value with no record or locations.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
     /// The whole extra-field registry, when the map's row changed.
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
@@ -74,7 +74,7 @@ pub struct HeldValue {
     /// Optional metadata for an interned value.
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
     pub record: Option<ValueRecord>,
-    /// How many rows hold the value.
+    /// How many locations hold the value.
     pub count: usize,
 }
 
@@ -145,7 +145,7 @@ impl Store {
         entry: Entry,
     ) -> Mutation {
         let layer: Layer<Location> = edits.into_iter().collect();
-        let rows = layer
+        let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
                 |old, patch| {
@@ -157,11 +157,11 @@ impl Store {
                 },
             )
             .collect();
-        let mut entry = Entry { rows, ..entry };
+        let mut entry = Entry { locations, ..entry };
         let mut fields = self.meta.extra.fields.clone();
         entry.defs.apply_to(&mut fields);
         let extras: Vec<&RawExtra> = entry
-            .rows
+            .locations
             .after()
             .filter_map(|row| row.extra.as_ref())
             .collect();
@@ -318,7 +318,7 @@ impl Store {
         if !entry.selections.is_empty() {
             self.selections.apply(&entry.selections);
         }
-        self.put(&entry.rows);
+        self.put(&entry.locations);
         for (field, delta) in entry.piles.iter().filter(|(_, d)| !d.is_empty()) {
             delta.apply_to(self.value_meta.entry(field.clone()).or_default().edit());
         }
@@ -338,7 +338,7 @@ impl Store {
 
     /// Join the newest undo step named by `join`, or record a new step.
     fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
-        if entry.rows.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
+        if entry.locations.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
             if entry.keys().eq([EntryKey::Selections]) {
                 self.histories
                     .edit()
@@ -348,7 +348,7 @@ impl Store {
             }
             return;
         }
-        if entry.rows.len() > MAX_UNDO_ROWS {
+        if entry.locations.len() > MAX_UNDO_LOCATIONS {
             self.edits.edit().clear();
             return;
         }
@@ -374,39 +374,39 @@ wire_str_enum! {
     }
 }
 
-/// Operations over selected rows.
+/// Operations over the selected locations.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(untagged)]
 pub enum Work {
-    Rows(RowOp),
+    Locations(LocationOp),
     Sets(SetOp),
 }
 
-/// Operations computed independently for each selected row.
+/// Operations computed independently for each selected location.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
-pub enum RowOp {
+pub enum LocationOp {
     /// Rename `from` into `to`. Merge is the same operation -- rename is just the case
-    /// where nothing holds `to` -- so `winner` decides only where a row holds both.
+    /// where nothing holds `to` -- so `winner` decides only where a location holds both.
     Move {
         from: String,
         to: String,
         winner: MergeWinner,
     },
-    /// Drop `keys` from every row that has them.
+    /// Drop `keys` from every location that has them.
     Delete { keys: Vec<String> },
-    /// Assign a value to a writable field on each row. Builtins update their stored
+    /// Assign a value to a writable field on each location. Builtins update their stored
     /// fields; other keys update `extra`.
     Set {
         key: String,
         #[specta(type = specta_typescript::Unknown)]
         value: serde_json::Value,
     },
-    /// Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+    /// Assign `key = expr(location)` per location. A location where the expression cannot evaluate (a
     /// missing or non-numeric field, a non-finite result) is reported back by id.
     Expr { key: String, expr: String },
     /// Add and remove list members. `add` wins if a value appears in both lists.
-    /// Rows already in the requested state keep their member order.
+    /// Locations already in the requested state keep their member order.
     ListSet {
         key: String,
         #[specta(type = Vec<specta_typescript::Unknown>)]
@@ -416,7 +416,7 @@ pub enum RowOp {
     },
 }
 
-impl RowOp {
+impl LocationOp {
     /// The op with its expression parsed and leave granted for every key it writes, so a
     /// key the op cannot write is rejected before any row reports a change.
     fn prepare<'o>(&'o self, fields: FieldRegistry<'_>) -> AppResult<Prepared<'o>> {
@@ -455,7 +455,7 @@ impl RowOp {
     }
 }
 
-/// A [`RowOp`] ready to run: each key it writes holds its writer.
+/// A [`LocationOp`] ready to run: each key it writes holds its writer.
 enum Prepared<'o> {
     Set {
         to: FieldWriter<'o>,
@@ -480,7 +480,7 @@ enum Prepared<'o> {
     },
 }
 
-/// Operations computed over the selected rows as a group.
+/// Operations computed over the selected locations as a group.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
@@ -517,9 +517,9 @@ pub(super) struct WorkPlan {
 #[serde(rename_all = "camelCase")]
 pub struct WorkResult {
     pub mutation: Mutation,
-    /// Rows the work edited.
+    /// Locations the work edited.
     pub changed: u32,
-    /// Rows an expression could not evaluate.
+    /// Locations an expression could not evaluate.
     pub failed: Vec<Id<Location>>,
 }
 
@@ -546,9 +546,9 @@ pub(super) fn row_patch(id: Id<Location>) -> Patch<Location> {
 pub(super) fn plan_fields(
     fields: FieldRegistry<'_>,
     scope: &selections::Scope,
-    op: &RowOp,
+    op: &LocationOp,
 ) -> AppResult<WorkPlan> {
-    if let RowOp::Move { from, to, .. } = op {
+    if let LocationOp::Move { from, to, .. } = op {
         if from == to || to.is_empty() {
             return Ok(WorkPlan::default());
         }
@@ -696,7 +696,7 @@ pub(crate) fn apply_work(
     work: &Work,
 ) -> AppResult<WorkResult> {
     let (plan, defs) = match work {
-        Work::Rows(op) => {
+        Work::Locations(op) => {
             let defs = store.meta.extra.fields.clone();
             let plan = plan_fields(FieldRegistry::new(&defs), &store.scope(selector), op)?;
             let defs = plan_defs(store, op, &plan.edits);
@@ -704,13 +704,13 @@ pub(crate) fn apply_work(
         }
         Work::Sets(op) => (plan_sets(store, selector, op)?, DefsDelta::default()),
     };
-    let selections = if let Work::Rows(op) = work {
+    let selections = if let Work::Locations(op) = work {
         store
             .selections
             .change(&SelectionDelta::default(), |mut rows| {
                 for (field, _) in &defs.removed {
                     let to = match op {
-                        RowOp::Move { from, to, .. } if from == field => Some(to.as_str()),
+                        LocationOp::Move { from, to, .. } if from == field => Some(to.as_str()),
                         _ => None,
                     };
                     rows = rows
@@ -749,12 +749,12 @@ pub(crate) fn apply_work(
 
 /// Update definitions after a move or delete. A new target inherits the source definition;
 /// fields no longer held by any row lose their definitions.
-fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit<Location>]) -> DefsDelta {
+fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDelta {
     let (vacated, into) = match op {
-        RowOp::Move { from, to, .. } if from != to && !to.is_empty() => {
+        LocationOp::Move { from, to, .. } if from != to && !to.is_empty() => {
             (std::slice::from_ref(from), Some(to))
         }
-        RowOp::Delete { keys } => (keys.as_slice(), None),
+        LocationOp::Delete { keys } => (keys.as_slice(), None),
         _ => return DefsDelta::default(),
     };
     let before = &store.meta.extra.fields;

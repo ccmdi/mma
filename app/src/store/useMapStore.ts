@@ -2,7 +2,16 @@ import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { locId } from "@/types";
-import type { EntryKey, Location, MapMeta, StoreStatus, Target, Answer, Ask } from "@/bindings.gen";
+import type {
+	EntryKey,
+	Location,
+	LocationList,
+	MapMeta,
+	StoreStatus,
+	Target,
+	Answer,
+	Ask,
+} from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
@@ -51,7 +60,7 @@ export interface UiState {
 	activePluginId: string | null;
 }
 
-/** Where an open row came from: the map's rows, the seen history, or a pending import. */
+/** Where an open location came from: the map, the seen history, or a pending import. */
 export type OpenOrigin = "map" | "seen" | "import";
 
 /** A location open in the editor. A preview's id is its viewer-layer id. */
@@ -60,16 +69,16 @@ export interface Open {
 	origin: OpenOrigin;
 	/** Identifies this editor session, even when reopening the same location. */
 	session: number;
-	/** The last row read from the viewer's layer, or null while loading. */
-	row: Location | null;
+	/** The location as last read from the viewer's layer, or null while loading. */
+	location: Location | null;
 }
 
 let lastSession = 0;
-const opening = (id: number, origin: OpenOrigin, row: Location | null = null): Open => ({
+const opening = (id: number, origin: OpenOrigin, location: Location | null = null): Open => ({
 	id,
 	origin,
 	session: ++lastSession,
-	row,
+	location,
 });
 
 export type MapState = UiState & EngineState;
@@ -293,14 +302,14 @@ type Payload<T> = {
 	[K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
 }[keyof T];
 
-type Materialized<T> = T extends AnswerOf<"rows">["rows"] ? Awaited<ReturnType<typeof rowsOf>> : T;
+type Materialized<T> = T extends LocationList ? Location[] : T;
 
 type ReadResult<A extends Answer> = A extends Answer
 	? Materialized<Payload<Omit<A, "kind">>>
 	: never;
 
-/** Query matching rows and return the requested payload. Full row reads load any
- *  backing file automatically; use ids or columns when full rows are unnecessary. */
+/** Ask one question about the locations `selector` matches. A full-location answer loads any
+ *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
 export async function read<A extends Ask>(
 	selector: Selector,
 	ask: A,
@@ -314,13 +323,13 @@ export async function read<A extends Ask>(
 	const value = values.length === 1 ? values[0] : payload;
 	// Buffered payloads carry their own transport tag; ordinary payloads do not.
 	const result =
-		value && typeof value === "object" && "kind" in value ? await rowsOf(value) : value;
+		value && typeof value === "object" && "kind" in value ? await locationsOf(value) : value;
 	return result as ReadResult<AnswerOf<A["kind"]>>;
 }
 
-/** Unpack a wire row answer, fetching large results from its temp file. */
-export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]> {
-	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
+/** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
+export async function locationsOf(list: LocationList): Promise<Location[]> {
+	return list.kind === "inline" ? list.locations : (await fetch(mmaBufUrl(list.path))).json();
 }
 
 /** The selection: every listed selection that is not ghosted. */
@@ -369,10 +378,10 @@ const MAP: Target = { kind: "map" };
 /** The viewer's pending edits, applied to the map only on Save. */
 export const VIEWER = { kind: "pending", name: "viewer" } as const satisfies Target;
 
-/** Set the open row if `session` is still current. */
-export function setOpenRow(row: Location | null, session: number) {
+/** Set the open location if `session` is still current. */
+export function setOpenLocation(location: Location | null, session: number) {
 	if (state.open?.session !== session) return;
-	setState({ open: { ...state.open, row } });
+	setState({ open: { ...state.open, location } });
 }
 
 const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
@@ -423,7 +432,7 @@ export async function addLocations(locs: Location[]) {
 	const r =
 		locs.length > ADD_CHUNK
 			? await mutate(() => addViaUpload(locs))
-			: await edit.rows(
+			: await edit.locations(
 					MAP,
 					locs.map((l) => ({ set: l })),
 					null,
@@ -435,7 +444,10 @@ export async function addLocations(locs: Location[]) {
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
 	if (!state.map) return null;
-	const [loc] = await read({ type: "Locations", locations: [id], name: null }, { kind: "rows" });
+	const [loc] = await read(
+		{ type: "Locations", locations: [id], name: null },
+		{ kind: "locations" },
+	);
 	if (!loc) return null;
 	const now = nowUnix();
 	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
@@ -449,7 +461,7 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 	if (state.open && ids.has(state.open.id)) setWorkArea("overview");
 	emitEvent("store:changed");
 	await edit
-		.rows(
+		.locations(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),
 			null,
@@ -461,7 +473,7 @@ export async function removeLocations(ids: ReadonlyIdSet) {
  *  per-key (null deletes a key). Undoable by default. */
 export async function updateLocations(updates: Patch<Location>[]) {
 	if (updates.length === 0) return;
-	await edit.rows(
+	await edit.locations(
 		MAP,
 		updates.map((put) => ({ put })),
 		null,
@@ -539,7 +551,11 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 	if (added == null) return;
 	const row =
 		(
-			await read({ type: "Locations", locations: [added], name: null }, { kind: "rows" }, VIEWER)
+			await read(
+				{ type: "Locations", locations: [added], name: null },
+				{ kind: "locations" },
+				VIEWER,
+			)
 		)[0] ?? null;
 	setState({ open: opening(added, origin, row), workArea: "location" });
 	emitEvent("open:change", null);
@@ -553,7 +569,7 @@ export async function openStagedLocation(index: number) {
 		(
 			await read(
 				{ type: "Locations", locations: [first + index], name: null },
-				{ kind: "rows" },
+				{ kind: "locations" },
 				importTarget(),
 			)
 		)[0] ?? null;
@@ -578,7 +594,8 @@ function dropOpen(): void {
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
 	return typeof m === "number"
-		? ((await read({ type: "Locations", locations: [m], name: null }, { kind: "rows" }))[0] ?? null)
+		? ((await read({ type: "Locations", locations: [m], name: null }, { kind: "locations" }))[0] ??
+				null)
 		: m;
 }
 
@@ -596,7 +613,7 @@ export async function openLocation(target: MaybeLocation, checkDuplicates = true
 	if (checkDuplicates && loc) {
 		const nearby = await read(
 			{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
-			{ kind: "rows" },
+			{ kind: "locations" },
 		);
 		if (activation !== lastSession) return t.end({ superseded: true });
 		if (nearby.length >= 2) {
@@ -685,7 +702,7 @@ export function historyAvailable(
 	return Object.entries(history).some(([key, history]) => key !== "selections" && history?.[stack]);
 }
 
-/** Step through the edit history one way, closing the open row if the step removed it. */
+/** Step through the edit history one way, closing the open location if the step removed it. */
 async function step(stack: Stack) {
 	try {
 		const r = await mutate(() => cmd.storeStep(stack, null));

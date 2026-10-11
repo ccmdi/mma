@@ -25,7 +25,7 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 		void (async () => {
 			const [loc] = await read(
 				{ type: "Locations", locations: [locationId], name: null },
-				{ kind: "rows" },
+				{ kind: "locations" },
 			);
 			if (!cancelled) setNames(tagIdsToNames(loc?.tags ?? []));
 		})();

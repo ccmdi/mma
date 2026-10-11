@@ -32,7 +32,7 @@ export function getScene(): CellManager {
 }
 
 function syncOpen(): boolean {
-	return scene.setOpen(getMapState().open?.row?.id ?? null);
+	return scene.setOpen(getMapState().open?.location?.id ?? null);
 }
 
 /** Set the default marker color (RGB bytes). */

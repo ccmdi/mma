@@ -43,7 +43,10 @@ vi.mock("@/lib/commands", () => ({
 				return Promise.resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) });
 			}
 			if (selector.type === "Nearby") {
-				return Promise.resolve({ kind: "rows", rows: { kind: "inline", locations: h.seeds } });
+				return Promise.resolve({
+					kind: "locations",
+					locations: { kind: "inline", locations: h.seeds },
+				});
 			}
 			throw new Error(`unexpected read: ${ask.kind}`);
 		},

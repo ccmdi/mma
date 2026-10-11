@@ -245,7 +245,7 @@ impl Store {
     #[cfg(test)]
     pub(crate) fn finish_mutation(&mut self, changes: &Change) -> Mutation {
         let mut entry = Entry {
-            rows: changes.clone(),
+            locations: changes.clone(),
             ..Default::default()
         };
         entry.selections = self.selection_consequences(&entry);
@@ -264,7 +264,7 @@ impl Store {
             .first()
             .map(|(old, new)| MapMeta::between(old, new));
         self.finish(
-            &entry.rows,
+            &entry.locations,
             &entry.piles,
             !entry.selections.is_empty(),
             meta,
@@ -381,7 +381,7 @@ impl Store {
 
     /// Look up a location by ID across patches, overlay_adds (binary search), and batch.
     pub(crate) fn get_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
-        self.rows().get(id).map(|row| row.to_location())
+        self.view().get(id).map(|row| row.to_location())
     }
 
     /// Read a single location from the committed base batch by id (ignores the

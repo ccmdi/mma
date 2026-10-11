@@ -43,7 +43,7 @@ pub struct EditorImportPreview {
     pub bounds: Option<[f64; 4]>,
     /// True when this import is too large to undo and will be committed automatically.
     pub will_auto_commit: bool,
-    /// The id the first staged row was given; the rest follow it in order.
+    /// The id the first staged location was given; the rest follow it in order.
     pub first_id: Option<Id<Location>>,
     /// Map settings carried by the import (`extra.settings`).
     #[specta(type = HashMap<String, specta_typescript::Any>)]
@@ -175,7 +175,7 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
         } else {
             Some([west, south, east, north])
         },
-        will_auto_commit: n > engine::MAX_UNDO_ROWS,
+        will_auto_commit: n > engine::MAX_UNDO_LOCATIONS,
         first_id: None,
         settings: parsed.settings.clone(),
     };
@@ -404,7 +404,7 @@ pub async fn store_import_file(
         }
 
         let imported_count = rows.len() as u32;
-        let auto_commit = rows.len() > engine::MAX_UNDO_ROWS;
+        let auto_commit = rows.len() > engine::MAX_UNDO_LOCATIONS;
         let mutation = store.edit(&target, edits, true, &mut None);
         log::debug!(
             "[import] total={:.0}ms locs={}",

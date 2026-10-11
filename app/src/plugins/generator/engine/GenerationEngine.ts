@@ -443,7 +443,7 @@ export class GenerationEngine {
 					lng: centroidLng,
 					radiusM: coveringRadius,
 				},
-				{ kind: "rows" },
+				{ kind: "locations" },
 			);
 			const withPano = locs.filter((l) => l.panoId);
 			const inside = await regionContains(region, withPano);

@@ -16,7 +16,7 @@ registerPlugin({
     });
 
     // Read/write location extra fields
-    // const loc = MMA.getMapState().open?.row;
+    // const loc = MMA.getMapState().open?.location;
     // if (loc) {
     //   MMA.updateLocations([{ id: loc.id, extra: { myField: "hello from plugin" } }]);
     // }

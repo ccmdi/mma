@@ -197,7 +197,7 @@ impl Store {
     /// Current coordinates of an alive location, without cloning the full Location.
     #[inline]
     pub(super) fn coords_of(&self, id: Id<Location>) -> Option<(f64, f64)> {
-        self.rows().get(id).map(|row| (row.lat(), row.lng()))
+        self.view().get(id).map(|row| (row.lat(), row.lng()))
     }
 
     /// Read matching rows. Explicit map ids preserve request order and duplicates;
@@ -229,7 +229,7 @@ impl Store {
                 }
                 self.prepare(indexes);
                 read(
-                    self.rows()
+                    self.view()
                         .indexed(&self.field_indexes, self.spatial.peek())
                         .select(selector),
                 )
@@ -320,13 +320,13 @@ impl Store {
 
     /// Every alive row: the scope for walks that resolve no selector.
     pub(crate) fn all(&self) -> selections::Scope<'_, '_> {
-        self.rows().all()
+        self.view().all()
     }
 
     /// The rows `selector` resolves to: the indexes it leans on built, then narrowed once.
     pub(crate) fn scope(&mut self, selector: &Selector) -> selections::Scope<'_, '_> {
         self.prepare(selector.indexes());
-        self.rows()
+        self.view()
             .indexed(&self.field_indexes, self.spatial.peek())
             .select(selector)
     }
@@ -338,12 +338,12 @@ impl Store {
         sels: &[selections::Selection],
     ) -> (Vec<IdSet<Location>>, HashMap<String, u32>) {
         self.prepare(sels.iter().flat_map(|s| s.selector.indexes()));
-        self.rows()
+        self.view()
             .indexed(&self.field_indexes, self.spatial.peek())
             .resolve_forest(sels)
     }
 
-    pub(super) fn rows(&self) -> selections::LocView<'_> {
+    pub(super) fn view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
             &self.overlay.dead,
@@ -454,44 +454,47 @@ impl Store {
     }
 }
 
-/// Matched rows: returned inline, or as a file path to read them from.
+/// Matched locations: returned inline, or as a file path to read them from.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",
     rename_all = "camelCase",
     rename_all_fields = "camelCase"
 )]
-pub enum Rows {
+pub enum LocationList {
     Inline { locations: Vec<Location> },
     File { path: String },
 }
 
-/// Above this many rows, a rows read stages a file instead of answering over IPC.
-pub(crate) const ROWS_INLINE_MAX: usize = 1024;
+/// Above this many locations, a read stages a file instead of answering over IPC.
+pub(crate) const LOCATIONS_INLINE_MAX: usize = 1024;
 
-fn rows_answer(map_id: &Id<MapMeta, String>, locations: Vec<Location>) -> AppResult<Rows> {
-    if locations.len() <= ROWS_INLINE_MAX {
-        return Ok(Rows::Inline { locations });
+fn locations_answer(
+    map_id: &Id<MapMeta, String>,
+    locations: Vec<Location>,
+) -> AppResult<LocationList> {
+    if locations.len() <= LOCATIONS_INLINE_MAX {
+        return Ok(LocationList::Inline { locations });
     }
-    let path = rows_file_path(&crate::store::storage::temp_dir()?, map_id);
+    let path = locations_file_path(&crate::store::storage::temp_dir()?, map_id);
     std::fs::write(&path, serde_json::to_vec(&locations)?)?;
-    Ok(Rows::File {
+    Ok(LocationList::File {
         path: path.to_string_lossy().into_owned(),
     })
 }
 
-/// Rotate temp-file slots to avoid collisions between concurrent row reads
+/// Rotate temp-file slots to avoid collisions between concurrent location reads
 /// and limit leftover files.
-pub(crate) fn rows_file_path(
+pub(crate) fn locations_file_path(
     temp: &std::path::Path,
     map_id: &Id<MapMeta, String>,
 ) -> std::path::PathBuf {
     static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
-    temp.join(format!("mma_rows_{map_id}_{slot}.json"))
+    temp.join(format!("mma_locations_{map_id}_{slot}.json"))
 }
 
-/// A query over selected rows.
+/// A question about the selected locations.
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -505,9 +508,9 @@ pub enum Ask {
     Spacing,
     /// How many there are.
     Count,
-    /// Every row in full.
-    Rows,
-    /// One column per field, `null` where a row lacks it; `tags` is a column of tag-id
+    /// Every location in full.
+    Locations,
+    /// One column per field, `null` where a location lacks it; `tags` is a column of tag-id
     /// arrays.
     Columns { fields: Vec<String> },
     /// Distinct values of `field`, sorted.
@@ -517,19 +520,19 @@ pub enum Ask {
         field: String,
         key: selections::KeySpec,
     },
-    /// Counts by a derived key of each field, with how many distinct rows the groups
+    /// Counts by a derived key of each field, with how many distinct locations the groups
     /// cover, one result per field.
     CountBy {
         fields: Vec<String>,
         key: selections::KeySpec,
     },
-    /// How many rows hold a value for each field, key-sorted.
+    /// How many locations hold a value for each field, key-sorted.
     Coverage,
     /// Bounding box `[west, south, east, north]`, or `null` when nothing matches.
     Bounds,
-    /// Groups of rows within `distance` metres of each other, two or more per group.
+    /// Groups of locations within `distance` metres of each other, two or more per group.
     DuplicateGroups { distance: f64 },
-    /// Per input coordinate, whether any selected row lies within `radiusM` metres.
+    /// Per input coordinate, whether any selected location lies within `radiusM` metres.
     NearAny {
         lats: Vec<f64>,
         lngs: Vec<f64>,
@@ -545,7 +548,7 @@ impl Ask {
             Self::Ids
             | Self::Spacing
             | Self::Count
-            | Self::Rows
+            | Self::Locations
             | Self::Columns { .. }
             | Self::Values { .. }
             | Self::GroupBy { .. }
@@ -556,7 +559,7 @@ impl Ask {
     }
 }
 
-/// The result of a row query.
+/// The answer to a question about the selected locations.
 #[derive(serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",
@@ -574,8 +577,8 @@ pub enum Answer {
     Count {
         count: u32,
     },
-    Rows {
-        rows: Rows,
+    Locations {
+        locations: LocationList,
     },
     Columns {
         #[specta(type = Vec<Vec<specta_typescript::Unknown>>)]
@@ -691,8 +694,8 @@ impl Store {
                 Ask::Count => Answer::Count {
                     count: scope.rows().count() as u32,
                 },
-                Ask::Rows => Answer::Rows {
-                    rows: rows_answer(
+                Ask::Locations => Answer::Locations {
+                    locations: locations_answer(
                         &map_id,
                         scope.rows().map(|row| row.to_location()).collect(),
                     )?,

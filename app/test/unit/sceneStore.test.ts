@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
-	activeId: null as number | null,
+	openId: null as number | null,
 	selected: new Set<number>(),
 	listeners: new Map<string, Array<() => void>>(),
 	marks: [] as string[],
@@ -40,7 +40,7 @@ vi.mock("@/lib/events", () => ({
 
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({
-		open: h.activeId == null ? null : { row: { id: h.activeId } },
+		open: h.openId == null ? null : { location: { id: h.openId } },
 		selectedLocationIds: h.selected,
 	}),
 	setSelectedLocationIds: () => {},
@@ -73,7 +73,7 @@ import { entry, frame, scene } from "./fixtures/renderFixtures";
 const notifyStore = () => (h.listeners.get("store:changed") ?? []).forEach((fn) => fn());
 
 beforeEach(() => {
-	h.activeId = null;
+	h.openId = null;
 	h.selected = new Set();
 	h.listeners.clear();
 	h.marks = [];
@@ -92,7 +92,7 @@ describe("sceneStore (single scene source)", () => {
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
 		const stop = startSceneEngine();
 
-		h.activeId = 5;
+		h.openId = 5;
 		notifyStore();
 		expect(bumps).toBeGreaterThan(0);
 
@@ -109,7 +109,7 @@ describe("sceneStore (single scene source)", () => {
 		stop();
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
-		h.activeId = 9;
+		h.openId = 9;
 		notifyStore();
 		expect(bumps).toBe(0);
 		unsub();

@@ -124,7 +124,7 @@ impl Store {
                     .flat_map(|pile| pile.keys_iter())
                     .map(|id| id.to_string());
                 values
-                    .absent_after(&entry.rows, touched)
+                    .absent_after(&entry.locations, touched)
                     .into_iter()
                     .map(move |key| (field.to_string(), key))
             })

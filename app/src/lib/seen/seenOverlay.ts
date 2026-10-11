@@ -44,7 +44,10 @@ export function getSeenOnMapIds(): ReadonlySet<number> {
 async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
 	const locIds = [...new Set(list.map((e) => e.locationId).filter((x): x is number => x != null))];
 	if (locIds.length === 0) return new Set();
-	const onMap = await read({ type: "Locations", locations: locIds, name: null }, { kind: "rows" });
+	const onMap = await read(
+		{ type: "Locations", locations: locIds, name: null },
+		{ kind: "locations" },
+	);
 	const panoById = new Map(onMap.map((l) => [l.id, l.panoId]));
 	const out = new Set<number>();
 	for (const e of list) {
@@ -85,7 +88,7 @@ export async function openSeenEntry(index: number): Promise<void> {
 	if (entry.locationId != null) {
 		const [existing] = await read(
 			{ type: "Locations", locations: [entry.locationId], name: null },
-			{ kind: "rows" },
+			{ kind: "locations" },
 		);
 		if (existing && existing.panoId === entry.panoId) {
 			void openLocation(existing.id);

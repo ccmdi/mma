@@ -196,8 +196,8 @@ describe("Open location and work area", () => {
 		const result = await withApi(async (api) => {
 			return {
 				workArea: api.getMapState().workArea,
-				activeId: api.getMapState().open?.row?.id,
-				activeLat: api.getMapState().open?.row?.lat,
+				activeId: api.getMapState().open?.location?.id,
+				activeLat: api.getMapState().open?.location?.lat,
 			};
 		});
 		expect(result.workArea).toBe("location");
@@ -212,7 +212,7 @@ describe("Open location and work area", () => {
 
 		const result = await withApi(async (api) => ({
 			workArea: api.getMapState().workArea,
-			active: api.getMapState().open?.row ?? null,
+			active: api.getMapState().open?.location ?? null,
 		}));
 		expect(result.workArea).toBe("overview");
 		expect(result.active).toBeNull();
@@ -231,8 +231,8 @@ describe("Open location and work area", () => {
 		);
 
 		const result = await withApi(async (api) => ({
-			activeId: api.getMapState().open?.row?.id,
-			activeLat: api.getMapState().open?.row?.lat,
+			activeId: api.getMapState().open?.location?.id,
+			activeLat: api.getMapState().open?.location?.lat,
 		}));
 		expect(result.activeId).toBe(id1);
 		expect(result.activeLat).toBe(30);

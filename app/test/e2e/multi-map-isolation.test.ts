@@ -316,7 +316,7 @@ describe("Open location isolation across maps", () => {
 
 	it("opening map B starts with no open location", async () => {
 		await openMap(mapBId);
-		const activeB = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
+		const activeB = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
 		expect(activeB).toBeNull();
 
 		const area = await withApi(async (api) => api.getMapState().workArea);

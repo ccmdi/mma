@@ -90,7 +90,7 @@ pub enum Selector<S = Selection> {
         test: FilterOp,
     },
     /// Rank by a field expression, optionally keeping only the first `k`.
-    /// Unscorable rows rank last; without `k`, all child rows are kept.
+    /// Unscorable locations rank last; without `k`, all child locations are kept.
     #[serde(rename_all = "camelCase")]
     Ranked {
         /// What to rank; `null` ranks the whole map.
@@ -100,7 +100,7 @@ pub enum Selector<S = Selection> {
         k: Option<u32>,
         ascending: bool,
     },
-    /// `n` rows of a selection drawn uniformly at random, without replacement.
+    /// `n` locations of a selection drawn uniformly at random, without replacement.
     Sample {
         /// What to draw from; `null` draws from the whole map.
         #[children]
@@ -123,7 +123,7 @@ pub enum Selector<S = Selection> {
         selection: Option<Box<S>>,
         thin: Thinning,
     },
-    /// The rows of a selection within `radiusM` metres of a coordinate.
+    /// The locations of a selection within `radiusM` metres of a coordinate.
     #[serde(rename_all = "camelCase")]
     Nearby {
         /// Where to look; `null` looks over the whole map.
@@ -133,7 +133,7 @@ pub enum Selector<S = Selection> {
         lng: f64,
         radius_m: f64,
     },
-    /// The row of a selection closest to a coordinate.
+    /// The location of a selection closest to a coordinate.
     Nearest {
         /// Where to look; `null` looks over the whole map.
         #[children]
@@ -147,15 +147,15 @@ pub enum Selector<S = Selection> {
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "by", rename_all = "camelCase")]
 pub enum Thinning {
-    /// At most `n` rows.
+    /// At most `n` locations.
     Count { n: u32 },
-    /// Rows about `m` metres apart.
+    /// Locations about `m` metres apart.
     Metres { m: f64 },
 }
 
 /// A filter's predicate: the operator with its operands. Single source of truth: specta
 /// renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
-/// The range operators can read a date in the row's own timezone (`tzLocal`); the
+/// The range operators can read a date in the location's own timezone (`tzLocal`); the
 /// `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]
 #[serde(tag = "op", rename_all = "snake_case")]

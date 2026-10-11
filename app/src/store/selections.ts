@@ -63,7 +63,7 @@ export const tagSelector = (tagId: number): Selector => ({
 	test: { op: "contains", value: tagId },
 });
 
-/** Locations with no tags: `tags` resolves to nothing on an untagged row. */
+/** Locations with no tags: `tags` resolves to nothing on an untagged location. */
 export const untaggedSelector = (): Selector => ({
 	type: "Filter",
 	field: "tags",

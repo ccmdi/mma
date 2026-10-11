@@ -19,7 +19,7 @@ pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
 pub struct Entry {
     #[serde(skip)]
-    pub rows: Change<Location>,
+    pub locations: Change<Location>,
     pub piles: Piles,
     pub defs: DefsDelta,
     #[serde(default)]
@@ -32,7 +32,7 @@ pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
 /// Maximum rows in an undoable edit. Larger edits clear history to limit memory
 /// and prevent older undo entries from restoring stale rows.
-pub(crate) const MAX_UNDO_ROWS: usize = 500_000;
+pub(crate) const MAX_UNDO_LOCATIONS: usize = 500_000;
 
 wire_str_enum! {
     /// Which edit history stack to step through.

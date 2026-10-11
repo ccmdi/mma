@@ -89,7 +89,9 @@ describe("read payloads", () => {
 		expectTypeOf(count).toEqualTypeOf<Promise<number>>();
 		expect(await count).toBe(0);
 		expectTypeOf<ReturnType<typeof read<{ kind: "ids" }>>>().toEqualTypeOf<Promise<number[]>>();
-		expectTypeOf<ReturnType<typeof read<{ kind: "rows" }>>>().toEqualTypeOf<Promise<Location[]>>();
+		expectTypeOf<ReturnType<typeof read<{ kind: "locations" }>>>().toEqualTypeOf<
+			Promise<Location[]>
+		>();
 		expectTypeOf<ReturnType<typeof read<Extract<Ask, { kind: "groupBy" }>>>>().toEqualTypeOf<
 			Promise<PartitionBucket[]>
 		>();
@@ -118,17 +120,17 @@ describe("read payloads", () => {
 	it("loads inline and file-backed rows through the same public read", async () => {
 		const rows = [createLocation({ lat: 1, lng: 2 })];
 		h.read.mockResolvedValue({
-			kind: "rows",
-			rows: { kind: "inline", locations: rows },
+			kind: "locations",
+			locations: { kind: "inline", locations: rows },
 		} satisfies Answer);
-		expect(await read(selector, { kind: "rows" })).toEqual(rows);
+		expect(await read(selector, { kind: "locations" })).toEqual(rows);
 		const fetch = vi.fn(async () => ({ json: async () => rows }));
 		vi.stubGlobal("fetch", fetch);
 		h.read.mockResolvedValue({
-			kind: "rows",
-			rows: { kind: "file", path: "read-test.json" },
+			kind: "locations",
+			locations: { kind: "file", path: "read-test.json" },
 		} satisfies Answer);
-		expect(await read(selector, { kind: "rows" })).toEqual(rows);
+		expect(await read(selector, { kind: "locations" })).toEqual(rows);
 		expect(fetch).toHaveBeenCalledOnce();
 	});
 

@@ -934,6 +934,16 @@ initStore(): Promise<void>
 
 One-time store startup. The app calls this; plugins never need to.
 
+### locationsOf
+
+`stable` · unreleased
+
+```ts
+locationsOf(list: LocationList): Promise<Location[]>
+```
+
+The locations an answer carries, fetched from its temp file when it was too large to send inline.
+
 ### mutate
 
 `stable` · since v0.4.0
@@ -1023,8 +1033,8 @@ read<A extends Ask>(
 ): Promise<ReadResult<AnswerOf<A["kind"]>>>
 ```
 
-Query matching rows and return the requested payload. Full row reads load any
-backing file automatically; use ids or columns when full rows are unnecessary.
+Ask one question about the locations `selector` matches. A full-location answer loads any
+backing file automatically; ask for ids or columns when full locations are unnecessary.
 
 ### redo
 
@@ -1102,16 +1112,6 @@ restoreSelections(): Promise<void>
 
 Undo the last selection change without undoing data edits.
 
-### rowsOf
-
-`stable` · since v0.12.0
-
-```ts
-rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
-```
-
-Unpack a wire row answer, fetching large results from its temp file.
-
 ### select
 
 `stable` · since v0.12.0
@@ -1142,15 +1142,15 @@ setMap(map: MapMeta): void
 
 Replace the open map's row in state; persisting it is the caller's.
 
-### setOpenRow
+### setOpenLocation
 
-`stable` · since v0.12.0
+`stable` · unreleased
 
 ```ts
-setOpenRow(row: Location | null, session: number): void
+setOpenLocation(location: Location | null, session: number): void
 ```
 
-Set the open row if `session` is still current.
+Set the open location if `session` is still current.
 
 ### setPluginMode
 
@@ -2316,7 +2316,7 @@ Locations whose heading was never set.
 untaggedSelector(): Selector
 ```
 
-Locations with no tags: `tags` resolves to nothing on an untagged row.
+Locations with no tags: `tags` resolves to nothing on an untagged location.
 
 ### withChildren
 
@@ -3145,7 +3145,7 @@ The current staged import, or null if none.
 importTarget(): Target
 ```
 
-The pending layer holding this window's staged import rows.
+The pending layer holding this window's staged import locations.
 
 ### resetImportState
 
@@ -5845,15 +5845,13 @@ runProviders<C extends readonly unknown[]>(
   items: {
     [K in keyof C]: ProviderRun<C[K]>;
   },
-  rows: Selector,
+  selector: Selector,
   opts?: RunOpts,
 ): Promise<ProviderOutcomes>
 ```
 
-Run a set of providers over `rows`. When `rows` is a Selector, matching locations
-are processed in place and results are written back. When `rows` is a Location array,
-locations are processed independently and returned as modified copies. Resolves once
-every provider finishes, or on abort.
+Run a set of providers over the locations `selector` matches and write their results back.
+Resolves once every provider finishes, or on abort.
 
 ## Seen
 
@@ -7462,7 +7460,7 @@ currentSelection(): Selector
 fetchAllLocations(): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Everything" }, { kind: "rows" })`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Everything" }, { kind: "locations" })`.
 
 ### fetchBounds
 
@@ -7494,7 +7492,7 @@ fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 fetchLocation(id: number): Promise<Location>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" })`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`.
 
 ### fetchLocations
 
@@ -7504,7 +7502,7 @@ fetchLocation(id: number): Promise<Location>
 fetchLocations(selector: Selector): Promise<Location[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "rows" })`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "locations" })`.
 
 ### fetchLocationsByIds
 
@@ -7514,7 +7512,7 @@ fetchLocations(selector: Selector): Promise<Location[]>
 fetchLocationsByIds(ids: number[]): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" })`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`.
 
 ### fieldCoverage
 
@@ -7544,7 +7542,7 @@ fieldValues(selector: Selector, field: string): Promise<string[]>
 getActiveLocation(): Location | null
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.getMapState().open?.row`.
+**Deprecated in v0.8.2.** Read `MMA.getMapState().open?.location`.
 
 ### getAllSelections
 

@@ -261,7 +261,7 @@ const WAIT = { interval: 50 } as const;
 /** Wait until the open location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
-		() => withApi((api, target) => (api.getMapState().open?.row?.id ?? null) === target, id),
+		() => withApi((api, target) => (api.getMapState().open?.location?.id ?? null) === target, id),
 		{ ...WAIT, timeoutMsg: `open location never became ${id}` },
 	);
 }

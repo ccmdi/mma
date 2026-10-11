@@ -24,7 +24,7 @@ use std::path::Path;
 // Typed sub-structs for MapMeta
 // ---------------------------------------------------------------------------
 
-/// Action performed by a per-map key binding on the active location.
+/// Action performed by a per-map key binding on the open location.
 /// New action kinds (e.g. copy-to-map) are added as variants here.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(tag = "type", rename_all = "camelCase")]

@@ -1182,7 +1182,7 @@ type AnonIssueRef = {
      */
     token: string;
 };
-/**  The result of a row query. */
+/**  The answer to a question about the selected locations. */
 type Answer = {
     kind: "ids";
     ids: number[];
@@ -1194,8 +1194,8 @@ type Answer = {
     kind: "count";
     count: number;
 } | {
-    kind: "rows";
-    rows: Rows;
+    kind: "locations";
+    locations: LocationList;
 } | {
     kind: "columns";
     columns: unknown[][];
@@ -1221,7 +1221,7 @@ type Answer = {
     kind: "nearAny";
     values: boolean[];
 };
-/**  A query over selected rows. */
+/**  A question about the selected locations. */
 type Ask = 
 /**  Their ids: ascending, or a ranked selector's order. */
 {
@@ -1235,9 +1235,9 @@ type Ask =
 {
     kind: "count";
 } | 
-/**  Every row in full. */
+/**  Every location in full. */
 {
-    kind: "rows";
+    kind: "locations";
 } | 
 /**
  *  One column per field, `null` where a row lacks it; `tags` is a column of tag-id
@@ -1498,8 +1498,8 @@ type EditorImportResult = {
     autoCommit: boolean;
 };
 type EntryKey = 
-/** Changes to rows. */
-"rows" | 
+/** Changes to locations. */
+"locations" | 
 /** Changes to piles. */
 "piles" | 
 /** Changes to defs. */
@@ -1846,6 +1846,59 @@ type Location = {
     createdAt: number;
     modifiedAt: number | null;
 };
+/**  Matched locations: returned inline, or as a file path to read them from. */
+type LocationList = {
+    kind: "inline";
+    locations: Location[];
+} | {
+    kind: "file";
+    path: string;
+};
+/**  Operations computed independently for each selected location. @unstable */
+type LocationOp = 
+/**
+ *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
+ *  where nothing holds `to` -- so `winner` decides only where a row holds both.
+ */
+{
+    kind: "move";
+    from: string;
+    to: string;
+    winner: MergeWinner;
+} | 
+/**  Drop `keys` from every row that has them. */
+{
+    kind: "delete";
+    keys: string[];
+} | 
+/**
+ *  Assign a value to a writable field on each row. Builtins update their stored
+ *  fields; other keys update `extra`.
+ */
+{
+    kind: "set";
+    key: string;
+    value: unknown;
+} | 
+/**
+ *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
+ *  missing or non-numeric field, a non-finite result) is reported back by id.
+ */
+{
+    kind: "expr";
+    key: string;
+    expr: string;
+} | 
+/**
+ *  Add and remove list members. `add` wins if a value appears in both lists.
+ *  Rows already in the requested state keep their member order.
+ */
+{
+    kind: "listSet";
+    key: string;
+    add: unknown[];
+    remove: unknown[];
+};
 /**
  *  Top-level `extra` JSON blob on a map row. Currently only holds field definitions,
  *  but structured as an object to allow future extensions.
@@ -1856,7 +1909,7 @@ type MapExtra = {
     };
 };
 /**
- *  Action performed by a per-map key binding on the active location.
+ *  Action performed by a per-map key binding on the open location.
  *  New action kinds (e.g. copy-to-map) are added as variants here.
  */
 type MapKeyAction = {
@@ -2418,59 +2471,6 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
-/**  Operations computed independently for each selected row. @unstable */
-type RowOp = 
-/**
- *  Rename `from` into `to`. Merge is the same operation -- rename is just the case
- *  where nothing holds `to` -- so `winner` decides only where a row holds both.
- */
-{
-    kind: "move";
-    from: string;
-    to: string;
-    winner: MergeWinner;
-} | 
-/**  Drop `keys` from every row that has them. */
-{
-    kind: "delete";
-    keys: string[];
-} | 
-/**
- *  Assign a value to a writable field on each row. Builtins update their stored
- *  fields; other keys update `extra`.
- */
-{
-    kind: "set";
-    key: string;
-    value: unknown;
-} | 
-/**
- *  Assign `key = expr(row)` per row. A row where the expression cannot evaluate (a
- *  missing or non-numeric field, a non-finite result) is reported back by id.
- */
-{
-    kind: "expr";
-    key: string;
-    expr: string;
-} | 
-/**
- *  Add and remove list members. `add` wins if a value appears in both lists.
- *  Rows already in the requested state keep their member order.
- */
-{
-    kind: "listSet";
-    key: string;
-    add: unknown[];
-    remove: unknown[];
-};
-/**  Matched rows: returned inline, or as a file path to read them from. */
-type Rows = {
-    kind: "inline";
-    locations: Location[];
-} | {
-    kind: "file";
-    path: string;
-};
 /** @unstable */
 type SavedSelection = {
     selector: Selector$1;
@@ -2944,8 +2944,8 @@ type VirtualTag = {
     /**  Where the folder sorts while it holds no tags, on the same scale as tag order. */
     order?: number | null;
 };
-/**  Operations over selected rows. @unstable */
-type Work = RowOp | SetOp;
+/**  Operations over the selected locations. @unstable */
+type Work = LocationOp | SetOp;
 /**  The mutation and operation-specific results. */
 type WorkResult = {
     mutation: Mutation;
@@ -2957,7 +2957,7 @@ type WorkResult = {
 
 /**
  * The global `mma` API available inside procedure modules. Calls are synchronous;
- * pass request lists for concurrency. `map` and `run` receive location rows;
+ * pass request lists for concurrency. `map` and `run` receive locations;
  * `query` handles read-only requests. Each entry point receives `{ fields, force, config }`.
  * Results are location patches under `patch`, or module-defined answers under `collect`.
  *  @unstable
@@ -2995,7 +2995,7 @@ interface ProcedureHost {
     panos(queries: PanoQuery[]): PanoAnswer[];
     classify(dataset: string, lat: number, lng: number): string | null;
     /** Nearby run locations, nearest first, with the requested fields when present.
-     *  Includes the queried row itself; radius 0 matches exact coordinates.
+     *  Includes the queried location itself; radius 0 matches exact coordinates.
      *  Keep radius and fields constant to reuse the index. Unavailable in queries. */
     neighbors(lat: number, lng: number, radiusM: number, fields?: string[]): ProcedureNeighbor[];
     /** Run one sidecar command. `onLine` sees each output line as it arrives, so a
@@ -3007,7 +3007,7 @@ interface ProcedureHost {
     /** IANA timezone at a coordinate, or null outside the valid range. Pure compute,
      *  available to every procedure shape. @unstable */
     tz(lat: number, lng: number): string | null;
-    /** Marks a row as failed rather than skipped. */
+    /** Marks a location as failed rather than skipped. */
     fail(id: number): void;
     /** Delivers one partial result to the caller while the call is still running, under
      *  an id of the procedure's choosing. Queries stream these to whoever asked; runs
@@ -3396,7 +3396,7 @@ export interface UiState {
     /** @unstable */
     activePluginId: string | null;
 }
-/** Where an open row came from: the map's rows, the seen history, or a pending import. */
+/** Where an open location came from: the map, the seen history, or a pending import. */
 export type OpenOrigin = "map" | "seen" | "import";
 /** A location open in the editor. A preview's id is its viewer-layer id. */
 export interface Open {
@@ -3404,8 +3404,8 @@ export interface Open {
     origin: OpenOrigin;
     /** Identifies this editor session, even when reopening the same location. */
     session: number;
-    /** The last row read from the viewer's layer, or null while loading. */
-    row: Location | null;
+    /** The location as last read from the viewer's layer, or null while loading. */
+    location: Location | null;
 }
 export type MapState = UiState & EngineState;
 /** Per-tag location counts, keyed by numeric id. */
@@ -3442,13 +3442,13 @@ export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
 export type Payload<T> = {
     [K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
 }[keyof T];
-export type Materialized<T> = T extends AnswerOf<"rows">["rows"] ? Awaited<ReturnType<typeof rowsOf>> : T;
+export type Materialized<T> = T extends LocationList ? Location[] : T;
 export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
-/** Query matching rows and return the requested payload. Full row reads load any
- *  backing file automatically; use ids or columns when full rows are unnecessary. */
+/** Ask one question about the locations `selector` matches. A full-location answer loads any
+ *  backing file automatically; ask for ids or columns when full locations are unnecessary. */
 declare function read<A extends Ask>(selector: Selector, ask: A, target?: Target): Promise<ReadResult<AnswerOf<A["kind"]>>>;
-/** Unpack a wire row answer, fetching large results from its temp file. */
-declare function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>;
+/** The locations an answer carries, fetched from its temp file when it was too large to send inline. */
+declare function locationsOf(list: LocationList): Promise<Location[]>;
 /** The selection: every listed selection that is not ghosted. */
 declare const getActiveSelections: () => Selection[];
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
@@ -3460,8 +3460,8 @@ declare const VIEWER: {
     readonly kind: "pending";
     readonly name: "viewer";
 };
-/** Set the open row if `session` is still current. */
-declare function setOpenRow(row: Location | null, session: number): void;
+/** Set the open location if `session` is still current. */
+declare function setOpenLocation(location: Location | null, session: number): void;
 declare function settled(m: Mutation): Promise<void>;
 declare function mutate<R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]): Promise<R>;
 /** Add locations to the map. Real ids are assigned and written back into the passed
@@ -3569,6 +3569,7 @@ declare const store_getVisibleTags: typeof getVisibleTags;
 declare const store_historyAvailable: typeof historyAvailable;
 /** @unstable */
 declare const store_initStore: typeof initStore;
+declare const store_locationsOf: typeof locationsOf;
 declare const store_mutate: typeof mutate;
 /** @unstable */
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
@@ -3590,11 +3591,10 @@ declare const store_renameField: typeof renameField;
 declare const store_resolveLocation: typeof resolveLocation;
 /** @unstable */
 declare const store_restoreSelections: typeof restoreSelections;
-declare const store_rowsOf: typeof rowsOf;
 declare const store_select: typeof select;
 /** @unstable */
 declare const store_setMap: typeof setMap;
-declare const store_setOpenRow: typeof setOpenRow;
+declare const store_setOpenLocation: typeof setOpenLocation;
 declare const store_setPluginMode: typeof setPluginMode;
 /** @unstable */
 declare const store_setSelectedLocationIds: typeof setSelectedLocationIds;
@@ -3606,7 +3606,7 @@ declare const store_undo: typeof undo;
 declare const store_updateLocations: typeof updateLocations;
 declare const store_useMapState: typeof useMapState;
 declare namespace store {
-  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, store_closeLocation as closeLocation, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, store_openLocation as openLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
+  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, store_closeLocation as closeLocation, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_locationsOf as locationsOf, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, store_openLocation as openLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_select as select, store_setMap as setMap, store_setOpenLocation as setOpenLocation, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
   export type { store_MapState as MapState, store_Open as Open, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
 }
 
@@ -3646,27 +3646,27 @@ declare namespace autosave {
   };
 }
 
-/** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
-declare function rows(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>): Promise<MutationResult>;
+/** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
+declare function locations(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>): Promise<MutationResult<Location>>;
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
 declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
     id?: string;
 }): Promise<void>;
 /** Edit an interned field's value records in one undoable step. */
-declare function values(...[field, edits]: Parameters<typeof cmd.storeEditValues>): Promise<MutationResult>;
+declare function values(...[field, edits]: Parameters<typeof cmd.storeEditValues>): Promise<MutationResult<ValueRecord>>;
 /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
 declare function work(selector: Selector, op: Work): Promise<WorkResult>;
 
-declare const edit_meta: typeof meta;
 /** @unstable */
-declare const edit_rows: typeof rows;
+declare const edit_locations: typeof locations;
+declare const edit_meta: typeof meta;
 declare const edit_values: typeof values;
 /** @unstable */
 declare const edit_work: typeof work;
 declare namespace edit {
   export {
+    edit_locations as locations,
     edit_meta as meta,
-    edit_rows as rows,
     edit_values as values,
     edit_work as work,
   };
@@ -3694,7 +3694,7 @@ declare const OP_LABELS: Record<FilterOpKind, string>;
 /** Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
  *  else, so there is no tag selector to build. @unstable */
 declare const tagSelector: (tagId: number) => Selector;
-/** Locations with no tags: `tags` resolves to nothing on an untagged row. @unstable */
+/** Locations with no tags: `tags` resolves to nothing on an untagged location. @unstable */
 declare const untaggedSelector: () => Selector;
 /** Locations whose heading was never set. @unstable */
 declare const unpannedSelector: () => Selector;
@@ -4939,7 +4939,7 @@ export interface ImportStaging {
 declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
 /** The current staged import, or null if none. @unstable */
 declare function getImportStaging(): ImportStaging | null;
-/** The pending layer holding this window's staged import rows. @unstable */
+/** The pending layer holding this window's staged import locations. @unstable */
 declare function importTarget(): Target;
 /** Discard the staged import and its pending layer. @unstable */
 declare function resetImportState(): void;
@@ -6404,9 +6404,9 @@ export interface CollectedEntry<T = unknown> {
 }
 /** @unstable */
 export interface BatchOutcome {
-    /** Count of rows the procedure processed successfully. */
+    /** Count of locations the procedure processed successfully. */
     succeeded: number;
-    /** IDs of rows the procedure failed on. */
+    /** IDs of locations the procedure failed on. */
     failed: number[];
 }
 /** @unstable */
@@ -6418,7 +6418,7 @@ export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
 export type ProviderOutcomes = Record<string, ProcedureOutcome>;
 /** @unstable */
 declare const noWork: () => BatchOutcome;
-/** One provider's own progress. Counts are net of skipped rows. @unstable */
+/** One provider's own progress. Counts are net of skipped locations. @unstable */
 export interface ProviderPart {
     label: string;
     done: number;
@@ -6430,12 +6430,12 @@ export interface ProviderPart {
 export interface RunOpts {
     signal?: AbortSignal;
     force?: boolean;
-    /** Read rows and write results at this target instead of the map. */
+    /** Read locations and write results at this target instead of the map. */
     on?: Target;
     /** `done`/`total` reflect the slowest provider. `parts` carries each labeled
      *  provider's own counts, ordered as declared. */
     onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
-    /** Each row as a provider finishes with it (rows-only runs). The same row arrives
+    /** Each location as a provider finishes with it (locations-only runs). The same location arrives
      *  again from each subsequent provider. */
     onPartial?: (rows: Location[]) => void;
 }
@@ -6451,13 +6451,11 @@ export interface ProviderRun<TConfig = unknown> {
     /** The `fieldDefs` keys to produce; omitted, every key it declares. */
     fields?: string[];
 }
-/** Run a set of providers over `rows`. When `rows` is a Selector, matching locations
- *  are processed in place and results are written back. When `rows` is a Location array,
- *  locations are processed independently and returned as modified copies. Resolves once
- *  every provider finishes, or on abort. @unstable */
+/** Run a set of providers over the locations `selector` matches and write their results back.
+ *  Resolves once every provider finishes, or on abort. @unstable */
 declare function runProviders<C extends readonly unknown[]>(items: {
     [K in keyof C]: ProviderRun<C[K]>;
-}, rows: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
+}, selector: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
 /** What a run may set on top of what the spec declares. @unstable */
 export interface DeclOpts {
     label?: string;
@@ -7409,7 +7407,7 @@ declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 declare function getCurrentMap(): MapMeta | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
-/** @deprecated v0.8.2. Read `MMA.getMapState().open?.row`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.getMapState().open?.location`. @unstable */
 declare function getActiveLocation(): Location | null;
 /** @deprecated v0.8.2. Read `MMA.getMapState().selectedLocationIds`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;
@@ -7423,11 +7421,11 @@ declare function getGhostedSelections(): Set<string>;
 declare function getSelections(): Selection[];
 /** @deprecated v0.8.2. Ask `MMA.read` for the summary and take `dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @unstable */
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.read({ type: "Everything" }, { kind: "rows" })`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Everything" }, { kind: "locations" })`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.read(selector, { kind: "coverage" })`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
@@ -7451,7 +7449,7 @@ declare function coverage(selector: Selector): Promise<[string, number][]>;
 declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
 /** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "groupBy", field, key })`. @unstable */
 declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "rows" })`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "locations" })`. @unstable */
 declare function fetchLocations(selector: Selector): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
@@ -7904,4 +7902,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

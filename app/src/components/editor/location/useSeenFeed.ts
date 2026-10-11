@@ -7,7 +7,7 @@ import { usePanoViewer } from "./PanoViewerContext";
 /** Record viewed panos, add geocoding when ready, and flush on close.
  *  The location's stored countryCode takes precedence over geocoding. */
 export function useSeenFeed() {
-	const location = useMapState((s) => s.open?.row ?? null);
+	const location = useMapState((s) => s.open?.location ?? null);
 	const origin = useMapState((s) => s.open?.origin);
 	const { draft, geo } = usePanoViewer();
 	const pano = usePano();

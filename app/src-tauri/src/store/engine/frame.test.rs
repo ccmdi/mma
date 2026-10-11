@@ -68,8 +68,8 @@ impl Reader<'_> {
         self.u32s(n).into_iter().map(f32::from_bits).collect()
     }
 
-    fn rows<K: Default>(&mut self, n: usize, key: impl Fn(u32) -> K) -> Rows<K> {
-        Rows {
+    fn rows<K: Default>(&mut self, n: usize, key: impl Fn(u32) -> K) -> CellRows<K> {
+        CellRows {
             key: self.u32s(n).into_iter().map(key).collect(),
             pos: self.f32s(n * 2),
             angle: self.f32s(n),
@@ -110,8 +110,8 @@ impl Captured {
 fn rows<K: Default>(
     entries: &[(u32, f32, f32, f32, PaletteIdx)],
     convert: impl Fn(u32) -> K,
-) -> Rows<K> {
-    let mut r = Rows::default();
+) -> CellRows<K> {
+    let mut r = CellRows::default();
     for &(key, lng, lat, angle, sel) in entries {
         r.key.push(convert(key));
         r.pos.extend([lng, lat]);
@@ -143,7 +143,7 @@ fn sample_frame() -> Frame {
                 cell: 31,
                 remove: vec![],
                 add: rows(&[(13, 7.0, 8.0, 0.0, PaletteIdx(0))], Id::new),
-                patch: Rows::default(),
+                patch: CellRows::default(),
             },
         ],
         selection: Some(vec![1, 2, 3, 4, 5]),

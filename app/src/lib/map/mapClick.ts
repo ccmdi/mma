@@ -92,7 +92,7 @@ export async function openHref(href: string) {
 	}
 	const nearby = await read(
 		{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
-		{ kind: "rows" },
+		{ kind: "locations" },
 	);
 	const match = nearby.find((l) => parsed.panoId && l.panoId === parsed.panoId) ?? nearby[0];
 	if (match) {
@@ -238,7 +238,7 @@ export async function handleMapClick(
 							lat: info.coordinate[1],
 							lng: info.coordinate[0],
 						},
-						{ kind: "rows" },
+						{ kind: "locations" },
 					)
 				)[0] ?? null;
 			if (!nearest) return;
