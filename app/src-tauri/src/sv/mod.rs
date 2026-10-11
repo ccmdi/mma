@@ -6,6 +6,7 @@ pub(crate) mod pano_id;
 #[rustfmt::skip]
 pub(crate) mod schema;
 #[cfg(test)]
+#[path = "schema_codegen.test.rs"]
 mod schema_codegen;
 pub(crate) mod tiles;
 pub(crate) mod wire;

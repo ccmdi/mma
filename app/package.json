@@ -14,7 +14,7 @@
 		"gen:i18n": "node scripts/i18n-extract.mjs",
 		"gen:manual-index": "node scripts/gen-manual-index.mjs",
 		"i18n:missing": "node scripts/i18n-extract.mjs --missing",
-		"gen:bindings": "cargo test --manifest-path src-tauri/Cargo.toml --lib export_bindings_for_gate -- --ignored --exact",
+		"gen:bindings": "cargo test --manifest-path src-tauri/Cargo.toml --lib tests::export_bindings_for_gate -- --ignored --exact",
 		"dev": "vite",
 		"build:procedures": "node scripts/build-procedures.mjs",
 		"build": "npm run gen:plugin-types && npm run gen:plugin-registry && npm run gen:image-dims && npm run gen:i18n && npm run gen:manual-index && npm run build:procedures && vite build",

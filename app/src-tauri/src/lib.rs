@@ -642,10 +642,6 @@ pub fn run() {
         });
 }
 
-// The bindings gate reuses the library test executable instead of linking the desktop app.
 #[cfg(all(test, debug_assertions))]
-#[test]
-#[ignore = "regenerates committed bindings; run by the bindings gate"]
-fn export_bindings_for_gate() {
-    export_bindings().expect("bindings export failed");
-}
+#[path = "lib.test.rs"]
+mod tests;
