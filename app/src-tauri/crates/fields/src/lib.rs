@@ -134,7 +134,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
             ("Option<u32>", true, false) => ("Date", "opt_date_u32"),
             ("Option<compact_str::CompactString>", false, true)
             | ("Option<CompactString>", false, true) => ("String", "opt_str_empty"),
-            ("Vec<u32>", false, true) => ("Array", "u32_list_empty"),
+            (list, false, true) if list.starts_with("Vec<Id<") => ("Array", "id_list_empty"),
             (other, ..) => {
                 return Err(syn::Error::new_spanned(
                     &f.ty,

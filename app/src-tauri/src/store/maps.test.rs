@@ -1,5 +1,5 @@
 use super::*;
-use crate::test_util::TempDir;
+use crate::test_util::{tag_ids, TempDir};
 use crate::types::Location;
 use std::collections::HashSet;
 
@@ -670,7 +670,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         .map(|id| Location {
             id,
             lat: f64::from(id),
-            tags: vec![1],
+            tags: tag_ids([1]),
             ..Location::default()
         })
         .collect();
@@ -711,7 +711,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     );
     let written = arrow::batch_to_locations(&arrow::read_arrow_ipc(&path).unwrap());
     assert_eq!(written.iter().map(|l| l.id).collect::<Vec<_>>(), vec![1, 2]);
-    assert_eq!(written[0].tags, vec![1]);
+    assert_eq!(written[0].tags, tag_ids([1]));
 
     for table in [
         "commits",
@@ -767,14 +767,14 @@ fn duplicating_a_missing_map_writes_nothing() {
 #[test]
 fn tag_records_read_and_write_the_one_column_format() {
     let stored = r#"{"7":{"id":7,"name":"a","visible":true,"color":"red"},"x":{"name":"b"}}"#;
-    let records: HashMap<u32, ValueRecord> =
+    let records: HashMap<Id<ValueRecord>, ValueRecord> =
         crate::io::records::decode(&mut serde_json::Deserializer::from_str(stored)).unwrap();
     assert_eq!(
         records,
         HashMap::from([(
-            7,
+            Id::new(7),
             ValueRecord {
-                id: 7,
+                id: Id::new(7),
                 name: Some("a".into()),
                 extra: Some(serde_json::Map::from_iter([(
                     "color".to_string(),
@@ -845,7 +845,7 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     let mut mgr = open_m1(&conn);
     let store = mgr.store_for_map("m1").unwrap();
     let rec = ValueRecord {
-        id: 1,
+        id: Id::new(1),
         name: Some("A".into()),
         ..Default::default()
     };
@@ -854,7 +854,7 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
         .get_mut("tags")
         .unwrap()
         .edit()
-        .insert(1, rec);
+        .insert(Id::new(1), rec);
     store
         .meta
         .edit()

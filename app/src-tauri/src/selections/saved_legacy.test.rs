@@ -1,6 +1,7 @@
 use super::*;
 use crate::selections::{FilterOp, Selector};
 use crate::util::Rgb;
+use mma_algebra::Id;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -104,7 +105,7 @@ fn import_captures_every_tag_name_under_a_distinct_id() {
     // The same name reuses its id; a different name never collides with it.
     assert_eq!(ids[0], ids[2]);
     assert_ne!(ids[0], ids[1]);
-    assert_eq!(saved.tag_names[&ids[1]], "Brazil");
+    assert_eq!(saved.tag_names[&Id::new(ids[1])], "Brazil");
 }
 
 #[test]

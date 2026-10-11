@@ -3,7 +3,7 @@ use super::*;
 use crate::store::arrow::locations_to_batch;
 use crate::store::engine::merge_group;
 use crate::store::maps::{FieldDef, FieldType};
-use crate::test_util::{loc, Fx};
+use crate::test_util::{loc, tag_ids, Fx};
 use crate::types::AppResult;
 use crate::types::Location;
 use crate::types::RawExtra;
@@ -855,7 +855,7 @@ fn resolve_everything() {
 #[test]
 fn resolve_tag_on_adds() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10];
+    l1.tags = tag_ids([10]);
     let l2 = loc(2, 0.0, 0.0);
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
@@ -867,7 +867,7 @@ fn resolve_tag_on_adds() {
 #[test]
 fn resolve_untagged() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10];
+    l1.tags = tag_ids([10]);
     let l2 = loc(2, 0.0, 0.0);
     let adds = vec![l1, l2];
     let fx = Fx::adds(adds);
@@ -882,7 +882,7 @@ fn resolve_untagged() {
 #[test]
 fn builtin_fields_resolve_on_every_path() {
     let mut l = loc(1, 12.0, 34.0);
-    l.tags = vec![10, 11];
+    l.tags = tag_ids([10, 11]);
     l.modified_at = Some(99);
     let builtins: Vec<&str> = FieldRegistry::builtins()
         .iter()
@@ -939,10 +939,10 @@ fn builtin_fields_resolve_on_every_path() {
 fn resolve_filter_tag_count() {
     let b1 = loc(1, 0.0, 0.0); // base: 0 tags
     let mut b2 = loc(2, 0.0, 0.0);
-    b2.tags = vec![10, 11]; // base: 2 tags
+    b2.tags = tag_ids([10, 11]); // base: 2 tags
 
     let mut a3 = loc(3, 0.0, 0.0);
-    a3.tags = vec![10, 11, 12]; // add: 3 tags
+    a3.tags = tag_ids([10, 11, 12]); // add: 3 tags
     let adds = vec![a3];
     let fx = Fx::base(&[b1, b2]).with_adds(adds);
     let view = fx.view();
@@ -1058,11 +1058,11 @@ fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, FieldIndexes) {
 #[test]
 fn tag_index_matches_scan_path() {
     let mut a = loc(1, 0.0, 0.0);
-    a.tags = vec![10, 20];
+    a.tags = tag_ids([10, 20]);
     let mut b = loc(2, 0.0, 0.0);
-    b.tags = vec![20];
+    b.tags = tag_ids([20]);
     let mut c = loc(3, 0.0, 0.0);
-    c.tags = vec![10];
+    c.tags = tag_ids([10]);
     let locs = vec![a, b, c];
     let (batch, sets) = tagged_batch_and_index(&locs);
     let fx = Fx::batch(batch);
@@ -1134,12 +1134,12 @@ fn indexed_tag_filters_match_a_full_scan_after_mixed_overlay_changes() {
 #[test]
 fn tag_index_excludes_dead_includes_adds() {
     let mut a = loc(1, 0.0, 0.0);
-    a.tags = vec![10];
+    a.tags = tag_ids([10]);
     let mut b = loc(2, 0.0, 0.0);
-    b.tags = vec![10];
+    b.tags = tag_ids([10]);
     let (batch, _) = tagged_batch_and_index(&[a, b]);
     let mut add = loc(3, 0.0, 0.0);
-    add.tags = vec![10]; // overlay add carries the tag
+    add.tags = tag_ids([10]); // overlay add carries the tag
     let fx = Fx::batch(batch).with_adds(vec![add]).with_dead([2]);
     let sets = live_tag_index(&fx.view());
     let idx = fx.view_indexed(&sets);
@@ -1155,14 +1155,14 @@ fn tag_index_excludes_dead_includes_adds() {
 fn tag_index_honors_patches() {
     // Base: loc 1 has tag 10, loc 2 has nothing.
     let mut a = loc(1, 0.0, 0.0);
-    a.tags = vec![10];
+    a.tags = tag_ids([10]);
     let b = loc(2, 0.0, 0.0);
     let (batch, _) = tagged_batch_and_index(&[a, b]);
     // Patch: loc 1 LOSES tag 10, loc 2 GAINS tag 10.
     let mut p1 = loc(1, 0.0, 0.0);
     p1.tags = vec![];
     let mut p2 = loc(2, 0.0, 0.0);
-    p2.tags = vec![10];
+    p2.tags = tag_ids([10]);
     let fx = Fx::batch(batch).with_patch(1, p1).with_patch(2, p2);
     let sets = live_tag_index(&fx.view());
     let idx = fx.view_indexed(&sets);
@@ -1176,11 +1176,11 @@ fn tag_index_honors_patches() {
 #[test]
 fn tag_index_in_composite() {
     let mut a = loc(1, 0.0, 0.0);
-    a.tags = vec![10, 20];
+    a.tags = tag_ids([10, 20]);
     let mut b = loc(2, 0.0, 0.0);
-    b.tags = vec![10];
+    b.tags = tag_ids([10]);
     let mut c = loc(3, 0.0, 0.0);
-    c.tags = vec![20];
+    c.tags = tag_ids([20]);
     let (batch, sets) = tagged_batch_and_index(&[a, b, c]);
     let fx = Fx::batch(batch);
     let idx = fx.view_indexed(&sets);
@@ -1282,7 +1282,7 @@ fn resolve_with_dead_batch_rows() {
 fn resolve_with_patched_tags() {
     let locs = vec![loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)];
     let mut patched = loc(1, 0.0, 0.0);
-    patched.tags = vec![10];
+    patched.tags = tag_ids([10]);
     let fx = Fx::base(&locs).with_patch(1, patched);
     let view = fx.view();
     let ids = ids_of(&view, &Selector::tag(10));
@@ -1296,11 +1296,11 @@ fn resolve_with_patched_tags() {
 #[test]
 fn resolve_intersection() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10];
+    l1.tags = tag_ids([10]);
     l1.flags = LocationFlags::LOAD_AS_PANO_ID;
     l1.pano_id = Some("AAA".into());
     let mut l2 = loc(2, 0.0, 0.0);
-    l2.tags = vec![10];
+    l2.tags = tag_ids([10]);
     let mut l3 = loc(3, 0.0, 0.0);
     l3.flags = LocationFlags::LOAD_AS_PANO_ID;
     l3.pano_id = Some("AAA".into());
@@ -1328,7 +1328,7 @@ fn resolve_intersection() {
 #[test]
 fn resolve_union() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10];
+    l1.tags = tag_ids([10]);
     let mut l2 = loc(2, 0.0, 0.0);
     l2.flags = LocationFlags::LOAD_AS_PANO_ID;
     l2.pano_id = Some("AAA".into());
@@ -1387,11 +1387,11 @@ fn resolve_invert() {
 #[test]
 fn node_counts_cover_nested_children() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10, 20];
+    l1.tags = tag_ids([10, 20]);
     let mut l2 = loc(2, 0.0, 0.0);
-    l2.tags = vec![10];
+    l2.tags = tag_ids([10]);
     let mut l3 = loc(3, 0.0, 0.0);
-    l3.tags = vec![20];
+    l3.tags = tag_ids([20]);
     let adds = vec![l1, l2, l3];
     let fx = Fx::adds(adds);
     let view = fx.view();
@@ -1425,7 +1425,7 @@ fn node_counts_cover_nested_children() {
 #[test]
 fn node_counts_invert_is_global_complement() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10];
+    l1.tags = tag_ids([10]);
     let l2 = loc(2, 0.0, 0.0);
     let l3 = loc(3, 0.0, 0.0);
     let adds = vec![l1, l2, l3];
@@ -1454,11 +1454,11 @@ fn node_counts_invert_is_global_complement() {
 #[test]
 fn resolve_forest_matches_individual_resolve() {
     let mut l1 = loc(1, 0.0, 0.0);
-    l1.tags = vec![10, 20];
+    l1.tags = tag_ids([10, 20]);
     let mut l2 = loc(2, 0.0, 0.0);
-    l2.tags = vec![10];
+    l2.tags = tag_ids([10]);
     let mut l3 = loc(3, 5.0, 5.0);
-    l3.tags = vec![20];
+    l3.tags = tag_ids([20]);
     let l4 = loc(4, 5.0, 5.0);
     let adds = vec![l1, l2, l3, l4];
     let fx = Fx::adds(adds);
@@ -1742,7 +1742,7 @@ fn default_score() -> field_expr::Expr {
 fn prune_relevance_keeps_highest_score() {
     let mut best = loc(1, 0.00000, 0.0);
     best.pano_id = Some("p".into());
-    best.tags = vec![7];
+    best.tags = tag_ids([7]);
     let locs = vec![best, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
     let mut removed = prune_duplicates(&locs, 10.0, &default_score());
     removed.sort_unstable();
@@ -2627,7 +2627,7 @@ fn build_adds_view(masks: &[u8]) -> (Vec<Location>, Vec<(u32, Vec<u32>)>) {
         let id = (i + 1) as u32;
         let tags = tags_from_mask(m);
         let mut l = loc(id, 0.0, 0.0);
-        l.tags = tags.clone();
+        l.tags = tag_ids(tags.clone());
         adds.push(l);
         alive.push((id, tags));
     }
@@ -2658,29 +2658,29 @@ fn build_overlay_view(
         match role {
             0 => {
                 let mut l = loc(id, 0.0, 0.0);
-                l.tags = tags.clone();
+                l.tags = tag_ids(tags.clone());
                 base_locs.push(l);
                 alive.push((id, tags));
             }
             1 => {
                 let mut l = loc(id, 0.0, 0.0);
-                l.tags = tags;
+                l.tags = tag_ids(tags);
                 base_locs.push(l);
                 dead.insert(id);
             }
             2 => {
                 let mut l = loc(id, 0.0, 0.0);
-                l.tags = tags;
+                l.tags = tag_ids(tags);
                 base_locs.push(l);
                 let patch_tags = tags_from_mask(patch_mask);
                 let mut p = loc(id, 0.0, 0.0);
-                p.tags = patch_tags.clone();
+                p.tags = tag_ids(patch_tags.clone());
                 patches.insert(id, p);
                 alive.push((id, patch_tags));
             }
             _ => {
                 let mut l = loc(id, 0.0, 0.0);
-                l.tags = tags.clone();
+                l.tags = tag_ids(tags.clone());
                 adds.push(l);
                 alive.push((id, tags));
             }
@@ -2791,7 +2791,7 @@ fn within_rows(rows: &[WithinRow]) -> Vec<Location> {
                 f64::from(lng) * 0.001,
             );
             l.heading = f64::from(heading) * 90.0;
-            l.tags = tags_from_mask(mask);
+            l.tags = tag_ids(tags_from_mask(mask));
             if pinned {
                 l.pano_id = Some("PANO".into());
                 l.flags = LocationFlags::LOAD_AS_PANO_ID;
@@ -3144,9 +3144,9 @@ fn count_by_counts_each_field_as_it_would_alone() {
 #[test]
 fn count_by_counts_each_tag_id() {
     let mut a = loc(1, 0.0, 0.0);
-    a.tags = vec![7, 9];
+    a.tags = tag_ids([7, 9]);
     let mut b = loc(2, 0.0, 0.0);
-    b.tags = vec![7];
+    b.tags = tag_ids([7]);
     let fx = Fx::base(&[a, b, loc(3, 0.0, 0.0)]);
     let view = fx.view();
 
@@ -3249,7 +3249,7 @@ fn every_projection_id_is_value_or_a_date_part_wire_name() {
 #[test]
 fn columns_within_projects_one_value_per_row_per_field() {
     let mut tagged = loc_extra(2, serde_json::json!({"a":"x"}));
-    tagged.tags = vec![7, 9];
+    tagged.tags = tag_ids([7, 9]);
     tagged.heading = 45.0;
     let base = vec![loc_extra(1, serde_json::json!({"a":1,"b":2})), tagged];
     let fx = Fx::base(&base).with_adds(vec![loc_extra(3, serde_json::json!({"b":3}))]);
@@ -3588,7 +3588,7 @@ fn prune_and_merge_keep_the_same_survivor() {
     finished.flags = LocationFlags::LOAD_AS_PANO_ID;
     finished.heading = 90.0;
     let mut bare = loc(2, 0.00001, 0.0);
-    bare.tags = vec![1, 2, 3];
+    bare.tags = tag_ids([1, 2, 3]);
     let group = vec![finished, bare];
 
     let removed = prune_duplicates(&group, 10.0, &default_score());
@@ -4034,13 +4034,13 @@ fn scope_fx() -> Fx {
                 )
             };
             if id % 2 == 0 {
-                l.tags = vec![10];
+                l.tags = tag_ids([10]);
             }
             l
         })
         .collect();
     let mut tagged_fr = loc_extra(1_001, serde_json::json!({"c": "FR"}));
-    tagged_fr.tags = vec![10];
+    tagged_fr.tags = tag_ids([10]);
     Fx::base(&base)
         .with_adds(vec![tagged_fr, loc(1_002, 0.0, 0.0)])
         .with_dead([3, 500])
@@ -4237,7 +4237,7 @@ fn a_column_writer_sets_its_slot_and_refuses_a_value_of_the_wrong_type() {
         serde_json::json!([3, 1]),
     )
     .unwrap();
-    assert_eq!(tags.tags, Some(vec![3, 1]));
+    assert_eq!(tags.tags, Some(tag_ids([3, 1])));
     let pano = written(
         fields.clear("panoId"),
         LocationFlags::empty(),

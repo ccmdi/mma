@@ -3,6 +3,7 @@
 use serde_json::Value;
 use std::collections::{hash_map, BTreeMap, BTreeSet, HashMap};
 use std::hash::Hash;
+use std::marker::PhantomData;
 
 type Json = serde_json::Map<String, Value>;
 
@@ -194,6 +195,92 @@ impl Merge for Json {
         } else {
             Field::Set(patch)
         }
+    }
+}
+
+/// An id that names what it identifies, so `Id<Location>` and `Id<ValueRecord>` never mix.
+/// `Raw` is what the id holds: a number by default, text for ids such as a map's.
+/// Serialized as `Raw`, so the stored and wire forms are unchanged.
+#[repr(transparent)]
+pub struct Id<T, Raw = u32>(Raw, PhantomData<fn() -> T>);
+
+impl<T, Raw> Id<T, Raw> {
+    pub const fn new(raw: Raw) -> Self {
+        Id(raw, PhantomData)
+    }
+
+    pub fn raw(&self) -> &Raw {
+        &self.0
+    }
+}
+
+impl<T, Raw: Copy> Id<T, Raw> {
+    pub fn get(self) -> Raw {
+        self.0
+    }
+}
+
+impl<T> Id<T> {
+    /// The key of a row the store has not numbered yet.
+    pub const UNSET: Self = Id::new(0);
+}
+
+// Written by hand so they hold for every `T`: a derive would demand `T: Clone`, `T: Eq`, ...
+impl<T, Raw: Clone> Clone for Id<T, Raw> {
+    fn clone(&self) -> Self {
+        Id::new(self.0.clone())
+    }
+}
+impl<T, Raw: Copy> Copy for Id<T, Raw> {}
+impl<T, Raw: PartialEq> PartialEq for Id<T, Raw> {
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+impl<T, Raw: Eq> Eq for Id<T, Raw> {}
+impl<T, Raw: Ord> PartialOrd for Id<T, Raw> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl<T, Raw: Ord> Ord for Id<T, Raw> {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+impl<T, Raw: Hash> Hash for Id<T, Raw> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state)
+    }
+}
+impl<T, Raw: Default> Default for Id<T, Raw> {
+    fn default() -> Self {
+        Id::new(Raw::default())
+    }
+}
+impl<T, Raw: std::fmt::Debug> std::fmt::Debug for Id<T, Raw> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl<T, Raw: std::fmt::Display> std::fmt::Display for Id<T, Raw> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl<T, Raw: serde::Serialize> serde::Serialize for Id<T, Raw> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.0.serialize(s)
+    }
+}
+impl<'de, T, Raw: serde::Deserialize<'de>> serde::Deserialize<'de> for Id<T, Raw> {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Raw::deserialize(d).map(Id::new)
+    }
+}
+impl<T, Raw: specta::Type> specta::Type for Id<T, Raw> {
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        Raw::definition(types)
     }
 }
 

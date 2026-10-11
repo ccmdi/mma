@@ -3,12 +3,12 @@
 use super::*;
 use crate::types::wire_str_enum;
 use crate::types::Location;
-use mma_algebra::{ordered_rows, Change, Delta};
+use mma_algebra::{ordered_rows, Change, Delta, Id};
 use mma_fields::Delta;
 use std::sync::Arc;
 
 /// What one write did to an interned field's records.
-pub(crate) type PileDelta = Change<(u32, ValueRecord)>;
+pub(crate) type PileDelta = Change<(Id<ValueRecord>, ValueRecord)>;
 
 /// What one write did to every interned field's records, by field.
 pub(crate) type Piles = HashMap<String, PileDelta>;

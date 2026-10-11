@@ -5,11 +5,12 @@
 //! tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::{Selection, Selector};
-use crate::store::engine::{with_store, MutationResult, Store, StoreState, WindowLabel};
+use crate::store::engine::{MutationResult, Store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::now_iso;
 use crate::util::Rgb;
+use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::HashMap;
 
@@ -32,7 +33,7 @@ pub struct SavedSelection {
     pub info: SavedSelectionInfo,
     pub selector: Selector,
     /// Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable.
-    pub tag_names: HashMap<u32, String>,
+    pub tag_names: HashMap<Id<ValueRecord>, String>,
 }
 
 const COLS: &str = "id, name, selector, tag_names, color, created_at";
@@ -216,7 +217,7 @@ pub(crate) fn create(
     conn: &Connection,
     name: String,
     selector: Selector,
-    tag_names: HashMap<u32, String>,
+    tag_names: HashMap<Id<ValueRecord>, String>,
     color: Rgb,
 ) -> AppResult<SavedSelection> {
     let saved = SavedSelection {
@@ -300,11 +301,12 @@ fn capture_names(
     selector: &Selector,
     field: &str,
     store: &Store,
-    names: &mut HashMap<u32, String>,
+    names: &mut HashMap<Id<ValueRecord>, String>,
 ) {
     selector.walk(&mut |selector| {
         if let Some((name, id)) = selector.member_test() {
             if name == field {
+                let id = Id::new(id);
                 if let Some(name) = store
                     .value_record(field, id)
                     .and_then(|record| record.name.as_deref())
@@ -366,14 +368,13 @@ impl SavedSelection {
         let field = "tags";
         let fields = store.fields([field]);
         let values = &fields[0];
-        remap(
-            &saved.selector,
-            field,
-            &|id| match saved.tag_names.get(&id) {
-                None => values.record(id).map(|_| id),
-                Some(name) => values.named(name, true),
-            },
-        )
+        remap(&saved.selector, field, &|raw| {
+            let id = Id::new(raw);
+            match saved.tag_names.get(&id) {
+                None => values.record(id).map(|_| raw),
+                Some(name) => values.named(name, true).map(Id::get),
+            }
+        })
     }
 }
 

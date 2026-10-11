@@ -21,7 +21,7 @@ use crate::types::{AppError, AppResult, LocationFlags};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
 use mma_algebra::Counts;
-use mma_algebra::{Patch, Patchable};
+use mma_algebra::{Id, Patch, Patchable};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fs;
@@ -588,7 +588,7 @@ pub struct MapMeta {
     #[specta(type = HashMap<String, ValueRecord>)]
     #[serde(deserialize_with = "crate::io::records::decode")]
     #[field(json, codec = "crate::io::records::read", default = "'{}'")]
-    pub tags: HashMap<u32, ValueRecord>,
+    pub tags: HashMap<Id<ValueRecord>, ValueRecord>,
     #[field(json, default = "'[]'")]
     pub labels: Vec<String>,
     #[patch(skip)]

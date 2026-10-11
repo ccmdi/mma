@@ -1,7 +1,7 @@
 use super::*;
 use crate::store::arrow;
 use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
-use crate::test_util::TempDir;
+use crate::test_util::{tag_ids, TempDir};
 use crate::types::AppError;
 use crate::types::Location;
 use crate::types::LocationFlags;
@@ -25,7 +25,7 @@ fn sample_loc() -> Location {
         zoom: 1.5,
         pano_id: Some("CAoSLEF".into()),
         flags: LocationFlags::LOAD_AS_PANO_ID,
-        tags: vec![1, 2, 3],
+        tags: tag_ids([1, 2, 3]),
         extra: Some(serde_json::from_str(r#"{"country":"FR"}"#).unwrap()),
         created_at: util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
         modified_at: Some(util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
@@ -195,7 +195,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
             lng: id as f64 * 2.0,
             zoom: 1.0,
             pano_id: Some(format!("pano_{id}").into()),
-            tags: vec![1],
+            tags: tag_ids([1]),
             created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             ..Default::default()
         })
@@ -294,7 +294,7 @@ fn mmap_preserves_nullable_fields() {
             lat: 1.0,
             lng: 1.0,
             pano_id: Some("abc".into()),
-            tags: vec![1, 2],
+            tags: tag_ids([1, 2]),
             extra: Some(serde_json::from_str(r#"{"key":"val"}"#).unwrap()),
             created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             modified_at: Some(util::iso_to_unix("2024-06-01T00:00:00Z").unwrap() as u32),

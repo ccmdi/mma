@@ -8,7 +8,7 @@ use crate::store::engine::WindowLabel;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
-use mma_algebra::{Op, Patch};
+use mma_algebra::{Id, Op, Patch};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -422,12 +422,16 @@ pub async fn store_import_file(
 }
 
 /// Create tag records in the import layer and return their provisional ids.
-pub(super) fn bulk_tag_ids(store: &mut engine::Store, key: &str, names: &[String]) -> Vec<u32> {
+pub(super) fn bulk_tag_ids(
+    store: &mut engine::Store,
+    key: &str,
+    names: &[String],
+) -> Vec<Id<ValueRecord>> {
     let Some(p) = store.pending.get_mut(key) else {
         return Vec::new();
     };
     let piles = p.incoming.entry("tags".to_string()).or_default();
-    let mut next = piles.keys().max().copied().unwrap_or(0);
+    let mut next = piles.keys().max().map_or(0, |id| id.get());
     let seeds = names
         .iter()
         .map(|name| name.trim())
@@ -440,7 +444,7 @@ pub(super) fn bulk_tag_ids(store: &mut engine::Store, key: &str, names: &[String
         });
     let landed = mma_algebra::apply(piles, seeds, || {
         next += 1;
-        next
+        Id::new(next)
     });
     let mut ids = Vec::new();
     for id in landed.keys {

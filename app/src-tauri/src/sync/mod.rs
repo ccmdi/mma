@@ -11,11 +11,12 @@ pub(crate) mod log;
 pub(crate) mod map_making;
 pub(crate) mod remote_mapping;
 
+use crate::store::engine::ValueRecord;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::wire_str_enum;
 use crate::types::AppResult;
 use crate::types::{Location, LocationFlags};
-use mma_algebra::canonical;
+use mma_algebra::{canonical, Id};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -192,7 +193,7 @@ pub fn canon_tags(names: impl IntoIterator<Item = String>) -> Vec<String> {
 /// null fields, which a merge patch cannot tell from absent ones.
 pub fn local_to_normalized(
     loc: &Location,
-    tag_name: &impl Fn(u32) -> Option<String>,
+    tag_name: &impl Fn(Id<ValueRecord>) -> Option<String>,
 ) -> NormalizedSyncLocation {
     NormalizedSyncLocation {
         lat: loc.lat,

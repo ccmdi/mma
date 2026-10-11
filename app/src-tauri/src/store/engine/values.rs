@@ -7,7 +7,7 @@ use super::*;
 use crate::selections;
 use crate::types::{AppError, AppResult};
 use crate::util::Rgb;
-use mma_algebra::{Constrained, Edit, Field, Op, Patch};
+use mma_algebra::{Constrained, Edit, Field, Id, Op, Patch};
 use std::collections::HashMap;
 
 /// Metadata for one interned value.
@@ -17,7 +17,7 @@ use std::collections::HashMap;
 #[serde(rename_all = "camelCase")]
 pub struct ValueRecord {
     #[patch(key)]
-    pub id: u32,
+    pub id: Id<ValueRecord>,
     /// The value's display name, unique within its field regardless of case.
     #[patch(unique)]
     #[specta(optional)]
@@ -64,9 +64,9 @@ impl ValueRecord {
 /// the target's order in their own order.
 pub(crate) fn reconcile_values_by_name<'a>(
     source: impl IntoIterator<Item = &'a ValueRecord>,
-    target: &mut HashMap<u32, ValueRecord>,
+    target: &mut HashMap<Id<ValueRecord>, ValueRecord>,
     floor: u32,
-) -> HashMap<u32, u32> {
+) -> HashMap<Id<ValueRecord>, Id<ValueRecord>> {
     let mut named: Vec<&ValueRecord> = source
         .into_iter()
         .filter(|r| r.unique().is_some())
@@ -77,17 +77,17 @@ pub(crate) fn reconcile_values_by_name<'a>(
             .cmp(&b.order.unwrap_or(u32::MAX))
             .then_with(|| a.name.cmp(&b.name))
     });
-    let mut next = target.keys().max().copied().unwrap_or(0).max(floor);
+    let mut next = target.keys().max().map_or(0, |id| id.get()).max(floor);
     let sets = named.iter().map(|r| {
         Op::Set(ValueRecord {
-            id: 0,
+            id: Id::UNSET,
             order: None,
             ..(*r).clone()
         })
     });
     let applied = mma_algebra::apply(target, sets, || {
         next += 1;
-        next
+        Id::new(next)
     });
     named.iter().map(|r| r.id).zip(applied.keys).collect()
 }
@@ -104,7 +104,7 @@ fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
         Op::Remove(_) => Err(AppError("a value record outlives its rows".into())),
         Op::Set(mut rec) => {
             rec.name = rec.name.as_deref().and_then(trimmed);
-            match rec.id == 0 && rec.name.is_none() {
+            match rec.id == Id::UNSET && rec.name.is_none() {
                 true => Err(AppError("an interned value needs a name".into())),
                 false => Ok(Op::Set(rec)),
             }
@@ -122,14 +122,14 @@ fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
 pub(crate) struct FieldValues<'a> {
     field: &'a str,
     index: &'a selections::FieldIndex,
-    records: Option<&'a HashMap<u32, ValueRecord>>,
+    records: Option<&'a HashMap<Id<ValueRecord>, ValueRecord>>,
 }
 
 impl<'a> FieldValues<'a> {
     pub(super) fn new(
         field: &'a str,
         index: &'a selections::FieldIndex,
-        records: Option<&'a HashMap<u32, ValueRecord>>,
+        records: Option<&'a HashMap<Id<ValueRecord>, ValueRecord>>,
     ) -> Self {
         Self {
             field,
@@ -163,7 +163,7 @@ impl<'a> FieldValues<'a> {
             .map_or(0, |ids| ids.len() as usize)
     }
 
-    pub(crate) fn record(&self, id: u32) -> Option<&'a ValueRecord> {
+    pub(crate) fn record(&self, id: Id<ValueRecord>) -> Option<&'a ValueRecord> {
         self.records.and_then(|records| records.get(&id))
     }
 
@@ -175,13 +175,17 @@ impl<'a> FieldValues<'a> {
             .chain(
                 self.records
                     .into_iter()
-                    .flat_map(|records| records.keys().map(u32::to_string)),
+                    .flat_map(|records| records.keys().map(ToString::to_string)),
             )
             .collect()
     }
 
     pub(crate) fn get(&self, key: &str) -> Option<HeldValue> {
-        let record = key.parse().ok().and_then(|id| self.record(id)).cloned();
+        let record = key
+            .parse()
+            .ok()
+            .and_then(|id| self.record(Id::new(id)))
+            .cloned();
         let count = self.count(key);
         (record.is_some() || count > 0).then_some(HeldValue { record, count })
     }
@@ -206,7 +210,7 @@ impl<'a> FieldValues<'a> {
             .unwrap_or(0)
     }
 
-    pub(crate) fn named(&self, name: &str, visible: bool) -> Option<u32> {
+    pub(crate) fn named(&self, name: &str, visible: bool) -> Option<Id<ValueRecord>> {
         let name = name.trim().to_lowercase();
         self.records?.iter().find_map(|(&id, record)| {
             ((!visible || self.count(&id.to_string()) > 0)
@@ -217,12 +221,12 @@ impl<'a> FieldValues<'a> {
 }
 
 impl Store {
-    pub(crate) fn value_record(&self, field: &str, id: u32) -> Option<&ValueRecord> {
+    pub(crate) fn value_record(&self, field: &str, id: Id<ValueRecord>) -> Option<&ValueRecord> {
         self.value_meta.get(field)?.get(&id)
     }
 
     /// `field`'s records as they stand.
-    pub(crate) fn records(&self, field: &str) -> HashMap<u32, ValueRecord> {
+    pub(crate) fn records(&self, field: &str) -> HashMap<Id<ValueRecord>, ValueRecord> {
         self.value_meta
             .get(field)
             .map(|m| (**m).clone())
@@ -251,16 +255,16 @@ impl Store {
         let (floor, held) = {
             let fields = self.fields([field]);
             let values = &fields[0];
-            let held: Vec<u32> = values
+            let held: Vec<Id<ValueRecord>> = values
                 .keys()
                 .into_iter()
                 .filter(|key| values.count(key) > 0)
-                .filter_map(|key| key.parse().ok())
+                .filter_map(|key| key.parse().ok().map(Id::new))
                 .collect();
             (values.floor(), held)
         };
         let before = self.records(field);
-        let bare = |id: u32| ValueRecord {
+        let bare = |id: Id<ValueRecord>| ValueRecord {
             id,
             ..Default::default()
         };
@@ -271,7 +275,7 @@ impl Store {
         let mut next = floor;
         let applied = mma_algebra::apply(&mut after, edits, || {
             next += 1;
-            next
+            Id::new(next)
         });
         for id in &applied.keys {
             after
@@ -281,7 +285,7 @@ impl Store {
         }
         after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
         let patches = self.plan_value_merges(field, &applied.redirects)?;
-        let keys: Vec<u32> = before.keys().chain(after.keys()).copied().collect();
+        let keys: Vec<Id<ValueRecord>> = before.keys().chain(after.keys()).copied().collect();
         let delta = PileDelta::at(&before, &after, keys);
         let piles = Piles::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
         let mutation = self.write(
@@ -293,7 +297,7 @@ impl Store {
             },
         );
         Ok(Mutation {
-            keys: applied.keys,
+            keys: applied.keys.iter().map(|id| id.get()).collect(),
             ..mutation
         })
     }
@@ -302,13 +306,13 @@ impl Store {
     fn plan_value_merges(
         &mut self,
         field: &str,
-        merges: &HashMap<u32, u32>,
+        merges: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
     ) -> AppResult<Vec<Patch<Location>>> {
         if merges.is_empty() {
             return Ok(Vec::new());
         }
         let to = self.registry().assign(field)?;
-        let resolve = |mut id: u32| {
+        let resolve = |mut id: Id<ValueRecord>| {
             let mut seen = HashSet::new();
             while let Some(&next) = merges.get(&id) {
                 if !seen.insert(id) {
@@ -325,14 +329,14 @@ impl Store {
                 let Some(serde_json::Value::Array(list)) = row.resolve_field(field) else {
                     continue;
                 };
-                let current: Vec<u32> = list
+                let current: Vec<Id<ValueRecord>> = list
                     .iter()
-                    .filter_map(|v| v.as_u64().map(|n| n as u32))
+                    .filter_map(|v| v.as_u64().map(|n| Id::new(n as u32)))
                     .collect();
                 if !current.iter().any(|id| merges.contains_key(id)) {
                     continue;
                 }
-                let mut next: Vec<u32> = Vec::with_capacity(current.len());
+                let mut next: Vec<Id<ValueRecord>> = Vec::with_capacity(current.len());
                 for &id in &current {
                     let mapped = resolve(id);
                     if !next.contains(&mapped) {

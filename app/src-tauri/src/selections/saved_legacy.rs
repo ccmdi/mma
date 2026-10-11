@@ -8,10 +8,12 @@
 
 use super::{insert, SavedSelection, SavedSelectionInfo, NO_COLOR};
 use crate::selections::{Selection, Selector};
+use crate::store::engine::ValueRecord;
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::Rgb;
 use crate::util::{now_iso, unix_ms_to_iso};
+use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::HashMap;
 
@@ -38,7 +40,7 @@ struct LegacyItem {
 /// Rewrites `TagName` leaves to `Tag` leaves carrying a synthetic id, recording each
 /// distinct name in `names`. The id is a placeholder: apply time resolves a saved rule's
 /// tags through `tag_names`, never through the stored id.
-fn convert(value: &mut serde_json::Value, names: &mut HashMap<u32, String>) {
+fn convert(value: &mut serde_json::Value, names: &mut HashMap<Id<ValueRecord>, String>) {
     if value.get("type").and_then(|t| t.as_str()) == Some("TagName") {
         let name = value
             .get("tagName")
@@ -48,7 +50,7 @@ fn convert(value: &mut serde_json::Value, names: &mut HashMap<u32, String>) {
         let id = match names.iter().find(|(_, n)| **n == name) {
             Some((id, _)) => *id,
             None => {
-                let id = names.len() as u32;
+                let id = Id::new(names.len() as u32);
                 names.insert(id, name);
                 id
             }
@@ -70,7 +72,7 @@ fn convert(value: &mut serde_json::Value, names: &mut HashMap<u32, String>) {
 /// fallback to `Everything` would hand the user a rule selecting the whole map.
 fn props_to_selector(
     props: &serde_json::Value,
-    names: &mut HashMap<u32, String>,
+    names: &mut HashMap<Id<ValueRecord>, String>,
 ) -> Option<Selector> {
     let mut value = props.clone();
     convert(&mut value, names);

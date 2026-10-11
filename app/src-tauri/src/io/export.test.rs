@@ -1,5 +1,6 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
+use crate::test_util::tag_ids;
 use crate::types::Location;
 use crate::types::RawExtra;
 use serde_json::json;
@@ -22,7 +23,7 @@ fn make_loc(
         zoom: 3.0,
         pano_id: Some("PANO".into()),
         flags,
-        tags,
+        tags: tag_ids(tags),
         extra: extra.as_ref().and_then(RawExtra::from_map),
         ..Default::default()
     }
@@ -35,7 +36,7 @@ fn coord_hoists_country_state_and_nests_other_extra() {
     extra.insert("stateCode".into(), json!("CA"));
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::empty(), vec![1, 99], Some(extra));
-    let id_to_name = HashMap::from([(1u32, "red".to_string())]);
+    let id_to_name = HashMap::from([(Id::new(1), "red".to_string())]);
     let co = CoordOpts {
         export_zoom: false,
         export_unpanned: true,
@@ -59,7 +60,7 @@ fn coord_keeps_zoom_and_pano_when_pinned() {
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), json!("hi"));
     let l = make_loc(LocationFlags::LOAD_AS_PANO_ID, vec![1], Some(extra));
-    let id_to_name = HashMap::from([(1u32, "red".to_string())]);
+    let id_to_name = HashMap::from([(Id::new(1), "red".to_string())]);
     let co = CoordOpts {
         export_zoom: true,
         export_unpanned: false,

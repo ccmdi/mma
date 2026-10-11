@@ -4,7 +4,7 @@ use super::*;
 use crate::selections::{self, Selection, Selector};
 use crate::types::Location;
 use crate::util::Rgb;
-use mma_algebra::{ordered_rows, ordered_table, Change, Keyed};
+use mma_algebra::{ordered_rows, ordered_table, Change, Id, Keyed};
 use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
@@ -87,7 +87,7 @@ pub struct ListedSelection {
 impl Store {
     pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
         let pruned = self.pruned_selections(entry);
-        let colors: HashMap<(&str, u32), Rgb> = entry
+        let colors: HashMap<(&str, Id<ValueRecord>), Rgb> = entry
             .piles
             .iter()
             .flat_map(|(field, pile)| {
@@ -103,7 +103,7 @@ impl Store {
                 .map(|row| ListedSelection {
                     selection: row
                         .selection
-                        .recolored(&|field, id| colors.get(&(field, id)).copied()),
+                        .recolored(&|field, id| colors.get(&(field, Id::new(id))).copied()),
                     ..row
                 })
                 .collect()
@@ -332,7 +332,8 @@ impl Store {
                 true => row,
                 false => ListedSelection {
                     selection: row.selection.recolored(&|field, id| {
-                        self.value_record(field, id).and_then(ValueRecord::color)
+                        self.value_record(field, Id::new(id))
+                            .and_then(ValueRecord::color)
                     }),
                     ..row
                 },

@@ -2,6 +2,8 @@
 //! read with the import parser and normalized exactly as local locations are, so both sides of
 //! the diff come from the same code.
 
+use crate::store::engine::ValueRecord;
+use mma_algebra::Id;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fs;
@@ -86,12 +88,12 @@ fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
 }
 
 fn normalized(map: ParsedMap) -> Vec<NormalizedSyncLocation> {
-    let names: HashMap<u32, String> = map
+    let names: HashMap<Id<ValueRecord>, String> = map
         .tags
         .iter()
         .filter_map(|rec| Some((rec.id, rec.name.clone()?)))
         .collect();
-    let tag_name = |id: u32| names.get(&id).cloned();
+    let tag_name = |id: Id<ValueRecord>| names.get(&id).cloned();
     map.locations
         .into_iter()
         .map(|loc| local_to_normalized(&loc, &tag_name))

@@ -19,7 +19,7 @@ use crate::util;
 use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
-use mma_algebra::{Edit, Op, Patch};
+use mma_algebra::{Edit, Id, Op, Patch};
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::sync::Arc;
@@ -350,14 +350,14 @@ fn copy_to_map(
 
     let now = util::now_unix();
     let mut sources: Vec<Location> = Vec::new();
-    let source_tags: HashMap<u32, ValueRecord> = {
+    let source_tags: HashMap<Id<ValueRecord>, ValueRecord> = {
         let src = mgr.store_for_map(&source_map_id)?;
         for mut loc in collect(src) {
             loc.created_at = now;
             loc.modified_at = Some(now);
             sources.push(loc);
         }
-        let used: HashSet<u32> = sources
+        let used: HashSet<Id<ValueRecord>> = sources
             .iter()
             .flat_map(|l| l.tags.iter().copied())
             .collect();
@@ -379,7 +379,8 @@ fn copy_to_map(
     }
 
     let used_tags = |fresh: &[Location]| -> Vec<ValueRecord> {
-        let used: HashSet<u32> = fresh.iter().flat_map(|l| l.tags.iter().copied()).collect();
+        let used: HashSet<Id<ValueRecord>> =
+            fresh.iter().flat_map(|l| l.tags.iter().copied()).collect();
         used.iter()
             .filter_map(|&id| source_tags.get(&id).cloned())
             .collect()
@@ -419,7 +420,7 @@ fn copy_to_map(
         let mut target_tags = target_meta.tags;
         let data_max = existing
             .iter()
-            .flat_map(|l| l.tags.iter().copied())
+            .flat_map(|l| l.tags.iter().map(|t| t.get()))
             .max()
             .unwrap_or(0);
         let remap = reconcile_values_by_name(&used_tags(&fresh), &mut target_tags, data_max);

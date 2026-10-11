@@ -172,7 +172,7 @@ macro_rules! field_value {
             .filter(|s| !s.is_empty())
             .map(|s| serde_json::json!(s))
     };
-    (u32_list_empty, $r:ident, $c:ident, $f:ident) => {{
+    (id_list_empty, $r:ident, $c:ident, $f:ident) => {{
         let list = $r.$c();
         (!list.is_empty()).then(|| serde_json::json!(list))
     }};

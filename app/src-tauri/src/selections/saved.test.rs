@@ -4,7 +4,9 @@ use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
 use crate::selections::Selector;
 use crate::store::engine::ValueRecord;
+use crate::test_util::tag_ids;
 use crate::util::Rgb;
+use mma_algebra::Id;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -24,8 +26,11 @@ fn setup() -> Connection {
     conn
 }
 
-fn tag_names(pairs: &[(u32, &str)]) -> HashMap<u32, String> {
-    pairs.iter().map(|(id, n)| (*id, n.to_string())).collect()
+fn tag_names(pairs: &[(u32, &str)]) -> HashMap<Id<ValueRecord>, String> {
+    pairs
+        .iter()
+        .map(|(id, n)| (Id::new(*id), n.to_string()))
+        .collect()
 }
 
 /// Every rule's body, via the two primitives the frontend uses: index, then bodies.
@@ -65,7 +70,10 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     assert_eq!(got.info.id, created.info.id);
     assert_eq!(got.info.name, "Japan dupes");
     assert_eq!(got.info.color, Rgb([9, 9, 9]));
-    assert_eq!(got.tag_names.get(&4).map(String::as_str), Some("Japan"));
+    assert_eq!(
+        got.tag_names.get(&Id::new(4)).map(String::as_str),
+        Some("Japan")
+    );
     match &got.selector {
         Selector::Union { selections } => {
             assert_eq!(selections.len(), 2);
@@ -261,9 +269,9 @@ fn map_with_records() -> Store {
     let mut store = Store::new();
     let record = |id: u32, name: &str| {
         (
-            id,
+            Id::new(id),
             ValueRecord {
-                id,
+                id: Id::new(id),
                 name: Some(name.into()),
                 ..Default::default()
             },
@@ -274,7 +282,7 @@ fn map_with_records() -> Store {
         .value_meta
         .insert("tags".into(), crate::store::engine::Tracked::new(records));
     let mut row = crate::test_util::loc(1, 0.0, 0.0);
-    row.tags = vec![9];
+    row.tags = tag_ids([9]);
     store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
     store
 }
@@ -298,7 +306,7 @@ fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
         .get_mut("tags")
         .unwrap()
         .edit()
-        .get_mut(&9)
+        .get_mut(&Id::new(9))
         .unwrap()
         .name = Some("Asia/Japan".into());
     assert_eq!(

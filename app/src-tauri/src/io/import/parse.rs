@@ -9,6 +9,7 @@ use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags
 use crate::util::now_unix;
 use crate::util::Rgb;
 use memchr::memmem;
+use mma_algebra::Id;
 use rayon::prelude::*;
 use serde_json::value::RawValue;
 use serde_json::Value;
@@ -767,7 +768,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                     zoom: raw.zoom,
                     pano_id,
                     flags,
-                    tags,
+                    tags: tags.into_iter().map(Id::new).collect(),
                     extra,
                     created_at: now,
                     modified_at: None,
@@ -817,7 +818,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
             .collect();
         for loc in &mut locs {
             for t in &mut loc.tags {
-                *t = local_to_global[*t as usize];
+                *t = Id::new(local_to_global[t.get() as usize]);
             }
         }
         locations.append(&mut locs);
@@ -837,7 +838,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
             }
             extra.insert("color".into(), color.to_string().into());
             ValueRecord {
-                id,
+                id: Id::new(id),
                 name: Some(name),
                 order: meta.and_then(|m| m.order),
                 extra: Some(extra),

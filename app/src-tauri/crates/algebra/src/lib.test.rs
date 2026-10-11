@@ -822,3 +822,20 @@ fn a_patch_to_a_missing_row_does_nothing() {
     );
     assert_eq!(table, before);
 }
+
+#[test]
+fn an_id_is_its_raw_value_on_the_wire() {
+    let id: Id<Named> = Id::new(7);
+    assert_eq!(serde_json::to_string(&id).unwrap(), "7");
+    assert_eq!(serde_json::from_str::<Id<Named>>("7").unwrap(), id);
+    let text: Id<Named, String> = Id::new("abc".into());
+    assert_eq!(serde_json::to_string(&text).unwrap(), "\"abc\"");
+}
+
+#[test]
+fn ids_order_and_hash_by_their_raw_value() {
+    let (a, b): (Id<Named>, Id<Named>) = (Id::new(1), Id::new(2));
+    assert!(a < b);
+    assert_eq!(HashMap::from([(a, "a")])[&Id::new(1)], "a");
+    assert_eq!(Id::<Named>::default(), Id::UNSET);
+}

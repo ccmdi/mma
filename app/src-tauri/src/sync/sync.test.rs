@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_util::tag_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
 use serde_json::json;
@@ -91,10 +92,10 @@ fn local_to_normalized_strips_virtual_flags_and_resolves_tags() {
         pano_id: Some("p".into()),
         // 12 = the JS-side virtual bits (ImportPreview | SeenOverlay); undeclared here, so stripped.
         flags: LocationFlags::from_bits_retain(1 | 12),
-        tags: vec![10, 11, 99],
+        tags: tag_ids([10, 11, 99]),
         ..Default::default()
     };
-    let name = |id: u32| match id {
+    let name = |id: Id<ValueRecord>| match id.get() {
         10 => Some("zeta".to_string()),
         11 => Some("alpha".to_string()),
         _ => None, // unknown ids are dropped

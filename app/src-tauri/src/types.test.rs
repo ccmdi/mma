@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_util::tag_ids;
 use serde_json::value::RawValue;
 use std::collections::HashSet;
 
@@ -250,7 +251,7 @@ fn arb_location() -> impl Strategy<Value = Location> {
                     zoom,
                     pano_id: pano_id.map(Into::into),
                     flags,
-                    tags,
+                    tags: tag_ids(tags),
                     extra,
                     created_at,
                     modified_at,

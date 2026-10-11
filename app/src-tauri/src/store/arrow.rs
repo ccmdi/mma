@@ -3,6 +3,7 @@
 //! Every persistent location passes through this module on read and write.
 //! The canonical column order and types follow `Location`'s fields; see [`Column`].
 
+use std::slice;
 use std::sync::Arc;
 
 pub(crate) mod io;
@@ -18,7 +19,9 @@ use arrow_schema::SchemaRef;
 use arrow_schema::{DataType, Field, Schema};
 use std::collections::HashMap;
 
+use crate::store::engine::ValueRecord;
 use crate::types::{Location, LocationFlags};
+use mma_algebra::Id;
 
 // ---------------------------------------------------------------------------
 // Columns
@@ -145,17 +148,17 @@ impl Column for Option<compact_str::CompactString> {
     }
 }
 
-impl Column for Vec<u32> {
+impl<T: 'static> Column for Vec<Id<T>> {
     type Array = ListArray;
-    type Cell<'c> = &'c [u32];
+    type Cell<'c> = &'c [Id<T>];
     const NULLABLE: bool = false;
     fn data_type() -> DataType {
         DataType::List(Arc::new(Field::new("item", DataType::UInt32, true)))
     }
-    fn cell(&self) -> &[u32] {
+    fn cell(&self) -> &[Id<T>] {
         self
     }
-    fn cell_at(col: &ListArray, i: usize) -> &[u32] {
+    fn cell_at(col: &ListArray, i: usize) -> &[Id<T>] {
         let values = col
             .values()
             .as_any()
@@ -163,19 +166,21 @@ impl Column for Vec<u32> {
             .unwrap()
             .values();
         let offsets = col.value_offsets();
-        &values[offsets[i] as usize..offsets[i + 1] as usize]
+        let raw = &values[offsets[i] as usize..offsets[i + 1] as usize];
+        // SAFETY: `Id<T>` is `#[repr(transparent)]` over `u32`, so the slices share a layout.
+        unsafe { slice::from_raw_parts(raw.as_ptr().cast(), raw.len()) }
     }
-    fn own(cell: &[u32]) -> Self {
+    fn own(cell: &[Id<T>]) -> Self {
         cell.to_vec()
     }
-    fn build<'c>(cells: impl Iterator<Item = &'c [u32]>, n: usize) -> ArrayRef
+    fn build<'c>(cells: impl Iterator<Item = &'c [Id<T>]>, n: usize) -> ArrayRef
     where
         Self: 'c,
     {
         let mut b =
             GenericListBuilder::<i32, UInt32Builder>::with_capacity(UInt32Builder::new(), n);
         for cell in cells {
-            b.values().append_slice(cell);
+            b.values().extend(cell.iter().map(|id| Some(id.get())));
             b.append(true);
         }
         Arc::new(b.finish())

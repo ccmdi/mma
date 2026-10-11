@@ -1,4 +1,5 @@
 use super::*;
+use crate::test_util::tag_ids;
 use crate::types::RawExtra;
 use crate::util;
 use std::collections::HashMap;
@@ -14,7 +15,7 @@ fn sample_locations() -> Vec<Location> {
             zoom: 1.5,
             pano_id: Some("CAoSLEF...".into()),
             flags: LocationFlags::LOAD_AS_PANO_ID,
-            tags: vec![1, 2],
+            tags: tag_ids([1, 2]),
             extra: Some(serde_json::from_str(r#"{"countryCode":"FR","altitude":35.2}"#).unwrap()),
             created_at: util::iso_to_unix("2024-01-15T10:30:00Z").unwrap() as u32,
             modified_at: Some(util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
@@ -118,7 +119,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
 
     let mut patched = locs[0].clone();
     patched.heading = 270.0;
-    patched.tags = vec![7];
+    patched.tags = tag_ids([7]);
     let patches = HashMap::from([(1u32, patched)]);
 
     let out = patch_batch(&batch, &patches);
@@ -126,7 +127,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
 
     let restored = batch_to_locations(&out);
     assert_eq!(restored[0].heading, 270.0);
-    assert_eq!(restored[0].tags, vec![7]);
+    assert_eq!(restored[0].tags, tag_ids([7]));
     // unpatched fields and rows survive intact
     assert_eq!(restored[0].pano_id, locs[0].pano_id);
     assert_eq!(restored[0].extra, locs[0].extra);
@@ -359,7 +360,7 @@ fn arb_location_body() -> impl Strategy<Value = Location> {
                     zoom,
                     pano_id: pano_id.map(Into::into),
                     flags,
-                    tags,
+                    tags: tag_ids(tags),
                     extra,
                     created_at,
                     modified_at,

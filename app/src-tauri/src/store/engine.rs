@@ -3,7 +3,7 @@
 //! render frames and selection membership are updated from the same row changes.
 
 use crate::types::{AppError, AppResult};
-use mma_algebra::{Counts, Delta, Patch, Patchable};
+use mma_algebra::{Counts, Delta, Id, Patch, Patchable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Mutex;
@@ -130,7 +130,7 @@ pub struct Store {
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     /// Per-field value records. `tags` is currently the only interned field.
-    pub(crate) value_meta: HashMap<String, Tracked<HashMap<u32, ValueRecord>>>,
+    pub(crate) value_meta: HashMap<String, Tracked<HashMap<Id<ValueRecord>, ValueRecord>>>,
     /// Lazy per-field indexes of live rows, maintained on mutation.
     /// Per-value counts come from index membership.
     field_indexes: selections::FieldIndexes,

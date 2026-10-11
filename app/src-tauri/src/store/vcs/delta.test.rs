@@ -1,6 +1,6 @@
 use super::*;
 use crate::store::arrow;
-use crate::test_util::TempDir;
+use crate::test_util::{tag_ids, TempDir};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use crate::util;
@@ -103,7 +103,7 @@ fn delta_batch_round_trip_preserves_all_fields() {
     let mut l = loc(7, 12.5, -3.25);
     l.pano_id = Some("PANO123".into());
     l.modified_at = Some(1_767_330_245);
-    l.tags = vec![1, 5, 9];
+    l.tags = tag_ids([1, 5, 9]);
     let mut extra = serde_json::Map::new();
     extra.insert("note".into(), serde_json::Value::String("hi".into()));
     l.extra = RawExtra::from_map(&extra);
@@ -284,7 +284,7 @@ fn arb_location_body() -> impl Strategy<Value = Location> {
                     zoom,
                     pano_id: pano_id.map(Into::into),
                     flags,
-                    tags,
+                    tags: tag_ids(tags),
                     extra,
                     created_at,
                     modified_at,

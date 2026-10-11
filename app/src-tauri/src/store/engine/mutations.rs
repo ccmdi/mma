@@ -12,7 +12,7 @@ use crate::types::Location;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use mma_algebra::{
-    number_value, same_field_value, Delta, Edit, Keys, Layer, Merge, Op, Patch, Patchable,
+    number_value, same_field_value, Delta, Edit, Id, Keys, Layer, Merge, Op, Patch, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
@@ -126,7 +126,7 @@ pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
     pub(crate) landed: Option<u64>,
     /// Incoming value records to reconcile when the pending rows are applied to the map.
-    pub(crate) incoming: HashMap<String, HashMap<u32, ValueRecord>>,
+    pub(crate) incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -246,8 +246,8 @@ impl Store {
                                 let values = values
                                     .into_iter()
                                     .filter_map(|value| {
-                                        let id = u32::try_from(value.as_u64()?).ok()?;
-                                        remap.get(&id).copied().map(serde_json::Value::from)
+                                        let id = Id::new(u32::try_from(value.as_u64()?).ok()?);
+                                        remap.get(&id).map(|id| id.get().into())
                                     })
                                     .collect();
                                 let mut patch = row_patch(row.id);

@@ -9,13 +9,13 @@ pub(crate) mod field_expr;
 pub(crate) mod saved;
 
 use crate::store::arrow::{Column, Columns};
-use crate::store::engine::{pick_even, pick_spaced, SpacedPickResult, SPATIAL_CELL_M};
+use crate::store::engine::{pick_even, pick_spaced, SpacedPickResult, ValueRecord, SPATIAL_CELL_M};
 use crate::store::maps::IndexShape;
 use crate::types;
 use crate::types::{Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use arrow_array::RecordBatch;
-use mma_algebra::{rank_by, Change, Keyed};
+use mma_algebra::{rank_by, Change, Id, Keyed};
 use mma_fields::Children;
 
 mod duplicates;

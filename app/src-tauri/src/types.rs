@@ -4,7 +4,9 @@
 //! Arrow IPC on disk, JSON over IPC to the JS frontend, and used throughout the
 //! store, import, and selection engines.
 
+use crate::store::engine::ValueRecord;
 use crate::util;
+use mma_algebra::Id;
 use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::error;
@@ -65,7 +67,7 @@ pub struct Location {
     /// field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
     /// `Nothas` on an absent field.
     #[field(label = "Tags", kind = writable, interned, absent_when_empty)]
-    pub tags: Vec<u32>,
+    pub tags: Vec<Id<ValueRecord>>,
     /// Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
     /// name past the builtins.
     // Stored as raw JSON bytes; see [`RawExtra`].

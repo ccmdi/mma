@@ -9,12 +9,12 @@ use crate::store::engine::query::rows_file_path;
 use crate::store::maps::IndexShape;
 use crate::test_util::Fx;
 use crate::test_util::TempDir;
-use crate::test_util::{loc, patch};
+use crate::test_util::{loc, patch, tag_ids};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use crate::util::Rgb;
 use frame::tests::Captured;
-use mma_algebra::{Delta, Edit, Field, Op, Patch};
+use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
@@ -106,7 +106,7 @@ fn undoable(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> 
 
 fn loc_with_tags(id: u32, lat: f64, lng: f64, tags: Vec<u32>) -> Location {
     Location {
-        tags,
+        tags: tag_ids(tags),
         ..loc(id, lat, lng)
     }
 }
@@ -1358,11 +1358,11 @@ fn multiple_undo_redo_cycles_consistent() {
 
     for _ in 0..5 {
         edit_and_finish(&mut store, &entry, true);
-        assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![20]);
+        assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([20]));
         assert_eq!(tag_count(&mut store, 20), 1);
 
         edit_and_finish(&mut store, &entry, false);
-        assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10]);
+        assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10]));
         assert_eq!(tag_count(&mut store, 10), 1);
     }
 }
@@ -1434,7 +1434,7 @@ fn update_cross_cell_position_moves_the_row() {
 fn update_tags_only_produces_no_cell_change() {
     let l = loc_with_tags(1, 10.0, 20.0, vec![10]);
     let mut store = setup_store_with(&[l]);
-    let cells = cell_frames_for_update(&mut store, 1, patch!(tags: vec![20]));
+    let cells = cell_frames_for_update(&mut store, 1, patch!(tags: tag_ids([20])));
     assert!(Frame::cells_of(cells).is_empty());
 }
 
@@ -2950,7 +2950,7 @@ fn sets(names: &[&str]) -> Vec<Edit<ValueRecord>> {
 
 fn value_put(id: u32) -> Patch<ValueRecord> {
     Patch::<ValueRecord> {
-        id,
+        id: Id::new(id),
         ..Default::default()
     }
 }
@@ -2991,9 +2991,9 @@ fn edit_values_appends_new_records_to_the_order_and_gives_them_a_colour() {
     let mut store = setup_store_with(&[]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&ids[0]].order, Some(1));
-    assert_eq!(meta[&ids[1]].order, Some(2));
-    assert!(meta[&ids[0]].color().is_some());
+    assert_eq!(meta[&Id::new(ids[0])].order, Some(1));
+    assert_eq!(meta[&Id::new(ids[1])].order, Some(2));
+    assert!(meta[&Id::new(ids[0])].color().is_some());
 }
 
 #[test]
@@ -3029,10 +3029,10 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
 
     undo_and_finish(&mut store);
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&ids[0]].name.as_deref(), Some("A"));
-    assert_eq!(meta[&ids[0]].order, Some(1));
+    assert_eq!(meta[&Id::new(ids[0])].name.as_deref(), Some("A"));
+    assert_eq!(meta[&Id::new(ids[0])].order, Some(1));
     assert_eq!(
-        meta[&ids[1]].order,
+        meta[&Id::new(ids[1])].order,
         Some(2),
         "one undo restores the whole edit"
     );
@@ -3053,9 +3053,9 @@ fn edit_values_null_deletes_a_metadata_key_but_never_the_name() {
         )
         .unwrap();
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&id].color(), None, "null deletes the key");
+    assert_eq!(meta[&Id::new(id)].color(), None, "null deletes the key");
     assert_eq!(
-        meta[&id].name.as_deref(),
+        meta[&Id::new(id)].name.as_deref(),
         Some("A"),
         "identity never goes blank"
     );
@@ -3083,9 +3083,9 @@ fn edit_values_patching_a_value_rows_hold_creates_its_missing_record() {
         )
         .unwrap();
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&7].name.as_deref(), Some("Seven"));
+    assert_eq!(meta[&Id::new(7)].name.as_deref(), Some("Seven"));
     assert!(
-        !meta.contains_key(&99),
+        !meta.contains_key(&Id::new(99)),
         "an id nothing holds gets no record"
     );
 }
@@ -3113,17 +3113,19 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
         )
         .unwrap();
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![b]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([b]));
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([b]));
     assert_eq!(
-        store.value_meta.get("tags").unwrap()[&a].name.as_deref(),
+        store.value_meta.get("tags").unwrap()[&Id::new(a)]
+            .name
+            .as_deref(),
         Some("A"),
         "the emptied record keeps its name, dark"
     );
 
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![a]);
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![a, b]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([a]));
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([a, b]));
 }
 
 #[test]
@@ -3149,7 +3151,9 @@ fn edit_values_rejects_a_nameless_new_record_and_any_removal() {
         .edit_values("tags", vec![Op::Set(named("  "))])
         .is_err());
     let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
-    assert!(store.edit_values("tags", vec![Op::Remove(id)]).is_err());
+    assert!(store
+        .edit_values("tags", vec![Op::Remove(Id::new(id))])
+        .is_err());
 }
 
 // -----------------------------------------------------------------------
@@ -3173,7 +3177,7 @@ fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
 
     assert_eq!(tag_count(&mut store, 7), 2);
     for id in [1, 2] {
-        assert!(store.get_loc_by_id(id).unwrap().tags.contains(&7));
+        assert!(store.get_loc_by_id(id).unwrap().tags.contains(&Id::new(7)));
     }
     assert_eq!(
         shipped_count(&feed.last().derived, "tags", "7"),
@@ -3220,7 +3224,7 @@ fn set_tags_strips_a_tag_and_drops_its_count() {
     set_tags(&mut store, &[], &[t], &[1]);
 
     assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![t]);
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([t]));
     assert_eq!(
         store.fields(["tags"])[0].count(&(t as f64).to_string()),
         1,
@@ -3236,8 +3240,12 @@ fn set_tags_lets_add_win_over_remove_and_never_churns_the_row_that_had_it() {
 
     set_tags(&mut store, &[t], &[t], &[1, 2]);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![t]);
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![t], "add wins");
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([t]));
+    assert_eq!(
+        store.get_loc_by_id(2).unwrap().tags,
+        tag_ids([t]),
+        "add wins"
+    );
     assert_eq!(store.fields(["tags"])[0].count(&(t as f64).to_string()), 2);
 
     assert_eq!(
@@ -3260,7 +3268,7 @@ fn set_tags_adds_and_removes_in_one_pass() {
 
     set_tags(&mut store, &[new], &[old], &[1]);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![new]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([new]));
     assert_eq!(
         store.fields(["tags"])[0].count(&(old as f64).to_string()),
         0
@@ -3301,7 +3309,7 @@ fn set_tags_undo_restores_membership() {
 
     undo_and_finish(&mut store);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![t]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([t]));
     assert_eq!(tag_count(&mut store, t), 1);
 }
 
@@ -4152,7 +4160,7 @@ fn selected_row_moving_across_cells_keeps_its_selection() {
 
 fn loc_full(id: u32, tags: Vec<u32>, created_at: u32) -> Location {
     Location {
-        tags,
+        tags: tag_ids(tags),
         created_at,
         ..loc(id, 0.0, 0.0)
     }
@@ -4168,7 +4176,7 @@ fn merge_group_survivor_is_most_tags() {
         &default_score(),
     );
     assert_eq!(s.id, 2);
-    assert_eq!(s.tags, vec![1, 2, 3]);
+    assert_eq!(s.tags, tag_ids([1, 2, 3]));
 }
 
 #[test]
@@ -4204,7 +4212,7 @@ fn merge_group_unions_and_dedupes_tags() {
         &[a, b],
         &default_score(),
     );
-    assert_eq!(s.tags, vec![1, 2, 3]);
+    assert_eq!(s.tags, tag_ids([1, 2, 3]));
 }
 
 #[test]
@@ -4316,13 +4324,13 @@ fn merge_group_applies_and_undo_restores() {
 
     forward(&mut store, &entry);
     assert_eq!(*store.alive_count, 1);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10, 20]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10, 20]));
     assert!(store.get_loc_by_id(2).is_none());
 
     reverse(&mut store, &entry);
     assert_eq!(*store.alive_count, 2);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10]);
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![20]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10]));
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([20]));
 }
 
 #[test]
@@ -4992,7 +5000,7 @@ fn copy_dedup_empty_pano_treated_as_panoless() {
 
 fn tag(id: u32, name: &str, color: &str) -> ValueRecord {
     ValueRecord {
-        id,
+        id: Id::new(id),
         name: Some(name.into()),
         extra: Some(serde_json::Map::from_iter([(
             "color".to_string(),
@@ -5013,7 +5021,7 @@ fn extra_at<'a>(rec: &'a ValueRecord, key: &str) -> &'a serde_json::Value {
     &rec.extra.as_ref().unwrap()[key]
 }
 
-fn table(records: impl IntoIterator<Item = ValueRecord>) -> HashMap<u32, ValueRecord> {
+fn table(records: impl IntoIterator<Item = ValueRecord>) -> HashMap<Id<ValueRecord>, ValueRecord> {
     records.into_iter().map(|r| (r.id, r)).collect()
 }
 
@@ -5025,19 +5033,22 @@ fn reconcile_values_match_by_name_case_insensitive() {
     }]);
     let before = target.clone();
     let remap = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
-    assert_eq!(remap.get(&7), Some(&3));
+    assert_eq!(remap.get(&Id::new(7)), Some(&Id::new(3)));
     assert_eq!(target, before, "pure match mutates nothing");
     assert_eq!(target.len(), 1);
     // The existing target record keeps its own color.
-    assert_eq!(target.get(&3).unwrap().color(), "#222222".parse().ok());
+    assert_eq!(
+        target.get(&Id::new(3)).unwrap().color(),
+        "#222222".parse().ok()
+    );
 }
 
 #[test]
 fn reconcile_values_create_missing_with_source_pile() {
-    let mut target: HashMap<u32, ValueRecord> = Default::default();
+    let mut target: HashMap<Id<ValueRecord>, ValueRecord> = Default::default();
     let remap = reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
-    assert_eq!(remap.get(&7), Some(&10));
-    let rec = target.get(&10).unwrap();
+    assert_eq!(remap.get(&Id::new(7)), Some(&Id::new(10)));
+    let rec = target.get(&Id::new(10)).unwrap();
     assert_eq!(rec.name.as_deref(), Some("Trekker"));
     assert_eq!(rec.color(), "#abcdef".parse().ok());
 }
@@ -5052,7 +5063,7 @@ fn reconcile_values_pile_keys_claimed_when_target_lacks_them() {
     );
     reconcile_values_by_name([&rec], &mut target, 0);
     assert_eq!(
-        extra_at(target.get(&3).unwrap(), "doclinks"),
+        extra_at(target.get(&Id::new(3)).unwrap(), "doclinks"),
         extra_at(&rec, "doclinks")
     );
 }
@@ -5071,19 +5082,22 @@ fn reconcile_values_pile_keys_never_overwrite_existing() {
         serde_json::json!(["https://docs.google.com/document/d/new/edit#heading=h.new"]),
     );
     reconcile_values_by_name([&rec], &mut target, 0);
-    assert_eq!(extra_at(target.get(&3).unwrap(), "doclinks"), &kept);
+    assert_eq!(
+        extra_at(target.get(&Id::new(3)).unwrap(), "doclinks"),
+        &kept
+    );
 }
 
 #[test]
 fn reconcile_values_dedupes_same_name_within_batch() {
-    let mut target: HashMap<u32, ValueRecord> = Default::default();
+    let mut target: HashMap<Id<ValueRecord>, ValueRecord> = Default::default();
     let remap = reconcile_values_by_name(
         &[tag(7, "urban", "#111111"), tag(8, "Urban", "#222222")],
         &mut target,
         0,
     );
     assert_eq!(target.len(), 1);
-    assert_eq!(remap.get(&7), remap.get(&8));
+    assert_eq!(remap.get(&Id::new(7)), remap.get(&Id::new(8)));
 }
 
 // -----------------------------------------------------------------------
@@ -5888,7 +5902,7 @@ fn location_aggregates_include_effective_tag_membership() {
     ];
     let mut store = setup_store_with(&base);
     store.bake_overlay();
-    overlay_update(&mut store, &patch!(1; tags: vec![2]));
+    overlay_update(&mut store, &patch!(1; tags: tag_ids([2])));
     store.overlay_remove([base[1].clone()].iter());
     store.overlay_add(vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])]);
 
@@ -6010,7 +6024,10 @@ fn apply_model_op(
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
             let old = store.get_loc_by_id(id).unwrap();
-            overlay_update(store, &patch!(id; heading: *heading, tags: tags.clone()));
+            overlay_update(
+                store,
+                &patch!(id; heading: *heading, tags: tag_ids(tags.clone())),
+            );
             let new_loc = store.get_loc_by_id(id).unwrap();
             let change = Change::from_iter([mma_algebra::Transition::new(
                 Some(old.clone()),
@@ -7233,7 +7250,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     );
 }
 
-fn tag_records(store: &Store) -> HashMap<u32, ValueRecord> {
+fn tag_records(store: &Store) -> HashMap<Id<ValueRecord>, ValueRecord> {
     store
         .value_meta
         .get("tags")
@@ -7303,13 +7320,16 @@ fn undoing_a_rename_collision_restores_records_and_rows_together() {
     store
         .edit_values("tags", vec![rename(a, "b"), recolor(b, "#abcdef")])
         .unwrap();
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
-    assert_eq!(tag_records(&store)[&b].color(), "#abcdef".parse().ok());
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([b]));
+    assert_eq!(
+        tag_records(&store)[&Id::new(b)].color(),
+        "#abcdef".parse().ok()
+    );
 
     undo_and_finish(&mut store);
     assert_eq!(tag_records(&store), records);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![a]);
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![a, b]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([a]));
+    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([a, b]));
 }
 
 #[test]
@@ -7320,7 +7340,7 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
         &mut store,
         vec![loc_with_tags(0, 1.0, 1.0, vec![5])],
         vec![ValueRecord {
-            id: 5,
+            id: Id::new(5),
             ..named("Fresh")
         }],
     )
@@ -7646,7 +7666,7 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
     .unwrap();
     assert_eq!(out.changed, 4);
     assert_eq!(*store.alive_count, 2);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![10, 20]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10, 20]));
     assert!(store.get_loc_by_id(3).is_some());
     assert_eq!(store.edits.len(Stack::Undo), 1);
     store
@@ -8156,7 +8176,7 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
         .unwrap()
         .unwrap();
     store.finish_entry(&changes);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, [7]);
+    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
     assert!(store.history()[&EntryKey::Rows].redo);
 }
@@ -8266,7 +8286,7 @@ fn a_created_tag_without_a_colour_gets_its_names() {
     let mut store = setup_store_with(&[]);
     let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
     assert_eq!(
-        tag_records(&store)[&id].color(),
+        tag_records(&store)[&Id::new(id)].color(),
         Some(Rgb::for_name("Urban"))
     );
 }

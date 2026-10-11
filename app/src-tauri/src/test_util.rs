@@ -2,8 +2,10 @@
 
 use crate::selections::{FieldIndexes, LocView};
 use crate::store::arrow;
+use crate::store::engine::ValueRecord;
 use crate::types::Location;
 use arrow_array::RecordBatch;
+use mma_algebra::Id;
 use roaring::RoaringBitmap;
 use std::collections::HashMap;
 use std::env;
@@ -21,6 +23,11 @@ pub(crate) fn loc(id: u32, lat: f64, lng: f64) -> Location {
         zoom: 1.0,
         ..Default::default()
     }
+}
+
+/// Typed value ids from raw numbers.
+pub(crate) fn tag_ids(raw: impl IntoIterator<Item = u32>) -> Vec<Id<ValueRecord>> {
+    raw.into_iter().map(Id::new).collect()
 }
 
 /// A directory under the system temp dir, removed on drop so a panicking test

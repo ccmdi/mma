@@ -125,8 +125,8 @@ fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
     l
 }
 
-fn tag_name(id: u32) -> Option<String> {
-    if id == 1 {
+fn tag_name(id: Id<ValueRecord>) -> Option<String> {
+    if id.get() == 1 {
         Some("red".to_string())
     } else {
         None

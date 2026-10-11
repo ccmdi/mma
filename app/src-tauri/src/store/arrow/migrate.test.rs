@@ -1,6 +1,7 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
 use crate::store::arrow;
+use crate::test_util::tag_ids;
 use crate::types::Location;
 use crate::util;
 use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array, UInt8Array};
@@ -13,7 +14,7 @@ fn loc(id: u32) -> Location {
         id,
         lat: 1.0,
         lng: 2.0,
-        tags: vec![1],
+        tags: tag_ids([1]),
         created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
         ..Default::default()
     }

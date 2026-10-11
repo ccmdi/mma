@@ -60,7 +60,7 @@ fn row(local_id: u32, remote_id: i64, hash: String) -> RemoteMappingRow {
     }
 }
 
-fn no_tags() -> HashMap<u32, String> {
+fn no_tags() -> HashMap<Id<ValueRecord>, String> {
     HashMap::new()
 }
 
@@ -301,7 +301,7 @@ fn drive(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &HashMap<u32, String>,
+    tags: &HashMap<Id<ValueRecord>, String>,
     first_sync: Option<FirstSyncMode>,
     resolutions: &[(IdentityKey, ResolutionSide)],
     sink: &mut MemSink,
@@ -326,7 +326,7 @@ fn sync(
     provider: &Fake,
     locs: &[Location],
     mapping: &[RemoteMappingRow],
-    tags: &HashMap<u32, String>,
+    tags: &HashMap<Id<ValueRecord>, String>,
     sink: &mut MemSink,
 ) -> ReconcileOutcome {
     drive(provider, locs, mapping, tags, None, &[], sink)
@@ -1468,14 +1468,14 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     });
     store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
     let old_tag = ValueRecord {
-        id: 5,
+        id: Id::new(5),
         name: Some("Old".into()),
         order: Some(4),
         ..Default::default()
     };
     store.value_meta.insert(
         "tags".into(),
-        Tracked::new([(5u32, old_tag)].into_iter().collect()),
+        Tracked::new([(Id::new(5), old_tag)].into_iter().collect()),
     );
     store.put(&crate::store::engine::Change {
         added: vec![
@@ -1541,8 +1541,8 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         .iter()
         .find(|(_, rec)| rec.name.as_deref() == Some("Second"))
         .unwrap();
-    assert_eq!(created.tags, vec![5, *new_id, *second_id]);
-    assert_eq!(meta[&5].order, Some(4));
+    assert_eq!(created.tags, vec![Id::new(5), *new_id, *second_id]);
+    assert_eq!(meta[&Id::new(5)].order, Some(4));
     assert_eq!(second_rec.order, Some(5));
     assert_eq!(new_rec.order, Some(6));
     assert_eq!(new_rec.color(), "#123456".parse().ok());

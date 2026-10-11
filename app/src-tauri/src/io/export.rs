@@ -4,13 +4,14 @@
 
 use crate::selections::{tree::SelectionInput, Selector};
 use crate::store::engine;
-use crate::store::engine::{with_store, StoreState, WindowLabel};
+use crate::store::engine::{with_store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::Location;
 use crate::types::LocationFlags;
 use crate::types::{AppError, AppResult};
 use crate::util::Rgb;
+use mma_algebra::Id;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -58,13 +59,18 @@ fn export_temp_path(stem: &str, ext: &str) -> PathBuf {
 }
 
 /// Parse `{id: {name, color}}` tag definitions JSON into the raw defs map plus an id -> name lookup.
-fn parse_tag_defs(tags_json: &str) -> (HashMap<String, serde_json::Value>, HashMap<u32, String>) {
+fn parse_tag_defs(
+    tags_json: &str,
+) -> (
+    HashMap<String, serde_json::Value>,
+    HashMap<Id<ValueRecord>, String>,
+) {
     let tag_defs: HashMap<String, serde_json::Value> =
         serde_json::from_str(tags_json).unwrap_or_default();
     let id_to_name = tag_defs
         .iter()
         .filter_map(|(k, v)| {
-            let id = k.parse::<u32>().ok()?;
+            let id = Id::new(k.parse::<u32>().ok()?);
             let name = v.get("name")?.as_str()?.to_string();
             Some((id, name))
         })
@@ -114,7 +120,7 @@ pub(crate) struct CoordOpts {
 /// `extra` fields nest under `extra`.
 fn location_to_coord(
     loc: &Location,
-    id_to_name: &HashMap<u32, String>,
+    id_to_name: &HashMap<Id<ValueRecord>, String>,
     opts: &CoordOpts,
 ) -> serde_json::Value {
     use serde_json::{json, Value};

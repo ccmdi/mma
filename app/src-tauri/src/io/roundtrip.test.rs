@@ -6,8 +6,10 @@
 use super::parse::{parse_csv, parse_single_json};
 use crate::io::export::{csv_document, export_document, geojson_document, CoordOpts};
 use crate::store::engine::ValueRecord;
+use crate::test_util::tag_ids;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{Location, LocationFlags, RawExtra};
+use mma_algebra::Id;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
@@ -53,7 +55,7 @@ fn with_extra(mut l: Location, extra: &Value) -> Location {
 }
 
 fn with_tags(mut l: Location, tags: &[u32]) -> Location {
-    l.tags = tags.to_vec();
+    l.tags = tag_ids(tags.iter().copied());
     l
 }
 
@@ -63,7 +65,7 @@ fn tag(id: u32, name: &str, color: &str, order: Option<u32>, doclinks: &[&str]) 
         extra.insert("doclinks".into(), json!(doclinks));
     }
     ValueRecord {
-        id,
+        id: Id::new(id),
         name: Some(name.into()),
         order,
         extra: Some(extra),
@@ -194,7 +196,7 @@ fn catalog() -> Vec<Fixture> {
 
 /// What a map-making JSON export carries per location: everything but the id and the
 /// timestamps, with tags by name and pinned as the flag it is.
-fn view(l: &Location, names: &HashMap<u32, String>) -> Value {
+fn view(l: &Location, names: &HashMap<Id<ValueRecord>, String>) -> Value {
     let mut tags: Vec<&str> = l.tags.iter().map(|t| names[t].as_str()).collect();
     tags.sort_unstable();
     json!({
@@ -210,7 +212,7 @@ fn view(l: &Location, names: &HashMap<u32, String>) -> Value {
     })
 }
 
-fn names(tags: &[ValueRecord]) -> HashMap<u32, String> {
+fn names(tags: &[ValueRecord]) -> HashMap<Id<ValueRecord>, String> {
     tags.iter()
         .map(|rec| (rec.id, rec.name.clone().unwrap_or_default()))
         .collect()
@@ -226,7 +228,7 @@ fn tags_json(tags: &[ValueRecord]) -> String {
 }
 
 /// [`view`] less what `shape` drops. Country and state codes ride at the top level of every shape.
-fn shaped_view(l: &Location, names: &HashMap<u32, String>, shape: MapShape) -> Value {
+fn shaped_view(l: &Location, names: &HashMap<Id<ValueRecord>, String>, shape: MapShape) -> Value {
     let mut v = view(l, names);
     if !shape.keeps(MapPart::Tags) {
         v["tags"] = json!([]);

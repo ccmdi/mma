@@ -3,7 +3,7 @@ use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
 use crate::store::engine::{render_cell_idx, Change, Store, StoreManager};
-use crate::test_util::loc;
+use crate::test_util::{loc, tag_ids};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use mma_algebra::Op;
@@ -1538,7 +1538,7 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
     let rows = vec![
         Location {
             pano_id: Some("pano-a".into()),
-            tags: vec![4, 9],
+            tags: tag_ids([4, 9]),
             extra: RawExtra::from_string(r#"{"k":"v"}"#.into()),
             modified_at: Some(1234),
             flags: LocationFlags::INFORMATIONAL,

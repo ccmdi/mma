@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::store::engine::StoreState;
+use crate::store::engine::{StoreState, ValueRecord};
 use crate::store::storage;
 use crate::sync::diff::{compute_sync_plan, summarize};
 use crate::sync::file::FileProvider;
@@ -23,7 +23,7 @@ use crate::sync::{
 };
 use crate::types::shape::MapPart;
 use crate::types::{AppError, AppResult};
-use mma_algebra::{Patch, Patchable};
+use mma_algebra::{Id, Patch, Patchable};
 use std::mem;
 use std::time::Instant;
 use tauri::async_runtime;
@@ -98,7 +98,7 @@ pub(crate) struct ReconcileInput<'a, P: SyncProvider> {
     pub remote: RemoteSnapshot<P::Raw>,
     pub mapping: &'a [RemoteMappingRow],
     /// tag id -> name of the open map.
-    pub tag_names: &'a HashMap<u32, String>,
+    pub tag_names: &'a HashMap<Id<ValueRecord>, String>,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -219,7 +219,7 @@ pub(crate) fn plan<P: SyncProvider>(
         ));
     }
 
-    let tag_name = |id: u32| input.tag_names.get(&id).cloned();
+    let tag_name = |id: Id<ValueRecord>| input.tag_names.get(&id).cloned();
     let keyed = build_keyed_inputs(
         provider,
         input.local_locs,
@@ -665,7 +665,7 @@ pub(crate) struct ReconcileRequest<'a> {
     pub remote_map_id: &'a str,
     pub local_locs: &'a [Location],
     /// tag id -> name of the open map.
-    pub tag_names: &'a HashMap<u32, String>,
+    pub tag_names: &'a HashMap<Id<ValueRecord>, String>,
     pub first_sync: Option<FirstSyncMode>,
     pub resolutions: &'a [(IdentityKey, ResolutionSide)],
 }
@@ -776,7 +776,7 @@ pub async fn sync_reconcile(
             pins.len(),
             t.elapsed().as_secs_f64()
         );
-        let names: HashMap<u32, String> = store
+        let names: HashMap<Id<ValueRecord>, String> = store
             .value_meta
             .get("tags")
             .map(|meta| {
@@ -876,13 +876,13 @@ fn apply_pull(
         .iter()
         .map(|t| (t.name.as_str(), t))
         .collect();
-    let mut piles: HashMap<u32, ValueRecord> = HashMap::new();
-    let mut pile_of: HashMap<String, u32> = HashMap::new();
-    let mut tag_of = |name: &str| -> u32 {
+    let mut piles: HashMap<Id<ValueRecord>, ValueRecord> = HashMap::new();
+    let mut pile_of: HashMap<String, Id<ValueRecord>> = HashMap::new();
+    let mut tag_of = |name: &str| -> Id<ValueRecord> {
         if let Some(&id) = pile_of.get(name) {
             return id;
         }
-        let id = piles.len() as u32 + 1;
+        let id = Id::new(piles.len() as u32 + 1);
         let tag = needed.get(name);
         let extra = tag
             .and_then(|t| t.color.as_deref())
@@ -934,7 +934,10 @@ fn apply_pull(
 }
 
 /// A remote-created row as this map stores it, its tag names resolved through the layer.
-fn pulled_location(n: &NormalizedSyncLocation, tag_of: &mut impl FnMut(&str) -> u32) -> Location {
+fn pulled_location(
+    n: &NormalizedSyncLocation,
+    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
+) -> Location {
     Location {
         id: 0,
         lat: n.lat,
@@ -952,7 +955,10 @@ fn pulled_location(n: &NormalizedSyncLocation, tag_of: &mut impl FnMut(&str) -> 
 }
 
 /// A remote-originated patch as a local one, its tag names resolved through the layer.
-fn pulled_patch(u: &PullUpdate, tag_of: &mut impl FnMut(&str) -> u32) -> Patch<Location> {
+fn pulled_patch(
+    u: &PullUpdate,
+    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
+) -> Patch<Location> {
     let p = &u.patch;
     Patch::<Location> {
         id: u.local_id,
