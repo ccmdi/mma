@@ -22,7 +22,7 @@ import {
 	seenEntryColor,
 } from "@/lib/seen/seenOverlay";
 import { drawnPolygons, getPolygonFill } from "@/lib/render/polygonFills";
-import { getCommitDiffPreview } from "@/store/commitDiff";
+import { CommitDiff } from "@/store/commitDiff";
 import { getImportPreviewPositions } from "@/store/importStaging";
 import { getTrail } from "@/lib/sv/svTrail";
 import {
@@ -152,7 +152,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Commit-diff overlay temporarily replaces the regular markers.
 	if (Store.get().workArea === "diff") {
-		const diff = getCommitDiffPreview();
+		const diff = CommitDiff.preview();
 		if (diff) {
 			for (const [kind, alpha] of [
 				["removed", 210],

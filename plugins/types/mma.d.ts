@@ -3733,6 +3733,36 @@ declare const Field$1: {
     remove: (key: string) => Promise<void>;
 };
 
+/** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
+ *  interleaved `[lng, lat]` Float32Arrays. @unstable */
+export interface CommitDiffPreview {
+    hash: string;
+    counts: Counts;
+    added: Float32Array;
+    removed: Float32Array;
+    updated: Float32Array;
+}
+/** @unstable */
+declare const CommitDiff: {
+    /** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
+    has: () => boolean;
+    /** Reset the uncommitted-change counts to zero. @unstable */
+    resetCounts: () => void;
+    /** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. @unstable */
+    use: () => Counts;
+    /** The current commit-diff preview, or null when not previewing. @unstable */
+    preview: () => CommitDiffPreview | null;
+    /** Clear commit-diff preview state. @unstable */
+    reset: () => void;
+    /** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
+    positions: (locs: LatLng[]) => Float32Array;
+    /** Fetch a commit's change and overlay its added/removed/updated locations on the map,
+     *  temporarily replacing the regular markers. @unstable */
+    begin: (commit: CommitInfo) => Promise<void>;
+    /** Leave commit-diff preview and restore the regular markers. @unstable */
+    end: () => void;
+};
+
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 /** Selector variants with child selections. @unstable */
@@ -5014,56 +5044,6 @@ declare const importStaging_resetImportState: typeof resetImportState;
 declare namespace importStaging {
   export { importStaging_beginImportFromPath as beginImportFromPath, importStaging_beginImportPaste as beginImportPaste, importStaging_cancelImport as cancelImport, importStaging_confirmImport as confirmImport, importStaging_getImportPreviewPositions as getImportPreviewPositions, importStaging_getImportStaging as getImportStaging, importStaging_importTarget as importTarget, importStaging_resetImportState as resetImportState };
   export type { importStaging_ImportStaging as ImportStaging };
-}
-
-/** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
-declare function hasCommitDiff(): boolean;
-/** Reset the uncommitted-change counts to zero. @unstable */
-declare function resetCommitDiffCounts(): void;
-/** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. @unstable */
-declare function useCommitDiff(): Counts;
-/** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
- *  interleaved `[lng, lat]` Float32Arrays. @unstable */
-export interface CommitDiffPreview {
-    hash: string;
-    counts: Counts;
-    added: Float32Array;
-    removed: Float32Array;
-    updated: Float32Array;
-}
-/** The current commit-diff preview, or null when not previewing. @unstable */
-declare function getCommitDiffPreview(): CommitDiffPreview | null;
-/** Clear commit-diff preview state. @unstable */
-declare function resetCommitDiffState(): void;
-/** Pack `[lng, lat]` pairs into an interleaved Float32Array. @unstable */
-declare function diffPositions(locs: LatLng[]): Float32Array;
-/** Fetch a commit's change and overlay its added/removed/updated locations on the map,
- *  temporarily replacing the regular markers. @unstable */
-declare function beginCommitDiffPreview(commit: CommitInfo): Promise<void>;
-/** Leave commit-diff preview and restore the regular markers. @unstable */
-declare function endCommitDiffPreview(): void;
-
-/** @unstable */
-export type commitDiff_CommitDiffPreview = CommitDiffPreview;
-/** @unstable */
-declare const commitDiff_beginCommitDiffPreview: typeof beginCommitDiffPreview;
-/** @unstable */
-declare const commitDiff_diffPositions: typeof diffPositions;
-/** @unstable */
-declare const commitDiff_endCommitDiffPreview: typeof endCommitDiffPreview;
-/** @unstable */
-declare const commitDiff_getCommitDiffPreview: typeof getCommitDiffPreview;
-/** @unstable */
-declare const commitDiff_hasCommitDiff: typeof hasCommitDiff;
-/** @unstable */
-declare const commitDiff_resetCommitDiffCounts: typeof resetCommitDiffCounts;
-/** @unstable */
-declare const commitDiff_resetCommitDiffState: typeof resetCommitDiffState;
-/** @unstable */
-declare const commitDiff_useCommitDiff: typeof useCommitDiff;
-declare namespace commitDiff {
-  export { commitDiff_beginCommitDiffPreview as beginCommitDiffPreview, commitDiff_diffPositions as diffPositions, commitDiff_endCommitDiffPreview as endCommitDiffPreview, commitDiff_getCommitDiffPreview as getCommitDiffPreview, commitDiff_hasCommitDiff as hasCommitDiff, commitDiff_resetCommitDiffCounts as resetCommitDiffCounts, commitDiff_resetCommitDiffState as resetCommitDiffState, commitDiff_useCommitDiff as useCommitDiff };
-  export type { commitDiff_CommitDiffPreview as CommitDiffPreview };
 }
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
@@ -7963,8 +7943,6 @@ export type SavedSelectionsApi = typeof savedSelections;
 export type SettingsApi = typeof settings;
 /** Stage, preview, and confirm an import into the open map. @unstable */
 export type ImportStagingApi = typeof importStaging;
-/** Uncommitted changes and their preview on the map. @unstable */
-export type CommitDiffApi = typeof commitDiff;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 export type SelectorPickApi = typeof picker;
 /** Review sessions and their history. @unstable */
@@ -8028,7 +8006,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, CommitDiffApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -8057,6 +8035,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsAp
     Mutation: typeof Mutation;
     /** Change the listed selections and inspect their active members. @unstable */
     SelectionList: typeof SelectionList;
+    /** Uncommitted changes and their preview on the map. @unstable */
+    CommitDiff: typeof CommitDiff;
 }
 
 declare global {

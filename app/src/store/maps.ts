@@ -10,7 +10,7 @@ import { mapOpen, trace } from "@/lib/util/debug";
 import { SelectedIds } from "@/lib/render/CellManager";
 import { clearScene } from "@/lib/render/sceneStore";
 import { resetImportState } from "./importStaging";
-import { resetCommitDiffState } from "./commitDiff";
+import { CommitDiff } from "./commitDiff";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
 import { type Counts, type MapMeta } from "@/bindings.gen";
 import { emit as tauriEmit } from "@tauri-apps/api/event";
@@ -75,7 +75,7 @@ function clearEditState() {
 		workArea: "overview",
 	});
 	resetImportState();
-	resetCommitDiffState();
+	CommitDiff.reset();
 }
 
 /** Initialize map metadata and derived state on each open. */

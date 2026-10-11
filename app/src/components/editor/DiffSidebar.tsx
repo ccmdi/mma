@@ -1,5 +1,5 @@
 import { Section, Sidebar } from "@/components/primitives/Sidebar";
-import { getCommitDiffPreview, endCommitDiffPreview } from "@/store/commitDiff";
+import { CommitDiff } from "@/store/commitDiff";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
@@ -10,14 +10,14 @@ import { Swatch } from "@/components/primitives/Swatch";
  *  temporarily replace the regular markers; this panel labels them. The back
  *  arrow restores the regular markers. */
 export function DiffSidebar() {
-	const diff = useEventValue("diff-markers:changed", getCommitDiffPreview);
+	const diff = useEventValue("diff-markers:changed", CommitDiff.preview);
 	if (!diff) return null;
 	const { counts } = diff;
 
 	return (
 		<Sidebar
 			title={t("Changes")}
-			onBack={endCommitDiffPreview}
+			onBack={CommitDiff.end}
 			actions={<span className="mono text-muted">{diff.hash}</span>}
 		>
 			<Section title={t("Markers")} collapsible={false}>

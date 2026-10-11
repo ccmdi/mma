@@ -169,7 +169,7 @@ describe("VCS commit-diff badge accuracy", () => {
 	});
 	it("clean tree shows no diff right after commit", async () => {
 		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
-		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(false);
+		expect(await withApi(async (api) => api.CommitDiff.has())).toBe(false);
 	});
 
 	it("a pure modification counts as ~1, not an add/remove", async () => {
@@ -178,7 +178,7 @@ describe("VCS commit-diff badge accuracy", () => {
 		const { added, removed, updated } = await commitDiff();
 		expect([added, removed]).toEqual([0, 0]);
 		expect(updated).toBe(1);
-		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(true);
+		expect(await withApi(async (api) => api.CommitDiff.has())).toBe(true);
 	});
 
 	it("add + remove + modify accumulate independently", async () => {
@@ -193,7 +193,7 @@ describe("VCS commit-diff badge accuracy", () => {
 	it("committing resets the badge to zero", async () => {
 		await withApi(async (api) => api.Commit.create("changes"));
 		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
-		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(false);
+		expect(await withApi(async (api) => api.CommitDiff.has())).toBe(false);
 	});
 });
 

@@ -4,7 +4,7 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { emit as emitEvent } from "@/lib/events";
-import { resetCommitDiffCounts } from "./commitDiff";
+import { CommitDiff } from "./commitDiff";
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inflight: Promise<void> | null = null;
@@ -75,7 +75,7 @@ export const Autosave = {
 		inflight = cmd
 			.storeCommit(mapId, `Import ${importedCount} locations`)
 			.then(() => {
-				resetCommitDiffCounts();
+				CommitDiff.resetCounts();
 				void Maps.invalidate();
 			})
 			.catch((e: unknown) => log.error("[import] background commit failed:", e))

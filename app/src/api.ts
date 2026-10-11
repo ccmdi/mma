@@ -14,12 +14,12 @@ import { Editor } from "@/store/editor";
 import { History } from "@/store/history";
 import { Commit } from "@/store/commit";
 import { Field } from "@/store/field";
+import { CommitDiff } from "@/store/commitDiff";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as savedSelections from "@/store/savedSelections";
 import * as settings from "@/store/settings";
 import * as importStaging from "@/store/importStaging";
-import * as commitDiff from "@/store/commitDiff";
 import * as picker from "@/store/selectorPick";
 import * as review from "@/lib/review/review";
 import * as commands from "@/lib/commands";
@@ -69,8 +69,6 @@ type SavedSelectionsApi = typeof savedSelections;
 type SettingsApi = typeof settings;
 /** Stage, preview, and confirm an import into the open map. @unstable */
 type ImportStagingApi = typeof importStaging;
-/** Uncommitted changes and their preview on the map. @unstable */
-type CommitDiffApi = typeof commitDiff;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 type SelectorPickApi = typeof picker;
 /** Review sessions and their history. @unstable */
@@ -142,7 +140,6 @@ export interface MMA
 		SavedSelectionsApi,
 		SettingsApi,
 		ImportStagingApi,
-		CommitDiffApi,
 		SelectorPickApi,
 		ReviewApi,
 		CommandsApi,
@@ -208,6 +205,8 @@ export interface MMA
 	Mutation: typeof Mutation;
 	/** Change the listed selections and inspect their active members. @unstable */
 	SelectionList: typeof SelectionList;
+	/** Uncommitted changes and their preview on the map. @unstable */
+	CommitDiff: typeof CommitDiff;
 }
 
 export type { MMA as MMAApi };
@@ -218,7 +217,6 @@ const mma: MMA = {
 	...savedSelections,
 	...settings,
 	...importStaging,
-	...commitDiff,
 	...picker,
 	...review,
 	...commands,
@@ -270,6 +268,7 @@ const mma: MMA = {
 	Query,
 	Mutation,
 	SelectionList,
+	CommitDiff,
 };
 
 declare global {

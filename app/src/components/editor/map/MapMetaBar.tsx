@@ -5,7 +5,7 @@ import { History } from "@/store/history";
 import { Commit } from "@/store/commit";
 import { useDialog, useDialogState } from "@/store/dialogBus";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
-import { useCommitDiff, hasCommitDiff } from "@/store/commitDiff";
+import { CommitDiff } from "@/store/commitDiff";
 import { beginImportFromPath } from "@/store/importStaging";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
@@ -33,14 +33,14 @@ function LocationTotal() {
 }
 
 function CommitControls() {
-	const diff = useCommitDiff();
-	const hasDiff = hasCommitDiff();
+	const diff = CommitDiff.use();
+	const hasDiff = CommitDiff.has();
 	const [showCommit, setShowCommit] = useState(false);
 	const requestCommit = useCallback((e?: React.MouseEvent) => {
 		if (e?.shiftKey) setShowCommit(true);
 		else void Commit.create();
 	}, []);
-	useDialog("commit", () => hasCommitDiff() && requestCommit());
+	useDialog("commit", () => CommitDiff.has() && requestCommit());
 	return (
 		<>
 			<Button variant="primary" disabled={!hasDiff} onClick={requestCommit}>

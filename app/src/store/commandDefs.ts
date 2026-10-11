@@ -61,7 +61,7 @@ import {
 	toggleGhostAll,
 	unionSelections,
 } from "./selections";
-import { hasCommitDiff } from "./commitDiff";
+import { CommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
 import { Maps } from "./maps";
 import { Store } from "@/store/store";
@@ -103,7 +103,7 @@ const COMMANDS = {
 		defaultBinding: "Mod+s",
 		aliases: ["save", "snapshot"],
 		execute: () => openDialog("commit"),
-		enabled: () => requiresVersioning() && hasCommitDiff(),
+		enabled: () => requiresVersioning() && CommitDiff.has(),
 	},
 	saveAs: {
 		label: msg("Save as..."),

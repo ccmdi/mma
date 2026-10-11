@@ -10,7 +10,7 @@ import {
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { beginCommitDiffPreview } from "@/store/commitDiff";
+import { CommitDiff } from "@/store/commitDiff";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import type { CommitInfo } from "@/bindings.gen";
@@ -26,7 +26,7 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	if (!map || !commits) return null;
 
 	const viewDiff = async (commit: CommitInfo) => {
-		await beginCommitDiffPreview(commit);
+		await CommitDiff.begin(commit);
 		onOpenChange(false);
 	};
 

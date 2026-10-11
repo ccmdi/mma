@@ -44,7 +44,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [SavedSelections](#savedselections)
 - [Settings](#settings)
 - [ImportStaging](#importstaging)
-- [CommitDiff](#commitdiff)
 - [SelectorPick](#selectorpick)
 - [Review](#review)
 - [Commands](#commands)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Test](#test)
 - [Util](#util)
 - [SelectionList](#selectionlist)
+- [CommitDiff](#commitdiff)
 
 ## Consts
 
@@ -5595,91 +5595,6 @@ resetImportState(): void
 
 Discard the staged import and its pending layer.
 
-## CommitDiff
-
-Uncommitted changes and their preview on the map.
-
-### beginCommitDiffPreview
-
-`unstable` · since v0.5.1
-
-```ts
-beginCommitDiffPreview(commit: CommitInfo): Promise<void>
-```
-
-Fetch a commit's change and overlay its added/removed/updated locations on the map,
-temporarily replacing the regular markers.
-
-### diffPositions
-
-`unstable` · since v0.5.1
-
-```ts
-diffPositions(locs: LatLng[]): Float32Array
-```
-
-Pack `[lng, lat]` pairs into an interleaved Float32Array.
-
-### endCommitDiffPreview
-
-`unstable` · since v0.5.1
-
-```ts
-endCommitDiffPreview(): void
-```
-
-Leave commit-diff preview and restore the regular markers.
-
-### getCommitDiffPreview
-
-`unstable` · since v0.5.1
-
-```ts
-getCommitDiffPreview(): CommitDiffPreview | null
-```
-
-The current commit-diff preview, or null when not previewing.
-
-### hasCommitDiff
-
-`unstable` · since v0.4.0
-
-```ts
-hasCommitDiff(): boolean
-```
-
-Whether there are uncommitted changes (adds, removes, or updates).
-
-### resetCommitDiffCounts
-
-`unstable` · since v0.8.2
-
-```ts
-resetCommitDiffCounts(): void
-```
-
-Reset the uncommitted-change counts to zero.
-
-### resetCommitDiffState
-
-`unstable` · since v0.8.1
-
-```ts
-resetCommitDiffState(): void
-```
-
-Clear commit-diff preview state.
-
-### useCommitDiff
-
-`unstable` · since v0.4.0
-
-```ts
-useCommitDiff(): Counts
-```
-
-React hook: the uncommitted add/remove/modify counts, kept in sync with the store.
-
 ## SelectorPick
 
 The selector picker the pick dialogs share; its choices move with the UI.
@@ -9747,3 +9662,92 @@ SelectionList.update(op: SelectionOp): Promise<void>
 ```
 
 Update and resolve the listed selections. Use `onActive` to affect only active selections.
+
+## CommitDiff
+
+### CommitDiff
+
+`unstable` · unreleased
+
+Uncommitted changes and their preview on the map.
+
+#### CommitDiff.begin
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.begin(commit: CommitInfo): Promise<void>
+```
+
+Fetch a commit's change and overlay its added/removed/updated locations on the map,
+temporarily replacing the regular markers.
+
+#### CommitDiff.end
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.end(): void
+```
+
+Leave commit-diff preview and restore the regular markers.
+
+#### CommitDiff.has
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.has(): boolean
+```
+
+Whether there are uncommitted changes (adds, removes, or updates).
+
+#### CommitDiff.positions
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.positions(locs: LatLng[]): Float32Array
+```
+
+Pack `[lng, lat]` pairs into an interleaved Float32Array.
+
+#### CommitDiff.preview
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.preview(): CommitDiffPreview | null
+```
+
+The current commit-diff preview, or null when not previewing.
+
+#### CommitDiff.reset
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.reset(): void
+```
+
+Clear commit-diff preview state.
+
+#### CommitDiff.resetCounts
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.resetCounts(): void
+```
+
+Reset the uncommitted-change counts to zero.
+
+#### CommitDiff.use
+
+`unstable` · unreleased
+
+```ts
+CommitDiff.use(): Counts
+```
+
+React hook: the uncommitted add/remove/modify counts, kept in sync with the store.

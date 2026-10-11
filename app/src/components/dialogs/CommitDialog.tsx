@@ -9,11 +9,11 @@ import {
 } from "@/components/primitives/Dialog";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { TextInput } from "@/components/primitives/TextInput";
-import { useCommitDiff } from "@/store/commitDiff";
+import { CommitDiff } from "@/store/commitDiff";
 import { t } from "@/lib/i18n";
 
 export function CommitDialog({ open, onOpenChange }: DialogProps) {
-	const diff = useCommitDiff();
+	const diff = CommitDiff.use();
 	const [message, setMessage] = useState("");
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>

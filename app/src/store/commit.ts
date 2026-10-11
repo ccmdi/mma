@@ -5,7 +5,7 @@ import { Autosave } from "./autosave";
 import { cmd } from "@/lib/commands";
 import { trace } from "@/lib/util/debug";
 import { loadScene } from "@/lib/render/sceneStore";
-import { resetCommitDiffCounts } from "./commitDiff";
+import { CommitDiff } from "./commitDiff";
 
 export const Commit = {
 	/** Commit all pending changes to the map's version history. Clears the undo stack. */
@@ -19,7 +19,7 @@ export const Commit = {
 		const r = await cmd.storeCommit(Store.get().mapId!, message ?? null);
 		t.step("commit");
 		t.end();
-		resetCommitDiffCounts();
+		CommitDiff.resetCounts();
 		void Maps.invalidate();
 		return r.id;
 	},

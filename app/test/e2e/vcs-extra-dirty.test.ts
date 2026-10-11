@@ -28,7 +28,7 @@ describe("VCS — extra-only change commit semantics", () => {
 			removed: 0,
 			updated: 1,
 		});
-		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(true);
+		expect(await withApi(async (api) => api.CommitDiff.has())).toBe(true);
 	});
 
 	it("and a commit captures the extra change", async () => {

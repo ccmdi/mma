@@ -1,32 +1,34 @@
-import { dirname, resolve, basename } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const storeDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src/store");
-const modules = new Set([
-	"store",
-	"maps",
-	"tag",
-	"location",
-	"editor",
-	"history",
-	"commit",
-	"field",
-	"selectionList",
-	"feed",
-	"mutation",
-	"query",
-	"edit",
-	"autosave",
-]);
-const moduleName = (source, filename) => {
+const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
+const OBJECTS = {
+	"store/store": "Store",
+	"store/maps": "Maps",
+	"store/tag": "Tag",
+	"store/location": "Location",
+	"store/editor": "Editor",
+	"store/history": "History",
+	"store/commit": "Commit",
+	"store/field": "Field",
+	"store/selectionList": "SelectionList",
+	"store/feed": "Feed",
+	"store/mutation": "Mutation",
+	"store/query": "Query",
+	"store/edit": "Edit",
+	"store/autosave": "Autosave",
+	"store/commitDiff": "CommitDiff",
+};
+const objects = new Map(
+	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),
+);
+const objectName = (source, filename) => {
 	const target = source.startsWith("@/")
-		? resolve(storeDir, "..", source.slice(2))
+		? resolve(srcDir, source.slice(2))
 		: source.startsWith(".")
 			? resolve(dirname(filename), source)
 			: null;
-	if (!target || dirname(target) !== storeDir) return null;
-	const name = basename(target).replace(/\.tsx?$/, "");
-	return modules.has(name) ? name[0].toUpperCase() + name.slice(1) : null;
+	return target ? objects.get(target.replace(/\.tsx?$/, "")) : undefined;
 };
 
 export default {
@@ -43,7 +45,7 @@ export default {
 		return {
 			ImportDeclaration(node) {
 				if (node.importKind === "type") return;
-				const name = moduleName(node.source.value, context.filename);
+				const name = objectName(node.source.value, context.filename);
 				if (!name) return;
 				for (const specifier of node.specifiers) {
 					if (specifier.importKind === "type") continue;
@@ -57,12 +59,12 @@ export default {
 				}
 			},
 			ExportAllDeclaration(node) {
-				if (node.exportKind !== "type" && moduleName(node.source.value, context.filename))
+				if (node.exportKind !== "type" && objectName(node.source.value, context.filename))
 					context.report({ node, messageId: "barrel" });
 			},
 			ExportNamedDeclaration(node) {
 				if (node.exportKind === "type") return;
-				const domainSource = node.source && moduleName(node.source.value, context.filename);
+				const domainSource = node.source && objectName(node.source.value, context.filename);
 				for (const specifier of node.specifiers) {
 					if (specifier.exportKind === "type") continue;
 					if (domainSource || (!node.source && imported.has(specifier.local.name)))
