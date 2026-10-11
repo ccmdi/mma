@@ -16,8 +16,20 @@ wire_enum! {
     }
 }
 
-/// The selection index of a row no selection paints.
-pub const NO_SEL: u32 = u32::MAX;
+/// A row's index into its frame's palette: the selection that paints it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[repr(transparent)]
+pub struct PaletteIdx(pub u32);
+
+impl PaletteIdx {
+    /// A row no selection paints.
+    pub const NONE: Self = PaletteIdx(u32::MAX);
+}
+
+// SAFETY: a transparent wrapper over `u32`, which is `Pod`.
+unsafe impl bytemuck::Zeroable for PaletteIdx {}
+// SAFETY: as above.
+unsafe impl bytemuck::Pod for PaletteIdx {}
 
 /// Rows of one cell, column by column. `key` is the location id for an add and the row's
 /// index within its cell for a patch.
@@ -27,12 +39,11 @@ pub(crate) struct Rows {
     /// `lng, lat` pairs.
     pub pos: Vec<f32>,
     pub angle: Vec<f32>,
-    /// Index into the frame's palette, or [`NO_SEL`].
-    pub sel: Vec<u32>,
+    pub sel: Vec<PaletteIdx>,
 }
 
 impl Rows {
-    pub(crate) fn push(&mut self, key: u32, lng: f64, lat: f64, angle: f32, sel: u32) {
+    pub(crate) fn push(&mut self, key: u32, lng: f64, lat: f64, angle: f32, sel: PaletteIdx) {
         self.key.push(key);
         self.pos.push(lng as f32);
         self.pos.push(lat as f32);

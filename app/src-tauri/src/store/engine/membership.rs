@@ -49,7 +49,7 @@ impl SelectionState {
 
     /// The live selection painting a selected id: the last one containing it, by its
     /// index in `live` order. `None` if unselected.
-    pub(super) fn paint_for(&self, id: u32) -> Option<u32> {
+    pub(super) fn paint_for(&self, id: u32) -> Option<PaletteIdx> {
         if !self.ids.contains(id) {
             return None;
         }
@@ -57,16 +57,16 @@ impl SelectionState {
             .enumerate()
             .filter(|(_, r)| r.set.contains(id))
             .last()
-            .map(|(i, _)| i as u32)
+            .map(|(i, _)| PaletteIdx(i as u32))
     }
 
     /// Bulk form of `paint_for`. Later selections overwrite earlier ones, so each id ends
     /// up with the same paint the per-id lookup would return.
-    pub(super) fn paint_map(&self) -> HashMap<u32, u32> {
+    pub(super) fn paint_map(&self) -> HashMap<u32, PaletteIdx> {
         let mut map = HashMap::with_capacity(self.ids.len() as usize);
         for (i, r) in self.live().enumerate() {
             for id in &r.set {
-                map.insert(id, i as u32);
+                map.insert(id, PaletteIdx(i as u32));
             }
         }
         map
@@ -259,7 +259,7 @@ impl SelectionState {
     pub(super) fn update(&mut self, changes: &Change<Location>) -> HashSet<u32> {
         let drop_ids: HashSet<u32> = changes.before().map(|l| l.id).collect();
         // Compare selection colours, since overlap can change a row's colour without deselecting it.
-        let mut prev_paint: HashMap<u32, Option<u32>> = HashMap::new();
+        let mut prev_paint: HashMap<u32, Option<PaletteIdx>> = HashMap::new();
         if !drop_ids.is_empty() {
             for id in &drop_ids {
                 prev_paint.insert(*id, self.paint_for(*id));

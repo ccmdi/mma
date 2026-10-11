@@ -263,7 +263,7 @@ impl Store {
         let arrow_style = self.render.arrow_style;
         let mut emit = |id: u32, lat: f64, lng: f64, heading: f64| {
             let angle = if arrow_style { -(heading as f32) } else { 0.0 };
-            let sel = paint.get(&id).copied().unwrap_or(NO_SEL);
+            let sel = paint.get(&id).copied().unwrap_or(PaletteIdx::NONE);
             cells[render_cell_idx(lat, lng) as usize]
                 .add
                 .push(id, lng, lat, angle, sel);
@@ -378,7 +378,10 @@ impl Store {
         for loc in arrivals {
             let ci = render_cell_idx(loc.lat, loc.lng);
             self.cell_add_render(ci, loc.id);
-            let sel = self.selections.paint_for(loc.id).unwrap_or(NO_SEL);
+            let sel = self
+                .selections
+                .paint_for(loc.id)
+                .unwrap_or(PaletteIdx::NONE);
             cells[ci as usize].add.push(
                 loc.id,
                 loc.lng,
@@ -395,7 +398,10 @@ impl Store {
                 continue;
             }
             if let Some((ci, idx)) = self.cell_lookup(new.id) {
-                let sel = self.selections.paint_for(new.id).unwrap_or(NO_SEL);
+                let sel = self
+                    .selections
+                    .paint_for(new.id)
+                    .unwrap_or(PaletteIdx::NONE);
                 cells[ci as usize].patch.push(
                     idx as u32,
                     new.lng,

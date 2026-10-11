@@ -71,7 +71,7 @@ impl Reader<'_> {
             key: self.u32s(n),
             pos: self.f32s(n * 2),
             angle: self.f32s(n),
-            sel: self.u32s(n),
+            sel: self.u32s(n).into_iter().map(PaletteIdx).collect(),
         }
     }
 }
@@ -105,7 +105,7 @@ impl Captured {
     }
 }
 
-fn rows(entries: &[(u32, f32, f32, f32, u32)]) -> Rows {
+fn rows(entries: &[(u32, f32, f32, f32, PaletteIdx)]) -> Rows {
     let mut r = Rows::default();
     for &(key, lng, lat, angle, sel) in entries {
         r.key.push(key);
@@ -125,13 +125,16 @@ fn sample_frame() -> Frame {
             CellFrame {
                 cell: 3,
                 remove: vec![2, 0],
-                add: rows(&[(11, 1.5, -2.5, 90.0, 0), (12, 3.0, 4.0, 0.0, NO_SEL)]),
-                patch: rows(&[(1, 5.0, 6.0, -45.0, NO_SEL)]),
+                add: rows(&[
+                    (11, 1.5, -2.5, 90.0, PaletteIdx(0)),
+                    (12, 3.0, 4.0, 0.0, PaletteIdx::NONE),
+                ]),
+                patch: rows(&[(1, 5.0, 6.0, -45.0, PaletteIdx::NONE)]),
             },
             CellFrame {
                 cell: 31,
                 remove: vec![],
-                add: rows(&[(13, 7.0, 8.0, 0.0, 0)]),
+                add: rows(&[(13, 7.0, 8.0, 0.0, PaletteIdx(0))]),
                 patch: Rows::default(),
             },
         ],

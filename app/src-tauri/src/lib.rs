@@ -401,7 +401,10 @@ fn export_consts() -> Result<(), String> {
             TsConst::value(selections::FieldRegistry::builtins()),
         ),
         ("FrameKind", store::engine::FrameKind::ts_const().unstable()),
-        ("NO_SEL", TsConst::value(store::engine::NO_SEL).unstable()),
+        (
+            "NO_SEL",
+            TsConst::value(store::engine::PaletteIdx::NONE.0).unstable(),
+        ),
         (
             "OFFICIAL_ID_PATTERN",
             TsConst::value(sv::pano_id::OFFICIAL_ID_PATTERN),

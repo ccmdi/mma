@@ -702,7 +702,7 @@ struct FrameRow {
     lng: f32,
     lat: f32,
     angle: f32,
-    sel: u32,
+    sel: PaletteIdx,
 }
 
 fn frame_rows(cells: &[CellFrame], patches: bool) -> Vec<FrameRow> {
@@ -800,7 +800,8 @@ fn an_unselected_add_is_drawn_by_the_base_layer() {
     let rows = added(&cells);
     assert_eq!(rows.len(), 1);
     assert_eq!(
-        rows[0].sel, NO_SEL,
+        rows[0].sel,
+        PaletteIdx::NONE,
         "unselected, so the base layer draws it"
     );
 }
@@ -2557,9 +2558,12 @@ fn the_scene_frame_states_each_rows_selection() {
     let frame = store.scene_frame();
 
     assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
-    let mut sel: Vec<(u32, u32)> = added(&frame.cells).iter().map(|r| (r.key, r.sel)).collect();
+    let mut sel: Vec<(u32, u32)> = added(&frame.cells)
+        .iter()
+        .map(|r| (r.key, r.sel.0))
+        .collect();
     sel.sort_unstable();
-    assert_eq!(sel, [(1, 0), (2, NO_SEL)]);
+    assert_eq!(sel, [(1, 0), (2, PaletteIdx::NONE.0)]);
 }
 
 #[test]
@@ -2578,7 +2582,7 @@ fn the_scene_frame_tags_each_row_with_its_drawing_selection() {
 
     let rows = added(&store.scene_frame().cells);
     let ids: Vec<u32> = rows.iter().map(|r| r.key).collect();
-    let sel: Vec<u32> = rows.iter().map(|r| r.sel).collect();
+    let sel: Vec<u32> = rows.iter().map(|r| r.sel.0).collect();
     assert_eq!(ids, vec![1, 2, 3, 4], "batch order");
     assert_eq!(
         sel,
@@ -2598,9 +2602,9 @@ fn paint_for_uses_last_matching_selection() {
 
     // The index is what the overlay orders by, so it must name the winning selection.
     let paint = store.selections.paint_for(1).expect("id 1 is selected");
-    assert_eq!(paint, 1, "last selection wins");
+    assert_eq!(paint, PaletteIdx(1), "last selection wins");
     assert_eq!(
-        store.scene_frame().palette[paint as usize],
+        store.scene_frame().palette[paint.0 as usize],
         Rgb([0, 0, 255])
     );
     assert!(store.selections.paint_for(2).is_none(), "unselected id");
@@ -3761,7 +3765,7 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     let frame = frames.last();
     assert_eq!(
         patched(&frame.cells)[0].sel,
-        0,
+        PaletteIdx(0),
         "the paint index counts live selections only"
     );
     assert_eq!(
@@ -3867,7 +3871,7 @@ fn incremental_membership_change_ships_no_bitmask() {
         1,
         "membership rides on a patch for the row that changed"
     );
-    assert_eq!(rows[0].sel, 0);
+    assert_eq!(rows[0].sel, PaletteIdx(0));
     assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
 }
 
@@ -3923,10 +3927,10 @@ fn membership_delta_reports_gained_on_tag_add() {
     let frame = frames.last();
     let p = *patched(&frame.cells)
         .iter()
-        .find(|p| p.sel != NO_SEL)
+        .find(|p| p.sel != PaletteIdx::NONE)
         .expect("a row that joins a selection must state it");
     assert_eq!(
-        frame.palette[p.sel as usize],
+        frame.palette[p.sel.0 as usize],
         Rgb([255, 0, 0]),
         "the selection colour"
     );
@@ -3961,7 +3965,8 @@ fn membership_delta_reports_lost_on_tag_remove() {
         "a row that leaves a selection must be restored to the base layer"
     );
     assert_eq!(
-        rows[0].sel, NO_SEL,
+        rows[0].sel,
+        PaletteIdx::NONE,
         "no selection, so the base layer draws it again"
     );
 }
@@ -4040,7 +4045,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
     store.resolve_selection_membership();
     assert_eq!(
         store.selections.paint_for(1),
-        Some(1),
+        Some(PaletteIdx(1)),
         "the later selection wins while the row is in both"
     );
 
@@ -4058,7 +4063,11 @@ fn leaving_winning_selection_restates_survivors_paint() {
         1,
         "leaving the winner while staying selected must still ship a patch"
     );
-    assert_eq!(rows[0].sel, 0, "the surviving selection's paint");
+    assert_eq!(
+        rows[0].sel,
+        PaletteIdx(0),
+        "the surviving selection's paint"
+    );
     assert_eq!(frame.palette[0], Rgb([255, 0, 0]));
     assert_eq!(
         (rows[0].lng, rows[0].lat),
@@ -4090,7 +4099,8 @@ fn membership_delta_no_patch_when_nothing_changed() {
     let rows = patched(&frames.last().cells);
     assert_eq!(rows.len(), 1);
     assert_eq!(
-        rows[0].sel, 0,
+        rows[0].sel,
+        PaletteIdx(0),
         "a patch always states the row's current selection state"
     );
 }
@@ -4133,7 +4143,7 @@ fn selected_row_moving_across_cells_keeps_its_selection() {
         .find(|r| r.key == 1)
         .expect("re-added in the new cell");
     assert_eq!(row.cell, render_cell_idx(-30.0, -40.0));
-    assert_eq!(row.sel, 0, "still selected");
+    assert_eq!(row.sel, PaletteIdx(0), "still selected");
 }
 
 // -----------------------------------------------------------------------
