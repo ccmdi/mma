@@ -2,6 +2,7 @@
 //! `plan` computes changes and conflicts; `execute` pushes remote changes and updates mappings.
 //! The command also applies pulls locally as one undoable edit.
 
+use crate::store::maps::MapMeta;
 use crate::types::{wire_str_enum, AppError, AppResult};
 use std::collections::{HashMap, HashSet};
 
@@ -643,7 +644,7 @@ pub(crate) fn execute<P: SyncProvider>(
 struct DbSink<'a> {
     conn: &'a mut Connection,
     provider: &'a str,
-    map_id: &'a str,
+    map_id: &'a Id<MapMeta, String>,
 }
 
 impl MappingSink for DbSink<'_> {
@@ -660,7 +661,7 @@ impl MappingSink for DbSink<'_> {
 /// One reconcile: which map, against which remote, and the local state it was
 /// snapshotted with. Threaded whole from the command down to [`ReconcileInput`].
 pub(crate) struct ReconcileRequest<'a> {
-    pub map_id: &'a str,
+    pub map_id: &'a Id<MapMeta, String>,
     pub remote_map_id: &'a str,
     pub local_locs: &'a [Location],
     /// tag id -> name of the open map.
@@ -750,7 +751,7 @@ fn run_reconcile(provider_name: &str, req: &ReconcileRequest<'_>) -> AppResult<R
 pub async fn sync_reconcile(
     state: tauri::State<'_, StoreState>,
     provider: String,
-    map_id: String,
+    map_id: Id<MapMeta, String>,
     remote_map_id: String,
     first_sync: Option<FirstSyncMode>,
     resolutions: Option<Vec<(String, ResolutionSide)>>,

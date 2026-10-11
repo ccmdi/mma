@@ -154,7 +154,7 @@ fn map_key_binding_wire_format_round_trip() {
     let MapKeyAction::CopyToMap { map_id } = &binding.action else {
         panic!("expected copyToMap");
     };
-    assert_eq!(map_id, "abc");
+    assert_eq!(map_id.raw(), "abc");
     assert_eq!(serde_json::to_string(&binding).unwrap(), json);
 }
 
@@ -512,7 +512,7 @@ fn scratch_map_is_adopted_not_recreated() {
     )
     .unwrap();
     let second = scratch_map_row(&conn).unwrap();
-    assert_eq!(first.id, SCRATCH_MAP_ID);
+    assert_eq!(first.id.raw(), SCRATCH_MAP_ID);
     // Re-entering the map during a session must keep whatever is in it.
     assert_eq!(second.name, "renamed");
     assert_eq!(second.created_at, first.created_at);
@@ -526,7 +526,10 @@ fn scratch_map_is_hidden_from_the_map_list() {
     // Hiding it here is what also keeps it out of the counts, the copy-to-map
     // targets, and session restore.
     assert_eq!(
-        listed.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(),
+        listed
+            .iter()
+            .map(|m| m.id.raw().as_str())
+            .collect::<Vec<_>>(),
         ["m1"]
     );
 }
@@ -535,9 +538,9 @@ fn scratch_map_is_hidden_from_the_map_list() {
 fn deleting_the_scratch_map_leaves_other_maps_alone() {
     let conn = setup_real_db();
     scratch_map_row(&conn).unwrap();
-    assert!(delete_map_data(&conn, SCRATCH_MAP_ID).unwrap());
+    assert!(delete_map_data(&conn, &Id::new(SCRATCH_MAP_ID.into())).unwrap());
     // Nothing to drop on the next startup.
-    assert!(!delete_map_data(&conn, SCRATCH_MAP_ID).unwrap());
+    assert!(!delete_map_data(&conn, &Id::new(SCRATCH_MAP_ID.into())).unwrap());
     assert_eq!(list_map_rows(&conn).unwrap().len(), 1);
 }
 
@@ -680,9 +683,9 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
 
     let copy = duplicate_map_row(
         &conn,
-        "m1",
+        &Id::new("m1".into()),
         None,
-        "copy",
+        &Id::new("copy".into()),
         "Real (copy)",
         &arrow::locations_to_batch(&locations),
         &path,
@@ -740,7 +743,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         "maps",
         "copy",
         &MapMetaPatch {
-            id: "copy".into(),
+            id: Id::new("copy".into()),
             name: Some("Renamed".into()),
             settings: Some(MapSettings::default()),
             ..Patch::<MapMeta>::default()
@@ -760,7 +763,16 @@ fn duplicating_a_missing_map_writes_nothing() {
     let dir = TempDir::new("mma_test_duplicate_missing");
     let path = dir.join("copy.arrow");
     let empty = RecordBatch::new_empty(arrow::schema());
-    assert!(duplicate_map_row(&conn, "nope", None, "copy", "x", &empty, &path).is_err());
+    assert!(duplicate_map_row(
+        &conn,
+        &Id::new("nope".into()),
+        None,
+        &Id::new("copy".into()),
+        "x",
+        &empty,
+        &path
+    )
+    .is_err());
     assert!(!path.exists());
     let maps: i64 = conn
         .query_row("SELECT COUNT(*) FROM maps", [], |r| r.get(0))
@@ -798,14 +810,14 @@ fn tag_records_read_and_write_the_one_column_format() {
 /// A manager with map `m1` open, its store seeded from the row as opening does.
 fn open_m1(conn: &Connection) -> StoreManager {
     let mut store = engine::Store::new();
-    let mut meta = read_map_meta(conn, "m1").unwrap();
+    let mut meta = read_map_meta(conn, &Id::new("m1".into())).unwrap();
     store.value_meta.insert(
         "tags".into(),
         engine::Tracked::new(std::mem::take(&mut meta.tags)),
     );
     store.meta = engine::Tracked::new(meta);
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("m1".into(), store);
+    mgr.stores.insert(Id::new("m1".into()), store);
     mgr
 }
 
@@ -819,24 +831,24 @@ fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let patch = Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         name: Some("Renamed".into()),
         ..Default::default()
     };
     update_map_meta(&mut mgr, &conn, patch).unwrap();
 
     assert_eq!(
-        live_row(&mgr, read_map_meta(&conn, "m1").unwrap()).name,
+        live_row(&mgr, read_map_meta(&conn, &Id::new("m1".into())).unwrap()).name,
         "Renamed"
     );
     assert_eq!(name_on_disk(&conn), "Real");
-    let store = mgr.store_for_map("m1").unwrap();
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     assert_eq!(store.meta.name, "Renamed");
     let unsaved = store.unsaved().unwrap().expect("the row is owed to disk");
 
     let dir = TempDir::new("mma_test_meta_save_path");
     unsaved
-        .write(&conn, "m1", &dir.join("m1_delta.arrow"))
+        .write(&conn, &Id::new("m1".into()), &dir.join("m1_delta.arrow"))
         .unwrap();
     store.saved(&unsaved);
     assert_eq!(name_on_disk(&conn), "Renamed");
@@ -847,7 +859,7 @@ fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
 fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
-    let store = mgr.store_for_map("m1").unwrap();
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     let rec = ValueRecord {
         id: Id::new(1),
         name: Some("A".into()),
@@ -869,11 +881,11 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     let unsaved = store.unsaved().unwrap().unwrap();
     let dir = TempDir::new("mma_test_meta_tags_save");
     unsaved
-        .write(&conn, "m1", &dir.join("m1_delta.arrow"))
+        .write(&conn, &Id::new("m1".into()), &dir.join("m1_delta.arrow"))
         .unwrap();
     store.saved(&unsaved);
 
-    let row = read_map_meta(&conn, "m1").unwrap();
+    let row = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
     assert_eq!(row.tags.len(), 1);
     assert!(row.extra.fields.contains_key("altitude"));
     assert!(store.unsaved().unwrap().is_none());
@@ -884,13 +896,13 @@ fn an_open_maps_tags_cannot_be_patched_behind_their_values() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let patch = Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         tags: Some(HashMap::new()),
         ..Default::default()
     };
     assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
     assert!(mgr
-        .store_for_map("m1")
+        .store_for_map(&Id::new("m1".into()))
         .unwrap()
         .unsaved()
         .unwrap()
@@ -902,7 +914,7 @@ fn a_closed_maps_meta_is_written_directly() {
     let conn = setup_real_db();
     let mut mgr = StoreManager::new();
     let patch = Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         name: Some("Renamed".into()),
         ..Default::default()
     };
@@ -916,15 +928,15 @@ fn an_open_maps_field_definitions_ship_when_patched() {
     let mut mgr = open_m1(&conn);
     let fields = HashMap::from([("altitude".to_string(), known_field_def("altitude").unwrap())]);
     let patch = Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         extra: Some(MapExtra {
             fields: fields.clone(),
         }),
         ..Default::default()
     };
-    let before = mgr.store_for_map("m1").unwrap().version;
+    let before = mgr.store_for_map(&Id::new("m1".into())).unwrap().version;
     update_map_meta(&mut mgr, &conn, patch).unwrap();
-    let store = mgr.store_for_map("m1").unwrap();
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     assert_eq!(store.meta.extra.fields, fields);
     assert!(store.version > before, "the change landed and shipped");
 }
@@ -934,19 +946,23 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let patch = Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         description: Some("unsaved".into()),
         ..Default::default()
     };
     update_map_meta(&mut mgr, &conn, patch).unwrap();
     let dir = TempDir::new("mma_test_duplicate_live");
-    let live = Some(mgr.store_for_map("m1").unwrap().meta_patch());
+    let live = Some(
+        mgr.store_for_map(&Id::new("m1".into()))
+            .unwrap()
+            .meta_patch(),
+    );
     let empty = RecordBatch::new_empty(arrow::schema());
     let copy = duplicate_map_row(
         &conn,
-        "m1",
+        &Id::new("m1".into()),
         live,
-        "copy",
+        &Id::new("copy".into()),
         "Copy",
         &empty,
         &dir.join("c.arrow"),
@@ -959,12 +975,12 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
 #[test]
 fn a_whole_row_as_a_patch_writes_every_column_back() {
     let conn = setup_real_db();
-    let mut row = read_map_meta(&conn, "m1").unwrap();
+    let mut row = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
     row.name = "Other".into();
     row.folder = Some("F".into());
     row.labels = vec!["x".into()];
     storage::update_row::<MapMeta>(&conn, "maps", "m1", &row.to_patch()).unwrap();
-    let back = read_map_meta(&conn, "m1").unwrap();
+    let back = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
     assert!(back == row);
 }
 
@@ -1047,7 +1063,7 @@ fn a_builtins_physical_address_never_serializes_with_its_definition() {
 fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
     let conn = setup_real_db();
     let patch = || Patch::<MapMeta> {
-        id: "m1".into(),
+        id: Id::new("m1".into()),
         extra: Some(MapExtra {
             fields: HashMap::from([(
                 "plates".to_string(),
@@ -1068,12 +1084,12 @@ fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
 
     let mut mgr = open_m1(&conn);
     refused(update_map_meta(&mut mgr, &conn, patch()));
-    let store = mgr.store_for_map("m1").unwrap();
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     assert!(!store.meta.extra.fields.contains_key("plates"));
     assert!(store.unsaved().unwrap().is_none());
 
     refused(update_map_meta(&mut StoreManager::new(), &conn, patch()));
-    assert!(!read_map_meta(&conn, "m1")
+    assert!(!read_map_meta(&conn, &Id::new("m1".into()))
         .unwrap()
         .extra
         .fields

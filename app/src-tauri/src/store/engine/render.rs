@@ -229,7 +229,7 @@ impl Store {
     /// rebuild reorders every cell, so every watching window gets the replace frame.
     pub(crate) fn subscribe_frames(
         &mut self,
-        label: String,
+        label: WindowLabel,
         sink: Channel<FrameBytes>,
         req: &RenderRequest,
     ) {

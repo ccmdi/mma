@@ -8,11 +8,11 @@ use crate::selections::{Selection, Selector};
 use crate::store::engine::{MutationResult, Store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
 use crate::types::AppResult;
-use crate::util::now_iso;
-use crate::util::Rgb;
+use crate::util::{now_iso, Rgb};
 use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::HashMap;
+use std::slice::from_ref;
 
 /// A rule's identity and label, with no tree attached. What the UI lists and holds; the
 /// body is a separate read because a single `Polygon` leaf can carry a country border's
@@ -20,7 +20,7 @@ use std::collections::HashMap;
 #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SavedSelectionInfo {
-    pub id: String,
+    pub id: Id<SavedSelection, String>,
     pub name: String,
     pub color: Rgb,
     pub created_at: String,
@@ -50,7 +50,7 @@ pub(crate) fn list_info(conn: &Connection) -> AppResult<Vec<SavedSelectionInfo>>
     )?;
     let rows = stmt.query_map([], |row| {
         Ok(SavedSelectionInfo {
-            id: row.get(0)?,
+            id: Id::new(row.get(0)?),
             name: row.get(1)?,
             color: serde_json::from_str(&row.get::<_, String>(2)?).unwrap_or(NO_COLOR),
             created_at: row.get(3)?,
@@ -61,7 +61,10 @@ pub(crate) fn list_info(conn: &Connection) -> AppResult<Vec<SavedSelectionInfo>>
 
 /// Bodies for `ids`, oldest first. A row whose JSON no longer parses (a `Selector` variant
 /// this build dropped) is skipped rather than failing the whole read.
-pub(crate) fn get(conn: &Connection, ids: &[String]) -> AppResult<Vec<SavedSelection>> {
+pub(crate) fn get(
+    conn: &Connection,
+    ids: &[Id<SavedSelection, String>],
+) -> AppResult<Vec<SavedSelection>> {
     if ids.is_empty() {
         return Ok(Vec::new());
     }
@@ -69,7 +72,7 @@ pub(crate) fn get(conn: &Connection, ids: &[String]) -> AppResult<Vec<SavedSelec
     let mut stmt = conn.prepare(&format!(
         "SELECT {COLS} FROM saved_selections WHERE id IN ({holes}) ORDER BY created_at, id"
     ))?;
-    let rows = stmt.query_map(rusqlite::params_from_iter(ids), |row| {
+    let rows = stmt.query_map(rusqlite::params_from_iter(ids.iter().map(Id::raw)), |row| {
         Ok((
             row.get::<_, String>(0)?,
             row.get::<_, String>(1)?,
@@ -82,6 +85,7 @@ pub(crate) fn get(conn: &Connection, ids: &[String]) -> AppResult<Vec<SavedSelec
     let mut out = Vec::new();
     for row in rows {
         let (id, name, selector, tag_names, color, created_at) = row?;
+        let id = Id::new(id);
         match parse_row(&id, name, &selector, &tag_names, &color, created_at) {
             Ok(s) => out.push(s),
             Err(e) => log::warn!("[saved-selections] skipping unreadable rule {id}: {e}"),
@@ -91,7 +95,7 @@ pub(crate) fn get(conn: &Connection, ids: &[String]) -> AppResult<Vec<SavedSelec
 }
 
 fn parse_row(
-    id: &str,
+    id: &Id<SavedSelection, String>,
     name: String,
     selector: &str,
     tag_names: &str,
@@ -100,7 +104,7 @@ fn parse_row(
 ) -> Result<SavedSelection, serde_json::Error> {
     Ok(SavedSelection {
         info: SavedSelectionInfo {
-            id: id.to_string(),
+            id: id.clone(),
             name,
             color: serde_json::from_str(color)?,
             created_at,
@@ -222,7 +226,7 @@ pub(crate) fn create(
 ) -> AppResult<SavedSelection> {
     let saved = SavedSelection {
         info: SavedSelectionInfo {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: Id::new(uuid::Uuid::new_v4().to_string()),
             name,
             color,
             created_at: now_iso(),
@@ -239,7 +243,7 @@ fn insert(conn: &Connection, s: &SavedSelection) -> AppResult<()> {
         "INSERT INTO saved_selections (id, name, selector, tag_names, color, created_at)
          VALUES (?, ?, ?, ?, ?, ?)",
         rusqlite::params![
-            s.info.id,
+            s.info.id.raw(),
             s.info.name,
             serde_json::to_string(&s.selector)?,
             serde_json::to_string(&s.tag_names)?,
@@ -250,10 +254,10 @@ fn insert(conn: &Connection, s: &SavedSelection) -> AppResult<()> {
     Ok(())
 }
 
-pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
+pub(crate) fn delete(conn: &Connection, id: &Id<SavedSelection, String>) -> AppResult<()> {
     conn.execute(
         "DELETE FROM saved_selections WHERE id = ?",
-        rusqlite::params![id],
+        rusqlite::params![id.raw()],
     )?;
     Ok(())
 }
@@ -270,7 +274,9 @@ pub async fn store_list_saved_selections() -> AppResult<Vec<SavedSelectionInfo>>
 /// Fetch the full saved selection rules for the given `ids`, including their selector trees.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_get_saved_selections(ids: Vec<String>) -> AppResult<Vec<SavedSelection>> {
+pub async fn store_get_saved_selections(
+    ids: Vec<Id<SavedSelection, String>>,
+) -> AppResult<Vec<SavedSelection>> {
     storage::with_db(move |conn| get(conn, &ids)).await
 }
 
@@ -289,7 +295,7 @@ pub async fn store_save_selection(
     let tag_names = {
         let mut mgr = state.lock()?;
         let mut names = HashMap::new();
-        if let Ok(store) = mgr.store_for_window(&label.0) {
+        if let Ok(store) = mgr.store_for_window(&label) {
             capture_names(&selector, "tags", store, &mut names);
         }
         names
@@ -339,9 +345,12 @@ fn remap(selector: &Selector, field: &str, resolve: &impl Fn(u32) -> Option<u32>
     edit(selector.map_children_ref(|child| child.mapped(&edit)))
 }
 
-pub(crate) fn apply_saved_selection(store: &mut Store, id: &str) -> AppResult<MutationResult> {
+pub(crate) fn apply_saved_selection(
+    store: &mut Store,
+    id: &Id<SavedSelection, String>,
+) -> AppResult<MutationResult> {
     let conn = storage::open_db()?;
-    let saved = get(&conn, &[id.to_string()])?
+    let saved = get(&conn, from_ref(id))?
         .into_iter()
         .next()
         .ok_or_else(|| crate::types::AppError("saved selection not found".into()))?;
@@ -388,7 +397,7 @@ fn input(selection: Selection) -> super::tree::SelectionInput {
 /// Delete a saved selection rule by `id`.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_delete_saved_selection(id: String) -> AppResult<()> {
+pub async fn store_delete_saved_selection(id: Id<SavedSelection, String>) -> AppResult<()> {
     storage::with_db(move |conn| delete(conn, &id)).await
 }
 

@@ -1,12 +1,11 @@
 //! Persist an open map's locations, metadata, and edit history.
 
 use super::*;
-use crate::store::arrow;
 use crate::store::maps::MapMeta;
-use crate::store::storage;
+use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, Location};
 use arrow_array::RecordBatch;
-use mma_algebra::{Counts, Patch, Patchable};
+use mma_algebra::{Counts, Id, Patch, Patchable};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -38,7 +37,7 @@ pub(crate) fn set_aside_delta(delta_path: &Path, reason: &AppError) {
     crate::emit_event(StoreWarning::DeltaSetAside);
 }
 
-pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
+pub(crate) fn flush_closed_store(map_id: &Id<MapMeta, String>, store: &Store) -> AppResult<()> {
     if let Some(unsaved) = store.unsaved()? {
         unsaved.write(
             &storage::open_db()?,
@@ -57,7 +56,7 @@ pub(crate) fn flush_closed_store(map_id: &str, store: &Store) -> AppResult<()> {
 /// Read a map's full current state from disk = base file + uncommitted delta sidecar.
 /// Use this for consumers (e.g. export) that read a map's locations directly off disk,
 /// since the base file alone is only the last committed state.
-pub(crate) fn read_full_state_from_disk(map_id: &str) -> AppResult<Vec<Location>> {
+pub(crate) fn read_full_state_from_disk(map_id: &Id<MapMeta, String>) -> AppResult<Vec<Location>> {
     let path = storage::arrow_path(map_id)?;
     // The base file may not exist for a map with no commits -- its data then lives entirely
     // in the delta sidecar, so always apply the delta below regardless.
@@ -97,7 +96,7 @@ impl Unsaved {
     pub(crate) fn write(
         &self,
         conn: &Connection,
-        map_id: &str,
+        map_id: &Id<MapMeta, String>,
         delta_path: &Path,
     ) -> AppResult<()> {
         if let Some(delta) = &self.delta {
@@ -105,7 +104,7 @@ impl Unsaved {
         }
         storage::set_map_counts(conn, map_id, self.alive, self.pending)?;
         if let Some(row) = &self.meta {
-            storage::update_row::<MapMeta>(conn, "maps", map_id, &row.patch)?;
+            storage::update_row::<MapMeta>(conn, "maps", map_id.raw(), &row.patch)?;
         }
         if let Some(edits) = &self.edits {
             save_edit_history(conn, map_id, edits.value())?;
@@ -188,12 +187,14 @@ fn stack_code(stack: Stack) -> i64 {
 /// once, when first stored.
 pub(crate) fn save_edit_history(
     conn: &Connection,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     edits: &EditStacks,
 ) -> AppResult<()> {
     let stored: HashMap<u64, i64> = conn
         .prepare("SELECT seq, stack FROM edit_entries WHERE map_id = ?1")?
-        .query_map([map_id], |r| Ok((r.get::<_, i64>(0)? as u64, r.get(1)?)))?
+        .query_map([map_id.raw()], |r| {
+            Ok((r.get::<_, i64>(0)? as u64, r.get(1)?))
+        })?
         .collect::<Result<_, _>>()?;
     let tx = conn.unchecked_transaction()?;
     let mut live = HashSet::with_capacity(edits.len(Stack::Undo) + edits.len(Stack::Redo));
@@ -206,14 +207,18 @@ pub(crate) fn save_edit_history(
                 tx.prepare_cached(
                     "UPDATE edit_entries SET stack = ?3 WHERE map_id = ?1 AND seq = ?2",
                 )?
-                .execute(rusqlite::params![map_id, edit.seq as i64, stack])?;
+                .execute(rusqlite::params![
+                    map_id.raw(),
+                    edit.seq as i64,
+                    stack
+                ])?;
             }
             (None, Some(entry)) => {
                 tx.prepare_cached(
                     "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry, piles) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 )?
                 .execute(rusqlite::params![
-                    map_id,
+                    map_id.raw(),
                     edit.seq as i64,
                     stack,
                     entry.rows.max_key().map_or(0, Id::get),
@@ -232,17 +237,20 @@ pub(crate) fn save_edit_history(
     }
     for seq in stored.keys().filter(|seq| !live.contains(seq)) {
         tx.prepare_cached("DELETE FROM edit_entries WHERE map_id = ?1 AND seq = ?2")?
-            .execute(rusqlite::params![map_id, *seq as i64])?;
+            .execute(rusqlite::params![map_id.raw(), *seq as i64])?;
     }
     tx.commit()?;
     Ok(())
 }
 
 /// The stored stacks and changed field keys, without decoding location payloads.
-pub(crate) fn load_edit_history(conn: &Connection, map_id: &str) -> AppResult<EditStacks> {
+pub(crate) fn load_edit_history(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+) -> AppResult<EditStacks> {
     let rows = conn
         .prepare("SELECT seq, stack, max_id, piles FROM edit_entries WHERE map_id = ?1")?
-        .query_map([map_id], |r| {
+        .query_map([map_id.raw()], |r| {
             let stack = if r.get::<_, i64>(1)? == stack_code(Stack::Redo) {
                 Stack::Redo
             } else {
@@ -267,10 +275,14 @@ pub(crate) fn load_edit_history(conn: &Connection, map_id: &str) -> AppResult<Ed
 }
 
 /// One stored edit.
-pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<Entry> {
+pub(crate) fn load_edit(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+    seq: u64,
+) -> AppResult<Entry> {
     let (bytes, json): (Vec<u8>, String) = conn.query_row(
         "SELECT entry, piles FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
-        rusqlite::params![map_id, seq as i64],
+        rusqlite::params![map_id.raw(), seq as i64],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
     let (created, removed) = arrow::batch_to_delta(&arrow::read_arrow_ipc_bytes(&bytes)?);
@@ -281,10 +293,13 @@ pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<
 }
 
 /// Highest location id the stored history can re-materialize, without reading it.
-pub(crate) fn stored_history_max_id(conn: &Connection, map_id: &str) -> AppResult<Id<Location>> {
+pub(crate) fn stored_history_max_id(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+) -> AppResult<Id<Location>> {
     Ok(conn.query_row(
         "SELECT COALESCE(MAX(max_id), 0) FROM edit_entries WHERE map_id = ?1",
-        [map_id],
+        [map_id.raw()],
         |r| r.get(0).map(Id::new),
     )?)
 }
@@ -314,7 +329,7 @@ pub(crate) fn write_baked_base(store: &mut Store, path: &Path, delta_path: &Path
 }
 
 /// Write the baked base for `store_commit` and flush the location count.
-pub(crate) fn bake_and_save(store: &mut Store, map_id: &str) -> AppResult<()> {
+pub(crate) fn bake_and_save(store: &mut Store, map_id: &Id<MapMeta, String>) -> AppResult<()> {
     write_baked_base(
         store,
         &storage::arrow_path(map_id)?,

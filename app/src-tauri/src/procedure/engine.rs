@@ -8,21 +8,18 @@ use crate::net::fetch::{
 };
 use crate::selections::{neighborhood, RowRef, Selector};
 use crate::store::engine::{Store, StoreState, Target, WindowLabel};
+use crate::store::maps::MapMeta;
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::{wire_str_enum, AppError, AppResult, Location};
 use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
-use std::mem;
 use std::ops::Deref;
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::OnceLock;
-use std::sync::PoisonError;
-use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
+use std::sync::{mpsc, Arc, Mutex, OnceLock, PoisonError};
 use std::time::{Duration, Instant};
+use std::{mem, thread};
 use tokio::task;
 
 /// Locations materialized per lock acquisition. The engine never holds more than
@@ -545,7 +542,7 @@ struct BuiltIndex {
 
 pub(crate) struct RunCtx<'a> {
     pub state: &'a StoreState,
-    pub map_id: String,
+    pub map_id: Id<MapMeta, String>,
     /// Where the run reads rows and writes results.
     pub target: Target,
     pub run_id: u32,
@@ -634,7 +631,7 @@ impl WorkBatch {
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn run_all(
     state: &StoreState,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     target: &Target,
     providers: &[ProviderDecl],
     force: bool,
@@ -655,7 +652,7 @@ pub(crate) fn run_all(
             let decl = &providers[idx];
             let ctx = RunCtx {
                 state,
-                map_id: map_id.to_string(),
+                map_id: map_id.clone(),
                 target: target.clone(),
                 run_id,
                 force,
@@ -1508,7 +1505,7 @@ pub async fn procedure_run(
     force: bool,
     target: Option<Target>,
 ) -> AppResult<u32> {
-    let map_id = state.lock()?.map_id_for_window(&label.0)?;
+    let map_id = state.lock()?.map_id_for_window(&label)?;
     let run_id = next_run_id();
     let cancel = register_run(run_id)?;
     task::spawn_blocking(move || {

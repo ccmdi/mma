@@ -9,6 +9,9 @@
 //! Opt-in (Settings > Advanced). Binds loopback only; the bearer key gates
 //! every request because any webpage can attempt requests to localhost.
 
+use crate::store::maps::MapMeta;
+use mma_algebra::Id;
+
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc::{sync_channel, SyncSender};
@@ -18,10 +21,8 @@ use std::time::Duration;
 use tauri::{Emitter, Manager};
 
 use crate::types::AppResult;
-use std::env;
-use std::io::Cursor;
-use std::io::Read;
-use std::thread;
+use std::io::{Cursor, Read};
+use std::{env, thread};
 use tokio::task;
 
 const DEFAULT_ADDR: &str = "127.0.0.1:1429";
@@ -155,8 +156,8 @@ fn handle(mut req: tiny_http::Request) {
     let map_id = query
         .split('&')
         .find_map(|kv| kv.strip_prefix("mapId="))
-        .map(str::to_string);
-    let (status, out) = dispatch(&mma_path, &args, map_id.as_deref());
+        .map(|id| Id::new(id.to_string()));
+    let (status, out) = dispatch(&mma_path, &args, map_id.as_ref());
     let _ = req.respond(json_response(status, out));
 }
 
@@ -174,7 +175,11 @@ fn authorized(req: &tiny_http::Request) -> bool {
 }
 
 /// Route a call into a webview and wait for its reply.
-fn dispatch(mma_path: &str, args: &serde_json::Value, map_id: Option<&str>) -> (u16, String) {
+fn dispatch(
+    mma_path: &str,
+    args: &serde_json::Value,
+    map_id: Option<&Id<MapMeta, String>>,
+) -> (u16, String) {
     let Some(app) = crate::app_handle() else {
         return (500, r#"{"error":"app not ready"}"#.into());
     };
@@ -210,7 +215,10 @@ fn dispatch(mma_path: &str, args: &serde_json::Value, map_id: Option<&str>) -> (
 /// Which window executes the call: an explicit `mapId` targets its `map-<id>`
 /// window (falling back to `main`, which hosts the editor on web/single-window);
 /// otherwise the single open map window, or `main` when no map window exists.
-pub(crate) fn pick_target(labels: &[String], map_id: Option<&str>) -> Result<String, String> {
+pub(crate) fn pick_target(
+    labels: &[String],
+    map_id: Option<&Id<MapMeta, String>>,
+) -> Result<String, String> {
     if let Some(id) = map_id {
         let label = format!("map-{id}");
         if labels.iter().any(|l| l == &label) {

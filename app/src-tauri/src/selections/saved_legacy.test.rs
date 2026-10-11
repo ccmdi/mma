@@ -23,7 +23,7 @@ fn setup() -> Connection {
 
 /// Every imported rule's body, read back through the parent module's primitives.
 fn all(conn: &Connection) -> Vec<SavedSelection> {
-    let ids: Vec<String> = super::super::list_info(conn)
+    let ids: Vec<_> = super::super::list_info(conn)
         .unwrap()
         .into_iter()
         .map(|i| i.id)

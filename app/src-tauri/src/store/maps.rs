@@ -6,22 +6,15 @@
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
-use crate::store::arrow;
-use crate::store::engine;
-use crate::store::engine::ValueRecord;
-use crate::store::engine::{StoreManager, StoreState};
-use crate::store::map_defaults;
-use crate::store::storage;
+use crate::store::engine::{StoreManager, StoreState, ValueRecord};
+use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
 use crate::types;
 use crate::types::shape::MapShape;
-use crate::types::wire_str_enum;
-use crate::types::RawExtra;
-use crate::types::{AppError, AppResult, LocationFlags};
+use crate::types::{wire_str_enum, AppError, AppResult, LocationFlags, RawExtra};
 use crate::util::now_iso;
 use arrow_array::RecordBatch;
-use mma_algebra::Counts;
-use mma_algebra::{Id, Patch, Patchable};
+use mma_algebra::{Counts, Id, Patch, Patchable};
 use rusqlite::{params, Connection};
 use std::collections::HashMap;
 use std::fs;
@@ -39,7 +32,7 @@ pub enum MapKeyAction {
     #[serde(rename_all = "camelCase")]
     ApplyTag { tag_id: u32 },
     #[serde(rename_all = "camelCase")]
-    CopyToMap { map_id: String },
+    CopyToMap { map_id: Id<MapMeta, String> },
 }
 
 /// One user-defined per-map key binding. `key` is a combo string in the same
@@ -572,7 +565,8 @@ pub fn infer_field_defs(
 #[row(table = "maps")]
 pub struct MapMeta {
     #[patch(key)]
-    pub id: String,
+    #[field(codec = "storage::id_col")]
+    pub id: Id<MapMeta, String>,
     #[field(default = "''")]
     pub name: String,
     #[field(default = "''")]
@@ -614,14 +608,17 @@ pub struct MapMeta {
 }
 
 /// The map `id`'s metadata.
-pub(crate) fn read_map_meta(conn: &Connection, id: &str) -> rusqlite::Result<MapMeta> {
+pub(crate) fn read_map_meta(
+    conn: &Connection,
+    id: &Id<MapMeta, String>,
+) -> rusqlite::Result<MapMeta> {
     conn.query_row(
         &format!(
             "SELECT {} FROM {} WHERE id = ?1",
             MapMeta::SELECT,
             MapMeta::TABLE
         ),
-        params![id],
+        params![id.raw()],
         MapMeta::read,
     )
 }
@@ -675,7 +672,7 @@ fn scratch_map_row(conn: &Connection) -> AppResult<MapMeta> {
          VALUES (?1, '', NULL, ?2, ?3, ?3)",
         params![SCRATCH_MAP_ID, settings, now],
     )?;
-    Ok(read_map_meta(conn, SCRATCH_MAP_ID)?)
+    Ok(read_map_meta(conn, &Id::new(SCRATCH_MAP_ID.into()))?)
 }
 
 /// Open the scratch map, creating it if this is its first use. Ordinary in every way
@@ -690,7 +687,7 @@ pub async fn store_scratch_map() -> AppResult<MapMeta> {
 /// live store to evict first. Returns whether a map was actually there.
 pub fn purge_scratch_map() -> AppResult<bool> {
     let conn = storage::open_db()?;
-    delete_map_data(&conn, SCRATCH_MAP_ID)
+    delete_map_data(&conn, &Id::new(SCRATCH_MAP_ID.into()))
 }
 
 /// Fetch a single map's metadata by ID. Returns `null` if not found.
@@ -698,7 +695,7 @@ pub fn purge_scratch_map() -> AppResult<bool> {
 #[specta::specta]
 pub async fn store_get_map(
     state: tauri::State<'_, StoreState>,
-    id: String,
+    id: Id<MapMeta, String>,
 ) -> AppResult<Option<MapMeta>> {
     let row = storage::with_db(move |conn| match read_map_meta(conn, &id) {
         Ok(meta) => Ok(Some(meta)),
@@ -711,12 +708,12 @@ pub async fn store_get_map(
 }
 
 fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppResult<MapMeta> {
-    let id = uuid::Uuid::new_v4().to_string();
+    let id = Id::new(uuid::Uuid::new_v4().to_string());
     let now = now_iso();
     let settings = serde_json::to_string(&map_defaults::new_map_settings(conn)?)?;
     conn.execute(
         "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id, name, folder, settings, now, now],
+        params![id.raw(), name, folder, settings, now, now],
     )?;
     Ok(read_map_meta(conn, &id)?)
 }
@@ -732,9 +729,9 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
 /// locations are on disk.
 fn duplicate_map_row(
     conn: &Connection,
-    source: &str,
+    source: &Id<MapMeta, String>,
     live: Option<Patch<MapMeta>>,
-    copy_id: &str,
+    copy_id: &Id<MapMeta, String>,
     name: &str,
     batch: &RecordBatch,
     arrow_path: &Path,
@@ -744,18 +741,18 @@ fn duplicate_map_row(
     let copied = tx.execute(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, labels, location_count, created_at, updated_at)
          SELECT ?1, ?2, description, folder, settings, score_bounds, extra, tags, labels, ?3, ?4, ?4 FROM maps WHERE id = ?5",
-        params![copy_id, name, batch.num_rows() as i64, now, source],
+        params![copy_id.raw(), name, batch.num_rows() as i64, now, source.raw()],
     )?;
     if copied == 0 {
         return Err(AppError(format!("no map {source} to copy")));
     }
     if let Some(live) = live {
         let patch = Patch::<MapMeta> {
-            id: copy_id.to_string(),
+            id: copy_id.clone(),
             name: None,
             ..live
         };
-        storage::update_row::<MapMeta>(&tx, "maps", copy_id, &patch)?;
+        storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &patch)?;
     }
     arrow::write_arrow_ipc(arrow_path, batch)?;
     if let Err(e) = tx.commit() {
@@ -772,7 +769,7 @@ fn duplicate_map_row(
 #[specta::specta]
 pub fn store_duplicate_map(
     state: tauri::State<'_, StoreState>,
-    id: String,
+    id: Id<MapMeta, String>,
     name: String,
 ) -> AppResult<MapMeta> {
     // Held throughout, so the source can neither change nor open while it is read.
@@ -790,7 +787,7 @@ pub fn store_duplicate_map(
             (arrow::locations_to_batch(&locations), None)
         }
     };
-    let copy_id = uuid::Uuid::new_v4().to_string();
+    let copy_id = Id::new(uuid::Uuid::new_v4().to_string());
     let conn = storage::open_db()?;
     let copy = duplicate_map_row(
         &conn,
@@ -807,10 +804,13 @@ pub fn store_duplicate_map(
 
 /// Drop a map's rows and its files on disk. Returns whether the map was there at all.
 /// Callers evict any live in-memory store first -- this only touches persistence.
-fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
-    let removed = conn.execute("DELETE FROM maps WHERE id = ?1", params![id])?;
-    conn.execute("DELETE FROM edit_entries WHERE map_id = ?1", params![id])?;
-    conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id])?;
+fn delete_map_data(conn: &Connection, id: &Id<MapMeta, String>) -> AppResult<bool> {
+    let removed = conn.execute("DELETE FROM maps WHERE id = ?1", params![id.raw()])?;
+    conn.execute(
+        "DELETE FROM edit_entries WHERE map_id = ?1",
+        params![id.raw()],
+    )?;
+    conn.execute("DELETE FROM commits WHERE map_id = ?1", params![id.raw()])?;
 
     if let Ok(path) = storage::arrow_path(id) {
         let _ = fs::remove_file(path);
@@ -820,7 +820,7 @@ fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
     }
     // Remove the map's per-commit VCS delta files.
     if let Ok(dir) = storage::arrow_dir() {
-        let _ = fs::remove_dir_all(dir.join("commits").join(id));
+        let _ = fs::remove_dir_all(dir.join("commits").join(id.raw()));
     }
     Ok(removed > 0)
 }
@@ -832,7 +832,10 @@ fn delete_map_data(conn: &Connection, id: &str) -> AppResult<bool> {
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_delete_map(state: tauri::State<'_, StoreState>, id: String) -> AppResult<()> {
+pub fn store_delete_map(
+    state: tauri::State<'_, StoreState>,
+    id: Id<MapMeta, String>,
+) -> AppResult<()> {
     let mut mgr = state.lock()?;
     mgr.stores.remove(&id);
     mgr.window_map.retain(|_, v| v != &id);
@@ -863,7 +866,7 @@ fn update_map_meta(
         extra.check()?;
     }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
-        return storage::update_row::<MapMeta>(conn, "maps", &patch.id, &patch);
+        return storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &patch);
     };
     if patch.tags.is_some() {
         return Err(AppError(
@@ -889,12 +892,12 @@ fn update_map_meta(
 /// Mark a map as opened now, for sorting the map list by recency.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_touch_map_opened(map_id: String) -> AppResult<()> {
+pub async fn store_touch_map_opened(map_id: Id<MapMeta, String>) -> AppResult<()> {
     storage::with_db(move |conn| {
         let now = now_iso();
         conn.execute(
             "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
-            params![now, map_id],
+            params![now, map_id.raw()],
         )?;
         Ok(())
     })

@@ -57,7 +57,7 @@ fn write_then_read_back() {
         pitch: 5.0,
         zoom: 2.0,
         entered_at: 1700000000,
-        map_id: Some("map1".into()),
+        map_id: Some(Id::new("map1".into())),
         location_id: Some(Id::new(42)),
         country_code: Some("GB".into()),
         address: Some("London, UK".into()),
@@ -75,7 +75,7 @@ fn write_then_read_back() {
     assert!((e.pitch - 5.0).abs() < 1e-10);
     assert!((e.zoom - 2.0).abs() < 1e-10);
     assert_eq!(e.entered_at, 1700000000);
-    assert_eq!(e.map_id.as_deref(), Some("map1"));
+    assert_eq!(e.map_id.as_ref().map(|id| id.raw().as_str()), Some("map1"));
     assert_eq!(e.location_id, Some(Id::new(42)));
     assert_eq!(e.country_code.as_deref(), Some("GB"));
     assert_eq!(e.address.as_deref(), Some("London, UK"));
@@ -131,22 +131,24 @@ fn filter_by_map_id() {
     let conn = setup();
     for i in 0..5i64 {
         let mut e = mk(&format!("p{i}"), i);
-        e.map_id = Some("mapA".into());
+        e.map_id = Some(Id::new("mapA".into()));
         write(&conn, e).unwrap();
     }
     for i in 5..8i64 {
         let mut e = mk(&format!("p{i}"), i);
-        e.map_id = Some("mapB".into());
+        e.map_id = Some(Id::new("mapB".into()));
         write(&conn, e).unwrap();
     }
 
     let filter = SeenFilter {
-        map_id: Some("mapA".into()),
+        map_id: Some(Id::new("mapA".into())),
         ..Default::default()
     };
     let results = list(&conn, 100, 0, Some(filter), false).unwrap();
     assert_eq!(results.len(), 5);
-    assert!(results.iter().all(|e| e.map_id.as_deref() == Some("mapA")));
+    assert!(results
+        .iter()
+        .all(|e| e.map_id.as_ref().map(|id| id.raw().as_str()) == Some("mapA")));
 }
 
 #[test]
@@ -217,25 +219,25 @@ fn count_with_and_without_filter() {
     let conn = setup();
     for i in 0..5i64 {
         let mut e = mk(&format!("p{i}"), i);
-        e.map_id = Some("mapA".into());
+        e.map_id = Some(Id::new("mapA".into()));
         write(&conn, e).unwrap();
     }
     for i in 5..8i64 {
         let mut e = mk(&format!("p{i}"), i);
-        e.map_id = Some("mapB".into());
+        e.map_id = Some(Id::new("mapB".into()));
         write(&conn, e).unwrap();
     }
 
     assert_eq!(count(&conn, None).unwrap(), 8);
 
     let f_a = SeenFilter {
-        map_id: Some("mapA".into()),
+        map_id: Some(Id::new("mapA".into())),
         ..Default::default()
     };
     assert_eq!(count(&conn, Some(f_a)).unwrap(), 5);
 
     let f_b = SeenFilter {
-        map_id: Some("mapB".into()),
+        map_id: Some(Id::new("mapB".into())),
         ..Default::default()
     };
     assert_eq!(count(&conn, Some(f_b)).unwrap(), 3);

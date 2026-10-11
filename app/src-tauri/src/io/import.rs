@@ -5,9 +5,10 @@
 //! serde_json with parallel object deserialization via rayon. A two-phase
 //! preview/confirm flow lets the user inspect data before committing.
 
+use crate::store::maps::MapMeta;
 use crate::types::{AppResult, RawExtra};
 use mma_algebra::Id;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Mutex;
 
 pub(crate) mod parse;
@@ -20,11 +21,7 @@ use rayon::prelude::*;
 use rusqlite::Connection;
 use uuid::Uuid;
 
-use crate::store::arrow;
-use crate::store::map_defaults;
-use crate::store::maps;
-use crate::store::storage;
-use std::collections::{BTreeMap, HashSet};
+use crate::store::{arrow, map_defaults, maps, storage};
 use std::path::Path;
 use tokio::task;
 
@@ -65,7 +62,7 @@ impl From<&ParsedMap> for ImportPreviewEntry {
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ImportedMapInfo {
-    pub id: String,
+    pub id: Id<MapMeta, String>,
     pub name: String,
     pub location_count: u32,
     pub tag_count: u32,
@@ -99,7 +96,7 @@ fn map_extra_json(map: &mut ParsedMap) -> AppResult<String> {
 fn write_map_to_db(
     conn: &Connection,
     mut map: ParsedMap,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     arrow_path: &Path,
 ) -> AppResult<ImportedMapInfo> {
     renumber_ordered_tags(&mut map.tags);
@@ -132,13 +129,13 @@ fn write_map_to_db(
 
     tx.execute(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8, ?9)",
-        rusqlite::params![map_id, map.name, map.folder, settings_json, extra_json, tags_json, loc_count, now, now],
+        rusqlite::params![map_id.raw(), map.name, map.folder, settings_json, extra_json, tags_json, loc_count, now, now],
     )?;
 
     tx.commit()?;
 
     Ok(ImportedMapInfo {
-        id: map_id.to_string(),
+        id: map_id.clone(),
         name: map.name,
         location_count: loc_count,
         tag_count,
@@ -224,7 +221,7 @@ pub async fn bulk_import_confirm(
         let mut results = Vec::with_capacity(parsed_maps.len());
         for (i, map) in parsed_maps.into_iter().enumerate() {
             let map_name = map.name.clone();
-            let map_id = Uuid::new_v4().to_string();
+            let map_id = Id::new(Uuid::new_v4().to_string());
             let info = write_map_to_db(&conn, map, &map_id, &storage::arrow_path(&map_id)?)?;
             crate::emit_event(ImportProgress {
                 current: (i + 1) as u32,

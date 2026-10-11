@@ -2,11 +2,13 @@
 //! Commits merge the overlay into the batch. Rows stay sorted by id for fast lookup;
 //! render frames and selection membership are updated from the same row changes.
 
+use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::{Counts, Delta, Id, Patch, Patchable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::Mutex;
+use std::{fmt, mem};
 
 mod dependencies;
 pub(crate) use dependencies::*;
@@ -26,19 +28,14 @@ use arrow_array::RecordBatch;
 use rayon::prelude::*;
 
 use crate::selections;
-use crate::store::arrow;
 use crate::store::arrow::{schema, Columns};
-use crate::store::maps;
+use crate::store::{arrow, maps};
 use crate::util::Rgb;
-use arrow_select::concat;
-use arrow_select::take;
+use arrow_select::{concat, take};
 use specta::datatype::DataType;
 use specta::function::FunctionArg;
-use std::mem;
 use std::time::Instant;
-use tauri::ipc::CommandArg;
-use tauri::ipc::CommandItem;
-use tauri::ipc::InvokeError;
+use tauri::ipc::{CommandArg, CommandItem, InvokeError};
 
 // ---------------------------------------------------------------------------
 // Store
@@ -118,7 +115,7 @@ impl Overlay {
 
 pub struct Store {
     /// The open map's metadata and field definitions. Tag records live in `value_meta`.
-    pub(crate) meta: Tracked<maps::MapMeta>,
+    pub(crate) meta: Tracked<MapMeta>,
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
@@ -265,7 +262,7 @@ impl Store {
             .meta
             .updated
             .first()
-            .map(|(old, new)| maps::MapMeta::between(old, new));
+            .map(|(old, new)| MapMeta::between(old, new));
         self.finish(
             &entry.rows,
             &entry.piles,
@@ -285,7 +282,7 @@ impl Store {
         changes: &Change,
         piles: &Piles,
         selections_replaced: bool,
-        meta: Option<Patch<maps::MapMeta>>,
+        meta: Option<Patch<MapMeta>>,
     ) -> Mutation {
         let before = self.version;
         self.bump();
@@ -604,8 +601,8 @@ impl Store {
 /// window-label-to-map-ID registry so each Tauri webview operates on
 /// its own map without clobbering others.
 pub struct StoreManager {
-    pub(crate) stores: HashMap<String, Store>,
-    pub(crate) window_map: HashMap<String, String>,
+    pub(crate) stores: HashMap<Id<MapMeta, String>, Store>,
+    pub(crate) window_map: HashMap<WindowLabel, Id<MapMeta, String>>,
     /// Field dependencies shared with each opened store.
     pub(crate) derived: ComputedFrom,
 }
@@ -619,7 +616,7 @@ impl StoreManager {
         }
     }
 
-    pub fn store_for_window(&mut self, label: &str) -> AppResult<&mut Store> {
+    pub fn store_for_window(&mut self, label: &WindowLabel) -> AppResult<&mut Store> {
         let map_id = self
             .window_map
             .get(label)
@@ -630,13 +627,13 @@ impl StoreManager {
             .ok_or_else(|| AppError(format!("store not found for map '{map_id}'")))
     }
 
-    pub fn store_for_map(&mut self, map_id: &str) -> AppResult<&mut Store> {
+    pub fn store_for_map(&mut self, map_id: &Id<MapMeta, String>) -> AppResult<&mut Store> {
         self.stores
             .get_mut(map_id)
             .ok_or_else(|| AppError(format!("no store for map '{map_id}'")))
     }
 
-    pub fn map_id_for_window(&self, label: &str) -> AppResult<String> {
+    pub fn map_id_for_window(&self, label: &WindowLabel) -> AppResult<Id<MapMeta, String>> {
         self.window_map
             .get(label)
             .cloned()
@@ -645,7 +642,7 @@ impl StoreManager {
 
     /// Unbind `label` from its map, handing back the map's store to flush when no
     /// other window still has it open.
-    pub fn unbind_window(&mut self, label: &str) -> Option<(String, Store)> {
+    pub fn unbind_window(&mut self, label: &WindowLabel) -> Option<(Id<MapMeta, String>, Store)> {
         let map_id = self.window_map.remove(label)?;
         if let Some(store) = self.stores.get_mut(&map_id) {
             store.frames.remove(label);
@@ -668,7 +665,7 @@ pub type StoreState = Mutex<StoreManager>;
 macro_rules! with_store {
     ($label:expr, $state:expr, |$store:ident| $body:block) => {{
         let mut mgr = $state.lock()?;
-        let $store = mgr.store_for_window(&$label.0)?;
+        let $store = mgr.store_for_window(&$label)?;
         $body
     }};
 }
@@ -678,7 +675,14 @@ pub(crate) use with_store;
 /// instead of a `Webview` so they stay runtime-agnostic and directly callable
 /// (benches, tests) with any label the `StoreManager` knows. Invisible to TS:
 /// the `FunctionArg` impl skips it in the generated bindings.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct WindowLabel(pub String);
+
+impl fmt::Display for WindowLabel {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
 impl<'de, R: tauri::Runtime> CommandArg<'de, R> for WindowLabel {
     fn from_command(command: CommandItem<'de, R>) -> Result<Self, InvokeError> {

@@ -5,6 +5,7 @@
 //! it holds no sync logic; the plugin owns the adapter/diff/policy and just persists rows here.
 //! Stores ids and a hash, never location content.
 
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use mma_algebra::Id;
@@ -26,12 +27,12 @@ pub struct RemoteMappingRow {
 pub(crate) fn get(
     conn: &Connection,
     provider: &str,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
 ) -> AppResult<Vec<RemoteMappingRow>> {
     let mut stmt = conn.prepare(
         "SELECT local_id, remote_id, hash FROM remote_mapping WHERE provider = ? AND map_id = ?",
     )?;
-    let rows = stmt.query_map(params![provider, map_id], |row| {
+    let rows = stmt.query_map(params![provider, map_id.raw()], |row| {
         Ok(RemoteMappingRow {
             local_id: Id::new(row.get(0)?),
             remote_id: row.get(1)?,
@@ -49,7 +50,7 @@ pub(crate) fn get(
 pub(crate) fn upsert(
     conn: &mut Connection,
     provider: &str,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     rows: &[RemoteMappingRow],
 ) -> AppResult<()> {
     let tx = conn.transaction()?;
@@ -61,7 +62,7 @@ pub(crate) fn upsert(
         for r in rows {
             stmt.execute(params![
                 provider,
-                map_id,
+                map_id.raw(),
                 r.local_id.get(),
                 r.remote_id,
                 r.hash
@@ -76,7 +77,7 @@ pub(crate) fn upsert(
 pub(crate) fn delete(
     conn: &mut Connection,
     provider: &str,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     local_ids: &[Id<Location>],
 ) -> AppResult<()> {
     let tx = conn.transaction()?;
@@ -85,7 +86,7 @@ pub(crate) fn delete(
             "DELETE FROM remote_mapping WHERE provider = ? AND map_id = ? AND local_id = ?",
         )?;
         for id in local_ids {
-            stmt.execute(params![provider, map_id, id.get()])?;
+            stmt.execute(params![provider, map_id.raw(), id.get()])?;
         }
     }
     tx.commit()?;
@@ -93,10 +94,14 @@ pub(crate) fn delete(
 }
 
 /// Drop the whole mapping for a linked map (unlink).
-pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResult<()> {
+pub(crate) fn clear(
+    conn: &Connection,
+    provider: &str,
+    map_id: &Id<MapMeta, String>,
+) -> AppResult<()> {
     conn.execute(
         "DELETE FROM remote_mapping WHERE provider = ? AND map_id = ?",
-        params![provider, map_id],
+        params![provider, map_id.raw()],
     )?;
     Ok(())
 }
@@ -106,7 +111,7 @@ pub(crate) fn clear(conn: &Connection, provider: &str, map_id: &str) -> AppResul
 /// Drop all mapping rows for a linked map (unlink).
 #[tauri::command]
 #[specta::specta]
-pub async fn remote_mapping_clear(provider: String, map_id: String) -> AppResult<()> {
+pub async fn remote_mapping_clear(provider: String, map_id: Id<MapMeta, String>) -> AppResult<()> {
     storage::with_db(move |conn| clear(conn, &provider, &map_id)).await
 }
 

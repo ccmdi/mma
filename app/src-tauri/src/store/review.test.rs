@@ -28,7 +28,7 @@ fn setup() -> Connection {
 
 fn mk(map_id: &str, source_key: &str, order: Vec<u32>) -> ReviewCreate {
     ReviewCreate {
-        map_id: map_id.into(),
+        map_id: Id::new(map_id.into()),
         name: "Tag: red".into(),
         source_key: source_key.into(),
         source_props: serde_json::json!({ "type": "Tag", "tagId": 1 }),
@@ -56,7 +56,9 @@ fn create_rejects_empty_worklist() {
 fn get_returns_active_session_by_source_key() {
     let conn = setup();
     let created = create(&conn, mk("m1", "tag:1", vec![1, 2, 3])).unwrap();
-    let got = get(&conn, "m1", "tag:1").unwrap().expect("session present");
+    let got = get(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .expect("session present");
     assert_eq!(got.id, created.id);
     assert_eq!(got.order, loc_ids([1, 2, 3]));
     // source_props round-trips as the original Selector json.
@@ -68,8 +70,12 @@ fn get_returns_active_session_by_source_key() {
 fn get_is_none_for_unknown_or_wrong_map() {
     let conn = setup();
     create(&conn, mk("m1", "tag:1", vec![1])).unwrap();
-    assert!(get(&conn, "m1", "tag:2").unwrap().is_none());
-    assert!(get(&conn, "m2", "tag:1").unwrap().is_none());
+    assert!(get(&conn, &Id::new("m1".into()), "tag:2")
+        .unwrap()
+        .is_none());
+    assert!(get(&conn, &Id::new("m2".into()), "tag:1")
+        .unwrap()
+        .is_none());
 }
 
 #[test]
@@ -90,7 +96,7 @@ fn update_persists_cursor_reviewed_and_ordering() {
         },
     )
     .unwrap();
-    let got = get(&conn, "m1", "tag:1").unwrap().unwrap();
+    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
     assert_eq!(got.reviewed, loc_ids([1, 2]));
     assert_eq!(got.order, loc_ids([1, 2, 3, 4]));
@@ -131,7 +137,7 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
         },
     )
     .unwrap();
-    let got = get(&conn, "m1", "tag:1").unwrap().unwrap();
+    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
     assert_eq!(got.order, loc_ids([1, 3, 5]));
     assert_eq!(got.reviewed, loc_ids([1]));
@@ -155,9 +161,21 @@ fn done_sessions_are_excluded_from_get_but_listable() {
         },
     )
     .unwrap();
-    assert!(get(&conn, "m1", "tag:1").unwrap().is_none());
-    assert_eq!(list(&conn, "m1", Some("done")).unwrap().len(), 1);
-    assert_eq!(list(&conn, "m1", Some("active")).unwrap().len(), 0);
+    assert!(get(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        list(&conn, &Id::new("m1".into()), Some("done"))
+            .unwrap()
+            .len(),
+        1
+    );
+    assert_eq!(
+        list(&conn, &Id::new("m1".into()), Some("active"))
+            .unwrap()
+            .len(),
+        0
+    );
 }
 
 #[test]
@@ -166,8 +184,8 @@ fn list_scopes_to_map_and_filters_status() {
     create(&conn, mk("m1", "tag:1", vec![1])).unwrap();
     create(&conn, mk("m1", "tag:2", vec![2])).unwrap();
     create(&conn, mk("m2", "tag:1", vec![3])).unwrap();
-    assert_eq!(list(&conn, "m1", None).unwrap().len(), 2);
-    assert_eq!(list(&conn, "m2", None).unwrap().len(), 1);
+    assert_eq!(list(&conn, &Id::new("m1".into()), None).unwrap().len(), 2);
+    assert_eq!(list(&conn, &Id::new("m2".into()), None).unwrap().len(), 1);
 }
 
 #[test]
@@ -175,6 +193,8 @@ fn delete_removes_the_session() {
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![1, 2])).unwrap();
     delete(&conn, &s.id).unwrap();
-    assert!(get(&conn, "m1", "tag:1").unwrap().is_none());
-    assert_eq!(list(&conn, "m1", None).unwrap().len(), 0);
+    assert!(get(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .is_none());
+    assert_eq!(list(&conn, &Id::new("m1".into()), None).unwrap().len(), 0);
 }

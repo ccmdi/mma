@@ -6,6 +6,7 @@
 //! graph. A commit's full state is materialized by replaying its ancestor deltas
 //! from genesis forward (see [`crate::store::vcs::delta`]).
 
+use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
 use rusqlite::params;
 use tauri::State;
@@ -13,10 +14,8 @@ use tauri::State;
 pub(crate) mod delta;
 
 use crate::selections::Selector;
-use crate::store::arrow;
-use crate::store::engine;
 use crate::store::engine::{StoreManager, StoreState};
-use crate::store::storage;
+use crate::store::{arrow, engine, storage};
 use crate::util::{now_iso, sha256_hex};
 use mma_algebra::{Change, Counts, Id};
 use std::fs;
@@ -31,9 +30,9 @@ use std::time::Instant;
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitInfo {
-    pub id: String,
-    pub map_id: String,
-    pub parent_id: Option<String>,
+    pub id: Id<CommitInfo, String>,
+    pub map_id: Id<MapMeta, String>,
+    pub parent_id: Option<Id<CommitInfo, String>>,
     pub message: Option<String>,
     pub tree_hash: Option<String>,
     #[serde(flatten)]
@@ -46,7 +45,7 @@ pub struct CommitInfo {
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct CommitResult {
-    pub id: String,
+    pub id: Id<CommitInfo, String>,
     pub status: engine::Mutation,
 }
 
@@ -65,17 +64,17 @@ pub struct CommitResult {
 #[specta::specta]
 pub async fn store_commit(
     state: State<'_, StoreState>,
-    map_id: String,
+    map_id: Id<MapMeta, String>,
     message: Option<String>,
 ) -> AppResult<CommitResult> {
     let _t = Instant::now();
     let conn = storage::open_db()?;
 
-    let parent_id: Option<String> = conn
+    let parent_id: Option<Id<CommitInfo, String>> = conn
         .query_row(
             "SELECT id FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC LIMIT 1",
-            params![map_id],
-            |row| row.get(0),
+            params![map_id.raw()],
+            |row| row.get::<_, String>(0).map(Id::new),
         )
         .ok();
     let genesis = parent_id.is_none();
@@ -118,9 +117,15 @@ pub async fn store_commit(
 
     let now = now_iso();
     let nonce = uuid::Uuid::new_v4();
-    let id = sha256_hex(
-        format!("{}\n{}\n{}", parent_id.as_deref().unwrap_or(""), now, nonce).as_bytes(),
-    );
+    let id = Id::new(sha256_hex(
+        format!(
+            "{}\n{}\n{}",
+            parent_id.as_ref().map(|id| id.raw().as_str()).unwrap_or(""),
+            now,
+            nonce
+        )
+        .as_bytes(),
+    ));
 
     let path = storage::commit_delta_path(&map_id, &id)?;
     let counts = match pre_bake {
@@ -154,13 +159,13 @@ pub async fn store_commit(
 
     conn.execute(
         "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id, map_id, parent_id, message, location_count, now, Option::<String>::None, counts.added, counts.removed, counts.updated],
+        params![id.raw(), map_id.raw(), parent_id.as_ref().map(Id::raw), message, location_count, now, Option::<String>::None, counts.added, counts.removed, counts.updated],
     )?;
     storage::set_map_counts(&conn, &map_id, location_count as usize, Counts::default())?;
 
     log::info!(
         "[vcs] commit {} locs={} +{} -{} ~{} in {}ms (bake+base-write={:.0}ms delta-write={:.0}ms sqlite={:.0}ms genesis={})",
-        &id[..7], location_count, counts.added, counts.removed, counts.updated, _t.elapsed().as_millis(),
+        &id.raw()[..7], location_count, counts.added, counts.removed, counts.updated, _t.elapsed().as_millis(),
         t_bake.as_millis(), (t_delta - t_bake).as_millis(), (_t.elapsed() - t_delta).as_millis(), genesis
     );
     Ok(CommitResult { id, status })
@@ -169,18 +174,18 @@ pub async fn store_commit(
 /// List all commits for a map, newest first.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
+pub async fn store_list_commits(map_id: Id<MapMeta, String>) -> AppResult<Vec<CommitInfo>> {
     storage::with_db(move |conn| {
         let mut stmt = conn
             .prepare(
                 "SELECT id, map_id, parent_id, message, tree_hash, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
             )?;
 
-        let rows = stmt.query_map(params![map_id], |row| {
+        let rows = stmt.query_map(params![map_id.raw()], |row| {
             Ok(CommitInfo {
-                id: row.get(0)?,
-                map_id: row.get(1)?,
-                parent_id: row.get(2)?,
+                id: Id::new(row.get(0)?),
+                map_id: Id::new(row.get(1)?),
+                parent_id: row.get::<_, Option<String>>(2)?.map(Id::new),
                 message: row.get(3)?,
                 tree_hash: row.get(4)?,
                 diff: Counts {
@@ -209,8 +214,8 @@ pub async fn store_list_commits(map_id: String) -> AppResult<Vec<CommitInfo>> {
 pub fn store_checkout_commit(
     label: engine::WindowLabel,
     state: State<'_, StoreState>,
-    map_id: String,
-    commit_id: String,
+    map_id: Id<MapMeta, String>,
+    commit_id: Id<CommitInfo, String>,
 ) -> AppResult<engine::MutationResult> {
     let conn = storage::open_db()?;
     let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
@@ -222,7 +227,7 @@ pub fn store_checkout_commit(
     if mgr
         .window_map
         .iter()
-        .any(|(window, map)| map == &map_id && window != &label.0)
+        .any(|(window, map)| map == &map_id && window != &label)
     {
         return Err(AppError(
             "close this map in every other window before restoring a version".into(),
@@ -241,7 +246,7 @@ pub fn store_checkout_commit(
 
     log::info!(
         "[vcs] checkout {} on map {} ({} locs)",
-        &commit_id[..7.min(commit_id.len())],
+        &commit_id.raw()[..7.min(commit_id.raw().len())],
         map_id,
         locs.len()
     );
@@ -283,7 +288,7 @@ fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutat
 /// Replace a closed map's base with `locs` and drop its uncommitted delta.
 fn write_checkout(
     mgr: &StoreManager,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     locs: &[Location],
     base: &Path,
     delta: &Path,
@@ -300,8 +305,8 @@ fn write_checkout(
 }
 
 pub(crate) fn read_commit_delta(
-    map_id: &str,
-    commit_id: &str,
+    map_id: &Id<MapMeta, String>,
+    commit_id: &Id<CommitInfo, String>,
 ) -> AppResult<(Vec<Location>, Vec<Location>)> {
     let path = storage::commit_delta_path(map_id, commit_id)?;
     let batch = arrow::read_arrow_ipc(&path)?;
@@ -312,7 +317,10 @@ pub(crate) fn read_commit_delta(
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_get_commit_delta(map_id: String, commit_id: String) -> AppResult<engine::Change> {
+pub fn store_get_commit_delta(
+    map_id: Id<MapMeta, String>,
+    commit_id: Id<CommitInfo, String>,
+) -> AppResult<engine::Change> {
     let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
     Ok(engine::Change::from_sides(created, removed))
 }

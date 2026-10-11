@@ -2,9 +2,8 @@
 use super::frame::Rows;
 use super::*;
 use crate::io::export;
-use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
-use crate::selections::{self, Selection, Selector, Thinning};
+use crate::selections::{self, field_expr, Selection, Selector, Thinning};
 use crate::store::arrow::empty_batch;
 use crate::store::engine::query::rows_file_path;
 use crate::store::maps::IndexShape;
@@ -16,18 +15,11 @@ use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
-use std::array;
 use std::collections::BTreeMap;
-use std::env;
-use std::fs;
-use std::panic;
-use std::path::Path;
-use std::path::PathBuf;
-use std::slice;
-use std::sync::atomic::AtomicU64;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
+use std::{array, env, fs, panic, slice};
 
 fn net(added: u32, removed: u32, updated: u32) -> mma_algebra::Counts {
     mma_algebra::Counts {
@@ -135,7 +127,7 @@ fn setup_store_with(locs: &[Location]) -> Store {
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let mut store = Store::new();
     store.meta = Tracked::new(maps::MapMeta {
-        id: format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed)),
+        id: Id::new(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed))),
         ..Default::default()
     });
     store.batch = Some(empty_batch());
@@ -776,7 +768,9 @@ fn removed(cells: &[CellFrame]) -> Vec<(u8, u32)> {
 /// Watch `store` as a window would, capturing every frame it sends.
 fn watch(store: &mut Store) -> Captured {
     let frames = Captured::default();
-    store.frames.insert("test".into(), frames.sink());
+    store
+        .frames
+        .insert(WindowLabel("test".into()), frames.sink());
     frames
 }
 
@@ -1697,7 +1691,7 @@ fn the_autosave_sidecar_and_the_commit_delta_are_one_derivation() {
     let unsaved = store.unsaved().unwrap().unwrap();
     let dir = TempDir::new("mma_test_autosave_is_commit_delta");
     let sidecar = dir.join("m_delta.arrow");
-    with_history_db(|conn| unsaved.write(conn, "m", &sidecar).unwrap());
+    with_history_db(|conn| unsaved.write(conn, &Id::new("m".into()), &sidecar).unwrap());
 
     let commit = store.overlay.to_delta(store.batch.as_ref());
     assert_eq!(arrow::read_arrow_ipc(&sidecar).unwrap(), commit);
@@ -1714,9 +1708,9 @@ fn stored_round_trip(entries: &[Change]) -> Vec<Change> {
         .map(|e| store.edits.edit().record(Arc::new(entry(e.clone()))))
         .collect();
     with_history_db(|conn| {
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         seqs.iter()
-            .map(|&seq| load_edit(conn, "m", seq).unwrap().rows)
+            .map(|&seq| load_edit(conn, &Id::new("m".into()), seq).unwrap().rows)
             .collect()
     })
 }
@@ -2296,7 +2290,7 @@ fn render_frame_fixture() -> Vec<u8> {
         marker_style: "arrow".into(),
         ..RenderRequest::default()
     };
-    store.subscribe_frames("fixture".into(), frames.sink(), &req);
+    store.subscribe_frames(WindowLabel("fixture".into()), frames.sink(), &req);
 
     let changes = apply_edit(
         &mut store,
@@ -2400,7 +2394,11 @@ fn replayed_frames_rebuild_the_render_cell_order() {
     let mut store = setup_store_with(&locs);
     store.bake_overlay();
     let frames = Captured::default();
-    store.subscribe_frames("page".into(), frames.sink(), &RenderRequest::default());
+    store.subscribe_frames(
+        WindowLabel("page".into()),
+        frames.sink(),
+        &RenderRequest::default(),
+    );
 
     for round in 0..60 {
         let alive: Vec<Location> =
@@ -2468,8 +2466,8 @@ fn subscribing_sends_the_scene_to_every_watching_window() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.0, 20.0)]);
     store.bake_overlay();
     let (a, b) = (Captured::default(), Captured::default());
-    store.subscribe_frames("a".into(), a.sink(), &RenderRequest::default());
-    store.subscribe_frames("b".into(), b.sink(), &RenderRequest::default());
+    store.subscribe_frames(WindowLabel("a".into()), a.sink(), &RenderRequest::default());
+    store.subscribe_frames(WindowLabel("b".into()), b.sink(), &RenderRequest::default());
 
     assert_eq!(a.frames().len(), 2);
     assert_eq!(b.frames().len(), 1);
@@ -2481,7 +2479,11 @@ fn subscribing_sends_the_scene_to_every_watching_window() {
 fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_one() {
     let mut old = setup_store_with(&[loc(1, 10.0, 20.0)]);
     let watcher = Captured::default();
-    old.subscribe_frames("a".into(), watcher.sink(), &RenderRequest::default());
+    old.subscribe_frames(
+        WindowLabel("a".into()),
+        watcher.sink(),
+        &RenderRequest::default(),
+    );
     let mut new = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, -30.0, -40.0)]);
 
     new.adopt_watchers(old);
@@ -2545,16 +2547,19 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
 #[test]
 fn unbinding_a_window_stops_its_frames() {
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("map-a".into(), setup_store_with(&[]));
-    mgr.window_map.insert("win-1".into(), "map-a".into());
-    mgr.window_map.insert("win-2".into(), "map-a".into());
+    mgr.stores
+        .insert(Id::new("map-a".into()), setup_store_with(&[]));
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
+    mgr.window_map
+        .insert(WindowLabel("win-2".into()), Id::new("map-a".into()));
     let (one, two) = (Captured::default(), Captured::default());
-    let store = mgr.store_for_map("map-a").unwrap();
-    store.frames.insert("win-1".into(), one.sink());
-    store.frames.insert("win-2".into(), two.sink());
+    let store = mgr.store_for_map(&Id::new("map-a".into())).unwrap();
+    store.frames.insert(WindowLabel("win-1".into()), one.sink());
+    store.frames.insert(WindowLabel("win-2".into()), two.sink());
 
-    mgr.unbind_window("win-1");
-    mgr.store_for_map("map-a")
+    mgr.unbind_window(&WindowLabel("win-1".into()));
+    mgr.store_for_map(&Id::new("map-a".into()))
         .unwrap()
         .finish_mutation(&Change::default());
 
@@ -2886,56 +2891,87 @@ fn manager_insert_and_lookup() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
     s1.meta = Tracked::new(maps::MapMeta {
-        id: "map-a".into(),
+        id: Id::new("map-a".into()),
         ..Default::default()
     });
     s1.alive_count = Tracked::new(10);
     let mut s2 = Store::new();
     s2.meta = Tracked::new(maps::MapMeta {
-        id: "map-b".into(),
+        id: Id::new("map-b".into()),
         ..Default::default()
     });
     s2.alive_count = Tracked::new(20);
 
-    mgr.stores.insert("map-a".into(), s1);
-    mgr.stores.insert("map-b".into(), s2);
-    mgr.window_map.insert("win-1".into(), "map-a".into());
-    mgr.window_map.insert("win-2".into(), "map-b".into());
+    mgr.stores.insert(Id::new("map-a".into()), s1);
+    mgr.stores.insert(Id::new("map-b".into()), s2);
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
+    mgr.window_map
+        .insert(WindowLabel("win-2".into()), Id::new("map-b".into()));
 
-    assert_eq!(*mgr.store_for_window("win-1").unwrap().alive_count, 10);
-    assert_eq!(*mgr.store_for_window("win-2").unwrap().alive_count, 20);
-    assert_eq!(*mgr.store_for_map("map-a").unwrap().alive_count, 10);
-    assert_eq!(*mgr.store_for_map("map-b").unwrap().alive_count, 20);
+    assert_eq!(
+        *mgr.store_for_window(&WindowLabel("win-1".into()))
+            .unwrap()
+            .alive_count,
+        10
+    );
+    assert_eq!(
+        *mgr.store_for_window(&WindowLabel("win-2".into()))
+            .unwrap()
+            .alive_count,
+        20
+    );
+    assert_eq!(
+        *mgr.store_for_map(&Id::new("map-a".into()))
+            .unwrap()
+            .alive_count,
+        10
+    );
+    assert_eq!(
+        *mgr.store_for_map(&Id::new("map-b".into()))
+            .unwrap()
+            .alive_count,
+        20
+    );
 }
 
 #[test]
 fn manager_window_not_found() {
     let mut mgr = StoreManager::new();
-    assert!(mgr.store_for_window("nonexistent").is_err());
+    assert!(mgr
+        .store_for_window(&WindowLabel("nonexistent".into()))
+        .is_err());
 }
 
 #[test]
 fn manager_map_not_found() {
     let mut mgr = StoreManager::new();
-    assert!(mgr.store_for_map("nonexistent").is_err());
+    assert!(mgr.store_for_map(&Id::new("nonexistent".into())).is_err());
 }
 
 #[test]
 fn manager_map_id_for_window() {
     let mut mgr = StoreManager::new();
-    mgr.window_map.insert("win-1".into(), "map-a".into());
-    assert_eq!(mgr.map_id_for_window("win-1").unwrap(), "map-a");
-    assert!(mgr.map_id_for_window("win-2").is_err());
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
+    assert_eq!(
+        mgr.map_id_for_window(&WindowLabel("win-1".into())).unwrap(),
+        Id::new("map-a".into())
+    );
+    assert!(mgr.map_id_for_window(&WindowLabel("win-2".into())).is_err());
 }
 
 #[test]
 fn manager_unbind_last_window_yields_store() {
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("map-a".into(), Store::new());
-    mgr.window_map.insert("win-1".into(), "map-a".into());
+    mgr.stores.insert(Id::new("map-a".into()), Store::new());
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
 
-    let (map_id, _store) = mgr.unbind_window("win-1").expect("last window flushes");
-    assert_eq!(map_id, "map-a");
+    let (map_id, _store) = mgr
+        .unbind_window(&WindowLabel("win-1".into()))
+        .expect("last window flushes");
+    assert_eq!(map_id, Id::new("map-a".into()));
     assert!(mgr.window_map.is_empty());
     assert!(mgr.stores.is_empty());
 }
@@ -2943,16 +2979,23 @@ fn manager_unbind_last_window_yields_store() {
 #[test]
 fn manager_unbind_keeps_store_open_elsewhere() {
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("map-a".into(), Store::new());
-    mgr.window_map.insert("win-1".into(), "map-a".into());
-    mgr.window_map.insert("win-2".into(), "map-a".into());
+    mgr.stores.insert(Id::new("map-a".into()), Store::new());
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
+    mgr.window_map
+        .insert(WindowLabel("win-2".into()), Id::new("map-a".into()));
 
-    assert!(mgr.unbind_window("win-1").is_none());
-    assert!(mgr.stores.contains_key("map-a"));
-    assert_eq!(mgr.map_id_for_window("win-2").unwrap(), "map-a");
+    assert!(mgr.unbind_window(&WindowLabel("win-1".into())).is_none());
+    assert!(mgr.stores.contains_key(&Id::new("map-a".into())));
+    assert_eq!(
+        mgr.map_id_for_window(&WindowLabel("win-2".into()))
+            .unwrap()
+            .raw(),
+        "map-a"
+    );
 
-    assert!(mgr.unbind_window("unknown").is_none());
-    assert!(mgr.unbind_window("win-2").is_some());
+    assert!(mgr.unbind_window(&WindowLabel("unknown".into())).is_none());
+    assert!(mgr.unbind_window(&WindowLabel("win-2".into())).is_some());
 }
 
 #[test]
@@ -2960,28 +3003,40 @@ fn manager_remove_preserves_other() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
     s1.meta = Tracked::new(maps::MapMeta {
-        id: "map-a".into(),
+        id: Id::new("map-a".into()),
         ..Default::default()
     });
     let mut s2 = Store::new();
     s2.meta = Tracked::new(maps::MapMeta {
-        id: "map-b".into(),
+        id: Id::new("map-b".into()),
         ..Default::default()
     });
     s2.alive_count = Tracked::new(99);
 
-    mgr.stores.insert("map-a".into(), s1);
-    mgr.stores.insert("map-b".into(), s2);
-    mgr.window_map.insert("win-1".into(), "map-a".into());
-    mgr.window_map.insert("win-2".into(), "map-b".into());
+    mgr.stores.insert(Id::new("map-a".into()), s1);
+    mgr.stores.insert(Id::new("map-b".into()), s2);
+    mgr.window_map
+        .insert(WindowLabel("win-1".into()), Id::new("map-a".into()));
+    mgr.window_map
+        .insert(WindowLabel("win-2".into()), Id::new("map-b".into()));
 
-    mgr.window_map.remove("win-1");
-    mgr.stores.remove("map-a");
+    mgr.window_map.remove(&WindowLabel("win-1".into()));
+    mgr.stores.remove(&Id::new("map-a".into()));
 
-    assert!(mgr.store_for_window("win-1").is_err());
-    assert_eq!(*mgr.store_for_window("win-2").unwrap().alive_count, 99);
-    assert!(mgr.store_for_map("map-a").is_err());
-    assert_eq!(*mgr.store_for_map("map-b").unwrap().alive_count, 99);
+    assert!(mgr.store_for_window(&WindowLabel("win-1".into())).is_err());
+    assert_eq!(
+        *mgr.store_for_window(&WindowLabel("win-2".into()))
+            .unwrap()
+            .alive_count,
+        99
+    );
+    assert!(mgr.store_for_map(&Id::new("map-a".into())).is_err());
+    assert_eq!(
+        *mgr.store_for_map(&Id::new("map-b".into()))
+            .unwrap()
+            .alive_count,
+        99
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -3648,7 +3703,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
 fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[&str]) -> Store {
     let mut store = Store::new();
     store.meta = Tracked::new(maps::MapMeta {
-        id: "test-coverage".to_string(),
+        id: Id::new("test-coverage".to_string()),
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(base));
@@ -4493,9 +4548,15 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
             .record(Arc::new(entry(Change::from_sides(created, removed))));
     }
     with_history_db(|conn| {
-        assert_eq!(stored_history_max_id(conn, "m").unwrap(), Id::UNSET);
-        save_edit_history(conn, "m", &store.edits).unwrap();
-        assert_eq!(stored_history_max_id(conn, "m").unwrap(), Id::new(112));
+        assert_eq!(
+            stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
+            Id::UNSET
+        );
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        assert_eq!(
+            stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
+            Id::new(112)
+        );
     });
 }
 
@@ -4518,14 +4579,14 @@ fn with_history_db<R>(f: impl FnOnce(&rusqlite::Connection) -> R) -> R {
 }
 
 fn fetch_stored(seq: u64) -> AppResult<Entry> {
-    with_history_db(|conn| load_edit(conn, "m", seq))
+    with_history_db(|conn| load_edit(conn, &Id::new("m".into()), seq))
 }
 
 // Simulate "close map" (store_close_map + save_edit_history) and "reopen"
 // (store_open_map's delta/history load + next_id seeding) at the Store level,
 // through the same delta bytes and history rows the app writes.
 fn close_and_reopen(store: &Store) -> Store {
-    with_history_db(|conn| save_edit_history(conn, "m", &store.edits).unwrap());
+    with_history_db(|conn| save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap());
     reopen(store, &sidecar_bytes(store))
 }
 
@@ -4533,8 +4594,8 @@ fn close_and_reopen(store: &Store) -> Store {
 fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     let (edits, history_max) = with_history_db(|conn| {
         (
-            load_edit_history(conn, "m").unwrap(),
-            stored_history_max_id(conn, "m").unwrap(),
+            load_edit_history(conn, &Id::new("m".into())).unwrap(),
+            stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
         )
     });
     let delta = Overlay::from_delta(&arrow::read_arrow_ipc_bytes(delta_bytes).unwrap());
@@ -4607,7 +4668,7 @@ impl FeedCapture {
         let cap = Self::default();
         let got = cap.0.clone();
         store.changes.insert(
-            "feed".into(),
+            WindowLabel("feed".into()),
             tauri::ipc::Channel::new(move |body| {
                 let tauri::ipc::InvokeResponseBody::Json(s) = body else {
                     panic!("change events travel as json");
@@ -4700,7 +4761,7 @@ fn history_survives_repeated_close_and_reopen_in_stack_order() {
         "the one edit still undone is on top of redo"
     );
     assert_eq!(
-        with_history_db(|conn| stored_history_max_id(conn, "m").unwrap()),
+        with_history_db(|conn| stored_history_max_id(conn, &Id::new("m".into())).unwrap()),
         Id::new(5)
     );
 }
@@ -4708,7 +4769,7 @@ fn history_survives_repeated_close_and_reopen_in_stack_order() {
 // store_save_dirty, through the same snapshot and write.
 fn autosave(store: &mut Store, delta: &Path) {
     let unsaved = store.unsaved().unwrap().unwrap();
-    with_history_db(|conn| unsaved.write(conn, "m", delta).unwrap());
+    with_history_db(|conn| unsaved.write(conn, &Id::new("m".into()), delta).unwrap());
     store.saved(&unsaved);
 }
 
@@ -4941,9 +5002,9 @@ fn a_close_writes_only_what_changed_since_the_last() {
         click_add(&mut store, f64::from(i), 0.0);
     }
     with_history_db(|conn| {
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         let before = conn.total_changes();
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         assert_eq!(
             conn.total_changes(),
             before,
@@ -4951,11 +5012,11 @@ fn a_close_writes_only_what_changed_since_the_last() {
         );
 
         click_add(&mut store, 9.0, 0.0);
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         assert_eq!(conn.total_changes(), before + 1, "one new edit is one row");
 
         press_undo(&mut store);
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         assert_eq!(conn.total_changes(), before + 2, "an undo moves one row");
     });
 }
@@ -4965,7 +5026,7 @@ fn edits_after_a_cleared_history_never_reuse_a_stored_number() {
     let mut store = setup_store_with(&[]);
     click_add(&mut store, 0.0, 0.0);
     click_add(&mut store, 1.0, 0.0);
-    with_history_db(|conn| save_edit_history(conn, "m", &store.edits).unwrap());
+    with_history_db(|conn| save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap());
 
     store.edits.edit().clear();
     let id = click_add(&mut store, 2.0, 0.0);
@@ -5766,7 +5827,7 @@ fn store_with_full_overlay_base() -> Store {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
     let mut store = Store::new();
     store.meta = Tracked::new(maps::MapMeta {
-        id: "test-full-overlay".to_string(),
+        id: Id::new("test-full-overlay".to_string()),
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(&base));
@@ -5949,7 +6010,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     let x = vec![loc(5, 5.0, 5.0), loc(6, 6.0, 6.0)];
     let mut store = Store::new();
     store.meta = Tracked::new(maps::MapMeta {
-        id: "test-crash-window".to_string(),
+        id: Id::new("test-crash-window".to_string()),
         ..Default::default()
     });
     store.batch = Some(arrow::locations_to_batch(&x));
@@ -6836,8 +6897,8 @@ fn concurrent_rows_file_queries_get_distinct_paths() {
     // The rows file is fetched after the store lock is released; queries in flight at the
     // same time must never stage into the same path.
     let temp = env::temp_dir();
-    let a = rows_file_path(&temp, "m");
-    let b = rows_file_path(&temp, "m");
+    let a = rows_file_path(&temp, &Id::new("m".into()));
+    let b = rows_file_path(&temp, &Id::new("m".into()));
     assert_ne!(a, b);
 }
 
@@ -7271,7 +7332,7 @@ fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
             Ok(())
         })
     };
-    store.changes.insert("win".into(), sink);
+    store.changes.insert(WindowLabel("win".into()), sink);
 
     apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
     store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], false, &mut None);
@@ -7474,9 +7535,9 @@ fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
         .collect();
     assert!(held.iter().any(|(_, e)| !e.piles.is_empty()));
     with_history_db(|conn| {
-        save_edit_history(conn, "m", &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         for (seq, entry) in &held {
-            assert_eq!(&load_edit(conn, "m", *seq).unwrap(), entry);
+            assert_eq!(&load_edit(conn, &Id::new("m".into()), *seq).unwrap(), entry);
         }
     });
 }
@@ -7599,8 +7660,11 @@ fn a_stored_edit_keeps_its_definition_moves() {
     let held = (**newest.entry.as_ref().unwrap()).clone();
     assert!(!held.defs.is_empty());
 
-    save_edit_history(&conn, "m", &store.edits).unwrap();
-    assert_eq!(load_edit(&conn, "m", newest.seq).unwrap(), held);
+    save_edit_history(&conn, &Id::new("m".into()), &store.edits).unwrap();
+    assert_eq!(
+        load_edit(&conn, &Id::new("m".into()), newest.seq).unwrap(),
+        held
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -8329,8 +8393,8 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
     store.write([Op::Set(row)], &mut None, Entry::default());
     let before = store.edits.availability();
     with_history_db(|conn| {
-        save_edit_history(conn, "m", &store.edits).unwrap();
-        let reopened = load_edit_history(conn, "m").unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        let reopened = load_edit_history(conn, &Id::new("m".into())).unwrap();
         assert!(reopened.iter().all(|(_, edit)| edit.entry.is_none()));
         let after = reopened.availability();
         assert_eq!(

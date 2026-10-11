@@ -8,6 +8,7 @@
 //! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
 //! functions below, which carry all the behavior and are unit-tested directly.
 
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use crate::util::now_iso;
@@ -22,7 +23,7 @@ pub struct ReviewSession {
     #[patch(key)]
     pub id: String,
     #[patch(skip)]
-    pub map_id: String,
+    pub map_id: Id<MapMeta, String>,
     pub name: String,
     #[patch(skip)]
     pub source_key: String,
@@ -45,7 +46,7 @@ pub struct ReviewSession {
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewCreate {
-    pub map_id: String,
+    pub map_id: Id<MapMeta, String>,
     pub name: String,
     pub source_key: String,
     #[specta(type = specta_typescript::Any)]
@@ -61,7 +62,7 @@ const COLS: &str =
 fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<ReviewSession> {
     Ok(ReviewSession {
         id: row.get("id")?,
-        map_id: row.get("map_id")?,
+        map_id: Id::new(row.get("map_id")?),
         name: row.get("name")?,
         source_key: row.get("source_key")?,
         source_props: storage::json_col(row, "source_props")?,
@@ -90,7 +91,7 @@ pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<Revi
     conn.execute(
         "INSERT INTO review_sessions (id, map_id, name, source_key, source_props, ordering, reviewed, cursor_id, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, '[]', ?, 'active', ?, ?)",
-        rusqlite::params![id, session.map_id, session.name, session.source_key, source_props, ordering, cursor_id.get(), now, now],
+        rusqlite::params![id, session.map_id.raw(), session.name, session.source_key, source_props, ordering, cursor_id.get(), now, now],
     )?;
 
     Ok(ReviewSession {
@@ -111,14 +112,14 @@ pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<Revi
 /// Resume lookup: the most recent active session for `map_id` matching `source_key`, if any.
 pub(crate) fn get(
     conn: &Connection,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     source_key: &str,
 ) -> AppResult<Option<ReviewSession>> {
     let sql = format!(
         "SELECT {COLS} FROM review_sessions WHERE map_id = ? AND source_key = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1"
     );
     let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query_map(rusqlite::params![map_id, source_key], row_to_session)?;
+    let mut rows = stmt.query_map(rusqlite::params![map_id.raw(), source_key], row_to_session)?;
     match rows.next() {
         Some(r) => Ok(Some(r?)),
         None => Ok(None),
@@ -128,17 +129,17 @@ pub(crate) fn get(
 /// Lists a map's sessions, newest-first. Optional `status` filter (e.g. "active" / "done").
 pub(crate) fn list(
     conn: &Connection,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     status: Option<&str>,
 ) -> AppResult<Vec<ReviewSession>> {
     let (sql, params): (String, Vec<Box<dyn ToSql>>) = match status {
         Some(s) => (
             format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? AND status = ? ORDER BY updated_at DESC"),
-            vec![Box::new(map_id.to_string()), Box::new(s.to_string())],
+            vec![Box::new(map_id.raw().clone()), Box::new(s.to_string())],
         ),
         None => (
             format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? ORDER BY updated_at DESC"),
-            vec![Box::new(map_id.to_string())],
+            vec![Box::new(map_id.raw().clone())],
         ),
     };
     let mut stmt = conn.prepare(&sql)?;
@@ -174,7 +175,7 @@ pub async fn store_review_create(session: ReviewCreate) -> AppResult<ReviewSessi
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_get(
-    map_id: String,
+    map_id: Id<MapMeta, String>,
     source_key: String,
 ) -> AppResult<Option<ReviewSession>> {
     storage::with_db(move |conn| get(conn, &map_id, &source_key)).await
@@ -184,7 +185,7 @@ pub async fn store_review_get(
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_list(
-    map_id: String,
+    map_id: Id<MapMeta, String>,
     status: Option<String>,
 ) -> AppResult<Vec<ReviewSession>> {
     storage::with_db(move |conn| list(conn, &map_id, status.as_deref())).await

@@ -23,7 +23,7 @@ pub struct Entry {
     pub piles: Piles,
     pub defs: DefsDelta,
     #[serde(default)]
-    pub meta: Change<maps::MapMeta>,
+    pub meta: Change<MapMeta>,
     #[serde(default)]
     pub selections: SelectionDelta,
 }

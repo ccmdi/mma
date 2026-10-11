@@ -2,23 +2,25 @@ use super::*;
 use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT_STATUSES};
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
-use crate::store::engine::{render_cell_idx, Change, Store, StoreManager};
+use crate::store::engine::{render_cell_idx, Change, Store, StoreManager, Tracked};
 use crate::test_util::{loc, loc_ids, tag_ids};
 use crate::types::{LocationFlags, RawExtra};
 use mma_algebra::{Id, Op, Patch, Patchable};
-use std::env;
-use std::thread;
+use std::{env, thread};
 use tokio::time;
 
 // -----------------------------------------------------------------------
 // Fixtures
 // -----------------------------------------------------------------------
 
-fn setup(locs: &[Location]) -> (StoreState, String) {
+fn setup(locs: &[Location]) -> (StoreState, Id<MapMeta, String>) {
     static SEQ: AtomicU32 = AtomicU32::new(0);
-    let map_id = format!("procedure-test-{}", SEQ.fetch_add(1, Ordering::Relaxed));
+    let map_id = Id::new(format!(
+        "procedure-test-{}",
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
     let mut store = Store::new();
-    store.meta = crate::store::engine::Tracked::new(crate::store::maps::MapMeta {
+    store.meta = Tracked::new(MapMeta {
         id: map_id.clone(),
         ..Default::default()
     });
@@ -36,7 +38,7 @@ fn setup(locs: &[Location]) -> (StoreState, String) {
     (Mutex::new(mgr), map_id)
 }
 
-fn given(state: &StoreState, map_id: &str, rows: Vec<Location>) -> Target {
+fn given(state: &StoreState, map_id: &Id<MapMeta, String>, rows: Vec<Location>) -> Target {
     let target = Target::Pending {
         name: "given".into(),
     };
@@ -51,7 +53,7 @@ fn given(state: &StoreState, map_id: &str, rows: Vec<Location>) -> Target {
     target
 }
 
-fn layer_rows(state: &StoreState, map_id: &str, target: &Target) -> Vec<Location> {
+fn layer_rows(state: &StoreState, map_id: &Id<MapMeta, String>, target: &Target) -> Vec<Location> {
     state
         .lock()
         .unwrap()
@@ -60,7 +62,11 @@ fn layer_rows(state: &StoreState, map_id: &str, target: &Target) -> Vec<Location
         .collect(target, &crate::selections::Selector::Everything)
 }
 
-fn read_extra(state: &StoreState, map_id: &str, id: u32) -> Option<serde_json::Value> {
+fn read_extra(
+    state: &StoreState,
+    map_id: &Id<MapMeta, String>,
+    id: u32,
+) -> Option<serde_json::Value> {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     let rows = store.collect(
@@ -76,7 +82,7 @@ fn read_extra(state: &StoreState, map_id: &str, id: u32) -> Option<serde_json::V
         .map(|e| serde_json::from_str(e.as_str()).unwrap())
 }
 
-fn read_loc(state: &StoreState, map_id: &str, id: u32) -> Location {
+fn read_loc(state: &StoreState, map_id: &Id<MapMeta, String>, id: u32) -> Location {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     store
@@ -247,10 +253,10 @@ impl Harness {
         )
     }
 
-    fn ctx<'a>(&'a self, state: &'a StoreState, map_id: &str) -> RunCtx<'a> {
+    fn ctx<'a>(&'a self, state: &'a StoreState, map_id: &Id<MapMeta, String>) -> RunCtx<'a> {
         RunCtx {
             state,
-            map_id: map_id.to_string(),
+            map_id: map_id.clone(),
             target: Target::Map,
             run_id: 1,
             force: true,
@@ -1065,7 +1071,7 @@ fn force_false_skips_rows_that_already_hold_every_field() {
     );
 }
 
-fn computed_from(state: &StoreState, map_id: &str, input: &str, outputs: &[&str]) {
+fn computed_from(state: &StoreState, map_id: &Id<MapMeta, String>, input: &str, outputs: &[&str]) {
     let outputs = outputs.iter().map(ToString::to_string).collect();
     let edges = HashMap::from([(input.to_string(), outputs)]);
     state.lock().unwrap().store_for_map(map_id).unwrap().derived = Arc::new(edges);

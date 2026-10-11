@@ -1,12 +1,13 @@
 //! SQLite: connections, pragmas, the migration registry, row helpers.
 
 use super::*;
+use crate::store::maps::MapMeta;
 use crate::types::AppResult;
 use crate::util::now_iso;
-use mma_algebra::Counts;
-use mma_algebra::{Patch, Patchable};
+use mma_algebra::{Counts, Id, Patch, Patchable};
+use rusqlite::types::FromSql;
 use rusqlite::types::Value as SqlValue;
-use rusqlite::Connection;
+use rusqlite::{Connection, Row};
 use serde::de::DeserializeOwned;
 use std::collections::HashSet;
 use std::fs;
@@ -25,6 +26,14 @@ pub(crate) struct Column {
 pub(crate) trait SqlType {
     const SQL_TYPE: &'static str;
     const NULLABLE: bool = false;
+}
+
+impl<T, Raw: SqlType> SqlType for Id<T, Raw> {
+    const SQL_TYPE: &'static str = Raw::SQL_TYPE;
+}
+
+pub(crate) fn id_col<T, Raw: FromSql>(row: &Row, col: &str) -> rusqlite::Result<Id<T, Raw>> {
+    row.get(col).map(Id::new)
 }
 
 macro_rules! sql_types {
@@ -53,10 +62,7 @@ pub(crate) const fn sql_column<R, T: SqlType>(
 
 /// Deserialize a JSON text column from a SQLite row, falling back to `T::default()`
 /// on parse failure (forward-compatible with schema evolution).
-pub(crate) fn json_col<T: Default + DeserializeOwned>(
-    row: &rusqlite::Row,
-    col: &str,
-) -> rusqlite::Result<T> {
+pub(crate) fn json_col<T: Default + DeserializeOwned>(row: &Row, col: &str) -> rusqlite::Result<T> {
     let s: String = row.get(col)?;
     Ok(serde_json::from_str(&s).unwrap_or_default())
 }
@@ -130,10 +136,10 @@ pub(super) fn configure_connection(conn: &Connection) -> AppResult<()> {
 }
 
 /// A map's changes since the last commit, as last recorded by [`set_map_counts`].
-pub(crate) fn map_pending(conn: &Connection, map_id: &str) -> AppResult<Counts> {
+pub(crate) fn map_pending(conn: &Connection, map_id: &Id<MapMeta, String>) -> AppResult<Counts> {
     Ok(conn.query_row(
         "SELECT pending_added, pending_removed, pending_modified FROM maps WHERE id = ?1",
-        [map_id],
+        [map_id.raw()],
         |row| {
             Ok(Counts {
                 added: row.get(0)?,
@@ -148,13 +154,13 @@ pub(crate) fn map_pending(conn: &Connection, map_id: &str) -> AppResult<Counts> 
 /// so the map list never shows one without the other.
 pub(crate) fn set_map_counts(
     conn: &Connection,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     count: usize,
     pending: Counts,
 ) -> AppResult<()> {
     conn.execute(
         "UPDATE maps SET location_count = ?1, pending_added = ?2, pending_removed = ?3, pending_modified = ?4 WHERE id = ?5",
-        rusqlite::params![count, pending.added, pending.removed, pending.updated, map_id],
+        rusqlite::params![count, pending.added, pending.removed, pending.updated, map_id.raw()],
     )?;
     Ok(())
 }

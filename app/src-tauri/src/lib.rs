@@ -4,13 +4,10 @@
 use crate::types::TsConst;
 use specta_typescript::semantic::Configuration;
 use std::collections::BTreeMap;
-use std::error;
-use std::fs;
-use std::panic;
 use std::path::PathBuf;
 use std::sync::OnceLock;
-use std::thread;
 use std::time::Instant;
+use std::{error, fs, panic, thread};
 use tauri::plugin::TauriPlugin;
 
 mod types;

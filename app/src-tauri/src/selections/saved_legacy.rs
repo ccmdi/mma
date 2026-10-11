@@ -11,8 +11,7 @@ use crate::selections::{Selection, Selector};
 use crate::store::engine::ValueRecord;
 use crate::store::storage;
 use crate::types::AppResult;
-use crate::util::Rgb;
-use crate::util::{now_iso, unix_ms_to_iso};
+use crate::util::{now_iso, unix_ms_to_iso, Rgb};
 use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -108,7 +107,7 @@ fn legacy_to_saved(rule: LegacyRule) -> Option<SavedSelection> {
     };
     Some(SavedSelection {
         info: SavedSelectionInfo {
-            id: uuid::Uuid::new_v4().to_string(),
+            id: Id::new(uuid::Uuid::new_v4().to_string()),
             name: rule.name,
             color,
             created_at: rule

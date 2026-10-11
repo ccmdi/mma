@@ -1,11 +1,12 @@
 //! Where things live on disk: app data, the user's data-location override, temp, DB and Arrow paths.
 
+use crate::store::maps::MapMeta;
+use crate::store::vcs::CommitInfo;
 use crate::types::{AppError, AppResult};
-use std::env;
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use mma_algebra::Id;
+use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::{env, fs};
 use tauri::Manager;
 
 /// True when running under e2e tests or with `MMA_TEST_DB` set.
@@ -153,19 +154,19 @@ pub(crate) fn arrow_dir() -> AppResult<PathBuf> {
 }
 
 /// Path to a map's base Arrow IPC snapshot: `<arrow_dir>/<map_id>.arrow`.
-pub(crate) fn arrow_path(map_id: &str) -> AppResult<PathBuf> {
+pub(crate) fn arrow_path(map_id: &Id<MapMeta, String>) -> AppResult<PathBuf> {
     Ok(arrow_dir()?.join(format!("{map_id}.arrow")))
 }
 
 /// Path to a map's uncommitted delta file: `<arrow_dir>/<map_id>_delta.arrow`.
 /// Contains overlay mutations not yet baked into the base snapshot.
-pub(crate) fn arrow_delta_path(map_id: &str) -> AppResult<PathBuf> {
+pub(crate) fn arrow_delta_path(map_id: &Id<MapMeta, String>) -> AppResult<PathBuf> {
     Ok(arrow_dir()?.join(format!("{map_id}_delta.arrow")))
 }
 
 /// Directory holding a map's per-commit VCS delta files. Created on first access.
-pub(crate) fn commit_dir(map_id: &str) -> AppResult<PathBuf> {
-    let dir = arrow_dir()?.join("commits").join(map_id);
+pub(crate) fn commit_dir(map_id: &Id<MapMeta, String>) -> AppResult<PathBuf> {
+    let dir = arrow_dir()?.join("commits").join(map_id.raw());
     if !dir.exists() {
         fs::create_dir_all(&dir)?;
     }
@@ -173,7 +174,10 @@ pub(crate) fn commit_dir(map_id: &str) -> AppResult<PathBuf> {
 }
 
 /// Path to a single commit's Arrow delta file: `<arrow_dir>/commits/<map_id>/<commit_id>.arrow`.
-pub(crate) fn commit_delta_path(map_id: &str, commit_id: &str) -> AppResult<PathBuf> {
+pub(crate) fn commit_delta_path(
+    map_id: &Id<MapMeta, String>,
+    commit_id: &Id<CommitInfo, String>,
+) -> AppResult<PathBuf> {
     Ok(commit_dir(map_id)?.join(format!("{commit_id}.arrow")))
 }
 

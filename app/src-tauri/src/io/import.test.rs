@@ -1,21 +1,17 @@
 use super::*;
 use crate::selections::Selector;
-use crate::store::engine;
 use crate::store::engine::frame::tests::Captured;
 use crate::store::engine::tests::{shipped_count, shipped_record, FeedCapture};
-use crate::store::engine::Store;
-use crate::store::engine::ValueRecord;
-use crate::store::maps;
-use crate::store::maps::VirtualTag;
-use crate::store::maps::{MapPreferences, MapSettings};
+use crate::store::engine::{Store, ValueRecord, WindowLabel};
+use crate::store::maps::{MapPreferences, MapSettings, VirtualTag};
+use crate::store::{engine, maps};
 use crate::test_util::tag_ids;
 use crate::types::{Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use std::collections::HashMap;
-use std::env;
-use std::fs;
 use std::time::Instant;
+use std::{env, fs};
 
 fn tag(id: u32, name: &str) -> ValueRecord {
     ValueRecord {
@@ -387,7 +383,13 @@ fn imported_maps_start_from_the_saved_defaults_under_the_files_own_settings() {
     let parsed = parse_single_json_mut(&mut buf);
     let dir = crate::test_util::TempDir::new("mma_test_import_defaults");
 
-    write_map_to_db(&conn, parsed, "imported", &dir.join("imported.arrow")).unwrap();
+    write_map_to_db(
+        &conn,
+        parsed,
+        &Id::new("imported".into()),
+        &dir.join("imported.arrow"),
+    )
+    .unwrap();
 
     let settings: String = conn
         .query_row("SELECT settings FROM maps WHERE id = 'imported'", [], |r| {
@@ -887,7 +889,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
 
@@ -925,7 +927,7 @@ fn cancelling_a_staged_import_drops_its_layer() {
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
     stage_parsed(&mut store, "cancel-me", parsed).unwrap();
@@ -942,7 +944,7 @@ fn cancelling_a_staged_import_drops_its_layer() {
 fn two_windows_previewing_at_once_keep_their_own_import() {
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
     let stage = |store: &mut Store, window: &str, lat: f64| {
@@ -988,7 +990,7 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
 fn editor_import_reports_marker_additions_only_when_it_lands() {
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
     let parsed = ParsedMap {
@@ -997,7 +999,9 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
     };
 
     let frames = Captured::default();
-    store.frames.insert("test".into(), frames.sink());
+    store
+        .frames
+        .insert(WindowLabel("test".into()), frames.sink());
     stage_parsed(&mut store, "frames-win", parsed);
     assert!(frames.frames().is_empty());
 
@@ -1018,7 +1022,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     // map's own tag ids (1 = Shared, 2 = Unique), as a real cross-map copy would.
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
     store.value_meta.insert(
@@ -1078,7 +1082,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     // "shared" reuses the existing "Shared" (id 5); blanks drop and repeats collapse.
     let mut store = Store::new();
     store.meta = engine::Tracked::new(maps::MapMeta {
-        id: "test".into(),
+        id: Id::new("test".into()),
         ..Default::default()
     });
     store.value_meta.insert(

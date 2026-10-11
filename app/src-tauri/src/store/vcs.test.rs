@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::engine::Store;
+use crate::store::engine::{Store, WindowLabel};
 use crate::test_util::loc;
 use mma_algebra::Id;
 
@@ -17,10 +17,10 @@ fn checkout_refuses_a_map_with_a_live_store() {
     let (base, delta) = staged(dir.path());
     let before = fs::read(&base).unwrap();
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("m".into(), Store::new());
+    mgr.stores.insert(Id::new("m".into()), Store::new());
 
     let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    assert!(write_checkout(&mgr, "m", &restored, &base, &delta).is_err());
+    assert!(write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
 }
@@ -31,10 +31,11 @@ fn checkout_refuses_a_map_another_window_is_opening() {
     let (base, delta) = staged(dir.path());
     let before = fs::read(&base).unwrap();
     let mut mgr = StoreManager::new();
-    mgr.window_map.insert("web-b".into(), "m".into());
+    mgr.window_map
+        .insert(WindowLabel("web-b".into()), Id::new("m".into()));
 
     let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    assert!(write_checkout(&mgr, "m", &restored, &base, &delta).is_err());
+    assert!(write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
 }
@@ -44,10 +45,10 @@ fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
     let dir = tempfile::tempdir().unwrap();
     let (base, delta) = staged(dir.path());
     let mut mgr = StoreManager::new();
-    mgr.stores.insert("other".into(), Store::new());
+    mgr.stores.insert(Id::new("other".into()), Store::new());
 
     let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    write_checkout(&mgr, "m", &restored, &base, &delta).unwrap();
+    write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).unwrap();
     let batch = arrow::read_arrow_ipc(&base).unwrap();
     let ids: Vec<u32> = arrow::batch_to_locations(&batch)
         .iter()

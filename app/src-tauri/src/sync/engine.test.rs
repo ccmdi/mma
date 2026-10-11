@@ -1469,8 +1469,8 @@ fn pull_only_refuses_to_mirror_from_local() {
 fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     use crate::store::engine::{Store, Tracked, ValueRecord};
     let mut store = Store::new();
-    store.meta = crate::store::engine::Tracked::new(crate::store::maps::MapMeta {
-        id: "sync-test".into(),
+    store.meta = Tracked::new(MapMeta {
+        id: Id::new("sync-test".into()),
         ..Default::default()
     });
     store.batch = Some(crate::store::arrow::locations_to_batch(&[]));

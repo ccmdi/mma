@@ -5,25 +5,29 @@
 //! A commit's full state is materialized by replaying its ancestor delta files
 //! from genesis forward. `diff_states` produces the delta between two states.
 
+use crate::store::maps::MapMeta;
+use crate::store::vcs::CommitInfo;
 use crate::types::{AppResult, Location};
 use mma_algebra::{Id, Transition};
 use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{params, Connection};
 
-use crate::store::engine;
-use crate::store::vcs;
+use crate::store::{engine, vcs};
 
 /// Ordered chain of commit ids from genesis (first) to `commit_id` (last),
 /// walked via `parent_id` links.
-fn commit_chain(conn: &Connection, commit_id: &str) -> AppResult<Vec<String>> {
+fn commit_chain(
+    conn: &Connection,
+    commit_id: &Id<CommitInfo, String>,
+) -> AppResult<Vec<Id<CommitInfo, String>>> {
     let mut chain = Vec::new();
-    let mut current = Some(commit_id.to_string());
+    let mut current = Some(commit_id.clone());
     while let Some(id) = current {
-        let parent: Option<String> = conn.query_row(
+        let parent: Option<Id<CommitInfo, String>> = conn.query_row(
             "SELECT parent_id FROM commits WHERE id = ?1",
-            params![id],
-            |r| r.get(0),
+            params![id.raw()],
+            |r| r.get::<_, Option<String>>(0).map(|id| id.map(Id::new)),
         )?;
         chain.push(id);
         current = parent;
@@ -55,8 +59,8 @@ pub(crate) fn replay_deltas(
 /// returned sorted) by id.
 pub(crate) fn materialize_commit(
     conn: &Connection,
-    map_id: &str,
-    commit_id: &str,
+    map_id: &Id<MapMeta, String>,
+    commit_id: &Id<CommitInfo, String>,
 ) -> AppResult<BTreeMap<Id<Location>, Location>> {
     let chain = commit_chain(conn, commit_id)?;
     let mut deltas = Vec::with_capacity(chain.len());

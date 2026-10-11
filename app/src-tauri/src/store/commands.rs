@@ -2,16 +2,15 @@
 //! and maps the result. Workflow belongs in the engine or in TS, not here.
 #![allow(clippy::needless_pass_by_value)]
 
-use crate::io::export;
-use crate::io::import;
+use crate::io::{export, import};
 use crate::plugins::borders;
+use crate::selections::saved::SavedSelection;
 use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::selections::{self, Selector};
-use crate::store::arrow;
 use crate::store::arrow::schema;
 use crate::store::engine::*;
-use crate::store::maps;
-use crate::store::storage;
+use crate::store::maps::MapMeta;
+use crate::store::{arrow, maps, storage};
 use crate::types::{AppError, AppResult, Location, RawExtra};
 use crate::util;
 use crate::util::Rgb;
@@ -32,19 +31,19 @@ use tokio::task;
 pub async fn store_open_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    map_id: String,
+    map_id: Id<MapMeta, String>,
 ) -> AppResult<StoreStatus> {
     // Claim the window binding before the unlocked read, so a concurrent checkout's
     // open-elsewhere guard sees this open from its first moment.
     state
         .lock()?
         .window_map
-        .insert(label.0.clone(), map_id.clone());
+        .insert(label.clone(), map_id.clone());
     let opened = open_claimed_map(&label, &state, map_id.clone()).await;
     if opened.is_err() {
         if let Ok(mut mgr) = state.lock() {
-            if mgr.window_map.get(&label.0) == Some(&map_id) {
-                mgr.window_map.remove(&label.0);
+            if mgr.window_map.get(&label) == Some(&map_id) {
+                mgr.window_map.remove(&label);
             }
         }
     }
@@ -54,7 +53,7 @@ pub async fn store_open_map(
 async fn open_claimed_map(
     label: &WindowLabel,
     state: &tauri::State<'_, StoreState>,
-    map_id: String,
+    map_id: Id<MapMeta, String>,
 ) -> AppResult<StoreStatus> {
     let map_id2 = map_id.clone();
 
@@ -173,7 +172,7 @@ async fn open_claimed_map(
     store.meta = Tracked::new(meta);
     let status = store.open_status();
     store.derived = mgr.derived.clone();
-    mgr.window_map.insert(label.0.clone(), map_id.clone());
+    mgr.window_map.insert(label.clone(), map_id.clone());
     if let Some(replaced) = mgr.stores.remove(&map_id) {
         store.adopt_watchers(replaced);
     }
@@ -188,7 +187,7 @@ pub async fn store_close_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<()> {
-    let Some((map_id, store)) = state.lock()?.unbind_window(&label.0) else {
+    let Some((map_id, store)) = state.lock()?.unbind_window(&label) else {
         return Ok(());
     };
     task::spawn_blocking(move || flush_closed_store(&map_id, &store)).await?
@@ -202,7 +201,7 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
     let unbound = state
         .lock()
         .ok()
-        .and_then(|mut mgr| mgr.unbind_window(label));
+        .and_then(|mut mgr| mgr.unbind_window(&WindowLabel(label.to_string())));
     if let Some((map_id, store)) = unbound {
         if let Err(e) = flush_closed_store(&map_id, &store) {
             log::error!("[close_map] flush for released window '{label}' failed: {e} ({map_id})");
@@ -301,7 +300,7 @@ pub async fn store_country_distribution(
 pub fn store_copy_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    target_map_id: String,
+    target_map_id: Id<MapMeta, String>,
     selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
     copy_to_map(label, state, target_map_id, |src| {
@@ -319,7 +318,7 @@ pub fn store_copy_locations_to_map(
 pub fn store_add_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    target_map_id: String,
+    target_map_id: Id<MapMeta, String>,
     locations: Vec<Location>,
 ) -> AppResult<CopyToMapResult> {
     copy_to_map(label, state, target_map_id, |_| locations)
@@ -332,7 +331,7 @@ pub fn store_add_locations_to_map(
 fn copy_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    target_map_id: String,
+    target_map_id: Id<MapMeta, String>,
     collect: impl FnOnce(&mut Store) -> Vec<Location>,
 ) -> AppResult<CopyToMapResult> {
     let _t = Instant::now();
@@ -341,7 +340,7 @@ fn copy_to_map(
     // The manager lock is held for both paths: it serializes the closed-path
     // delta-file rewrite against a concurrent store_open_map of the same map.
     let mut mgr = state.lock()?;
-    let source_map_id = mgr.map_id_for_window(&label.0)?;
+    let source_map_id = mgr.map_id_for_window(&label)?;
     if source_map_id == target_map_id {
         return Err(AppError("cannot copy a location into its own map".into()));
     }
@@ -464,7 +463,7 @@ fn copy_to_map(
         storage::update_row::<maps::MapMeta>(
             &conn,
             "maps",
-            &target_map_id,
+            target_map_id.raw(),
             &Patch::<maps::MapMeta> {
                 id: target_map_id.clone(),
                 tags: Some(target_tags),
@@ -496,7 +495,7 @@ pub async fn store_save_dirty(
     // what disk holds once the write lands, however many edits arrived meanwhile.
     let (map_id, unsaved) = {
         let mut mgr = state.lock()?;
-        let store = mgr.store_for_window(&label.0)?;
+        let store = mgr.store_for_window(&label)?;
         let map_id = store.meta.id.clone();
         let Some(unsaved) = store.unsaved()? else {
             return Ok(());
@@ -516,7 +515,7 @@ pub async fn store_save_dirty(
     // The window may have closed or switched maps during the write; the map_id check
     // stops a fresh store from being marked saved by a stale write.
     let mut mgr = state.lock()?;
-    if let Ok(store) = mgr.store_for_window(&label.0) {
+    if let Ok(store) = mgr.store_for_window(&label) {
         if store.meta.id == map_id {
             store.saved(&unsaved);
         }
@@ -539,14 +538,14 @@ pub async fn store_subscribe_frames(
     req: RenderRequest,
 ) -> AppResult<()> {
     let mut mgr = state.lock()?;
-    let map_id = mgr.map_id_for_window(&label.0)?;
+    let map_id = mgr.map_id_for_window(&label)?;
     for (id, store) in &mut mgr.stores {
         if *id != map_id {
-            store.frames.remove(&label.0);
+            store.frames.remove(&label);
         }
     }
     mgr.store_for_map(&map_id)?
-        .subscribe_frames(label.0, frames, &req);
+        .subscribe_frames(label, frames, &req);
     Ok(())
 }
 
@@ -559,13 +558,13 @@ pub async fn store_subscribe_changes(
     changes: Channel<ChangeEvent>,
 ) -> AppResult<()> {
     let mut mgr = state.lock()?;
-    let map_id = mgr.map_id_for_window(&label.0)?;
+    let map_id = mgr.map_id_for_window(&label)?;
     for (id, store) in &mut mgr.stores {
         if *id != map_id {
-            store.changes.remove(&label.0);
+            store.changes.remove(&label);
         }
     }
-    mgr.store_for_map(&map_id)?.changes.insert(label.0, changes);
+    mgr.store_for_map(&map_id)?.changes.insert(label, changes);
     Ok(())
 }
 
@@ -794,7 +793,7 @@ macro_rules! command_table {
             "Answer one question about the target's rows matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
                 store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
             };
-            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: String) -> MutationResult => |store| {
+            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult => |store| {
                 selections::saved::apply_saved_selection(store, &id)
             };
             "Return the open store's location count, version and dirty count." store_summary() -> Summary => |store| {

@@ -10,8 +10,7 @@
 //! -- nothing else refers to any of it.
 
 use super::{set_aside_delta, Overlay, StoreWarning};
-use crate::store::arrow;
-use crate::store::storage;
+use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::Id;
 use std::fs;
@@ -36,7 +35,7 @@ struct MsgpackDelta {
 pub(crate) fn convert_msgpack_deltas() {
     let map_ids = storage::open_db().and_then(|conn| {
         conn.prepare("SELECT id FROM maps")?
-            .query_map([], |r| r.get::<_, String>(0))?
+            .query_map([], |r| r.get::<_, String>(0).map(Id::new))?
             .collect::<Result<Vec<_>, _>>()
             .map_err(AppError::from)
     });

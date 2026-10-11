@@ -4,7 +4,7 @@ use super::*;
 use crate::selections::{self, Index, Selector, Thinning};
 use crate::store::arrow::Columns;
 use crate::store::id_set::IdSet;
-use crate::store::maps::{FieldDef, IndexShape};
+use crate::store::maps::{FieldDef, IndexShape, MapMeta};
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::Id;
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
@@ -469,7 +469,7 @@ pub enum Rows {
 /// Above this many rows, a rows read stages a file instead of answering over IPC.
 pub(crate) const ROWS_INLINE_MAX: usize = 1024;
 
-fn rows_answer(map_id: &str, locations: Vec<Location>) -> AppResult<Rows> {
+fn rows_answer(map_id: &Id<MapMeta, String>, locations: Vec<Location>) -> AppResult<Rows> {
     if locations.len() <= ROWS_INLINE_MAX {
         return Ok(Rows::Inline { locations });
     }
@@ -482,7 +482,10 @@ fn rows_answer(map_id: &str, locations: Vec<Location>) -> AppResult<Rows> {
 
 /// Rotate temp-file slots to avoid collisions between concurrent row reads
 /// and limit leftover files.
-pub(crate) fn rows_file_path(temp: &std::path::Path, map_id: &str) -> std::path::PathBuf {
+pub(crate) fn rows_file_path(
+    temp: &std::path::Path,
+    map_id: &Id<MapMeta, String>,
+) -> std::path::PathBuf {
     static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
     let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
     temp.join(format!("mma_rows_{map_id}_{slot}.json"))

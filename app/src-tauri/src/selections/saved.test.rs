@@ -1,8 +1,5 @@
 use super::*;
-use crate::selections::FilterOp;
-use crate::selections::PolygonGeometry;
-use crate::selections::Selection;
-use crate::selections::Selector;
+use crate::selections::{FilterOp, PolygonGeometry, Selection, Selector};
 use crate::store::engine::ValueRecord;
 use crate::test_util::{loc_ids, tag_ids};
 use crate::util::Rgb;
@@ -35,7 +32,7 @@ fn tag_names(pairs: &[(u32, &str)]) -> HashMap<Id<ValueRecord>, String> {
 
 /// Every rule's body, via the two primitives the frontend uses: index, then bodies.
 fn all(conn: &Connection) -> Vec<SavedSelection> {
-    let ids: Vec<String> = list_info(conn).unwrap().into_iter().map(|i| i.id).collect();
+    let ids: Vec<_> = list_info(conn).unwrap().into_iter().map(|i| i.id).collect();
     get(conn, &ids).unwrap()
 }
 
@@ -169,7 +166,7 @@ fn get_ignores_ids_that_are_not_there() {
         Rgb([0; 3]),
     )
     .unwrap();
-    let got = get(&conn, &[a.info.id.clone(), "nope".into()]).unwrap();
+    let got = get(&conn, &[a.info.id.clone(), Id::new("nope".into())]).unwrap();
     assert_eq!(got.len(), 1);
     assert_eq!(got[0].info.id, a.info.id);
 }

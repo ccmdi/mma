@@ -1,4 +1,5 @@
 use super::*;
+use crate::store::engine::WindowLabel;
 use crate::util::Rgb;
 use mma_algebra::Id;
 use std::sync::{Arc, Mutex};
@@ -179,8 +180,8 @@ fn a_frame_without_a_selection_section_says_so() {
 fn every_sink_gets_the_same_bytes() {
     let (a, b) = (Captured::default(), Captured::default());
     let mut sinks = Sinks::default();
-    sinks.insert("a".into(), a.sink());
-    sinks.insert("b".into(), b.sink());
+    sinks.insert(WindowLabel("a".into()), a.sink());
+    sinks.insert(WindowLabel("b".into()), b.sink());
 
     sinks.send(FrameBytes(sample_frame().encode()));
 
@@ -192,9 +193,9 @@ fn every_sink_gets_the_same_bytes() {
 fn a_sink_that_cannot_take_a_frame_is_dropped() {
     let live = Captured::default();
     let mut sinks = Sinks::default();
-    sinks.insert("live".into(), live.sink());
+    sinks.insert(WindowLabel("live".into()), live.sink());
     sinks.insert(
-        "gone".into(),
+        WindowLabel("gone".into()),
         Channel::new(|_| Err(tauri::Error::WebviewNotFound)),
     );
 
@@ -202,5 +203,5 @@ fn a_sink_that_cannot_take_a_frame_is_dropped() {
     sinks.send(FrameBytes(sample_frame().encode()));
 
     assert_eq!(live.bytes().len(), 2, "the live window keeps receiving");
-    assert!(!sinks.0.contains_key("gone"));
+    assert!(!sinks.0.contains_key(&WindowLabel("gone".into())));
 }

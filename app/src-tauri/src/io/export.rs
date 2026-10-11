@@ -3,26 +3,18 @@
 //! triggers a native save dialog to move the file to its final destination.
 
 use crate::selections::{tree::SelectionInput, Selector};
-use crate::store::engine;
 use crate::store::engine::{with_store, StoreState, ValueRecord, WindowLabel};
-use crate::store::storage;
+use crate::store::{engine, storage};
 use crate::types::shape::{MapPart, MapShape};
-use crate::types::Location;
-use crate::types::LocationFlags;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location, LocationFlags};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use serde::de::DeserializeOwned;
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::env;
-use std::fs;
+use std::collections::{HashMap, HashSet};
 use std::fs::File;
-use std::io::BufWriter;
-use std::io::Write;
-use std::path::Path;
-use std::path::PathBuf;
-use std::process;
+use std::io::{BufWriter, Write};
+use std::path::{Path, PathBuf};
+use std::{env, fs, process};
 use tokio::task;
 use zip::write::SimpleFileOptions;
 
@@ -497,10 +489,10 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
 
         let conn = storage::open_db()?;
         let mut stmt = conn.prepare("SELECT id, name, folder, tags, extra FROM maps")?;
-        let maps: Vec<(String, String, Option<String>, String, String)> = stmt
+        let maps: Vec<_> = stmt
             .query_map([], |row| {
                 Ok((
-                    row.get::<_, String>(0)?,
+                    Id::new(row.get::<_, String>(0)?),
                     row.get::<_, String>(1)?,
                     row.get::<_, Option<String>>(2)?,
                     row.get::<_, String>(3)?,

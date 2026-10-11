@@ -6,12 +6,12 @@
 //! the DB and delegate to the `&Connection` core functions below, which carry all
 //! the behavior and are unit-tested directly.
 
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use mma_algebra::Id;
-use rusqlite::params_from_iter;
 use rusqlite::types::ToSql;
-use rusqlite::Connection;
+use rusqlite::{params_from_iter, Connection};
 
 /// A panorama visit record.
 #[derive(serde::Serialize, specta::Type)]
@@ -25,7 +25,7 @@ pub struct SeenEntry {
     pub pitch: f64,
     pub zoom: f64,
     pub entered_at: i64,
-    pub map_id: Option<String>,
+    pub map_id: Option<Id<MapMeta, String>>,
     pub location_id: Option<Id<Location>>,
     pub country_code: Option<String>,
     pub address: Option<String>,
@@ -43,7 +43,7 @@ pub struct SeenWriteEntry {
     pub pitch: f64,
     pub zoom: f64,
     pub entered_at: i64,
-    pub map_id: Option<String>,
+    pub map_id: Option<Id<MapMeta, String>>,
     pub location_id: Option<Id<Location>>,
     pub country_code: Option<String>,
     pub address: Option<String>,
@@ -57,7 +57,7 @@ pub struct SeenWriteEntry {
 pub struct SeenFilter {
     pub country: Option<String>,
     #[serde(rename = "mapId")]
-    pub map_id: Option<String>,
+    pub map_id: Option<Id<MapMeta, String>>,
     pub search: Option<String>,
     #[serde(rename = "locationIds")]
     pub location_ids: Option<Vec<Id<Location>>>,
@@ -67,7 +67,7 @@ pub struct SeenFilter {
 /// Map ID and display name for seen-history filtering.
 #[derive(serde::Serialize, specta::Type)]
 pub struct SeenMapInfo {
-    pub id: String,
+    pub id: Id<MapMeta, String>,
     pub name: String,
 }
 
@@ -86,7 +86,7 @@ fn row_to_seen(row: &rusqlite::Row) -> rusqlite::Result<SeenEntry> {
         pitch: row.get("pitch")?,
         zoom: row.get("zoom")?,
         entered_at: row.get("entered_at")?,
-        map_id: row.get("map_id")?,
+        map_id: row.get::<_, Option<String>>("map_id")?.map(Id::new),
         location_id: row.get::<_, Option<u32>>("location_id")?.map(Id::new),
         country_code: row.get("country_code")?,
         address: row.get("address")?,
@@ -103,7 +103,10 @@ fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql
 
     for (cond, value) in [
         ("country_code = ?", f.and_then(|f| f.country.clone())),
-        ("map_id = ?", f.and_then(|f| f.map_id.clone())),
+        (
+            "map_id = ?",
+            f.and_then(|f| f.map_id.as_ref().map(|id| id.raw().clone())),
+        ),
         (
             "address LIKE ?",
             f.and_then(|f| f.search.as_ref().map(|s| format!("%{s}%"))),
@@ -145,7 +148,7 @@ pub(crate) fn write(conn: &Connection, entry: SeenWriteEntry) -> AppResult<()> {
         "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rusqlite::params![
             entry.pano_id, entry.lat, entry.lng, entry.heading, entry.pitch, entry.zoom,
-            entry.entered_at, entry.map_id, entry.location_id.map(Id::get), entry.country_code, entry.address, entry.thumbnail,
+            entry.entered_at, entry.map_id.as_ref().map(Id::raw), entry.location_id.map(Id::get), entry.country_code, entry.address, entry.thumbnail,
         ],
     )?;
 
@@ -228,7 +231,7 @@ pub(crate) fn seen_maps(conn: &Connection) -> AppResult<Vec<SeenMapInfo>> {
 
     let rows = stmt.query_map([], |row| {
         Ok(SeenMapInfo {
-            id: row.get("id")?,
+            id: Id::new(row.get("id")?),
             name: row.get("name")?,
         })
     })?;

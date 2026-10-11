@@ -1,5 +1,6 @@
 //! Render frames: the one binary message that carries every marker change to a window.
 
+use super::WindowLabel;
 use crate::types::{wire_enum, wire_names, Location, TsConst};
 use crate::util::Rgb;
 use mma_algebra::Id;
@@ -162,7 +163,7 @@ impl specta::Type for FrameBytes {
 }
 
 /// The windows watching one store, keyed by window label.
-pub(crate) struct Sinks<T>(HashMap<String, Channel<T>>);
+pub(crate) struct Sinks<T>(HashMap<WindowLabel, Channel<T>>);
 
 impl<T> Default for Sinks<T> {
     fn default() -> Self {
@@ -171,11 +172,11 @@ impl<T> Default for Sinks<T> {
 }
 
 impl<T: Clone + IpcResponse> Sinks<T> {
-    pub(crate) fn insert(&mut self, label: String, sink: Channel<T>) {
+    pub(crate) fn insert(&mut self, label: WindowLabel, sink: Channel<T>) {
         self.0.insert(label, sink);
     }
 
-    pub(crate) fn remove(&mut self, label: &str) {
+    pub(crate) fn remove(&mut self, label: &WindowLabel) {
         self.0.remove(label);
     }
 

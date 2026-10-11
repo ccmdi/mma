@@ -5,14 +5,12 @@ use crate::test_util::{tag_ids, TempDir};
 use crate::types::{AppError, Location, LocationFlags};
 use crate::util;
 use crate::util::sha256_hex;
-use mma_algebra::Id;
+use mma_algebra::{Counts, Id};
 use rusqlite::Connection;
-use std::collections::BTreeSet;
-use std::collections::HashSet;
-use std::fs;
-use std::panic;
+use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
+use std::{fs, panic};
 
 fn sample_loc() -> Location {
     Location {
@@ -773,14 +771,14 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
     )
     .unwrap();
     let pending = |conn: &Connection| {
-        let p = map_pending(conn, "m").unwrap();
+        let p = map_pending(conn, &Id::new("m".into())).unwrap();
         (p.added, p.removed, p.updated)
     };
     assert_eq!(pending(&conn), (0, 0, 0), "a map starts clean");
 
     set_map_counts(
         &conn,
-        "m",
+        &Id::new("m".into()),
         12,
         mma_algebra::Counts {
             added: 5,
@@ -797,7 +795,7 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
         .unwrap();
     assert_eq!(count, 12);
 
-    set_map_counts(&conn, "m", 12, mma_algebra::Counts::default()).unwrap();
+    set_map_counts(&conn, &Id::new("m".into()), 12, Counts::default()).unwrap();
     assert_eq!(pending(&conn), (0, 0, 0), "a commit leaves nothing pending");
 }
 

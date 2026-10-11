@@ -2,8 +2,10 @@
 //! or why it failed. Kept per map and provider, capped, and deleted with the map.
 
 use super::SideCounts;
+use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{wire_str_enum, AppResult};
+use mma_algebra::Id;
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
@@ -57,13 +59,13 @@ pub(crate) const MAX_ENTRIES: u32 = 100;
 pub(crate) fn append(
     conn: &Connection,
     provider: &str,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
     entry: &SyncLogEntry,
 ) -> AppResult<()> {
     conn.execute(
         "INSERT INTO sync_log (map_id, provider, started_at, entry) VALUES (?, ?, ?, ?)",
         params![
-            map_id,
+            map_id.raw(),
             provider,
             entry.started_at,
             serde_json::to_string(entry)?
@@ -73,7 +75,7 @@ pub(crate) fn append(
         "DELETE FROM sync_log WHERE map_id = ?1 AND provider = ?2 AND id NOT IN (
             SELECT id FROM sync_log WHERE map_id = ?1 AND provider = ?2
             ORDER BY started_at DESC, id DESC LIMIT ?3)",
-        params![map_id, provider, MAX_ENTRIES],
+        params![map_id.raw(), provider, MAX_ENTRIES],
     )?;
     Ok(())
 }
@@ -82,13 +84,15 @@ pub(crate) fn append(
 pub(crate) fn list(
     conn: &Connection,
     provider: &str,
-    map_id: &str,
+    map_id: &Id<MapMeta, String>,
 ) -> AppResult<Vec<SyncLogEntry>> {
     let mut stmt = conn.prepare(
         "SELECT entry FROM sync_log WHERE map_id = ? AND provider = ?
          ORDER BY started_at DESC, id DESC",
     )?;
-    let rows = stmt.query_map(params![map_id, provider], |row| row.get::<_, String>(0))?;
+    let rows = stmt.query_map(params![map_id.raw(), provider], |row| {
+        row.get::<_, String>(0)
+    })?;
     let mut entries = Vec::new();
     for row in rows {
         entries.push(serde_json::from_str(&row?)?);
@@ -103,7 +107,7 @@ pub(crate) fn list(
 #[specta::specta]
 pub async fn sync_log_append(
     provider: String,
-    map_id: String,
+    map_id: Id<MapMeta, String>,
     entry: SyncLogEntry,
 ) -> AppResult<()> {
     storage::with_db(move |conn| append(conn, &provider, &map_id, &entry)).await
@@ -112,7 +116,10 @@ pub async fn sync_log_append(
 /// A map's recorded sync passes with a provider, newest first.
 #[tauri::command]
 #[specta::specta]
-pub async fn sync_log_list(provider: String, map_id: String) -> AppResult<Vec<SyncLogEntry>> {
+pub async fn sync_log_list(
+    provider: String,
+    map_id: Id<MapMeta, String>,
+) -> AppResult<Vec<SyncLogEntry>> {
     storage::with_db(move |conn| list(conn, &provider, &map_id)).await
 }
 
