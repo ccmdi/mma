@@ -18,6 +18,7 @@ const OBJECTS = {
 	"store/edit": "Edit",
 	"store/autosave": "Autosave",
 	"store/commitDiff": "CommitDiff",
+	"store/import": "Import",
 };
 const objects = new Map(
 	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),

@@ -23,7 +23,7 @@ import {
 } from "@/lib/seen/seenOverlay";
 import { drawnPolygons, getPolygonFill } from "@/lib/render/polygonFills";
 import { CommitDiff } from "@/store/commitDiff";
-import { getImportPreviewPositions } from "@/store/importStaging";
+import { Import } from "@/store/import";
 import { getTrail } from "@/lib/sv/svTrail";
 import {
 	getLatLngAnchor,
@@ -260,7 +260,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
 	// active marker, which highlights whichever staged location is open — no per-index coloring.
 	if (Store.get().workArea === "import" || Store.get().open?.origin === "import") {
-		const previewPos = getImportPreviewPositions();
+		const previewPos = Import.previewPositions();
 		if (previewPos.length > 0) {
 			layers.push(
 				new ScatterplotLayer({

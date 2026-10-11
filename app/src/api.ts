@@ -15,11 +15,11 @@ import { History } from "@/store/history";
 import { Commit } from "@/store/commit";
 import { Field } from "@/store/field";
 import { CommitDiff } from "@/store/commitDiff";
+import { Import } from "@/store/import";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as savedSelections from "@/store/savedSelections";
 import * as settings from "@/store/settings";
-import * as importStaging from "@/store/importStaging";
 import * as picker from "@/store/selectorPick";
 import * as review from "@/lib/review/review";
 import * as commands from "@/lib/commands";
@@ -67,8 +67,6 @@ type SelectionOpsApi = typeof selectionOps;
 type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 type SettingsApi = typeof settings;
-/** Stage, preview, and confirm an import into the open map. @unstable */
-type ImportStagingApi = typeof importStaging;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 type SelectorPickApi = typeof picker;
 /** Review sessions and their history. @unstable */
@@ -139,7 +137,6 @@ export interface MMA
 		SelectionOpsApi,
 		SavedSelectionsApi,
 		SettingsApi,
-		ImportStagingApi,
 		SelectorPickApi,
 		ReviewApi,
 		CommandsApi,
@@ -207,6 +204,8 @@ export interface MMA
 	SelectionList: typeof SelectionList;
 	/** Uncommitted changes and their preview on the map. @unstable */
 	CommitDiff: typeof CommitDiff;
+	/** Stage, preview, and confirm an import into the open map. @unstable */
+	Import: typeof Import;
 }
 
 export type { MMA as MMAApi };
@@ -216,7 +215,6 @@ const mma: MMA = {
 	...selectionOps,
 	...savedSelections,
 	...settings,
-	...importStaging,
 	...picker,
 	...review,
 	...commands,
@@ -269,6 +267,7 @@ const mma: MMA = {
 	Mutation,
 	SelectionList,
 	CommitDiff,
+	Import,
 };
 
 declare global {

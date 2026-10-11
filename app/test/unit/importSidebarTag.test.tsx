@@ -13,10 +13,12 @@ const confirmImport = vi.fn(async (_dropped?: string[], _tagNames?: string[]) =>
 let staging: { preview: EditorImportPreview; source: "file" } | null = null;
 let tags: Tag[] = [];
 
-vi.mock("@/store/importStaging", () => ({
-	getImportStaging: () => staging,
-	confirmImport: (dropped: string[], tagNames?: string[]) => confirmImport(dropped, tagNames),
-	cancelImport: () => {},
+vi.mock("@/store/import", () => ({
+	Import: {
+		staging: () => staging,
+		confirm: (dropped: string[], tagNames?: string[]) => confirmImport(dropped, tagNames),
+		cancel: () => {},
+	},
 }));
 
 vi.mock("@/store/store", () => ({

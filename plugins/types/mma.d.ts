@@ -3763,6 +3763,30 @@ declare const CommitDiff: {
     end: () => void;
 };
 
+/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
+export interface ImportStaging {
+    preview: EditorImportPreview;
+}
+/** @unstable */
+declare const Import: {
+    /** The preview marker positions for the staged import. @unstable */
+    previewPositions: () => Float32Array<ArrayBufferLike>;
+    /** The current staged import, or null if none. @unstable */
+    staging: () => ImportStaging | null;
+    /** The pending layer holding this window's staged import locations. @unstable */
+    target: () => Target;
+    /** Discard the staged import and its pending layer. @unstable */
+    reset: () => void;
+    /** Import from a file path. @unstable */
+    fromPath: (path: string) => Promise<void>;
+    /** Stage pasted text for preview. Throws if no locations are found. @unstable */
+    paste: (text: string) => Promise<void>;
+    /** Commit the staged import, optionally dropping fields and applying bulk tags. @unstable */
+    confirm: (droppedFields: string[], tagNames?: string[]) => Promise<EditorImportResult | null>;
+    /** Discard the staged import without committing. @unstable */
+    cancel: () => void;
+};
+
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 /** Selector variants with child selections. @unstable */
@@ -5000,50 +5024,6 @@ declare const settings_useSettings: typeof useSettings;
 declare namespace settings {
   export { settings_APP_SETTINGS as APP_SETTINGS, settings_BORDER_ARCHIVE_BYTES as BORDER_ARCHIVE_BYTES, settings_BORDER_DETAILS as BORDER_DETAILS, settings_CSS_VAR_SETTINGS as CSS_VAR_SETTINGS, settings_DATE_TIMEZONES as DATE_TIMEZONES, settings_DEFAULTS as DEFAULTS, settings_DISCORD_PRESENCE_MODES as DISCORD_PRESENCE_MODES, settings_EXACT_DATE_FORMATS as EXACT_DATE_FORMATS, settings_GEOCODE_PROVIDERS as GEOCODE_PROVIDERS, settings_GEOCODE_PROVIDER_LABELS as GEOCODE_PROVIDER_LABELS, settings_LANGUAGES as LANGUAGES, settings_MAP_LIST_FIELDS as MAP_LIST_FIELDS, settings_MOVEMENT_CYCLE as MOVEMENT_CYCLE, settings_MOVEMENT_MODES as MOVEMENT_MODES, settings_OPACITY_TOGGLE_MODES as OPACITY_TOGGLE_MODES, settings_POLYGON_COLOR_MODES as POLYGON_COLOR_MODES, settings_PREVIEW_ASPECT_RATIOS as PREVIEW_ASPECT_RATIOS, settings_PRIVATE_SETTINGS as PRIVATE_SETTINGS, settings_SEEN_RESOLUTIONS as SEEN_RESOLUTIONS, settings_SUBDIVISION_DETAILS as SUBDIVISION_DETAILS, settings_TAG_FOLDER_COLOR_MODES as TAG_FOLDER_COLOR_MODES, settings_TAG_SUGGESTION_LIMITS as TAG_SUGGESTION_LIMITS, settings_TAG_VIEW_MODES as TAG_VIEW_MODES, settings_UNIT_SYSTEMS as UNIT_SYSTEMS, settings_getSettings as getSettings, settings_navHiddenWithUI as navHiddenWithUI, settings_panoDisplayOptions as panoDisplayOptions, settings_resetSettings as resetSettings, settings_setSetting as setSetting, settings_useSetting as useSetting, settings_useSettings as useSettings };
   export type { settings_AppSettings as AppSettings, settings_BorderDetail as BorderDetail, settings_DateTimezone as DateTimezone, settings_DiscordPresenceMode as DiscordPresenceMode, settings_ExactDateFormat as ExactDateFormat, settings_GeocodeProvider as GeocodeProvider, settings_Language as Language, settings_MapListField as MapListField, settings_MovementMode as MovementMode, settings_OpacityToggleMode as OpacityToggleMode, settings_PolygonColorMode as PolygonColorMode, settings_PreviewAspectRatio as PreviewAspectRatio, settings_SeenResolution as SeenResolution, settings_SubdivisionDetail as SubdivisionDetail, settings_TagFolderColorMode as TagFolderColorMode, settings_TagViewMode as TagViewMode, settings_UnitSystem as UnitSystem };
-}
-
-/** Parsed-but-not-committed import shown while `workArea === "import"`. @unstable */
-export interface ImportStaging {
-    preview: EditorImportPreview;
-}
-/** The preview marker positions for the staged import. @unstable */
-declare function getImportPreviewPositions(): Float32Array<ArrayBufferLike>;
-/** The current staged import, or null if none. @unstable */
-declare function getImportStaging(): ImportStaging | null;
-/** The pending layer holding this window's staged import locations. @unstable */
-declare function importTarget(): Target;
-/** Discard the staged import and its pending layer. @unstable */
-declare function resetImportState(): void;
-/** Import from a file path. @unstable */
-declare function beginImportFromPath(path: string): Promise<void>;
-/** Stage pasted text for preview. Throws if no locations are found. @unstable */
-declare function beginImportPaste(text: string): Promise<void>;
-/** Commit the staged import, optionally dropping fields and applying bulk tags. @unstable */
-declare function confirmImport(droppedFields: string[], tagNames?: string[]): Promise<EditorImportResult | null>;
-/** Discard the staged import without committing. @unstable */
-declare function cancelImport(): void;
-
-/** @unstable */
-export type importStaging_ImportStaging = ImportStaging;
-/** @unstable */
-declare const importStaging_beginImportFromPath: typeof beginImportFromPath;
-/** @unstable */
-declare const importStaging_beginImportPaste: typeof beginImportPaste;
-/** @unstable */
-declare const importStaging_cancelImport: typeof cancelImport;
-/** @unstable */
-declare const importStaging_confirmImport: typeof confirmImport;
-/** @unstable */
-declare const importStaging_getImportPreviewPositions: typeof getImportPreviewPositions;
-/** @unstable */
-declare const importStaging_getImportStaging: typeof getImportStaging;
-/** @unstable */
-declare const importStaging_importTarget: typeof importTarget;
-/** @unstable */
-declare const importStaging_resetImportState: typeof resetImportState;
-declare namespace importStaging {
-  export { importStaging_beginImportFromPath as beginImportFromPath, importStaging_beginImportPaste as beginImportPaste, importStaging_cancelImport as cancelImport, importStaging_confirmImport as confirmImport, importStaging_getImportPreviewPositions as getImportPreviewPositions, importStaging_getImportStaging as getImportStaging, importStaging_importTarget as importTarget, importStaging_resetImportState as resetImportState };
-  export type { importStaging_ImportStaging as ImportStaging };
 }
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
@@ -7941,8 +7921,6 @@ export type SelectionOpsApi = typeof selectionOps;
 export type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 export type SettingsApi = typeof settings;
-/** Stage, preview, and confirm an import into the open map. @unstable */
-export type ImportStagingApi = typeof importStaging;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 export type SelectorPickApi = typeof picker;
 /** Review sessions and their history. @unstable */
@@ -8006,7 +7984,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, ImportStagingApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -8037,6 +8015,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsAp
     SelectionList: typeof SelectionList;
     /** Uncommitted changes and their preview on the map. @unstable */
     CommitDiff: typeof CommitDiff;
+    /** Stage, preview, and confirm an import into the open map. @unstable */
+    Import: typeof Import;
 }
 
 declare global {

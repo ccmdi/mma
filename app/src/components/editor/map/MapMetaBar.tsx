@@ -6,7 +6,7 @@ import { Commit } from "@/store/commit";
 import { useDialog, useDialogState } from "@/store/dialogBus";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
 import { CommitDiff } from "@/store/commitDiff";
-import { beginImportFromPath } from "@/store/importStaging";
+import { Import } from "@/store/import";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory";
@@ -89,7 +89,7 @@ export function MapMetaBar() {
 			filters: [{ name: t("Map data"), extensions: ["json", "csv"] }],
 		});
 		if (!path || typeof path !== "string") return;
-		await beginImportFromPath(path);
+		await Import.fromPath(path);
 	}, []);
 	useDialog("import", () => void importFile());
 	useDialog("quick-copy-to-map", (id) => setQuickCopyId(id));

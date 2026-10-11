@@ -9,7 +9,7 @@ import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { SelectedIds } from "@/lib/render/CellManager";
 import { clearScene } from "@/lib/render/sceneStore";
-import { resetImportState } from "./importStaging";
+import { Import } from "./import";
 import { CommitDiff } from "./commitDiff";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
 import { type Counts, type MapMeta } from "@/bindings.gen";
@@ -74,7 +74,7 @@ function clearEditState() {
 		open: null,
 		workArea: "overview",
 	});
-	resetImportState();
+	Import.reset();
 	CommitDiff.reset();
 }
 

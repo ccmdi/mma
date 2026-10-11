@@ -43,7 +43,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [SelectionOps](#selectionops)
 - [SavedSelections](#savedselections)
 - [Settings](#settings)
-- [ImportStaging](#importstaging)
 - [SelectorPick](#selectorpick)
 - [Review](#review)
 - [Commands](#commands)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Util](#util)
 - [SelectionList](#selectionlist)
 - [CommitDiff](#commitdiff)
+- [Import](#import)
 
 ## Consts
 
@@ -5508,93 +5508,6 @@ useSettings(): AppSettings
 
 React hook: all settings, re-rendering on any change.
 
-## ImportStaging
-
-Stage, preview, and confirm an import into the open map.
-
-### beginImportFromPath
-
-`unstable` · since v0.5.2
-
-```ts
-beginImportFromPath(path: string): Promise<void>
-```
-
-Import from a file path.
-
-### beginImportPaste
-
-`unstable` · since v0.5.1
-
-```ts
-beginImportPaste(text: string): Promise<void>
-```
-
-Stage pasted text for preview. Throws if no locations are found.
-
-### cancelImport
-
-`unstable` · since v0.5.1
-
-```ts
-cancelImport(): void
-```
-
-Discard the staged import without committing.
-
-### confirmImport
-
-`unstable` · since v0.5.1
-
-```ts
-confirmImport(
-  droppedFields: string[],
-  tagNames?: string[],
-): Promise<EditorImportResult | null>
-```
-
-Commit the staged import, optionally dropping fields and applying bulk tags.
-
-### getImportPreviewPositions
-
-`unstable` · since v0.5.1
-
-```ts
-getImportPreviewPositions(): Float32Array<ArrayBufferLike>
-```
-
-The preview marker positions for the staged import.
-
-### getImportStaging
-
-`unstable` · since v0.8.1
-
-```ts
-getImportStaging(): ImportStaging | null
-```
-
-The current staged import, or null if none.
-
-### importTarget
-
-`unstable` · since v0.12.0
-
-```ts
-importTarget(): Target
-```
-
-The pending layer holding this window's staged import locations.
-
-### resetImportState
-
-`unstable` · since v0.8.1
-
-```ts
-resetImportState(): void
-```
-
-Discard the staged import and its pending layer.
-
 ## SelectorPick
 
 The selector picker the pick dialogs share; its choices move with the UI.
@@ -9751,3 +9664,94 @@ CommitDiff.use(): Counts
 ```
 
 React hook: the uncommitted add/remove/modify counts, kept in sync with the store.
+
+## Import
+
+### Import
+
+`unstable` · unreleased
+
+Stage, preview, and confirm an import into the open map.
+
+#### Import.cancel
+
+`unstable` · unreleased
+
+```ts
+Import.cancel(): void
+```
+
+Discard the staged import without committing.
+
+#### Import.confirm
+
+`unstable` · unreleased
+
+```ts
+Import.confirm(
+  droppedFields: string[],
+  tagNames?: string[],
+): Promise<EditorImportResult | null>
+```
+
+Commit the staged import, optionally dropping fields and applying bulk tags.
+
+#### Import.fromPath
+
+`unstable` · unreleased
+
+```ts
+Import.fromPath(path: string): Promise<void>
+```
+
+Import from a file path.
+
+#### Import.paste
+
+`unstable` · unreleased
+
+```ts
+Import.paste(text: string): Promise<void>
+```
+
+Stage pasted text for preview. Throws if no locations are found.
+
+#### Import.previewPositions
+
+`unstable` · unreleased
+
+```ts
+Import.previewPositions(): Float32Array<ArrayBufferLike>
+```
+
+The preview marker positions for the staged import.
+
+#### Import.reset
+
+`unstable` · unreleased
+
+```ts
+Import.reset(): void
+```
+
+Discard the staged import and its pending layer.
+
+#### Import.staging
+
+`unstable` · unreleased
+
+```ts
+Import.staging(): ImportStaging | null
+```
+
+The current staged import, or null if none.
+
+#### Import.target
+
+`unstable` · unreleased
+
+```ts
+Import.target(): Target
+```
+
+The pending layer holding this window's staged import locations.

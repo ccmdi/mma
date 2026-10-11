@@ -6,7 +6,7 @@ import { locId } from "@/types";
 import { cmd } from "@/lib/commands";
 import { emit as emitEvent } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
-import { getImportStaging, importTarget } from "./importStaging";
+import { Import } from "./import";
 
 let lastSession = 0;
 const opening = (id: number, origin: OpenOrigin, location: Location | null = null): Open => ({
@@ -52,14 +52,14 @@ export const Editor = {
 	},
 	/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
 	openImport: async (index: number) => {
-		const first = getImportStaging()?.preview.firstId;
+		const first = Import.staging()?.preview.firstId;
 		if (first == null) return;
 		const loc =
 			(
 				await Query.read(
 					{ type: "Locations", locations: [first + index], name: null },
 					{ kind: "locations" },
-					importTarget(),
+					Import.target(),
 				)
 			)[0] ?? null;
 		if (!loc) return;

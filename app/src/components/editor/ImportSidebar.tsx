@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
-import { getImportStaging, confirmImport, cancelImport } from "@/store/importStaging";
+import { Import } from "@/store/import";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
 import { colorForName } from "@/lib/util/color";
@@ -34,7 +34,7 @@ function loadDroppedFields(): Set<string> {
 
 /** Import staging sidebar: field picker, file tags, bulk tag, and warnings. */
 export function ImportSidebar() {
-	const staging = useEventValue("import-markers:changed", getImportStaging);
+	const staging = useEventValue("import-markers:changed", Import.staging);
 	const visibleTags = Store.use(Tag.visible);
 	const [droppedFields, setDroppedFields] = useState(loadDroppedFields);
 	const [bulkTags, setBulkTags] = useState<string[]>([]);
@@ -83,7 +83,7 @@ export function ImportSidebar() {
 		setError(null);
 		const t = trace("import");
 		try {
-			const r = await confirmImport([...droppedFields], importTags);
+			const r = await Import.confirm([...droppedFields], importTags);
 			t.end({ imported: r?.importedCount ?? 0 });
 		} catch (e: unknown) {
 			log.error("[import] failed:", e);
@@ -187,7 +187,7 @@ export function ImportSidebar() {
 				<Button variant="primary" onClick={requestImport} disabled={importing}>
 					{importing ? t("Importing...") : t("Import")}
 				</Button>
-				<Button onClick={cancelImport} disabled={importing}>
+				<Button onClick={Import.cancel} disabled={importing}>
 					{t("Discard")}
 				</Button>
 			</div>

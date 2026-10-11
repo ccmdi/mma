@@ -3,7 +3,7 @@ import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
 import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
-import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
+import { Import } from "@/store/import";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
 import { goTo, leaveToList } from "@/store/router";
@@ -89,7 +89,7 @@ function usePasteHandler() {
 			if (urlLocs.length > 0) payload = parsedLocationsToImportJson(urlLocs, t("Pasted URLs"));
 
 			try {
-				await beginImportPaste(payload);
+				await Import.paste(payload);
 			} catch {
 				log.warn("Couldn't import locations via paste.");
 			}
@@ -123,7 +123,7 @@ function useFileDrop() {
 					log.warn(`Unsupported file type: .${ext}`);
 					return;
 				}
-				beginImportFromPath(path).catch((e) => {
+				Import.fromPath(path).catch((e) => {
 					log.error("File drop import failed:", e);
 				});
 			}

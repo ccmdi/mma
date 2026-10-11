@@ -375,8 +375,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				async (api, path, target) => {
 					const perf = window.__mmaPerf!;
 					const start = performance.now();
-					await api.beginImportFromPath(path);
-					const result = await api.confirmImport([], undefined);
+					await api.Import.fromPath(path);
+					const result = await api.Import.confirm([], undefined);
 					if (!result) throw new Error("import returned no result");
 					await api.Autosave.waitForInflight();
 					await perf.settled();
@@ -406,8 +406,8 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	scaleMaps.add(mapId);
 	const fixtureInfo = await withApi(
 		async (api, path, target) => {
-			await api.beginImportFromPath(path);
-			const result = await api.confirmImport([], undefined);
+			await api.Import.fromPath(path);
+			const result = await api.Import.confirm([], undefined);
 			if (!result || result.importedCount !== target) {
 				throw new Error(
 					`fixture import produced ${result?.importedCount ?? 0}, expected ${target}`,
@@ -996,8 +996,8 @@ async function runGpuScenarios(gpuMaps: Set<string>): Promise<void> {
 	gpuMaps.add(mapId);
 	await withApi(
 		async (api, path, target) => {
-			await api.beginImportFromPath(path);
-			const result = await api.confirmImport([], undefined);
+			await api.Import.fromPath(path);
+			const result = await api.Import.confirm([], undefined);
 			if (!result || result.importedCount !== target) {
 				throw new Error(`render fixture imported ${result?.importedCount ?? 0}`);
 			}
