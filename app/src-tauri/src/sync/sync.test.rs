@@ -2,6 +2,7 @@ use super::*;
 use crate::test_util::tag_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
+use mma_algebra::Id;
 use serde_json::json;
 
 fn norm(over: impl FnOnce(&mut NormalizedSyncLocation)) -> NormalizedSyncLocation {
@@ -69,8 +70,8 @@ fn a_location_without_extra_keeps_the_hash_existing_links_stored() {
 
 #[test]
 fn local_keys_round_trip() {
-    assert_eq!(local_key(42), "L:42");
-    assert_eq!(parse_local_key("L:42"), Some(42));
+    assert_eq!(local_key(Id::new(42)), "L:42");
+    assert_eq!(parse_local_key("L:42"), Some(Id::new(42)));
     assert_eq!(parse_local_key("C:abc#0"), None);
 }
 
@@ -83,7 +84,7 @@ fn canon_tags_dedupes_and_sorts() {
 #[test]
 fn local_to_normalized_strips_virtual_flags_and_resolves_tags() {
     let loc = Location {
-        id: 7,
+        id: Id::new(7),
         lat: 1.0,
         lng: 2.0,
         heading: 3.0,

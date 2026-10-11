@@ -9,10 +9,8 @@ use crate::net::fetch::{
 use crate::selections::{neighborhood, RowRef, Selector};
 use crate::store::engine::{Store, StoreState, Target, WindowLabel};
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
-use crate::types::wire_str_enum;
-use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Edit, Op};
-use mma_algebra::{Patch, Patchable};
+use crate::types::{wire_str_enum, AppError, AppResult, Location};
+use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashMap;
 use std::mem;
@@ -171,7 +169,7 @@ pub struct ProcedureResult {
     pub provider_id: String,
     pub entries: Vec<ResultEntry>,
     /// Rows the procedure failed, or every row of a batch whose call failed.
-    pub failed: Vec<u32>,
+    pub failed: Vec<Id<Location>>,
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +213,7 @@ impl Partials {
         }
     }
 
-    pub fn emit(&self, id: u32, json: String) {
+    pub fn emit(&self, id: Id<Location>, json: String) {
         let page = {
             let mut buf = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
             buf.entries.push(ResultEntry { id, json });
@@ -617,9 +615,9 @@ struct WorkBatch {
     /// Rows handed to the procedure (representatives only under `DedupeBy`).
     rows: Vec<Location>,
     /// Representative id -> every location id that shares its key.
-    fanout: Option<HashMap<u32, Vec<u32>>>,
+    fanout: Option<HashMap<Id<Location>, Vec<Id<Location>>>>,
     /// Every location id this batch accounts for, sharers included.
-    ids: Vec<u32>,
+    ids: Vec<Id<Location>>,
 }
 
 impl WorkBatch {
@@ -717,7 +715,7 @@ pub(crate) fn run_all(
 }
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
-    let ids: Vec<u32> = ctx.with_store(|store| {
+    let ids: Vec<Id<Location>> = ctx.with_store(|store| {
         Ok(store
             .collect(&ctx.target, &decl.select)
             .into_iter()
@@ -859,7 +857,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
 fn page_batches(
     ctx: &RunCtx,
     decl: &ProviderDecl,
-    page: &[u32],
+    page: &[Id<Location>],
     force: bool,
     batch_mode: &BatchMode,
     per_instance: usize,
@@ -889,7 +887,7 @@ fn page_batches(
                     .scope(&Selector::all([todo, has_every(&decl.requires)]))
                     .ids()
             };
-            let unmet: Vec<u32> = page
+            let unmet: Vec<Id<Location>> = page
                 .iter()
                 .copied()
                 .filter(|id| todo_ids.contains(*id) && !workable.contains(*id))
@@ -976,7 +974,7 @@ enum Produced {
     Batch {
         page: usize,
         product: Option<BatchProduct>,
-        failed: Vec<u32>,
+        failed: Vec<Id<Location>>,
     },
 }
 
@@ -984,7 +982,7 @@ enum Produced {
 fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResult<()> {
     let mut entries = page.entries;
     if !page.updates.is_empty() {
-        let ids: Vec<u32> = page.updates.iter().map(|(_, u)| u.id).collect();
+        let ids: Vec<Id<Location>> = page.updates.iter().map(|(_, u)| u.id).collect();
         let held_rows = ctx.with_store(|store| {
             let edits = page
                 .updates
@@ -1149,7 +1147,7 @@ fn split_batches(
                 )));
             }
             let mut order: Vec<String> = Vec::new();
-            let mut groups: HashMap<String, Vec<u32>> = HashMap::new();
+            let mut groups: HashMap<String, Vec<Id<Location>>> = HashMap::new();
             let mut reps: Vec<Location> = Vec::new();
             for row in rows {
                 // A row missing the key can't dedupe against anything, so it stands alone.
@@ -1166,7 +1164,7 @@ fn split_batches(
                     }
                 }
             }
-            let mut members: HashMap<u32, Vec<u32>> = reps
+            let mut members: HashMap<Id<Location>, Vec<Id<Location>>> = reps
                 .iter()
                 .zip(order)
                 .map(|(rep, k)| (rep.id, groups.remove(&k).unwrap()))
@@ -1178,7 +1176,7 @@ fn split_batches(
                 if rows.is_empty() {
                     break;
                 }
-                let fanout: HashMap<u32, Vec<u32>> = rows
+                let fanout: HashMap<Id<Location>, Vec<Id<Location>>> = rows
                     .iter()
                     .map(|r| (r.id, members.remove(&r.id).unwrap()))
                     .collect();
@@ -1217,7 +1215,7 @@ struct PageOutput {
     updates: Vec<(Option<Location>, Patch<Location>)>,
     entries: Vec<ResultEntry>,
     /// Rows the procedure failed, plus every row of a batch whose call failed.
-    failed: Vec<u32>,
+    failed: Vec<Id<Location>>,
 }
 
 /// One procedure instance, working the queue until it closes or the run is cancelled.
@@ -1265,7 +1263,7 @@ fn run_instance(
                 // Only the patch sink parses: a collected answer is the module's
                 // contract with its caller, not a Patch<Location>.
                 Sink::Patch => to_patches(&entries).map(|patches| {
-                    let read: HashMap<u32, &Location> =
+                    let read: HashMap<Id<Location>, &Location> =
                         batch.rows.iter().map(|r| (r.id, r)).collect();
                     BatchProduct::Patches(
                         patches
@@ -1330,7 +1328,10 @@ fn writable(key: &str) -> bool {
 
 /// Repeat a deduped representative's answer for every row it stood for. Without a
 /// fanout map the entries already name their own rows and pass through untouched.
-fn fan_out(entries: Vec<ResultEntry>, fanout: Option<&HashMap<u32, Vec<u32>>>) -> Vec<ResultEntry> {
+fn fan_out(
+    entries: Vec<ResultEntry>,
+    fanout: Option<&HashMap<Id<Location>, Vec<Id<Location>>>>,
+) -> Vec<ResultEntry> {
     let Some(fanout) = fanout else {
         return entries;
     };
@@ -1358,7 +1359,7 @@ fn to_patches(entries: &[ResultEntry]) -> AppResult<Vec<Patch<Location>>> {
             if let Some(key) = map.keys().find(|k| !writable(k)) {
                 return Err(err(format!("unknown field `{key}`")));
             }
-            map.insert("id".into(), e.id.into());
+            map.insert("id".into(), e.id.get().into());
             serde_json::from_value(map.into()).map_err(|x| err(x.to_string()))
         })
         .collect()
@@ -1368,7 +1369,7 @@ struct EngineHost<'a> {
     ctx: &'a RunCtx<'a>,
     /// Under `DedupeBy`, representative id -> every id sharing its key; a failure of the
     /// representative is every sharer's failure, as its answer would have been theirs.
-    fanout: Option<&'a HashMap<u32, Vec<u32>>>,
+    fanout: Option<&'a HashMap<Id<Location>, Vec<Id<Location>>>>,
     /// The provider's, not this instance's: every instance shares one session.
     session: &'a Session,
     endpoint: &'a Endpoint,
@@ -1378,7 +1379,7 @@ struct EngineHost<'a> {
     /// Units this batch's procedure already claimed, so the engine doesn't double-count.
     reported: u32,
     /// Rows this batch's procedure failed, handed back to the caller with the page.
-    failed: Vec<u32>,
+    failed: Vec<Id<Location>>,
 }
 
 impl ProcHost for EngineHost<'_> {
@@ -1406,7 +1407,7 @@ impl ProcHost for EngineHost<'_> {
         self.prog.add_done(units);
     }
 
-    fn fail(&mut self, id: u32) {
+    fn fail(&mut self, id: Id<Location>) {
         match self.fanout.and_then(|f| f.get(&id)) {
             Some(ids) => {
                 self.failed.extend(ids);
@@ -1447,7 +1448,7 @@ impl ProcHost for QueryHost {
         let partials = self.partials.as_deref();
         pano::resolve_panos(&self.session, queries, &mut |i, answer| {
             if let (Some(p), Ok(json)) = (partials, serde_json::to_string(answer)) {
-                p.emit(i as u32, json);
+                p.emit(Id::new(i as u32), json);
             }
         })
     }
@@ -1457,7 +1458,7 @@ impl ProcHost for QueryHost {
     }
 
     fn progress(&mut self, _units: u32) {}
-    fn fail(&mut self, _id: u32) {}
+    fn fail(&mut self, _id: Id<Location>) {}
     fn aborted(&self) -> bool {
         self.session.aborted()
     }

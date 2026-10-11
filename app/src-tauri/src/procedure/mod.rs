@@ -9,13 +9,14 @@ use crate::plugins::borders;
 use crate::plugins::sidecar;
 use crate::plugins::sidecar::SidecarStream;
 use crate::sv::pano::{PanoAnswer, PanoQuery};
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
+use mma_algebra::Id;
 
 /// One location's answer from a procedure, as the JSON its module emitted.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ResultEntry {
-    pub id: u32,
+    pub id: Id<Location>,
     pub json: String,
 }
 
@@ -71,7 +72,7 @@ pub trait ProcHost {
         sidecar::sidecar_call_stream(plugin_id, command, payload_json)
     }
     fn progress(&mut self, units: u32);
-    fn fail(&mut self, id: u32);
+    fn fail(&mut self, id: Id<Location>);
     fn aborted(&self) -> bool;
 }
 

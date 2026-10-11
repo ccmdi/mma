@@ -1,8 +1,7 @@
 //! Undo and redo by replaying edits forward or in reverse.
 
 use super::*;
-use crate::types::wire_str_enum;
-use crate::types::Location;
+use crate::types::{wire_str_enum, Location};
 use mma_algebra::{ordered_rows, Change, Delta, Id};
 use mma_fields::Delta;
 use std::sync::Arc;
@@ -183,9 +182,13 @@ impl EditStacks {
 /// base rows, uncommitted overlay adds, and ids replayable from persisted undo/redo
 /// (replay resurrects locations with their original ids; re-allocating one would
 /// create a duplicate and break the strictly-sorted bake invariant).
-pub(crate) fn seed_next_id(base_max: u32, adds: &[Location], history_max: u32) -> u32 {
-    let max_add = adds.iter().map(|l| l.id).max().unwrap_or(0);
-    base_max.max(max_add).max(history_max) + 1
+pub(crate) fn seed_next_id(
+    base_max: Id<Location>,
+    adds: &[Location],
+    history_max: Id<Location>,
+) -> Id<Location> {
+    let max_add = adds.iter().map(|l| l.id).max().unwrap_or(Id::UNSET);
+    Id::new(base_max.max(max_add).max(history_max).get() + 1)
 }
 
 impl EditStacks {

@@ -24,6 +24,7 @@ mod geometry;
 pub(crate) mod neighborhood;
 mod partition;
 pub(crate) mod tree;
+use crate::store::id_set::IdSet;
 pub use duplicates::*;
 pub use filter::*;
 pub(crate) use geometry::*;
@@ -35,7 +36,6 @@ pub(crate) use mma_geo::{
 pub(crate) use mma_geo::{point_in_ring, unwrap_ring};
 pub use partition::*;
 use rayon::prelude::*;
-use roaring::RoaringBitmap;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
@@ -46,7 +46,7 @@ use std::collections::HashMap;
 #[serde(tag = "type")]
 pub enum Selector<S = Selection> {
     Locations {
-        locations: Vec<u32>,
+        locations: Vec<Id<Location>>,
         name: Option<String>,
     },
     Everything,
@@ -58,18 +58,18 @@ pub enum Selector<S = Selection> {
     },
     Uncommitted,
     Manual {
-        locations: Vec<u32>,
+        locations: Vec<Id<Location>>,
     },
     Duplicates {
         distance: f64,
     },
     Validation {
-        locations: Vec<u32>,
+        locations: Vec<Id<Location>>,
         category: String,
     },
     #[serde(rename_all = "camelCase")]
     Reviewed {
-        locations: Vec<u32>,
+        locations: Vec<Id<Location>>,
         session_id: String,
         mode: String,
     },
@@ -505,8 +505,8 @@ impl Selector {
 pub struct FieldIndex {
     pub shape: IndexShape,
     /// Rows holding a value for the field.
-    pub rows: RoaringBitmap,
-    pub by_value: HashMap<String, RoaringBitmap>,
+    pub rows: IdSet<Location>,
+    pub by_value: HashMap<String, IdSet<Location>>,
 }
 
 impl FieldIndex {
@@ -519,11 +519,11 @@ impl FieldIndex {
         })
     }
 
-    fn mark(&mut self, id: u32, keys: &Option<Vec<String>>, present: bool) {
+    fn mark(&mut self, id: Id<Location>, keys: &Option<Vec<String>>, present: bool) {
         let Some(keys) = keys else {
             return;
         };
-        let mark = |ids: &mut RoaringBitmap| {
+        let mark = |ids: &mut IdSet<Location>| {
             if present {
                 ids.insert(id);
             } else {
@@ -536,20 +536,23 @@ impl FieldIndex {
         }
     }
 
-    pub fn insert(&mut self, id: u32, value: &serde_json::Value) {
+    pub fn insert(&mut self, id: Id<Location>, value: &serde_json::Value) {
         let keys = self.contribution(Some(value));
         self.mark(id, &keys, true);
     }
 
-    pub fn project<T: Keyed<Key = u32>>(
+    pub fn project<T: Keyed<Key = Id<Location>>>(
         &self,
         change: &Change<T>,
         value: impl Fn(&T) -> Option<serde_json::Value>,
-    ) -> Change<(u32, Option<Vec<String>>)> {
+    ) -> Change<(Id<Location>, Option<Vec<String>>)> {
         change.project(|row| (row.key(), self.contribution(value(row).as_ref())))
     }
 
-    pub fn apply(&mut self, change: &Change<(u32, Option<Vec<String>>)>) -> BTreeSet<String> {
+    pub fn apply(
+        &mut self,
+        change: &Change<(Id<Location>, Option<Vec<String>>)>,
+    ) -> BTreeSet<String> {
         let mut moved = BTreeSet::new();
         for (rows, present) in [
             (change.before().collect::<Vec<_>>(), false),
@@ -565,7 +568,7 @@ impl FieldIndex {
 
     pub fn absent_after(
         &self,
-        change: &Change<(u32, Option<Vec<String>>)>,
+        change: &Change<(Id<Location>, Option<Vec<String>>)>,
         touched: impl IntoIterator<Item = String>,
     ) -> std::collections::HashSet<String> {
         let mut counts =
@@ -619,8 +622,8 @@ pub fn index_keys(shape: IndexShape, v: &serde_json::Value) -> Vec<String> {
 /// references, so a copy costs nothing.
 #[derive(Clone, Copy)]
 pub struct LocView<'a> {
-    dead: &'a RoaringBitmap,
-    patches: &'a HashMap<u32, Location>,
+    dead: &'a IdSet<Location>,
+    patches: &'a HashMap<Id<Location>, Location>,
     adds: &'a [Location],
     /// The base batch's columns, downcast once.
     cols: Option<Columns<'a>>,
@@ -630,7 +633,7 @@ pub struct LocView<'a> {
     field_indexes: Option<&'a FieldIndexes>,
     /// The synced selected-id set, which a `Selected` leaf borrows instead of
     /// re-resolving the live selection tree.
-    selected: Option<&'a RoaringBitmap>,
+    selected: Option<&'a IdSet<Location>>,
     /// The store's spatial index, when built: the candidates a distance node tests.
     spatial: Option<&'a SpatialIndex>,
 }
@@ -759,13 +762,16 @@ impl<'a> LocView<'a> {
     }
 
     /// Resolve selection memberships and per-node counts. Child counts are independent of their parents.
-    pub fn resolve_forest(&self, sels: &[Selection]) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+    pub fn resolve_forest(
+        &self,
+        sels: &[Selection],
+    ) -> (Vec<IdSet<Location>>, HashMap<String, u32>) {
         let scope = self.all();
         let mut counts = HashMap::new();
         let sets = sels
             .iter()
             .map(|selection| {
-                selection.fold(&mut |node, children: Vec<RoaringBitmap>| {
+                selection.fold(&mut |node, children: Vec<IdSet<Location>>| {
                     let set = match &node.selector {
                         Selector::Intersection { .. } => children
                             .into_iter()
@@ -773,7 +779,7 @@ impl<'a> LocView<'a> {
                             .unwrap_or_default(),
                         Selector::Union { .. } => children
                             .into_iter()
-                            .fold(RoaringBitmap::new(), |left, right| left | right),
+                            .fold(IdSet::new(), |left, right| left | right),
                         Selector::Invert { .. } => match children.into_iter().next() {
                             Some(first) => scope.ids() - first,
                             None => scope.ids(),
@@ -800,11 +806,11 @@ impl<'a> LocView<'a> {
 
     pub fn new(
         batch: Option<&'a RecordBatch>,
-        dead: &'a RoaringBitmap,
-        patches: &'a HashMap<u32, Location>,
+        dead: &'a IdSet<Location>,
+        patches: &'a HashMap<Id<Location>, Location>,
         adds: &'a [Location],
         field_indexes: Option<&'a FieldIndexes>,
-        selected: Option<&'a RoaringBitmap>,
+        selected: Option<&'a IdSet<Location>>,
         spatial: Option<&'a SpatialIndex>,
     ) -> Self {
         Self {
@@ -824,8 +830,8 @@ impl<'a> LocView<'a> {
     }
 
     /// Read the raw batch ID at row `i` (no overlay check).
-    fn batch_id(&self, i: usize) -> u32 {
-        self.cols.unwrap().id.value(i)
+    fn batch_id(&self, i: usize) -> Id<Location> {
+        Id::new(self.cols.unwrap().id.value(i))
     }
 
     /// Whether batch row `i` is alive (not in the dead set).
@@ -857,7 +863,7 @@ impl<'a> LocView<'a> {
         }
     }
 
-    pub fn get(&self, id: u32) -> Option<RowRef<'a, '_>> {
+    pub fn get(&self, id: Id<Location>) -> Option<RowRef<'a, '_>> {
         if self.dead.contains(id) {
             return None;
         }
@@ -936,12 +942,12 @@ fn test_row(r: &RowRef, selector: &Selector) -> bool {
 }
 
 /// A spaced pick's ids, or none when its thinning is out of range.
-fn picked(r: types::AppResult<SpacedPickResult>) -> RoaringBitmap {
+fn picked(r: types::AppResult<SpacedPickResult>) -> IdSet<Location> {
     match r {
         Ok(r) => r.ids.into_iter().collect(),
         Err(e) => {
             log::warn!("[selections] {e}");
-            RoaringBitmap::new()
+            IdSet::new()
         }
     }
 }
@@ -980,7 +986,7 @@ where
 #[derive(Clone)]
 pub struct Scope<'v, 'a> {
     view: LocView<'a>,
-    rows: Option<Cow<'v, RoaringBitmap>>,
+    rows: Option<Cow<'v, IdSet<Location>>>,
 }
 
 impl<'v, 'a> Scope<'v, 'a> {
@@ -1014,27 +1020,31 @@ impl<'v, 'a> Scope<'v, 'a> {
         let close = |row: RowRef<'_, '_>| distance.score(&row) <= radius_m;
         if let Some(index) = self.view.spatial {
             return index.any_candidate(lat, lng, radius_m, |id| {
-                if self.rows.as_deref().is_some_and(|rows| !rows.contains(id)) {
+                if self
+                    .rows
+                    .as_deref()
+                    .is_some_and(|rows| !rows.contains(Id::new(id)))
+                {
                     return false;
                 }
-                self.view.get(id).is_some_and(close)
+                self.view.get(Id::new(id)).is_some_and(close)
             });
         }
         self.rows().any(close)
     }
 
     /// The ids in scope.
-    pub fn ids(&self) -> RoaringBitmap {
+    pub fn ids(&self) -> IdSet<Location> {
         self.rows().map(|r| r.id()).collect()
     }
 
     /// Whether the scope holds no rows at all.
     pub fn is_empty(&self) -> bool {
-        self.rows.as_deref().is_some_and(RoaringBitmap::is_empty)
+        self.rows.as_deref().is_some_and(IdSet::is_empty)
     }
 
     /// The rows of `set` that are in scope.
-    fn clip(&self, set: RoaringBitmap) -> RoaringBitmap {
+    fn clip(&self, set: IdSet<Location>) -> IdSet<Location> {
         match self.rows.as_deref() {
             Some(rows) => set & rows,
             None => set,
@@ -1042,12 +1052,12 @@ impl<'v, 'a> Scope<'v, 'a> {
     }
 
     /// The rows in scope `test` keeps. Over the whole map the batch is tested in parallel.
-    pub fn keep(&self, test: impl Fn(&RowRef) -> bool + Sync + Send) -> RoaringBitmap {
+    pub fn keep(&self, test: impl Fn(&RowRef) -> bool + Sync + Send) -> IdSet<Location> {
         if self.rows.is_some() {
             return self.rows().filter(|r| test(r)).map(|r| r.id()).collect();
         }
         let view = &self.view;
-        let base: Vec<u32> = (0..view.batch_rows())
+        let base: Vec<Id<Location>> = (0..view.batch_rows())
             .into_par_iter()
             .with_min_len(CHUNK_SIZE)
             .filter_map(|i| {
@@ -1060,7 +1070,7 @@ impl<'v, 'a> Scope<'v, 'a> {
     }
 
     /// The rows of `set` in this scope.
-    pub fn within<'s>(&self, set: &'s RoaringBitmap) -> Scope<'s, 'a> {
+    pub fn within<'s>(&self, set: &'s IdSet<Location>) -> Scope<'s, 'a> {
         Scope {
             view: self.view,
             rows: Some(match self.rows.as_deref() {
@@ -1097,16 +1107,16 @@ impl<'v, 'a> Scope<'v, 'a> {
     /// intersection narrows the scope child by child, so `page AND has(field)` costs the
     /// page, not the map. Duplicates and top-k depend on rows outside the scope, so they
     /// resolve over the whole map and are clipped to it.
-    fn resolve(&self, selector: &Selector) -> RoaringBitmap {
+    fn resolve(&self, selector: &Selector) -> IdSet<Location> {
         match selector {
             Selector::Everything => self.ids(),
             Selector::Selected => match self.view.selected {
                 Some(ids) => self.within(ids).ids(),
-                None => RoaringBitmap::new(),
+                None => IdSet::new(),
             },
             Selector::Intersection { selections } => {
                 if selections.is_empty() {
-                    return RoaringBitmap::new();
+                    return IdSet::new();
                 }
                 let mut scope = self.clone();
                 for s in selections {
@@ -1117,11 +1127,9 @@ impl<'v, 'a> Scope<'v, 'a> {
                 }
                 scope.ids()
             }
-            Selector::Union { selections } => {
-                selections.iter().fold(RoaringBitmap::new(), |acc, s| {
-                    acc | self.resolve(&s.selector)
-                })
-            }
+            Selector::Union { selections } => selections
+                .iter()
+                .fold(IdSet::new(), |acc, s| acc | self.resolve(&s.selector)),
             Selector::Invert { selections } => match selections.first() {
                 Some(first) => self.ids() - self.resolve(&first.selector),
                 None => self.ids(),
@@ -1130,14 +1138,14 @@ impl<'v, 'a> Scope<'v, 'a> {
             | Selector::Manual { locations }
             | Selector::Validation { locations, .. }
             | Selector::Reviewed { locations, .. } => {
-                let ids: RoaringBitmap = locations.iter().copied().collect();
+                let ids: IdSet<Location> = locations.iter().copied().collect();
                 self.within(&ids).ids()
             }
             Selector::Filter { field, test } => self
                 .indexed(field, test)
                 .unwrap_or_else(|| self.keep(|r| test_row(r, selector))),
             Selector::Polygon { polygon } => match geometry_bbox(polygon) {
-                None => RoaringBitmap::new(),
+                None => IdSet::new(),
                 Some(bb) => {
                     let prepared = polygon.prepared();
                     self.keep(|r| {
@@ -1216,7 +1224,7 @@ impl<'v, 'a> Scope<'v, 'a> {
     /// the field, equality on a scalar and membership in a list from the postings. Every
     /// row move updates the index beside the mutation, so the set is already the answer.
     /// `None` when the field has no index or the operator is not a lookup and needs a scan.
-    fn indexed(&self, field: &str, test: &FilterOp) -> Option<RoaringBitmap> {
+    fn indexed(&self, field: &str, test: &FilterOp) -> Option<IdSet<Location>> {
         let index = self.view.field_indexes?.get(field)?;
         Some(match (index.shape, test) {
             (_, FilterOp::Has) => self.clip(index.rows.clone()),
@@ -1251,7 +1259,7 @@ impl<'v, 'a> Scope<'v, 'a> {
         score: impl Fn(&RowRef) -> Option<f64>,
         take: Option<usize>,
         ascending: bool,
-    ) -> Vec<u32> {
+    ) -> Vec<Id<Location>> {
         rank_by(self.rows(), take, score, |a, b| {
             let order = a.total_cmp(b);
             if ascending {
@@ -1265,7 +1273,7 @@ impl<'v, 'a> Scope<'v, 'a> {
         .collect()
     }
 
-    pub fn ranked(&self, expr: &str, take: Option<usize>, ascending: bool) -> Vec<u32> {
+    pub fn ranked(&self, expr: &str, take: Option<usize>, ascending: bool) -> Vec<Id<Location>> {
         let expr = field_expr::parse(expr).ok();
         self.rank_by(
             |row| {
@@ -1279,8 +1287,8 @@ impl<'v, 'a> Scope<'v, 'a> {
 
     /// `n` distinct ids in scope drawn uniformly at random. Partial Fisher-Yates, so drawing
     /// 5 from a million swaps 5 entries rather than shuffling the pool.
-    pub fn sample(&self, n: usize) -> Vec<u32> {
-        let mut ids: Vec<u32> = self.rows().map(|r| r.id()).collect();
+    pub fn sample(&self, n: usize) -> Vec<Id<Location>> {
+        let mut ids: Vec<Id<Location>> = self.rows().map(|r| r.id()).collect();
         let k = n.min(ids.len());
         for i in 0..k {
             let j = i + fastrand::usize(..ids.len() - i);
@@ -1306,7 +1314,7 @@ impl<'v, 'a> Scope<'v, 'a> {
 }
 
 /// Every alive row within `distance` metres of another, over the whole map.
-fn duplicates(view: &LocView, distance: f64) -> RoaringBitmap {
+fn duplicates(view: &LocView, distance: f64) -> IdSet<Location> {
     let mut mask = vec![false; view.batch_rows() + view.adds.len()];
     find_duplicates_bitmask(view, distance, &mut mask);
     let base = (0..view.batch_rows())

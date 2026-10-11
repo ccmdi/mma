@@ -1,4 +1,6 @@
 use super::*;
+use crate::types::Location;
+use mma_algebra::Id;
 use serde_json::Value as Json;
 use std::fs;
 use std::time::Instant;
@@ -111,8 +113,8 @@ impl ProcHost for MockProcHost {
         self.trace.lock().unwrap().push("progress");
         self.progress.push(units);
     }
-    fn fail(&mut self, id: u32) {
-        self.failed.push(id);
+    fn fail(&mut self, id: Id<Location>) {
+        self.failed.push(id.get());
     }
     fn emitter(&self) -> Option<Arc<crate::procedure::engine::Partials>> {
         self.partials.clone()
@@ -214,7 +216,7 @@ fn rows_arrive_as_parsed_objects() {
     let patches = proc
         .map(&rows(), &mut host, NULL_CONFIG)
         .expect("map succeeds");
-    assert_eq!(patches[0].id, 7);
+    assert_eq!(patches[0].id, Id::new(7));
     assert_eq!(
         extra(&patches),
         serde_json::json!({
@@ -237,12 +239,12 @@ fn run_answers_with_patches() {
         .run(&rows(), &mut host, NULL_CONFIG)
         .expect("run succeeds");
     assert_eq!(patches.len(), 2);
-    assert_eq!(patches[0].id, 7);
+    assert_eq!(patches[0].id, Id::new(7));
     assert_eq!(patches[0].json, r#"{"lat":9.5,"panoId":null}"#);
     assert_eq!(
         patches[1],
         ResultEntry {
-            id: 42,
+            id: Id::new(42),
             json: r#"{"extra":{"a":1}}"#.into()
         }
     );
@@ -449,7 +451,7 @@ fn emit_reaches_the_hosts_emitter() {
     let pages = pages.lock().unwrap();
     assert_eq!(pages.len(), 1);
     assert_eq!(pages[0].run_id, 3);
-    assert_eq!(pages[0].entries[0].id, 5);
+    assert_eq!(pages[0].entries[0].id, Id::new(5));
     assert_eq!(pages[0].entries[0].json, r#"{"hello":"world"}"#);
 }
 

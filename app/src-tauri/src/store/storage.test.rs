@@ -2,11 +2,10 @@ use super::*;
 use crate::store::arrow;
 use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
 use crate::test_util::{tag_ids, TempDir};
-use crate::types::AppError;
-use crate::types::Location;
-use crate::types::LocationFlags;
+use crate::types::{AppError, Location, LocationFlags};
 use crate::util;
 use crate::util::sha256_hex;
+use mma_algebra::Id;
 use rusqlite::Connection;
 use std::collections::BTreeSet;
 use std::collections::HashSet;
@@ -17,7 +16,7 @@ use std::path::PathBuf;
 
 fn sample_loc() -> Location {
     Location {
-        id: 42,
+        id: Id::new(42),
         lat: 48.8566,
         lng: 2.3522,
         heading: 90.0,
@@ -57,7 +56,7 @@ fn timestamps_serialize_as_numbers_not_iso() {
 #[test]
 fn location_data_null_optionals() {
     let loc = Location {
-        id: 1,
+        id: Id::new(1),
         ..Default::default()
     };
     let json = serde_json::to_string(&loc).unwrap();
@@ -71,7 +70,7 @@ fn location_data_null_optionals() {
 fn location_data_id_defaults_to_zero() {
     let json = r#"{"id":0,"lat":0,"lng":0,"heading":0,"pitch":0,"zoom":0,"panoId":null,"flags":0,"tags":[],"extra":null,"createdAt":0,"modifiedAt":null}"#;
     let loc: Location = serde_json::from_str(json).unwrap();
-    assert_eq!(loc.id, 0);
+    assert_eq!(loc.id, Id::new(0));
 }
 
 // -----------------------------------------------------------------------
@@ -190,7 +189,7 @@ fn make_test_batch(ids: &[u32]) -> arrow_array::RecordBatch {
     let locs: Vec<Location> = ids
         .iter()
         .map(|&id| Location {
-            id,
+            id: Id::new(id),
             lat: id as f64,
             lng: id as f64 * 2.0,
             zoom: 1.0,
@@ -285,12 +284,12 @@ fn mmap_handle_drop_allows_overwrite() {
 fn mmap_preserves_nullable_fields() {
     let locs = vec![
         Location {
-            id: 1,
+            id: Id::new(1),
             created_at: util::iso_to_unix("2024-01-01T00:00:00Z").unwrap() as u32,
             ..Default::default()
         },
         Location {
-            id: 2,
+            id: Id::new(2),
             lat: 1.0,
             lng: 1.0,
             pano_id: Some("abc".into()),

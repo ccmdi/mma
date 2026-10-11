@@ -1,5 +1,6 @@
 use super::*;
 use crate::util::Rgb;
+use mma_algebra::Id;
 use std::sync::{Arc, Mutex};
 
 /// Read a frame back off the wire, asserting every array starts 4-byte aligned. The page
@@ -20,8 +21,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Frame {
             CellFrame {
                 cell: h[0] as u8,
                 remove: read.u32s(h[1] as usize),
-                add: read.rows(h[2] as usize),
-                patch: read.rows(h[3] as usize),
+                add: read.rows(h[2] as usize, Id::new),
+                patch: read.rows(h[3] as usize, |key| key),
             }
         })
         .collect();
@@ -66,9 +67,9 @@ impl Reader<'_> {
         self.u32s(n).into_iter().map(f32::from_bits).collect()
     }
 
-    fn rows(&mut self, n: usize) -> Rows {
+    fn rows<K: Default>(&mut self, n: usize, key: impl Fn(u32) -> K) -> Rows<K> {
         Rows {
-            key: self.u32s(n),
+            key: self.u32s(n).into_iter().map(key).collect(),
             pos: self.f32s(n * 2),
             angle: self.f32s(n),
             sel: self.u32s(n).into_iter().map(PaletteIdx).collect(),
@@ -105,10 +106,13 @@ impl Captured {
     }
 }
 
-fn rows(entries: &[(u32, f32, f32, f32, PaletteIdx)]) -> Rows {
+fn rows<K: Default>(
+    entries: &[(u32, f32, f32, f32, PaletteIdx)],
+    convert: impl Fn(u32) -> K,
+) -> Rows<K> {
     let mut r = Rows::default();
     for &(key, lng, lat, angle, sel) in entries {
-        r.key.push(key);
+        r.key.push(convert(key));
         r.pos.extend([lng, lat]);
         r.angle.push(angle);
         r.sel.push(sel);
@@ -125,16 +129,19 @@ fn sample_frame() -> Frame {
             CellFrame {
                 cell: 3,
                 remove: vec![2, 0],
-                add: rows(&[
-                    (11, 1.5, -2.5, 90.0, PaletteIdx(0)),
-                    (12, 3.0, 4.0, 0.0, PaletteIdx::NONE),
-                ]),
-                patch: rows(&[(1, 5.0, 6.0, -45.0, PaletteIdx::NONE)]),
+                add: rows(
+                    &[
+                        (11, 1.5, -2.5, 90.0, PaletteIdx(0)),
+                        (12, 3.0, 4.0, 0.0, PaletteIdx::NONE),
+                    ],
+                    Id::new,
+                ),
+                patch: rows(&[(1, 5.0, 6.0, -45.0, PaletteIdx::NONE)], |key| key),
             },
             CellFrame {
                 cell: 31,
                 remove: vec![],
-                add: rows(&[(13, 7.0, 8.0, 0.0, PaletteIdx(0))]),
+                add: rows(&[(13, 7.0, 8.0, 0.0, PaletteIdx(0))], Id::new),
                 patch: Rows::default(),
             },
         ],

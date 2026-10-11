@@ -9,8 +9,7 @@ use crate::store::maps;
 use crate::store::maps::VirtualTag;
 use crate::store::maps::{MapPreferences, MapSettings};
 use crate::test_util::tag_ids;
-use crate::types::RawExtra;
-use crate::types::{Location, LocationFlags};
+use crate::types::{Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use std::collections::HashMap;
@@ -32,7 +31,7 @@ fn tag(id: u32, name: &str) -> ValueRecord {
 
 fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
     Location {
-        id,
+        id: Id::new(id),
         zoom: 1.0,
         tags: tag_ids(tags),
         ..Default::default()
@@ -908,7 +907,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let second = store.collect(
         &target,
         &crate::selections::Selector::Locations {
-            locations: (&[first_id + 1]).to_vec(),
+            locations: vec![Id::new(first_id.get() + 1)],
             name: None,
         },
     )[0]

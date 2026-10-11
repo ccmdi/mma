@@ -13,9 +13,7 @@ pub(crate) mod remote_mapping;
 
 use crate::store::engine::ValueRecord;
 use crate::types::shape::{MapPart, MapShape};
-use crate::types::wire_str_enum;
-use crate::types::AppResult;
-use crate::types::{Location, LocationFlags};
+use crate::types::{wire_str_enum, AppResult, Location, LocationFlags};
 use mma_algebra::{canonical, Id};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -126,12 +124,13 @@ pub fn has_pano(pano: &Option<String>) -> bool {
 /// identity-keyed; it never matches by content on its own.
 pub type IdentityKey = String;
 
-pub fn local_key(local_id: u32) -> IdentityKey {
+pub fn local_key(local_id: Id<Location>) -> IdentityKey {
     format!("L:{local_id}")
 }
 
-pub fn parse_local_key(key: &str) -> Option<u32> {
-    key.strip_prefix("L:").and_then(|s| s.parse().ok())
+pub fn parse_local_key(key: &str) -> Option<Id<Location>> {
+    key.strip_prefix("L:")
+        .and_then(|s| s.parse::<u32>().ok().map(Id::new))
 }
 
 /// Canonical comparable key: equal keys means the same location on the synced contract.
@@ -313,13 +312,13 @@ pub struct RemoteTag {
 /// locations passed through untouched.
 pub struct DesiredEntry<R> {
     pub item: R,
-    pub local_id: Option<u32>,
+    pub local_id: Option<Id<Location>>,
 }
 
 /// A push expressed two ways; a provider uses whichever its API speaks.
 pub struct PushBatch<R> {
-    pub create: Vec<(u32, R)>,
-    pub update: Vec<(u32, R, R)>, // (local_id, item, replaces)
+    pub create: Vec<(Id<Location>, R)>,
+    pub update: Vec<(Id<Location>, R, R)>, // (local_id, item, replaces)
     pub delete: Vec<R>,
     /// Complete desired remote state, in the order it should be written.
     pub desired: Vec<DesiredEntry<R>>,
@@ -329,7 +328,7 @@ pub struct PushBatch<R> {
 /// EVERY desired entry with a local id (rewriting the document reindexes everything).
 #[derive(Clone, Copy, Debug)]
 pub struct PushedId {
-    pub local_id: u32,
+    pub local_id: Id<Location>,
     pub remote_id: i64,
 }
 

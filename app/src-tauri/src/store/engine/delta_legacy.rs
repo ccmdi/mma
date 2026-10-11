@@ -13,6 +13,7 @@ use super::{set_aside_delta, Overlay, StoreWarning};
 use crate::store::arrow;
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
+use mma_algebra::Id;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -27,7 +28,7 @@ static SET_ASIDE: AtomicBool = AtomicBool::new(false);
 #[cfg_attr(test, derive(serde::Serialize))]
 struct MsgpackDelta {
     adds: Vec<Location>,
-    dead_ids: Vec<u32>,
+    dead_ids: Vec<Id<Location>>,
     patches: Vec<Location>,
 }
 

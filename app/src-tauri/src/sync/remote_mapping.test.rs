@@ -1,4 +1,6 @@
 use super::*;
+use crate::test_util::loc_ids;
+use mma_algebra::Id;
 use rusqlite::Connection;
 
 fn setup() -> Connection {
@@ -19,7 +21,7 @@ fn setup() -> Connection {
 
 fn row(local_id: u32, remote_id: i64, hash: &str) -> RemoteMappingRow {
     RemoteMappingRow {
-        local_id,
+        local_id: Id::new(local_id),
         remote_id,
         hash: hash.into(),
     }
@@ -66,12 +68,12 @@ fn delete_removes_only_named_rows() {
         &[row(1, 10, "a"), row(2, 20, "b"), row(3, 30, "c")],
     )
     .unwrap();
-    delete(&mut conn, P, "map-a", &[2]).unwrap();
+    delete(&mut conn, P, "map-a", &[Id::new(2)]).unwrap();
     let mut got = get(&conn, P, "map-a").unwrap();
     got.sort_by_key(|r| r.local_id);
     assert_eq!(
         got.iter().map(|r| r.local_id).collect::<Vec<_>>(),
-        vec![1, 3]
+        loc_ids([1, 3])
     );
 }
 

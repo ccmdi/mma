@@ -2,6 +2,7 @@ use super::*;
 use crate::net::proxy;
 use crate::sync::sync_key;
 use crate::types::ErrCode;
+use mma_algebra::Id;
 use reqwest::blocking::Response;
 use std::env;
 use std::slice;
@@ -456,7 +457,7 @@ mod live {
                 c.lng = -70.0 + i as f64 * 0.001;
                 DesiredEntry {
                     item: c,
-                    local_id: Some(i as u32),
+                    local_id: Some(Id::new(i as u32)),
                 }
             })
             .collect();

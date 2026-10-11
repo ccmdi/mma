@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::maps::{ComparisonType, FieldDef, FieldType};
-use crate::types::{AppError, AppResult, Location, RawExtra};
+use crate::types::{location_fields, AppError, AppResult, Location, RawExtra};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use mma_algebra::Patch;
 use serde::Serialize;
@@ -158,6 +158,9 @@ macro_rules! field_value {
     (f64, $r:ident, $c:ident, $f:ident) => {
         Some(serde_json::json!($r.$c()))
     };
+    (id, $r:ident, $c:ident, $f:ident) => {
+        Some(serde_json::json!($r.$c()))
+    };
     (u32, $r:ident, $c:ident, $f:ident) => {
         Some(serde_json::json!($r.$c()))
     };
@@ -234,7 +237,6 @@ macro_rules! expand_location_fields {
     };
 }
 
-use crate::types::location_fields;
 location_fields!(expand_location_fields);
 
 struct Builtins {

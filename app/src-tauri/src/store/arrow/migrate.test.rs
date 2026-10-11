@@ -6,12 +6,13 @@ use crate::types::Location;
 use crate::util;
 use arrow_array::{Array, ArrayRef, RecordBatch, StringArray, UInt32Array, UInt8Array};
 use arrow_schema::{DataType, Field, Schema};
+use mma_algebra::Id;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 fn loc(id: u32) -> Location {
     Location {
-        id,
+        id: Id::new(id),
         lat: 1.0,
         lng: 2.0,
         tags: tag_ids([1]),

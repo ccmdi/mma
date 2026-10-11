@@ -3,10 +3,10 @@
 use crate::selections::{FieldIndexes, LocView};
 use crate::store::arrow;
 use crate::store::engine::ValueRecord;
+use crate::store::id_set::IdSet;
 use crate::types::Location;
 use arrow_array::RecordBatch;
 use mma_algebra::Id;
-use roaring::RoaringBitmap;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -17,7 +17,7 @@ use std::path::PathBuf;
 /// A location at `(lat, lng)` with default everything else.
 pub(crate) fn loc(id: u32, lat: f64, lng: f64) -> Location {
     Location {
-        id,
+        id: Id::new(id),
         lat,
         lng,
         zoom: 1.0,
@@ -27,6 +27,10 @@ pub(crate) fn loc(id: u32, lat: f64, lng: f64) -> Location {
 
 /// Typed value ids from raw numbers.
 pub(crate) fn tag_ids(raw: impl IntoIterator<Item = u32>) -> Vec<Id<ValueRecord>> {
+    raw.into_iter().map(Id::new).collect()
+}
+
+pub(crate) fn loc_ids(raw: impl IntoIterator<Item = u32>) -> Vec<Id<Location>> {
     raw.into_iter().map(Id::new).collect()
 }
 
@@ -68,10 +72,10 @@ impl Drop for TempDir {
 #[derive(Default)]
 pub(crate) struct Fx {
     pub batch: Option<RecordBatch>,
-    pub dead: RoaringBitmap,
-    pub patches: HashMap<u32, Location>,
+    pub dead: IdSet<Location>,
+    pub patches: HashMap<Id<Location>, Location>,
     pub adds: Vec<Location>,
-    pub selected: Option<RoaringBitmap>,
+    pub selected: Option<IdSet<Location>>,
 }
 
 impl Fx {
@@ -101,17 +105,17 @@ impl Fx {
     }
 
     pub(crate) fn with_dead(mut self, ids: impl IntoIterator<Item = u32>) -> Self {
-        self.dead.extend(ids);
+        self.dead.extend(ids.into_iter().map(Id::new));
         self
     }
 
     pub(crate) fn with_patch(mut self, id: u32, loc: Location) -> Self {
-        self.patches.insert(id, loc);
+        self.patches.insert(Id::new(id), loc);
         self
     }
 
     pub(crate) fn with_selected(mut self, ids: impl IntoIterator<Item = u32>) -> Self {
-        self.selected = Some(ids.into_iter().collect());
+        self.selected = Some(ids.into_iter().map(Id::new).collect());
         self
     }
 
@@ -143,7 +147,7 @@ impl Fx {
 macro_rules! patch {
     ($id:expr; $($field:ident: $value:expr),* $(,)?) => {
         mma_algebra::Patch::<crate::types::Location> {
-            id: $id,
+            id: Id::new($id),
             $($field: $value.into(),)*
             ..Default::default()
         }

@@ -2,14 +2,14 @@
 use super::*;
 use crate::store::arrow::locations_to_batch;
 use crate::store::engine::merge_group;
+use crate::store::id_set::IdSet;
 use crate::store::maps::{FieldDef, FieldType};
-use crate::test_util::{loc, tag_ids, Fx};
-use crate::types::AppResult;
-use crate::types::Location;
-use crate::types::RawExtra;
+use crate::test_util::{loc, loc_ids, tag_ids, Fx};
+use crate::types::{AppResult, Location, RawExtra};
 use crate::util::Rgb;
 use chrono::TimeZone;
 use chrono::Utc;
+use mma_algebra::Id;
 use std::collections::HashSet;
 use std::iter;
 use std::slice;
@@ -29,7 +29,7 @@ fn for_each_visits_alive_overlay_applied() {
 
     let mut seen: Vec<(u32, f64, f64)> = Vec::new();
     for row in view.all().rows() {
-        seen.push((row.id(), row.lat(), row.lng()));
+        seen.push((row.id().get(), row.lat(), row.lng()));
     }
 
     // id 1 from base, id 2 skipped (dead), id 3 with patched coords, id 4 the add.
@@ -46,17 +46,21 @@ fn within_iterates_resolved_set_in_view_order() {
         .with_dead([2]);
     let view = fx.view();
 
-    let ids = |set: Option<&RoaringBitmap>| {
+    let ids = |set: Option<&IdSet<Location>>| {
         let scope = match set {
             Some(s) => view.all().within(s),
             None => view.all(),
         };
-        scope.rows().map(|r| r.id()).collect::<Vec<u32>>()
+        scope
+            .rows()
+            .map(|r| r.id())
+            .map(Id::get)
+            .collect::<Vec<u32>>()
     };
     assert_eq!(ids(None), vec![1, 3, 4]);
-    let set: RoaringBitmap = [4u32, 1].into_iter().collect();
+    let set: IdSet<Location> = [4u32, 1].into_iter().map(Id::new).collect();
     assert_eq!(ids(Some(&set)), vec![1, 4]);
-    assert_eq!(ids(Some(&RoaringBitmap::new())), Vec::<u32>::new());
+    assert_eq!(ids(Some(&IdSet::new())), Vec::<u32>::new());
 }
 
 #[test]
@@ -67,14 +71,24 @@ fn within_sparse_applies_overlay_and_preserves_view_order() {
         .with_dead([500])
         .with_patch(750, loc(750, 7_500.0, 0.0));
     let view = fx.view();
-    let set: RoaringBitmap = [1, 500, 750, 1_001, 9_999].into_iter().collect();
+    let set: IdSet<Location> = [1, 500, 750, 1_001, 9_999]
+        .into_iter()
+        .map(Id::new)
+        .collect();
 
     let mut rows = Vec::new();
     for row in view.all().within(&set).rows() {
         rows.push((row.id(), row.lat()));
     }
 
-    assert_eq!(rows, vec![(1, 1.0), (750, 7_500.0), (1_001, 1_001.0)]);
+    assert_eq!(
+        rows,
+        vec![
+            (Id::new(1), 1.0),
+            (Id::new(750), 7_500.0),
+            (Id::new(1_001), 1_001.0)
+        ]
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -244,7 +258,7 @@ fn polygon_resolve_matches_full_test_with_bbox_reject() {
     // Cross-check: resolve agrees with point_in_geometry applied directly.
     for l in &fx.adds {
         let want = point_in_geometry(l.lng, l.lat, &geom);
-        assert_eq!(ids.contains(&l.id), want, "mismatch for loc {}", l.id);
+        assert_eq!(ids.contains(&l.id.get()), want, "mismatch for loc {}", l.id);
     }
 }
 
@@ -1004,7 +1018,7 @@ fn resolve_reviewed_is_an_id_set_leaf_over_batch() {
     let ids = ids_of(
         &view,
         &Selector::Reviewed {
-            locations: vec![2, 4],
+            locations: loc_ids([2, 4]),
             session_id: "abc".into(),
             mode: "reviewed".into(),
         },
@@ -1020,7 +1034,7 @@ fn resolve_reviewed_on_adds() {
     let ids = ids_of(
         &view,
         &Selector::Reviewed {
-            locations: vec![1, 3],
+            locations: loc_ids([1, 3]),
             session_id: "s".into(),
             mode: "unreviewed".into(),
         },
@@ -1038,7 +1052,7 @@ fn resolve_reviewed_on_adds() {
 /// ordinary `array`-field index, built the way the store builds one.
 fn tagged_batch_and_index(locs: &[Location]) -> (RecordBatch, FieldIndexes) {
     let batch = locations_to_batch(locs);
-    let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
+    let mut by_value: HashMap<String, IdSet<Location>> = HashMap::new();
     for l in locs {
         for &t in &l.tags {
             by_value
@@ -1081,7 +1095,7 @@ fn tag_index_matches_scan_path() {
 /// The postings as the store maintains them: built over the effective live view,
 /// overlay included, never over the base batch alone.
 fn live_tag_index(view: &LocView) -> FieldIndexes {
-    let mut by_value: HashMap<String, RoaringBitmap> = HashMap::new();
+    let mut by_value: HashMap<String, IdSet<Location>> = HashMap::new();
     for row in view.all().rows() {
         let id = row.id();
         for &t in row.tags() {
@@ -1584,6 +1598,7 @@ fn duplicates_bitmask_matches_flattened_groups() {
             .duplicate_groups(d)
             .into_iter()
             .flatten()
+            .map(Id::get)
             .collect();
         grouped.sort_unstable();
         assert_eq!(selected, grouped, "bitmask != groups at d={d}");
@@ -1618,14 +1633,14 @@ fn duplicates_match_brute_force_at_high_latitude() {
                 .fold(f64::INFINITY, f64::min);
             if nn <= d - 0.5 {
                 assert!(
-                    ids.contains(&a.id),
+                    ids.contains(&a.id.get()),
                     "missed dup id {} at lat0={} (nn={nn:.1}m)",
                     a.id,
                     lat0
                 );
             } else if nn >= d + 0.5 {
                 assert!(
-                    !ids.contains(&a.id),
+                    !ids.contains(&a.id.get()),
                     "false dup id {} at lat0={} (nn={nn:.1}m)",
                     a.id,
                     lat0
@@ -1703,7 +1718,7 @@ fn duplicate_groups_are_transitive() {
     let fx = Fx::adds(adds);
     let view = fx.view();
     let groups = view.all().duplicate_groups(2.0);
-    assert_eq!(groups, vec![vec![1, 2, 3]]);
+    assert_eq!(groups, vec![loc_ids([1, 2, 3])]);
 }
 
 #[test]
@@ -1718,7 +1733,7 @@ fn duplicate_groups_separate_clusters_and_drop_singletons() {
     let fx = Fx::adds(adds);
     let view = fx.view();
     let groups = view.all().duplicate_groups(2.0);
-    assert_eq!(groups, vec![vec![1, 2], vec![4, 5]]);
+    assert_eq!(groups, vec![loc_ids([1, 2]), loc_ids([4, 5])]);
 }
 
 #[test]
@@ -1746,7 +1761,7 @@ fn prune_relevance_keeps_highest_score() {
     let locs = vec![best, loc(2, 0.00001, 0.0), loc(3, 0.00002, 0.0)];
     let mut removed = prune_duplicates(&locs, 10.0, &default_score());
     removed.sort_unstable();
-    assert_eq!(removed, vec![2, 3]);
+    assert_eq!(removed, loc_ids([2, 3]));
 }
 
 // Score tie: the oldest location survives.
@@ -1757,7 +1772,7 @@ fn prune_relevance_tie_keeps_oldest() {
     let mut new = loc(2, 0.00001, 0.0);
     new.created_at = 200;
     let removed = prune_duplicates(&[new, old], 10.0, &default_score());
-    assert_eq!(removed, vec![2]);
+    assert_eq!(removed, loc_ids([2]));
 }
 
 // Chain at ~1.1m steps with 2m threshold: clusters are radius-based, not transitive.
@@ -1770,7 +1785,7 @@ fn prune_relevance_is_radius_scoped_not_transitive() {
         loc(3, 0.00002, 0.0),
     ];
     let removed = prune_duplicates(&locs, 2.0, &default_score());
-    assert_eq!(removed, vec![2]);
+    assert_eq!(removed, loc_ids([2]));
 }
 
 // > 25m thinning mode: the chain's hub (most neighbours) goes first, endpoints survive.
@@ -1783,7 +1798,7 @@ fn prune_thinning_drops_hub_keeps_endpoints() {
         loc(3, 0.0006, 0.0),
     ];
     let removed = prune_duplicates(&locs, 40.0, &default_score());
-    assert_eq!(removed, vec![2]);
+    assert_eq!(removed, loc_ids([2]));
 }
 
 // Thinning invariant: no two survivors remain within the distance.
@@ -1794,10 +1809,10 @@ fn prune_thinning_no_survivors_in_range() {
         locs.push(loc(i + 1, 0.0003 * f64::from(i), 0.0)); // ~33m spacing
     }
     let removed = prune_duplicates(&locs, 40.0, &default_score());
-    let removed_set: HashSet<u32> = removed.iter().copied().collect();
+    let removed_set: HashSet<u32> = removed.iter().copied().map(Id::get).collect();
     let survivors: Vec<&Location> = locs
         .iter()
-        .filter(|l| !removed_set.contains(&l.id))
+        .filter(|l| !removed_set.contains(&l.id.get()))
         .collect();
     assert!(survivors.len() >= 2);
     for a in 0..survivors.len() {
@@ -2167,8 +2182,14 @@ fn ranked_orders_the_ids_it_returns() {
     let fx = alt_fx();
     let view = fx.view();
     // Membership is a set, so the order lives in the read, not in `resolve`.
-    assert_eq!(view.all().ranked("alt", None, false), vec![4, 5, 2, 3, 1]);
-    assert_eq!(view.all().ranked("alt", None, true), vec![1, 3, 2, 5, 4]);
+    assert_eq!(
+        view.all().ranked("alt", None, false),
+        loc_ids([4, 5, 2, 3, 1])
+    );
+    assert_eq!(
+        view.all().ranked("alt", None, true),
+        loc_ids([1, 3, 2, 5, 4])
+    );
 }
 
 #[test]
@@ -2182,8 +2203,8 @@ fn ranked_sinks_what_it_cannot_score_in_either_direction() {
     let fx = Fx::adds(locs);
     let view = fx.view();
     // "no score" is absence, not a low score: it ranks last ascending too.
-    assert_eq!(view.all().ranked("alt", None, false), vec![1, 4, 2, 3]);
-    assert_eq!(view.all().ranked("alt", None, true), vec![4, 1, 2, 3]);
+    assert_eq!(view.all().ranked("alt", None, false), loc_ids([1, 4, 2, 3]));
+    assert_eq!(view.all().ranked("alt", None, true), loc_ids([4, 1, 2, 3]));
 }
 
 #[test]
@@ -2252,10 +2273,10 @@ fn ranked_k_equals_len_selects_all() {
 #[test]
 fn ranked_within_honours_the_set() {
     let fx = alt_fx();
-    let set: RoaringBitmap = [1u32, 3].into_iter().collect();
+    let set: IdSet<Location> = [1u32, 3].into_iter().map(Id::new).collect();
     assert_eq!(
         fx.view().all().within(&set).ranked("alt", None, false),
-        vec![3, 1]
+        loc_ids([3, 1])
     );
 }
 
@@ -2267,14 +2288,20 @@ fn ranked_takes_a_whole_expression_not_just_a_field() {
         loc_extra(3, serde_json::json!({"a": 2, "b": 2})),
     ];
     let fx = Fx::adds(locs);
-    assert_eq!(fx.view().all().ranked("a + b", None, false), vec![1, 2, 3]);
+    assert_eq!(
+        fx.view().all().ranked("a + b", None, false),
+        loc_ids([1, 2, 3])
+    );
 }
 
 #[test]
 fn ranked_with_an_unparseable_expression_scores_nothing_and_keeps_view_order() {
     let fx = alt_fx();
     let view = fx.view();
-    assert_eq!(view.all().ranked("alt +", None, false), vec![1, 2, 3, 4, 5]);
+    assert_eq!(
+        view.all().ranked("alt +", None, false),
+        loc_ids([1, 2, 3, 4, 5])
+    );
     assert_eq!(ids_of(&view, &ranked("alt +", Some(2), false)), vec![1, 2]);
 }
 
@@ -2298,7 +2325,11 @@ fn partition_numeric_count_matches_js() {
     assert_eq!(groups[0].bin, Some([0.0, 50.0]));
     assert_eq!(groups[1].key, "50–100");
     assert_eq!(groups[1].bin, Some([50.0, 100.0]));
-    let mut all: Vec<u32> = groups.iter().flat_map(|g| g.ids.clone()).collect();
+    let mut all: Vec<u32> = groups
+        .iter()
+        .flat_map(|g| g.ids.clone())
+        .map(Id::get)
+        .collect();
     all.sort();
     assert_eq!(all, vec![1, 2, 3]);
 }
@@ -2319,11 +2350,11 @@ fn partition_numeric_width_anchors_at_multiples() {
         },
     );
     let g0 = groups.iter().find(|g| g.key == "0–500").unwrap();
-    assert_eq!(g0.ids, vec![1]);
+    assert_eq!(g0.ids, loc_ids([1]));
     let g2 = groups.iter().find(|g| g.key == "1000–1500").unwrap();
     let mut ids = g2.ids.clone();
     ids.sort();
-    assert_eq!(ids, vec![2, 3]);
+    assert_eq!(ids, loc_ids([2, 3]));
     let gap = groups.iter().find(|g| g.key == "500–1000").unwrap();
     assert!(gap.ids.is_empty());
     assert_eq!(gap.bin, Some([500.0, 1000.0]));
@@ -2374,7 +2405,7 @@ fn partition_value_groups_by_distinct() {
     assert!(groups.iter().all(|g| g.bin.is_none()));
     assert_eq!(
         groups.iter().find(|g| g.key == "FR").unwrap().ids,
-        vec![1, 3]
+        loc_ids([1, 3])
     );
 }
 
@@ -2452,7 +2483,7 @@ fn partition_month_field_year_and_month_of_year() {
         },
     );
     assert_eq!(y[0].key, "2019");
-    assert_eq!(y[0].ids, vec![1, 2]);
+    assert_eq!(y[0].ids, loc_ids([1, 2]));
     let mo = view.all().partition(
         "m",
         &KeySpec::DatePart {
@@ -2487,12 +2518,18 @@ fn partition_respects_the_selector() {
     let fx = Fx::adds(adds);
     let view = fx.view();
     let set = view.all().resolve(&Selector::Locations {
-        locations: vec![1, 2],
+        locations: loc_ids([1, 2]),
         name: None,
     });
     let groups = view.all().within(&set).partition("c", &KeySpec::Value);
-    assert_eq!(groups.iter().find(|g| g.key == "FR").unwrap().ids, vec![1]);
-    assert_eq!(groups.iter().find(|g| g.key == "DE").unwrap().ids, vec![2]);
+    assert_eq!(
+        groups.iter().find(|g| g.key == "FR").unwrap().ids,
+        loc_ids([1])
+    );
+    assert_eq!(
+        groups.iter().find(|g| g.key == "DE").unwrap().ids,
+        loc_ids([2])
+    );
 }
 
 #[test]
@@ -2569,7 +2606,7 @@ fn to_selection(o: &OracleProps, counter: &mut u32) -> Selection {
     let selector = match o {
         OracleProps::Tag(t) => Selector::tag(*t),
         OracleProps::Manual(ids) => Selector::Manual {
-            locations: ids.clone(),
+            locations: loc_ids(ids.clone()),
         },
         OracleProps::Intersection(cs) => Selector::Intersection {
             selections: cs.iter().map(|c| to_selection(c, counter)).collect(),
@@ -2642,13 +2679,13 @@ fn build_overlay_view(
     entries: &[(u8, u8, u8)],
 ) -> (
     RecordBatch,
-    RoaringBitmap,
-    HashMap<u32, Location>,
+    IdSet<Location>,
+    HashMap<Id<Location>, Location>,
     Vec<Location>,
     Vec<(u32, Vec<u32>)>,
 ) {
     let mut base_locs = Vec::new();
-    let mut dead = RoaringBitmap::new();
+    let mut dead = IdSet::new();
     let mut patches = HashMap::new();
     let mut adds = Vec::new();
     let mut alive = Vec::new();
@@ -2666,7 +2703,7 @@ fn build_overlay_view(
                 let mut l = loc(id, 0.0, 0.0);
                 l.tags = tag_ids(tags);
                 base_locs.push(l);
-                dead.insert(id);
+                dead.insert(Id::new(id));
             }
             2 => {
                 let mut l = loc(id, 0.0, 0.0);
@@ -2675,7 +2712,7 @@ fn build_overlay_view(
                 let patch_tags = tags_from_mask(patch_mask);
                 let mut p = loc(id, 0.0, 0.0);
                 p.tags = tag_ids(patch_tags.clone());
-                patches.insert(id, p);
+                patches.insert(Id::new(id), p);
                 alive.push((id, patch_tags));
             }
             _ => {
@@ -2699,7 +2736,7 @@ proptest! {
         let fx = Fx::adds(adds);
         let view = fx.view();
         let selector = to_selection(&tree, &mut 0).selector;
-        let got: HashSet<u32> = view.all().resolve(&selector).into_iter().collect();
+        let got: HashSet<u32> = view.all().resolve(&selector).into_iter().map(Id::get).collect();
         let want = oracle_resolve(&alive, &tree);
         prop_assert_eq!(got, want);
     }
@@ -2710,7 +2747,7 @@ proptest! {
         let fx = Fx { batch: Some(batch), dead, patches, adds, selected: None };
         let view = fx.view();
         let selector = to_selection(&tree, &mut 0).selector;
-        let got: HashSet<u32> = view.all().resolve(&selector).into_iter().collect();
+        let got: HashSet<u32> = view.all().resolve(&selector).into_iter().map(Id::get).collect();
         let want = oracle_resolve(&alive, &tree);
         prop_assert_eq!(got, want);
     }
@@ -2832,7 +2869,7 @@ fn within_selector(t: &WithinTree) -> Selector {
     match t {
         WithinTree::Tag(tag_id) => Selector::tag(*tag_id),
         WithinTree::Manual(locations) => Selector::Manual {
-            locations: locations.clone(),
+            locations: loc_ids(locations.clone()),
         },
         WithinTree::PanoIds => Selector::pano_ids(true),
         WithinTree::NotPanoIds => Selector::pano_ids(false),
@@ -2923,7 +2960,7 @@ proptest! {
         keep in prop::collection::vec(any::<bool>(), 40),
     ) {
         let locs = within_rows(&rows);
-        let within: RoaringBitmap = locs
+        let within: IdSet<Location> = locs
             .iter()
             .zip(&keep)
             .filter(|(_, &k)| k)
@@ -2988,11 +3025,16 @@ fn ids_within_applies_the_overlay_and_the_set() {
         .with_dead([2]);
 
     assert_eq!(
-        fx.view().all().rows().map(|r| r.id()).collect::<Vec<u32>>(),
+        fx.view()
+            .all()
+            .rows()
+            .map(|r| r.id())
+            .map(Id::get)
+            .collect::<Vec<u32>>(),
         vec![1, 3, 4]
     );
 
-    let set: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
+    let set: IdSet<Location> = [2u32, 3, 4].into_iter().map(Id::new).collect();
     // 2 is dead, so the set cannot resurrect it.
     assert_eq!(
         fx.view()
@@ -3000,6 +3042,7 @@ fn ids_within_applies_the_overlay_and_the_set() {
             .within(&set)
             .rows()
             .map(|r| r.id())
+            .map(Id::get)
             .collect::<Vec<u32>>(),
         vec![3, 4]
     );
@@ -3007,7 +3050,13 @@ fn ids_within_applies_the_overlay_and_the_set() {
 
 fn sample_of(ids: impl IntoIterator<Item = u32>, n: usize) -> Vec<u32> {
     let locs: Vec<Location> = ids.into_iter().map(|id| loc(id, 0.0, 0.0)).collect();
-    Fx::base(&locs).view().all().sample(n)
+    Fx::base(&locs)
+        .view()
+        .all()
+        .sample(n)
+        .into_iter()
+        .map(Id::get)
+        .collect()
 }
 
 #[test]
@@ -3063,7 +3112,7 @@ fn distinct_values_honours_the_set() {
         loc_extra(2, serde_json::json!({"t":"b"})),
     ];
     let fx = Fx::base(&locs);
-    let set: RoaringBitmap = [1u32].into_iter().collect();
+    let set: IdSet<Location> = [1u32].into_iter().map(Id::new).collect();
     assert_eq!(fx.view().all().within(&set).distinct_values("t"), vec!["a"]);
 }
 
@@ -3178,8 +3227,8 @@ fn partition_value_fans_a_list_out_over_its_members() {
         groups.iter().map(|g| g.key.as_str()).collect::<Vec<_>>(),
         vec!["2015-06", "2019-08"]
     );
-    assert_eq!(groups[0].ids, vec![1]);
-    assert_eq!(groups[1].ids, vec![1, 2]);
+    assert_eq!(groups[0].ids, loc_ids([1]));
+    assert_eq!(groups[1].ids, loc_ids([1, 2]));
 }
 
 #[test]
@@ -3191,8 +3240,8 @@ fn partition_value_joins_a_group_once_per_row() {
     let mut groups = view.all().partition("c", &KeySpec::Value);
     groups.sort_by(|a, b| a.key.cmp(&b.key));
     assert_eq!(groups.len(), 2);
-    assert_eq!(groups[0].ids, vec![1]);
-    assert_eq!(groups[1].ids, vec![1]);
+    assert_eq!(groups[0].ids, loc_ids([1]));
+    assert_eq!(groups[1].ids, loc_ids([1]));
 }
 
 #[test]
@@ -3292,7 +3341,7 @@ fn columns_within_projects_one_value_per_row_per_field() {
     );
     assert_eq!(cols[4], vec![serde_json::Value::Null; 3]);
 
-    let set: RoaringBitmap = [2u32].into_iter().collect();
+    let set: IdSet<Location> = [2u32].into_iter().map(Id::new).collect();
     let cols = fx.view().all().within(&set).columns(&fields[..1]);
     assert_eq!(cols[0], vec![serde_json::json!("x")]);
 }
@@ -3350,7 +3399,7 @@ fn count_is_the_selected_size() {
     assert_eq!((view.all().rows().count() as u32), 4);
 
     // A named id list is raw: the dead id must not be counted.
-    let set: RoaringBitmap = [2u32, 3, 4].into_iter().collect();
+    let set: IdSet<Location> = [2u32, 3, 4].into_iter().map(Id::new).collect();
     assert_eq!((view.all().within(&set).rows().count() as u32), 2);
 }
 
@@ -3370,7 +3419,11 @@ fn count_selector(view: &LocView, selector: Selector) -> u32 {
 
 /// Resolved ids as a vec, for order-and-content assertions.
 fn ids_of(view: &LocView, selector: &Selector) -> Vec<u32> {
-    view.all().resolve(selector).into_iter().collect()
+    view.all()
+        .resolve(selector)
+        .into_iter()
+        .map(Id::get)
+        .collect()
 }
 
 fn intersect(selector: Vec<Selector>) -> Selector {
@@ -3387,14 +3440,14 @@ fn intersect(selector: Vec<Selector>) -> Selector {
 fn pano_id_filter_counts_base_and_overlay_rows_and_skips_dead_ones() {
     let fx = pano_fx();
     let view = fx.view();
-    let _none = RoaringBitmap::new();
+    let _none = IdSet::<Location>::new();
 
     assert_eq!(count_selector(&view, pano_filter(FilterOp::Has)), 3);
     assert_eq!(count_selector(&view, pano_filter(FilterOp::Nothas)), 1);
 
     // Narrowed by ids, the way a bulk operation does it.
     let ids = Selector::Locations {
-        locations: vec![2, 3],
+        locations: loc_ids([2, 3]),
         name: None,
     };
     let narrow = |op| intersect(vec![ids.clone(), pano_filter(op)]);
@@ -3406,7 +3459,7 @@ fn pano_id_filter_counts_base_and_overlay_rows_and_skips_dead_ones() {
 fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
     let fx = pano_fx();
     let view = fx.view();
-    let _none = RoaringBitmap::new();
+    let _none = IdSet::<Location>::new();
     let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::pano_ids(true)]);
 
     // 1 and 5 carry a pano ID and the flag; 3 has the flag but no pano ID.
@@ -3414,7 +3467,7 @@ fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
 
     let narrowed = intersect(vec![
         Selector::Locations {
-            locations: vec![2, 3],
+            locations: loc_ids([2, 3]),
             name: None,
         },
         pinned,
@@ -3437,6 +3490,7 @@ fn pinned_requires_the_flag_and_a_non_empty_pano_id() {
             .all()
             .resolve(&Selector::pano_ids(true))
             .iter()
+            .map(Id::get)
             .collect()
     };
     assert_eq!(pinned_ids(&Fx::base(&locs)), vec![1], "base rows");
@@ -3485,20 +3539,26 @@ fn narrow_resolves_to_the_id_set_it_names() {
     assert_eq!(
         view.all()
             .narrow(&Selector::Locations {
-                locations: vec![1, 2],
+                locations: loc_ids([1, 2]),
                 name: None,
             })
             .ids(),
-        [1u32, 2].into_iter().collect::<RoaringBitmap>()
+        [1u32, 2]
+            .into_iter()
+            .map(Id::new)
+            .collect::<IdSet<Location>>()
     );
     // Any other selector resolves like the selection it is.
     assert_eq!(
         view.all()
             .narrow(&Selector::Manual {
-                locations: vec![1, 7]
+                locations: loc_ids([1, 7])
             })
             .ids(),
-        [1u32, 7].into_iter().collect::<RoaringBitmap>()
+        [1u32, 7]
+            .into_iter()
+            .map(Id::new)
+            .collect::<IdSet<Location>>()
     );
 }
 
@@ -3511,13 +3571,13 @@ fn selected_borrows_the_synced_set_clipped_to_alive_rows() {
     // A dead row and an id the map never held both drop out.
     assert_eq!(
         view.all().resolve(&Selector::Selected),
-        [2u32].into_iter().collect::<RoaringBitmap>()
+        [2u32].into_iter().map(Id::new).collect::<IdSet<Location>>()
     );
     // Clipped inside a narrower scope, like any leaf.
     assert!(view
         .all()
         .narrow(&Selector::Locations {
-            locations: vec![1],
+            locations: loc_ids([1]),
             name: None,
         })
         .resolve(&Selector::Selected)
@@ -3527,7 +3587,7 @@ fn selected_borrows_the_synced_set_clipped_to_alive_rows() {
         view.all().resolve(&Selector::Invert {
             selections: vec![Selection::of(Selector::Selected)],
         }),
-        [1u32].into_iter().collect::<RoaringBitmap>()
+        [1u32].into_iter().map(Id::new).collect::<IdSet<Location>>()
     );
 }
 
@@ -3547,12 +3607,16 @@ fn every_projection_honours_a_named_id_list() {
     let fx = Fx::base(&locs);
     let view = fx.view();
     let scope = view.all().narrow(&Selector::Locations {
-        locations: vec![2, 3],
+        locations: loc_ids([2, 3]),
         name: None,
     });
 
     assert_eq!(
-        scope.rows().map(|r| r.id()).collect::<Vec<u32>>(),
+        scope
+            .rows()
+            .map(|r| r.id())
+            .map(Id::get)
+            .collect::<Vec<u32>>(),
         vec![2, 3]
     );
     assert_eq!(scope.distinct_values("c"), vec!["FR"]);
@@ -3645,11 +3709,11 @@ fn ranked_with_overlay_uses_patched_values_and_skips_dead() {
 
     // top-2 descending: id 3 (patched to 99) and id 4 (80). id 2 is dead.
     let top2 = view.all().ranked("val", Some(2), false);
-    assert_eq!(top2, vec![3, 4]);
+    assert_eq!(top2, loc_ids([3, 4]));
 
     // top-1 ascending: id 1 (10), the smallest among alive rows.
     let bottom1 = view.all().ranked("val", Some(1), true);
-    assert_eq!(bottom1, vec![1]);
+    assert_eq!(bottom1, loc_ids([1]));
 
     // through resolve: the full Ranked selector should agree.
     let sel = Selector::Ranked {
@@ -3914,7 +3978,7 @@ fn resolve_within_duplicates_equals_resolve_then_intersect() {
     let view = fx.view();
     let dups = Selector::Duplicates { distance: 10.0 };
     let full = view.all().resolve(&dups);
-    let within_set: RoaringBitmap = [1u32, 2, 4].into_iter().collect();
+    let within_set: IdSet<Location> = [1u32, 2, 4].into_iter().map(Id::new).collect();
     let via_resolve_within = view.all().within(&within_set).resolve(&dups);
     let via_intersect = &full & &within_set;
     assert_eq!(via_resolve_within, via_intersect);
@@ -3937,7 +4001,7 @@ fn resolve_within_ranked_equals_resolve_then_intersect() {
         ascending: false,
     };
     let full = view.all().resolve(&ranked_sel);
-    let within_set: RoaringBitmap = [1u32, 3, 4].into_iter().collect();
+    let within_set: IdSet<Location> = [1u32, 3, 4].into_iter().map(Id::new).collect();
     let via_resolve_within = view.all().within(&within_set).resolve(&ranked_sel);
     let via_intersect = &full & &within_set;
     assert_eq!(via_resolve_within, via_intersect);
@@ -3982,7 +4046,7 @@ fn resolve_fields_reports_each_requested_field_by_position() {
         )
     };
     let add = Location {
-        id: 2,
+        id: Id::new(2),
         ..base.clone()
     };
     let fx = Fx::base(slice::from_ref(&base)).with_adds(vec![add]);
@@ -4050,7 +4114,7 @@ fn scope_fx() -> Fx {
 fn live_index(view: &LocView, field: &str, shape: IndexShape) -> FieldIndex {
     let mut index = FieldIndex {
         shape,
-        rows: RoaringBitmap::new(),
+        rows: IdSet::new(),
         by_value: HashMap::new(),
     };
     for row in view.all().rows() {
@@ -4103,10 +4167,11 @@ fn a_scope_resolves_like_the_whole_map_clipped_to_its_rows() {
         ("invert", Selector::has("c").not()),
         ("intersection", Selector::all([Selector::tag(10), fr])),
     ];
-    let sparse: RoaringBitmap = [1, 2, 3, 5, 6, 500, 751, 1_001, 1_002, 9_999]
+    let sparse: IdSet<Location> = [1, 2, 3, 5, 6, 500, 751, 1_001, 1_002, 9_999]
         .into_iter()
+        .map(Id::new)
         .collect();
-    let dense: RoaringBitmap = (1..=1_002).chain([9_999]).collect();
+    let dense: IdSet<Location> = (1..=1_002).chain([9_999]).map(Id::new).collect();
     for view in [fx.view(), fx.view_indexed(&indexes)] {
         for set in [&sparse, &dense] {
             for (name, sel) in &selectors {
@@ -4125,17 +4190,27 @@ fn a_scope_resolves_like_the_whole_map_clipped_to_its_rows() {
 fn a_scope_walks_only_the_alive_rows_of_its_set() {
     let fx = scope_fx();
     let view = fx.view();
-    let sparse: RoaringBitmap = [2, 3, 500, 751, 1_002, 9_999].into_iter().collect();
+    let sparse: IdSet<Location> = [2, 3, 500, 751, 1_002, 9_999]
+        .into_iter()
+        .map(Id::new)
+        .collect();
     assert_eq!(
         view.all()
             .within(&sparse)
             .rows()
             .map(|r| r.id())
+            .map(Id::get)
             .collect::<Vec<u32>>(),
         vec![2, 751, 1_002]
     );
-    let dense: RoaringBitmap = (1..=1_002).chain([9_999]).collect();
-    let walked: Vec<u32> = view.all().within(&dense).rows().map(|r| r.id()).collect();
+    let dense: IdSet<Location> = (1..=1_002).chain([9_999]).map(Id::new).collect();
+    let walked: Vec<u32> = view
+        .all()
+        .within(&dense)
+        .rows()
+        .map(|r| r.id())
+        .map(Id::get)
+        .collect();
     assert_eq!(walked.len(), 1_000);
     assert!(!walked.contains(&3) && !walked.contains(&500) && !walked.contains(&9_999));
     assert_eq!(view.all().within(&dense).ids(), view.all().ids());
@@ -4215,7 +4290,7 @@ fn written(
     value: serde_json::Value,
 ) -> AppResult<mma_algebra::Patch<Location>> {
     let mut patch = mma_algebra::Patch::<Location> {
-        id: 1,
+        id: Id::new(1),
         ..Default::default()
     };
     writer?.write(&mut patch, flags, &value)?;
@@ -4273,7 +4348,7 @@ fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
     assert!(camera.is_extra() && loose.is_extra());
 
     let mut patch = mma_algebra::Patch::<Location> {
-        id: 1,
+        id: Id::new(1),
         ..Default::default()
     };
     camera

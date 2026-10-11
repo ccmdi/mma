@@ -244,7 +244,7 @@ impl Store {
         &mut self,
         field: &str,
         edits: Vec<Edit<ValueRecord>>,
-    ) -> AppResult<Mutation> {
+    ) -> AppResult<Mutation<ValueRecord>> {
         if !self.registry().get(field).is_some_and(|def| def.interned) {
             return Err(AppError(format!("'{field}' does not intern its values")));
         }
@@ -297,8 +297,8 @@ impl Store {
             },
         );
         Ok(Mutation {
-            keys: applied.keys.iter().map(|id| id.get()).collect(),
-            ..mutation
+            keys: applied.keys,
+            version: mutation.version,
         })
     }
 

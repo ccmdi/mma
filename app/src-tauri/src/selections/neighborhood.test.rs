@@ -10,7 +10,7 @@ fn at(id: u32, north_m: f64) -> Location {
 }
 
 fn ids(hits: &[Neighbor]) -> Vec<u32> {
-    hits.iter().map(|n| n.id).collect()
+    hits.iter().map(|n| n.id).map(Id::get).collect()
 }
 
 #[test]

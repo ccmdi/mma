@@ -3,11 +3,9 @@ use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
 use crate::store::engine::{render_cell_idx, Change, Store, StoreManager};
-use crate::test_util::{loc, tag_ids};
-use crate::types::LocationFlags;
-use crate::types::RawExtra;
-use mma_algebra::Op;
-use mma_algebra::{Patch, Patchable};
+use crate::test_util::{loc, loc_ids, tag_ids};
+use crate::types::{LocationFlags, RawExtra};
+use mma_algebra::{Id, Op, Patch, Patchable};
 use std::env;
 use std::thread;
 use tokio::time;
@@ -68,7 +66,7 @@ fn read_extra(state: &StoreState, map_id: &str, id: u32) -> Option<serde_json::V
     let rows = store.collect(
         &crate::store::engine::Target::Map,
         &Selector::Locations {
-            locations: vec![id],
+            locations: loc_ids([id]),
             name: None,
         },
     );
@@ -85,7 +83,7 @@ fn read_loc(state: &StoreState, map_id: &str, id: u32) -> Location {
         .collect(
             &crate::store::engine::Target::Map,
             &Selector::Locations {
-                locations: vec![id],
+                locations: loc_ids([id]),
                 name: None,
             },
         )
@@ -148,7 +146,7 @@ impl MockProc {
         self.seen
             .lock()
             .unwrap()
-            .push(rows.iter().map(|r| r.id).collect());
+            .push(rows.iter().map(|r| r.id).map(Id::get).collect());
         (self.on_map)(&rows)
     }
 }
@@ -164,7 +162,7 @@ impl Procedure for MockProc {
         _config: &str,
     ) -> AppResult<Vec<ResultEntry>> {
         if let Some(id) = self.fail_id {
-            host.fail(id);
+            host.fail(Id::new(id));
         }
         self.handle(batch)
     }
@@ -379,7 +377,7 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
     a.select = Selector::Locations {
-        locations: vec![1],
+        locations: loc_ids([1]),
         name: None,
     };
     let mut b = decl("b", BatchMode::PerRow);
@@ -389,7 +387,7 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
     let mut c = decl("c", BatchMode::PerRow);
     c.fields = vec!["z".into()];
     c.select = Selector::Locations {
-        locations: vec![2],
+        locations: loc_ids([2]),
         name: None,
     };
     let (b_ran_tx, b_ran) = mpsc::channel::<()>();
@@ -399,7 +397,7 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
             .iter()
             .map(|r| ResultEntry {
                 id: r.id,
-                json: if r.id == 2 {
+                json: if r.id == Id::new(2) {
                     b_ran
                         .lock()
                         .unwrap()
@@ -900,7 +898,7 @@ fn a_patch_that_sets_nothing_changes_nothing() {
     row.extra = RawExtra::from_map(&serde_json::json!({ "a": 1 }).as_object().unwrap().clone());
     for json in [r#"{}"#, r#"{"extra":{}}"#] {
         let patches = to_patches(&[ResultEntry {
-            id: 1,
+            id: Id::new(1),
             json: json.into(),
         }])
         .unwrap();
@@ -961,7 +959,7 @@ fn patch_keys_cover_every_location_patch_field() {
 #[test]
 fn an_unknown_key_names_itself_in_the_error() {
     let Err(err) = to_patches(&[ResultEntry {
-        id: 1,
+        id: Id::new(1),
         json: r#"{"lat":1,"nope":2}"#.into(),
     }]) else {
         panic!("an unknown key must fail the batch");
@@ -974,7 +972,7 @@ fn a_patch_that_is_not_an_object_is_an_error() {
     for json in [r#"[{"lat":1}]"#, r#""lat""#, "7"] {
         assert!(
             to_patches(&[ResultEntry {
-                id: 1,
+                id: Id::new(1),
                 json: json.into()
             }])
             .is_err(),
@@ -1236,7 +1234,7 @@ fn a_failing_batch_counts_as_failed_and_done() {
     assert_eq!(pages.len(), 1, "one page, whatever the batch count");
     let mut failed = pages[0].failed.clone();
     failed.sort();
-    assert_eq!(failed, vec![1, 2]);
+    assert_eq!(failed, loc_ids([1, 2]));
     assert!(pages[0].entries.is_empty());
 }
 
@@ -1270,6 +1268,7 @@ fn a_deduped_failure_is_every_sharers_failure() {
     let mut failed: Vec<u32> = delivered(&h)
         .iter()
         .flat_map(|p| p.failed.clone())
+        .map(Id::get)
         .collect();
     failed.sort_unstable();
     assert_eq!(
@@ -1297,7 +1296,7 @@ fn a_row_the_procedure_fails_is_delivered_by_id() {
 
     let pages = delivered(&h);
     assert_eq!(pages.len(), 1);
-    assert_eq!(pages[0].failed, vec![2]);
+    assert_eq!(pages[0].failed, loc_ids([2]));
     assert!(pages[0].entries.is_empty());
     // The patch still landed: failing a row reports it, it does not veto the batch.
     assert_eq!(read_extra(&state, &map_id, 2).unwrap()["a"], 1);
@@ -1318,6 +1317,7 @@ fn a_row_missing_a_required_field_is_failed_before_the_procedure_sees_it() {
     let failed: Vec<u32> = delivered(&h)
         .iter()
         .flat_map(|p| p.failed.clone())
+        .map(Id::get)
         .collect();
     assert_eq!(failed, vec![2]);
 }
@@ -1352,6 +1352,7 @@ fn force_does_not_conjure_a_missing_requirement() {
     let failed: Vec<u32> = delivered(&h)
         .iter()
         .flat_map(|p| p.failed.clone())
+        .map(Id::get)
         .collect();
     assert_eq!(failed, vec![1]);
 }
@@ -1836,7 +1837,7 @@ impl Procedure for QueryProc {
         let fetched = fetch_one(host, "https://example.invalid/q")?;
         // Progress and failures are no-ops here; calling them proves they do not panic.
         host.progress(1);
-        host.fail(1);
+        host.fail(Id::new(1));
         assert!(!host.aborted());
         Ok(serde_json::json!({
             "entry": self.entry,
@@ -2057,7 +2058,7 @@ impl Procedure for EmittingQueryProc {
     ) -> AppResult<Vec<u8>> {
         if let Some(e) = host.emitter() {
             for i in 0..self.count {
-                e.emit(i, format!("\"p{i}\""));
+                e.emit(Id::new(i), format!("\"p{i}\""));
             }
         }
         Ok(b"[]".to_vec())
@@ -2096,9 +2097,9 @@ fn a_query_streams_partials_under_the_callers_token() {
     let pages = pages.lock().unwrap();
     let entries: Vec<ResultEntry> = pages.iter().flat_map(|p| p.entries.clone()).collect();
     assert_eq!(entries.len(), 5);
-    assert_eq!(entries[0].id, 0);
+    assert_eq!(entries[0].id, Id::new(0));
     assert_eq!(entries[0].json, "\"p0\"");
-    assert_eq!(entries[4].id, 4);
+    assert_eq!(entries[4].id, Id::new(4));
     assert!(pages
         .iter()
         .all(|p| p.run_id == 7 && p.provider_id == "e.js" && p.failed.is_empty()));
@@ -2221,7 +2222,7 @@ fn a_collect_provider_delivers_its_answers_and_writes_nothing() {
             .iter()
             .map(|e| (e.id, e.json.as_str()))
             .collect::<Vec<_>>(),
-        vec![(1, "1"), (2, "2")]
+        vec![(Id::new(1), "1"), (Id::new(2), "2")]
     );
     // Nothing reached the store: the sink decides delivery, and this one never writes.
     assert!(read_extra(&state, &map_id, 1).is_none());
@@ -2259,8 +2260,8 @@ fn collected_pages_arrive_in_page_order() {
     assert_eq!(pages.len(), 2);
     assert_eq!(pages[0].entries.len(), PAGE_SIZE);
     assert_eq!(pages[1].entries.len(), 3);
-    assert_eq!(pages[0].entries[0].id, 1);
-    assert_eq!(pages[1].entries[0].id, PAGE_SIZE as u32 + 1);
+    assert_eq!(pages[0].entries[0].id, Id::new(1));
+    assert_eq!(pages[1].entries[0].id, Id::new(PAGE_SIZE as u32 + 1));
 }
 
 #[test]
@@ -2317,7 +2318,7 @@ fn a_collect_provider_fans_a_deduped_answer_out_to_every_sharer() {
     let pages = delivered(&h);
     assert_eq!(
         pages[0].entries.iter().map(|e| e.id).collect::<Vec<_>>(),
-        vec![1, 2, 3]
+        loc_ids([1, 2, 3])
     );
     // The answer was delivered, not written: the rows keep the panos they had.
     assert_eq!(read_loc(&state, &map_id, 3).pano_id, None);
@@ -2376,7 +2377,7 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
                 let row: Location = serde_json::from_str(&e.json).unwrap();
                 assert_eq!(row.id, e.id);
             }
-            let ids = r.entries.iter().map(|e| e.id).collect();
+            let ids = r.entries.iter().map(|e| e.id).map(Id::get).collect();
             streamed.lock().unwrap().push((r.provider_id, ids));
         }))
     };

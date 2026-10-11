@@ -41,11 +41,10 @@ pub use raw_extra::*;
     flag(key = "loadAsPanoId", label = "Load as pano ID", bit = LOAD_AS_PANO_ID)
 )]
 pub struct Location {
-    /// Monotonically increasing within a map. Zero is a sentinel meaning
-    /// "not yet assigned" (used during import before IDs are allocated).
+    /// Monotonically increasing within a map. Zero until the store numbers the row.
     #[field(label = "ID", kind = identity)]
     #[patch(key)]
-    pub id: u32,
+    pub id: Id<Location>,
     #[field(label = "Latitude", kind = identity)]
     pub lat: f64,
     #[field(label = "Longitude", kind = identity)]
@@ -91,7 +90,7 @@ pub(crate) use {location_columns, location_fields};
 impl Default for Location {
     fn default() -> Self {
         Location {
-            id: 0,
+            id: Id::UNSET,
             lat: 0.0,
             lng: 0.0,
             heading: 0.0,

@@ -129,6 +129,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
         let (ty, cat) = match (type_name(&f.ty).as_str(), date, absent_when_empty) {
             ("f64", false, false) => ("Number", "f64"),
+            (id, false, false) if id.starts_with("Id<") => ("Number", "id"),
             ("u32", false, false) => ("Number", "u32"),
             ("u32", true, false) => ("Date", "date_u32"),
             ("Option<u32>", true, false) => ("Date", "opt_date_u32"),

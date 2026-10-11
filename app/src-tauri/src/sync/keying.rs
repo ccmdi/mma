@@ -25,7 +25,7 @@ pub(crate) struct KeyedInputs {
     pub local: HashMap<IdentityKey, NormalizedSyncLocation>,
     pub remote: HashMap<IdentityKey, NormalizedSyncLocation>,
     /// key -> durable local id.
-    pub local_id_of: HashMap<IdentityKey, u32>,
+    pub local_id_of: HashMap<IdentityKey, Id<Location>>,
     /// key -> index into the remote_locs slice (for push payloads / update addressing).
     pub remote_item_of: HashMap<IdentityKey, usize>,
     /// key -> the remote handle as read (remote_id_of). Stale after a positional push.
@@ -81,9 +81,9 @@ fn claim_remotes<P: SyncProvider>(
     remote_locs: &[P::Raw],
     remote_norm: &[NormalizedSyncLocation],
     mapping: &[RemoteMappingRow],
-    local_by_id: &HashMap<u32, &Location>,
-) -> HashMap<usize, u32> {
-    let mut claimed_by: HashMap<usize, u32> = HashMap::new();
+    local_by_id: &HashMap<Id<Location>, &Location>,
+) -> HashMap<usize, Id<Location>> {
+    let mut claimed_by: HashMap<usize, Id<Location>> = HashMap::new();
     let mut taken: HashSet<usize> = HashSet::new();
 
     if provider.spec().identity == IdentityModel::Stable {
@@ -205,19 +205,19 @@ pub(crate) fn build_keyed_inputs<P: SyncProvider>(
     tag_name: &impl Fn(Id<ValueRecord>) -> Option<String>,
 ) -> KeyedInputs {
     let mut base: HashMap<IdentityKey, String> = HashMap::new();
-    let mut mapped_local: HashSet<u32> = HashSet::new();
+    let mut mapped_local: HashSet<Id<Location>> = HashSet::new();
     for row in mapping {
         mapped_local.insert(row.local_id);
         base.insert(local_key(row.local_id), row.hash.clone());
     }
 
-    let mut local_index: HashMap<u32, &Location> = HashMap::new();
+    let mut local_index: HashMap<Id<Location>, &Location> = HashMap::new();
     for loc in local_locs {
         local_index.insert(loc.id, loc);
     }
 
     let mut local: HashMap<IdentityKey, NormalizedSyncLocation> = HashMap::new();
-    let mut local_id_of: HashMap<IdentityKey, u32> = HashMap::new();
+    let mut local_id_of: HashMap<IdentityKey, Id<Location>> = HashMap::new();
     let mut local_keyer = OccurrenceKeyer::new();
     for loc in local_locs {
         if !provider.include_local(loc) {

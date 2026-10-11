@@ -4,7 +4,7 @@ use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
 use crate::selections::Selector;
 use crate::store::engine::ValueRecord;
-use crate::test_util::tag_ids;
+use crate::test_util::{loc_ids, tag_ids};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use rusqlite::Connection;
@@ -312,7 +312,7 @@ fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
     assert_eq!(
         saved.resolved(&mut store),
         Selector::Locations {
-            locations: vec![],
+            locations: loc_ids([]),
             name: None
         }
     );
@@ -333,7 +333,7 @@ fn saved_names_do_not_resurrect_dark_records() {
     assert_eq!(
         saved.resolved(&mut map_with_records()),
         Selector::Locations {
-            locations: vec![],
+            locations: loc_ids([]),
             name: None
         }
     );
@@ -362,7 +362,7 @@ fn a_missing_saved_leaf_preserves_its_composite_and_child_colors() {
     assert_eq!(
         selections[1].selector,
         Selector::Locations {
-            locations: vec![],
+            locations: loc_ids([]),
             name: None
         }
     );

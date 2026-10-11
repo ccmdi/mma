@@ -1,6 +1,7 @@
 use super::*;
-use crate::test_util::{tag_ids, TempDir};
+use crate::test_util::{loc_ids, tag_ids, TempDir};
 use crate::types::Location;
+use mma_algebra::Id;
 use std::collections::HashSet;
 
 #[test]
@@ -668,7 +669,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     .unwrap();
     let locations: Vec<Location> = (1..=2)
         .map(|id| Location {
-            id,
+            id: Id::new(id),
             lat: f64::from(id),
             tags: tag_ids([1]),
             ..Location::default()
@@ -710,7 +711,10 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         "the copy's locations are its baseline"
     );
     let written = arrow::batch_to_locations(&arrow::read_arrow_ipc(&path).unwrap());
-    assert_eq!(written.iter().map(|l| l.id).collect::<Vec<_>>(), vec![1, 2]);
+    assert_eq!(
+        written.iter().map(|l| l.id).collect::<Vec<_>>(),
+        loc_ids([1, 2])
+    );
     assert_eq!(written[0].tags, tag_ids([1]));
 
     for table in [

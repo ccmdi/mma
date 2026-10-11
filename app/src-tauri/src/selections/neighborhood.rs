@@ -1,8 +1,8 @@
 //! Shared spatial grid for radius queries over a point set.
 
 use super::RowRef;
-#[cfg(test)]
 use crate::types::Location;
+use mma_algebra::Id;
 use mma_geo::equirect_m2;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -197,7 +197,7 @@ pub(super) fn for_pairs_within<S>(
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Neighbor {
-    pub id: u32,
+    pub id: Id<Location>,
     pub lat: f64,
     pub lng: f64,
     pub dist_m: f64,
@@ -220,7 +220,7 @@ enum Lookup {
 /// at that radius and no other, so a query can never outrun the grid backing it.
 pub struct Index {
     lookup: Lookup,
-    ids: Vec<u32>,
+    ids: Vec<Id<Location>>,
     pts: Vec<(f64, f64)>,
     /// Per point, the named fields that had a value.
     fields: Vec<serde_json::Map<String, serde_json::Value>>,

@@ -3,11 +3,11 @@
 use super::*;
 use crate::selections::{self, Index, Selector, Thinning};
 use crate::store::arrow::Columns;
+use crate::store::id_set::IdSet;
 use crate::store::maps::{FieldDef, IndexShape};
-use crate::types::Location;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
+use mma_algebra::Id;
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
-use roaring::RoaringBitmap;
 use std::collections::{BTreeSet, HashMap};
 use std::f64::consts::PI;
 use std::time::Instant;
@@ -24,7 +24,7 @@ impl Cached for SpatialIndex {
         let _t = Instant::now();
         let mut ix = SpatialIndex::new(SPATIAL_CELL_M);
         for row in store.all().rows() {
-            ix.insert(row.id(), row.lat(), row.lng());
+            ix.insert(row.id().get(), row.lat(), row.lng());
         }
         log::debug!(
             "[spatial] built n={} in {}ms",
@@ -146,13 +146,17 @@ impl BoundsAcc {
 
 /// A spaced pick's answer: the picked ids plus the spacing they were picked at.
 pub struct SpacedPickResult {
-    pub ids: Vec<u32>,
+    pub ids: Vec<Id<Location>>,
     pub distance_m: i32,
 }
 
 /// One pick per honeycomb cell: the location nearest its center, best-centered cells first,
 /// skipping any location within half the spacing of one already kept.
-fn even_picks(candidates: &[(u32, f64, f64)], grid: &HexGrid, spacing_m: f64) -> Vec<u32> {
+fn even_picks(
+    candidates: &[(Id<Location>, f64, f64)],
+    grid: &HexGrid,
+    spacing_m: f64,
+) -> Vec<Id<Location>> {
     let mut nearest: HashMap<(i64, i64), (f64, usize)> = HashMap::new();
     for (i, &(id, lat, lng)) in candidates.iter().enumerate() {
         let node = grid.nearest(lat, lng);
@@ -192,7 +196,7 @@ fn even_picks(candidates: &[(u32, f64, f64)], grid: &HexGrid, spacing_m: f64) ->
 impl Store {
     /// Current coordinates of an alive location, without cloning the full Location.
     #[inline]
-    pub(super) fn coords_of(&self, id: u32) -> Option<(f64, f64)> {
+    pub(super) fn coords_of(&self, id: Id<Location>) -> Option<(f64, f64)> {
         self.rows().get(id).map(|row| (row.lat(), row.lng()))
     }
 
@@ -232,7 +236,7 @@ impl Store {
             }
             Target::Pending { name } => {
                 let pending = self.pending.get(name);
-                let keys: Vec<u32> = match selector {
+                let keys: Vec<Id<Location>> = match selector {
                     Selector::Locations { locations, .. } => locations.clone(),
                     _ => pending
                         .map(|p| p.layer.keys().collect())
@@ -252,7 +256,7 @@ impl Store {
                     .collect();
                 rows.sort_unstable_by_key(|row| row.id);
                 rows.dedup_by_key(|row| row.id);
-                let dead = RoaringBitmap::new();
+                let dead = IdSet::new();
                 let patches = HashMap::new();
                 let view = selections::LocView::new(
                     None,
@@ -332,7 +336,7 @@ impl Store {
     pub(crate) fn resolve_forest(
         &mut self,
         sels: &[selections::Selection],
-    ) -> (Vec<RoaringBitmap>, HashMap<String, u32>) {
+    ) -> (Vec<IdSet<Location>>, HashMap<String, u32>) {
         self.prepare(sels.iter().flat_map(|s| s.selector.indexes()));
         self.rows()
             .indexed(&self.field_indexes, self.spatial.peek())
@@ -425,7 +429,7 @@ impl Store {
             .iter()
             .map(|(_, shape)| selections::FieldIndex {
                 shape: *shape,
-                rows: RoaringBitmap::new(),
+                rows: IdSet::new(),
                 by_value: HashMap::new(),
             })
             .collect();
@@ -558,10 +562,10 @@ impl Ask {
 )]
 pub enum Answer {
     Ids {
-        ids: Vec<u32>,
+        ids: Vec<Id<Location>>,
     },
     Spacing {
-        ids: Vec<u32>,
+        ids: Vec<Id<Location>>,
         spacing_m: i32,
     },
     Count {
@@ -590,7 +594,7 @@ pub enum Answer {
         bounds: Option<[f64; 4]>,
     },
     DuplicateGroups {
-        groups: Vec<Vec<u32>>,
+        groups: Vec<Vec<Id<Location>>>,
     },
     NearAny {
         values: Vec<bool>,
@@ -729,7 +733,7 @@ pub struct Summary {
 /// Evenly spaced subset of `candidates`: a count thins to that many ids maximizing
 /// spacing; a distance keeps as many as fit at that spacing.
 pub(crate) fn pick_spaced(
-    mut candidates: Vec<(u32, f64, f64)>,
+    mut candidates: Vec<(Id<Location>, f64, f64)>,
     thin: Thinning,
 ) -> AppResult<SpacedPickResult> {
     match thin {
@@ -778,7 +782,7 @@ pub(crate) fn pick_spaced(
 /// far apart and never closer than half of it; a count searches for the spacing that
 /// keeps at most that many.
 pub(crate) fn pick_even(
-    candidates: &[(u32, f64, f64)],
+    candidates: &[(Id<Location>, f64, f64)],
     thin: Thinning,
 ) -> AppResult<SpacedPickResult> {
     if let Thinning::Metres { m } = thin {
@@ -850,7 +854,7 @@ pub(crate) fn pick_even(
 
 impl selections::Scope<'_, '_> {
     /// The rows in scope with finite coordinates, as `(id, lat, lng)`.
-    pub(crate) fn points(&self) -> Vec<(u32, f64, f64)> {
+    pub(crate) fn points(&self) -> Vec<(Id<Location>, f64, f64)> {
         self.rows()
             .map(|row| (row.id(), row.lat(), row.lng()))
             .filter(|&(_, lat, lng)| lat.is_finite() && lng.is_finite())

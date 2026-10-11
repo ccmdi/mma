@@ -5,6 +5,7 @@ use crate::store::maps::FieldType;
 use crate::types::wire_str_enum;
 use crate::util::tz_offset_seconds;
 use chrono::{DateTime, Datelike, Timelike, Utc};
+use mma_algebra::Id;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -103,7 +104,7 @@ pub const PROJECTIONS: &[Projection] = {
 #[serde(rename_all = "camelCase")]
 pub struct PartitionBucket {
     pub key: String,
-    pub ids: Vec<u32>,
+    pub ids: Vec<Id<Location>>,
     pub bin: Option<[f64; 2]>,
 }
 
@@ -173,7 +174,7 @@ pub(super) fn partition_numeric(
     field: &str,
     binning: &NumericBinning,
 ) -> Vec<PartitionBucket> {
-    let mut vals: Vec<(u32, f64)> = Vec::new();
+    let mut vals: Vec<(Id<Location>, f64)> = Vec::new();
     for row in scope.rows() {
         if let Some(n) = row.resolve_field(field).as_ref().and_then(as_f64) {
             vals.push((row.id(), n));

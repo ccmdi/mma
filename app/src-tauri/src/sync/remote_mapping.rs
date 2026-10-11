@@ -6,14 +6,15 @@
 //! Stores ids and a hash, never location content.
 
 use crate::store::storage;
-use crate::types::AppResult;
+use crate::types::{AppResult, Location};
+use mma_algebra::Id;
 use rusqlite::{params, Connection};
 
 /// One mapping row. `hash` is the plugin's content fingerprint (opaque text to us).
 #[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteMappingRow {
-    pub local_id: u32,
+    pub local_id: Id<Location>,
     /// Remote ids can exceed u32 (observed ~1.2e10), so i64.
     pub remote_id: i64,
     pub hash: String,
@@ -32,7 +33,7 @@ pub(crate) fn get(
     )?;
     let rows = stmt.query_map(params![provider, map_id], |row| {
         Ok(RemoteMappingRow {
-            local_id: row.get(0)?,
+            local_id: Id::new(row.get(0)?),
             remote_id: row.get(1)?,
             hash: row.get(2)?,
         })
@@ -58,7 +59,13 @@ pub(crate) fn upsert(
              ON CONFLICT(provider, map_id, local_id) DO UPDATE SET remote_id = excluded.remote_id, hash = excluded.hash",
         )?;
         for r in rows {
-            stmt.execute(params![provider, map_id, r.local_id, r.remote_id, r.hash])?;
+            stmt.execute(params![
+                provider,
+                map_id,
+                r.local_id.get(),
+                r.remote_id,
+                r.hash
+            ])?;
         }
     }
     tx.commit()?;
@@ -70,7 +77,7 @@ pub(crate) fn delete(
     conn: &mut Connection,
     provider: &str,
     map_id: &str,
-    local_ids: &[u32],
+    local_ids: &[Id<Location>],
 ) -> AppResult<()> {
     let tx = conn.transaction()?;
     {
@@ -78,7 +85,7 @@ pub(crate) fn delete(
             "DELETE FROM remote_mapping WHERE provider = ? AND map_id = ? AND local_id = ?",
         )?;
         for id in local_ids {
-            stmt.execute(params![provider, map_id, id])?;
+            stmt.execute(params![provider, map_id, id.get()])?;
         }
     }
     tx.commit()?;

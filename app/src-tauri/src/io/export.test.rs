@@ -1,8 +1,8 @@
 #![allow(clippy::needless_pass_by_value)]
 use super::*;
 use crate::test_util::tag_ids;
-use crate::types::Location;
-use crate::types::RawExtra;
+use crate::types::{Location, RawExtra};
+use mma_algebra::Id;
 use serde_json::json;
 use std::collections::HashMap;
 use std::env;
@@ -16,7 +16,7 @@ fn make_loc(
     extra: Option<serde_json::Map<String, serde_json::Value>>,
 ) -> Location {
     Location {
-        id: 1,
+        id: Id::new(1),
         lat: 10.0,
         lng: 20.0,
         pitch: 5.0,

@@ -3,6 +3,7 @@ use crate::sync;
 use crate::sync::{IdentityModel, NormalizedSyncLocation, PushBatch, PushedId, SyncProvider};
 use crate::types::shape::MapShape;
 use crate::types::ErrCode;
+use mma_algebra::Id;
 use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::env;
@@ -47,7 +48,7 @@ fn empty_batch() -> PushBatch<MmLocation> {
 
 /// Local-id -> assigned-id pairs, since PushedId has no PartialEq.
 fn ids(v: &[PushedId]) -> Vec<(u32, i64)> {
-    v.iter().map(|p| (p.local_id, p.remote_id)).collect()
+    v.iter().map(|p| (p.local_id.get(), p.remote_id)).collect()
 }
 
 /// Mimics the server: assign 7000, 7001, ... to each create in submission order.
@@ -208,11 +209,11 @@ fn creates_use_negative_placeholders_and_remap() {
     let p = provider();
     let mut batch = empty_batch();
     batch.create.push((
-        11,
+        Id::new(11),
         p.materialize(&NormalizedSyncLocation { lat: 1.0, ..norm() }),
     ));
     batch.create.push((
-        12,
+        Id::new(12),
         p.materialize(&NormalizedSyncLocation { lat: 2.0, ..norm() }),
     ));
 
@@ -239,7 +240,9 @@ fn update_is_remove_old_plus_create_new() {
         tags: vec!["red".into()],
         ..norm()
     };
-    batch.update.push((42, p.materialize(&n), remote(9000)));
+    batch
+        .update
+        .push((Id::new(42), p.materialize(&n), remote(9000)));
 
     let parts = push_chunks(&batch, PUSH_CHUNK);
     assert_eq!(parts.len(), 1);
@@ -250,7 +253,7 @@ fn update_is_remove_old_plus_create_new() {
     assert_eq!(part.create[0].location, LatLng { lat: 5.0, lng: 0.0 });
     assert_eq!(part.create[0].tags, vec!["red"]);
     assert_eq!(part.staged.len(), 1);
-    assert_eq!(part.staged[0].local_id, 42);
+    assert_eq!(part.staged[0].local_id, Id::new(42));
     assert_eq!(part.staged[0].neg_id, -1);
 
     let mut commit = |_: &[PushedId]| Ok(());
@@ -279,11 +282,11 @@ fn one_edit_covers_create_update_delete() {
     let p = provider();
     let mut batch = empty_batch();
     batch.create.push((
-        1,
+        Id::new(1),
         p.materialize(&NormalizedSyncLocation { lat: 1.0, ..norm() }),
     ));
     batch.update.push((
-        2,
+        Id::new(2),
         p.materialize(&NormalizedSyncLocation { lat: 2.0, ..norm() }),
         remote(500),
     ));
@@ -372,7 +375,7 @@ fn keeps_everything_in_one_request_when_it_fits() {
     let p = provider();
     let mut batch = empty_batch();
     for i in 1..=3u32 {
-        batch.create.push((i, p.materialize(&norm())));
+        batch.create.push((Id::new(i), p.materialize(&norm())));
     }
     assert_eq!(push_chunks(&batch, 10).len(), 1);
 }
@@ -382,7 +385,7 @@ fn splits_into_parts_of_at_most_the_chunk_size() {
     let p = provider();
     let mut batch = empty_batch();
     for i in 1..=5u32 {
-        batch.create.push((i, p.materialize(&norm())));
+        batch.create.push((Id::new(i), p.materialize(&norm())));
     }
     let parts = push_chunks(&batch, 2);
 
@@ -400,6 +403,7 @@ fn splits_into_parts_of_at_most_the_chunk_size() {
     let locals: Vec<u32> = parts
         .iter()
         .flat_map(|p| p.staged.iter().map(|s| s.local_id))
+        .map(Id::get)
         .collect();
     assert_eq!(locals, vec![1, 2, 3, 4, 5]);
 }
@@ -409,8 +413,12 @@ fn never_separates_an_updates_remove_from_its_create() {
     // Chunk size 1 is the worst case: if the pairing could split, it would split here.
     let p = provider();
     let mut batch = empty_batch();
-    batch.update.push((9, p.materialize(&norm()), remote(42)));
-    batch.update.push((8, p.materialize(&norm()), remote(43)));
+    batch
+        .update
+        .push((Id::new(9), p.materialize(&norm()), remote(42)));
+    batch
+        .update
+        .push((Id::new(8), p.materialize(&norm()), remote(43)));
     let parts = push_chunks(&batch, 1);
 
     assert_eq!(parts.len(), 2);
@@ -428,7 +436,7 @@ fn commit_runs_per_chunk_in_order() {
     let p = provider();
     let mut batch = empty_batch();
     for i in 1..=5u32 {
-        batch.create.push((i, p.materialize(&norm())));
+        batch.create.push((Id::new(i), p.materialize(&norm())));
     }
     let log = RefCell::new(Vec::<String>::new());
     let mut post = |part: &PushPart| {
@@ -451,7 +459,7 @@ fn partial_chunk_failure_commits_landed_chunks_before_propagating_error() {
     let p = provider();
     let mut batch = empty_batch();
     for i in 1..=5u32 {
-        batch.create.push((i, p.materialize(&norm())));
+        batch.create.push((Id::new(i), p.materialize(&norm())));
     }
     let log = RefCell::new(Vec::<String>::new());
     let calls = Cell::new(0u32);
@@ -729,7 +737,7 @@ fn live_push_remaps_and_round_trips() {
 
     let mut batch = empty_batch();
     batch.create.push((
-        1,
+        Id::new(1),
         p.materialize(&NormalizedSyncLocation {
             lat: 48.8583701,
             lng: 2.2944813,
@@ -740,7 +748,7 @@ fn live_push_remaps_and_round_trips() {
         }),
     ));
     batch.create.push((
-        2,
+        Id::new(2),
         p.materialize(&NormalizedSyncLocation {
             lat: -33.856159,
             lng: -151.215256,

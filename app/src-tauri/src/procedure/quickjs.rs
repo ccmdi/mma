@@ -6,6 +6,8 @@
 //! The guest runs on a scoped thread, with host calls handled over a channel.
 //! The calling thread checks cancellation even when the guest does not yield.
 
+use crate::types::{AppError, AppResult, Location};
+use mma_algebra::Id;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -35,7 +37,6 @@ use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{self, HttpRequestSpec, HttpResponse};
 use crate::plugins::sidecar::SidecarStream;
 use crate::sv::pano::{PanoAnswer, PanoQuery};
-use crate::types::{AppError, AppResult};
 
 /// Ceiling on one runtime's heap. Procedures decode whole responses in memory, so this
 /// is generous; it exists to turn a runaway allocation into an error, not an OOM.
@@ -201,10 +202,10 @@ enum HostReq {
     /// host stays free to service the calls a line handler makes.
     SidecarNext,
     Progress(u32),
-    Fail(u32),
+    Fail(Id<Location>),
     /// One partial result, streamed to the caller while the call is still running.
     Emit {
-        id: u32,
+        id: Id<Location>,
         json: String,
     },
     Aborted,
@@ -487,7 +488,7 @@ fn read_patches<'js>(ctx: &Ctx<'js>, v: Value<'js>) -> AppResult<Vec<ResultEntry
             .map_err(|e| AppError(format!("patch {i}: {e}")))?
             .ok_or_else(|| AppError(format!("patch {i} is not serializable")))?;
         out.push(ResultEntry {
-            id,
+            id: Id::new(id),
             json: js_string(&json)?,
         });
     }
@@ -739,7 +740,7 @@ fn install_host_calls<'js>(
     obj.set(
         "fail",
         Function::new(ctx.clone(), move |id: u32| {
-            let _ = b.call(HostReq::Fail(id));
+            let _ = b.call(HostReq::Fail(Id::new(id)));
         })?,
     )?;
     let b = bridge.clone();
@@ -755,7 +756,10 @@ fn install_host_calls<'js>(
                     .ok_or_else(bad)?
                     .to_string()
                     .map_err(|_| bad())?;
-                let _ = b.call(HostReq::Emit { id, json });
+                let _ = b.call(HostReq::Emit {
+                    id: Id::new(id),
+                    json,
+                });
                 Ok(())
             }),
         )?,

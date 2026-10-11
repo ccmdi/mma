@@ -3,9 +3,9 @@
 use crate::store::engine::ValueRecord;
 use crate::store::maps::MapSettings;
 use crate::types;
-use crate::types::AppResult;
-use crate::types::RawExtra;
-use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags};
+use crate::types::{
+    is_ws, scan_fields_from, skip_string, AppResult, Location, LocationFlags, RawExtra,
+};
 use crate::util::now_unix;
 use crate::util::Rgb;
 use memchr::memmem;
@@ -144,7 +144,7 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
             LocationFlags::empty()
         };
         Some(Location {
-            id: 0,
+            id: Id::UNSET,
             lat,
             lng,
             heading,
@@ -760,7 +760,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 };
 
                 locs.push(Location {
-                    id: 0,
+                    id: Id::UNSET,
                     lat,
                     lng,
                     heading: raw.heading,

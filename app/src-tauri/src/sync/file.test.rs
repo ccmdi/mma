@@ -2,8 +2,8 @@ use super::*;
 use crate::sync::engine::{plan, ReconcileInput};
 use crate::sync::remote_mapping::RemoteMappingRow;
 use crate::sync::sync_hash;
-use crate::types::Location;
-use crate::types::RawExtra;
+use crate::types::{Location, RawExtra};
+use mma_algebra::Id;
 use serde_json::{json, Value};
 use std::env;
 use std::path::{Path, PathBuf};
@@ -116,14 +116,14 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
     );
 
     let local = Location {
-        id: 1,
+        id: Id::new(1),
         lat: created.fields.lat,
         lng: created.fields.lng,
         extra: created.fields.extra.as_ref().and_then(RawExtra::from_map),
         ..Location::default()
     };
     let mapping = [RemoteMappingRow {
-        local_id: 1,
+        local_id: Id::new(1),
         remote_id: created.remote_id,
         hash: created.hash.clone(),
     }];

@@ -2,7 +2,7 @@
 //! `plan` computes changes and conflicts; `execute` pushes remote changes and updates mappings.
 //! The command also applies pulls locally as one undoable edit.
 
-use crate::types::wire_str_enum;
+use crate::types::{wire_str_enum, AppError, AppResult};
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
@@ -22,8 +22,7 @@ use crate::sync::{
     SideCounts, SyncDirection, SyncPlan, SyncProvider,
 };
 use crate::types::shape::MapPart;
-use crate::types::{AppError, AppResult};
-use mma_algebra::{Id, Patch, Patchable};
+use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use std::mem;
 use std::time::Instant;
 use tauri::async_runtime;
@@ -54,7 +53,7 @@ pub struct PullCreate {
 /// A remote-originated update to apply to an existing local id.
 #[derive(Clone, Debug)]
 pub struct PullUpdate {
-    pub local_id: u32,
+    pub local_id: Id<Location>,
     pub patch: Patch<NormalizedSyncLocation>,
     pub remote_id: i64,
     pub hash: String,
@@ -70,8 +69,8 @@ pub struct ReconcileOutcome {
     pub needed_tags: Vec<RemoteTag>,
     pub pull_creates: Vec<PullCreate>,
     pub pull_updates: Vec<PullUpdate>,
-    pub pull_delete_ids: Vec<u32>,
-    pub mirror_local_delete_ids: Vec<u32>,
+    pub pull_delete_ids: Vec<Id<Location>>,
+    pub mirror_local_delete_ids: Vec<Id<Location>>,
 }
 
 /// Sync counts, unresolved conflicts, and the locally applied pull mutation.
@@ -87,7 +86,7 @@ pub struct SyncReconcileResult {
     /// The change the pull half made locally, or `null` when nothing was pulled.
     pub mutation: Option<crate::store::engine::Mutation>,
     /// The rows the pull removed.
-    pub removed_ids: Vec<u32>,
+    pub removed_ids: Vec<Id<Location>>,
 }
 
 // --- Layer 1: pure planning -------------------------------------------------
@@ -112,19 +111,19 @@ pub(crate) struct PlannedReconcile<R> {
     pub needed_tags: Vec<RemoteTag>,
     pub pull_creates: Vec<PullCreate>,
     pub pull_updates: Vec<PullUpdate>,
-    pub pull_delete_ids: Vec<u32>,
-    pub mirror_local_delete_ids: Vec<u32>,
+    pub pull_delete_ids: Vec<Id<Location>>,
+    pub mirror_local_delete_ids: Vec<Id<Location>>,
     pub mirror_remote_delete_count: u32,
     /// The remote-side write, or None when nothing goes up.
     pub push_batch: Option<PushBatch<R>>,
     /// local_id -> settled hash for the rows the push confirms (the commit point's content).
-    pub push_hashes: HashMap<u32, String>,
+    pub push_hashes: HashMap<Id<Location>, String>,
     /// Rows to write with final handles baked in (changed vs mapping only). Pushed keys for a
     /// stable provider are excluded here; the commit path writes them.
     pub rows: Vec<RemoteMappingRow>,
     /// Held keys keep their BASE hash but take the post-push handle.
     pub held_rows: Vec<RemoteMappingRow>,
-    pub mapping_delete_ids: Vec<u32>,
+    pub mapping_delete_ids: Vec<Id<Location>>,
 }
 
 /// Express the remote half of the plan both ways: as a delta, and as the full desired document.
@@ -275,7 +274,7 @@ pub(crate) fn plan<P: SyncProvider>(
     // Mirror seeding (first sync only): reinterpret one side's create-on-the-other as a delete on
     // the loser. `merge` leaves the plan untouched.
     let mode = input.first_sync.unwrap_or(FirstSyncMode::Merge);
-    let mut mirror_local_delete_ids: Vec<u32> = Vec::new();
+    let mut mirror_local_delete_ids: Vec<Id<Location>> = Vec::new();
     let mut mirror_remote_deletes: HashSet<IdentityKey> = HashSet::new();
     if input.mapping.is_empty() {
         match mode {
@@ -376,7 +375,7 @@ pub(crate) fn plan<P: SyncProvider>(
 
     // localId -> settled hash the push will confirm. A whole-document (positional) write reindexes
     // and confirms every settled key with a local id; a stable one only the keys it actually sends.
-    let mut push_hashes: HashMap<u32, String> = HashMap::new();
+    let mut push_hashes: HashMap<Id<Location>, String> = HashMap::new();
     if push_batch.is_some() {
         if positional {
             for (&key, content) in &settled {
@@ -465,7 +464,7 @@ pub(crate) fn plan<P: SyncProvider>(
             }
         })
         .collect();
-    let pull_delete_ids: Vec<u32> = plan
+    let pull_delete_ids: Vec<Id<Location>> = plan
         .pull
         .delete
         .iter()
@@ -473,7 +472,7 @@ pub(crate) fn plan<P: SyncProvider>(
         .collect();
 
     // --- rows and deletes ---
-    let persisted: HashMap<u32, &RemoteMappingRow> =
+    let persisted: HashMap<Id<Location>, &RemoteMappingRow> =
         input.mapping.iter().map(|r| (r.local_id, r)).collect();
     let changed = |r: &RemoteMappingRow| match persisted.get(&r.local_id) {
         None => true,
@@ -534,7 +533,7 @@ pub(crate) fn plan<P: SyncProvider>(
 
     // A pulled create on a mapped key re-creates a location deleted here under a fresh id; the row
     // of the deleted one must go, or it claims the remote location again on the next pull.
-    let mut mapping_delete_ids: Vec<u32> = Vec::new();
+    let mut mapping_delete_ids: Vec<Id<Location>> = Vec::new();
     for key in plan.push.delete.iter().chain(plan.pull.create.iter()) {
         if let Some(id) = parse_local_key(key) {
             mapping_delete_ids.push(id);
@@ -577,7 +576,7 @@ pub(crate) fn plan<P: SyncProvider>(
 /// use an in-memory map.
 pub(crate) trait MappingSink {
     fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()>;
-    fn delete(&mut self, local_ids: &[u32]) -> AppResult<()>;
+    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()>;
 }
 
 /// Drive the push and persist the mapping. The provider commits confirmed ids AS it writes them
@@ -651,7 +650,7 @@ impl MappingSink for DbSink<'_> {
     fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()> {
         remote_mapping::upsert(self.conn, self.provider, self.map_id, rows)
     }
-    fn delete(&mut self, local_ids: &[u32]) -> AppResult<()> {
+    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()> {
         remote_mapping::delete(self.conn, self.provider, self.map_id, local_ids)
     }
 }
@@ -857,7 +856,6 @@ fn apply_pull(
     Vec<RemoteMappingRow>,
 )> {
     use crate::store::engine::{Target, ValueRecord};
-    use mma_algebra::{Edit, Op};
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
         + out.pull_delete_ids.len()
@@ -939,7 +937,7 @@ fn pulled_location(
     tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
 ) -> Location {
     Location {
-        id: 0,
+        id: Id::UNSET,
         lat: n.lat,
         lng: n.lng,
         heading: n.heading,

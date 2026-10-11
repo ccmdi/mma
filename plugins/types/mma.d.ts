@@ -582,21 +582,99 @@ declare namespace consts {
 /** Commands @unstable */
 declare const commands$1: {
     /** Edit rows where target says; a pending layer holds edits until land. @unstable */
-    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult>;
+    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /** Drop a named pending layer and everything it holds. @unstable */
     storeDrop: (name: string) => Promise<null>;
     /** Run work over every location matched by selector. @unstable */
     storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
     /** Edit an interned field's value records; membership uses ordinary row edits. @unstable */
-    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult>;
+    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult<ValueRecord>>;
     /** Return the uncommitted location change counts. @unstable */
     storeCommitDiff: () => Promise<Counts>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionOp) => Promise<MutationResult>;
+    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /** Answer one question about the target's rows matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /** Apply a saved rule with its value names resolved against the open map. @unstable */
-    storeApplySavedSelection: (id: string) => Promise<MutationResult>;
+    storeApplySavedSelection: (id: string) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /** Return the open store's location count, version and dirty count. @unstable */
     storeSummary: () => Promise<Summary>;
     /**  Milliseconds from app launch until the window was ready. @unstable */
@@ -772,7 +850,33 @@ declare const commands$1: {
      */
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
-    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult>;
+    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
     storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
@@ -814,7 +918,33 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult>;
+    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
@@ -943,7 +1073,33 @@ declare const commands$1: {
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**  Restore a map to a previous commit. An open map changes through its normal write path. @unstable */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult>;
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
     storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
@@ -1818,10 +1974,7 @@ type ListedSelection = {
  *  within a map and assigned by the store's monotonic allocator.
  */
 type Location = {
-    /**
-     *  Monotonically increasing within a map. Zero is a sentinel meaning
-     *  "not yet assigned" (used during import before IDs are allocated).
-     */
+    /**  Monotonically increasing within a map. Zero until the store numbers the row. */
     id: number;
     lat: number;
     lng: number;
@@ -1983,14 +2136,70 @@ type MmUser = {
     username: string;
 };
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-type Mutation = {
+type Mutation<_T = {
+    /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: {
+        [key in string]: unknown;
+    } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+}> = {
     /**  The map version this change brought the map to. */
     version: number;
     /**  The key the store gave each keyless set, in the order they were written. */
     keys: number[];
 };
-type MutationResult = {
-    mutation: Mutation;
+type MutationResult<T = {
+    /**  Monotonically increasing within a map. Zero until the store numbers the row. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: {
+        [key in string]: unknown;
+    } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+}> = {
+    mutation: Mutation<T>;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is

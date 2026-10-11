@@ -1,4 +1,5 @@
 #![allow(clippy::needless_pass_by_value)]
+use super::frame::Rows;
 use super::*;
 use crate::io::export;
 use crate::selections::field_expr;
@@ -7,11 +8,8 @@ use crate::selections::{self, Selection, Selector, Thinning};
 use crate::store::arrow::empty_batch;
 use crate::store::engine::query::rows_file_path;
 use crate::store::maps::IndexShape;
-use crate::test_util::Fx;
-use crate::test_util::TempDir;
-use crate::test_util::{loc, patch, tag_ids};
-use crate::types::LocationFlags;
-use crate::types::RawExtra;
+use crate::test_util::{loc, loc_ids, patch, tag_ids, Fx, TempDir};
+use crate::types::{LocationFlags, RawExtra};
 use crate::util::Rgb;
 use frame::tests::Captured;
 use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
@@ -58,7 +56,7 @@ fn add_rows(store: &mut Store, locs: Vec<Location>) -> Mutation {
     let edits = locs
         .into_iter()
         .map(|mut l| {
-            l.id = 0;
+            l.id = Id::UNSET;
             Op::Set(l)
         })
         .collect();
@@ -166,7 +164,7 @@ fn overlay_add_then_get() {
     let mut store = setup_store_with(&[]);
     let l = loc(1, 10.0, 20.0);
     store.overlay_add(vec![l.clone()]);
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
     assert_eq!(got.lng, 20.0);
 }
@@ -180,12 +178,18 @@ fn overlay_add_batch_merges_into_sorted_adds() {
     odd.reverse();
     store.overlay_add(odd);
 
-    let ids: Vec<u32> = store.overlay.adds.iter().map(|l| l.id).collect();
+    let ids: Vec<u32> = store
+        .overlay
+        .adds
+        .iter()
+        .map(|l| l.id)
+        .map(Id::get)
+        .collect();
     assert_eq!(ids, (1..=1001).collect::<Vec<u32>>());
     assert_eq!(*store.alive_count, 1001);
-    assert_eq!(store.get_loc_by_id(1).unwrap().lat, 1.0);
-    assert_eq!(store.get_loc_by_id(1000).unwrap().lat, 0.0);
-    assert_eq!(store.get_loc_by_id(1001).unwrap().lat, 1.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1000)).unwrap().lat, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1001)).unwrap().lat, 1.0);
 }
 
 #[test]
@@ -207,14 +211,20 @@ fn undo_of_a_page_keeps_the_overlay_sorted() {
     let rows: Vec<Location> = (1..=2000).map(|i| loc(i, 0.0, 0.0)).collect();
     let mut store = setup_store_with(&rows);
     let before: Vec<Location> = rows[499..1499].to_vec();
-    let after: Vec<Location> = before.iter().map(|l| loc(l.id, 5.0, 0.0)).collect();
+    let after: Vec<Location> = before.iter().map(|l| loc(l.id.get(), 5.0, 0.0)).collect();
     undoable(&mut store, before, after);
-    assert_eq!(store.get_loc_by_id(700).unwrap().lat, 5.0);
+    assert_eq!(store.get_loc_by_id(Id::new(700)).unwrap().lat, 5.0);
 
     press_undo(&mut store);
-    let ids: Vec<u32> = store.overlay.adds.iter().map(|l| l.id).collect();
+    let ids: Vec<u32> = store
+        .overlay
+        .adds
+        .iter()
+        .map(|l| l.id)
+        .map(Id::get)
+        .collect();
     assert_eq!(ids, (1..=2000).collect::<Vec<u32>>());
-    assert_eq!(store.get_loc_by_id(700).unwrap().lat, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(700)).unwrap().lat, 0.0);
     assert_eq!(*store.alive_count, 2000);
 }
 
@@ -232,7 +242,7 @@ fn overlay_remove_makes_get_return_none() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
     store.overlay_remove([l].iter());
-    assert!(store.get_loc_by_id(1).is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
 }
 
 #[test]
@@ -240,7 +250,7 @@ fn overlay_update_changes_fields() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; lat: 50.0, heading: 90.0));
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
     assert_eq!(got.heading, 90.0);
     assert_eq!(got.lng, 20.0); // unchanged
@@ -256,7 +266,7 @@ fn overlay_update_extra_merges_keys() {
     l.extra = raw_extra(r#"{"a":1,"b":2}"#);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"b":3,"c":4}"#)));
-    let got = store.get_loc_by_id(1).unwrap().extra.unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
     assert_eq!(got.get("b"), Some(serde_json::json!(3)));
     assert_eq!(got.get("c"), Some(serde_json::json!(4)));
@@ -268,7 +278,7 @@ fn overlay_update_extra_null_value_deletes_key() {
     l.extra = raw_extra(r#"{"a":1,"b":2}"#);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":null}"#)));
-    let got = store.get_loc_by_id(1).unwrap().extra.unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), None);
     assert_eq!(got.get("b"), Some(serde_json::json!(2)));
 }
@@ -278,7 +288,7 @@ fn overlay_update_extra_creates_extra_when_none() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":1}"#)));
-    let got = store.get_loc_by_id(1).unwrap().extra.unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
 }
 
@@ -288,7 +298,7 @@ fn overlay_update_extra_empty_after_deletes_is_none() {
     l.extra = raw_extra(r#"{"a":1}"#);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":null}"#)));
-    assert!(store.get_loc_by_id(1).unwrap().extra.is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().extra.is_none());
 }
 
 #[test]
@@ -297,14 +307,14 @@ fn overlay_update_extra_top_level_null_clears() {
     l.extra = raw_extra(r#"{"a":1}"#);
     let mut store = setup_store_with(&[l]);
     overlay_update(&mut store, &patch!(1; extra: None));
-    assert!(store.get_loc_by_id(1).unwrap().extra.is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().extra.is_none());
 }
 
 #[test]
 fn overlay_update_nonexistent_is_noop() {
     let mut store = setup_store_with(&[]);
     overlay_update(&mut store, &patch!(999; lat: 50.0));
-    assert!(store.get_loc_by_id(999).is_none());
+    assert!(store.get_loc_by_id(Id::new(999)).is_none());
 }
 
 #[test]
@@ -313,9 +323,17 @@ fn overlay_update_stamps_modified_at_on_session_added_row() {
     // same as an edit to a committed base row.
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
-    assert!(store.get_loc_by_id(1).unwrap().modified_at.is_none());
+    assert!(store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .modified_at
+        .is_none());
     overlay_update(&mut store, &patch!(1; lat: 50.0));
-    assert!(store.get_loc_by_id(1).unwrap().modified_at.is_some());
+    assert!(store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .modified_at
+        .is_some());
 }
 
 #[test]
@@ -325,7 +343,11 @@ fn overlay_update_noop_does_not_stamp_session_added_row() {
     let mut store = setup_store_with(&[l]);
     let rev = store.overlay.rev();
     overlay_update(&mut store, &patch!(1; lat: 10.0));
-    assert!(store.get_loc_by_id(1).unwrap().modified_at.is_none());
+    assert!(store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .modified_at
+        .is_none());
     assert_eq!(store.overlay.rev(), rev);
 }
 
@@ -349,7 +371,11 @@ fn overlay_update_stamps_modified_at_on_base_row() {
     let mut store = setup_store_with(&[l]);
     store.bake_overlay();
     overlay_update(&mut store, &patch!(1; lat: 50.0));
-    assert!(store.get_loc_by_id(1).unwrap().modified_at.is_some());
+    assert!(store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .modified_at
+        .is_some());
 }
 
 #[test]
@@ -361,7 +387,7 @@ fn overlay_update_returns_the_location_as_stored() {
     store.bake_overlay();
     let (_, new_loc) = overlay_update(&mut store, &patch!(1; lat: 50.0)).unwrap();
     assert!(new_loc.modified_at.is_some());
-    assert_eq!(new_loc, store.get_loc_by_id(1).unwrap());
+    assert_eq!(new_loc, store.get_loc_by_id(Id::new(1)).unwrap());
 }
 
 #[test]
@@ -372,11 +398,11 @@ fn overlay_update_noop_on_patched_row_stays_a_noop() {
     overlay_update(&mut store, &patch!(1; lat: 50.0));
     // Re-applying the identical patch must return an equal pair (no undo entry) and leave
     // the stored row untouched.
-    let stored = store.get_loc_by_id(1).unwrap();
+    let stored = store.get_loc_by_id(Id::new(1)).unwrap();
     let rev = store.overlay.rev();
     let (old, new_loc) = overlay_update(&mut store, &patch!(1; lat: 50.0)).unwrap();
     assert_eq!(old, new_loc);
-    assert_eq!(store.get_loc_by_id(1).unwrap(), stored);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), stored);
     assert_eq!(store.overlay.rev(), rev);
 }
 
@@ -395,17 +421,18 @@ fn named_id_ordering_is_consumer_defined() {
     let locs = vec![loc(3, 0.0, 0.0), loc(7, 1.0, 1.0)];
     let mut store = setup_store_with(&locs);
     let selector = Selector::Locations {
-        locations: vec![7, 3, 3],
+        locations: loc_ids([7, 3, 3]),
         name: None,
     };
     let rows: Vec<u32> = store
         .collect(&crate::store::engine::Target::Map, &selector)
         .iter()
         .map(|l| l.id)
+        .map(Id::get)
         .collect();
     assert_eq!(rows, vec![7, 3, 3]);
     let set = store.scope(&selector).ids();
-    assert_eq!(set.iter().collect::<Vec<u32>>(), vec![3, 7]);
+    assert_eq!(set.iter().map(Id::get).collect::<Vec<u32>>(), vec![3, 7]);
 }
 
 // -----------------------------------------------------------------------
@@ -422,7 +449,7 @@ fn overlay_rev_bumps_on_every_mutation() {
     overlay_update(&mut store, &patch!(1; lat: 5.0));
     let r2 = store.overlay.rev();
     assert!(r2 > r1);
-    store.overlay_remove([store.get_loc_by_id(1).unwrap()].iter());
+    store.overlay_remove([store.get_loc_by_id(Id::new(1)).unwrap()].iter());
     assert!(store.overlay.rev() > r2);
 }
 
@@ -544,7 +571,7 @@ fn undo_add() {
 
     let _delta = reverse(&mut store, &Change::from_sides(vec![l], vec![]));
     assert_eq!(*store.alive_count, 0);
-    assert!(store.get_loc_by_id(1).is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
 }
 
 #[test]
@@ -554,7 +581,7 @@ fn undo_remove() {
     // simulate: location was removed, undo should re-add it
     let _delta = reverse(&mut store, &Change::from_sides(vec![], vec![l.clone()]));
     assert_eq!(*store.alive_count, 1);
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
 }
 
@@ -567,7 +594,7 @@ fn undo_update_restores_original() {
     let entry = Change::from_sides(vec![updated], vec![original.clone()]);
     reverse(&mut store, &entry);
 
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.heading, 0.0);
 }
 
@@ -582,7 +609,7 @@ fn redo_after_undo() {
 
     forward(&mut store, &entry);
     assert_eq!(*store.alive_count, 1);
-    assert!(store.get_loc_by_id(1).is_some());
+    assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
 
 #[test]
@@ -706,18 +733,26 @@ struct FrameRow {
 }
 
 fn frame_rows(cells: &[CellFrame], patches: bool) -> Vec<FrameRow> {
+    fn flatten<K>(cell: u8, rows: &Rows<K>, raw: impl Fn(&K) -> u32) -> Vec<FrameRow> {
+        (0..rows.len())
+            .map(|i| FrameRow {
+                cell,
+                key: raw(&rows.key[i]),
+                lng: rows.pos[2 * i],
+                lat: rows.pos[2 * i + 1],
+                angle: rows.angle[i],
+                sel: rows.sel[i],
+            })
+            .collect()
+    }
     cells
         .iter()
         .flat_map(|c| {
-            let r = if patches { &c.patch } else { &c.add };
-            (0..r.len()).map(move |i| FrameRow {
-                cell: c.cell,
-                key: r.key[i],
-                lng: r.pos[2 * i],
-                lat: r.pos[2 * i + 1],
-                angle: r.angle[i],
-                sel: r.sel[i],
-            })
+            if patches {
+                flatten(c.cell, &c.patch, |key| *key)
+            } else {
+                flatten(c.cell, &c.add, |id| id.get())
+            }
         })
         .collect()
 }
@@ -1096,17 +1131,17 @@ fn bounds_wide_span_stays_non_crossing() {
 #[test]
 fn cell_add_and_lookup() {
     let mut store = setup_store_with(&[]);
-    store.cell_add_render(24, 1); // 24 = 's' in BASE32
-    assert_eq!(store.cell_lookup(1), Some((24, 0)));
+    store.cell_add_render(24, Id::new(1)); // 24 = 's' in BASE32
+    assert_eq!(store.cell_lookup(Id::new(1)), Some((24, 0)));
 }
 
 #[test]
 fn cell_remove_returns_correct_info() {
     let mut store = setup_store_with(&[]);
-    store.cell_add_render(24, 1);
-    store.cell_add_render(24, 2);
-    assert_eq!(store.cell_remove_render(1), Some((24, 0)));
-    assert!(store.cell_lookup(2).is_some());
+    store.cell_add_render(24, Id::new(1));
+    store.cell_add_render(24, Id::new(2));
+    assert_eq!(store.cell_remove_render(Id::new(1)), Some((24, 0)));
+    assert!(store.cell_lookup(Id::new(2)).is_some());
 }
 
 #[test]
@@ -1124,7 +1159,7 @@ fn alloc_id_increments() {
     let mut store = Store::new();
     let a = store.alloc_id();
     let b = store.alloc_id();
-    assert_eq!(b, a + 1);
+    assert_eq!(b.get(), a.get() + 1);
 }
 
 // -----------------------------------------------------------------------
@@ -1140,8 +1175,8 @@ fn bake_overlay_merges_adds() {
     assert!(store.overlay.adds.is_empty());
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
     // locations still accessible
-    assert!(store.get_loc_by_id(1).is_some());
-    assert!(store.get_loc_by_id(2).is_some());
+    assert!(store.get_loc_by_id(Id::new(1)).is_some());
+    assert!(store.get_loc_by_id(Id::new(2)).is_some());
 }
 
 #[test]
@@ -1152,7 +1187,7 @@ fn bake_overlay_applies_patches() {
     overlay_update(&mut store, &patch!(1; lat: 99.0));
     store.bake_overlay();
 
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 99.0);
     assert!(store.overlay.patches.is_empty());
 }
@@ -1179,7 +1214,7 @@ fn noop_update_produces_no_undo_entry() {
 
     // "update" with identical values
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    let new = store.get_loc_by_id(1).unwrap();
+    let new = store.get_loc_by_id(Id::new(1)).unwrap();
 
     // Unchanged before/after pairs contribute no edit.
     let pairs: Vec<_> = vec![(l.clone(), new.clone())]
@@ -1195,7 +1230,7 @@ fn real_update_passes_filter() {
     let mut store = setup_store_with(slice::from_ref(&l));
 
     overlay_update(&mut store, &patch!(1; heading: 90.0));
-    let new = store.get_loc_by_id(1).unwrap();
+    let new = store.get_loc_by_id(Id::new(1)).unwrap();
 
     let pairs: Vec<_> = vec![(l, new)].into_iter().filter(|(o, n)| o != n).collect();
     assert_eq!(pairs.len(), 1, "changed update should pass filter");
@@ -1210,8 +1245,8 @@ fn batch_update_mixed_changed_unchanged() {
     // update l1 (real change), "update" l2 with same value (noop)
     overlay_update(&mut store, &patch!(1; heading: 180.0));
     overlay_update(&mut store, &patch!(2; heading: 90.0));
-    let n1 = store.get_loc_by_id(1).unwrap();
-    let n2 = store.get_loc_by_id(2).unwrap();
+    let n1 = store.get_loc_by_id(Id::new(1)).unwrap();
+    let n2 = store.get_loc_by_id(Id::new(2)).unwrap();
 
     let (changed_old, changed_new): (Vec<_>, Vec<_>) = vec![(l1, n1), (l2, n2)]
         .into_iter()
@@ -1219,7 +1254,7 @@ fn batch_update_mixed_changed_unchanged() {
         .unzip();
 
     assert_eq!(changed_old.len(), 1, "only l1 should be in undo");
-    assert_eq!(changed_old[0].id, 1);
+    assert_eq!(changed_old[0].id, Id::new(1));
     assert_eq!(changed_new[0].heading, 180.0);
 }
 
@@ -1235,7 +1270,7 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
     let undo_len = store.edits.len(Stack::Undo);
     let updates: Vec<Patch<Location>> = rows
         .iter()
-        .map(|row| patch!(row.id; heading: row.heading))
+        .map(|row| patch!(row.id.get(); heading: row.heading))
         .collect();
 
     let frames = watch(&mut store);
@@ -1260,13 +1295,13 @@ fn readd_after_remove_via_overlay() {
 
     store.overlay_remove(slice::from_ref(&l).iter());
     assert_eq!(*store.alive_count, 0);
-    assert!(store.get_loc_by_id(1).is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
 
     // re-add with different position
     let l2 = loc(1, 50.0, 60.0);
     store.overlay_add(vec![l2]);
     assert_eq!(*store.alive_count, 1);
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
 }
 
@@ -1283,7 +1318,7 @@ fn readd_after_remove_through_undo() {
     // undo the removal
     reverse(&mut store, &remove_entry);
     assert_eq!(*store.alive_count, 1);
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 10.0);
 }
 
@@ -1294,16 +1329,16 @@ fn readd_after_remove_through_undo() {
 #[test]
 fn cell_swap_remove_maintains_correct_indices() {
     let mut store = setup_store_with(&[]);
-    store.cell_add_render(24, 10);
-    store.cell_add_render(24, 20);
-    store.cell_add_render(24, 30);
+    store.cell_add_render(24, Id::new(10));
+    store.cell_add_render(24, Id::new(20));
+    store.cell_add_render(24, Id::new(30));
 
-    assert_eq!(store.cell_remove_render(10), Some((24, 0)));
+    assert_eq!(store.cell_remove_render(Id::new(10)), Some((24, 0)));
 
-    let (_, idx30) = store.cell_lookup(30).unwrap();
+    let (_, idx30) = store.cell_lookup(Id::new(30)).unwrap();
     assert_eq!(idx30, 0, "id 30 should have been swapped into slot 0");
 
-    let (_, idx20) = store.cell_lookup(20).unwrap();
+    let (_, idx20) = store.cell_lookup(Id::new(20)).unwrap();
     assert_eq!(idx20, 1, "id 20 should be undisturbed");
 
     let cr = store.render.cells[24].as_ref().unwrap();
@@ -1313,15 +1348,15 @@ fn cell_swap_remove_maintains_correct_indices() {
 #[test]
 fn cell_swap_remove_last_element() {
     let mut store = setup_store_with(&[]);
-    store.cell_add_render(24, 10);
-    store.cell_add_render(24, 20);
+    store.cell_add_render(24, Id::new(10));
+    store.cell_add_render(24, Id::new(20));
 
-    assert_eq!(store.cell_remove_render(20), Some((24, 1)));
+    assert_eq!(store.cell_remove_render(Id::new(20)), Some((24, 1)));
 
-    let (_, idx10) = store.cell_lookup(10).unwrap();
+    let (_, idx10) = store.cell_lookup(Id::new(10)).unwrap();
     assert_eq!(idx10, 0, "id 10 should be undisturbed");
 
-    assert!(store.cell_lookup(20).is_none());
+    assert!(store.cell_lookup(Id::new(20)).is_none());
 }
 
 // -----------------------------------------------------------------------
@@ -1338,13 +1373,13 @@ fn undo_update_when_location_is_in_baked_batch() {
     // update via overlay patch
     let updated = loc_with_heading(1, 10.0, 20.0, 90.0);
     overlay_update(&mut store, &patch!(1; heading: 90.0));
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 90.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 90.0);
 
     // undo: apply_edit should restore original via overlay
     let entry = Change::from_sides(vec![updated], vec![l]);
     reverse(&mut store, &entry);
 
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.heading, 0.0, "undo should restore original heading");
 }
 
@@ -1358,11 +1393,11 @@ fn multiple_undo_redo_cycles_consistent() {
 
     for _ in 0..5 {
         edit_and_finish(&mut store, &entry, true);
-        assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([20]));
+        assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([20]));
         assert_eq!(tag_count(&mut store, 20), 1);
 
         edit_and_finish(&mut store, &entry, false);
-        assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10]));
+        assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([10]));
         assert_eq!(tag_count(&mut store, 10), 1);
     }
 }
@@ -1372,9 +1407,15 @@ fn multiple_undo_redo_cycles_consistent() {
 // -----------------------------------------------------------------------
 
 fn cell_frames_for_update(store: &mut Store, id: u32, patch: Patch<Location>) -> [CellFrame; 32] {
-    let old = store.get_loc_by_id(id).unwrap();
-    overlay_update(store, &Patch::<Location> { id, ..patch });
-    let new_loc = store.get_loc_by_id(id).unwrap();
+    let old = store.get_loc_by_id(Id::new(id)).unwrap();
+    overlay_update(
+        store,
+        &Patch::<Location> {
+            id: Id::new(id),
+            ..patch
+        },
+    );
+    let new_loc = store.get_loc_by_id(Id::new(id)).unwrap();
     store.derive_cell_frames(
         &Change {
             updated: vec![(old, new_loc)],
@@ -1452,7 +1493,7 @@ fn a_patch_index_counts_a_later_move_out_of_its_cell() {
     let ci = render_cell_idx(10.0, 20.0);
     assert_eq!(
         store.render.cells[ci as usize].as_ref().unwrap().id_order,
-        [1, 2, 3]
+        loc_ids([1, 2, 3])
     );
 
     let turned = Location {
@@ -1473,11 +1514,12 @@ fn a_patch_index_counts_a_later_move_out_of_its_cell() {
     );
 
     let order = &store.render.cells[ci as usize].as_ref().unwrap().id_order;
-    assert_eq!(order, &[1, 3]);
+    assert_eq!(order, &loc_ids([1, 3]));
     let patch = patched(&cells);
     assert_eq!(patch.len(), 1);
     assert_eq!(
-        order[patch[0].key as usize], 3,
+        order[patch[0].key as usize],
+        Id::new(3),
         "the patch lands on the row it restates"
     );
 }
@@ -1492,7 +1534,7 @@ fn overlay_update_on_overlay_add_item() {
     let l = loc(1, 10.0, 20.0);
     store.overlay_add(vec![l]);
     overlay_update(&mut store, &patch!(1; lat: 50.0));
-    let got = store.get_loc_by_id(1).unwrap();
+    let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
     // should still be in overlay_adds, not overlay_patches
     assert_eq!(store.overlay.adds.len(), 1);
@@ -1522,12 +1564,12 @@ fn collect_all_with_dead_patches_and_adds() {
 
     let all = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
     assert_eq!(all.len(), 3);
-    let ids: Vec<u32> = all.iter().map(|l| l.id).collect();
+    let ids: Vec<u32> = all.iter().map(|l| l.id).map(Id::get).collect();
     assert!(!ids.contains(&1), "dead location should be excluded");
     assert!(ids.contains(&2));
     assert!(ids.contains(&3));
     assert!(ids.contains(&4));
-    let l2_collected = all.iter().find(|l| l.id == 2).unwrap();
+    let l2_collected = all.iter().find(|l| l.id == Id::new(2)).unwrap();
     assert_eq!(l2_collected.lat, 99.0, "patch should be applied");
 }
 
@@ -1558,9 +1600,9 @@ fn bake_overlay_all_three_simultaneously() {
     assert!(store.overlay.patches.is_empty());
     assert!(store.overlay.dead.is_empty());
     // verify data
-    assert!(store.get_loc_by_id(1).is_none());
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 180.0);
-    assert_eq!(store.get_loc_by_id(3).unwrap().lat, 50.0);
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 180.0);
+    assert_eq!(store.get_loc_by_id(Id::new(3)).unwrap().lat, 50.0);
 }
 
 // -----------------------------------------------------------------------
@@ -1587,11 +1629,11 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
     store.overlay_add(vec![loc(12, 12.0, 12.0)]);
     store.overlay_add(vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)]);
     overlay_update(&mut store, &patch!(2; heading: 45.0));
-    let l3 = store.get_loc_by_id(3).unwrap();
-    let l11 = store.get_loc_by_id(11).unwrap();
+    let l3 = store.get_loc_by_id(Id::new(3)).unwrap();
+    let l11 = store.get_loc_by_id(Id::new(11)).unwrap();
     store.overlay_remove([l3, l11].iter());
     assert!(
-        store.overlay.dead.contains(11),
+        store.overlay.dead.contains(Id::new(11)),
         "sanity: an added-then-removed id is dead"
     );
 
@@ -1599,14 +1641,14 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
 
     assert_eq!(
         restored.adds.iter().map(|l| l.id).collect::<Vec<_>>(),
-        vec![10, 12],
+        loc_ids([10, 12]),
         "adds come back sorted by id"
     );
     assert_eq!(
         restored,
         Overlay {
             adds: store.overlay.adds.clone(),
-            dead: [3].into_iter().collect(),
+            dead: [3].into_iter().map(Id::new).collect(),
             patches: store.overlay.patches.clone(),
         },
         "an id added then removed has no base row behind it and is dropped"
@@ -1639,7 +1681,7 @@ fn sidecar_is_a_commit_delta_against_the_base() {
             .iter()
             .map(|l| (l.id, l.heading))
             .collect::<Vec<_>>(),
-        vec![(1, 99.0), (10, 0.0)],
+        vec![(Id::new(1), 99.0), (Id::new(10), 0.0)],
         "the patched row's new version and the add"
     );
     assert_eq!(
@@ -1736,8 +1778,8 @@ fn alive_count_stays_correct_through_all_mutations() {
     assert_eq!(*store.alive_count, 3);
 
     // Remove 2
-    let l2 = store.get_loc_by_id(2).unwrap();
-    let l3 = store.get_loc_by_id(3).unwrap();
+    let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
+    let l3 = store.get_loc_by_id(Id::new(3)).unwrap();
     store.overlay_remove([l2, l3].iter());
     assert_eq!(*store.alive_count, 1);
 
@@ -1766,14 +1808,14 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
 
     // Remove it
     store.overlay_remove(slice::from_ref(&l).iter());
-    assert!(store.overlay.dead.contains(1));
-    assert!(!store.overlay.adds.iter().any(|l| l.id == 1));
+    assert!(store.overlay.dead.contains(Id::new(1)));
+    assert!(!store.overlay.adds.iter().any(|l| l.id == Id::new(1)));
 
     // Re-add it (overlay_add on a known batch ID goes to patches)
     store.overlay_add(vec![loc(1, 50.0, 60.0)]);
     // After re-add, it should NOT be in dead
     assert!(
-        !store.overlay.dead.contains(1),
+        !store.overlay.dead.contains(Id::new(1)),
         "re-added ID should be removed from dead set"
     );
 }
@@ -1783,8 +1825,8 @@ fn overlay_consistency_add_new_id_goes_to_adds() {
     let mut store = setup_store_with(&[]);
     store.batch = Some(empty_batch());
     store.overlay_add(vec![loc(99, 10.0, 20.0)]);
-    assert!(store.overlay.adds.iter().any(|l| l.id == 99));
-    assert!(!store.overlay.patches.contains_key(&99));
+    assert!(store.overlay.adds.iter().any(|l| l.id == Id::new(99)));
+    assert!(!store.overlay.patches.contains_key(&Id::new(99)));
 }
 
 #[test]
@@ -1794,8 +1836,8 @@ fn overlay_consistency_update_batch_id_goes_to_patches() {
     store.bake_overlay();
     // Now l is in the batch
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    assert!(store.overlay.patches.contains_key(&1));
-    assert!(!store.overlay.adds.iter().any(|l| l.id == 1));
+    assert!(store.overlay.patches.contains_key(&Id::new(1)));
+    assert!(!store.overlay.adds.iter().any(|l| l.id == Id::new(1)));
 }
 
 #[test]
@@ -1807,7 +1849,7 @@ fn overlay_consistency_update_add_id_stays_in_adds() {
     // Should still be in overlay_adds, updated in place
     assert_eq!(store.overlay.adds.len(), 1);
     assert_eq!(store.overlay.adds[0].heading, 45.0);
-    assert!(!store.overlay.patches.contains_key(&1));
+    assert!(!store.overlay.patches.contains_key(&Id::new(1)));
 }
 
 #[test]
@@ -1816,14 +1858,14 @@ fn overlay_consistency_remove_clears_patches() {
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    assert!(store.overlay.patches.contains_key(&1));
+    assert!(store.overlay.patches.contains_key(&Id::new(1)));
 
     store.overlay_remove([l].iter());
     assert!(
-        !store.overlay.patches.contains_key(&1),
+        !store.overlay.patches.contains_key(&Id::new(1)),
         "remove should clear patches for the ID"
     );
-    assert!(store.overlay.dead.contains(1));
+    assert!(store.overlay.dead.contains(Id::new(1)));
 }
 
 #[test]
@@ -1929,7 +1971,7 @@ fn f32_render_truncation_applies_to_position_patches() {
     let new_lng = 20.987654321098765_f64;
     overlay_update(&mut store, &patch!(1; lat: new_lat, lng: new_lng));
     let old = loc(1, 10.0, 20.0);
-    let new_loc = store.get_loc_by_id(1).unwrap();
+    let new_loc = store.get_loc_by_id(Id::new(1)).unwrap();
     let cells = store.derive_cell_frames(
         &Change {
             updated: vec![(old, new_loc)],
@@ -1950,31 +1992,31 @@ fn cell_render_id_order_matches_after_swap_remove_sequence() {
     // must match what JS's CellBuffer.ids[i] would be after the same
     // sequence of applied frames. Both use swap-remove.
     let mut store = setup_store_with(&[]);
-    store.cell_add_render(24, 10);
-    store.cell_add_render(24, 20);
-    store.cell_add_render(24, 30);
+    store.cell_add_render(24, Id::new(10));
+    store.cell_add_render(24, Id::new(20));
+    store.cell_add_render(24, Id::new(30));
     // order: [10, 20, 30]
 
     // Remove index 0 (id=10) — 30 swaps in
-    store.cell_remove_render(10);
+    store.cell_remove_render(Id::new(10));
     let cr = store.render.cells[24].as_ref().unwrap();
-    assert_eq!(cr.id_order, vec![30, 20]);
+    assert_eq!(cr.id_order, loc_ids([30, 20]));
 
     // Remove index 0 (id=30) — 20 swaps in
-    store.cell_remove_render(30);
+    store.cell_remove_render(Id::new(30));
     let cr = store.render.cells[24].as_ref().unwrap();
-    assert_eq!(cr.id_order, vec![20]);
+    assert_eq!(cr.id_order, loc_ids([20]));
 
     // Add new entries
-    store.cell_add_render(24, 40);
-    store.cell_add_render(24, 50);
+    store.cell_add_render(24, Id::new(40));
+    store.cell_add_render(24, Id::new(50));
     let cr = store.render.cells[24].as_ref().unwrap();
-    assert_eq!(cr.id_order, vec![20, 40, 50]);
+    assert_eq!(cr.id_order, loc_ids([20, 40, 50]));
 
     // Verify index lookups
-    assert_eq!(*cr.id_to_index.get(&20).unwrap(), 0);
-    assert_eq!(*cr.id_to_index.get(&40).unwrap(), 1);
-    assert_eq!(*cr.id_to_index.get(&50).unwrap(), 2);
+    assert_eq!(*cr.id_to_index.get(&Id::new(20)).unwrap(), 0);
+    assert_eq!(*cr.id_to_index.get(&Id::new(40)).unwrap(), 1);
+    assert_eq!(*cr.id_to_index.get(&Id::new(50)).unwrap(), 2);
 }
 
 // -----------------------------------------------------------------------
@@ -1986,14 +2028,14 @@ fn cell_render_id_order_matches_after_swap_remove_sequence() {
 fn undo_delete_readds_render_entry() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    assert!(store.cell_lookup(1).is_some());
+    assert!(store.cell_lookup(Id::new(1)).is_some());
 
     // Delete
     let entry = Change::from_sides(vec![], vec![l.clone()]);
     let changes = forward(&mut store, &entry);
     let cells = store.derive_cell_frames(&changes, &HashSet::new());
     assert_eq!(removed(&cells).len(), 1);
-    assert!(store.cell_lookup(1).is_none());
+    assert!(store.cell_lookup(Id::new(1)).is_none());
 
     // Undo delete
     let changes = reverse(&mut store, &entry);
@@ -2002,7 +2044,7 @@ fn undo_delete_readds_render_entry() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].key, 1);
     assert!(
-        store.cell_lookup(1).is_some(),
+        store.cell_lookup(Id::new(1)).is_some(),
         "render entry must be restored after undo delete"
     );
 }
@@ -2018,17 +2060,17 @@ fn undo_delete_multiple_then_readd_renders_correctly() {
     let entry = Change::from_sides(vec![], vec![l1.clone(), l2.clone()]);
     let changes = forward(&mut store, &entry);
     store.derive_cell_frames(&changes, &HashSet::new());
-    assert!(store.cell_lookup(1).is_none());
-    assert!(store.cell_lookup(2).is_none());
-    assert!(store.cell_lookup(3).is_some());
+    assert!(store.cell_lookup(Id::new(1)).is_none());
+    assert!(store.cell_lookup(Id::new(2)).is_none());
+    assert!(store.cell_lookup(Id::new(3)).is_some());
 
     // Undo
     let changes = reverse(&mut store, &entry);
     let cells = store.derive_cell_frames(&changes, &HashSet::new());
     assert_eq!(added(&cells).len(), 2);
-    assert!(store.cell_lookup(1).is_some());
-    assert!(store.cell_lookup(2).is_some());
-    assert!(store.cell_lookup(3).is_some());
+    assert!(store.cell_lookup(Id::new(1)).is_some());
+    assert!(store.cell_lookup(Id::new(2)).is_some());
+    assert!(store.cell_lookup(Id::new(3)).is_some());
 }
 
 // -----------------------------------------------------------------------
@@ -2039,8 +2081,8 @@ fn undo_delete_multiple_then_readd_renders_correctly() {
 #[test]
 fn selected_ids_cleared_properly() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)]);
-    store.selections.ids.insert(1);
-    store.selections.ids.insert(2);
+    store.selections.ids.insert(Id::new(1));
+    store.selections.ids.insert(Id::new(2));
 
     store.selections.ids.clear();
     assert!(store.selections.ids.is_empty());
@@ -2111,7 +2153,7 @@ fn delta_overlay_only_includes_actual_changes() {
         1,
         "only modified location in patches"
     );
-    assert_eq!(overlay.patches[&1].heading, 90.0);
+    assert_eq!(overlay.patches[&Id::new(1)].heading, 90.0);
 }
 
 #[test]
@@ -2129,10 +2171,10 @@ fn delta_overlay_round_trip_preserves_store_state() {
 
     let restored = through_sidecar(&store);
     assert_eq!(restored.adds.len(), 1);
-    assert_eq!(restored.adds[0].id, 3);
-    assert!(restored.dead.contains(1));
+    assert_eq!(restored.adds[0].id, Id::new(3));
+    assert!(restored.dead.contains(Id::new(1)));
     assert_eq!(restored.patches.len(), 1);
-    assert_eq!(restored.patches[&2].heading, 180.0);
+    assert_eq!(restored.patches[&Id::new(2)].heading, 180.0);
 }
 
 // -----------------------------------------------------------------------
@@ -2147,7 +2189,7 @@ fn push_resolved(store: &mut Store, key: &str, color: Rgb, members: &[u32]) {
                 key: key.into(),
                 color,
                 selector: Selector::Manual {
-                    locations: members.to_vec(),
+                    locations: loc_ids(members.to_vec()),
                 },
             },
             ghosted: false,
@@ -2241,7 +2283,9 @@ fn render_frame_fixture() -> Vec<u8> {
             selection: Some(Box::new(Selection {
                 key: "b0".into(),
                 color: Rgb([0, 0, 255]),
-                selector: Selector::Manual { locations: vec![2] },
+                selector: Selector::Manual {
+                    locations: loc_ids([2]),
+                },
             })),
         }
     });
@@ -2311,7 +2355,7 @@ fn replay(frames: &[Frame]) -> [Vec<u32>; 32] {
             for &i in &c.remove {
                 ids.swap_remove(i as usize);
             }
-            ids.extend(&c.add.key);
+            ids.extend(c.add.key.iter().map(|id| id.get()));
             for &i in &c.patch.key {
                 assert!((i as usize) < ids.len(), "patch {i} past cell {}", c.cell);
             }
@@ -2324,7 +2368,7 @@ fn render_order(store: &Store) -> [Vec<u32>; 32] {
     array::from_fn(|ci| {
         store.render.cells[ci]
             .as_ref()
-            .map(|cr| cr.id_order.clone())
+            .map(|cr| cr.id_order.iter().map(|id| id.get()).collect())
             .unwrap_or_default()
     })
 }
@@ -2387,7 +2431,7 @@ fn replayed_frames_rebuild_the_render_cell_order() {
         }
         for _ in 0..next(5) {
             let (lat, lng) = spot(next(1_000));
-            create.push(loc(store.alloc_id(), lat, lng));
+            create.push(loc(store.alloc_id().get(), lat, lng));
         }
         let changes = apply_edit(&mut store, remove, create);
         store.finish_mutation(&changes);
@@ -2458,16 +2502,17 @@ fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_on
 #[test]
 fn an_add_reports_the_id_its_first_location_was_given() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     let added = add_rows(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
     let ids: Vec<u32> = store
         .collect(&crate::store::engine::Target::Map, &Selector::Everything)
         .iter()
         .filter(|l| l.lat > 0.5)
         .map(|l| l.id)
+        .map(Id::get)
         .collect();
     let first = added.keys[0];
-    assert_eq!(ids, vec![first, first + 1]);
+    assert_eq!(ids, vec![first.get(), first.get() + 1]);
 }
 
 #[test]
@@ -2553,7 +2598,7 @@ fn the_scene_frame_states_each_rows_selection() {
     let mut store = setup_store_with(&[l1, l2]);
     store.bake_overlay();
     push_resolved(&mut store, "manual", Rgb([255, 0, 0]), &[1]);
-    store.selections.ids.insert(1);
+    store.selections.ids.insert(Id::new(1));
 
     let frame = store.scene_frame();
 
@@ -2577,7 +2622,7 @@ fn the_scene_frame_tags_each_row_with_its_drawing_selection() {
     push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[1, 3]);
     push_resolved(&mut store, "b", Rgb([0, 0, 255]), &[2, 4]);
     for id in 1..=4 {
-        store.selections.ids.insert(id);
+        store.selections.ids.insert(Id::new(id));
     }
 
     let rows = added(&store.scene_frame().cells);
@@ -2598,16 +2643,22 @@ fn paint_for_uses_last_matching_selection() {
     for (key, color) in [("a", Rgb([255, 0, 0])), ("b", Rgb([0, 0, 255]))] {
         push_resolved(&mut store, key, color, &[1]);
     }
-    store.selections.ids.insert(1);
+    store.selections.ids.insert(Id::new(1));
 
     // The index is what the overlay orders by, so it must name the winning selection.
-    let paint = store.selections.paint_for(1).expect("id 1 is selected");
+    let paint = store
+        .selections
+        .paint_for(Id::new(1))
+        .expect("id 1 is selected");
     assert_eq!(paint, PaletteIdx(1), "last selection wins");
     assert_eq!(
         store.scene_frame().palette[paint.0 as usize],
         Rgb([0, 0, 255])
     );
-    assert!(store.selections.paint_for(2).is_none(), "unselected id");
+    assert!(
+        store.selections.paint_for(Id::new(2)).is_none(),
+        "unselected id"
+    );
 }
 
 #[test]
@@ -2619,15 +2670,15 @@ fn paint_map_matches_paint_for() {
     ] {
         push_resolved(&mut store, key, color, &members);
         for id in &members {
-            store.selections.ids.insert(*id);
+            store.selections.ids.insert(Id::new(*id));
         }
     }
 
     let map = store.selections.paint_map();
     for id in 1..=4 {
         assert_eq!(
-            map.get(&id).copied(),
-            store.selections.paint_for(id),
+            map.get(&Id::new(id)).copied(),
+            store.selections.paint_for(Id::new(id)),
             "id {id}"
         );
     }
@@ -2660,7 +2711,7 @@ fn bake_preserves_sorted_ids_after_patches() {
     overlay_update(&mut store, &patch!(2; lat: 99.0));
     store.bake_overlay();
     assert!(ids_sorted(&store));
-    assert_eq!(store.get_loc_by_id(2).unwrap().lat, 99.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().lat, 99.0);
 }
 
 #[test]
@@ -2725,9 +2776,9 @@ fn binary_search_finds_existing_ids() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(5, 10.0, 10.0), loc(10, 20.0, 20.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(Columns::of(b).row_of(1), Some(0));
-    assert_eq!(Columns::of(b).row_of(5), Some(1));
-    assert_eq!(Columns::of(b).row_of(10), Some(2));
+    assert_eq!(Columns::of(b).row_of(Id::new(1)), Some(0));
+    assert_eq!(Columns::of(b).row_of(Id::new(5)), Some(1));
+    assert_eq!(Columns::of(b).row_of(Id::new(10)), Some(2));
 }
 
 #[test]
@@ -2735,16 +2786,16 @@ fn binary_search_returns_none_for_missing() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(5, 10.0, 10.0), loc(10, 20.0, 20.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(Columns::of(b).row_of(0), None);
-    assert_eq!(Columns::of(b).row_of(3), None);
-    assert_eq!(Columns::of(b).row_of(7), None);
-    assert_eq!(Columns::of(b).row_of(99), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(0)), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(3)), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(7)), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(99)), None);
 }
 
 #[test]
 fn binary_search_on_empty_batch() {
     let b = empty_batch();
-    assert_eq!(Columns::of(&b).row_of(1), None);
+    assert_eq!(Columns::of(&b).row_of(Id::new(1)), None);
 }
 
 #[test]
@@ -2752,9 +2803,9 @@ fn binary_search_single_element() {
     let mut store = setup_store_with(&[loc(42, 0.0, 0.0)]);
     store.bake_overlay();
     let b = store.batch.as_ref().unwrap();
-    assert_eq!(Columns::of(b).row_of(42), Some(0));
-    assert_eq!(Columns::of(b).row_of(41), None);
-    assert_eq!(Columns::of(b).row_of(43), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(42)), Some(0));
+    assert_eq!(Columns::of(b).row_of(Id::new(41)), None);
+    assert_eq!(Columns::of(b).row_of(Id::new(43)), None);
 }
 
 #[test]
@@ -2762,10 +2813,10 @@ fn get_loc_by_id_uses_binary_search_on_batch() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 30.0, 40.0), loc(3, 50.0, 60.0)]);
     store.bake_overlay();
     // All in batch now, no overlay
-    assert_eq!(store.get_loc_by_id(1).unwrap().lat, 10.0);
-    assert_eq!(store.get_loc_by_id(2).unwrap().lat, 30.0);
-    assert_eq!(store.get_loc_by_id(3).unwrap().lat, 50.0);
-    assert!(store.get_loc_by_id(99).is_none());
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 10.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().lat, 30.0);
+    assert_eq!(store.get_loc_by_id(Id::new(3)).unwrap().lat, 50.0);
+    assert!(store.get_loc_by_id(Id::new(99)).is_none());
 }
 
 #[test]
@@ -2774,12 +2825,12 @@ fn overlay_add_distinguishes_batch_vs_new_ids() {
     store.bake_overlay();
     // Adding id=1 again should go to patches (exists in batch)
     store.overlay_add(vec![loc(1, 99.0, 99.0)]);
-    assert!(store.overlay.patches.contains_key(&1));
+    assert!(store.overlay.patches.contains_key(&Id::new(1)));
     assert!(store.overlay.adds.is_empty());
     // Adding id=5 should go to adds (not in batch)
     store.overlay_add(vec![loc(5, 50.0, 50.0)]);
     assert_eq!(store.overlay.adds.len(), 1);
-    assert_eq!(store.overlay.adds[0].id, 5);
+    assert_eq!(store.overlay.adds[0].id, Id::new(5));
 }
 
 // -----------------------------------------------------------------------
@@ -2806,9 +2857,9 @@ fn full_lifecycle_add_bake_remove_bake_undo() {
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
 
     // Verify surviving IDs
-    assert!(store.get_loc_by_id(1).is_some());
-    assert!(store.get_loc_by_id(2).is_none());
-    assert!(store.get_loc_by_id(3).is_some());
+    assert!(store.get_loc_by_id(Id::new(1)).is_some());
+    assert!(store.get_loc_by_id(Id::new(2)).is_none());
+    assert!(store.get_loc_by_id(Id::new(3)).is_some());
 }
 
 #[test]
@@ -2821,9 +2872,9 @@ fn patch_all_rows_preserves_order() {
     overlay_update(&mut store, &patch!(3; heading: 30.0));
     store.bake_overlay();
     assert!(ids_sorted(&store));
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 10.0);
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 20.0);
-    assert_eq!(store.get_loc_by_id(3).unwrap().heading, 30.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 10.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 20.0);
+    assert_eq!(store.get_loc_by_id(Id::new(3)).unwrap().heading, 30.0);
 }
 
 // -----------------------------------------------------------------------
@@ -2972,7 +3023,7 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
     // allocate above it, and an existing name must be reused case-insensitively.
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
     let urban = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
-    assert!(urban > 7, "fresh id lands above the data's max");
+    assert!(urban > Id::new(7), "fresh id lands above the data's max");
 
     let feed = FeedCapture::attach(&mut store);
     let r = store
@@ -2981,7 +3032,7 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
     assert_eq!(r.keys[0], urban, "case-insensitive reuse");
     assert!(r.keys[1] > urban);
     assert!(
-        shipped_record(&feed.last().derived, "tags", r.keys[1]).is_some(),
+        shipped_record(&feed.last().derived, "tags", r.keys[1].get()).is_some(),
         "the reconciled records ship on the same result"
     );
 }
@@ -2991,9 +3042,9 @@ fn edit_values_appends_new_records_to_the_order_and_gives_them_a_colour() {
     let mut store = setup_store_with(&[]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&Id::new(ids[0])].order, Some(1));
-    assert_eq!(meta[&Id::new(ids[1])].order, Some(2));
-    assert!(meta[&Id::new(ids[0])].color().is_some());
+    assert_eq!(meta[&ids[0]].order, Some(1));
+    assert_eq!(meta[&ids[1]].order, Some(2));
+    assert!(meta[&ids[0]].color().is_some());
 }
 
 #[test]
@@ -3010,18 +3061,18 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
                     name: Field::Set("Alpha".into()),
                     order: Field::Set(1),
                     extra: extra_of(&[("color", "#123456".into())]),
-                    ..value_put(ids[0])
+                    ..value_put(ids[0].get())
                 }),
                 Op::Put(Patch::<ValueRecord> {
                     order: Field::Set(0),
-                    ..value_put(ids[1])
+                    ..value_put(ids[1].get())
                 }),
             ],
         )
         .unwrap();
     let derived = feed.last().derived;
-    let first = shipped_record(&derived, "tags", ids[0]).unwrap();
-    let second = shipped_record(&derived, "tags", ids[1]).unwrap();
+    let first = shipped_record(&derived, "tags", ids[0].get()).unwrap();
+    let second = shipped_record(&derived, "tags", ids[1].get()).unwrap();
     assert_eq!(first.name.as_deref(), Some("Alpha"));
     assert_eq!(first.color(), "#123456".parse().ok());
     assert_eq!(second.order, Some(0));
@@ -3029,10 +3080,10 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
 
     undo_and_finish(&mut store);
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&Id::new(ids[0])].name.as_deref(), Some("A"));
-    assert_eq!(meta[&Id::new(ids[0])].order, Some(1));
+    assert_eq!(meta[&ids[0]].name.as_deref(), Some("A"));
+    assert_eq!(meta[&ids[0]].order, Some(1));
     assert_eq!(
-        meta[&Id::new(ids[1])].order,
+        meta[&ids[1]].order,
         Some(2),
         "one undo restores the whole edit"
     );
@@ -3048,14 +3099,14 @@ fn edit_values_null_deletes_a_metadata_key_but_never_the_name() {
             vec![Op::Put(Patch::<ValueRecord> {
                 name: Field::Clear,
                 extra: extra_of(&[("color", serde_json::Value::Null)]),
-                ..value_put(id)
+                ..value_put(id.get())
             })],
         )
         .unwrap();
     let meta = store.value_meta.get("tags").unwrap();
-    assert_eq!(meta[&Id::new(id)].color(), None, "null deletes the key");
+    assert_eq!(meta[&id].color(), None, "null deletes the key");
     assert_eq!(
-        meta[&Id::new(id)].name.as_deref(),
+        meta[&id].name.as_deref(),
         Some("A"),
         "identity never goes blank"
     );
@@ -3100,32 +3151,30 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
     ]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
-    tag_onto(&mut store, a, &[1, 2]);
-    tag_onto(&mut store, b, &[2]);
+    tag_onto(&mut store, a.get(), &[1, 2]);
+    tag_onto(&mut store, b.get(), &[2]);
 
     store
         .edit_values(
             "tags",
             vec![Op::Put(Patch::<ValueRecord> {
                 name: Field::Set("b".into()),
-                ..value_put(a)
+                ..value_put(a.get())
             })],
         )
         .unwrap();
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([b]));
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([b]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![b]);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![b]);
     assert_eq!(
-        store.value_meta.get("tags").unwrap()[&Id::new(a)]
-            .name
-            .as_deref(),
+        store.value_meta.get("tags").unwrap()[&a].name.as_deref(),
         Some("A"),
         "the emptied record keeps its name, dark"
     );
 
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([a]));
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([a, b]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![a]);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![a, b]);
 }
 
 #[test]
@@ -3152,7 +3201,7 @@ fn edit_values_rejects_a_nameless_new_record_and_any_removal() {
         .is_err());
     let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
     assert!(store
-        .edit_values("tags", vec![Op::Remove(Id::new(id))])
+        .edit_values("tags", vec![Op::Remove(Id::new(id.get()))])
         .is_err());
 }
 
@@ -3177,7 +3226,11 @@ fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
 
     assert_eq!(tag_count(&mut store, 7), 2);
     for id in [1, 2] {
-        assert!(store.get_loc_by_id(id).unwrap().tags.contains(&Id::new(7)));
+        assert!(store
+            .get_loc_by_id(Id::new(id))
+            .unwrap()
+            .tags
+            .contains(&Id::new(7)));
     }
     assert_eq!(
         shipped_count(&feed.last().derived, "tags", "7"),
@@ -3209,7 +3262,7 @@ fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Muta
         remove: remove.iter().map(|&i| serde_json::json!(i)).collect(),
     });
     let selector = Selector::Locations {
-        locations: ids.to_vec(),
+        locations: loc_ids(ids.to_vec()),
         name: None,
     };
     apply_work(store, &selector, &op).unwrap().mutation
@@ -3223,8 +3276,8 @@ fn set_tags_strips_a_tag_and_drops_its_count() {
 
     set_tags(&mut store, &[], &[t], &[1]);
 
-    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([t]));
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, tag_ids([t]));
     assert_eq!(
         store.fields(["tags"])[0].count(&(t as f64).to_string()),
         1,
@@ -3240,9 +3293,9 @@ fn set_tags_lets_add_win_over_remove_and_never_churns_the_row_that_had_it() {
 
     set_tags(&mut store, &[t], &[t], &[1, 2]);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([t]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([t]));
     assert_eq!(
-        store.get_loc_by_id(2).unwrap().tags,
+        store.get_loc_by_id(Id::new(2)).unwrap().tags,
         tag_ids([t]),
         "add wins"
     );
@@ -3255,7 +3308,7 @@ fn set_tags_lets_add_win_over_remove_and_never_churns_the_row_that_had_it() {
             .iter()
             .map(|l| l.id)
             .collect::<Vec<_>>(),
-        vec![2],
+        loc_ids([2]),
         "row 1 already had it, so it is not stripped and re-added"
     );
 }
@@ -3268,7 +3321,10 @@ fn set_tags_adds_and_removes_in_one_pass() {
 
     set_tags(&mut store, &[new], &[old], &[1]);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([new]));
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().tags,
+        tag_ids([new])
+    );
     assert_eq!(
         store.fields(["tags"])[0].count(&(old as f64).to_string()),
         0
@@ -3305,11 +3361,11 @@ fn set_tags_undo_restores_membership() {
     let t = tag_onto(&mut store, 7, &[1]);
 
     set_tags(&mut store, &[], &[t], &[1]);
-    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
 
     undo_and_finish(&mut store);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([t]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([t]));
     assert_eq!(tag_count(&mut store, t), 1);
 }
 
@@ -3319,7 +3375,7 @@ fn set_tags_undo_restores_membership() {
 
 /// Ids a selector resolves to, in order.
 fn resolved(store: &mut Store, sel: &Selector) -> Vec<u32> {
-    store.scope(sel).ids().iter().collect()
+    store.scope(sel).ids().iter().map(Id::get).collect()
 }
 
 fn tag_filter(tag_id: u32) -> Selector {
@@ -3378,6 +3434,7 @@ fn an_indexed_filter_agrees_with_the_scan_it_replaces() {
         .select(&Selector::tag(t))
         .ids()
         .iter()
+        .map(Id::get)
         .collect();
 
     store.scope(&tag_filter(t));
@@ -3399,7 +3456,7 @@ fn an_index_built_before_an_edit_follows_the_rows_through_it() {
     // one they do. The mutation path moves the postings with the rows, so the resolve
     // is a clone of the set, not a scan or an overlay re-test.
     set_tags(&mut store, &[t], &[], &[2]);
-    let gone = store.get_loc_by_id(1).unwrap();
+    let gone = store.get_loc_by_id(Id::new(1)).unwrap();
     undoable(&mut store, vec![gone], Vec::new());
 
     assert_eq!(
@@ -3423,7 +3480,10 @@ fn the_filter_answer_comes_from_the_postings() {
         .get_mut("tags")
         .unwrap()
         .by_value
-        .insert((t as f64).to_string(), [2u32].into_iter().collect());
+        .insert(
+            (t as f64).to_string(),
+            [2u32].into_iter().map(Id::new).collect(),
+        );
 
     assert_eq!(resolved(&mut store, &tag_filter(t)), vec![2]);
 }
@@ -3459,7 +3519,12 @@ fn assert_existence_matches_scan(store: &mut Store, field: &str, holders: &[u32]
     for (name, sel) in [("has", Selector::has(field)), ("nothas", nothas(field))] {
         store.scope(&sel);
         assert!(store.field_indexes.contains_key(field), "{name}: indexed");
-        let scanned: Vec<u32> = store.all().keep(|r| r.matches(&sel)).iter().collect();
+        let scanned: Vec<u32> = store
+            .all()
+            .keep(|r| r.matches(&sel))
+            .iter()
+            .map(Id::get)
+            .collect();
         assert_eq!(resolved(store, &sel), scanned, "{name}");
     }
     assert_eq!(resolved(store, &Selector::has(field)), holders);
@@ -3473,7 +3538,12 @@ fn existence_answers_from_the_index_rows() {
     ]);
     store.bake_overlay();
     store.scope(&Selector::has("k"));
-    store.field_indexes.get_mut("k").unwrap().rows.remove(2);
+    store
+        .field_indexes
+        .get_mut("k")
+        .unwrap()
+        .rows
+        .remove(Id::new(2));
 
     assert_eq!(resolved(&mut store, &Selector::has("k")), vec![1]);
     assert_eq!(resolved(&mut store, &nothas("k")), vec![2]);
@@ -3487,7 +3557,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
         loc_with_extra(3, r#"{"other":1}"#),
     ]);
     store.bake_overlay();
-    store.next_id = 10;
+    store.next_id = Id::new(10);
     assert_existence_matches_scan(&mut store, "k", &[1, 2]);
 
     add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
@@ -3501,7 +3571,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     apply_updates(&mut store, &[gain_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 3, 10]);
 
-    let two = store.get_loc_by_id(2).unwrap();
+    let two = store.get_loc_by_id(Id::new(2)).unwrap();
     undoable(&mut store, vec![two], Vec::new());
     assert_existence_matches_scan(&mut store, "k", &[3, 10]);
 
@@ -3550,7 +3620,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
         counts(&[("a", 3), ("b", 1)])
     );
 
-    let two = store.get_loc_by_id(2).unwrap();
+    let two = store.get_loc_by_id(Id::new(2)).unwrap();
     undoable(&mut store, vec![two], Vec::new());
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 2)]));
 
@@ -3561,13 +3631,15 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     );
 
     let some = Selector::Manual {
-        locations: vec![2, 3],
+        locations: loc_ids([2, 3]),
     };
     assert_eq!(
         extra_coverage(&mut store, &some),
         counts(&[("a", 2), ("b", 1)])
     );
-    let one = Selector::Manual { locations: vec![3] };
+    let one = Selector::Manual {
+        locations: loc_ids([3]),
+    };
     assert_eq!(extra_coverage(&mut store, &one), counts(&[("a", 1)]));
 }
 
@@ -3582,7 +3654,7 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
     store.batch = Some(arrow::locations_to_batch(base));
     store.alive_count = Tracked::new(base.len());
     for &id in dead {
-        let l = store.get_loc_by_id(id).unwrap();
+        let l = store.get_loc_by_id(Id::new(id)).unwrap();
         store.overlay_remove(slice::from_ref(&l).iter());
     }
     store.overlay_add(adds);
@@ -3679,7 +3751,7 @@ fn coverage_honours_a_named_id_list() {
         &["c", "d"],
     );
     let named = Selector::Locations {
-        locations: vec![2, 3],
+        locations: loc_ids([2, 3]),
         name: None,
     };
     assert_eq!(coverage(&mut store, &named), counts(&[("c", 2)]));
@@ -3956,7 +4028,7 @@ fn membership_delta_reports_lost_on_tag_remove() {
     insert_tag(&mut store, 1, 1);
     add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
-    assert!(store.selections.ids.contains(1), "starts selected");
+    assert!(store.selections.ids.contains(Id::new(1)), "starts selected");
 
     let untagged = loc_with_tags(1, 10.0, 20.0, vec![]);
     let frames = watch(&mut store);
@@ -3965,7 +4037,10 @@ fn membership_delta_reports_lost_on_tag_remove() {
         ..Default::default()
     });
 
-    assert!(!store.selections.ids.contains(1), "left the selection");
+    assert!(
+        !store.selections.ids.contains(Id::new(1)),
+        "left the selection"
+    );
     let rows = patched(&frames.last().cells);
     assert_eq!(
         rows.len(),
@@ -3987,7 +4062,10 @@ fn selected_leaf_tracks_the_selection_through_mutations() {
     insert_tag(&mut store, 1, 0);
     add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
-    assert_eq!(store.selections.ids, [1u32].into_iter().collect());
+    assert_eq!(
+        store.selections.ids,
+        [1u32].into_iter().map(Id::new).collect()
+    );
 
     assert_eq!(
         store.scope(&Selector::Selected).ids(),
@@ -4005,7 +4083,7 @@ fn selected_leaf_tracks_the_selection_through_mutations() {
         store.selections.ids,
         "a mutation's recount is visible without a re-sync"
     );
-    assert_eq!(store.selections.ids, RoaringBitmap::new());
+    assert_eq!(store.selections.ids, IdSet::new());
 }
 
 #[test]
@@ -4035,7 +4113,7 @@ fn removed_selected_location_leaves_no_patch() {
         [(render_cell_idx(10.0, 20.0), 0)],
         "the removal itself is what drops it from the overlay"
     );
-    assert!(!store.selections.ids.contains(1));
+    assert!(!store.selections.ids.contains(Id::new(1)));
 }
 
 #[test]
@@ -4052,7 +4130,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
     add_tag_selection(&mut store, 2, Rgb([0, 0, 255]));
     store.resolve_selection_membership();
     assert_eq!(
-        store.selections.paint_for(1),
+        store.selections.paint_for(Id::new(1)),
         Some(PaletteIdx(1)),
         "the later selection wins while the row is in both"
     );
@@ -4122,7 +4200,7 @@ fn selected_row_moving_across_cells_keeps_its_selection() {
     insert_tag(&mut store, 1, 1);
     add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
-    assert!(store.selections.ids.contains(1), "starts selected");
+    assert!(store.selections.ids.contains(Id::new(1)), "starts selected");
 
     let moved = Location {
         lat: -30.0,
@@ -4175,7 +4253,7 @@ fn merge_group_survivor_is_most_tags() {
         &[a, b],
         &default_score(),
     );
-    assert_eq!(s.id, 2);
+    assert_eq!(s.id, Id::new(2));
     assert_eq!(s.tags, tag_ids([1, 2, 3]));
 }
 
@@ -4188,7 +4266,7 @@ fn merge_group_tie_breaks_on_earliest_created() {
         &[a, b],
         &default_score(),
     );
-    assert_eq!(s.id, 2);
+    assert_eq!(s.id, Id::new(2));
 }
 
 #[test]
@@ -4200,7 +4278,7 @@ fn merge_group_tie_breaks_on_lowest_id() {
         &[a, b],
         &default_score(),
     );
-    assert_eq!(s.id, 2);
+    assert_eq!(s.id, Id::new(2));
 }
 
 #[test]
@@ -4256,7 +4334,7 @@ fn merge_group_default_scores_more_than_tag_count() {
             &default_score()
         )
         .id,
-        1
+        Id::new(1)
     );
     assert_eq!(
         merge_group(
@@ -4265,7 +4343,7 @@ fn merge_group_default_scores_more_than_tag_count() {
             &score_expr("tagCount")
         )
         .id,
-        2
+        Id::new(2)
     );
 }
 
@@ -4278,7 +4356,7 @@ fn merge_group_score_expression_replaces_tag_count() {
         &[a, b],
         &score_expr("id"),
     );
-    assert_eq!(s.id, 2); // highest id wins despite having no tags at all
+    assert_eq!(s.id, Id::new(2)); // highest id wins despite having no tags at all
 }
 
 #[test]
@@ -4290,7 +4368,7 @@ fn merge_group_score_ties_still_fall_to_created_then_id() {
         &[a, b],
         &score_expr("1"),
     );
-    assert_eq!(s.id, 2); // only the earlier created_at explains this: a has the lower id
+    assert_eq!(s.id, Id::new(2)); // only the earlier created_at explains this: a has the lower id
 }
 
 #[test]
@@ -4303,7 +4381,7 @@ fn merge_group_unscorable_member_ranks_below_a_scored_one() {
         &[a, b],
         &score_expr("q"),
     );
-    assert_eq!(s.id, 2);
+    assert_eq!(s.id, Id::new(2));
 }
 
 #[test]
@@ -4319,32 +4397,35 @@ fn merge_group_applies_and_undo_restores() {
         &members,
         &default_score(),
     );
-    assert_eq!(survivor.id, 1); // tie on tags+created -> lowest id survives
+    assert_eq!(survivor.id, Id::new(1)); // tie on tags+created -> lowest id survives
     let entry = Change::from_sides(vec![survivor], members);
 
     forward(&mut store, &entry);
     assert_eq!(*store.alive_count, 1);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10, 20]));
-    assert!(store.get_loc_by_id(2).is_none());
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().tags,
+        tag_ids([10, 20])
+    );
+    assert!(store.get_loc_by_id(Id::new(2)).is_none());
 
     reverse(&mut store, &entry);
     assert_eq!(*store.alive_count, 2);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10]));
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([20]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([10]));
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, tag_ids([20]));
 }
 
 #[test]
 fn selection_cell_segment_adapts_format() {
-    use roaring::RoaringBitmap;
+    use crate::store::id_set::IdSet;
     use std::collections::HashMap;
 
     // N large enough that a one-element index-list (8 bytes) beats the dense mask.
     let n = 800usize;
     let mut cells: [Option<CellRender>; 32] = array::from_fn(|_| None);
     cells[0] = Some(CellRender {
-        id_order: (0..n as u32).collect(),
+        id_order: (0..n as u32).map(Id::new).collect(),
         id_to_index: (0..n as u32)
-            .map(|i| (i, i as usize))
+            .map(|i| (Id::new(i), i as usize))
             .collect::<HashMap<_, _>>(),
     });
     let render = RenderState {
@@ -4358,8 +4439,8 @@ fn selection_cell_segment_adapts_format() {
     let parse_header = |seg: &[u8]| u32::from_le_bytes(seg[1..5].try_into().unwrap());
 
     // Sparse (one selected id) -> routed member-walk -> index-list (format byte 1).
-    let mut sparse = RoaringBitmap::new();
-    sparse.insert(5);
+    let mut sparse = IdSet::new();
+    sparse.insert(Id::new(5));
     let routed = vec![selection_cell_indices(&render, render.total_len(), &sparse)];
     let seg = serialize_cell_segment(0, cr, &routed);
     assert_eq!(parse_header(&seg), n as u32);
@@ -4379,7 +4460,7 @@ fn selection_cell_segment_adapts_format() {
     );
 
     // Dense (select all) -> cell scan -> bitmask (format byte 0), all bits set.
-    let dense: RoaringBitmap = (0..n as u32).collect();
+    let dense: IdSet<Location> = (0..n as u32).map(Id::new).collect();
     let routed = vec![selection_cell_indices(&render, render.total_len(), &dense)];
     let seg = serialize_cell_segment(0, cr, &routed);
     let mask_bytes = n.div_ceil(8);
@@ -4388,8 +4469,8 @@ fn selection_cell_segment_adapts_format() {
     assert!(seg[6..].iter().all(|&b| b == 0xFF), "every bit set");
 
     // Ids in no render cell route nowhere rather than panicking.
-    let mut absent = RoaringBitmap::new();
-    absent.insert(n as u32 + 10);
+    let mut absent = IdSet::new();
+    absent.insert(Id::new(n as u32 + 10));
     let routed = selection_cell_indices(&render, render.total_len(), &absent);
     assert!(routed.iter().all(Vec::is_empty));
 }
@@ -4412,9 +4493,9 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
             .record(Arc::new(entry(Change::from_sides(created, removed))));
     }
     with_history_db(|conn| {
-        assert_eq!(stored_history_max_id(conn, "m").unwrap(), 0);
+        assert_eq!(stored_history_max_id(conn, "m").unwrap(), Id::UNSET);
         save_edit_history(conn, "m", &store.edits).unwrap();
-        assert_eq!(stored_history_max_id(conn, "m").unwrap(), 112);
+        assert_eq!(stored_history_max_id(conn, "m").unwrap(), Id::new(112));
     });
 }
 
@@ -4462,7 +4543,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened.meta = Tracked::new((*store.meta).clone());
     reopened.batch = Some(empty_batch());
     reopened.overlay = Tracked::unsaved(delta);
-    reopened.next_id = seed_next_id(0, &reopened.overlay.adds, history_max);
+    reopened.next_id = seed_next_id(Id::UNSET, &reopened.overlay.adds, history_max);
     reopened.alive_count = Tracked::new(reopened.overlay.adds.len());
     reopened.edits = Tracked::new(edits);
     reopened
@@ -4471,18 +4552,18 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
 // Allocate an id and add a row through the store write path.
 fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
     let id = store.alloc_id();
-    let l = loc(id, lat, lng);
+    let l = loc(id.get(), lat, lng);
     store
         .edits
         .edit()
         .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
     store.overlay_add(vec![l]);
-    id
+    id.get()
 }
 
 // Remove a row through the store write path.
 fn delete_loc(store: &mut Store, id: u32) {
-    let l = store.get_loc_by_id(id).unwrap();
+    let l = store.get_loc_by_id(Id::new(id)).unwrap();
     store
         .edits
         .edit()
@@ -4581,7 +4662,17 @@ fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
                 .as_deref()
                 .cloned()
                 .unwrap_or_else(|| fetch_stored(e.seq).unwrap());
-            (e.seq, entry.rows.sides().0.iter().map(|l| l.id).collect())
+            (
+                e.seq,
+                entry
+                    .rows
+                    .sides()
+                    .0
+                    .iter()
+                    .map(|l| l.id)
+                    .map(Id::get)
+                    .collect(),
+            )
         })
         .collect()
 }
@@ -4610,7 +4701,7 @@ fn history_survives_repeated_close_and_reopen_in_stack_order() {
     );
     assert_eq!(
         with_history_db(|conn| stored_history_max_id(conn, "m").unwrap()),
-        5
+        Id::new(5)
     );
 }
 
@@ -4626,6 +4717,7 @@ fn live_ids(store: &mut Store) -> Vec<u32> {
         .collect(&crate::store::engine::Target::Map, &Selector::Everything)
         .iter()
         .map(|l| l.id)
+        .map(Id::get)
         .collect();
     ids.sort_unstable();
     ids
@@ -4714,8 +4806,8 @@ fn a_grouped_run_undoes_as_one_step() {
 
     assert_eq!(store.edits.len(Stack::Undo), 1);
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4725,11 +4817,11 @@ fn a_row_a_run_touches_twice_undoes_to_its_state_before_the_run() {
     page(&mut store, &mut group, 1, 90.0);
     page(&mut store, &mut group, 1, 180.0);
 
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 180.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 180.0);
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     press_redo(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 180.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 180.0);
 }
 
 #[test]
@@ -4747,7 +4839,7 @@ fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
 
     assert_eq!(store.edits.len(Stack::Undo), 1);
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4762,14 +4854,14 @@ fn an_edit_between_pages_splits_the_group() {
     assert_eq!(store.edits.len(Stack::Undo), 3);
     undo_and_finish(&mut store);
     assert_eq!(
-        store.get_loc_by_id(1).unwrap().heading,
+        store.get_loc_by_id(Id::new(1)).unwrap().heading,
         90.0,
         "the page after the user edit undoes alone"
     );
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4786,7 +4878,7 @@ fn an_undo_mid_run_leaves_later_pages_as_their_own_step() {
         "the late page is a fresh entry and clears the undone one from redo"
     );
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4803,8 +4895,8 @@ fn a_run_an_autosave_lands_in_undoes_whole_after_reopen() {
     let mut store = reopen(&store, &fs::read(&delta).unwrap());
     assert_eq!(store.edits.len(Stack::Undo), 1);
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4823,8 +4915,8 @@ fn a_page_folded_into_the_run_clears_redo() {
         "the page joins the run, and the undone user edit cannot be redone over it"
     );
     undo_and_finish(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
-    assert_eq!(store.get_loc_by_id(2).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
 
 #[test]
@@ -4905,7 +4997,7 @@ fn undo_of_delete_after_reopen_does_not_collide() {
     let mut store = close_and_reopen(&store);
     assert_eq!(
         store.next_id,
-        id + 1,
+        Id::new(id + 1),
         "freed id must stay reserved for history replay"
     );
 
@@ -4977,7 +5069,7 @@ fn copy_dedup_panoless_falls_back_to_exact_coords() {
     // id9 is off by 1e-6 -- exact bits only, so fresh.
     assert_eq!(skipped, 2);
     assert_eq!(fresh.len(), 1);
-    assert_eq!(fresh[0].id, 9);
+    assert_eq!(fresh[0].id, Id::new(9));
 }
 
 #[test]
@@ -5115,7 +5207,7 @@ fn undo_to_base_clears_overlay_patch() {
     let entry = Change::from_sides(vec![edited], vec![base]);
     forward(&mut store, &entry);
     assert!(
-        store.overlay.patches.contains_key(&1),
+        store.overlay.patches.contains_key(&Id::new(1)),
         "edit should create a patch"
     );
 
@@ -5136,7 +5228,12 @@ fn any_write_that_changes_an_input_clears_what_was_computed_from_it() {
         ("timezone".to_string(), vec!["sunrise".to_string()]),
     ]));
     apply_updates(&mut store, &[patch!(1; lat: 11.0)], &mut None);
-    let extra = store.get_loc_by_id(1).unwrap().extra.unwrap().to_map();
+    let extra = store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .extra
+        .unwrap()
+        .to_map();
     assert_eq!(
         extra,
         serde_json::json!({ "kept": 1 })
@@ -5153,11 +5250,11 @@ fn overlay_update_back_to_base_clears_patch() {
     store.bake_overlay();
 
     overlay_update(&mut store, &patch!(1; heading: 90.0));
-    assert!(store.overlay.patches.contains_key(&1));
+    assert!(store.overlay.patches.contains_key(&Id::new(1)));
 
     overlay_update(&mut store, &patch!(1; heading: 0.0));
     assert!(
-        !store.overlay.patches.contains_key(&1),
+        !store.overlay.patches.contains_key(&Id::new(1)),
         "a row edited back to its base is the base row again, whatever its stamp"
     );
 }
@@ -5173,6 +5270,7 @@ fn brute_nearby(store: &mut Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
         .iter()
         .filter(|l| selections::haversine_m(lat, lng, l.lat, l.lng) <= r)
         .map(|l| l.id)
+        .map(Id::get)
         .collect();
     out.sort_unstable();
     out
@@ -5185,7 +5283,7 @@ fn indexed_nearby(store: &mut Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
         lng,
         radius_m: r,
     };
-    store.scope(&near).ids().into_iter().collect()
+    store.scope(&near).ids().into_iter().map(Id::get).collect()
 }
 
 fn nearest(store: &mut Store, lat: f64, lng: f64) -> Option<u32> {
@@ -5194,7 +5292,7 @@ fn nearest(store: &mut Store, lat: f64, lng: f64) -> Option<u32> {
         lat,
         lng,
     };
-    store.scope(&near).ids().min()
+    store.scope(&near).ids().iter().next().map(Id::get)
 }
 
 #[test]
@@ -5257,7 +5355,7 @@ fn spatial_rebuilds_when_alive_count_drifts() {
 
     // Simulate a bulk path bypassing the overlay fns: the len/alive mismatch
     // must force a rebuild instead of returning stale results.
-    let pos = store.overlay.adds.partition_point(|l| l.id < 2);
+    let pos = store.overlay.adds.partition_point(|l| l.id < Id::new(2));
     store.overlay.edit().adds.insert(pos, loc(2, 10.0, 10.0));
     *store.alive_count.edit() += 1;
     assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 5.0), vec![1, 2]);
@@ -5301,7 +5399,7 @@ fn find_nearest_agrees_with_brute_force() {
     };
     let mut check = |store: &mut Store, lat: f64, lng: f64| {
         let id = nearest(store, lat, lng).expect("nonempty map");
-        let (la, ln) = store.coords_of(id).expect("alive id");
+        let (la, ln) = store.coords_of(Id::new(id)).expect("alive id");
         let d = selections::haversine_m(lat, lng, la, ln);
         let want = brute_nearest(store, lat, lng);
         assert!((d - want).abs() < 1e-6, "({lat},{lng}): {d} != {want}");
@@ -5323,7 +5421,7 @@ fn find_nearest_agrees_with_brute_force() {
 
     // Removing the nearest hands the answer to the runner-up.
     let gone = nearest(&mut store, 5.0, 179.9).unwrap();
-    let gone_loc = store.get_loc_by_id(gone).unwrap();
+    let gone_loc = store.get_loc_by_id(Id::new(gone)).unwrap();
     store.overlay_remove([gone_loc].iter());
     check(&mut store, 5.0, 179.9);
 }
@@ -5350,7 +5448,7 @@ fn spaced_grid_store() -> Store {
     store
 }
 
-fn coord_lookup(store: &Store) -> HashMap<u32, (f64, f64)> {
+fn coord_lookup(store: &Store) -> HashMap<Id<Location>, (f64, f64)> {
     store
         .selections
         .ids
@@ -5359,7 +5457,7 @@ fn coord_lookup(store: &Store) -> HashMap<u32, (f64, f64)> {
         .collect()
 }
 
-fn min_pairwise(ids: &[u32], coords: &HashMap<u32, (f64, f64)>) -> f64 {
+fn min_pairwise(ids: &[Id<Location>], coords: &HashMap<Id<Location>, (f64, f64)>) -> f64 {
     let mut min = f64::MAX;
     for i in 0..ids.len() {
         for j in i + 1..ids.len() {
@@ -5370,7 +5468,7 @@ fn min_pairwise(ids: &[u32], coords: &HashMap<u32, (f64, f64)>) -> f64 {
     min
 }
 
-fn candidates(store: &Store, set: Option<&RoaringBitmap>) -> Vec<(u32, f64, f64)> {
+fn candidates(store: &Store, set: Option<&IdSet<Location>>) -> Vec<(Id<Location>, f64, f64)> {
     let all = store.all();
     match set {
         Some(s) => all.within(s).points(),
@@ -5388,7 +5486,7 @@ fn thin(count: Option<u32>, metres: Option<f64>) -> Thinning {
 
 fn spaced(
     store: &Store,
-    set: Option<&RoaringBitmap>,
+    set: Option<&IdSet<Location>>,
     target: Option<u32>,
     min_distance_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
@@ -5397,7 +5495,7 @@ fn spaced(
 
 fn even(
     store: &Store,
-    set: Option<&RoaringBitmap>,
+    set: Option<&IdSet<Location>>,
     target: Option<u32>,
     spacing_m: Option<f64>,
 ) -> AppResult<SpacedPickResult> {
@@ -5409,7 +5507,7 @@ fn pick_spaced_count_returns_exactly_n_subset() {
     let store = spaced_grid_store();
     let res = spaced(&store, Some(&store.selections.ids), Some(8), None).unwrap();
     assert_eq!(res.ids.len(), 8);
-    let uniq: HashSet<u32> = res.ids.iter().copied().collect();
+    let uniq: HashSet<u32> = res.ids.iter().copied().map(Id::get).collect();
     assert_eq!(uniq.len(), 8, "no duplicates");
     for id in &res.ids {
         assert!(
@@ -5425,7 +5523,7 @@ fn pick_spaced_count_ge_size_returns_all() {
     let res = spaced(&store, Some(&store.selections.ids), Some(50), None).unwrap();
     assert_eq!(res.ids.len(), 20);
     assert_eq!(res.distance_m, 0);
-    let uniq: HashSet<u32> = res.ids.iter().copied().collect();
+    let uniq: HashSet<u32> = res.ids.iter().copied().map(Id::get).collect();
     assert_eq!(uniq.len(), 20);
 }
 
@@ -5484,17 +5582,17 @@ fn pick_spaced_narrowing_overrides_selection() {
     // Selection is the whole grid; narrow to ids 1..=5 (one row).
     let set = store
         .scope(&Selector::Manual {
-            locations: vec![1, 2, 3, 4, 5],
+            locations: loc_ids([1, 2, 3, 4, 5]),
         })
         .ids();
     let res = spaced(&store, Some(&set), Some(3), None).unwrap();
     assert_eq!(res.ids.len(), 3);
     for id in &res.ids {
-        assert!(*id <= 5, "id {id} outside the set");
+        assert!(*id <= Id::new(5), "id {id} outside the set");
     }
 
     // An empty selection does not starve a narrowed pick.
-    store.selections.ids = RoaringBitmap::new();
+    store.selections.ids = IdSet::new();
     let res = spaced(&store, Some(&set), Some(3), None).unwrap();
     assert_eq!(res.ids.len(), 3);
 }
@@ -5673,7 +5771,7 @@ fn store_with_full_overlay_base() -> Store {
     });
     store.batch = Some(arrow::locations_to_batch(&base));
     store.alive_count = Tracked::new(base.len());
-    store.next_id = 10;
+    store.next_id = Id::new(10);
     store
 }
 
@@ -5685,11 +5783,11 @@ fn store_with_full_overlay() -> Store {
 
     overlay_update(&mut store, &patch!(1; heading: 99.0));
 
-    let l2 = store.get_loc_by_id(2).unwrap();
+    let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
     store.overlay_remove(slice::from_ref(&l2).iter());
 
     let new_id = store.alloc_id();
-    store.overlay_add(vec![loc(new_id, 9.0, 9.0)]);
+    store.overlay_add(vec![loc(new_id.get(), 9.0, 9.0)]);
 
     store
 }
@@ -5806,12 +5904,12 @@ fn failed_base_write_keeps_the_overlay_and_the_delta() {
 
     assert!(store.overlay.is_empty() && !store.overlay.is_unsaved());
     assert!(!delta.exists(), "a written base supersedes the delta");
-    let written: Vec<(u32, f64)> =
+    let written: Vec<(Id<Location>, f64)> =
         arrow::batch_to_locations(&arrow::read_arrow_ipc(&base).unwrap())
             .iter()
             .map(|l| (l.id, l.lat))
             .collect();
-    assert_eq!(written, vec![(1, 5.0), (2, 2.0)]);
+    assert_eq!(written, vec![(Id::new(1), 5.0), (Id::new(2), 2.0)]);
 }
 
 #[test]
@@ -5876,7 +5974,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
 
     let all = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
     assert_eq!(all.len(), 4, "whole-map collect also yields duplicates");
-    let ids: Vec<u32> = all.iter().map(|l| l.id).collect();
+    let ids: Vec<u32> = all.iter().map(|l| l.id).map(Id::get).collect();
     assert_eq!(
         ids.iter().filter(|&&id| id == 5).count(),
         2,
@@ -5891,7 +5989,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
     // get_loc_by_id resolves via overlay.adds (binary search) before ever touching
     // the batch, so single-id lookups don't see the duplicate -- only bulk
     // enumeration (alive_count, collect, tag counts, render) is corrupted.
-    assert_eq!(store.get_loc_by_id(5), Some(loc(5, 5.0, 5.0)));
+    assert_eq!(store.get_loc_by_id(Id::new(5)), Some(loc(5, 5.0, 5.0)));
 }
 
 #[test]
@@ -5979,14 +6077,14 @@ fn arb_ops() -> impl Strategy<Value = Vec<ModelOp>> {
 // Apply the same operation to the store and the reference model.
 fn apply_model_op(
     store: &mut Store,
-    model: &mut BTreeMap<u32, Location>,
+    model: &mut BTreeMap<Id<Location>, Location>,
     alive_ids: &mut Vec<u32>,
     op: &ModelOp,
 ) {
     match op {
         ModelOp::Add { lat, lng } => {
             let id = store.alloc_id();
-            let l = loc(id, *lat, *lng);
+            let l = loc(id.get(), *lat, *lng);
             store
                 .edits
                 .edit()
@@ -5994,8 +6092,8 @@ fn apply_model_op(
             store.overlay_add(vec![l.clone()]);
             store.finish_mutation(&Change::from_sides(vec![l.clone()], vec![]));
             model.insert(id, l);
-            let pos = alive_ids.partition_point(|&x| x < id);
-            alive_ids.insert(pos, id);
+            let pos = alive_ids.partition_point(|&x| x < id.get());
+            alive_ids.insert(pos, id.get());
         }
         ModelOp::Remove { pick } => {
             if alive_ids.is_empty() {
@@ -6003,14 +6101,14 @@ fn apply_model_op(
             }
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
-            let l = store.get_loc_by_id(id).unwrap();
+            let l = store.get_loc_by_id(Id::new(id)).unwrap();
             store.overlay_remove(slice::from_ref(&l).iter());
             store.finish_mutation(&Change::from_sides(vec![], vec![l.clone()]));
             store
                 .edits
                 .edit()
                 .record(Arc::new(entry(Change::from_sides(vec![], vec![l]))));
-            model.remove(&id);
+            model.remove(&Id::new(id));
             alive_ids.remove(idx);
         }
         ModelOp::Update {
@@ -6023,12 +6121,12 @@ fn apply_model_op(
             }
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
-            let old = store.get_loc_by_id(id).unwrap();
+            let old = store.get_loc_by_id(Id::new(id)).unwrap();
             overlay_update(
                 store,
                 &patch!(id; heading: *heading, tags: tag_ids(tags.clone())),
             );
-            let new_loc = store.get_loc_by_id(id).unwrap();
+            let new_loc = store.get_loc_by_id(Id::new(id)).unwrap();
             let change = Change::from_iter([mma_algebra::Transition::new(
                 Some(old.clone()),
                 Some(new_loc.clone()),
@@ -6037,7 +6135,7 @@ fn apply_model_op(
             store.edits.edit().record(Arc::new(entry(Change::from_iter([
                 mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
             ]))));
-            model.insert(id, new_loc);
+            model.insert(Id::new(id), new_loc);
         }
     }
 }
@@ -6045,7 +6143,7 @@ fn apply_model_op(
 // modified_at is stamped from the wall clock on a real change; it is not part of
 // the undo/redo correctness invariant under test, so normalize it away before
 // comparing the store snapshot against the hand-rolled model.
-fn model_snapshot(model: &BTreeMap<u32, Location>) -> Vec<Location> {
+fn model_snapshot(model: &BTreeMap<Id<Location>, Location>) -> Vec<Location> {
     let mut v: Vec<Location> = model.values().cloned().collect();
     v.sort_by_key(|l| l.id);
     for l in &mut v {
@@ -6073,12 +6171,12 @@ proptest::proptest! {
         k_raw in 0usize..20,
     ) {
         let mut store = setup_store_with(&initial);
-        let max_initial = initial.iter().map(|l| l.id).max().unwrap_or(0);
-        store.next_id = max_initial + 1;
+        let max_initial = initial.iter().map(|l| l.id).max().unwrap_or(Id::new(0));
+        store.next_id = Id::new(max_initial.get() + 1);
 
-        let mut model: BTreeMap<u32, Location> =
+        let mut model: BTreeMap<Id<Location>, Location> =
             initial.iter().map(|l| (l.id, l.clone())).collect();
-        let mut alive_ids: Vec<u32> = initial.iter().map(|l| l.id).collect();
+        let mut alive_ids: Vec<u32> = initial.iter().map(|l| l.id).map(Id::get).collect();
         alive_ids.sort_unstable();
 
         let initial_snapshot = model_snapshot(&model);
@@ -6187,7 +6285,7 @@ fn plan_full(locs: &[Location], op: &RowOp) -> Planned {
     let p = plan_fields(selections::FieldRegistry::builtins(), &fx.view().all(), op).unwrap();
     Planned {
         updates: puts(p.edits),
-        failed: p.failed,
+        failed: p.failed.into_iter().map(Id::get).collect(),
     }
 }
 
@@ -6220,7 +6318,7 @@ fn field_move_renames_when_the_target_is_absent() {
         &move_op("a", "b", MergeWinner::From),
     );
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].id, 1);
+    assert_eq!(out[0].id, Id::new(1));
     assert_eq!(
         planned_extra(&out[0]),
         serde_json::json!({"a": null, "b": 5})
@@ -6258,7 +6356,7 @@ fn field_move_skips_rows_without_the_source_and_leaves_other_keys_alone() {
         &move_op("a", "b", MergeWinner::From),
     );
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].id, 2);
+    assert_eq!(out[0].id, Id::new(2));
     // Merge patch carries only the moved keys -- `keep` is untouched.
     assert_eq!(
         planned_extra(&out[0]),
@@ -6285,7 +6383,7 @@ fn field_delete_null_deletes_only_where_the_key_exists() {
         },
     );
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].id, 1);
+    assert_eq!(out[0].id, Id::new(1));
     assert_eq!(planned_extra(&out[0]), serde_json::json!({"a": null}));
 }
 
@@ -6310,7 +6408,7 @@ fn field_op_honours_the_selector() {
         loc_with_extra(2, r#"{"a":6}"#),
     ];
     let fx = Fx::base(&locs);
-    let set: RoaringBitmap = [2u32].into_iter().collect();
+    let set: IdSet<Location> = [2u32].into_iter().map(Id::new).collect();
     let out = puts(
         plan_fields(
             selections::FieldRegistry::builtins(),
@@ -6321,7 +6419,7 @@ fn field_op_honours_the_selector() {
         .edits,
     );
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].id, 2);
+    assert_eq!(out[0].id, Id::new(2));
 }
 
 #[test]
@@ -6332,12 +6430,15 @@ fn set_op_writes_extra_only_where_the_value_differs() {
         loc_with_extra(3, r#"{"b":1}"#),
     ];
     let out = plan(&locs, &set_op("a", serde_json::json!(5)));
-    assert_eq!(out.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2, 3]);
+    assert_eq!(
+        out.iter().map(|u| u.id).collect::<Vec<_>>(),
+        loc_ids([2, 3])
+    );
     assert_eq!(planned_extra(&out[0]), serde_json::json!({ "a": 5 }));
     // A stored integer equals the float an expression would compute.
     assert!(plan(&locs, &set_op("a", serde_json::json!(5.0)))
         .iter()
-        .all(|u| u.id != 1));
+        .all(|u| u.id != Id::new(1)));
     // Strings compare exactly.
     let out = plan(&locs, &set_op("a", serde_json::json!("x")));
     assert_eq!(out.len(), 3);
@@ -6366,14 +6467,14 @@ fn set_op_toggles_a_flag_field_bit_and_keeps_the_others() {
         },
     ];
     let on = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(true)));
-    assert_eq!(on.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(on.iter().map(|u| u.id).collect::<Vec<_>>(), loc_ids([1]));
     assert_eq!(
         on[0].flags,
         Some(informational | LocationFlags::LOAD_AS_PANO_ID)
     );
     assert!(on[0].extra.is_keep());
     let off = plan(&locs, &set_op("loadAsPanoId", serde_json::json!(false)));
-    assert_eq!(off.iter().map(|u| u.id).collect::<Vec<_>>(), vec![2]);
+    assert_eq!(off.iter().map(|u| u.id).collect::<Vec<_>>(), loc_ids([2]));
     assert_eq!(off[0].flags, Some(LocationFlags::empty()));
 }
 
@@ -6428,7 +6529,7 @@ fn delete_clears_a_nullable_builtin_column_rather_than_a_phantom_extra_key() {
 fn delete_leaves_a_row_that_has_no_pano_alone() {
     let locs = [pinned_loc(1, "abc"), loc(2, 1.0, 1.0)];
     let out = plan(&locs, &del_op(&["panoId"]));
-    assert_eq!(out.iter().map(|u| u.id).collect::<Vec<_>>(), vec![1]);
+    assert_eq!(out.iter().map(|u| u.id).collect::<Vec<_>>(), loc_ids([1]));
 }
 
 #[test]
@@ -6486,7 +6587,7 @@ fn expr_op_evaluates_per_row_and_names_the_rows_it_cannot() {
     let p = plan_full(&locs, &expr_op("h", "mod(a + 180, 360)"));
     assert_eq!(
         p.updates.iter().map(|u| u.id).collect::<Vec<_>>(),
-        vec![1, 2]
+        loc_ids([1, 2])
     );
     assert_eq!(
         planned_extra(&p.updates[0]),
@@ -6558,7 +6659,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
     apply_updates(
         &mut store,
         &[Patch::<Location> {
-            id: 1,
+            id: Id::new(1),
             extra: RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into()).into(),
             ..Default::default()
         }],
@@ -6602,7 +6703,7 @@ fn apply_field_op_clears_a_nullable_column() {
     .unwrap();
     assert_eq!(out.changed, 1);
     assert!(out.failed.is_empty());
-    assert!(store.get_loc_by_id(1).unwrap().pano_id.is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().pano_id.is_none());
 }
 
 #[test]
@@ -6650,7 +6751,7 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
     )
     .unwrap();
     assert_eq!(out.changed, 1);
-    assert_eq!(out.failed, vec![2, 3]);
+    assert_eq!(out.failed, loc_ids([2, 3]));
 }
 
 #[test]
@@ -6666,7 +6767,7 @@ fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
         assert_eq!(out.changed, 1);
         assert_eq!(
             store
-                .get_loc_by_id(1)
+                .get_loc_by_id(Id::new(1))
                 .unwrap()
                 .flags
                 .contains(LocationFlags::LOAD_AS_PANO_ID),
@@ -6702,7 +6803,7 @@ fn apply_field_op_refuses_a_non_numeric_assignment() {
 #[test]
 fn collect_honours_each_selector_shape() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)]);
-    let ids = |locs: Vec<Location>| locs.iter().map(|l| l.id).collect::<Vec<u32>>();
+    let ids = |locs: Vec<Location>| locs.iter().map(|l| l.id).map(Id::get).collect::<Vec<u32>>();
 
     assert_eq!(
         ids(store.collect(&crate::store::engine::Target::Map, &Selector::Everything)),
@@ -6713,7 +6814,7 @@ fn collect_honours_each_selector_shape() {
         ids(store.collect(
             &crate::store::engine::Target::Map,
             &Selector::Locations {
-                locations: vec![3, 1, 9],
+                locations: loc_ids([3, 1, 9]),
                 name: None,
             }
         )),
@@ -6723,7 +6824,7 @@ fn collect_honours_each_selector_shape() {
         ids(store.collect(
             &crate::store::engine::Target::Map,
             &Selector::Manual {
-                locations: vec![1, 3]
+                locations: loc_ids([1, 3])
             }
         )),
         vec![1, 3]
@@ -6789,7 +6890,7 @@ fn uploaded_add_echoes_ids_in_staged_order() {
     assert_eq!(ids.len(), 3);
     assert!(ids.windows(2).all(|w| w[1] == w[0] + 1));
     for (id, lat) in ids.iter().zip([1.0, 2.0, 3.0]) {
-        assert_eq!(store.get_loc_by_id(*id).unwrap().lat, lat);
+        assert_eq!(store.get_loc_by_id(Id::new(*id)).unwrap().lat, lat);
     }
 }
 
@@ -6897,7 +6998,7 @@ fn viewer() -> Target {
 
 fn heading(id: u32, heading: f64) -> Patch<Location> {
     Patch::<Location> {
-        id,
+        id: Id::new(id),
         heading: Some(heading),
         ..Default::default()
     }
@@ -6906,14 +7007,14 @@ fn heading(id: u32, heading: f64) -> Patch<Location> {
 #[test]
 fn a_pending_edit_is_held_and_read_through_until_it_lands() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     assert_eq!(
         store
             .collect(
                 &Target::Map,
                 &crate::selections::Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None
                 }
             )
@@ -6928,7 +7029,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
             .collect(
                 &viewer(),
                 &crate::selections::Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None
                 }
             )
@@ -6944,11 +7045,11 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
 #[test]
 fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.write(
         [Op::Put(Patch::<Location> {
-            id: 1,
+            id: Id::new(1),
             pitch: Some(5.0),
             ..Default::default()
         })],
@@ -6959,7 +7060,7 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
         .collect(
             &viewer(),
             &crate::selections::Selector::Locations {
-                locations: vec![1],
+                locations: loc_ids([1]),
                 name: None,
             },
         )
@@ -6973,9 +7074,9 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
 #[test]
 fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    store.next_id = 3;
+    store.next_id = Id::new(3);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
-    store.edit(&viewer(), vec![Op::Remove(2)], false, &mut None);
+    store.edit(&viewer(), vec![Op::Remove(Id::new(2))], false, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 0);
 
     store.edit(&viewer(), vec![], true, &mut None);
@@ -6985,7 +7086,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
             .collect(
                 &Target::Map,
                 &crate::selections::Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None
                 }
             )
@@ -6999,7 +7100,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
         .collect(
             &Target::Map,
             &crate::selections::Selector::Locations {
-                locations: vec![2],
+                locations: loc_ids([2]),
                 name: None
             }
         )
@@ -7013,7 +7114,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
             .collect(
                 &Target::Map,
                 &crate::selections::Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None
                 }
             )
@@ -7027,7 +7128,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
         .collect(
             &Target::Map,
             &crate::selections::Selector::Locations {
-                locations: vec![2],
+                locations: loc_ids([2]),
                 name: None
             }
         )
@@ -7039,14 +7140,14 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
 #[test]
 fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], true, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 1);
 
     store.edit(
         &viewer(),
         vec![Op::Put(Patch::<Location> {
-            id: 1,
+            id: Id::new(1),
             pitch: Some(5.0),
             ..Default::default()
         })],
@@ -7057,7 +7158,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
         .collect(
             &Target::Map,
             &crate::selections::Selector::Locations {
-                locations: vec![1],
+                locations: loc_ids([1]),
                 name: None,
             },
         )
@@ -7072,7 +7173,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
         .collect(
             &Target::Map,
             &crate::selections::Selector::Locations {
-                locations: vec![1],
+                locations: loc_ids([1]),
                 name: None,
             },
         )
@@ -7085,7 +7186,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
 #[test]
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.drop_pending("viewer");
     assert_eq!(
@@ -7093,7 +7194,7 @@ fn dropping_a_pending_layer_discards_what_it_held() {
             .collect(
                 &viewer(),
                 &crate::selections::Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None
                 }
             )
@@ -7108,14 +7209,14 @@ fn dropping_a_pending_layer_discards_what_it_held() {
 #[test]
 fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     let r = store.edit(&viewer(), vec![Op::Set(loc(0, 2.0, 2.0))], false, &mut None);
-    assert_eq!(r.keys, vec![2]);
+    assert_eq!(r.keys, loc_ids([2]));
     assert!(store
         .collect(
             &Target::Map,
             &crate::selections::Selector::Locations {
-                locations: vec![2],
+                locations: loc_ids([2]),
                 name: None
             }
         )
@@ -7127,7 +7228,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
             .collect(
                 &viewer(),
                 &crate::selections::Selector::Locations {
-                    locations: vec![2],
+                    locations: loc_ids([2]),
                     name: None
                 }
             )
@@ -7144,7 +7245,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
             .collect(
                 &Target::Map,
                 &crate::selections::Selector::Locations {
-                    locations: vec![2],
+                    locations: loc_ids([2]),
                     name: None
                 }
             )
@@ -7159,7 +7260,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
 #[test]
 fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let sink = {
         let got = got.clone();
@@ -7208,7 +7309,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
         ..loc(1, 0.0, 0.0)
     };
     let answer = || Patch::<Location> {
-        id: 1,
+        id: Id::new(1),
         heading: Some(2.0),
         extra: RawExtra::from_map(
             serde_json::json!({ "countryCode": "FR", "altitude": 9 })
@@ -7235,7 +7336,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     assert!(extra.to_map().contains_key("countryCode"));
 
     let all_stale = Patch::<Location> {
-        id: 1,
+        id: Id::new(1),
         extra: RawExtra::from_map(
             serde_json::json!({ "countryCode": "FR" })
                 .as_object()
@@ -7291,9 +7392,9 @@ fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     states.push(tag_records(&store));
     for edits in [
-        vec![rename(ids[0], "Alpha")],
-        vec![recolor(ids[1], "#123456")],
-        reorder(&[ids[1], ids[0]]),
+        vec![rename(ids[0].get(), "Alpha")],
+        vec![recolor(ids[1].get(), "#123456")],
+        reorder(&[ids[1].get(), ids[0].get()]),
     ] {
         store.edit_values("tags", edits).unwrap();
         states.push(tag_records(&store));
@@ -7313,23 +7414,23 @@ fn undoing_a_rename_collision_restores_records_and_rows_together() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
-    tag_onto(&mut store, a, &[1, 2]);
-    tag_onto(&mut store, b, &[2]);
+    tag_onto(&mut store, a.get(), &[1, 2]);
+    tag_onto(&mut store, b.get(), &[2]);
     let records = tag_records(&store);
 
     store
-        .edit_values("tags", vec![rename(a, "b"), recolor(b, "#abcdef")])
+        .edit_values(
+            "tags",
+            vec![rename(a.get(), "b"), recolor(b.get(), "#abcdef")],
+        )
         .unwrap();
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([b]));
-    assert_eq!(
-        tag_records(&store)[&Id::new(b)].color(),
-        "#abcdef".parse().ok()
-    );
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![b]);
+    assert_eq!(tag_records(&store)[&b].color(), "#abcdef".parse().ok());
 
     undo_and_finish(&mut store);
     assert_eq!(tag_records(&store), records);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([a]));
-    assert_eq!(store.get_loc_by_id(2).unwrap().tags, tag_ids([a, b]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![a]);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![a, b]);
 }
 
 #[test]
@@ -7362,9 +7463,9 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
 fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let ids = store.edit_values("tags", sets(&["A"])).unwrap().keys;
-    tag_onto(&mut store, ids[0], &[1]);
+    tag_onto(&mut store, ids[0].get(), &[1]);
     store
-        .edit_values("tags", vec![recolor(ids[0], "#010203")])
+        .edit_values("tags", vec![recolor(ids[0].get(), "#010203")])
         .unwrap();
     let held: Vec<(u64, Entry)> = store
         .edits
@@ -7385,23 +7486,23 @@ fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
-    tag_onto(&mut store, a, &[1]);
-    tag_onto(&mut store, b, &[1, 2]);
+    tag_onto(&mut store, a.get(), &[1]);
+    tag_onto(&mut store, b.get(), &[1, 2]);
     let feed = FeedCapture::attach(&mut store);
 
-    set_tags(&mut store, &[], &[b], &[1]);
+    set_tags(&mut store, &[], &[b.get()], &[1]);
     let count = |id: u32| shipped_count(&feed.last().derived, "tags", &id.to_string());
-    assert_eq!(count(b), Some(1), "b still holds row 2");
+    assert_eq!(count(b.get()), Some(1), "b still holds row 2");
 
-    set_tags(&mut store, &[], &[a], &[1]);
-    assert_eq!(count(a), Some(0));
+    set_tags(&mut store, &[], &[a.get()], &[1]);
+    assert_eq!(count(a.get()), Some(0));
     assert!(
-        shipped_record(&feed.last().derived, "tags", a).is_some(),
+        shipped_record(&feed.last().derived, "tags", a.get()).is_some(),
         "a lingers dark"
     );
 
     let c = store.edit_values("tags", sets(&["C"])).unwrap().keys[0];
-    assert!(shipped_record(&feed.last().derived, "tags", c).is_some());
+    assert!(shipped_record(&feed.last().derived, "tags", c.get()).is_some());
     undo_and_finish(&mut store);
     let gone = feed.last().derived.field_values.unwrap()["tags"][&c.to_string()].is_none();
     assert!(gone, "an undone create's value is gone");
@@ -7437,7 +7538,12 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
     undo_and_finish(&mut store);
     assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
     assert!(!store.meta.extra.fields.contains_key("b"));
-    let row = store.get_loc_by_id(1).unwrap().extra.unwrap().to_map();
+    let row = store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .extra
+        .unwrap()
+        .to_map();
     assert!(row.contains_key("a") && !row.contains_key("b"));
 }
 
@@ -7454,7 +7560,7 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
         .fields
         .insert("a".into(), labelled_def("a"));
     let one = Selector::Locations {
-        locations: vec![1],
+        locations: loc_ids([1]),
         name: None,
     };
     apply_work(&mut store, &one, &Work::Rows(del_op(&["a"]))).unwrap();
@@ -7506,7 +7612,7 @@ fn a_pick_node_reads_only_its_child_and_clips_to_the_outer_scope() {
     let locs: Vec<Location> = (1..=10).map(|i| loc(i, 0.0, i as f64 * 0.001)).collect();
     let mut store = setup_store_with(&locs);
     let child = Some(Box::new(Selection::of(Selector::Manual {
-        locations: vec![1, 2, 3, 4, 5],
+        locations: loc_ids([1, 2, 3, 4, 5]),
     })));
     let picks = [
         Selector::Sample {
@@ -7536,15 +7642,20 @@ fn a_pick_node_reads_only_its_child_and_clips_to_the_outer_scope() {
     for pick in picks {
         let ids = store.scope(&pick).ids();
         assert!(!ids.is_empty());
-        assert!(ids.iter().all(|id| id <= 5), "a pick reads only its child");
+        assert!(
+            ids.iter().all(|id| id <= Id::new(5)),
+            "a pick reads only its child"
+        );
         let outer = Selector::all([
             Selector::Manual {
-                locations: vec![4, 5, 6],
+                locations: loc_ids([4, 5, 6]),
             },
             pick,
         ]);
         let clipped = store.scope(&outer).ids();
-        assert!(clipped.iter().all(|id| id == 4 || id == 5));
+        assert!(clipped
+            .iter()
+            .all(|id| id == Id::new(4) || id == Id::new(5)));
     }
     let nearest = Selector::Nearest {
         selection: child,
@@ -7553,7 +7664,7 @@ fn a_pick_node_reads_only_its_child_and_clips_to_the_outer_scope() {
     };
     assert_eq!(
         store.scope(&nearest).ids().iter().collect::<Vec<_>>(),
-        vec![5],
+        loc_ids([5]),
         "the nearest row of the child, not of the map"
     );
 }
@@ -7624,8 +7735,8 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
 fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     let t = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
-    tag_onto(&mut store, t, &[1]);
-    add_tag_selection(&mut store, t, Rgb([9, 9, 9]));
+    tag_onto(&mut store, t.get(), &[1]);
+    add_tag_selection(&mut store, t.get(), Rgb([9, 9, 9]));
     store.resolve_selection_membership();
     assert_eq!(
         store.scene_frame().palette,
@@ -7634,7 +7745,7 @@ fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
     );
 
     store
-        .edit_values("tags", vec![recolor(t, "#ff8000")])
+        .edit_values("tags", vec![recolor(t.get(), "#ff8000")])
         .unwrap();
     assert_eq!(store.scene_frame().palette, vec![Rgb([255, 128, 0])]);
 
@@ -7659,15 +7770,21 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         &mut store,
         &Selector::Everything,
         &Work::Sets(SetOp::Merge {
-            groups: vec![vec![1, 2, 2], vec![3, 4]],
+            groups: vec![
+                vec![Id::new(1), Id::new(2), Id::new(2)],
+                vec![Id::new(3), Id::new(4)],
+            ],
             score: Some("-id".into()),
         }),
     )
     .unwrap();
     assert_eq!(out.changed, 4);
     assert_eq!(*store.alive_count, 2);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([10, 20]));
-    assert!(store.get_loc_by_id(3).is_some());
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().tags,
+        tag_ids([10, 20])
+    );
+    assert!(store.get_loc_by_id(Id::new(3)).is_some());
     assert_eq!(store.edits.len(Stack::Undo), 1);
     store
         .step(Stack::Undo, |_| panic!("resident undo entry"))
@@ -7682,21 +7799,21 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
 fn merge_groups_respects_scope_and_ignores_missing_members() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)]);
     let selector = Selector::Locations {
-        locations: vec![1, 2],
+        locations: loc_ids([1, 2]),
         name: None,
     };
     apply_work(
         &mut store,
         &selector,
         &Work::Sets(SetOp::Merge {
-            groups: vec![vec![1, 2, 3, 999]],
+            groups: vec![vec![Id::new(1), Id::new(2), Id::new(3), Id::new(999)]],
             score: Some("-id".into()),
         }),
     )
     .unwrap();
-    assert!(store.get_loc_by_id(1).is_some());
-    assert!(store.get_loc_by_id(2).is_none());
-    assert!(store.get_loc_by_id(3).is_some());
+    assert!(store.get_loc_by_id(Id::new(1)).is_some());
+    assert!(store.get_loc_by_id(Id::new(2)).is_none());
+    assert!(store.get_loc_by_id(Id::new(3)).is_some());
 }
 
 #[test]
@@ -7707,7 +7824,7 @@ fn overlapping_merge_groups_fail_before_any_write() {
         &mut store,
         &Selector::Everything,
         &Work::Sets(SetOp::Merge {
-            groups: vec![vec![1, 2], vec![2, 3]],
+            groups: vec![vec![Id::new(1), Id::new(2)], vec![Id::new(2), Id::new(3)]],
             score: None
         })
     )
@@ -7760,14 +7877,14 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
         .unwrap();
     store.finish_entry(&entry);
     assert!(!store.meta.extra.fields.contains_key("height"));
-    assert!(store.get_loc_by_id(1).is_none());
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
     let entry = store
         .step(Stack::Redo, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
     assert!(store.meta.extra.fields.contains_key("height"));
-    assert!(store.get_loc_by_id(1).is_some());
+    assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
 
 #[test]
@@ -7784,7 +7901,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
         selections: vec![input],
     });
     let before = store.selections.list();
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     assert!(store.selections.list().is_empty());
@@ -7795,7 +7912,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
         .unwrap();
     store.finish_entry(&entry);
     assert_eq!(store.selections.list(), before);
-    assert!(store.selections.ids.contains(1));
+    assert!(store.selections.ids.contains(Id::new(1)));
 }
 
 #[test]
@@ -7826,7 +7943,7 @@ fn indexed_proximity_respects_the_scope_and_pending_reads_use_overlaid_rows() {
         radius_m: 10.0,
     };
     let pick = Selector::Locations {
-        locations: vec![2],
+        locations: loc_ids([2]),
         name: None,
     };
     assert!(
@@ -7839,7 +7956,7 @@ fn indexed_proximity_respects_the_scope_and_pending_reads_use_overlaid_rows() {
     assert!(
         matches!(store.read(&pending, &pick, &ask).unwrap(), Answer::NearAny { values } if values == vec![true, false])
     );
-    assert_eq!(store.get_loc_by_id(2).unwrap().lat, 40.0);
+    assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().lat, 40.0);
 }
 
 fn edit_selection_fixture(store: &mut Store, edit: impl FnOnce(&mut Vec<ListedSelection>)) {
@@ -7888,8 +8005,8 @@ fn field_access_preserves_request_order_and_builds_presence_for_unbounded_fields
         "unbounded values are not enumerated"
     );
     drop(fields);
-    assert!(store.field_indexes["note"].rows.contains(1));
-    assert!(!store.field_indexes["note"].rows.contains(2));
+    assert!(store.field_indexes["note"].rows.contains(Id::new(1)));
+    assert!(!store.field_indexes["note"].rows.contains(Id::new(2)));
     assert!(store.field_indexes["note"].by_value.is_empty());
     let first = &store.field_indexes["note"] as *const _;
     let _ = store.fields(["note"]);
@@ -7911,7 +8028,7 @@ fn redo_reapplies_a_bulk_tag_removal() {
     apply_work(
         &mut store,
         &Selector::Locations {
-            locations: removed,
+            locations: loc_ids(removed),
             name: None,
         },
         &Work::Rows(RowOp::ListSet {
@@ -7939,7 +8056,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
     let mut store = setup_store_with(&rows);
     assert_eq!(tag_count(&mut store, 10), 12);
 
-    let removes = (1..=6).map(Op::Remove);
+    let removes = (1..=6).map(Id::new).map(Op::Remove);
     store.write(removes, &mut None, Entry::default());
     assert_eq!(tag_count(&mut store, 10), 6);
 
@@ -7962,7 +8079,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
 #[test]
 fn selections_and_meta_only_edits_stay_out_of_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = 2;
+    store.next_id = Id::new(2);
     click_add(&mut store, 1.0, 1.0);
     press_undo(&mut store);
     assert_eq!(store.edits.len(Stack::Redo), 1);
@@ -7989,7 +8106,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
             },
             SelectionInput {
                 selector: Selector::Locations {
-                    locations: vec![1],
+                    locations: loc_ids([1]),
                     name: None,
                 },
                 color: Some(Rgb([4, 5, 6])),
@@ -8004,27 +8121,27 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
         true
     );
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 90.0;
     store.write([Op::Set(row.clone())], &mut None, Entry::default());
     let undo = store.edits.len(Stack::Undo);
     step_selection(&mut store, Stack::Undo);
     assert_eq!(store.selections.list(), before);
-    assert_eq!(store.get_loc_by_id(1).unwrap(), row);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
     assert_eq!(store.edits.len(Stack::Undo), undo);
-    assert_eq!(store.selections.ids, RoaringBitmap::from_iter([1, 2]));
+    assert_eq!(store.selections.ids, IdSet::from_iter(loc_ids([1, 2])));
     assert_eq!(
         feed.last().derived.history.unwrap()[&EntryKey::Selections].redo,
         true
     );
     press_undo(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 0.0);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.selections.list(), before);
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     step_selection(&mut store, Stack::Undo);
     assert_eq!(store.edits.len(Stack::Redo), 1);
     press_redo(&mut store);
-    assert_eq!(store.get_loc_by_id(1).unwrap(), row);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
 }
 
 #[test]
@@ -8035,7 +8152,7 @@ fn selection_history_undoes_and_redoes_each_change_in_order() {
         .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
         .unwrap()
         .is_none());
-    store.edit_selections(&SelectionOp::Manual { id: 1 });
+    store.edit_selections(&SelectionOp::Manual { id: Id::new(1) });
     let before = store.selections.list();
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     step_selection(&mut store, Stack::Undo);
@@ -8075,7 +8192,7 @@ fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
         keys: None,
     });
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     step_selection(&mut store, Stack::Undo);
@@ -8084,7 +8201,7 @@ fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
         store.selections.list()[0].selection.selector,
         Selector::Everything
     );
-    assert!(store.selections.ids.contains(1));
+    assert!(store.selections.ids.contains(Id::new(1)));
 }
 
 #[test]
@@ -8102,7 +8219,7 @@ fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
         }],
     });
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     step_selection(&mut store, Stack::Undo);
@@ -8168,7 +8285,7 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
         }],
     });
     let before = store.selections.list();
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     let changes = store
@@ -8176,7 +8293,7 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
         .unwrap()
         .unwrap();
     store.finish_entry(&changes);
-    assert_eq!(store.get_loc_by_id(1).unwrap().tags, tag_ids([7]));
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
     assert!(store.history()[&EntryKey::Rows].redo);
 }
@@ -8193,7 +8310,7 @@ fn selection_key_never_replays_a_data_cascade_without_selection_history() {
             ghosted: false,
         })
     });
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     assert!(!store.history().contains_key(&EntryKey::Selections));
@@ -8201,13 +8318,13 @@ fn selection_key_never_replays_a_data_cascade_without_selection_history() {
         .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
         .unwrap()
         .is_none());
-    assert!(store.get_loc_by_id(1).unwrap().tags.is_empty());
+    assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
 }
 
 #[test]
 fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    let mut row = store.get_loc_by_id(1).unwrap();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 45.0;
     store.write([Op::Set(row)], &mut None, Entry::default());
     let before = store.edits.availability();
@@ -8228,19 +8345,21 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
 fn black_tag_selected(store: &mut Store) -> u32 {
     let tag = store.edit_values("tags", sets(&["2023"])).unwrap().keys[0];
     store
-        .edit_values("tags", vec![recolor(tag, "#000000")])
+        .edit_values("tags", vec![recolor(tag.get(), "#000000")])
         .unwrap();
-    add_rows(store, vec![loc_with_tags(0, 1.0, 1.0, vec![tag])]);
+    add_rows(store, vec![loc_with_tags(0, 1.0, 1.0, vec![tag.get()])]);
     store.edit_selections(&crate::selections::tree::SelectionOp::Add {
         selections: vec![crate::selections::tree::SelectionInput {
             selector: Selector::Filter {
                 field: "tags".into(),
-                test: selections::FilterOp::Contains { value: tag.into() },
+                test: selections::FilterOp::Contains {
+                    value: tag.get().into(),
+                },
             },
             color: None,
         }],
     });
-    tag
+    tag.get()
 }
 
 #[test]
@@ -8286,7 +8405,7 @@ fn a_created_tag_without_a_colour_gets_its_names() {
     let mut store = setup_store_with(&[]);
     let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
     assert_eq!(
-        tag_records(&store)[&Id::new(id)].color(),
+        tag_records(&store)[&id].color(),
         Some(Rgb::for_name("Urban"))
     );
 }

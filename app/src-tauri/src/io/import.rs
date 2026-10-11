@@ -5,8 +5,8 @@
 //! serde_json with parallel object deserialization via rayon. A two-phase
 //! preview/confirm flow lets the user inspect data before committing.
 
-use crate::types::AppResult;
-use crate::types::RawExtra;
+use crate::types::{AppResult, RawExtra};
+use mma_algebra::Id;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
@@ -115,7 +115,7 @@ fn write_map_to_db(
 
     // Assign sequential u32 IDs
     for (i, loc) in map.locations.iter_mut().enumerate() {
-        loc.id = (i as u32) + 1;
+        loc.id = Id::new((i as u32) + 1);
     }
 
     let batch = arrow::locations_to_batch(&map.locations);

@@ -1,4 +1,5 @@
 use super::*;
+use mma_algebra::Id;
 use rusqlite::Connection;
 
 fn setup() -> Connection {
@@ -57,7 +58,7 @@ fn write_then_read_back() {
         zoom: 2.0,
         entered_at: 1700000000,
         map_id: Some("map1".into()),
-        location_id: Some(42),
+        location_id: Some(Id::new(42)),
         country_code: Some("GB".into()),
         address: Some("London, UK".into()),
         thumbnail: Some("data:image/png;base64,abc".into()),
@@ -75,7 +76,7 @@ fn write_then_read_back() {
     assert!((e.zoom - 2.0).abs() < 1e-10);
     assert_eq!(e.entered_at, 1700000000);
     assert_eq!(e.map_id.as_deref(), Some("map1"));
-    assert_eq!(e.location_id, Some(42));
+    assert_eq!(e.location_id, Some(Id::new(42)));
     assert_eq!(e.country_code.as_deref(), Some("GB"));
     assert_eq!(e.address.as_deref(), Some("London, UK"));
     assert_eq!(e.thumbnail.as_deref(), Some("data:image/png;base64,abc"));
@@ -272,12 +273,12 @@ fn filter_by_location_ids_since() {
         ("e", 2, 10),
     ] {
         let mut e = mk(pano, entered_at);
-        e.location_id = Some(location);
+        e.location_id = Some(Id::new(location));
         write(&conn, e).unwrap();
     }
 
     let filter = SeenFilter {
-        location_ids: Some(vec![1, 2]),
+        location_ids: Some(vec![Id::new(1), Id::new(2)]),
         since: Some(15),
         ..Default::default()
     };

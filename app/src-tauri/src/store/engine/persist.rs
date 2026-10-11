@@ -4,8 +4,7 @@ use super::*;
 use crate::store::arrow;
 use crate::store::maps::MapMeta;
 use crate::store::storage;
-use crate::types::Location;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
 use arrow_array::RecordBatch;
 use mma_algebra::{Counts, Patch, Patchable};
 use rusqlite::Connection;
@@ -217,7 +216,7 @@ pub(crate) fn save_edit_history(
                     map_id,
                     edit.seq as i64,
                     stack,
-                    entry.rows.max_key().unwrap_or(0),
+                    entry.rows.max_key().map_or(0, Id::get),
                     arrow::arrow_ipc_bytes(&{
                         let (created, removed) = entry.rows.sides();
                         arrow::delta_to_batch(&created, &removed)
@@ -282,11 +281,11 @@ pub(crate) fn load_edit(conn: &Connection, map_id: &str, seq: u64) -> AppResult<
 }
 
 /// Highest location id the stored history can re-materialize, without reading it.
-pub(crate) fn stored_history_max_id(conn: &Connection, map_id: &str) -> AppResult<u32> {
+pub(crate) fn stored_history_max_id(conn: &Connection, map_id: &str) -> AppResult<Id<Location>> {
     Ok(conn.query_row(
         "SELECT COALESCE(MAX(max_id), 0) FROM edit_entries WHERE map_id = ?1",
         [map_id],
-        |r| r.get(0),
+        |r| r.get(0).map(Id::new),
     )?)
 }
 

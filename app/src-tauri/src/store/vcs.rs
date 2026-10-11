@@ -6,7 +6,7 @@
 //! graph. A commit's full state is materialized by replaying its ancestor deltas
 //! from genesis forward (see [`crate::store::vcs::delta`]).
 
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
 use rusqlite::params;
 use tauri::State;
 
@@ -17,9 +17,8 @@ use crate::store::arrow;
 use crate::store::engine;
 use crate::store::engine::{StoreManager, StoreState};
 use crate::store::storage;
-use crate::types::Location;
 use crate::util::{now_iso, sha256_hex};
-use mma_algebra::{Change, Counts};
+use mma_algebra::{Change, Counts, Id};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -256,13 +255,13 @@ pub fn store_checkout_commit(
 
 fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
     let current = store.collect(&engine::Target::Map, &Selector::Everything);
-    store.next_id = store.next_id.max(
+    store.next_id = store.next_id.max(Id::new(
         locs.iter()
-            .map(|row| row.id)
+            .map(|row| row.id.get())
             .max()
             .unwrap_or(0)
             .saturating_add(1),
-    );
+    ));
     let before = store.selections.table();
     let selections = Change::at(&before, &Default::default(), before.keys().cloned());
     store.pending.clear();

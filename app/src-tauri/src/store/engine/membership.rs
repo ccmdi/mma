@@ -2,10 +2,10 @@
 
 use super::*;
 use crate::selections::{self, Selection, Selector};
+use crate::store::id_set::IdSet;
 use crate::types::Location;
 use crate::util::Rgb;
 use mma_algebra::{ordered_rows, ordered_table, Change, Id, Keyed};
-use roaring::RoaringBitmap;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -14,7 +14,7 @@ use std::time::Instant;
 pub(crate) struct ResolvedSelection {
     pub sel: Selection,
     /// Member location ids.
-    pub set: RoaringBitmap,
+    pub set: IdSet<Location>,
     /// Counted, but kept out of the overlay and the selected set.
     pub ghosted: bool,
 }
@@ -26,7 +26,7 @@ pub(crate) struct SelectionState {
     /// The faithful per-node count source for sidebar display; refreshed on every sync/resolve.
     pub node_counts: HashMap<String, u32>,
     /// Union of every member set. Answers "is this id selected".
-    pub ids: RoaringBitmap,
+    pub ids: IdSet<Location>,
     pub(crate) set_dependent: bool,
 }
 
@@ -42,14 +42,13 @@ impl SelectionState {
     }
 
     /// Every id some live selection holds: the selected set.
-    pub(crate) fn live_ids(&self) -> RoaringBitmap {
-        self.live()
-            .fold(RoaringBitmap::new(), |acc, r| acc | &r.set)
+    pub(crate) fn live_ids(&self) -> IdSet<Location> {
+        self.live().fold(IdSet::new(), |acc, r| acc | &r.set)
     }
 
     /// The live selection painting a selected id: the last one containing it, by its
     /// index in `live` order. `None` if unselected.
-    pub(super) fn paint_for(&self, id: u32) -> Option<PaletteIdx> {
+    pub(super) fn paint_for(&self, id: Id<Location>) -> Option<PaletteIdx> {
         if !self.ids.contains(id) {
             return None;
         }
@@ -62,7 +61,7 @@ impl SelectionState {
 
     /// Bulk form of `paint_for`. Later selections overwrite earlier ones, so each id ends
     /// up with the same paint the per-id lookup would return.
-    pub(super) fn paint_map(&self) -> HashMap<u32, PaletteIdx> {
+    pub(super) fn paint_map(&self) -> HashMap<Id<Location>, PaletteIdx> {
         let mut map = HashMap::with_capacity(self.ids.len() as usize);
         for (i, r) in self.live().enumerate() {
             for id in &r.set {
@@ -241,12 +240,12 @@ impl SelectionState {
             .map(|root| ResolvedSelection {
                 sel: root.selection,
                 ghosted: root.ghosted,
-                set: RoaringBitmap::new(),
+                set: IdSet::new(),
             })
             .collect();
     }
 
-    pub(crate) fn resolve(&mut self, sets: Vec<RoaringBitmap>, counts: HashMap<String, u32>) {
+    pub(crate) fn resolve(&mut self, sets: Vec<IdSet<Location>>, counts: HashMap<String, u32>) {
         self.node_counts = counts;
         for (root, set) in self.resolved.iter_mut().zip(sets) {
             root.set = set;
@@ -256,10 +255,10 @@ impl SelectionState {
 
     /// Update membership for changed rows and return ids whose selection colour changed.
     /// This includes moves between overlapping selections.
-    pub(super) fn update(&mut self, changes: &Change<Location>) -> HashSet<u32> {
-        let drop_ids: HashSet<u32> = changes.before().map(|l| l.id).collect();
+    pub(super) fn update(&mut self, changes: &Change<Location>) -> HashSet<Id<Location>> {
+        let drop_ids: HashSet<Id<Location>> = changes.before().map(|l| l.id).collect();
         // Compare selection colours, since overlap can change a row's colour without deselecting it.
-        let mut prev_paint: HashMap<u32, Option<PaletteIdx>> = HashMap::new();
+        let mut prev_paint: HashMap<Id<Location>, Option<PaletteIdx>> = HashMap::new();
         if !drop_ids.is_empty() {
             for id in &drop_ids {
                 prev_paint.insert(*id, self.paint_for(*id));

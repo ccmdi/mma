@@ -9,9 +9,9 @@
 //! functions below, which carry all the behavior and are unit-tested directly.
 
 use crate::store::storage;
-use crate::types::AppResult;
+use crate::types::{AppResult, Location};
 use crate::util::now_iso;
-use mma_algebra::Patch;
+use mma_algebra::{Id, Patch};
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
@@ -30,9 +30,9 @@ pub struct ReviewSession {
     #[patch(skip)]
     pub source_props: serde_json::Value,
     #[patch(column = "ordering")]
-    pub order: Vec<u32>,
-    pub reviewed: Vec<u32>,
-    pub cursor_id: u32,
+    pub order: Vec<Id<Location>>,
+    pub reviewed: Vec<Id<Location>>,
+    pub cursor_id: Id<Location>,
     pub status: String,
     #[patch(skip)]
     pub created_at: String,
@@ -50,7 +50,7 @@ pub struct ReviewCreate {
     pub source_key: String,
     #[specta(type = specta_typescript::Any)]
     pub source_props: serde_json::Value,
-    pub order: Vec<u32>,
+    pub order: Vec<Id<Location>>,
 }
 
 /// SELECT column list shared by all readers, matching `row_to_session` ordinals.
@@ -67,7 +67,7 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<ReviewSession> {
         source_props: storage::json_col(row, "source_props")?,
         order: storage::json_col(row, "ordering")?,
         reviewed: storage::json_col(row, "reviewed")?,
-        cursor_id: row.get("cursor_id")?,
+        cursor_id: Id::new(row.get("cursor_id")?),
         status: row.get("status")?,
         created_at: row.get("created_at")?,
         updated_at: row.get("updated_at")?,
@@ -90,7 +90,7 @@ pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<Revi
     conn.execute(
         "INSERT INTO review_sessions (id, map_id, name, source_key, source_props, ordering, reviewed, cursor_id, status, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, '[]', ?, 'active', ?, ?)",
-        rusqlite::params![id, session.map_id, session.name, session.source_key, source_props, ordering, cursor_id, now, now],
+        rusqlite::params![id, session.map_id, session.name, session.source_key, source_props, ordering, cursor_id.get(), now, now],
     )?;
 
     Ok(ReviewSession {

@@ -1,6 +1,7 @@
 use super::*;
 use crate::test_util::{loc, TempDir};
 use crate::types::RawExtra;
+use mma_algebra::Id;
 use std::collections::HashMap;
 use std::fs;
 
@@ -34,7 +35,7 @@ fn a_msgpack_sidecar_converts_to_an_arrow_delta_that_reloads_to_the_same_overlay
         &delta_path,
         &MsgpackDelta {
             adds: vec![loc(11, 11.0, 11.0), loc(10, 10.0, 10.0)],
-            dead_ids: vec![2, 12],
+            dead_ids: vec![Id::new(2), Id::new(12)],
             patches: vec![patched.clone()],
         },
     );
@@ -46,8 +47,8 @@ fn a_msgpack_sidecar_converts_to_an_arrow_delta_that_reloads_to_the_same_overlay
         reload(&delta_path),
         Overlay {
             adds: vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)],
-            dead: [2].into_iter().collect(),
-            patches: HashMap::from([(1, patched)]),
+            dead: [2].into_iter().map(Id::new).collect(),
+            patches: HashMap::from([(Id::new(1), patched)]),
         },
         "id 12 was added then removed, so no base row stands behind it"
     );
@@ -61,7 +62,7 @@ fn a_msgpack_sidecar_of_a_map_with_no_base_converts_to_its_adds() {
         &delta_path,
         &MsgpackDelta {
             adds: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)],
-            dead_ids: vec![3],
+            dead_ids: vec![Id::new(3)],
             patches: vec![],
         },
     );

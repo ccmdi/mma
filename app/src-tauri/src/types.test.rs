@@ -1,5 +1,6 @@
 use super::*;
 use crate::test_util::tag_ids;
+use mma_algebra::{Id, Patch, Patchable};
 use serde_json::value::RawValue;
 use std::collections::HashSet;
 
@@ -98,9 +99,8 @@ fn human_readable_json_round_trips_transparently() {
 
 #[test]
 fn rows_are_equal_exactly_when_the_patch_between_them_is_empty() {
-    use mma_algebra::{Patch, Patchable};
     let row = Location {
-        id: 1,
+        id: Id::new(1),
         heading: 10.0,
         modified_at: Some(1),
         ..Location::default()
@@ -117,7 +117,7 @@ fn rows_are_equal_exactly_when_the_patch_between_them_is_empty() {
     assert_eq!(
         Location::between(&row, &stamped),
         Patch::<Location> {
-            id: 1,
+            id: Id::new(1),
             ..Default::default()
         }
     );
@@ -243,7 +243,7 @@ fn arb_location() -> impl Strategy<Value = Location> {
                 modified_at,
             )| {
                 Location {
-                    id,
+                    id: Id::new(id),
                     lat,
                     lng,
                     heading,

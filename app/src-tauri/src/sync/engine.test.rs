@@ -3,8 +3,10 @@ use crate::store::engine::Stack;
 use crate::sync::{
     sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, RemoteSnapshot, SyncDirection,
 };
+use crate::test_util::loc_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
+use mma_algebra::Id;
 use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -45,7 +47,7 @@ fn raw(f: impl FnOnce(&mut NormalizedSyncLocation), rid: Option<i64>) -> Raw {
 
 fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
     let mut l = Location {
-        id,
+        id: Id::new(id),
         ..Location::default()
     };
     f(&mut l);
@@ -54,7 +56,7 @@ fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
 
 fn row(local_id: u32, remote_id: i64, hash: String) -> RemoteMappingRow {
     RemoteMappingRow {
-        local_id,
+        local_id: Id::new(local_id),
         remote_id,
         hash,
     }
@@ -125,17 +127,22 @@ impl Fake {
     }
     fn record(&self, batch: &PushBatch<Raw>) {
         self.pushes.borrow_mut().push(Recorded {
-            create_ids: batch.create.iter().map(|(id, _)| *id).collect(),
+            create_ids: batch
+                .create
+                .iter()
+                .map(|(id, _)| *id)
+                .map(Id::get)
+                .collect(),
             updates: batch
                 .update
                 .iter()
-                .map(|(id, _, replaces)| (*id, replaces.clone()))
+                .map(|(id, _, replaces)| (id.get(), replaces.clone()))
                 .collect(),
             deletes: batch.delete.clone(),
             desired: batch
                 .desired
                 .iter()
-                .map(|d| (d.local_id, d.item.clone()))
+                .map(|d| (d.local_id.map(Id::get), d.item.clone()))
                 .collect(),
         });
     }
@@ -244,7 +251,7 @@ impl MemSink {
     fn seeded(rows: &[RemoteMappingRow]) -> Self {
         let mut s = Self::new();
         for r in rows {
-            s.rows.insert(r.local_id, r.clone());
+            s.rows.insert(r.local_id.get(), r.clone());
         }
         s
     }
@@ -256,7 +263,7 @@ impl MemSink {
         let mut out: Vec<(u32, i64, String)> = self
             .rows
             .values()
-            .map(|r| (r.local_id, r.remote_id, r.hash.clone()))
+            .map(|r| (r.local_id.get(), r.remote_id, r.hash.clone()))
             .collect();
         out.sort_by_key(|r| r.0);
         out
@@ -271,7 +278,7 @@ impl MemSink {
         let rows: Vec<RemoteMappingRow> = out
             .pull_updates
             .iter()
-            .map(|u| row(u.local_id, u.remote_id, u.hash.clone()))
+            .map(|u| row(u.local_id.get(), u.remote_id, u.hash.clone()))
             .collect();
         self.upsert(&rows).unwrap();
         self.delete(&out.pull_delete_ids).unwrap();
@@ -282,14 +289,14 @@ impl MappingSink for MemSink {
     fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()> {
         self.upsert_sizes.push(rows.len());
         for r in rows {
-            self.rows.insert(r.local_id, r.clone());
+            self.rows.insert(r.local_id.get(), r.clone());
         }
         Ok(())
     }
-    fn delete(&mut self, local_ids: &[u32]) -> AppResult<()> {
+    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()> {
         self.delete_calls += 1;
         for id in local_ids {
-            self.rows.remove(id);
+            self.rows.remove(&id.get());
         }
         Ok(())
     }
@@ -486,7 +493,7 @@ fn pushes_local_edit_and_pulls_remote_edit() {
     assert_eq!(out.pulled, side(0, 1, 0));
     // The push must not write back over the local edit.
     assert_eq!(out.pull_updates.len(), 1);
-    assert_eq!(out.pull_updates[0].local_id, 2);
+    assert_eq!(out.pull_updates[0].local_id, Id::new(2));
     assert_eq!(out.pull_updates[0].patch.lat, Some(22.0));
     assert_eq!(out.pull_updates[0].remote_id, 8);
     assert_eq!(out.pull_updates[0].hash, nhash(|n| n.lat = 22.0));
@@ -610,7 +617,7 @@ fn resolution_to_remote_applies_as_a_pull() {
     assert_eq!(out.pulled, side(0, 1, 0));
     assert!(provider.pushes.borrow().is_empty());
     assert_eq!(out.pull_updates.len(), 1);
-    assert_eq!(out.pull_updates[0].local_id, 1);
+    assert_eq!(out.pull_updates[0].local_id, Id::new(1));
     assert_eq!(out.pull_updates[0].patch.lat, Some(3.0));
     assert_eq!(out.pull_updates[0].remote_id, 7);
     assert_eq!(out.pull_updates[0].hash, nhash(|n| n.lat = 3.0));
@@ -638,7 +645,7 @@ fn pull_updates_and_pull_deletes_leave_their_mapping_rows_to_the_apply_step() {
     let out = sync(&provider, &locs, &mapping, &no_tags(), &mut sink);
 
     assert_eq!(out.pulled, side(0, 1, 1));
-    assert_eq!(out.pull_delete_ids, vec![3]);
+    assert_eq!(out.pull_delete_ids, loc_ids([3]));
     assert!(sink.untouched());
     assert_eq!(
         sink.dump(),
@@ -702,7 +709,7 @@ fn mirror_from_remote_deletes_local_only_pins_instead_of_pushing() {
 
     assert_eq!(out.pushed, side(0, 0, 0));
     assert_eq!(out.pulled, side(1, 0, 1));
-    assert_eq!(out.mirror_local_delete_ids, vec![1]);
+    assert_eq!(out.mirror_local_delete_ids, loc_ids([1]));
     assert!(provider.pushes.borrow().is_empty());
     assert_eq!(provider.items(), vec![raw(|n| n.lat = 2.0, Some(7))]);
     // The remote-only pin still comes in as a pull-create instruction.
@@ -831,7 +838,7 @@ fn positional_keeps_local_id_when_remote_later_edits_a_reindexed_location() {
 
     assert_eq!(out.pulled, side(0, 1, 0));
     assert_eq!(out.pull_updates.len(), 1);
-    assert_eq!(out.pull_updates[0].local_id, 3);
+    assert_eq!(out.pull_updates[0].local_id, Id::new(3));
     assert_eq!(out.pull_updates[0].patch.heading, Some(77.0));
 }
 
@@ -1143,7 +1150,7 @@ fn positional_pull_update_moves_to_its_new_index_but_keeps_its_base_hash_until_a
 
     assert_eq!(out.pushed, side(0, 0, 1));
     assert_eq!(out.pulled, side(0, 1, 0));
-    assert_eq!(out.pull_updates[0].local_id, 3);
+    assert_eq!(out.pull_updates[0].local_id, Id::new(3));
     assert_eq!(out.pull_updates[0].remote_id, 1);
     assert_eq!(out.pull_updates[0].hash, sync_hash(&edited().n));
     assert_eq!(
@@ -1357,7 +1364,7 @@ fn pull_only_keeps_local_additions_and_never_pushes() {
     assert_eq!(again.pulled, side(0, 0, 0));
     assert!(provider.pushes.borrow().is_empty());
     assert_eq!(provider.items(), vec![raw(|n| n.lat = 1.0, None)]);
-    assert!(locs.iter().any(|l| l.id == 1 && l.lat == 9.0));
+    assert!(locs.iter().any(|l| l.id == Id::new(1) && l.lat == 9.0));
     assert!(
         !sink.rows.contains_key(&1),
         "a local addition is never mapped"
@@ -1378,7 +1385,7 @@ fn pull_only_holds_a_local_edit_until_upstream_changes_that_location() {
         assert_eq!(out.pulled, side(0, 0, 0));
         assert_eq!(out.pushed, side(0, 0, 0));
         assert_eq!(locs[0].lat, 5.0);
-        assert_eq!(sink.rows[&id].hash, nhash(|n| n.lat = 1.0));
+        assert_eq!(sink.rows[&id.get()].hash, nhash(|n| n.lat = 1.0));
     }
 
     provider.items.borrow_mut()[0].n.lat = 2.0;
@@ -1402,14 +1409,14 @@ fn pull_only_keeps_a_local_delete_until_upstream_changes_that_location() {
         let out = pull_once(&provider, &mut locs, &mut sink);
         assert_eq!(out.pulled, side(0, 0, 0));
         assert!(locs.is_empty());
-        assert!(sink.rows.contains_key(&deleted));
+        assert!(sink.rows.contains_key(&deleted.get()));
     }
 
     provider.items.borrow_mut()[0].n.lat = 2.0;
     let out = pull_once(&provider, &mut locs, &mut sink);
     assert!(out.conflicts.is_empty());
     assert_eq!(out.pulled, side(1, 0, 0));
-    assert!(!sink.rows.contains_key(&deleted));
+    assert!(!sink.rows.contains_key(&deleted.get()));
     assert_eq!(locs.len(), 1);
 
     let settled = pull_once(&provider, &mut locs, &mut sink);
@@ -1484,7 +1491,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         ],
         ..Default::default()
     });
-    store.next_id = 3;
+    store.next_id = Id::new(3);
 
     let out = ReconcileOutcome {
         pushed: SideCounts::default(),
@@ -1514,7 +1521,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
             hash: "h-create".into(),
         }],
         pull_updates: vec![PullUpdate {
-            local_id: 1,
+            local_id: Id::new(1),
             patch: Patch::<NormalizedSyncLocation> {
                 heading: Some(45.0),
                 ..Default::default()
@@ -1522,16 +1529,16 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
             remote_id: 88,
             hash: "h-update".into(),
         }],
-        pull_delete_ids: vec![2],
+        pull_delete_ids: vec![Id::new(2)],
         mirror_local_delete_ids: Vec::new(),
     };
 
     let (mutation, rows) = apply_pull(&mut store, &out).unwrap();
     let mutation = mutation.expect("the pull landed a change");
-    assert_eq!(mutation.keys, vec![3]);
+    assert_eq!(mutation.keys, loc_ids([3]));
     assert_eq!(store.edits.len(Stack::Undo), 1);
 
-    let created = store.get_loc_by_id(3).expect("create landed");
+    let created = store.get_loc_by_id(Id::new(3)).expect("create landed");
     let meta = &store.value_meta["tags"];
     let (new_id, new_rec) = meta
         .iter()
@@ -1546,11 +1553,11 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     assert_eq!(second_rec.order, Some(5));
     assert_eq!(new_rec.order, Some(6));
     assert_eq!(new_rec.color(), "#123456".parse().ok());
-    assert_eq!(store.get_loc_by_id(1).unwrap().heading, 45.0);
-    assert!(store.get_loc_by_id(2).is_none());
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 45.0);
+    assert!(store.get_loc_by_id(Id::new(2)).is_none());
     assert_eq!(rows.len(), 1);
     assert_eq!(
         (rows[0].local_id, rows[0].remote_id, rows[0].hash.as_str()),
-        (3, 77, "h-create")
+        (Id::new(3), 77, "h-create")
     );
 }

@@ -13,7 +13,7 @@ export const commands = {
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary row edits. */
-	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult>("store_edit_values", { field, edits }),
+	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Return the uncommitted location change counts. */
 	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
 	/** Edit the selection tree. */
@@ -959,10 +959,7 @@ export type ListedSelection = {
  *  within a map and assigned by the store's monotonic allocator.
  */
 export type Location = {
-	/**
-	 *  Monotonically increasing within a map. Zero is a sentinel meaning
-	 *  "not yet assigned" (used during import before IDs are allocated).
-	 */
+	/**  Monotonically increasing within a map. Zero until the store numbers the row. */
 	id: number,
 	lat: number,
 	lng: number,
@@ -1115,15 +1112,67 @@ export type MmUser = {
 };
 
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-export type Mutation = {
+export type Mutation<_T = {
+	/**  Monotonically increasing within a map. Zero until the store numbers the row. */
+	id: number,
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	/**  The empty string means absent, the same absence a missing key has. */
+	panoId: string | null,
+	/**  The location's bits, such as whether it opens exactly its stored pano. */
+	flags: number,
+	/**
+	 *  Tag IDs applied to this location. References interned values of the `tags`
+	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+	 *  `Nothas` on an absent field.
+	 */
+	tags: number[],
+	/**
+	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+	 *  name past the builtins.
+	 */
+	extra: { [key in string]: unknown } | null,
+	/**  Unix timestamp (seconds) */
+	createdAt: number,
+	modifiedAt: number | null,
+}> = {
 	/**  The map version this change brought the map to. */
 	version: number,
 	/**  The key the store gave each keyless set, in the order they were written. */
 	keys: number[],
 };
 
-export type MutationResult = {
-	mutation: Mutation,
+export type MutationResult<T = {
+	/**  Monotonically increasing within a map. Zero until the store numbers the row. */
+	id: number,
+	lat: number,
+	lng: number,
+	heading: number,
+	pitch: number,
+	zoom: number,
+	/**  The empty string means absent, the same absence a missing key has. */
+	panoId: string | null,
+	/**  The location's bits, such as whether it opens exactly its stored pano. */
+	flags: number,
+	/**
+	 *  Tag IDs applied to this location. References interned values of the `tags`
+	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+	 *  `Nothas` on an absent field.
+	 */
+	tags: number[],
+	/**
+	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+	 *  name past the builtins.
+	 */
+	extra: { [key in string]: unknown } | null,
+	/**  Unix timestamp (seconds) */
+	createdAt: number,
+	modifiedAt: number | null,
+}> = {
+	mutation: Mutation<T>,
 };
 
 /**

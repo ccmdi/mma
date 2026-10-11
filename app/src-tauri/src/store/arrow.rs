@@ -3,14 +3,13 @@
 //! Every persistent location passes through this module on read and write.
 //! The canonical column order and types follow `Location`'s fields; see [`Column`].
 
-use std::slice;
 use std::sync::Arc;
 
 pub(crate) mod io;
 pub(crate) mod migrate;
 pub(crate) use io::*;
 
-use crate::types::RawExtra;
+use crate::types::{Location, LocationFlags, RawExtra};
 use arrow_array::{
     builder::{GenericListBuilder, UInt32Builder},
     Array, ArrayRef, Float64Array, ListArray, RecordBatch, StringArray, UInt32Array, UInt8Array,
@@ -20,7 +19,6 @@ use arrow_schema::{DataType, Field, Schema};
 use std::collections::HashMap;
 
 use crate::store::engine::ValueRecord;
-use crate::types::{Location, LocationFlags};
 use mma_algebra::Id;
 
 // ---------------------------------------------------------------------------
@@ -75,6 +73,30 @@ macro_rules! primitive_column {
 
 primitive_column!(f64, Float64Array, DataType::Float64);
 primitive_column!(u32, UInt32Array, DataType::UInt32);
+
+impl<T: 'static> Column for Id<T> {
+    type Array = UInt32Array;
+    type Cell<'c> = Id<T>;
+    const NULLABLE: bool = false;
+    fn data_type() -> DataType {
+        DataType::UInt32
+    }
+    fn cell(&self) -> Id<T> {
+        *self
+    }
+    fn cell_at(col: &UInt32Array, i: usize) -> Id<T> {
+        Id::new(col.value(i))
+    }
+    fn own(cell: Id<T>) -> Self {
+        cell
+    }
+    fn build<'c>(cells: impl Iterator<Item = Id<T>>, _: usize) -> ArrayRef
+    where
+        Self: 'c,
+    {
+        Arc::new(UInt32Array::from_iter_values(cells.map(Id::get)))
+    }
+}
 
 impl Column for Option<u32> {
     type Array = UInt32Array;
@@ -166,9 +188,7 @@ impl<T: 'static> Column for Vec<Id<T>> {
             .unwrap()
             .values();
         let offsets = col.value_offsets();
-        let raw = &values[offsets[i] as usize..offsets[i + 1] as usize];
-        // SAFETY: `Id<T>` is `#[repr(transparent)]` over `u32`, so the slices share a layout.
-        unsafe { slice::from_raw_parts(raw.as_ptr().cast(), raw.len()) }
+        Id::from_raw_slice(&values[offsets[i] as usize..offsets[i + 1] as usize])
     }
     fn own(cell: &[Id<T>]) -> Self {
         cell.to_vec()
@@ -248,8 +268,8 @@ macro_rules! columns {
             }
 
             /// The row holding `id`: ids are strictly ascending, so this is a binary search.
-            pub(crate) fn row_of(&self, id: u32) -> Option<usize> {
-                self.id.values().binary_search(&id).ok()
+            pub(crate) fn row_of(&self, id: Id<Location>) -> Option<usize> {
+                self.id.values().binary_search(&id.get()).ok()
             }
 
             $(
@@ -290,11 +310,11 @@ macro_rules! columns {
         /// patch actually changed are rebuilt; untouched columns are reused via Arc clone.
         /// Row order is preserved (sorted id invariant). Patch ids absent from the batch
         /// are ignored.
-        pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<u32, Location>) -> RecordBatch {
+        pub fn patch_batch(batch: &RecordBatch, patches: &HashMap<Id<Location>, Location>) -> RecordBatch {
             let n = batch.num_rows();
             let cols = Columns::of(batch);
             let hits: HashMap<usize, &Location> = (0..n)
-                .filter_map(|i| patches.get(&cols.id.value(i)).map(|p| (i, p)))
+                .filter_map(|i| patches.get(&Id::new(cols.id.value(i))).map(|p| (i, p)))
                 .collect();
             if hits.is_empty() {
                 return batch.clone();

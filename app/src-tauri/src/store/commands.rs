@@ -12,9 +12,7 @@ use crate::store::arrow::schema;
 use crate::store::engine::*;
 use crate::store::maps;
 use crate::store::storage;
-use crate::types::Location;
-use crate::types::RawExtra;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location, RawExtra};
 use crate::util;
 use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
@@ -123,9 +121,9 @@ async fn open_claimed_map(
 
         let n = batch.num_rows();
         let max_id = if n > 0 {
-            arrow::Columns::id(&batch).value(n - 1)
+            Id::new(arrow::Columns::id(&batch).value(n - 1))
         } else {
-            0
+            Id::UNSET
         };
 
         let conn = storage::open_db()?;
@@ -231,7 +229,7 @@ pub async fn store_add_locations_uploaded(
         let edits = locations
             .into_iter()
             .map(|mut l| {
-                l.id = 0;
+                l.id = Id::UNSET;
                 Op::Set(l)
             })
             .collect();
@@ -441,10 +439,10 @@ fn copy_to_map(
         let t_hist = Instant::now();
         let history_max = stored_history_max_id(&conn, &target_map_id)?;
         let hist_ms = t_hist.elapsed().as_millis();
-        let base_max = existing.iter().map(|l| l.id).max().unwrap_or(0);
+        let base_max = existing.iter().map(|l| l.id).max().unwrap_or(Id::UNSET);
         let next = seed_next_id(base_max, &[], history_max);
-        for (loc, id) in fresh.iter_mut().zip(next..) {
-            loc.id = id;
+        for (loc, id) in fresh.iter_mut().zip(next.get()..) {
+            loc.id = Id::new(id);
         }
         let t_save = Instant::now();
         let delta_path = storage::arrow_delta_path(&target_map_id)?;
@@ -579,7 +577,7 @@ pub fn store_resolve_pick(
     state: tauri::State<'_, StoreState>,
     cell: String,
     cell_index: u32,
-) -> AppResult<Option<u32>> {
+) -> AppResult<Option<Id<Location>>> {
     with_store!(label, state, |store| {
         let ci = cell_idx_from_key(&cell).ok_or("invalid cell key")?;
         Ok(store.render.cells[ci as usize]
@@ -784,7 +782,7 @@ macro_rules! command_table {
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)
             };
-            "Edit an interned field's value records; membership uses ordinary row edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult => |store| {
+            "Edit an interned field's value records; membership uses ordinary row edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
                 Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
             "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {

@@ -5,9 +5,7 @@ use crate::store::engine;
 use crate::store::engine::with_store;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
-use crate::types::AppResult;
-use crate::types::RawExtra;
-use crate::types::{Location, LocationFlags};
+use crate::types::{AppResult, Location, LocationFlags, RawExtra};
 use mma_algebra::{Id, Op, Patch};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -46,7 +44,7 @@ pub struct EditorImportPreview {
     /// True when this import is too large to undo and will be committed automatically.
     pub will_auto_commit: bool,
     /// The id the first staged row was given; the rest follow it in order.
-    pub first_id: Option<u32>,
+    pub first_id: Option<Id<Location>>,
     /// Map settings carried by the import (`extra.settings`).
     #[specta(type = HashMap<String, specta_typescript::Any>)]
     pub settings: serde_json::Map<String, Value>,
@@ -69,14 +67,14 @@ pub(super) fn stage_parsed(
     store: &mut engine::Store,
     window: &str,
     parsed: ParsedMap,
-) -> Option<u32> {
+) -> Option<Id<Location>> {
     let key = import_layer(window);
     store.drop_pending(&key);
     let edits = parsed
         .locations
         .into_iter()
         .map(|mut loc| {
-            loc.id = 0;
+            loc.id = Id::UNSET;
             Op::Set(loc)
         })
         .collect();
@@ -310,7 +308,7 @@ pub(crate) fn add_copied_to_store(
     let edits = locations
         .into_iter()
         .map(|mut loc| {
-            loc.id = 0;
+            loc.id = Id::UNSET;
             Op::Set(loc)
         })
         .collect();

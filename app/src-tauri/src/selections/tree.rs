@@ -1,6 +1,8 @@
 use super::{FilterOp, Selection, Selector, Thinning};
 use crate::store::engine::ListedSelection;
+use crate::types::Location;
 use crate::util::Rgb;
+use mma_algebra::Id;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -83,8 +85,8 @@ pub fn key(selector: &Selector) -> String {
         Selector::Locations { locations, .. } => {
             let (mut a, mut b) = (0xdeadbeefu32, 0x41c6ce57u32);
             for id in locations {
-                a = (a ^ id).wrapping_mul(2654435761);
-                b = (b ^ id).wrapping_mul(1597334677);
+                a = (a ^ id.get()).wrapping_mul(2654435761);
+                b = (b ^ id.get()).wrapping_mul(1597334677);
             }
             a = (a ^ (a >> 16)).wrapping_mul(2246822507) ^ (b ^ (b >> 13)).wrapping_mul(3266489909);
             b = (b ^ (b >> 16)).wrapping_mul(2246822507) ^ (a ^ (a >> 13)).wrapping_mul(3266489909);
@@ -225,7 +227,7 @@ pub enum SelectionOp {
         selections: Vec<SelectionInput>,
     },
     Manual {
-        id: u32,
+        id: Id<Location>,
     },
     Active {
         op: Box<SelectionOp>,

@@ -5,8 +5,8 @@ use crate::sync::{
     PushedId, RemoteSnapshot, SyncDirection,
 };
 use crate::types::shape::MapShape;
-use crate::types::AppResult;
-use crate::types::{Location, LocationFlags};
+use crate::types::{AppResult, Location, LocationFlags};
+use mma_algebra::Id;
 
 /// A remote whose raw shape is already the normalized contract, plus an optional real id for the
 /// stable case; keeps the tests about identity, not adaptation.
@@ -118,7 +118,7 @@ fn raw(f: impl FnOnce(&mut Raw)) -> Raw {
 
 fn loc(id: u32, f: impl FnOnce(&mut Location)) -> Location {
     let mut l = Location {
-        id,
+        id: Id::new(id),
         ..Location::default()
     };
     f(&mut l);
@@ -182,12 +182,12 @@ fn positional_holds_identity_when_array_untouched() {
     let b = loc(11, |l| l.lat = 2.0);
     let mapping = vec![
         RemoteMappingRow {
-            local_id: 10,
+            local_id: Id::new(10),
             remote_id: 0,
             hash: hash_of(&a),
         },
         RemoteMappingRow {
-            local_id: 11,
+            local_id: Id::new(11),
             remote_id: 1,
             hash: hash_of(&b),
         },
@@ -213,12 +213,12 @@ fn positional_realigns_by_content_hash_on_insert() {
     let b = loc(11, |l| l.lat = 2.0);
     let mapping = vec![
         RemoteMappingRow {
-            local_id: 10,
+            local_id: Id::new(10),
             remote_id: 0,
             hash: hash_of(&a),
         },
         RemoteMappingRow {
-            local_id: 11,
+            local_id: Id::new(11),
             remote_id: 1,
             hash: hash_of(&b),
         },
@@ -248,7 +248,7 @@ fn positional_realigns_by_content_hash_on_insert() {
 fn positional_keeps_local_id_on_in_place_edit() {
     let a = loc(10, |l| l.lat = 1.0);
     let mapping = vec![RemoteMappingRow {
-        local_id: 10,
+        local_id: Id::new(10),
         remote_id: 0,
         hash: hash_of(&a),
     }];
@@ -285,12 +285,12 @@ fn positional_recovers_edited_pin_by_pano_after_delete_shift() {
     });
     let mapping = vec![
         RemoteMappingRow {
-            local_id: 10,
+            local_id: Id::new(10),
             remote_id: 0,
             hash: hash_of(&a),
         },
         RemoteMappingRow {
-            local_id: 11,
+            local_id: Id::new(11),
             remote_id: 1,
             hash: hash_of(&b),
         },
@@ -321,12 +321,12 @@ fn positional_distrusts_bare_index_once_length_changed() {
     let b = loc(11, |l| l.lat = 2.0);
     let mapping = vec![
         RemoteMappingRow {
-            local_id: 10,
+            local_id: Id::new(10),
             remote_id: 0,
             hash: hash_of(&a),
         },
         RemoteMappingRow {
-            local_id: 11,
+            local_id: Id::new(11),
             remote_id: 1,
             hash: hash_of(&b),
         },
@@ -365,7 +365,7 @@ fn projection_erases_unrepresentable_fields() {
     let mut p = Fake::positional();
     p.spec = &POSITIONAL_GEOGUESSR;
     let mapping = vec![RemoteMappingRow {
-        local_id: 10,
+        local_id: Id::new(10),
         remote_id: 0,
         hash: sync_hash(&projected),
     }];
@@ -404,7 +404,7 @@ fn filtering_excludes_and_deletes_once_excluded() {
 
     // Already synced, then marked excluded: it must be withdrawn from the remote.
     let mapping = vec![RemoteMappingRow {
-        local_id: 11,
+        local_id: Id::new(11),
         remote_id: 7,
         hash: hash_of(&loc(11, |x| x.lat = 2.0)),
     }];
@@ -444,7 +444,7 @@ fn first_sync_identical_unmapped_pins_converge() {
     assert_eq!(plan.pull.create.len(), 0);
     // the converged key resolves to both originals (for recording the mapping)
     let key = &plan.converged[0];
-    assert_eq!(k.local_id_of.get(key), Some(&5));
+    assert_eq!(k.local_id_of.get(key), Some(&Id::new(5)));
     assert_eq!(k.remote_handle_of.get(key), Some(&9000));
 }
 
@@ -474,7 +474,7 @@ fn mapped_pin_remote_edit_detected_against_base_hash() {
         x.lng = 2.0;
     });
     let mapping = vec![RemoteMappingRow {
-        local_id: 5,
+        local_id: Id::new(5),
         remote_id: 9000,
         hash: hash_of(&orig),
     }];
@@ -494,7 +494,7 @@ fn mapped_pin_remote_edit_detected_against_base_hash() {
 
     assert_eq!(sorted(&plan.pull.update), vec!["L:5"]);
     assert_eq!(k.remote_handle_of.get("L:5"), Some(&9000));
-    assert_eq!(k.local_id_of.get("L:5"), Some(&5));
+    assert_eq!(k.local_id_of.get("L:5"), Some(&Id::new(5)));
 }
 
 #[test]
@@ -504,7 +504,7 @@ fn mapped_pin_deleted_remotely_pulls_delete() {
         x.lng = 2.0;
     });
     let mapping = vec![RemoteMappingRow {
-        local_id: 5,
+        local_id: Id::new(5),
         remote_id: 9000,
         hash: hash_of(&orig),
     }];

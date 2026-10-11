@@ -1,7 +1,8 @@
 //! Render frames: the one binary message that carries every marker change to a window.
 
-use crate::types::{wire_enum, wire_names, TsConst};
+use crate::types::{wire_enum, wire_names, Location, TsConst};
 use crate::util::Rgb;
+use mma_algebra::Id;
 use specta::datatype::DataType;
 use std::collections::HashMap;
 use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
@@ -31,19 +32,18 @@ unsafe impl bytemuck::Zeroable for PaletteIdx {}
 // SAFETY: as above.
 unsafe impl bytemuck::Pod for PaletteIdx {}
 
-/// Rows of one cell, column by column. `key` is the location id for an add and the row's
-/// index within its cell for a patch.
+/// Rows of one cell, column by column.
 #[derive(Debug, Default, Clone, PartialEq)]
-pub(crate) struct Rows {
-    pub key: Vec<u32>,
+pub(crate) struct Rows<K = Id<Location>> {
+    pub key: Vec<K>,
     /// `lng, lat` pairs.
     pub pos: Vec<f32>,
     pub angle: Vec<f32>,
     pub sel: Vec<PaletteIdx>,
 }
 
-impl Rows {
-    pub(crate) fn push(&mut self, key: u32, lng: f64, lat: f64, angle: f32, sel: PaletteIdx) {
+impl<K> Rows<K> {
+    pub(crate) fn push(&mut self, key: K, lng: f64, lat: f64, angle: f32, sel: PaletteIdx) {
         self.key.push(key);
         self.pos.push(lng as f32);
         self.pos.push(lat as f32);
@@ -55,8 +55,8 @@ impl Rows {
         self.key.len()
     }
 
-    fn encode_into(&self, buf: &mut Vec<u8>) {
-        buf.extend_from_slice(bytemuck::cast_slice(&self.key));
+    fn encode_into(&self, buf: &mut Vec<u8>, keys: &[u32]) {
+        buf.extend_from_slice(bytemuck::cast_slice(keys));
         buf.extend_from_slice(bytemuck::cast_slice(&self.pos));
         buf.extend_from_slice(bytemuck::cast_slice(&self.angle));
         buf.extend_from_slice(bytemuck::cast_slice(&self.sel));
@@ -70,7 +70,7 @@ pub(crate) struct CellFrame {
     pub cell: u8,
     pub remove: Vec<u32>,
     pub add: Rows,
-    pub patch: Rows,
+    pub patch: Rows<u32>,
 }
 
 impl CellFrame {
@@ -101,13 +101,12 @@ impl Frame {
     /// The wire form. Little-endian, and every `u32`/`f32` array starts 4-byte aligned so
     /// the page can view it in place.
     pub(crate) fn encode(&self) -> Vec<u8> {
-        let rows = |r: &Rows| r.len() * 20;
         let cap = 20
             + (self.palette.len() * 3).next_multiple_of(4)
             + self
                 .cells
                 .iter()
-                .map(|c| 16 + c.remove.len() * 4 + rows(&c.add) + rows(&c.patch))
+                .map(|c| 16 + c.remove.len() * 4 + c.add.len() * 20 + c.patch.len() * 20)
                 .sum::<usize>()
             + self.selection.as_ref().map_or(0, |s| s.len() + 3);
         let mut buf = Vec::with_capacity(cap);
@@ -127,8 +126,8 @@ impl Frame {
             put(&mut buf, c.add.len() as u32);
             put(&mut buf, c.patch.len() as u32);
             buf.extend_from_slice(bytemuck::cast_slice(&c.remove));
-            c.add.encode_into(&mut buf);
-            c.patch.encode_into(&mut buf);
+            c.add.encode_into(&mut buf, Id::raw_slice(&c.add.key));
+            c.patch.encode_into(&mut buf, &c.patch.key);
         }
         match &self.selection {
             Some(s) => {

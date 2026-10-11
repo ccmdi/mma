@@ -7,7 +7,8 @@
 //! the behavior and are unit-tested directly.
 
 use crate::store::storage;
-use crate::types::AppResult;
+use crate::types::{AppResult, Location};
+use mma_algebra::Id;
 use rusqlite::params_from_iter;
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
@@ -25,7 +26,7 @@ pub struct SeenEntry {
     pub zoom: f64,
     pub entered_at: i64,
     pub map_id: Option<String>,
-    pub location_id: Option<u32>,
+    pub location_id: Option<Id<Location>>,
     pub country_code: Option<String>,
     pub address: Option<String>,
     pub thumbnail: Option<String>,
@@ -43,7 +44,7 @@ pub struct SeenWriteEntry {
     pub zoom: f64,
     pub entered_at: i64,
     pub map_id: Option<String>,
-    pub location_id: Option<u32>,
+    pub location_id: Option<Id<Location>>,
     pub country_code: Option<String>,
     pub address: Option<String>,
     pub thumbnail: Option<String>,
@@ -59,7 +60,7 @@ pub struct SeenFilter {
     pub map_id: Option<String>,
     pub search: Option<String>,
     #[serde(rename = "locationIds")]
-    pub location_ids: Option<Vec<u32>>,
+    pub location_ids: Option<Vec<Id<Location>>>,
     pub since: Option<i64>,
 }
 
@@ -86,7 +87,7 @@ fn row_to_seen(row: &rusqlite::Row) -> rusqlite::Result<SeenEntry> {
         zoom: row.get("zoom")?,
         entered_at: row.get("entered_at")?,
         map_id: row.get("map_id")?,
-        location_id: row.get("location_id")?,
+        location_id: row.get::<_, Option<u32>>("location_id")?.map(Id::new),
         country_code: row.get("country_code")?,
         address: row.get("address")?,
         thumbnail: row.get("thumbnail")?,
@@ -122,7 +123,7 @@ fn build_where_clause(filter: &Option<SeenFilter>) -> (String, Vec<Box<dyn ToSql
             "location_id IN ({})",
             vec!["?"; ids.len()].join(", ")
         ));
-        params.extend(ids.iter().map(|&id| Box::new(id) as Box<dyn ToSql>));
+        params.extend(ids.iter().map(|&id| Box::new(id.get()) as Box<dyn ToSql>));
     }
 
     let clause = if conditions.is_empty() {
@@ -144,7 +145,7 @@ pub(crate) fn write(conn: &Connection, entry: SeenWriteEntry) -> AppResult<()> {
         "INSERT INTO seen (pano_id, lat, lng, heading, pitch, zoom, entered_at, map_id, location_id, country_code, address, thumbnail) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         rusqlite::params![
             entry.pano_id, entry.lat, entry.lng, entry.heading, entry.pitch, entry.zoom,
-            entry.entered_at, entry.map_id, entry.location_id, entry.country_code, entry.address, entry.thumbnail,
+            entry.entered_at, entry.map_id, entry.location_id.map(Id::get), entry.country_code, entry.address, entry.thumbnail,
         ],
     )?;
 

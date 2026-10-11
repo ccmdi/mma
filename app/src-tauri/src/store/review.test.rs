@@ -1,4 +1,6 @@
 use super::*;
+use crate::test_util::loc_ids;
+use mma_algebra::Id;
 use rusqlite::Connection;
 
 /// In-memory DB with the v17 `review_sessions` schema (and a `maps` stub for the FK).
@@ -30,7 +32,7 @@ fn mk(map_id: &str, source_key: &str, order: Vec<u32>) -> ReviewCreate {
         name: "Tag: red".into(),
         source_key: source_key.into(),
         source_props: serde_json::json!({ "type": "Tag", "tagId": 1 }),
-        order,
+        order: loc_ids(order),
     }
 }
 
@@ -38,9 +40,9 @@ fn mk(map_id: &str, source_key: &str, order: Vec<u32>) -> ReviewCreate {
 fn create_starts_cursor_at_first_id_with_empty_reviewed() {
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![10, 20, 30])).unwrap();
-    assert_eq!(s.cursor_id, 10);
+    assert_eq!(s.cursor_id, Id::new(10));
     assert!(s.reviewed.is_empty());
-    assert_eq!(s.order, vec![10, 20, 30]);
+    assert_eq!(s.order, loc_ids([10, 20, 30]));
     assert_eq!(s.status, "active");
 }
 
@@ -56,7 +58,7 @@ fn get_returns_active_session_by_source_key() {
     let created = create(&conn, mk("m1", "tag:1", vec![1, 2, 3])).unwrap();
     let got = get(&conn, "m1", "tag:1").unwrap().expect("session present");
     assert_eq!(got.id, created.id);
-    assert_eq!(got.order, vec![1, 2, 3]);
+    assert_eq!(got.order, loc_ids([1, 2, 3]));
     // source_props round-trips as the original Selector json.
     assert_eq!(got.source_props["type"], "Tag");
     assert_eq!(got.source_props["tagId"], 1);
@@ -81,17 +83,17 @@ fn update_persists_cursor_reviewed_and_ordering() {
         &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
-            cursor_id: Some(3),
-            reviewed: Some(vec![1, 2]),
+            cursor_id: Some(Id::new(3)),
+            reviewed: Some(vec![Id::new(1), Id::new(2)]),
             order: None,
             status: None,
         },
     )
     .unwrap();
     let got = get(&conn, "m1", "tag:1").unwrap().unwrap();
-    assert_eq!(got.cursor_id, 3);
-    assert_eq!(got.reviewed, vec![1, 2]);
-    assert_eq!(got.order, vec![1, 2, 3, 4]);
+    assert_eq!(got.cursor_id, Id::new(3));
+    assert_eq!(got.reviewed, loc_ids([1, 2]));
+    assert_eq!(got.order, loc_ids([1, 2, 3, 4]));
 }
 
 #[test]
@@ -107,8 +109,8 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
         &ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
-            cursor_id: Some(3),
-            reviewed: Some(vec![1, 2]),
+            cursor_id: Some(Id::new(3)),
+            reviewed: Some(vec![Id::new(1), Id::new(2)]),
             order: None,
             status: None,
         },
@@ -123,16 +125,16 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
             id: s.id.clone(),
             name: None,
             cursor_id: None,
-            reviewed: Some(vec![1]),
-            order: Some(vec![1, 3, 5]),
+            reviewed: Some(vec![Id::new(1)]),
+            order: Some(vec![Id::new(1), Id::new(3), Id::new(5)]),
             status: None,
         },
     )
     .unwrap();
     let got = get(&conn, "m1", "tag:1").unwrap().unwrap();
-    assert_eq!(got.cursor_id, 3);
-    assert_eq!(got.order, vec![1, 3, 5]);
-    assert_eq!(got.reviewed, vec![1]);
+    assert_eq!(got.cursor_id, Id::new(3));
+    assert_eq!(got.order, loc_ids([1, 3, 5]));
+    assert_eq!(got.reviewed, loc_ids([1]));
 }
 
 #[test]

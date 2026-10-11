@@ -2,6 +2,8 @@
 //! The pure halves (protobuf decode, push chunking) are factored out of IO so they test
 //! without a network; see sync_map_making.test.rs.
 
+use crate::types::{AppError, AppResult, ErrCode, Location};
+use mma_algebra::Id;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -14,7 +16,6 @@ use crate::sync::{
     PushedId, RemoteSnapshot, SyncDirection, SyncProvider,
 };
 use crate::types::shape::MapShape;
-use crate::types::{AppError, AppResult, ErrCode};
 use crate::util::blocking;
 
 const BASE_URL: &str = "https://map-making.app";
@@ -414,7 +415,7 @@ pub(crate) struct PushPart {
 /// A staged create: which local id maps to which negative placeholder id.
 #[derive(Clone, Copy)]
 pub(crate) struct Staged {
-    pub local_id: u32,
+    pub local_id: Id<Location>,
     pub neg_id: i64,
 }
 
@@ -426,7 +427,7 @@ pub(crate) struct Staged {
 /// placeholder ids stay unique across the whole push.
 pub(crate) fn push_chunks(batch: &PushBatch<MmLocation>, chunk: usize) -> Vec<PushPart> {
     struct Op<'a> {
-        local_id: Option<u32>,
+        local_id: Option<Id<Location>>,
         item: Option<&'a MmLocation>,
         remove: Option<i64>,
     }

@@ -2,8 +2,9 @@
 
 use super::*;
 use crate::store::arrow::Columns;
+use crate::store::id_set::IdSet;
 use crate::util::Rgb;
-use roaring::RoaringBitmap;
+use mma_algebra::Id;
 use std::array;
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
@@ -78,12 +79,12 @@ pub(super) fn assemble_selection_bitmask<'a>(
 pub(super) fn selection_cell_indices(
     render: &RenderState,
     render_size: usize,
-    set: &RoaringBitmap,
+    set: &IdSet<Location>,
 ) -> [Vec<u32>; 32] {
     let mut out: [Vec<u32>; 32] = array::from_fn(|_| Vec::new());
     if (set.len() as usize) <= render_size {
         for id in set {
-            let Some(&ci) = render.id_to_cell_idx.get(id as usize) else {
+            let Some(&ci) = render.id_to_cell_idx.get(id.get() as usize) else {
                 continue;
             };
             if ci == 255 {
@@ -177,8 +178,8 @@ pub(crate) fn build_selection_buf(
 /// `id_order` is the authoritative ordering; `id_to_index` provides O(1) reverse lookup.
 /// Swap-remove semantics keep removals O(1) at the cost of reordering the last element.
 pub(crate) struct CellRender {
-    pub id_order: Vec<u32>,
-    pub id_to_index: HashMap<u32, usize>,
+    pub id_order: Vec<Id<Location>>,
+    pub id_to_index: HashMap<Id<Location>, usize>,
 }
 
 pub(crate) struct RenderState {
@@ -209,7 +210,7 @@ pub struct RenderRequest {
     pub south: f64,
     pub east: f64,
     pub north: f64,
-    pub selected_ids: Option<Vec<u32>>,
+    pub selected_ids: Option<Vec<Id<Location>>>,
     pub marker_style: String,
     pub marker_color: Option<Rgb>,
 }
@@ -261,7 +262,7 @@ impl Store {
         });
         let paint = self.selections.paint_map();
         let arrow_style = self.render.arrow_style;
-        let mut emit = |id: u32, lat: f64, lng: f64, heading: f64| {
+        let mut emit = |id: Id<Location>, lat: f64, lng: f64, heading: f64| {
             let angle = if arrow_style { -(heading as f32) } else { 0.0 };
             let sel = paint.get(&id).copied().unwrap_or(PaletteIdx::NONE);
             cells[render_cell_idx(lat, lng) as usize]
@@ -276,7 +277,7 @@ impl Store {
                 Columns::heading(b),
             );
             for i in 0..b.num_rows() {
-                let id = ids.value(i);
+                let id = Id::new(ids.value(i));
                 if self.overlay.dead.contains(id) {
                     continue;
                 }
@@ -299,7 +300,7 @@ impl Store {
             };
             self.ensure_id_to_cell_capacity(max);
             for &id in ids {
-                self.render.id_to_cell_idx[id as usize] = c.cell;
+                self.render.id_to_cell_idx[id.get() as usize] = c.cell;
             }
             self.render.cells[c.cell as usize] = Some(CellRender {
                 id_to_index: ids.iter().enumerate().map(|(i, &id)| (id, i)).collect(),
@@ -334,7 +335,7 @@ impl Store {
     pub(super) fn derive_cell_frames(
         &mut self,
         changes: &Change,
-        membership_changed: &HashSet<u32>,
+        membership_changed: &HashSet<Id<Location>>,
     ) -> [CellFrame; 32] {
         let mut cells: [CellFrame; 32] = array::from_fn(|ci| CellFrame {
             cell: ci as u8,
@@ -353,7 +354,7 @@ impl Store {
                 let old_ci = self
                     .render
                     .id_to_cell_idx
-                    .get(new.id as usize)
+                    .get(new.id.get() as usize)
                     .copied()
                     .unwrap_or(255);
                 let moved = (old.lat, old.lng) != (new.lat, new.lng)
@@ -416,15 +417,15 @@ impl Store {
     }
 
     /// Grow `id_to_cell_idx` so it can index `id`. Fills new slots with 255 (sentinel = unmapped).
-    pub(super) fn ensure_id_to_cell_capacity(&mut self, id: u32) {
-        let needed = id as usize + 1;
+    pub(super) fn ensure_id_to_cell_capacity(&mut self, id: Id<Location>) {
+        let needed = id.get() as usize + 1;
         if self.render.id_to_cell_idx.len() < needed {
             self.render.id_to_cell_idx.resize(needed, 255u8);
         }
     }
 
     /// Register a location in a render cell, appending it to the end. Returns the new index.
-    pub(crate) fn cell_add_render(&mut self, cell_idx: u8, id: u32) -> usize {
+    pub(crate) fn cell_add_render(&mut self, cell_idx: u8, id: Id<Location>) -> usize {
         let cr = self.render.cells[cell_idx as usize].get_or_insert_with(|| CellRender {
             id_order: Vec::new(),
             id_to_index: HashMap::new(),
@@ -433,18 +434,18 @@ impl Store {
         cr.id_to_index.insert(id, idx);
         cr.id_order.push(id);
         self.ensure_id_to_cell_capacity(id);
-        self.render.id_to_cell_idx[id as usize] = cell_idx;
+        self.render.id_to_cell_idx[id.get() as usize] = cell_idx;
         idx
     }
 
     /// Remove a location from its render cell via swap-remove: the cell's last row takes
     /// the vacated slot. Returns the cell and the slot, or `None` if it was not rendered.
-    pub(super) fn cell_remove_render(&mut self, id: u32) -> Option<(u8, u32)> {
-        let ci = *self.render.id_to_cell_idx.get(id as usize)?;
+    pub(super) fn cell_remove_render(&mut self, id: Id<Location>) -> Option<(u8, u32)> {
+        let ci = *self.render.id_to_cell_idx.get(id.get() as usize)?;
         if ci == 255 {
             return None;
         }
-        self.render.id_to_cell_idx[id as usize] = 255;
+        self.render.id_to_cell_idx[id.get() as usize] = 255;
         let cr = self.render.cells[ci as usize].as_mut()?;
         let idx = cr.id_to_index.remove(&id)?;
         let last = cr.id_order.len() - 1;
@@ -458,8 +459,8 @@ impl Store {
     }
 
     /// A location's render cell and its index within that cell.
-    pub(super) fn cell_lookup(&self, id: u32) -> Option<(u8, usize)> {
-        let ci = *self.render.id_to_cell_idx.get(id as usize)?;
+    pub(super) fn cell_lookup(&self, id: Id<Location>) -> Option<(u8, usize)> {
+        let ci = *self.render.id_to_cell_idx.get(id.get() as usize)?;
         if ci == 255 {
             return None;
         }

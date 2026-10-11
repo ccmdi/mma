@@ -71,20 +71,20 @@ impl DistanceTo {
         haversine_m(self.lat, self.lng, row.lat(), row.lng())
     }
 
-    pub(crate) fn within(&self, scope: &Scope, radius: f64) -> RoaringBitmap {
+    pub(crate) fn within(&self, scope: &Scope, radius: f64) -> IdSet<Location> {
         let keep = |row: &RowRef| self.score(row) <= radius;
         match scope.view.spatial {
             Some(index) => {
                 let mut candidates = Vec::new();
                 index.candidates(self.lat, self.lng, radius, &mut candidates);
-                let candidates = candidates.into_iter().collect();
+                let candidates = candidates.into_iter().map(Id::new).collect();
                 scope.within(&candidates).keep(keep)
             }
             None => scope.keep(keep),
         }
     }
 
-    pub(crate) fn minimum(&self, scope: &Scope) -> Option<u32> {
+    pub(crate) fn minimum(&self, scope: &Scope) -> Option<Id<Location>> {
         let mut radius = SPATIAL_CELL_M;
         while radius < 1e8 {
             let candidates = self.within(scope, radius);

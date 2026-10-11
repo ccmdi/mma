@@ -1,16 +1,15 @@
 use super::*;
 use crate::store::arrow;
-use crate::test_util::{tag_ids, TempDir};
-use crate::types::LocationFlags;
-use crate::types::RawExtra;
+use crate::test_util::{loc_ids, tag_ids, TempDir};
+use crate::types::{LocationFlags, RawExtra};
 use crate::util;
-use mma_algebra::Delta;
+use mma_algebra::{Delta, Id};
 use std::collections::BTreeMap;
 use std::slice;
 
 fn loc(id: u32, lat: f64, lng: f64) -> Location {
     Location {
-        id,
+        id: Id::new(id),
         lat,
         lng,
         zoom: 1.0,
@@ -33,8 +32,8 @@ fn diff_genesis_all_added() {
 fn diff_add_remove_modify() {
     // parent {1, 2}; current {2 (heading changed), 3}
     let mut parent = BTreeMap::new();
-    parent.insert(1, loc(1, 10.0, 20.0));
-    parent.insert(2, loc(2, 30.0, 40.0));
+    parent.insert(Id::new(1), loc(1, 10.0, 20.0));
+    parent.insert(Id::new(2), loc(2, 30.0, 40.0));
     let mut two_changed = loc(2, 30.0, 40.0);
     two_changed.heading = 90.0;
     let current = vec![two_changed, loc(3, 50.0, 60.0)];
@@ -48,16 +47,22 @@ fn diff_add_remove_modify() {
         ),
         (1, 1, 1)
     );
-    assert_eq!(change.added[0].id, 3);
-    assert_eq!(change.removed[0].id, 1);
+    assert_eq!(change.added[0].id, Id::new(3));
+    assert_eq!(change.removed[0].id, Id::new(1));
     let (old, new) = &change.updated[0];
-    assert_eq!((old.id, new.id), (2, 2));
+    assert_eq!((old.id, new.id), (Id::new(2), Id::new(2)));
     assert_eq!((old.heading, new.heading), (0.0, 90.0));
 
     // The sides encoding carries the update's new row as created, its old as removed.
     let (created, removed) = change.sides();
-    assert_eq!(created.iter().find(|l| l.id == 2).unwrap().heading, 90.0);
-    assert_eq!(removed.iter().find(|l| l.id == 2).unwrap().heading, 0.0);
+    assert_eq!(
+        created.iter().find(|l| l.id == Id::new(2)).unwrap().heading,
+        90.0
+    );
+    assert_eq!(
+        removed.iter().find(|l| l.id == Id::new(2)).unwrap().heading,
+        0.0
+    );
 }
 
 #[test]
@@ -71,9 +76,9 @@ fn replay_reconstructs_state() {
         (vec![two_v2], vec![loc(2, 30.0, 40.0)]),
     ];
     let state = replay_deltas(&deltas);
-    let ids: Vec<u32> = state.keys().copied().collect();
+    let ids: Vec<u32> = state.keys().copied().map(Id::get).collect();
     assert_eq!(ids, vec![2, 3]); // 1 was removed
-    assert_eq!(state.get(&2).unwrap().heading, 90.0); // 2 was updated
+    assert_eq!(state.get(&Id::new(2)).unwrap().heading, 90.0); // 2 was updated
 }
 
 #[test]
@@ -84,7 +89,7 @@ fn replay_yields_strictly_sorted_ids() {
         vec![],
     )];
     let locs: Vec<Location> = replay_deltas(&deltas).into_values().collect();
-    let ids: Vec<u32> = locs.iter().map(|l| l.id).collect();
+    let ids: Vec<u32> = locs.iter().map(|l| l.id).map(Id::get).collect();
     assert_eq!(ids, vec![1, 2, 3]);
     assert!((1..ids.len()).all(|i| ids[i - 1] < ids[i]));
 }
@@ -92,7 +97,7 @@ fn replay_yields_strictly_sorted_ids() {
 #[test]
 fn empty_commit_yields_empty_delta() {
     let mut parent = BTreeMap::new();
-    parent.insert(1, loc(1, 10.0, 20.0));
+    parent.insert(Id::new(1), loc(1, 10.0, 20.0));
     let current = vec![loc(1, 10.0, 20.0)];
     let change = diff_states(&parent, &current);
     assert!(change.is_empty());
@@ -149,13 +154,19 @@ fn deltas_round_trip_through_disk_and_replay() {
     let state = replay_deltas(&deltas);
 
     // Final state {1 (heading 45), 3, 4}; 2 was removed.
-    assert_eq!(state.keys().copied().collect::<Vec<_>>(), vec![1, 3, 4]);
-    assert_eq!(state.get(&1).unwrap().heading, 45.0);
+    assert_eq!(
+        state.keys().copied().collect::<Vec<_>>(),
+        loc_ids([1, 3, 4])
+    );
+    assert_eq!(state.get(&Id::new(1)).unwrap().heading, 45.0);
 
     // Checkout path: materialized base batch round-trips with strictly sorted ids.
     let locs: Vec<Location> = state.into_values().collect();
     let back = arrow::batch_to_locations(&arrow::locations_to_batch(&locs));
-    assert_eq!(back.iter().map(|l| l.id).collect::<Vec<_>>(), vec![1, 3, 4]);
+    assert_eq!(
+        back.iter().map(|l| l.id).collect::<Vec<_>>(),
+        loc_ids([1, 3, 4])
+    );
 }
 
 // -----------------------------------------------------------------------
@@ -276,7 +287,7 @@ fn arb_location_body() -> impl Strategy<Value = Location> {
                 modified_at,
             )| {
                 Location {
-                    id: 0,
+                    id: Id::new(0),
                     lat,
                     lng,
                     heading,
@@ -311,10 +322,10 @@ fn op_strategy() -> impl Strategy<Value = Op> {
 /// Apply one op to the model in place, assigning fresh ids for `Add` and
 /// picking an existing id (by position, modulo the live count) for
 /// `Remove`/`Modify`. A `Remove`/`Modify` against an empty model is a no-op.
-fn apply_op(model: &mut BTreeMap<u32, Location>, op: &Op, next_id: &mut u32) {
+fn apply_op(model: &mut BTreeMap<Id<Location>, Location>, op: &Op, next_id: &mut u32) {
     match op {
         Op::Add(body) => {
-            let id = *next_id;
+            let id = Id::new(*next_id);
             *next_id += 1;
             let mut l = body.clone();
             l.id = id;
@@ -342,8 +353,8 @@ fn apply_op(model: &mut BTreeMap<u32, Location>, op: &Op, next_id: &mut u32) {
 /// Independent reference implementation of `diff_states`' counts, computed by
 /// direct set comparison of the two full states rather than reusing the SUT.
 fn expected_counts(
-    parent: &BTreeMap<u32, Location>,
-    current: &BTreeMap<u32, Location>,
+    parent: &BTreeMap<Id<Location>, Location>,
+    current: &BTreeMap<Id<Location>, Location>,
 ) -> (u32, u32, u32) {
     let mut added = 0u32;
     let mut removed = 0u32;
@@ -371,7 +382,7 @@ proptest! {
     fn prop_diff_and_replay_match_model(
         commits in prop::collection::vec(prop::collection::vec(op_strategy(), 0..5), 0..8)
     ) {
-        let mut model: BTreeMap<u32, Location> = BTreeMap::new();
+        let mut model: BTreeMap<Id<Location>, Location> = BTreeMap::new();
         let mut next_id: u32 = 1;
         let mut deltas: Vec<(Vec<Location>, Vec<Location>)> = Vec::new();
 
@@ -395,7 +406,7 @@ proptest! {
         let replayed = replay_deltas(&deltas);
         prop_assert_eq!(&replayed, &model);
 
-        let ids: Vec<u32> = replayed.keys().copied().collect();
+        let ids: Vec<u32> = replayed.keys().copied().map(Id::get).collect();
         prop_assert!((1..ids.len()).all(|i| ids[i - 1] < ids[i]));
     }
 }

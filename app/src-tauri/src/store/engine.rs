@@ -2,7 +2,7 @@
 //! Commits merge the overlay into the batch. Rows stay sorted by id for fast lookup;
 //! render frames and selection membership are updated from the same row changes.
 
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
 use mma_algebra::{Counts, Delta, Id, Patch, Patchable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
@@ -19,8 +19,8 @@ pub use query::*;
 pub use render::*;
 pub use values::*;
 
+use crate::store::id_set::IdSet;
 use mma_geo::SpatialIndex;
-use roaring::RoaringBitmap;
 
 use arrow_array::RecordBatch;
 use rayon::prelude::*;
@@ -29,7 +29,6 @@ use crate::selections;
 use crate::store::arrow;
 use crate::store::arrow::{schema, Columns};
 use crate::store::maps;
-use crate::types::Location;
 use crate::util::Rgb;
 use arrow_select::concat;
 use arrow_select::take;
@@ -56,8 +55,8 @@ use tauri::ipc::InvokeError;
 #[derive(Default, Debug, PartialEq)]
 pub(crate) struct Overlay {
     pub adds: Vec<Location>,
-    pub dead: RoaringBitmap,
-    pub patches: HashMap<u32, Location>,
+    pub dead: IdSet<Location>,
+    pub patches: HashMap<Id<Location>, Location>,
 }
 
 impl Overlay {
@@ -71,7 +70,8 @@ impl Overlay {
     /// was added then removed, and is dropped.
     pub(crate) fn to_delta(&self, base: Option<&RecordBatch>) -> RecordBatch {
         let cols = base.map(Columns::of);
-        let base_row = |id: u32| cols.as_ref().and_then(|c| Some(c.location(c.row_of(id)?)));
+        let base_row =
+            |id: Id<Location>| cols.as_ref().and_then(|c| Some(c.location(c.row_of(id)?)));
         let mut created: Vec<Location> = self.adds.clone();
         created.extend(self.patches.values().cloned());
         created.sort_unstable_by_key(|l| l.id);
@@ -90,7 +90,7 @@ impl Overlay {
     /// patch, one only created is an add, one only removed is dead.
     pub(crate) fn from_delta(batch: &RecordBatch) -> Self {
         let (created, removed) = arrow::batch_to_delta(batch);
-        let mut dead: RoaringBitmap = removed.iter().map(|l| l.id).collect();
+        let mut dead: IdSet<Location> = removed.iter().map(|l| l.id).collect();
         let mut overlay = Self::default();
         for l in created {
             if dead.remove(l.id) {
@@ -122,7 +122,7 @@ pub struct Store {
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
-    pub(crate) next_id: u32,
+    pub(crate) next_id: Id<Location>,
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
 
@@ -167,7 +167,7 @@ impl Store {
             meta: Tracked::default(),
             batch: None,
             mmap_handle: None,
-            next_id: 1,
+            next_id: Id::new(1),
             version: 0,
             alive_count: Tracked::default(),
             overlay: Tracked::default(),
@@ -376,20 +376,20 @@ impl Store {
     }
 
     /// Allocate the next monotonically increasing location ID.
-    pub(crate) fn alloc_id(&mut self) -> u32 {
+    pub(crate) fn alloc_id(&mut self) -> Id<Location> {
         let id = self.next_id;
-        self.next_id += 1;
+        self.next_id = Id::new(id.get() + 1);
         id
     }
 
     /// Look up a location by ID across patches, overlay_adds (binary search), and batch.
-    pub(crate) fn get_loc_by_id(&self, id: u32) -> Option<Location> {
+    pub(crate) fn get_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
         self.rows().get(id).map(|row| row.to_location())
     }
 
     /// Read a single location from the committed base batch by id (ignores the
     /// overlay). O(log n). Used to recover the pre-edit version of a row.
-    fn base_loc_by_id(&self, id: u32) -> Option<Location> {
+    fn base_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
         let cols = Columns::of(self.batch.as_ref()?);
         Some(cols.location(cols.row_of(id)?))
     }
@@ -397,7 +397,7 @@ impl Store {
     /// Net row changes since the last commit, counted without cloning rows.
     /// Rows added and then removed contribute nothing.
     pub(crate) fn overlay_diff_counts(&self) -> Counts {
-        let in_base = |id: u32| {
+        let in_base = |id: Id<Location>| {
             self.batch
                 .as_ref()
                 .is_some_and(|b| Columns::of(b).row_of(id).is_some())
@@ -428,7 +428,7 @@ impl Store {
         for loc in locs {
             *self.alive_count.edit() += 1;
             if let Some(ix) = self.spatial.if_built_mut() {
-                ix.insert(loc.id, loc.lat, loc.lng);
+                ix.insert(loc.id.get(), loc.lat, loc.lng);
             }
             self.overlay.edit().dead.remove(loc.id);
             let in_batch = self
@@ -487,7 +487,7 @@ impl Store {
 
     /// Mark locations as dead in the overlay. O(L) for L locations removed.
     fn overlay_remove<'a>(&mut self, locs: impl Iterator<Item = &'a Location>) {
-        let mut remove_set: HashSet<u32> = HashSet::new();
+        let mut remove_set: HashSet<Id<Location>> = HashSet::new();
         for loc in locs {
             remove_set.insert(loc.id);
             *self.alive_count.edit() -= 1;
@@ -495,13 +495,13 @@ impl Store {
             // location's overlay coords are where the index filed it.
             let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
             if let Some(ix) = self.spatial.if_built_mut() {
-                if !ix.remove(loc.id, lat, lng) {
+                if !ix.remove(loc.id.get(), lat, lng) {
                     log::warn!("[spatial] remove miss for id {}", loc.id);
                 }
             }
             self.overlay.edit().patches.remove(&loc.id);
         }
-        self.overlay.edit().dead.extend(&remove_set);
+        self.overlay.edit().dead.extend(remove_set.iter().copied());
         self.overlay
             .edit()
             .adds
@@ -555,7 +555,7 @@ impl Store {
         if !self.overlay.dead.is_empty() {
             let ids = Columns::id(&batch);
             let keep: Vec<u32> = (0..batch.num_rows())
-                .filter(|&i| !self.overlay.dead.contains(ids.value(i)))
+                .filter(|&i| !self.overlay.dead.contains(Id::new(ids.value(i))))
                 .map(|i| i as u32)
                 .collect();
             if keep.len() < batch.num_rows() {

@@ -7,10 +7,7 @@ use crate::selections::neighborhood::coord_key;
 use crate::selections::{self, Selector};
 use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
-use crate::types::wire_str_enum;
-use crate::types::Location;
-use crate::types::RawExtra;
-use crate::types::{AppError, AppResult};
+use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use mma_algebra::{
     number_value, same_field_value, Delta, Edit, Id, Keys, Layer, Merge, Op, Patch, Patchable,
 };
@@ -84,16 +81,16 @@ pub struct HeldValue {
 /// The version a write reached and the keys it assigned. Other updates arrive on the change feed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
-pub struct Mutation {
+pub struct Mutation<_T = Location> {
     /// The map version this change brought the map to.
     pub version: u64,
     /// The key the store gave each keyless set, in the order they were written.
-    pub keys: Vec<u32>,
+    pub keys: Vec<Id<_T>>,
 }
 
 #[derive(serde::Serialize, specta::Type)]
-pub struct MutationResult {
-    pub mutation: Mutation,
+pub struct MutationResult<T = Location> {
+    pub mutation: Mutation<T>,
 }
 
 /// A map change broadcast to subscribers, with affected ids and derived state.
@@ -104,7 +101,7 @@ pub struct ChangeEvent {
     pub version: u64,
     /// The change itself, by key.
     #[serde(flatten)]
-    pub keys: Keys<u32>,
+    pub keys: Keys<Id<Location>>,
     /// Changed derived state. Null fields are unchanged.
     pub derived: Derived,
 }
@@ -195,7 +192,7 @@ impl Store {
         let mut added = Vec::new();
         for edit in &mut edits {
             if let Op::Set(row) = edit {
-                if row.id == 0 {
+                if row.id == Id::UNSET {
                     row.id = self.alloc_id();
                     added.push(row.id);
                 }
@@ -305,7 +302,7 @@ impl Store {
     }
 
     /// Result for a staged edit that did not change the map.
-    fn held(&self, keys: Vec<u32>) -> Mutation {
+    fn held(&self, keys: Vec<Id<Location>>) -> Mutation {
         Mutation {
             version: self.version,
             keys,
@@ -488,7 +485,7 @@ enum Prepared<'o> {
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
     Merge {
-        groups: Vec<Vec<u32>>,
+        groups: Vec<Vec<Id<Location>>>,
         score: Option<String>,
     },
     /// Remove duplicates within `distance` metres of each other, keeping the best-scored
@@ -512,7 +509,7 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
 #[derive(Default)]
 pub(super) struct WorkPlan {
     pub(super) edits: Vec<Edit<Location>>,
-    pub(super) failed: Vec<u32>,
+    pub(super) failed: Vec<Id<Location>>,
 }
 
 /// The mutation and operation-specific results.
@@ -523,7 +520,7 @@ pub struct WorkResult {
     /// Rows the work edited.
     pub changed: u32,
     /// Rows an expression could not evaluate.
-    pub failed: Vec<u32>,
+    pub failed: Vec<Id<Location>>,
 }
 
 fn expr_value(to: FieldWriter<'_>, v: f64) -> Option<serde_json::Value> {
@@ -538,7 +535,7 @@ fn expr_value(to: FieldWriter<'_>, v: f64) -> Option<serde_json::Value> {
 }
 
 /// A patch naming row `id` and changing nothing yet.
-pub(super) fn row_patch(id: u32) -> Patch<Location> {
+pub(super) fn row_patch(id: Id<Location>) -> Patch<Location> {
     Patch::<Location> {
         id,
         ..Default::default()
@@ -652,7 +649,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
             let mut seen = HashSet::new();
             let mut plan = WorkPlan::default();
             for group in groups {
-                let ids: BTreeSet<u32> = group
+                let ids: BTreeSet<Id<Location>> = group
                     .iter()
                     .copied()
                     .filter(|id| allowed.contains(*id))
@@ -768,7 +765,7 @@ fn plan_defs(store: &Store, op: &RowOp, edits: &[Edit<Location>]) -> DefsDelta {
     if let (Some(to), Some(def)) = (into, before.get(&vacated[0])) {
         after.entry(to.clone()).or_insert_with(|| def.clone());
     }
-    let edited: HashSet<u32> = edits
+    let edited: HashSet<Id<Location>> = edits
         .iter()
         .filter_map(|e| match e {
             Op::Put(p) => Some(p.id),
@@ -859,14 +856,14 @@ pub(crate) fn merge_group(
         if fields.get(key).map(maps::FieldDef::index_shape) != Some(maps::IndexShape::Multi) {
             continue;
         }
-        let values: BTreeSet<u32> = members
+        let values: BTreeSet<Id<Location>> = members
             .iter()
             .flat_map(|row| {
                 selections::RowRef::from_loc(row)
                     .resolve_field(key)
                     .into_iter()
                     .flat_map(|value| selections::index_keys(maps::IndexShape::Multi, &value))
-                    .filter_map(|key| key.parse().ok())
+                    .filter_map(|key| key.parse::<u32>().ok().map(Id::new))
             })
             .collect();
         let mut patch = row_patch(new_survivor.id);

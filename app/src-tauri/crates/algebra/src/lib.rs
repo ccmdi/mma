@@ -223,6 +223,18 @@ impl<T, Raw: Copy> Id<T, Raw> {
 impl<T> Id<T> {
     /// The key of a row the store has not numbered yet.
     pub const UNSET: Self = Id::new(0);
+
+    /// The raw numbers behind `ids`, without copying.
+    pub fn raw_slice(ids: &[Self]) -> &[u32] {
+        // SAFETY: `Id<T>` is `#[repr(transparent)]` over `u32`, so the slices share a layout.
+        unsafe { std::slice::from_raw_parts(ids.as_ptr().cast(), ids.len()) }
+    }
+
+    /// `raw` read as ids, without copying.
+    pub fn from_raw_slice(raw: &[u32]) -> &[Self] {
+        // SAFETY: as above.
+        unsafe { std::slice::from_raw_parts(raw.as_ptr().cast(), raw.len()) }
+    }
 }
 
 // Written by hand so they hold for every `T`: a derive would demand `T: Clone`, `T: Eq`, ...

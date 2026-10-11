@@ -5,6 +5,7 @@ use super::*;
 use crate::selections::field_expr::{self, Expr};
 use crate::selections::neighborhood::{exact_coord_groups, for_pairs_within, Grid};
 use crate::types::{AppResult, Location};
+use mma_algebra::Id;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
@@ -85,11 +86,11 @@ impl Scope<'_, '_> {
     /// instead of flattening to a membership mask. Chains collapse: A~B, B~C => {A,B,C} even
     /// if A and C are out of range. Output is deterministic: ids ascending within each group,
     /// groups ordered by first id.
-    pub fn duplicate_groups(&self, distance_m: f64) -> Vec<Vec<u32>> {
+    pub fn duplicate_groups(&self, distance_m: f64) -> Vec<Vec<Id<Location>>> {
         struct Pt {
             lat: f64,
             lng: f64,
-            id: u32,
+            id: Id<Location>,
         }
         let mut points: Vec<Pt> = Vec::new();
         for row in self.rows() {
@@ -136,13 +137,13 @@ impl Scope<'_, '_> {
         );
         let mut parent = uf.0;
 
-        let mut comps: HashMap<usize, Vec<u32>> = HashMap::new();
+        let mut comps: HashMap<usize, Vec<Id<Location>>> = HashMap::new();
         for (pi, point) in points.iter().enumerate() {
             let r = find(&mut parent, pi);
             comps.entry(r).or_default().push(point.id);
         }
 
-        let mut groups: Vec<Vec<u32>> = comps
+        let mut groups: Vec<Vec<Id<Location>>> = comps
             .into_values()
             .filter(|g| g.len() >= 2)
             .map(|mut g| {
@@ -188,7 +189,7 @@ pub fn better(a: &Location, b: &Location, score: &Expr) -> Ordering {
 ///   (see [`better`]), rest pruned.
 /// - > 25 m: greedy max-thinning - repeatedly drop the location with the most in-range
 ///   > neighbours until no two survivors are within `distance_m`.
-pub fn prune_duplicates(locs: &[Location], distance_m: f64, score: &Expr) -> Vec<u32> {
+pub fn prune_duplicates(locs: &[Location], distance_m: f64, score: &Expr) -> Vec<Id<Location>> {
     let locs: Vec<&Location> = locs.iter().collect();
     if locs.len() < 2 {
         return Vec::new();
@@ -216,7 +217,11 @@ pub(super) fn neighbor_lists(locs: &[&Location], distance_m: f64) -> Vec<Vec<usi
     out
 }
 
-pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64, score: &Expr) -> Vec<u32> {
+pub(super) fn prune_relevance(
+    locs: &[&Location],
+    distance_m: f64,
+    score: &Expr,
+) -> Vec<Id<Location>> {
     let neighbors = neighbor_lists(locs, distance_m);
     let mut pruned = vec![false; locs.len()];
     let mut out = Vec::new();
@@ -243,7 +248,7 @@ pub(super) fn prune_relevance(locs: &[&Location], distance_m: f64, score: &Expr)
     out
 }
 
-pub(super) fn prune_thinning(locs: &[&Location], distance_m: f64) -> Vec<u32> {
+pub(super) fn prune_thinning(locs: &[&Location], distance_m: f64) -> Vec<Id<Location>> {
     let n = locs.len();
     let neighbors = neighbor_lists(locs, distance_m);
     let mut deg: Vec<u32> = neighbors.iter().map(|v| v.len() as u32).collect();

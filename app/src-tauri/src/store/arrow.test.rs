@@ -2,12 +2,13 @@ use super::*;
 use crate::test_util::tag_ids;
 use crate::types::RawExtra;
 use crate::util;
+use mma_algebra::Id;
 use std::collections::HashMap;
 
 fn sample_locations() -> Vec<Location> {
     vec![
         Location {
-            id: 1,
+            id: Id::new(1),
             lat: 48.8566,
             lng: 2.3522,
             heading: 90.0,
@@ -21,7 +22,7 @@ fn sample_locations() -> Vec<Location> {
             modified_at: Some(util::iso_to_unix("2024-01-15T11:00:00Z").unwrap() as u32),
         },
         Location {
-            id: 2,
+            id: Id::new(2),
             lat: -33.8688,
             lng: 151.2093,
             zoom: 1.0,
@@ -120,7 +121,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
     let mut patched = locs[0].clone();
     patched.heading = 270.0;
     patched.tags = tag_ids([7]);
-    let patches = HashMap::from([(1u32, patched)]);
+    let patches = HashMap::from([(Id::new(1u32), patched)]);
 
     let out = patch_batch(&batch, &patches);
     assert_eq!(out.num_rows(), 2);
@@ -147,7 +148,7 @@ fn patch_batch_applies_values_and_reuses_untouched_columns() {
 fn patch_batch_noop_when_no_patch_id_matches() {
     let locs = sample_locations();
     let batch = locations_to_batch(&locs);
-    let patches = HashMap::from([(99u32, locs[0].clone())]);
+    let patches = HashMap::from([(Id::new(99u32), locs[0].clone())]);
     let out = patch_batch(&batch, &patches);
     for ci in 0..out.num_columns() {
         assert!(Arc::ptr_eq(batch.column(ci), out.column(ci)));
@@ -160,7 +161,7 @@ fn patch_batch_identical_patch_rebuilds_nothing() {
     let batch = locations_to_batch(&locs);
     // patch present but equal to the stored row: no column is "touched"
     let stored = Columns::of(&batch).location(0);
-    let patches = HashMap::from([(1u32, stored)]);
+    let patches = HashMap::from([(Id::new(1u32), stored)]);
     let out = patch_batch(&batch, &patches);
     for ci in 0..out.num_columns() {
         assert!(Arc::ptr_eq(batch.column(ci), out.column(ci)));
@@ -181,8 +182,8 @@ fn patch_batch_preserves_equivalent_stored_extras() {
     ]));
     let batch = RecordBatch::try_new(batch.schema(), columns).unwrap();
     let patches = HashMap::from([
-        (1, Columns::of(&batch).location(0)),
-        (2, Columns::of(&batch).location(1)),
+        (Id::new(1), Columns::of(&batch).location(0)),
+        (Id::new(2), Columns::of(&batch).location(1)),
     ]);
 
     let out = patch_batch(&batch, &patches);
@@ -206,7 +207,7 @@ fn patch_batch_nullable_transitions() {
     p1.extra = None;
     p1.modified_at = None;
 
-    let patches = HashMap::from([(1u32, p1), (2u32, p2)]);
+    let patches = HashMap::from([(Id::new(1u32), p1), (Id::new(2u32), p2)]);
     let restored = batch_to_locations(&patch_batch(&batch, &patches));
 
     assert_eq!(restored[0].pano_id, None);
@@ -352,7 +353,7 @@ fn arb_location_body() -> impl Strategy<Value = Location> {
                 modified_at,
             )| {
                 Location {
-                    id: 0,
+                    id: Id::new(0),
                     lat,
                     lng,
                     heading,
@@ -377,7 +378,7 @@ fn sorted_unique_locations(max_len: usize) -> impl Strategy<Value = Vec<Location
         pairs
             .into_iter()
             .map(|(id, mut loc)| {
-                loc.id = id;
+                loc.id = Id::new(id);
                 loc
             })
             .collect()

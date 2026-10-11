@@ -1,6 +1,7 @@
 use super::*;
 use crate::store::engine::Store;
 use crate::test_util::loc;
+use mma_algebra::Id;
 
 fn staged(dir: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
     let base = dir.join("m.arrow");
@@ -51,6 +52,7 @@ fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
     let ids: Vec<u32> = arrow::batch_to_locations(&batch)
         .iter()
         .map(|l| l.id)
+        .map(Id::get)
         .collect();
     assert_eq!(ids, [1, 2]);
     assert!(!delta.exists());
@@ -80,17 +82,17 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     );
     let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
     assert_eq!(result.mutation.version, store.version);
-    assert!(store.get_loc_by_id(1).is_none());
-    assert_eq!(store.get_loc_by_id(7).unwrap().lat, 7.0);
+    assert!(store.get_loc_by_id(Id::new(1)).is_none());
+    assert_eq!(store.get_loc_by_id(Id::new(7)).unwrap().lat, 7.0);
     assert!(store.selections.ids.is_empty());
     assert!(store.pending.is_empty());
-    assert_eq!(store.alloc_id(), 8);
+    assert_eq!(store.alloc_id(), Id::new(8));
     let entry = store
         .step(engine::Stack::Undo, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
-    assert!(store.get_loc_by_id(7).is_none());
-    assert_eq!(store.get_loc_by_id(1).unwrap().lat, 1.0);
-    assert!(store.selections.ids.contains(1));
+    assert!(store.get_loc_by_id(Id::new(7)).is_none());
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
+    assert!(store.selections.ids.contains(Id::new(1)));
 }
