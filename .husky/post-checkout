@@ -1,0 +1,8 @@
+#!/bin/sh
+
+[ "$HUSKY" = "0" ] && exit 0
+
+# A new worktree's first checkout starts from the all-zero ref.
+case "$1" in *[!0]*) exit 0 ;; esac
+
+sh "$(git rev-parse --show-toplevel)/scripts/worktree-init.sh"
