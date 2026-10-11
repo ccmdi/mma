@@ -745,7 +745,7 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         &MapMetaPatch {
             id: Id::new("copy".into()),
             name: Some("Renamed".into()),
-            settings: Some(MapSettings::default()),
+            settings: MapSettings::default().to_patch(),
             ..Patch::<MapMeta>::default()
         },
     )
@@ -923,6 +923,40 @@ fn a_closed_maps_meta_is_written_directly() {
 }
 
 #[test]
+fn a_settings_patch_changes_only_the_keys_it_names_on_open_and_closed_maps() {
+    let conn = setup_real_db();
+    let set = |patch: serde_json::Value| Patch::<MapMeta> {
+        id: Id::new("m1".into()),
+        settings: serde_json::from_value(patch).unwrap(),
+        ..Default::default()
+    };
+    for mut mgr in [StoreManager::new(), open_m1(&conn)] {
+        update_map_meta(
+            &mut mgr,
+            &conn,
+            set(serde_json::json!({ "searchRadius": 50 })),
+        )
+        .unwrap();
+        update_map_meta(
+            &mut mgr,
+            &conn,
+            set(serde_json::json!({ "exportZoom": true })),
+        )
+        .unwrap();
+        let settings = match mgr.store_for_map(&Id::new("m1".into())) {
+            Ok(store) => store.meta.settings.clone(),
+            Err(_) => {
+                read_map_meta(&conn, &Id::new("m1".into()))
+                    .unwrap()
+                    .settings
+            }
+        };
+        assert_eq!(settings.preferences.search_radius, Some(50));
+        assert!(settings.preferences.export_zoom);
+    }
+}
+
+#[test]
 fn an_open_maps_field_definitions_ship_when_patched() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
@@ -1075,9 +1109,10 @@ fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
         }),
         ..Default::default()
     };
-    let refused = |result: AppResult<()>| {
+    let refused = |result: AppResult<engine::MutationResult>| {
         assert!(result
-            .unwrap_err()
+            .err()
+            .unwrap()
             .0
             .contains("interned map fields are not supported yet"));
     };

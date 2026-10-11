@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
-import type { MapMeta } from "@/bindings.gen";
+import { Feed } from "@/store/feed";
+import type { Derived, MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { mapStorage } from "@/plugins/pluginStorage";
+import { metadataWritten } from "./fixtures/mocks";
 
 vi.mock("@/store/maps", () => ({
 	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
@@ -12,11 +14,9 @@ vi.mock("@/store/maps", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
-			const state = Store.get();
-			if (state.map && state.mapId === patch.id) Store.setMeta({ ...state.map, ...patch });
-			return null;
-		}),
+		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
+			(await import("./fixtures/mocks")).metadataWritten(patch),
+		),
 		storeSaveDirty: vi.fn(async () => null),
 	},
 }));
@@ -27,13 +27,15 @@ function openMap(id: string, settings: MapMeta["settings"] = {}) {
 	s.map = { id, settings };
 }
 
-/** Each write waits on a promise the test settles, so it can watch the order they arrive in. */
+/** Each write waits on a promise the test settles, and lands in the map state only then. */
 function holdWrites() {
 	const pending: (() => void)[] = [];
 	vi.mocked(cmd.storeUpdateMapMeta).mockImplementation(
-		() => new Promise((resolve) => pending.push(() => resolve(null))),
+		(patch) =>
+			new Promise((resolve) => pending.push(() => void metadataWritten(patch).then(resolve))),
 	);
 	return async () => {
+		await vi.waitUntil(() => pending.length > 0);
 		pending.shift()?.();
 		await new Promise((r) => setTimeout(r));
 	};
@@ -69,7 +71,30 @@ describe("map metadata writes", () => {
 		await settle();
 	});
 
-	it("schedule the save that persists them", async () => {
+	it("carry only the settings keys they change, so writes made back to back both land", async () => {
+		const settle = holdWrites();
+		const writes = [
+			Edit.meta({ settings: { searchRadius: 50 } }),
+			Edit.meta({ settings: { exportZoom: true } }),
+		];
+		for (const _ of writes) await settle();
+		await Promise.all(writes);
+		expect(sentSettings()).toEqual([{ searchRadius: 50 }, { exportZoom: true }]);
+		expect(Store.get().map?.settings).toMatchObject({ searchRadius: 50, exportZoom: true });
+	});
+
+	it("arriving on the change feed merge settings by key", () => {
+		openMap("a", { searchRadius: 50 });
+		Store.merge({ meta: { settings: { exportZoom: true } } } as unknown as Derived);
+		expect(Store.get().map?.settings).toEqual({ searchRadius: 50, exportZoom: true });
+	});
+
+	it("on the open map settle as a mutation, scheduling the save that persists them", async () => {
+		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(async (patch) => {
+			await metadataWritten(patch);
+			Feed.seed(1);
+			return { mutation: { version: 1, keys: [] } };
+		});
 		vi.useFakeTimers();
 		await Edit.meta({ id: "a", name: "first" });
 		expect(cmd.storeSaveDirty).not.toHaveBeenCalled();
@@ -88,9 +113,9 @@ describe("mapStorage", () => {
 		expect(mapStorage("gen").get("tag")).toBe("Europe");
 		expect(mapStorage("gen").keys()).toEqual(["tag"]);
 		expect(sentSettings().at(-1)).toEqual({
-			pointAlongRoad: false,
 			pluginData: { gen: { tag: "Europe" }, heat: { layers: [1] } },
 		});
+		expect(Store.get().map?.settings.pointAlongRoad).toBe(false);
 	});
 
 	it("gives every map its own values", async () => {

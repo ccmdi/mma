@@ -976,9 +976,38 @@ declare const commands$1: {
     /**
      *  Patch map metadata, leaving omitted fields unchanged.
      *  Open maps save through their store; tag records are edited separately.
+     *  A closed map writes straight to disk and reaches no version.
      *  @unstable
      */
-    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => Promise<null>;
+    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & {
+        settings?: Partial<MapSettings>;
+    } & Pick<MapMeta, "id">) => Promise<MutationResult<{
+        /**  Monotonically increasing within a map. Zero until the store assigns one. */
+        id: number;
+        lat: number;
+        lng: number;
+        heading: number;
+        pitch: number;
+        zoom: number;
+        /**  The empty string means absent, the same absence a missing key has. */
+        panoId: string | null;
+        /**  The location's bits, such as whether it opens exactly its stored pano. */
+        flags: number;
+        /**
+         *  Tag IDs applied to this location. References interned values of the `tags`
+         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+         *  `Nothas` on an absent field.
+         */
+        tags: number[];
+        /**
+         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+         *  name past the builtins.
+         */
+        extra: { [key in string]: unknown; } | null;
+        /**  Unix timestamp (seconds) */
+        createdAt: number;
+        modifiedAt: number | null;
+    }>>;
     /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
@@ -1582,7 +1611,9 @@ type DbStats = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 type Derived = {
     locationCount: number | null;
-    meta: (Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) | null;
+    meta: (Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & {
+        settings?: Partial<MapSettings>;
+    } & Pick<MapMeta, "id">) | null;
     history: Partial<{
         [key in EntryKey]: History;
     }> | null;
@@ -3850,7 +3881,8 @@ declare const Edit: {
         createdAt: number;
         modifiedAt: number | null;
     }>>;
-    /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
+    /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+     *  Settings merge key by key, so send only the keys that change. */
     meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
         id?: string;
     }) => Promise<void>;

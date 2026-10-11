@@ -31,6 +31,11 @@ pub fn canonical(v: &Value) -> Value {
 }
 
 /// A number as JSON: whole values as integers, the rest as floats.
+/// Whether `v` is its type's default: an empty nested patch, for one.
+pub fn is_default<T: Default + PartialEq>(v: &T) -> bool {
+    *v == T::default()
+}
+
 pub fn number_value(v: f64) -> Value {
     if v.fract() == 0.0 && v.abs() < 9.0e15 {
         Value::from(v as i64)

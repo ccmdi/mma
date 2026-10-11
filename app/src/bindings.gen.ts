@@ -247,8 +247,9 @@ export const commands = {
 	/**
 	 *  Patch map metadata, leaving omitted fields unchanged.
 	 *  Open maps save through their store; tag records are edited separately.
+	 *  A closed map writes straight to disk and reaches no version.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id">) => __TAURI_INVOKE<null>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & { settings?: Partial<MapSettings> } & Pick<MapMeta, "id">) => __TAURI_INVOKE<MutationResult>("store_update_map_meta", { patch }),
 	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
@@ -652,7 +653,7 @@ export type DbStats = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 export type Derived = {
 	locationCount: number | null,
-	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt">> & Pick<MapMeta, "id"> | null,
+	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & { settings?: Partial<MapSettings> } & Pick<MapMeta, "id"> | null,
 	history: Partial<{ [key in EntryKey]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
@@ -1140,66 +1141,14 @@ export type MmUser = {
 };
 
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-export type Mutation<_T = {
-	/**  Monotonically increasing within a map. Zero until the store assigns one. */
-	id: number,
-	lat: number,
-	lng: number,
-	heading: number,
-	pitch: number,
-	zoom: number,
-	/**  The empty string means absent, the same absence a missing key has. */
-	panoId: string | null,
-	/**  The location's bits, such as whether it opens exactly its stored pano. */
-	flags: number,
-	/**
-	 *  Tag IDs applied to this location. References interned values of the `tags`
-	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-	 *  `Nothas` on an absent field.
-	 */
-	tags: number[],
-	/**
-	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-	 *  name past the builtins.
-	 */
-	extra: { [key in string]: unknown } | null,
-	/**  Unix timestamp (seconds) */
-	createdAt: number,
-	modifiedAt: number | null,
-}> = {
+export type Mutation<_T = Location> = {
 	/**  The map version this change brought the map to. */
 	version: number,
 	/**  The key the store gave each keyless set, in the order they were written. */
 	keys: number[],
 };
 
-export type MutationResult<T = {
-	/**  Monotonically increasing within a map. Zero until the store assigns one. */
-	id: number,
-	lat: number,
-	lng: number,
-	heading: number,
-	pitch: number,
-	zoom: number,
-	/**  The empty string means absent, the same absence a missing key has. */
-	panoId: string | null,
-	/**  The location's bits, such as whether it opens exactly its stored pano. */
-	flags: number,
-	/**
-	 *  Tag IDs applied to this location. References interned values of the `tags`
-	 *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-	 *  `Nothas` on an absent field.
-	 */
-	tags: number[],
-	/**
-	 *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-	 *  name past the builtins.
-	 */
-	extra: { [key in string]: unknown } | null,
-	/**  Unix timestamp (seconds) */
-	createdAt: number,
-	modifiedAt: number | null,
-}> = {
+export type MutationResult<T = Location> = {
 	mutation: Mutation<T>,
 };
 
@@ -1738,11 +1687,7 @@ export type SelectionInput = {
 export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: RGB } | { kind: "polygonName"; path: number[]; name: string };
 
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
-export type Selector<S = {
-	key: string,
-	color: RGB,
-	selector: Selector,
-}> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
+export type Selector<S = Selection> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
 /**  The locations currently selected in the editor. */
 { type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: S[] } | { type: "Union"; selections: S[] } | { type: "Invert"; selections: S[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**

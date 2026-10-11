@@ -1809,6 +1809,7 @@ edit.meta(
 ```
 
 Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+Settings merge key by key, so send only the keys that change.
 
 #### edit.values
 
@@ -3635,6 +3636,7 @@ Edit.meta(
 ```
 
 Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+Settings merge key by key, so send only the keys that change.
 
 #### Edit.values
 
@@ -7142,15 +7144,50 @@ cmd.storeUpdateMapMeta(
   patch: Partial<
     Omit<
       MapMeta,
-      "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt"
+      | "locationCount"
+      | "pending"
+      | "createdAt"
+      | "updatedAt"
+      | "lastOpenedAt"
+      | "settings"
     >
-  > &
-    Pick<MapMeta, "id">,
-): Promise<null>
+  > & {
+    settings?: Partial<MapSettings>;
+  } & Pick<MapMeta, "id">,
+): Promise<
+  MutationResult<{
+    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    id: number;
+    lat: number;
+    lng: number;
+    heading: number;
+    pitch: number;
+    zoom: number;
+    /**  The empty string means absent, the same absence a missing key has. */
+    panoId: string | null;
+    /**  The location's bits, such as whether it opens exactly its stored pano. */
+    flags: number;
+    /**
+     *  Tag IDs applied to this location. References interned values of the `tags`
+     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
+     *  `Nothas` on an absent field.
+     */
+    tags: number[];
+    /**
+     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
+     *  name past the builtins.
+     */
+    extra: { [key in string]: unknown } | null;
+    /**  Unix timestamp (seconds) */
+    createdAt: number;
+    modifiedAt: number | null;
+  }>
+>
 ```
 
 Patch map metadata, leaving omitted fields unchanged.
 Open maps save through their store; tag records are edited separately.
+A closed map writes straight to disk and reaches no version.
 
 #### cmd.storeUploadAbort
 

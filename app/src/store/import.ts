@@ -77,10 +77,7 @@ export const Import = {
 		Import.cancel();
 		await Mutation.settle(r.mutation);
 
-		const map = Store.get().map;
-		if (map && Object.keys(settings).length) {
-			await Edit.meta({ settings: { ...map.settings, ...settings } });
-		}
+		if (Object.keys(settings).length) await Edit.meta({ settings });
 
 		if (r.autoCommit) {
 			const mapId = Store.get().mapId;

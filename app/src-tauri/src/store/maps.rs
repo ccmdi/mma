@@ -56,7 +56,7 @@ pub struct VirtualTag {
 }
 
 /// Street View lookup, export, and enrichment preferences that can start any map.
-#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, mma_fields::Patch)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapPreferences {
     pub point_along_road: bool,
@@ -86,10 +86,13 @@ pub struct MapPreferences {
 }
 
 /// A map's settings: its preferences plus what refers to its own tags and data.
-#[derive(Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
+#[derive(
+    Clone, Default, serde::Serialize, serde::Deserialize, specta::Type, Debug, mma_fields::Patch,
+)]
 #[serde(default, rename_all = "camelCase")]
 pub struct MapSettings {
     #[serde(flatten)]
+    #[patch(merge)]
     pub preferences: MapPreferences,
     pub key_bindings: Vec<MapKeyBinding>,
     /// Virtual tag-tree nodes keyed by full slash path. Tree-view only.
@@ -573,6 +576,7 @@ pub struct MapMeta {
     pub description: String,
     pub folder: Option<String>,
     #[field(json, default = "'{}'")]
+    #[patch(merge)]
     pub settings: MapSettings,
     #[field(json, default = "'\"auto\"'")]
     pub score_bounds: ScoreBounds,
@@ -847,13 +851,14 @@ pub fn store_delete_map(
 
 /// Patch map metadata, leaving omitted fields unchanged.
 /// Open maps save through their store; tag records are edited separately.
+/// A closed map writes straight to disk and reaches no version.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     patch: Patch<MapMeta>,
-) -> AppResult<()> {
+) -> AppResult<engine::MutationResult> {
     update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)
 }
 
@@ -861,12 +866,19 @@ fn update_map_meta(
     mgr: &mut StoreManager,
     conn: &Connection,
     patch: Patch<MapMeta>,
-) -> AppResult<()> {
+) -> AppResult<engine::MutationResult> {
     if let Some(extra) = &patch.extra {
         extra.check()?;
     }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
-        return storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &patch);
+        let next = read_map_meta(conn, &patch.id)?.patched(&patch);
+        storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &next.to_patch())?;
+        return Ok(engine::MutationResult {
+            mutation: engine::Mutation {
+                version: 0,
+                keys: Vec::new(),
+            },
+        });
     };
     if patch.tags.is_some() {
         return Err(AppError(
@@ -878,15 +890,16 @@ fn update_map_meta(
         Some((*store.meta).clone()),
         Some(next),
     )]);
-    store.write(
-        [],
-        &mut None,
-        engine::Entry {
-            meta,
-            ..Default::default()
-        },
-    );
-    Ok(())
+    Ok(engine::MutationResult {
+        mutation: store.write(
+            [],
+            &mut None,
+            engine::Entry {
+                meta,
+                ..Default::default()
+            },
+        ),
+    })
 }
 
 /// Mark a map as opened now, for sorting the map list by recency.

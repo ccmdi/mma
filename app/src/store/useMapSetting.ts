@@ -17,10 +17,7 @@ export function useMapSetting<K extends keyof MapSettings>(
 	const map = Store.use((s) => s.map);
 	const set = useCallback(
 		(v: MapSettings[K]) => {
-			const settings = Store.get().map?.settings;
-			if (settings) {
-				void Edit.meta({ settings: { ...settings, [key]: v } });
-			}
+			void Edit.meta({ settings: { [key]: v } as Partial<MapSettings> });
 		},
 		[key],
 	);

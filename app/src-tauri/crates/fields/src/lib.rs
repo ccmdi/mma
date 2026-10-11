@@ -12,7 +12,7 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, ToTokens};
 use syn::{parse_macro_input, Data, DeriveInput, Ident, LitFloat, LitStr, Type};
 
 struct Row {
@@ -247,7 +247,8 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 }
 
 /// Generate a struct's patch type and implement `Patchable`.
-/// `key` fields are required; `skip` fields are excluded; `merge` fields update key by key.
+/// `key` fields are required; `skip` fields are excluded; `merge` fields update key by key,
+/// and a `merge` field that is not optional takes a nested patch of its own type.
 /// `stamp` fields can be written but are ignored when comparing values.
 /// A `unique` field's value names at most one row; `sequence` fields are numbered on insert.
 /// Other fields are optional; `column` overrides their storage column name.
@@ -271,6 +272,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
     let (mut clears, mut key_fields) = (Vec::new(), Vec::new());
     let (mut unique_field, mut sequences, mut fills) = (None, Vec::new(), Vec::new());
+    let mut nested = Vec::new();
     for f in &data.fields {
         let name = f.ident.as_ref().expect("named fields");
         let ty = &f.ty;
@@ -332,6 +334,28 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             sequences.push(name);
         }
         let Some(inner) = option_inner(ty) else {
+            if merge {
+                let flatten = f.attrs.iter().any(|attr| {
+                    attr.path().is_ident("serde")
+                        && attr.to_token_stream().to_string().contains("flatten")
+                });
+                let skip = (!flatten).then(|| {
+                    quote! { #[serde(default, skip_serializing_if = "::mma_algebra::is_default")] }
+                });
+                slots.push(quote! {
+                    #(#codec)*
+                    #skip
+                    pub #name: ::mma_algebra::Patch<#ty>,
+                });
+                whole.push(quote! { #name: ::mma_algebra::Patchable::to_patch(&self.#name), });
+                writes.push(quote! { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); });
+                reads.push(
+                    quote! { #name: ::mma_algebra::Patchable::between(&old.#name, &new.#name), },
+                );
+                same.push(quote! { old.#name == new.#name });
+                nested.push((key_name, type_name(ty)));
+                continue;
+            }
             slots.push(quote! {
                 #(#codec)*
                 #[serde(default, skip_serializing_if = "Option::is_none")] pub #name: Option<#ty>,
@@ -382,9 +406,17 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             reads.push(quote! { #name: #change, });
         }
     }
+    let hidden: Vec<String> = skips
+        .iter()
+        .cloned()
+        .chain(nested.iter().map(|(key, _)| format!("\"{key}\"")))
+        .collect();
     let mut wire = format!("Partial<{ident}>");
-    if !skips.is_empty() {
-        wire = format!("Partial<Omit<{ident}, {}>>", skips.join(" | "));
+    if !hidden.is_empty() {
+        wire = format!("Partial<Omit<{ident}, {}>>", hidden.join(" | "));
+    }
+    for (key, ty) in &nested {
+        wire = format!("{wire} & {{ {key}?: Partial<{ty}> }}");
     }
     if !keys.is_empty() {
         wire = format!("{wire} & Pick<{ident}, {}>", keys.join(" | "));

@@ -69,7 +69,10 @@ export const Store = {
 	/** Merge derived updates, preserving null fields and removing null field values. @unstable */
 	merge: (v: Derived) => {
 		const { fieldValues, meta, ...rest } = v;
-		if (meta && state.map) state = { ...state, map: { ...state.map, ...meta } };
+		if (meta && state.map) {
+			const settings = meta.settings && { ...state.map.settings, ...meta.settings };
+			state = { ...state, map: { ...state.map, ...meta, settings: settings ?? state.map.settings } };
+		}
 		state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
 		if (!fieldValues) return;
 		const merged = { ...state.fieldValues };

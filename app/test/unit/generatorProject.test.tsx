@@ -16,11 +16,9 @@ vi.mock("@/store/maps", () => ({
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeSetDerived: async () => null,
-		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
-			const state = Store.get();
-			if (state.map && state.mapId === patch.id) Store.setMeta({ ...state.map, ...patch });
-			return null;
-		}),
+		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
+			(await import("./fixtures/mocks")).metadataWritten(patch),
+		),
 		storeSaveDirty: vi.fn(async () => null),
 	},
 }));

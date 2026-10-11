@@ -72,7 +72,7 @@ function writeMapPluginStore(id: string, data: Entries): Promise<void> {
 	const pluginData = { ...map.settings.pluginData };
 	if (Object.keys(data).length > 0) pluginData[id] = data;
 	else delete pluginData[id];
-	return Edit.meta({ id: map.id, settings: { ...map.settings, pluginData } });
+	return Edit.meta({ id: map.id, settings: { pluginData } });
 }
 
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.

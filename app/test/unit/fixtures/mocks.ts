@@ -172,8 +172,11 @@ export async function metadataWritten(patch: unknown) {
 	const { Store } = await import("@/store/store");
 	const state = Store.get();
 	const change = patch as Partial<import("@/bindings.gen").MapMeta>;
-	if (state.map && state.mapId === change.id) Store.setMeta({ ...state.map, ...change });
-	return null;
+	if (state.map && state.mapId === change.id) {
+		const settings = { ...state.map.settings, ...change.settings };
+		Store.setMeta({ ...state.map, ...change, settings });
+	}
+	return { mutation: { version: 0, keys: [] } };
 }
 
 export function cmdProxy(handlers: Handlers) {
