@@ -873,10 +873,10 @@ fn apply_pull(
     };
     store.drop_pending(&layer);
 
-    let needed: HashMap<&str, Option<&str>> = out
+    let needed: HashMap<&str, &RemoteTag> = out
         .needed_tags
         .iter()
-        .map(|t| (t.name.as_str(), t.color.as_deref()))
+        .map(|t| (t.name.as_str(), t))
         .collect();
     let mut piles: Vec<(u32, crate::store::engine::ValueRecord)> = Vec::new();
     let mut pile_of: HashMap<String, u32> = HashMap::new();
@@ -887,8 +887,13 @@ fn apply_pull(
         let id = piles.len() as u32 + 1;
         let mut rec = crate::store::engine::ValueRecord::new();
         rec.insert("name".into(), name.into());
-        if let Some(color) = needed.get(name).copied().flatten() {
-            rec.insert("color".into(), color.into());
+        if let Some(tag) = needed.get(name) {
+            if let Some(color) = &tag.color {
+                rec.insert("color".into(), color.as_str().into());
+            }
+            if let Some(order) = tag.order {
+                rec.insert("order".into(), order.into());
+            }
         }
         piles.push((id, rec));
         pile_of.insert(name.to_string(), id);

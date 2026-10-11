@@ -1469,6 +1469,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
     let mut old_tag = ValueRecord::new();
     old_tag.insert("name".into(), "Old".into());
+    old_tag.insert("order".into(), 4.into());
     store.value_meta.insert(
         "tags".into(),
         Tracked::new([(5u32, old_tag)].into_iter().collect()),
@@ -1487,16 +1488,24 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         pulled: SideCounts::default(),
         adopted: 0,
         conflicts: Vec::new(),
-        needed_tags: vec![RemoteTag {
-            name: "New".into(),
-            color: Some("#123456".into()),
-            order: None,
-        }],
+        needed_tags: vec![
+            RemoteTag {
+                name: "New".into(),
+                color: Some("#123456".into()),
+                order: Some(10),
+            },
+            RemoteTag {
+                name: "Second".into(),
+                color: None,
+                order: Some(2),
+            },
+        ],
         pull_creates: vec![PullCreate {
             fields: norm(|n| {
                 n.lat = 9.0;
                 n.lng = 9.0;
-                n.tags = vec!["Old".into(), "New".into()];
+                // Encounter order intentionally differs from remote display order.
+                n.tags = vec!["Old".into(), "New".into(), "Second".into()];
             }),
             remote_id: 77,
             hash: "h-create".into(),
@@ -1525,7 +1534,14 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         .iter()
         .find(|(_, rec)| record_name(rec) == Some("New"))
         .expect("New interned at land");
-    assert_eq!(created.tags, vec![5, *new_id]);
+    let (second_id, second_rec) = meta
+        .iter()
+        .find(|(_, rec)| record_name(rec) == Some("Second"))
+        .unwrap();
+    assert_eq!(created.tags, vec![5, *new_id, *second_id]);
+    assert_eq!(meta[&5].get("order").and_then(|v| v.as_u64()), Some(4));
+    assert_eq!(second_rec.get("order").and_then(|v| v.as_u64()), Some(5));
+    assert_eq!(new_rec.get("order").and_then(|v| v.as_u64()), Some(6));
     assert_eq!(
         new_rec.get("color").and_then(|v| v.as_str()),
         Some("#123456")
