@@ -44,13 +44,19 @@ export async function reconcile(
 		opts.resolutions ? [...opts.resolutions.entries()] : null,
 	);
 
-	// Rust has already applied the merge. Abort or unlink stops completion reporting,
+	// Rust has already applied the merge. Abort, unlink or relink stops completion reporting,
 	// without rolling back those changes.
-	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
-	if (!store.getLink()) throw new Error("map was unlinked during sync");
-
+	const stillCurrent = () => {
+		if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
+		const current = store.getLink();
+		if (!current) throw new Error("map was unlinked during sync");
+		if (current.remoteMapId !== link.remoteMapId || current.linkedAt !== link.linkedAt)
+			throw new Error("map was relinked during sync");
+		return current;
+	};
+	stillCurrent();
 	if (result.mutation) await Mutation.settle(result.mutation);
-	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
+	store.setLink({ ...stillCurrent(), lastSyncedAt: new Date().toISOString() });
 
 	return {
 		pushed: result.pushed,
