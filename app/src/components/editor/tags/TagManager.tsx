@@ -47,8 +47,6 @@ import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
-// Stable identities: an inline default would be a new object each render, which
-// invalidates the tag tree's useMemo and re-renders every row.
 const NO_VIRTUAL_TAGS = {};
 const NO_ALIASES = {};
 
