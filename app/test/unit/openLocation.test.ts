@@ -26,7 +26,13 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-import { setActiveLocation, setWorkArea, getMapState, setOpenRow } from "@/store/useMapStore";
+import {
+	closeLocation,
+	openLocation,
+	setWorkArea,
+	getMapState,
+	setOpenRow,
+} from "@/store/useMapStore";
 import type { Location } from "@/bindings.gen";
 import { subscribe } from "@/lib/events";
 
@@ -35,16 +41,16 @@ beforeEach(() => {
 	h.held.clear();
 });
 
-describe("active location", () => {
+describe("open location", () => {
 	it("drops the open row when the duplicate panel takes over", async () => {
 		h.nearby = [{ id: 7 }, { id: 8 }];
-		await setActiveLocation(7);
+		await openLocation(7);
 
 		expect(getMapState().open).toBeNull();
 	});
 
 	it("drops the open row when leaving the location pane", async () => {
-		await setActiveLocation(7);
+		await openLocation(7);
 		expect(getMapState().open?.row?.id).toBe(7);
 
 		setWorkArea("plugin");
@@ -55,8 +61,8 @@ describe("active location", () => {
 	it("a slow switch that lands after a newer one leaves the newer location active", async () => {
 		let release!: () => void;
 		h.held.set(7, new Promise((r) => (release = r)));
-		const slow = setActiveLocation(7);
-		await setActiveLocation(8);
+		const slow = openLocation(7);
+		await openLocation(8);
 		release();
 		await slow;
 
@@ -65,11 +71,11 @@ describe("active location", () => {
 		setWorkArea("overview");
 	});
 
-	it("emits active:change exactly once per clear, and not when nothing was active", async () => {
+	it("emits open:change exactly once per close, and not when nothing was open", async () => {
 		const seen: (number | null)[] = [];
-		const unsub = subscribe("active:change", (id) => seen.push(id));
+		const unsub = subscribe("open:change", (id) => seen.push(id));
 
-		await setActiveLocation(7);
+		await openLocation(7);
 		setWorkArea("plugin");
 		setWorkArea("overview");
 
@@ -90,9 +96,9 @@ describe("active location", () => {
 	});
 
 	it("a row read for an earlier opening never lands on a reopening of the same location", async () => {
-		await setActiveLocation(7);
+		await openLocation(7);
 		const earlier = getMapState().open!.session;
-		await setActiveLocation(7);
+		await openLocation(7);
 
 		setOpenRow({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
 
@@ -101,7 +107,7 @@ describe("active location", () => {
 	});
 
 	it("switching locations keeps the current one open until the next has its row", async () => {
-		await setActiveLocation(7);
+		await openLocation(7);
 		const seen: { id: number; row: boolean }[] = [];
 		const unsub = subscribe("store:changed", () => {
 			const open = getMapState().open;
@@ -110,7 +116,7 @@ describe("active location", () => {
 		let release!: () => void;
 		h.held.set(8, new Promise((r) => (release = r)));
 
-		const switching = setActiveLocation(8);
+		const switching = openLocation(8);
 		expect(getMapState().open?.id).toBe(7);
 		release();
 		await switching;
@@ -119,5 +125,37 @@ describe("active location", () => {
 		expect(seen.every((s) => s.row)).toBe(true);
 		expect(getMapState().open?.row?.id).toBe(8);
 		setWorkArea("overview");
+	});
+});
+
+describe("closing the open location", () => {
+	it("supersedes an opening still loading", async () => {
+		let release!: () => void;
+		h.held.set(
+			7,
+			new Promise<void>((r) => {
+				release = r;
+			}),
+		);
+		const opening = openLocation(7, false);
+		closeLocation();
+		release();
+		await opening;
+
+		expect(getMapState().open).toBeNull();
+	});
+});
+
+describe("legacy open shims", () => {
+	it("forwards open:change as active:change and maps null to close", async () => {
+		const { setActiveLocation } = await import("@/legacy");
+		const seen: (number | null)[] = [];
+		const unsub = subscribe("active:change", (id) => seen.push(id));
+		await setActiveLocation(7, false);
+		await setActiveLocation(null);
+		unsub();
+
+		expect(seen).toEqual([7, null]);
+		expect(getMapState().open).toBeNull();
 	});
 });

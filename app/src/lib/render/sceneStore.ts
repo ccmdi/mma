@@ -31,8 +31,8 @@ export function getScene(): CellManager {
 	return scene;
 }
 
-function syncActive(): boolean {
-	return scene.setActive(getMapState().open?.row?.id ?? null);
+function syncOpen(): boolean {
+	return scene.setOpen(getMapState().open?.row?.id ?? null);
 }
 
 /** Set the default marker color (RGB bytes). */
@@ -85,7 +85,7 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 	const drawn = scene.version;
 	const s = scene.apply(buf);
 	if (s.replace) {
-		syncActive();
+		syncOpen();
 		applied = [];
 	}
 	if (scene.overlay.version !== before) setSelectedLocationIds(scene.selectedIds());
@@ -159,12 +159,12 @@ export function clearScene() {
 	emitEvent("scene:changed");
 }
 
-/** Start following active-location changes. Returns a stop function. */
+/** Start following open-location changes. Returns a stop function. */
 export function startSceneEngine(): () => void {
-	// Active-location switch fires a plain store mutation (store_set_active is fire-and-forget,
-	// no frame). `setActive` is a no-op when the id hasn't moved.
+	// Opening a location sends no frame, so the scene follows the store state; `setOpen` is a
+	// no-op when the id hasn't moved.
 	const unsubStore = subscribeEvent("store:changed", () => {
-		if (syncActive()) emitEvent("scene:changed");
+		if (syncOpen()) emitEvent("scene:changed");
 	});
 
 	return () => {

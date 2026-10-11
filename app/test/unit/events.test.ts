@@ -17,14 +17,14 @@ describe("event group constants", () => {
 describe("subscribeMany", () => {
 	it("fans out to every event and the combined unsubscribe detaches all", () => {
 		const fn = vi.fn();
-		const off = subscribeMany(["selection:change", "active:change"], fn);
+		const off = subscribeMany(["selection:change", "open:change"], fn);
 		emit("selection:change", []);
-		emit("active:change", null);
+		emit("open:change", null);
 		expect(fn).toHaveBeenCalledTimes(2);
 
 		off();
 		emit("selection:change", []);
-		emit("active:change", null);
+		emit("open:change", null);
 		expect(fn).toHaveBeenCalledTimes(2);
 	});
 });
@@ -32,12 +32,12 @@ describe("subscribeMany", () => {
 describe("emit", () => {
 	it("isolates handler errors — a throwing handler doesn't block the rest", () => {
 		const good = vi.fn();
-		const offBad = subscribe("active:change", () => {
+		const offBad = subscribe("open:change", () => {
 			throw new Error("boom");
 		});
-		const offGood = subscribe("active:change", good);
+		const offGood = subscribe("open:change", good);
 
-		expect(() => emit("active:change", 1)).not.toThrow();
+		expect(() => emit("open:change", 1)).not.toThrow();
 		expect(good).toHaveBeenCalledOnce();
 
 		offBad();

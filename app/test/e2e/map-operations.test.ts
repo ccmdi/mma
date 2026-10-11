@@ -176,7 +176,7 @@ describe("Map metadata updates", () => {
 	});
 });
 
-describe("Active location and work area", () => {
+describe("Open location and work area", () => {
 	useMap("E2E Active Loc");
 	let locIds: number[];
 
@@ -187,10 +187,10 @@ describe("Active location and work area", () => {
 		];
 		locIds = await addLocs(locs);
 	});
-	it("setActiveLocation switches to location work area", async () => {
+	it("openLocation switches to location work area", async () => {
 		const id = locIds[0];
 		await withApi(async (api, locId) => {
-			await api.setActiveLocation(locId);
+			await api.openLocation(locId);
 		}, id);
 
 		const result = await withApi(async (api) => {
@@ -205,9 +205,9 @@ describe("Active location and work area", () => {
 		expect(result.activeLat).toBe(10);
 	});
 
-	it("setActiveLocation(null) returns to overview", async () => {
+	it("closeLocation() returns to overview", async () => {
 		await withApi(async (api) => {
-			await api.setActiveLocation(null);
+			await api.closeLocation();
 		});
 
 		const result = await withApi(async (api) => ({
@@ -218,13 +218,13 @@ describe("Active location and work area", () => {
 		expect(result.active).toBeNull();
 	});
 
-	it("switching active location changes work area target", async () => {
+	it("switching open location changes work area target", async () => {
 		const id0 = locIds[0];
 		const id1 = locIds[1];
 		await withApi(
 			async (api, a, b) => {
-				await api.setActiveLocation(a);
-				await api.setActiveLocation(b);
+				await api.openLocation(a);
+				await api.openLocation(b);
 			},
 			id0,
 			id1,

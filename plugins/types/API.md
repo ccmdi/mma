@@ -764,6 +764,16 @@ closeDuplicates(): void
 
 Close the duplicate-resolution panel and return to the overview.
 
+### closeLocation
+
+`stable` · unreleased
+
+```ts
+closeLocation(): void
+```
+
+Close the open location and return to the pane it was opened from.
+
 ### closeMap
 
 `stable` · since v0.4.0
@@ -945,6 +955,21 @@ openDuplicateLocation(loc: Location): void
 
 Open one location from the duplicate-resolution panel in the editor.
 
+### openLocation
+
+`stable` · unreleased
+
+```ts
+openLocation(
+  target: MaybeLocation,
+  checkDuplicates?: boolean,
+): Promise<void>
+```
+
+Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+within 2m opens the duplicate-resolution panel instead. A later opening or closing
+supersedes one still loading.
+
 ### openMap
 
 `stable` · since v0.4.0
@@ -1107,21 +1132,6 @@ select<
 }>
 ```
 
-### setActiveLocation
-
-`stable` · since v0.3.1
-
-```ts
-setActiveLocation(
-  target: MaybeLocation | null,
-  checkDuplicates?: boolean,
-): Promise<void>
-```
-
-Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
-with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
-opening of any kind supersedes one still loading.
-
 ### setMap
 
 `unstable` · since v0.12.0
@@ -1179,7 +1189,7 @@ setWorkArea(area: WorkArea): void
 ```
 
 Transition the editor pane, enforcing state invariants:
-leaving "location" clears the active location, leaving "plugin" clears the plugin id.
+leaving "location" closes the open location, leaving "plugin" clears the plugin id.
 
 ### tagIdsToNames
 
@@ -6837,7 +6847,7 @@ Set the default marker color (RGB bytes).
 startSceneEngine(): () => void
 ```
 
-Start following active-location changes. Returns a stop function.
+Start following open-location changes. Returns a stop function.
 
 ### whenSceneSettled
 
@@ -7779,6 +7789,19 @@ sampleFrom(selector: Selector, n: number): Promise<number[]>
 ```
 
 **Deprecated in v0.11.3.** Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`.
+
+### setActiveLocation
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+setActiveLocation(
+  target: MaybeLocation | null,
+  checkDuplicates?: boolean,
+): Promise<void>
+```
+
+**Deprecated in v0.12.0.** Use `MMA.openLocation(target)`, or `MMA.closeLocation()` in place of null.
 
 ### setUserFieldDefs
 

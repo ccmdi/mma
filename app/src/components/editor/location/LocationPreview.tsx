@@ -10,7 +10,7 @@ import {
 	useMapState,
 	getMapState,
 	removeLocations,
-	setActiveLocation,
+	closeLocation,
 	getVisibleTags,
 	getTagCounts,
 } from "@/store/useMapStore";
@@ -218,7 +218,7 @@ export function LocationPreview() {
 	const handleSave = useCallback(async () => {
 		if (!location || !pano.exists() || !draft) return;
 		if (origin === "import") {
-			void setActiveLocation(null);
+			closeLocation();
 			return;
 		}
 
@@ -237,7 +237,7 @@ export function LocationPreview() {
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
-			void setActiveLocation(null);
+			closeLocation();
 		}
 	}, [pano, location, origin, draft, land, isReviewMode, reviewSession, pendingTags]);
 
@@ -247,14 +247,14 @@ export function LocationPreview() {
 		if (isReviewMode) {
 			void reviewNext();
 		} else {
-			void setActiveLocation(null);
+			closeLocation();
 		}
 	}, [isReviewMode]);
 
 	const handleDelete = useCallback(() => {
 		if (!location) return;
 		if (origin !== "map") {
-			void setActiveLocation(null);
+			closeLocation();
 			return;
 		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
@@ -264,7 +264,7 @@ export function LocationPreview() {
 		}
 	}, [location, origin, isReviewMode, reviewSession]);
 
-	// Reads the active location at call time so the callback stays referentially
+	// Reads the open location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
 		const loc = getMapState().open?.row;

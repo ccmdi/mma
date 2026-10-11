@@ -334,7 +334,7 @@ export class CellBuffer {
 	positions: Float32Array;
 	/** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
 	 *  global marker colour, which the layer supplies as a constant, so the only per-marker
-	 *  colour fact is whether a selection or the active highlight is covering it. */
+	 *  colour fact is whether a selection or the open-location highlight is covering it. */
 	visible: Uint8Array;
 	angles: Float32Array;
 	count = 0;
@@ -475,8 +475,8 @@ export class CellManager {
 
 	/** The rows the selection overlay draws, and the only record of which rows are selected. */
 	readonly overlay = new SelectionOverlay();
-	/** The row the active-location layer draws, hidden in its base cell. */
-	private activeId: number | null = null;
+	/** The location the open-location layer draws, hidden in its base cell. */
+	private openId: number | null = null;
 
 	/** Scratch for `restateSelections`: per-row winning selection index, reused across
 	 *  cells so a full restate does not allocate one array per cell. */
@@ -596,15 +596,15 @@ export class CellManager {
 		} else {
 			this.overlay.delete(id);
 		}
-		cb.visible[i] = sel !== NO_SEL || id === this.activeId ? 0 : 255;
+		cb.visible[i] = sel !== NO_SEL || id === this.openId ? 0 : 255;
 	}
 
-	/** Set the active location, whose marker the active layer draws instead of the base cell.
-	 *  Returns whether the active row actually moved. */
-	setActive(id: number | null): boolean {
-		if (id === this.activeId) return false;
-		const prev = this.activeId;
-		this.activeId = id;
+	/** Set the open location, whose marker the open-location layer draws instead of the base cell.
+	 *  Returns whether the open location actually moved. */
+	setOpen(id: number | null): boolean {
+		if (id === this.openId) return false;
+		const prev = this.openId;
+		this.openId = id;
 		if (prev != null) this.syncVisible(prev);
 		if (id != null) this.syncVisible(id);
 		this.version++;
@@ -613,11 +613,11 @@ export class CellManager {
 
 	/**
 	 * A base row is hidden exactly when something else is drawing it: the selection overlay
-	 * or the active-location layer. The only place `visible` is decided for a single row, so
-	 * "selected" and "active" never have to negotiate over the byte.
+	 * or the open-location layer. The only place `visible` is decided for a single row, so
+	 * "selected" and "open" never have to negotiate over the byte.
 	 */
 	private syncVisible(id: number) {
-		const hidden = this.overlay.has(id) || id === this.activeId;
+		const hidden = this.overlay.has(id) || id === this.openId;
 		for (const cb of this.cells.values()) {
 			const i = cb.idToIndex.get(id);
 			if (i == null) continue;
@@ -627,7 +627,7 @@ export class CellManager {
 	}
 
 	/** Visit every rendered location's position. The cells hold all alive rows (a `visible`
-	 *  0 only means the overlay or active layer draws that row instead), so this is the
+	 *  0 only means the overlay or open-location layer draws that row instead), so this is the
 	 *  maintained full-map position set. */
 	forEachPosition(f: (id: number, lng: number, lat: number) => void) {
 		for (const cb of this.cells.values()) {
@@ -739,14 +739,14 @@ export class CellManager {
 		// between two selections covering the same row.
 		this.overlay.order();
 
-		// The active row was shown again along with the rest of its cell.
-		if (this.activeId != null) this.syncVisible(this.activeId);
+		// The open location was shown again along with the rest of its cell.
+		if (this.openId != null) this.syncVisible(this.openId);
 	}
 
 	clear() {
 		this.cells.clear();
 		this.totalCount = 0;
-		this.activeId = null;
+		this.openId = null;
 		this.overlay.clear();
 		this.version++;
 	}

@@ -20,7 +20,7 @@ import { getMapState } from "@/store/useMapStore";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 
-/** Assign hotkeys that copy the active location into other maps. Each binding is
+/** Assign hotkeys that copy the open location into other maps. Each binding is
  *  either per-map (this map's settings) or global (works in every map); the globe
  *  toggle on a row moves it between the two stores. New targets are added via
  *  autocomplete (type a map name), then keyed. */

@@ -214,10 +214,10 @@ function seedLocations(mgr: CellManager, n: number, cell = "s"): void {
 }
 
 // ===========================================================================
-// 1. Active location switch — the buildLayers pattern
+// 1. Open location switch — the buildLayers pattern
 // ===========================================================================
 
-describe("Active location switch invariants", () => {
+describe("Open location switch invariants", () => {
 	let mgr: CellManager;
 
 	beforeEach(() => {
@@ -226,26 +226,26 @@ describe("Active location switch invariants", () => {
 	});
 
 	it("activating a location hides it in the main layer", () => {
-		mgr.setActive(1);
+		mgr.setOpen(1);
 		expect(isHidden(mgr, 1)).toBe(true);
 	});
 
 	it("deactivating a location makes it visible again", () => {
-		mgr.setActive(1);
-		mgr.setActive(null);
+		mgr.setOpen(1);
+		mgr.setOpen(null);
 		expect(getVisible(mgr, 1)).toBe(255);
 	});
 
 	it("switching active restores the previous and hides the new", () => {
-		mgr.setActive(1);
-		mgr.setActive(2);
+		mgr.setOpen(1);
+		mgr.setOpen(2);
 		expect(isVisible(mgr, 1)).toBe(true);
 		expect(isHidden(mgr, 2)).toBe(true);
 	});
 
 	it("rapid switching through N locations leaves only the last hidden", () => {
 		for (let id = 1; id <= 5; id++) {
-			mgr.setActive(id);
+			mgr.setOpen(id);
 		}
 		for (let id = 1; id <= 4; id++) {
 			expect(isVisible(mgr, id)).toBe(true);
@@ -254,15 +254,15 @@ describe("Active location switch invariants", () => {
 	});
 
 	it("activating the same location twice is idempotent", () => {
-		mgr.setActive(3);
-		mgr.setActive(3);
+		mgr.setOpen(3);
+		mgr.setOpen(3);
 		expect(isHidden(mgr, 3)).toBe(true);
 		// All others still visible
 		for (const id of [1, 2, 4, 5]) expect(isVisible(mgr, id)).toBe(true);
 	});
 
 	it("activating a nonexistent ID does not corrupt other entries", () => {
-		mgr.setActive(999);
+		mgr.setOpen(999);
 		for (let id = 1; id <= 5; id++) {
 			expect(isVisible(mgr, id)).toBe(true);
 		}
@@ -364,7 +364,7 @@ describe("Selection and main layer consistency", () => {
 // 3. Active + selection interaction
 // ===========================================================================
 
-describe("Active location + selection interaction", () => {
+describe("Open location + selection interaction", () => {
 	let mgr: CellManager;
 
 	beforeEach(() => {
@@ -374,13 +374,13 @@ describe("Active location + selection interaction", () => {
 
 	it("selected location made active: stays hidden in main (no restore flash)", () => {
 		selectIds(mgr, new Set([3]));
-		mgr.setActive(3);
+		mgr.setOpen(3);
 		expect(isHidden(mgr, 3)).toBe(true);
 		assertNoDoubleMarkers(mgr);
 	});
 
-	it("active location that gets selected: doesn't get restored to default", () => {
-		mgr.setActive(2);
+	it("open location that gets selected: doesn't get restored to default", () => {
+		mgr.setOpen(2);
 		expect(isHidden(mgr, 2)).toBe(true);
 
 		selectIds(mgr, new Set([2, 4]));
@@ -390,27 +390,27 @@ describe("Active location + selection interaction", () => {
 		expect(isHidden(mgr, 4)).toBe(true);
 
 		// Now switch active away — the old active is still selected, so no restore
-		mgr.setActive(5);
+		mgr.setOpen(5);
 		expect(isHidden(mgr, 2)).toBe(true); // still hidden (selected)
 		expect(isHidden(mgr, 5)).toBe(true); // hidden (now active)
 	});
 
 	it("clearing selection while location is active keeps it hidden", () => {
 		selectIds(mgr, new Set([3]));
-		mgr.setActive(3);
+		mgr.setOpen(3);
 
 		clearSelection(mgr);
 		// Active takes precedence — re-hide after clear restored it
-		mgr.setActive(3);
+		mgr.setOpen(3);
 		expect(isHidden(mgr, 3)).toBe(true);
 		assertOverlayEmpty(mgr);
 	});
 
 	it("deactivating an unselected location after selection clear restores it fully", () => {
 		selectIds(mgr, new Set([3]));
-		mgr.setActive(3);
+		mgr.setOpen(3);
 		clearSelection(mgr);
-		mgr.setActive(null);
+		mgr.setOpen(null);
 		expect(getVisible(mgr, 3)).toBe(255);
 	});
 });

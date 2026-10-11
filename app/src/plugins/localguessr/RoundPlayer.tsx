@@ -20,7 +20,7 @@ import { t } from "@/lib/i18n";
 import { toast } from "@/lib/util/toast";
 import { formatDistance } from "@/lib/util/format";
 import { panosAt } from "@/lib/sv/query";
-import { previewLocation, setActiveLocation } from "@/store/useMapStore";
+import { previewLocation, openLocation } from "@/store/useMapStore";
 import { usePano } from "@/lib/hooks/usePano";
 import { seenRecord } from "@/lib/seen/seenRecorder";
 import type { LatLng } from "@/types";
@@ -211,7 +211,7 @@ export function RoundPlayer({
 		async (pin: ResultPin) => {
 			if (opening || !round) return;
 			if (pin === "truth") {
-				await setActiveLocation(round.id, false);
+				await openLocation(round.id, false);
 				return;
 			}
 			const at = lastResult?.guess;

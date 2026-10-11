@@ -11,7 +11,7 @@ vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ open: { row: active } }),
 	read: async () => [active],
 	addLocations: vi.fn(),
-	setActiveLocation: vi.fn(),
+	openLocation: vi.fn(),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

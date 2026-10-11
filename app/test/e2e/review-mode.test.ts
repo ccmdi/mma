@@ -16,7 +16,7 @@ describe("Review mode", () => {
 	before(async () => {
 		locIds = await seedLocs(10, (i) => ({ lat: i * 10, lng: i * 10, heading: i * 36 }));
 	});
-	it("beginReview sets active location to first in list", async () => {
+	it("beginReview sets open location to first in list", async () => {
 		const reviewIds = [locIds[3], locIds[5], locIds[7]];
 		const result = await withApi(async (api, ids) => {
 			await api.beginReview(ids);
@@ -241,7 +241,7 @@ describe("Review mode - reviewed tracking & peek", () => {
 		const qids = [locIds[0], locIds[1], locIds[2]];
 		const r = await withApi(async (api, ids) => {
 			await api.beginReview(ids);
-			await api.setActiveLocation(ids[2], false); // in-queue
+			await api.openLocation(ids[2], false); // in-queue
 			const s = api.getReviewSession();
 			const out = {
 				cursorId: s?.cursorId ?? null,
@@ -260,7 +260,7 @@ describe("Review mode - reviewed tracking & peek", () => {
 		const r = await withApi(
 			async (api, ids, offId) => {
 				await api.beginReview(ids);
-				await api.setActiveLocation(offId, false); // off-queue
+				await api.openLocation(offId, false); // off-queue
 				const s = api.getReviewSession();
 				const out = {
 					inReview: s !== null,

@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Delete + undo end-to-end: the #1 scenario where state gets out of sync.
- * Delete tagged/selected/active locations, undo, and verify everything
- * (tag counts, selections, active location, dirty state) is fully restored.
+ * Delete tagged, selected and open locations, undo, and verify everything
+ * (tag counts, selections, open location, dirty state) is fully restored.
  */
 import {
 	createTag,
@@ -116,18 +116,18 @@ describe("Delete selected locations + undo restores selection", () => {
 });
 
 // ============================================================================
-// 3. Delete active location + undo restores it
+// 3. Delete open location + undo restores it
 // ============================================================================
 
-describe("Delete active location + undo", () => {
+describe("Delete open location + undo", () => {
 	useMap("E2E DelUndo Active");
 	let locIds: number[];
 
 	before(async () => {
 		locIds = await seedLocs(5, (i) => ({ lat: i * 10, lng: i * 10 }));
 	});
-	it("delete active location clears active and work area", async () => {
-		await withApi(async (api, lid) => await api.setActiveLocation(lid, false), locIds[2]);
+	it("delete open location closes it and resets the work area", async () => {
+		await withApi(async (api, lid) => await api.openLocation(lid, false), locIds[2]);
 		const activeBefore = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeBefore).toBe(locIds[2]);
 

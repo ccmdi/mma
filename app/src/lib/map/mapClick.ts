@@ -20,7 +20,7 @@ import {
 	getMapState,
 	openStagedLocation,
 	resolveLocation,
-	setActiveLocation,
+	openLocation,
 	read,
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
@@ -76,7 +76,7 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
 		}),
 	);
 	await addLocations(locs);
-	await setActiveLocation(locs[locs.length - 1].id);
+	await openLocation(locs[locs.length - 1].id);
 	zoomToPasted(boundsOfCoords(locs));
 }
 
@@ -96,7 +96,7 @@ export async function openHref(href: string) {
 	);
 	const match = nearby.find((l) => parsed.panoId && l.panoId === parsed.panoId) ?? nearby[0];
 	if (match) {
-		await setActiveLocation(match);
+		await openLocation(match);
 		return;
 	}
 	await addParsedLocations([parsed]);
@@ -137,8 +137,8 @@ export async function createLocationAtLatLng(
 	tr.step("lookup");
 	await addLocations([loc]);
 	tr.step("addLocations");
-	await setActiveLocation(loc);
-	tr.step("setActive");
+	await openLocation(loc);
+	tr.step("openLocation");
 	tr.end();
 	return loc;
 }
@@ -217,7 +217,7 @@ export async function handleMapClick(
 			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void applySelectionUpdate(toggleManualSelection(locId(picked)));
-			else void setActiveLocation(picked);
+			else void openLocation(picked);
 			return;
 		}
 	}
@@ -244,7 +244,7 @@ export async function handleMapClick(
 			if (!nearest) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void applySelectionUpdate(toggleManualSelection(nearest.id));
-			else void setActiveLocation(nearest);
+			else void openLocation(nearest);
 			return;
 		}
 		await createLocationAtLatLng(info.coordinate[1], info.coordinate[0], ctx.host?.getZoom() ?? 2, {

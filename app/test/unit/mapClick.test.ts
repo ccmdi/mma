@@ -21,7 +21,7 @@ vi.mock("@/lib/commands", () => ({
 vi.mock("@tauri-apps/plugin-shell", () => ({ open: vi.fn() }));
 vi.mock("@/store/useMapStore", async (orig) => ({
 	...(await orig()),
-	setActiveLocation: vi.fn(),
+	openLocation: vi.fn(),
 	addLocations: vi.fn(),
 	createTags: vi.fn(async () => []),
 }));
@@ -90,13 +90,13 @@ describe("openHref (map-aware link opening)", () => {
 	const loc = (id: number, panoId: string) => ({ id, lat: 10, lng: 20, panoId });
 
 	let openExternal: ReturnType<typeof vi.fn>;
-	let setActive: ReturnType<typeof vi.fn>;
+	let open: ReturnType<typeof vi.fn>;
 	let addLocs: ReturnType<typeof vi.fn>;
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		openExternal = vi.mocked((await import("@tauri-apps/plugin-shell")).open);
-		setActive = vi.mocked((await import("@/store/useMapStore")).setActiveLocation);
+		open = vi.mocked((await import("@/store/useMapStore")).openLocation);
 		addLocs = vi.mocked((await import("@/store/useMapStore")).addLocations);
 		parseMapsUrl.mockResolvedValue(parsed);
 		storeFindNearby.mockReset();
@@ -115,7 +115,7 @@ describe("openHref (map-aware link opening)", () => {
 		const samePano = loc(2, "PANO_A");
 		storeFindNearby.mockResolvedValue([nearest, samePano]);
 		await openHref(HREF);
-		expect(setActive).toHaveBeenCalledWith(samePano);
+		expect(open).toHaveBeenCalledWith(samePano);
 		expect(addLocs).not.toHaveBeenCalled();
 	});
 
@@ -123,7 +123,7 @@ describe("openHref (map-aware link opening)", () => {
 		const nearest = loc(1, "OTHER");
 		storeFindNearby.mockResolvedValue([nearest, loc(2, "ALSO_OTHER")]);
 		await openHref(HREF);
-		expect(setActive).toHaveBeenCalledWith(nearest);
+		expect(open).toHaveBeenCalledWith(nearest);
 		expect(addLocs).not.toHaveBeenCalled();
 	});
 

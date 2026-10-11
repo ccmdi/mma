@@ -4,14 +4,22 @@
 import { getMapHost, waitForMapHost } from "@/lib/map/mapState";
 import { hostInstance } from "@/lib/map/host";
 import { addSelection, removeSelection, tagSelector, selection } from "@/store/selections";
-import { applySelectionUpdate, getMapState, getActiveSelections, read } from "@/store/useMapStore";
+import {
+	applySelectionUpdate,
+	closeLocation,
+	getMapState,
+	getActiveSelections,
+	openLocation,
+	read,
+} from "@/store/useMapStore";
+import { emit, subscribe } from "@/lib/events";
 import { cmd } from "@/lib/commands";
 import * as edit from "@/store/edit";
 import type { CountBy, KeySpec, Location, PartitionBucket, Target } from "@/bindings.gen";
 import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
-import type { Selector } from "@/types";
+import type { MaybeLocation, Selector } from "@/types";
 import type { FieldDef } from "@/bindings.gen";
 import { compareNatural } from "@/lib/util/util";
 
@@ -260,3 +268,11 @@ export function query(selector: Selector, target: Target = { kind: "map" }) {
 		locations: async (): Promise<Location[]> => read(selector, { kind: "rows" }, target),
 	};
 }
+
+/** @deprecated v0.12.0. Use `MMA.openLocation(target)`, or `MMA.closeLocation()` in place of null. */
+export async function setActiveLocation(target: MaybeLocation | null, checkDuplicates = true) {
+	if (target == null) closeLocation();
+	else await openLocation(target, checkDuplicates);
+}
+
+subscribe("open:change", (id) => emit("active:change", id));

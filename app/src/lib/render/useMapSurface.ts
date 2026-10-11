@@ -24,8 +24,8 @@ export interface MapSurfaceOpts {
 	// Placed vertices of an in-progress click-vertex polygon (the editor map only).
 	polygonVerticesRef?: RefObject<number[][] | null>;
 	onError?: (e: unknown) => void;
-	// Camera behaviors. Pan this map to the active location while reviewing.
-	followActive?: boolean;
+	// Camera behaviors. Pan this map to the open location while reviewing.
+	followOpen?: boolean;
 	// Bind the panToLocation hotkey to this map.
 	panToActiveHotkey?: boolean;
 	// Held-key pan/zoom on this map. Keyboard-driven; opt in on one surface only.
@@ -157,15 +157,15 @@ export function useMapSurface(
 		rebuild();
 	}, [rebuild]);
 
-	// Follow the active location into view while reviewing.
+	// Follow the open location into view while reviewing.
 	useEffect(() => {
-		if (!host || !opts.followActive) return;
-		return subscribe("active:change", (id) => {
+		if (!host || !opts.followOpen) return;
+		return subscribe("open:change", (id) => {
 			if (id == null || !getReviewSession() || !getSettings().followActiveInReview) return;
 			const loc = getMapState().open?.row;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});
-	}, [host, opts.followActive]);
+	}, [host, opts.followOpen]);
 
 	useHotkey(useBinding("panToLocation"), () => {
 		if (!host || !opts.panToActiveHotkey) return;

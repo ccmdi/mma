@@ -1349,7 +1349,7 @@ describe("LocationPreview — edge cases", () => {
 		expect(countA).toBeGreaterThan(0);
 		expect(countB).toBeGreaterThan(0);
 
-		// Active location should be B
+		// Open location should be B
 		const activeId = await withApi(async (api) => {
 			return api.getMapState().open?.row?.id ?? null;
 		});

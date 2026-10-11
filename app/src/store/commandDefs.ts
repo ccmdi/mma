@@ -88,7 +88,7 @@ import { msg } from "@/lib/i18n";
 
 const requiresMap = () => getMapState().map !== null;
 const requiresVersioning = () => requiresMap() && !isReservedMap(getMapState().mapId);
-const hasActiveLocation = () => getMapState().open?.row != null;
+const hasOpenLocation = () => getMapState().open?.row != null;
 const hasSelection = () => getMapState().selectedLocationIds.size > 0;
 const hasAnySelections = () => getMapState().selectionList.length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
@@ -159,7 +159,7 @@ const COMMANDS = {
 			const id = getMapState().open?.row?.id;
 			if (id != null) openDialog("quick-copy-to-map", id);
 		},
-		enabled: hasActiveLocation,
+		enabled: hasOpenLocation,
 	},
 	undo: {
 		label: msg("Undo"),

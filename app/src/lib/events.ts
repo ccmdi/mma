@@ -12,6 +12,8 @@ const EVENT_DEFS = {
 	/** Map changes with affected location ids. Consumers re-read derived location data on this event. */
 	"store:change": event<ChangeEvent>(),
 	"selection:change": event<Selection[]>(),
+	"open:change": event<number | null>(),
+	/** @deprecated v0.12.0. Listen for `open:change`. @unstable */
 	"active:change": event<number | null>(),
 	"map:open": event<MapMeta>(),
 	"map:close": event<void>(),

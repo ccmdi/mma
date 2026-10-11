@@ -9,7 +9,8 @@ import {
 	getMapState,
 	read,
 	removeLocations,
-	setActiveLocation,
+	openLocation,
+	closeLocation,
 } from "@/store/useMapStore";
 import { addSelection, selection, removeSelection, selectionDisplayName } from "@/store/selections";
 
@@ -120,11 +121,11 @@ function setSession(next: ReviewSession | null): void {
 }
 
 /** Deactivate the session, clear its overlay selections, and leave review. */
-function closeSession(): Promise<void> {
+function closeSession(): void {
 	const s = session;
 	setSession(null);
 	if (s) clearProjection(s.id);
-	return setActiveLocation(null);
+	closeLocation();
 }
 
 /** Reactive active review session, or null. */
@@ -173,7 +174,7 @@ function flushSave() {
 
 /** Navigate to the cursor location. */
 async function gotoCursor(s: ReviewSession): Promise<void> {
-	await setActiveLocation(s.cursorId, false);
+	await openLocation(s.cursorId, false);
 }
 
 // --- Public API ---
@@ -248,7 +249,7 @@ export async function reviewNext(): Promise<void> {
 	setSession(next);
 	if (done) {
 		flushSave();
-		await closeSession();
+		closeSession();
 		return;
 	}
 	scheduleSave();
@@ -281,7 +282,7 @@ export async function reviewDelete(): Promise<void> {
 	} else {
 		if (next) persist({ ...next, status: "done" }); // survivors remain, resumable as done
 		else cmd.storeReviewDelete(s.id).catch(() => {});
-		await closeSession();
+		closeSession();
 	}
 	await removeLocations(new Set([deleted]));
 }
@@ -290,7 +291,7 @@ export async function reviewDelete(): Promise<void> {
 export function cancelReview(): void {
 	if (!session) return;
 	flushSave();
-	void closeSession();
+	closeSession();
 }
 
 /** Rename a review session. */
@@ -416,7 +417,7 @@ function reconcile(removed: number[]): void {
 	if (next === prev) return; // nothing overlapped
 	if (!next) {
 		cmd.storeReviewDelete(prev.id).catch(() => {});
-		void closeSession();
+		closeSession();
 		return;
 	}
 	setSession(next);
@@ -427,16 +428,16 @@ function reconcile(removed: number[]): void {
 	}
 }
 
-/** Keep the cursor in step with the active location. Clicking an in-queue marker
+/** Keep the cursor in step with the open location. Clicking an in-queue marker
  *  jumps the cursor there; clicking off-queue leaves the session untouched. */
-function onActiveChange(id: number | null): void {
+function onOpenChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
 	if (positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
 	setSession({ ...session, cursorId: id });
 	scheduleSave();
 }
 
-onEvent("active:change", (id) => onActiveChange(id));
+onEvent("open:change", (id) => onOpenChange(id));
 onEvent("store:change", (e) => {
 	if (e.removed.length) reconcile(e.removed);
 });

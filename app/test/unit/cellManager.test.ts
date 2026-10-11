@@ -307,8 +307,8 @@ describe("CellManager", () => {
 		expect(mgr.overlay.count).toBe(0);
 	});
 
-	it("a replace frame keeps the active row hidden", () => {
-		mgr.setActive(2);
+	it("a replace frame keeps the open location hidden", () => {
+		mgr.setOpen(2);
 		mgr.apply(scene([entry("s", 1, 1, 1), entry("s", 2, 2, 2)]));
 		expect(Array.from(mgr.cells.get("s")!.visible.subarray(0, 2))).toEqual([255, 0]);
 	});
@@ -483,7 +483,7 @@ describe("CellManager", () => {
 		expect(mgr.cells.get(to)!.visible[0]).toBe(0);
 	});
 
-	it("setActive hides the active row and restores it, without disturbing selection", () => {
+	it("setOpen hides the open location and restores it, without disturbing selection", () => {
 		applyDelta(
 			mgr,
 			delta({
@@ -492,15 +492,15 @@ describe("CellManager", () => {
 		);
 		const cb = mgr.cells.get("s")!;
 
-		mgr.setActive(1);
+		mgr.setOpen(1);
 		expect(cb.visible[0]).toBe(0);
 
 		// The selected row stays hidden when it stops being active — the overlay draws it.
-		mgr.setActive(2);
+		mgr.setOpen(2);
 		expect(cb.visible[0]).toBe(255);
 		expect(cb.visible[1]).toBe(0);
 
-		mgr.setActive(null);
+		mgr.setOpen(null);
 		expect(cb.visible[1]).toBe(0);
 		expect(mgr.overlay.has(2)).toBe(true);
 	});

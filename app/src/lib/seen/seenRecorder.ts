@@ -1,7 +1,7 @@
 import { cmd } from "@/lib/commands";
 import type { PanoViewer } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
-import { addLocations, getMapState, read, setActiveLocation } from "@/store/useMapStore";
+import { addLocations, getMapState, read, openLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
 import { wrapDeg } from "@/lib/geo/geo";
 import { createLocation, type LocationPOV } from "@/types";
@@ -166,7 +166,7 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 	if (existing) {
 		const active = getMapState().open?.row;
 		if (active?.id !== existing.id) {
-			await setActiveLocation(existing.id);
+			await openLocation(existing.id);
 			return;
 		}
 	} else {
@@ -180,7 +180,7 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 			extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
 		});
 		await addLocations([loc]);
-		await setActiveLocation(loc.id, false);
+		await openLocation(loc.id, false);
 		return;
 	}
 

@@ -13,7 +13,7 @@ vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ mapId: "map-1" }),
 	addLocations: vi.fn(),
 	fetchLocations: vi.fn(),
-	setActiveLocation: vi.fn(),
+	openLocation: vi.fn(),
 }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 

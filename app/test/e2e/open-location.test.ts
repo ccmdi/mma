@@ -1,7 +1,7 @@
 import { addLocs, getLoc, createLocation, withApi, useMap } from "./helpers";
 
-describe("Active location and work area", () => {
-	useMap("E2E Active Location");
+describe("Open location and work area", () => {
+	useMap("E2E Open Location");
 	let locIds: number[];
 
 	before(async () => {
@@ -11,7 +11,7 @@ describe("Active location and work area", () => {
 			createLocation({ lat: 30, lng: 30, heading: 270 }),
 		]);
 	});
-	it("starts with no active location", async () => {
+	it("starts with no open location", async () => {
 		const active = await withApi(async (api) => api.getMapState().open?.row ?? null);
 		expect(active).toBeNull();
 	});
@@ -21,13 +21,13 @@ describe("Active location and work area", () => {
 		expect(area).toBe("overview");
 	});
 
-	it("setting active location changes work area to 'location'", async () => {
-		await withApi(async (api, id) => api.setActiveLocation(id), locIds[0]);
+	it("setting open location changes work area to 'location'", async () => {
+		await withApi(async (api, id) => api.openLocation(id), locIds[0]);
 		const area = await withApi(async (api) => api.getMapState().workArea);
 		expect(area).toBe("location");
 	});
 
-	it("active location returns the correct location data", async () => {
+	it("open location returns the correct location data", async () => {
 		const active = await withApi(async (api) => {
 			const loc = api.getMapState().open?.row ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
@@ -37,8 +37,8 @@ describe("Active location and work area", () => {
 		expect(active!.lat).toBe(10);
 	});
 
-	it("switching active location updates the data", async () => {
-		await withApi(async (api, id) => api.setActiveLocation(id), locIds[1]);
+	it("switching open location updates the data", async () => {
+		await withApi(async (api, id) => api.openLocation(id), locIds[1]);
 		const active = await withApi(async (api) => {
 			const loc = api.getMapState().open?.row ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
@@ -47,8 +47,8 @@ describe("Active location and work area", () => {
 		expect(active!.lat).toBe(20);
 	});
 
-	it("clearing active location returns to overview", async () => {
-		await withApi(async (api) => api.setActiveLocation(null));
+	it("clearing open location returns to overview", async () => {
+		await withApi(async (api) => api.closeLocation());
 		const area = await withApi(async (api) => api.getMapState().workArea);
 		expect(area).toBe("overview");
 
@@ -56,8 +56,8 @@ describe("Active location and work area", () => {
 		expect(active).toBeNull();
 	});
 
-	it("deleting the active location clears it", async () => {
-		await withApi(async (api, id) => api.setActiveLocation(id), locIds[2]);
+	it("deleting the open location clears it", async () => {
+		await withApi(async (api, id) => api.openLocation(id), locIds[2]);
 		const areaBefore = await withApi(async (api) => api.getMapState().workArea);
 		expect(areaBefore).toBe("location");
 
@@ -70,7 +70,7 @@ describe("Active location and work area", () => {
 	});
 });
 
-describe("Active location with undo/redo", () => {
+describe("Open location with undo/redo", () => {
 	useMap("E2E Active Undo");
 	let locIds: number[];
 
@@ -80,8 +80,8 @@ describe("Active location with undo/redo", () => {
 			createLocation({ lat: 20, lng: 20 }),
 		]);
 	});
-	it("updating active location field is persisted in store", async () => {
-		await withApi(async (api, id) => api.setActiveLocation(id), locIds[0]);
+	it("updating open location field is persisted in store", async () => {
+		await withApi(async (api, id) => api.openLocation(id), locIds[0]);
 
 		const loc = await getLoc(locIds[0]);
 		await withApi(async (api, l) => {
@@ -95,7 +95,7 @@ describe("Active location with undo/redo", () => {
 		expect(heading).toBe(123);
 	});
 
-	it("undo of active location update reverts the field in store", async () => {
+	it("undo of open location update reverts the field in store", async () => {
 		await withApi(async (api) => api.undo());
 
 		const heading = await withApi(async (api, id) => {

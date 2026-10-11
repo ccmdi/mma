@@ -3,7 +3,7 @@
 
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
-import { read, setActiveLocation, previewLocation } from "@/store/useMapStore";
+import { read, openLocation, previewLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { getSeenCount, getSeenEntries } from "./seen";
@@ -88,7 +88,7 @@ export async function openSeenEntry(index: number): Promise<void> {
 			{ kind: "rows" },
 		);
 		if (existing && existing.panoId === entry.panoId) {
-			void setActiveLocation(existing.id);
+			void openLocation(existing.id);
 			return;
 		}
 	}

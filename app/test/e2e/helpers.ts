@@ -118,14 +118,14 @@ export async function flushAndWait() {
 /** Open a location in the editor via the test API. */
 export async function openLocation(id: number) {
 	await withApi(async (api, locId) => {
-		await api.setActiveLocation(locId, false);
+		await api.openLocation(locId, false);
 	}, id);
 }
 
-/** Close the active location (return to overview) via the test API. */
+/** Close the open location (return to overview) via the test API. */
 export async function closeLocation() {
 	await withApi(async (api) => {
-		await api.setActiveLocation(null);
+		await api.closeLocation();
 	});
 }
 
@@ -258,11 +258,11 @@ export async function createTag(
 
 const WAIT = { interval: 50 } as const;
 
-/** Wait until the active location id equals `id` (null = back to overview). */
+/** Wait until the open location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
 		() => withApi((api, target) => (api.getMapState().open?.row?.id ?? null) === target, id),
-		{ ...WAIT, timeoutMsg: `active location never became ${id}` },
+		{ ...WAIT, timeoutMsg: `open location never became ${id}` },
 	);
 }
 

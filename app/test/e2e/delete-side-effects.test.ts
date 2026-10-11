@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Delete side-effects: verify that removing locations propagates state correctly
- * beyond just "the location is gone." Covers dirty count, metadata, active location,
+ * beyond just "the location is gone." Covers dirty count, metadata, open location,
  * selection sync, and tag counts.
  */
 import {
@@ -85,17 +85,17 @@ describe("Delete updates location count", () => {
 });
 
 // ============================================================================
-// 3. Delete clears active location if it was the deleted one
+// 3. Delete clears open location if it was the deleted one
 // ============================================================================
 
-describe("Delete clears active location", () => {
+describe("Delete clears open location", () => {
 	useMap("E2E Delete Active");
 	let locIds: number[];
 
 	before(async () => {
 		locIds = await seedLocs(5, (i) => ({ lat: i * 10, lng: i * 10 }));
 	});
-	it("active location cleared when it is deleted", async () => {
+	it("open location cleared when it is deleted", async () => {
 		await openLocation(locIds[0]);
 		const activeBefore = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeBefore).toBe(locIds[0]);
@@ -121,7 +121,7 @@ describe("Delete clears active location", () => {
 		expect(areaAfter).toBe("overview");
 	});
 
-	it("deleting a non-active location does NOT clear active", async () => {
+	it("deleting a non-open location does NOT clear active", async () => {
 		await openLocation(locIds[2]);
 
 		await withApi(async (api, id) => {

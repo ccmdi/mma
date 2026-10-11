@@ -215,7 +215,7 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 	// rows only come back once the undos below have replayed.
 	await ensureOpen(mapId, 0);
 	await withApi(async (api) => {
-		await api.setActiveLocation(null);
+		await api.closeLocation();
 		for (
 			let guard = 0;
 			guard < 16 && api.historyAvailable(api.getMapState().history, "undo");
@@ -503,12 +503,12 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 	await bench("activate-location", scale, {
 		setup: async () => {
 			await ensureOpen(mapId, sceneFloor);
-			await withApi(async (api, id) => api.setActiveLocation(id, false), helperA);
+			await withApi(async (api, id) => api.openLocation(id, false), helperA);
 		},
 		run: () =>
 			withApi(async (api, id) => {
 				const start = performance.now();
-				await api.setActiveLocation(id, false);
+				await api.openLocation(id, false);
 				const operationMs = performance.now() - start;
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),

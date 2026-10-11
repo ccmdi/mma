@@ -290,20 +290,20 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		if (ctx.svTrailPosition) layers.push(...trailPositionLayers(svTrail, ctx));
 	}
 
-	// Active marker renders even with no committed locations so previews (staged/seen)
+	// The open-location marker renders even with no committed locations so previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
-	const activeLoc = getMapState().open?.row;
-	if (activeLoc) {
-		const activeColor: RGBA = [...ctx.activeLocationColor, 255];
+	const openLoc = getMapState().open?.row;
+	if (openLoc) {
+		const openColor: RGBA = [...ctx.activeLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];
 		layers.push(
 			new SDFMarkerLayer<Location>({
 				id: `${LOCATION_LAYER_ID}-current-sdf`,
-				data: [activeLoc],
+				data: [openLoc],
 				getPosition: (d) => renderPos(d.lng, d.lat),
 				shape: s.shape,
 				radiusPixels: s.radiusPixels * ctx.markerSize,
-				getFillColor: activeColor,
+				getFillColor: openColor,
 				...(s.angle ? { getAngle: (d: Location) => -d.heading } : {}),
 				pickable: true,
 				updateTriggers: {
@@ -313,12 +313,10 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		);
 	}
 
-	if (ctx.showPerfectScoreCircle && activeLoc && cm.totalCount > 0) {
+	if (ctx.showPerfectScoreCircle && openLoc && cm.totalCount > 0) {
 		const trail = getTrail();
 		const last = trail.length ? trail[trail.length - 1] : null;
-		const center = last
-			? { lng: last[0], lat: last[1] }
-			: { lat: activeLoc.lat, lng: activeLoc.lng };
+		const center = last ? { lng: last[0], lat: last[1] } : { lat: openLoc.lat, lng: openLoc.lng };
 		layers.push(
 			new ScatterplotLayer({
 				id: PERFECT_SCORE_LAYER_ID,

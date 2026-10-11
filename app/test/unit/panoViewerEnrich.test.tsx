@@ -12,7 +12,7 @@ import type { Location } from "@/bindings.gen";
 const h = vi.hoisted(() => ({
 	/** Pending reverse-geocode answers, in request order. */
 	geocodes: [] as (() => void)[],
-	activeLocation: null as unknown,
+	openLocation: null as unknown,
 	opened: null as { id: number; origin: string; session: number } | null,
 	sessions: 0,
 	listeners: new Set<() => void>(),
@@ -63,7 +63,7 @@ vi.mock("@/lib/commands", () => ({
 				} else if ("put" in e && e.put) {
 					const row = h.layer.get(e.put.id);
 					if (row) h.layer.set(e.put.id, applyPut(row, e.put));
-					else h.layer.set(e.put.id, applyPut({ ...(h.activeLocation as Location) }, e.put));
+					else h.layer.set(e.put.id, applyPut({ ...(h.openLocation as Location) }, e.put));
 				}
 			}
 			return { mutation: { version: 0, keys: firstId == null ? [] : [firstId] } };
@@ -78,7 +78,7 @@ vi.mock("@/lib/commands", () => ({
 vi.mock("@/store/useMapStore", async () => {
 	const { useEffect, useState } = await import("react");
 	const state = () => {
-		const row = h.activeLocation as Location | null;
+		const row = h.openLocation as Location | null;
 		if (!row) h.opened = null;
 		else if (h.opened?.id !== row.id || h.opened.origin !== h.origin)
 			h.opened = { id: row.id, origin: h.origin, session: ++h.sessions };
@@ -104,7 +104,7 @@ vi.mock("@/store/useMapStore", async () => {
 		setOpenRow: (row: unknown, session: number) => {
 			if (state().open?.session !== session) return;
 			h.openRowPushes.push(row);
-			h.activeLocation = row;
+			h.openLocation = row;
 			for (const changed of h.listeners) changed();
 		},
 	};
@@ -165,7 +165,7 @@ function Host() {
 
 const mountHost = () => mount(<Host />);
 
-const location = () => h.activeLocation as Location;
+const location = () => h.openLocation as Location;
 const open = (resolved: string) =>
 	act(async () => {
 		viewer.open(location(), resolved);
@@ -195,7 +195,7 @@ beforeEach(() => {
 	h.enrichFails = false;
 	h.openRowPushes = [];
 	h.origin = "map";
-	h.activeLocation = {
+	h.openLocation = {
 		...createLocation({ lat: 1, lng: 2 }),
 		id: 7,
 		panoId: "pA",
@@ -237,8 +237,8 @@ describe("the draft is the viewer's layer row", () => {
 	it("a preview opens on its pre-seeded layer row without reseeding", async () => {
 		// The store seeded the preview copy into the layer before opening it.
 		h.origin = "seen";
-		h.activeLocation = { ...location(), id: 100 } satisfies Location;
-		h.layer.set(100, h.activeLocation as Location);
+		h.openLocation = { ...location(), id: 100 } satisfies Location;
+		h.layer.set(100, h.openLocation as Location);
 		const m = mountHost();
 		await open("pA");
 		expect(h.drops).toBe(0);
@@ -258,7 +258,7 @@ describe("the draft is the viewer's layer row", () => {
 		const m = mountHost();
 		await open("pA");
 		await walk("pB");
-		h.activeLocation = null;
+		h.openLocation = null;
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
 		expect(h.drops).toBe(2);
@@ -268,7 +268,7 @@ describe("the draft is the viewer's layer row", () => {
 	it("a new location starts with no draft, so the old pano cannot reach it", async () => {
 		const m = mountHost();
 		await open("pA");
-		h.activeLocation = { ...createLocation({ lat: 3, lng: 4 }), id: 8 } satisfies Location;
+		h.openLocation = { ...createLocation({ lat: 3, lng: 4 }), id: 8 } satisfies Location;
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
 		expect(viewer.currentPano).toBeNull();
@@ -326,7 +326,7 @@ describe("enrichment runs at the viewer's layer", () => {
 		h.enrichHangs = true;
 		const m = mountHost();
 		await open("pA");
-		h.activeLocation = null;
+		h.openLocation = null;
 		await act(async () => refresh());
 		expect(h.runs[0].signal?.aborted).toBe(true);
 		m.unmount();
@@ -344,7 +344,7 @@ describe("saving lands the layer", () => {
 		expect(landed).toBeTruthy();
 		expect((landed!.edits[0] as Put).put).toEqual({ id: 7, heading: 30, tags: [1] });
 		// The in-flight run was not aborted by the save; its answers follow the row.
-		h.activeLocation = null;
+		h.openLocation = null;
 		await act(async () => refresh());
 		expect(h.runs[0].signal?.aborted).toBe(false);
 		const dropsBefore = h.drops;
@@ -355,8 +355,8 @@ describe("saving lands the layer", () => {
 
 	it("landing answers the layer row's id, so a preview save knows its map row", async () => {
 		h.origin = "seen";
-		h.activeLocation = { ...location(), id: 100 } satisfies Location;
-		h.layer.set(100, h.activeLocation as Location);
+		h.openLocation = { ...location(), id: 100 } satisfies Location;
+		h.layer.set(100, h.openLocation as Location);
 		const m = mountHost();
 		await open("pA");
 		let saved: number | null = null;
@@ -388,7 +388,7 @@ describe("saving lands the layer", () => {
 		expect(viewer.geo?.address).toBe("5,6");
 
 		await act(async () => {
-			h.activeLocation = { ...location(), id: 8, lat: 9, lng: 9 };
+			h.openLocation = { ...location(), id: 8, lat: 9, lng: 9 };
 			refresh();
 		});
 		expect(viewer.geo).toBeNull();

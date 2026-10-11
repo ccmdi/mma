@@ -147,7 +147,7 @@ export function MapEmbed({
 		freehandPathRef,
 		polygonVerticesRef,
 		onError: (e: unknown) => log.error("[deck.gl overlay error]", e),
-		followActive: true,
+		followOpen: true,
 		panToActiveHotkey: true,
 		keyboardNav: true,
 	});

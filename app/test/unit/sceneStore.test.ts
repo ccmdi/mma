@@ -87,7 +87,7 @@ describe("sceneStore (single scene source)", () => {
 		expect(getScene()).toBe(getScene());
 	});
 
-	it("active-location change bumps the scene version (fast path, no reload)", () => {
+	it("open-location change bumps the scene version (fast path, no reload)", () => {
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
 		const stop = startSceneEngine();

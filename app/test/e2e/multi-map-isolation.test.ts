@@ -287,10 +287,10 @@ describe("Per-map settings isolation", () => {
 });
 
 // ============================================================================
-// 5. Active location does not persist across map switches
+// 5. Open location does not persist across map switches
 // ============================================================================
 
-describe("Active location isolation across maps", () => {
+describe("Open location isolation across maps", () => {
 	let mapAId: string;
 	let mapBId: string;
 
@@ -314,7 +314,7 @@ describe("Active location isolation across maps", () => {
 		await deleteMap(mapBId);
 	});
 
-	it("opening map B starts with no active location", async () => {
+	it("opening map B starts with no open location", async () => {
 		await openMap(mapBId);
 		const activeB = await withApi(async (api) => api.getMapState().open?.row?.id ?? null);
 		expect(activeB).toBeNull();

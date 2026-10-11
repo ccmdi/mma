@@ -542,7 +542,7 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 			await read({ type: "Locations", locations: [added], name: null }, { kind: "rows" }, VIEWER)
 		)[0] ?? null;
 	setState({ open: opening(added, origin, row), workArea: "location" });
-	emitEvent("active:change", null);
+	emitEvent("open:change", null);
 }
 
 /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
@@ -568,11 +568,11 @@ export function previewLocation(loc: Location) {
 	void openPreview(loc, "seen");
 }
 
-/** Drop the open row, keeping `active:change` in step. */
-function clearActiveLocation(): void {
+/** Drop the open location, keeping `open:change` in step. */
+function dropOpen(): void {
 	if (state.open == null) return;
 	setState({ open: null });
-	emitEvent("active:change", null);
+	emitEvent("open:change", null);
 }
 
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
@@ -582,54 +582,47 @@ export async function resolveLocation(m: MaybeLocation): Promise<Location | null
 		: m;
 }
 
-/** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
- *  with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
- *  opening of any kind supersedes one still loading. */
-export async function setActiveLocation(target: MaybeLocation | null, checkDuplicates = true) {
-	const t = trace("setActive");
-	const id = target == null ? null : locId(target);
+/** Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+ *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
+ *  supersedes one still loading. */
+export async function openLocation(target: MaybeLocation, checkDuplicates = true) {
+	const t = trace("openLocation");
+	const id = locId(target);
 	const activation = ++lastSession;
-	if (state.open && state.open.origin !== "map") {
-		emitEvent("import-markers:changed");
-		const wasStaged = state.open.origin === "import";
-		if (id == null) {
-			clearActiveLocation();
-
-			setState({
-				workArea: wasStaged ? "import" : state.activePluginId ? "plugin" : "overview",
-			});
-			t.end();
+	if (state.open && state.open.origin !== "map") emitEvent("import-markers:changed");
+	const loc = await resolveLocation(target);
+	t.step("ipc");
+	if (activation !== lastSession) return t.end({ superseded: true });
+	if (checkDuplicates && loc) {
+		const nearby = await read(
+			{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
+			{ kind: "rows" },
+		);
+		if (activation !== lastSession) return t.end({ superseded: true });
+		if (nearby.length >= 2) {
+			setState({ duplicateLocations: nearby, workArea: "duplicates" });
+			dropOpen();
+			t.end({ duplicates: nearby.length });
 			return;
 		}
 	}
-	if (id != null) {
-		const loc = await resolveLocation(target!);
-		t.step("ipc");
-		if (activation !== lastSession) return t.end({ superseded: true });
-		if (checkDuplicates && loc) {
-			const nearby = await read(
-				{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
-				{ kind: "rows" },
-			);
-			if (activation !== lastSession) return t.end({ superseded: true });
-			if (nearby.length >= 2) {
-				setState({ duplicateLocations: nearby, workArea: "duplicates" });
-				clearActiveLocation();
-				t.end({ duplicates: nearby.length });
-				return;
-			}
-		}
-		setState({ open: opening(id, "map", loc), workArea: "location" });
-		emitEvent("active:change", id);
-		t.end();
-		return;
-	}
-	clearActiveLocation();
-	setState({
-		duplicateLocations: [],
-		workArea: state.activePluginId ? "plugin" : "overview",
-	});
+	setState({ open: opening(id, "map", loc), workArea: "location" });
+	emitEvent("open:change", id);
 	t.end();
+}
+
+/** Close the open location and return to the pane it was opened from. */
+export function closeLocation() {
+	++lastSession;
+	const preview = state.open && state.open.origin !== "map" ? state.open.origin : null;
+	if (preview) emitEvent("import-markers:changed");
+	dropOpen();
+	const fallback = state.activePluginId ? "plugin" : "overview";
+	setState(
+		preview
+			? { workArea: preview === "import" ? "import" : fallback }
+			: { duplicateLocations: [], workArea: fallback },
+	);
 }
 
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
@@ -649,10 +642,10 @@ export function closeDuplicates() {
 }
 
 /** Transition the editor pane, enforcing state invariants:
- *  leaving "location" clears the active location, leaving "plugin" clears the plugin id. @unstable */
+ *  leaving "location" closes the open location, leaving "plugin" clears the plugin id. @unstable */
 export function setWorkArea(area: WorkArea) {
 	setState({ workArea: area });
-	if (area !== "location") clearActiveLocation();
+	if (area !== "location") dropOpen();
 	if (area !== "plugin") setState({ activePluginId: null });
 }
 

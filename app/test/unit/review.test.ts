@@ -4,16 +4,14 @@ import { describe, it, expect, vi } from "vitest";
 // module loads in isolation.
 const store = vi.hoisted(() => ({
 	liveIds: [] as number[],
-	mapState: { mapId: null, map: null, activeLocation: null, selectionList: [] } as Record<
-		string,
-		unknown
-	>,
+	mapState: { mapId: null, map: null, open: null, selectionList: [] } as Record<string, unknown>,
 	active: [] as { key: string; selector: { type: string } }[],
 }));
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => store.mapState,
 	getActiveSelections: () => store.active,
-	setActiveLocation: vi.fn(),
+	openLocation: vi.fn(),
+	closeLocation: vi.fn(),
 	applySelectionUpdate: vi.fn(),
 	read: async ({ locations }: { locations: number[] }) =>
 		locations.filter((id) => store.liveIds.includes(id)),

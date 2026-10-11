@@ -3283,7 +3283,7 @@ declare class CellBuffer {
     positions: Float32Array;
     /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
      *  global marker colour, which the layer supplies as a constant, so the only per-marker
-     *  colour fact is whether a selection or the active highlight is covering it. */
+     *  colour fact is whether a selection or the open-location highlight is covering it. */
     visible: Uint8Array;
     angles: Float32Array;
     count: number;
@@ -3334,8 +3334,8 @@ declare class CellManager {
     maxId: number;
     /** The rows the selection overlay draws, and the only record of which rows are selected. */
     readonly overlay: SelectionOverlay;
-    /** The row the active-location layer draws, hidden in its base cell. */
-    private activeId;
+    /** The location the open-location layer draws, hidden in its base cell. */
+    private openId;
     /** Scratch for `restateSelections`: per-row winning selection index, reused across
      *  cells so a full restate does not allocate one array per cell. */
     private selWinner;
@@ -3350,17 +3350,17 @@ declare class CellManager {
      *  Idempotent, so restating a row's current state costs nothing but is always safe.
      *  The caller bumps the cell's colour version once for the whole frame. */
     private paint;
-    /** Set the active location, whose marker the active layer draws instead of the base cell.
-     *  Returns whether the active row actually moved. */
-    setActive(id: number | null): boolean;
+    /** Set the open location, whose marker the open-location layer draws instead of the base cell.
+     *  Returns whether the open location actually moved. */
+    setOpen(id: number | null): boolean;
     /**
      * A base row is hidden exactly when something else is drawing it: the selection overlay
-     * or the active-location layer. The only place `visible` is decided for a single row, so
-     * "selected" and "active" never have to negotiate over the byte.
+     * or the open-location layer. The only place `visible` is decided for a single row, so
+     * "selected" and "open" never have to negotiate over the byte.
      */
     private syncVisible;
     /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
-     *  0 only means the overlay or active layer draws that row instead), so this is the
+     *  0 only means the overlay or open-location layer draws that row instead), so this is the
      *  maintained full-map position set. */
     forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
     /** Map a deck.gl pick (cell + index) back to a location ID. */
@@ -3502,10 +3502,12 @@ declare function openStagedLocation(index: number): Promise<void>;
 declare function previewLocation(loc: Location): void;
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 declare function resolveLocation(m: MaybeLocation): Promise<Location | null>;
-/** Open a location in the editor (null closes it). With `checkDuplicates`, opening a spot
- *  with 2+ locations within 2m opens the duplicate-resolution panel instead. A later
- *  opening of any kind supersedes one still loading. */
-declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
+/** Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+ *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
+ *  supersedes one still loading. */
+declare function openLocation(target: MaybeLocation, checkDuplicates?: boolean): Promise<void>;
+/** Close the open location and return to the pane it was opened from. */
+declare function closeLocation(): void;
 /** Open one location from the duplicate-resolution panel in the editor. @unstable */
 declare function openDuplicateLocation(loc: Location): void;
 /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
@@ -3513,7 +3515,7 @@ declare function removeDuplicate(id: number): void;
 /** Close the duplicate-resolution panel and return to the overview. @unstable */
 declare function closeDuplicates(): void;
 /** Transition the editor pane, enforcing state invariants:
- *  leaving "location" clears the active location, leaving "plugin" clears the plugin id. @unstable */
+ *  leaving "location" closes the open location, leaving "plugin" clears the plugin id. @unstable */
 declare function setWorkArea(area: WorkArea): void;
 /** Open a plugin's sidebar (switches the editor pane to "plugin"). */
 declare function setPluginMode(pluginId: string): void;
@@ -3549,6 +3551,7 @@ declare const store_applySelectionUpdate: typeof applySelectionUpdate;
 declare const store_checkoutCommit: typeof checkoutCommit;
 /** @unstable */
 declare const store_closeDuplicates: typeof closeDuplicates;
+declare const store_closeLocation: typeof closeLocation;
 declare const store_commitMap: typeof commitMap;
 declare const store_deleteField: typeof deleteField;
 declare const store_deleteTags: typeof deleteTags;
@@ -3569,6 +3572,7 @@ declare const store_initStore: typeof initStore;
 declare const store_mutate: typeof mutate;
 /** @unstable */
 declare const store_openDuplicateLocation: typeof openDuplicateLocation;
+declare const store_openLocation: typeof openLocation;
 /** @unstable */
 declare const store_openStagedLocation: typeof openStagedLocation;
 /** @unstable */
@@ -3588,7 +3592,6 @@ declare const store_resolveLocation: typeof resolveLocation;
 declare const store_restoreSelections: typeof restoreSelections;
 declare const store_rowsOf: typeof rowsOf;
 declare const store_select: typeof select;
-declare const store_setActiveLocation: typeof setActiveLocation;
 /** @unstable */
 declare const store_setMap: typeof setMap;
 declare const store_setOpenRow: typeof setOpenRow;
@@ -3603,7 +3606,7 @@ declare const store_undo: typeof undo;
 declare const store_updateLocations: typeof updateLocations;
 declare const store_useMapState: typeof useMapState;
 declare namespace store {
-  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
+  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, store_closeLocation as closeLocation, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, store_openLocation as openLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
   export type { store_MapState as MapState, store_Open as Open, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
 }
 
@@ -3954,7 +3957,7 @@ declare function loadGeoJSON(): Promise<void>;
 
 declare const requiresMap: () => boolean;
 declare const requiresVersioning: () => boolean;
-declare const hasActiveLocation: () => boolean;
+declare const hasOpenLocation: () => boolean;
 declare const hasSelection: () => boolean;
 declare const hasAnySelections: () => boolean;
 /** Every editor command (palette entries; all are hotkey-bindable in Settings). */
@@ -4011,7 +4014,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Map";
         execute: () => void;
-        enabled: typeof hasActiveLocation;
+        enabled: typeof hasOpenLocation;
     };
     undo: {
         label: "Undo";
@@ -5077,6 +5080,8 @@ declare const EVENT_DEFS: {
     /** Map changes with affected location ids. Consumers re-read derived location data on this event. */
     "store:change": ChangeEvent;
     "selection:change": Selection[];
+    "open:change": number | null;
+    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
     "active:change": number | null;
     "map:open": MapMeta;
     "map:close": void;
@@ -7202,7 +7207,7 @@ declare function whenSceneSettled(): Promise<void>;
 declare function loadScene(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>;
 /** Clear all marker data from the scene and stop following the map. @unstable */
 declare function clearScene(): void;
-/** Start following active-location changes. Returns a stop function. @unstable */
+/** Start following open-location changes. Returns a stop function. @unstable */
 declare function startSceneEngine(): () => void;
 
 /** @unstable */
@@ -7498,6 +7503,8 @@ declare function query(selector: Selector, target?: Target): {
     /** Full matching locations, loading any large result from its temporary file. */
     locations: () => Promise<Location[]>;
 };
+/** @deprecated v0.12.0. Use `MMA.openLocation(target)`, or `MMA.closeLocation()` in place of null. @unstable */
+declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates?: boolean): Promise<void>;
 
 /** @unstable */
 declare const legacy_addSelections: typeof addSelections;
@@ -7574,6 +7581,8 @@ declare const legacy_resolveIds: typeof resolveIds;
 /** @unstable */
 declare const legacy_sampleFrom: typeof sampleFrom;
 /** @unstable */
+declare const legacy_setActiveLocation: typeof setActiveLocation;
+/** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 /** @unstable */
 declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
@@ -7616,6 +7625,7 @@ declare namespace legacy {
     legacy_resetSelections as resetSelections,
     legacy_resolveIds as resolveIds,
     legacy_sampleFrom as sampleFrom,
+    legacy_setActiveLocation as setActiveLocation,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_waitForGoogleMap as waitForGoogleMap,
   };

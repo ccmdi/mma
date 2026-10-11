@@ -87,7 +87,7 @@ export function FullscreenMiniMap() {
 
 	useMapSurface(surface?.host ?? null, {
 		prefs,
-		followActive: true,
+		followOpen: true,
 		overlay: surface?.overlay,
 	});
 
