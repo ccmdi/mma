@@ -362,15 +362,14 @@ impl Store {
         if self.edits.ship() | self.histories.ship() {
             derived.history = Some(self.history());
         }
-        let keys = changes.keys();
         let result = Mutation {
             version: self.version,
-            added: keys.added.clone(),
+            keys: Vec::new(),
         };
         // Announce every version, including no-ops, so callers can await their mutation.
         self.changes.send(ChangeEvent {
             version: self.version,
-            keys,
+            keys: changes.keys(),
             derived,
         });
         result

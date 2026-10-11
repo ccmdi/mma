@@ -66,7 +66,7 @@ vi.mock("@/lib/commands", () => ({
 					else h.layer.set(e.put.id, applyPut({ ...(h.activeLocation as Location) }, e.put));
 				}
 			}
-			return { mutation: { version: 0, added: firstId == null ? [] : [firstId] } };
+			return { mutation: { version: 0, keys: firstId == null ? [] : [firstId] } };
 		},
 
 		storeDrop: async () => {

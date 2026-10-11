@@ -5425,14 +5425,8 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke<T>(
-  cmd: string,
-  args?: InvokeArgs,
-  options?: InvokeOptions,
-): Promise<T>
+invoke: any
 ```
-
-Sends a message to the backend.
 
 ### shell
 

@@ -12,7 +12,7 @@ vi.mock("@/store/mapList", () => ({
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeSaveDirty: vi.fn(async () => {}),
-		storeCheckoutCommit: vi.fn(async () => ({ mutation: { version: 0, added: [] } })),
+		storeCheckoutCommit: vi.fn(async () => ({ mutation: { version: 0, keys: [] } })),
 	},
 }));
 

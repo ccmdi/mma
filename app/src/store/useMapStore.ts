@@ -375,7 +375,7 @@ export function setOpenRow(row: Location | null, session: number) {
 	setState({ open: { ...state.open, row } });
 }
 
-const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, added: [] } };
+const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
 
 export async function settled(m: Mutation): Promise<void> {
 	await autosave.waitForInflight();
@@ -429,7 +429,7 @@ export async function addLocations(locs: Location[]) {
 					null,
 				);
 	t.end({ added: locs.length });
-	if (state.map) locs.forEach((l, i) => (l.id = r.mutation.added[i] ?? l.id));
+	if (state.map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
 }
 
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
@@ -535,7 +535,7 @@ export async function previewDuplicateGroups(distance: number): Promise<number[]
 async function openPreview(loc: Location, origin: OpenOrigin) {
 	await cmd.storeDrop(VIEWER.name);
 	const r = await cmd.storeEdit(VIEWER, [{ set: { ...loc, id: 0 } }], null);
-	const [added] = r.mutation.added;
+	const [added] = r.mutation.keys;
 	if (added == null) return;
 	const row =
 		(

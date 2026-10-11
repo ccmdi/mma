@@ -12,7 +12,7 @@ const wire = vi.hoisted(() => ({
 
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
-	const mutationResult = () => ({ mutation: { version: 0, added: [] } });
+	const mutationResult = () => ({ mutation: { version: 0, keys: [] } });
 	return cmdProxy({
 		storeGetMap: async () => testMap({ locationCount: 0 }),
 		storeOpenMap: async () => openMapResult(),

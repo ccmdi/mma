@@ -202,8 +202,8 @@ describe("change feed merge semantics", () => {
 	it("settles each write only after the feed reaches its version", async () => {
 		let firstDone = false;
 		let secondDone = false;
-		const first = settled({ version: 50, added: [] }).then(() => (firstDone = true));
-		const second = settled({ version: 51, added: [] }).then(() => (secondDone = true));
+		const first = settled({ version: 50, keys: [] }).then(() => (firstDone = true));
+		const second = settled({ version: 51, keys: [] }).then(() => (secondDone = true));
 
 		arrive(event({ locationCount: 12 }, 50));
 		await first;
@@ -218,6 +218,6 @@ describe("change feed merge semantics", () => {
 	});
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
-		await expect(settled({ version: 1, added: [] })).resolves.toBeUndefined();
+		await expect(settled({ version: 1, keys: [] })).resolves.toBeUndefined();
 	});
 });

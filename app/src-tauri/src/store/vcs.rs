@@ -249,7 +249,7 @@ pub fn store_checkout_commit(
     Ok(engine::MutationResult {
         mutation: engine::Mutation {
             version: 0,
-            added: vec![],
+            keys: vec![],
         },
     })
 }

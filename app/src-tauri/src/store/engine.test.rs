@@ -2459,7 +2459,7 @@ fn an_add_reports_the_id_its_first_location_was_given() {
         .filter(|l| l.lat > 0.5)
         .map(|l| l.id)
         .collect();
-    let first = added.added[0];
+    let first = added.keys[0];
     assert_eq!(ids, vec![first, first + 1]);
 }
 
@@ -7008,7 +7008,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = 2;
     let r = store.edit(&viewer(), vec![Op::Set(loc(0, 2.0, 2.0))], false, &mut None);
-    assert_eq!(r.added, vec![2]);
+    assert_eq!(r.keys, vec![2]);
     assert!(store
         .collect(
             &Target::Map,

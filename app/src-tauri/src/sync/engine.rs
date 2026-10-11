@@ -921,7 +921,7 @@ fn apply_pull(
     }
     let result = store.edit(&target, edits, true, &mut None);
     let rows = result
-        .added
+        .keys
         .iter()
         .zip(&out.pull_creates)
         .map(|(&local_id, c)| RemoteMappingRow {

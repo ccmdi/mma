@@ -82,14 +82,14 @@ pub struct HeldValue {
     pub count: usize,
 }
 
-/// The mutation's version and newly allocated ids. Other updates arrive on the change feed.
+/// The version a write reached and the keys it assigned. Other updates arrive on the change feed.
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Mutation {
     /// The map version this change brought the map to.
     pub version: u64,
-    /// The id of each row this edit created, in the order they were written.
-    pub added: Vec<u32>,
+    /// The key the store gave each keyless set, in the order they were written.
+    pub keys: Vec<u32>,
 }
 
 #[derive(serde::Serialize, specta::Type)]
@@ -276,14 +276,17 @@ impl Store {
                 }
             }
         };
-        let result = self.write(
-            edits,
-            join,
-            Entry {
-                piles,
-                ..Default::default()
-            },
-        );
+        let result = Mutation {
+            keys: added,
+            ..self.write(
+                edits,
+                join,
+                Entry {
+                    piles,
+                    ..Default::default()
+                },
+            )
+        };
         if let Some(name) = update_landed {
             self.pending.insert(
                 name,
@@ -302,10 +305,10 @@ impl Store {
     }
 
     /// Result for a staged edit that did not change the map.
-    fn held(&self, added: Vec<u32>) -> Mutation {
+    fn held(&self, keys: Vec<u32>) -> Mutation {
         Mutation {
             version: self.version,
-            added,
+            keys,
         }
     }
 

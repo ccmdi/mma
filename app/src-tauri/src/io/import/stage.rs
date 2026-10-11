@@ -84,7 +84,7 @@ pub(super) fn stage_parsed(
     if let Some(p) = store.pending.get_mut(&key) {
         p.incoming.insert("tags".to_string(), parsed.tags);
     }
-    result.added.first().copied()
+    result.keys.first().copied()
 }
 
 /// Build preview field counts, bounds, and a temp file of interleaved LE f32 `[lng, lat]` positions.

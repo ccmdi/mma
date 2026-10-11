@@ -2007,12 +2007,12 @@ type MmUser = {
     id: number;
     username: string;
 };
-/**  The mutation's version and newly allocated ids. Other updates arrive on the change feed. */
+/**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
 type Mutation = {
     /**  The map version this change brought the map to. */
     version: number;
-    /**  The id of each row this edit created, in the order they were written. */
-    added: number[];
+    /**  The key the store gave each keyless set, in the order they were written. */
+    keys: number[];
 };
 type MutationResult = {
     mutation: Mutation;

@@ -165,7 +165,7 @@ export async function selectionsHeld(value: unknown) {
 	const state = getMapState();
 	Object.assign(state, { selectionList: apply(op, state.selectionList) });
 	if (state.map) setMap(state.map);
-	return { mutation: { version: 0, added: [] } };
+	return { mutation: { version: 0, keys: [] } };
 }
 
 export async function metadataWritten(patch: unknown) {
