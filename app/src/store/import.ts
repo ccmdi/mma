@@ -83,8 +83,6 @@ export const Import = {
 			const mapId = Store.get().mapId;
 			if (mapId) {
 				await Scene.settled();
-				Autosave.cancel();
-				await Autosave.waitForInflight();
 				Autosave.scheduleAutoCommit(mapId, r.importedCount);
 			}
 		}

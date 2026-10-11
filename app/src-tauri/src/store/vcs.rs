@@ -68,6 +68,8 @@ pub async fn store_commit(
     message: Option<String>,
 ) -> AppResult<CommitResult> {
     let _t = Instant::now();
+    let files = state.lock()?.store_for_map(&map_id)?.files.clone();
+    let _writing = files.lock().await;
     let conn = storage::open_db()?;
 
     let parent_id: Option<Id<CommitInfo, String>> = conn

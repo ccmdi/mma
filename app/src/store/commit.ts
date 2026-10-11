@@ -14,10 +14,7 @@ export const Commit = {
 		const state = Store.get();
 		if (!state.mapId) throw new Error("No map open");
 		const t = trace("commit");
-		Autosave.cancel();
-		await Autosave.waitForInflight();
-
-		const r = await cmd.storeCommit(Store.get().mapId!, message ?? null);
+		const r = await Autosave.exclusive(() => cmd.storeCommit(Store.get().mapId!, message ?? null));
 		t.step("commit");
 		t.end();
 		CommitDiff.resetCounts();
@@ -30,7 +27,9 @@ export const Commit = {
 		if (!state.mapId) return;
 		await Autosave.flush();
 		await Mutation.run(() => cmd.storeCheckoutCommit(Store.get().mapId!, commitId));
-		await cmd.storeCommit(Store.get().mapId!, `Revert to ${commitId.slice(0, 7)}`);
+		await Autosave.exclusive(() =>
+			cmd.storeCommit(Store.get().mapId!, `Revert to ${commitId.slice(0, 7)}`),
+		);
 		const map = await cmd.storeGetMap(Store.get().mapId!);
 		if (map) Store.setMeta(map);
 		if (Store.get().open) Editor.close();

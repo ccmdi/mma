@@ -1491,6 +1491,17 @@ autosave.cancel(): void
 
 Cancel any pending autosave timer.
 
+#### autosave.exclusive
+
+`unstable` · unreleased
+
+```ts
+autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
+```
+
+Run `write` once every save started so far has finished, and hold later saves until it does.
+Writes to the map's files that must not interleave with a save go through here.
+
 #### autosave.flush
 
 `unstable` · since v0.12.0
@@ -1536,10 +1547,10 @@ Background auto-commit after an import with autoCommit set.
 `unstable` · since v0.12.0
 
 ```ts
-autosave.waitForInflight(): Promise<void> | null
+autosave.waitForInflight(): Promise<void>
 ```
 
-Wait for any in-progress save to finish.
+Wait until every save and background commit started so far has finished.
 
 ### checkoutCommit
 
@@ -3530,6 +3541,17 @@ Autosave.cancel(): void
 
 Cancel any pending autosave timer.
 
+#### Autosave.exclusive
+
+`unstable` · unreleased
+
+```ts
+Autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
+```
+
+Run `write` once every save started so far has finished, and hold later saves until it does.
+Writes to the map's files that must not interleave with a save go through here.
+
 #### Autosave.flush
 
 `unstable` · unreleased
@@ -3575,10 +3597,10 @@ Background auto-commit after an import with autoCommit set.
 `unstable` · unreleased
 
 ```ts
-Autosave.waitForInflight(): Promise<void> | null
+Autosave.waitForInflight(): Promise<void>
 ```
 
-Wait for any in-progress save to finish.
+Wait until every save and background commit started so far has finished.
 
 ## Edit
 

@@ -7,7 +7,7 @@ use crate::types::{AppError, AppResult, Location};
 use mma_algebra::{Counts, Delta, Id, Patch, Patchable};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::{fmt, mem};
 
 mod dependencies;
@@ -120,6 +120,8 @@ pub struct Store {
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: Id<Location>,
+    /// Held across every write to the map's files, so a save and a commit never interleave.
+    pub(crate) files: Arc<tokio::sync::Mutex<()>>,
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
 
@@ -165,6 +167,7 @@ impl Store {
             batch: None,
             mmap_handle: None,
             next_id: Id::new(1),
+            files: Arc::default(),
             version: 0,
             alive_count: Tracked::default(),
             overlay: Tracked::default(),

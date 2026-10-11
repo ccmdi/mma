@@ -484,6 +484,8 @@ pub async fn store_save_dirty(
     log::debug!("[cmd] store_save_dirty ENTER");
     // The snapshot carries the revision it serialized, so the store can be told exactly
     // what disk holds once the write lands, however many edits arrived meanwhile.
+    let files = state.lock()?.store_for_window(&label)?.files.clone();
+    let _writing = files.lock().await;
     let (map_id, unsaved) = {
         let mut mgr = state.lock()?;
         let store = mgr.store_for_window(&label)?;

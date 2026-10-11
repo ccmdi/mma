@@ -3857,8 +3857,11 @@ declare const Autosave: {
     schedule: () => void;
     /** Cancel any pending autosave timer. @unstable */
     cancel: () => void;
-    /** Wait for any in-progress save to finish. @unstable */
-    waitForInflight: () => Promise<void> | null;
+    /** Wait until every save and background commit started so far has finished. @unstable */
+    waitForInflight: () => Promise<void>;
+    /** Run `write` once every save started so far has finished, and hold later saves until it does.
+     *  Writes to the map's files that must not interleave with a save go through here. @unstable */
+    exclusive: <T>(write: () => Promise<T>) => Promise<T>;
     /** Background auto-commit after an import with autoCommit set. @unstable */
     scheduleAutoCommit: (mapId: string, importedCount: number) => void;
     /** Save any unsaved changes now instead of waiting for the timer. @unstable */
