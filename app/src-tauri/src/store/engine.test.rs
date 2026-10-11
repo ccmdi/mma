@@ -6258,7 +6258,7 @@ proptest::proptest! {
                 "store values diverged from model at step {}: {:?}", step, op
             );
             for tag in 0..6 {
-                let expected = model.values().filter(|row| row.tags.contains(&tag)).count();
+                let expected = model.values().filter(|row| row.tags.contains(&Id::new(tag))).count();
                 proptest::prop_assert_eq!(
                     tag_count(&mut store, tag),
                     expected,
@@ -8527,7 +8527,7 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
     let second = click_add(&mut store, -5.0, 30.0);
     apply_updates(
         &mut store,
-        &[patch!(first; lat: 11.0, heading: 270.0, tags: vec![3, 8])],
+        &[patch!(first; lat: 11.0, heading: 270.0, tags: tag_ids([3, 8]))],
         &mut None,
     );
     delete_loc(&mut store, second);
@@ -8542,7 +8542,7 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
 
     press_undo(&mut reopened);
     assert_eq!(
-        reopened.get_loc_by_id(second).unwrap().lng,
+        reopened.get_loc_by_id(Id::new(second)).unwrap().lng,
         30.0,
         "undo after reopen restores the deleted row"
     );

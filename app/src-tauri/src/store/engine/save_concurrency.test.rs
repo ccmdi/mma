@@ -39,12 +39,12 @@ fn acknowledging_an_inflight_save_preserves_later_rows_and_history_as_dirty() {
     add(&mut store, 1.0);
     let inflight = store.unsaved().unwrap().unwrap();
     add(&mut store, 2.0);
-    inflight.write(&conn, "m", &path).unwrap();
+    inflight.write(&conn, &Id::new("m".into()), &path).unwrap();
     store.saved(&inflight);
 
     assert_eq!(disk_latitudes(&path), [1.0]);
     assert_eq!(
-        persist::load_edit_history(&conn, "m")
+        persist::load_edit_history(&conn, &Id::new("m".into()))
             .unwrap()
             .len(Stack::Undo),
         1
@@ -54,11 +54,11 @@ fn acknowledging_an_inflight_save_preserves_later_rows_and_history_as_dirty() {
     assert_eq!(*store.alive_count, 2);
 
     let remaining = store.unsaved().unwrap().unwrap();
-    remaining.write(&conn, "m", &path).unwrap();
+    remaining.write(&conn, &Id::new("m".into()), &path).unwrap();
     store.saved(&remaining);
     assert_eq!(disk_latitudes(&path), [1.0, 2.0]);
     assert_eq!(
-        persist::load_edit_history(&conn, "m")
+        persist::load_edit_history(&conn, &Id::new("m".into()))
             .unwrap()
             .len(Stack::Undo),
         2
@@ -75,7 +75,7 @@ fn acknowledging_an_inflight_save_preserves_later_map_metadata_as_dirty() {
     store.meta.edit().name = "before".into();
     let inflight = store.unsaved().unwrap().unwrap();
     store.meta.edit().name = "after".into();
-    inflight.write(&conn, "m", &path).unwrap();
+    inflight.write(&conn, &Id::new("m".into()), &path).unwrap();
     store.saved(&inflight);
     let name = || {
         conn.query_row("SELECT name FROM maps WHERE id = 'm'", [], |row| {
@@ -88,7 +88,7 @@ fn acknowledging_an_inflight_save_preserves_later_map_metadata_as_dirty() {
     assert!(store.meta.is_unsaved());
 
     let remaining = store.unsaved().unwrap().unwrap();
-    remaining.write(&conn, "m", &path).unwrap();
+    remaining.write(&conn, &Id::new("m".into()), &path).unwrap();
     store.saved(&remaining);
     assert_eq!(name(), "after");
     assert!(store.unsaved().unwrap().is_none());
@@ -102,10 +102,10 @@ fn a_repeated_old_acknowledgement_cannot_rewind_a_newer_completed_save() {
     let mut store = Store::new();
     add(&mut store, 1.0);
     let older = store.unsaved().unwrap().unwrap();
-    older.write(&conn, "m", &path).unwrap();
+    older.write(&conn, &Id::new("m".into()), &path).unwrap();
     add(&mut store, 2.0);
     let newer = store.unsaved().unwrap().unwrap();
-    newer.write(&conn, "m", &path).unwrap();
+    newer.write(&conn, &Id::new("m".into()), &path).unwrap();
     store.saved(&newer);
     store.saved(&older);
     store.saved(&older);

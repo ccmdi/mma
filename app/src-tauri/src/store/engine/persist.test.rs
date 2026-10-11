@@ -19,7 +19,7 @@ fn database(path: &std::path::Path) -> Connection {
 fn store_with_one_edit() -> Store {
     let mut store = Store::new();
     store.meta = Tracked::new(MapMeta {
-        id: "m".into(),
+        id: Id::new("m".into()),
         ..Default::default()
     });
     store.meta.edit().name = "after".into();
@@ -46,7 +46,9 @@ fn failed_delta_write_leaves_database_and_history_unchanged() {
     let store = store_with_one_edit();
     let unsaved = store.unsaved().unwrap().unwrap();
 
-    assert!(unsaved.write(&conn, "m", &delta_path).is_err());
+    assert!(unsaved
+        .write(&conn, &Id::new("m".into()), &delta_path)
+        .is_err());
     drop(conn);
 
     let reopened = Connection::open(&db_path).unwrap();
@@ -82,10 +84,12 @@ fn a_counts_failure_after_delta_write_reopens_data_without_ahead_history() {
     )
     .unwrap();
     let store = store_with_one_edit();
-    let expected = store.get_loc_by_id(1).unwrap();
+    let expected = store.get_loc_by_id(Id::new(1)).unwrap();
     let unsaved = store.unsaved().unwrap().unwrap();
 
-    assert!(unsaved.write(&conn, "m", &delta_path).is_err());
+    assert!(unsaved
+        .write(&conn, &Id::new("m".into()), &delta_path)
+        .is_err());
     assert_eq!(rows(&delta_path), vec![expected.clone()]);
     drop(conn);
 
@@ -120,10 +124,12 @@ fn metadata_failure_keeps_new_delta_and_counts_without_writing_history() {
     )
     .unwrap();
     let store = store_with_one_edit();
-    let expected = store.get_loc_by_id(1).unwrap();
+    let expected = store.get_loc_by_id(Id::new(1)).unwrap();
     let unsaved = store.unsaved().unwrap().unwrap();
 
-    assert!(unsaved.write(&conn, "m", &delta_path).is_err());
+    assert!(unsaved
+        .write(&conn, &Id::new("m".into()), &delta_path)
+        .is_err());
     assert_eq!(rows(&delta_path), vec![expected]);
     drop(conn);
 
@@ -153,16 +159,23 @@ fn history_write_failure_rolls_back_partial_entries_and_keeps_prior_stack() {
     let conn = database(&db_path);
     let mut store = store_with_one_edit();
     let first = store.unsaved().unwrap().unwrap();
-    first.write(&conn, "m", &delta_path).unwrap();
+    first
+        .write(&conn, &Id::new("m".into()), &delta_path)
+        .unwrap();
     store.saved(&first);
-    assert_eq!(load_edit_history(&conn, "m").unwrap().len(Stack::Undo), 1);
+    assert_eq!(
+        load_edit_history(&conn, &Id::new("m".into()))
+            .unwrap()
+            .len(Stack::Undo),
+        1
+    );
 
     store.write([Op::Set(loc(2, 12.0, 12.0))], &mut None, Entry::default());
     store.write([Op::Set(loc(3, 13.0, 13.0))], &mut None, Entry::default());
     let expected = vec![
-        store.get_loc_by_id(1).unwrap(),
-        store.get_loc_by_id(2).unwrap(),
-        store.get_loc_by_id(3).unwrap(),
+        store.get_loc_by_id(Id::new(1)).unwrap(),
+        store.get_loc_by_id(Id::new(2)).unwrap(),
+        store.get_loc_by_id(Id::new(3)).unwrap(),
     ];
     conn.execute_batch(
         "CREATE TRIGGER reject_third_history BEFORE INSERT ON edit_entries
@@ -172,7 +185,9 @@ fn history_write_failure_rolls_back_partial_entries_and_keeps_prior_stack() {
     .unwrap();
     let second = store.unsaved().unwrap().unwrap();
 
-    assert!(second.write(&conn, "m", &delta_path).is_err());
+    assert!(second
+        .write(&conn, &Id::new("m".into()), &delta_path)
+        .is_err());
     assert_eq!(rows(&delta_path), expected);
     drop(conn);
 
@@ -185,15 +200,17 @@ fn history_write_failure_rolls_back_partial_entries_and_keeps_prior_stack() {
         .collect::<Result<_, _>>()
         .unwrap();
     assert_eq!(sequences, [0]);
-    let mut history = load_edit_history(&reopened, "m").unwrap();
+    let mut history = load_edit_history(&reopened, &Id::new("m".into())).unwrap();
     assert_eq!(history.len(Stack::Undo), 1);
     assert_eq!(history.len(Stack::Redo), 0);
     let fetched = history
-        .step(Stack::Undo, |seq| load_edit(&reopened, "m", seq))
+        .step(Stack::Undo, |seq| {
+            load_edit(&reopened, &Id::new("m".into()), seq)
+        })
         .unwrap()
         .unwrap();
-    assert_eq!(fetched.rows.removed, vec![expected[0].clone()]);
-    assert_eq!(fetched.rows.added, Vec::<Location>::new());
+    assert_eq!(fetched.locations.removed, vec![expected[0].clone()]);
+    assert_eq!(fetched.locations.added, Vec::<Location>::new());
 }
 
 #[test]

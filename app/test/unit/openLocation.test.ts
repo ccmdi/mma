@@ -86,8 +86,8 @@ describe("open location", () => {
 	it("a pending location read cannot reopen the editor after it is cleared", async () => {
 		let release!: () => void;
 		h.held.set(8, new Promise((resolve) => (release = resolve)));
-		const switching = setActiveLocation(8);
-		await setActiveLocation(null);
+		const switching = openLocation(8);
+		closeLocation();
 		release();
 		await switching;
 
@@ -125,24 +125,6 @@ describe("open location", () => {
 		expect(seen.every((s) => s.row)).toBe(true);
 		expect(getMapState().open?.location?.id).toBe(8);
 		setWorkArea("overview");
-	});
-});
-
-describe("closing the open location", () => {
-	it("supersedes an opening still loading", async () => {
-		let release!: () => void;
-		h.held.set(
-			7,
-			new Promise<void>((r) => {
-				release = r;
-			}),
-		);
-		const opening = openLocation(7, false);
-		closeLocation();
-		release();
-		await opening;
-
-		expect(getMapState().open).toBeNull();
 	});
 });
 

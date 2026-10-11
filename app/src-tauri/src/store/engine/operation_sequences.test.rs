@@ -4,10 +4,10 @@ use crate::selections::tree::{SelectionInput, SelectionOp};
 #[test]
 fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_history() {
     let mut store = setup_store_with(&[]);
-    let mut model = BTreeMap::<u32, Location>::new();
+    let mut model = BTreeMap::<Id<Location>, Location>::new();
     let mut selection_active = true;
-    let mut undo = Vec::<(BTreeMap<u32, Location>, bool)>::new();
-    let mut redo = Vec::<(BTreeMap<u32, Location>, bool)>::new();
+    let mut undo = Vec::<(BTreeMap<Id<Location>, Location>, bool)>::new();
+    let mut redo = Vec::<(BTreeMap<Id<Location>, Location>, bool)>::new();
     let mut next_id = 1;
     let set_tag_one_selection = |store: &mut Store, active: bool| {
         store.edit_selections(&SelectionOp::Set {
@@ -17,7 +17,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         field: "tags".into(),
                         test: selections::FilterOp::Contains { value: 1.into() },
                     },
-                    color: Some([17, 91, 203]),
+                    color: Some(Rgb([17, 91, 203])),
                 }]
             } else {
                 vec![]
@@ -27,7 +27,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
     set_tag_one_selection(&mut store, selection_active);
 
     let check = |store: &mut Store,
-                 model: &BTreeMap<u32, Location>,
+                 model: &BTreeMap<Id<Location>, Location>,
                  selection_active: bool,
                  undo: usize,
                  redo: usize,
@@ -41,7 +41,10 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
         assert_eq!(store.edits.len(Stack::Undo), undo, "undo length: {context}");
         assert_eq!(store.edits.len(Stack::Redo), redo, "redo length: {context}");
         for tag in 0..4 {
-            let expected = model.values().filter(|row| row.tags.contains(&tag)).count();
+            let expected = model
+                .values()
+                .filter(|row| row.tags.contains(&Id::new(tag)))
+                .count();
             assert_eq!(
                 tag_count(store, tag),
                 expected,
@@ -57,7 +60,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
         let expected: Vec<_> = if selection_active {
             model
                 .values()
-                .filter(|row| row.tags.contains(&1))
+                .filter(|row| row.tags.contains(&Id::new(1)))
                 .map(|row| row.id)
                 .collect()
         } else {
@@ -80,7 +83,10 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
         for step in 0..steps {
             let choice = rng() % 11;
             let context = format!("seed=0x{seed:08x} step={step} choice={choice}");
-            let tag_one_before = model.values().filter(|row| row.tags.contains(&1)).count();
+            let tag_one_before = model
+                .values()
+                .filter(|row| row.tags.contains(&Id::new(1)))
+                .count();
             match choice {
                 0..=1 if model.len() < 32 => {
                     let id = next_id;
@@ -91,9 +97,9 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         (rng() % 340) as f64 - 170.0,
                     );
                     let before = (model.clone(), selection_active);
-                    assert_eq!(store.alloc_id(), id, "id allocation: {context}");
+                    assert_eq!(store.alloc_id(), Id::new(id), "id allocation: {context}");
                     store.write([Op::Set(row.clone())], &mut None, Entry::default());
-                    model.insert(id, row);
+                    model.insert(row.id, row);
                     undo.push(before);
                     redo.clear();
                 }
@@ -118,15 +124,15 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                     }
                     let before = (model.clone(), selection_active);
                     store.write([Op::Set(row.clone())], &mut None, Entry::default());
-                    model.insert(id, row);
+                    model.insert(row.id, row);
                     undo.push(before);
                     redo.clear();
                 }
                 6..=8 if !model.is_empty() => {
                     let id = *model.keys().nth((rng() as usize) % model.len()).unwrap();
                     let tag = rng() % 4;
-                    let has_tag = model[&id].tags.contains(&tag);
-                    let op = Work::Rows(RowOp::ListSet {
+                    let has_tag = model[&id].tags.contains(&Id::new(tag));
+                    let op = Work::Locations(LocationOp::ListSet {
                         key: "tags".into(),
                         add: if has_tag {
                             vec![]
@@ -151,9 +157,9 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                     .unwrap();
                     let row = model.get_mut(&id).unwrap();
                     if has_tag {
-                        row.tags.retain(|current| *current != tag);
+                        row.tags.retain(|current| *current != Id::new(tag));
                     } else {
-                        row.tags.push(tag);
+                        row.tags.push(Id::new(tag));
                     }
                     undo.push(before);
                     redo.clear();
@@ -174,7 +180,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                 _ => {}
             }
             if tag_one_before > 0
-                && model.values().all(|row| !row.tags.contains(&1))
+                && model.values().all(|row| !row.tags.contains(&Id::new(1)))
                 && !matches!(choice, 9 | 10)
             {
                 selection_active = false;

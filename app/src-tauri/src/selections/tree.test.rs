@@ -56,15 +56,15 @@ fn base36_key_encoding_handles_digit_boundaries_and_u32_max() {
 #[test]
 fn location_keys_ignore_the_display_name_but_preserve_id_order() {
     let named = Selector::Locations {
-        locations: vec![4, 9, 12],
+        locations: vec![Id::new(4), Id::new(9), Id::new(12)],
         name: Some("first label".into()),
     };
     let renamed = Selector::Locations {
-        locations: vec![4, 9, 12],
+        locations: vec![Id::new(4), Id::new(9), Id::new(12)],
         name: Some("new label".into()),
     };
     let reordered = Selector::Locations {
-        locations: vec![12, 9, 4],
+        locations: vec![Id::new(12), Id::new(9), Id::new(4)],
         name: None,
     };
     assert_eq!(key(&named), key(&renamed));
@@ -75,11 +75,11 @@ fn location_keys_ignore_the_display_name_but_preserve_id_order() {
 #[test]
 fn location_keys_include_the_list_length_and_repeated_ids() {
     let one = Selector::Locations {
-        locations: vec![8],
+        locations: vec![Id::new(8)],
         name: None,
     };
     let repeated = Selector::Locations {
-        locations: vec![8, 8],
+        locations: vec![Id::new(8), Id::new(8)],
         name: None,
     };
     assert_ne!(key(&one), key(&repeated));

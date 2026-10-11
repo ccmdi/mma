@@ -4,7 +4,7 @@ use mma_algebra::Change;
 
 fn row_edit(before: Option<Location>, after: Option<Location>) -> Arc<Entry> {
     Arc::new(Entry {
-        rows: Change::from_iter([mma_algebra::Transition::new(before, after)]),
+        locations: Change::from_iter([mma_algebra::Transition::new(before, after)]),
         ..Entry::default()
     })
 }
@@ -44,7 +44,7 @@ fn undo_and_redo_move_the_same_edit_and_invert_its_rows() {
         .step(Stack::Undo, |_| panic!("resident edit must not fetch"))
         .unwrap()
         .unwrap();
-    assert_eq!(undone.rows.updated, [(after.clone(), before.clone())]);
+    assert_eq!(undone.locations.updated, [(after.clone(), before.clone())]);
     assert_eq!(stacks.len(Stack::Undo), 0);
     assert_eq!(stacks.len(Stack::Redo), 1);
 
@@ -52,7 +52,7 @@ fn undo_and_redo_move_the_same_edit_and_invert_its_rows() {
         .step(Stack::Redo, |_| panic!("moved edit stays resident"))
         .unwrap()
         .unwrap();
-    assert_eq!(redone.rows.updated, [(before, after)]);
+    assert_eq!(redone.locations.updated, [(before, after)]);
 }
 
 #[test]
@@ -65,7 +65,7 @@ fn a_disk_only_edit_is_fetched_once_then_kept_resident() {
         .step(Stack::Undo, |seq| {
             fetches.push(seq);
             Ok(Entry {
-                rows: Change::from_iter([mma_algebra::Transition::new(
+                locations: Change::from_iter([mma_algebra::Transition::new(
                     Some(before.clone()),
                     Some(after.clone()),
                 )]),
@@ -122,7 +122,10 @@ fn folding_adjacent_writes_keeps_the_first_before_and_last_after() {
         .fold_into_newest(
             first_seq,
             Entry {
-                rows: Change::from_iter([mma_algebra::Transition::new(Some(b), Some(c.clone()))]),
+                locations: Change::from_iter([mma_algebra::Transition::new(
+                    Some(b),
+                    Some(c.clone()),
+                )]),
                 ..Entry::default()
             },
         )
@@ -130,7 +133,7 @@ fn folding_adjacent_writes_keeps_the_first_before_and_last_after() {
     assert!(folded_seq > first_seq);
     assert_eq!(stacks.len(Stack::Undo), 1);
     let entry = stacks.undo.last().unwrap().entry.as_ref().unwrap();
-    assert_eq!(entry.rows.updated, [(a, c)]);
+    assert_eq!(entry.locations.updated, [(a, c)]);
 }
 
 #[test]
@@ -141,7 +144,7 @@ fn a_non_adjacent_write_cannot_corrupt_the_newest_history_entry() {
     let mut stacks = EditStacks::default();
     let seq = stacks.record(row_edit(Some(a.clone()), Some(b.clone())));
     let later = Entry {
-        rows: Change::from_iter([mma_algebra::Transition::new(
+        locations: Change::from_iter([mma_algebra::Transition::new(
             Some(unrelated),
             Some(a.clone()),
         )]),
@@ -157,7 +160,7 @@ fn a_non_adjacent_write_cannot_corrupt_the_newest_history_entry() {
             .entry
             .as_ref()
             .unwrap()
-            .rows
+            .locations
             .updated,
         [(a, b)]
     );
@@ -177,10 +180,10 @@ fn the_history_entry_limit_discards_oldest_undo_rows_only() {
 #[test]
 fn next_id_reserves_the_highest_id_reachable_from_any_durable_layer() {
     let adds = [loc(31, 0.0, 0.0), loc(19, 0.0, 0.0)];
-    assert_eq!(seed_next_id(8, &adds, 22), 32);
-    assert_eq!(seed_next_id(40, &adds, 22), 41);
-    assert_eq!(seed_next_id(8, &[], 50), 51);
-    assert_eq!(seed_next_id(0, &[], 0), 1);
+    assert_eq!(seed_next_id(Id::new(8), &adds, Id::new(22)), Id::new(32));
+    assert_eq!(seed_next_id(Id::new(40), &adds, Id::new(22)), Id::new(41));
+    assert_eq!(seed_next_id(Id::new(8), &[], Id::new(50)), Id::new(51));
+    assert_eq!(seed_next_id(Id::new(0), &[], Id::new(0)), Id::new(1));
 }
 
 #[test]
@@ -224,7 +227,7 @@ fn folding_a_newest_write_clears_an_existing_redo_branch() {
         .fold_into_newest(
             first,
             Entry {
-                rows: Change::from_iter([mma_algebra::Transition::new(Some(b), Some(d))]),
+                locations: Change::from_iter([mma_algebra::Transition::new(Some(b), Some(d))]),
                 ..Entry::default()
             }
         )
@@ -243,7 +246,7 @@ fn a_stale_fold_sequence_cannot_join_a_different_newest_edit() {
     let rejected = stacks.fold_into_newest(
         stale_seq,
         Entry {
-            rows: Change::from_iter([mma_algebra::Transition::new(
+            locations: Change::from_iter([mma_algebra::Transition::new(
                 Some(later.clone()),
                 Some(first.clone()),
             )]),
@@ -260,7 +263,7 @@ fn a_stale_fold_sequence_cannot_join_a_different_newest_edit() {
             .entry
             .as_ref()
             .unwrap()
-            .rows
+            .locations
             .updated,
         [(second, later)]
     );
