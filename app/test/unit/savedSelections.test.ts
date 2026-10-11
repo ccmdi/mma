@@ -1,7 +1,7 @@
 import { selectionFixture } from "./fixtures/selection";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { readFileSync } from "node:fs";
-import type { SavedSelection, Selection } from "@/bindings.gen";
+import type { Selection } from "@/bindings.gen";
 import type { Selector } from "@/types";
 
 // The store binds tag lookups internally; back them with a settable fake tag set. The
@@ -71,18 +71,7 @@ vi.mock("@/lib/commands", () => ({
 		storeImportLegacySavedSelections: async () => 0,
 	},
 }));
-
-import {
-	MAP_LOCAL_TYPES,
-	applySavedSelection,
-	deleteSavedSelection,
-	getSavedSelectionIndex,
-	isSaveable,
-	loadAllSavedSelections,
-	loadSavedSelections,
-	saveCurrentSelections,
-	savedParts,
-} from "@/store/savedSelections";
+import { SavedSelection } from "@/store/savedSelection";
 import { tagSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 
 const rule = (selector: Selector, tagNames: Record<number, string> = {}): SavedSelection => ({
@@ -105,7 +94,7 @@ beforeEach(async () => {
 	h.added = [];
 	h.calls = [];
 	// Drop any index/bodies the previous test left behind.
-	await loadAllSavedSelections();
+	await SavedSelection.loadAll();
 	h.calls = [];
 });
 
@@ -125,12 +114,12 @@ describe("saved selections survive map-local renames untouched", () => {
 			field: "deleted-everywhere",
 			test: { op: "eq", value: 1 },
 		};
-		expect(savedParts(rule(selector))[0].selector).toEqual(selector);
+		expect(SavedSelection.parts(rule(selector))[0].selector).toEqual(selector);
 	});
 
 	it("labels a missing tag with the name it was saved under", () => {
 		const saved = rule(tagSelector(5), { 5: "Japan" });
-		expect(savedParts(saved)[0].label).toBe("Tag: Japan");
+		expect(SavedSelection.parts(saved)[0].label).toBe("Tag: Japan");
 	});
 });
 
@@ -140,18 +129,27 @@ describe("saved selections survive map-local renames untouched", () => {
 
 describe("isSaveable", () => {
 	it("accepts portable leaves", () => {
-		expect(isSaveable({ type: "Everything" })).toBe(true);
-		expect(isSaveable(tagSelector(1))).toBe(true);
-		expect(isSaveable({ type: "Duplicates", distance: 50 })).toBe(true);
+		expect(SavedSelection.isSaveable({ type: "Everything" })).toBe(true);
+		expect(SavedSelection.isSaveable(tagSelector(1))).toBe(true);
+		expect(SavedSelection.isSaveable({ type: "Duplicates", distance: 50 })).toBe(true);
 	});
 
 	it("rejects every map-local leaf", () => {
-		expect(isSaveable({ type: "Locations", locations: [1], name: null })).toBe(false);
-		expect(isSaveable({ type: "Manual", locations: [1] })).toBe(false);
-		expect(isSaveable({ type: "Validation", locations: [1], category: "valid" })).toBe(false);
-		expect(isSaveable({ type: "Reviewed", locations: [1], sessionId: "s", mode: "reviewed" })).toBe(
+		expect(SavedSelection.isSaveable({ type: "Locations", locations: [1], name: null })).toBe(
 			false,
 		);
+		expect(SavedSelection.isSaveable({ type: "Manual", locations: [1] })).toBe(false);
+		expect(
+			SavedSelection.isSaveable({ type: "Validation", locations: [1], category: "valid" }),
+		).toBe(false);
+		expect(
+			SavedSelection.isSaveable({
+				type: "Reviewed",
+				locations: [1],
+				sessionId: "s",
+				mode: "reviewed",
+			}),
+		).toBe(false);
 	});
 
 	it("rejects a composite that hides a map-local leaf at any depth", () => {
@@ -168,7 +166,7 @@ describe("isSaveable", () => {
 				sel({ type: "Intersection", selections: [sel(reviewed)] }),
 			],
 		};
-		expect(isSaveable(nested)).toBe(false);
+		expect(SavedSelection.isSaveable(nested)).toBe(false);
 	});
 });
 
@@ -233,7 +231,7 @@ describe("Selector coverage", () => {
 		// Ranked holds one child under `selection`; a walk that only knew `selections`
 		// would call a map-local tree saveable.
 		expect(
-			isSaveable({
+			SavedSelection.isSaveable({
 				type: "Ranked",
 				selection: sel({ type: "Manual", locations: [1] }),
 				expr: "altitude",
@@ -250,10 +248,10 @@ describe("Selector coverage", () => {
 	it("every variant is map-local or saveable and describable", () => {
 		h.tags = { 1: { id: 1, name: "T", color: "#fff", visible: true } };
 		for (const type of generatedTypes()) {
-			const mapLocal = (MAP_LOCAL_TYPES as readonly string[]).includes(type);
-			expect(isSaveable(SAMPLES[type]), `${type} saveability`).toBe(!mapLocal);
+			const mapLocal = (SavedSelection.MAP_LOCAL_TYPES as readonly string[]).includes(type);
+			expect(SavedSelection.isSaveable(SAMPLES[type]), `${type} saveability`).toBe(!mapLocal);
 			if (mapLocal) continue;
-			const [part] = savedParts(rule(SAMPLES[type]));
+			const [part] = SavedSelection.parts(rule(SAMPLES[type]));
 			expect(typeof part.label, `${type} is describable`).toBe("string");
 			expect(part.label.length).toBeGreaterThan(0);
 		}
@@ -266,9 +264,7 @@ describe("Selector coverage", () => {
 			sessionId: "session-1",
 			mode: "unreviewed",
 		};
-		expect(await saveCurrentSelections("mixed", [sel(reviewed), sel(untaggedSelector())])).toBe(
-			true,
-		);
+		expect(await SavedSelection.save("mixed", [sel(reviewed), sel(untaggedSelector())])).toBe(true);
 		expect(JSON.stringify(h.rows)).not.toContain("session-1");
 		expect(h.rows[0].selector).toEqual(untaggedSelector());
 	});
@@ -281,7 +277,7 @@ describe("Selector coverage", () => {
 describe("saveCurrentSelections", () => {
 	it("sends the rule and requested color to Rust", async () => {
 		h.tags = { 4: { id: 4, name: "Japan", color: "#f00", visible: true } };
-		expect(await saveCurrentSelections("japan", [sel(tagSelector(4), [9, 9, 9])])).toBe(true);
+		expect(await SavedSelection.save("japan", [sel(tagSelector(4), [9, 9, 9])])).toBe(true);
 		expect(h.rows[0]).toMatchObject({
 			name: "japan",
 			selector: tagSelector(4),
@@ -291,11 +287,11 @@ describe("saveCurrentSelections", () => {
 	});
 
 	it("unions several selections into one rule, keeping their colors", async () => {
-		await saveCurrentSelections("two", [
+		await SavedSelection.save("two", [
 			sel(untaggedSelector(), [1, 1, 1]),
 			sel(unpannedSelector(), [2, 2, 2]),
 		]);
-		const parts = savedParts(h.rows[0]);
+		const parts = SavedSelection.parts(h.rows[0]);
 		expect(parts.map((p) => p.selector.type)).toEqual(["Filter", "Filter"]);
 		expect(parts.map((p) => p.color)).toEqual([
 			[1, 1, 1],
@@ -304,7 +300,7 @@ describe("saveCurrentSelections", () => {
 	});
 
 	it("refuses a save with nothing saveable in it", async () => {
-		expect(await saveCurrentSelections("nope", [sel({ type: "Manual", locations: [1] })])).toBe(
+		expect(await SavedSelection.save("nope", [sel({ type: "Manual", locations: [1] })])).toBe(
 			false,
 		);
 		expect(h.rows).toHaveLength(0);
@@ -318,46 +314,46 @@ describe("applySavedSelection", () => {
 			{ type: "Union", selections: [sel(tagSelector(5)), sel(untaggedSelector())] },
 			{ 5: "Japan" },
 		);
-		expect(applySavedSelection(saved)).toBe(2);
+		expect(SavedSelection.apply(saved)).toBe(2);
 		expect(h.added[0]).toBe(saved.id);
 	});
 
 	it("adds a non-union rule as a single selection", () => {
-		expect(applySavedSelection(rule(untaggedSelector()))).toBe(1);
+		expect(SavedSelection.apply(rule(untaggedSelector()))).toBe(1);
 		expect(h.added[0]).toBe("s1");
 	});
 });
 
 describe("the index and the bodies", () => {
 	it("follows saves and deletes", async () => {
-		expect(getSavedSelectionIndex()).toEqual([]);
-		await saveCurrentSelections("a", [sel(untaggedSelector())]);
-		await saveCurrentSelections("b", [sel(unpannedSelector())]);
-		expect(getSavedSelectionIndex().map((s) => s.name)).toEqual(["a", "b"]);
+		expect(SavedSelection.index()).toEqual([]);
+		await SavedSelection.save("a", [sel(untaggedSelector())]);
+		await SavedSelection.save("b", [sel(unpannedSelector())]);
+		expect(SavedSelection.index().map((s) => s.name)).toEqual(["a", "b"]);
 
-		await deleteSavedSelection(getSavedSelectionIndex()[0].id);
-		expect(getSavedSelectionIndex().map((s) => s.name)).toEqual(["b"]);
+		await SavedSelection.remove(SavedSelection.index()[0].id);
+		expect(SavedSelection.index().map((s) => s.name)).toEqual(["b"]);
 	});
 
 	it("never reads a body just to list the rules", async () => {
 		h.rows = [rule(untaggedSelector())];
-		await loadAllSavedSelections();
+		await SavedSelection.loadAll();
 		h.calls = [];
 
-		getSavedSelectionIndex();
+		SavedSelection.index();
 		expect(h.calls.filter((c) => c.startsWith("get:"))).toEqual([]);
 	});
 
 	it("fetches a body once and reuses it", async () => {
 		h.rows = [rule(untaggedSelector())];
-		await loadSavedSelections(["s1"]);
-		await loadSavedSelections(["s1"]);
+		await SavedSelection.load(["s1"]);
+		await SavedSelection.load(["s1"]);
 		expect(h.calls.filter((c) => c.startsWith("get:"))).toEqual(["get:s1"]);
 	});
 
 	it("does not re-request a rule that is not there", async () => {
-		await loadSavedSelections(["ghost"]);
-		await loadSavedSelections(["ghost"]);
+		await SavedSelection.load(["ghost"]);
+		await SavedSelection.load(["ghost"]);
 		expect(h.calls.filter((c) => c.startsWith("get:"))).toEqual(["get:ghost"]);
 	});
 });

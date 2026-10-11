@@ -36,7 +36,7 @@ async function seedLegacyBlobAndReload(rules: unknown[]) {
 
 /** The index is read lazily from render paths, so ask for it, then wait for SQLite. */
 async function importedRules() {
-	await withApi((api) => api.getSavedSelectionIndex());
+	await withApi((api) => api.SavedSelection.index());
 	let rows: { id: string; name: string }[] = [];
 	await browser
 		.waitUntil(

@@ -41,7 +41,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 **Unstable surfaces**
 
 - [SelectionOps](#selectionops)
-- [SavedSelections](#savedselections)
 - [Settings](#settings)
 - [SelectorPick](#selectorpick)
 - [Review](#review)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [SelectionList](#selectionlist)
 - [CommitDiff](#commitdiff)
 - [Import](#import)
+- [SavedSelection](#savedselection)
 
 ## Consts
 
@@ -4790,109 +4790,6 @@ withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>
 ```
 
 `selector` with its children replaced, keeping the shape it wraps them in.
-
-## SavedSelections
-
-Saved selection rules.
-
-### applySavedSelection
-
-`unstable` · since v0.10.3
-
-```ts
-applySavedSelection(saved: SavedSelection): number
-```
-
-Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
-were added.
-
-### deleteSavedSelection
-
-`unstable` · since v0.10.3
-
-```ts
-deleteSavedSelection(id: string): Promise<void>
-```
-
-Permanently delete a saved selection rule.
-
-### getSavedSelectionIndex
-
-`unstable` · since v0.10.0
-
-```ts
-getSavedSelectionIndex(): SavedSelectionInfo[]
-```
-
-The rules that exist, as identity only. Empty until the index loads: the first
-call starts the read and `saved-selections:changed` announces it.
-
-### isSaveable
-
-`unstable` · since v0.10.3
-
-```ts
-isSaveable(selector: Selector): boolean
-```
-
-Whether the selector tree contains only portable types (no map-local leaves).
-
-### loadAllSavedSelections
-
-`unstable` · since v0.10.3
-
-```ts
-loadAllSavedSelections(): Promise<SavedSelection[]>
-```
-
-Every rule with its body.
-
-### loadSavedSelections
-
-`unstable` · since v0.10.0
-
-```ts
-loadSavedSelections(ids: string[]): Promise<SavedSelection[]>
-```
-
-Load the full rule bodies for the given `ids`.
-
-### MAP_LOCAL_TYPES
-
-`unstable` · since v0.10.3
-
-```ts
-MAP_LOCAL_TYPES: readonly [
-  "Locations",
-  "Manual",
-  "Validation",
-  "Reviewed",
-  "Selected",
-]
-```
-
-Selection types that cannot be saved as rules because they are bound to the open map.
-
-### saveCurrentSelections
-
-`unstable` · since v0.10.3
-
-```ts
-saveCurrentSelections(name: string, selections: Selection[]): Promise<boolean>
-```
-
-Persists the saveable selections as one rule. False when none of them are saveable.
-
-### savedParts
-
-`unstable` · since v0.10.0
-
-```ts
-savedParts(saved: SavedSelection): SavedPart[]
-```
-
-A rule's parts: its top-level `Union` is the list it was saved from, anything else is
-a single part.
 
 ## Settings
 
@@ -9755,3 +9652,110 @@ Import.target(): Target
 ```
 
 The pending layer holding this window's staged import locations.
+
+## SavedSelection
+
+### SavedSelection
+
+`unstable` · unreleased
+
+Saved selection rules.
+
+#### SavedSelection.apply
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.apply(saved: SavedSelection): number
+```
+
+Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
+were added.
+
+#### SavedSelection.index
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.index(): SavedSelectionInfo[]
+```
+
+The rules that exist, as identity only. Empty until the index loads: the first
+call starts the read and `saved-selections:changed` announces it.
+
+#### SavedSelection.isSaveable
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.isSaveable(selector: Selector): boolean
+```
+
+Whether the selector tree contains only portable types (no map-local leaves).
+
+#### SavedSelection.load
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.load(ids: string[]): Promise<SavedSelection[]>
+```
+
+Load the full rule bodies for the given `ids`.
+
+#### SavedSelection.loadAll
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.loadAll(): Promise<SavedSelection[]>
+```
+
+Every rule with its body.
+
+#### SavedSelection.MAP_LOCAL_TYPES
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.MAP_LOCAL_TYPES: readonly [
+  "Locations",
+  "Manual",
+  "Validation",
+  "Reviewed",
+  "Selected",
+]
+```
+
+Selection types that cannot be saved as rules because they are bound to the open map.
+
+#### SavedSelection.parts
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.parts(saved: SavedSelection): SavedPart[]
+```
+
+A rule's parts: its top-level `Union` is the list it was saved from, anything else is
+a single part.
+
+#### SavedSelection.remove
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.remove(id: string): Promise<void>
+```
+
+Permanently delete a saved selection rule.
+
+#### SavedSelection.save
+
+`unstable` · unreleased
+
+```ts
+SavedSelection.save(name: string, selections: Selection[]): Promise<boolean>
+```
+
+Persists the saveable selections as one rule. False when none of them are saveable.

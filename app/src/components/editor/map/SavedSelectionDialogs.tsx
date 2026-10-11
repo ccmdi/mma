@@ -2,16 +2,7 @@ import { useEffect, useState } from "react";
 import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { selectionDisplayName } from "@/store/selections";
-import {
-	saveCurrentSelections,
-	applySavedSelection,
-	deleteSavedSelection,
-	isSaveable,
-	loadAllSavedSelections,
-	savedParts,
-	type SavedPart,
-} from "@/store/savedSelections";
-import type { SavedSelection } from "@/bindings.gen";
+import { SavedSelection, type SavedPart } from "@/store/savedSelection";
 import {
 	Dialog,
 	DialogActions,
@@ -51,13 +42,13 @@ export function SaveSelectionsDialog({
 	const selections = Store.use(() => SelectionList.active());
 	const saveable = map
 		? selections
-				.filter((s) => isSaveable(s.selector))
+				.filter((s) => SavedSelection.isSaveable(s.selector))
 				.map((s) => ({ label: selectionDisplayName(s), color: s.color }))
 		: [];
 
 	const handleSave = async () => {
 		if (!name.trim() || !map) return;
-		if (await saveCurrentSelections(name.trim(), selections)) {
+		if (await SavedSelection.save(name.trim(), selections)) {
 			onNameChange("");
 			onOpenChange(false);
 		}
@@ -96,7 +87,7 @@ export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 
 	useEffect(() => {
 		let live = true;
-		loadAllSavedSelections()
+		SavedSelection.loadAll()
 			.then((rules) => {
 				if (live) setSaved(rules);
 			})
@@ -127,7 +118,7 @@ export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 								className="saved-selection-row"
 								onClick={() => {
 									if (map) {
-										applySavedSelection(s);
+										SavedSelection.apply(s);
 										onOpenChange(false);
 									}
 								}}
@@ -141,14 +132,14 @@ export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
 										aria-label={t("Delete")}
 										data-reveal
 										onConfirm={() => {
-											void deleteSavedSelection(s.id);
+											void SavedSelection.remove(s.id);
 											setSaved(saved.filter((r) => r.id !== s.id));
 										}}
 									>
 										<Icon path={mdiClose} size={14} />
 									</ConfirmButton>
 								</div>
-								<RuleChips parts={savedParts(s)} />
+								<RuleChips parts={SavedSelection.parts(s)} />
 							</div>
 						))}
 					</div>

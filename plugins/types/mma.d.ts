@@ -3787,6 +3787,42 @@ declare const Import: {
     cancel: () => void;
 };
 
+/** Saved selection rules shared across maps. Tag membership is stored by name
+ * so rules can be applied on maps with different tag ids. */
+
+/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
+ *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
+ *  name it was saved under. @unstable */
+export interface SavedPart {
+    label: string;
+    color: RGB;
+    selector: Selector;
+}
+/** @unstable */
+declare const SavedSelection: {
+    /** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
+    MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
+    /** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
+    isSaveable: (selector: Selector) => boolean;
+    /** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
+     *  a single part. @unstable */
+    parts: (saved: SavedSelection) => SavedPart[];
+    /** The rules that exist, as identity only. Empty until the index loads: the first
+     *  call starts the read and `saved-selections:changed` announces it. @unstable */
+    index: () => SavedSelectionInfo[];
+    /** Load the full rule bodies for the given `ids`. @unstable */
+    load: (ids: string[]) => Promise<SavedSelection[]>;
+    /** Every rule with its body. @unstable */
+    loadAll: () => Promise<SavedSelection[]>;
+    /** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
+    save: (name: string, selections: Selection[]) => Promise<boolean>;
+    /** Permanently delete a saved selection rule. @unstable */
+    remove: (id: string) => Promise<void>;
+    /** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
+     *  were added. @unstable */
+    apply: (saved: SavedSelection) => number;
+};
+
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 /** Selector variants with child selections. @unstable */
@@ -3982,61 +4018,6 @@ declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
   export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
-}
-
-/** Selection types that cannot be saved as rules because they are bound to the open map. @unstable */
-declare const MAP_LOCAL_TYPES: readonly ["Locations", "Manual", "Validation", "Reviewed", "Selected"];
-/** Whether the selector tree contains only portable types (no map-local leaves). @unstable */
-declare function isSaveable(selector: Selector): boolean;
-/** One part of a saved rule: what its chip reads as, and what it resolves to here. The
- *  label comes from the tree as saved, so a tag this map doesn't have still reads by the
- *  name it was saved under. @unstable */
-export interface SavedPart {
-    label: string;
-    color: RGB;
-    selector: Selector;
-}
-/** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
- *  a single part. @unstable */
-declare function savedParts(saved: SavedSelection): SavedPart[];
-/** The rules that exist, as identity only. Empty until the index loads: the first
- *  call starts the read and `saved-selections:changed` announces it. @unstable */
-declare function getSavedSelectionIndex(): SavedSelectionInfo[];
-/** Load the full rule bodies for the given `ids`. @unstable */
-declare function loadSavedSelections(ids: string[]): Promise<SavedSelection[]>;
-/** Every rule with its body. @unstable */
-declare function loadAllSavedSelections(): Promise<SavedSelection[]>;
-/** Persists the saveable selections as one rule. False when none of them are saveable. @unstable */
-declare function saveCurrentSelections(name: string, selections: Selection[]): Promise<boolean>;
-/** Permanently delete a saved selection rule. @unstable */
-declare function deleteSavedSelection(id: string): Promise<void>;
-/** Adds the rule's parts to the sidebar, resolved against the open map. Returns how many
- *  were added. @unstable */
-declare function applySavedSelection(saved: SavedSelection): number;
-
-/** @unstable */
-declare const savedSelections_MAP_LOCAL_TYPES: typeof MAP_LOCAL_TYPES;
-/** @unstable */
-export type savedSelections_SavedPart = SavedPart;
-/** @unstable */
-declare const savedSelections_applySavedSelection: typeof applySavedSelection;
-/** @unstable */
-declare const savedSelections_deleteSavedSelection: typeof deleteSavedSelection;
-/** @unstable */
-declare const savedSelections_getSavedSelectionIndex: typeof getSavedSelectionIndex;
-/** @unstable */
-declare const savedSelections_isSaveable: typeof isSaveable;
-/** @unstable */
-declare const savedSelections_loadAllSavedSelections: typeof loadAllSavedSelections;
-/** @unstable */
-declare const savedSelections_loadSavedSelections: typeof loadSavedSelections;
-/** @unstable */
-declare const savedSelections_saveCurrentSelections: typeof saveCurrentSelections;
-/** @unstable */
-declare const savedSelections_savedParts: typeof savedParts;
-declare namespace savedSelections {
-  export { savedSelections_MAP_LOCAL_TYPES as MAP_LOCAL_TYPES, savedSelections_applySavedSelection as applySavedSelection, savedSelections_deleteSavedSelection as deleteSavedSelection, savedSelections_getSavedSelectionIndex as getSavedSelectionIndex, savedSelections_isSaveable as isSaveable, savedSelections_loadAllSavedSelections as loadAllSavedSelections, savedSelections_loadSavedSelections as loadSavedSelections, savedSelections_saveCurrentSelections as saveCurrentSelections, savedSelections_savedParts as savedParts };
-  export type { savedSelections_SavedPart as SavedPart };
 }
 
 /** A value saved in local storage: its key and its defaults. @unstable */
@@ -7917,8 +7898,6 @@ declare namespace tags {
 export type ConstsApi = typeof consts;
 /** Pure transforms over the selection list behind the sidebar. @unstable */
 export type SelectionOpsApi = typeof selectionOps;
-/** Saved selection rules. @unstable */
-export type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
 export type SettingsApi = typeof settings;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
@@ -7984,7 +7963,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -8017,6 +7996,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SavedSelectionsApi, SettingsAp
     CommitDiff: typeof CommitDiff;
     /** Stage, preview, and confirm an import into the open map. @unstable */
     Import: typeof Import;
+    /** Saved selection rules. @unstable */
+    SavedSelection: typeof SavedSelection;
 }
 
 declare global {
@@ -8027,4 +8008,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
