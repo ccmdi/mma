@@ -17,7 +17,8 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
-import { getMapState, query, useMapState } from "@/store/useMapStore";
+import { getMapState, read, rowsOf, useMapState } from "@/store/useMapStore";
+import { selection } from "@/store/selections";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
 import { dateTimeFmt, fmt, relativeTime } from "@/lib/util/format";
@@ -64,11 +65,18 @@ import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
-	const ids = await query(selector).sample(n);
-	if (ids.length === 0) return [];
-	return (await query({ type: "Locations", locations: ids, name: null }).locations()).map(
-		toRoundLocation,
+	const { ids } = await read(
+		{ type: "Sample", selection: selection(selector), n },
+		{ kind: "ids" },
+		"ids",
 	);
+	if (ids.length === 0) return [];
+	const { rows } = await read(
+		{ type: "Locations", locations: ids, name: null },
+		{ kind: "rows" },
+		"rows",
+	);
+	return (await rowsOf(rows)).map(toRoundLocation);
 }
 
 function SavedGameCard({

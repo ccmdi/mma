@@ -11,7 +11,8 @@ import {
 } from "react";
 import {
 	getMapState,
-	query,
+	read,
+	rowsOf,
 	mutate,
 	setOpenRow,
 	useMapState,
@@ -100,10 +101,16 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const draft = session.current?.open.session === opened?.session ? location : null;
 
 	const refresh = useCallback(async (h: ViewerSession) => {
-		const [fresh] = await query(
-			{ type: "Locations", locations: [h.open.id], name: null },
-			VIEWER,
-		).locations();
+		const [fresh] = await rowsOf(
+			(
+				await read(
+					{ type: "Locations", locations: [h.open.id], name: null },
+					{ kind: "rows" },
+					"rows",
+					VIEWER,
+				)
+			).rows,
+		);
 		setOpenRow(fresh ?? null, h.open.session);
 	}, []);
 

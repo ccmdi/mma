@@ -20,7 +20,7 @@ import {
 	getActiveSelections,
 	getMapState,
 	getTags,
-	query,
+	read,
 } from "@/store/useMapStore";
 import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
@@ -83,13 +83,17 @@ async function selectionAxis(kind: "all" | "active", scope: Selector): Promise<R
 					selector: all(scope, s.selector),
 					pick: null,
 				}));
-	const sizes = await Promise.all(members.map((m) => query(m.selector).count()));
+	const sizes = await Promise.all(
+		members.map(async (m) => (await read(m.selector, { kind: "count" }, "count")).count),
+	);
 	return { members, sizes, tally: null, binned: false };
 }
 
 /** Tag histogram inside a selector: one tag column read, tallied over that selector alone. */
 async function tagCounts(selector: Selector): Promise<Tally> {
-	const [column] = await query(selector).columns(["tags"]);
+	const {
+		columns: [column],
+	} = await read(selector, { kind: "columns", fields: ["tags"] }, "columns");
 	const counts = new Map<string, number>();
 	let withValue = 0;
 	for (const cell of column) {
@@ -129,7 +133,9 @@ async function fieldAxis(
 
 	// Numeric fields bucket into a histogram; resolveBucketCount arbitrates between the
 	// user's choice and the field's cardinality.
-	const numericDistinct = isNumeric ? (await query(scope).values(fieldKey)).length : undefined;
+	const numericDistinct = isNumeric
+		? (await read(scope, { kind: "values", field: fieldKey }, "values")).values.length
+		: undefined;
 	const effectiveBuckets =
 		numericDistinct != null ? resolveBucketCount(numericDistinct, bucketCount) : null;
 
@@ -140,21 +146,33 @@ async function fieldAxis(
 		tally = tagCounts;
 		whole = await tally(scope);
 	} else if (effectiveBuckets) {
-		const groups = await query(scope).partition(fieldKey, {
-			kind: "numericBin",
-			binning: { by: "count", n: effectiveBuckets },
-		});
+		const { groups } = await read(
+			scope,
+			{
+				kind: "groupBy",
+				field: fieldKey,
+				key: { kind: "numericBin", binning: { by: "count", n: effectiveBuckets } },
+			},
+			"groups",
+		);
 		const binOf = new Map<number, string>();
 		for (const g of groups) for (const id of g.ids) binOf.set(id, g.key);
 		buckets = groups;
-		tally = async (selector) => binCounts(await query(selector).ids(), binOf);
+		tally = async (selector) =>
+			binCounts((await read(selector, { kind: "ids" }, "ids")).ids, binOf);
 		whole = {
 			counts: new Map(groups.map((g) => [g.key, g.ids.length])),
 			withValue: binOf.size,
 		};
 	} else {
 		tally = async (selector) => {
-			const [grouped] = await query(selector).countBy([fieldKey], { kind: "value" });
+			const {
+				counts: [grouped],
+			} = await read(
+				selector,
+				{ kind: "countBy", fields: [fieldKey], key: { kind: "value" } },
+				"counts",
+			);
 			return { counts: new Map(grouped.counts), withValue: grouped.covered };
 		};
 		whole = await tally(scope);
@@ -196,7 +214,7 @@ async function fieldAxis(
 	const members = keys.map(member);
 	const sizes = keys.map((k) => whole.counts.get(k) ?? 0);
 
-	const naCount = (await query(scope).count()) - whole.withValue;
+	const naCount = (await read(scope, { kind: "count" }, "count")).count - whole.withValue;
 	if (naCount > 0) {
 		const pick: Selector = isTags
 			? untaggedSelector()
@@ -220,8 +238,14 @@ function resolveAxis(axis: Axis, scope: Selector, defOf: (key: string) => FieldD
 		: selectionAxis(axis.kind, scope);
 }
 
-const countBoth = (a: Selector, b: Selector) =>
-	query({ type: "Intersection", selections: [selection(a), selection(b)] }).count();
+const countBoth = async (a: Selector, b: Selector) =>
+	(
+		await read(
+			{ type: "Intersection", selections: [selection(a), selection(b)] },
+			{ kind: "count" },
+			"count",
+		)
+	).count;
 
 async function computePivot(
 	rows: Axis,

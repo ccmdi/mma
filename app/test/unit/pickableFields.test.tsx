@@ -14,7 +14,10 @@ vi.mock("@/store/useMapStore", () => {
 	return {
 		getMapState: state,
 		useMapState: (sel: (s: unknown) => unknown) => sel(state()),
-		query: () => ({ coverage: async () => h.held, values: async () => [] }),
+		read: async (_selector: unknown, ask: { kind: string }) =>
+			ask.kind === "coverage"
+				? { kind: "coverage", coverage: h.held }
+				: { kind: "values", values: [] },
 		applySelectionUpdate: async () => {},
 	};
 });

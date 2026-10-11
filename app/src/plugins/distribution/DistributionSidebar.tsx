@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
-import { query } from "@/store/useMapStore";
+import { read } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
 
 import { subscribe } from "@/lib/events";
@@ -47,9 +47,13 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 		const count = MMA.getMapState().locationCount;
 		setTotal(count);
 
-		const [countries] = await query({ type: "Everything" }).countBy(["countryCode"], {
-			kind: "value",
-		});
+		const {
+			counts: [countries],
+		} = await read(
+			{ type: "Everything" },
+			{ kind: "countBy", fields: ["countryCode"], key: { kind: "value" } },
+			"counts",
+		);
 		const meta = toDistribution(countries.counts, count);
 		const hasMeta = count > 0 && meta.unknown < count;
 		setMetaAvailable(hasMeta);

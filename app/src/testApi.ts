@@ -6,7 +6,7 @@ import {
 	getMapState,
 	settled,
 	openMap as storeOpenMap,
-	query,
+	read,
 } from "@/store/useMapStore";
 import * as mapList from "@/store/mapList";
 import { cmd } from "@/lib/commands";
@@ -25,7 +25,7 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 		(await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }))
 			.mutation,
 	);
-	return { ids: await query({ type: "Selected" }).ids() };
+	return { ids: (await read({ type: "Selected" }, { kind: "ids" }, "ids")).ids };
 }
 
 /** Open a map by id and navigate to it. */

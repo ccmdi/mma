@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Selection } from "@/bindings.gen";
-import { query, deleteTags, getActiveSelections, useMapState } from "@/store/useMapStore";
+import { read, deleteTags, getActiveSelections, useMapState } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagIdOf, tagSelector } from "@/store/selections";
@@ -59,11 +59,17 @@ function TagContextMenuItems({
 		const scope = selectionWithout(targets);
 		const nodeScope = selectionWithout(nodeTargets);
 		void Promise.all([
-			query(carriers).count(),
-			tagId == null ? 0 : query(tagSelector(tagId)).count(),
-			scope.selections.length > 0 ? query(all(carriers, scope)).count() : 0,
+			read(carriers, { kind: "count" }, "count").then((r) => r.count),
+			tagId == null ? 0 : read(tagSelector(tagId), { kind: "count" }, "count").then((r) => r.count),
+			scope.selections.length > 0
+				? read(all(carriers, scope), { kind: "count" }, "count").then((r) => r.count)
+				: 0,
 			multi && nodeTargets.length > 0 && nodeScope.selections.length > 0
-				? query(all(any(...nodeTargets.map(tagSelector)), nodeScope)).count()
+				? read(
+						all(any(...nodeTargets.map(tagSelector)), nodeScope),
+						{ kind: "count" },
+						"count",
+					).then((r) => r.count)
 				: 0,
 		]).then(([total, own, inSel, nodeInSel]) => setCounts({ total, own, inSel, nodeInSel }));
 	}, [tagId, targets, nodeTargets, multi]);

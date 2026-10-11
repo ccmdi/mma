@@ -3,7 +3,7 @@
 
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
-import { query, setActiveLocation, previewLocation } from "@/store/useMapStore";
+import { read, rowsOf, setActiveLocation, previewLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { getSeenCount, getSeenEntries } from "./seen";
@@ -44,7 +44,10 @@ export function getSeenOnMapIds(): ReadonlySet<number> {
 async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
 	const locIds = [...new Set(list.map((e) => e.locationId).filter((x): x is number => x != null))];
 	if (locIds.length === 0) return new Set();
-	const onMap = await query({ type: "Locations", locations: locIds, name: null }).locations();
+	const onMap = await rowsOf(
+		(await read({ type: "Locations", locations: locIds, name: null }, { kind: "rows" }, "rows"))
+			.rows,
+	);
 	const panoById = new Map(onMap.map((l) => [l.id, l.panoId]));
 	const out = new Set<number>();
 	for (const e of list) {
@@ -83,11 +86,15 @@ export async function openSeenEntry(index: number): Promise<void> {
 	if (!entry) return;
 	seenSkipNext(entry.panoId);
 	if (entry.locationId != null) {
-		const [existing] = await query({
-			type: "Locations",
-			locations: [entry.locationId],
-			name: null,
-		}).locations();
+		const [existing] = await rowsOf(
+			(
+				await read(
+					{ type: "Locations", locations: [entry.locationId], name: null },
+					{ kind: "rows" },
+					"rows",
+				)
+			).rows,
+		);
 		if (existing && existing.panoId === entry.panoId) {
 			void setActiveLocation(existing.id);
 			return;

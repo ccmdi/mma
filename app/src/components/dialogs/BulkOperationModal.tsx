@@ -15,7 +15,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { Bar } from "@/components/primitives/Bar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
-import { applySelectionUpdate, getMapState, query } from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, read, rowsOf } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 
 import { addSelection, all, panoIdSelector } from "@/store/selections";
@@ -111,9 +111,9 @@ interface SetupProps {
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 	const [total, pinned, counts] = await Promise.all([
-		query(selector).count(),
-		query(all(selector, panoIdSelector(true))).count(),
-		query(selector).coverage(),
+		read(selector, { kind: "count" }, "count").then((r) => r.count),
+		read(all(selector, panoIdSelector(true)), { kind: "count" }, "count").then((r) => r.count),
+		read(selector, { kind: "coverage" }, "coverage").then((r) => r.coverage),
 	]);
 	const have = new Map(counts);
 	return {
@@ -723,7 +723,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 					onClick: () => {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
-							const locations = await query(selector).locations();
+							const locations = await rowsOf((await read(selector, { kind: "rows" }, "rows")).rows);
 							const result = await bulkDownloadPanoramas(locations, config, {
 								signal,
 								onProgress,
@@ -1160,7 +1160,10 @@ export function BulkOperationModal({
 }: DialogProps & { operation: BulkOperation }) {
 	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
-	const { data: allKeys } = useAsync(() => query({ type: "Everything" }).coverage(), []);
+	const { data: allKeys } = useAsync(
+		async () => (await read({ type: "Everything" }, { kind: "coverage" }, "coverage")).coverage,
+		[],
+	);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);
 
 	if (!run && (allKeys === null || info === null)) return null;

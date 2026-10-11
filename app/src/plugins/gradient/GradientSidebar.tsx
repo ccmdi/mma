@@ -9,11 +9,12 @@ import type { FieldType, DatePart } from "@/bindings.consts";
 import { rgbCss, type RGB } from "@/lib/util/color";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { usePickableFields, type FieldEntry } from "@/components/editor/map/FilterBuilder";
-import { applySelectionUpdate, getMapState, query } from "@/store/useMapStore";
+import { applySelectionUpdate, getMapState, read } from "@/store/useMapStore";
 import { partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { isNumericField, colorPartition } from "./gradientMath";
 import { useSelectorPick } from "@/store/selectorPick";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
+import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { useSetting } from "@/store/settings";
 import "./gradient.css";
@@ -154,7 +155,12 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 								tzLocal: dateTimezone === "location",
 							};
 
-			const groups = await query(picker.selector).partition(fieldKey, key);
+			const { groups } = await read(
+				picker.selector,
+				{ kind: "groupBy", field: fieldKey, key },
+				"groups",
+			);
+			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 			const skipped = await countMissingTimezone(
 				picker.selector,
 				fieldKey,

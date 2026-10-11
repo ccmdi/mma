@@ -133,24 +133,26 @@ async function analyze(): Promise<Analysis> {
 
 	const colors = sels.map((s) => s.color);
 	const selectors = sels.map((s) => s.selector);
-	const union = MMA.query(MMA.any(...selectors));
+	const union = MMA.any(...selectors);
 
 	const fieldDefs: Record<string, FieldDef> = MMA.getAllFieldDefs();
 	const tagNames: Record<number, string> = {};
 	for (const [id, t] of Object.entries(MMA.getTags()))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
-	const [unionSize, present] = await Promise.all([union.count(), union.coverage()]);
+	const [{ count: unionSize }, { coverage: present }] = await Promise.all([
+		MMA.read(union, { kind: "count" }, "count"),
+		MMA.read(union, { kind: "coverage" }, "coverage"),
+	]);
 	const fields = analysisColumns(
 		fieldDefs,
 		present.map(([k]) => k),
 	);
 	const groups = await Promise.all(
 		exclusiveGroups(selectors).map(async (selector) => {
-			const group = MMA.query(selector);
-			const [size, counts] = await Promise.all([
-				group.count(),
-				group.countBy(fields, { kind: "value" }),
+			const [{ count: size }, { counts }] = await Promise.all([
+				MMA.read(selector, { kind: "count" }, "count"),
+				MMA.read(selector, { kind: "countBy", fields, key: { kind: "value" } }, "counts"),
 			]);
 			return { size, counts: Object.fromEntries(fields.map((f, i) => [f, counts[i]])) };
 		}),

@@ -7,7 +7,7 @@ import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
-import { query } from "@/store/useMapStore";
+import { read } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
@@ -26,6 +26,7 @@ import { Checkbox } from "@/components/primitives/Checkbox";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { t } from "@/lib/i18n";
 import { fillTemplate } from "@/lib/util/format";
+import { compareNatural } from "@/lib/util/util";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { applyCounts, type Preview } from "./applyCounts";
 
@@ -82,12 +83,12 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		let live = true;
 		const selector = picker.selector;
 		void Promise.all([
-			query(selector).count(),
-			query(selector).coverage(),
+			read(selector, { kind: "count" }, "count").then((r) => r.count),
+			read(selector, { kind: "coverage" }, "coverage").then((r) => r.coverage),
 			key
-				? query(selector)
-						.countBy([field], key)
-						.then(([grouped]) => grouped)
+				? read(selector, { kind: "countBy", fields: [field], key }, "counts").then(
+						({ counts }) => counts[0],
+					)
 				: Promise.resolve<CountBy>({ counts: [], covered: 0 }),
 		]).then(([total, counts, grouped]) => {
 			if (!live) return;
@@ -126,7 +127,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const handleApply = async () => {
 		if (!field || !key) return;
 
-		const groups = await query(picker.selector).partition(field, key);
+		const groups = (await read(picker.selector, { kind: "groupBy", field, key }, "groups")).groups;
+		if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
 		// the set with no value for this field.
@@ -134,7 +136,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const missing = tagMissing
 			? all(picker.selector, not({ type: "Locations", locations: grouped, name: null }))
 			: null;
-		const missingCount = missing ? await query(missing).count() : 0;
+		const missingCount = missing ? (await read(missing, { kind: "count" }, "count")).count : 0;
 		if (groups.length === 0 && missingCount === 0) return;
 
 		const labels = await resolveFieldLabels(

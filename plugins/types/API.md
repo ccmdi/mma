@@ -448,7 +448,7 @@ KNOWN_FIELDS: readonly [
 
 ### LOCATION_MERGED
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 LOCATION_MERGED: readonly ["extra"]
@@ -633,7 +633,7 @@ this, never the contents of a result.
 
 ### Stack
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Stack: { readonly Undo: "undo"; readonly Redo: "redo" }
@@ -902,7 +902,7 @@ should enumerate those.
 
 ### historyAvailable
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 historyAvailable(
@@ -977,7 +977,7 @@ Read-only preview of transitive duplicate groups (size >= 2) within `distance` m
 
 ### previewLocation
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 previewLocation(loc: Location): void
@@ -986,47 +986,9 @@ previewLocation(loc: Location): void
 Open an arbitrary location read-only as a seen-preview: loads its pano without
 adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
 
-### query
-
-`stable` · since v0.11.3
-
-```ts
-query(
-  selector: Selector,
-  target?: Target,
-): {
-  /** Resolved ids in ascending order, or a ranked selector's order. */
-  ids: () => Promise<number[]>;
-  /** How many locations resolve. */
-  count: () => Promise<number>;
-  /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
-  bounds: () => Promise<[number, number, number, number] | null>;
-  /** `n` ids drawn uniformly at random, without replacement. */
-  sample: (n: number) => Promise<number[]>;
-  /** Distinct values of `field`, sorted. */
-  values: (field: string) => Promise<string[]>;
-  /** Group each field by a derived key and count, one result per field. */
-  countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
-  /** How many locations hold a value for each field, key-sorted. */
-  coverage: () => Promise<[string, number][]>;
-  /** One column per field. `null` where a location lacks the field; `"tags"`
-   *  returns a column of tag-id arrays. */
-  columns: (fields: string[]) => Promise<unknown[][]>;
-  /** Group by a derived key. Numeric bins arrive in bound order; other keys are
-   *  sorted naturally. */
-  partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-  /** Full matching locations, skipping missing ids. All results are loaded into memory;
-   *  use narrower selectors or projections for large maps. */
-  locations: () => Promise<Location[]>;
-}
-```
-
-Questions about the locations a selector resolves to. Each call answers once,
-against the map as it is now; ask again after a change.
-
 ### read
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 read<K extends Answer["kind"]>(
@@ -1051,7 +1013,7 @@ Redo the last undone edit.
 
 ### redoSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 redoSelections(): Promise<void>
@@ -1107,7 +1069,7 @@ Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not 
 
 ### restoreSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 restoreSelections(): Promise<void>
@@ -1117,7 +1079,7 @@ Undo the last selection change without undoing data edits.
 
 ### rowsOf
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
@@ -1127,7 +1089,7 @@ Unpack a row query, fetching large results from its temp file.
 
 ### select
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 select<
@@ -1160,7 +1122,7 @@ opening of any kind supersedes one still loading.
 
 ### setMap
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 setMap(map: MapMeta): void
@@ -1170,7 +1132,7 @@ Replace the open map's row in state; persisting it is the caller's.
 
 ### setOpenRow
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 setOpenRow(row: Location | null, session: number): void
@@ -1200,7 +1162,7 @@ Overwrite the selected-id set directly, bypassing selection resolution. Rarely w
 
 ### settled
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 settled(m: Mutation): Promise<void>
@@ -1262,7 +1224,7 @@ memoized values, not a new value per call.
 
 ### VIEWER
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
@@ -2159,7 +2121,7 @@ replaceSelection(path: SelectionPath, selector: Selector): SelectionOp
 
 ### selection
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 selection(selector: Selector, color?: RGB): SelectionInput
@@ -2240,7 +2202,7 @@ setSelectionColor(path: SelectionPath, color: RGB): SelectionOp
 
 ### setSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 setSelections(selections: SelectionInput[]): SelectionOp
@@ -3165,7 +3127,7 @@ The current staged import, or null if none.
 
 ### importTarget
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 importTarget(): Target
@@ -4434,7 +4396,7 @@ Never `null`: every landmass is covered.
 
 #### cmd.selectionBuild
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.selectionBuild(selections: SelectionInput[]): Promise<Selection[]>
@@ -4550,7 +4512,7 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 
 #### cmd.storeApplySavedSelection
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeApplySavedSelection(id: string): Promise<MutationResult>
@@ -4677,7 +4639,7 @@ Delete a saved selection rule by `id`.
 
 #### cmd.storeDrop
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeDrop(name: string): Promise<null>
@@ -4698,7 +4660,7 @@ edit history, sync links, and review sessions stay with the original.
 
 #### cmd.storeEdit
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeEdit(
@@ -4712,7 +4674,7 @@ Edit rows where target says; a pending layer holds edits until land.
 
 #### cmd.storeEditSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult>
@@ -4919,7 +4881,7 @@ Patch an interned field's value records; membership uses ordinary row edits.
 
 #### cmd.storeRead
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeRead(
@@ -5127,7 +5089,7 @@ Record a panorama visit. The history is capped; oldest entries are evicted when 
 
 #### cmd.storeSetDerived
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeSetDerived(edges: { [key in string]: string[] }): Promise<null>
@@ -5158,7 +5120,7 @@ Set the default marker color for new render updates.
 
 #### cmd.storeStep
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeStep(stack: Stack, key: EntryKey | null): Promise<MutationResult>
@@ -5168,7 +5130,7 @@ Undo the newest edit, or redo the newest undone one.
 
 #### cmd.storeSubscribeChanges
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
@@ -5191,7 +5153,7 @@ Draw the open map's markers: `frames` receives the whole scene, then every chang
 
 #### cmd.storeSummary
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeSummary(): Promise<Summary>
@@ -5262,7 +5224,7 @@ directory. Returns a temp path for `storeSaveExportFile`.
 
 #### cmd.storeWork
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeWork(
@@ -5461,8 +5423,14 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke: any
+invoke<T>(
+  cmd: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T>
 ```
+
+Sends a message to the backend.
 
 ### shell
 
@@ -7426,7 +7394,7 @@ countBy(
 ): Promise<CountBy>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).countBy([field], key)`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "countBy", fields: [field], key }, "counts")`.
 
 ### countIn
 
@@ -7436,7 +7404,7 @@ countBy(
 countIn(selector: Selector): Promise<number>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).count()`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "count" }, "count")`.
 
 ### coverage
 
@@ -7446,7 +7414,7 @@ countIn(selector: Selector): Promise<number>
 coverage(selector: Selector): Promise<[string, number][]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).coverage()`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "coverage" }, "coverage")`.
 
 ### createPluginStorage
 
@@ -7476,7 +7444,7 @@ currentSelection(): Selector
 fetchAllLocations(): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.query({ type: "Everything" }).locations()`.
+**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Everything" }, { kind: "rows" }, "rows")).rows)`.
 
 ### fetchBounds
 
@@ -7488,7 +7456,7 @@ fetchBounds(
 ): Promise<[number, number, number, number] | null>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).bounds()`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "bounds" }, "bounds")`.
 
 ### fetchColumns
 
@@ -7498,7 +7466,7 @@ fetchBounds(
 fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).columns(fields)`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "columns", fields }, "columns")`.
 
 ### fetchLocation
 
@@ -7508,7 +7476,7 @@ fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 fetchLocation(id: number): Promise<Location>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`.
+**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows)`.
 
 ### fetchLocations
 
@@ -7518,7 +7486,7 @@ fetchLocation(id: number): Promise<Location>
 fetchLocations(selector: Selector): Promise<Location[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).locations()`.
+**Deprecated in v0.11.3.** Use `MMA.rowsOf((await MMA.read(selector, { kind: "rows" }, "rows")).rows)`.
 
 ### fetchLocationsByIds
 
@@ -7528,7 +7496,7 @@ fetchLocations(selector: Selector): Promise<Location[]>
 fetchLocationsByIds(ids: number[]): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.query({ type: "Locations", locations: ids, name: null }).locations()`.
+**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" }, "rows")).rows)`.
 
 ### fieldCoverage
 
@@ -7538,7 +7506,7 @@ fetchLocationsByIds(ids: number[]): Promise<Location[]>
 fieldCoverage(selector: Selector): Promise<[string, number][]>
 ```
 
-**Deprecated in v0.10.2.** Use `MMA.query(selector).coverage()`.
+**Deprecated in v0.10.2.** Use `MMA.read(selector, { kind: "coverage" }, "coverage")`.
 
 ### fieldValues
 
@@ -7548,7 +7516,7 @@ fieldCoverage(selector: Selector): Promise<[string, number][]>
 fieldValues(selector: Selector, field: string): Promise<string[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).values(field)`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "values", field }, "values")`.
 
 ### getActiveLocation
 
@@ -7672,7 +7640,43 @@ partition(
 ): Promise<PartitionBucket[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).partition(field, key)`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "groupBy", field, key }, "groups")`.
+
+### query
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+query(
+  selector: Selector,
+  target?: Target,
+): {
+  /** Resolved ids in ascending order, or in ranked-selector order. */
+  ids: () => Promise<number[]>;
+  /** Number of locations the selector resolves to. */
+  count: () => Promise<number>;
+  /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+  bounds: () => Promise<[number, number, number, number] | null>;
+  /** `n` ids drawn uniformly at random, without replacement. */
+  sample: (n: number) => Promise<number[]>;
+  /** Distinct values of `field`, sorted. */
+  values: (field: string) => Promise<string[]>;
+  /** Group each field by a derived key and count, one result per field. */
+  countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
+  /** How many locations hold a value for each field, key-sorted. */
+  coverage: () => Promise<[string, number][]>;
+  /** One column per field: null for missing values and tag-id arrays for `tags`. */
+  columns: (fields: string[]) => Promise<unknown[][]>;
+  /** Group by a derived key; bins use bound order and other keys sort naturally. */
+  partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+  /** Full matching locations, loading any large result from its temporary file. */
+  locations: () => Promise<Location[]>;
+}
+```
+
+**Deprecated in v0.12.0.** Use `MMA.read(selector, ask, answerKind)` instead.
+
+Query matching rows against the map's current state.
 
 ### registerEnrichFields
 
@@ -7758,7 +7762,7 @@ resetSelections(): Promise<void>
 resolveIds(selector: Selector): Promise<number[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).ids()`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "ids" }, "ids")`.
 
 ### sampleFrom
 
@@ -7768,7 +7772,7 @@ resolveIds(selector: Selector): Promise<number[]>
 sampleFrom(selector: Selector, n: number): Promise<number[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.query(selector).sample(n)`.
+**Deprecated in v0.11.3.** Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" }, "ids")`.
 
 ### setUserFieldDefs
 

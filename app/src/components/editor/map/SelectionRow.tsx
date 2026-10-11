@@ -3,7 +3,7 @@ import {
 	applySelectionUpdate,
 	getMapState,
 	getVisibleTags,
-	query,
+	read,
 	useMapState,
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
@@ -60,7 +60,7 @@ async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
 		selection.selector.type === "Polygon"
 			? await cmd.polygonBounds(selection.selector.polygon)
-			: await query(selection.selector).bounds();
+			: (await read(selection.selector, { kind: "bounds" }, "bounds")).bounds;
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 
@@ -303,7 +303,7 @@ export const SelectionRow = memo(function SelectionRow({
 										disabled={count === 0}
 										onClick={() =>
 											void (async () => {
-												const ids = await query(selection.selector).ids();
+												const ids = (await read(selection.selector, { kind: "ids" }, "ids")).ids;
 												void beginReview(ids, selection);
 											})()
 										}

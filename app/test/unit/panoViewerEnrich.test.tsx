@@ -85,10 +85,14 @@ vi.mock("@/store/useMapStore", async () => {
 		return { open: h.opened && { ...h.opened, row }, map: { settings: { enrichMetadata: true } } };
 	};
 	return {
-		query: (selector: { locations: number[] }) => ({
-			locations: async () =>
-				selector.locations.flatMap((id) => (h.layer.has(id) ? [h.layer.get(id)] : [])),
+		read: async (selector: { locations: number[] }) => ({
+			kind: "rows",
+			rows: {
+				kind: "inline",
+				locations: selector.locations.flatMap((id) => (h.layer.has(id) ? [h.layer.get(id)] : [])),
+			},
 		}),
+		rowsOf: async (rows: { locations: unknown[] }) => rows.locations,
 		VIEWER: { kind: "pending", name: "viewer" },
 		useMapState: (sel: (s: ReturnType<typeof state>) => unknown) => {
 			const [, tick] = useState(0);

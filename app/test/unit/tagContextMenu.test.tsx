@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
 vi.mock("@/store/useMapStore", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/store/useMapStore")>()),
 	deleteTags: h.deleteTags,
-	query: (s: unknown) => ({ count: () => h.countIn(s) }),
+	read: async (s: unknown) => ({ kind: "count", count: await h.countIn(s) }),
 	getActiveSelections: () => h.active,
 	useMapState: (sel: () => unknown) => sel(),
 }));

@@ -19,7 +19,7 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { deleteField, getMapState, query, renameField } from "@/store/useMapStore";
+import { deleteField, getMapState, read, renameField } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import { useMapSetting } from "@/store/useMapSetting";
 import type { FieldDef, FieldValue } from "@/bindings.gen";
@@ -108,11 +108,9 @@ function useCoverage(epoch = 0): Map<string, number> {
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		void query({ type: "Everything" })
-			.coverage()
-			.then((counts) => {
-				setCoverage(new Map(counts.map(([key, n]) => [key, n / total])));
-			});
+		void read({ type: "Everything" }, { kind: "coverage" }, "coverage").then(({ coverage }) => {
+			setCoverage(new Map(coverage.map(([key, n]) => [key, n / total])));
+		});
 	}, [epoch]);
 	return coverage;
 }
@@ -292,7 +290,7 @@ function FieldsTab() {
 
 	const proposeRename = async (target: string) => {
 		if (!row || !target || target === row.key) return;
-		const counts = await query({ type: "Everything" }).coverage();
+		const counts = (await read({ type: "Everything" }, { kind: "coverage" }, "coverage")).coverage;
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,
@@ -594,11 +592,11 @@ function EnumValues({
 	useEffect(() => {
 		let live = true;
 		const have = new Set((row.values ?? []).map((v) => v.value));
-		void query({ type: "Everything" })
-			.values(row.key)
-			.then((values) => {
+		void read({ type: "Everything" }, { kind: "values", field: row.key }, "values").then(
+			({ values }) => {
 				if (live) setCandidates(values.filter((v) => !have.has(v)));
-			});
+			},
+		);
 		return () => {
 			live = false;
 		};

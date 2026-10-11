@@ -3533,33 +3533,6 @@ export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
 declare function read<K extends Answer["kind"]>(selector: Selector, ask: Ask, kind: K, target?: Target): Promise<AnswerOf<K>>;
 /** Unpack a row query, fetching large results from its temp file. */
 declare function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>;
-/** Questions about the locations a selector resolves to. Each call answers once,
- *  against the map as it is now; ask again after a change. */
-declare function query$1(selector: Selector, target?: Target): {
-    /** Resolved ids in ascending order, or a ranked selector's order. */
-    ids: () => Promise<number[]>;
-    /** How many locations resolve. */
-    count: () => Promise<number>;
-    /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
-    bounds: () => Promise<[number, number, number, number] | null>;
-    /** `n` ids drawn uniformly at random, without replacement. */
-    sample: (n: number) => Promise<number[]>;
-    /** Distinct values of `field`, sorted. */
-    values: (field: string) => Promise<string[]>;
-    /** Group each field by a derived key and count, one result per field. */
-    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
-    /** How many locations hold a value for each field, key-sorted. */
-    coverage: () => Promise<[string, number][]>;
-    /** One column per field. `null` where a location lacks the field; `"tags"`
-     *  returns a column of tag-id arrays. */
-    columns: (fields: string[]) => Promise<unknown[][]>;
-    /** Group by a derived key. Numeric bins arrive in bound order; other keys are
-     *  sorted naturally. */
-    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /** Full matching locations, skipping missing ids. All results are loaded into memory;
-     *  use narrower selectors or projections for large maps. */
-    locations: () => Promise<Location[]>;
-};
 /** The selection: every listed selection that is not ghosted. */
 declare const getActiveSelections: () => Selection[];
 /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
@@ -3714,7 +3687,7 @@ declare const store_undo: typeof undo;
 declare const store_updateLocations: typeof updateLocations;
 declare const store_useMapState: typeof useMapState;
 declare namespace store {
-  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, query$1 as query, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
+  export { store_VIEWER as VIEWER, store_addLocations as addLocations, store_applySelectionUpdate as applySelectionUpdate, store_checkoutCommit as checkoutCommit, store_closeDuplicates as closeDuplicates, closeMap$1 as closeMap, store_commitMap as commitMap, store_deleteField as deleteField, store_deleteTags as deleteTags, store_discardOpenMap as discardOpenMap, store_duplicateLocation as duplicateLocation, store_exitPluginMode as exitPluginMode, store_getActiveSelections as getActiveSelections, store_getMapState as getMapState, store_getTag as getTag, store_getTagCounts as getTagCounts, store_getTags as getTags, store_getVisibleTags as getVisibleTags, store_historyAvailable as historyAvailable, store_initStore as initStore, store_mutate as mutate, store_openDuplicateLocation as openDuplicateLocation, openMap$1 as openMap, store_openStagedLocation as openStagedLocation, store_previewDuplicateGroups as previewDuplicateGroups, store_previewLocation as previewLocation, store_read as read, store_redo as redo, store_redoSelections as redoSelections, store_removeDuplicate as removeDuplicate, store_removeLocations as removeLocations, store_renameField as renameField, store_resolveLocation as resolveLocation, store_restoreSelections as restoreSelections, store_rowsOf as rowsOf, store_select as select, store_setActiveLocation as setActiveLocation, store_setMap as setMap, store_setOpenRow as setOpenRow, store_setPluginMode as setPluginMode, store_setSelectedLocationIds as setSelectedLocationIds, store_setWorkArea as setWorkArea, store_settled as settled, store_tagIdsToNames as tagIdsToNames, store_undo as undo, store_updateLocations as updateLocations, store_useMapState as useMapState };
   export type { store_MapState as MapState, store_Open as Open, store_OpenOrigin as OpenOrigin, store_UiState as UiState };
 }
 
@@ -7052,12 +7025,12 @@ declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(P
 declare function panosAt(points: LatLng[], radius?: number, opts?: SearchOpts, signal?: AbortSignal, onPano?: (index: number, pano: Pano | null) => void): Promise<(Pano | null)[]>;
 
 /** @unstable */
-export type query_SearchOpts = SearchOpts;
-declare const query_panosAt: typeof panosAt;
-declare const query_svMetadata: typeof svMetadata;
-declare namespace query {
-  export { query_panosAt as panosAt, query_svMetadata as svMetadata };
-  export type { query_SearchOpts as SearchOpts };
+export type query$1_SearchOpts = SearchOpts;
+declare const query$1_panosAt: typeof panosAt;
+declare const query$1_svMetadata: typeof svMetadata;
+declare namespace query$1 {
+  export { query$1_panosAt as panosAt, query$1_svMetadata as svMetadata };
+  export type { query$1_SearchOpts as SearchOpts };
 }
 
 /** @unstable */
@@ -7442,6 +7415,29 @@ declare namespace useJob$1 {
   export type { useJob$1_Job as Job, useJob$1_JobContext as JobContext };
 }
 
+/** Query matching rows against the map's current state. @deprecated v0.12.0. Use `MMA.read(selector, ask, answerKind)` instead. @unstable */
+declare function query(selector: Selector, target?: Target): {
+    /** Resolved ids in ascending order, or in ranked-selector order. */
+    ids: () => Promise<number[]>;
+    /** Number of locations the selector resolves to. */
+    count: () => Promise<number>;
+    /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+    bounds: () => Promise<[number, number, number, number] | null>;
+    /** `n` ids drawn uniformly at random, without replacement. */
+    sample: (n: number) => Promise<number[]>;
+    /** Distinct values of `field`, sorted. */
+    values: (field: string) => Promise<string[]>;
+    /** Group each field by a derived key and count, one result per field. */
+    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
+    /** How many locations hold a value for each field, key-sorted. */
+    coverage: () => Promise<[string, number][]>;
+    /** One column per field: null for missing values and tag-id arrays for `tags`. */
+    columns: (fields: string[]) => Promise<unknown[][]>;
+    /** Group by a derived key; bins use bound order and other keys sort naturally. */
+    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+    /** Full matching locations, loading any large result from its temporary file. */
+    locations: () => Promise<Location[]>;
+};
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
 declare function getGoogleMap(): google.maps.Map | null;
 /** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. @unstable */
@@ -7464,35 +7460,35 @@ declare function getGhostedSelections(): Set<string>;
 declare function getSelections(): Selection[];
 /** @deprecated v0.8.2. Ask `MMA.read` for the summary and take `dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
-/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: [id], name: null }).locations()`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows)`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.query({ type: "Locations", locations: ids, name: null }).locations()`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" }, "rows")).rows)`. @unstable */
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.query({ type: "Everything" }).locations()`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Everything" }, { kind: "rows" }, "rows")).rows)`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
-/** @deprecated v0.10.2. Use `MMA.query(selector).coverage()`. @unstable */
+/** @deprecated v0.10.2. Use `MMA.read(selector, { kind: "coverage" }, "coverage")`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
 declare function currentSelection(): Selector;
-/** @deprecated v0.11.3. Use `MMA.query(selector).ids()`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "ids" }, "ids")`. @unstable */
 declare function resolveIds(selector: Selector): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).count()`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "count" }, "count")`. @unstable */
 declare function countIn(selector: Selector): Promise<number>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).bounds()`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "bounds" }, "bounds")`. @unstable */
 declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).sample(n)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" }, "ids")`. @unstable */
 declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).values(field)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "values", field }, "values")`. @unstable */
 declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).countBy([field], key)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "countBy", fields: [field], key }, "counts")`. @unstable */
 declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).coverage()`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "coverage" }, "coverage")`. @unstable */
 declare function coverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).columns(fields)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "columns", fields }, "columns")`. @unstable */
 declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).partition(field, key)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "groupBy", field, key }, "groups")`. @unstable */
 declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
-/** @deprecated v0.11.3. Use `MMA.query(selector).locations()`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.rowsOf((await MMA.read(selector, { kind: "rows" }, "rows")).rows)`. @unstable */
 declare function fetchLocations(selector: Selector): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
@@ -7577,6 +7573,8 @@ declare const legacy_installedVersion: typeof installedVersion;
 /** @unstable */
 declare const legacy_partition: typeof partition;
 /** @unstable */
+declare const legacy_query: typeof query;
+/** @unstable */
 declare const legacy_registerEnrichFields: typeof registerEnrichFields;
 /** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
@@ -7627,6 +7625,7 @@ declare namespace legacy {
     legacy_getWorkArea as getWorkArea,
     legacy_installedVersion as installedVersion,
     legacy_partition as partition,
+    legacy_query as query,
     legacy_registerEnrichFields as registerEnrichFields,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_removeSelections as removeSelections,
@@ -7875,7 +7874,7 @@ export type PinPanoApi = typeof pinPano;
 export type ValidateApi = typeof validate;
 /** The validation categories users pick from, over the flags a check answers. @unstable */
 export type ValidationCategoriesApi = typeof validationCategories;
-export type QueryApi = typeof query;
+export type QueryApi = typeof query$1;
 /** The embedded map host, its preferences, and click interceptors. @unstable */
 export type MapStateApi = typeof mapState;
 /** The marker scene the map surfaces render from, and its load lifecycle. @unstable */

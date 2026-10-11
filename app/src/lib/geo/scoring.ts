@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import type { LatLng, Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
-import { query, useMapState } from "@/store/useMapStore";
+import { read, useMapState } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
 import { distMeters } from "@/lib/geo/geo";
 import { boundsOfCoords } from "@/lib/map/host";
@@ -89,7 +89,7 @@ export function useScoreMaxError(override?: ScoreBounds): number {
 	const [autoBbox, setAutoBbox] = useState<Bbox | null>(null);
 
 	const refresh = useCallback(async () => {
-		const res = await query({ type: "Everything" }).bounds();
+		const res = (await read({ type: "Everything" }, { kind: "bounds" }, "bounds")).bounds;
 		setAutoBbox(res ?? null);
 	}, []);
 

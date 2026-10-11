@@ -2,16 +2,7 @@ import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Patch, Tag } from "@/types";
 import type { WorkArea, MaybeLocation } from "@/types";
 import { locId } from "@/types";
-import type {
-	EntryKey,
-	Location,
-	MapMeta,
-	StoreStatus,
-	CountBy,
-	Target,
-	Answer,
-	Ask,
-} from "@/bindings.gen";
+import type { EntryKey, Location, MapMeta, StoreStatus, Target, Answer, Ask } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
@@ -23,8 +14,7 @@ import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
-import { compareNatural } from "@/lib/util/util";
-import type { KeySpec, PartitionBucket, StoreWarning } from "@/bindings.gen";
+import type { StoreWarning } from "@/bindings.gen";
 import type { MergeWinner, Stack } from "@/bindings.consts";
 import { SelectedIds, type ReadonlyIdSet } from "@/lib/render/CellManager";
 import { clearScene, loadScene, sceneReached } from "@/lib/render/sceneStore";
@@ -315,55 +305,6 @@ export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]
 	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
 }
 
-/** Questions about the locations a selector resolves to. Each call answers once,
- *  against the map as it is now; ask again after a change. */
-export function query(selector: Selector, target: Target = MAP) {
-	return {
-		/** Resolved ids in ascending order, or a ranked selector's order. */
-		ids: async (): Promise<number[]> => (await read(selector, { kind: "ids" }, "ids", target)).ids,
-		/** How many locations resolve. */
-		count: async (): Promise<number> =>
-			(await read(selector, { kind: "count" }, "count", target)).count,
-		/** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
-		bounds: async (): Promise<[number, number, number, number] | null> =>
-			(await read(selector, { kind: "bounds" }, "bounds", target)).bounds,
-		/** `n` ids drawn uniformly at random, without replacement. */
-		sample: async (n: number): Promise<number[]> =>
-			(
-				await read(
-					{ type: "Sample", selection: selection(selector), n },
-					{ kind: "ids" },
-					"ids",
-					target,
-				)
-			).ids,
-		/** Distinct values of `field`, sorted. */
-		values: async (field: string): Promise<string[]> =>
-			(await read(selector, { kind: "values", field }, "values", target)).values,
-		/** Group each field by a derived key and count, one result per field. */
-		countBy: async (fields: string[], key: KeySpec): Promise<CountBy[]> =>
-			(await read(selector, { kind: "countBy", fields, key }, "counts", target)).counts,
-		/** How many locations hold a value for each field, key-sorted. */
-		coverage: async (): Promise<[string, number][]> =>
-			(await read(selector, { kind: "coverage" }, "coverage", target)).coverage,
-		/** One column per field. `null` where a location lacks the field; `"tags"`
-		 *  returns a column of tag-id arrays. */
-		columns: async (fields: string[]): Promise<unknown[][]> =>
-			(await read(selector, { kind: "columns", fields }, "columns", target)).columns,
-		/** Group by a derived key. Numeric bins arrive in bound order; other keys are
-		 *  sorted naturally. */
-		partition: async (field: string, key: KeySpec): Promise<PartitionBucket[]> => {
-			const { groups } = await read(selector, { kind: "groupBy", field, key }, "groups", target);
-			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
-			return groups;
-		},
-		/** Full matching locations, skipping missing ids. All results are loaded into memory;
-		 *  use narrower selectors or projections for large maps. */
-		locations: async (): Promise<Location[]> =>
-			rowsOf((await read(selector, { kind: "rows" }, "rows", target)).rows),
-	};
-}
-
 /** The selection: every listed selection that is not ghosted. */
 export const getActiveSelections: () => Selection[] = memoOnRefs(
 	() => [state.selectionList] as const,
@@ -475,7 +416,9 @@ export async function addLocations(locs: Location[]) {
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
 	if (!state.map) return null;
-	const [loc] = await query({ type: "Locations", locations: [id], name: null }).locations();
+	const [loc] = await rowsOf(
+		(await read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows,
+	);
 	if (!loc) return null;
 	const now = nowUnix();
 	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
@@ -580,8 +523,18 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 	const [added] = r.mutation.added;
 	if (added == null) return;
 	const row =
-		(await query({ type: "Locations", locations: [added], name: null }, VIEWER).locations())[0] ??
-		null;
+		(
+			await rowsOf(
+				(
+					await read(
+						{ type: "Locations", locations: [added], name: null },
+						{ kind: "rows" },
+						"rows",
+						VIEWER,
+					)
+				).rows,
+			)
+		)[0] ?? null;
 	setState({ open: opening(added, origin, row), workArea: "location" });
 	emitEvent("active:change", null);
 }
@@ -592,10 +545,16 @@ export async function openStagedLocation(index: number) {
 	if (first == null) return;
 	const loc =
 		(
-			await query(
-				{ type: "Locations", locations: [first + index], name: null },
-				importTarget(),
-			).locations()
+			await rowsOf(
+				(
+					await read(
+						{ type: "Locations", locations: [first + index], name: null },
+						{ kind: "rows" },
+						"rows",
+						importTarget(),
+					)
+				).rows,
+			)
 		)[0] ?? null;
 	if (!loc) return;
 	await openPreview(loc, "import");
@@ -618,7 +577,12 @@ function clearActiveLocation(): void {
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
 	return typeof m === "number"
-		? ((await query({ type: "Locations", locations: [m], name: null }).locations())[0] ?? null)
+		? ((
+				await rowsOf(
+					(await read({ type: "Locations", locations: [m], name: null }, { kind: "rows" }, "rows"))
+						.rows,
+				)
+			)[0] ?? null)
 		: m;
 }
 
