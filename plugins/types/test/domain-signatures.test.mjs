@@ -18,6 +18,8 @@ const version: number = mutation.version;
 const counted: Promise<number> = mma.Query.read({ type: "Everything" }, { kind: "count" });
 const opening: Promise<void> = mma.Maps.open("map-id");
 const editing: Promise<void> = mma.Editor.open(42);
+const rename = mma.Tag.rename;
+const renamed: Promise<void> = rename([1, 2], "name");
 const names = mma.Tag.names;
 const named: string[] = names([1, 2]);
 const removed: Promise<void> = mma.Field.remove("extra");
@@ -38,6 +40,8 @@ const oldOpen: typeof mma.Editor.open = mma.openLocation;
 mma.Maps.open(42);
 // @ts-expect-error Editor identity is a location or a numeric id.
 mma.Editor.open("map-id");
+// @ts-expect-error Tag names must be strings.
+mma.Tag.rename([1], 42);
 // @ts-expect-error Tag ids must be numbers.
 mma.Tag.names(["1"]);
 // @ts-expect-error Tag lookups return records, not strings or any.

@@ -1,9 +1,8 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
 import { Query } from "@/store/query";
-import { Edit } from "@/store/edit";
+import { Tag } from "@/store/tag";
 import { NSelect } from "@/components/primitives/NSelect";
-import type { Selector } from "@/types";
 import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
@@ -145,13 +144,11 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 			key,
 		);
 		// Groups with the same label reuse one tag.
-		const tagInto = async (name: string, selector: Selector) => {
-			const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation;
-			await Edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
-		};
 		for (const [i, g] of groups.entries())
-			await tagInto(tagName(labels[i]), { type: "Locations", locations: g.ids, name: null });
-		if (missing && missingCount > 0) await tagInto(tagName(missingName), missing);
+			await Tag.assign({ type: "Locations", locations: g.ids, name: null }, [
+				{ name: tagName(labels[i]) },
+			]);
+		if (missing && missingCount > 0) await Tag.assign(missing, [{ name: tagName(missingName) }]);
 		onOpenChange(false);
 	};
 

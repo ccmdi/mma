@@ -3687,6 +3687,19 @@ Tag.all(): Record<number, Tag>
 
 Tag records, including unreferenced records and generated display defaults.
 
+#### Tag.assign
+
+`stable` · unreleased
+
+```ts
+Tag.assign(
+  selector: Selector,
+  records: Omit<ValueRecord, "id">[],
+): Promise<WorkResult>
+```
+
+Get or create tag records and assign them to matching locations.
+
 #### Tag.counts
 
 `stable` · unreleased
@@ -3696,6 +3709,16 @@ Tag.counts(): Record<number, number>
 ```
 
 Per-tag location counts, keyed by numeric id.
+
+#### Tag.create
+
+`stable` · unreleased
+
+```ts
+Tag.create(records: Omit<ValueRecord, "id">[]): Promise<number[]>
+```
+
+Get or create tag records by name and return their ids.
 
 #### Tag.get
 
@@ -3727,6 +3750,42 @@ Tag.remove(tagIds: number[]): Promise<WorkResult>
 
 Remove tags from every location in one undoable step.
 Unreferenced tags are hidden; undo restores them.
+
+#### Tag.rename
+
+`stable` · unreleased
+
+```ts
+Tag.rename(
+  ids: number[],
+  name: string,
+  scope?: Selector | null,
+): Promise<void>
+```
+
+Move matching locations to a tag with the given name, optionally within a selector.
+
+#### Tag.reorder
+
+`stable` · unreleased
+
+```ts
+Tag.reorder(ids: number[]): Promise<MutationResult<ValueRecord>>
+```
+
+Set tag display order from an ordered list of ids.
+
+#### Tag.update
+
+`stable` · unreleased
+
+```ts
+Tag.update(
+  updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[],
+): Promise<MutationResult<ValueRecord>>
+```
+
+Update tag display records in one undoable edit.
 
 #### Tag.visible
 

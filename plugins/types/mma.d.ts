@@ -3711,6 +3711,16 @@ declare function names(ids: number[]): string[];
 /** Remove tags from every location in one undoable step.
  * Unreferenced tags are hidden; undo restores them. */
 declare function remove$2(tagIds: number[]): Promise<WorkResult>;
+/** Update tag display records in one undoable edit. */
+declare function update$1(updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]): Promise<MutationResult<ValueRecord>>;
+/** Get or create tag records by name and return their ids. */
+declare function create$1(records: Omit<ValueRecord, "id">[]): Promise<number[]>;
+/** Set tag display order from an ordered list of ids. */
+declare function reorder(ids: number[]): Promise<MutationResult<ValueRecord>>;
+/** Move matching locations to a tag with the given name, optionally within a selector. */
+declare function rename$1(ids: number[], name: string, scope?: Selector | null): Promise<void>;
+/** Get or create tag records and assign them to matching locations. */
+declare function assign(selector: Selector, records: Omit<ValueRecord, "id">[]): Promise<WorkResult>;
 export type Tag = Tag$1;
 declare const Tag: {
     /** Per-tag location counts, keyed by numeric id. */
@@ -3722,6 +3732,11 @@ declare const Tag: {
     get: typeof get;
     names: typeof names;
     remove: typeof remove$2;
+    update: typeof update$1;
+    create: typeof create$1;
+    reorder: typeof reorder;
+    rename: typeof rename$1;
+    assign: typeof assign;
 };
 
 /** Add locations to the map. Real ids are assigned and written back into the passed

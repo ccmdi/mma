@@ -1,9 +1,10 @@
+import type { Selector } from "@/types";
 import { Store } from "./store";
 import { Edit } from "./edit";
-import type { HeldValue } from "@/bindings.gen";
+import type { HeldValue, ValueRecord } from "@/bindings.gen";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { colorForName } from "@/lib/util/color";
-import { selection, tagSelector } from "./selections";
+import { selection, tagSelector, any, all as and } from "./selections";
 
 export type Tag = import("@/types").Tag;
 
@@ -67,6 +68,48 @@ function remove(tagIds: number[]) {
 	);
 }
 
+/** Update tag display records in one undoable edit. */
+function update(updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]) {
+	return Edit.values(
+		"tags",
+		updates.map((put) => ({ put })),
+	);
+}
+
+/** Get or create tag records by name and return their ids. */
+async function create(records: Omit<ValueRecord, "id">[]): Promise<number[]> {
+	const result = await Edit.values(
+		"tags",
+		records.map((record) => ({ set: { ...record, id: 0 } })),
+	);
+	return result.mutation.keys;
+}
+
+/** Set tag display order from an ordered list of ids. */
+function reorder(ids: number[]) {
+	return update(ids.map((id, order) => ({ id, order })));
+}
+
+/** Move matching locations to a tag with the given name, optionally within a selector. */
+async function rename(ids: number[], name: string, scope: Selector | null = null) {
+	const [target] = await create([{ name }]);
+	const sources = ids.filter((id) => id !== target);
+	if (!sources.length) return;
+	const carriers = any(...sources.map(tagSelector));
+	await Edit.work(scope ? and(carriers, scope) : carriers, {
+		kind: "listSet",
+		key: "tags",
+		add: [target],
+		remove: sources,
+	});
+}
+
+/** Get or create tag records and assign them to matching locations. */
+async function assign(selector: Selector, records: Omit<ValueRecord, "id">[]) {
+	const add = await create(records);
+	return Edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
+}
+
 export const Tag = {
 	/** Per-tag location counts, keyed by numeric id. */
 	counts,
@@ -77,4 +120,9 @@ export const Tag = {
 	get,
 	names,
 	remove,
+	update,
+	create,
+	reorder,
+	rename,
+	assign,
 };

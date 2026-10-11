@@ -2,10 +2,8 @@ import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition 
 import { SelectionList } from "@/store/selectionList";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
-import { Edit } from "@/store/edit";
 import type { Patch } from "@/types";
 import { HslColorPicker } from "react-colorful";
-import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Selector } from "@/types";
 import type { VirtualTag } from "@/bindings.gen";
@@ -48,8 +46,6 @@ import { matches } from "@/lib/search";
 import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
-
-/** Preview order changes locally; persist them through `Edit.values`. */
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -107,10 +103,7 @@ export function TagManager() {
 		(updates: Patch<Tag>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
-				await Edit.values(
-					"tags",
-					updates.map((put) => ({ put })),
-				);
+				await Tag.update(updates);
 			});
 		},
 		[addOptimisticTags],
@@ -391,22 +384,9 @@ function RenameTagsDialog({
 }: DialogProps & { tagIds: number[]; name: string; scope: Selector | null }) {
 	const [name, setName] = useState(initialName);
 
-	const moveInto = async (trimmed: string) => {
-		const [target] = (await Edit.values("tags", [{ set: { id: 0, name: trimmed } }])).mutation.keys;
-		const sources = tagIds.filter((id) => id !== target);
-		if (sources.length === 0) return;
-		const carriers = any(...sources.map(tagSelector));
-		await Edit.work(scope ? all(carriers, scope) : carriers, {
-			kind: "listSet",
-			key: "tags",
-			add: [target],
-			remove: sources,
-		});
-	};
-
 	const handleSubmit = () => {
 		const trimmed = name.trim();
-		if (trimmed) void moveInto(trimmed);
+		if (trimmed) void Tag.rename(tagIds, trimmed, scope);
 		onOpenChange(false);
 	};
 
