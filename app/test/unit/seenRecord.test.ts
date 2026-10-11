@@ -9,12 +9,22 @@ vi.mock("@/lib/commands", () => ({
 	cmd: { storeSeenWrite: (...a: unknown[]) => storeSeenWrite(...(a as [])) },
 }));
 vi.mock("@/store/settings", () => ({ getSettings: () => settings }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ mapId: "map-1" }),
-	addLocations: vi.fn(),
-	fetchLocations: vi.fn(),
-	openLocation: vi.fn(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ mapId: "map-1" }),
+	},
 }));
+vi.mock("@/store/location", () => ({
+	Location: {
+		add: vi.fn(),
+	},
+}));
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		open: vi.fn(),
+	},
+}));
+
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { seenRecord } from "@/lib/seen/seenRecorder";

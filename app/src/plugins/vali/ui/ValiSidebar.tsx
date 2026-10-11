@@ -2,11 +2,11 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { mdiCloudDownloadOutline } from "@mdi/js";
+import { Edit } from "@/store/edit";
 import { cmd } from "@/lib/commands";
 import type { ValiCountryStatus, ValiLocation } from "@/bindings.gen";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
-import * as edit from "@/store/edit";
 import { mapStorage } from "@/plugins/pluginStorage";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { Sidebar } from "@/components/primitives/Sidebar";
@@ -53,7 +53,7 @@ function saveValiProject(project: ValiProject) {
 async function importLocations(valiLocs: ValiLocation[], tagName: string): Promise<number> {
 	let tagId: number | null = null;
 	if (tagName) {
-		[tagId] = (await edit.values("tags", [{ set: { id: 0, name: tagName } }])).mutation.keys;
+		[tagId] = (await Edit.values("tags", [{ set: { id: 0, name: tagName } }])).mutation.keys;
 	}
 	const locations = valiLocs.map((v) =>
 		createLocation({
@@ -68,7 +68,7 @@ async function importLocations(valiLocs: ValiLocation[], tagName: string): Promi
 			...(tagId != null ? { tags: [tagId] } : {}),
 		}),
 	);
-	await MMA.addLocations(locations);
+	await MMA.Location.add(locations);
 	return locations.length;
 }
 

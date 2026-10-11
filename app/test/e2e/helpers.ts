@@ -112,20 +112,20 @@ export async function deleteMap(id: string) {
 }
 
 export async function flushAndWait() {
-	await withApi(async (api) => api.autosave.flush());
+	await withApi(async (api) => api.Autosave.flush());
 }
 
 /** Open a location in the editor via the test API. */
 export async function openLocation(id: number) {
 	await withApi(async (api, locId) => {
-		await api.openLocation(locId, false);
+		await api.Editor.open(locId, false);
 	}, id);
 }
 
 /** Close the open location (return to overview) via the test API. */
 export async function closeLocation() {
 	await withApi(async (api) => {
-		await api.closeLocation();
+		await api.Editor.close();
 	});
 }
 
@@ -143,7 +143,7 @@ export function randomHeading(): { heading: number } {
 
 export async function addLocs(locs: Location[]): Promise<number[]> {
 	return withApi(async (api, locations) => {
-		await api.addLocations(locations);
+		await api.Location.add(locations);
 		return locations.map((l) => l.id);
 	}, locs);
 }
@@ -217,20 +217,20 @@ export const unpannedSelector = (): Selector => ({
 
 /** Add selections to the live map. */
 export async function select(...selector: Selector[]) {
-	await withApi(async (api, p) => api.applySelectionUpdate(api.addSelection(...p)), selector);
+	await withApi(async (api, p) => api.SelectionList.update(api.addSelection(...p)), selector);
 }
 
 /** Add selections and return how many locations they resolve to. */
 export async function selectCount(...selector: Selector[]): Promise<number> {
 	return withApi(async (api, p) => {
-		await api.applySelectionUpdate(api.addSelection(...p));
-		return api.getMapState().selectedLocationIds.size;
+		await api.SelectionList.update(api.addSelection(...p));
+		return api.Store.get().selectedLocationIds.size;
 	}, selector);
 }
 
 export async function refreshSelections(): Promise<number[]> {
 	return withApi(async (api) => {
-		if (api.getActiveSelections().length === 0) return [] as number[];
+		if (api.SelectionList.active().length === 0) return [] as number[];
 		return (await api._test.syncSelections()).ids;
 	});
 }
@@ -241,12 +241,10 @@ export async function createTag(
 	return withApi(
 		async (api, n) =>
 			(
-				await api.edit
-					.values(
-						"tags",
-						[n].map((name) => ({ set: { id: 0, name } })),
-					)
-					.then(({ mutation: { keys: ids } }) => ids.map((id) => api.getTag(id)!))
+				await api.Edit.values(
+					"tags",
+					[n].map((name) => ({ set: { id: 0, name } })),
+				).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!))
 			)[0],
 		name,
 	);
@@ -261,7 +259,7 @@ const WAIT = { interval: 50 } as const;
 /** Wait until the open location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
-		() => withApi((api, target) => (api.getMapState().open?.location?.id ?? null) === target, id),
+		() => withApi((api, target) => (api.Store.get().open?.location?.id ?? null) === target, id),
 		{ ...WAIT, timeoutMsg: `open location never became ${id}` },
 	);
 }
@@ -269,17 +267,17 @@ export async function waitForActive(id: number | null) {
 /** Wait until the store's work area matches (e.g. "overview" | "location"). */
 export async function updateMapSettings(patch: Record<string, unknown>) {
 	await withApi(async (api, p) => {
-		const map = api.getMapState().map!;
-		await api.edit.meta({ settings: { ...map.settings, ...p } });
+		const map = api.Store.get().map!;
+		await api.Edit.meta({ settings: { ...map.settings, ...p } });
 		return "ok";
 	}, patch);
 }
 
 export async function registerFields(defs: Record<string, FieldDef>) {
 	await withApi(async (api, d) => {
-		const map = api.getMapState().map!;
+		const map = api.Store.get().map!;
 		const cur = map.extra?.fields ?? {};
-		await api.edit.meta({
+		await api.Edit.meta({
 			extra: { ...map.extra, fields: { ...cur, ...d } },
 		});
 		return "ok";
@@ -312,7 +310,7 @@ export async function waitForEnriched() {
 export async function saveLocation() {
 	await waitForEnriched();
 	await withApi((api) => {
-		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.getMapState().open?.session;
+		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.Store.get().open?.session;
 	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist();
@@ -321,7 +319,7 @@ export async function saveLocation() {
 		() =>
 			withApi(
 				(api) =>
-					api.getMapState().open?.session !==
+					api.Store.get().open?.session !==
 					(window as unknown as { __e2eSaving?: unknown }).__e2eSaving,
 			),
 		{ timeoutMsg: "Save never finished" },
@@ -334,7 +332,7 @@ export async function waitForPreview() {
 }
 
 export async function waitForWorkArea(area: string) {
-	await browser.waitUntil(() => withApi((api, a) => api.getMapState().workArea === a, area), {
+	await browser.waitUntil(() => withApi((api, a) => api.Store.get().workArea === a, area), {
 		...WAIT,
 		timeoutMsg: `workArea never became ${area}`,
 	});

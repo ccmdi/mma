@@ -19,9 +19,9 @@ describe("Extra field definitions", () => {
 			country: createFieldDef("string", { label: "Country" }),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.edit.meta({
-				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
+			const cur = api.Store.get().map!.extra?.fields ?? {};
+			await api.Edit.meta({
+				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
 			});
 		}, defs);
 
@@ -29,7 +29,7 @@ describe("Extra field definitions", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const fields = await withApi(async (api) => api.getMapState().map!.extra?.fields);
+		const fields = await withApi(async (api) => api.Store.get().map!.extra?.fields);
 		expect(fields).toBeTruthy();
 		expect(fields!.altitude).toBeTruthy();
 		expect(fields!.altitude.label).toBe("Altitude");
@@ -61,7 +61,7 @@ describe("Extra field definitions", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { country: "France" } }]);
+			await api.Location.update([{ id: l.id, extra: { country: "France" } }]);
 		}, loc);
 
 		const reloaded = await getLoc(ids[0]);
@@ -80,7 +80,7 @@ describe("Extra field definitions", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { newField: "value", altitude: null } }]);
+			await api.Location.update([{ id: l.id, extra: { newField: "value", altitude: null } }]);
 		}, loc);
 
 		await flushAndWait();

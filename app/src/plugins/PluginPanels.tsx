@@ -1,16 +1,17 @@
 import { memo, useState, createElement } from "react";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
 import { useEvent } from "@/lib/events";
 import { useDialog } from "@/store/dialogBus";
-import { useMapState, setPluginMode } from "@/store/useMapStore";
 import { Icon } from "@/components/primitives/Icon";
 import { Section } from "@/components/primitives/Sidebar";
 import { IconButton } from "@/components/primitives/IconButton";
 
 export function PluginToolbar() {
 	useEvent("plugins:changed");
-	useMapState((s) => s.map);
+	Store.use((s) => s.map);
 
 	const plugins = getEnabledPlugins();
 	const [modalId, setModalId] = useState<string | null>(null);
@@ -35,7 +36,7 @@ export function PluginToolbar() {
 					tooltipSide="bottom"
 					onClick={() => {
 						if (p.sidebar) {
-							setPluginMode(p.id);
+							Editor.openPlugin(p.id);
 						} else if (p.modal) {
 							setModalId(modalId === p.id ? null : p.id);
 						}

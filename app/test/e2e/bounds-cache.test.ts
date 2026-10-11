@@ -21,7 +21,7 @@ describe("Bounds cache - empty and basic", () => {
 
 	it("selected-only on empty map returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			await api.applySelectionUpdate(api.addSelection({ type: "Everything" }));
+			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
 			return api.fetchBounds({ type: "Selected" });
 		});
 		expect(bounds).toBeNull();
@@ -73,7 +73,7 @@ describe("Bounds cache - add and remove", () => {
 		const result = await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
 			const northernmost = all.reduce((a, b) => (a.lat > b.lat ? a : b));
-			await api.removeLocations(new Set([northernmost.id]));
+			await api.Location.remove(new Set([northernmost.id]));
 			return api.fetchBounds({ type: "Everything" });
 		});
 
@@ -87,7 +87,7 @@ describe("Bounds cache - add and remove", () => {
 	it("removing all locations returns null", async () => {
 		const bounds = await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
-			await api.removeLocations(new Set(all.map((l) => l.id)));
+			await api.Location.remove(new Set(all.map((l) => l.id)));
 			return api.fetchBounds({ type: "Everything" });
 		});
 		expect(bounds).toBeNull();
@@ -108,7 +108,7 @@ describe("Bounds cache - update edge invalidation", () => {
 
 		await withApi(async (api, edgeId) => {
 			const loc = await api.fetchLocation(edgeId);
-			await api.updateLocations([{ id: loc!.id, lat: 30 }]);
+			await api.Location.update([{ id: loc!.id, lat: 30 }]);
 		}, ids[1]);
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
@@ -120,7 +120,7 @@ describe("Bounds cache - update edge invalidation", () => {
 		const result = await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
 			const interior = all.find((l) => Math.abs(l.lat - 10) < 0.01)!;
-			await api.updateLocations([{ id: interior.id, lat: 70 }]);
+			await api.Location.update([{ id: interior.id, lat: 70 }]);
 			return api.fetchBounds({ type: "Everything" });
 		});
 
@@ -146,7 +146,7 @@ describe("Bounds cache - antimeridian", () => {
 	it("wide-span locations stay non-crossing (west < east)", async () => {
 		await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
-			await api.removeLocations(new Set(all.map((l) => l.id)));
+			await api.Location.remove(new Set(all.map((l) => l.id)));
 		});
 
 		await addLocs([createLocation({ lat: 40, lng: -9 }), createLocation({ lat: 35, lng: 140 })]);
@@ -170,7 +170,7 @@ describe("Bounds cache - undo/redo consistency", () => {
 		let bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
 
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(10, 3);
@@ -178,7 +178,7 @@ describe("Bounds cache - undo/redo consistency", () => {
 	});
 
 	it("redo restores bounds", async () => {
-		await withApi(async (api) => api.redo());
+		await withApi(async (api) => api.History.redo());
 
 		const bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
@@ -189,13 +189,13 @@ describe("Bounds cache - undo/redo consistency", () => {
 		await withApi(async (api) => {
 			const all = await api.fetchAllLocations();
 			const extreme = all.find((l) => Math.abs(l.lat - 60) < 0.01)!;
-			await api.removeLocations(new Set([extreme.id]));
+			await api.Location.remove(new Set([extreme.id]));
 		});
 
 		let bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(10, 3);
 
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
@@ -203,9 +203,9 @@ describe("Bounds cache - undo/redo consistency", () => {
 
 	it("undo to empty returns null", async () => {
 		await withApi(async (api) => {
-			await api.undo();
-			await api.undo();
-			await api.undo();
+			await api.History.undo();
+			await api.History.undo();
+			await api.History.undo();
 		});
 
 		const bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
@@ -236,7 +236,7 @@ describe("Bounds cache - selected-only", () => {
 	});
 
 	after(async () => {
-		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
 		await closeMap();
 		await deleteMap(mapId);
 	});
@@ -249,7 +249,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only bounds are restricted to selection", async () => {
 		const bounds = await withApi(async (api, tid) => {
-			await api.applySelectionUpdate(api.addSelection(api.tagSelector(tid)));
+			await api.SelectionList.update(api.addSelection(api.tagSelector(tid)));
 			return api.fetchBounds({ type: "Selected" });
 		}, tagId);
 
@@ -262,7 +262,7 @@ describe("Bounds cache - selected-only", () => {
 
 	it("selected-only with no selection returns null", async () => {
 		const bounds = await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
+			await api.SelectionList.update({ kind: "set", selections: [] });
 			return api.fetchBounds({ type: "Selected" });
 		});
 		expect(bounds).toBeNull();

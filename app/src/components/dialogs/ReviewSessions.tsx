@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { SelectionList } from "@/store/selectionList";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { SegmentedControl } from "@/components/primitives/Sidebar";
@@ -16,7 +17,6 @@ import {
 	reviewSetSelector,
 	renameReview,
 } from "@/lib/review/review";
-import { applySelectionUpdate } from "@/store/useMapStore";
 import { shortDateFmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
@@ -61,7 +61,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	};
 
 	const handleSelect = (s: ReviewSession, mode: "reviewed" | "unreviewed") => {
-		void applySelectionUpdate(addSelection(reviewSetSelector(s, mode)));
+		void SelectionList.update(addSelection(reviewSetSelector(s, mode)));
 		onOpenChange(false);
 	};
 

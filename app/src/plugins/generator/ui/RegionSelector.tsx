@@ -1,5 +1,6 @@
 import { useEffect, useEffectEvent, useState } from "react";
-import { useMapState, getActiveSelections } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
@@ -98,7 +99,7 @@ export function RegionSelector({
 	running: boolean;
 }) {
 	usePluginEvent(GENERATOR_CHANGED, () => regionProgressKey(meta));
-	const selections = useMapState(getActiveSelections);
+	const selections = Store.use(SelectionList.active);
 	const polygonSelections = selections.filter((s) => s.selector.type === "Polygon");
 	const [capDialogOpen, setCapDialogOpen] = useState(false);
 	const [capInput, setCapInput] = useState("");

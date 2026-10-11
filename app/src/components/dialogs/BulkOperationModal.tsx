@@ -1,5 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import {
 	Dialog,
 	DialogActions,
@@ -15,9 +19,6 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { Bar } from "@/components/primitives/Bar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
-import { applySelectionUpdate, getMapState, read } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
-
 import { addSelection, all, panoIdSelector } from "@/store/selections";
 import { useSelectorPick, type SelectorPickController } from "@/store/selectorPick";
 import type { Selector } from "@/types";
@@ -111,9 +112,9 @@ interface SetupProps {
 
 async function readTargetInfo(selector: Selector): Promise<TargetInfo> {
 	const [total, pinned, counts] = await Promise.all([
-		read(selector, { kind: "count" }),
-		read(all(selector, panoIdSelector(true)), { kind: "count" }),
-		read(selector, { kind: "coverage" }),
+		Query.read(selector, { kind: "count" }),
+		Query.read(all(selector, panoIdSelector(true)), { kind: "count" }),
+		Query.read(selector, { kind: "coverage" }),
 	]);
 	const have = new Map(counts);
 	return {
@@ -168,7 +169,7 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 								locations,
 								category,
 							}));
-							if (batch.length > 0) void applySelectionUpdate(addSelection(...batch));
+							if (batch.length > 0) void SelectionList.update(addSelection(...batch));
 							const n = result.succeeded;
 							return {
 								outcome: result,
@@ -189,7 +190,7 @@ function ValidateSetup({ picker, onReady }: SetupProps) {
 
 function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const [force, setForce] = useState(false);
-	const map = getMapState().map;
+	const map = Store.get().map;
 	if (!map) return null;
 
 	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
@@ -340,7 +341,7 @@ function PinPanoSetup({ picker, info, onReady }: SetupProps) {
 					<Button
 						onClick={() =>
 							onReady(async ({ selector }) => {
-								const { changed, failed } = await edit.work(selector, {
+								const { changed, failed } = await Edit.work(selector, {
 									kind: "set",
 									key: "loadAsPanoId",
 									value: false,
@@ -446,7 +447,7 @@ function ClearFieldsSetup({ info, fieldKeys, picker, onReady }: SetupProps) {
 					onClick: () => {
 						const keys = [...selected];
 						onReady(async ({ selector }) => {
-							const { changed, failed } = await edit.work(selector, { kind: "delete", keys });
+							const { changed, failed } = await Edit.work(selector, { kind: "delete", keys });
 							return {
 								outcome: { succeeded: changed, failed },
 								doneMessage: t(
@@ -584,7 +585,7 @@ function SetFieldSetup({ fieldKeys, picker, onReady }: SetupProps) {
 							const op: Work = useExpr
 								? { kind: "expr", key: ek, expr: rv }
 								: { kind: "set", key: ek, value: setValue };
-							const { changed, failed } = await edit.work(selector, op);
+							const { changed, failed } = await Edit.work(selector, op);
 							const message =
 								t(
 									{ one: "Set field on {n} location.", other: "Set field on {n} locations." },
@@ -723,7 +724,7 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 					onClick: () => {
 						const config = { mode, zoom, tileX, tileY };
 						onReady(async ({ selector, signal, onProgress }) => {
-							const locations = await read(selector, { kind: "locations" });
+							const locations = await Query.read(selector, { kind: "locations" });
 							const result = await bulkDownloadPanoramas(locations, config, {
 								signal,
 								onProgress,
@@ -818,7 +819,7 @@ export function SelectFailedButton({
 		<Button
 			style={style}
 			onClick={() => {
-				void applySelectionUpdate(addSelection({ type: "Manual", locations: outcome.failed }));
+				void SelectionList.update(addSelection({ type: "Manual", locations: outcome.failed }));
 				toast(
 					t(
 						{ one: "Selected {n} failed location", other: "Selected {n} failed locations" },
@@ -1161,7 +1162,7 @@ export function BulkOperationModal({
 	const run = useEventValue("bulkruns:changed", getBulkRuns).get(operation);
 	const picker = useSelectorPick();
 	const { data: allKeys } = useAsync(
-		async () => read({ type: "Everything" }, { kind: "coverage" }),
+		async () => Query.read({ type: "Everything" }, { kind: "coverage" }),
 		[],
 	);
 	const info = useAsyncSticky(() => readTargetInfo(picker.selector), [picker.selector]);

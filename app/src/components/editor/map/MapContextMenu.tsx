@@ -1,4 +1,6 @@
 import { forwardRef, useEffect, useState } from "react";
+import { Location } from "@/store/location";
+import { Tag } from "@/store/tag";
 import {
 	useIsMeasuring,
 	startMeasure,
@@ -10,13 +12,11 @@ import { useEventValue } from "@/lib/events";
 import { getContextMenuTarget } from "@/lib/map/contextMenu";
 import { selectBorderAt } from "@/lib/map/useCountrySelect";
 import { polygonsAt, deletePolygonsAt } from "@/lib/map/useDeletePolygon";
-import { duplicateLocation, removeLocations, getTags } from "@/store/useMapStore";
 import { openDialog } from "@/store/dialogBus";
 import { mapsPanoUrl, appendLinkTags, copyMapsLink } from "@/lib/sv/mapsLink";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
-import type { Location } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
 
@@ -31,7 +31,7 @@ async function copyLocationLink(loc: Location) {
 		zoom: loc.zoom,
 		panoId: loc.panoId ?? "",
 	});
-	appendLinkTags(url, loc, getTags());
+	appendLinkTags(url, loc, Tag.all());
 	await copyMapsLink(url);
 	toast(t("Link copied"), 1500);
 }
@@ -77,10 +77,10 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 					<MenuItem onClick={() => openDialog("quick-copy-to-map", location.id)}>
 						{t("Copy to map...")}
 					</MenuItem>
-					<MenuItem onClick={() => void duplicateLocation(location.id)}>
+					<MenuItem onClick={() => void Location.duplicate(location.id)}>
 						{t("Duplicate location")}
 					</MenuItem>
-					<MenuItem tone="destructive" onClick={() => void removeLocations(new Set([location.id]))}>
+					<MenuItem tone="destructive" onClick={() => void Location.remove(new Set([location.id]))}>
 						{t("Delete location")}
 					</MenuItem>
 					<MenuSeparator />

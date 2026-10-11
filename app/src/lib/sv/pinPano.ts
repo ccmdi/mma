@@ -1,7 +1,7 @@
+import { Edit } from "@/store/edit";
 import type { Selector } from "@/types";
 import { PanoType, type CapturePick } from "@/bindings.consts";
 import { all, has, panoIdSelector } from "@/store/selections";
-import * as edit from "@/store/edit";
 import { runProviders, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
 import { panoResolveProvider } from "@/lib/sv/providers";
 
@@ -47,7 +47,7 @@ export async function bulkPinToPano(selector: Selector, opts: PinOpts = {}): Pro
 		failed = result.panoResolve?.failed ?? [];
 	}
 	if (runOpts.signal?.aborted) return { succeeded: 0, failed, resolved };
-	const pinned = await edit.work(all(selector, has("panoId")), {
+	const pinned = await Edit.work(all(selector, has("panoId")), {
 		kind: "set",
 		key: "loadAsPanoId",
 		value: true,

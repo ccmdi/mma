@@ -5,11 +5,10 @@
 // We track the cursor as a container *pixel* (not a frozen lat/lng): on every zoom/pan we
 // reproject that pixel to a fresh lat/lng, so the ring stays under the cursor and resizes
 // live mid-zoom instead of waiting for the next mousemove.
-
 import { ScatterplotLayer } from "@deck.gl/layers";
+import { Store } from "@/store/store";
 import { clickSearchRadius } from "@/lib/sv/lookup";
 import { getMapHost } from "@/lib/map/mapState";
-import { getMapState } from "@/store/useMapStore";
 import type { LatLng } from "@/types";
 
 const LAYER_ID = "mma-search-radius-cursor";
@@ -28,7 +27,7 @@ export function mountSearchRadiusCursor(): () => void {
 		const latLng = host.containerPxToLatLng(pixel.x, pixel.y);
 		if (!latLng) return;
 		const zoom = host.getZoom();
-		const minRadius = getMapState().map?.settings.searchRadius ?? undefined;
+		const minRadius = Store.get().map?.settings.searchRadius ?? undefined;
 		const radius = clickSearchRadius(latLng.lat, zoom, minRadius);
 		overlay.setProps({
 			layers: [

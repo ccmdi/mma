@@ -1,10 +1,9 @@
 // Bulk operations: one or more procedures plus a Selector. The selector is resolved,
 // providers are gated on their dependencies, locations are paged, and each procedure's
 // answers are delivered as patches or back to the caller.
-
+import { Autosave } from "@/store/autosave";
 import type { Selector } from "@/types";
 import type { KeySpec, Location, ProcedureDecl, Target } from "@/bindings.gen";
-import * as autosave from "@/store/autosave";
 import { getProviderForField, type Provider, type ProcedureSpec } from "@/lib/data/fieldDefs";
 import { events } from "@/bindings.gen";
 import type { ProcedureProgress, ProcedureResult, ProviderDecl } from "@/bindings.gen";
@@ -331,7 +330,7 @@ async function runDecls(
 		if (runId !== null) void cmd.procedureCancel(runId);
 		settle();
 	};
-	const releaseAutosave = autosave.hold();
+	const releaseAutosave = Autosave.hold();
 	try {
 		runId = await cmd.procedureRun(decls, force, target);
 		for (const r of pendingResults) if (r.runId === runId) gather(r);

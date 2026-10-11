@@ -19,9 +19,15 @@ vi.mock("@/store/importStaging", () => ({
 	cancelImport: () => {},
 }));
 
-vi.mock("@/store/useMapStore", () => ({
-	useMapState: () => tags,
-	getVisibleTags: () => tags,
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: () => tags,
+	},
+}));
+vi.mock("@/store/tag", () => ({
+	Tag: {
+		visible: () => tags,
+	},
 }));
 
 const { ImportSidebar } = await import("@/components/editor/ImportSidebar");

@@ -5,10 +5,12 @@ vi.mock("@/types", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/types")>()),
 	Location: {},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { map: null }) => unknown) => sel({ map: null }),
-	fetchBounds: async () => null,
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (sel: (s: { map: null }) => unknown) => sel({ map: null }),
+	},
 }));
+
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/lib/events", () => ({ emit: () => {}, subscribe: () => () => {} }));
 

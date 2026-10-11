@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
+import { Store } from "@/store/store";
+import { Query } from "@/store/query";
 import type { LatLng, Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
-import { read, useMapState } from "@/store/useMapStore";
 import { subscribe } from "@/lib/events";
 import { distMeters } from "@/lib/geo/geo";
 import { boundsOfCoords } from "@/lib/map/host";
@@ -82,14 +83,14 @@ export function resolveScoreMaxErrorFromBounds(
  * `override` resolves against an unsaved value instead of the map's committed one.
  */
 export function useScoreMaxError(override?: ScoreBounds): number {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const raw = override ?? map?.scoreBounds ?? "auto";
 	const bounds: "auto" | Bounds = typeof raw === "string" ? "auto" : scoreTupleToBounds(raw);
 	const isAuto = bounds === "auto";
 	const [autoBbox, setAutoBbox] = useState<Bbox | null>(null);
 
 	const refresh = useCallback(async () => {
-		const res = await read({ type: "Everything" }, { kind: "bounds" });
+		const res = await Query.read({ type: "Everything" }, { kind: "bounds" });
 		setAutoBbox(res ?? null);
 	}, []);
 

@@ -1,22 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Store } from "@/store/store";
+import { Edit } from "@/store/edit";
+import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { getMapState, setMap } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
-import * as autosave from "@/store/autosave";
 import { mapStorage } from "@/plugins/pluginStorage";
 
-vi.mock("@/store/mapList", () => ({
-	setCachedMapList: vi.fn(),
-	invalidateMapList: vi.fn(async () => {}),
-	reloadMapList: vi.fn(async () => {}),
+vi.mock("@/store/maps", () => ({
+	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
 }));
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
-			const state = getMapState();
-			if (state.map && state.mapId === patch.id) setMap({ ...state.map, ...patch });
+			const state = Store.get();
+			if (state.map && state.mapId === patch.id) Store.setMeta({ ...state.map, ...patch });
 			return null;
 		}),
 		storeSaveDirty: vi.fn(async () => null),
@@ -24,7 +22,7 @@ vi.mock("@/lib/commands", () => ({
 }));
 
 function openMap(id: string, settings: MapMeta["settings"] = {}) {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = id;
 	s.map = { id, settings };
 }
@@ -50,8 +48,8 @@ afterEach(async () => {
 	vi.mocked(cmd.storeUpdateMapMeta).mockImplementation(async (patch) =>
 		(await import("./fixtures/mocks")).metadataWritten(patch),
 	);
-	await autosave.flush();
-	const s = getMapState() as Record<string, unknown>;
+	await Autosave.flush();
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
 	vi.clearAllMocks();
@@ -60,8 +58,8 @@ afterEach(async () => {
 describe("map metadata writes", () => {
 	it("fire immediately and whole; ordering is the store's", async () => {
 		const settle = holdWrites();
-		void edit.meta({ id: "a", name: "first" });
-		void edit.meta({ id: "b", name: "second" });
+		void Edit.meta({ id: "a", name: "first" });
+		void Edit.meta({ id: "b", name: "second" });
 		await new Promise((r) => setTimeout(r));
 		expect(vi.mocked(cmd.storeUpdateMapMeta).mock.calls.map(([patch]) => patch.id)).toEqual([
 			"a",
@@ -73,7 +71,7 @@ describe("map metadata writes", () => {
 
 	it("schedule the save that persists them", async () => {
 		vi.useFakeTimers();
-		await edit.meta({ id: "a", name: "first" });
+		await Edit.meta({ id: "a", name: "first" });
 		expect(cmd.storeSaveDirty).not.toHaveBeenCalled();
 		await vi.runAllTimersAsync();
 		expect(cmd.storeSaveDirty).toHaveBeenCalledTimes(1);
@@ -108,7 +106,7 @@ describe("mapStorage", () => {
 	});
 
 	it("throws with no map open", () => {
-		const s = getMapState() as Record<string, unknown>;
+		const s = Store.get() as Record<string, unknown>;
 		s.mapId = null;
 		s.map = null;
 		expect(() => mapStorage("gen").get("tag")).toThrow("No map is open");

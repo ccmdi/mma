@@ -1,4 +1,4 @@
-import { getMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
 import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { runProviders, type ProviderOutcomes, type RunOpts } from "@/lib/data/procedures";
 import { enrichRuns, panoResolveProvider } from "@/lib/sv/providers";
@@ -9,7 +9,7 @@ export async function enrich(
 	selector: Selector,
 	{ resolve = true, ...opts }: RunOpts & { resolve?: boolean } = {},
 ): Promise<ProviderOutcomes> {
-	const map = getMapState().map;
+	const map = Store.get().map;
 	if (!map) return {};
 	const fields = map.settings.enrichFields ?? getDefaultEnrichKeys();
 	const runs = enrichRuns(fields);

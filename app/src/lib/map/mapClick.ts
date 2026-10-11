@@ -1,4 +1,10 @@
 import type { PickingInfo } from "@deck.gl/core";
+import { Store } from "@/store/store";
+import { Location } from "@/store/location";
+import { SelectionList } from "@/store/selectionList";
+import { Editor } from "@/store/editor";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { ClickMode } from "@/store/mapEmbedPrefs";
 import { boundsOfCoords, type MapHost } from "@/lib/map/host";
@@ -14,20 +20,9 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { openSeenEntry } from "@/lib/seen/seenOverlay";
 import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/map/contextMenu";
 import { trace } from "@/lib/util/debug";
-import {
-	addLocations,
-	applySelectionUpdate,
-	getMapState,
-	openStagedLocation,
-	resolveLocation,
-	openLocation,
-	read,
-} from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { toggleManualSelection } from "@/store/selections";
 import { locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
-import type { Location } from "@/bindings.gen";
 
 export const isLocationLayer = (id?: string) =>
 	id?.startsWith(LOCATION_LAYER_ID) ||
@@ -61,7 +56,7 @@ function zoomToPasted(bounds: Bounds | null, padding = 0) {
 export async function addParsedLocations(parsed: ParsedLocation[]) {
 	const tagNames = [...new Set(parsed.flatMap((p) => p.tags))];
 	const ids = (
-		await edit.values(
+		await Edit.values(
 			"tags",
 			tagNames.map((name) => ({ set: { id: 0, name } })),
 		)
@@ -75,8 +70,8 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
 				.filter((id): id is number => id !== undefined),
 		}),
 	);
-	await addLocations(locs);
-	await openLocation(locs[locs.length - 1].id);
+	await Location.add(locs);
+	await Editor.open(locs[locs.length - 1].id);
 	zoomToPasted(boundsOfCoords(locs));
 }
 
@@ -90,13 +85,13 @@ export async function openHref(href: string) {
 		await openExternal(href);
 		return;
 	}
-	const nearby = await read(
+	const nearby = await Query.read(
 		{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
 		{ kind: "locations" },
 	);
 	const match = nearby.find((l) => parsed.panoId && l.panoId === parsed.panoId) ?? nearby[0];
 	if (match) {
-		await openLocation(match);
+		await Editor.open(match);
 		return;
 	}
 	await addParsedLocations([parsed]);
@@ -115,12 +110,12 @@ export async function createLocationAtLatLng(
 	zoom: number,
 	opts?: { container?: HTMLElement | null },
 ): Promise<Location | null> {
-	const area = getMapState().workArea;
+	const area = Store.get().workArea;
 	if (area === "plugin" || area === "import" || area === "diff") return null;
-	if (getMapState().open?.origin === "import") return null;
+	if (Store.get().open?.origin === "import") return null;
 
 	const tr = trace("add");
-	const ms = getMapState().map?.settings;
+	const ms = Store.get().map?.settings;
 	const loc = await lookupStreetView(lat, lng, zoom, {
 		preferOfficial: ms?.preferOfficial,
 		onlyOfficial: ms?.onlyOfficial,
@@ -135,9 +130,9 @@ export async function createLocationAtLatLng(
 		return null;
 	}
 	tr.step("lookup");
-	await addLocations([loc]);
+	await Location.add([loc]);
 	tr.step("addLocations");
-	await openLocation(loc);
+	await Editor.open(loc);
 	tr.step("openLocation");
 	tr.end();
 	return loc;
@@ -162,7 +157,7 @@ export async function handleMapClick(
 ): Promise<void> {
 	// Staged import markers open a read-only preview; never fall through to SV lookup.
 	if (info.layer?.id === "import-preview") {
-		if (typeof info.index === "number" && info.index >= 0) void openStagedLocation(info.index);
+		if (typeof info.index === "number" && info.index >= 0) void Editor.openImport(info.index);
 		return;
 	}
 
@@ -181,7 +176,7 @@ export async function handleMapClick(
 		if (!ctx.onContextMenu) return;
 		if (isLocationLayer(info.layer?.id)) {
 			const picked = await resolvePicked();
-			const loc = picked == null ? null : await resolveLocation(picked);
+			const loc = picked == null ? null : await Editor.resolve(picked);
 			if (loc) openContextMenuLocation(loc);
 			else if (info.coordinate)
 				openContextMenuLatLng({ lat: info.coordinate[1], lng: info.coordinate[0] });
@@ -213,11 +208,11 @@ export async function handleMapClick(
 	if (isLocationLayer(info.layer?.id)) {
 		const picked = await resolvePicked();
 		if (picked != null) {
-			const open = getMapState().open;
+			const open = Store.get().open;
 			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void applySelectionUpdate(toggleManualSelection(locId(picked)));
-			else void openLocation(picked);
+				void SelectionList.update(toggleManualSelection(locId(picked)));
+			else void Editor.open(picked);
 			return;
 		}
 	}
@@ -231,7 +226,7 @@ export async function handleMapClick(
 		if (ctx.clickMode === "nearest") {
 			const nearest =
 				(
-					await read(
+					await Query.read(
 						{
 							type: "Nearest",
 							selection: null,
@@ -243,8 +238,8 @@ export async function handleMapClick(
 				)[0] ?? null;
 			if (!nearest) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void applySelectionUpdate(toggleManualSelection(nearest.id));
-			else void openLocation(nearest);
+				void SelectionList.update(toggleManualSelection(nearest.id));
+			else void Editor.open(nearest);
 			return;
 		}
 		await createLocationAtLatLng(info.coordinate[1], info.coordinate[0], ctx.host?.getZoom() ?? 2, {

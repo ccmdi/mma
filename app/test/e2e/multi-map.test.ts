@@ -85,7 +85,7 @@ describe("Multi-map isolation", () => {
 
 		await openMap(mapBId);
 		const hasTags = await withApi(async (api) => {
-			const tagNames = Object.values(api.getTags()).map((t: any) => t.name);
+			const tagNames = Object.values(api.Tag.all()).map((t: any) => t.name);
 			return tagNames.includes("MapA-Only");
 		});
 		expect(hasTags).toBe(false);
@@ -95,8 +95,8 @@ describe("Multi-map isolation", () => {
 	it("undo history is scoped to each map", async () => {
 		await openMap(mapBId);
 		const historyB = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		expect(historyB.canUndo).toBe(true);
 		expect(historyB.canRedo).toBe(false);
@@ -107,25 +107,25 @@ describe("Multi-map isolation", () => {
 		const countBefore = await getLocCount();
 		await flushAndWait();
 		const historyA = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		expect(historyA.canUndo).toBe(true);
 		await closeMap();
 
 		await openMap(mapBId);
 		const historyBAfterSwitch = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		expect(historyBAfterSwitch).toEqual(historyB);
 		const countBeforeUndoB = await getLocCount();
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		expect(await getLocCount()).toBe(countBeforeUndoB - 1);
 		await closeMap();
 
 		await openMap(mapAId);
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		expect(await getLocCount()).toBe(countBefore - 1);
 		await closeMap();
 	});
@@ -133,12 +133,12 @@ describe("Multi-map isolation", () => {
 	it("selections are reset when switching maps", async () => {
 		await openMap(mapAId);
 		await select({ type: "Everything" });
-		const selCountA = await withApi(async (api) => api.getActiveSelections().length);
+		const selCountA = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selCountA).toBeGreaterThan(0);
 		await closeMap();
 
 		await openMap(mapBId);
-		const selCountB = await withApi(async (api) => api.getActiveSelections().length);
+		const selCountB = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selCountB).toBe(0);
 		await closeMap();
 	});
@@ -152,14 +152,14 @@ describe("Multi-map metadata isolation", () => {
 		await waitForReady();
 		map1Id = await createAndOpenMap("Meta Map 1");
 		await withApi(async (api) => {
-			await api.edit.meta({ description: "Description 1" });
+			await api.Edit.meta({ description: "Description 1" });
 		});
 		await flushAndWait();
 		await closeMap();
 
 		map2Id = await createAndOpenMap("Meta Map 2");
 		await withApi(async (api) => {
-			await api.edit.meta({ description: "Description 2" });
+			await api.Edit.meta({ description: "Description 2" });
 		});
 		await flushAndWait();
 		await closeMap();
@@ -173,18 +173,18 @@ describe("Multi-map metadata isolation", () => {
 
 	it("each map retains its own description", async () => {
 		await openMap(map1Id);
-		const desc1 = await withApi(async (api) => api.getMapState().map!.description);
+		const desc1 = await withApi(async (api) => api.Store.get().map!.description);
 		expect(desc1).toBe("Description 1");
 		await closeMap();
 
 		await openMap(map2Id);
-		const desc2 = await withApi(async (api) => api.getMapState().map!.description);
+		const desc2 = await withApi(async (api) => api.Store.get().map!.description);
 		expect(desc2).toBe("Description 2");
 		await closeMap();
 	});
 
 	it("renaming one map does not affect the other", async () => {
-		await withApi(async (api, id) => api.edit.meta({ id: id, name: "Renamed Map 1" }), map1Id);
+		await withApi(async (api, id) => api.Edit.meta({ id: id, name: "Renamed Map 1" }), map1Id);
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
 		const m1 = maps.find((m: any) => m.id === map1Id);

@@ -25,17 +25,17 @@ vi.mock("@/lib/commands", async () => {
 	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-
-import { openMap, openDuplicateLocation, updateLocations } from "@/store/useMapStore";
+import { Maps } from "@/store/maps";
+import { Editor } from "@/store/editor";
+import { Location } from "@/store/location";
 import { createLocation } from "@/types";
-import type { Location } from "@/bindings.gen";
 
 function makeLoc(extra: Record<string, unknown> | null = null): Location {
 	return { ...createLocation({ lat: 1, lng: 2 }), id: 7, extra };
 }
 
 function patchExtra(loc: Location, extra: Record<string, unknown>) {
-	return updateLocations([{ id: loc.id, extra }]);
+	return Location.update([{ id: loc.id, extra }]);
 }
 
 beforeEach(async () => {
@@ -43,13 +43,13 @@ beforeEach(async () => {
 	wire.gates.length = 0;
 	wire.gated = false;
 	wire.active = null;
-	await openMap("m1");
+	await Maps.open("m1");
 });
 
 describe("extra merge-patch writes via updateLocations", () => {
 	it("ships only the patched keys", async () => {
 		const loc = makeLoc({ existing: 1 });
-		openDuplicateLocation(loc);
+		Editor.openDuplicate(loc);
 
 		await patchExtra(loc, { datetime: 111 });
 

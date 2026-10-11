@@ -1,10 +1,10 @@
+import { Maps } from "./maps";
+import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { emit as emitEvent } from "@/lib/events";
 import { resetCommitDiffCounts } from "./commitDiff";
-import { invalidateMapList } from "./mapList";
-import { getMapState } from "./useMapStore";
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 let inflight: Promise<void> | null = null;
@@ -14,7 +14,7 @@ let holds = 0;
 let deferred = false;
 
 /** Defer autosave until the returned release function runs. Useful for batches that land many mutations. @unstable */
-export function hold(): () => void {
+function hold(): () => void {
 	holds++;
 	return () => {
 		holds--;
@@ -26,7 +26,7 @@ export function hold(): () => void {
 }
 
 /** Schedule a debounced autosave. Mutations call this automatically. @unstable */
-export function schedule() {
+function schedule() {
 	if (holds > 0) {
 		deferred = true;
 		return;
@@ -39,7 +39,7 @@ export function schedule() {
 }
 
 /** Cancel any pending autosave timer. @unstable */
-export function cancel() {
+function cancel() {
 	if (timer) {
 		clearTimeout(timer);
 		timer = null;
@@ -47,17 +47,17 @@ export function cancel() {
 }
 
 /** Wait for any in-progress save to finish. @unstable */
-export function waitForInflight() {
+function waitForInflight() {
 	return inflight;
 }
 
 /** Background auto-commit after an import with autoCommit set. @unstable */
-export function scheduleAutoCommit(mapId: string, importedCount: number) {
+function scheduleAutoCommit(mapId: string, importedCount: number) {
 	inflight = cmd
 		.storeCommit(mapId, `Import ${importedCount} locations`)
 		.then(() => {
 			resetCommitDiffCounts();
-			void invalidateMapList();
+			void Maps.invalidate();
 		})
 		.catch((e: unknown) => log.error("[import] background commit failed:", e))
 		.finally(() => {
@@ -67,7 +67,7 @@ export function scheduleAutoCommit(mapId: string, importedCount: number) {
 }
 
 async function save(): Promise<void> {
-	const { mapId, map } = getMapState();
+	const { mapId, map } = Store.get();
 	if (!mapId || !map) return;
 	await inflight;
 
@@ -76,7 +76,7 @@ async function save(): Promise<void> {
 		.storeSaveDirty()
 		.then(() => {
 			t.end();
-			void invalidateMapList();
+			void Maps.invalidate();
 		})
 		.catch((err) => {
 			schedule();
@@ -89,7 +89,16 @@ async function save(): Promise<void> {
 }
 
 /** Save any unsaved changes now instead of waiting for the timer. @unstable */
-export async function flush(): Promise<void> {
+async function flush(): Promise<void> {
 	cancel();
 	await save();
 }
+
+export const Autosave = {
+	hold,
+	schedule,
+	cancel,
+	waitForInflight,
+	scheduleAutoCommit,
+	flush,
+};

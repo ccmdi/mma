@@ -1,11 +1,8 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import {
-	useMapState,
-	getMapState,
-	removeLocations,
-	discardOpenMap,
-	getTags,
-} from "@/store/useMapStore";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
+import { Location } from "@/store/location";
+import { Tag } from "@/store/tag";
 import { beginImportPaste, beginImportFromPath } from "@/store/importStaging";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { listen } from "@tauri-apps/api/event";
@@ -30,7 +27,6 @@ import {
 import { ChipHostContext } from "@/components/editor/location/FullscreenMiniLocationPreview";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { MapSettingsForm } from "@/components/dialogs/MapSettingsForm";
-import { isReservedMap } from "@/store/mapList";
 import { EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
 import { Dialog, DialogTrigger, DialogContent } from "@/components/primitives/Dialog";
 import {
@@ -191,14 +187,14 @@ function SplitHandle({ onSplitChange }: { onSplitChange: (v: number) => void }) 
 }
 
 export function MapEditor() {
-	const map = useMapState((s) => s.map);
-	const hasDoclinks = useMapState(() => doclinkedTags(getTags()).length > 0);
+	const map = Store.use((s) => s.map);
+	const hasDoclinks = Store.use(() => doclinkedTags(Tag.all()).length > 0);
 	// Warm the doclink HTML cache once per map open, so the panel is instant.
 	const prefetchDocs = useEffectEvent(() => {
-		if (map) prefetchDoclinks(getTags());
+		if (map) prefetchDoclinks(Tag.all());
 	});
 	useEffect(() => prefetchDocs(), [map?.id]);
-	const workArea = useMapState((s) => s.workArea);
+	const workArea = Store.use((s) => s.workArea);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [split, setSplit] = useLocalStorage("editorSplit", 50);
 	const [docPanelOpen, setDocPanelOpen] = useLocalStorage("doclinkPanelOpen", false);
@@ -221,8 +217,8 @@ export function MapEditor() {
 	// and back out to the list, which self-destructs the editor window on Tauri.
 	useEffect(() => {
 		const unlisten = listen<string>("map-deleted", (e) => {
-			if (e.payload === getMapState().mapId) {
-				discardOpenMap();
+			if (e.payload === Store.get().mapId) {
+				Maps.discard();
 				goTo({ type: "list" });
 			}
 		});
@@ -237,9 +233,9 @@ export function MapEditor() {
 	useCommandHotkeys();
 	useMapKeyBindings(() =>
 		mergedKeyBindings(
-			getMapState().map?.settings.keyBindings ?? [],
+			Store.get().map?.settings.keyBindings ?? [],
 			getLocal(GLOBAL_COPY_BINDINGS),
-			getMapState().mapId,
+			Store.get().mapId,
 		),
 	);
 	useCountrySelect();
@@ -255,8 +251,8 @@ export function MapEditor() {
 	useHotkey(
 		useBinding("locationDelete"),
 		() => {
-			const ids = getMapState().selectedLocationIds;
-			if (ids.size > 0) void removeLocations(ids);
+			const ids = Store.get().selectedLocationIds;
+			if (ids.size > 0) void Location.remove(ids);
 		},
 		{ bubble: true },
 	);
@@ -271,7 +267,7 @@ export function MapEditor() {
 			if (isEditableElement(e.target)) return;
 			if (isActivationElement(document.activeElement)) return;
 			if (!getSettings().enterOpensCenter) return;
-			if (getMapState().open?.location) return;
+			if (Store.get().open?.location) return;
 			showMapCursorRef.current = true;
 			setShowMapCursor(true);
 		}
@@ -330,7 +326,7 @@ export function MapEditor() {
 								</a>
 							</Tooltip>
 							{map.name && <h1>{map.name}</h1>}
-							{!isReservedMap(map.id) && (
+							{!Maps.isReserved(map.id) && (
 								<Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
 									<DialogTrigger
 										render={

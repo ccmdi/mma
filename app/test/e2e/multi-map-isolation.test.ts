@@ -55,12 +55,12 @@ describe("Selection isolation across maps", () => {
 	it("selecting Everything in A, switching to B: B has no selections", async () => {
 		await openMap(mapAId);
 		await select({ type: "Everything" });
-		const selA = await withApi(async (api) => api.getActiveSelections().length);
+		const selA = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selA).toBe(1);
 		await closeMap();
 
 		await openMap(mapBId);
-		const selB = await withApi(async (api) => api.getActiveSelections().length);
+		const selB = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selB).toBe(0);
 		await closeMap();
 	});
@@ -69,12 +69,12 @@ describe("Selection isolation across maps", () => {
 		await openMap(mapAId);
 		const tag = await createTag("OnlyInA");
 		await select(tagSelector(tag.id));
-		const selsA = await withApi(async (api) => api.getActiveSelections().length);
+		const selsA = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selsA).toBeGreaterThan(0);
 		await closeMap();
 
 		await openMap(mapBId);
-		const selsB = await withApi(async (api) => api.getActiveSelections().length);
+		const selsB = await withApi(async (api) => api.SelectionList.active().length);
 		expect(selsB).toBe(0);
 		await closeMap();
 	});
@@ -100,7 +100,7 @@ describe("Dirty state isolation across maps", () => {
 		await addLocs([createLocation({ lat: 2, lng: 2 })]);
 		// Commit so B starts clean: uncommitted edits now persist across reopen, so without
 		// this B would reopen dirty from its own setup and mask the isolation check.
-		await withApi(async (api) => api.commitMap());
+		await withApi(async (api) => api.Commit.create());
 		await flushAndWait();
 		await closeMap();
 	});
@@ -167,7 +167,7 @@ describe("Undo history isolation across maps", () => {
 		await openMap(mapBId);
 		await addLocs([createLocation({ lat: 20, lng: 20 })]);
 		await addLocs([createLocation({ lat: 21, lng: 21 })]);
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		await closeMap();
 
 		// A should be untouched
@@ -180,15 +180,15 @@ describe("Undo history isolation across maps", () => {
 	it("undo state reports correctly per map", async () => {
 		await openMap(mapAId);
 		const stateA = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		await closeMap();
 
 		await openMap(mapBId);
 		const stateB = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		await closeMap();
 
@@ -213,8 +213,8 @@ describe("Per-map settings isolation", () => {
 		// Only patch individual settings via the existing defaults, not full replacement
 		mapAId = await createAndOpenMap("E2E SettingsIso A");
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.settings;
-			await api.edit.meta({
+			const current = api.Store.get().map!.settings;
+			await api.Edit.meta({
 				settings: {
 					...current,
 					exportZoom: true,
@@ -227,8 +227,8 @@ describe("Per-map settings isolation", () => {
 
 		mapBId = await createAndOpenMap("E2E SettingsIso B");
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.settings;
-			await api.edit.meta({
+			const current = api.Store.get().map!.settings;
+			await api.Edit.meta({
 				settings: {
 					...current,
 					exportZoom: false,
@@ -249,7 +249,7 @@ describe("Per-map settings isolation", () => {
 
 	it("map A has its own settings", async () => {
 		await openMap(mapAId);
-		const settings = await withApi(async (api) => api.getMapState().map!.settings);
+		const settings = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settings.exportZoom).toBe(true);
 		expect(settings.preferOfficial).toBe(true);
 		await closeMap();
@@ -257,7 +257,7 @@ describe("Per-map settings isolation", () => {
 
 	it("map B has its own settings (different from A)", async () => {
 		await openMap(mapBId);
-		const settings = await withApi(async (api) => api.getMapState().map!.settings);
+		const settings = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settings.exportZoom).toBe(false);
 		expect(settings.preferOfficial).toBe(false);
 		expect(settings.onlyOfficial).toBe(true);
@@ -267,8 +267,8 @@ describe("Per-map settings isolation", () => {
 	it("modifying A settings does not change B", async () => {
 		await openMap(mapAId);
 		await withApi(async (api) => {
-			const current = api.getMapState().map!.settings;
-			await api.edit.meta({
+			const current = api.Store.get().map!.settings;
+			await api.Edit.meta({
 				settings: {
 					...current,
 					exportZoom: false,
@@ -280,7 +280,7 @@ describe("Per-map settings isolation", () => {
 		await closeMap();
 
 		await openMap(mapBId);
-		const settingsB = await withApi(async (api) => api.getMapState().map!.settings);
+		const settingsB = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settingsB.onlyOfficial).toBe(true);
 		await closeMap();
 	});
@@ -316,10 +316,10 @@ describe("Open location isolation across maps", () => {
 
 	it("opening map B starts with no open location", async () => {
 		await openMap(mapBId);
-		const activeB = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		const activeB = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeB).toBeNull();
 
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("overview");
 		await closeMap();
 	});

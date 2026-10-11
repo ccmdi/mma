@@ -1,13 +1,15 @@
 import { useState, useCallback } from "react";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
+import { History } from "@/store/history";
+import { Commit } from "@/store/commit";
 import { useDialog, useDialogState } from "@/store/dialogBus";
-import { useMapState, undo, redo, commitMap, historyAvailable } from "@/store/useMapStore";
 import { CommitDialog } from "@/components/dialogs/CommitDialog";
 import { useCommitDiff, hasCommitDiff } from "@/store/commitDiff";
 import { beginImportFromPath } from "@/store/importStaging";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { ExportDialog } from "@/components/dialogs/ExportDialog";
 import { VersionHistory } from "@/components/dialogs/VersionHistory";
-import { isReservedMap } from "@/store/mapList";
 import { SeenDialog } from "@/components/dialogs/SeenDialog";
 import { CopyToMapDialog } from "@/components/editor/CopyToMapDialog";
 import { QuickCopyToMapDialog } from "@/components/editor/QuickCopyToMapDialog";
@@ -22,7 +24,7 @@ import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 
 function LocationTotal() {
-	const locationCount = useMapState((s) => s.locationCount);
+	const locationCount = Store.use((s) => s.locationCount);
 	return (
 		<span className="map-meta__total truncate">
 			<span className="mono">{fmt.format(locationCount)}</span> locations
@@ -36,7 +38,7 @@ function CommitControls() {
 	const [showCommit, setShowCommit] = useState(false);
 	const requestCommit = useCallback((e?: React.MouseEvent) => {
 		if (e?.shiftKey) setShowCommit(true);
-		else void commitMap();
+		else void Commit.create();
 	}, []);
 	useDialog("commit", () => hasCommitDiff() && requestCommit());
 	return (
@@ -51,28 +53,28 @@ function CommitControls() {
 }
 
 function UndoRedoControls() {
-	const canUndo = useMapState((s) => historyAvailable(s.history, "undo"));
-	const canRedo = useMapState((s) => historyAvailable(s.history, "redo"));
+	const canUndo = Store.use((s) => History.available(s.history, "undo"));
+	const canRedo = Store.use((s) => History.available(s.history, "redo"));
 	return (
 		<>
 			<IconButton
 				icon={mdiUndo}
 				label={t("Undo")}
 				disabled={!canUndo}
-				onClick={() => void undo()}
+				onClick={() => void History.undo()}
 			/>
 			<IconButton
 				icon={mdiRedo}
 				label={t("Redo")}
 				disabled={!canRedo}
-				onClick={() => void redo()}
+				onClick={() => void History.redo()}
 			/>
 		</>
 	);
 }
 
 export function MapMetaBar() {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const pano = usePano();
 	const [showExport, setShowExport] = useDialogState("export");
 	const [showHistory, setShowHistory] = useDialogState("history");
@@ -94,7 +96,7 @@ export function MapMetaBar() {
 
 	if (!map) return null;
 
-	const versioned = !isReservedMap(map.id);
+	const versioned = !Maps.isReserved(map.id);
 
 	return (
 		<>

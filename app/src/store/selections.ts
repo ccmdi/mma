@@ -1,6 +1,6 @@
+import { Tag } from "@/store/tag";
 import { displayTagName } from "@/lib/data/tags";
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
-
 import type {
 	FilterOp,
 	ListedSelection,
@@ -12,8 +12,6 @@ import type {
 } from "@/bindings.gen";
 import type { Selector } from "@/types";
 import { cmd } from "@/lib/commands";
-import { getTag } from "@/store/useMapStore";
-
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
 import { unionTuple, type Variant } from "@/types/util";
@@ -394,7 +392,7 @@ export function selectionDisplayName(
 }
 
 function tagDisplayName(tagId: number, tagNames?: Record<number, string>): string {
-	const name = getTag(tagId)?.name;
+	const name = Tag.get(tagId)?.name;
 	if (name != null) return displayTagName(name);
 	// Not a tag on this map: a saved rule still knows what it was called where it was saved.
 	return tagNames?.[tagId] ?? String(tagId);

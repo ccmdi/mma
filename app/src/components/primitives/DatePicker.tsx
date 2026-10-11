@@ -1,4 +1,4 @@
-﻿import { useState, useCallback, useMemo, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { Popover } from "@base-ui-components/react/popover";

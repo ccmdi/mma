@@ -1,12 +1,13 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
 import { isPinned } from "@/types";
 import { useFlashState, type FlashState } from "@/lib/hooks/useFlashState";
 import { PANO_ZOOM, SV_JUMP_RADIUS, displayZoom } from "@/lib/sv/constants";
 import { copyMapsLink, mapsPanoUrl, appendLinkTags } from "@/lib/sv/mapsLink";
 import { fileTimestamp, formatDistance } from "@/lib/util/format";
 import { useSettings } from "@/store/settings";
-import { getMapState, useMapState, getTags } from "@/store/useMapStore";
 import { usePanoViewer } from "./PanoViewerContext";
 import { fieldLabel, fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -226,7 +227,7 @@ function ReturnToSpawnControl({
 	onReturnToSpawn: () => void | Promise<void>;
 }) {
 	const pano = usePano();
-	const location = useMapState((s) => s.open?.location ?? null);
+	const location = Store.use((s) => s.open?.location ?? null);
 	const [hasChanged, setHasChanged] = useState(false);
 	const checkChanged = () => {
 		if (!location) return;
@@ -293,7 +294,7 @@ function CoordinateControl() {
 
 // The draft's extra: the location as a save would write it.
 function PanoMetadataControl() {
-	const location = useMapState((s) => s.open?.location ?? null);
+	const location = Store.use((s) => s.open?.location ?? null);
 	const { draft } = usePanoViewer();
 	if (!location) return null;
 	const fields = draft?.extra ?? location.extra;
@@ -359,8 +360,8 @@ export const PanoControls = memo(function PanoControls({
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
 			const url = buildMapsUrl();
 			if (!url) return;
-			const location = getMapState().open?.location;
-			if (!noTags && location) appendLinkTags(url, location, getTags());
+			const location = Store.get().open?.location;
+			if (!noTags && location) appendLinkTags(url, location, Tag.all());
 			await flashCopy(() => copyMapsLink(url, { long }));
 		},
 		[buildMapsUrl, flashCopy],

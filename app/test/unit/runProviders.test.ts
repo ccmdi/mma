@@ -54,17 +54,24 @@ vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 
 vi.mock("@/store/edit", () => ({
-	work: async (selector: Selector, op: unknown) => {
-		h.fieldOps.push({ selector, op });
-		return { changed: 2, failed: [] };
+	Edit: {
+		work: async (selector: Selector, op: unknown) => {
+			h.fieldOps.push({ selector, op });
+			return { changed: 2, failed: [] };
+		},
 	},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	holdAutosave: () => () => {},
-	updateLocations: async () => {},
-	getMapState: () => ({
-		map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
-	}),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({
+			map: { settings: { enrichMetadata: true, enrichFields: h.enrichFields } },
+		}),
+	},
+}));
+vi.mock("@/store/location", () => ({
+	Location: {
+		update: async () => {},
+	},
 }));
 
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.

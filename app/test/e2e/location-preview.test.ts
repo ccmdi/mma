@@ -115,7 +115,7 @@ describe("LocationPreview — basics", () => {
 
 	it("work area is 'location' when preview is open", async () => {
 		await openLocation(basicCoordId);
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("location");
 	});
 
@@ -125,7 +125,7 @@ describe("LocationPreview — basics", () => {
 		await btn.waitForExist();
 		await btn.click();
 		await waitForWorkArea("overview");
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("overview");
 	});
 
@@ -414,7 +414,7 @@ describe("LocationPreview — dead pano (fallback)", () => {
 		await openLocation(dead1Id);
 		await waitForDates();
 		const draftPanoId = await withApi(
-			async (api) => api.getMapState().open?.location?.panoId ?? null,
+			async (api) => api.Store.get().open?.location?.panoId ?? null,
 		);
 		expect((await getLoc(dead1Id)).panoId).toBe(DEAD_PANO);
 		expect(draftPanoId).not.toBe(DEAD_PANO);
@@ -527,10 +527,10 @@ describe("LocationPreview — switching between pano types", () => {
 		expect(await getDateCount()).toBeGreaterThan(0);
 
 		// Verify it's showing data for the coord location, not a stale one
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("location");
 		const active = await withApi(async (api) => {
-			return api.getMapState().open?.location?.id ?? null;
+			return api.Store.get().open?.location?.id ?? null;
 		});
 		expect(active).toBe(swCoordId);
 	});
@@ -589,8 +589,8 @@ describe("LocationPreview — exact date resolution", () => {
 
 	before(async () => {
 		await withApi(async (api) => {
-			const map = api.getMapState().map!;
-			await api.edit.meta({
+			const map = api.Store.get().map!;
+			await api.Edit.meta({
 				settings: {
 					...map.settings,
 					enrichMetadata: true,
@@ -957,7 +957,7 @@ describe("LocationPreview — tag management in preview", () => {
 	// Invariant: staged tags are a pure UI artifact. Typing a brand-new tag name
 	// must NOT create a map-level tag until the location is saved carrying it.
 	const tagNames = async () =>
-		withApi(async (api) => Object.values(api.getTags()).map((t: { name: string }) => t.name));
+		withApi(async (api) => Object.values(api.Tag.all()).map((t: { name: string }) => t.name));
 
 	it("typing a new tag then CLOSING creates no map-level tag", async () => {
 		await openLocation(tagmgmt1Id);
@@ -988,7 +988,7 @@ describe("LocationPreview — tag management in preview", () => {
 
 		expect(await tagNames()).toContain("ZZStagedSave");
 		const newId = await withApi(async (api) => {
-			const t = Object.values(api.getTags()).find(
+			const t = Object.values(api.Tag.all()).find(
 				(x: { name: string }) => x.name === "ZZStagedSave",
 			) as { id: number } | undefined;
 			return t?.id;
@@ -1353,7 +1353,7 @@ describe("LocationPreview — edge cases", () => {
 
 		// Open location should be B
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().open?.location?.id ?? null;
+			return api.Store.get().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeBId);
 	});
@@ -1369,7 +1369,7 @@ describe("LocationPreview — edge cases", () => {
 		await waitForDates();
 
 		const activeId = await withApi(async (api) => {
-			return api.getMapState().open?.location?.id ?? null;
+			return api.Store.get().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeAId);
 		expect(await getDateCount()).toBeGreaterThan(0);

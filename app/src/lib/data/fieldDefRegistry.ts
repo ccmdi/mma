@@ -7,9 +7,8 @@
 //
 // `getFieldDef` composes per-attribute (not whole-object): a null attribute in a
 // higher layer falls through to the next.
-
+import { Store } from "@/store/store";
 import { emit } from "@/lib/events";
-import { getMapState } from "@/store/useMapStore";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { BUILTIN_FIELDS } from "@/bindings.consts";
 import type { FieldDef } from "@/bindings.gen";
@@ -82,7 +81,7 @@ export function getFieldKeys(): string[] {
 
 /** Keys this map defines a field for. Same reference until the user layer moves. */
 export const getKnownFieldKeys: () => ReadonlySet<string> = memoOnRefs(
-	() => [getMapState().fieldDefs] as const,
+	() => [Store.get().fieldDefs] as const,
 	(defs) => new Set(Object.keys(defs)),
 );
 
@@ -101,7 +100,7 @@ function mergeDef(user: FieldDef | undefined, plugin: FieldDef | undefined): Fie
 
 /** Look up metadata for a field key. Returns `undefined` if no layer declares it. */
 export function getFieldDef(key: string): FieldDef | undefined {
-	return mergeDef(mergeDef(getMapState().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
+	return mergeDef(mergeDef(Store.get().fieldDefs[key], pluginDefs[key]), FIELDS[key]);
 }
 
 /** Translated display label for a field key, falling back to a sentence-cased version of the key. */

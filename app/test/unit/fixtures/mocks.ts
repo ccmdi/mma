@@ -126,7 +126,7 @@ export function openMapResult(
 }
 
 export async function selectionsHeld(value: unknown) {
-	const { getMapState, setMap } = await import("@/store/useMapStore");
+	const { Store } = await import("@/store/store");
 	const { selectionFixture } = await import("./selection");
 	const op = value as import("@/bindings.gen").SelectionOp;
 	type Row = import("@/bindings.gen").ListedSelection;
@@ -162,17 +162,17 @@ export async function selectionsHeld(value: unknown) {
 				throw new Error(`Unsupported test operation: ${op.kind}`);
 		}
 	};
-	const state = getMapState();
+	const state = Store.get();
 	Object.assign(state, { selectionList: apply(op, state.selectionList) });
-	if (state.map) setMap(state.map);
+	if (state.map) Store.setMeta(state.map);
 	return { mutation: { version: 0, keys: [] } };
 }
 
 export async function metadataWritten(patch: unknown) {
-	const { getMapState, setMap } = await import("@/store/useMapStore");
-	const state = getMapState();
+	const { Store } = await import("@/store/store");
+	const state = Store.get();
 	const change = patch as Partial<import("@/bindings.gen").MapMeta>;
-	if (state.map && state.mapId === change.id) setMap({ ...state.map, ...change });
+	if (state.map && state.mapId === change.id) Store.setMeta({ ...state.map, ...change });
 	return null;
 }
 

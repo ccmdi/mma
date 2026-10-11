@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import type { Tag } from "@/types";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -9,14 +11,12 @@ import { t } from "@/lib/i18n";
 import { search } from "@/lib/search";
 import { toast } from "@/lib/util/toast";
 import { displayTagName } from "@/lib/data/tags";
-import { getVisibleTags, useMapState } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 
 export function TagButton({ locationIds, label }: { locationIds: number[]; label?: string }) {
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
 	const [busy, setBusy] = useState(false);
-	const tags = useMapState(getVisibleTags);
+	const tags = Store.use(Tag.visible);
 
 	const suggestions = useMemo(
 		() => search(tags, name, (tag) => [tag.name]).slice(0, 10),
@@ -29,9 +29,9 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 			if (!trimmed || busy || locationIds.length === 0) return;
 			setBusy(true);
 			try {
-				const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name: trimmed } }]))
+				const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name: trimmed } }]))
 					.mutation;
-				await edit.work(
+				await Edit.work(
 					{ type: "Locations", locations: locationIds, name: null },
 					{ kind: "listSet", key: "tags", add, remove: [] },
 				);

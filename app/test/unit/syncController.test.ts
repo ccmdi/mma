@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
+import { Maps } from "@/store/maps";
 import type { SyncLogEntry, SyncReconcileResult } from "@/bindings.gen";
 
 // The reconcile engine talks to the store directly; route its three doors through the
@@ -19,17 +20,22 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({
-		mapId: eng.mapId,
-		map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
-		locationCount: 0,
-	}),
-	mutate: async (fn: () => Promise<unknown>) => fn(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({
+			mapId: eng.mapId,
+			map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
+			locationCount: 0,
+		}),
+	},
+}));
+vi.mock("@/store/mutation", () => ({
+	Mutation: {
+		run: async (fn: () => Promise<unknown>) => fn(),
+	},
 }));
 import { createSyncController } from "@/lib/sync/controller";
 import { setPluginEnabled } from "@/plugins/pluginHost";
-import { getMapBadges } from "@/store/mapList";
 import { subscribe } from "@/lib/events";
 import type { SyncProvider } from "@/lib/sync/provider";
 type RemoteMappingRow = { localId: number; remoteId: number; hash: string };
@@ -70,17 +76,8 @@ function makeMma() {
 
 	const api = {
 		storage: () => kv,
-		getMapState: () => ({
-			mapId: eng.mapId,
-			map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
-			locationCount: 0,
-		}),
 		createLocation: (p: unknown) => p,
-		addLocations: async () => {},
-		updateLocations: async () => {},
-		removeLocations: async () => {},
 		createTags: async () => [],
-		getTags: () => ({}),
 		on: () => () => {},
 		cmd: {
 			syncLogAppend: async (provider: string, id: string, entry: SyncLogEntry) => {
@@ -110,6 +107,15 @@ function makeMma() {
 				mapping.delete(`${provider}:${id}`);
 			},
 		},
+		Store: {
+			get: () => ({
+				mapId: eng.mapId,
+				map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
+				locationCount: 0,
+			}),
+		},
+		Location: { add: async () => {}, update: async () => {}, remove: async () => {} },
+		Tag: { all: () => ({}) },
 	};
 
 	return {
@@ -250,7 +256,7 @@ describe("createSyncController", () => {
 			{ ...makeProvider(), id: "map-making.app" },
 			"badge-plugin",
 		);
-		const badgeKeys = () => (getMapBadges().get("map-a") ?? []).map((b) => b.key);
+		const badgeKeys = () => (Maps.badges().get("map-a") ?? []).map((b) => b.key);
 
 		await controller.link(REMOTE, null);
 		expect(badgeKeys()).not.toContain("sync:map-making.app");

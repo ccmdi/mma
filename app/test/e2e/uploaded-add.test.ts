@@ -15,11 +15,11 @@ describe("Staged (chunked) location adds", () => {
 	it("echoes real ids back onto the passed array, in order", async () => {
 		const r = await withApi(
 			async (api, n: number, tag: number) => {
-				const before = api.getMapState().locationCount;
+				const before = api.Store.get().locationCount;
 				const locs = Array.from({ length: n }, (_, i) =>
 					api.createLocation({ lat: (i % 170) - 85, lng: (i % 350) - 175, tags: [tag] }),
 				);
-				await api.addLocations(locs);
+				await api.Location.add(locs);
 				const ids = locs.map((l) => l.id);
 				const stored = await api.fetchLocations({
 					type: "Locations",
@@ -28,7 +28,7 @@ describe("Staged (chunked) location adds", () => {
 				});
 				return {
 					before,
-					after: api.getMapState().locationCount,
+					after: api.Store.get().locationCount,
 					ids,
 					firstLat: locs[0].lat,
 					lastLat: locs[n - 1].lat,
@@ -50,17 +50,17 @@ describe("Staged (chunked) location adds", () => {
 
 	it("commits as one undoable mutation with correct tag counts", async () => {
 		const r = await withApi(async (api, tag: number) => {
-			const counts = api.getTagCounts();
-			const before = { count: api.getMapState().locationCount, tag: counts?.[tag] ?? 0 };
-			await api.undo();
+			const counts = api.Tag.counts();
+			const before = { count: api.Store.get().locationCount, tag: counts?.[tag] ?? 0 };
+			await api.History.undo();
 			const after = {
-				count: api.getMapState().locationCount,
-				tag: api.getTagCounts()?.[tag] ?? 0,
+				count: api.Store.get().locationCount,
+				tag: api.Tag.counts()?.[tag] ?? 0,
 			};
-			await api.redo();
+			await api.History.redo();
 			const redone = {
-				count: api.getMapState().locationCount,
-				tag: api.getTagCounts()?.[tag] ?? 0,
+				count: api.Store.get().locationCount,
+				tag: api.Tag.counts()?.[tag] ?? 0,
 			};
 			return { before, after, redone };
 		}, tagId);
@@ -73,7 +73,7 @@ describe("Staged (chunked) location adds", () => {
 
 	it("leaves the store untouched when the staged batch cannot be committed", async () => {
 		const r = await withApi(async (api) => {
-			const before = api.getMapState().locationCount;
+			const before = api.Store.get().locationCount;
 			// A session dir that was never opened: the commit must fail before any mutation.
 			let threw = false;
 			try {
@@ -81,7 +81,7 @@ describe("Staged (chunked) location adds", () => {
 			} catch {
 				threw = true;
 			}
-			return { before, threw, after: api.getMapState().locationCount };
+			return { before, threw, after: api.Store.get().locationCount };
 		});
 
 		expect(r.threw).toBe(true);

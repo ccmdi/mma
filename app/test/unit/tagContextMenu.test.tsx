@@ -13,24 +13,38 @@ const h = vi.hoisted(() => ({
 	work: vi.fn(async () => {}),
 }));
 
-vi.mock("@/store/useMapStore", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@/store/useMapStore")>()),
-	deleteTags: h.deleteTags,
-	read: h.countIn,
-	getActiveSelections: () => h.active,
-	useMapState: (sel: () => unknown) => sel(),
+vi.mock("@/store/store", async (importOriginal) => ({
+	Store: {
+		...(await importOriginal<typeof import("@/store/store")>()).Store,
+		use: (sel: () => unknown) => sel(),
+	},
+}));
+vi.mock("@/store/tag", async (importOriginal) => ({
+	Tag: {
+		...(await importOriginal<typeof import("@/store/tag")>()).Tag,
+		remove: h.deleteTags,
+	},
+}));
+vi.mock("@/store/query", async (importOriginal) => ({
+	Query: {
+		...(await importOriginal<typeof import("@/store/query")>()).Query,
+		read: h.countIn,
+	},
 }));
 
-vi.mock("@/store/edit", () => ({ work: h.work }));
+vi.mock("@/store/edit", () => ({ Edit: { work: h.work } }));
 
 vi.mock("@/store/dialogBus", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/store/dialogBus")>()),
 	openDialog: h.openDialog,
 }));
 
-vi.mock("@/store/selectionActions", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@/store/selectionActions")>()),
-	getSelectedTagIds: () => h.selectedTagIds,
+vi.mock("@/store/selectionList", async (importOriginal) => ({
+	SelectionList: {
+		...(await importOriginal<typeof import("@/store/selectionList")>()).SelectionList,
+		active: () => h.active,
+		tagIds: () => h.selectedTagIds,
+	},
 }));
 
 import { TagContextMenu } from "@/components/editor/tags/TagContextMenu";

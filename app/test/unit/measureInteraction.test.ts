@@ -9,9 +9,12 @@ vi.mock("@/lib/events", () => ({
 	subscribeMany: () => () => {},
 	bridgeAcrossWindows: () => {},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { map: null }) => unknown) => sel({ map: null }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (sel: (s: { map: null }) => unknown) => sel({ map: null }),
+	},
 }));
+
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 
 import {

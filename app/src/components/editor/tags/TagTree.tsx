@@ -9,6 +9,7 @@ import {
 	createContext,
 	useContext,
 } from "react";
+import { SelectionList } from "@/store/selectionList";
 import type { Tag } from "@/types";
 import { createPortal } from "react-dom";
 import clsx from "clsx";
@@ -19,7 +20,6 @@ import { Pill } from "@/components/primitives/Pill";
 import { mdiChevronDown, mdiChevronRight, mdiPencil, mdiFolder } from "@mdi/js";
 import { textColorFor, rgbToHex } from "@/lib/util/color";
 import { fmt } from "@/lib/util/format";
-import { applySelectionUpdate } from "@/store/useMapStore";
 import { tagSelector, toggleSelection } from "@/store/selections";
 import { useStableHandler } from "@/lib/hooks/useStableHandler";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
@@ -431,7 +431,7 @@ export function TagTreeView({
 					effectiveSelected ? selectedTagIds.has(id) : !selectedTagIds.has(id),
 				);
 			}
-			void applySelectionUpdate(toggleSelection(...ids.map(tagSelector)));
+			void SelectionList.update(toggleSelection(...ids.map(tagSelector)));
 			anchorPathRef.current = node.fullPath;
 		},
 	);

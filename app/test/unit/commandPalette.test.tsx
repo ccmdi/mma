@@ -12,7 +12,7 @@ Element.prototype.scrollIntoView = () => {};
 const { registerPlugin, unregisterPlugin } = await import("@/plugins/registry");
 const { setPluginEnabled } = await import("@/plugins/pluginHost");
 const { openDialog, useDialog } = await import("@/store/dialogBus");
-const { getMapState } = await import("@/store/useMapStore");
+const { Store } = await import("@/store/store");
 const { CommandPalette } = await import("@/components/editor/CommandPalette");
 
 function ModalProbe({ spy }: { spy: (id: string) => void }) {
@@ -73,8 +73,8 @@ describe("command palette plugin entries", () => {
 		await mountAsync(<CommandPalette />);
 		act(() => openDialog("command-palette"));
 		act(() => itemFor("Sidebar Plugin")!.click());
-		expect(getMapState().activePluginId).toBe("test-sidebar");
-		expect(getMapState().workArea).toBe("plugin");
+		expect(Store.get().activePluginId).toBe("test-sidebar");
+		expect(Store.get().workArea).toBe("plugin");
 	});
 
 	it("a modal plugin entry opens its modal through the dialog bus", async () => {

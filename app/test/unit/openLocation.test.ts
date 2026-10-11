@@ -25,14 +25,8 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-
-import {
-	closeLocation,
-	openLocation,
-	setWorkArea,
-	getMapState,
-	setOpenLocation,
-} from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import type { Location } from "@/bindings.gen";
 import { subscribe } from "@/lib/events";
 
@@ -44,40 +38,40 @@ beforeEach(() => {
 describe("open location", () => {
 	it("drops the open row when the duplicate panel takes over", async () => {
 		h.nearby = [{ id: 7 }, { id: 8 }];
-		await openLocation(7);
+		await Editor.open(7);
 
-		expect(getMapState().open).toBeNull();
+		expect(Store.get().open).toBeNull();
 	});
 
 	it("drops the open row when leaving the location pane", async () => {
-		await openLocation(7);
-		expect(getMapState().open?.location?.id).toBe(7);
+		await Editor.open(7);
+		expect(Store.get().open?.location?.id).toBe(7);
 
-		setWorkArea("plugin");
+		Editor.setArea("plugin");
 
-		expect(getMapState().open).toBeNull();
+		expect(Store.get().open).toBeNull();
 	});
 
 	it("a slow switch that lands after a newer one leaves the newer location active", async () => {
 		let release!: () => void;
 		h.held.set(7, new Promise((r) => (release = r)));
-		const slow = openLocation(7);
-		await openLocation(8);
+		const slow = Editor.open(7);
+		await Editor.open(8);
 		release();
 		await slow;
 
-		expect(getMapState().open?.id).toBe(8);
-		expect(getMapState().open?.location?.id).toBe(8);
-		setWorkArea("overview");
+		expect(Store.get().open?.id).toBe(8);
+		expect(Store.get().open?.location?.id).toBe(8);
+		Editor.setArea("overview");
 	});
 
 	it("emits open:change exactly once per close, and not when nothing was open", async () => {
 		const seen: (number | null)[] = [];
 		const unsub = subscribe("open:change", (id) => seen.push(id));
 
-		await openLocation(7);
-		setWorkArea("plugin");
-		setWorkArea("overview");
+		await Editor.open(7);
+		Editor.setArea("plugin");
+		Editor.setArea("overview");
 
 		unsub();
 		expect(seen).toEqual([7, null]);
@@ -86,45 +80,45 @@ describe("open location", () => {
 	it("a pending location read cannot reopen the editor after it is cleared", async () => {
 		let release!: () => void;
 		h.held.set(8, new Promise((resolve) => (release = resolve)));
-		const switching = openLocation(8);
-		closeLocation();
+		const switching = Editor.open(8);
+		Editor.close();
 		release();
 		await switching;
 
-		expect(getMapState().open).toBeNull();
-		expect(getMapState().workArea).toBe("overview");
+		expect(Store.get().open).toBeNull();
+		expect(Store.get().workArea).toBe("overview");
 	});
 
 	it("a row read for an earlier opening never lands on a reopening of the same location", async () => {
-		await openLocation(7);
-		const earlier = getMapState().open!.session;
-		await openLocation(7);
+		await Editor.open(7);
+		const earlier = Store.get().open!.session;
+		await Editor.open(7);
 
-		setOpenLocation({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
+		Editor.setLocation({ id: 7, lat: 99, lng: 0, tags: [] } as unknown as Location, earlier);
 
-		expect(getMapState().open?.location?.lat).toBe(0);
-		setWorkArea("overview");
+		expect(Store.get().open?.location?.lat).toBe(0);
+		Editor.setArea("overview");
 	});
 
 	it("switching locations keeps the current one open until the next has its row", async () => {
-		await openLocation(7);
+		await Editor.open(7);
 		const seen: { id: number; row: boolean }[] = [];
 		const unsub = subscribe("store:changed", () => {
-			const open = getMapState().open;
+			const open = Store.get().open;
 			if (open) seen.push({ id: open.id, row: open.location != null });
 		});
 		let release!: () => void;
 		h.held.set(8, new Promise((r) => (release = r)));
 
-		const switching = openLocation(8);
-		expect(getMapState().open?.id).toBe(7);
+		const switching = Editor.open(8);
+		expect(Store.get().open?.id).toBe(7);
 		release();
 		await switching;
 		unsub();
 
 		expect(seen.every((s) => s.row)).toBe(true);
-		expect(getMapState().open?.location?.id).toBe(8);
-		setWorkArea("overview");
+		expect(Store.get().open?.location?.id).toBe(8);
+		Editor.setArea("overview");
 	});
 });
 
@@ -138,6 +132,6 @@ describe("legacy open shims", () => {
 		unsub();
 
 		expect(seen).toEqual([7, null]);
-		expect(getMapState().open).toBeNull();
+		expect(Store.get().open).toBeNull();
 	});
 });

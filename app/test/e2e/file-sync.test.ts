@@ -46,7 +46,7 @@ describe("File sync", () => {
 		const first = (await getAllLocs()).find((l) => l.lat === 1)!;
 		expect(first.extra).toMatchObject({ score: 1 });
 		const tagNames = await withApi(async (api, ids: number[]) => {
-			const tags = api.getTags();
+			const tags = api.Tag.all();
 			return ids.map((id) => tags[id]?.name);
 		}, first.tags);
 		expect(tagNames).toEqual(["Upstream"]);

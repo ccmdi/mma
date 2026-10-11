@@ -9,7 +9,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/useMapStore", () => ({ holdAutosave: () => () => {} }));
+
 vi.mock("@/lib/data/fieldDefs", () => ({
 	derivedFrom: () => new Set<string>(),
 	getProviderForField: () => undefined,

@@ -73,12 +73,12 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		// Extra fields: a string and a number, to prove JSON typing survives.
 		const loc2 = await getLoc(ids[2]);
 		await withApi(
-			async (api, l) => api.updateLocations([{ id: l.id, extra: { note: "hello", score: 42 } }]),
+			async (api, l) => api.Location.update([{ id: l.id, extra: { note: "hello", score: 42 } }]),
 			loc2,
 		);
 
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("v1"));
+		await withApi(async (api) => api.Commit.create("v1"));
 		v1Snapshot = await snapshotAll();
 	});
 	it("v1 snapshot captured the seeded data", () => {
@@ -97,26 +97,26 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		const loc0 = await getLoc(ids[0]);
 		await withApi(
 			async (api, l) =>
-				api.updateLocations([{ id: l.id, heading: 270, lat: 1.111, panoId: "PANO_A2" }]),
+				api.Location.update([{ id: l.id, heading: 270, lat: 1.111, panoId: "PANO_A2" }]),
 			loc0,
 		);
 		await withApi(async (api, t, c) => api.addTagToLocations(t, [c]), tagId, ids[2]);
 		const loc2 = await getLoc(ids[2]);
 		await withApi(
-			async (api, l) => api.updateLocations([{ id: l.id, extra: { note: "changed" } }]),
+			async (api, l) => api.Location.update([{ id: l.id, extra: { note: "changed" } }]),
 			loc2,
 		);
-		await withApi(async (api, d) => api.removeLocations(new Set([d])), ids[3]);
+		await withApi(async (api, d) => api.Location.remove(new Set([d])), ids[3]);
 		await addLocs([createLocation({ lat: 5, lng: 6, heading: 7, panoId: "NEW" })]);
 
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("v2"));
+		await withApi(async (api) => api.Commit.create("v2"));
 
 		const commits = await listCommits(map.id);
 		const v1 = commits.find((c) => c.message === "v1");
 		expect(v1).toBeTruthy();
 
-		await withApi(async (api, cid) => api.checkoutCommit(cid), v1.id);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), v1.id);
 
 		const restored = await snapshotAll();
 		expect(restored).toEqual(v1Snapshot);
@@ -127,7 +127,7 @@ describe("VCS data fidelity — exact restoration through checkout", () => {
 		const v2 = commits.find((c) => c.message === "v2");
 		expect(v2).toBeTruthy();
 
-		await withApi(async (api, cid) => api.checkoutCommit(cid), v2.id);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), v2.id);
 
 		const byId = Object.fromEntries((await getAllLocs()).map((l) => [l.id, l]));
 		// loc0 modifications
@@ -165,7 +165,7 @@ describe("VCS commit-diff badge accuracy", () => {
 			createLocation({ lat: 3, lng: 3, heading: 0 }),
 		]);
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("base"));
+		await withApi(async (api) => api.Commit.create("base"));
 	});
 	it("clean tree shows no diff right after commit", async () => {
 		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
@@ -174,7 +174,7 @@ describe("VCS commit-diff badge accuracy", () => {
 
 	it("a pure modification counts as ~1, not an add/remove", async () => {
 		const loc0 = await getLoc(ids[0]);
-		await withApi(async (api, l) => api.updateLocations([{ id: l.id, heading: 123 }]), loc0);
+		await withApi(async (api, l) => api.Location.update([{ id: l.id, heading: 123 }]), loc0);
 		const { added, removed, updated } = await commitDiff();
 		expect([added, removed]).toEqual([0, 0]);
 		expect(updated).toBe(1);
@@ -183,7 +183,7 @@ describe("VCS commit-diff badge accuracy", () => {
 
 	it("add + remove + modify accumulate independently", async () => {
 		await addLocs([createLocation({ lat: 9, lng: 9 })]);
-		await withApi(async (api, d) => api.removeLocations(new Set([d])), ids[1]);
+		await withApi(async (api, d) => api.Location.remove(new Set([d])), ids[1]);
 		const { added, removed, updated } = await commitDiff();
 		expect(added).toBe(1);
 		expect(removed).toBe(1);
@@ -191,7 +191,7 @@ describe("VCS commit-diff badge accuracy", () => {
 	});
 
 	it("committing resets the badge to zero", async () => {
-		await withApi(async (api) => api.commitMap("changes"));
+		await withApi(async (api) => api.Commit.create("changes"));
 		expect(await commitDiff()).toEqual({ added: 0, removed: 0, updated: 0 });
 		expect(await withApi(async (api) => api.hasCommitDiff())).toBe(false);
 	});
@@ -204,15 +204,15 @@ describe("VCS revert-commit chain integrity", () => {
 		// c1 = 2 locs, c2 = +2 locs (4 total)
 		await addLocs([createLocation({ lat: 1, lng: 1 }), createLocation({ lat: 2, lng: 2 })]);
 		await flushAndWait();
-		const c1 = await withApi(async (api) => api.commitMap("c1"));
+		const c1 = await withApi(async (api) => api.Commit.create("c1"));
 
 		await addLocs([createLocation({ lat: 3, lng: 3 }), createLocation({ lat: 4, lng: 4 })]);
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("c2"));
+		await withApi(async (api) => api.Commit.create("c2"));
 		expect(await getLocCount()).toBe(4);
 
 		// Checkout c1 -> writes a "Revert to ..." commit as the new tip.
-		await withApi(async (api, cid) => api.checkoutCommit(cid), c1);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), c1);
 		expect(await getLocCount()).toBe(2);
 
 		const commits = await listCommits(map.id);
@@ -226,7 +226,7 @@ describe("VCS revert-commit chain integrity", () => {
 		// And we can still keep working + committing on top of the revert.
 		await addLocs([createLocation({ lat: 5, lng: 5 })]);
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("after revert"));
+		await withApi(async (api) => api.Commit.create("after revert"));
 		expect(await getLocCount()).toBe(3);
 	});
 
@@ -237,7 +237,7 @@ describe("VCS revert-commit chain integrity", () => {
 		await flushAndWait();
 		expect(await getLocCount()).toBe(4);
 
-		await withApi(async (api, cid) => api.checkoutCommit(cid), afterRevert.id);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), afterRevert.id);
 		expect(await getLocCount()).toBe(3);
 	});
 });

@@ -407,12 +407,10 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 		if (!createMap) return;
 		setBusy(true);
 		setError(null);
-		const created = await createMap(window.MMA.getMapState().map?.name ?? "").catch(
-			(e: unknown) => {
-				setError(errText(e));
-				return null;
-			},
-		);
+		const created = await createMap(window.MMA.Store.get().map?.name ?? "").catch((e: unknown) => {
+			setError(errText(e));
+			return null;
+		});
 		setBusy(false);
 		if (created) doLink(created);
 	}, [createMap, doLink]);

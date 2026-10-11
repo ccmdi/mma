@@ -35,7 +35,7 @@ describe("Dirty tracking", () => {
 
 		const loc = await getLoc(ids[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, heading: 90 }]);
+			await api.Location.update([{ id: l.id, heading: 90 }]);
 		}, loc);
 
 		const count = await getSummary().then((s) => s.dirtyCount);
@@ -47,7 +47,7 @@ describe("Dirty tracking", () => {
 		await flushAndWait();
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, ids[0]);
 
 		const count = await getSummary().then((s) => s.dirtyCount);
@@ -73,13 +73,13 @@ describe("Dirty tracking across undo/redo", () => {
 		await addLocs([createLocation({ lat: 10, lng: 20 })]);
 		await flushAndWait();
 
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		const afterUndo = await getSummary().then((s) => s.dirtyCount);
 		expect(afterUndo).toBeGreaterThan(0);
 	});
 
 	it("redo after undo also marks dirty", async () => {
-		await withApi(async (api) => api.redo());
+		await withApi(async (api) => api.History.redo());
 		const count = await getSummary().then((s) => s.dirtyCount);
 		expect(count).toBeGreaterThan(0);
 	});

@@ -22,8 +22,10 @@ import { pseudo } from "../../scripts/i18n-extract.mjs";
 
 // The user layer is engine state (`MapState.fieldDefs`); the registry only reads it.
 const h = vi.hoisted(() => ({ fieldDefs: {} as Record<string, unknown> }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ fieldDefs: h.fieldDefs }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ fieldDefs: h.fieldDefs }),
+	},
 }));
 
 function setUserFieldDefs(defs: Record<string, FieldDef>) {

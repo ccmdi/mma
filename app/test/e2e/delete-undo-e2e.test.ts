@@ -34,21 +34,21 @@ describe("Delete tagged location + undo", () => {
 	});
 	it("delete reduces tag count", async () => {
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);
 	});
 
 	it("undo restores tag count", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(5);
@@ -60,10 +60,10 @@ describe("Delete tagged location + undo", () => {
 	});
 
 	it("redo re-deletes and tag count drops again", async () => {
-		await withApi(async (api) => api.redo());
+		await withApi(async (api) => api.History.redo());
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);
@@ -92,7 +92,7 @@ describe("Delete selected locations + undo restores selection", () => {
 
 		await withApi(
 			async (api, ids) => {
-				await api.removeLocations(new Set(ids));
+				await api.Location.remove(new Set(ids));
 			},
 			[locIds[0], locIds[1]],
 		);
@@ -102,7 +102,7 @@ describe("Delete selected locations + undo restores selection", () => {
 	});
 
 	it("undo restores selection count", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
@@ -127,23 +127,23 @@ describe("Delete open location + undo", () => {
 		locIds = await seedLocs(5, (i) => ({ lat: i * 10, lng: i * 10 }));
 	});
 	it("delete open location closes it and resets the work area", async () => {
-		await withApi(async (api, lid) => await api.openLocation(lid, false), locIds[2]);
-		const activeBefore = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		await withApi(async (api, lid) => await api.Editor.open(lid, false), locIds[2]);
+		const activeBefore = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeBefore).toBe(locIds[2]);
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[2]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeAfter).toBeNull();
 
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("overview");
 	});
 
 	it("undo restores the deleted location", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		const loc = await getLocOrNull(locIds[2]);
 		expect(loc).not.toBeNull();
@@ -180,7 +180,7 @@ describe("Batch delete + undo data fidelity", () => {
 	it("batch delete 5 locations", async () => {
 		const toDelete = locIds.slice(0, 5);
 		await withApi(async (api, ids) => {
-			await api.removeLocations(new Set(ids));
+			await api.Location.remove(new Set(ids));
 		}, toDelete);
 
 		const count = await getLocCount();
@@ -189,14 +189,14 @@ describe("Batch delete + undo data fidelity", () => {
 
 	it("tag count correct after batch delete", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(0);
 	});
 
 	it("undo restores all 5 with correct data", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		const count = await getLocCount();
 		expect(count).toBe(10);
@@ -218,7 +218,7 @@ describe("Batch delete + undo data fidelity", () => {
 
 	it("tag count restored after undo", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(5);
@@ -245,13 +245,13 @@ describe("Multiple delete-undo cycles", () => {
 			const targetId = locIds[cycle % locIds.length];
 
 			await withApi(async (api, id) => {
-				await api.removeLocations(new Set([id]));
+				await api.Location.remove(new Set([id]));
 			}, targetId);
 
 			const countAfterDelete = await getLocCount();
 			expect(countAfterDelete).toBe(9);
 
-			await withApi(async (api) => api.undo());
+			await withApi(async (api) => api.History.undo());
 
 			const countAfterUndo = await getLocCount();
 			expect(countAfterUndo).toBe(10);

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { act } from "react";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
-import { getMapState } from "@/store/useMapStore";
-import { copyName } from "@/store/mapList";
 import { goTo } from "@/store/router";
 import { initLocale } from "@/lib/i18n";
 import { mountAsync } from "./fixtures/harness";
@@ -45,7 +45,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
 	vi.clearAllMocks();
@@ -53,12 +53,12 @@ afterEach(() => {
 
 describe("Save as", () => {
 	it("names a copy after its map, unnamed or not", () => {
-		expect(copyName("Europe")).toBe("Europe (copy)");
-		expect(copyName("")).toBe("(unnamed) (copy)");
+		expect(Maps.copyName("Europe")).toBe("Europe (copy)");
+		expect(Maps.copyName("")).toBe("(unnamed) (copy)");
 	});
 
 	it("copies the open map under the chosen name and opens the copy", async () => {
-		const s = getMapState() as Record<string, unknown>;
+		const s = Store.get() as Record<string, unknown>;
 		s.mapId = "m1";
 		s.map = { id: "m1", name: "Europe", settings: {} };
 		const onOpenChange = vi.fn();

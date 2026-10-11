@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Store } from "@/store/store";
+import { Commit } from "@/store/commit";
 import {
 	Dialog,
 	DialogActions,
@@ -8,7 +10,6 @@ import {
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { useMapState, checkoutCommit } from "@/store/useMapStore";
 import { beginCommitDiffPreview } from "@/store/commitDiff";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
@@ -18,7 +19,7 @@ import { fmt, dateTimeFmt } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
 
 export function VersionHistory({ open, onOpenChange }: DialogProps) {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const [restoring, setRestoring] = useState<string | null>(null);
 	const { data: commits } = useAsync(() => (map ? cmd.storeListCommits(map.id) : null), [map?.id]);
 
@@ -32,7 +33,7 @@ export function VersionHistory({ open, onOpenChange }: DialogProps) {
 	const restore = async (commit: CommitInfo) => {
 		setRestoring(commit.id);
 		try {
-			await checkoutCommit(commit.id);
+			await Commit.checkout(commit.id);
 			onOpenChange(false);
 		} catch (e) {
 			toast(t("Restore failed: {error}", { error: String(e) }));

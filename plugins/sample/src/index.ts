@@ -1,11 +1,11 @@
 // Identity (id, name, description, icon) comes from manifest.json.
 // This file only provides behavior.
 
-const { registerPlugin, getMapState, on } = MMA;
+const { registerPlugin, Store, on } = MMA;
 
 registerPlugin({
   activate() {
-    const map = getMapState().map;
+    const map = Store.get().map;
     if (map) {
       console.log(`[sample] Activated on "${map.name}"`);
     }
@@ -16,9 +16,9 @@ registerPlugin({
     });
 
     // Read/write location extra fields
-    // const loc = MMA.getMapState().open?.location;
+    // const loc = MMA.map.get().open?.location;
     // if (loc) {
-    //   MMA.updateLocations([{ id: loc.id, extra: { myField: "hello from plugin" } }]);
+    //   MMA.Location.update([{ id: loc.id, extra: { myField: "hello from plugin" } }]);
     // }
 
     // Spawn a subprocess

@@ -95,22 +95,32 @@ vi.mock("@/lib/sv/query", () => ({
 	svMetadata: (ids: string[], signal?: AbortSignal) =>
 		h.work.park(() => ids.map((id) => h.panos.get(id) ?? null), signal),
 }));
-vi.mock("@/store/useMapStore", () => ({
-	getActiveSelections: () => [
-		{
-			key: h.key,
-			color: "#fff",
-			selector: {
-				type: "Polygon",
-				polygon: { properties: { name: "A" }, coordinates: [h.square] },
-			},
-		} as unknown as Selection,
-	],
-	useMapState: (sel: (s: unknown) => unknown) => sel(undefined),
-	getMapState: () => ({ fieldDefs: {} }),
-	createTags: (names: string[]) => Promise.resolve(names.map((name, i) => ({ id: i + 1, name }))),
-	setPluginMode: () => {},
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (sel: (s: unknown) => unknown) => sel(undefined),
+		get: () => ({ fieldDefs: {} }),
+	},
 }));
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		openPlugin: () => {},
+	},
+}));
+vi.mock("@/store/selectionList", () => ({
+	SelectionList: {
+		active: () => [
+			{
+				key: h.key,
+				color: "#fff",
+				selector: {
+					type: "Polygon",
+					polygon: { properties: { name: "A" }, coordinates: [h.square] },
+				},
+			} as unknown as Selection,
+		],
+	},
+}));
+
 vi.mock("@/plugins/pluginStorage", () => ({
 	storage: () => ({ get: (_key: string, fallback: unknown) => fallback }),
 	mapStorage: () => ({
@@ -136,8 +146,10 @@ const PERMISSIVE = {
 function countWrites(): void {
 	h.writes = 0;
 	vi.stubGlobal("MMA", {
-		addLocations: async (locs: unknown[]) => {
-			h.writes += locs.length;
+		Location: {
+			add: async (locs: unknown[]) => {
+				h.writes += locs.length;
+			},
 		},
 	});
 }

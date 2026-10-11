@@ -1,8 +1,8 @@
 import { useState, useCallback, type SetStateAction } from "react";
+import { Store } from "@/store/store";
+import { Edit } from "@/store/edit";
 import type { MapMeta } from "@/bindings.gen";
 import { getLocal, reloadLocal, setLocal } from "@/lib/hooks/useLocalStorage";
-import { getMapState } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 
 export interface PluginStorage {
 	get<T = unknown>(key: string, fallback?: T): T;
@@ -58,7 +58,7 @@ export function storage(id: string): PluginStorage {
 }
 
 function requireOpenMap(): MapMeta {
-	const { map } = getMapState();
+	const { map } = Store.get();
 	if (!map) throw new Error("No map is open");
 	return map;
 }
@@ -72,7 +72,7 @@ function writeMapPluginStore(id: string, data: Entries): Promise<void> {
 	const pluginData = { ...map.settings.pluginData };
 	if (Object.keys(data).length > 0) pluginData[id] = data;
 	else delete pluginData[id];
-	return edit.meta({ id: map.id, settings: { ...map.settings, pluginData } });
+	return Edit.meta({ id: map.id, settings: { ...map.settings, pluginData } });
 }
 
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.

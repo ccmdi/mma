@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import clsx from "clsx";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import { NSelect } from "@/components/primitives/NSelect";
 import type { Selector } from "@/types";
 import type { CountBy, KeySpec } from "@/bindings.gen";
@@ -7,8 +9,6 @@ import type { DatePart } from "@/bindings.consts";
 import { resolveFieldLabels } from "@/lib/data/procedures";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
-import { read } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { all, not } from "@/store/selections";
 import { useSelectorPick } from "@/store/selectorPick";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -83,10 +83,12 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		let live = true;
 		const selector = picker.selector;
 		void Promise.all([
-			read(selector, { kind: "count" }),
-			read(selector, { kind: "coverage" }),
+			Query.read(selector, { kind: "count" }),
+			Query.read(selector, { kind: "coverage" }),
 			key
-				? read(selector, { kind: "countBy", fields: [field], key }).then((counts) => counts[0])
+				? Query.read(selector, { kind: "countBy", fields: [field], key }).then(
+						(counts) => counts[0],
+					)
 				: Promise.resolve<CountBy>({ counts: [], covered: 0 }),
 		]).then(([total, counts, grouped]) => {
 			if (!live) return;
@@ -125,7 +127,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const handleApply = async () => {
 		if (!field || !key) return;
 
-		const groups = await read(picker.selector, { kind: "groupBy", field, key });
+		const groups = await Query.read(picker.selector, { kind: "groupBy", field, key });
 		if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
@@ -134,7 +136,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const missing = tagMissing
 			? all(picker.selector, not({ type: "Locations", locations: grouped, name: null }))
 			: null;
-		const missingCount = missing ? await read(missing, { kind: "count" }) : 0;
+		const missingCount = missing ? await Query.read(missing, { kind: "count" }) : 0;
 		if (groups.length === 0 && missingCount === 0) return;
 
 		const labels = await resolveFieldLabels(
@@ -144,8 +146,8 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		);
 		// Groups with the same label reuse one tag.
 		const tagInto = async (name: string, selector: Selector) => {
-			const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
-			await edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
+			const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation;
+			await Edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
 		};
 		for (const [i, g] of groups.entries())
 			await tagInto(tagName(labels[i]), { type: "Locations", locations: g.ids, name: null });

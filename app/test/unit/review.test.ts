@@ -7,17 +7,40 @@ const store = vi.hoisted(() => ({
 	mapState: { mapId: null, map: null, open: null, selectionList: [] } as Record<string, unknown>,
 	active: [] as { key: string; selector: { type: string } }[],
 }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => store.mapState,
-	getActiveSelections: () => store.active,
-	openLocation: vi.fn(),
-	closeLocation: vi.fn(),
-	applySelectionUpdate: vi.fn(),
-	read: async ({ locations }: { locations: number[] }) =>
-		locations.filter((id) => store.liveIds.includes(id)),
-	removeLocations: vi.fn(),
-	mutate: vi.fn(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => store.mapState,
+	},
 }));
+vi.mock("@/store/mutation", () => ({
+	Mutation: {
+		run: vi.fn(),
+	},
+}));
+vi.mock("@/store/query", () => ({
+	Query: {
+		read: async ({ locations }: { locations: number[] }) =>
+			locations.filter((id) => store.liveIds.includes(id)),
+	},
+}));
+vi.mock("@/store/location", () => ({
+	Location: {
+		remove: vi.fn(),
+	},
+}));
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		open: vi.fn(),
+		close: vi.fn(),
+	},
+}));
+vi.mock("@/store/selectionList", () => ({
+	SelectionList: {
+		active: () => store.active,
+		update: vi.fn(),
+	},
+}));
+
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeReviewUpdate: vi.fn(async () => {}),

@@ -9,14 +9,32 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/useMapStore", () => {
+vi.mock("@/store/store", () => {
 	const state = () => ({ fieldDefs: h.fieldDefs });
 	return {
-		getMapState: state,
-		useMapState: (sel: (s: unknown) => unknown) => sel(state()),
-		read: async (_selector: unknown, ask: { kind: string }) =>
-			ask.kind === "coverage" ? h.held : [],
-		applySelectionUpdate: async () => {},
+		Store: {
+			get: state,
+			use: (sel: (s: unknown) => unknown) => sel(state()),
+		},
+	};
+});
+vi.mock("@/store/query", () => {
+	return {
+		Query: {
+			read: async (
+				_selector: unknown,
+				ask: {
+					kind: string;
+				},
+			) => (ask.kind === "coverage" ? h.held : []),
+		},
+	};
+});
+vi.mock("@/store/selectionList", () => {
+	return {
+		SelectionList: {
+			update: async () => {},
+		},
 	};
 });
 

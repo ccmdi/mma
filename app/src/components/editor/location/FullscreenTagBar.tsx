@@ -1,7 +1,6 @@
 import { useState } from "react";
-import type { Tag } from "@/types";
 import { mdiChevronDown, mdiChevronUp } from "@mdi/js";
-import { getTagCounts } from "@/store/useMapStore";
+import { Tag } from "@/store/tag";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { useSetting } from "@/store/settings";
@@ -51,7 +50,7 @@ export function FullscreenTagBar({
 	};
 
 	const pendingLower = new Set(pendingTags.map((n) => n.toLowerCase()));
-	const sorted = sortTagsByMode(tags, tagSortMode, getTagCounts());
+	const sorted = sortTagsByMode(tags, tagSortMode, Tag.counts());
 	const available = sorted.filter((t) => !pendingLower.has(t.name.toLowerCase()));
 	const filtered = search(available, input, (t) => [t.name]);
 

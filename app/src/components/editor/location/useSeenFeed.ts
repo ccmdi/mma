@@ -1,5 +1,5 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { useMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
 import { seenPanoChanged, seenUpdateGeo, seenFlush } from "@/lib/seen/seenRecorder";
 import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
@@ -7,8 +7,8 @@ import { usePanoViewer } from "./PanoViewerContext";
 /** Record viewed panos, add geocoding when ready, and flush on close.
  *  The location's stored countryCode takes precedence over geocoding. */
 export function useSeenFeed() {
-	const location = useMapState((s) => s.open?.location ?? null);
-	const origin = useMapState((s) => s.open?.origin);
+	const location = Store.use((s) => s.open?.location ?? null);
+	const origin = Store.use((s) => s.open?.origin);
 	const { draft, geo } = usePanoViewer();
 	const pano = usePano();
 	const storedCountry =

@@ -36,7 +36,7 @@ describe("Delete marks store dirty", () => {
 	});
 	it("store is dirty after delete", async () => {
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
 		// A deletion after saving marks the map unsaved again.
@@ -60,7 +60,7 @@ describe("Delete updates location count", () => {
 	it("location count decreases by 1 after single delete", async () => {
 		const before = await getLocCount();
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
 		const after = await getLocCount();
@@ -71,7 +71,7 @@ describe("Delete updates location count", () => {
 		const before = await getLocCount();
 		const toDelete = locIds.slice(1, 4);
 		await withApi(async (api, ids) => {
-			await api.removeLocations(new Set(ids));
+			await api.Location.remove(new Set(ids));
 		}, toDelete);
 
 		const after = await getLocCount();
@@ -97,27 +97,27 @@ describe("Delete clears open location", () => {
 	});
 	it("open location cleared when it is deleted", async () => {
 		await openLocation(locIds[0]);
-		const activeBefore = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeBefore).toBe(locIds[0]);
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeAfter).toBeNull();
 	});
 
 	it("work area returns to overview when active is deleted", async () => {
 		await openLocation(locIds[1]);
-		const areaBefore = await withApi(async (api) => api.getMapState().workArea);
+		const areaBefore = await withApi(async (api) => api.Store.get().workArea);
 		expect(areaBefore).toBe("location");
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[1]);
 
-		const areaAfter = await withApi(async (api) => api.getMapState().workArea);
+		const areaAfter = await withApi(async (api) => api.Store.get().workArea);
 		expect(areaAfter).toBe("overview");
 	});
 
@@ -125,10 +125,10 @@ describe("Delete clears open location", () => {
 		await openLocation(locIds[2]);
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[3]);
 
-		const activeAfter = await withApi(async (api) => api.getMapState().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
 		expect(activeAfter).toBe(locIds[2]);
 	});
 });
@@ -154,7 +154,7 @@ describe("Delete syncs with selections", () => {
 		untaggedIds = await addLocs(untagged);
 	});
 	beforeEach(async () => {
-		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
 	});
 
 	it("tag selection count decreases when tagged location is deleted", async () => {
@@ -163,7 +163,7 @@ describe("Delete syncs with selections", () => {
 		expect(before.length).toBe(5);
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, taggedIds[0]);
 
 		const after = await refreshSelections();
@@ -175,7 +175,7 @@ describe("Delete syncs with selections", () => {
 		const before = await refreshSelections();
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, untaggedIds[0]);
 
 		const after = await refreshSelections();
@@ -200,7 +200,7 @@ describe("Delete updates tag counts", () => {
 	});
 	it("tag count starts correct", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(8);
@@ -208,11 +208,11 @@ describe("Delete updates tag counts", () => {
 
 	it("tag count decreases after deleting tagged location", async () => {
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(7);
@@ -221,11 +221,11 @@ describe("Delete updates tag counts", () => {
 	it("tag count decreases correctly after batch delete", async () => {
 		const toDelete = locIds.slice(1, 4);
 		await withApi(async (api, ids) => {
-			await api.removeLocations(new Set(ids));
+			await api.Location.remove(new Set(ids));
 		}, toDelete);
 
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(4);

@@ -5,7 +5,7 @@ describe("Version control — commit and restore", () => {
 	const map = useMap("E2E VCS Edge");
 
 	it("commit with no changes records an empty snapshot", async () => {
-		const result = await withApi(async (api) => api.commitMap("Empty commit"));
+		const result = await withApi(async (api) => api.Commit.create("Empty commit"));
 		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 		const commit = commits.find((entry: any) => entry.id === result);
 		expect(commit).toBeTruthy();
@@ -20,7 +20,7 @@ describe("Version control — commit and restore", () => {
 		]);
 		await flushAndWait();
 
-		await withApi(async (api) => api.commitMap("Two locations"));
+		await withApi(async (api) => api.Commit.create("Two locations"));
 
 		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 		expect(commits.length).toBeGreaterThanOrEqual(2);
@@ -41,7 +41,7 @@ describe("Version control — commit and restore", () => {
 		expect(twoLocCommit).toBeTruthy();
 
 		await withApi(async (api, commitId) => {
-			await api.checkoutCommit(commitId);
+			await api.Commit.checkout(commitId);
 		}, twoLocCommit!.id);
 
 		const count = await getLocCount();
@@ -50,8 +50,8 @@ describe("Version control — commit and restore", () => {
 
 	it("checkout resets undo history", async () => {
 		const state = await withApi(async (api) => ({
-			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
-			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo"),
+			canRedo: api.History.available(api.Store.get().history, "redo"),
 		}));
 		expect(state.canUndo).toBe(false);
 		expect(state.canRedo).toBe(false);
@@ -66,7 +66,7 @@ describe("Version control — commit and restore", () => {
 	it("a failed restore leaves the map open", async () => {
 		const error = await withApi(async (api) => {
 			try {
-				await api.checkoutCommit("no-such-commit");
+				await api.Commit.checkout("no-such-commit");
 				return null;
 			} catch (e) {
 				return String(e);
@@ -85,19 +85,19 @@ describe("Version control — multiple commits", () => {
 
 	it("creates a sequence of commits", async () => {
 		// Commit 1: empty
-		await withApi(async (api) => api.commitMap("Initial"));
+		await withApi(async (api) => api.Commit.create("Initial"));
 
 		// Commit 2: 5 locations
 		await addLocs(Array.from({ length: 5 }, (_, i) => createLocation({ lat: i, lng: i })));
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("Five locations"));
+		await withApi(async (api) => api.Commit.create("Five locations"));
 
 		// Commit 3: 10 total
 		await addLocs(
 			Array.from({ length: 5 }, (_, i) => createLocation({ lat: 10 + i, lng: 10 + i })),
 		);
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("Ten locations"));
+		await withApi(async (api) => api.Commit.create("Ten locations"));
 
 		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 		expect(commits.length).toBeGreaterThanOrEqual(3);
@@ -116,7 +116,7 @@ describe("Version control — multiple commits", () => {
 		const fiveCommit = commits.find((c: any) => c.message === "Five locations");
 
 		await withApi(async (api, commitId) => {
-			await api.checkoutCommit(commitId);
+			await api.Commit.checkout(commitId);
 		}, fiveCommit!.id);
 
 		const count = await getLocCount();

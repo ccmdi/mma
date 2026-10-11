@@ -1,7 +1,7 @@
 import { useCallback } from "react";
+import { Store } from "@/store/store";
+import { Edit } from "@/store/edit";
 import type { MapSettings } from "@/bindings.gen";
-import { useMapState, getMapState } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 
 export function useMapSetting<K extends keyof MapSettings>(
 	key: K,
@@ -14,12 +14,12 @@ export function useMapSetting<K extends keyof MapSettings>(
 	key: K,
 	defaultValue?: NonNullable<MapSettings[K]>,
 ): [Exclude<MapSettings[K], undefined>, (v: MapSettings[K]) => void] {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const set = useCallback(
 		(v: MapSettings[K]) => {
-			const settings = getMapState().map?.settings;
+			const settings = Store.get().map?.settings;
 			if (settings) {
-				void edit.meta({ settings: { ...settings, [key]: v } });
+				void Edit.meta({ settings: { ...settings, [key]: v } });
 			}
 		},
 		[key],

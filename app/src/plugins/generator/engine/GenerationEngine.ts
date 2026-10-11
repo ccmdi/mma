@@ -1,4 +1,3 @@
-import { read } from "@/store/useMapStore";
 import type {
 	GeneratorSettings,
 	GeneratorRegion,
@@ -14,6 +13,7 @@ import { buildGenerationPlan } from "./types";
 import { gridPointSource, pointsInOrder } from "./pointSources";
 import { blueLineSource, DISTRIBUTION_EVENNESS } from "./blueLineSampler";
 import { passesInitialFilters, passesDateFilters, isPanoGood, computeHeading } from "./filters";
+import { Query } from "@/store/query";
 import { svMetadata } from "@/lib/sv/query";
 import { PanoType } from "@/bindings.consts";
 import type { Pano } from "@/bindings.gen";
@@ -406,7 +406,7 @@ export class GenerationEngine {
 	private async withoutExisting(coords: LatLng[]): Promise<LatLng[]> {
 		if (!this.settings.skipExisting) return coords;
 		try {
-			const near = await read(
+			const near = await Query.read(
 				{ type: "Everything" },
 				{
 					kind: "nearAny",
@@ -435,7 +435,7 @@ export class GenerationEngine {
 
 		let seeds: string[];
 		try {
-			const locs = await read(
+			const locs = await Query.read(
 				{
 					type: "Nearby",
 					selection: null,
@@ -817,7 +817,7 @@ export class GenerationEngine {
 		// its probe coordinate didn't — final skip-existing gate before accepting.
 		if (s.skipExisting) {
 			try {
-				const covered = await read(
+				const covered = await Query.read(
 					{ type: "Everything" },
 					{ kind: "nearAny", lats: [pano.lat], lngs: [pano.lng], radiusM: s.skipExistingRadius },
 				);

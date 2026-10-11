@@ -35,7 +35,7 @@ describe("Map management", () => {
 		const id = await createAndOpenMap("Test Map 1");
 		createdMapIds.push(id);
 
-		const name = await withApi(async (api) => api.getMapState().map?.name);
+		const name = await withApi(async (api) => api.Store.get().map?.name);
 		expect(name).toBe("Test Map 1");
 
 		const count = await getLocCount();
@@ -74,7 +74,7 @@ describe("Map management", () => {
 		await openMap(createdMapIds[0]);
 
 		const map = await withApi(async (api) => {
-			const state = api.getMapState();
+			const state = api.Store.get();
 			return state.map ? { id: state.mapId, name: state.map.name } : null;
 		});
 		expect(map).not.toBeNull();
@@ -83,7 +83,7 @@ describe("Map management", () => {
 		await closeMap();
 
 		const closed = await withApi(async (api) => {
-			return api.getMapState().map;
+			return api.Store.get().map;
 		});
 		expect(closed).toBeNull();
 	});
@@ -115,7 +115,7 @@ describe("Map management", () => {
 		// storeDeleteMap helper. The open window must drop the map in response.
 		await withApi(async (api, mapId) => api._test.deleteMap(mapId), id);
 
-		await browser.waitUntil(async () => withApi(async (api) => api.getMapState().map === null), {
+		await browser.waitUntil(async () => withApi(async (api) => api.Store.get().map === null), {
 			timeoutMsg: "open map was not closed after delete",
 		});
 
@@ -159,7 +159,7 @@ describe("Map metadata", () => {
 	it("map has correct initial metadata", async () => {
 		await openMap(mapId);
 		const meta = await withApi(async (api) => {
-			return api.getMapState().map!;
+			return api.Store.get().map!;
 		});
 		expect(meta.name).toBe("Meta Test Map");
 		expect(meta.description).toBe("");
@@ -204,20 +204,20 @@ describe("Empty map edge cases", () => {
 	});
 
 	it("undo on empty map is a no-op", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		const count = await getLocCount();
 		expect(count).toBe(0);
 	});
 
 	it("redo on empty map is a no-op", async () => {
-		await withApi(async (api) => api.redo());
+		await withApi(async (api) => api.History.redo());
 		const count = await getLocCount();
 		expect(count).toBe(0);
 	});
 
 	it("remove from empty map is a no-op", async () => {
 		await withApi(async (api) => {
-			await api.removeLocations(new Set([999999]));
+			await api.Location.remove(new Set([999999]));
 		});
 		const count = await getLocCount();
 		expect(count).toBe(0);

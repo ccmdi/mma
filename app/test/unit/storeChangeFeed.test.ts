@@ -1,3 +1,7 @@
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Mutation } from "@/store/mutation";
 import { createFieldDef } from "@/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -31,17 +35,6 @@ vi.mock("@/lib/commands", async () => {
 	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-
-import {
-	openMap,
-	getMapState,
-	getTags,
-	getTagCounts,
-	getVisibleTags,
-	getTag,
-	tagIdsToNames,
-	settled,
-} from "@/store/useMapStore";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { ChangeEvent } from "@/bindings.gen";
 const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): ChangeEvent => ({
@@ -64,43 +57,43 @@ const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): Chan
 const arrive = (e: ChangeEvent) => feed.onmessage!(e);
 
 beforeEach(async () => {
-	await openMap("m1");
+	await Maps.open("m1");
 });
 
 describe("change feed merge semantics", () => {
 	it("metadata arrives through the feed and preserves untouched map fields", () => {
-		const before = getMapState().map!;
+		const before = Store.get().map!;
 		arrive(event({ meta: { id: before.id, name: "Renamed" } }));
-		expect(getMapState().map).toEqual({ ...before, name: "Renamed" });
-		expect(getMapState().map!.settings).toBe(before.settings);
-		const updated = getMapState().map;
+		expect(Store.get().map).toEqual({ ...before, name: "Renamed" });
+		expect(Store.get().map!.settings).toBe(before.settings);
+		const updated = Store.get().map;
 		arrive(event());
-		expect(getMapState().map).toBe(updated);
+		expect(Store.get().map).toBe(updated);
 	});
 
 	it("null values are skipped: untouched slices keep their reference", () => {
-		const before = getMapState();
-		const tagsBefore = getTags();
-		const countsBefore = getTagCounts();
+		const before = Store.get();
+		const tagsBefore = Tag.all();
+		const countsBefore = Tag.counts();
 		arrive(event());
-		expect(getTagCounts()).toBe(countsBefore);
-		expect(getTags()).toBe(tagsBefore);
-		expect(getMapState().map).toBe(before.map);
+		expect(Tag.counts()).toBe(countsBefore);
+		expect(Tag.all()).toBe(tagsBefore);
+		expect(Store.get().map).toBe(before.map);
 	});
 
 	it("present scalars replace, absent ones hold", () => {
 		arrive(event({ locationCount: 42, history: { locations: { undo: true, redo: true } } }));
-		let s = getMapState();
+		let s = Store.get();
 		expect(s.locationCount).toBe(42);
 		expect(s.history).toEqual({ locations: { undo: true, redo: true } });
 		arrive(event({ history: { locations: { undo: true, redo: false } } }));
-		s = getMapState();
+		s = Store.get();
 		expect(s.locationCount).toBe(42);
 		expect(s.history).toEqual({ locations: { undo: true, redo: false } });
 	});
 
 	it("present values replace their slice; a tag change never re-mints the map", () => {
-		const mapBefore = getMapState().map;
+		const mapBefore = Store.get().map;
 		arrive(
 			event({
 				fieldValues: {
@@ -111,10 +104,10 @@ describe("change feed merge semantics", () => {
 				},
 			}),
 		);
-		expect(getTags()[1]).toMatchObject({ id: 1, name: "red", color: "#ff0000", visible: true });
-		expect(getTags()[2].visible).toBe(false);
-		expect(getTagCounts()).toEqual({ 1: 5, 2: 0 });
-		expect(getMapState().map).toBe(mapBefore);
+		expect(Tag.all()[1]).toMatchObject({ id: 1, name: "red", color: "#ff0000", visible: true });
+		expect(Tag.all()[2].visible).toBe(false);
+		expect(Tag.counts()).toEqual({ 1: 5, 2: 0 });
+		expect(Store.get().map).toBe(mapBefore);
 	});
 
 	it("field values merge per value: a present one replaces itself, a null one is gone", () => {
@@ -129,8 +122,8 @@ describe("change feed merge semantics", () => {
 			}),
 		);
 		arrive(event({ fieldValues: { tags: { 1: { record: { name: "red" }, count: 3 }, 2: null } } }));
-		expect(getTagCounts()).toEqual({ 1: 3 });
-		expect(getTags()[2]).toBeUndefined();
+		expect(Tag.counts()).toEqual({ 1: 3 });
+		expect(Tag.all()[2]).toBeUndefined();
 	});
 
 	it("keeps dark tag metadata addressable but out of the visible set", () => {
@@ -146,17 +139,17 @@ describe("change feed merge semantics", () => {
 		);
 
 		expect(
-			getVisibleTags()
+			Tag.visible()
 				.map((tag) => tag.id)
 				.sort((a, b) => a - b),
 		).toEqual([1, 4]);
-		expect(getTag(9)).toMatchObject({ name: "Empty", visible: false });
-		expect(tagIdsToNames([9, 404])).toEqual(["Empty"]);
+		expect(Tag.get(9)).toMatchObject({ name: "Empty", visible: false });
+		expect(Tag.names([9, 404])).toEqual(["Empty"]);
 	});
 
 	it("a counted value without a record shows under a derived name", () => {
 		arrive(event({ fieldValues: { tags: { 9: { record: null, count: 2 } } } }));
-		expect(getTags()[9]).toMatchObject({ id: 9, name: "Tag 9", visible: true });
+		expect(Tag.all()[9]).toMatchObject({ id: 9, name: "Tag 9", visible: true });
 	});
 
 	// The field registry ships whole when it changed; the known-key set is its key set
@@ -176,7 +169,7 @@ describe("change feed merge semantics", () => {
 
 	it("selectionCounts replace when present", () => {
 		arrive(event({ selectionCounts: { "tag:1": 7 } }));
-		expect(getMapState().selectionCounts).toEqual({ "tag:1": 7 });
+		expect(Store.get().selectionCounts).toEqual({ "tag:1": 7 });
 	});
 
 	it("the store's selection list replaces the listed selections when present", () => {
@@ -193,31 +186,31 @@ describe("change feed merge semantics", () => {
 			ghosted: false,
 		};
 		arrive(event({ selectionList: [row] }));
-		expect(getMapState().selectionList).toEqual([row]);
-		const held = getMapState().selectionList;
+		expect(Store.get().selectionList).toEqual([row]);
+		const held = Store.get().selectionList;
 		arrive(event());
-		expect(getMapState().selectionList).toBe(held);
+		expect(Store.get().selectionList).toBe(held);
 	});
 
 	it("settles each write only after the feed reaches its version", async () => {
 		let firstDone = false;
 		let secondDone = false;
-		const first = settled({ version: 50, keys: [] }).then(() => (firstDone = true));
-		const second = settled({ version: 51, keys: [] }).then(() => (secondDone = true));
+		const first = Mutation.settle({ version: 50, keys: [] }).then(() => (firstDone = true));
+		const second = Mutation.settle({ version: 51, keys: [] }).then(() => (secondDone = true));
 
 		arrive(event({ locationCount: 12 }, 50));
 		await first;
 		expect(firstDone).toBe(true);
 		expect(secondDone).toBe(false);
-		expect(getMapState().locationCount).toBe(12);
+		expect(Store.get().locationCount).toBe(12);
 
 		arrive(event({ locationCount: 13 }, 51));
 		await second;
 		expect(secondDone).toBe(true);
-		expect(getMapState().locationCount).toBe(13);
+		expect(Store.get().locationCount).toBe(13);
 	});
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
-		await expect(settled({ version: 1, keys: [] })).resolves.toBeUndefined();
+		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
 	});
 });

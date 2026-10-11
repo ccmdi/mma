@@ -34,14 +34,17 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 let openMap: MapMeta | null = null;
-vi.mock("@/store/useMapStore", async (importOriginal) => {
-	const store = await importOriginal<typeof import("@/store/useMapStore")>();
+vi.mock("@/store/store", async (importOriginal) => {
+	const store = await importOriginal<typeof import("@/store/store")>();
 	return {
-		...store,
-		useMapState: <T,>(select: (state: ReturnType<typeof store.getMapState>) => T) =>
-			select({ ...store.getMapState(), map: openMap }),
+		Store: {
+			...store.Store,
+			use: <T,>(select: (state: ReturnType<typeof store.Store.get>) => T) =>
+				select({ ...store.Store.get(), map: openMap }),
+		},
 	};
 });
+
 vi.mock("@tauri-apps/plugin-shell", () => ({ open: vi.fn() }));
 // The log plugin invokes Tauri, which is absent here.
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());

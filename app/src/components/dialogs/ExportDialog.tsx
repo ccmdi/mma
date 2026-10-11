@@ -1,10 +1,11 @@
 import { useState, useId } from "react";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
-import { useMapState, getVisibleTags } from "@/store/useMapStore";
 import { selectorForPick, type SelectorPick } from "@/store/selectorPick";
 import { useMapSetting } from "@/store/useMapSetting";
 import { MapShape } from "@/bindings.consts";
@@ -32,9 +33,9 @@ const SHAPE_HINTS: Record<MapShape, string> = {
 };
 
 export function ExportDialog({ open, onOpenChange }: DialogProps) {
-	const map = useMapState((s) => s.map);
-	const selectedIds = useMapState((s) => s.selectedLocationIds);
-	const locationCount = useMapState((s) => s.locationCount);
+	const map = Store.use((s) => s.map);
+	const selectedIds = Store.use((s) => s.selectedLocationIds);
+	const locationCount = Store.use((s) => s.locationCount);
 	const uid = useId();
 
 	const [pick, setPick] = useState<SelectorPick>({ pick: "all" });
@@ -50,7 +51,7 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 
 	const baseName = fileName || map.name || "export";
 
-	const tagsJson = () => JSON.stringify(Object.fromEntries(getVisibleTags().map((t) => [t.id, t])));
+	const tagsJson = () => JSON.stringify(Object.fromEntries(Tag.visible().map((t) => [t.id, t])));
 
 	const jsonPath = () =>
 		cmd.storeExportJson({

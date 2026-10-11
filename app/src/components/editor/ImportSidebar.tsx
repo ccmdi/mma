@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useMapState, getVisibleTags } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
 import { getImportStaging, confirmImport, cancelImport } from "@/store/importStaging";
 import { useEventValue } from "@/lib/events";
 import { fmt } from "@/lib/util/format";
@@ -34,7 +35,7 @@ function loadDroppedFields(): Set<string> {
 /** Import staging sidebar: field picker, file tags, bulk tag, and warnings. */
 export function ImportSidebar() {
 	const staging = useEventValue("import-markers:changed", getImportStaging);
-	const visibleTags = useMapState(getVisibleTags);
+	const visibleTags = Store.use(Tag.visible);
 	const [droppedFields, setDroppedFields] = useState(loadDroppedFields);
 	const [bulkTags, setBulkTags] = useState<string[]>([]);
 	const [tagInput, setTagInput] = useState("");

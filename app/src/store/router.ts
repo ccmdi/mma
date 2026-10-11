@@ -7,7 +7,8 @@
 // (including browser back/forward) flows through one place. `route` is the parsed URL,
 // the intent, and the render authority from the first frame; applyRoute reconciles the
 // store's open map to it.
-import { openMap, closeMap, getMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { Maps } from "@/store/maps";
 import { confirmMapExit } from "@/lib/jobs";
 import { emit, useEventValue, subscribe as subscribeEvent } from "@/lib/events";
 import { hashOf, identityFromHash, syncTitle, type WindowIdentity } from "@/lib/window";
@@ -48,9 +49,9 @@ function applyRoute() {
 	const changed = mapIdOf(next) !== mapIdOf(route) || next.manual !== route.manual;
 	route = next;
 	const mapId = mapIdOf(next);
-	if (mapId !== getMapState().mapId) {
-		if (mapId) void openMap(mapId);
-		else void closeMap();
+	if (mapId !== Store.get().mapId) {
+		if (mapId) void Maps.open(mapId);
+		else void Maps.close();
 	}
 	if (changed) emit("route:changed");
 }
@@ -74,6 +75,6 @@ export const closeManual = () => navigate({ ...route, manual: null });
 export function initRouter() {
 	window.addEventListener("popstate", applyRoute);
 	window.addEventListener("hashchange", applyRoute);
-	subscribeEvent("store:changed", () => syncTitle(getMapState().map?.name ?? null));
+	subscribeEvent("store:changed", () => syncTitle(Store.get().map?.name ?? null));
 	applyRoute();
 }

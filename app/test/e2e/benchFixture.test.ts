@@ -91,7 +91,7 @@ describe("bench fixture", () => {
 							}),
 						);
 					}
-					await api.addLocations(locs);
+					await api.Location.add(locs);
 					done += batch;
 				}
 				const everything = { type: "Everything" } as const;

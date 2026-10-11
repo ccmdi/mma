@@ -176,7 +176,7 @@ describe("Web bridge", () => {
 			const [id] = await addLocs([createLocation({ lat: 42.5, lng: -76.5 })]);
 			expect(id).toBeGreaterThan(0);
 			expect(await sceneTotal()).toBe(before + 1);
-			await withApi(async (api, gone) => api.removeLocations(new Set([gone])), id);
+			await withApi(async (api, gone) => api.Location.remove(new Set([gone])), id);
 			expect(await sceneTotal()).toBe(before);
 		});
 	});

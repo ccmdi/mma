@@ -1,6 +1,6 @@
 /** Saved selection rules shared across maps. Tag membership is stored by name
  * so rules can be applied on maps with different tag ids. */
-
+import { Mutation } from "@/store/mutation";
 import type { Selector } from "@/types";
 import type {
 	RGB,
@@ -9,13 +9,11 @@ import type {
 	Selection,
 	SelectionInput,
 } from "@/bindings.gen";
-
 import { selection, childSelections, selectionDisplayName } from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
 import { bridgeAcrossWindows, emit } from "@/lib/events";
 import { log } from "@/lib/util/log";
-import { mutate } from "./useMapStore";
 
 /** Selection types that cannot be saved as rules because they are bound to the open map. */
 export const MAP_LOCAL_TYPES = [
@@ -151,6 +149,6 @@ export async function deleteSavedSelection(id: string): Promise<void> {
  *  were added. */
 export function applySavedSelection(saved: SavedSelection): number {
 	const count = saved.selector.type === "Union" ? saved.selector.selections.length : 1;
-	void mutate(() => cmd.storeApplySavedSelection(saved.id));
+	void Mutation.run(() => cmd.storeApplySavedSelection(saved.id));
 	return count;
 }

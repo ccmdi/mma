@@ -149,7 +149,7 @@ describe("provider throughput", () => {
 				const warmId = await createAndOpenMap(`Warm ${c.id}`);
 				await withApi(
 					async (api, seed, caseId) => {
-						await api.addLocations(
+						await api.Location.add(
 							seed.map((v) => api.createLocation({ lat: v.lat, lng: v.lng, panoId: v.panoId })),
 						);
 						const provider = api.getProviders().find((p) => p.id === caseId);
@@ -172,7 +172,7 @@ describe("provider throughput", () => {
 				for (let at = 0; at < rows.length; at += 5000) {
 					await withApi(
 						async (api, slice) => {
-							await api.addLocations(
+							await api.Location.add(
 								slice.map((s) => {
 									const loc = api.createLocation({
 										lat: s.lat,

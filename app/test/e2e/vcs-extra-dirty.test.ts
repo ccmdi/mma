@@ -17,11 +17,11 @@ describe("VCS — extra-only change commit semantics", () => {
 	before(async () => {
 		[id] = await addLocs([createLocation({ lat: 1, lng: 2, heading: 0 })]);
 		await flushAndWait();
-		await withApi(async (api) => api.commitMap("base"));
+		await withApi(async (api) => api.Commit.create("base"));
 	});
 	it("an extra-only edit registers as modified on the commit-diff badge", async () => {
 		const loc = await getLoc(id);
-		await withApi(async (api, l) => api.updateLocations([{ id: l.id, extra: { score: 7 } }]), loc);
+		await withApi(async (api, l) => api.Location.update([{ id: l.id, extra: { score: 7 } }]), loc);
 		// Overlay-derived diff sees non-undoable extra writes.
 		expect(await withApi(async (api) => api.cmd.storeCommitDiff())).toEqual({
 			added: 0,
@@ -32,19 +32,19 @@ describe("VCS — extra-only change commit semantics", () => {
 	});
 
 	it("and a commit captures the extra change", async () => {
-		const newCommit = await withApi(async (api) => api.commitMap("extra commit"));
+		const newCommit = await withApi(async (api) => api.Commit.create("extra commit"));
 		expect(newCommit).not.toContain("ERROR");
 
 		// Mutate extra again post-commit, then checkout the "extra commit" to prove
 		// it materialized the score=7 value (not lost, not the later value).
 		const loc = await getLoc(id);
 		await withApi(
-			async (api, l) => api.updateLocations([{ id: l.id, extra: { score: 999 } }]),
+			async (api, l) => api.Location.update([{ id: l.id, extra: { score: 999 } }]),
 			loc,
 		);
 		await flushAndWait();
 
-		await withApi(async (api, cid) => api.checkoutCommit(cid), newCommit);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), newCommit);
 		const restored = await getLoc(id);
 		expect(restored.extra?.score).toBe(7);
 	});
@@ -52,7 +52,7 @@ describe("VCS — extra-only change commit semantics", () => {
 	it("checkout of the base (pre-extra) commit restores a location with no score", async () => {
 		const commits = await withApi(async (api, m) => api.cmd.storeListCommits(m), map.id);
 		const base = commits.find((c: any) => c.message === "base");
-		await withApi(async (api, cid) => api.checkoutCommit(cid), base!.id);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), base!.id);
 		const restored = await getLoc(id);
 		expect(restored.extra?.score).toBeUndefined();
 	});

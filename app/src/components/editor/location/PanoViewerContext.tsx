@@ -9,15 +9,10 @@ import {
 	useState,
 	type ReactNode,
 } from "react";
-import {
-	getMapState,
-	read,
-	mutate,
-	setOpenLocation,
-	useMapState,
-	VIEWER,
-	type Open,
-} from "@/store/useMapStore";
+import { type Open, Store } from "@/store/store";
+import { Query } from "@/store/query";
+import { Mutation } from "@/store/mutation";
+import { Editor } from "@/store/editor";
 import { useSetting } from "@/store/settings";
 import { PanoType } from "@/bindings.consts";
 import { usePano } from "@/lib/hooks/usePano";
@@ -59,7 +54,7 @@ interface PanoViewerContextValue {
 
 type ViewerSession = { open: Open; landed: boolean };
 
-const isOpen = (session: number | undefined) => getMapState().open?.session === session;
+const isOpen = (session: number | undefined) => Store.get().open?.session === session;
 
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
 
@@ -75,7 +70,7 @@ function put(id: number, patch: Partial<Location>) {
 }
 
 export function PanoViewerProvider({ children }: { children: ReactNode }) {
-	const opened = useMapState((s) => s.open);
+	const opened = Store.use((s) => s.open);
 	const location = opened?.location ?? null;
 	const pano = usePano();
 	const [enriching, setEnriching] = useState(false);
@@ -83,7 +78,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	// Serialize layer calls so draft edits cannot run before initialization.
 	const chain = useRef<Promise<unknown>>(Promise.resolve());
 	const queue = useCallback(
-		<T,>(fn: () => Promise<T>, owner = getMapState().open?.session): Promise<T | null> => {
+		<T,>(fn: () => Promise<T>, owner = Store.get().open?.session): Promise<T | null> => {
 			const run = () => (isOpen(owner) ? fn() : Promise.resolve(null));
 			const p = chain.current.then(run, run);
 			chain.current = p.catch((e: unknown) => log.error("[viewer] layer call failed:", e));
@@ -100,17 +95,17 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const draft = session.current?.open.session === opened?.session ? location : null;
 
 	const refresh = useCallback(async (h: ViewerSession) => {
-		const [fresh] = await read(
+		const [fresh] = await Query.read(
 			{ type: "Locations", locations: [h.open.id], name: null },
 			{ kind: "locations" },
-			VIEWER,
+			Editor.VIEWER,
 		);
-		setOpenLocation(fresh ?? null, h.open.session);
+		Editor.setLocation(fresh ?? null, h.open.session);
 	}, []);
 
 	const release = useCallback(async (h: ViewerSession | null) => {
-		if (getMapState().open && !isOpen(h?.open.session)) return;
-		await cmd.storeDrop(VIEWER.name);
+		if (Store.get().open && !isOpen(h?.open.session)) return;
+		await cmd.storeDrop(Editor.VIEWER.name);
 	}, []);
 
 	// Native changes invalidate the projection; publishing the projection does not.
@@ -122,12 +117,12 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 
 	const open = useCallback(
 		(loc: Location, resolved: string | null) => {
-			const opened = getMapState().open;
+			const opened = Store.get().open;
 			if (!opened) return;
 			void queue(async () => {
-				if (opened.origin === "map") await cmd.storeDrop(VIEWER.name);
+				if (opened.origin === "map") await cmd.storeDrop(Editor.VIEWER.name);
 				await cmd.storeEdit(
-					VIEWER,
+					Editor.VIEWER,
 					[put(loc.id, { panoId: resolved ?? loc.panoId ?? null })],
 					null,
 				);
@@ -143,10 +138,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		(patch: Partial<Location> | ((draft: Location) => Partial<Location>)) => {
 			void queue(async () => {
 				const h = currentSession();
-				const base = getMapState().open?.location;
+				const base = Store.get().open?.location;
 				if (!h || !base) return;
 				const p = typeof patch === "function" ? patch(base) : patch;
-				await mutate(() => cmd.storeEdit(VIEWER, [put(h.open.id, p)], null));
+				await Mutation.run(() => cmd.storeEdit(Editor.VIEWER, [put(h.open.id, p)], null));
 				await refresh(h);
 			});
 		},
@@ -158,7 +153,9 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 			return queue(async () => {
 				const h = currentSession();
 				if (!h) return null;
-				await mutate(() => cmd.storeEdit(VIEWER, [put(h.open.id, patch)], { land: true }));
+				await Mutation.run(() =>
+					cmd.storeEdit(Editor.VIEWER, [put(h.open.id, patch)], { land: true }),
+				);
 				h.landed = true;
 				return h.open.id;
 			});
@@ -212,19 +209,19 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	// stale results are discarded by the store.
 	useEffect(() => {
 		const h = currentSession();
-		if (!h || !draft || !getMapState().map?.settings.enrichMetadata) return;
+		if (!h || !draft || !Store.get().map?.settings.enrichMetadata) return;
 		const ac = new AbortController();
 		setEnriching(true);
 		enrich(
 			{ type: "Locations", locations: [h.open.id], name: null },
 			{
-				on: VIEWER,
+				on: Editor.VIEWER,
 				resolve: false,
 				signal: ac.signal,
 				onPartial: (rows) => {
 					const mine = rows.find((r) => r.id === h.open.id);
 					if (mine && !ac.signal.aborted) {
-						setOpenLocation(mine, h.open.session);
+						Editor.setLocation(mine, h.open.session);
 					}
 				},
 			},

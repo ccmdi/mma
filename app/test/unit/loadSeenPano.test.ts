@@ -7,12 +7,27 @@ const active = { ...createLocation({ lat: 1, lng: 2, panoId: null }), id: 7 };
 
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ open: { location: active } }),
-	read: async () => [active],
-	addLocations: vi.fn(),
-	openLocation: vi.fn(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ open: { location: active } }),
+	},
 }));
+vi.mock("@/store/query", () => ({
+	Query: {
+		read: async () => [active],
+	},
+}));
+vi.mock("@/store/location", () => ({
+	Location: {
+		add: vi.fn(),
+	},
+}));
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		open: vi.fn(),
+	},
+}));
+
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import { loadSeenPano } from "@/lib/seen/seenRecorder";

@@ -1,5 +1,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useState, useEffect, useMemo } from "react";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { Query } from "@/store/query";
 import type { Selection, FilterOp, FieldDef } from "@/bindings.gen";
 import { addSelection, filterIsLocalTime, type FilterOpKind, OP_LABELS } from "@/store/selections";
 import { NSelect } from "@/components/primitives/NSelect";
@@ -14,7 +17,6 @@ import {
 } from "@/lib/data/fieldDefRegistry";
 import { useEvent } from "@/lib/events";
 import { pickPeriodEnd, hasTimeOfDay, dateParts, partsToEpoch } from "@/lib/util/date";
-import { applySelectionUpdate, read, useMapState } from "@/store/useMapStore";
 import { countMissingTimezone, missingTimezoneMessage } from "@/lib/util/timezone";
 import { toast } from "@/lib/util/toast";
 import { useSetting } from "@/store/settings";
@@ -77,7 +79,7 @@ export interface FieldEntry {
 }
 
 export function useExtraFieldKeys(): FieldEntry[] {
-	const userDefs = useMapState((s) => s.fieldDefs);
+	const userDefs = Store.use((s) => s.fieldDefs);
 	const pluginVersion = useEvent("fields:changed");
 	return useMemo(() => {
 		const allDefs = getAllFieldDefs();
@@ -95,7 +97,7 @@ export function usePickableFields(): FieldEntry[] {
 	const [held, setHeld] = useState<ReadonlySet<string> | null>(null);
 	useEffect(() => {
 		let live = true;
-		void read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
+		void Query.read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
 			if (live) setHeld(new Set(coverage.map(([key]) => key)));
 		});
 		return () => {
@@ -131,7 +133,7 @@ function useEnumValues(fieldKey: string | undefined, def: FieldDef | undefined):
 			setValues([]);
 			return;
 		}
-		void read({ type: "Everything" }, { kind: "values", field: fieldKey }).then((values) =>
+		void Query.read({ type: "Everything" }, { kind: "values", field: fieldKey }).then((values) =>
 			setValues(values),
 		);
 	}, [fieldKey, def]);
@@ -597,7 +599,7 @@ export function FilterBuilder({ mapId }: { mapId: string }) {
 			persistKey={mapId}
 			submitLabel={t("Add filter")}
 			onSubmit={(field, test) => {
-				void applySelectionUpdate(addSelection({ type: "Filter", field, test }));
+				void SelectionList.update(addSelection({ type: "Filter", field, test }));
 				const type = getFieldDef(field)?.type;
 				if (type)
 					void countMissingTimezone(

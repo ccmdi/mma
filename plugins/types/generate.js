@@ -88,7 +88,7 @@ ${line}`);
     );
 
     // rollup-plugin-dts appends $1 to names that collide across modules.
-    for (const name of ["Location", "Selection", "Plugin", "MMA", "open"]) {
+    for (const name of ["Selection", "Plugin", "MMA"]) {
       content = content.replace(new RegExp(`\\b${name}\\$1\\b`, "g"), name);
     }
 
@@ -244,7 +244,7 @@ function propagateUnstable(native, text) {
         const target = propType.getSymbol();
         const unstable =
           inherited ||
-          fromUnstableSurface.has(prop.name) ||
+          (depth === 1 && fromUnstableSurface.has(prop.name)) ||
           tagged(prop) ||
           (!!target && tagged(target));
         if (unstable) {
@@ -559,55 +559,73 @@ async function generateApiMarkdown(native, text, since = firstReleases(native)) 
       return block(name, `declare const __member: {${NL}${body}${NL}};`);
     };
 
-    const entry = (path, prop, propType, level) => {
+    const entry = (path, prop, propType, level, inheritedUnstable = false) => {
       const info = describe(prop, propType);
+      info.unstable ||= inheritedUnstable;
       return {
         lines: [...header(level, path, info), signature(path, propType), "", ...prose(info)],
         unstable: info.unstable,
       };
     };
 
-    const surfaces = [];
+    const groups = [];
     for (const clause of root.heritageClauses || []) {
       for (const node of clause.types) {
         const alias = checker.getSymbolAtLocation(node.expression);
-        if (!alias) continue;
-        const members = [];
-        const props = [...checker.getPropertiesOfType(checker.getTypeAtLocation(node))];
-        for (const prop of props.sort((a, b) => a.name.localeCompare(b.name))) {
-          const propType = checker.getTypeOfSymbolAtLocation(prop, root);
-          // A namespace-like member (e.g. `cmd`) gets its members as sub-entries. Only
-          // properties declared in this bundle count -- an array or other lib-typed value
-          // must not have its built-in methods enumerated.
-          let inner = [];
-          if (callSignatures(ts, checker, propType).length === 0 && !checker.isArrayLikeType(propType)) {
-            const ownProp = (p) => (p.declarations || []).some((d) => d.path === source.path);
-            inner = checker.getPropertiesOfType(propType).filter(ownProp);
-          }
-          const innerType = (p) => checker.getTypeOfSymbolAtLocation(p, root);
-          const info = describe(prop, propType);
-          if (inner.length > 3 && inner.some((p) => callSignatures(ts, checker, innerType(p)).length > 0)) {
-            members.push({ lines: [...header(3, prop.name, info), ...prose(info)], unstable: info.unstable });
-            for (const p of inner.sort((a, b) => a.name.localeCompare(b.name))) {
-              members.push(entry(`${prop.name}.${p.name}`, p, innerType(p), 4));
-            }
-          } else if (inner.length > 3) {
-            members.push({
-              lines: [...header(3, prop.name, info), valueTable(prop.name, inner), "", ...prose(info)],
-              unstable: info.unstable,
-            });
-          } else {
-            members.push(entry(prop.name, prop, propType, 3));
-          }
-        }
-        if (members.length === 0) continue;
-        surfaces.push({
+        if (alias) groups.push({
           name: alias.name.replace(/Api$/, ""),
           doc: alias.getDocumentationComment(checker).trim(),
-          members,
-          unstable: members.every((m) => m.unstable),
+          unstable: alias.getJsDocTags(checker).some((tag) => tag.name === "unstable"),
+          props: [...checker.getPropertiesOfType(checker.getTypeAtLocation(node))],
         });
       }
+    }
+    for (const node of root.members) {
+      const prop = node.name && checker.getSymbolAtLocation(node.name);
+      if (prop) groups.push({
+        name: prop.name[0].toUpperCase() + prop.name.slice(1),
+        doc: "",
+        props: [prop],
+      });
+    }
+    const surfaces = [];
+    for (const group of groups) {
+      const members = [];
+      const props = group.props;
+      for (const prop of props.sort((a, b) => a.name.localeCompare(b.name))) {
+        const propType = checker.getTypeOfSymbolAtLocation(prop, root);
+        // A namespace-like member (e.g. `cmd`) gets its members as sub-entries. Only
+        // properties declared in this bundle count -- an array or other lib-typed value
+        // must not have its built-in methods enumerated.
+        let inner = [];
+        if (callSignatures(ts, checker, propType).length === 0 && !checker.isArrayLikeType(propType)) {
+          const ownProp = (p) => (p.declarations || []).some((d) => d.path === source.path);
+          inner = checker.getPropertiesOfType(propType).filter(ownProp);
+        }
+        const innerType = (p) => checker.getTypeOfSymbolAtLocation(p, root);
+        const info = describe(prop, propType);
+        info.unstable ||= group.unstable;
+        if (inner.length > 0 && inner.some((p) => callSignatures(ts, checker, innerType(p)).length > 0)) {
+          members.push({ lines: [...header(3, prop.name, info), ...prose(info)], unstable: info.unstable });
+          for (const p of inner.sort((a, b) => a.name.localeCompare(b.name))) {
+            members.push(entry(`${prop.name}.${p.name}`, p, innerType(p), 4, info.unstable));
+          }
+        } else if (inner.length > 3) {
+          members.push({
+            lines: [...header(3, prop.name, info), valueTable(prop.name, inner), "", ...prose(info)],
+            unstable: info.unstable,
+          });
+        } else {
+          members.push(entry(prop.name, prop, propType, 3, group.unstable));
+        }
+      }
+      if (members.length === 0) continue;
+      surfaces.push({
+        name: group.name,
+        doc: group.doc,
+        members,
+        unstable: members.every((m) => m.unstable),
+      });
     }
     return surfaces;
   });
@@ -654,7 +672,8 @@ async function generateApiMarkdown(native, text, since = firstReleases(native)) 
   return md;
 }
 
-main().catch((e) => {
+module.exports = { generateApiMarkdown, propagateUnstable };
+if (require.main === module) main().catch((e) => {
   console.error(e);
   process.exit(1);
 });

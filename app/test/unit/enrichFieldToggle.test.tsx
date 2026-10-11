@@ -9,10 +9,11 @@ import { act } from "react";
 const h = vi.hoisted(() => ({ locationCount: 0 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ locationCount: h.locationCount }),
-	coverage: async () => [],
-	useMapState: (sel: (s: unknown) => unknown) => sel({ locationCount: h.locationCount }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ locationCount: h.locationCount }),
+		use: (sel: (s: unknown) => unknown) => sel({ locationCount: h.locationCount }),
+	},
 }));
 
 import { EnrichTab } from "@/components/editor/map/EnrichmentDialog";

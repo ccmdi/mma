@@ -48,7 +48,7 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 
 		// Extra: A and C contribute keys; B (survivor) wins the shared "k" key.
 		const patchExtra = (id: number, extra: Record<string, unknown>) =>
-			withApi(async (api, i, e) => api.updateLocations([{ id: i, extra: e }]), id, extra);
+			withApi(async (api, i, e) => api.Location.update([{ id: i, extra: e }]), id, extra);
 		await patchExtra(A, { k: "fromA", x: "ax" });
 		await patchExtra(B, { k: "fromB" });
 		await patchExtra(C, { y: "cy" });
@@ -56,7 +56,10 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 		await flushAndWait();
 	});
 	it("preview groups A,B,C transitively (not A-C directly) as one group", async () => {
-		const groups: number[][] = await withApi(async (api, d) => api.previewDuplicateGroups(d), DIST);
+		const groups: number[][] = await withApi(
+			async (api, d) => api.Location.duplicateGroups(d),
+			DIST,
+		);
 		const big = groups.find((g) => g.length === 3);
 		expect(big).toBeTruthy();
 		expect([...big!].sort((a, b) => a - b)).toEqual([A, B, C].sort((a, b) => a - b));
@@ -68,9 +71,9 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 		expect(await getLocCount()).toBe(5);
 		await withApi(
 			async (api, d) =>
-				api.edit.work(
+				api.Edit.work(
 					{ type: "Everything" },
-					{ kind: "merge", groups: await api.previewDuplicateGroups(d), score: null },
+					{ kind: "merge", groups: await api.Location.duplicateGroups(d), score: null },
 				),
 			DIST,
 		);
@@ -98,7 +101,7 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 	});
 
 	it("merge is a single undoable edit that restores all 5 originals", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		await flushAndWait();
 		expect(await getLocCount()).toBe(5);
 

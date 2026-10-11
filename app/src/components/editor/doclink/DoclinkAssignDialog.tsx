@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Tag } from "@/types";
 import clsx from "clsx";
 import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } from "@mdi/js";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import { TagPill } from "@/components/primitives/TagPill";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Hint } from "@/components/primitives/Hint";
@@ -9,8 +11,6 @@ import { EmptyState } from "@/components/primitives/EmptyState";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Button } from "@/components/primitives/Button";
 import { Icon } from "@/components/primitives/Icon";
-import { useMapState, getTags, getTagCounts } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { useSetting } from "@/store/settings";
 import { useMapSetting } from "@/store/useMapSetting";
 import {
@@ -171,7 +171,7 @@ function TagLevel({ nodes, ctx }: { nodes: TagTreeNode[]; ctx: TreeCtx }) {
 }
 
 export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
-	const tagMap = useMapState(() => getTags());
+	const tagMap = Store.use(() => Tag.all());
 	const tags: Tag[] = useMemo(() => Object.values(tagMap), [tagMap]);
 
 	// Doc identity: pasted URL, prefilled from the map's first existing doclink.
@@ -192,7 +192,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 	const sortMode = useSetting("tagSortMode");
 	const folderColorMode = useSetting("tagFolderColorMode");
 	const folderColorRgb = useSetting("tagFolderColor");
-	const tagCounts = useMapState(() => getTagCounts());
+	const tagCounts = Store.use(() => Tag.counts());
 	const [virtualTags] = useMapSetting("virtualTags", NO_VIRTUAL_TAGS);
 	const [aliases] = useMapSetting("aliases", NO_ALIASES);
 	const tree = useMemo(
@@ -272,7 +272,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 				id: t.id,
 				doclinks: (t.doclinks ?? []).filter((u) => parseDoclink(u)?.docId !== docRef.docId),
 			}));
-		await edit.values(
+		await Edit.values(
 			"tags",
 			updates.map((put) => ({ put })),
 		);
@@ -292,7 +292,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					return !(r?.docId === docRef.docId && r.anchor === anchor);
 				})
 			: [...existing, target];
-		await edit.values("tags", [{ put: { id: tag.id, doclinks } }]);
+		await Edit.values("tags", [{ put: { id: tag.id, doclinks } }]);
 	};
 
 	const runMatch = () => {
@@ -315,7 +315,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 			id,
 			doclinks: [...(tagMap[id].doclinks ?? []), ...added],
 		}));
-		await edit.values(
+		await Edit.values(
 			"tags",
 			updates.map((put) => ({ put })),
 		);

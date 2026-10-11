@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
+import { Edit } from "@/store/edit";
 import type { Tag } from "@/types";
 import type { Location } from "@/bindings.gen";
-import * as edit from "@/store/edit";
 import { locDate } from "@/lib/util/format";
 import { errText } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
@@ -14,16 +14,16 @@ function tagIdsToNames(tagIds: number[], tags: Record<string, Tag>): string[] {
 
 function serializeActive(active: Location): string {
 	const { id: _id, createdAt: _createdAt, modifiedAt: _modifiedAt, ...editable } = active;
-	const map = MMA.getMapState().map;
+	const map = MMA.Store.get().map;
 	const display = map
-		? { ...editable, tags: tagIdsToNames(editable.tags, MMA.getTags()) }
+		? { ...editable, tags: tagIdsToNames(editable.tags, MMA.Tag.all()) }
 		: editable;
 	return JSON.stringify(display, null, 2);
 }
 
 async function resolveTagNames(names: string[]): Promise<number[]> {
 	return (
-		await edit.values(
+		await Edit.values(
 			"tags",
 			names.map((name) => ({ set: { id: 0, name } })),
 		)
@@ -31,7 +31,7 @@ async function resolveTagNames(names: string[]): Promise<number[]> {
 }
 
 export function JsonEditorPanel() {
-	const active = MMA.getMapState().open?.location;
+	const active = MMA.Store.get().open?.location;
 	const prevIdRef = useRef(active?.id);
 	const [text, setText] = useState(() => (active ? serializeActive(active) : ""));
 	const [error, setError] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export function JsonEditorPanel() {
 			// `extra` merges key by key, so a key the text dropped must be cleared with null.
 			const cleared = Object.fromEntries(Object.keys(active.extra ?? {}).map((k) => [k, null]));
 			const extra = parsed.extra ? { ...cleared, ...parsed.extra } : undefined;
-			void MMA.updateLocations([{ ...parsed, ...(extra && { extra }), id: active.id }]);
+			void MMA.Location.update([{ ...parsed, ...(extra && { extra }), id: active.id }]);
 			setSaved(true);
 		} catch (e: unknown) {
 			setError(errText(e));

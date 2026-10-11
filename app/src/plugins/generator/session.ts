@@ -1,11 +1,11 @@
+import { Editor } from "@/store/editor";
+import { Edit } from "@/store/edit";
 import { LocationFlag } from "@/bindings.consts";
 import { t } from "@/lib/i18n";
 import { registerJob, type JobHandle } from "@/lib/jobs";
 import { fmt } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
 import { definePluginEvent, emitPluginEvent } from "@/plugins/pluginEvents";
-import { setPluginMode } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { createLocation } from "@/types";
 import { GenerationEngine } from "./engine/GenerationEngine";
 import type {
@@ -40,7 +40,7 @@ function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: n
 
 async function resolveTagByName(name: string): Promise<number | null> {
 	if (!name) return null;
-	const [id] = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation.keys;
+	const [id] = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation.keys;
 	return id;
 }
 
@@ -92,7 +92,7 @@ export function startGeneration(
 	const engine = new GenerationEngine(settings, regions, {
 		onLocationsFound: (locs) => {
 			progressFrame();
-			return MMA.addLocations(locs.map((l) => generatedToLocation(l, tagId))).then(() => {});
+			return MMA.Location.add(locs.map((l) => generatedToLocation(l, tagId))).then(() => {});
 		},
 		onProgress: progressFrame,
 		onRegionComplete: progressFrame,
@@ -101,7 +101,7 @@ export function startGeneration(
 	const job = registerJob(t("Map generator"), {
 		scope: "map",
 		cancel: () => stop(engine),
-		reveal: () => setPluginMode("map-generator"),
+		reveal: () => Editor.openPlugin("map-generator"),
 	});
 	job.setHidden(sidebarOpen);
 	run = { engine, job };

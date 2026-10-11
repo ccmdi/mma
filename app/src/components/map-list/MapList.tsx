@@ -1,21 +1,9 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { Maps, type MapBadge } from "@/store/maps";
 import { NSelect } from "@/components/primitives/NSelect";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Notice } from "@/components/primitives/Hint";
-import {
-	useMapList,
-	createMap,
-	copyName,
-	duplicateMap,
-	openScratchMap,
-	renameFolder,
-	deleteFolder,
-	moveMapToFolder,
-	invalidateMapList,
-	useMapBadges,
-	type MapBadge,
-} from "@/store/mapList";
 import { openWindow } from "@/lib/window";
 import { log } from "@/lib/util/log";
 import { cmpVersion } from "@/lib/util/util";
@@ -245,7 +233,7 @@ function RenameFolderDialog({
 			onSubmit={() => {
 				const to = value.trim();
 				onRename(name, to);
-				void renameFolder(name, to).finally(() => onOpenChange(false));
+				void Maps.renameFolder(name, to).finally(() => onOpenChange(false));
 			}}
 		/>
 	);
@@ -371,7 +359,7 @@ const MapEntry = React.memo(function MapEntry({
 				label={t("Duplicate map")}
 				reveal
 				onClick={() =>
-					void duplicateMap(meta.id, copyName(meta.name)).catch((e: unknown) =>
+					void Maps.duplicate(meta.id, Maps.copyName(meta.name)).catch((e: unknown) =>
 						toast(t("Could not save a copy: {error}", { error: errText(e) })),
 					)
 				}
@@ -526,7 +514,7 @@ async function applyFolderFiles(paths: string[], maps: MapMeta[]) {
 				continue;
 			}
 			if (map.folder === folder) continue;
-			await moveMapToFolder(map.id, folder);
+			await Maps.moveToFolder(map.id, folder);
 			applied++;
 		}
 	}
@@ -633,7 +621,7 @@ function ImportPreviewModal({
 }
 
 export function BulkActions() {
-	const maps = useMapList();
+	const maps = Maps.useList();
 	const [exporting, setExporting] = useState(false);
 	const [importing, setImporting] = useState(false);
 	const [parseStatus, setParseStatus] = useState<string | null>(null);
@@ -752,7 +740,7 @@ export function BulkActions() {
 				}
 				base += localIndices.length;
 			}
-			await invalidateMapList();
+			await Maps.invalidate();
 			progress.finish(
 				failed
 					? t("Imported {imported}, {failed} failed", { imported: total - failed, failed })
@@ -833,7 +821,7 @@ function sortMaps(maps: MapMeta[], mode: SortMode): MapMeta[] {
 // --- Main ---
 
 export function MapList() {
-	const maps = useMapList();
+	const maps = Maps.useList();
 	const [sortMode, setSortMode] = useLocalStorage<SortMode>("mapListSort", "name");
 	const [syntheticFolders, setSyntheticFolders] = useState<string[]>([]);
 	const [dragItem, setDragItem] = useState<DragItem | null>(null);
@@ -845,7 +833,7 @@ export function MapList() {
 	const filterInputRef = useRef<HTMLInputElement>(null);
 	const [hasFilter, setHasFilter] = useState(false);
 	const mapListFields = useSetting("mapListFields");
-	const badges = useMapBadges();
+	const badges = Maps.useBadges();
 
 	const toggleLabelFilter = useCallback((label: string) => {
 		const input = filterInputRef.current;
@@ -925,7 +913,7 @@ export function MapList() {
 			},
 			onDrop: () => {
 				const target = dropRef.current;
-				if (target !== false && target !== item.folder) void moveMapToFolder(item.id, target);
+				if (target !== false && target !== item.folder) void Maps.moveToFolder(item.id, target);
 			},
 			onEnd: () => {
 				clearHighlight();
@@ -974,7 +962,7 @@ export function MapList() {
 							const name = filterInputRef.current?.value.trim();
 							// Nameless input, nameless map.
 							if (!name) {
-								void openScratchMap();
+								void Maps.openScratch();
 								return;
 							}
 							const entries = listRef.current?.querySelectorAll<HTMLElement>(
@@ -987,7 +975,9 @@ export function MapList() {
 								exact.querySelector<HTMLAnchorElement>(".map-link")?.click();
 								return;
 							}
-							void createMap(name).then((m) => openWindow({ type: "editor", mapId: m.id }, m.name));
+							void Maps.create(name).then((m) =>
+								openWindow({ type: "editor", mapId: m.id }, m.name),
+							);
 						}}
 						placeholder={t("Search maps...")}
 						title={t('Filter by name, or by label with label:name / label:"two words"')}
@@ -1026,7 +1016,7 @@ export function MapList() {
 								toast(t("Type a name to create a map"));
 								return;
 							}
-							void createMap(name);
+							void Maps.create(name);
 						}}
 					/>
 				</p>
@@ -1137,7 +1127,7 @@ export function MapList() {
 						const name = activeAction.name;
 						setActiveAction(null);
 						setSyntheticFolders((prev) => prev.filter((f) => f !== name));
-						void deleteFolder(name);
+						void Maps.removeFolder(name);
 					}}
 				/>
 			)}

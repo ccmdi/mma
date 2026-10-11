@@ -6,9 +6,11 @@ const h = vi.hoisted(() => ({ applySelectionUpdate: vi.fn() }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/lib/util/toast", () => ({ toast: vi.fn() }));
-vi.mock("@/store/useMapStore", async (orig) => ({
-	...(await orig<Record<string, unknown>>()),
-	applySelectionUpdate: h.applySelectionUpdate,
+vi.mock("@/store/selectionList", async (orig) => ({
+	SelectionList: {
+		...(await orig<typeof import("@/store/selectionList")>()).SelectionList,
+		update: h.applySelectionUpdate,
+	},
 }));
 
 import { SelectFailedButton } from "@/components/dialogs/BulkOperationModal";

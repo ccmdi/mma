@@ -7,11 +7,12 @@ const h = vi.hoisted(() => ({
 	selections: [] as { key: string; selector: Selector }[],
 }));
 
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({
-		selectionList: h.selections.map((selection) => ({ selection, ghosted: false })),
-	}),
-	applyListUpdate: () => Promise.resolve(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({
+			selectionList: h.selections.map((selection) => ({ selection, ghosted: false })),
+		}),
+	},
 }));
 
 // Rectangle containment stands in for the store's ray-casting answer.

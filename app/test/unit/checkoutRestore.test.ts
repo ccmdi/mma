@@ -1,12 +1,11 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
-import { checkoutCommit, getMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { Commit } from "@/store/commit";
 import type { ListedSelection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
-vi.mock("@/store/mapList", () => ({
-	setCachedMapList: vi.fn(),
-	invalidateMapList: vi.fn(async () => {}),
-	reloadMapList: vi.fn(async () => {}),
+vi.mock("@/store/maps", () => ({
+	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
 }));
 
 vi.mock("@/lib/commands", () => ({
@@ -22,14 +21,14 @@ const fakeRow = (key: string): ListedSelection => ({
 });
 
 beforeEach(() => {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = "test";
 	s.map = { id: "test" };
 	s.selectionList = [fakeRow("tag:1")];
 });
 
 afterEach(() => {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
 	s.selectionList = [];
@@ -40,10 +39,10 @@ describe("checkoutCommit failure", () => {
 	it.each(["open elsewhere", "bad commit"])(
 		"leaves the selection projection alone on %s",
 		async (message) => {
-			const before = getMapState().selectionList;
+			const before = Store.get().selectionList;
 			vi.mocked(cmd.storeCheckoutCommit).mockRejectedValueOnce(new Error(message));
-			await expect(checkoutCommit("abc1234")).rejects.toThrow(message);
-			expect(getMapState().selectionList).toBe(before);
+			await expect(Commit.checkout("abc1234")).rejects.toThrow(message);
+			expect(Store.get().selectionList).toBe(before);
 		},
 	);
 });

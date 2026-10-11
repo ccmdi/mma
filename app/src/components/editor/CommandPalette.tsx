@@ -1,4 +1,7 @@
 import { useState, useCallback, useMemo, createContext, useContext } from "react";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
 import { Command } from "cmdk";
 import { Dialog as BaseDialog } from "@base-ui-components/react/dialog";
@@ -10,11 +13,9 @@ import { getCommands, runCommand, togglePinnedCommand, type CommandGroup } from 
 import { useSetting } from "@/store/settings";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { getBinding, useBinding } from "@/lib/util/hotkeys";
-import { getMapState, closeMap, setPluginMode } from "@/store/useMapStore";
 import { confirmMapExit } from "@/lib/jobs";
 import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { score } from "@/lib/search";
-import { useMapList } from "@/store/mapList";
 import { goTo } from "@/store/router";
 import { t, msg } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
@@ -160,7 +161,7 @@ function PluginCommands() {
 					key={p.id}
 					label={p.name}
 					icon={<Icon path={p.icon} size={18} />}
-					onSelect={() => (p.sidebar ? setPluginMode(p.id) : openDialog("plugin-modal", p.id))}
+					onSelect={() => (p.sidebar ? Editor.openPlugin(p.id) : openDialog("plugin-modal", p.id))}
 				/>
 			))}
 		</Command.Group>
@@ -169,8 +170,8 @@ function PluginCommands() {
 
 function MapSwitcher() {
 	const ctx = useContext(Ctx);
-	const maps = useMapList();
-	const currentId = getMapState().mapId;
+	const maps = Maps.useList();
+	const currentId = Store.get().mapId;
 	const others = maps.filter((m) => m.id !== currentId);
 
 	return (
@@ -190,7 +191,7 @@ function MapSwitcher() {
 						label={m.name}
 						onSelect={() =>
 							void confirmMapExit("leave").then((ok) => {
-								if (ok) void closeMap().then(() => goTo({ type: "editor", mapId: m.id }));
+								if (ok) void Maps.close().then(() => goTo({ type: "editor", mapId: m.id }));
 							})
 						}
 					/>

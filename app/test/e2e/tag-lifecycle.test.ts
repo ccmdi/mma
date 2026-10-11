@@ -35,11 +35,11 @@ describe("Tag rename propagation", () => {
 	});
 	it("renaming a tag updates metadata", async () => {
 		await withApi(async (api, tid) => {
-			await api.edit.values("tags", [{ put: { id: tid, name: "RenamedTag" } }]);
+			await api.Edit.values("tags", [{ put: { id: tid, name: "RenamedTag" } }]);
 		}, tagId);
 
 		const name = await withApi(async (api, tid) => {
-			return (api.getTags() as any)[String(tid)]?.name;
+			return (api.Tag.all() as any)[String(tid)]?.name;
 		}, tagId);
 		expect(name).toBe("RenamedTag");
 	});
@@ -51,7 +51,7 @@ describe("Tag rename propagation", () => {
 
 	it("tag count unchanged after rename", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(10);
@@ -63,7 +63,7 @@ describe("Tag rename propagation", () => {
 		await openMap(map.id);
 
 		const name = await withApi(async (api, tid) => {
-			return (api.getTags() as any)[String(tid)]?.name;
+			return (api.Tag.all() as any)[String(tid)]?.name;
 		}, tagId);
 		expect(name).toBe("RenamedTag");
 
@@ -75,7 +75,7 @@ describe("Tag rename propagation", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(10);
-		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
 	});
 });
 
@@ -101,14 +101,14 @@ describe("Tag delete cascade — no orphans", () => {
 	});
 	it("before delete: all 10 locations have tagA", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagAId);
 		expect(count).toBe(10);
 	});
 
 	it("deleting tagA removes it from all locations", async () => {
-		await withApi(async (api, tid) => api.deleteTags([tid]), tagAId);
+		await withApi(async (api, tid) => api.Tag.remove([tid]), tagAId);
 
 		const allLocs = await getAllLocs();
 		for (const loc of allLocs) {
@@ -118,7 +118,7 @@ describe("Tag delete cascade — no orphans", () => {
 
 	it("tagA count is 0 after delete", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagAId);
 		expect(count).toBe(0);
@@ -126,7 +126,7 @@ describe("Tag delete cascade — no orphans", () => {
 
 	it("tagB still intact on the 5 locations that had it", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagBId);
 		expect(count).toBe(5);
@@ -135,7 +135,7 @@ describe("Tag delete cascade — no orphans", () => {
 	it("tagA is hidden in metadata (visible=false)", async () => {
 		// deleteTags keeps the tag entry but marks it invisible (for undo support)
 		const visible = await withApi(async (api, tid) => {
-			const tag = (api.getTags() as any)[String(tid)];
+			const tag = (api.Tag.all() as any)[String(tid)];
 			return tag?.visible ?? true;
 		}, tagAId);
 		expect(visible).toBe(false);
@@ -152,7 +152,7 @@ describe("Tag delete cascade — no orphans", () => {
 		}
 
 		const tagBCount = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagBId);
 		expect(tagBCount).toBe(5);
@@ -174,20 +174,20 @@ describe("Tag delete + undo restores all references", () => {
 		await seedLocs(8, (i) => ({ lat: i, lng: i, tags: [tagId] }));
 	});
 	it("delete tag then undo restores tag visibility", async () => {
-		await withApi(async (api, tid) => api.deleteTags([tid]), tagId);
+		await withApi(async (api, tid) => api.Tag.remove([tid]), tagId);
 
 		// Tag stays in metadata but is invisible after delete
 		const afterDelete = await withApi(async (api, tid) => {
-			const tag = (api.getTags() as any)[String(tid)];
+			const tag = (api.Tag.all() as any)[String(tid)];
 			return { visible: tag?.visible ?? true, name: tag?.name ?? null };
 		}, tagId);
 		expect(afterDelete.visible).toBe(false);
 
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		// After undo, tag should be visible again
 		const afterUndo = await withApi(async (api, tid) => {
-			const tag = (api.getTags() as any)[String(tid)];
+			const tag = (api.Tag.all() as any)[String(tid)];
 			return { visible: tag?.visible ?? false, name: tag?.name ?? null };
 		}, tagId);
 		expect(afterUndo.visible).toBe(true);
@@ -203,7 +203,7 @@ describe("Tag delete + undo restores all references", () => {
 
 	it("tag count restored after undo", async () => {
 		const count = await withApi(async (api, tid) => {
-			const counts = api.getTagCounts();
+			const counts = api.Tag.counts();
 			return (counts as any)[String(tid)] ?? 0;
 		}, tagId);
 		expect(count).toBe(8);
@@ -213,7 +213,7 @@ describe("Tag delete + undo restores all references", () => {
 		await select(tagSelector(tagId));
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
-		await withApi(async (api) => api.applySelectionUpdate({ kind: "set", selections: [] }));
+		await withApi(async (api) => api.SelectionList.update({ kind: "set", selections: [] }));
 	});
 });
 
@@ -238,7 +238,7 @@ describe("Multi-tag delete isolation", () => {
 		await seedLocs(6, (i) => ({ lat: i, lng: i, tags: [tag1Id, tag2Id, tag3Id] }));
 	});
 	it("deleting one tag leaves the other two intact", async () => {
-		await withApi(async (api, tid) => api.deleteTags([tid]), tag2Id);
+		await withApi(async (api, tid) => api.Tag.remove([tid]), tag2Id);
 
 		const allLocs = await getAllLocs();
 		for (const loc of allLocs) {
@@ -250,7 +250,7 @@ describe("Multi-tag delete isolation", () => {
 	});
 
 	it("surviving tag counts are correct", async () => {
-		const counts = (await withApi((api) => api.getTagCounts())) as any;
+		const counts = (await withApi((api) => api.Tag.counts())) as any;
 		expect(counts[String(tag1Id)]).toBe(6);
 		expect(counts[String(tag3Id)]).toBe(6);
 		expect(counts[String(tag2Id)] ?? 0).toBe(0);

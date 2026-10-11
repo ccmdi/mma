@@ -59,7 +59,7 @@ describe("Copy to a closed map", () => {
 		// next test starts from the map list.
 		await withApi(async (api) => {
 			try {
-				if (api.getMapState().map) await api._test.closeMap();
+				if (api.Store.get().map) await api._test.closeMap();
 			} catch {
 				// best-effort cleanup
 			}
@@ -110,8 +110,8 @@ describe("Copy to a closed map", () => {
 
 		await openMap(tgt);
 		const locs = await getAllLocs();
-		const tags = Object.values(await withApi((api) => api.getTags()));
-		const tagCounts = await withApi((api) => api.getTagCounts());
+		const tags = Object.values(await withApi((api) => api.Tag.all()));
+		const tagCounts = await withApi((api) => api.Tag.counts());
 
 		// "Shared" reconciled to the target's existing tag (no duplicate created).
 		expect(tags.filter((t) => t.name === "Shared").length).toBe(1);
@@ -145,7 +145,7 @@ describe("Copy to a closed map", () => {
 		const locs = await getAllLocs();
 		expect(locs[0].extra?.altitude).toBe(120);
 		expect(locs[0].extra?.country).toBe("US");
-		const fields = await withApi((api) => api.getMapState().map!.extra?.fields ?? {});
+		const fields = await withApi((api) => api.Store.get().map!.extra?.fields ?? {});
 		expect(Object.keys(fields).sort()).toEqual(["altitude", "country"]);
 
 		await closeMap();
@@ -200,7 +200,7 @@ describe("Copy to a closed map", () => {
 		const ids = await addLocs([createLocation({ lat: 7, lng: 7 })]);
 
 		const err = await withApi(async (api, i) => {
-			const selfId = api.getMapState().mapId!;
+			const selfId = api.Store.get().mapId!;
 			try {
 				await api.cmd.storeCopyLocationsToMap(selfId, {
 					type: "Locations",

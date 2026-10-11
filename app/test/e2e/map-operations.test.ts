@@ -17,10 +17,10 @@ describe("Map rename", () => {
 
 	it("rename open map updates in-memory name", async () => {
 		await withApi(async (api, id) => {
-			await api.edit.meta({ id: id, name: "Renamed Map" });
+			await api.Edit.meta({ id: id, name: "Renamed Map" });
 		}, map.id);
 
-		const name = await withApi(async (api) => api.getMapState().map?.name);
+		const name = await withApi(async (api) => api.Store.get().map?.name);
 		expect(name).toBe("Renamed Map");
 	});
 
@@ -29,7 +29,7 @@ describe("Map rename", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const name = await withApi(async (api) => api.getMapState().map?.name);
+		const name = await withApi(async (api) => api.Store.get().map?.name);
 		expect(name).toBe("Renamed Map");
 	});
 
@@ -63,7 +63,7 @@ describe("Folder operations", () => {
 		mapIds.push(id);
 
 		await withApi(async (api, mapId) => {
-			await api.moveMapToFolder(mapId, "MyFolder");
+			await api.Maps.moveToFolder(mapId, "MyFolder");
 		}, id);
 
 		const maps = await withApi(async (api) => {
@@ -75,7 +75,7 @@ describe("Folder operations", () => {
 
 	it("move map to root (folder=null)", async () => {
 		await withApi(async (api, mapId) => {
-			await api.moveMapToFolder(mapId, null);
+			await api.Maps.moveToFolder(mapId, null);
 		}, mapIds[0]);
 
 		const maps = await withApi(async (api) => {
@@ -95,9 +95,9 @@ describe("Folder operations", () => {
 
 		await withApi(
 			async (api, a, b) => {
-				await api.moveMapToFolder(a, "OldFolder");
-				await api.moveMapToFolder(b, "OldFolder");
-				await api.renameFolder("OldFolder", "NewFolder");
+				await api.Maps.moveToFolder(a, "OldFolder");
+				await api.Maps.moveToFolder(b, "OldFolder");
+				await api.Maps.renameFolder("OldFolder", "NewFolder");
 			},
 			id1,
 			id2,
@@ -114,7 +114,7 @@ describe("Folder operations", () => {
 
 	it("deleteFolder moves maps to root, does not delete them", async () => {
 		await withApi(async (api) => {
-			await api.deleteFolder("NewFolder");
+			await api.Maps.removeFolder("NewFolder");
 		});
 
 		const maps = await withApi(async (api) => {
@@ -136,31 +136,31 @@ describe("Map metadata updates", () => {
 
 	it("update description", async () => {
 		await withApi(async (api) => {
-			await api.edit.meta({ description: "Test map for E2E" });
+			await api.Edit.meta({ description: "Test map for E2E" });
 		});
 
-		const desc = await withApi(async (api) => api.getMapState().map?.description);
+		const desc = await withApi(async (api) => api.Store.get().map?.description);
 		expect(desc).toBe("Test map for E2E");
 	});
 
 	it("update settings", async () => {
 		await withApi(async (api) => {
-			const cur = api.getMapState().map!.settings;
-			await api.edit.meta({ settings: { ...cur, enrichMetadata: true } });
+			const cur = api.Store.get().map!.settings;
+			await api.Edit.meta({ settings: { ...cur, enrichMetadata: true } });
 		});
 
-		const settings = await withApi(async (api) => api.getMapState().map!.settings);
+		const settings = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settings.enrichMetadata).toBe(true);
 	});
 
 	it("update scoreBounds", async () => {
 		await withApi(async (api) => {
-			await api.edit.meta({
+			await api.Edit.meta({
 				scoreBounds: [100, 200, 300, 400],
 			});
 		});
 
-		const bounds = await withApi(async (api) => api.getMapState().map?.scoreBounds);
+		const bounds = await withApi(async (api) => api.Store.get().map?.scoreBounds);
 		expect(bounds).toEqual([100, 200, 300, 400]);
 	});
 
@@ -169,7 +169,7 @@ describe("Map metadata updates", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const meta = await withApi(async (api) => api.getMapState().map!);
+		const meta = await withApi(async (api) => api.Store.get().map!);
 		expect(meta.description).toBe("Test map for E2E");
 		expect(meta.settings.enrichMetadata).toBe(true);
 		expect(meta.scoreBounds).toEqual([100, 200, 300, 400]);
@@ -190,14 +190,14 @@ describe("Open location and work area", () => {
 	it("openLocation switches to location work area", async () => {
 		const id = locIds[0];
 		await withApi(async (api, locId) => {
-			await api.openLocation(locId);
+			await api.Editor.open(locId);
 		}, id);
 
 		const result = await withApi(async (api) => {
 			return {
-				workArea: api.getMapState().workArea,
-				activeId: api.getMapState().open?.location?.id,
-				activeLat: api.getMapState().open?.location?.lat,
+				workArea: api.Store.get().workArea,
+				activeId: api.Store.get().open?.location?.id,
+				activeLat: api.Store.get().open?.location?.lat,
 			};
 		});
 		expect(result.workArea).toBe("location");
@@ -207,12 +207,12 @@ describe("Open location and work area", () => {
 
 	it("closeLocation() returns to overview", async () => {
 		await withApi(async (api) => {
-			await api.closeLocation();
+			await api.Editor.close();
 		});
 
 		const result = await withApi(async (api) => ({
-			workArea: api.getMapState().workArea,
-			active: api.getMapState().open?.location ?? null,
+			workArea: api.Store.get().workArea,
+			active: api.Store.get().open?.location ?? null,
 		}));
 		expect(result.workArea).toBe("overview");
 		expect(result.active).toBeNull();
@@ -223,16 +223,16 @@ describe("Open location and work area", () => {
 		const id1 = locIds[1];
 		await withApi(
 			async (api, a, b) => {
-				await api.openLocation(a);
-				await api.openLocation(b);
+				await api.Editor.open(a);
+				await api.Editor.open(b);
 			},
 			id0,
 			id1,
 		);
 
 		const result = await withApi(async (api) => ({
-			activeId: api.getMapState().open?.location?.id,
-			activeLat: api.getMapState().open?.location?.lat,
+			activeId: api.Store.get().open?.location?.id,
+			activeLat: api.Store.get().open?.location?.lat,
 		}));
 		expect(result.activeId).toBe(id1);
 		expect(result.activeLat).toBe(30);
@@ -256,13 +256,13 @@ describe("Extra field definitions", () => {
 			}),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.edit.meta({
-				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
+			const cur = api.Store.get().map!.extra?.fields ?? {};
+			await api.Edit.meta({
+				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
 			});
 		}, defs);
 
-		const extra = await withApi(async (api) => api.getMapState().map?.extra);
+		const extra = await withApi(async (api) => api.Store.get().map?.extra);
 		expect(extra!.fields!.altitude.type).toBe("number");
 		expect(extra!.fields!.country.type).toBe("string");
 		expect(extra!.fields!.region.values).toEqual([
@@ -277,14 +277,14 @@ describe("Extra field definitions", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const extra = await withApi(async (api) => api.getMapState().map?.extra);
+		const extra = await withApi(async (api) => api.Store.get().map?.extra);
 		expect(extra!.fields!.altitude.type).toBe("number");
 		expect(extra!.fields!.altitude.label).toBe("Altitude (m)");
 	});
 
 	it("auto-registers field defs when adding locations with extras", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([
+			await api.Location.add([
 				api.createLocation({
 					lat: 0,
 					lng: 0,
@@ -305,7 +305,7 @@ describe("Extra field definitions", () => {
 
 	it("known enrichment keys are auto-registered and resolve their known labels", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([
+			await api.Location.add([
 				api.createLocation({ lat: 0, lng: 0, extra: { countryCode: "US", imageDate: "2023-05" } }),
 			]);
 		});
@@ -328,21 +328,21 @@ describe("Extra field definitions", () => {
 
 	it("auto-registered field defs persist across map close/reopen", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([api.createLocation({ lat: 0, lng: 0, extra: { fleeb: 99 } })]);
+			await api.Location.add([api.createLocation({ lat: 0, lng: 0, extra: { fleeb: 99 } })]);
 		});
 
 		await flushAndWait();
 		await closeMap();
 		await openMap(map.id);
 
-		const extra = await withApi(async (api) => api.getMapState().map?.extra);
+		const extra = await withApi(async (api) => api.Store.get().map?.extra);
 		expect(extra!.fields!.fleeb).toBeDefined();
 		expect(extra!.fields!.fleeb.type).toBe("number");
 	});
 
 	it("auto-registered def is identical live and after reopen (single source of truth)", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([
+			await api.Location.add([
 				api.createLocation({ lat: 0, lng: 0, extra: { roundtrip: "2024-07" } }),
 			]);
 		});
@@ -365,18 +365,18 @@ describe("Extra field definitions", () => {
 		// Explicitly register with a custom label
 		const score = createFieldDef("number", { label: "My Score" });
 		await withApi(async (api, score) => {
-			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.edit.meta({
-				extra: { ...api.getMapState().map!.extra, fields: { ...cur, score } },
+			const cur = api.Store.get().map!.extra?.fields ?? {};
+			await api.Edit.meta({
+				extra: { ...api.Store.get().map!.extra, fields: { ...cur, score } },
 			});
 		}, score);
 
 		// Add a location with the same key — should not overwrite the custom def
 		await withApi(async (api) => {
-			await api.addLocations([api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } })]);
+			await api.Location.add([api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } })]);
 		});
 
-		const extra = await withApi(async (api) => api.getMapState().map?.extra);
+		const extra = await withApi(async (api) => api.Store.get().map?.extra);
 		expect(extra!.fields!.score.label).toBe("My Score");
 	});
 });

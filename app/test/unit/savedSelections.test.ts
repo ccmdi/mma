@@ -13,12 +13,23 @@ const h = vi.hoisted(() => ({
 	calls: [] as string[],
 }));
 
-vi.mock("@/store/useMapStore", () => ({
-	mutate: (fn: () => Promise<unknown>) => fn(),
-	getTag: (id: number) => h.tags[id],
-	getVisibleTags: () => Object.values(h.tags).filter((t) => t.visible !== false),
-	getMapState: () => ({ fieldDefs: {} }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ fieldDefs: {} }),
+	},
 }));
+vi.mock("@/store/tag", () => ({
+	Tag: {
+		get: (id: number) => h.tags[id],
+		visible: () => Object.values(h.tags).filter((t) => t.visible !== false),
+	},
+}));
+vi.mock("@/store/mutation", () => ({
+	Mutation: {
+		run: (fn: () => Promise<unknown>) => fn(),
+	},
+}));
+
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
 vi.mock("@/lib/util/log", () => ({
 	log: { warn: vi.fn(), error: vi.fn() },

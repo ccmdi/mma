@@ -1,4 +1,4 @@
-import { read } from "@/store/useMapStore";
+import { Query } from "@/store/query";
 import { selection } from "@/store/selections";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type React from "react";
@@ -21,7 +21,6 @@ import { useSetting } from "@/store/settings";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { clamp, range } from "@/types/util";
 import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-
 import { t } from "@/lib/i18n";
 import type { Selector } from "@/types";
 import type { LatLng, MapTypeKey } from "@/types";
@@ -55,11 +54,11 @@ const PIN_KIND: Record<string, ResultPin | undefined> = {
 };
 
 async function fetchPool(selector: Selector): Promise<Float32Array> {
-	const ids = await read(
+	const ids = await Query.read(
 		{ type: "Sample", selection: selection(selector), n: POOL_POINTS },
 		{ kind: "ids" },
 	);
-	const [lng, lat] = await read(
+	const [lng, lat] = await Query.read(
 		{ type: "Locations", locations: ids, name: null },
 		{ kind: "columns", fields: ["lng", "lat"] },
 	);
@@ -156,7 +155,7 @@ export function GuessMap({
 		// Bounds up front so per-round fits stay synchronous -- awaiting IPC inside
 		// the fit paints a frame of the previous round's camera.
 		prepare: async () => {
-			boundsRef.current = await read(selectorRef.current, { kind: "bounds" });
+			boundsRef.current = await Query.read(selectorRef.current, { kind: "bounds" });
 		},
 		onReady: (host) => {
 			host.setCursor("crosshair");

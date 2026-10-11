@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getActiveSelections, useMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
 import { selectionDisplayName } from "@/store/selections";
 import {
 	saveCurrentSelections,
@@ -46,8 +47,8 @@ export function SaveSelectionsDialog({
 	name,
 	onNameChange,
 }: DialogProps & { name: string; onNameChange: (v: string) => void }) {
-	const map = useMapState((s) => s.map);
-	const selections = useMapState(() => getActiveSelections());
+	const map = Store.use((s) => s.map);
+	const selections = Store.use(() => SelectionList.active());
 	const saveable = map
 		? selections
 				.filter((s) => isSaveable(s.selector))
@@ -90,7 +91,7 @@ export function SaveSelectionsDialog({
 }
 
 export function ApplySavedSelectionDialog({ open, onOpenChange }: DialogProps) {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const [saved, setSaved] = useState<SavedSelection[] | null>(null);
 
 	useEffect(() => {

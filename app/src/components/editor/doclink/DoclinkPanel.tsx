@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Tag } from "@/types";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import {
 	mdiPin,
@@ -10,8 +9,9 @@ import {
 	mdiBookOpenVariant,
 	mdiBookOpenOutline,
 } from "@mdi/js";
-import { useMapState, getTags } from "@/store/useMapStore";
-import { getSelectedTagIdsDeep } from "@/store/selectionActions";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { SelectionList } from "@/store/selectionList";
 import {
 	parseDoclink,
 	loadSection,
@@ -72,8 +72,8 @@ export interface DoclinkPanelProps {
 }
 
 export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProps) {
-	const tagMap = useMapState(() => getTags());
-	const selectedTagIds = useMapState(getSelectedTagIdsDeep);
+	const tagMap = Store.use(() => Tag.all());
+	const selectedTagIds = Store.use(SelectionList.tagIdsDeep);
 	const tags: Tag[] = doclinkedTags(tagMap);
 	const [pinned, setPinned] = useState(false);
 	const [sel, setSel] = useState<{ tagId: number; idx: number } | null>(null);

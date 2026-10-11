@@ -1,11 +1,11 @@
 import { memo, useCallback } from "react";
+import { Store } from "@/store/store";
 import { useSetting } from "@/store/settings";
 import { dateFmt } from "@/lib/util/format";
 import { civilToDate } from "@/lib/util/date";
 import type { Pano } from "@/bindings.gen";
 import { useCameraType, type FullCameraType } from "./useCameraType";
 import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
-import { useMapState } from "@/store/useMapStore";
 import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useTimezone } from "@/lib/util/timezone";
@@ -58,8 +58,8 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const { draft, currentPano, timeline, enriching } = usePanoViewer();
 	const entries = timeline ?? [];
 	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
-	const location = useMapState((s) => s.open?.location ?? null);
-	const enrichFields = useMapState((s) => s.map?.settings.enrichFields ?? null);
+	const location = Store.use((s) => s.open?.location ?? null);
+	const enrichFields = Store.use((s) => s.map?.settings.enrichFields ?? null);
 	// An exact date is on its way: the field is on, and what the draft holds is not this pano's yet.
 	const resolvingExact =
 		enriching &&

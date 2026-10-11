@@ -6,10 +6,16 @@ import { createRoot, type Root } from "react-dom/client";
 let workArea = "plugin";
 let activePluginId: string | null = null;
 
-vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { workArea: string; activePluginId: string | null }) => unknown) =>
-		sel({ workArea, activePluginId }),
-	exitPluginMode: vi.fn(),
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (sel: (s: { workArea: string; activePluginId: string | null }) => unknown) =>
+			sel({ workArea, activePluginId }),
+	},
+}));
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		closePlugin: vi.fn(),
+	},
 }));
 
 import { PluginSidebarHost } from "@/components/editor/PluginSidebarHost";

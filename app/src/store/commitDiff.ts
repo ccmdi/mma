@@ -1,11 +1,12 @@
-﻿import { useEffect } from "react";
+import { useEffect } from "react";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import type { LatLng } from "@/types";
 import type { CommitInfo, Counts } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { fitMapToBounds } from "@/lib/map/mapState";
 import { boundsOfCoords } from "@/lib/map/host";
 import { emit as emitEvent, subscribe, useEventValue } from "@/lib/events";
-import { getMapState, setWorkArea } from "./useMapStore";
 
 // --- Uncommitted-diff counts (drives the Commit button + palette enablement) ---
 
@@ -35,7 +36,7 @@ export function resetCommitDiffCounts() {
 }
 
 async function refreshCommitDiff() {
-	if (!getMapState().map) return;
+	if (!Store.get().map) return;
 	publishCommitDiff(await cmd.storeCommitDiff());
 }
 
@@ -85,7 +86,7 @@ export function diffPositions(locs: LatLng[]): Float32Array {
 /** Fetch a commit's change and overlay its added/removed/updated locations on the map,
  *  temporarily replacing the regular markers. */
 export async function beginCommitDiffPreview(commit: CommitInfo) {
-	if (!getMapState().map) return;
+	if (!Store.get().map) return;
 	const change = await cmd.storeGetCommitDelta(commit.mapId, commit.id);
 	const updated = change.updated.map(([, next]) => next);
 	commitDiffPreview = {
@@ -100,7 +101,7 @@ export async function beginCommitDiffPreview(commit: CommitInfo) {
 		updated: diffPositions(updated),
 	};
 	emitEvent("diff-markers:changed");
-	setWorkArea("diff");
+	Editor.setArea("diff");
 	const bounds = boundsOfCoords([...change.added, ...change.removed, ...updated]);
 	if (bounds) fitMapToBounds(bounds, 100);
 }
@@ -109,6 +110,6 @@ export async function beginCommitDiffPreview(commit: CommitInfo) {
 export function endCommitDiffPreview() {
 	commitDiffPreview = null;
 	emitEvent("diff-markers:changed");
-	if (getMapState().workArea === "diff") setWorkArea("overview");
+	if (Store.get().workArea === "diff") Editor.setArea("overview");
 	else emitEvent("store:changed");
 }

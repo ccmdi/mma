@@ -1,12 +1,9 @@
 import { memo, useState, useEffect, useRef } from "react";
-import {
-	applySelectionUpdate,
-	getMapState,
-	getVisibleTags,
-	read,
-	useMapState,
-} from "@/store/useMapStore";
-import * as edit from "@/store/edit";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { Tag } from "@/store/tag";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import {
 	composeSelections,
@@ -27,7 +24,6 @@ import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
 import { polygonFeature } from "@/lib/util/geojson";
 import { stepFilterWindow } from "@/lib/util/date";
-
 import type { RGB, Selection } from "@/bindings.gen";
 import {
 	FilterForm,
@@ -56,11 +52,11 @@ import { IconButton } from "@/components/primitives/IconButton";
 import { MenuPopup, MenuItem, MenuSeparator } from "@/components/primitives/Menu";
 import { Swatch } from "@/components/primitives/Swatch";
 
-async function fitSelectionBounds(host: MapHost, selection: Selection) {
+async function fitSelectionBounds(host: MapHost, currentSelection: Selection) {
 	const box =
-		selection.selector.type === "Polygon"
-			? await cmd.polygonBounds(selection.selector.polygon)
-			: await read(selection.selector, { kind: "bounds" });
+		currentSelection.selector.type === "Polygon"
+			? await cmd.polygonBounds(currentSelection.selector.polygon)
+			: await Query.read(currentSelection.selector, { kind: "bounds" });
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 
@@ -72,10 +68,10 @@ function uniqueTagName(base: string, existing: Set<string>): string {
 	}
 }
 
-function pruneDistance(selection: Selection): number | null {
-	if (selection.selector.type === "Duplicates") return selection.selector.distance;
-	if (selection.selector.type === "Intersection") {
-		for (const child of selection.selector.selections) {
+function pruneDistance(currentSelection: Selection): number | null {
+	if (currentSelection.selector.type === "Duplicates") return currentSelection.selector.distance;
+	if (currentSelection.selector.type === "Intersection") {
+		for (const child of currentSelection.selector.selections) {
 			if (child.selector.type === "Duplicates") return child.selector.distance;
 		}
 	}
@@ -108,12 +104,14 @@ function useDragState() {
 }
 
 /** An Invert wraps exactly one selection; its row renders the wrapped one. */
-function innerOf(selection: Selection): Selection {
-	return selection.selector.type === "Invert" ? selection.selector.selections[0] : selection;
+function innerOf(currentSelection: Selection): Selection {
+	return currentSelection.selector.type === "Invert"
+		? currentSelection.selector.selections[0]
+		: currentSelection;
 }
 
 export const SelectionRow = memo(function SelectionRow({
-	selection,
+	selection: currentSelection,
 	path,
 	depth = 0,
 	ghosted,
@@ -123,11 +121,11 @@ export const SelectionRow = memo(function SelectionRow({
 	depth?: number;
 	ghosted: boolean;
 }) {
-	const map = useMapState((s) => s.map);
-	const colorBlockCss = rgbCss(selection.color);
-	const count = useMapState((s) => s.selectionCounts[selection.key] ?? 0);
+	const map = Store.use((s) => s.map);
+	const colorBlockCss = rgbCss(currentSelection.color);
+	const count = Store.use((s) => s.selectionCounts[currentSelection.key] ?? 0);
 	const isTopLevel = depth === 0;
-	const onRemove = () => void applySelectionUpdate(removeSelectionAt(path));
+	const onRemove = () => void SelectionList.update(removeSelectionAt(path));
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
 	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
 	const [editingFilter, setEditingFilter] = useState(false);
@@ -140,7 +138,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isDragging = drag?.path.join() === path.join();
 	const isDropTarget = drag != null && !isDragging;
 	const handleColorChange = (color: RGB) =>
-		void applySelectionUpdate(setSelectionColor(path, color));
+		void SelectionList.update(setSelectionColor(path, color));
 
 	const fieldEntries = useExtraFieldKeys();
 
@@ -166,9 +164,9 @@ export const SelectionRow = memo(function SelectionRow({
 	});
 
 	if (!map) return null;
-	const inner = innerOf(selection);
+	const inner = innerOf(currentSelection);
 	const stepFilter = (() => {
-		const p = selection.selector;
+		const p = currentSelection.selector;
 		if (p.type !== "Filter") return null;
 		const ft = fieldEntries.find((f) => f.key === p.field)?.def.type;
 		const wallClock = filterIsLocalTime(p.test);
@@ -176,38 +174,38 @@ export const SelectionRow = memo(function SelectionRow({
 		return (dir: 1 | -1) => {
 			const next = stepFilterWindow(ft, p.test, dir, wallClock);
 			if (next) {
-				void applySelectionUpdate(
+				void SelectionList.update(
 					replaceSelection(path, { type: "Filter", field: p.field, test: next }),
 				);
 			}
 		};
 	})();
 	const showChildren = inner.selector.type === "Intersection" || inner.selector.type === "Union";
-	const isPoly = selection.selector.type === "Polygon";
+	const isPoly = currentSelection.selector.type === "Polygon";
 
 	const handleRename = () => {
-		if (selection.selector.type !== "Polygon") return;
-		setRenameDraft(selection.selector.polygon.properties?.name ?? "");
+		if (currentSelection.selector.type !== "Polygon") return;
+		setRenameDraft(currentSelection.selector.polygon.properties?.name ?? "");
 		setRenaming(true);
 	};
 
 	const submitRename = () => {
-		void applySelectionUpdate(setPolygonName(path, renameDraft));
+		void SelectionList.update(setPolygonName(path, renameDraft));
 		setRenaming(false);
 	};
 
 	const handleSaveAsTag = async () => {
 		const name = tagName.trim();
 		if (!name || count === 0) return;
-		const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
-		await edit.work(selection.selector, { kind: "listSet", key: "tags", add, remove: [] });
+		const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation;
+		await Edit.work(currentSelection.selector, { kind: "listSet", key: "tags", add, remove: [] });
 		setSavingTag(false);
 		setTagName("");
 	};
 
 	const handleDownloadGeoJSON = () => {
-		if (selection.selector.type !== "Polygon") return;
-		const poly = selection.selector.polygon;
+		if (currentSelection.selector.type !== "Polygon") return;
+		const poly = currentSelection.selector.polygon;
 		const name = poly.properties?.name ?? "polygon";
 		downloadBlob(
 			new Blob([JSON.stringify(polygonFeature(poly))], { type: "application/geo+json" }),
@@ -230,11 +228,11 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleMouseUp = () => {
 		if (!isDropTarget || !drag || !dropZone) return;
 		if (dropZone === "on") {
-			void applySelectionUpdate(
+			void SelectionList.update(
 				composeSelections(drag.path, path, drag.altKey ? "Union" : "Intersection"),
 			);
 		} else {
-			void applySelectionUpdate(moveSelection(drag.path, path, dropZone));
+			void SelectionList.update(moveSelection(drag.path, path, dropZone));
 		}
 		setDropZone(null);
 	};
@@ -256,10 +254,10 @@ export const SelectionRow = memo(function SelectionRow({
 					onClick={() => {
 						if (drag) return;
 						const host = getMapHost();
-						if (host && map) void fitSelectionBounds(host, selection);
+						if (host && map) void fitSelectionBounds(host, currentSelection);
 					}}
 				>
-					<Swatch color={colorBlockCss} /> {selectionDisplayName(selection)}
+					<Swatch color={colorBlockCss} /> {selectionDisplayName(currentSelection)}
 				</span>
 				{isDropTarget && dropZone === "on" && (
 					<span className="selection-row__drop-hint">{drag?.altKey ? t("OR") : t("AND")}</span>
@@ -289,48 +287,48 @@ export const SelectionRow = memo(function SelectionRow({
 						<MenuPopup align="end">
 							{view === "color" ? (
 								<div style={{ padding: "0.5rem", width: "14rem" }}>
-									<RgbPicker color={selection.color} onChange={handleColorChange} />
+									<RgbPicker color={currentSelection.color} onChange={handleColorChange} />
 								</div>
 							) : (
 								<>
-									<MenuItem onClick={() => void applySelectionUpdate(toggleInvert(path))}>
+									<MenuItem onClick={() => void SelectionList.update(toggleInvert(path))}>
 										{t("Invert selection")}
 									</MenuItem>
-									{selection.selector.type === "Filter" && (
+									{currentSelection.selector.type === "Filter" && (
 										<MenuItem onClick={() => setEditingFilter(true)}>{t("Edit filter")}</MenuItem>
 									)}
 									<MenuItem
 										disabled={count === 0}
 										onClick={() =>
 											void (async () => {
-												const ids = await read(selection.selector, { kind: "ids" });
-												void beginReview(ids, selection);
+												const ids = await Query.read(currentSelection.selector, { kind: "ids" });
+												void beginReview(ids, currentSelection);
 											})()
 										}
 									>
 										{t("Review selection")}
 									</MenuItem>
-									{tagIdOf(selection.selector) == null && (
+									{tagIdOf(currentSelection.selector) == null && (
 										<MenuItem
 											disabled={count === 0}
 											onClick={() => {
-												const names = new Set(getVisibleTags().map((t) => t.name));
-												setTagName(uniqueTagName(selectionDisplayName(selection), names));
+												const names = new Set(Tag.visible().map((t) => t.name));
+												setTagName(uniqueTagName(selectionDisplayName(currentSelection), names));
 												setSavingTag(true);
 											}}
 										>
 											{t("Save as tag")}
 										</MenuItem>
 									)}
-									{pruneDistance(selection) != null && (
+									{pruneDistance(currentSelection) != null && (
 										<MenuItem
 											disabled={count === 0}
 											onClick={() =>
 												void (async () => {
-													const { changed: n } = await edit.work(selection.selector, {
+													const { changed: n } = await Edit.work(currentSelection.selector, {
 														kind: "pruneDuplicates",
-														distance: pruneDistance(selection)!,
-														score: getMapState().map?.settings.duplicateScore ?? null,
+														distance: pruneDistance(currentSelection)!,
+														score: Store.get().map?.settings.duplicateScore ?? null,
 													});
 													toast(
 														t(
@@ -347,7 +345,7 @@ export const SelectionRow = memo(function SelectionRow({
 											{t("Prune duplicates")}
 										</MenuItem>
 									)}
-									{tagIdOf(selection.selector) == null && (
+									{tagIdOf(currentSelection.selector) == null && (
 										<MenuItem closeOnClick={false} onClick={() => setView("color")}>
 											{t("Change color")}
 										</MenuItem>
@@ -371,19 +369,19 @@ export const SelectionRow = memo(function SelectionRow({
 							label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
 							tooltip={t("Ghost selection (Alt-click to isolate)")}
 							onClick={(e) =>
-								void applySelectionUpdate(e.altKey ? isolateGhost(path[0]) : toggleGhost(path[0]))
+								void SelectionList.update(e.altKey ? isolateGhost(path[0]) : toggleGhost(path[0]))
 							}
 						/>
 					)}
 					<IconButton icon={mdiClose} label={t("Deselect")} onClick={onRemove} />
 				</span>
 			</div>
-			{editingFilter && selection.selector.type === "Filter" && (
+			{editingFilter && currentSelection.selector.type === "Filter" && (
 				<FilterForm
-					initial={filterPropsToSeed(selection.selector)}
+					initial={filterPropsToSeed(currentSelection.selector)}
 					submitLabel={t("Update filter")}
 					onSubmit={(field, test) =>
-						void applySelectionUpdate(replaceSelection(path, { type: "Filter", field, test }))
+						void SelectionList.update(replaceSelection(path, { type: "Filter", field, test }))
 					}
 					onClose={() => setEditingFilter(false)}
 				/>
@@ -420,7 +418,7 @@ export const SelectionRow = memo(function SelectionRow({
 					<SelectionRow
 						key={child.key}
 						selection={child}
-						path={selection === inner ? [...path, i] : [...path, 0, i]}
+						path={currentSelection === inner ? [...path, i] : [...path, 0, i]}
 						depth={depth + 1}
 						ghosted={ghosted}
 					/>

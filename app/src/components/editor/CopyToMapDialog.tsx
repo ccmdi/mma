@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { search } from "@/lib/search";
@@ -16,7 +17,6 @@ import {
 	getMapCopyBindingKey,
 	withMapCopyBinding,
 } from "@/lib/map/mapKeyBindings";
-import { getMapState } from "@/store/useMapStore";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
 
@@ -60,7 +60,7 @@ export function CopyToMapDialog({ open, onOpenChange }: DialogProps) {
 	const q = query.trim();
 	const suggestions = q
 		? search(maps ?? [], q, (m) => [m.name])
-				.filter((m) => m.id !== getMapState().mapId && !rowIds.includes(m.id))
+				.filter((m) => m.id !== Store.get().mapId && !rowIds.includes(m.id))
 				.slice(0, 8)
 		: [];
 

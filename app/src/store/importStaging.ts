@@ -1,4 +1,9 @@
-﻿import { bboxTupleToBounds } from "@/types";
+import { Store } from "@/store/store";
+import { Mutation } from "@/store/mutation";
+import { Editor } from "@/store/editor";
+import { Autosave } from "@/store/autosave";
+import { Edit } from "./edit";
+import { bboxTupleToBounds } from "@/types";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import type { EditorImportPreview, Target } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
@@ -6,11 +11,8 @@ import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
 import { fitMapToBounds } from "@/lib/map/mapState";
 import { getSettings } from "@/store/settings";
-import * as autosave from "@/store/autosave";
 import { whenSceneSettled } from "@/lib/render/sceneStore";
 import { emit as emitEvent } from "@/lib/events";
-import { settled, getMapState, setWorkArea } from "./useMapStore";
-import * as edit from "./edit";
 
 /** Parsed-but-not-committed import shown while `workArea === "import"`. */
 export interface ImportStaging {
@@ -52,7 +54,7 @@ async function setImportStaging(preview: EditorImportPreview) {
 	}
 	importState = { staging: { preview }, positions };
 	emitEvent("import-markers:changed");
-	setWorkArea("import");
+	Editor.setArea("import");
 	if (getSettings().panToImported)
 		fitMapToBounds(bboxTupleToBounds(preview.bounds), 100, getSettings().pastePadding);
 }
@@ -70,25 +72,25 @@ export async function beginImportPaste(text: string) {
 /** Commit the staged import, optionally dropping fields and applying bulk tags. */
 export async function confirmImport(droppedFields: string[], tagNames: string[] = []) {
 	if (!importState.staging) return null;
-	await autosave.waitForInflight();
+	await Autosave.waitForInflight();
 
 	const settings = importState.staging.preview.settings;
 	const r = await cmd.storeImportFile(droppedFields, tagNames.map((n) => n.trim()).filter(Boolean));
 	cancelImport();
-	await settled(r.mutation);
+	await Mutation.settle(r.mutation);
 
-	const map = getMapState().map;
+	const map = Store.get().map;
 	if (map && Object.keys(settings).length) {
-		await edit.meta({ settings: { ...map.settings, ...settings } });
+		await Edit.meta({ settings: { ...map.settings, ...settings } });
 	}
 
 	if (r.autoCommit) {
-		const mapId = getMapState().mapId;
+		const mapId = Store.get().mapId;
 		if (mapId) {
 			await whenSceneSettled();
-			autosave.cancel();
-			await autosave.waitForInflight();
-			autosave.scheduleAutoCommit(mapId, r.importedCount);
+			Autosave.cancel();
+			await Autosave.waitForInflight();
+			Autosave.scheduleAutoCommit(mapId, r.importedCount);
 		}
 	}
 	return r;
@@ -98,8 +100,8 @@ export async function confirmImport(droppedFields: string[], tagNames: string[] 
 export function cancelImport() {
 	resetImportState();
 	emitEvent("import-markers:changed");
-	if (getMapState().open?.origin === "import" || getMapState().workArea === "import") {
-		setWorkArea("overview");
+	if (Store.get().open?.origin === "import" || Store.get().workArea === "import") {
+		Editor.setArea("overview");
 	} else {
 		emitEvent("store:changed");
 	}

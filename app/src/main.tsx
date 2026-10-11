@@ -1,3 +1,5 @@
+import { Maps } from "@/store/maps";
+import { Autosave } from "@/store/autosave";
 import "@/lib/render/webglContexts";
 import "@/lib/sv/shaderPatch";
 import {} from "react";
@@ -7,10 +9,7 @@ import "@/styles.css";
 import App from "@/App.tsx";
 import { initLogging, log } from "@/lib/util/log";
 import { initLocale } from "@/lib/i18n";
-import { initStore } from "@/store/useMapStore";
-import * as autosave from "@/store/autosave";
 import { resetImportState } from "@/store/importStaging";
-import { getMapList } from "@/store/mapList";
 import { initRouter } from "@/store/router";
 import { getSettings } from "@/store/settings";
 import { loadSession, saveSession } from "@/store/session";
@@ -44,7 +43,7 @@ async function boot() {
 	mark("initLogging");
 	await initLocale(getSettings().language);
 	mark("initLocale");
-	await initStore();
+	await Maps.init();
 	mark("initStore");
 
 	initRouter();
@@ -63,7 +62,7 @@ async function boot() {
 			log.info(`[session] saved ${openIds.length} open map(s): ${openIds.join(", ")}`);
 			await closeWindows("editor");
 		}
-		await autosave.flush();
+		await Autosave.flush();
 		await saveWindowState();
 		resetImportState();
 		await cmd.storeCloseMap().catch((e) => log.error("[close] store_close_map failed:", e));
@@ -121,7 +120,7 @@ function restoreSession() {
 	const ids = loadSession();
 	if (!ids.length) return;
 	log.info(`[session] restoring ${ids.length} map(s): ${ids.join(", ")}`);
-	const names = new Map(getMapList().map((m) => [m.id, m.name]));
+	const names = new Map(Maps.list().map((m) => [m.id, m.name]));
 	for (const id of ids) {
 		const name = names.get(id);
 		if (name !== undefined) void openWindow({ type: "editor", mapId: id }, name);

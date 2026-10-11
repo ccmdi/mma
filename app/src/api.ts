@@ -1,19 +1,26 @@
 export type * from "@/bindings.consts";
 export type * from "@/bindings.gen";
 export type { ProcedureHost, ProcedureRequest, ProcedureResponse } from "@/lib/data/procedureHost";
-
+import { Store } from "@/store/store";
+import { Maps } from "@/store/maps";
+import { Query } from "@/store/query";
+import { Mutation } from "@/store/mutation";
+import { SelectionList } from "@/store/selectionList";
+import { Autosave } from "@/store/autosave";
+import { Edit } from "@/store/edit";
+import { Tag } from "@/store/tag";
+import { Location } from "@/store/location";
+import { Editor } from "@/store/editor";
+import { History } from "@/store/history";
+import { Commit } from "@/store/commit";
+import { Field } from "@/store/field";
 import * as consts from "@/bindings.consts";
-import * as store from "@/store/useMapStore";
-import * as autosave from "@/store/autosave";
-import * as edit from "@/store/edit";
 import * as selectionOps from "@/store/selections";
-import * as selectionActions from "@/store/selectionActions";
 import * as savedSelections from "@/store/savedSelections";
 import * as settings from "@/store/settings";
 import * as importStaging from "@/store/importStaging";
 import * as commitDiff from "@/store/commitDiff";
 import * as picker from "@/store/selectorPick";
-import * as mapList from "@/store/mapList";
 import * as review from "@/lib/review/review";
 import * as commands from "@/lib/commands";
 import * as tauri from "@/lib/tauri";
@@ -53,12 +60,9 @@ import * as util from "@/lib/util/util";
 import * as tags from "@/lib/data/tags";
 
 type ConstsApi = typeof consts;
-type StoreApi = typeof store;
 
 /** Pure transforms over the selection list behind the sidebar. @unstable */
 type SelectionOpsApi = typeof selectionOps;
-/** Editing the selection list the way the sidebar does. @unstable */
-type SelectionActionsApi = typeof selectionActions;
 /** Saved selection rules. @unstable */
 type SavedSelectionsApi = typeof savedSelections;
 /** App settings and their option tables; the shape moves with every setting added. @unstable */
@@ -69,8 +73,6 @@ type ImportStagingApi = typeof importStaging;
 type CommitDiffApi = typeof commitDiff;
 /** The selector picker the pick dialogs share; its choices move with the UI. @unstable */
 type SelectorPickApi = typeof picker;
-/** The cached map list and its refresh. @unstable */
-type MapListApi = typeof mapList;
 /** Review sessions and their history. @unstable */
 type ReviewApi = typeof review;
 /** The raw command layer under the app-level API; any of them can change in a release. @unstable */
@@ -123,7 +125,7 @@ type ToastApi = typeof toast;
 /** The global job tray. @unstable */
 type JobsApi = typeof jobs;
 type UseJobApi = typeof useJob;
-/** Shims for removed APIs. @unstable */
+/** Compatibility bindings for flat plugin calls. */
 type LegacyApi = typeof legacy;
 /** @unstable */
 type TestApi = typeof testSurface;
@@ -136,15 +138,12 @@ type TagsApi = typeof tags;
 export interface MMA
 	extends
 		ConstsApi,
-		StoreApi,
 		SelectionOpsApi,
-		SelectionActionsApi,
 		SavedSelectionsApi,
 		SettingsApi,
 		ImportStagingApi,
 		CommitDiffApi,
 		SelectorPickApi,
-		MapListApi,
 		ReviewApi,
 		CommandsApi,
 		TauriApi,
@@ -184,24 +183,43 @@ export interface MMA
 	/** Shared UI primitives for plugin sidebars and dialogs. */
 	ui: typeof primitives;
 	/** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
-	autosave: typeof autosave;
+	Autosave: typeof Autosave;
 	/** Edit map locations, metadata, value records, and selections. */
-	edit: typeof edit;
+	Edit: typeof Edit;
+	/** Add, update, remove, and inspect map locations. */
+	Location: typeof Location;
+	/** Manage tag records and their assignment to locations. */
+	Tag: typeof Tag;
+	/** Open locations and change the editor pane. */
+	Editor: typeof Editor;
+	/** Navigate undo and redo history. */
+	History: typeof History;
+	/** Save and restore map versions. */
+	Commit: typeof Commit;
+	/** Rename or remove metadata fields across the map. */
+	Field: typeof Field;
+	/** Read the open map state and update its selection and metadata. */
+	Store: Omit<typeof Store, "patch" | "merge" | "resetDerived">;
+	/** Create, list, open, close, and organize maps. */
+	Maps: typeof Maps;
+	/** Read locations and summaries for a selector. */
+	Query: typeof Query;
+	/** Run mutations and wait for their state and display updates. */
+	Mutation: typeof Mutation;
+	/** Change the listed selections and inspect their active members. @unstable */
+	SelectionList: typeof SelectionList;
 }
 
 export type { MMA as MMAApi };
 
 const mma: MMA = {
 	...consts,
-	...store,
 	...selectionOps,
-	...selectionActions,
 	...savedSelections,
 	...settings,
 	...importStaging,
 	...commitDiff,
 	...picker,
-	...mapList,
 	...review,
 	...commands,
 	...tauri,
@@ -239,8 +257,19 @@ const mma: MMA = {
 	...util,
 	...tags,
 	...legacy,
-	autosave,
-	edit,
+	Autosave,
+	Edit,
+	Location,
+	Tag,
+	Editor,
+	History,
+	Commit,
+	Field,
+	Store,
+	Maps,
+	Query,
+	Mutation,
+	SelectionList,
 };
 
 declare global {

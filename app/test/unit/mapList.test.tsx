@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach } from "vitest";
-import { act } from "react";
+import { act, useEffect } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
+import { Maps } from "@/store/maps";
 import { emit } from "@/lib/events";
-import { useMapList, setCachedMapList, isReservedMap } from "@/store/mapList";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
 import { type MapMeta } from "@/bindings.gen";
 
@@ -13,8 +13,11 @@ let renders = 0;
 let seen: MapMeta[] = [];
 
 function Probe() {
-	seen = useMapList();
-	renders++;
+	const list = Maps.useList();
+	useEffect(() => {
+		seen = list;
+		renders++;
+	});
 	return null;
 }
 
@@ -24,7 +27,7 @@ function mount() {
 
 beforeEach(() => {
 	renders = 0;
-	setCachedMapList([]);
+	Maps.setList([]);
 });
 
 // The map list is its own signal, not a slice of the store: every location edit fires
@@ -35,7 +38,7 @@ describe("useMapList subscription granularity", () => {
 		expect(renders).toBe(1);
 
 		act(() => {
-			setCachedMapList([meta("a")]);
+			Maps.setList([meta("a")]);
 			emit("map-list:changed");
 		});
 		expect(renders).toBe(2);
@@ -48,7 +51,7 @@ describe("useMapList subscription granularity", () => {
 		expect(renders).toBe(1);
 
 		act(() => {
-			setCachedMapList([meta("a"), meta("b")]);
+			Maps.setList([meta("a"), meta("b")]);
 			emit("store:changed");
 		});
 		expect(renders).toBe(1);
@@ -58,9 +61,9 @@ describe("useMapList subscription granularity", () => {
 
 describe("reserved maps", () => {
 	it("matches the reserved id, never a name that happens to look like one", () => {
-		expect(isReservedMap(SCRATCH_MAP_ID)).toBe(true);
+		expect(Maps.isReserved(SCRATCH_MAP_ID)).toBe(true);
 		// A user map merely named "scratch" is theirs, with a name and settings of its own.
-		expect(isReservedMap("some-uuid")).toBe(false);
-		expect(isReservedMap(null)).toBe(false);
+		expect(Maps.isReserved("some-uuid")).toBe(false);
+		expect(Maps.isReserved(null)).toBe(false);
 	});
 });

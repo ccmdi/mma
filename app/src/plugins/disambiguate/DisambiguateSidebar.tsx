@@ -126,9 +126,9 @@ interface Analysis {
 /** Resolve the active selections to labeled groups (dropping multi-group overlap)
  *  and compute field divergence. */
 async function analyze(): Promise<Analysis> {
-	const map = MMA.getMapState().map;
+	const map = MMA.Store.get().map;
 	if (!map) throw new Error(t("No map open"));
-	const sels: Selection[] = MMA.getActiveSelections();
+	const sels: Selection[] = MMA.SelectionList.active();
 	if (sels.length < 2) throw new Error(t("Select at least 2 groups to disambiguate."));
 
 	const colors = sels.map((s) => s.color);
@@ -137,12 +137,12 @@ async function analyze(): Promise<Analysis> {
 
 	const fieldDefs: Record<string, FieldDef> = MMA.getAllFieldDefs();
 	const tagNames: Record<number, string> = {};
-	for (const [id, t] of Object.entries(MMA.getTags()))
+	for (const [id, t] of Object.entries(MMA.Tag.all()))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
 	const [unionSize, present] = await Promise.all([
-		MMA.read(union, { kind: "count" }),
-		MMA.read(union, { kind: "coverage" }),
+		MMA.Query.read(union, { kind: "count" }),
+		MMA.Query.read(union, { kind: "coverage" }),
 	]);
 	const fields = analysisColumns(
 		fieldDefs,
@@ -151,8 +151,8 @@ async function analyze(): Promise<Analysis> {
 	const groups = await Promise.all(
 		exclusiveGroups(selectors).map(async (selector) => {
 			const [size, counts] = await Promise.all([
-				MMA.read(selector, { kind: "count" }),
-				MMA.read(selector, { kind: "countBy", fields, key: { kind: "value" } }),
+				MMA.Query.read(selector, { kind: "count" }),
+				MMA.Query.read(selector, { kind: "countBy", fields, key: { kind: "value" } }),
 			]);
 			return { size, counts: Object.fromEntries(fields.map((f, i) => [f, counts[i]])) };
 		}),
@@ -165,7 +165,7 @@ async function analyze(): Promise<Analysis> {
 
 export function DisambiguateSidebar({ onClose }: { onClose: () => void }) {
 	const version = useEvent(SELECTION_EVENTS);
-	const selCount = MMA.getActiveSelections().length;
+	const selCount = MMA.SelectionList.active().length;
 	// Synchronous null short-circuit: no loading flash while under two groups.
 	const {
 		data: analysis,

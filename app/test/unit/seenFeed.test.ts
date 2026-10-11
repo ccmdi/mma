@@ -17,10 +17,19 @@ vi.mock("@/lib/hooks/usePano", () => {
 	const viewer = { exists: () => true, captureView: () => ({ heading: 0, pitch: 0, zoom: 0 }) };
 	return { usePano: () => viewer };
 });
-vi.mock("@/store/useMapStore", () => ({
-	useMapState: (sel: (s: { open: { origin: string; location: Location | null } }) => unknown) =>
-		sel({ open: { origin: scene.origin, location: scene.location } }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (
+			sel: (s: {
+				open: {
+					origin: string;
+					location: Location | null;
+				};
+			}) => unknown,
+		) => sel({ open: { origin: scene.origin, location: scene.location } }),
+	},
 }));
+
 vi.mock("@/components/editor/location/PanoViewerContext", () => ({
 	usePanoViewer: () => ({ draft: scene.draft, geo: scene.geo }),
 }));

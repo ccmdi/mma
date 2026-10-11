@@ -75,7 +75,7 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-vi.mock("@/store/useMapStore", async () => {
+vi.mock("@/store/store", async () => {
 	const { useEffect, useState } = await import("react");
 	const state = () => {
 		const location = h.openLocation as Location | null;
@@ -88,30 +88,53 @@ vi.mock("@/store/useMapStore", async () => {
 		};
 	};
 	return {
-		read: async (selector: { locations: number[] }) =>
-			selector.locations.flatMap((id) => (h.layer.has(id) ? [h.layer.get(id)] : [])),
-		VIEWER: { kind: "pending", name: "viewer" },
-		useMapState: (sel: (s: ReturnType<typeof state>) => unknown) => {
-			const [, tick] = useState(0);
-			useEffect(() => {
-				const changed = () => tick((n) => n + 1);
-				h.listeners.add(changed);
-				return () => {
-					h.listeners.delete(changed);
-				};
-			}, []);
-			return sel(state());
-		},
-		mutate: (fn: () => Promise<unknown>) => fn(),
-		getMapState: state,
-		setOpenLocation: (location: unknown, session: number) => {
-			if (state().open?.session !== session) return;
-			h.openLocationPushes.push(location);
-			h.openLocation = location;
-			for (const changed of h.listeners) changed();
+		Store: {
+			use: (sel: (s: ReturnType<typeof state>) => unknown) => {
+				const [, tick] = useState(0);
+				useEffect(() => {
+					const changed = () => tick((n) => n + 1);
+					h.listeners.add(changed);
+					return () => {
+						h.listeners.delete(changed);
+					};
+				}, []);
+				return sel(state());
+			},
+			get: state,
 		},
 	};
 });
+vi.mock("@/store/mutation", () => ({ Mutation: { run: (fn: () => Promise<unknown>) => fn() } }));
+vi.mock("@/store/query", () => ({
+	Query: {
+		read: async (selector: { locations: number[] }) =>
+			selector.locations.flatMap((id) => (h.layer.has(id) ? [h.layer.get(id)] : [])),
+	},
+}));
+vi.mock("@/store/editor", async () => {
+	const state = () => {
+		const location = h.openLocation as Location | null;
+		if (!location) h.opened = null;
+		else if (h.opened?.id !== location.id || h.opened.origin !== h.origin)
+			h.opened = { id: location.id, origin: h.origin, session: ++h.sessions };
+		return {
+			open: h.opened && { ...h.opened, location },
+			map: { settings: { enrichMetadata: true } },
+		};
+	};
+	return {
+		Editor: {
+			setLocation: (location: unknown, session: number) => {
+				if (state().open?.session !== session) return;
+				h.openLocationPushes.push(location);
+				h.openLocation = location;
+				for (const changed of h.listeners) changed();
+			},
+			VIEWER: { kind: "pending", name: "viewer" },
+		},
+	};
+});
+
 vi.mock("@/lib/sv/enrich", () => ({
 	enrich: (
 		_selector: unknown,

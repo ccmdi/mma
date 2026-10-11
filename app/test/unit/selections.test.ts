@@ -27,10 +27,16 @@ const h = vi.hoisted(() => ({
 const setUserFieldDefs = (defs: Record<string, unknown>) => {
 	h.fieldDefs = defs;
 };
-vi.mock("@/store/useMapStore", () => ({
-	getTag: (id: number) => h.tags[id],
-	getVisibleTags: () => Object.values(h.tags).filter((t) => t.visible !== false),
-	getMapState: () => ({ fieldDefs: h.fieldDefs }),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ fieldDefs: h.fieldDefs }),
+	},
+}));
+vi.mock("@/store/tag", () => ({
+	Tag: {
+		get: (id: number) => h.tags[id],
+		visible: () => Object.values(h.tags).filter((t) => t.visible !== false),
+	},
 }));
 
 beforeEach(() => {

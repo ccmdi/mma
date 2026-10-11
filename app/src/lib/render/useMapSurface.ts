@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from "react";
 import type { PickingInfo } from "@deck.gl/core";
+import { Store } from "@/store/store";
 import { buildSceneLayers, type PolyGeom } from "@/lib/render/buildSceneLayers";
 import { getScene } from "@/lib/render/sceneStore";
 import type { MapHost, DeckOverlayHandle } from "@/lib/map/host";
-
 import { useSetting, getSettings } from "@/store/settings";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { handleMapClick, handleMapHover } from "@/lib/map/mapClick";
-import { getMapState } from "@/store/useMapStore";
 import { subscribe, subscribeMany, OVERLAY_REPAINT_EVENTS } from "@/lib/events";
 import { getReviewSession } from "@/lib/review/review";
 import { useHotkey } from "@/lib/hooks/useHotkey";
@@ -162,14 +161,14 @@ export function useMapSurface(
 		if (!host || !opts.followOpen) return;
 		return subscribe("open:change", (id) => {
 			if (id == null || !getReviewSession() || !getSettings().followActiveInReview) return;
-			const loc = getMapState().open?.location;
+			const loc = Store.get().open?.location;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});
 	}, [host, opts.followOpen]);
 
 	useHotkey(useBinding("panToLocation"), () => {
 		if (!host || !opts.panToActiveHotkey) return;
-		const loc = getMapState().open?.location;
+		const loc = Store.get().open?.location;
 		if (loc) host.panTo({ lat: loc.lat, lng: loc.lng });
 	});
 

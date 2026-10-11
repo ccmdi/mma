@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Store } from "@/store/store";
+import { History } from "@/store/history";
 import "@/store/commandDefs";
 import { getCommand } from "@/store/commands";
-import { getMapState, historyAvailable } from "@/store/useMapStore";
 import { getBinding, getConflicts } from "@/lib/util/hotkeys";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-const state = getMapState();
+const state = Store.get();
 const initial = { map: state.map, history: state.history };
 afterEach(() => Object.assign(state, initial));
 
@@ -32,11 +33,14 @@ describe("selection history commands", () => {
 
 describe("history availability", () => {
 	it("keeps selection availability separate from atomic data undo", () => {
-		const history = { selections: { undo: true, redo: false }, piles: { undo: false, redo: true } };
-		expect(historyAvailable(history, "undo")).toBe(false);
-		expect(historyAvailable(history, "redo")).toBe(true);
-		expect(historyAvailable(history, "undo", "selections")).toBe(true);
-		expect(historyAvailable(history, "redo", "selections")).toBe(false);
+		const history = {
+			selections: { undo: true, redo: false },
+			piles: { undo: false, redo: true },
+		};
+		expect(History.available(history, "undo")).toBe(false);
+		expect(History.available(history, "redo")).toBe(true);
+		expect(History.available(history, "undo", "selections")).toBe(true);
+		expect(History.available(history, "redo", "selections")).toBe(false);
 	});
 
 	it("enables selection redo independently and binds it without conflicts", () => {

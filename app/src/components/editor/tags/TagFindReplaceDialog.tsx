@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { getVisibleTags } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
+import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import { TagPill } from "@/components/primitives/TagPill";
 import {
 	Dialog,
@@ -17,12 +17,12 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 	const [replace, setReplace] = useState("");
 	const [applied, setApplied] = useState(false);
 
-	const tags = getVisibleTags();
+	const tags = Tag.visible();
 	const matches = find ? tags.filter((t) => t.name.toLowerCase().includes(find.toLowerCase())) : [];
 
 	const handleApply = async () => {
 		if (!find || matches.length === 0) return;
-		await edit.values(
+		await Edit.values(
 			"tags",
 			matches.map((t) => ({
 				put: {

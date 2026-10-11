@@ -6,9 +6,15 @@ import type { GeneratorRegionMeta } from "@/plugins/generator/engine/types";
 const h = vi.hoisted(() => ({ selections: [] as Selection[] }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/useMapStore", () => ({
-	getActiveSelections: () => h.selections,
-	useMapState: (sel: (s: unknown) => unknown) => sel(undefined),
+vi.mock("@/store/store", () => ({
+	Store: {
+		use: (sel: (s: unknown) => unknown) => sel(undefined),
+	},
+}));
+vi.mock("@/store/selectionList", () => ({
+	SelectionList: {
+		active: () => h.selections,
+	},
 }));
 
 import { RegionSelector } from "@/plugins/generator/ui/RegionSelector";

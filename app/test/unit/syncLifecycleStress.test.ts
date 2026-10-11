@@ -18,9 +18,15 @@ vi.mock("@/lib/commands", () => ({
 			new Promise<SyncReconcileResult>((resolve) => h.calls.push({ args, resolve })),
 	},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
-	settled: async () => {},
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
+	},
+}));
+vi.mock("@/store/mutation", () => ({
+	Mutation: {
+		settle: async () => {},
+	},
 }));
 
 import { createSyncController } from "@/lib/sync/controller";
@@ -46,13 +52,13 @@ function harness() {
 	};
 	(window as unknown as { MMA: unknown }).MMA = {
 		storage: () => kv,
-		getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
 		cmd: {
 			remoteMappingClear: async () => {},
 			syncLogAppend: async (provider: string, mapId: string, entry: unknown) => {
 				h.logs.push({ mapId: `${provider}:${mapId}`, entry });
 			},
 		},
+		Store: { get: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }) },
 	};
 	const provider = {
 		id: "geoguessr",

@@ -1,23 +1,15 @@
 import { useState } from "react";
-import type { Tag } from "@/types";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { Tag } from "@/store/tag";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import { NSelect } from "@/components/primitives/NSelect";
-import {
-	applySelectionUpdate,
-	getActiveSelections,
-	getMapState,
-	getTagCounts,
-	getVisibleTags,
-	select,
-	read,
-	useMapState,
-} from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { addSelection, selection, has } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { sortTagsByMode } from "@/lib/data/tags";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { useSetting } from "@/store/settings";
-
 import { TagManager } from "@/components/editor/tags/TagManager";
 import { FilterForm, usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { ApplyFieldAsTagsDialog } from "@/components/editor/tags/ApplyFieldAsTagsDialog";
@@ -48,7 +40,7 @@ function PerSelectionToggle({
 	value: boolean;
 	onChange: (v: boolean) => void;
 }) {
-	const count = useMapState(() => getActiveSelections().length);
+	const count = Store.use(() => SelectionList.active().length);
 	if (count < 2) return null;
 	return (
 		<Checkbox checked={value} onChange={(e) => onChange(e.target.checked)}>
@@ -60,7 +52,7 @@ function PerSelectionToggle({
 function RandomPickPanel() {
 	const [value, setValue] = useState("");
 	const [perSelection, setPerSelection] = useState(false);
-	const total = useMapState((s) => s.selectedLocationIds).size;
+	const total = Store.use((s) => s.selectedLocationIds).size;
 	const parsed = Math.floor(Number(value));
 	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
 	const count = valid ? (perSelection ? parsed : Math.min(parsed, total)) : 0;
@@ -70,9 +62,12 @@ function RandomPickPanel() {
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!valid) return;
-				select(
+				SelectionList.select(
 					(selector) =>
-						read({ type: "Sample", selection: selection(selector), n: count }, { kind: "ids" }),
+						Query.read(
+							{ type: "Sample", selection: selection(selector), n: count },
+							{ kind: "ids" },
+						),
 					perSelection,
 				)
 					.then(({ picked }) => {
@@ -119,7 +114,7 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 	const [mode, setMode] = useState<"count" | "distance">("count");
 	const [value, setValue] = useState("");
 	const [perSelection, setPerSelection] = useState(false);
-	const total = useMapState((s) => s.selectedLocationIds).size;
+	const total = Store.use((s) => s.selectedLocationIds).size;
 	const parsed = Math.floor(Number(value));
 	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
 	useSetting("units");
@@ -130,9 +125,9 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 		if (!valid) return;
 		const count = perSelection ? parsed : Math.min(parsed, total);
 		const distance = unit.fromDisplay(parsed);
-		const pick = select(
+		const pick = SelectionList.select(
 			(selector) =>
-				read(
+				Query.read(
 					{
 						type: method === "even" ? "EvenlySpaced" : "Spaced",
 						selection: selection(selector),
@@ -218,7 +213,7 @@ function RankedPanel({
 			onSubmit={(e) => {
 				e.preventDefault();
 				if (!field || count < 1) return;
-				void applySelectionUpdate(
+				void SelectionList.update(
 					addSelection({
 						type: "Ranked",
 						selection: selection(has(field)),
@@ -258,7 +253,7 @@ function RankedPanel({
 }
 
 function SelectedCount({ className }: { className?: string }) {
-	const total = useMapState((s) => s.selectedLocationIds.size);
+	const total = Store.use((s) => s.selectedLocationIds.size);
 	return (
 		<span className={className}>
 			<Trans msg="{count} selected" count={<span className="mono">{fmt.format(total)}</span>} />
@@ -266,8 +261,8 @@ function SelectedCount({ className }: { className?: string }) {
 	);
 }
 
-function SelectionList() {
-	const rows = useMapState((s) => s.selectionList);
+function ListedSelections() {
+	const rows = Store.use((s) => s.selectionList);
 	if (rows.length === 0) return null;
 	return (
 		<div className="selection-manager__selections">
@@ -285,18 +280,18 @@ function SelectionList() {
 
 function BulkTagForm() {
 	const [bulkTagInput, setBulkTagInput] = useState("");
-	const hasSelection = useMapState((s) => s.selectedLocationIds.size > 0);
-	const visibleTags = useMapState(getVisibleTags);
-	const tagCounts = useMapState(() => getTagCounts());
+	const hasSelection = Store.use((s) => s.selectedLocationIds.size > 0);
+	const visibleTags = Store.use(Tag.visible);
+	const tagCounts = Store.use(() => Tag.counts());
 	const tagSortMode = useSetting("tagSortMode");
 
 	const handleBulkAddTag = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const name = bulkTagInput.trim();
-		const selected = getMapState().selectedLocationIds;
+		const selected = Store.get().selectedLocationIds;
 		if (!name || selected.size === 0) return;
-		const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
-		await edit.work({ type: "Selected" }, { kind: "listSet", key: "tags", add, remove: [] });
+		const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation;
+		await Edit.work({ type: "Selected" }, { kind: "listSet", key: "tags", add, remove: [] });
 		setBulkTagInput("");
 	};
 
@@ -307,9 +302,9 @@ function BulkTagForm() {
 	).slice(0, 15);
 
 	const handleBulkPick = (t: Tag) => {
-		const selected = getMapState().selectedLocationIds;
+		const selected = Store.get().selectedLocationIds;
 		if (selected.size === 0) return;
-		void edit.work(
+		void Edit.work(
 			{ type: "Locations", locations: [...selected], name: null },
 			{ kind: "listSet", key: "tags", add: [t.id], remove: [] },
 		);
@@ -342,7 +337,7 @@ function BulkTagForm() {
 }
 
 export function MapOverview({ hidden }: { hidden?: boolean }) {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	useSetting("units");
 	const [selectionsCollapsed, setSelectionsCollapsed] = useState(false);
 	const [dupDistance, setDupDistance] = useState(1);
@@ -381,7 +376,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 					</>
 				}
 			>
-				<SelectionList />
+				<ListedSelections />
 
 				<PinnedToolbar
 					right={<BulkTagForm />}
@@ -401,7 +396,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									className="selection-manager__inline-form"
 									onSubmit={(e) => {
 										e.preventDefault();
-										void applySelectionUpdate(
+										void SelectionList.update(
 											addSelection({ type: "Duplicates", distance: dupDistance }),
 										);
 									}}
@@ -427,7 +422,7 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 									persistKey={map.id}
 									submitLabel={t("Add filter")}
 									onSubmit={(field, test) => {
-										void applySelectionUpdate(addSelection({ type: "Filter", field, test }));
+										void SelectionList.update(addSelection({ type: "Filter", field, test }));
 									}}
 								/>
 							),

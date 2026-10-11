@@ -45,8 +45,11 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const procedureEntry: \(/);
 	});
 
-	it("every hop of a bundler alias carries the tag", () => {
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const autosave_hold: typeof hold;/);
+	it("object method references and their implementation carry the unstable tag", () => {
+		const hold = membersOf("Autosave").find((member) => member.member === "hold");
+		expect(hold).toBeDefined();
+		expect(hold?.doc).toContain("@unstable");
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare function hold\(/);
 	});
 
 	it("a type only unstable members reach is unstable", () => {
@@ -54,8 +57,9 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("a type a stable member reaches stays a promise", () => {
-		expect(dts).toMatch(/\*\/\n\s*type Location = /);
-		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location = /);
+		expect(dts).toMatch(/type Location = Location\$1;/);
+		expect(dts).toMatch(/\*\/\n\s*type Location\$1 = /);
+		expect(dts).not.toMatch(/@unstable[^\n]*\n(\s*\*[^\n]*\n)*\s*type Location\$1 = /);
 	});
 
 	it("a bundler namespace alias is never a promise", () => {
@@ -68,12 +72,16 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 		expect(apiMd).toMatch(/^### CameraType\n\n`stable`/m);
 	});
 
-	it("a legacy shim is unstable from birth, so it is never a stable promise", () => {
-		const deprecated = dts
-			.split(/\n(?=\s*\/\*\*)/)
-			.filter((block) => block.includes("@deprecated"));
-		expect(deprecated.length).toBeGreaterThan(0);
-		const stable = deprecated.filter((b) => !b.includes("@unstable"));
-		expect(stable).toEqual([]);
+	it("older shims stay unstable while newly deprecated stable calls stay promised", () => {
+		for (const name of ["fetchLocation", "getCurrentMap", "query"]) {
+			const doc = dts.match(
+				new RegExp("(/\\*\\*[^*]*(?:\\*(?!/)[^*]*)*\\*/)\\s*declare function " + name + "\\("),
+			)?.[1];
+			expect(doc).toContain("@deprecated");
+			expect(doc).toContain("@unstable");
+		}
+		const doc = dts.match(/(\/\*\*[^*]*(?:\*(?!\/)[^*]*)*\*\/)\s*declare const getMapState:/)?.[1];
+		expect(doc).toContain("@deprecated");
+		expect(doc).not.toContain("@unstable");
 	});
 });

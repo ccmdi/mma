@@ -19,12 +19,19 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 vi.mock("@tauri-apps/plugin-shell", () => ({ open: vi.fn() }));
-vi.mock("@/store/useMapStore", async (orig) => ({
-	...(await orig()),
-	openLocation: vi.fn(),
-	addLocations: vi.fn(),
-	createTags: vi.fn(async () => []),
+vi.mock("@/store/location", async (orig) => ({
+	Location: {
+		...(await orig<typeof import("@/store/location")>()).Location,
+		add: vi.fn(),
+	},
 }));
+vi.mock("@/store/editor", async (orig) => ({
+	Editor: {
+		...(await orig<typeof import("@/store/editor")>()).Editor,
+		open: vi.fn(),
+	},
+}));
+
 vi.mock("@/store/settings", async (orig) => ({
 	...(await orig()),
 	getSettings: () => ({ panToImported: false }),
@@ -96,8 +103,8 @@ describe("openHref (map-aware link opening)", () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		openExternal = vi.mocked((await import("@tauri-apps/plugin-shell")).open);
-		open = vi.mocked((await import("@/store/useMapStore")).openLocation);
-		addLocs = vi.mocked((await import("@/store/useMapStore")).addLocations);
+		open = vi.mocked((await import("@/store/editor")).Editor.open);
+		addLocs = vi.mocked((await import("@/store/location")).Location.add);
 		parseMapsUrl.mockResolvedValue(parsed);
 		storeFindNearby.mockReset();
 	});

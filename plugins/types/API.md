@@ -11,7 +11,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 **Stable surfaces**
 
 - [Consts](#consts)
-- [Store](#store)
 - [Registry](#registry)
 - [PluginStorage](#pluginstorage)
 - [PluginEvents](#pluginevents)
@@ -24,17 +23,29 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [UseJob](#usejob)
 - [Types](#types)
 - [Tags](#tags)
+- [Legacy](#legacy)
+- [Ui](#ui)
+- [Autosave](#autosave)
+- [Edit](#edit)
+- [Location](#location)
+- [Tag](#tag)
+- [Editor](#editor)
+- [History](#history)
+- [Commit](#commit)
+- [Field](#field)
+- [Store](#store)
+- [Maps](#maps)
+- [Query](#query)
+- [Mutation](#mutation)
 
 **Unstable surfaces**
 
 - [SelectionOps](#selectionops)
-- [SelectionActions](#selectionactions)
 - [SavedSelections](#savedselections)
 - [Settings](#settings)
 - [ImportStaging](#importstaging)
 - [CommitDiff](#commitdiff)
 - [SelectorPick](#selectorpick)
-- [MapList](#maplist)
 - [Review](#review)
 - [Commands](#commands)
 - [Tauri](#tauri)
@@ -58,7 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Jobs](#jobs)
 - [Test](#test)
 - [Util](#util)
-- [Legacy](#legacy)
+- [SelectionList](#selectionlist)
 
 ## Consts
 
@@ -721,529 +732,6 @@ ValidationFlag: {
 One finding of a Street View coverage check. `validate` answers each row with the
 findings that apply, combined into one number.
 
-## Store
-
-### addLocations
-
-`stable` · since v0.3.1
-
-```ts
-addLocations(locs: Location[]): Promise<void>
-```
-
-Add locations to the map. Real ids are assigned and written back into the passed
-objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
-
-### applySelectionUpdate
-
-`unstable` · since v0.10.3
-
-```ts
-applySelectionUpdate(op: SelectionOp): Promise<void>
-```
-
-Update and resolve the listed selections. Use `onActive` to affect only active selections.
-
-### checkoutCommit
-
-`unstable` · since v0.4.0
-
-```ts
-checkoutCommit(commitId: string): Promise<void>
-```
-
-Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
-
-### closeDuplicates
-
-`unstable` · since v0.4.0
-
-```ts
-closeDuplicates(): void
-```
-
-Close the duplicate-resolution panel and return to the overview.
-
-### closeLocation
-
-`stable` · unreleased
-
-```ts
-closeLocation(): void
-```
-
-Close the open location and return to the pane it was opened from.
-
-### closeMap
-
-`stable` · since v0.4.0
-
-```ts
-closeMap(): Promise<void>
-```
-
-Close the open map, saving unsaved changes first.
-
-### commitMap
-
-`stable` · since v0.4.0
-
-```ts
-commitMap(message?: string): Promise<string>
-```
-
-Commit all pending changes to the map's version history. Clears the undo stack.
-
-### deleteField
-
-`stable` · since v0.5.1
-
-```ts
-deleteField(key: string): Promise<void>
-```
-
-Delete extra-field `key` from every location, its definition, and the listed selections,
-in one undoable step.
-
-### deleteTags
-
-`stable` · since v0.4.0
-
-```ts
-deleteTags(tagIds: number[]): Promise<WorkResult>
-```
-
-Remove tags from every location in one undoable step.
-Unreferenced tags are hidden; undo restores them.
-
-### discardOpenMap
-
-`unstable` · since v0.6.1
-
-```ts
-discardOpenMap(): void
-```
-
-Drop the open map without persisting anything
-
-### duplicateLocation
-
-`stable` · since v0.4.0
-
-```ts
-duplicateLocation(id: number): Promise<number | null>
-```
-
-Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
-
-### exitPluginMode
-
-`stable` · since v0.3.1
-
-```ts
-exitPluginMode(): void
-```
-
-Close the plugin sidebar and return to the overview.
-
-### getActiveSelections
-
-`stable` · since v0.8.2
-
-```ts
-getActiveSelections(): Selection[]
-```
-
-The selection: every listed selection that is not ghosted.
-
-### getMapState
-
-`stable` · since v0.8.2
-
-```ts
-getMapState(): Readonly<MapState>
-```
-
-Imperative snapshot of the map state.
-
-### getTag
-
-`stable` · since v0.7.0
-
-```ts
-getTag(id: number): Tag | undefined
-```
-
-Raw by-id tag lookup — includes dark metadata ghosts so stale references
-(e.g. a selection whose tag just died) still resolve to a name.
-
-### getTagCounts
-
-`stable` · since v0.4.0
-
-```ts
-getTagCounts(): Record<number, number>
-```
-
-Per-tag location counts, keyed by numeric id.
-
-### getTags
-
-`stable` · since v0.11.1
-
-```ts
-getTags(): Record<number, Tag>
-```
-
-Tag records with visibility based on location references.
-Missing metadata uses a generated name and colour.
-
-### getVisibleTags
-
-`stable` · since v0.4.0
-
-```ts
-getVisibleTags(): Tag[]
-```
-
-Tags that exist from the user's point of view: the ones something carries. Raw
-`tags` also holds dark metadata ghosts (count=0, visible=false) - almost nothing
-should enumerate those.
-
-### historyAvailable
-
-`unstable` · since v0.12.0
-
-```ts
-historyAvailable(
-  history: MapState["history"],
-  stack: Stack,
-  key?: EntryKey,
-): boolean
-```
-
-Whether a history action is available for one part or for the data edit as a whole.
-
-### initStore
-
-`unstable` · since v0.4.0
-
-```ts
-initStore(): Promise<void>
-```
-
-One-time store startup. The app calls this; plugins never need to.
-
-### locationsOf
-
-`stable` · unreleased
-
-```ts
-locationsOf(list: LocationList): Promise<Location[]>
-```
-
-The locations an answer carries, fetched from its temp file when it was too large to send inline.
-
-### mutate
-
-`stable` · since v0.4.0
-
-```ts
-mutate<R extends MutationResult = MutationResult>(
-  fn: () => Promise<R>,
-  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
-): Promise<R>
-```
-
-### openDuplicateLocation
-
-`unstable` · since v0.4.0
-
-```ts
-openDuplicateLocation(loc: Location): void
-```
-
-Open one location from the duplicate-resolution panel in the editor.
-
-### openLocation
-
-`stable` · unreleased
-
-```ts
-openLocation(
-  target: MaybeLocation,
-  checkDuplicates?: boolean,
-): Promise<void>
-```
-
-Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
-within 2m opens the duplicate-resolution panel instead. A later opening or closing
-supersedes one still loading.
-
-### openMap
-
-`stable` · since v0.4.0
-
-```ts
-openMap(id: string): Promise<void>
-```
-
-Open a map in this window, closing any currently open map first.
-
-### openStagedLocation
-
-`unstable` · since v0.6.0
-
-```ts
-openStagedLocation(index: number): Promise<void>
-```
-
-Preview a copy of a staged-import location. The import row stays staged until Confirm.
-
-### previewDuplicateGroups
-
-`unstable` · since v0.5.1
-
-```ts
-previewDuplicateGroups(distance: number): Promise<number[][]>
-```
-
-Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
-
-### previewLocation
-
-`unstable` · since v0.12.0
-
-```ts
-previewLocation(loc: Location): void
-```
-
-Open an arbitrary location read-only as a seen-preview: loads its pano without
-adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
-
-### read
-
-`stable` · since v0.12.0
-
-```ts
-read<A extends Ask>(
-  selector: Selector,
-  ask: A,
-  target?: Target,
-): Promise<ReadResult<AnswerOf<A["kind"]>>>
-```
-
-Ask one question about the locations `selector` matches. A full-location answer loads any
-backing file automatically; ask for ids or columns when full locations are unnecessary.
-
-### redo
-
-`stable` · since v0.4.0
-
-```ts
-redo(): Promise<void>
-```
-
-Redo the last undone edit.
-
-### redoSelections
-
-`unstable` · since v0.12.0
-
-```ts
-redoSelections(): Promise<void>
-```
-
-Redo the last undone selection change without redoing data edits.
-
-### removeDuplicate
-
-`unstable` · since v0.4.0
-
-```ts
-removeDuplicate(id: number): void
-```
-
-Drop a location from the duplicate-resolution panel (does not delete it).
-
-### removeLocations
-
-`stable` · since v0.3.1
-
-```ts
-removeLocations(ids: ReadonlyIdSet): Promise<void>
-```
-
-Remove locations by id. Undoable.
-
-### renameField
-
-`stable` · since v0.5.1
-
-```ts
-renameField(
-  from: string,
-  to: string,
-  winner?: MergeWinner,
-): Promise<void>
-```
-
-Rename extra-field `from` to `to` across all locations, its definition, and the listed
-selections, in one undoable step. When a location already holds `to`, `winner` decides
-which value survives. Saved selections are map-independent rules and keep their names.
-
-### resolveLocation
-
-`stable` · since v0.6.6
-
-```ts
-resolveLocation(m: MaybeLocation): Promise<Location | null>
-```
-
-Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
-
-### restoreSelections
-
-`unstable` · since v0.12.0
-
-```ts
-restoreSelections(): Promise<void>
-```
-
-Undo the last selection change without undoing data edits.
-
-### select
-
-`stable` · since v0.12.0
-
-```ts
-select<
-  R extends
-    | number[]
-    | {
-        ids: number[];
-      },
->(
-  pick: (selector: Selector) => Promise<R>,
-  perSelection?: boolean,
-): Promise<{
-  picked: number;
-  results: R[];
-}>
-```
-
-### setMap
-
-`unstable` · since v0.12.0
-
-```ts
-setMap(map: MapMeta): void
-```
-
-Replace the open map's row in state; persisting it is the caller's.
-
-### setOpenLocation
-
-`stable` · unreleased
-
-```ts
-setOpenLocation(location: Location | null, session: number): void
-```
-
-Set the open location if `session` is still current.
-
-### setPluginMode
-
-`stable` · since v0.4.0
-
-```ts
-setPluginMode(pluginId: string): void
-```
-
-Open a plugin's sidebar (switches the editor pane to "plugin").
-
-### setSelectedLocationIds
-
-`unstable` · since v0.6.6
-
-```ts
-setSelectedLocationIds(ids: SelectedIds): void
-```
-
-Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
-
-### settled
-
-`stable` · since v0.12.0
-
-```ts
-settled(m: Mutation): Promise<void>
-```
-
-### setWorkArea
-
-`unstable` · since v0.4.0
-
-```ts
-setWorkArea(area: WorkArea): void
-```
-
-Transition the editor pane, enforcing state invariants:
-leaving "location" closes the open location, leaving "plugin" clears the plugin id.
-
-### tagIdsToNames
-
-`stable` · since v0.9.0
-
-```ts
-tagIdsToNames(ids: number[]): string[]
-```
-
-Tag names for the given ids, skipping any that no longer resolve.
-
-### undo
-
-`stable` · since v0.4.0
-
-```ts
-undo(): Promise<void>
-```
-
-Undo the last edit.
-
-### updateLocations
-
-`stable` · since v0.6.3
-
-```ts
-updateLocations(updates: Patch<Location>[]): Promise<void>
-```
-
-Patch locations by id. Only include the fields you're changing; `extra` merges
-per-key (null deletes a key). Undoable by default.
-
-### useMapState
-
-`stable` · since v0.8.2
-
-```ts
-useMapState<T>(selector: (s: MapState) => T): T
-```
-
-Reactive slice of the map state. Re-renders only when the selected value's
-reference changes (`Object.is`), so selectors must return state fields or
-memoized values, not a new value per call.
-
-### VIEWER
-
-`stable` · since v0.12.0
-
-```ts
-VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
-```
-
-The viewer's pending edits, applied to the map only on Save.
-
 ## Registry
 
 ### getPlugin
@@ -1444,14 +932,33 @@ Load lazy bundled modules so `mmaRequire` can return them synchronously.
 
 `stable` · since v0.7.0
 
+The nested `sidecar` namespace on the plugin surface.
+
+#### sidecar.installedVersion
+
+`stable` · since v0.7.0
+
 ```ts
-sidecar: {
-  request: typeof request$1;
-  installedVersion: typeof installedVersion$1;
-}
+sidecar.installedVersion(pluginId: string): Promise<string | null>
 ```
 
-The nested `sidecar` namespace on the plugin surface.
+The sidecar version installed for a plugin, or null when it has none yet.
+
+#### sidecar.request
+
+`stable` · since v0.9.0
+
+```ts
+sidecar.request<T>(
+  pluginId: string,
+  command: string,
+  payload?: unknown,
+  opts?: SidecarOptions<T>,
+): Promise<T | null>
+```
+
+Send a command to a plugin's sidecar and resolve with its last emitted JSON
+object (null if it emitted none). `payload` is sent as JSON.
 
 ## FieldDefs
 
@@ -1797,7 +1304,7 @@ A field definition with every optional attribute spelled absent.
 `stable` · since v0.3.1
 
 ```ts
-createLocation(partial: Partial<Location> & LatLng): Location
+createLocation(partial: Partial<Location$1> & LatLng): Location$1
 ```
 
 Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
@@ -1809,11 +1316,11 @@ overrides hold, until `addLocations` writes the real id back into the object.
 
 ```ts
 dropLocation(
-  source: Location,
+  source: Location$1,
   live: PanoCapture,
   panoId: string | null,
   tags: number[],
-): Location
+): Location$1
 ```
 
 A new Location at the viewer's live camera, carrying `source`'s flags and the given
@@ -1825,7 +1332,7 @@ stayed on that pano.
 `stable` · since v0.10.3
 
 ```ts
-isPinned(loc: Location): loc is Location & {
+isPinned(loc: Location$1): loc is Location$1 & {
   panoId: string;
 }
 ```
@@ -1867,7 +1374,7 @@ Convert a [south, west, north, east] tuple to a Bounds object.
 `stable` · since v0.10.7
 
 ```ts
-setPinned(loc: Location, on: boolean): Location
+setPinned(loc: Location$1, on: boolean): Location$1
 ```
 
 The location pinned to the pano it carries, or unpinned to float on default coverage.
@@ -1919,6 +1426,2903 @@ tagColorFor(name: string, tags: Tag[]): string
 ```
 
 Color for a tag named `name`. An existing tag uses its stored color.
+
+## Legacy
+
+Compatibility bindings for flat plugin calls.
+
+### addLocations
+
+`stable` · `deprecated` · since v0.3.1
+
+```ts
+addLocations(locs: Location[]): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Location.add`.
+
+Add locations to the map. Real ids are assigned and written back into the passed
+objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+
+### addSelections
+
+`unstable` · `deprecated` · since v0.5.0
+
+```ts
+addSelections(selectors: Selector[]): Promise<void>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`.
+
+### addTagToLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`.
+
+### applySelectionUpdate
+
+`unstable` · `deprecated` · since v0.10.3
+
+```ts
+applySelectionUpdate(op: SelectionOp): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.update`.
+
+Update and resolve the listed selections. Use `onActive` to affect only active selections.
+
+### autosave
+
+`stable` · `deprecated` · since v0.12.0
+
+**Deprecated in v0.12.1.** Use `MMA.Autosave`.
+
+#### autosave.cancel
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.cancel(): void
+```
+
+Cancel any pending autosave timer.
+
+#### autosave.flush
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.flush(): Promise<void>
+```
+
+Save any unsaved changes now instead of waiting for the timer.
+
+#### autosave.hold
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.hold(): () => void
+```
+
+Defer autosave until the returned release function runs. Useful for batches that land many mutations.
+
+#### autosave.schedule
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.schedule(): void
+```
+
+Schedule a debounced autosave. Mutations call this automatically.
+
+#### autosave.scheduleAutoCommit
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.scheduleAutoCommit(mapId: string, importedCount: number): void
+```
+
+Background auto-commit after an import with autoCommit set.
+
+#### autosave.waitForInflight
+
+`unstable` · since v0.12.0
+
+```ts
+autosave.waitForInflight(): Promise<void> | null
+```
+
+Wait for any in-progress save to finish.
+
+### checkoutCommit
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+checkoutCommit(commitId: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Commit.checkout`.
+
+Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
+
+### closeDuplicates
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+closeDuplicates(): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.closeDuplicates`.
+
+Close the duplicate-resolution panel and return to the overview.
+
+### closeLocation
+
+`stable` · `deprecated` · unreleased
+
+```ts
+closeLocation(): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.close`.
+
+Close the open location and return to the pane it was opened from.
+
+### closeMap
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+closeMap(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.close`.
+
+Close the open map, saving unsaved changes first.
+
+### commitMap
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+commitMap(message?: string): Promise<string>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Commit.create`.
+
+Commit all pending changes to the map's version history. Clears the undo stack.
+
+### copyName
+
+`unstable` · `deprecated` · since v0.11.4
+
+```ts
+copyName(name: string): string
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.copyName`.
+
+The name a copy of the map named `name` starts with.
+
+### countBy
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+countBy(
+  selector: Selector,
+  field: string,
+  key: KeySpec,
+): Promise<CountBy>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "countBy", fields: [field], key })`.
+
+### countIn
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+countIn(selector: Selector): Promise<number>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "count" })`.
+
+### coverage
+
+`unstable` · `deprecated` · since v0.10.2
+
+```ts
+coverage(selector: Selector): Promise<[string, number][]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "coverage" })`.
+
+### createMap
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+createMap(name: string, folder?: string | null): Promise<MapMeta>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.create`.
+
+Create a new empty map and return its metadata.
+
+### createPluginStorage
+
+`unstable` · `deprecated` · since v0.10.3
+
+```ts
+createPluginStorage(id: string): PluginStorage
+```
+
+**Deprecated in v0.11.0.** Use `MMA.storage()`.
+
+### currentSelection
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+currentSelection(): Selector
+```
+
+**Deprecated in v0.11.7.** Use the `{ type: "Selected" }` selector.
+
+### deleteField
+
+`stable` · `deprecated` · since v0.5.1
+
+```ts
+deleteField(key: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Field.remove`.
+
+Delete extra-field `key` from every location, its definition, and the listed selections,
+in one undoable step.
+
+### deleteFolder
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+deleteFolder(name: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.removeFolder`.
+
+Delete a folder. Maps in it become unfoldered.
+
+### deleteMap
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+deleteMap(id: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.remove`.
+
+Permanently delete a map and all its data. Not undoable.
+
+### deleteTags
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+deleteTags(tagIds: number[]): Promise<WorkResult>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.remove`.
+
+Remove tags from every location in one undoable step.
+Unreferenced tags are hidden; undo restores them.
+
+### discardOpenMap
+
+`unstable` · `deprecated` · since v0.6.1
+
+```ts
+discardOpenMap(): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.discard`.
+
+Drop the open map without persisting anything
+
+### duplicateLocation
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+duplicateLocation(id: number): Promise<number | null>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Location.duplicate`.
+
+Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
+
+### duplicateMap
+
+`stable` · `deprecated` · since v0.11.4
+
+```ts
+duplicateMap(id: string, name: string): Promise<MapMeta>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.duplicate`.
+
+Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
+
+### edit
+
+`stable` · `deprecated` · since v0.12.0
+
+**Deprecated in v0.12.1.** Use `MMA.Edit`.
+
+#### edit.locations
+
+`unstable` · unreleased
+
+```ts
+edit.locations(
+  ...props: Parameters<typeof cmd.storeEdit>
+): Promise<MutationResult<Location$1>>
+```
+
+Edit locations on the map or in a pending layer. Map changes are undoable.
+
+#### edit.meta
+
+`stable` · since v0.12.0
+
+```ts
+edit.meta(
+  patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
+    id?: string;
+  },
+): Promise<void>
+```
+
+Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+
+#### edit.values
+
+`stable` · since v0.12.0
+
+```ts
+edit.values(
+  ...props: Parameters<typeof cmd.storeEditValues>
+): Promise<MutationResult<ValueRecord>>
+```
+
+Edit an interned field's value records in one undoable step.
+
+#### edit.work
+
+`unstable` · since v0.12.0
+
+```ts
+edit.work(selector: Selector, op: Work): Promise<WorkResult>
+```
+
+Run `op` across every location `selector` matches, in one undoable step.
+
+### exitPluginMode
+
+`stable` · `deprecated` · since v0.3.1
+
+```ts
+exitPluginMode(): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.closePlugin`.
+
+Close the plugin sidebar and return to the overview.
+
+### fetchAllLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+fetchAllLocations(): Promise<Location$1[]>
+```
+
+**Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Everything" }, { kind: "locations" })`.
+
+### fetchBounds
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fetchBounds(
+  selector: Selector,
+): Promise<[number, number, number, number] | null>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "bounds" })`.
+
+### fetchColumns
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "columns", fields })`.
+
+### fetchLocation
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+fetchLocation(id: number): Promise<Location$1>
+```
+
+**Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`.
+
+### fetchLocations
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fetchLocations(selector: Selector): Promise<Location[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "locations" })`.
+
+### fetchLocationsByIds
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+fetchLocationsByIds(ids: number[]): Promise<Location$1[]>
+```
+
+**Deprecated in v0.8.4.** Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`.
+
+### fieldCoverage
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fieldCoverage(selector: Selector): Promise<[string, number][]>
+```
+
+**Deprecated in v0.10.2.** Use `MMA.Query.read(selector, { kind: "coverage" })`.
+
+### fieldValues
+
+`unstable` · `deprecated` · since v0.9.0
+
+```ts
+fieldValues(selector: Selector, field: string): Promise<string[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "values", field })`.
+
+### getActiveLocation
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+getActiveLocation(): Location$1 | null
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().open?.location`.
+
+### getActiveSelections
+
+`unstable` · `deprecated` · since v0.8.2
+
+```ts
+getActiveSelections(): Selection[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.active`.
+
+Listed selections that are not ghosted.
+
+### getAllSelections
+
+`unstable` · `deprecated` · since v0.6.3
+
+```ts
+getAllSelections(): Selection[]
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().selectionList`.
+
+### getCurrentMap
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+getCurrentMap(): MapMeta | null
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().map`.
+
+### getCurrentMapId
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+getCurrentMapId(): string | null
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().mapId`.
+
+### getDirtyCount
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+getDirtyCount(): Promise<number>
+```
+
+**Deprecated in v0.8.2.** Ask `MMA.Query.read` for the summary and take `dirtyCount`.
+
+### getGhostedSelections
+
+`unstable` · `deprecated` · since v0.7.4
+
+```ts
+getGhostedSelections(): Set<string>
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().selectionList`.
+
+### getGoogleMap
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+getGoogleMap(): google.maps.Map | null
+```
+
+**Deprecated in v0.8.1.** Use `MMA.getMapHost()` and narrow via `hostInstance`.
+
+### getMapBadges
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+getMapBadges(): Map<string, MapBadge[]>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.badges`.
+
+Badges per map id, from every registered source.
+
+### getMapBadgeSources
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+getMapBadgeSources(): readonly BadgeSource[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.badgeSources`.
+
+Every registered badge source, in registration order.
+
+### getMapList
+
+`stable` · `deprecated` · since v0.7.0
+
+```ts
+getMapList(): MapMeta[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.list`.
+
+The list of all maps (metadata only).
+
+### getMapState
+
+`stable` · `deprecated` · since v0.8.2
+
+```ts
+getMapState(): Readonly<MapState>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Store.get`.
+
+Imperative snapshot of the map state.
+
+### getSelectedLocationIds
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+getSelectedLocationIds(): SelectedIds
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().selectedLocationIds`.
+
+### getSelectedTagIds
+
+`unstable` · `deprecated` · since v0.8.2
+
+```ts
+getSelectedTagIds(): ReadonlySet<number>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.tagIds`.
+
+Tag ids with a top-level listed tag selection, including ghosted selections.
+
+### getSelectedTagIdsDeep
+
+`unstable` · `deprecated` · since v0.9.2
+
+```ts
+getSelectedTagIdsDeep(): readonly number[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.tagIdsDeep`.
+
+Tag ids from active selection leaves, including repeated ids and composite children.
+
+### getSelections
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+getSelections(): Selection[]
+```
+
+**Deprecated in v0.8.2.** Use `MMA.SelectionList.active()`.
+
+### getTag
+
+`stable` · `deprecated` · since v0.7.0
+
+```ts
+getTag(id: number): Tag | undefined
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.get`.
+
+Look up a tag record, including unreferenced tags.
+
+### getTagCounts
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+getTagCounts(): Record<number, number>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.counts`.
+
+Per-tag location counts, keyed by numeric id.
+
+### getTags
+
+`stable` · `deprecated` · since v0.11.1
+
+```ts
+getTags(): Record<number, Tag>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.all`.
+
+Tag records, including unreferenced records and generated display defaults.
+
+### getVisibleTags
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+getVisibleTags(): Tag[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.visible`.
+
+Tag records referenced by at least one location.
+
+### getWorkArea
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+getWorkArea(): WorkArea
+```
+
+**Deprecated in v0.8.2.** Read `MMA.Store.get().workArea`.
+
+### historyAvailable
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+historyAvailable(
+  history: MapState["history"],
+  stack: Stack,
+  key?: EntryKey,
+): boolean
+```
+
+**Deprecated in v0.12.1.** Use `MMA.History.available`.
+
+Whether a history action is available for one part or for the data edit as a whole.
+
+### initStore
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+initStore(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.init`.
+
+One-time store startup. The app calls this; plugins never need to.
+
+### installedVersion
+
+`unstable` · `deprecated` · since v0.10.3
+
+```ts
+installedVersion(pluginId: string): Promise<string | null>
+```
+
+**Deprecated in v0.11.0.** Use `MMA.sidecar.installedVersion()`.
+
+### invalidateMapList
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+invalidateMapList(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.invalidate`.
+
+Refresh the map list and notify other windows of the change.
+
+### isReservedMap
+
+`unstable` · `deprecated` · since v0.10.1
+
+```ts
+isReservedMap(id: string | null): boolean
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.isReserved`.
+
+Whether `id` belongs to an app fixture rather than a user-created map.
+
+### locationsOf
+
+`stable` · `deprecated` · unreleased
+
+```ts
+locationsOf(list: LocationList): Promise<Location$1[]>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Query.locationsOf`.
+
+The locations an answer carries, fetched from its temp file when it was too large to send inline.
+
+### moveMapToFolder
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+moveMapToFolder(mapId: string, folder: string | null): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.moveToFolder`.
+
+Move a map into a folder, or to the root when `folder` is null.
+
+### mutate
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+mutate<R extends MutationResult = MutationResult>(
+  fn: () => Promise<R>,
+  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+): Promise<R>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Mutation.run`.
+
+### openDuplicateLocation
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+openDuplicateLocation(loc: Location$1): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.openDuplicate`.
+
+Open one location from the duplicate-resolution panel in the editor.
+
+### openLocation
+
+`stable` · `deprecated` · unreleased
+
+```ts
+openLocation(
+  target: MaybeLocation,
+  checkDuplicates?: boolean,
+): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.open`.
+
+Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+within 2m opens the duplicate-resolution panel instead. A later opening or closing
+supersedes one still loading.
+
+### openMap
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+openMap(id: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.open`.
+
+Open a map in this window, closing any currently open map first.
+
+### openScratchMap
+
+`stable` · `deprecated` · since v0.10.1
+
+```ts
+openScratchMap(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.openScratch`.
+
+Open the scratch map, creating it on first use.
+
+### openStagedLocation
+
+`unstable` · `deprecated` · since v0.6.0
+
+```ts
+openStagedLocation(index: number): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.openImport`.
+
+Preview a copy of a staged-import location. The import row stays staged until Confirm.
+
+### partition
+
+`unstable` · `deprecated` · since v0.6.2
+
+```ts
+partition(
+  Field: string,
+  key: KeySpec,
+  selector: Selector,
+): Promise<PartitionBucket[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "groupBy", field, key })`.
+
+### previewDuplicateGroups
+
+`unstable` · `deprecated` · since v0.5.1
+
+```ts
+previewDuplicateGroups(distance: number): Promise<number[][]>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Location.duplicateGroups`.
+
+Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
+
+### previewLocation
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+previewLocation(loc: Location$1): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.preview`.
+
+Open an arbitrary location read-only as a seen-preview: loads its pano without
+adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
+
+### query
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+query(
+  selector: Selector,
+  target?: Target,
+): {
+  /** Resolved ids in ascending order, or in ranked-selector order. */
+  ids: () => Promise<number[]>;
+  /** Number of locations the selector resolves to. */
+  count: () => Promise<number>;
+  /** Bounding box [west, south, east, north], or null when nothing resolves. */
+  bounds: () => Promise<[number, number, number, number] | null>;
+  /** n ids drawn uniformly at random, without replacement. */
+  sample: (n: number) => Promise<number[]>;
+  /** Distinct values of field, sorted. */
+  values: (field: string) => Promise<string[]>;
+  /** Group each field by a derived key and count, one result per field. */
+  countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
+  /** How many locations hold a value for each field, key-sorted. */
+  coverage: () => Promise<[string, number][]>;
+  /** One column per field: null for missing values and tag-id arrays for tags. */
+  columns: (fields: string[]) => Promise<unknown[][]>;
+  /** Group by a derived key; bins use bound order and other keys sort naturally. */
+  partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+  /** Full matching locations, loading any large result from its temporary file. */
+  locations: () => Promise<Location[]>;
+}
+```
+
+**Deprecated in v0.12.0.** Use MMA.Query.read(selector, ask) instead.
+
+### read
+
+`stable` · `deprecated` · since v0.12.0
+
+```ts
+read<A extends Ask>(
+  selector: Selector,
+  ask: A,
+  target?: Target,
+): Promise<ReadResult<AnswerOf<A["kind"]>>>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Query.read`.
+
+Ask one question about the locations `selector` matches. A full-location answer loads any
+backing file automatically; ask for ids or columns when full locations are unnecessary.
+
+### redo
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+redo(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.History.redo`.
+
+Redo the last undone edit.
+
+### redoSelections
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+redoSelections(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.redo`.
+
+Redo the last undone selection change without redoing data edits.
+
+### registerEnrichFields
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+registerEnrichFields(_fields: EnrichFieldOption[]): void
+```
+
+**Deprecated in v0.11.3.** A provider's `fieldDefs` are offered as enrichment options on their
+own; set `defaultOff` on the provider to make them opt-in.
+
+### registerEnrichmentProvider
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+registerEnrichmentProvider(provider: Provider): void
+```
+
+**Deprecated in v0.10.2.** Use `MMA.registerProvider()`.
+
+### registerMapBadges
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+registerMapBadges(source: BadgeSource): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.registerBadges`.
+
+Add a source of map-row badges.
+
+### reloadMapList
+
+`unstable` · `deprecated` · since v0.8.1
+
+```ts
+reloadMapList(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.reload`.
+
+Refresh the map list from disk.
+
+### removeDuplicate
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+removeDuplicate(id: number): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.removeDuplicate`.
+
+Drop a location from the duplicate-resolution panel (does not delete it).
+
+### removeLocations
+
+`stable` · `deprecated` · since v0.3.1
+
+```ts
+removeLocations(ids: ReadonlyIdSet): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Location.remove`.
+
+Remove locations by id. Undoable.
+
+### removeSelections
+
+`unstable` · `deprecated` · since v0.5.0
+
+```ts
+removeSelections(keys: string[]): Promise<void>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.SelectionList.update(MMA.removeSelection(...keys))`.
+
+### removeTagFromAllLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+removeTagFromAllLocations(tagId: number): Promise<WorkResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.Edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
+
+### removeTagFromLocations
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
+```
+
+**Deprecated in v0.10.5.** Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
+
+### renameField
+
+`stable` · `deprecated` · since v0.5.1
+
+```ts
+renameField(
+  from: string,
+  to: string,
+  winner?: MergeWinner,
+): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Field.rename`.
+
+Rename extra-field `from` to `to` across all locations, its definition, and the listed
+selections, in one undoable step. When a location already holds `to`, `winner` decides
+which value survives. Saved selections are map-independent rules and keep their names.
+
+### renameFolder
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+renameFolder(from: string, to: string): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.renameFolder`.
+
+Rename a folder, moving all its maps to the new name.
+
+### request
+
+`unstable` · `deprecated` · since v0.10.3
+
+```ts
+request<T>(
+  pluginId: string,
+  command: string,
+  payload?: unknown,
+  opts?: SidecarOptions<T>,
+): Promise<T | null>
+```
+
+**Deprecated in v0.11.0.** Use `MMA.sidecar.request()`.
+
+### resetSelections
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+resetSelections(): Promise<void>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.SelectionList.update({ kind: "set", selections: [] })`.
+
+### resolveIds
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+resolveIds(selector: Selector): Promise<number[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read(selector, { kind: "ids" })`.
+
+### resolveLocation
+
+`stable` · `deprecated` · since v0.6.6
+
+```ts
+resolveLocation(m: MaybeLocation): Promise<Location$1 | null>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.resolve`.
+
+Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
+
+### restoreSelections
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+restoreSelections(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.undo`.
+
+Undo the last selection change without undoing data edits.
+
+### sampleFrom
+
+`unstable` · `deprecated` · since v0.10.0
+
+```ts
+sampleFrom(selector: Selector, n: number): Promise<number[]>
+```
+
+**Deprecated in v0.11.3.** Use `MMA.Query.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`.
+
+### select
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+select<
+  R extends
+    | number[]
+    | {
+        ids: number[];
+      },
+>(
+  pick: (selector: Selector) => Promise<R>,
+  perSelection?: boolean,
+): Promise<{
+  picked: number;
+  results: R[];
+}>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.SelectionList.select`.
+
+### setActiveLocation
+
+`unstable` · `deprecated` · since v0.3.1
+
+```ts
+setActiveLocation(
+  target: MaybeLocation | null,
+  checkDuplicates?: boolean,
+): Promise<void>
+```
+
+**Deprecated in v0.12.0.** Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null.
+
+### setCachedMapList
+
+`unstable` · `deprecated` · since v0.8.1
+
+```ts
+setCachedMapList(list: MapMeta[]): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.setList`.
+
+Set the map list directly without a disk read.
+
+### setMap
+
+`unstable` · `deprecated` · since v0.12.0
+
+```ts
+setMap(map: MapMeta): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Store.setMeta`.
+
+Replace the open map's row in state; persisting it is the caller's.
+
+### setOpenLocation
+
+`stable` · `deprecated` · unreleased
+
+```ts
+setOpenLocation(location: Location$1 | null, session: number): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.setLocation`.
+
+Set the open location if `session` is still current.
+
+### setPluginMode
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+setPluginMode(pluginId: string): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.openPlugin`.
+
+Open a plugin's sidebar (switches the editor pane to "plugin").
+
+### setSelectedLocationIds
+
+`unstable` · `deprecated` · since v0.6.6
+
+```ts
+setSelectedLocationIds(ids: SelectedIds): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Store.setSelected`.
+
+Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
+
+### settled
+
+`stable` · `deprecated` · since v0.12.0
+
+```ts
+settled(m: Mutation): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Mutation.settle`.
+
+### setUserFieldDefs
+
+`unstable` · `deprecated` · since v0.10.3
+
+```ts
+setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>
+```
+
+**Deprecated in v0.10.5.** The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
+for plugin-owned defs.
+
+### setWorkArea
+
+`unstable` · `deprecated` · since v0.4.0
+
+```ts
+setWorkArea(area: WorkArea): void
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.setArea`.
+
+Transition the editor pane, enforcing state invariants:
+leaving "location" closes the open location, leaving "plugin" clears the plugin id.
+
+### tagIdsToNames
+
+`stable` · `deprecated` · since v0.9.0
+
+```ts
+tagIdsToNames(ids: number[]): string[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Tag.names`.
+
+Tag names for the given ids, skipping any that no longer resolve.
+
+### undo
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+undo(): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.History.undo`.
+
+Undo the last edit.
+
+### updateLocations
+
+`stable` · `deprecated` · since v0.6.3
+
+```ts
+updateLocations(updates: Patch<Location>[]): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Location.update`.
+
+Patch locations by id. Only include the fields you're changing; `extra` merges
+per-key (null deletes a key). Undoable by default.
+
+### useMapBadges
+
+`unstable` · `deprecated` · since v0.11.3
+
+```ts
+useMapBadges(): Map<string, MapBadge[]>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.useBadges`.
+
+Reactive getMapBadges.
+
+### useMapList
+
+`stable` · `deprecated` · since v0.4.0
+
+```ts
+useMapList(): MapMeta[]
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Maps.useList`.
+
+Reactive list of all maps (metadata only).
+
+### useMapState
+
+`stable` · `deprecated` · since v0.8.2
+
+```ts
+useMapState<T>(selector: (s: MapState) => T): T
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Store.use`.
+
+Reactive slice of the map state. Re-renders only when the selected value's
+reference changes (`Object.is`), so selectors must return state fields or
+memoized values, not a new value per call.
+
+### VIEWER
+
+`stable` · `deprecated` · since v0.12.0
+
+```ts
+VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Editor.VIEWER`.
+
+### waitForGoogleMap
+
+`unstable` · `deprecated` · since v0.5.0
+
+```ts
+waitForGoogleMap(): Promise<google.maps.Map | null>
+```
+
+**Deprecated in v0.8.1.** Use `MMA.waitForMapHost()`.
+
+## Ui
+
+### ui
+
+`stable` · since v0.6.1
+
+Shared UI primitives for plugin sidebars and dialogs.
+
+#### ui.Bar
+
+`stable` · since v0.11.1
+
+```ts
+ui.Bar(props: {
+  value: number;
+  size?: BarSize;
+  tone?: BarTone;
+  className?: string;
+}): react.JSX.Element
+```
+
+A bar filled to `value`, a share from 0 to 1.
+
+#### ui.Button
+
+`stable` · since v0.10.0
+
+```ts
+ui.Button(
+  props: ComponentPropsWithRef<"button"> & {
+    variant?: ButtonVariant;
+    small?: boolean;
+  },
+): react.JSX.Element
+```
+
+#### ui.Checkbox
+
+`stable` · since v0.10.0
+
+```ts
+ui.Checkbox(
+  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
+): react.JSX.Element
+```
+
+A checkbox, with its label and hint beside it when given.
+
+#### ui.ColorPicker
+
+`stable` · since v0.10.0
+
+```ts
+ui.ColorPicker(props: {
+  color: RGB;
+  onChange: (color: RGB) => void;
+  ariaLabel?: string;
+}): react.JSX.Element
+```
+
+A color swatch that opens the picker in a popover on click.
+
+#### ui.ConfirmButton
+
+`unstable` · since v0.11.1
+
+```ts
+ui.ConfirmButton(
+  props: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
+    onConfirm: () => void;
+    /** The label while armed. Defaults to "Are you sure?". */
+    confirmLabel?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+A button that asks "Are you sure?" on the first click and acts on the second. Moving focus
+away disarms it.
+
+#### ui.ConfirmDialog
+
+`unstable` · since v0.11.1
+
+```ts
+ui.ConfirmDialog(
+  props: DialogProps & {
+    title: string;
+    message: ReactNode;
+    confirmLabel: ReactNode;
+    cancelLabel?: ReactNode;
+    /** Destructive for an action that cannot be taken back. */
+    tone?: "primary" | "destructive";
+    /** Disables both buttons while the action runs. */
+    busy?: boolean;
+    size?: DialogSize;
+    onConfirm: () => void;
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+Asks the user to confirm one action, with room for extra options under the message.
+
+#### ui.CoverageBar
+
+`stable` · since v0.11.1
+
+```ts
+ui.CoverageBar(props: {
+  ratio: number;
+  size?: BarSize;
+  status?: boolean;
+  className?: string;
+}): react.JSX.Element
+```
+
+Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set.
+
+#### ui.DatePicker
+
+`unstable` · since v0.10.0
+
+```ts
+ui.DatePicker(props: DatePickerProps): react.JSX.Element
+```
+
+#### ui.Dialog
+
+`unstable` · since v0.10.0
+
+```ts
+ui.Dialog(
+  props: Omit<ComponentProps<typeof Dialog$1.Root>, "onOpenChange"> & {
+    onOpenChange?: (open: boolean) => void;
+  },
+): react.JSX.Element
+```
+
+#### ui.DialogActions
+
+`unstable` · since v0.11.1
+
+```ts
+ui.DialogActions(props: {
+  /** Content held to the left: a summary, a meter, paging or secondary buttons. */
+  start?: ReactNode;
+  /** An action that destroys something, held to the far left. With `confirm` it asks "Are you
+   *  sure?" on the first click and acts on the second. */
+  destructive?: DialogAction & {
+    confirm?: boolean;
+  };
+  /** The dismiss button, labelled Cancel and closing the dialog unless told otherwise. */
+  cancel?: true | Partial<DialogAction>;
+  /** The action the dialog exists for, always rightmost. */
+  primary?: DialogAction & {
+    tone?: "primary" | "destructive";
+  };
+}): react.JSX.Element
+```
+
+A dialog's footer: side content on the left, then Cancel, then the main action on the right.
+
+#### ui.DialogContent
+
+`unstable` · since v0.10.0
+
+```ts
+ui.DialogContent(
+  props: ComponentProps<typeof Dialog$1.Popup> & {
+    title: string;
+    size?: DialogSize;
+  },
+): react.JSX.Element
+```
+
+#### ui.DialogForm
+
+`unstable` · since v0.11.1
+
+```ts
+ui.DialogForm(
+  props: Omit<ComponentPropsWithRef<"form">, "onSubmit"> & {
+    onSubmit: () => void;
+  },
+): react.JSX.Element
+```
+
+A dialog body laid out as a column that runs `onSubmit` when submitted, Enter included.
+
+#### ui.DialogTrigger
+
+`unstable` · since v0.10.0
+
+```ts
+ui.DialogTrigger<Payload>(
+  componentProps: DialogTriggerProps<Payload> & React.RefAttributes<HTMLElement>,
+): React.JSX.Element
+```
+
+A button that opens the dialog.
+Renders a `<button>` element.
+
+Documentation: [Base UI Dialog](https://base-ui.com/react/components/dialog)
+
+#### ui.EmptyState
+
+`stable` · since v0.6.1
+
+```ts
+ui.EmptyState(props: {
+  icon?: string;
+  compact?: boolean;
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+A message for a panel or list with nothing to show, with an optional icon. `compact` fits it
+inline in a list.
+
+#### ui.Field
+
+`stable` · since v0.6.1
+
+```ts
+ui.Field(props: {
+  label: ReactNode;
+  hint?: ReactNode;
+  row?: boolean;
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+Labelled form row (label left, control right) for sidebar sections.
+
+#### ui.Flag
+
+`stable` · since v0.10.0
+
+```ts
+ui.Flag(props: {
+  code: string | null;
+  height?: number;
+  className?: string;
+}): react.JSX.Element | null
+```
+
+Country flag from the bundled SVG set. Renders nothing for a missing or malformed code.
+
+#### ui.Hint
+
+`stable` · since v0.11.1
+
+```ts
+ui.Hint(props: {
+  tone?: "warning" | "error";
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A line of secondary text, optionally marked as a warning or an error.
+
+#### ui.HotkeyInput
+
+`unstable` · since v0.10.0
+
+```ts
+ui.HotkeyInput(props: {
+  value: string;
+  onChange: (combo: string) => void;
+}): react.JSX.Element
+```
+
+Click-to-record key combo input. Backspace/Delete clears, Escape cancels.
+
+#### ui.Icon
+
+`stable` · since v0.10.0
+
+```ts
+ui.Icon(props: IconProps): react.JSX.Element
+```
+
+#### ui.IconButton
+
+`unstable` · since v0.11.1
+
+```ts
+ui.IconButton(
+  props: Omit<ComponentPropsWithRef<"button">, "aria-label" | "title"> & {
+    /** An icon path, or a drawn icon to show instead. */
+    icon: string | ReactNode;
+    /** What the button does, read aloud and shown as its tooltip. */
+    label: string;
+    /** The icon's size in pixels. */
+    size?: number;
+    /** Shows the button as pressed. */
+    active?: boolean;
+    /** Hides the button until its row is hovered or holds focus. */
+    reveal?: boolean;
+    /** Draws the button for use over map or street view imagery. */
+    overlay?: boolean;
+    /** The tooltip text, or false for none. Defaults to the label. */
+    tooltip?: string | false;
+    /** The side the tooltip opens on. */
+    tooltipSide?: "top" | "bottom" | "left" | "right";
+    /** Shown after the icon, such as a badge. */
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+A button showing only an icon, named by its label.
+
+#### ui.Notice
+
+`stable` · since v0.11.1
+
+```ts
+ui.Notice(props: {
+  tone: "info" | "warning" | "error" | "success";
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+A boxed message that informs, warns, reports an error or confirms a success.
+
+#### ui.NSelect
+
+`unstable` · since v0.10.0
+
+```ts
+ui.NSelect(
+  props: ComponentPropsWithRef<"select"> & {
+    compact?: boolean;
+    limited?: boolean;
+  },
+): react.JSX.Element
+```
+
+A dropdown. `compact` shrinks it to fit its value; `limited` caps the height of its option list.
+
+#### ui.ProgressRow
+
+`stable` · since v0.11.1
+
+```ts
+ui.ProgressRow(props: {
+  label: ReactNode;
+  count?: ReactNode;
+  value: number;
+  size?: BarSize;
+  className?: string;
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A progress bar under its label and count, with any extra detail below it.
+
+#### ui.PromptDialog
+
+`unstable` · since v0.11.1
+
+```ts
+ui.PromptDialog(
+  props: DialogProps & {
+    title: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder?: string;
+    submitLabel: ReactNode;
+    /** Shown under the field. Pass null to keep its line reserved while there is no error. */
+    error?: ReactNode;
+    /** Whether the value can be submitted. Defaults to the value not being blank. */
+    canSubmit?: boolean;
+    /** Selects the whole value when the field gains focus. */
+    selectOnFocus?: boolean;
+    size?: DialogSize;
+    onSubmit: () => void;
+    /** Extra content between the field and the buttons. */
+    children?: ReactNode;
+  },
+): react.JSX.Element
+```
+
+Asks for one line of text, submitted with Enter or the submit button.
+
+#### ui.Radio
+
+`stable` · since v0.10.0
+
+```ts
+ui.Radio(
+  props: Omit<ComponentPropsWithRef<"input">, "children"> & ChoiceLabelProps,
+): react.JSX.Element
+```
+
+A radio button, with its label and hint beside it when given.
+
+#### ui.RgbPicker
+
+`unstable` · since v0.10.0
+
+```ts
+ui.RgbPicker(props: {
+  color: RGB;
+  onChange: (color: RGB) => void;
+}): react.JSX.Element
+```
+
+A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced.
+
+#### ui.Section
+
+`stable` · since v0.6.1
+
+```ts
+ui.Section(props: {
+  title: ReactNode;
+  defaultOpen?: boolean;
+  collapsible?: boolean;
+  addons?: ReactNode;
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+Collapsible titled section inside a Sidebar.
+
+#### ui.SegmentedControl
+
+`stable` · since v0.6.1
+
+```ts
+ui.SegmentedControl<T extends string | number>(props: {
+  options: SegmentedOption<T>[];
+  value: T;
+  onChange: (value: T) => void;
+  role?: "tabs" | "radio";
+  fill?: boolean;
+  className?: string;
+}): react.JSX.Element
+```
+
+Row of mutually exclusive option buttons. `role` is `"tabs"` when the options switch between
+panels and `"radio"` (the default) when they pick a value; `fill` stretches the options to
+equal widths across the row.
+
+#### ui.SelectorPicker
+
+`stable` · since v0.10.0
+
+```ts
+ui.SelectorPicker(props: {
+  ctl: SelectorPickController;
+  className?: string;
+}): react.JSX.Element
+```
+
+#### ui.SettingRow
+
+`unstable` · since v0.10.0
+
+```ts
+ui.SettingRow(
+  props: BoolRow | ControlRow | AutoBoolRow,
+): react.JSX.Element | null
+```
+
+#### ui.Sidebar
+
+`stable` · since v0.6.1
+
+```ts
+ui.Sidebar(props: {
+  title: ReactNode;
+  onBack?: () => void;
+  actions?: ReactNode;
+  className?: string;
+  flush?: boolean;
+  /** Stays pinned below the body while it scrolls, for the sidebar's main actions. */
+  footer?: ReactNode;
+  children: ReactNode;
+}): react.JSX.Element
+```
+
+Standard right-hand sidebar chrome (title, back button, scrollable body, pinned footer). Use for plugin sidebars.
+
+#### ui.Slider
+
+`stable` · since v0.10.0
+
+```ts
+ui.Slider(
+  props: ComponentPropsWithRef<"input"> & {
+    format?: (value: number) => ReactNode;
+  },
+): react.JSX.Element
+```
+
+A range input whose track fills up to its value, followed by the value itself when `format` is given.
+
+#### ui.Spinner
+
+`stable` · since v0.11.1
+
+```ts
+ui.Spinner(props: { size?: string; label?: string }): react.JSX.Element
+```
+
+A spinning ring shown while something loads. `size` is any length, such as `"10px"`.
+
+#### ui.SuggestInput
+
+`unstable` · since v0.10.0
+
+```ts
+ui.SuggestInput<T>(props: {
+  value: string;
+  onChange: (v: string) => void;
+  suggestions: T[];
+  onPick: (item: T) => void;
+  renderItem: (item: T) => ReactNode;
+  getKey: (item: T) => string | number;
+  placeholder?: string;
+  containerClassName?: string;
+  inputClassName?: string;
+  listClassName?: string;
+  itemClassName?: string;
+  listStyle?: CSSProperties;
+  autoFocus?: boolean;
+  disabled?: boolean;
+  /** When false, Enter closes the dropdown and falls through (e.g. to a form submit). */
+  pickOnEnter?: boolean;
+  /** Render the dropdown in a body portal, anchored to the input and following it as it
+   *  moves, so it floats over clipping ancestors like `.modal__content`. Clicks on it are
+   *  exempted from dialog outside-dismissal via the `suggest-portal` class (see DialogContent). */
+  portal?: boolean;
+}): react.JSX.Element
+```
+
+Text input with a suggestion dropdown. Enter picks the first suggestion; Escape or an
+outside click closes it. The dropdown shows whenever `suggestions` is non-empty, so
+filter or fetch them yourself. The class props restyle it.
+
+#### ui.Switch
+
+`stable` · since v0.10.0
+
+```ts
+ui.Switch(props: {
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  disabled?: boolean;
+  label?: string;
+}): react.JSX.Element
+```
+
+#### ui.SwitchRow
+
+`stable` · since v0.10.0
+
+```ts
+ui.SwitchRow(props: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  disabled?: boolean;
+  className?: string;
+  children?: ReactNode;
+}): react.JSX.Element
+```
+
+A compact row with a switch on the left. Clicking anywhere on the row toggles it.
+
+#### ui.TagPill
+
+`unstable` · since v0.10.0
+
+```ts
+ui.TagPill<E extends ElementType = "span">(
+  props: TagPillProps<E>,
+): react.JSX.Element
+```
+
+A tag shown as a pill in its color.
+
+#### ui.TagPillButton
+
+`unstable` · since v0.10.0
+
+```ts
+ui.TagPillButton(
+  props: ComponentPropsWithRef<"button"> & {
+    variant: TagPillButtonVariant;
+  },
+): react.JSX.Element
+```
+
+The leading affordance inside a TagPill: remove, apply, or open the editor.
+
+#### ui.TextInput
+
+`stable` · since v0.10.0
+
+```ts
+ui.TextInput(props: ComponentPropsWithRef<"input">): react.JSX.Element
+```
+
+#### ui.ToolBlock
+
+`unstable` · since v0.10.0
+
+```ts
+ui.ToolBlock(props: ToolBlockProps): react.JSX.Element
+```
+
+#### ui.Tooltip
+
+`stable` · since v0.10.0
+
+```ts
+ui.Tooltip(props: {
+  content: string;
+  side?: Side;
+  align?: Align;
+  children: ReactElement;
+}): ReactElement<Record<string, unknown>, string | react.JSXElementConstructor<any>>
+```
+
+Shows `content` as a tooltip when its child is hovered. The child is not wrapped.
+
+#### ui.useCloseDialog
+
+`unstable` · since v0.10.0
+
+```ts
+ui.useCloseDialog(): () => void
+```
+
+## Autosave
+
+### Autosave
+
+`stable` · unreleased
+
+Debounced persistence of the open map: schedule, hold, cancel, or flush it.
+
+#### Autosave.cancel
+
+`unstable` · unreleased
+
+```ts
+Autosave.cancel(): void
+```
+
+Cancel any pending autosave timer.
+
+#### Autosave.flush
+
+`unstable` · unreleased
+
+```ts
+Autosave.flush(): Promise<void>
+```
+
+Save any unsaved changes now instead of waiting for the timer.
+
+#### Autosave.hold
+
+`unstable` · unreleased
+
+```ts
+Autosave.hold(): () => void
+```
+
+Defer autosave until the returned release function runs. Useful for batches that land many mutations.
+
+#### Autosave.schedule
+
+`unstable` · unreleased
+
+```ts
+Autosave.schedule(): void
+```
+
+Schedule a debounced autosave. Mutations call this automatically.
+
+#### Autosave.scheduleAutoCommit
+
+`unstable` · unreleased
+
+```ts
+Autosave.scheduleAutoCommit(mapId: string, importedCount: number): void
+```
+
+Background auto-commit after an import with autoCommit set.
+
+#### Autosave.waitForInflight
+
+`unstable` · unreleased
+
+```ts
+Autosave.waitForInflight(): Promise<void> | null
+```
+
+Wait for any in-progress save to finish.
+
+## Edit
+
+### Edit
+
+`stable` · unreleased
+
+Edit map locations, metadata, value records, and selections.
+
+#### Edit.locations
+
+`unstable` · unreleased
+
+```ts
+Edit.locations(
+  ...props: Parameters<typeof cmd.storeEdit>
+): Promise<MutationResult<Location$1>>
+```
+
+Edit locations on the map or in a pending layer. Map changes are undoable.
+
+#### Edit.meta
+
+`stable` · unreleased
+
+```ts
+Edit.meta(
+  patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
+    id?: string;
+  },
+): Promise<void>
+```
+
+Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
+
+#### Edit.values
+
+`stable` · unreleased
+
+```ts
+Edit.values(
+  ...props: Parameters<typeof cmd.storeEditValues>
+): Promise<MutationResult<ValueRecord>>
+```
+
+Edit an interned field's value records in one undoable step.
+
+#### Edit.work
+
+`unstable` · unreleased
+
+```ts
+Edit.work(selector: Selector, op: Work): Promise<WorkResult>
+```
+
+Run `op` across every location `selector` matches, in one undoable step.
+
+## Location
+
+### Location
+
+`stable` · unreleased
+
+Add, update, remove, and inspect map locations.
+
+#### Location.add
+
+`stable` · unreleased
+
+```ts
+Location.add(locs: Location[]): Promise<void>
+```
+
+Add locations to the map. Real ids are assigned and written back into the passed
+objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+
+#### Location.duplicate
+
+`stable` · unreleased
+
+```ts
+Location.duplicate(id: number): Promise<number | null>
+```
+
+Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
+
+#### Location.duplicateGroups
+
+`unstable` · unreleased
+
+```ts
+Location.duplicateGroups(distance: number): Promise<number[][]>
+```
+
+Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
+
+#### Location.remove
+
+`stable` · unreleased
+
+```ts
+Location.remove(ids: ReadonlyIdSet): Promise<void>
+```
+
+Remove locations by id. Undoable.
+
+#### Location.update
+
+`stable` · unreleased
+
+```ts
+Location.update(updates: Patch<Location>[]): Promise<void>
+```
+
+Patch locations by id. Only include the fields you're changing; `extra` merges
+per-key (null deletes a key). Undoable by default.
+
+## Tag
+
+### Tag
+
+`stable` · unreleased
+
+Manage tag records and their assignment to locations.
+
+#### Tag.all
+
+`stable` · unreleased
+
+```ts
+Tag.all(): Record<number, Tag>
+```
+
+Tag records, including unreferenced records and generated display defaults.
+
+#### Tag.counts
+
+`stable` · unreleased
+
+```ts
+Tag.counts(): Record<number, number>
+```
+
+Per-tag location counts, keyed by numeric id.
+
+#### Tag.get
+
+`stable` · unreleased
+
+```ts
+Tag.get(id: number): Tag | undefined
+```
+
+Look up a tag record, including unreferenced tags.
+
+#### Tag.names
+
+`stable` · unreleased
+
+```ts
+Tag.names(ids: number[]): string[]
+```
+
+Tag names for the given ids, skipping any that no longer resolve.
+
+#### Tag.remove
+
+`stable` · unreleased
+
+```ts
+Tag.remove(tagIds: number[]): Promise<WorkResult>
+```
+
+Remove tags from every location in one undoable step.
+Unreferenced tags are hidden; undo restores them.
+
+#### Tag.visible
+
+`stable` · unreleased
+
+```ts
+Tag.visible(): Tag[]
+```
+
+Tag records referenced by at least one location.
+
+## Editor
+
+### Editor
+
+`stable` · unreleased
+
+Open locations and change the editor pane.
+
+#### Editor.close
+
+`stable` · unreleased
+
+```ts
+Editor.close(): void
+```
+
+Close the open location and return to the pane it was opened from.
+
+#### Editor.closeDuplicates
+
+`unstable` · unreleased
+
+```ts
+Editor.closeDuplicates(): void
+```
+
+Close the duplicate-resolution panel and return to the overview.
+
+#### Editor.closePlugin
+
+`stable` · unreleased
+
+```ts
+Editor.closePlugin(): void
+```
+
+Close the plugin sidebar and return to the overview.
+
+#### Editor.open
+
+`stable` · unreleased
+
+```ts
+Editor.open(
+  target: MaybeLocation,
+  checkDuplicates?: boolean,
+): Promise<void>
+```
+
+Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
+within 2m opens the duplicate-resolution panel instead. A later opening or closing
+supersedes one still loading.
+
+#### Editor.openDuplicate
+
+`unstable` · unreleased
+
+```ts
+Editor.openDuplicate(loc: Location$1): void
+```
+
+Open one location from the duplicate-resolution panel in the editor.
+
+#### Editor.openImport
+
+`unstable` · unreleased
+
+```ts
+Editor.openImport(index: number): Promise<void>
+```
+
+Preview a copy of a staged-import location. The import row stays staged until Confirm.
+
+#### Editor.openPlugin
+
+`stable` · unreleased
+
+```ts
+Editor.openPlugin(pluginId: string): void
+```
+
+Open a plugin's sidebar (switches the editor pane to "plugin").
+
+#### Editor.preview
+
+`unstable` · unreleased
+
+```ts
+Editor.preview(loc: Location$1): void
+```
+
+Open an arbitrary location read-only as a seen-preview: loads its pano without
+adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
+
+#### Editor.removeDuplicate
+
+`unstable` · unreleased
+
+```ts
+Editor.removeDuplicate(id: number): void
+```
+
+Drop a location from the duplicate-resolution panel (does not delete it).
+
+#### Editor.resolve
+
+`stable` · unreleased
+
+```ts
+Editor.resolve(m: MaybeLocation): Promise<Location$1 | null>
+```
+
+Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
+
+#### Editor.setArea
+
+`unstable` · unreleased
+
+```ts
+Editor.setArea(area: WorkArea): void
+```
+
+Transition the editor pane, enforcing state invariants:
+leaving "location" closes the open location, leaving "plugin" clears the plugin id.
+
+#### Editor.setLocation
+
+`stable` · unreleased
+
+```ts
+Editor.setLocation(location: Location$1 | null, session: number): void
+```
+
+Set the open location if `session` is still current.
+
+#### Editor.VIEWER
+
+`stable` · unreleased
+
+```ts
+Editor.VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
+```
+
+## History
+
+### History
+
+`stable` · unreleased
+
+Navigate undo and redo history.
+
+#### History.available
+
+`unstable` · unreleased
+
+```ts
+History.available(
+  history: MapState["history"],
+  stack: Stack,
+  key?: EntryKey,
+): boolean
+```
+
+Whether a history action is available for one part or for the data edit as a whole.
+
+#### History.redo
+
+`stable` · unreleased
+
+```ts
+History.redo(): Promise<void>
+```
+
+Redo the last undone edit.
+
+#### History.undo
+
+`stable` · unreleased
+
+```ts
+History.undo(): Promise<void>
+```
+
+Undo the last edit.
+
+## Commit
+
+### Commit
+
+`stable` · unreleased
+
+Save and restore map versions.
+
+#### Commit.checkout
+
+`unstable` · unreleased
+
+```ts
+Commit.checkout(commitId: string): Promise<void>
+```
+
+Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
+
+#### Commit.create
+
+`stable` · unreleased
+
+```ts
+Commit.create(message?: string): Promise<string>
+```
+
+Commit all pending changes to the map's version history. Clears the undo stack.
+
+## Field
+
+### Field
+
+`stable` · unreleased
+
+Rename or remove metadata fields across the map.
+
+#### Field.remove
+
+`stable` · unreleased
+
+```ts
+Field.remove(key: string): Promise<void>
+```
+
+Delete extra-field `key` from every location, its definition, and the listed selections,
+in one undoable step.
+
+#### Field.rename
+
+`stable` · unreleased
+
+```ts
+Field.rename(
+  from: string,
+  to: string,
+  winner?: MergeWinner,
+): Promise<void>
+```
+
+Rename extra-field `from` to `to` across all locations, its definition, and the listed
+selections, in one undoable step. When a location already holds `to`, `winner` decides
+which value survives. Saved selections are map-independent rules and keep their names.
+
+## Store
+
+### Store
+
+`stable` · unreleased
+
+Read the open map state and update its selection and metadata.
+
+#### Store.get
+
+`stable` · unreleased
+
+```ts
+Store.get(): Readonly<MapState>
+```
+
+Imperative snapshot of the map state.
+
+#### Store.setMeta
+
+`unstable` · unreleased
+
+```ts
+Store.setMeta(map: MapMeta): void
+```
+
+Replace the open map's row in state; persisting it is the caller's.
+
+#### Store.setSelected
+
+`unstable` · unreleased
+
+```ts
+Store.setSelected(ids: SelectedIds): void
+```
+
+Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
+
+#### Store.use
+
+`stable` · unreleased
+
+```ts
+Store.use<T>(selector: (s: MapState) => T): T
+```
+
+Reactive slice of the map state. Re-renders only when the selected value's
+reference changes (`Object.is`), so selectors must return state fields or
+memoized values, not a new value per call.
+
+## Maps
+
+### Maps
+
+`stable` · unreleased
+
+Create, list, open, close, and organize maps.
+
+#### Maps.badges
+
+`unstable` · unreleased
+
+```ts
+Maps.badges(): Map<string, MapBadge[]>
+```
+
+Badges per map id, from every registered source.
+
+#### Maps.badgeSources
+
+`unstable` · unreleased
+
+```ts
+Maps.badgeSources(): readonly BadgeSource[]
+```
+
+Every registered badge source, in registration order.
+
+#### Maps.close
+
+`stable` · unreleased
+
+```ts
+Maps.close(): Promise<void>
+```
+
+Close the open map, saving unsaved changes first.
+
+#### Maps.copyName
+
+`unstable` · unreleased
+
+```ts
+Maps.copyName(name: string): string
+```
+
+The name a copy of the map named `name` starts with.
+
+#### Maps.create
+
+`stable` · unreleased
+
+```ts
+Maps.create(name: string, folder?: string | null): Promise<MapMeta>
+```
+
+Create a new empty map and return its metadata.
+
+#### Maps.discard
+
+`unstable` · unreleased
+
+```ts
+Maps.discard(): void
+```
+
+Drop the open map without persisting anything
+
+#### Maps.duplicate
+
+`stable` · unreleased
+
+```ts
+Maps.duplicate(id: string, name: string): Promise<MapMeta>
+```
+
+Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
+
+#### Maps.init
+
+`unstable` · unreleased
+
+```ts
+Maps.init(): Promise<void>
+```
+
+One-time store startup. The app calls this; plugins never need to.
+
+#### Maps.invalidate
+
+`unstable` · unreleased
+
+```ts
+Maps.invalidate(): Promise<void>
+```
+
+Refresh the map list and notify other windows of the change.
+
+#### Maps.isReserved
+
+`unstable` · unreleased
+
+```ts
+Maps.isReserved(id: string | null): boolean
+```
+
+Whether `id` belongs to an app fixture rather than a user-created map.
+
+#### Maps.list
+
+`stable` · unreleased
+
+```ts
+Maps.list(): MapMeta[]
+```
+
+The list of all maps (metadata only).
+
+#### Maps.moveToFolder
+
+`stable` · unreleased
+
+```ts
+Maps.moveToFolder(mapId: string, folder: string | null): Promise<void>
+```
+
+Move a map into a folder, or to the root when `folder` is null.
+
+#### Maps.open
+
+`stable` · unreleased
+
+```ts
+Maps.open(id: string): Promise<void>
+```
+
+Open a map in this window, closing any currently open map first.
+
+#### Maps.openScratch
+
+`stable` · unreleased
+
+```ts
+Maps.openScratch(): Promise<void>
+```
+
+Open the scratch map, creating it on first use.
+
+#### Maps.registerBadges
+
+`unstable` · unreleased
+
+```ts
+Maps.registerBadges(source: BadgeSource): void
+```
+
+Add a source of map-row badges.
+
+#### Maps.reload
+
+`unstable` · unreleased
+
+```ts
+Maps.reload(): Promise<void>
+```
+
+Refresh the map list from disk.
+
+#### Maps.remove
+
+`stable` · unreleased
+
+```ts
+Maps.remove(id: string): Promise<void>
+```
+
+Permanently delete a map and all its data. Not undoable.
+
+#### Maps.removeFolder
+
+`stable` · unreleased
+
+```ts
+Maps.removeFolder(name: string): Promise<void>
+```
+
+Delete a folder. Maps in it become unfoldered.
+
+#### Maps.renameFolder
+
+`stable` · unreleased
+
+```ts
+Maps.renameFolder(from: string, to: string): Promise<void>
+```
+
+Rename a folder, moving all its maps to the new name.
+
+#### Maps.setList
+
+`unstable` · unreleased
+
+```ts
+Maps.setList(list: MapMeta[]): void
+```
+
+Set the map list directly without a disk read.
+
+#### Maps.useBadges
+
+`unstable` · unreleased
+
+```ts
+Maps.useBadges(): Map<string, MapBadge[]>
+```
+
+Reactive getMapBadges.
+
+#### Maps.useList
+
+`stable` · unreleased
+
+```ts
+Maps.useList(): MapMeta[]
+```
+
+Reactive list of all maps (metadata only).
+
+## Query
+
+### Query
+
+`stable` · unreleased
+
+Read locations and summaries for a selector.
+
+#### Query.locationsOf
+
+`stable` · unreleased
+
+```ts
+Query.locationsOf(list: LocationList): Promise<Location$1[]>
+```
+
+The locations an answer carries, fetched from its temp file when it was too large to send inline.
+
+#### Query.read
+
+`stable` · unreleased
+
+```ts
+Query.read<A extends Ask>(
+  selector: Selector,
+  ask: A,
+  target?: Target,
+): Promise<ReadResult<AnswerOf<A["kind"]>>>
+```
+
+Ask one question about the locations `selector` matches. A full-location answer loads any
+backing file automatically; ask for ids or columns when full locations are unnecessary.
+
+## Mutation
+
+### Mutation
+
+`stable` · unreleased
+
+Run mutations and wait for their state and display updates.
+
+#### Mutation.run
+
+`stable` · unreleased
+
+```ts
+Mutation.run<R extends MutationResult = MutationResult>(
+  fn: () => Promise<R>,
+  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+): Promise<R>
+```
+
+#### Mutation.settle
+
+`stable` · unreleased
+
+```ts
+Mutation.settle(m: Mutation): Promise<void>
+```
 
 # Unstable surfaces
 
@@ -2327,31 +4731,6 @@ withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>
 ```
 
 `selector` with its children replaced, keeping the shape it wraps them in.
-
-## SelectionActions
-
-Editing the selection list the way the sidebar does.
-
-### getSelectedTagIds
-
-`unstable` · since v0.8.2
-
-```ts
-getSelectedTagIds(): ReadonlySet<number>
-```
-
-Tag ids that have a top-level Tag selection listed, ghosted or not.
-
-### getSelectedTagIdsDeep
-
-`unstable` · since v0.9.2
-
-```ts
-getSelectedTagIdsDeep(): readonly number[]
-```
-
-Tag ids of every Tag leaf in the active selection tree, in list order.
-Includes composite children, excludes ghosted selections; ids may repeat.
 
 ## SavedSelections
 
@@ -3276,190 +5655,6 @@ useSelectorPick(initial?: SelectorPick): SelectorPickController
 
 React hook: selector state with live counts. Defaults to the current selection when one
 exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector.
-
-## MapList
-
-The cached map list and its refresh.
-
-### copyName
-
-`unstable` · since v0.11.4
-
-```ts
-copyName(name: string): string
-```
-
-The name a copy of the map named `name` starts with.
-
-### createMap
-
-`unstable` · since v0.4.0
-
-```ts
-createMap(name: string, folder?: string | null): Promise<MapMeta>
-```
-
-Create a new empty map and return its metadata.
-
-### deleteFolder
-
-`unstable` · since v0.4.0
-
-```ts
-deleteFolder(name: string): Promise<void>
-```
-
-Delete a folder. Maps in it become unfoldered.
-
-### deleteMap
-
-`unstable` · since v0.4.0
-
-```ts
-deleteMap(id: string): Promise<void>
-```
-
-Permanently delete a map and all its data. Not undoable.
-
-### duplicateMap
-
-`unstable` · since v0.11.4
-
-```ts
-duplicateMap(id: string, name: string): Promise<MapMeta>
-```
-
-Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
-
-### getMapBadges
-
-`unstable` · since v0.11.3
-
-```ts
-getMapBadges(): Map<string, MapBadge[]>
-```
-
-Badges per map id, from every registered source.
-
-### getMapBadgeSources
-
-`unstable` · since v0.11.3
-
-```ts
-getMapBadgeSources(): readonly BadgeSource[]
-```
-
-Every registered badge source, in registration order.
-
-### getMapList
-
-`unstable` · since v0.7.0
-
-```ts
-getMapList(): MapMeta[]
-```
-
-The list of all maps (metadata only).
-
-### invalidateMapList
-
-`unstable` · since v0.4.0
-
-```ts
-invalidateMapList(): Promise<void>
-```
-
-Refresh the map list and notify other windows of the change.
-
-### isReservedMap
-
-`unstable` · since v0.10.1
-
-```ts
-isReservedMap(id: string | null): boolean
-```
-
-Whether `id` belongs to an app fixture rather than a user-created map.
-
-### moveMapToFolder
-
-`unstable` · since v0.4.0
-
-```ts
-moveMapToFolder(mapId: string, folder: string | null): Promise<void>
-```
-
-Move a map into a folder, or to the root when `folder` is null.
-
-### openScratchMap
-
-`unstable` · since v0.10.1
-
-```ts
-openScratchMap(): Promise<void>
-```
-
-Open the scratch map, creating it on first use.
-
-### registerMapBadges
-
-`unstable` · since v0.11.3
-
-```ts
-registerMapBadges(source: BadgeSource): void
-```
-
-Add a source of map-row badges.
-
-### reloadMapList
-
-`unstable` · since v0.8.1
-
-```ts
-reloadMapList(): Promise<void>
-```
-
-Refresh the map list from disk.
-
-### renameFolder
-
-`unstable` · since v0.4.0
-
-```ts
-renameFolder(from: string, to: string): Promise<void>
-```
-
-Rename a folder, moving all its maps to the new name.
-
-### setCachedMapList
-
-`unstable` · since v0.8.1
-
-```ts
-setCachedMapList(list: MapMeta[]): void
-```
-
-Set the map list directly without a disk read.
-
-### useMapBadges
-
-`unstable` · since v0.11.3
-
-```ts
-useMapBadges(): Map<string, MapBadge[]>
-```
-
-Reactive getMapBadges.
-
-### useMapList
-
-`unstable` · since v0.4.0
-
-```ts
-useMapList(): MapMeta[]
-```
-
-Reactive list of all maps (metadata only).
 
 ## Review
 
@@ -4505,7 +6700,7 @@ Stop all sidecar processes across every plugin.
 ```ts
 cmd.storeAddLocationsToMap(
   targetMapId: string,
-  locations: Location[],
+  locations: Location$1[],
 ): Promise<CopyToMapResult>
 ```
 
@@ -4517,7 +6712,7 @@ map's tag table.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location>>
+cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location$1>>
 ```
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
@@ -4527,7 +6722,7 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location>>
+cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location$1>>
 ```
 
 Apply a saved rule with its value names resolved against the open map.
@@ -4540,7 +6735,7 @@ Apply a saved rule with its value names resolved against the open map.
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<MutationResult<Location>>
+): Promise<MutationResult<Location$1>>
 ```
 
 Restore a map to a previous commit. An open map changes through its normal write path.
@@ -4680,9 +6875,9 @@ edit history, sync links, and review sessions stay with the original.
 ```ts
 cmd.storeEdit(
   target: Target,
-  edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
+  edits: Op<Location$1, Partial<Location$1> & Pick<Location$1, "id">, number>[],
   opts: EditOpts | null,
-): Promise<MutationResult<Location>>
+): Promise<MutationResult<Location$1>>
 ```
 
 Edit rows where target says; a pending layer holds edits until land.
@@ -4692,7 +6887,7 @@ Edit rows where target says; a pending layer holds edits until land.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location>>
+cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location$1>>
 ```
 
 Edit the selection tree.
@@ -4760,7 +6955,7 @@ Export locations as a `{name, customCoordinates}` JSON file, including tags and 
 `unstable` · since v0.5.1
 
 ```ts
-cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Location>>
+cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Location$1>>
 ```
 
 Read a single commit's change: the locations it added, removed and updated.
@@ -5141,7 +7336,7 @@ Set the default marker color for new render updates.
 cmd.storeStep(
   stack: Stack,
   key: EntryKey | null,
-): Promise<MutationResult<Location>>
+): Promise<MutationResult<Location$1>>
 ```
 
 Undo the newest edit, or redo the newest undone one.
@@ -5432,9 +7627,41 @@ Raw command, shell, and file dialog access.
 
 `unstable` · since v0.3.1
 
+#### dialog.open
+
+`unstable` · since v0.3.1
+
 ```ts
-dialog: { open: typeof open; save: typeof save }
+dialog.open<T extends OpenDialogOptions>(
+  options?: T,
+): Promise<OpenDialogReturn<T>>
 ```
+
+Open a file/directory selection dialog.
+
+The selected paths are added to the filesystem and asset protocol scopes.
+When security is more important than the easy of use of this API,
+prefer writing a dedicated command instead.
+
+Note that the scope change is not persisted, so the values are cleared when the application is restarted.
+You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
+
+#### dialog.save
+
+`unstable` · since v0.3.1
+
+```ts
+dialog.save(options?: SaveDialogOptions): Promise<string | null>
+```
+
+Open a file/directory save dialog.
+
+The selected path is added to the filesystem and asset protocol scopes.
+When security is more important than the easy of use of this API,
+prefer writing a dedicated command instead.
+
+Note that the scope change is not persisted, so the values are cleared when the application is restarted.
+You can save it to the filesystem using [tauri-plugin-persisted-scope](https://github.com/tauri-apps/tauri-plugin-persisted-scope).
 
 ### invoke
 
@@ -5995,7 +8222,7 @@ The shared panorama viewer.
 createPano(): {
   /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
   show: (
-    loc: Location,
+    loc: Location$1,
     {
       concealUntilReady,
     }?: {
@@ -6009,7 +8236,7 @@ createPano(): {
   /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. */
   jumpAhead: (headingOffset: number) => Promise<boolean>;
   /** Stage a location's pano while nothing newer is pending, so a later show is instant. */
-  preload: (loc: Location) => Promise<void>;
+  preload: (loc: Location$1) => Promise<void>;
   /** Rebuild a stuck viewer in place, keeping its pano and camera. */
   reload: (fallback: google.maps.LatLngLiteral) => void;
   /** Whether the viewer has been created. */
@@ -6298,7 +8525,7 @@ The camera heading and pitch.
 `unstable` · since v0.11.0
 
 ```ts
-pano.preload(loc: Location): Promise<void>
+pano.preload(loc: Location$1): Promise<void>
 ```
 
 Stage a location's pano while nothing newer is pending, so a later show is instant.
@@ -6339,7 +8566,7 @@ Zoom fully out.
 
 ```ts
 pano.show(
-  loc: Location,
+  loc: Location$1,
   props?: {
     concealUntilReady?: boolean;
   },
@@ -7374,451 +9601,90 @@ toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>
 
 Copy of `set` with `value` toggled, or forced on/off by `on`.
 
-## Legacy
+## SelectionList
 
-Shims for removed APIs.
+### SelectionList
 
-### addSelections
+`unstable` · unreleased
 
-`unstable` · `deprecated` · since v0.5.0
+Change the listed selections and inspect their active members.
 
-```ts
-addSelections(selectors: Selector[]): Promise<void>
-```
+#### SelectionList.active
 
-**Deprecated in v0.11.3.** Use `MMA.applySelectionUpdate(MMA.addSelection(...selectors))`.
-
-### addTagToLocations
-
-`unstable` · `deprecated` · since v0.4.0
+`unstable` · unreleased
 
 ```ts
-addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
+SelectionList.active(): Selection[]
 ```
 
-**Deprecated in v0.10.5.** Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`.
+Listed selections that are not ghosted.
 
-### countBy
+#### SelectionList.redo
 
-`unstable` · `deprecated` · since v0.9.0
+`unstable` · unreleased
 
 ```ts
-countBy(
-  selector: Selector,
-  field: string,
-  key: KeySpec,
-): Promise<CountBy>
+SelectionList.redo(): Promise<void>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "countBy", fields: [field], key })`.
+Redo the last undone selection change without redoing data edits.
 
-### countIn
+#### SelectionList.select
 
-`unstable` · `deprecated` · since v0.10.0
+`unstable` · unreleased
 
 ```ts
-countIn(selector: Selector): Promise<number>
+SelectionList.select<
+  R extends
+    | number[]
+    | {
+        ids: number[];
+      },
+>(
+  pick: (selector: Selector) => Promise<R>,
+  perSelection?: boolean,
+): Promise<{
+  picked: number;
+  results: R[];
+}>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "count" })`.
+#### SelectionList.tagIds
 
-### coverage
-
-`unstable` · `deprecated` · since v0.10.2
+`unstable` · unreleased
 
 ```ts
-coverage(selector: Selector): Promise<[string, number][]>
+SelectionList.tagIds(): ReadonlySet<number>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "coverage" })`.
+Tag ids with a top-level listed tag selection, including ghosted selections.
 
-### createPluginStorage
+#### SelectionList.tagIdsDeep
 
-`unstable` · `deprecated` · since v0.10.3
+`unstable` · unreleased
 
 ```ts
-createPluginStorage(id: string): PluginStorage
+SelectionList.tagIdsDeep(): readonly number[]
 ```
 
-**Deprecated in v0.11.0.** Use `MMA.storage()`.
+Tag ids from active selection leaves, including repeated ids and composite children.
 
-### currentSelection
+#### SelectionList.undo
 
-`unstable` · `deprecated` · since v0.10.0
+`unstable` · unreleased
 
 ```ts
-currentSelection(): Selector
+SelectionList.undo(): Promise<void>
 ```
 
-**Deprecated in v0.11.7.** Use the `{ type: "Selected" }` selector.
+Undo the last selection change without undoing data edits.
 
-### fetchAllLocations
+#### SelectionList.update
 
-`unstable` · `deprecated` · since v0.4.0
+`unstable` · unreleased
 
 ```ts
-fetchAllLocations(): Promise<Location[]>
+SelectionList.update(op: SelectionOp): Promise<void>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Everything" }, { kind: "locations" })`.
-
-### fetchBounds
-
-`unstable` · `deprecated` · since v0.9.0
-
-```ts
-fetchBounds(
-  selector: Selector,
-): Promise<[number, number, number, number] | null>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "bounds" })`.
-
-### fetchColumns
-
-`unstable` · `deprecated` · since v0.10.0
-
-```ts
-fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "columns", fields })`.
-
-### fetchLocation
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-fetchLocation(id: number): Promise<Location>
-```
-
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`.
-
-### fetchLocations
-
-`unstable` · `deprecated` · since v0.9.0
-
-```ts
-fetchLocations(selector: Selector): Promise<Location[]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "locations" })`.
-
-### fetchLocationsByIds
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-fetchLocationsByIds(ids: number[]): Promise<Location[]>
-```
-
-**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`.
-
-### fieldCoverage
-
-`unstable` · `deprecated` · since v0.9.0
-
-```ts
-fieldCoverage(selector: Selector): Promise<[string, number][]>
-```
-
-**Deprecated in v0.10.2.** Use `MMA.read(selector, { kind: "coverage" })`.
-
-### fieldValues
-
-`unstable` · `deprecated` · since v0.9.0
-
-```ts
-fieldValues(selector: Selector, field: string): Promise<string[]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "values", field })`.
-
-### getActiveLocation
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-getActiveLocation(): Location | null
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().open?.location`.
-
-### getAllSelections
-
-`unstable` · `deprecated` · since v0.6.3
-
-```ts
-getAllSelections(): Selection[]
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().selectionList`.
-
-### getCurrentMap
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getCurrentMap(): MapMeta | null
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().map`.
-
-### getCurrentMapId
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getCurrentMapId(): string | null
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().mapId`.
-
-### getDirtyCount
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getDirtyCount(): Promise<number>
-```
-
-**Deprecated in v0.8.2.** Ask `MMA.read` for the summary and take `dirtyCount`.
-
-### getGhostedSelections
-
-`unstable` · `deprecated` · since v0.7.4
-
-```ts
-getGhostedSelections(): Set<string>
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().selectionList`.
-
-### getGoogleMap
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-getGoogleMap(): google.maps.Map | null
-```
-
-**Deprecated in v0.8.1.** Use `MMA.getMapHost()` and narrow via `hostInstance`.
-
-### getSelectedLocationIds
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-getSelectedLocationIds(): SelectedIds
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().selectedLocationIds`.
-
-### getSelections
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-getSelections(): Selection[]
-```
-
-**Deprecated in v0.8.2.** Use `MMA.getActiveSelections()`.
-
-### getWorkArea
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getWorkArea(): WorkArea
-```
-
-**Deprecated in v0.8.2.** Read `MMA.getMapState().workArea`.
-
-### installedVersion
-
-`unstable` · `deprecated` · since v0.10.3
-
-```ts
-installedVersion(pluginId: string): Promise<string | null>
-```
-
-**Deprecated in v0.11.0.** Use `MMA.sidecar.installedVersion()`.
-
-### partition
-
-`unstable` · `deprecated` · since v0.6.2
-
-```ts
-partition(
-  field: string,
-  key: KeySpec,
-  selector: Selector,
-): Promise<PartitionBucket[]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "groupBy", field, key })`.
-
-### query
-
-`unstable` · `deprecated` · since v0.11.3
-
-```ts
-query(
-  selector: Selector,
-  target?: Target,
-): {
-  /** Resolved ids in ascending order, or in ranked-selector order. */
-  ids: () => Promise<number[]>;
-  /** Number of locations the selector resolves to. */
-  count: () => Promise<number>;
-  /** Bounding box [west, south, east, north], or null when nothing resolves. */
-  bounds: () => Promise<[number, number, number, number] | null>;
-  /** n ids drawn uniformly at random, without replacement. */
-  sample: (n: number) => Promise<number[]>;
-  /** Distinct values of field, sorted. */
-  values: (field: string) => Promise<string[]>;
-  /** Group each field by a derived key and count, one result per field. */
-  countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
-  /** How many locations hold a value for each field, key-sorted. */
-  coverage: () => Promise<[string, number][]>;
-  /** One column per field: null for missing values and tag-id arrays for tags. */
-  columns: (fields: string[]) => Promise<unknown[][]>;
-  /** Group by a derived key; bins use bound order and other keys sort naturally. */
-  partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-  /** Full matching locations, loading any large result from its temporary file. */
-  locations: () => Promise<Location[]>;
-}
-```
-
-**Deprecated in v0.12.0.** Use MMA.read(selector, ask) instead.
-
-### registerEnrichFields
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-registerEnrichFields(_fields: EnrichFieldOption[]): void
-```
-
-**Deprecated in v0.11.3.** A provider's `fieldDefs` are offered as enrichment options on their
-own; set `defaultOff` on the provider to make them opt-in.
-
-### registerEnrichmentProvider
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-registerEnrichmentProvider(provider: Provider): void
-```
-
-**Deprecated in v0.10.2.** Use `MMA.registerProvider()`.
-
-### removeSelections
-
-`unstable` · `deprecated` · since v0.5.0
-
-```ts
-removeSelections(keys: string[]): Promise<void>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.applySelectionUpdate(MMA.removeSelection(...keys))`.
-
-### removeTagFromAllLocations
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-removeTagFromAllLocations(tagId: number): Promise<WorkResult>
-```
-
-**Deprecated in v0.10.5.** Use `MMA.edit.work(MMA.tagSelector(tagId), { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
-
-### removeTagFromLocations
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-removeTagFromLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
-```
-
-**Deprecated in v0.10.5.** Use `MMA.edit.work(selector, { kind: "listSet", key: "tags", add: [], remove: [tagId] })`.
-
-### request
-
-`unstable` · `deprecated` · since v0.10.3
-
-```ts
-request<T>(
-  pluginId: string,
-  command: string,
-  payload?: unknown,
-  opts?: SidecarOptions<T>,
-): Promise<T | null>
-```
-
-**Deprecated in v0.11.0.** Use `MMA.sidecar.request()`.
-
-### resetSelections
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-resetSelections(): Promise<void>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.applySelectionUpdate({ kind: "set", selections: [] })`.
-
-### resolveIds
-
-`unstable` · `deprecated` · since v0.10.0
-
-```ts
-resolveIds(selector: Selector): Promise<number[]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "ids" })`.
-
-### sampleFrom
-
-`unstable` · `deprecated` · since v0.10.0
-
-```ts
-sampleFrom(selector: Selector, n: number): Promise<number[]>
-```
-
-**Deprecated in v0.11.3.** Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`.
-
-### setActiveLocation
-
-`unstable` · `deprecated` · since v0.3.1
-
-```ts
-setActiveLocation(
-  target: MaybeLocation | null,
-  checkDuplicates?: boolean,
-): Promise<void>
-```
-
-**Deprecated in v0.12.0.** Use `MMA.openLocation(target)`, or `MMA.closeLocation()` in place of null.
-
-### setUserFieldDefs
-
-`unstable` · `deprecated` · since v0.10.3
-
-```ts
-setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>
-```
-
-**Deprecated in v0.10.5.** The user layer is Rust-owned state (`MMA.getMapState().fieldDefs`);
-use `MMA.edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
-for plugin-owned defs.
-
-### waitForGoogleMap
-
-`unstable` · `deprecated` · since v0.5.0
-
-```ts
-waitForGoogleMap(): Promise<google.maps.Map | null>
-```
-
-**Deprecated in v0.8.1.** Use `MMA.waitForMapHost()`.
+Update and resolve the listed selections. Use `onActive` to affect only active selections.

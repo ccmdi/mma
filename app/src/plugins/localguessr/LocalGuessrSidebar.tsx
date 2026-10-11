@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { createPortal } from "react-dom";
 import { mdiDeleteOutline, mdiEarth, mdiHistory } from "@mdi/js";
+import { Store } from "@/store/store";
+import { Query } from "@/store/query";
 import { Sidebar, Section, Field, SegmentedControl } from "@/components/primitives/Sidebar";
 import { EmptyState } from "@/components/primitives/EmptyState";
 import { SelectorPicker } from "@/components/primitives/SelectorPicker";
@@ -17,7 +19,6 @@ import { NSelect } from "@/components/primitives/NSelect";
 import { SwitchRow } from "@/components/primitives/SwitchRow";
 import { usePluginState } from "@/plugins/pluginStorage";
 import { useSelectorPick } from "@/store/selectorPick";
-import { getMapState, read, useMapState } from "@/store/useMapStore";
 import { selection } from "@/store/selections";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 import { toast } from "@/lib/util/toast";
@@ -65,9 +66,12 @@ import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
-	const ids = await read({ type: "Sample", selection: selection(selector), n }, { kind: "ids" });
+	const ids = await Query.read(
+		{ type: "Sample", selection: selection(selector), n },
+		{ kind: "ids" },
+	);
 	if (ids.length === 0) return [];
-	const locations = await read(
+	const locations = await Query.read(
 		{ type: "Locations", locations: ids, name: null },
 		{ kind: "locations" },
 	);
@@ -206,8 +210,8 @@ function PastGamesModal({
 export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [stored, setStored] = usePluginState<GameConfig>("localguessr", "config", DEFAULT_CONFIG);
 	const config = useMemo<GameConfig>(() => ({ ...DEFAULT_CONFIG, ...stored }), [stored]);
-	const map = useMapState((s) => s.map);
-	const locationCount = useMapState((s) => s.locationCount);
+	const map = Store.use((s) => s.map);
+	const locationCount = Store.use((s) => s.locationCount);
 	const maxError = useScoreMaxError();
 	const picker = useSelectorPick();
 	const [view, dispatch] = useReducer(reduce, { phase: "config" } as View);
@@ -245,7 +249,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const start = useCallback(async () => {
-		const current = getMapState().map;
+		const current = Store.get().map;
 		if (!current || starting) return;
 		setStarting(true);
 		try {
@@ -301,13 +305,13 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const clearPast = useCallback(() => {
-		const mapId = getMapState().map?.id;
+		const mapId = Store.get().map?.id;
 		if (mapId) clearHistory(mapId);
 		setHistory([]);
 		setShowHistory(false);
 	}, []);
 
-	const inspecting = useMapState((s) => s.workArea) === "location";
+	const inspecting = Store.use((s) => s.workArea) === "location";
 
 	const content =
 		view.phase === "playing" || view.phase === "result" ? (

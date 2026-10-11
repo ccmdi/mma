@@ -214,7 +214,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 	it("loadSeenPano opens location viewer when no location is active", async () => {
 		// Ensure we're on the overview (no location open)
 		await closeLocation();
-		const areaBefore = await withApi((api) => api.getMapState().workArea);
+		const areaBefore = await withApi((api) => api.Store.get().workArea);
 		expect(areaBefore).toBe("overview");
 
 		// Create a seen entry and load it
@@ -242,7 +242,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 
 		await waitForWorkArea("location");
 
-		const areaAfter = await withApi((api) => api.getMapState().workArea);
+		const areaAfter = await withApi((api) => api.Store.get().workArea);
 		expect(areaAfter).toBe("location");
 	});
 

@@ -1,9 +1,9 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { mdiRestore, mdiClose } from "@mdi/js";
+import { Maps } from "@/store/maps";
+import { Edit } from "@/store/edit";
 import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.consts";
 import type { MapMeta } from "@/bindings.gen";
-import * as edit from "@/store/edit";
-import { deleteMap } from "@/store/mapList";
 import { cmd } from "@/lib/commands";
 import { useSetting, setSetting, getSettings } from "@/store/settings";
 import { labelColor, rgbToHex, hexToRgb } from "@/lib/util/color";
@@ -265,7 +265,7 @@ export function DeleteMapDialog({
 			tone="destructive"
 			onConfirm={() => {
 				onOpenChange(false);
-				void deleteMap(mapId);
+				void Maps.remove(mapId);
 			}}
 		/>
 	);
@@ -308,7 +308,7 @@ export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFo
 		<>
 			<DialogForm
 				onSubmit={() => {
-					void edit.meta({ ...patch, id: map.id });
+					void Edit.meta({ ...patch, id: map.id });
 					close();
 				}}
 			>

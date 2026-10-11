@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Store } from "@/store/store";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { useSetting } from "@/store/settings";
@@ -12,7 +13,6 @@ import {
 	type DeckOverlayHandle,
 } from "@/lib/map/host";
 import { usePanoViewer, viewerPosition } from "./PanoViewerContext";
-import { useMapState } from "@/store/useMapStore";
 import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
 import { ScaleStepper } from "./ScaleStepper";
@@ -60,7 +60,7 @@ async function ensureMinimapHost(
 
 export function FullscreenMiniMap() {
 	const { draft } = usePanoViewer();
-	const location = useMapState((s) => s.open?.location ?? null);
+	const location = Store.use((s) => s.open?.location ?? null);
 	const { lat, lng } = viewerPosition(draft, location);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);

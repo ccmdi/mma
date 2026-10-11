@@ -7,7 +7,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/store/settings", () => ({ getSettings: () => h.settings }));
-vi.mock("@/store/useMapStore", () => ({ getVisibleTags: () => h.tags }));
+vi.mock("@/store/tag", () => ({ Tag: { visible: () => h.tags } }));
 
 import { displayTagName } from "@/lib/data/tags";
 

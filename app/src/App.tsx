@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import type { ComponentType, CSSProperties } from "react";
-
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
 import { appWindow, closeAndDestroy } from "@/lib/window";
-import { useMapState } from "@/store/useMapStore";
 import {
 	useTargetMapId,
 	useManualChapter,
@@ -12,7 +12,6 @@ import {
 	openManual,
 } from "@/store/router";
 import { MapList, BulkActions } from "@/components/map-list/MapList";
-import { openScratchMap } from "@/store/mapList";
 import { SettingsPage, UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
@@ -93,7 +92,7 @@ export default function App() {
 /** Editor window content: the map data + the lazily-loaded editor chunk, with a blank
  *  placeholder while either is still resolving. */
 function EditorRoot() {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const [MapEditor, setMapEditor] = useState<ComponentType | null>(null);
 	useEffect(() => {
 		void mapEditorModule.then((m) => setMapEditor(() => m.MapEditor));
@@ -105,7 +104,7 @@ function EditorRoot() {
 /** Floating UI shared by both window roles: settings/plugins gears, update pill, and the
  *  app-level dialogs. Hidden by App while a window is self-destructing. */
 function AppChrome() {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const isMapList = !useTargetMapId();
 	const manualChapter = useManualChapter();
 
@@ -166,7 +165,7 @@ function AppChrome() {
 						icon={mdiMapOutline}
 						size={18}
 						label={t("Scratch map")}
-						onClick={() => void openScratchMap()}
+						onClick={() => void Maps.openScratch()}
 					/>
 				</div>
 			)}

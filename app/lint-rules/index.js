@@ -1,3 +1,4 @@
+import domainObjects from "./domain-objects.js";
 import noDuplicateCommandIcons from "./no-duplicate-command-icons.js";
 import noEffectEventInMemo from "./no-effect-event-in-memo.js";
 import noHandrolledDialogParts from "./no-handrolled-dialog-parts.js";
@@ -15,6 +16,7 @@ import restrictedSyntax from "./restricted-syntax.js";
 export default {
 	meta: { name: "local" },
 	rules: {
+		"domain-objects": domainObjects,
 		"no-duplicate-command-icons": noDuplicateCommandIcons,
 		"no-effect-event-in-memo": noEffectEventInMemo,
 		"no-handrolled-dialog-parts": noHandrolledDialogParts,

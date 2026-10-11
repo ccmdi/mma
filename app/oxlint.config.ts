@@ -18,12 +18,10 @@ const USE_SYNC_EXTERNAL_STORE_BAN = {
 const QUERY_COMMANDS =
 	"/^store(Resolve|Count|CountBy|Bounds|Sample|Spaced|EvenlySpaced|Values|Coverage|Columns|GroupBy|Collect)$/";
 
-/** The store's query surface is named vocabulary, not raw IPC: `fieldCoverage`, not
- *  `cmd.storeCoverage`. Only useMapStore may reach past the wrappers. */
+/** Location queries go through the typed query object. */
 const QUERY_CMD_BAN = {
 	selector: `MemberExpression[property.name=${QUERY_COMMANDS}]:matches([object.name='cmd'], [object.property.name='cmd'])`,
-	message:
-		"Query commands go through their named wrapper in store/useMapStore (resolveIds, countIn, fetchBounds, sampleFrom, fieldValues, countBy, fieldCoverage, fetchColumns, partition, fetchLocations), not raw cmd.",
+	message: "Use Query.read(selector, ask) from store/query rather than raw query commands.",
 };
 
 const E2E_BRIDGE_RULES = [
@@ -218,6 +216,7 @@ export default defineConfig({
 			QUERY_CMD_BAN,
 		],
 		"local/no-ipc-in-loop": "warn",
+		"local/domain-objects": "error",
 		"local/no-redundant-mutate-guard": "warn",
 		"local/no-selection-alias": "warn",
 		"local/no-primitive-class": "error",
@@ -255,7 +254,7 @@ export default defineConfig({
 		},
 		{
 			// The store owns the query wrappers, so it is the one file that calls them raw.
-			files: ["src/store/useMapStore.ts"],
+			files: ["src/store/query.ts"],
 			rules: {
 				"local/restricted-syntax": ["error", ...RESTRICTED_SYNTAX, USE_SYNC_EXTERNAL_STORE_BAN],
 			},

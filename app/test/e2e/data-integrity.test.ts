@@ -29,7 +29,7 @@ describe("Data integrity - flags", () => {
 	it("flag=1 (LoadAsPanoId) survives save/load", async () => {
 		const loc = await getLoc(fl0Id);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, flags: 1 }]);
+			await api.Location.update([{ id: l.id, flags: 1 }]);
 		}, loc);
 
 		await flushAndWait();
@@ -104,7 +104,7 @@ describe("Data integrity - panoId", () => {
 	it("panoId set to null after being set", async () => {
 		const loc = await getLoc(pnStrId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, panoId: null }]);
+			await api.Location.update([{ id: l.id, panoId: null }]);
 		}, loc);
 
 		await flushAndWait();
@@ -286,18 +286,18 @@ describe("Data integrity - concurrent operations", () => {
 			for (let i = 0; i < 100; i++) {
 				locs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
-			await api.addLocations(locs);
+			await api.Location.add(locs);
 
 			// Remove first 50
 			const toRemove = locs.slice(0, 50).map((l) => l.id);
-			await api.removeLocations(new Set(toRemove));
+			await api.Location.remove(new Set(toRemove));
 
 			// Add 50 more
 			const moreLocs: Location[] = [];
 			for (let i = 100; i < 150; i++) {
 				moreLocs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
-			await api.addLocations(moreLocs);
+			await api.Location.add(moreLocs);
 
 			const count = (
 				(await api.cmd.storeSummary()) as {
@@ -320,7 +320,7 @@ describe("Data integrity - concurrent operations", () => {
 			// Update same location 10 times rapidly
 			for (let i = 0; i < 10; i++) {
 				const loc = await api.fetchLocation(targetId);
-				await api.updateLocations([{ id: loc!.id, heading: i * 36 }]);
+				await api.Location.update([{ id: loc!.id, heading: i * 36 }]);
 			}
 
 			const loc = await api.fetchLocation(targetId);
@@ -333,12 +333,12 @@ describe("Data integrity - concurrent operations", () => {
 		const result = await withApi(async (api) => {
 			// Trigger add
 			const triggerLocs = [api.createLocation({ lat: 0, lng: 0, zoom: 1 })];
-			await api.addLocations(triggerLocs);
+			await api.Location.add(triggerLocs);
 			const triggerId = triggerLocs[0].id;
 
 			// Add more while save may be in progress
 			const duringLocs = [api.createLocation({ lat: 1, lng: 1, zoom: 1 })];
-			await api.addLocations(duringLocs);
+			await api.Location.add(duringLocs);
 			const duringId = duringLocs[0].id;
 
 			return { triggerId, duringId };

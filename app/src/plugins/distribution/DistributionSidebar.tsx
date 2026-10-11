@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { Query } from "@/store/query";
 import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
-import { read } from "@/store/useMapStore";
 import { getSettings } from "@/store/settings";
-
 import { subscribe } from "@/lib/events";
 import { usePluginState, storage } from "@/plugins/pluginStorage";
 import "./distribution.css";
@@ -42,12 +41,12 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	const autoDefaulted = useRef(storage("distribution").keys().includes("source"));
 
 	const refresh = useCallback(async () => {
-		const map = MMA.getMapState().map;
+		const map = MMA.Store.get().map;
 		if (!map) return;
-		const count = MMA.getMapState().locationCount;
+		const count = MMA.Store.get().locationCount;
 		setTotal(count);
 
-		const [countries] = await read(
+		const [countries] = await Query.read(
 			{ type: "Everything" },
 			{ kind: "countBy", fields: ["countryCode"], key: { kind: "value" } },
 		);

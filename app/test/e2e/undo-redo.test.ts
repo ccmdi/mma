@@ -23,7 +23,7 @@ describe("Undo/Redo", () => {
 		expect(count).toBe(1);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		count = await getLocCount();
@@ -32,7 +32,7 @@ describe("Undo/Redo", () => {
 
 	it("redo restores undone add", async () => {
 		await withApi(async (api) => {
-			await api.redo();
+			await api.History.redo();
 		});
 
 		const count = await getLocCount();
@@ -41,14 +41,14 @@ describe("Undo/Redo", () => {
 
 	it("undo remove locations", async () => {
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, undo1Id);
 
 		let count = await getLocCount();
 		expect(count).toBe(0);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		count = await getLocCount();
@@ -58,7 +58,7 @@ describe("Undo/Redo", () => {
 	it("undo update restores original values", async () => {
 		const original = await getLoc(undo1Id);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, lat: 99, heading: 270 }]);
+			await api.Location.update([{ id: l.id, lat: 99, heading: 270 }]);
 		}, original);
 
 		let loc = await getLoc(undo1Id);
@@ -66,7 +66,7 @@ describe("Undo/Redo", () => {
 		expect(loc.heading).toBe(270);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		loc = await getLoc(undo1Id);
@@ -77,18 +77,18 @@ describe("Undo/Redo", () => {
 	it("multiple undos in sequence", async () => {
 		// Add three locations in separate calls (separate undo entries)
 		await withApi(async (api) => {
-			await api.addLocations([api.createLocation({ lat: 1, lng: 1, zoom: 1 })]);
-			await api.addLocations([api.createLocation({ lat: 2, lng: 2, zoom: 1 })]);
-			await api.addLocations([api.createLocation({ lat: 3, lng: 3, zoom: 1 })]);
+			await api.Location.add([api.createLocation({ lat: 1, lng: 1, zoom: 1 })]);
+			await api.Location.add([api.createLocation({ lat: 2, lng: 2, zoom: 1 })]);
+			await api.Location.add([api.createLocation({ lat: 3, lng: 3, zoom: 1 })]);
 		});
 
 		let count = await getLocCount();
 		expect(count).toBe(4); // undo-1 + seq-1,2,3
 
 		await withApi(async (api) => {
-			await api.undo(); // removes seq-3
-			await api.undo(); // removes seq-2
-			await api.undo(); // removes seq-1
+			await api.History.undo(); // removes seq-3
+			await api.History.undo(); // removes seq-2
+			await api.History.undo(); // removes seq-1
 		});
 
 		count = await getLocCount();
@@ -97,8 +97,8 @@ describe("Undo/Redo", () => {
 
 	it("redo after undo chain", async () => {
 		await withApi(async (api) => {
-			await api.redo();
-			await api.redo();
+			await api.History.redo();
+			await api.History.redo();
 		});
 
 		const count = await getLocCount();
@@ -107,8 +107,8 @@ describe("Undo/Redo", () => {
 
 	it("new edit clears redo stack", async () => {
 		await withApi(async (api) => {
-			await api.addLocations([api.createLocation({ lat: 0, lng: 0, zoom: 1 })]);
-			await api.redo(); // should be no-op since new edit clears redo
+			await api.Location.add([api.createLocation({ lat: 0, lng: 0, zoom: 1 })]);
+			await api.History.redo(); // should be no-op since new edit clears redo
 		});
 
 		const count = await getLocCount();
@@ -121,14 +121,14 @@ describe("Undo/Redo", () => {
 			for (let i = 0; i < 200; i++) {
 				locs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
-			await api.addLocations(locs);
+			await api.Location.add(locs);
 		});
 
 		let count = await getLocCount();
 		expect(count).toBe(204);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		count = await getLocCount();
@@ -145,7 +145,7 @@ describe("Undo/Redo", () => {
 			const seq1 = allLocs.find((l) => l.lat === 1);
 			if (!seq1) throw new Error("seq-1 not found");
 
-			await api.updateLocations([
+			await api.Location.update([
 				{ id: u1Id, heading: 111 },
 				{ id: seq1.id, heading: 222 },
 			]);
@@ -159,7 +159,7 @@ describe("Undo/Redo", () => {
 		expect(s1.heading).toBe(222);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		u1 = await getLoc(undo1Id);
@@ -176,9 +176,9 @@ describe("Undo/Redo persistence", () => {
 	it("undo history survives save/load", async () => {
 		const result = await withApi(async (api) => {
 			const l1 = [api.createLocation({ lat: 10, lng: 10, zoom: 1 })];
-			await api.addLocations(l1);
+			await api.Location.add(l1);
 			const l2 = [api.createLocation({ lat: 20, lng: 20, zoom: 1 })];
-			await api.addLocations(l2);
+			await api.Location.add(l2);
 			return { id1: l1[0].id, id2: l2[0].id };
 		});
 		uh1Id = result.id1;
@@ -188,7 +188,7 @@ describe("Undo/Redo persistence", () => {
 		await openMap(map.id);
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		const count = await getLocCount();
@@ -198,7 +198,7 @@ describe("Undo/Redo persistence", () => {
 	it("flags survive undo across save/load", async () => {
 		const loc = await getLoc(uh1Id);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, flags: 1, panoId: "PIN" }]);
+			await api.Location.update([{ id: l.id, flags: 1, panoId: "PIN" }]);
 		}, loc);
 
 		await flushAndWait();
@@ -210,7 +210,7 @@ describe("Undo/Redo persistence", () => {
 		expect(before.panoId).toBe("PIN");
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 		});
 
 		const after = await getLoc(uh1Id);

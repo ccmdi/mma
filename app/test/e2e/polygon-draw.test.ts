@@ -75,11 +75,9 @@ const nudge = (p: Px) => [move(p), down, move([p[0] + 12, p[1] + 6], 80), up];
 
 const polygonVertexCounts = () =>
 	withApi((api) =>
-		api
-			.getMapState()
-			.selectionList.flatMap(({ selection: { selector } }) =>
-				selector.type === "Polygon" ? [selector.polygon.coordinates[0].length] : [],
-			),
+		api.Store.get().selectionList.flatMap(({ selection: { selector } }) =>
+			selector.type === "Polygon" ? [selector.polygon.coordinates[0].length] : [],
+		),
 	);
 
 const toolArmed = () =>
@@ -91,7 +89,7 @@ const toolArmed = () =>
 async function armTool() {
 	await withApi((api) => {
 		api.getMapHost()!.moveCamera({ center: { lat: 0.5, lng: 10 }, zoom: 13 });
-		return api.applySelectionUpdate({ kind: "set", selections: [] });
+		return api.SelectionList.update({ kind: "set", selections: [] });
 	});
 	if (await toolArmed()) await browser.$(TOOL).click();
 	await browser.$(TOOL).click();

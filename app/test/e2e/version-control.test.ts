@@ -21,14 +21,14 @@ describe("Version control - commits", () => {
 			createLocation({ lat: 30, lng: 40, heading: 90, panoId: "P1", flags: 1 }),
 		]);
 
-		const commitId = await withApi(async (api) => api.commitMap("initial commit"));
+		const commitId = await withApi(async (api) => api.Commit.create("initial commit"));
 		expect(commitId).not.toContain("ERROR");
 		expect(commitId.length).toBeGreaterThan(10);
 	});
 
 	it("commit clears undo/redo history", async () => {
 		const before = await getLocCount();
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		const after = await getLocCount();
 		expect(after).toBe(before);
 	});
@@ -45,9 +45,9 @@ describe("Version control - commits", () => {
 		const newLocs = [createLocation({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })];
 		await addLocs(newLocs);
 
-		await withApi(async (api, removeId) => api.removeLocations(new Set([removeId])), locIds[0]);
+		await withApi(async (api, removeId) => api.Location.remove(new Set([removeId])), locIds[0]);
 
-		await withApi(async (api) => api.commitMap("add one remove one"));
+		await withApi(async (api) => api.Commit.create("add one remove one"));
 
 		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
 
@@ -68,19 +68,19 @@ describe("Version control - checkout", () => {
 			createLocation({ lat: 30, lng: 40, heading: 0, panoId: null, flags: 0 }),
 		]);
 
-		firstCommitId = await withApi(async (api) => api.commitMap("v1: two locations"));
+		firstCommitId = await withApi(async (api) => api.Commit.create("v1: two locations"));
 	});
 	it("checkout reverts to committed state", async () => {
 		// Make changes after commit
 		await addLocs([createLocation({ lat: 50, lng: 60, heading: 0, panoId: null, flags: 0 })]);
 
-		await withApi(async (api, removeId) => api.removeLocations(new Set([removeId])), locIds[0]);
+		await withApi(async (api, removeId) => api.Location.remove(new Set([removeId])), locIds[0]);
 
 		let count = await getLocCount();
 		expect(count).toBe(2); // locIds[1] + new one
 
 		// Checkout first commit
-		await withApi(async (api, commitId) => api.checkoutCommit(commitId), firstCommitId);
+		await withApi(async (api, commitId) => api.Commit.checkout(commitId), firstCommitId);
 
 		count = await getLocCount();
 		expect(count).toBe(2); // original two restored
@@ -97,7 +97,7 @@ describe("Version control - checkout", () => {
 
 	it("checkout clears undo/redo history", async () => {
 		const before = await getLocCount();
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 		const after = await getLocCount();
 		expect(after).toBe(before); // undo should be no-op
 	});
@@ -130,21 +130,21 @@ describe("Version control - checkout revives soft-deleted tags", () => {
 	before(async () => {
 		tagId = (await createTag("Revivable")).id;
 		[locId] = await addLocs([createLocation({ lat: 10, lng: 20, tags: [tagId] })]);
-		taggedCommitId = await withApi(async (api) => api.commitMap("v1: tagged loc"));
+		taggedCommitId = await withApi(async (api) => api.Commit.create("v1: tagged loc"));
 	});
 	it("deleting the tag's only location soft-deletes it", async () => {
-		await withApi(async (api, id) => api.removeLocations(new Set([id])), locId);
-		await withApi(async (api) => api.commitMap("v2: loc deleted"));
+		await withApi(async (api, id) => api.Location.remove(new Set([id])), locId);
+		await withApi(async (api) => api.Commit.create("v2: loc deleted"));
 
-		const tag = await withApi(async (api, tid) => api.getTags()[tid], tagId);
+		const tag = await withApi(async (api, tid) => api.Tag.all()[tid], tagId);
 		expect(tag?.visible).toBe(false);
 	});
 
 	it("restoring the tagged commit revives the tag with its count", async () => {
-		await withApi(async (api, cid) => api.checkoutCommit(cid), taggedCommitId);
+		await withApi(async (api, cid) => api.Commit.checkout(cid), taggedCommitId);
 
 		const { visible, count } = await withApi(async (api, tid) => {
-			return { visible: api.getTags()[tid]?.visible, count: api.getTagCounts()[tid] ?? 0 };
+			return { visible: api.Tag.all()[tid]?.visible, count: api.Tag.counts()[tid] ?? 0 };
 		}, tagId);
 		expect(visible).toBe(true);
 		expect(count).toBe(1);

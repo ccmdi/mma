@@ -1,5 +1,6 @@
 import type { Layer, Position } from "@deck.gl/core";
 import { ScatterplotLayer, PolygonLayer, PathLayer, LineLayer, TextLayer } from "@deck.gl/layers";
+import { Store } from "@/store/store";
 import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
 import {
 	baseMarkerLayers,
@@ -20,7 +21,6 @@ import {
 	getSeenOnMapIds,
 	seenEntryColor,
 } from "@/lib/seen/seenOverlay";
-import { getMapState } from "@/store/useMapStore";
 import { drawnPolygons, getPolygonFill } from "@/lib/render/polygonFills";
 import { getCommitDiffPreview } from "@/store/commitDiff";
 import { getImportPreviewPositions } from "@/store/importStaging";
@@ -146,12 +146,12 @@ interface SceneContext {
 // call it to render identical visuals. The active-marker color patch lives in the scene store
 // (single owner of the shared CellManager), applied before consumers rebuild their layers.
 export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
-	if (!getMapState().map) return [];
+	if (!Store.get().map) return [];
 
 	const layers: Layer[] = [];
 
 	// Commit-diff overlay temporarily replaces the regular markers.
-	if (getMapState().workArea === "diff") {
+	if (Store.get().workArea === "diff") {
 		const diff = getCommitDiffPreview();
 		if (diff) {
 			for (const [kind, alpha] of [
@@ -174,7 +174,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	}
 
 	const livePolygonKeys = new Set<string>();
-	for (const sel of drawnPolygons(getMapState().selectionList)) {
+	for (const sel of drawnPolygons(Store.get().selectionList)) {
 		const poly = sel.selector.polygon;
 		const pieces = getPolygonFill(sel.key);
 		livePolygonKeys.add(sel.key);
@@ -259,7 +259,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
 	// active marker, which highlights whichever staged location is open — no per-index coloring.
-	if (getMapState().workArea === "import" || getMapState().open?.origin === "import") {
+	if (Store.get().workArea === "import" || Store.get().open?.origin === "import") {
 		const previewPos = getImportPreviewPositions();
 		if (previewPos.length > 0) {
 			layers.push(
@@ -292,7 +292,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// The open-location marker renders even with no committed locations so previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
-	const openLoc = getMapState().open?.location;
+	const openLoc = Store.get().open?.location;
 	if (openLoc) {
 		const openColor: RGBA = [...ctx.activeLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];

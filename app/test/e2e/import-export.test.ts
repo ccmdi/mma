@@ -47,14 +47,14 @@ describe("JSON import/export round-trip", () => {
 		locIds = await addLocs(locs);
 
 		const result = await withApi(async (api) => {
-			const map = api.getMapState().map!;
+			const map = api.Store.get().map!;
 			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				shape: "local",
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getTags()),
+				tagsJson: JSON.stringify(api.Tag.all()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -94,21 +94,21 @@ describe("JSON import/export round-trip", () => {
 		const ieLoc = await getLoc(locIds[0]);
 		await withApi(
 			async (api, loc, tag: { id: number; name: string; color: string }) => {
-				await api.updateLocations([{ id: loc.id, tags: [tag.id] }]);
+				await api.Location.update([{ id: loc.id, tags: [tag.id] }]);
 			},
 			ieLoc,
 			ieTag,
 		);
 
 		const result = await withApi(async (api) => {
-			const map = api.getMapState().map!;
+			const map = api.Store.get().map!;
 			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				shape: "local",
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getTags()),
+				tagsJson: JSON.stringify(api.Tag.all()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -129,14 +129,14 @@ describe("JSON import/export round-trip", () => {
 
 	it("export without zoom sets zoom to 0", async () => {
 		const result = await withApi(async (api) => {
-			const map = api.getMapState().map!;
+			const map = api.Store.get().map!;
 			const path = await api.cmd.storeExportJson({
 				exportZoom: false,
 				exportUnpanned: true,
 				shape: "local",
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getTags()),
+				tagsJson: JSON.stringify(api.Tag.all()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -150,18 +150,18 @@ describe("JSON import/export round-trip", () => {
 	it("export with exportUnpanned tweaks heading=0 to 0.001", async () => {
 		const hLoc = await getLoc(locIds[1]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, heading: 0 }]);
+			await api.Location.update([{ id: l.id, heading: 0 }]);
 		}, hLoc);
 
 		const result = await withApi(async (api) => {
-			const map = api.getMapState().map!;
+			const map = api.Store.get().map!;
 			const path = await api.cmd.storeExportJson({
 				exportZoom: true,
 				exportUnpanned: true,
 				shape: "local",
 				selector: { type: "Everything" },
 				mapName: map.name,
-				tagsJson: JSON.stringify(api.getTags()),
+				tagsJson: JSON.stringify(api.Tag.all()),
 				extraFieldsJson: null,
 			});
 			const res = await fetch(api.mmaBufUrl(path));
@@ -248,7 +248,7 @@ describe("GeoJSON export", () => {
 		const result = await withApi(async (api) => {
 			const path = await api.cmd.storeExportGeojson(
 				{ type: "Everything" },
-				JSON.stringify(api.getTags()),
+				JSON.stringify(api.Tag.all()),
 			);
 			const res = await fetch(api.mmaBufUrl(path));
 			const geojson = await res.text();

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { useMapState, exitPluginMode } from "@/store/useMapStore";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import { getPlugin } from "@/plugins/registry";
 import { isPluginEnabled } from "@/plugins/pluginHost";
 import { PluginBoundary } from "@/plugins/PluginBoundary";
@@ -9,8 +10,8 @@ import { useEvent } from "@/lib/events";
  *  plugin mode; keepAlive sidebars stay mounted after first open, hidden via
  *  display:none, so state living in DOM we don't own (e.g. iframes) survives. */
 export function PluginSidebarHost() {
-	const pluginId = useMapState((s) => s.activePluginId);
-	const inPluginMode = useMapState((s) => s.workArea) === "plugin";
+	const pluginId = Store.use((s) => s.activePluginId);
+	const inPluginMode = Store.use((s) => s.workArea) === "plugin";
 	useEvent("plugins:changed");
 	const [kept, setKept] = useState<string[]>([]);
 
@@ -30,14 +31,14 @@ export function PluginSidebarHost() {
 				return (
 					<div key={id} style={{ display: inPluginMode && id === pluginId ? "contents" : "none" }}>
 						<PluginBoundary pluginId={id}>
-							<KeptSidebar onClose={exitPluginMode} />
+							<KeptSidebar onClose={Editor.closePlugin} />
 						</PluginBoundary>
 					</div>
 				);
 			})}
 			{ActiveSidebar && (
 				<PluginBoundary pluginId={pluginId!}>
-					<ActiveSidebar onClose={exitPluginMode} />
+					<ActiveSidebar onClose={Editor.closePlugin} />
 				</PluginBoundary>
 			)}
 		</>

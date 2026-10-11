@@ -1,4 +1,7 @@
 import { useState, useCallback } from "react";
+import { Store } from "@/store/store";
+import { Location } from "@/store/location";
+import { Edit } from "@/store/edit";
 import {
 	Dialog,
 	DialogActions,
@@ -6,9 +9,6 @@ import {
 	type DialogProps,
 } from "@/components/primitives/Dialog";
 import { EmptyState } from "@/components/primitives/EmptyState";
-import { getMapState, previewDuplicateGroups } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
-
 import { toast } from "@/lib/util/toast";
 import { fmt, formatDistance } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
@@ -31,7 +31,7 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 	const { data: preview, loading } = useAsync<Preview | null>(async () => {
 		if (!open) return null;
 		try {
-			const groups = await previewDuplicateGroups(distance);
+			const groups = await Location.duplicateGroups(distance);
 			const total = groups.reduce((n, g) => n + g.length, 0);
 			const largest = groups.reduce((m, g) => Math.max(m, g.length), 0);
 			return { groups: groups.length, mergedAway: total - groups.length, largest };
@@ -44,12 +44,12 @@ export function MergeDuplicatesModal({ open, onOpenChange, distance }: Props) {
 	const handleMerge = useCallback(async () => {
 		setMerging(true);
 		try {
-			await edit.work(
+			await Edit.work(
 				{ type: "Everything" },
 				{
 					kind: "merge",
-					groups: await previewDuplicateGroups(distance),
-					score: getMapState().map?.settings.duplicateScore ?? null,
+					groups: await Location.duplicateGroups(distance),
+					score: Store.get().map?.settings.duplicateScore ?? null,
 				},
 			);
 			toast(

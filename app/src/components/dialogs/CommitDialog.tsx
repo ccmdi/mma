@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Commit } from "@/store/commit";
 import {
 	Dialog,
 	DialogActions,
@@ -8,7 +9,6 @@ import {
 } from "@/components/primitives/Dialog";
 import { DiffCounts } from "@/components/primitives/DiffCounts";
 import { TextInput } from "@/components/primitives/TextInput";
-import { commitMap } from "@/store/useMapStore";
 import { useCommitDiff } from "@/store/commitDiff";
 import { t } from "@/lib/i18n";
 
@@ -20,7 +20,7 @@ export function CommitDialog({ open, onOpenChange }: DialogProps) {
 			<DialogContent title={t("Commit changes")} size="sm" data-qa="commit-dialog">
 				<DialogForm
 					onSubmit={() => {
-						void commitMap(message.trim() || undefined);
+						void Commit.create(message.trim() || undefined);
 						onOpenChange(false);
 					}}
 				>

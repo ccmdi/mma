@@ -1,11 +1,11 @@
 import { useState, useMemo, useRef } from "react";
+import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { useAsync } from "@/lib/hooks/useAsync";
 import { log } from "@/lib/util/log";
 import { search } from "@/lib/search";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
-import { getMapState } from "@/store/useMapStore";
 import { toast } from "@/lib/util/toast";
 import { t } from "@/lib/i18n";
 
@@ -31,7 +31,7 @@ export function QuickCopyToMapDialog({
 		() =>
 			q
 				? search(maps ?? [], q, (m) => [m.name])
-						.filter((m) => m.id !== getMapState().mapId)
+						.filter((m) => m.id !== Store.get().mapId)
 						.slice(0, 8)
 				: [],
 		[maps, q],

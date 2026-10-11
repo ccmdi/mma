@@ -9,13 +9,16 @@ const h = vi.hoisted(() => ({
 	runs: 0,
 }));
 
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({
-		map: h.enrichMetadata
-			? { settings: { enrichMetadata: true, enrichFields: h.enrichFields } }
-			: null,
-	}),
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({
+			map: h.enrichMetadata
+				? { settings: { enrichMetadata: true, enrichFields: h.enrichFields } }
+				: null,
+		}),
+	},
 }));
+
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
 vi.mock("@/lib/data/procedures", () => ({
 	procedureEntry: (name: string) => `res://procedures/${name}.js`,

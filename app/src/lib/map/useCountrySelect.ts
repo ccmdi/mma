@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { applySelectionUpdate } from "@/store/useMapStore";
+import { SelectionList } from "@/store/selectionList";
 import { getSettings } from "@/store/settings";
 import { cmd } from "@/lib/commands";
 import { useHeldHotkeyClick } from "@/lib/map/useHeldHotkeyClick";
@@ -31,7 +31,7 @@ export async function selectBorderAt(lat: number, lng: number, subdivision: bool
 		}
 		geometry = await lookup();
 	}
-	if (geometry) await applySelectionUpdate(addSelection({ type: "Polygon", polygon: geometry }));
+	if (geometry) await SelectionList.update(addSelection({ type: "Polygon", polygon: geometry }));
 }
 
 export function useCountrySelect() {

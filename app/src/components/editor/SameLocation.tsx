@@ -1,14 +1,9 @@
 import { useMemo, useState, useCallback } from "react";
+import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
+import { Location } from "@/store/location";
+import { Tag } from "@/store/tag";
 import { Tooltip } from "@/components/primitives/Tooltip";
-import type { Location } from "@/bindings.gen";
-import {
-	useMapState,
-	openDuplicateLocation,
-	closeDuplicates,
-	removeDuplicate,
-	removeLocations,
-	getTags,
-} from "@/store/useMapStore";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { TagPill } from "@/components/primitives/TagPill";
 import { Button } from "@/components/primitives/Button";
@@ -71,8 +66,8 @@ function DuplicateItem({
 }
 
 export default function SameLocation() {
-	const locations = useMapState((s) => s.duplicateLocations);
-	const tagMap = useMapState(() => getTags());
+	const locations = Store.use((s) => s.duplicateLocations);
+	const tagMap = Store.use(() => Tag.all());
 
 	const [selected, setSelected] = useState<Set<number>>(() => new Set());
 
@@ -90,12 +85,12 @@ export default function SameLocation() {
 
 	const deleteSingle = useCallback(
 		(loc: Location) => {
-			void removeLocations(new Set([loc.id]));
-			removeDuplicate(loc.id);
+			void Location.remove(new Set([loc.id]));
+			Editor.removeDuplicate(loc.id);
 			const remaining = locations.filter((l) => l.id !== loc.id);
 			if (remaining.length <= 1) {
-				if (remaining.length === 1) openDuplicateLocation(remaining[0]);
-				else closeDuplicates();
+				if (remaining.length === 1) Editor.openDuplicate(remaining[0]);
+				else Editor.closeDuplicates();
 			}
 		},
 		[locations],
@@ -103,17 +98,17 @@ export default function SameLocation() {
 
 	const keepSelected = useCallback(() => {
 		const toDelete = new Set(locations.map((l) => l.id)).difference(selected);
-		void removeLocations(toDelete);
+		void Location.remove(toDelete);
 		const remaining = locations.find((l) => selected.has(l.id));
-		if (remaining) openDuplicateLocation(remaining);
-		else closeDuplicates();
+		if (remaining) Editor.openDuplicate(remaining);
+		else Editor.closeDuplicates();
 	}, [locations, selected]);
 
 	const deleteSelected = useCallback(() => {
-		void removeLocations(new Set(selected));
+		void Location.remove(new Set(selected));
 		const remaining = locations.find((l) => !selected.has(l.id));
-		if (remaining) openDuplicateLocation(remaining);
-		else closeDuplicates();
+		if (remaining) Editor.openDuplicate(remaining);
+		else Editor.closeDuplicates();
 	}, [locations, selected]);
 
 	return (
@@ -138,7 +133,7 @@ export default function SameLocation() {
 						selected={selected.has(loc.id)}
 						onDelete={() => deleteSingle(loc)}
 						onSelect={(checked) => toggleSelect(loc, checked)}
-						onClick={() => openDuplicateLocation(loc)}
+						onClick={() => Editor.openDuplicate(loc)}
 						tagMap={tagMap}
 					/>
 				))}
@@ -157,7 +152,7 @@ export default function SameLocation() {
 						{t("Delete selected")}
 					</Button>
 				</Tooltip>
-				<Button onClick={closeDuplicates}>{t("Cancel")}</Button>
+				<Button onClick={Editor.closeDuplicates}>{t("Cancel")}</Button>
 			</div>
 		</section>
 	);

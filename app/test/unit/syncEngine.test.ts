@@ -22,13 +22,20 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
-	settled: async (m: unknown) => {
-		h.mutations.push(m);
-		return h.settlement ?? Promise.resolve();
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
 	},
 }));
+vi.mock("@/store/mutation", () => ({
+	Mutation: {
+		settle: async (m: unknown) => {
+			h.mutations.push(m);
+			return h.settlement ?? Promise.resolve();
+		},
+	},
+}));
+
 vi.mock("@/lib/events", () => ({
 	emit: () => {},
 }));

@@ -38,12 +38,14 @@ vi.mock("@/lib/events", () => ({
 	},
 }));
 
-vi.mock("@/store/useMapStore", () => ({
-	getMapState: () => ({
-		open: h.openId == null ? null : { location: { id: h.openId } },
-		selectedLocationIds: h.selected,
-	}),
-	setSelectedLocationIds: () => {},
+vi.mock("@/store/store", () => ({
+	Store: {
+		get: () => ({
+			open: h.openId == null ? null : { location: { id: h.openId } },
+			selectedLocationIds: h.selected,
+		}),
+		setSelected: () => {},
+	},
 }));
 
 vi.mock("@/lib/util/debug", async (importOriginal) => ({

@@ -1,15 +1,10 @@
 import { useState, useMemo, useRef, useCallback, useOptimistic, startTransition } from "react";
-import type { Patch, Tag } from "@/types";
+import { SelectionList } from "@/store/selectionList";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
+import type { Patch } from "@/types";
 import { HslColorPicker } from "react-colorful";
-import {
-	deleteTags,
-	getMapState,
-	getVisibleTags,
-	useMapState,
-	getTagCounts,
-} from "@/store/useMapStore";
-import * as edit from "@/store/edit";
-import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagSelector } from "@/store/selections";
 import type { TagSortMode } from "@/types";
 import type { Selector } from "@/types";
@@ -54,7 +49,7 @@ import { useDialog } from "@/store/dialogBus";
 import { isAtOrUnder, leafSegment } from "@/lib/data/tagPaths";
 import { SearchInput } from "@/components/primitives/SearchInput";
 
-/** Preview order changes locally; persist them through `edit.values`. */
+/** Preview order changes locally; persist them through `Edit.values`. */
 
 // Stable identities: an inline default would be a new object each render, which
 // invalidates the tag tree's useMemo and re-renders every row.
@@ -62,9 +57,9 @@ const NO_VIRTUAL_TAGS = {};
 const NO_ALIASES = {};
 
 export function TagManager() {
-	const map = useMapState((s) => s.map);
-	const selectedTagIds = useMapState(getSelectedTagIds);
-	const tagCounts = useMapState(() => getTagCounts());
+	const map = Store.use((s) => s.map);
+	const selectedTagIds = Store.use(SelectionList.tagIds);
+	const tagCounts = Store.use(() => Tag.counts());
 	const tagViewMode = useSetting("tagViewMode");
 	const [filterText, setFilterText] = useState("");
 	const sortMode = useSetting("tagSortMode");
@@ -92,7 +87,7 @@ export function TagManager() {
 
 	// memoOnRefs keys this on the tag view, so the array identity is stable across
 	// selection toggles (which never touch tags) and fresh on any tag mutation.
-	const storeTags = useMapState(getVisibleTags);
+	const storeTags = Store.use(Tag.visible);
 
 	// Preview tag edits immediately, then drop the optimistic patches once
 	// the store has applied them.
@@ -112,7 +107,7 @@ export function TagManager() {
 		(updates: Patch<Tag>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
-				await edit.values(
+				await Edit.values(
 					"tags",
 					updates.map((put) => ({ put })),
 				);
@@ -180,7 +175,7 @@ export function TagManager() {
 	}, []);
 	const removeAlias = useCallback(
 		(aliasPath: string) => {
-			const next = { ...(getMapState().map?.settings.aliases ?? {}) };
+			const next = { ...(Store.get().map?.settings.aliases ?? {}) };
 			delete next[aliasPath];
 			setAliases(next);
 		},
@@ -189,7 +184,7 @@ export function TagManager() {
 	// Deletes the declared subtree (only reachable when no tags live under `path`).
 	const deleteFolder = useCallback(
 		(path: string) => {
-			const vt = getMapState().map?.settings.virtualTags ?? {};
+			const vt = Store.get().map?.settings.virtualTags ?? {};
 			const next: Record<string, VirtualTag> = {};
 			for (const [k, v] of Object.entries(vt)) {
 				if (!isAtOrUnder(k, path)) next[k] = v;
@@ -397,11 +392,11 @@ function RenameTagsDialog({
 	const [name, setName] = useState(initialName);
 
 	const moveInto = async (trimmed: string) => {
-		const [target] = (await edit.values("tags", [{ set: { id: 0, name: trimmed } }])).mutation.keys;
+		const [target] = (await Edit.values("tags", [{ set: { id: 0, name: trimmed } }])).mutation.keys;
 		const sources = tagIds.filter((id) => id !== target);
 		if (sources.length === 0) return;
 		const carriers = any(...sources.map(tagSelector));
-		await edit.work(scope ? all(carriers, scope) : carriers, {
+		await Edit.work(scope ? all(carriers, scope) : carriers, {
 			kind: "listSet",
 			key: "tags",
 			add: [target],
@@ -460,7 +455,7 @@ function EditTagDialog({
 	const holderAction = holder?.action;
 	const holderTag =
 		holderAction?.type === "applyTag"
-			? getVisibleTags().find((t) => t.id === holderAction.tagId)
+			? Tag.visible().find((t) => t.id === holderAction.tagId)
 			: undefined;
 
 	const handleSave = () => {
@@ -514,7 +509,7 @@ function EditTagDialog({
 						destructive={{
 							label: t("Delete"),
 							onClick: () => {
-								void deleteTags([tag.id]);
+								void Tag.remove([tag.id]);
 								close();
 							},
 							"data-qa": "tag-delete",

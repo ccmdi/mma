@@ -1,26 +1,24 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
+import { Store } from "@/store/store";
+import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
-import { getMapState, setMap } from "@/store/useMapStore";
-import * as autosave from "@/store/autosave";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { normalizeGeneratorSettings } from "@/plugins/generator/engine/types";
 import { mount, type Mounted } from "./fixtures/harness";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/lib/sv/opensv", () => ({ google: {} }));
-vi.mock("@/store/mapList", () => ({
-	setCachedMapList: vi.fn(),
-	invalidateMapList: vi.fn(async () => {}),
-	reloadMapList: vi.fn(async () => {}),
+vi.mock("@/store/maps", () => ({
+	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeSetDerived: async () => null,
 		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
-			const state = getMapState();
-			if (state.map && state.mapId === patch.id) setMap({ ...state.map, ...patch });
+			const state = Store.get();
+			if (state.map && state.mapId === patch.id) Store.setMeta({ ...state.map, ...patch });
 			return null;
 		}),
 		storeSaveDirty: vi.fn(async () => null),
@@ -34,12 +32,12 @@ const { GeneratorSidebar } = await import("@/plugins/generator/ui/GeneratorSideb
 const SHARED_KEY = "mma_plugin:map-generator";
 
 function openMap(id: string, settings: MapMeta["settings"] = {}) {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = id;
 	s.map = { id, settings };
 }
 
-const ownProject = () => getMapState().map?.settings.pluginData?.["map-generator"];
+const ownProject = () => Store.get().map?.settings.pluginData?.["map-generator"];
 
 function sidebar(): Mounted {
 	return mount(<GeneratorSidebar onClose={() => {}} />);
@@ -61,8 +59,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	await autosave.flush();
-	const s = getMapState() as Record<string, unknown>;
+	await Autosave.flush();
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
 });

@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act } from "react";
+import { Store } from "@/store/store";
+import { Autosave } from "@/store/autosave";
 import type { MapMeta } from "@/bindings.gen";
-import { getMapState, setMap } from "@/store/useMapStore";
-import * as autosave from "@/store/autosave";
 import { mount, type Mounted } from "./fixtures/harness";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@tauri-apps/api/event", () => ({ listen: vi.fn(async () => () => {}) }));
-vi.mock("@/store/mapList", () => ({
-	setCachedMapList: vi.fn(),
-	invalidateMapList: vi.fn(async () => {}),
-	reloadMapList: vi.fn(async () => {}),
+vi.mock("@/store/maps", () => ({
+	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		valiDataStatus: vi.fn(async () => []),
 		storeUpdateMapMeta: vi.fn(async (patch: Partial<MapMeta>) => {
-			const state = getMapState();
-			if (state.map && state.mapId === patch.id) setMap({ ...state.map, ...patch });
+			const state = Store.get();
+			if (state.map && state.mapId === patch.id) Store.setMeta({ ...state.map, ...patch });
 			return null;
 		}),
 		storeSaveDirty: vi.fn(async () => null),
@@ -28,12 +26,12 @@ vi.mock("@/lib/commands", () => ({
 const { ValiSidebar } = await import("@/plugins/vali/ui/ValiSidebar");
 
 function openMap(settings: MapMeta["settings"] = {}) {
-	const s = getMapState() as Record<string, unknown>;
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = "a";
 	s.map = { id: "a", settings };
 }
 
-const ownProject = () => getMapState().map?.settings.pluginData?.vali?.project;
+const ownProject = () => Store.get().map?.settings.pluginData?.vali?.project;
 
 let view: Mounted;
 let toGui: ReturnType<typeof vi.fn>;
@@ -57,8 +55,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-	await autosave.flush();
-	const s = getMapState() as Record<string, unknown>;
+	await Autosave.flush();
+	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
 });

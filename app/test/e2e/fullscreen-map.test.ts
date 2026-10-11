@@ -139,7 +139,7 @@ describe("Fullscreen map mode", () => {
 		await waitForFullscreenMap(false);
 		await waitForPanoFullscreen(true);
 
-		await withApi(async (api, id) => api.removeLocations(new Set([id])), locA);
+		await withApi(async (api, id) => api.Location.remove(new Set([id])), locA);
 		await waitForActive(null);
 		await waitForWorkArea("overview");
 		await waitForFullscreenMap(true);

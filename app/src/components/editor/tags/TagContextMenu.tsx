@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { Store } from "@/store/store";
+import { Query } from "@/store/query";
+import { Tag } from "@/store/tag";
+import { SelectionList } from "@/store/selectionList";
+import { Edit } from "@/store/edit";
 import type { Selection } from "@/bindings.gen";
-import { read, deleteTags, getActiveSelections, useMapState } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
-import { getSelectedTagIds } from "@/store/selectionActions";
 import { all, any, tagIdOf, tagSelector } from "@/store/selections";
 import { MenuItem, MenuPopup } from "@/components/primitives/Menu";
 import { t } from "@/lib/i18n";
@@ -27,7 +29,7 @@ function selectionWithout(tagIds: readonly number[]): { type: "Union"; selection
 	const skip = new Set(tagIds);
 	return {
 		type: "Union",
-		selections: getActiveSelections().filter((s) => !skip.has(tagIdOf(s.selector) ?? -1)),
+		selections: SelectionList.active().filter((s) => !skip.has(tagIdOf(s.selector) ?? -1)),
 	};
 }
 
@@ -48,7 +50,7 @@ function TagContextMenuItems({
 }: TagContextMenuProps) {
 	const tagId = node.tag?.id ?? null;
 	const isFolder = !isLeafTag(node);
-	const selectedTagIds = useMapState(getSelectedTagIds);
+	const selectedTagIds = Store.use(SelectionList.tagIds);
 	const targets = useMemo(() => menuTargetTagIds(node, selectedTagIds), [node, selectedTagIds]);
 	const nodeTargets = useMemo(() => [...new Set(node.subtreeTagIds)], [node]);
 	const multi = targets.length > nodeTargets.length;
@@ -59,11 +61,11 @@ function TagContextMenuItems({
 		const scope = selectionWithout(targets);
 		const nodeScope = selectionWithout(nodeTargets);
 		void Promise.all([
-			read(carriers, { kind: "count" }),
-			tagId == null ? 0 : read(tagSelector(tagId), { kind: "count" }),
-			scope.selections.length > 0 ? read(all(carriers, scope), { kind: "count" }) : 0,
+			Query.read(carriers, { kind: "count" }),
+			tagId == null ? 0 : Query.read(tagSelector(tagId), { kind: "count" }),
+			scope.selections.length > 0 ? Query.read(all(carriers, scope), { kind: "count" }) : 0,
 			multi && nodeTargets.length > 0 && nodeScope.selections.length > 0
-				? read(all(any(...nodeTargets.map(tagSelector)), nodeScope), { kind: "count" })
+				? Query.read(all(any(...nodeTargets.map(tagSelector)), nodeScope), { kind: "count" })
 				: 0,
 		]).then(([total, own, inSel, nodeInSel]) => setCounts({ total, own, inSel, nodeInSel }));
 	}, [tagId, targets, nodeTargets, multi]);
@@ -72,7 +74,7 @@ function TagContextMenuItems({
 		<>
 			{targets.length > 0 && (
 				<>
-					<MenuItem tone="destructive" onClick={() => void deleteTags(targets)}>
+					<MenuItem tone="destructive" onClick={() => void Tag.remove(targets)}>
 						{multi
 							? t(
 									{
@@ -90,7 +92,7 @@ function TagContextMenuItems({
 								)}
 					</MenuItem>
 					{!multi && tagId != null && nodeTargets.length > 1 && (
-						<MenuItem tone="destructive" onClick={() => void deleteTags([tagId])}>
+						<MenuItem tone="destructive" onClick={() => void Tag.remove([tagId])}>
 							{t(
 								{
 									one: "Remove this tag only ({n} location)",
@@ -104,7 +106,7 @@ function TagContextMenuItems({
 						tone="destructive"
 						disabled={counts.inSel === 0}
 						onClick={() =>
-							void edit.work(selectionWithout(targets), {
+							void Edit.work(selectionWithout(targets), {
 								kind: "listSet",
 								key: "tags",
 								add: [],
@@ -133,7 +135,7 @@ function TagContextMenuItems({
 							tone="destructive"
 							disabled={counts.nodeInSel === 0}
 							onClick={() =>
-								void edit.work(selectionWithout(nodeTargets), {
+								void Edit.work(selectionWithout(nodeTargets), {
 									kind: "listSet",
 									key: "tags",
 									add: [],

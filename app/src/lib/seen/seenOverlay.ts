@@ -1,9 +1,9 @@
 // Toggle the seen-pano overlay and keep its data current.
 // The shared map scene renders its dots and handles picking.
-
+import { Query } from "@/store/query";
+import { Editor } from "@/store/editor";
 import { log } from "@/lib/util/log";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
-import { read, openLocation, previewLocation } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { getSeenCount, getSeenEntries } from "./seen";
@@ -44,7 +44,7 @@ export function getSeenOnMapIds(): ReadonlySet<number> {
 async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
 	const locIds = [...new Set(list.map((e) => e.locationId).filter((x): x is number => x != null))];
 	if (locIds.length === 0) return new Set();
-	const onMap = await read(
+	const onMap = await Query.read(
 		{ type: "Locations", locations: locIds, name: null },
 		{ kind: "locations" },
 	);
@@ -86,12 +86,12 @@ export async function openSeenEntry(index: number): Promise<void> {
 	if (!entry) return;
 	seenSkipNext(entry.panoId);
 	if (entry.locationId != null) {
-		const [existing] = await read(
+		const [existing] = await Query.read(
 			{ type: "Locations", locations: [entry.locationId], name: null },
 			{ kind: "locations" },
 		);
 		if (existing && existing.panoId === entry.panoId) {
-			void openLocation(existing.id);
+			void Editor.open(existing.id);
 			return;
 		}
 	}
@@ -105,7 +105,7 @@ export async function openSeenEntry(index: number): Promise<void> {
 		extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
 	});
 	preview.flags = LocationFlag.LoadAsPanoId; // resolve the exact pano, not nearest coverage
-	previewLocation(preview);
+	Editor.preview(preview);
 }
 
 onEvent("map:close", () => {

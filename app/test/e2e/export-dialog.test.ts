@@ -42,7 +42,7 @@ describe("Export dialog settings persistence", () => {
 		expect(await settingStates()).toEqual({ zoom: true, shape: "geoguessr", unpanned: false });
 		await closeExportDialog();
 
-		const settings = await withApi(async (api) => api.getMapState().map!.settings);
+		const settings = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settings.exportZoom).toBe(true);
 		expect(settings.exportShape).toBe("geoguessr");
 		expect(settings.exportUnpanned).toBe(false);

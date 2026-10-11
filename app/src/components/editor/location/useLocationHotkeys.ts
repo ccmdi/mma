@@ -5,15 +5,11 @@ import {
 	type RefObject,
 	type SetStateAction,
 } from "react";
-import type { Location } from "@/bindings.gen";
-import {
-	getMapState,
-	getVisibleTags,
-	addLocations,
-	useMapState,
-	getTagCounts,
-} from "@/store/useMapStore";
-import * as edit from "@/store/edit";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
+import { Tag } from "@/store/tag";
+import { Location } from "@/store/location";
+import { Edit } from "@/store/edit";
 import { sortTagsByMode } from "@/lib/data/tags";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
@@ -22,7 +18,6 @@ import { followLinkedPanos } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
 import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
-import { getMapList } from "@/store/mapList";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
 import { cycle } from "@/types/util";
@@ -49,7 +44,7 @@ interface LocationHotkeyDeps {
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const { draft, timeline } = usePanoViewer();
 	const pano = usePano();
-	const location = useMapState((s) => s.open?.location ?? null);
+	const location = Store.use((s) => s.open?.location ?? null);
 	const isReviewMode = useReviewSession() !== null;
 	const {
 		pendingTags,
@@ -131,7 +126,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const live = pano.capture();
 		if (!live) return null;
 		const { keys: tags } = (
-			await edit.values(
+			await Edit.values(
 				"tags",
 				pendingTags.map((name) => ({ set: { id: 0, name } })),
 			)
@@ -142,7 +137,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	useHotkey(useBinding("duplicateLocation"), () => {
 		void buildDrop().then(async (drop) => {
 			if (!drop) return;
-			await addLocations([drop]);
+			await Location.add([drop]);
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			if (container) toast(t("Marker dropped"), 1200, container);
 		});
@@ -174,7 +169,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (container) toast(t("Following road..."), 1500, container);
 		followLinkedPanos(panoId, heading)
 			.then((locs) => {
-				if (locs.length > 0) void addLocations(locs);
+				if (locs.length > 0) void Location.add(locs);
 				if (container)
 					toast(
 						t({ one: "Added {n} location", other: "Added {n} locations" }, { n: locs.length }),
@@ -198,8 +193,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	const quicktagSlot = (idx: number) => {
-		if (!location || !getMapState().map) return;
-		const tags = sortTagsByMode(getVisibleTags(), getSettings().tagSortMode, getTagCounts());
+		if (!location || !Store.get().map) return;
+		const tags = sortTagsByMode(Tag.visible(), getSettings().tagSortMode, Tag.counts());
 		if (idx >= tags.length) return;
 		const tag = tags[idx];
 		const has = pendingTags.includes(tag.name);
@@ -207,9 +202,9 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	};
 
 	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
-		const active = getMapState().open?.location;
+		const active = Store.get().open?.location;
 		if (!active) return false;
-		const tag = getVisibleTags().find((t) => t.id === tagId);
+		const tag = Tag.visible().find((t) => t.id === tagId);
 		if (!tag) return false;
 		setPendingTags((cur) =>
 			cur.includes(tag.name) ? cur.filter((t) => t !== tag.name) : [...cur, tag.name],
@@ -226,7 +221,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!hasLocation) return;
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
 		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
-			const loc = getMapState().open?.location;
+			const loc = Store.get().open?.location;
 			if (!loc) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();
@@ -234,7 +229,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 				.then((res) => {
 					log.debug(`[copyToMap] ipc=${Math.round(performance.now() - t0)}ms`);
 					if (!res || !container) return;
-					const name = getMapList().find((m) => m.id === mapId)?.name ?? "";
+					const name = Maps.list().find((m) => m.id === mapId)?.name ?? "";
 					toast(
 						res.copied > 0 ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
 						1500,

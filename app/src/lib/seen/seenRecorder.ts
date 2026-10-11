@@ -1,14 +1,16 @@
+import { Store } from "@/store/store";
+import { Location } from "@/store/location";
+import { Query } from "@/store/query";
+import { Editor } from "@/store/editor";
 import { cmd } from "@/lib/commands";
 import type { PanoViewer } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
-import { addLocations, getMapState, read, openLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
 import { wrapDeg } from "@/lib/geo/geo";
 import { createLocation, type LocationPOV } from "@/types";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
-
-import type { Location, SeenEntry } from "@/bindings.gen";
+import type { SeenEntry } from "@/bindings.gen";
 
 type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> &
 	Nullable<Rename<Pick<Location, "id">, { id: "locationId" }>>;
@@ -60,7 +62,7 @@ export function seenPanoChanged(
 	staged = {
 		...location,
 		enteredAt: Date.now(),
-		mapId: getMapState().mapId,
+		mapId: Store.get().mapId,
 		countryCode: geo?.countryCode || null,
 		address: geo?.address || null,
 	};
@@ -92,7 +94,7 @@ export async function seenRecord(location: PendingEntryLocation & LocationPOV, v
 	const entry: PendingEntry = {
 		...at,
 		enteredAt: Date.now(),
-		mapId: getMapState().mapId,
+		mapId: Store.get().mapId,
 		countryCode: null,
 		address: null,
 	};
@@ -156,7 +158,7 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 
 	const [fetched] =
 		entry.locationId != null
-			? await read(
+			? await Query.read(
 					{ type: "Locations", locations: [entry.locationId], name: null },
 					{ kind: "locations" },
 				)
@@ -164,9 +166,9 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
 
 	if (existing) {
-		const active = getMapState().open?.location;
+		const active = Store.get().open?.location;
 		if (active?.id !== existing.id) {
-			await openLocation(existing.id);
+			await Editor.open(existing.id);
 			return;
 		}
 	} else {
@@ -179,8 +181,8 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 			panoId: entry.panoId,
 			extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
 		});
-		await addLocations([loc]);
-		await openLocation(loc.id, false);
+		await Location.add([loc]);
+		await Editor.open(loc.id, false);
 		return;
 	}
 

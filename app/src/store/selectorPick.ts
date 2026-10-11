@@ -1,7 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { Store } from "@/store/store";
 import type { Selector } from "@/types";
-
-import { useMapState } from "./useMapStore";
 
 /** What the selector picker offers. Not a location set -- `selectorForPick` turns it
  *  into a `Selector`. */
@@ -34,8 +33,8 @@ function defaultChoice(selectionCount: number): SelectorPick {
 /** React hook: selector state with live counts. Defaults to the current selection when one
  *  exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector. */
 export function useSelectorPick(initial?: SelectorPick): SelectorPickController {
-	const selectedIds = useMapState((s) => s.selectedLocationIds);
-	const allCount = useMapState((s) => s.locationCount);
+	const selectedIds = Store.use((s) => s.selectedLocationIds);
+	const allCount = Store.use((s) => s.locationCount);
 	const [choice, setChoice] = useState<SelectorPick>(
 		() => initial ?? defaultChoice(selectedIds.size),
 	);
@@ -75,8 +74,8 @@ export function createSelectorPick(initial?: SelectorPick): SelectorPickHandle {
 		subscribe: sub,
 		use(): SelectorPickController {
 			const current = useSyncExternalStore(sub, getChoice);
-			const selectedIds = useMapState((s) => s.selectedLocationIds);
-			const allCount = useMapState((s) => s.locationCount);
+			const selectedIds = Store.use((s) => s.selectedLocationIds);
+			const allCount = Store.use((s) => s.locationCount);
 			const selector = useMemo(() => selectorForPick(current), [current]);
 			return {
 				selector,

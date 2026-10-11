@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useMapState } from "@/store/useMapStore";
+import { Store } from "@/store/store";
 import { getSettings } from "@/store/settings";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
 import { isPanoFallback } from "@/lib/sv/lookup";
@@ -13,7 +13,7 @@ import { t } from "@/lib/i18n";
 /** The pano session for the open location: resolve and show its pano, feed viewer walks
  *  into the draft and the trail. */
 export function usePanoSession() {
-	const opened = useMapState((s) => s.open);
+	const opened = Store.use((s) => s.open);
 	const location = opened?.location ?? null;
 	const { edit, open } = usePanoViewer();
 	const pano = usePano();

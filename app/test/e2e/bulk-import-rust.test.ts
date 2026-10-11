@@ -83,7 +83,7 @@ describe("Rust bulk import — confirm and verify", () => {
 		const result = await withApi(async (api, p) => {
 			await api.cmd.bulkImportPreview(p);
 			const imported = await api.cmd.bulkImportConfirm(p, [0, 1, 2, 3, 4, 5]);
-			await api.invalidateMapList();
+			await api.Maps.invalidate();
 			return imported;
 		}, FIXTURE_ZIP);
 
@@ -128,7 +128,7 @@ describe("Rust bulk import — confirm and verify", () => {
 			const locs = await api.fetchAllLocations();
 			return {
 				locationCount: locCount,
-				tagCount: Object.keys(api.getTags()).length,
+				tagCount: Object.keys(api.Tag.all()).length,
 				firstLat: locs[0]?.lat,
 			};
 		});
@@ -141,7 +141,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported tags have correct colors", async () => {
 		const result = await withApi(async (api) => {
-			const tags = Object.values(api.getTags());
+			const tags = Object.values(api.Tag.all());
 			return tags.map((t: Tag) => ({ name: t.name, color: t.color }));
 		});
 
@@ -155,7 +155,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("location tag references resolve to valid tags", async () => {
 		const result = await withApi(async (api) => {
-			const tagIds = new Set(Object.keys(api.getTags()));
+			const tagIds = new Set(Object.keys(api.Tag.all()));
 			const locs = await api.fetchAllLocations();
 			const tagged = locs.filter((l) => l.tags.length > 0);
 			const orphaned = tagged.filter((l) => l.tags.some((id) => !tagIds.has(String(id))));
@@ -168,7 +168,7 @@ describe("Rust bulk import — confirm and verify", () => {
 
 	it("imported locations survive save/load cycle", async () => {
 		const result = await withApi(async (api) => {
-			const id = api.getMapState().mapId!;
+			const id = api.Store.get().mapId!;
 			const beforeCount = (
 				(await api.cmd.storeSummary()) as {
 					locationCount: number;
@@ -179,7 +179,7 @@ describe("Rust bulk import — confirm and verify", () => {
 			const beforeLocs = await api.fetchAllLocations();
 			const beforeFirst = beforeLocs[0];
 
-			await api.autosave.flush();
+			await api.Autosave.flush();
 			await api._test.closeMap();
 			await api._test.openMap(id);
 
@@ -224,7 +224,7 @@ describe("Rust bulk import — selective import", () => {
 		const importedCount = await withApi(async (api, p) => {
 			await api.cmd.bulkImportPreview(p);
 			const imported = await api.cmd.bulkImportConfirm(p, [0, 2]);
-			await api.invalidateMapList();
+			await api.Maps.invalidate();
 			return imported.length;
 		}, FIXTURE_ZIP);
 

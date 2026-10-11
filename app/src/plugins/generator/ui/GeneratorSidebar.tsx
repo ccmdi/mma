@@ -3,8 +3,9 @@ import type { GeneratorSettings, GeneratorRegion, GeneratorRegionMeta } from "..
 import { GENERATION_CAMERA_TYPE, normalizeGeneratorSettings } from "../engine/types";
 import { RegionSelector } from "./RegionSelector";
 import { SettingsPanel } from "./SettingsPanel";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
 import { google } from "@/lib/sv/opensv";
-import { applySelectionUpdate, getActiveSelections, useMapState } from "@/store/useMapStore";
 import { addSelection } from "@/store/selections";
 import { usePluginEvent } from "@/plugins/pluginEvents";
 import type { Selection } from "@/bindings.gen";
@@ -259,7 +260,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	const status = usePluginEvent(GENERATOR_CHANGED, getGeneratorStatus);
 	const running = status !== "idle";
 	const paused = status === "paused";
-	const selections = useMapState(getActiveSelections);
+	const selections = Store.use(SelectionList.active);
 
 	useEffect(() => {
 		sessionMeta = meta;
@@ -290,7 +291,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	const handleStart = useCallback(() => {
-		const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
+		const sels = SelectionList.active().filter((s) => s.selector.type === "Polygon");
 		if (sels.length === 0) return;
 		if (!google) return;
 
@@ -316,7 +317,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			pauseGeneration();
 			return;
 		}
-		const sels = getActiveSelections().filter((s) => s.selector.type === "Polygon");
+		const sels = SelectionList.active().filter((s) => s.selector.type === "Polygon");
 		const nextMeta = new Map(sessionMeta);
 		const desired: GeneratorRegion[] = [];
 		for (const sel of sels) {
@@ -335,7 +336,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 	}, [paused, settings.defaultTarget]);
 
 	const handleExport = useCallback(() => {
-		const polygons = getActiveSelections().flatMap((s) =>
+		const polygons = SelectionList.active().flatMap((s) =>
 			s.selector.type === "Polygon" ? [s.selector.polygon] : [],
 		);
 		const preset = writeGeneratorPreset(settings, tagName, polygons);
@@ -361,7 +362,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 			setTagName(preset.tagName);
 			saveProject("tagName", preset.tagName);
 		}
-		await applySelectionUpdate(
+		await SelectionList.update(
 			addSelection(...preset.polygons.map((polygon) => ({ type: "Polygon" as const, polygon }))),
 		);
 	}, [updateSettings]);

@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import { Editor } from "@/store/editor";
+import { Query } from "@/store/query";
 import type { Answer, Ask, Location, PartitionBucket, CountBy } from "@/bindings.gen";
 
 const h = vi.hoisted(() => ({ read: vi.fn() }));
@@ -7,8 +9,6 @@ vi.mock("@/lib/commands", async () => {
 	return cmdProxy({ storeRead: h.read });
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-
-import { read, VIEWER } from "@/store/useMapStore";
 import { createLocation } from "@/types";
 
 const selector = { type: "Everything" } as const;
@@ -80,41 +80,43 @@ describe("read payloads", () => {
 		"returns the $name answer payload",
 		async ({ ask, answer, expected }) => {
 			h.read.mockResolvedValue(answer);
-			await expect(read(selector, ask as Ask)).resolves.toEqual(expected);
+			await expect(Query.read(selector, ask as Ask)).resolves.toEqual(expected);
 		},
 	);
 	it("infers payloads from literal and union requests", async () => {
 		h.read.mockResolvedValue({ kind: "count", count: 0 } satisfies Answer);
-		const count = read(selector, { kind: "count" });
+		const count = Query.read(selector, { kind: "count" });
 		expectTypeOf(count).toEqualTypeOf<Promise<number>>();
 		expect(await count).toBe(0);
-		expectTypeOf<ReturnType<typeof read<{ kind: "ids" }>>>().toEqualTypeOf<Promise<number[]>>();
-		expectTypeOf<ReturnType<typeof read<{ kind: "locations" }>>>().toEqualTypeOf<
+		expectTypeOf<ReturnType<typeof Query.read<{ kind: "ids" }>>>().toEqualTypeOf<
+			Promise<number[]>
+		>();
+		expectTypeOf<ReturnType<typeof Query.read<{ kind: "locations" }>>>().toEqualTypeOf<
 			Promise<Location[]>
 		>();
-		expectTypeOf<ReturnType<typeof read<Extract<Ask, { kind: "groupBy" }>>>>().toEqualTypeOf<
+		expectTypeOf<ReturnType<typeof Query.read<Extract<Ask, { kind: "groupBy" }>>>>().toEqualTypeOf<
 			Promise<PartitionBucket[]>
 		>();
-		expectTypeOf<ReturnType<typeof read<Extract<Ask, { kind: "countBy" }>>>>().toEqualTypeOf<
+		expectTypeOf<ReturnType<typeof Query.read<Extract<Ask, { kind: "countBy" }>>>>().toEqualTypeOf<
 			Promise<CountBy[]>
 		>();
-		expectTypeOf<ReturnType<typeof read<Extract<Ask, { kind: "nearAny" }>>>>().toEqualTypeOf<
+		expectTypeOf<ReturnType<typeof Query.read<Extract<Ask, { kind: "nearAny" }>>>>().toEqualTypeOf<
 			Promise<boolean[]>
 		>();
 		// Keep the request statically a union while choosing a deterministic runtime branch.
 		const ask = (): Extract<Ask, { kind: "count" | "bounds" }> => ({ kind: "bounds" });
 		h.read.mockResolvedValue({ kind: "bounds", bounds: null });
-		const union = read(selector, ask());
+		const union = Query.read(selector, ask());
 		expectTypeOf(union).toEqualTypeOf<Promise<number | [number, number, number, number] | null>>();
 		await expect(union).resolves.toBeNull();
 	});
 
 	it("preserves multiple payload fields and forwards the pending target", async () => {
 		h.read.mockResolvedValue({ kind: "spacing", ids: [2, 8], spacingM: 75 } satisfies Answer);
-		const picked = read(selector, { kind: "spacing" }, VIEWER);
+		const picked = Query.read(selector, { kind: "spacing" }, Editor.VIEWER);
 		expectTypeOf(picked).toEqualTypeOf<Promise<{ ids: number[]; spacingM: number }>>();
 		expect(await picked).toEqual({ ids: [2, 8], spacingM: 75 });
-		expect(h.read).toHaveBeenCalledWith(VIEWER, selector, { kind: "spacing" });
+		expect(h.read).toHaveBeenCalledWith(Editor.VIEWER, selector, { kind: "spacing" });
 	});
 
 	it("loads inline and file-backed rows through the same public read", async () => {
@@ -123,20 +125,20 @@ describe("read payloads", () => {
 			kind: "locations",
 			locations: { kind: "inline", locations: rows },
 		} satisfies Answer);
-		expect(await read(selector, { kind: "locations" })).toEqual(rows);
+		expect(await Query.read(selector, { kind: "locations" })).toEqual(rows);
 		const fetch = vi.fn(async () => ({ json: async () => rows }));
 		vi.stubGlobal("fetch", fetch);
 		h.read.mockResolvedValue({
 			kind: "locations",
 			locations: { kind: "file", path: "read-test.json" },
 		} satisfies Answer);
-		expect(await read(selector, { kind: "locations" })).toEqual(rows);
+		expect(await Query.read(selector, { kind: "locations" })).toEqual(rows);
 		expect(fetch).toHaveBeenCalledOnce();
 	});
 
 	it("rejects a mismatched answer rather than returning the wrong payload", async () => {
 		h.read.mockResolvedValue({ kind: "ids", ids: [] } satisfies Answer);
-		await expect(read(selector, { kind: "count" })).rejects.toThrow(
+		await expect(Query.read(selector, { kind: "count" })).rejects.toThrow(
 			"read answered ids, expected count",
 		);
 	});

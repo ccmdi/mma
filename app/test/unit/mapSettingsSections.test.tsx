@@ -4,8 +4,8 @@ import { act } from "react";
 import type { MapMeta } from "@/bindings.gen";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
-vi.mock("@/store/useMapStore", () => ({ patchMapMeta: vi.fn() }));
-vi.mock("@/store/mapList", () => ({ deleteMap: vi.fn() }));
+
+vi.mock("@/store/maps", () => ({ Maps: { remove: vi.fn() } }));
 vi.mock("@/store/settings", () => ({
 	useSetting: () => ({}),
 	setSetting: vi.fn(),

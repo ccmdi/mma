@@ -33,7 +33,7 @@ const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
 async function getMapMeta(): Promise<any> {
 	return withApi(async (api) => {
-		return api.getMapState().map ?? null;
+		return api.Store.get().map ?? null;
 	});
 }
 
@@ -164,7 +164,7 @@ describe("Enrichment — single location via preview", () => {
 		// field a provider produces is not derived again, so the gap is what makes it run.
 		const dtLoc = await readLocation(enrichExistingMetaId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([
+			await api.Location.update([
 				{
 					id: l.id,
 					extra: {
@@ -257,7 +257,7 @@ describe("Enrichment — respects enrichFields setting", () => {
 		// Clear existing extra
 		const clearLoc = await readLocation(fieldsSelectiveId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: null }]);
+			await api.Location.update([{ id: l.id, extra: null }]);
 			return "ok";
 		}, clearLoc);
 
@@ -331,9 +331,9 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			],
 		});
 		await withApi(async (api, countryCode) => {
-			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.edit.meta({
-				extra: { ...api.getMapState().map!.extra, fields: { ...cur, countryCode } },
+			const cur = api.Store.get().map!.extra?.fields ?? {};
+			await api.Edit.meta({
+				extra: { ...api.Store.get().map!.extra, fields: { ...cur, countryCode } },
 			});
 			return "ok";
 		}, countryCode);
@@ -341,7 +341,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		// Clear extra and re-enrich
 		const defLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: null }]);
+			await api.Location.update([{ id: l.id, extra: null }]);
 			return "ok";
 		}, defLoc);
 
@@ -360,7 +360,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("extra patches auto-register known field keys", async () => {
 		const patchLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { datetime: 1700000000 } }]);
+			await api.Location.update([{ id: l.id, extra: { datetime: 1700000000 } }]);
 			return "ok";
 		}, patchLoc);
 
@@ -386,7 +386,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 	it("unknown extra fields get auto-registered as known keys", async () => {
 		const customLoc = await readLocation(defsAutoId);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, extra: { randomCustomThing: "hello" } }]);
+			await api.Location.update([{ id: l.id, extra: { randomCustomThing: "hello" } }]);
 			return "ok";
 		}, customLoc);
 
@@ -633,16 +633,16 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			imageDate: createFieldDef("month", { label: "Image date" }),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.getMapState().map!.extra?.fields ?? {};
-			await api.edit.meta({
-				extra: { ...api.getMapState().map!.extra, fields: { ...cur, ...defs } },
+			const cur = api.Store.get().map!.extra?.fields ?? {};
+			await api.Edit.meta({
+				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
 			});
 			return "ok";
 		}, defs);
 	});
 	it("numeric filter (altitude > 75) selects correct locations", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate(
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -659,8 +659,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string equality filter (countryCode = US) selects correct location", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
-			await api.applySelectionUpdate(
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "countryCode",
@@ -677,8 +677,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("between filter (altitude 60-150) selects correct location", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
-			await api.applySelectionUpdate(
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "altitude",
@@ -695,8 +695,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("string inequality filter (countryCode != US)", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
-			await api.applySelectionUpdate(
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "countryCode",
@@ -713,8 +713,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("month comparison filter (imageDate >= 2024-01)", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
-			await api.applySelectionUpdate(
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "imageDate",
@@ -730,8 +730,8 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 
 	it("filter on missing field excludes locations without it", async () => {
 		await withApi(async (api) => {
-			await api.applySelectionUpdate({ kind: "set", selections: [] });
-			await api.applySelectionUpdate(
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(
 				api.addSelection({
 					type: "Filter",
 					field: "imageDate",

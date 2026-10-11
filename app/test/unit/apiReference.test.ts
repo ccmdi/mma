@@ -8,7 +8,7 @@ const apiMd = readFileSync(join(__dirname, "../../../plugins/types/API.md"), "ut
 
 describe("the generated API reference", () => {
 	it("dates a member by the first release that shipped it", () => {
-		expect(apiMd).toMatch(/^### addLocations\n\n`stable` · since v0\.3\.1\n/m);
+		expect(apiMd).toMatch(/^### addLocations\n\n`stable` · `deprecated` · since v0\.3\.1\n/m);
 	});
 
 	it("lists every stable surface before the unstable part", () => {
@@ -17,8 +17,17 @@ describe("the generated API reference", () => {
 		const before = apiMd.slice(0, unstableAt);
 		const after = apiMd.slice(unstableAt);
 		expect(after).not.toMatch(/^`stable`/m);
-		expect(before).toMatch(/^## Store$/m);
+		expect(before).toMatch(/^## Maps$/m);
 		expect(after).toMatch(/^## Review$/m);
+	});
+
+	it("documents the fixed domain objects with inferred method signatures", () => {
+		expect(apiMd).toMatch(
+			/^#### Maps.open\n\n.*\n\n```ts\nMaps.open\(id: string\): Promise<void>\n```$/m,
+		);
+		expect(apiMd).toMatch(/^#### Tag.names$/m);
+		expect(apiMd).toMatch(/^#### History.undo$/m);
+		expect(apiMd).toMatch(/^#### Field.remove$/m);
 	});
 
 	it("shows signatures as highlighted code, not headings", () => {

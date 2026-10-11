@@ -1,7 +1,7 @@
+import { Maps } from "@/store/maps";
 import { bridgeAcrossWindows, emit } from "@/lib/events";
 import { reloadStorage } from "@/plugins/pluginStorage";
 import { isPluginEnabled } from "@/plugins/pluginHost";
-import { registerMapBadges } from "@/store/mapList";
 import { msg, t } from "@/lib/i18n";
 import { errText } from "@/lib/util/format";
 import { log } from "@/lib/util/log";
@@ -65,7 +65,7 @@ bridgeAcrossWindows("sync-links:changed", () => {
 	for (const c of controllers.values()) reloadStorage(c.pluginId);
 });
 
-registerMapBadges({
+Maps.registerBadges({
 	id: "sync",
 	label: msg("Sync status"),
 	events: ["sync-links:changed", "plugins:changed"],
@@ -114,7 +114,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 	const kv = (): KeyValueStore => window.MMA.storage(pluginId);
 	const storeFor = (mapId: string): SyncStore =>
 		createSyncStore(kv(), createMappingBackend(), provider.id, mapId);
-	const currentMapId = (): string | null => window.MMA.getMapState().mapId;
+	const currentMapId = (): string | null => window.MMA.Store.get().mapId;
 
 	const getLink = (): SyncLink | null => {
 		const id = currentMapId();
@@ -228,7 +228,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 			const link = getLink();
 			return link ? provider.remoteMapUrl(link.remoteMapId) : null;
 		},
-		localLocationCount: () => window.MMA.getMapState().locationCount,
+		localLocationCount: () => window.MMA.Store.get().locationCount,
 
 		async link(map, remoteUserId) {
 			const id = currentMapId();

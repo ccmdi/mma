@@ -1,11 +1,11 @@
 import { Channel } from "@tauri-apps/api/core";
+import { Store } from "@/store/store";
 import { CellManager, type FrameSummary } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
 import type { RGBA } from "@/lib/util/color";
 import type { RGB } from "@/bindings.gen";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
-import { getMapState, setSelectedLocationIds } from "@/store/useMapStore";
 import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
@@ -32,7 +32,7 @@ export function getScene(): CellManager {
 }
 
 function syncOpen(): boolean {
-	return scene.setOpen(getMapState().open?.location?.id ?? null);
+	return scene.setOpen(Store.get().open?.location?.id ?? null);
 }
 
 /** Set the default marker color (RGB bytes). */
@@ -88,7 +88,7 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 		syncOpen();
 		applied = [];
 	}
-	if (scene.overlay.version !== before) setSelectedLocationIds(scene.selectedIds());
+	if (scene.overlay.version !== before) Store.setSelected(scene.selectedIds());
 	applied.push(s);
 	if (applied.length > APPLIED_KEPT) applied.shift();
 	// A replace frame draws the store as it stands, which answers every wait on it.

@@ -1,4 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
+import { Store } from "@/store/store";
+import { Field } from "@/store/field";
+import { Query } from "@/store/query";
+import { Edit } from "@/store/edit";
 import { createFieldDef } from "@/types";
 import {
 	ConfirmDialog,
@@ -19,8 +23,6 @@ import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { deleteField, getMapState, read, renameField } from "@/store/useMapStore";
-import * as edit from "@/store/edit";
 import { useMapSetting } from "@/store/useMapSetting";
 import type { FieldDef, FieldValue } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
@@ -106,9 +108,9 @@ function buildRows(): FieldRow[] {
 function useCoverage(epoch = 0): Map<string, number> {
 	const [coverage, setCoverage] = useState<Map<string, number>>(new Map());
 	useEffect(() => {
-		const total = getMapState().locationCount;
+		const total = Store.get().locationCount;
 		if (total === 0) return;
-		void read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
+		void Query.read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
 			setCoverage(new Map(coverage.map(([key, n]) => [key, n / total])));
 		});
 	}, [epoch]);
@@ -277,7 +279,7 @@ function FieldsTab() {
 				comparison: r.comparison,
 			});
 		}
-		await edit.meta({ extra: { ...getMapState().map?.extra, fields } });
+		await Edit.meta({ extra: { ...Store.get().map?.extra, fields } });
 	};
 
 	const updateRow = (key: string, patch: Partial<FieldRow>, commit = false) => {
@@ -290,7 +292,7 @@ function FieldsTab() {
 
 	const proposeRename = async (target: string) => {
 		if (!row || !target || target === row.key) return;
-		const counts = await read({ type: "Everything" }, { kind: "coverage" });
+		const counts = await Query.read({ type: "Everything" }, { kind: "coverage" });
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,
@@ -305,7 +307,7 @@ function FieldsTab() {
 		if (!renamePrompt) return;
 		setBusy(true);
 		try {
-			await renameField(renamePrompt.key, renamePrompt.target, renamePrompt.winner);
+			await Field.rename(renamePrompt.key, renamePrompt.target, renamePrompt.winner);
 		} finally {
 			setBusy(false);
 		}
@@ -318,7 +320,7 @@ function FieldsTab() {
 		if (!deleteKey) return;
 		setBusy(true);
 		try {
-			await deleteField(deleteKey);
+			await Field.remove(deleteKey);
 		} finally {
 			setBusy(false);
 		}
@@ -592,7 +594,7 @@ function EnumValues({
 	useEffect(() => {
 		let live = true;
 		const have = new Set((row.values ?? []).map((v) => v.value));
-		void read({ type: "Everything" }, { kind: "values", field: row.key }).then((values) => {
+		void Query.read({ type: "Everything" }, { kind: "values", field: row.key }).then((values) => {
 			if (live) setCandidates(values.filter((v) => !have.has(v)));
 		});
 		return () => {

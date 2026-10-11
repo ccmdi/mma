@@ -8,6 +8,9 @@ import {
 	mdiContentCopy,
 	mdiDelete,
 } from "@mdi/js";
+import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { Query } from "@/store/query";
 import { startSceneEngine, loadScene, clearScene, recolorScene } from "@/lib/render/sceneStore";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
@@ -19,7 +22,6 @@ import { getSettings, useSetting } from "@/store/settings";
 import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
 import { MapContextMenuContent } from "@/components/editor/map/MapContextMenu";
-import { applySelectionUpdate, getActiveSelections, read, useMapState } from "@/store/useMapStore";
 import { addSelection } from "@/store/selections";
 import { rgbCss } from "@/lib/util/color";
 import { mapOpen } from "@/lib/util/debug";
@@ -36,7 +38,6 @@ import { ConfirmButton } from "@/components/primitives/ConfirmButton";
 import { TextInput } from "@/components/primitives/TextInput";
 import { Slider } from "@/components/primitives/Slider";
 import { PolygonTools } from "@/components/editor/PolygonTools";
-
 import { SearchControl } from "@/components/editor/map/SearchControl";
 import type { ParsedLocation } from "@/bindings.gen";
 import { MapTypeDropdown, MapSettingsDropdown } from "@/components/editor/map/MapSettingsPanel";
@@ -80,7 +81,7 @@ export function MapEmbed({
 }: {
 	onAddLocation: (parsed: ParsedLocation) => void | Promise<void>;
 }) {
-	const map = useMapState((s) => s.map);
+	const map = Store.use((s) => s.map);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [host, setHost] = useState<MapHost | null>(null);
 	const hostRef = useRef<MapHost | null>(null);
@@ -118,8 +119,8 @@ export function MapEmbed({
 	} | null>(null);
 	const previewAbortRef = useRef<AbortController | null>(null);
 	const [pickedOpacityTarget, setOpacityTarget] = useState<OpacityLayer>("sv");
-	const selectionTint = useMapState(() => {
-		const active = getActiveSelections();
+	const selectionTint = Store.use(() => {
+		const active = SelectionList.active();
 		return active.length > 0 ? rgbCss(active[0].color) : null;
 	});
 	const opacityTargets: OpacityLayer[] = selectionTint
@@ -214,7 +215,7 @@ export function MapEmbed({
 				mapOpen.mark("map-ready");
 				created.once("tilesloaded", () => mapOpen.mark("tiles"));
 				if (map.locationCount > 0) {
-					void read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
+					void Query.read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
 						if (cancelled || !hostRef.current || !bounds) return;
 						const [west, south, east, north] = bounds;
 						hostRef.current.fitBounds({ west, south, east, north }, undefined, {
@@ -353,7 +354,7 @@ export function MapEmbed({
 	useHotkey(useBinding("toggleSvOpacity"), () => toggleLayer("sv"));
 	useHotkey(useBinding("toggleMarkerOpacity"), () => toggleLayer("marker"));
 	useHotkey(useBinding("mapZoomBounds"), () => {
-		void read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
+		void Query.read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -361,7 +362,7 @@ export function MapEmbed({
 	});
 
 	useHotkey(useBinding("mapZoomSelection"), () => {
-		void read({ type: "Selected" }, { kind: "bounds" }).then((bounds) => {
+		void Query.read({ type: "Selected" }, { kind: "bounds" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -398,7 +399,7 @@ export function MapEmbed({
 							onDraw={(rings) => {
 								if (rings.length === 0) return;
 								if (tryInterceptDraw(rings)) return;
-								void applySelectionUpdate(
+								void SelectionList.update(
 									addSelection({
 										type: "Polygon",
 										polygon: { coordinates: rings as [number, number][][], extraPolygons: null },

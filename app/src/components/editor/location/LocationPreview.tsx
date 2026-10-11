@@ -1,20 +1,15 @@
 import { memo, useLayoutEffect, useMemo, useRef, useState, useCallback } from "react";
-import type { Tag } from "@/types";
+import { Store } from "@/store/store";
+import { Location } from "@/store/location";
+import { Editor } from "@/store/editor";
+import { Tag } from "@/store/tag";
+import { Edit } from "@/store/edit";
 import { setPinned } from "@/types";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
 import { AddTagForm } from "@/components/editor/tags/AddTagForm";
 import { mdiChevronLeft, mdiChevronRight } from "@mdi/js";
-import {
-	useMapState,
-	getMapState,
-	removeLocations,
-	closeLocation,
-	getVisibleTags,
-	getTagCounts,
-} from "@/store/useMapStore";
-import * as mapEdit from "@/store/edit";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { TagPill, TagPillButton } from "@/components/primitives/TagPill";
 import { displayTagName } from "@/lib/data/tags";
@@ -26,7 +21,6 @@ import {
 	reviewDelete,
 	isAtStart,
 } from "@/lib/review/review";
-
 import {
 	useSettings,
 	useSetting,
@@ -75,8 +69,8 @@ const TagEditor = memo(function TagEditor({
 	isImport: boolean;
 }) {
 	const [tagInput, setTagInput] = useState("");
-	const visibleTags = useMapState(getVisibleTags);
-	const tagCounts = useMapState(() => getTagCounts());
+	const visibleTags = Store.use(Tag.visible);
+	const tagCounts = Store.use(() => Tag.counts());
 	const tagSortMode = useSetting("tagSortMode");
 	const suggestionLimit = useSetting("tagSuggestionLimit");
 
@@ -93,7 +87,7 @@ const TagEditor = memo(function TagEditor({
 	}, [allTags, pendingTags, tagInput, suggestionLimit]);
 
 	const addPendingTag = (name: string) =>
-		onChangeTags((prev) => appendTagName(prev, name, getVisibleTags()));
+		onChangeTags((prev) => appendTagName(prev, name, Tag.visible()));
 
 	const handleAddTag = () => {
 		const name = tagInput.trim();
@@ -166,9 +160,9 @@ const TagEditor = memo(function TagEditor({
 });
 
 export function LocationPreview() {
-	const location = useMapState((s) => s.open?.location ?? null);
-	const origin = useMapState((s) => s.open?.origin);
-	const map = useMapState((s) => s.map);
+	const location = Store.use((s) => s.open?.location ?? null);
+	const origin = Store.use((s) => s.open?.origin);
+	const map = Store.use((s) => s.map);
 	const reviewSession = useReviewSession();
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
@@ -176,7 +170,7 @@ export function LocationPreview() {
 	const { draft, defaultPano, edit, land, geo, enriching } = usePanoViewer();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = usePendingTags(location);
-	const visibleTags = useMapState(getVisibleTags);
+	const visibleTags = Store.use(Tag.visible);
 	const geocodeProvider = useSetting("geocodeProvider");
 	const appSettings = useSettings();
 	const chipMode = appSettings.fullscreenMap && appSettings.showFullscreenMiniLocationPreview;
@@ -218,7 +212,7 @@ export function LocationPreview() {
 	const handleSave = useCallback(async () => {
 		if (!location || !pano.exists() || !draft) return;
 		if (origin === "import") {
-			closeLocation();
+			Editor.close();
 			return;
 		}
 
@@ -227,7 +221,7 @@ export function LocationPreview() {
 		await land({
 			...pano.captureView(),
 			tags: (
-				await mapEdit.values(
+				await Edit.values(
 					"tags",
 					pendingTags.map((name) => ({ set: { id: 0, name } })),
 				)
@@ -237,7 +231,7 @@ export function LocationPreview() {
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewNext();
 		} else {
-			closeLocation();
+			Editor.close();
 		}
 	}, [pano, location, origin, draft, land, isReviewMode, reviewSession, pendingTags]);
 
@@ -247,27 +241,27 @@ export function LocationPreview() {
 		if (isReviewMode) {
 			void reviewNext();
 		} else {
-			closeLocation();
+			Editor.close();
 		}
 	}, [isReviewMode]);
 
 	const handleDelete = useCallback(() => {
 		if (!location) return;
 		if (origin !== "map") {
-			closeLocation();
+			Editor.close();
 			return;
 		}
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void reviewDelete();
 		} else {
-			void removeLocations(new Set([location.id]));
+			void Location.remove(new Set([location.id]));
 		}
 	}, [location, origin, isReviewMode, reviewSession]);
 
 	// Reads the open location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		const loc = getMapState().open?.location;
+		const loc = Store.get().open?.location;
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
 		edit((d) => setPinned(d, false));

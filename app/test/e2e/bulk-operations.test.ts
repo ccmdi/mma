@@ -103,7 +103,7 @@ describe("Bulk operations -- enrich", () => {
 		// Undo until the resolved pano is gone (but stop before undoing the addLocations).
 		await withApi(async (api, id) => {
 			for (let i = 0; i < 100; i++) {
-				await api.undo();
+				await api.History.undo();
 				const loc = await api.fetchLocation(id);
 				if (!loc || !loc.panoId) break;
 			}
@@ -171,7 +171,7 @@ describe("Bulk operations -- bulkPinToPano", () => {
 
 	it("unpins by clearing the flag and keeps every pano id", async () => {
 		const result = await withApi(async (api) => {
-			return await api.edit.work(
+			return await api.Edit.work(
 				{ type: "Everything" },
 				{ kind: "set", key: "loadAsPanoId", value: false },
 			);
@@ -270,7 +270,7 @@ describe("Bulk operations -- field ops", () => {
 	it("an expression writes per row, names the rows it cannot evaluate, and undoes as one entry", async () => {
 		const r = await withApi(
 			(api, ids) =>
-				api.edit.work(
+				api.Edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "expr", key: "h", expr: "mod(a + 180, 360)" },
 				),
@@ -283,7 +283,7 @@ describe("Bulk operations -- field ops", () => {
 		expect((await getLoc(ids[2])).extra?.h).toBeUndefined();
 
 		await withApi(async (api) => {
-			await api.undo();
+			await api.History.undo();
 			return "ok";
 		});
 		expect((await getLoc(ids[0])).extra?.h).toBeUndefined();
@@ -293,7 +293,7 @@ describe("Bulk operations -- field ops", () => {
 	it("a constant set patches a writable built-in column and a clear drops extra keys", async () => {
 		const set = await withApi(
 			(api, ids) =>
-				api.edit.work(
+				api.Edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "set", key: "heading", value: 90 },
 				),
@@ -304,7 +304,7 @@ describe("Bulk operations -- field ops", () => {
 
 		const cleared = await withApi(
 			(api, ids) =>
-				api.edit.work(
+				api.Edit.work(
 					{ type: "Locations", locations: ids, name: null },
 					{ kind: "delete", keys: ["a"] },
 				),

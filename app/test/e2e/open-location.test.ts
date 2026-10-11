@@ -12,24 +12,24 @@ describe("Open location and work area", () => {
 		]);
 	});
 	it("starts with no open location", async () => {
-		const active = await withApi(async (api) => api.getMapState().open?.location ?? null);
+		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 
 	it("starts in overview work area", async () => {
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("overview");
 	});
 
 	it("setting open location changes work area to 'location'", async () => {
-		await withApi(async (api, id) => api.openLocation(id), locIds[0]);
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		await withApi(async (api, id) => api.Editor.open(id), locIds[0]);
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("location");
 	});
 
 	it("open location returns the correct location data", async () => {
 		const active = await withApi(async (api) => {
-			const loc = api.getMapState().open?.location ?? null;
+			const loc = api.Store.get().open?.location ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active).not.toBeNull();
@@ -38,9 +38,9 @@ describe("Open location and work area", () => {
 	});
 
 	it("switching open location updates the data", async () => {
-		await withApi(async (api, id) => api.openLocation(id), locIds[1]);
+		await withApi(async (api, id) => api.Editor.open(id), locIds[1]);
 		const active = await withApi(async (api) => {
-			const loc = api.getMapState().open?.location ?? null;
+			const loc = api.Store.get().open?.location ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active!.id).toBe(locIds[1]);
@@ -48,24 +48,24 @@ describe("Open location and work area", () => {
 	});
 
 	it("clearing open location returns to overview", async () => {
-		await withApi(async (api) => api.closeLocation());
-		const area = await withApi(async (api) => api.getMapState().workArea);
+		await withApi(async (api) => api.Editor.close());
+		const area = await withApi(async (api) => api.Store.get().workArea);
 		expect(area).toBe("overview");
 
-		const active = await withApi(async (api) => api.getMapState().open?.location ?? null);
+		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 
 	it("deleting the open location clears it", async () => {
-		await withApi(async (api, id) => api.openLocation(id), locIds[2]);
-		const areaBefore = await withApi(async (api) => api.getMapState().workArea);
+		await withApi(async (api, id) => api.Editor.open(id), locIds[2]);
+		const areaBefore = await withApi(async (api) => api.Store.get().workArea);
 		expect(areaBefore).toBe("location");
 
 		await withApi(async (api, id) => {
-			await api.removeLocations(new Set([id]));
+			await api.Location.remove(new Set([id]));
 		}, locIds[2]);
 
-		const active = await withApi(async (api) => api.getMapState().open?.location ?? null);
+		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 });
@@ -81,11 +81,11 @@ describe("Open location with undo/redo", () => {
 		]);
 	});
 	it("updating open location field is persisted in store", async () => {
-		await withApi(async (api, id) => api.openLocation(id), locIds[0]);
+		await withApi(async (api, id) => api.Editor.open(id), locIds[0]);
 
 		const loc = await getLoc(locIds[0]);
 		await withApi(async (api, l) => {
-			await api.updateLocations([{ id: l.id, heading: 123 }]);
+			await api.Location.update([{ id: l.id, heading: 123 }]);
 		}, loc);
 
 		const heading = await withApi(async (api, id) => {
@@ -96,7 +96,7 @@ describe("Open location with undo/redo", () => {
 	});
 
 	it("undo of open location update reverts the field in store", async () => {
-		await withApi(async (api) => api.undo());
+		await withApi(async (api) => api.History.undo());
 
 		const heading = await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);

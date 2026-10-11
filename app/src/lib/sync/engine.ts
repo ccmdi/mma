@@ -1,9 +1,10 @@
+import { Store } from "@/store/store";
+import { Mutation } from "@/store/mutation";
 import type { Conflict, SideCounts } from "@/bindings.gen";
 import type { FirstSyncMode } from "@/bindings.consts";
 import type { SyncProvider } from "./provider";
 import type { IdentityKey, SyncStore } from "./syncStore";
 import { cmd } from "@/lib/commands";
-import { getMapState, settled } from "@/store/useMapStore";
 
 export type { FirstSyncMode } from "@/bindings.consts";
 
@@ -32,7 +33,7 @@ export async function reconcile(
 	const link = store.getLink();
 	if (!link) throw new Error("map is not linked");
 	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
-	const open = getMapState().map;
+	const open = Store.get().map;
 	if (!open || open.id !== link.localMapId) throw new Error("linked map is no longer open");
 
 	const result = await cmd.syncReconcile(
@@ -48,7 +49,7 @@ export async function reconcile(
 	if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
 	if (!store.getLink()) throw new Error("map was unlinked during sync");
 
-	if (result.mutation) await settled(result.mutation);
+	if (result.mutation) await Mutation.settle(result.mutation);
 	store.setLink({ ...link, lastSyncedAt: new Date().toISOString() });
 
 	return {

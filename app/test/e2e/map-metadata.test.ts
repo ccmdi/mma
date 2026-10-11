@@ -15,20 +15,20 @@ describe("Map metadata persistence", () => {
 
 	it("description updates and persists", async () => {
 		await withApi(async (api) => {
-			await api.edit.meta({ description: "A test map for e2e" });
+			await api.Edit.meta({ description: "A test map for e2e" });
 		});
 
 		await flushAndWait();
 		await closeMap();
 		await openMap(map.id);
 
-		const desc = await withApi(async (api) => api.getMapState().map!.description);
+		const desc = await withApi(async (api) => api.Store.get().map!.description);
 		expect(desc).toBe("A test map for e2e");
 	});
 
 	it("map settings update and persist", async () => {
 		await withApi(async (api) => {
-			await api.edit.meta({
+			await api.Edit.meta({
 				settings: {
 					pointAlongRoad: true,
 					preferDirection: "north",
@@ -49,7 +49,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const settings = await withApi(async (api) => api.getMapState().map!.settings);
+		const settings = await withApi(async (api) => api.Store.get().map!.settings);
 		expect(settings.pointAlongRoad).toBe(true);
 		expect(settings.preferDirection).toBe("north");
 		expect(settings.preferOfficial).toBe(true);
@@ -58,7 +58,7 @@ describe("Map metadata persistence", () => {
 
 	it("scoreBounds update and persist", async () => {
 		await withApi(async (api) => {
-			await api.edit.meta({
+			await api.Edit.meta({
 				scoreBounds: [-60, 70, -170, 170],
 			});
 		});
@@ -67,7 +67,7 @@ describe("Map metadata persistence", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const bounds = await withApi(async (api) => api.getMapState().map!.scoreBounds);
+		const bounds = await withApi(async (api) => api.Store.get().map!.scoreBounds);
 		expect(bounds).toEqual([-60, 70, -170, 170]);
 	});
 });
@@ -87,7 +87,7 @@ describe("Map folder operations", () => {
 
 	it("moves map to folder", async () => {
 		await withApi(async (api, id) => {
-			await api.moveMapToFolder(id, "TestFolder");
+			await api.Maps.moveToFolder(id, "TestFolder");
 		}, mapId);
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
@@ -97,7 +97,7 @@ describe("Map folder operations", () => {
 
 	it("renames folder", async () => {
 		await withApi(async (api) => {
-			await api.renameFolder("TestFolder", "RenamedFolder");
+			await api.Maps.renameFolder("TestFolder", "RenamedFolder");
 		});
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());
@@ -107,7 +107,7 @@ describe("Map folder operations", () => {
 
 	it("moves map back to root", async () => {
 		await withApi(async (api, id) => {
-			await api.moveMapToFolder(id, null);
+			await api.Maps.moveToFolder(id, null);
 		}, mapId);
 
 		const maps = await withApi(async (api) => api.cmd.storeListMaps());

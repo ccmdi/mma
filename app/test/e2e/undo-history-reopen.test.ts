@@ -24,16 +24,16 @@ async function snapshot(): Promise<Row[]> {
 
 async function history() {
 	return withApi(async (api) => {
-		const s = api.getMapState();
+		const s = api.Store.get();
 		return {
-			canUndo: api.historyAvailable(s.history, "undo"),
-			canRedo: api.historyAvailable(s.history, "redo"),
+			canUndo: api.History.available(s.history, "undo"),
+			canRedo: api.History.available(s.history, "redo"),
 		};
 	});
 }
 
-const undo = () => withApi(async (api) => api.undo());
-const redo = () => withApi(async (api) => api.redo());
+const undo = () => withApi(async (api) => api.History.undo());
+const redo = () => withApi(async (api) => api.History.redo());
 
 async function reopen(id: string) {
 	await flushAndWait();
@@ -63,9 +63,9 @@ describe("Undo history across close and reopen", () => {
 			createLocation({ lat: 30, lng: 30 }),
 		]);
 		states.push(await snapshot());
-		await withApi(async (api, id) => api.updateLocations([{ id, heading: 90 }]), a);
+		await withApi(async (api, id) => api.Location.update([{ id, heading: 90 }]), a);
 		states.push(await snapshot());
-		await withApi(async (api, id) => api.removeLocations(new Set([id])), b);
+		await withApi(async (api, id) => api.Location.remove(new Set([id])), b);
 		states.push(await snapshot());
 		await addLocs([createLocation({ lat: 40, lng: 40 }), createLocation({ lat: 50, lng: 50 })]);
 		states.push(await snapshot());
@@ -124,7 +124,7 @@ describe("Undo history across close and reopen", () => {
 
 	it("an undone delete brings its id back without colliding with ids added after a reopen", async () => {
 		const [gone] = await addLocs([createLocation({ lat: 70, lng: 70 })]);
-		await withApi(async (api, id) => api.removeLocations(new Set([id])), gone);
+		await withApi(async (api, id) => api.Location.remove(new Set([id])), gone);
 		await reopen(mapId);
 
 		const [fresh] = await addLocs([createLocation({ lat: 80, lng: 80 })]);
@@ -157,7 +157,7 @@ describe("Undo history across close and reopen", () => {
 	});
 
 	it("a commit leaves no history to reopen", async () => {
-		await withApi(async (api) => api.commitMap("checkpoint"));
+		await withApi(async (api) => api.Commit.create("checkpoint"));
 		await reopen(mapId);
 		expect(await history()).toEqual({ canUndo: false, canRedo: false });
 	});

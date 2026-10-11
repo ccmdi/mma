@@ -1,7 +1,7 @@
-import type { Tag, TagSortMode } from "@/types";
+import { Tag } from "@/store/tag";
+import type { TagSortMode } from "@/types";
 import { colorForName } from "@/lib/util/color";
 import { getSettings } from "@/store/settings";
-import { getVisibleTags } from "@/store/useMapStore";
 import { shortestUniqueSuffixes } from "@/lib/data/tagPaths";
 
 /** Sort tags by the chosen mode: name, location count, or manual order. */
@@ -40,7 +40,7 @@ let suffixCache: { tags: Tag[]; suffixes: Map<string, string> } | null = null;
 export function displayTagName(name: string): string {
 	const s = getSettings();
 	if (s.tagViewMode !== "tree" || !s.truncateTagPaths) return name;
-	const tags = getVisibleTags();
+	const tags = Tag.visible();
 	if (!suffixCache || suffixCache.tags !== tags) {
 		suffixCache = { tags, suffixes: shortestUniqueSuffixes(tags.map((t) => t.name)) };
 	}

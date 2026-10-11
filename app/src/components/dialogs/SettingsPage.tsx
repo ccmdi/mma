@@ -6,6 +6,8 @@ import {
 	type ComponentProps,
 	type ReactNode,
 } from "react";
+import { Maps } from "@/store/maps";
+import { Store } from "@/store/store";
 import {
 	ConfirmDialog,
 	Dialog,
@@ -94,8 +96,6 @@ import {
 	PREVIEW_ASPECT_RATIOS,
 	resetSettings,
 } from "@/store/settings";
-import { getMapBadgeSources } from "@/store/mapList";
-import { useMapState } from "@/store/useMapStore";
 import { formatBinding, buildComboString } from "@/lib/hooks/useHotkey";
 import { cmd } from "@/lib/commands";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
@@ -112,7 +112,6 @@ import { Markdown } from "@/lib/util/markdown";
 import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
-
 import { t, msg } from "@/lib/i18n";
 import { isPrereleaseVersion } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";
@@ -548,7 +547,7 @@ function StreetViewBody() {
 }
 
 function NewMapDefaultsRow() {
-	const map = useMapState((state) => state.map);
+	const map = Store.use((state) => state.map);
 	const [saved, setSaved] = useState<boolean | null>(null);
 	useEffect(() => {
 		void cmd.storeGetMapDefaults().then((defaults) => setSaved(defaults !== null));
@@ -1014,7 +1013,7 @@ function MapListBlock() {
 					{t(label)}
 				</Checkbox>
 			))}
-			{getMapBadgeSources().map((source) => (
+			{Maps.badgeSources().map((source) => (
 				<Checkbox
 					key={source.id}
 					checked={!hiddenBadges.includes(source.id)}
