@@ -277,3 +277,7 @@ impl Store {
         Ok(Some(changes))
     }
 }
+
+#[cfg(test)]
+#[path = "history.test.rs"]
+mod tests;

@@ -5889,6 +5889,7 @@ fn apply_model_op(
                 .edit()
                 .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
             store.overlay_add(vec![l.clone()]);
+            store.finish_mutation(&Change::from_sides(vec![l.clone()], vec![]));
             model.insert(id, l);
             let pos = alive_ids.partition_point(|&x| x < id);
             alive_ids.insert(pos, id);
@@ -5901,6 +5902,7 @@ fn apply_model_op(
             let id = alive_ids[idx];
             let l = store.get_loc_by_id(id).unwrap();
             store.overlay_remove(slice::from_ref(&l).iter());
+            store.finish_mutation(&Change::from_sides(vec![], vec![l.clone()]));
             store
                 .edits
                 .edit()
@@ -5921,10 +5923,11 @@ fn apply_model_op(
             let old = store.get_loc_by_id(id).unwrap();
             overlay_update(store, &patch!(id; heading: *heading, tags: tags.clone()));
             let new_loc = store.get_loc_by_id(id).unwrap();
-            store.reindex(&Change::from_iter([mma_algebra::Transition::new(
+            let change = Change::from_iter([mma_algebra::Transition::new(
                 Some(old.clone()),
                 Some(new_loc.clone()),
-            )]));
+            )]);
+            store.finish_mutation(&change);
             store.edits.edit().record(Arc::new(entry(Change::from_iter([
                 mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
             ]))));
@@ -5974,9 +5977,26 @@ proptest::proptest! {
 
         let initial_snapshot = model_snapshot(&model);
 
-        for op in &ops {
+        for (step, op) in ops.iter().enumerate() {
             apply_model_op(&mut store, &mut model, &mut alive_ids, op);
-            proptest::prop_assert_eq!(*store.alive_count, model.len(), "alive_count drifted from model mid-script");
+            proptest::prop_assert_eq!(
+                *store.alive_count,
+                model.len(),
+                "alive_count drifted from model at step {}: {:?}", step, op
+            );
+            proptest::prop_assert_eq!(
+                store_snapshot(&mut store),
+                model_snapshot(&model),
+                "store values diverged from model at step {}: {:?}", step, op
+            );
+            for tag in 0..6 {
+                let expected = model.values().filter(|row| row.tags.contains(&tag)).count();
+                proptest::prop_assert_eq!(
+                    tag_count(&mut store, tag),
+                    expected,
+                    "tag {} count diverged at step {}: {:?}", tag, step, op
+                );
+            }
         }
 
         let final_snapshot = model_snapshot(&model);
@@ -8207,4 +8227,60 @@ fn a_key_an_op_cannot_write_fails_even_where_no_row_would_change() {
     let locs = [loc(1, 1.0, 1.0)];
     let err = plan_err(&locs, &del_op(&["tags"]));
     assert!(err.contains("'tags' cannot be removed"), "{err}");
+}
+
+#[test]
+fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() {
+    let mut store = setup_store_with(&[]);
+    let first = click_add(&mut store, 10.0, 20.0);
+    let second = click_add(&mut store, -5.0, 30.0);
+    apply_updates(
+        &mut store,
+        &[patch!(first; lat: 11.0, heading: 270.0, tags: vec![3, 8])],
+        &mut None,
+    );
+    delete_loc(&mut store, second);
+    let expected = store_snapshot(&mut store);
+
+    let mut reopened = close_and_reopen(&store);
+    assert_eq!(
+        store_snapshot(&mut reopened),
+        expected,
+        "delta sidecar restores current rows"
+    );
+
+    press_undo(&mut reopened);
+    assert_eq!(
+        reopened.get_loc_by_id(second).unwrap().lng,
+        30.0,
+        "undo after reopen restores the deleted row"
+    );
+    press_redo(&mut reopened);
+    assert_eq!(
+        store_snapshot(&mut reopened),
+        expected,
+        "redo after reopen restores final rows"
+    );
+
+    for _ in 0..reopened.edits.len(Stack::Undo) {
+        press_undo(&mut reopened);
+    }
+    assert!(
+        store_snapshot(&mut reopened).is_empty(),
+        "full undo reaches the empty start"
+    );
+    for _ in 0..reopened.edits.len(Stack::Redo) {
+        press_redo(&mut reopened);
+    }
+    assert_eq!(
+        store_snapshot(&mut reopened),
+        expected,
+        "full redo reaches the saved end"
+    );
+    assert_bake_sorted(&mut reopened);
+    assert_eq!(
+        store_snapshot(&mut reopened),
+        expected,
+        "bake preserves the rows"
+    );
 }

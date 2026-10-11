@@ -159,6 +159,29 @@ test("a single-coordinate response arrives unwrapped", () => {
 	assert.equal(patches[0].patch.temperature2m, 12);
 });
 
+test("a missing result fails only its row and keeps following coordinates aligned", () => {
+	const body = JSON.stringify([
+		{ error: true, reason: "out of range" },
+		coordResult("2024-01-01"),
+	]);
+	const { patches, failed } = runMap([THREE[0], THREE[1]], 200, body);
+	assert.deepEqual(failed, [1]);
+	assert.deepEqual(patches, [
+		{
+			id: 2,
+			patch: {
+				weatherCode: 0,
+				cloudCover: 0,
+				precipitation: 0,
+				snowDepth: 0,
+				snowfall: 0,
+				temperature2m: 0,
+				sunshineDuration: 0,
+				windSpeed10m: 0,
+			},
+		},
+	]);
+});
 test("an hour missing from hourly.time fails the row", () => {
 	// The response covers the day before, so 2024-07-01T12:00 is not in it.
 	const { patches, failed } = runMap([THREE[0]], 200, JSON.stringify([coordResult("2024-06-30")]));

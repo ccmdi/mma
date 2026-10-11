@@ -1099,6 +1099,38 @@ fn live_tag_index(view: &LocView) -> FieldIndexes {
 }
 
 #[test]
+fn indexed_tag_filters_match_a_full_scan_after_mixed_overlay_changes() {
+    let base: Vec<Location> = (1..=768)
+        .map(|id| {
+            let mut row = loc(id, id as f64 / 10.0, -(id as f64) / 10.0);
+            row.tags = (0..3)
+                .map(|offset| ((id * (offset + 7) + offset * 13) % 47) + 1)
+                .collect();
+            row
+        })
+        .collect();
+    let mut replacement = loc(120, 12.0, -12.0);
+    replacement.tags = vec![2, 19, 44];
+    let mut added = loc(800, 80.0, -80.0);
+    added.tags = vec![2, 19];
+    let fx = Fx::base(&base)
+        .with_dead([1, 17, 301, 768])
+        .with_patch(120, replacement)
+        .with_adds(vec![added]);
+    let view = fx.view();
+    let sets = live_tag_index(&view);
+    let indexed = fx.view_indexed(&sets);
+
+    for tag in 1..=50 {
+        let selector = Selector::tag(tag);
+        assert_eq!(
+            ids_of(&indexed, &selector),
+            ids_of(&view, &selector),
+            "indexed postings diverged from scan for tag {tag}"
+        );
+    }
+}
+#[test]
 fn tag_index_excludes_dead_includes_adds() {
     let mut a = loc(1, 0.0, 0.0);
     a.tags = vec![10];

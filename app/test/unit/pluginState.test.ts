@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createElement, act } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
-import { usePluginState, storage } from "@/plugins/pluginStorage";
+import { usePluginState, storage, reloadStorage } from "@/plugins/pluginStorage";
 
 type AnyResult = readonly [unknown, (v: unknown) => void];
 
@@ -20,12 +20,23 @@ function mount(pid: string, k: string, init: unknown): AnyResult {
 
 beforeEach(() => {
 	localStorage.clear();
+	reloadStorage("p1");
+	reloadStorage("a");
+	reloadStorage("b");
+	reloadStorage("untouched");
 });
 
 describe("usePluginState", () => {
 	it("returns the initial value when nothing is stored", () => {
 		const [value] = mount("p1", "k", "default");
 		expect(value).toBe("default");
+	});
+
+	it("uses the initializer when the persisted blob is corrupt", () => {
+		localStorage.setItem("mma_plugin:p1", "{not json");
+		reloadStorage("p1");
+		const [value] = mount("p1", "k", () => 42);
+		expect(value).toBe(42);
 	});
 
 	it("supports a lazy initializer", () => {

@@ -519,6 +519,7 @@ describe("the query surface", () => {
 		registerProvider({
 			id: "labelled",
 			label: "Labelled",
+			defaultOff: true,
 			procedure: { entry: "res://procedures/labelled.js", batch: { mode: "perRow" } },
 			fieldDefs: {
 				labelledField: { type: "string", label: "L", values: null, comparison: null },

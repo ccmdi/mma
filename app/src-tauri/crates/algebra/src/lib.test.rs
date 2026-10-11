@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::json;
+use std::collections::HashSet;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 struct Row {
@@ -423,5 +424,183 @@ fn changes_form_a_groupoid() {
     assert!(
         a.clone().then(c.clone()).is_err(),
         "a change that does not start where the last ended does not compose"
+    );
+}
+
+/// Deterministic sparse tables with varied adds, updates and deletes.
+fn generated_table(mut seed: u32) -> HashMap<u32, i16> {
+    let mut table = HashMap::new();
+    for key in 0..24 {
+        seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+        if seed & 3 != 0 {
+            table.insert(key, (seed >> 16) as i16);
+        }
+    }
+    table
+}
+
+#[test]
+fn sparse_changes_apply_and_inverse_restore_generated_tables() {
+    for seed in 0..96 {
+        let before = generated_table(seed * 3 + 1);
+        let after = generated_table(seed * 3 + 2);
+        let keys: BTreeSet<u32> = before.keys().chain(after.keys()).copied().collect();
+        let change = Change::at(&before, &after, keys.iter().copied());
+        let mut actual = before.clone();
+        change.apply_to(&mut actual);
+        assert_eq!(actual, after, "forward delta for seed {seed}");
+        change.inverse().apply_to(&mut actual);
+        assert_eq!(actual, before, "inverse delta for seed {seed}");
+    }
+}
+
+#[test]
+fn composing_sparse_changes_equals_the_direct_change_for_generated_tables() {
+    for seed in 0..96 {
+        let first = generated_table(seed * 3 + 1);
+        let middle = generated_table(seed * 3 + 2);
+        let last = generated_table(seed * 3 + 3);
+        let keys: BTreeSet<u32> = first
+            .keys()
+            .chain(middle.keys())
+            .chain(last.keys())
+            .copied()
+            .collect();
+        let key_list: Vec<_> = keys.iter().copied().collect();
+        let composed = Change::at(&first, &middle, key_list.iter().copied())
+            .then(Change::at(&middle, &last, key_list.iter().copied()))
+            .expect("adjacent states compose");
+        let mut composed = composed;
+        let mut direct = Change::at(&first, &last, key_list);
+        composed.added.sort_by_key(|row| row.0);
+        composed.removed.sort_by_key(|row| row.0);
+        composed.updated.sort_by_key(|(before, _)| before.0);
+        direct.added.sort_by_key(|row| row.0);
+        direct.removed.sort_by_key(|row| row.0);
+        direct.updated.sort_by_key(|(before, _)| before.0);
+        assert_eq!(composed, direct, "composed delta for seed {seed}");
+    }
+}
+#[test]
+fn merged_arrays_replace_whole_values_without_mutating_the_inputs() {
+    let original = json!({ "shape": [1, 2], "extra": { "keep": true } })
+        .as_object()
+        .cloned()
+        .unwrap();
+    let patch = json!({ "shape": [3], "new": "value" })
+        .as_object()
+        .cloned()
+        .unwrap();
+    let original_before = original.clone();
+    let patch_before = patch.clone();
+
+    let result = Merge::merged(&Some(original.clone()), &Field::Set(patch.clone())).unwrap();
+    assert_eq!(
+        Value::Object(result),
+        json!({
+            "shape": [3], "extra": { "keep": true }, "new": "value"
+        })
+    );
+    assert_eq!(
+        original, original_before,
+        "merging must not mutate the old value"
+    );
+    assert_eq!(
+        patch, patch_before,
+        "merging must not consume or mutate the patch"
+    );
+}
+
+#[test]
+fn a_null_patch_key_removes_one_key_while_clear_removes_the_entire_map() {
+    let original = json!({ "first": 1, "last": [2, 3] }).as_object().cloned();
+    let remove_first = json!({ "first": null }).as_object().cloned().unwrap();
+    assert_eq!(
+        Merge::merged(&original, &Field::Set(remove_first)),
+        json!({ "last": [2, 3] }).as_object().cloned()
+    );
+
+    let remove_last = json!({ "last": null }).as_object().cloned().unwrap();
+    assert_eq!(
+        Merge::merged(&original, &Field::Set(remove_last)),
+        json!({ "first": 1 }).as_object().cloned()
+    );
+    let only_entry = json!({ "last": [2, 3] }).as_object().cloned();
+    let remove_only = json!({ "last": null }).as_object().cloned().unwrap();
+    assert_eq!(Merge::merged(&only_entry, &Field::Set(remove_only)), None);
+    assert_eq!(Merge::merged(&original, &Field::Clear), None);
+    assert_eq!(<Json as Merge>::merged(&None, &Field::Clear), None);
+}
+
+#[test]
+fn an_empty_key_patch_is_a_no_op_but_a_clear_is_not() {
+    let original = json!({ "x": [1, 2] }).as_object().cloned();
+    assert_eq!(Merge::merged(&original, &Field::Set(Json::new())), original);
+    assert_eq!(Merge::merged(&original, &Field::Clear), None);
+}
+
+#[test]
+fn change_at_deduplicates_requested_keys_and_ignores_keys_absent_on_both_sides() {
+    let before = HashMap::from([(1u32, 10i16)]);
+    let after = HashMap::from([(1u32, 11i16), (2, 20)]);
+    let change = Change::at(&before, &after, [1, 1, 2, 999, 999]);
+    assert_eq!(
+        change.counts(),
+        Counts {
+            added: 1,
+            removed: 0,
+            updated: 1
+        }
+    );
+    assert_eq!(change.keys().added, [2]);
+    assert_eq!(change.keys().updated, [1]);
+}
+
+#[test]
+fn dependency_invalidation_walks_a_transitive_chain_and_keeps_other_roots() {
+    let deps = HashMap::from([
+        ("lat".to_string(), vec!["timezone".to_string()]),
+        ("timezone".to_string(), vec!["sunrise".to_string()]),
+        ("lng".to_string(), vec!["country".to_string()]),
+    ]);
+    let stale = deps.invalidated(vec!["lat".into()], |_| false);
+    assert_eq!(
+        stale,
+        HashSet::from(["timezone".to_string(), "sunrise".to_string()])
+    );
+}
+
+#[test]
+fn explicitly_rewritten_outputs_break_their_invalidation_branch() {
+    let deps = HashMap::from([
+        (
+            "source".to_string(),
+            vec!["rewritten".to_string(), "sibling".to_string()],
+        ),
+        ("rewritten".to_string(), vec!["downstream".to_string()]),
+        (
+            "sibling".to_string(),
+            vec!["sibling_downstream".to_string()],
+        ),
+    ]);
+    let stale = deps.invalidated(vec!["source".into()], |output| output == "rewritten");
+    assert_eq!(
+        stale,
+        HashSet::from(["sibling".to_string(), "sibling_downstream".to_string()])
+    );
+}
+
+#[test]
+fn dependency_cycles_terminate_and_mark_each_reachable_output_once() {
+    let deps = HashMap::from([
+        ("a".to_string(), vec!["b".to_string()]),
+        ("b".to_string(), vec!["c".to_string()]),
+        ("c".to_string(), vec!["a".to_string(), "b".to_string()]),
+        ("unrelated".to_string(), vec!["other".to_string()]),
+    ]);
+    let stale = deps.invalidated(vec!["a".into()], |_| false);
+    assert_eq!(
+        stale,
+        HashSet::from(["a".to_string(), "b".to_string(), "c".to_string()])
     );
 }

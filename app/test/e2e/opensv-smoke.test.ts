@@ -156,7 +156,7 @@ async function moveMapAndWaitForTiles(move: MapMove): Promise<boolean> {
 
 describe("opensv smoke", function () {
 	if (process.env.MMA_TEST_MOCK_SV) {
-		it("skipped (requires real SV, not --mock)", () => {});
+		it.skip("requires real Street View, not --mock", () => {});
 		return;
 	}
 	let mapId: string;

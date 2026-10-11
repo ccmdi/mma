@@ -4,6 +4,10 @@ import { reloadStorage, storage } from "@/plugins/pluginStorage";
 
 beforeEach(() => {
 	localStorage.clear();
+	reloadStorage("p1");
+	reloadStorage("a");
+	reloadStorage("b");
+	reloadStorage("xwin");
 });
 
 describe("storage", () => {
@@ -57,6 +61,8 @@ describe("storage", () => {
 
 	it("tolerates corrupt json, returning the fallback", () => {
 		localStorage.setItem("mma_plugin:p1", "{not json");
+		reloadStorage("p1");
+		expect(storage("p1").keys()).toEqual([]);
 		expect(storage("p1").get("k", "fb")).toBe("fb");
 	});
 });

@@ -40,7 +40,9 @@ globalThis.MMA = {
 
 const { showRays } = await import(new URL("../index.js", import.meta.url).href);
 
-const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+// Activation and the stub fetch resolve through promise continuations.
+// setImmediate provides an event-loop fence after those microtasks settle.
+const settle = () => new Promise((resolve) => setImmediate(resolve));
 
 test("an activated plugin stays idle until the rays are turned on", async () => {
 	plugin.activate();

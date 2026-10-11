@@ -5,28 +5,54 @@ fn frames(v: &[&str]) -> Vec<String> {
     v.iter().map(ToString::to_string).collect()
 }
 
+#[inline(never)]
+fn hold_until_released(release: std::sync::mpsc::Receiver<()>) {
+    release.recv().expect("test releases the blocked worker");
+}
+
 #[test]
 fn captures_the_stack_of_a_blocked_thread() {
-    let (tx, rx) = channel();
+    let (tid_tx, tid_rx) = channel();
+    let (release_tx, release_rx) = channel();
     let blocked = thread::spawn(move || {
-        tx.send(unsafe { GetCurrentThreadId() }).unwrap();
-        thread::sleep(Duration::from_secs(3));
+        tid_tx.send(unsafe { GetCurrentThreadId() }).unwrap();
+        hold_until_released(release_rx);
     });
-    let tid = rx.recv().unwrap();
-    thread::sleep(Duration::from_millis(100));
+    let tid = tid_rx.recv().unwrap();
 
-    let stack = capture(open_thread(tid).expect("open thread"));
+    // Keep the target parked until after capture. Poll the actual stack for our no-inline
+    // blocking frame so the assertion does not depend on a guessed sleep interval.
+    let stack = if let Some(handle) = open_thread(tid) {
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut latest = Vec::new();
+        while Instant::now() < deadline {
+            latest = capture(handle);
+            if latest
+                .iter()
+                .any(|frame| frame.contains("hold_until_released"))
+            {
+                break;
+            }
+            thread::yield_now();
+        }
+        unsafe {
+            windows_sys::Win32::Foundation::CloseHandle(handle);
+        }
+        latest
+    } else {
+        Vec::new()
+    };
+
+    release_tx.send(()).unwrap();
     blocked.join().unwrap();
 
-    assert!(stack.len() >= 2, "{stack:?}");
     assert!(
         stack
             .iter()
-            .any(|f| f.to_lowercase().contains("sleep") || f.contains("NtDelayExecution")),
-        "{stack:?}"
+            .any(|frame| frame.contains("hold_until_released")),
+        "captured stack must identify the intentional blocking frame: {stack:?}"
     );
 }
-
 #[test]
 fn idle_means_parked_in_the_message_pump() {
     assert!(is_idle(&frames(&[

@@ -26,6 +26,7 @@
 		"test": "vitest run && npm run test:procedures",
 		"test:procedures": "npm run build:procedures && node --test procedures/*/test/*.test.mjs ../plugins/*/test/*.test.mjs",
 		"test:watch": "vitest",
+		"test:stability": "vitest run --sequence.shuffle --sequence.seed=20261011 && vitest run --maxWorkers=1 --sequence.shuffle --sequence.seed=11",
 		"build:e2e": "cargo tauri build --debug --features e2e",
 		"test:e2e": "wdio run wdio.conf.ts",
 		"prepare": "husky || true"

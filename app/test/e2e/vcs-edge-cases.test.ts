@@ -4,11 +4,13 @@ import { addLocs, createLocation, getLocCount, flushAndWait, withApi, useMap } f
 describe("Version control — commit and restore", () => {
 	const map = useMap("E2E VCS Edge");
 
-	it("commit with no changes succeeds", async () => {
-		await withApi(async (api) => {
-			return api.commitMap("Empty commit");
-		});
-		// Should not throw
+	it("commit with no changes records an empty snapshot", async () => {
+		const result = await withApi(async (api) => api.commitMap("Empty commit"));
+		const commits = await withApi(async (api, id) => api.cmd.storeListCommits(id), map.id);
+		const commit = commits.find((entry: any) => entry.id === result);
+		expect(commit).toBeTruthy();
+		expect(commit!.message).toBe("Empty commit");
+		expect(commit!.locationCount).toBe(0);
 	});
 
 	it("commit captures location state", async () => {

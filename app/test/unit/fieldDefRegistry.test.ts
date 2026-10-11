@@ -105,7 +105,7 @@ describe("field kinds", () => {
 describe("lookup", () => {
 	it("returns undefined for keys with no def in any layer", () => {
 		expect(getFieldDef("plumbus")).toBeUndefined();
-		expect(getFieldDef("altitude")).toBeUndefined();
+		expect(getFieldDef("missingFieldForRegistryTest")).toBeUndefined();
 	});
 });
 

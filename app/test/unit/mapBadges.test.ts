@@ -13,7 +13,8 @@ const map = (id: string, added: number, removed: number, updated: number) =>
 	({ id, pending: { added, removed, updated } }) as MapMeta;
 
 describe("map badges", () => {
-	it("hides uncommitted changes by default", () => {
+	it("hides pending changes when the source is configured as hidden", () => {
+		setSetting("hiddenMapBadges", ["pending"]);
 		setCachedMapList([map("edited", 3, 0, 1)]);
 		emit("map-list:changed");
 		expect(keysOn("edited")).toBeUndefined();

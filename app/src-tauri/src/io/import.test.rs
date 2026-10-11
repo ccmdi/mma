@@ -814,11 +814,11 @@ fn bench_parse_real() {
 
 #[test]
 fn a_bulk_preview_keeps_every_file_it_parsed() {
-    let dir = std::env::temp_dir();
+    let dir = tempfile::tempdir().unwrap();
     let paths: Vec<String> = ["bulk-cache-a", "bulk-cache-b"]
         .iter()
         .map(|name| {
-            let path = dir.join(format!("{name}.json"));
+            let path = dir.path().join(format!("{name}.json"));
             std::fs::write(
                 &path,
                 br#"{"name":"m","customCoordinates":[{"lat":1,"lng":2}]}"#,
@@ -837,9 +837,6 @@ fn a_bulk_preview_keeps_every_file_it_parsed() {
     }
     rt.block_on(bulk_import_cancel()).unwrap();
     assert!(CACHED_PARSE.lock().unwrap().is_empty());
-    for path in &paths {
-        std::fs::remove_file(path).unwrap();
-    }
 }
 
 #[test]

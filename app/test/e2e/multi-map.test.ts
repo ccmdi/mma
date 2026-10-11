@@ -42,6 +42,13 @@ describe("Multi-map isolation", () => {
 		await addLocs([createLocation({ lat: 40, lng: 40 }), createLocation({ lat: 50, lng: 50 })]);
 		await flushAndWait();
 		await closeMap();
+		expect(mapAId).not.toBe(mapBId);
+		await openMap(mapAId);
+		expect(await getLocCount()).toBe(3);
+		await closeMap();
+		await openMap(mapBId);
+		expect(await getLocCount()).toBe(2);
+		await closeMap();
 	});
 
 	it("map A has 3 locations", async () => {
@@ -86,25 +93,40 @@ describe("Multi-map isolation", () => {
 	});
 
 	it("undo history is scoped to each map", async () => {
+		await openMap(mapBId);
+		const historyB = await withApi(async (api) => ({
+			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
+			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+		}));
+		expect(historyB.canUndo).toBe(true);
+		expect(historyB.canRedo).toBe(false);
+		await closeMap();
+
 		await openMap(mapAId);
 		await addLocs([createLocation({ lat: 70, lng: 70 })]);
 		const countBefore = await getLocCount();
 		await flushAndWait();
-		await closeMap();
-
-		// Open map B, check undo state
-		await openMap(mapBId);
-		await withApi(async (api) => ({
+		const historyA = await withApi(async (api) => ({
 			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
 			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
 		}));
+		expect(historyA.canUndo).toBe(true);
 		await closeMap();
 
-		// Open map A, undo
+		await openMap(mapBId);
+		const historyBAfterSwitch = await withApi(async (api) => ({
+			canUndo: api.historyAvailable(api.getMapState().history, "undo"),
+			canRedo: api.historyAvailable(api.getMapState().history, "redo"),
+		}));
+		expect(historyBAfterSwitch).toEqual(historyB);
+		const countBeforeUndoB = await getLocCount();
+		await withApi(async (api) => api.undo());
+		expect(await getLocCount()).toBe(countBeforeUndoB - 1);
+		await closeMap();
+
 		await openMap(mapAId);
 		await withApi(async (api) => api.undo());
-		const countAfter = await getLocCount();
-		expect(countAfter).toBe(countBefore - 1);
+		expect(await getLocCount()).toBe(countBefore - 1);
 		await closeMap();
 	});
 

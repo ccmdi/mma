@@ -32,11 +32,20 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { openMap, getMapState, getTags, getTagCounts, settled } from "@/store/useMapStore";
+import {
+	openMap,
+	getMapState,
+	getTags,
+	getTagCounts,
+	getVisibleTags,
+	getTag,
+	tagIdsToNames,
+	settled,
+} from "@/store/useMapStore";
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import type { ChangeEvent } from "@/bindings.gen";
-const event = (derived: Partial<ChangeEvent["derived"]> = {}): ChangeEvent => ({
-	version: 0,
+const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): ChangeEvent => ({
+	version,
 	added: [],
 	removed: [],
 	updated: [],
@@ -124,6 +133,27 @@ describe("change feed merge semantics", () => {
 		expect(getTags()[2]).toBeUndefined();
 	});
 
+	it("keeps dark tag metadata addressable but out of the visible set", () => {
+		arrive(
+			event({
+				fieldValues: {
+					tags: {
+						4: { record: { name: "Paris", color: "#f00" }, count: 1 },
+						9: { record: { name: "Empty", color: "#00f" }, count: 0 },
+					},
+				},
+			}),
+		);
+
+		expect(
+			getVisibleTags()
+				.map((tag) => tag.id)
+				.sort((a, b) => a - b),
+		).toEqual([1, 4]);
+		expect(getTag(9)).toMatchObject({ name: "Empty", visible: false });
+		expect(tagIdsToNames([9, 404])).toEqual(["Empty"]);
+	});
+
 	it("a counted value without a record shows under a derived name", () => {
 		arrive(event({ fieldValues: { tags: { 9: { record: null, count: 2 } } } }));
 		expect(getTags()[9]).toMatchObject({ id: 9, name: "Tag 9", visible: true });
@@ -169,11 +199,25 @@ describe("change feed merge semantics", () => {
 		expect(getMapState().selectionList).toBe(held);
 	});
 
+	it("settles each write only after the feed reaches its version", async () => {
+		let firstDone = false;
+		let secondDone = false;
+		const first = settled({ version: 50, added: [] }).then(() => (firstDone = true));
+		const second = settled({ version: 51, added: [] }).then(() => (secondDone = true));
+
+		arrive(event({ locationCount: 12 }, 50));
+		await first;
+		expect(firstDone).toBe(true);
+		expect(secondDone).toBe(false);
+		expect(getMapState().locationCount).toBe(12);
+
+		arrive(event({ locationCount: 13 }, 51));
+		await second;
+		expect(secondDone).toBe(true);
+		expect(getMapState().locationCount).toBe(13);
+	});
+
 	it("a write the open already covers settles without waiting for the feed", async () => {
-		const outcome = await Promise.race([
-			settled({ version: 1, added: [] }).then(() => "settled"),
-			new Promise((r) => setTimeout(() => r("waiting"), 50)),
-		]);
-		expect(outcome).toBe("settled");
+		await expect(settled({ version: 1, added: [] })).resolves.toBeUndefined();
 	});
 });

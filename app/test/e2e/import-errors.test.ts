@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, no-empty */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Import error paths: verify that malformed, empty, and edge-case inputs
  * produce graceful errors (not crashes or silent data loss).
@@ -35,37 +35,24 @@ describe("Malformed JSON import", () => {
 		await deleteMap(mapId);
 	});
 
-	it("completely invalid JSON does not crash", async () => {
-		const result = await withApi(async (api) => {
-			try {
-				const path = await api.cmd.writeTempFile("bad.json", "this is not json at all {{{");
-				const preview = await api.cmd.storeImportPreview(path);
-				// If it didn't throw, it should have returned 0 locations
-				return { count: preview?.locationCount ?? 0, threw: false };
-			} catch (_e: any) {
-				return { count: 0, threw: true };
-			}
+	it("completely invalid JSON previews as empty with a parser warning", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile("bad.json", "this is not json at all {{{");
+			return api.cmd.storeImportPreview(path);
 		});
-		// Either throws or returns 0 locations — both are acceptable
-		if (!result.threw) {
-			expect(result.count).toBe(0);
-		}
+		expect(preview.locationCount).toBe(0);
+		expect(preview.warnings).toContain("CSV missing lat/lng columns");
+		expect(await getLocCount()).toBe(0);
 	});
 
-	it("empty JSON object imports zero locations", async () => {
-		const result = await withApi(async (api) => {
-			try {
-				const path = await api.cmd.writeTempFile("empty.json", "{}");
-				const preview = await api.cmd.storeImportPreview(path);
-				return { count: preview.locationCount };
-			} catch (e: any) {
-				return { count: -1, error: e.message };
-			}
+	it("an object without a coordinate array previews empty with a warning", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile("empty.json", "{}");
+			return api.cmd.storeImportPreview(path);
 		});
-		// Either returns 0 locations or throws — both are acceptable
-		if (result.count !== -1) {
-			expect(result.count).toBe(0);
-		}
+		expect(preview.locationCount).toBe(0);
+		expect(preview.warnings).toContain("No recognized coordinate array found");
+		expect(await getLocCount()).toBe(0);
 	});
 
 	it("empty customCoordinates array imports zero locations", async () => {
@@ -78,40 +65,28 @@ describe("Malformed JSON import", () => {
 		expect(result).toBe(0);
 	});
 
-	it("JSON with wrong structure (array of strings) does not crash", async () => {
-		await withApi(async (api) => {
-			try {
-				const json = JSON.stringify(["foo", "bar", "baz"]);
-				const path = await api.cmd.writeTempFile("strings.json", json);
-				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) {
-				/* expected */
-			}
+	it("a JSON array without location objects previews empty and changes no rows", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile(
+				"strings.json",
+				JSON.stringify(["foo", "bar", "baz"]),
+			);
+			return api.cmd.storeImportPreview(path);
 		});
+		expect(preview.locationCount).toBe(0);
+		expect(preview.bounds).toBeNull();
+		expect(await getLocCount()).toBe(0);
 	});
 
-	it("location with NaN coordinates is handled", async () => {
-		const result = await withApi(async (api) => {
-			try {
-				const json = JSON.stringify({
-					customCoordinates: [{ lat: "not-a-number", lng: 20 }],
-				});
-				const path = await api.cmd.writeTempFile("nan.json", json);
-				const preview = await api.cmd.storeImportPreview(path);
-				return { count: preview.locationCount, error: null };
-			} catch (e: any) {
-				return { count: 0, error: e.message };
-			}
+	it("a location with non-numeric coordinates is excluded from preview", async () => {
+		const preview = await withApi(async (api) => {
+			const json = JSON.stringify({ customCoordinates: [{ lat: "not-a-number", lng: 20 }] });
+			const path = await api.cmd.writeTempFile("nan.json", json);
+			return api.cmd.storeImportPreview(path);
 		});
-		// Either skipped or errored — not a silent NaN in the store
-		if (result.count > 0) {
-			// If it was imported, verify it's not NaN
-			const locs = await getAllLocs();
-			for (const loc of locs) {
-				expect(Number.isFinite(loc.lat)).toBe(true);
-				expect(Number.isFinite(loc.lng)).toBe(true);
-			}
-		}
+		expect(preview.locationCount).toBe(0);
+		expect(preview.bounds).toBeNull();
+		expect(await getLocCount()).toBe(0);
 	});
 
 	it("location count unchanged after failed imports", async () => {
@@ -127,28 +102,18 @@ describe("Malformed JSON import", () => {
 describe("Paste import edge cases", () => {
 	useMap("E2E Paste Errors");
 
-	it("empty string paste does not crash", async () => {
-		await withApi(async (api) => {
-			try {
-				await api._test.importPaste("");
-			} catch (_e: any) {
-				/* expected */
-			}
-		});
-		const count = await getLocCount();
-		expect(count).toBe(0);
+	it("empty paste leaves the map unchanged", async () => {
+		await expect(withApi(async (api) => api._test.importPaste(""))).rejects.toThrow(
+			"no locations found",
+		);
+		expect(await getLocCount()).toBe(0);
 	});
 
-	it("paste of random text does not add locations", async () => {
-		await withApi(async (api) => {
-			try {
-				await api._test.importPaste("hello world this is not coordinates");
-			} catch (_e: any) {
-				/* expected */
-			}
-		});
-		const count = await getLocCount();
-		expect(count).toBe(0);
+	it("unrecognized paste text leaves the map unchanged", async () => {
+		await expect(
+			withApi(async (api) => api._test.importPaste("hello world this is not coordinates")),
+		).rejects.toThrow("no locations found");
+		expect(await getLocCount()).toBe(0);
 	});
 
 	it("paste with valid single coordinate works", async () => {
@@ -164,18 +129,17 @@ describe("Paste import edge cases", () => {
 		expect(loc.lng).toBeCloseTo(-0.1278, 3);
 	});
 
-	it("paste with mixed valid and invalid lines imports valid ones", async () => {
+	it("paste imports each valid coordinate and skips the invalid line", async () => {
 		const countBefore = await getLocCount();
-		await withApi(async (api) => {
-			try {
-				await api._test.importPaste("40.7128, -74.0060\nnot a coord\n35.6762, 139.6503");
-			} catch (_e: any) {
-				/* partial import may throw */
-			}
-		});
-		const countAfter = await getLocCount();
-		// Should have added at least the valid coordinates
-		expect(countAfter).toBeGreaterThanOrEqual(countBefore);
+		await withApi(async (api) =>
+			api._test.importPaste("40.7128, -74.0060\nnot a coord\n35.6762, 139.6503"),
+		);
+		expect(await getLocCount()).toBe(countBefore + 2);
+		const added = (await getAllLocs()).slice(countBefore);
+		expect(added.map(({ lat, lng }) => [lat, lng])).toEqual([
+			[40.7128, -74.006],
+			[35.6762, 139.6503],
+		]);
 	});
 });
 
@@ -186,41 +150,38 @@ describe("Paste import edge cases", () => {
 describe("CSV import edge cases", () => {
 	useMap("E2E CSV Errors");
 
-	it("CSV with headers only (no data rows) imports zero locations", async () => {
-		const result = await withApi(async (api) => {
-			try {
-				const csv = "lat,lng,heading,pitch,zoom\n";
-				const path = await api.cmd.writeTempFile("headers-only.csv", csv);
-				const preview = await api.cmd.storeImportPreview(path);
-				return { count: preview.locationCount };
-			} catch (e: any) {
-				return { count: 0, error: e.message };
-			}
+	it("CSV with headers only previews no locations", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile("headers-only.csv", "lat,lng,heading,pitch,zoom\n");
+			return api.cmd.storeImportPreview(path);
 		});
-		expect(result.count).toBe(0);
+		expect(preview.locationCount).toBe(0);
+		expect(preview.bounds).toBeNull();
+		expect(await getLocCount()).toBe(0);
 	});
 
-	it("CSV with swapped lat/lng columns imports (no crash)", async () => {
-		await withApi(async (api) => {
-			try {
-				const csv = "lng,lat,heading\n-0.1278,51.5074,0\n";
-				const path = await api.cmd.writeTempFile("swapped.csv", csv);
-				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) {
-				/* expected */
-			}
+	it("CSV headers select latitude and longitude independent of column order", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile(
+				"swapped.csv",
+				"lng,lat,heading\n-0.1278,51.5074,0\n",
+			);
+			return api.cmd.storeImportPreview(path);
 		});
+		expect(preview.locationCount).toBe(1);
+		expect(preview.bounds).toEqual([-0.1278, 51.5074, -0.1278, 51.5074]);
+		expect(await getLocCount()).toBe(0);
 	});
 
-	it("empty CSV file does not crash", async () => {
-		await withApi(async (api) => {
-			try {
-				const path = await api.cmd.writeTempFile("empty.csv", "");
-				await api.cmd.storeImportPreview(path);
-			} catch (_e: any) {
-				/* expected */
-			}
+	it("empty CSV reports an empty input and previews no locations", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile("empty.csv", "");
+			return api.cmd.storeImportPreview(path);
 		});
+		expect(preview.locationCount).toBe(0);
+		expect(preview.bounds).toBeNull();
+		expect(preview.warnings).toContain("Empty CSV");
+		expect(await getLocCount()).toBe(0);
 	});
 });
 
@@ -240,20 +201,15 @@ describe("Import does not corrupt existing data", () => {
 		existingIds = await addLocs(locs);
 		await flushAndWait();
 	});
-	it("failed import leaves existing locations intact", async () => {
-		// Try to import garbage
-		await withApi(async (api) => {
-			try {
-				const path = await api.cmd.writeTempFile("garbage.json", "not json!!!!");
-				await api.cmd.storeImportPreview(path);
-			} catch {}
+	it("a malformed import preview leaves existing locations intact", async () => {
+		const preview = await withApi(async (api) => {
+			const path = await api.cmd.writeTempFile("garbage.json", "not json!!!!");
+			return api.cmd.storeImportPreview(path);
 		});
-
-		const count = await getLocCount();
-		expect(count).toBe(2);
-
-		const locs = await getAllLocs();
-		expect(locs.length).toBe(2);
+		expect(preview.locationCount).toBe(0);
+		expect(preview.warnings).toContain("CSV missing lat/lng columns");
+		expect(await getLocCount()).toBe(2);
+		expect((await getAllLocs()).map(({ id }) => id)).toEqual(existingIds);
 	});
 
 	it("existing locations have correct data after failed import", async () => {

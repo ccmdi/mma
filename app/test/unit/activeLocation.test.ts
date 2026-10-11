@@ -77,6 +77,18 @@ describe("active location", () => {
 		expect(seen).toEqual([7, null]);
 	});
 
+	it("a pending location read cannot reopen the editor after it is cleared", async () => {
+		let release!: () => void;
+		h.held.set(8, new Promise((resolve) => (release = resolve)));
+		const switching = setActiveLocation(8);
+		await setActiveLocation(null);
+		release();
+		await switching;
+
+		expect(getMapState().open).toBeNull();
+		expect(getMapState().workArea).toBe("overview");
+	});
+
 	it("a row read for an earlier opening never lands on a reopening of the same location", async () => {
 		await setActiveLocation(7);
 		const earlier = getMapState().open!.session;

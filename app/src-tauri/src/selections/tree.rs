@@ -701,45 +701,5 @@ pub fn rewrite(selection: &Selection, from: &str, to: Option<&str>) -> Option<Se
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn selection_tree_preserves_existing_behavior() {
-        let fixtures: serde_json::Value =
-            serde_json::from_str(include_str!("tree.fixtures.json")).unwrap();
-        for (index, case) in fixtures["build"].as_array().unwrap().iter().enumerate() {
-            let expected: Selection = serde_json::from_value(case["expected"].clone()).unwrap();
-            let input: SelectionInput =
-                serde_json::from_value(serde_json::json!({"selector": case["selector"]})).unwrap();
-            let actual = input.compile();
-            assert_eq!(actual.key, expected.key, "build {index}");
-            if !matches!(actual.selector, Selector::Polygon { .. }) {
-                assert_eq!(actual.color, expected.color, "color {index}");
-            }
-        }
-        for (index, case) in fixtures["ops"].as_array().unwrap().iter().enumerate() {
-            let before: Vec<ListedSelection> =
-                serde_json::from_value(case["before"].clone()).unwrap();
-            let expected: Vec<ListedSelection> =
-                serde_json::from_value(case["after"].clone()).unwrap();
-            let actual = if case["op"]["kind"] == "rewriteFields" {
-                let from = case["op"]["from"].as_str().unwrap();
-                let to = case["op"]["to"].as_str();
-                before
-                    .iter()
-                    .filter_map(|row| {
-                        rewrite(&row.selection, from, to).map(|selection| ListedSelection {
-                            selection,
-                            ghosted: row.ghosted,
-                        })
-                    })
-                    .collect()
-            } else {
-                let op: SelectionOp = serde_json::from_value(case["op"].clone()).unwrap();
-                op.apply(&before)
-            };
-            assert_eq!(actual, expected, "operation {index}: {}", case["op"]);
-        }
-    }
-}
+#[path = "tree.test.rs"]
+mod tests;

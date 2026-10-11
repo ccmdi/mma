@@ -16,6 +16,73 @@ beforeEach(() => h.read.mockReset());
 afterEach(() => vi.unstubAllGlobals());
 
 describe("read payloads", () => {
+	it.each([
+		{ name: "ids", ask: { kind: "ids" }, answer: { kind: "ids", ids: [2, 5] }, expected: [2, 5] },
+		{ name: "count", ask: { kind: "count" }, answer: { kind: "count", count: 2 }, expected: 2 },
+		{
+			name: "columns",
+			ask: { kind: "columns", fields: ["lat", "tags"] },
+			answer: {
+				kind: "columns",
+				columns: [
+					[1, 2],
+					[[3], []],
+				],
+			},
+			expected: [
+				[1, 2],
+				[[3], []],
+			],
+		},
+		{
+			name: "values",
+			ask: { kind: "values", field: "countryCode" },
+			answer: { kind: "values", values: ["FR", "JP"] },
+			expected: ["FR", "JP"],
+		},
+		{
+			name: "groupBy",
+			ask: { kind: "groupBy", field: "countryCode", key: { kind: "value" } },
+			answer: { kind: "groupBy", groups: [{ key: "FR", ids: [2, 5], bin: null }] },
+			expected: [{ key: "FR", ids: [2, 5], bin: null }],
+		},
+		{
+			name: "countBy",
+			ask: { kind: "countBy", fields: ["tags"], key: { kind: "value" } },
+			answer: { kind: "countBy", counts: [{ counts: [["3", 2]], covered: 2 }] },
+			expected: [{ counts: [["3", 2]], covered: 2 }],
+		},
+		{
+			name: "coverage",
+			ask: { kind: "coverage" },
+			answer: { kind: "coverage", coverage: [["lat", 2]] },
+			expected: [["lat", 2]],
+		},
+		{
+			name: "duplicateGroups",
+			ask: { kind: "duplicateGroups", distance: 25 },
+			answer: { kind: "duplicateGroups", groups: [[2, 5]] },
+			expected: [[2, 5]],
+		},
+		{
+			name: "nearAny",
+			ask: { kind: "nearAny", lats: [0, 1], lngs: [0, 1], radiusM: 50 },
+			answer: { kind: "nearAny", values: [true, false] },
+			expected: [true, false],
+		},
+		{
+			name: "bounds",
+			ask: { kind: "bounds" },
+			answer: { kind: "bounds", bounds: [-2, -1, 4, 3] },
+			expected: [-2, -1, 4, 3],
+		},
+	] satisfies { name: string; ask: Ask; answer: Answer; expected: unknown }[])(
+		"returns the $name answer payload",
+		async ({ ask, answer, expected }) => {
+			h.read.mockResolvedValue(answer);
+			await expect(read(selector, ask as Ask)).resolves.toEqual(expected);
+		},
+	);
 	it("infers payloads from literal and union requests", async () => {
 		h.read.mockResolvedValue({ kind: "count", count: 0 } satisfies Answer);
 		const count = read(selector, { kind: "count" });
@@ -32,15 +99,12 @@ describe("read payloads", () => {
 		expectTypeOf<ReturnType<typeof read<Extract<Ask, { kind: "nearAny" }>>>>().toEqualTypeOf<
 			Promise<boolean[]>
 		>();
-		const ask: Extract<Ask, { kind: "count" | "bounds" }> =
-			Math.random() > 0.5 ? { kind: "count" } : { kind: "bounds" };
-		// Keep the request statically a union, while the mock answers its runtime branch.
-		h.read.mockResolvedValue(
-			ask.kind === "count" ? { kind: "count", count: 2 } : { kind: "bounds", bounds: null },
-		);
-		const union = read(selector, ask);
+		// Keep the request statically a union while choosing a deterministic runtime branch.
+		const ask = (): Extract<Ask, { kind: "count" | "bounds" }> => ({ kind: "bounds" });
+		h.read.mockResolvedValue({ kind: "bounds", bounds: null });
+		const union = read(selector, ask());
 		expectTypeOf(union).toEqualTypeOf<Promise<number | [number, number, number, number] | null>>();
-		await union;
+		await expect(union).resolves.toBeNull();
 	});
 
 	it("preserves multiple payload fields and forwards the pending target", async () => {

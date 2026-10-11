@@ -23,7 +23,7 @@ export default defineConfig({
 		globals: true,
 		fsModuleCache: true,
 		// Past eight workers, worker and environment setup costs more than the parallelism saves.
-		maxWorkers: Math.min(8, availableParallelism() - 1),
+		maxWorkers: Math.max(1, Math.min(8, availableParallelism() - 1)),
 		// Reuse workers for jsdom and lint rules; app-state tests retain isolated workers.
 		projects: [
 			{

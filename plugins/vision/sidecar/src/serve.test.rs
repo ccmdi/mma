@@ -69,27 +69,29 @@ fn search_image_orders_and_excludes_query() {
 fn cache_reloads_when_file_changes() {
     let cd = temp_cache_dir("reload");
     save_cache(&cd, &[("q", unit(1.0, 0.0)), ("far", unit(0.0, 1.0))]);
+    let baseline = crate::embed::cache_mtime(&cd).expect("initial cache was written");
+    let cache_file = std::path::Path::new(&cd).join("embeddings_v6.bin");
+    let file = std::fs::OpenOptions::new()
+        .write(true)
+        .open(&cache_file)
+        .unwrap();
+    file.set_modified(baseline - std::time::Duration::from_secs(60))
+        .unwrap();
+    drop(file);
+    let baseline = crate::embed::cache_mtime(&cd).expect("cache timestamp was set");
     let mut s = ServeState::new("unused-model-dir", &cd);
     let (_, body) = s.handle("POST", "/search-image", r#"{"panoId":"q"}"#);
     assert_eq!(result_ids(&body).len(), 1);
 
-    // Rewrite the cache (as a concurrent embed run would) until the mtime
-    // provably moves, then the resident state must pick up the new content.
-    let before = crate::embed::cache_mtime(&cd);
-    loop {
-        save_cache(
-            &cd,
-            &[
-                ("q", unit(1.0, 0.0)),
-                ("close", unit(0.8, 0.6)),
-                ("far", unit(0.0, 1.0)),
-            ],
-        );
-        if crate::embed::cache_mtime(&cd) != before {
-            break;
-        }
-        std::thread::sleep(std::time::Duration::from_millis(20));
-    }
+    save_cache(
+        &cd,
+        &[
+            ("q", unit(1.0, 0.0)),
+            ("close", unit(0.8, 0.6)),
+            ("far", unit(0.0, 1.0)),
+        ],
+    );
+    assert_ne!(crate::embed::cache_mtime(&cd), Some(baseline));
     let (_, body) = s.handle("POST", "/search-image", r#"{"panoId":"q"}"#);
     assert_eq!(result_ids(&body).len(), 2);
 }

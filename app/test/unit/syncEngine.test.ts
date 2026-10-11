@@ -9,12 +9,15 @@ const h = vi.hoisted(() => ({
 	reconciles: [] as unknown[][],
 	mutations: [] as unknown[],
 	result: null as SyncReconcileResult | null,
+	beforeReturn: null as (() => void) | null,
+	settlement: null as Promise<void> | null,
 }));
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		syncReconcile: async (...args: unknown[]) => {
 			h.reconciles.push(args);
+			h.beforeReturn?.();
 			return h.result;
 		},
 	},
@@ -23,6 +26,7 @@ vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ mapId: h.mapId, map: h.mapId ? { id: h.mapId } : null }),
 	settled: async (m: unknown) => {
 		h.mutations.push(m);
+		return h.settlement ?? Promise.resolve();
 	},
 }));
 vi.mock("@/lib/events", () => ({
@@ -93,6 +97,8 @@ beforeEach(() => {
 	h.reconciles = [];
 	h.mutations = [];
 	h.result = RESULT;
+	h.beforeReturn = null;
+	h.settlement = null;
 });
 
 describe("sync reconcile apply step", () => {
@@ -126,6 +132,69 @@ describe("sync reconcile apply step", () => {
 		expect(store.getLink()?.lastSyncedAt).toBeNull();
 	});
 
+	it("waits for the local mutation feed before advancing the sync timestamp", async () => {
+		const store = linkedStore();
+		let release!: () => void;
+		h.settlement = new Promise<void>((resolve) => (release = resolve));
+
+		const completion = reconcile(provider, store);
+		await Promise.resolve();
+		expect(h.mutations).toEqual([MUTATION]);
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+
+		release();
+		await completion;
+		expect(store.getLink()?.lastSyncedAt).toBeTruthy();
+	});
+
+	it("leaves the sync timestamp unchanged when waiting for the feed fails", async () => {
+		const store = linkedStore();
+		h.settlement = Promise.reject(new Error("feed failed"));
+
+		await expect(reconcile(provider, store)).rejects.toThrow("feed failed");
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("does not call Rust when the caller is already aborted", async () => {
+		const store = linkedStore();
+		const controller = new AbortController();
+		controller.abort();
+
+		await expect(reconcile(provider, store, { signal: controller.signal })).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		expect(h.reconciles).toEqual([]);
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("refuses when the link has already been removed", async () => {
+		const store = linkedStore();
+		store.setLink(null);
+
+		await expect(reconcile(provider, store)).rejects.toThrow("map is not linked");
+		expect(h.reconciles).toEqual([]);
+	});
+
+	it("does not report completion after Rust applies a result to an aborted caller", async () => {
+		const store = linkedStore();
+		const controller = new AbortController();
+		h.beforeReturn = () => controller.abort();
+
+		await expect(reconcile(provider, store, { signal: controller.signal })).rejects.toMatchObject({
+			name: "AbortError",
+		});
+		expect(h.mutations).toEqual([]);
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("does not advance a link removed while Rust is reconciling", async () => {
+		const store = linkedStore();
+		h.beforeReturn = () => store.setLink(null);
+
+		await expect(reconcile(provider, store)).rejects.toThrow("map was unlinked during sync");
+		expect(h.mutations).toEqual([]);
+		expect(store.getLink()).toBeNull();
+	});
 	it("passes the first-sync mode and conflict resolutions through", async () => {
 		const store = linkedStore();
 		await reconcile(provider, store, {

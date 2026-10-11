@@ -69,7 +69,7 @@ describe("Extra field definitions", () => {
 		expect(reloaded.extra?.country).toBe("France");
 	});
 
-	it("null values in the merge patch delete keys", async () => {
+	it("null values in the merge patch delete keys and stay deleted after reopen", async () => {
 		const ids = await addLocs([
 			createLocation({
 				lat: 50,
@@ -82,6 +82,10 @@ describe("Extra field definitions", () => {
 		await withApi(async (api, l) => {
 			await api.updateLocations([{ id: l.id, extra: { newField: "value", altitude: null } }]);
 		}, loc);
+
+		await flushAndWait();
+		await closeMap();
+		await openMap(map.id);
 
 		const reloaded = await getLoc(ids[0]);
 		expect(reloaded.extra?.newField).toBe("value");

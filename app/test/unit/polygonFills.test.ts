@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { ListedSelection, PolygonGeometry, Selection } from "@/bindings.gen";
 
-const h = vi.hoisted(() => ({ asked: [] as string[] }));
+const h = vi.hoisted(() => ({ asked: [] as string[], resolveSlow: null as (() => void) | null }));
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
@@ -9,9 +9,11 @@ vi.mock("@/lib/commands", () => ({
 			const name = String(polygon.properties?.name);
 			h.asked.push(name);
 			const fill = [polygon.coordinates];
-			return name === "slow"
-				? new Promise((resolve) => setTimeout(() => resolve(fill), 10))
-				: Promise.resolve(fill);
+			if (name === "slow")
+				return new Promise((resolve) => {
+					h.resolveSlow = () => resolve(fill);
+				});
+			return Promise.resolve(fill);
 		},
 	},
 }));
@@ -49,6 +51,7 @@ const intersection = (...selections: Selection[]): Selection => ({
 beforeEach(async () => {
 	await refreshPolygonFills([]);
 	h.asked = [];
+	h.resolveSlow = null;
 });
 
 describe("polygon fills", () => {
@@ -78,6 +81,7 @@ describe("polygon fills", () => {
 	it("keeps the latest refresh when an earlier one resolves after it", async () => {
 		const stale = refreshPolygonFills(listed(polygon("slow")));
 		await refreshPolygonFills(listed(polygon("b")));
+		h.resolveSlow!();
 		await stale;
 		expect(getPolygonFill("poly:slow")).toBeUndefined();
 		expect(getPolygonFill("poly:b")).toBeDefined();

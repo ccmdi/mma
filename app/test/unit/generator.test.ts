@@ -65,10 +65,13 @@ vi.mock("@/lib/commands", () => ({
 		},
 		polygonRandomPoints: (polygon: MockPolygon, count: number) => {
 			const r = rectOf(polygon);
-			const pts: [number, number][] = Array.from({ length: count }, () => [
-				r.west + Math.random() * (r.east - r.west),
-				r.south + Math.random() * (r.north - r.south),
-			]);
+			const pts: [number, number][] = Array.from({ length: count }, (_, i) => {
+				const fraction = (i + 1) / (count + 1);
+				return [
+					r.west + fraction * (r.east - r.west),
+					r.south + fraction * (r.north - r.south),
+				] as [number, number];
+			});
 			return Promise.resolve(pts);
 		},
 	},

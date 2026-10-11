@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { Tag } from "@/types";
 import { compareNatural, phaseRate, type PhaseRate } from "@/lib/util/util";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
@@ -90,6 +90,9 @@ describe("compareNatural", () => {
 });
 
 describe("relativeTime", () => {
+	beforeEach(async () => {
+		await initLocale("en");
+	});
 	afterEach(() => {
 		vi.restoreAllMocks();
 	});
