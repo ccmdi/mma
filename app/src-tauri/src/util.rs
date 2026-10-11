@@ -142,14 +142,13 @@ pub fn color_for_name(name: &str) -> String {
 /// Parses a "#rrggbb" hex color string to an RGB byte array.
 pub fn hex_to_rgb(hex: &str) -> Option<[u8; 3]> {
     let h = hex.trim_start_matches('#');
-    if h.len() != 6 {
-        return None;
-    }
-    Some([
-        u8::from_str_radix(&h[0..2], 16).ok()?,
-        u8::from_str_radix(&h[2..4], 16).ok()?,
-        u8::from_str_radix(&h[4..6], 16).ok()?,
-    ])
+    let h: String = match h.len() {
+        3 => h.chars().flat_map(|c| [c, c]).collect(),
+        6 => h.into(),
+        _ => return None,
+    };
+    let n = u32::from_str_radix(&h, 16).ok()?;
+    Some([(n >> 16) as u8, (n >> 8) as u8, n as u8])
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {

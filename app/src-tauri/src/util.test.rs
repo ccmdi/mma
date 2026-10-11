@@ -115,8 +115,13 @@ fn hex_to_rgb_white() {
 }
 
 #[test]
+fn hex_to_rgb_shorthand() {
+    assert_eq!(hex_to_rgb("#f80"), Some([255, 136, 0]));
+}
+
+#[test]
 fn hex_to_rgb_invalid_length() {
-    assert_eq!(hex_to_rgb("#fff"), None);
+    assert_eq!(hex_to_rgb("#ffff"), None);
     assert_eq!(hex_to_rgb(""), None);
 }
 
