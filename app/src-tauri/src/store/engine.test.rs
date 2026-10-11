@@ -3093,13 +3093,12 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
 }
 
 #[test]
-fn edit_values_appends_new_records_to_the_order_and_gives_them_a_colour() {
+fn edit_values_appends_new_records_to_the_order() {
     let mut store = setup_store_with(&[]);
     let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let meta = store.value_meta.get("tags").unwrap();
     assert_eq!(meta[&ids[0]].order, Some(1));
     assert_eq!(meta[&ids[1]].order, Some(2));
-    assert!(meta[&ids[0]].color().is_some());
 }
 
 #[test]
@@ -8411,6 +8410,10 @@ fn black_tag_selected(store: &mut Store) -> u32 {
     store
         .edit_values("tags", vec![recolor(tag.get(), "#000000")])
         .unwrap();
+    select_tag(store, tag)
+}
+
+fn select_tag(store: &mut Store, tag: Id<ValueRecord>) -> u32 {
     add_rows(store, vec![loc_with_tags(0, 1.0, 1.0, vec![tag.get()])]);
     store.edit_selections(&crate::selections::tree::SelectionOp::Add {
         selections: vec![crate::selections::tree::SelectionInput {
@@ -8465,25 +8468,39 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
 }
 
 #[test]
-fn a_created_tag_without_a_colour_gets_its_names() {
+fn a_created_tag_stores_no_colour_and_shows_its_names() {
     let mut store = setup_store_with(&[]);
     let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
-    assert_eq!(
-        tag_records(&store)[&id].color(),
-        Some(Rgb::for_name("Urban"))
-    );
+    let rec = &tag_records(&store)[&id];
+    assert_eq!(rec.color(), None);
+    assert_eq!(rec.shown_color(), Some(Rgb::for_name("Urban")));
 }
 
 #[test]
-fn ensuring_a_colour_fills_only_a_colourless_record_and_reports_it() {
-    let mut colourless = named("Rural");
-    assert!(colourless.ensure_color());
-    assert_eq!(colourless.color(), Some(Rgb::for_name("Rural")));
-    assert!(!colourless.ensure_color(), "nothing left to fill");
+fn a_chosen_colour_outranks_the_names() {
+    let rec = tag(0, "Urban", "#123456");
+    assert_eq!(rec.shown_color(), "#123456".parse().ok());
+}
 
-    let mut coloured = tag(0, "Urban", "#123456");
-    assert!(!coloured.ensure_color());
-    assert_eq!(coloured.color(), "#123456".parse().ok());
+#[test]
+fn renaming_an_uncoloured_selected_tag_repaints_it_in_the_new_names_colour() {
+    let mut store = setup_store_with(&[]);
+    let tag = store.edit_values("tags", sets(&["Rural"])).unwrap().keys[0];
+    select_tag(&mut store, tag);
+    assert_eq!(
+        store.selections.list()[0].selection.color,
+        Rgb::for_name("Rural")
+    );
+
+    store
+        .edit_values("tags", vec![rename(tag.get(), "Urban")])
+        .unwrap();
+
+    assert_eq!(tag_records(&store)[&tag].color(), None);
+    assert_eq!(
+        store.selections.list()[0].selection.color,
+        Rgb::for_name("Urban")
+    );
 }
 
 #[test]

@@ -446,10 +446,6 @@ pub(super) fn bulk_tag_ids(
     });
     let mut ids = Vec::new();
     for id in landed.keys {
-        piles
-            .get_mut(&id)
-            .expect("a set lands on a record")
-            .ensure_color();
         if !ids.contains(&id) {
             ids.push(id);
         }

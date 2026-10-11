@@ -4,7 +4,7 @@ import { colorForName } from "@/lib/util/color";
 // Ground-truth fixtures shared with the Rust source of truth
 // (app/src-tauri/src/util.test.rs :: color_for_name_parity_fixtures).
 // If either side drifts, one of the two suites goes red. Keep both lists identical.
-describe("colorForName parity with Rust util::color_for_name", () => {
+describe("colorForName parity with Rust Rgb::for_name", () => {
 	const fixtures: [string, string][] = [
 		["red", "#bf9940"],
 		["blue", "#6c40bf"],

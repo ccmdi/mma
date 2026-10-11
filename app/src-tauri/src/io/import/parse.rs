@@ -829,14 +829,13 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
         .into_iter()
         .map(|(name, id)| {
             let meta = tag_meta.get(&name);
-            let color = meta
-                .and_then(|m| m.color.clone())
-                .unwrap_or_else(|| Rgb::for_name(&name));
             let mut extra = serde_json::Map::new();
             if let Some(doclinks) = meta.map(|m| &m.doclinks).filter(|d| !d.is_empty()) {
                 extra.insert("doclinks".into(), serde_json::json!(doclinks));
             }
-            extra.insert("color".into(), color.to_string().into());
+            if let Some(color) = meta.and_then(|m| m.color.as_ref()) {
+                extra.insert("color".into(), color.to_string().into());
+            }
             ValueRecord {
                 id: Id::new(id),
                 name: Some(name),

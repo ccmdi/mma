@@ -91,7 +91,7 @@ impl Store {
             .iter()
             .flat_map(|(field, pile)| {
                 pile.after()
-                    .filter_map(move |(id, rec)| Some(((field.as_str(), *id), rec.color()?)))
+                    .filter_map(move |(id, rec)| Some(((field.as_str(), *id), rec.shown_color()?)))
             })
             .collect();
         if colors.is_empty() {
@@ -332,7 +332,7 @@ impl Store {
                 false => ListedSelection {
                     selection: row.selection.recolored(&|field, id| {
                         self.value_record(field, Id::new(id))
-                            .and_then(ValueRecord::color)
+                            .and_then(ValueRecord::shown_color)
                     }),
                     ..row
                 },

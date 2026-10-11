@@ -34,28 +34,15 @@ pub struct ValueRecord {
 }
 
 impl ValueRecord {
-    const COLOR: &str = "color";
-
-    fn raw_color(&self) -> Option<&str> {
-        self.extra.as_ref()?.get(Self::COLOR)?.as_str()
-    }
-
+    /// The colour someone chose for this value, if any.
     pub(crate) fn color(&self) -> Option<Rgb> {
-        self.raw_color()?.parse().ok()
+        self.extra.as_ref()?.get("color")?.as_str()?.parse().ok()
     }
 
-    /// Fill in a missing colour from the record's name. Returns whether it changed.
-    pub(crate) fn ensure_color(&mut self) -> bool {
-        if self.raw_color().is_some() {
-            return false;
-        }
-        let Some(color) = self.name.as_deref().map(Rgb::for_name) else {
-            return false;
-        };
-        self.extra
-            .get_or_insert_with(Default::default)
-            .insert(Self::COLOR.into(), color.to_string().into());
-        true
+    /// The colour the value is drawn in: its chosen one, else its name's.
+    pub(crate) fn shown_color(&self) -> Option<Rgb> {
+        self.color()
+            .or_else(|| self.name.as_deref().map(Rgb::for_name))
     }
 }
 
@@ -277,12 +264,6 @@ impl Store {
             next += 1;
             Id::new(next)
         });
-        for id in &applied.keys {
-            after
-                .get_mut(id)
-                .expect("a set lands on a record")
-                .ensure_color();
-        }
         after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
         let patches = self.plan_value_merges(field, &applied.redirects)?;
         let keys: Vec<Id<ValueRecord>> = before.keys().chain(after.keys()).copied().collect();
