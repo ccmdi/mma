@@ -22,11 +22,15 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 
 	const handleApply = async () => {
 		if (!find || matches.length === 0) return;
-		const update = matches.map((t) => ({
-			id: t.id,
-			name: t.name.replaceAll(new RegExp(RegExp.escape(find), "gi"), replace),
-		}));
-		await edit.values("tags", { update });
+		await edit.values(
+			"tags",
+			matches.map((t) => ({
+				put: {
+					id: t.id,
+					name: t.name.replaceAll(new RegExp(RegExp.escape(find), "gi"), replace),
+				},
+			})),
+		);
 		setApplied(true);
 	};
 

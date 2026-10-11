@@ -1,26 +1,5 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
-
-pub(crate) fn write<T: Serialize>(records: &T) -> serde_json::Result<Value> {
-    let mut value = serde_json::to_value(records)?;
-    if let Some(records) = value.as_object_mut() {
-        for (key, record) in records {
-            if let (Ok(id), Some(record)) = (key.parse::<u32>(), record.as_object_mut()) {
-                record.insert("id".into(), id.into());
-            }
-        }
-    }
-    Ok(value)
-}
-
-pub(crate) fn encode<T: Serialize, S: serde::Serializer>(
-    records: &T,
-    serializer: S,
-) -> Result<S::Ok, S::Error> {
-    write(records)
-        .map_err(serde::ser::Error::custom)?
-        .serialize(serializer)
-}
 
 pub(crate) fn decode<'de, T: DeserializeOwned, D: serde::Deserializer<'de>>(
     deserializer: D,
@@ -28,11 +7,11 @@ pub(crate) fn decode<'de, T: DeserializeOwned, D: serde::Deserializer<'de>>(
     let mut value = Value::deserialize(deserializer)?;
     if let Some(records) = value.as_object_mut() {
         records.retain(|key, record| {
-            if key.parse::<u32>().is_err() {
+            let Ok(id) = key.parse::<u32>() else {
                 return false;
-            }
+            };
             if let Some(record) = record.as_object_mut() {
-                record.remove("id");
+                record.insert("id".into(), id.into());
                 record.remove("visible");
             }
             true

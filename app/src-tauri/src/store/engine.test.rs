@@ -13,7 +13,7 @@ use crate::test_util::{loc, patch};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
 use frame::tests::Captured;
-use mma_algebra::{Delta, Edit, Op, Patch};
+use mma_algebra::{Delta, Edit, Field, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
@@ -2924,147 +2924,186 @@ fn manager_remove_preserves_other() {
 // Interned value records: the one Rust-side owner (values.rs)
 // -----------------------------------------------------------------------
 
-/// A create seed: a pile with just a name.
-fn seed(name: &str) -> ValueRecord {
-    let mut rec = ValueRecord::new();
-    rec.insert("name".into(), name.into());
-    rec
-}
-
-fn creates(names: &[&str]) -> FieldValuesPatch {
-    FieldValuesPatch {
-        create: names.iter().map(|n| seed(n)).collect(),
+fn named(name: &str) -> ValueRecord {
+    ValueRecord {
+        name: Some(name.into()),
         ..Default::default()
     }
 }
 
+fn sets(names: &[&str]) -> Vec<Edit<ValueRecord>> {
+    names.iter().map(|n| Op::Set(named(n))).collect()
+}
+
+fn value_put(id: u32) -> Patch<ValueRecord> {
+    Patch::<ValueRecord> {
+        id,
+        ..Default::default()
+    }
+}
+
+fn extra_of(
+    pairs: &[(&str, serde_json::Value)],
+) -> Field<serde_json::Map<String, serde_json::Value>> {
+    Field::Set(
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect(),
+    )
+}
+
 #[test]
-fn patch_field_values_interns_names_with_server_side_ids_above_the_data_floor() {
+fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
     // Rows already carry tag id 7 with no metadata (foreign import); a fresh name must
     // allocate above it, and an existing name must be reused case-insensitively.
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    let urban = store
-        .patch_field_values("tags", &creates(&["Urban"]))
-        .unwrap()
-        .resolved[0];
+    let urban = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
     assert!(urban > 7, "fresh id lands above the data's max");
 
     let feed = FeedCapture::attach(&mut store);
     let r = store
-        .patch_field_values("tags", &creates(&["URBAN", "Rural"]))
+        .edit_values("tags", sets(&["URBAN", "Rural"]))
         .unwrap();
-    assert_eq!(r.resolved[0], urban, "case-insensitive reuse");
-    assert!(r.resolved[1] > urban);
+    assert_eq!(r.keys[0], urban, "case-insensitive reuse");
+    assert!(r.keys[1] > urban);
     assert!(
-        shipped_record(&feed.last().derived, "tags", r.resolved[1]).is_some(),
+        shipped_record(&feed.last().derived, "tags", r.keys[1]).is_some(),
         "the reconciled records ship on the same result"
     );
 }
 
 #[test]
-fn patch_field_values_updates_and_reorders_records() {
+fn edit_values_appends_new_records_to_the_order_and_gives_them_a_colour() {
     let mut store = setup_store_with(&[]);
-    let ids = store
-        .patch_field_values("tags", &creates(&["A", "B"]))
-        .unwrap()
-        .resolved;
-
-    let mut patch = ValueRecord::new();
-    patch.insert("name".into(), "Alpha".into());
-    patch.insert("color".into(), "#123456".into());
-    let feed = FeedCapture::attach(&mut store);
-    let r = store
-        .patch_field_values(
-            "tags",
-            &FieldValuesPatch {
-                update: vec![{
-                    let mut patch = patch;
-                    patch.insert("id".into(), ids[0].into());
-                    patch
-                }],
-                reorder: Some(vec![ids[1], ids[0]]),
-                ..Default::default()
-            },
-        )
-        .unwrap();
-    let _ = r;
-    let derived = feed.last().derived;
-    let first = shipped_record(&derived, "tags", ids[0]).unwrap();
-    let second = shipped_record(&derived, "tags", ids[1]).unwrap();
-    assert_eq!(record_name(&first), Some("Alpha"));
-    assert_eq!(first["color"], "#123456");
-    assert_eq!(record_order(&second), Some(0));
-    assert_eq!(record_order(&first), Some(1));
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let meta = store.value_meta.get("tags").unwrap();
+    assert_eq!(meta[&ids[0]].order, Some(1));
+    assert_eq!(meta[&ids[1]].order, Some(2));
+    assert!(meta[&ids[0]].color().is_some());
 }
 
 #[test]
-fn patch_field_values_null_deletes_a_pile_key_but_never_the_name() {
+fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
     let mut store = setup_store_with(&[]);
-    let id = store
-        .patch_field_values("tags", &creates(&["A"]))
-        .unwrap()
-        .resolved[0];
-    let mut patch = ValueRecord::new();
-    patch.insert("color".into(), serde_json::Value::Null);
-    patch.insert("name".into(), serde_json::Value::Null);
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+
+    let feed = FeedCapture::attach(&mut store);
     store
-        .patch_field_values(
+        .edit_values(
             "tags",
-            &FieldValuesPatch {
-                update: vec![{
-                    let mut patch = patch;
-                    patch.insert("id".into(), id.into());
-                    patch
-                }],
-                ..Default::default()
-            },
+            vec![
+                Op::Put(Patch::<ValueRecord> {
+                    name: Field::Set("Alpha".into()),
+                    order: Field::Set(1),
+                    extra: extra_of(&[("color", "#123456".into())]),
+                    ..value_put(ids[0])
+                }),
+                Op::Put(Patch::<ValueRecord> {
+                    order: Field::Set(0),
+                    ..value_put(ids[1])
+                }),
+            ],
+        )
+        .unwrap();
+    let derived = feed.last().derived;
+    let first = shipped_record(&derived, "tags", ids[0]).unwrap();
+    let second = shipped_record(&derived, "tags", ids[1]).unwrap();
+    assert_eq!(first.name.as_deref(), Some("Alpha"));
+    assert_eq!(first.color(), Some("#123456"));
+    assert_eq!(second.order, Some(0));
+    assert_eq!(first.order, Some(1));
+
+    undo_and_finish(&mut store);
+    let meta = store.value_meta.get("tags").unwrap();
+    assert_eq!(meta[&ids[0]].name.as_deref(), Some("A"));
+    assert_eq!(meta[&ids[0]].order, Some(1));
+    assert_eq!(
+        meta[&ids[1]].order,
+        Some(2),
+        "one undo restores the whole edit"
+    );
+}
+
+#[test]
+fn edit_values_null_deletes_a_metadata_key_but_never_the_name() {
+    let mut store = setup_store_with(&[]);
+    let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
+    store
+        .edit_values(
+            "tags",
+            vec![Op::Put(Patch::<ValueRecord> {
+                name: Field::Clear,
+                extra: extra_of(&[("color", serde_json::Value::Null)]),
+                ..value_put(id)
+            })],
         )
         .unwrap();
     let meta = store.value_meta.get("tags").unwrap();
-    assert!(!meta[&id].contains_key("color"), "null deletes the key");
+    assert_eq!(meta[&id].color(), None, "null deletes the key");
     assert_eq!(
-        record_name(&meta[&id]),
+        meta[&id].name.as_deref(),
         Some("A"),
         "identity never goes blank"
     );
 }
 
 #[test]
-fn patch_field_values_rename_collision_merges_rows_in_one_undoable_edit() {
+fn edit_values_patching_a_value_rows_hold_creates_its_missing_record() {
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
+    store
+        .edit_values(
+            "tags",
+            vec![Op::Put(Patch::<ValueRecord> {
+                name: Field::Set("Seven".into()),
+                ..value_put(7)
+            })],
+        )
+        .unwrap();
+    store
+        .edit_values(
+            "tags",
+            vec![Op::Put(Patch::<ValueRecord> {
+                name: Field::Set("Ghost".into()),
+                ..value_put(99)
+            })],
+        )
+        .unwrap();
+    let meta = store.value_meta.get("tags").unwrap();
+    assert_eq!(meta[&7].name.as_deref(), Some("Seven"));
+    assert!(
+        !meta.contains_key(&99),
+        "an id nothing holds gets no record"
+    );
+}
+
+#[test]
+fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
     // Renaming A to "b" while B exists is a merge: every row carrying A is remapped to
     // B in one edit, A's record goes dark (count 0), and undo restores the rows.
     let mut store = setup_store_with(&[
         loc_with_tags(1, 0.0, 0.0, vec![]),
         loc_with_tags(2, 1.0, 1.0, vec![]),
     ]);
-    let ids = store
-        .patch_field_values("tags", &creates(&["A", "B"]))
-        .unwrap()
-        .resolved;
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a, &[1, 2]);
     tag_onto(&mut store, b, &[2]);
 
-    let mut patch = ValueRecord::new();
-    patch.insert("name".into(), "b".into());
     store
-        .patch_field_values(
+        .edit_values(
             "tags",
-            &FieldValuesPatch {
-                update: vec![{
-                    let mut patch = patch;
-                    patch.insert("id".into(), a.into());
-                    patch
-                }],
-                ..Default::default()
-            },
+            vec![Op::Put(Patch::<ValueRecord> {
+                name: Field::Set("b".into()),
+                ..value_put(a)
+            })],
         )
         .unwrap();
 
     assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
     assert_eq!(store.get_loc_by_id(2).unwrap().tags, vec![b]);
     assert_eq!(
-        record_name(&store.value_meta.get("tags").unwrap()[&a]),
+        store.value_meta.get("tags").unwrap()[&a].name.as_deref(),
         Some("A"),
         "the emptied record keeps its name, dark"
     );
@@ -3075,25 +3114,29 @@ fn patch_field_values_rename_collision_merges_rows_in_one_undoable_edit() {
 }
 
 #[test]
-fn patch_field_values_rejects_a_field_that_does_not_intern() {
+fn edit_values_that_change_nothing_record_no_undo_step() {
     let mut store = setup_store_with(&[]);
-    assert!(store
-        .patch_field_values("panoId", &FieldValuesPatch::default())
-        .is_err());
+    store.edit_values("tags", sets(&["A"])).unwrap();
+    let steps = store.edits.len(Stack::Undo);
+    store.edit_values("tags", Vec::new()).unwrap();
+    store.edit_values("tags", sets(&["a"])).unwrap();
+    assert_eq!(store.edits.len(Stack::Undo), steps);
 }
 
 #[test]
-fn patch_field_values_rejects_a_nameless_create_seed() {
+fn edit_values_rejects_a_field_that_does_not_intern() {
+    let mut store = setup_store_with(&[]);
+    assert!(store.edit_values("panoId", Vec::new()).is_err());
+}
+
+#[test]
+fn edit_values_rejects_a_nameless_new_record_and_any_removal() {
     let mut store = setup_store_with(&[]);
     assert!(store
-        .patch_field_values(
-            "tags",
-            &FieldValuesPatch {
-                create: vec![ValueRecord::new()],
-                ..Default::default()
-            }
-        )
+        .edit_values("tags", vec![Op::Set(named("  "))])
         .is_err());
+    let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
+    assert!(store.edit_values("tags", vec![Op::Remove(id)]).is_err());
 }
 
 // -----------------------------------------------------------------------
@@ -4928,22 +4971,46 @@ fn copy_dedup_empty_pano_treated_as_panoless() {
 // Value reconciliation core (reconcile_values_by_name) — shared by import + copy
 // -----------------------------------------------------------------------
 
-fn tag(id: u32, name: &str, color: &str) -> (u32, ValueRecord) {
-    let mut rec = seed(name);
-    rec.insert("color".into(), color.into());
-    (id, rec)
+fn tag(id: u32, name: &str, color: &str) -> ValueRecord {
+    ValueRecord {
+        id,
+        name: Some(name.into()),
+        extra: Some(serde_json::Map::from_iter([(
+            "color".to_string(),
+            color.into(),
+        )])),
+        ..Default::default()
+    }
+}
+
+fn with_extra(mut rec: ValueRecord, key: &str, value: serde_json::Value) -> ValueRecord {
+    rec.extra
+        .get_or_insert_with(Default::default)
+        .insert(key.into(), value);
+    rec
+}
+
+fn extra_at<'a>(rec: &'a ValueRecord, key: &str) -> &'a serde_json::Value {
+    &rec.extra.as_ref().unwrap()[key]
+}
+
+fn table(records: impl IntoIterator<Item = ValueRecord>) -> HashMap<u32, ValueRecord> {
+    records.into_iter().map(|r| (r.id, r)).collect()
 }
 
 #[test]
 fn reconcile_values_match_by_name_case_insensitive() {
-    let mut target: HashMap<u32, ValueRecord> = [tag(3, "rural", "#222222")].into_iter().collect();
+    let mut target = table([ValueRecord {
+        order: Some(1),
+        ..tag(3, "rural", "#222222")
+    }]);
     let before = target.clone();
     let remap = reconcile_values_by_name(&[tag(7, "Rural", "#111111")], &mut target, 0);
     assert_eq!(remap.get(&7), Some(&3));
     assert_eq!(target, before, "pure match mutates nothing");
     assert_eq!(target.len(), 1);
     // The existing target record keeps its own color.
-    assert_eq!(target.get(&3).unwrap()["color"], "#222222");
+    assert_eq!(target.get(&3).unwrap().color(), Some("#222222"));
 }
 
 #[test]
@@ -4952,37 +5019,40 @@ fn reconcile_values_create_missing_with_source_pile() {
     let remap = reconcile_values_by_name(&[tag(7, "Trekker", "#abcdef")], &mut target, 9);
     assert_eq!(remap.get(&7), Some(&10));
     let rec = target.get(&10).unwrap();
-    assert_eq!(record_name(rec), Some("Trekker"));
-    assert_eq!(rec["color"], "#abcdef");
+    assert_eq!(rec.name.as_deref(), Some("Trekker"));
+    assert_eq!(rec.color(), Some("#abcdef"));
 }
 
 #[test]
 fn reconcile_values_pile_keys_claimed_when_target_lacks_them() {
-    let mut target: HashMap<u32, ValueRecord> = [tag(3, "rural", "#222222")].into_iter().collect();
-    let (id, mut rec) = tag(7, "Rural", "#111111");
-    rec.insert(
-        "doclinks".into(),
+    let mut target = table([tag(3, "rural", "#222222")]);
+    let rec = with_extra(
+        tag(7, "Rural", "#111111"),
+        "doclinks",
         serde_json::json!(["https://docs.google.com/document/d/x/edit#heading=h.abc"]),
     );
-    reconcile_values_by_name(&[(id, rec.clone())], &mut target, 0);
-    assert_eq!(target.get(&3).unwrap()["doclinks"], rec["doclinks"]);
+    reconcile_values_by_name([&rec], &mut target, 0);
+    assert_eq!(
+        extra_at(target.get(&3).unwrap(), "doclinks"),
+        extra_at(&rec, "doclinks")
+    );
 }
 
 #[test]
 fn reconcile_values_pile_keys_never_overwrite_existing() {
     let kept = serde_json::json!(["https://docs.google.com/document/d/kept/edit#heading=h.kept"]);
-    let mut target: HashMap<u32, ValueRecord> = {
-        let (id, mut rec) = tag(3, "rural", "#222222");
-        rec.insert("doclinks".into(), kept.clone());
-        [(id, rec)].into_iter().collect()
-    };
-    let (id, mut rec) = tag(7, "Rural", "#222222");
-    rec.insert(
-        "doclinks".into(),
+    let mut target = table([with_extra(
+        tag(3, "rural", "#222222"),
+        "doclinks",
+        kept.clone(),
+    )]);
+    let rec = with_extra(
+        tag(7, "Rural", "#222222"),
+        "doclinks",
         serde_json::json!(["https://docs.google.com/document/d/new/edit#heading=h.new"]),
     );
-    reconcile_values_by_name(&[(id, rec)], &mut target, 0);
-    assert_eq!(target.get(&3).unwrap()["doclinks"], kept);
+    reconcile_values_by_name([&rec], &mut target, 0);
+    assert_eq!(extra_at(target.get(&3).unwrap(), "doclinks"), &kept);
 }
 
 #[test]
@@ -6051,7 +6121,7 @@ fn loc_with_extra(id: u32, json: &str) -> Location {
 
 fn planned_extra(u: &Patch<Location>) -> serde_json::Value {
     serde_json::from_str(match &u.extra {
-        mma_algebra::Field::Set(e) => e.as_str(),
+        Field::Set(e) => e.as_str(),
         other => panic!("extra is {other:?}"),
     })
     .unwrap()
@@ -6314,11 +6384,7 @@ fn delete_clears_a_nullable_builtin_column_rather_than_a_phantom_extra_key() {
     let locs = [pinned_loc(1, "abc"), pinned_loc(2, "def")];
     let out = plan(&locs, &del_op(&["panoId"]));
     assert_eq!(out.len(), 2);
-    assert_eq!(
-        out[0].pano_id,
-        mma_algebra::Field::Clear,
-        "the column is cleared"
-    );
+    assert_eq!(out[0].pano_id, Field::Clear, "the column is cleared");
     assert!(out[0].extra.is_keep(), "nothing lands in extra");
 }
 
@@ -6337,7 +6403,7 @@ fn one_delete_of_a_column_and_an_extra_key_is_one_patch() {
     }];
     let out = plan(&locs, &del_op(&["panoId", "a"]));
     assert_eq!(out.len(), 1);
-    assert_eq!(out[0].pano_id, mma_algebra::Field::Clear);
+    assert_eq!(out[0].pano_id, Field::Clear);
     assert_eq!(planned_extra(&out[0]), serde_json::json!({ "a": null }));
 }
 
@@ -6364,7 +6430,7 @@ fn an_op_that_cannot_write_a_builtin_fails_instead_of_reporting_rows_changed() {
 fn a_move_may_take_a_nullable_column_but_never_fill_one() {
     let locs = [pinned_loc(1, "abc")];
     let moved = plan(&locs, &move_op("panoId", "oldPano", MergeWinner::From));
-    assert_eq!(moved[0].pano_id, mma_algebra::Field::Clear);
+    assert_eq!(moved[0].pano_id, Field::Clear);
     assert_eq!(
         planned_extra(&moved[0]),
         serde_json::json!({ "oldPano": "abc" })
@@ -7118,7 +7184,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     };
 
     let kept = store.retain_valid_outputs(answer(), &read, &now);
-    let mma_algebra::Field::Set(extra) = kept.extra else {
+    let Field::Set(extra) = kept.extra else {
         panic!("the fresh output is kept");
     };
     let extra = extra.to_map();
@@ -7127,7 +7193,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     assert_eq!(kept.heading, Some(2.0));
 
     let same = store.retain_valid_outputs(answer(), &read, &read);
-    let mma_algebra::Field::Set(extra) = same.extra else {
+    let Field::Set(extra) = same.extra else {
         panic!("nothing went stale");
     };
     assert!(extra.to_map().contains_key("countryCode"));
@@ -7144,7 +7210,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     };
     assert_eq!(
         store.retain_valid_outputs(all_stale, &read, &now).extra,
-        mma_algebra::Field::Keep
+        Field::Keep
     );
 }
 
@@ -7156,34 +7222,44 @@ fn tag_records(store: &Store) -> HashMap<u32, ValueRecord> {
         .unwrap_or_default()
 }
 
-fn tag_update(id: u32, key: &str, value: serde_json::Value) -> FieldValuesPatch {
-    let mut rec = ValueRecord::new();
-    rec.insert("id".into(), id.into());
-    rec.insert(key.into(), value);
-    FieldValuesPatch {
-        update: vec![rec],
-        ..Default::default()
-    }
+fn rename(id: u32, name: &str) -> Edit<ValueRecord> {
+    Op::Put(Patch::<ValueRecord> {
+        name: Field::Set(name.into()),
+        ..value_put(id)
+    })
+}
+
+fn recolor(id: u32, color: &str) -> Edit<ValueRecord> {
+    Op::Put(Patch::<ValueRecord> {
+        extra: extra_of(&[("color", color.into())]),
+        ..value_put(id)
+    })
+}
+
+fn reorder(ids: &[u32]) -> Vec<Edit<ValueRecord>> {
+    ids.iter()
+        .enumerate()
+        .map(|(i, &id)| {
+            Op::Put(Patch::<ValueRecord> {
+                order: Field::Set(i as u32),
+                ..value_put(id)
+            })
+        })
+        .collect()
 }
 
 #[test]
 fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
     let mut store = setup_store_with(&[]);
     let mut states = vec![tag_records(&store)];
-    let ids = store
-        .patch_field_values("tags", &creates(&["A", "B"]))
-        .unwrap()
-        .resolved;
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     states.push(tag_records(&store));
-    for patch in [
-        tag_update(ids[0], "name", "Alpha".into()),
-        tag_update(ids[1], "color", "#123456".into()),
-        FieldValuesPatch {
-            reorder: Some(vec![ids[1], ids[0]]),
-            ..Default::default()
-        },
+    for edits in [
+        vec![rename(ids[0], "Alpha")],
+        vec![recolor(ids[1], "#123456")],
+        reorder(&[ids[1], ids[0]]),
     ] {
-        store.patch_field_values("tags", &patch).unwrap();
+        store.edit_values("tags", edits).unwrap();
         states.push(tag_records(&store));
     }
     assert_eq!(store.edits.len(Stack::Undo), 4);
@@ -7199,22 +7275,17 @@ fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
 #[test]
 fn undoing_a_rename_collision_restores_records_and_rows_together() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    let ids = store
-        .patch_field_values("tags", &creates(&["A", "B"]))
-        .unwrap()
-        .resolved;
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a, &[1, 2]);
     tag_onto(&mut store, b, &[2]);
     let records = tag_records(&store);
 
-    let mut merge = tag_update(a, "name", "b".into());
-    merge
-        .update
-        .extend(tag_update(b, "color", "#abcdef".into()).update);
-    store.patch_field_values("tags", &merge).unwrap();
+    store
+        .edit_values("tags", vec![rename(a, "b"), recolor(b, "#abcdef")])
+        .unwrap();
     assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
-    assert_eq!(tag_records(&store)[&b]["color"], "#abcdef");
+    assert_eq!(tag_records(&store)[&b].color(), Some("#abcdef"));
 
     undo_and_finish(&mut store);
     assert_eq!(tag_records(&store), records);
@@ -7229,11 +7300,16 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
     crate::io::import::add_copied_to_store(
         &mut store,
         vec![loc_with_tags(0, 1.0, 1.0, vec![5])],
-        vec![(5, seed("Fresh"))],
+        vec![ValueRecord {
+            id: 5,
+            ..named("Fresh")
+        }],
     )
     .unwrap();
     let interned = tag_records(&store);
-    assert!(interned.values().any(|r| record_name(r) == Some("Fresh")));
+    assert!(interned
+        .values()
+        .any(|r| r.name.as_deref() == Some("Fresh")));
 
     undo_and_finish(&mut store);
     assert_eq!(tag_records(&store), before);
@@ -7246,13 +7322,10 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
 #[test]
 fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    let ids = store
-        .patch_field_values("tags", &creates(&["A"]))
-        .unwrap()
-        .resolved;
+    let ids = store.edit_values("tags", sets(&["A"])).unwrap().keys;
     tag_onto(&mut store, ids[0], &[1]);
     store
-        .patch_field_values("tags", &tag_update(ids[0], "color", "#010203".into()))
+        .edit_values("tags", vec![recolor(ids[0], "#010203")])
         .unwrap();
     let held: Vec<(u64, Entry)> = store
         .edits
@@ -7271,10 +7344,7 @@ fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
 #[test]
 fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    let ids = store
-        .patch_field_values("tags", &creates(&["A", "B"]))
-        .unwrap()
-        .resolved;
+    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a, &[1]);
     tag_onto(&mut store, b, &[1, 2]);
@@ -7291,10 +7361,7 @@ fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
         "a lingers dark"
     );
 
-    let c = store
-        .patch_field_values("tags", &creates(&["C"]))
-        .unwrap()
-        .resolved[0];
+    let c = store.edit_values("tags", sets(&["C"])).unwrap().keys[0];
     assert!(shipped_record(&feed.last().derived, "tags", c).is_some());
     undo_and_finish(&mut store);
     let gone = feed.last().derived.field_values.unwrap()["tags"][&c.to_string()].is_none();
@@ -7476,10 +7543,7 @@ fn the_spacing_ask_answers_only_a_spaced_pick() {
 #[test]
 fn the_open_picture_ships_recordless_counts_and_dark_records_together() {
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    let dark = store
-        .patch_field_values("tags", &creates(&["Dark"]))
-        .unwrap()
-        .resolved[0];
+    let dark = store.edit_values("tags", sets(&["Dark"])).unwrap().keys[0];
     let status = store.open_status();
     let values = status.derived.field_values.unwrap();
     let tags = &values["tags"];
@@ -7520,10 +7584,7 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
 #[test]
 fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    let t = store
-        .patch_field_values("tags", &creates(&["A"]))
-        .unwrap()
-        .resolved[0];
+    let t = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
     tag_onto(&mut store, t, &[1]);
     add_tag_selection(&mut store, t, [9, 9, 9]);
     store.resolve_selection_membership();
@@ -7533,17 +7594,8 @@ fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
         "no record color: its own"
     );
 
-    let mut patch = ValueRecord::new();
-    patch.insert("id".into(), t.into());
-    patch.insert("color".into(), "#ff8000".into());
     store
-        .patch_field_values(
-            "tags",
-            &FieldValuesPatch {
-                update: vec![patch],
-                ..Default::default()
-            },
-        )
+        .edit_values("tags", vec![recolor(t, "#ff8000")])
         .unwrap();
     assert_eq!(store.scene_frame().palette, vec![[255, 128, 0]]);
 
@@ -8135,12 +8187,9 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
 }
 
 fn black_tag_selected(store: &mut Store) -> u32 {
-    let tag = store
-        .patch_field_values("tags", &creates(&["2023"]))
-        .unwrap()
-        .resolved[0];
+    let tag = store.edit_values("tags", sets(&["2023"])).unwrap().keys[0];
     store
-        .patch_field_values("tags", &tag_update(tag, "color", "#000000".into()))
+        .edit_values("tags", vec![recolor(tag, "#000000")])
         .unwrap();
     add_rows(store, vec![loc_with_tags(0, 1.0, 1.0, vec![tag])]);
     store.edit_selections(&crate::selections::tree::SelectionOp::Add {
@@ -8181,7 +8230,7 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
     let frames = watch(&mut store);
 
     store
-        .patch_field_values("tags", &tag_update(tag, "color", "#ff0000".into()))
+        .edit_values("tags", vec![recolor(tag, "#ff0000")])
         .unwrap();
 
     let frame = frames.last();
@@ -8196,30 +8245,26 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
 #[test]
 fn a_created_tag_without_a_colour_gets_its_names() {
     let mut store = setup_store_with(&[]);
-    let id = store
-        .patch_field_values("tags", &creates(&["Urban"]))
-        .unwrap()
-        .resolved[0];
+    let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
     assert_eq!(
-        record_color(&tag_records(&store)[&id]),
-        crate::util::hex_to_rgb(&crate::util::color_for_name("Urban"))
+        tag_records(&store)[&id].color(),
+        Some(util::color_for_name("Urban").as_str())
     );
 }
 
 #[test]
 fn ensuring_a_colour_fills_only_a_colourless_record_and_reports_it() {
-    let mut colourless = seed("Rural");
-    assert!(ensure_color(&mut colourless));
+    let mut colourless = named("Rural");
+    assert!(colourless.ensure_color());
     assert_eq!(
-        colourless["color"],
-        crate::util::color_for_name("Rural").as_str()
+        colourless.color(),
+        Some(util::color_for_name("Rural").as_str())
     );
-    assert!(!ensure_color(&mut colourless), "nothing left to fill");
+    assert!(!colourless.ensure_color(), "nothing left to fill");
 
-    let mut coloured = seed("Urban");
-    coloured.insert("color".into(), "#123456".into());
-    assert!(!ensure_color(&mut coloured));
-    assert_eq!(coloured["color"], "#123456");
+    let mut coloured = tag(0, "Urban", "#123456");
+    assert!(!coloured.ensure_color());
+    assert_eq!(coloured.color(), Some("#123456"));
 }
 
 #[test]

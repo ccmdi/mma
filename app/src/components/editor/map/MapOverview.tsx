@@ -295,7 +295,7 @@ function BulkTagForm() {
 		const name = bulkTagInput.trim();
 		const selected = getMapState().selectedLocationIds;
 		if (!name || selected.size === 0) return;
-		const add = await edit.values("tags", { create: [{ name }] });
+		const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
 		await edit.work({ type: "Selected" }, { kind: "listSet", key: "tags", add, remove: [] });
 		setBulkTagInput("");
 	};

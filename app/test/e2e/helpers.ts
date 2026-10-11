@@ -242,8 +242,11 @@ export async function createTag(
 		async (api, n) =>
 			(
 				await api.edit
-					.values("tags", { create: [n].map((name) => ({ name })) })
-					.then((ids) => ids.map((id) => api.getTag(id)!))
+					.values(
+						"tags",
+						[n].map((name) => ({ set: { id: 0, name } })),
+					)
+					.then(({ mutation: { keys: ids } }) => ids.map((id) => api.getTag(id)!))
 			)[0],
 		name,
 	);

@@ -10,7 +10,6 @@ use serde::Serialize;
 
 use crate::io::import::parse::{parse_file, ParsedMap};
 use crate::net::proxy;
-use crate::store::engine::{record_name, record_order};
 use crate::sync::{
     local_to_normalized, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId,
     RemoteSnapshot, RemoteTag, SyncDirection, SyncProvider,
@@ -76,14 +75,11 @@ fn read_source(address: &str) -> AppResult<ParsedMap> {
 fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
     map.tags
         .iter()
-        .filter_map(|(_, rec)| {
-            record_name(rec).map(|name| RemoteTag {
-                name: name.to_string(),
-                color: rec
-                    .get("color")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_string),
-                order: record_order(rec),
+        .filter_map(|rec| {
+            Some(RemoteTag {
+                name: rec.name.clone()?,
+                color: rec.color().map(str::to_string),
+                order: rec.order,
             })
         })
         .collect()
@@ -93,7 +89,7 @@ fn normalized(map: ParsedMap) -> Vec<NormalizedSyncLocation> {
     let names: HashMap<u32, String> = map
         .tags
         .iter()
-        .filter_map(|(id, rec)| record_name(rec).map(|n| (*id, n.to_string())))
+        .filter_map(|rec| Some((rec.id, rec.name.clone()?)))
         .collect();
     let tag_name = |id: u32| names.get(&id).cloned();
     map.locations

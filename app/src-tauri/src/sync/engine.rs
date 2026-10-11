@@ -781,9 +781,7 @@ pub async fn sync_reconcile(
             .get("tags")
             .map(|meta| {
                 meta.iter()
-                    .filter_map(|(&id, rec)| {
-                        crate::store::engine::record_name(rec).map(|n| (id, n.to_string()))
-                    })
+                    .filter_map(|(&id, rec)| Some((id, rec.name.clone()?)))
                     .collect()
             })
             .unwrap_or_default();
@@ -858,7 +856,7 @@ fn apply_pull(
     Option<crate::store::engine::Mutation>,
     Vec<RemoteMappingRow>,
 )> {
-    use crate::store::engine::Target;
+    use crate::store::engine::{Target, ValueRecord};
     use mma_algebra::{Edit, Op};
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
@@ -878,24 +876,26 @@ fn apply_pull(
         .iter()
         .map(|t| (t.name.as_str(), t))
         .collect();
-    let mut piles: Vec<(u32, crate::store::engine::ValueRecord)> = Vec::new();
+    let mut piles: HashMap<u32, ValueRecord> = HashMap::new();
     let mut pile_of: HashMap<String, u32> = HashMap::new();
     let mut tag_of = |name: &str| -> u32 {
         if let Some(&id) = pile_of.get(name) {
             return id;
         }
         let id = piles.len() as u32 + 1;
-        let mut rec = crate::store::engine::ValueRecord::new();
-        rec.insert("name".into(), name.into());
-        if let Some(tag) = needed.get(name) {
-            if let Some(color) = &tag.color {
-                rec.insert("color".into(), color.as_str().into());
-            }
-            if let Some(order) = tag.order {
-                rec.insert("order".into(), order.into());
-            }
-        }
-        piles.push((id, rec));
+        let tag = needed.get(name);
+        let extra = tag
+            .and_then(|t| t.color.as_deref())
+            .map(|color| serde_json::Map::from_iter([("color".to_string(), color.into())]));
+        piles.insert(
+            id,
+            ValueRecord {
+                id,
+                name: Some(name.into()),
+                order: tag.and_then(|t| t.order),
+                extra,
+            },
+        );
         pile_of.insert(name.to_string(), id);
         id
     };

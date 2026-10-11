@@ -199,7 +199,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleSaveAsTag = async () => {
 		const name = tagName.trim();
 		if (!name || count === 0) return;
-		const add = await edit.values("tags", { create: [{ name }] });
+		const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
 		await edit.work(selection.selector, { kind: "listSet", key: "tags", add, remove: [] });
 		setSavingTag(false);
 		setTagName("");

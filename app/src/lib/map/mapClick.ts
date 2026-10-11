@@ -60,7 +60,12 @@ function zoomToPasted(bounds: Bounds | null, padding = 0) {
  *  names to tags, add, activate the last one, pan to fit. */
 export async function addParsedLocations(parsed: ParsedLocation[]) {
 	const tagNames = [...new Set(parsed.flatMap((p) => p.tags))];
-	const ids = await edit.values("tags", { create: tagNames.map((name) => ({ name })) });
+	const ids = (
+		await edit.values(
+			"tags",
+			tagNames.map((name) => ({ set: { id: 0, name } })),
+		)
+	).mutation.keys;
 	const tagIdByName = new Map(tagNames.map((name, i) => [name.toLowerCase(), ids[i]]));
 	const locs = parsed.map((p) =>
 		createLocation({

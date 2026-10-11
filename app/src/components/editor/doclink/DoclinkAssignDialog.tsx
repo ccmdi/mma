@@ -272,7 +272,10 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 				id: t.id,
 				doclinks: (t.doclinks ?? []).filter((u) => parseDoclink(u)?.docId !== docRef.docId),
 			}));
-		await edit.values("tags", { update: updates });
+		await edit.values(
+			"tags",
+			updates.map((put) => ({ put })),
+		);
 	};
 
 	const toggle = async (tag: Tag, anchor: string) => {
@@ -289,7 +292,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					return !(r?.docId === docRef.docId && r.anchor === anchor);
 				})
 			: [...existing, target];
-		await edit.values("tags", { update: [{ id: tag.id, doclinks }] });
+		await edit.values("tags", [{ put: { id: tag.id, doclinks } }]);
 	};
 
 	const runMatch = () => {
@@ -312,7 +315,10 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 			id,
 			doclinks: [...(tagMap[id].doclinks ?? []), ...added],
 		}));
-		await edit.values("tags", { update: updates });
+		await edit.values(
+			"tags",
+			updates.map((put) => ({ put })),
+		);
 		setMatches(null);
 	};
 

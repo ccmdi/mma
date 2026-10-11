@@ -29,7 +29,8 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 			if (!trimmed || busy || locationIds.length === 0) return;
 			setBusy(true);
 			try {
-				const add = await edit.values("tags", { create: [{ name: trimmed }] });
+				const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name: trimmed } }]))
+					.mutation;
 				await edit.work(
 					{ type: "Locations", locations: locationIds, name: null },
 					{ kind: "listSet", key: "tags", add, remove: [] },

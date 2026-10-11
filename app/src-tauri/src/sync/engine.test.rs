@@ -1460,16 +1460,19 @@ fn pull_only_refuses_to_mirror_from_local() {
 
 #[test]
 fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
-    use crate::store::engine::{record_name, Store, Tracked, ValueRecord};
+    use crate::store::engine::{Store, Tracked, ValueRecord};
     let mut store = Store::new();
     store.meta = crate::store::engine::Tracked::new(crate::store::maps::MapMeta {
         id: "sync-test".into(),
         ..Default::default()
     });
     store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
-    let mut old_tag = ValueRecord::new();
-    old_tag.insert("name".into(), "Old".into());
-    old_tag.insert("order".into(), 4.into());
+    let old_tag = ValueRecord {
+        id: 5,
+        name: Some("Old".into()),
+        order: Some(4),
+        ..Default::default()
+    };
     store.value_meta.insert(
         "tags".into(),
         Tracked::new([(5u32, old_tag)].into_iter().collect()),
@@ -1532,20 +1535,17 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     let meta = &store.value_meta["tags"];
     let (new_id, new_rec) = meta
         .iter()
-        .find(|(_, rec)| record_name(rec) == Some("New"))
+        .find(|(_, rec)| rec.name.as_deref() == Some("New"))
         .expect("New interned at land");
     let (second_id, second_rec) = meta
         .iter()
-        .find(|(_, rec)| record_name(rec) == Some("Second"))
+        .find(|(_, rec)| rec.name.as_deref() == Some("Second"))
         .unwrap();
     assert_eq!(created.tags, vec![5, *new_id, *second_id]);
-    assert_eq!(meta[&5].get("order").and_then(|v| v.as_u64()), Some(4));
-    assert_eq!(second_rec.get("order").and_then(|v| v.as_u64()), Some(5));
-    assert_eq!(new_rec.get("order").and_then(|v| v.as_u64()), Some(6));
-    assert_eq!(
-        new_rec.get("color").and_then(|v| v.as_str()),
-        Some("#123456")
-    );
+    assert_eq!(meta[&5].order, Some(4));
+    assert_eq!(second_rec.order, Some(5));
+    assert_eq!(new_rec.order, Some(6));
+    assert_eq!(new_rec.color(), Some("#123456"));
     assert_eq!(store.get_loc_by_id(1).unwrap().heading, 45.0);
     assert!(store.get_loc_by_id(2).is_none());
     assert_eq!(rows.len(), 1);

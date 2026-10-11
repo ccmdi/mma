@@ -22,7 +22,12 @@ function serializeActive(active: Location): string {
 }
 
 async function resolveTagNames(names: string[]): Promise<number[]> {
-	return edit.values("tags", { create: names.map((name) => ({ name })) });
+	return (
+		await edit.values(
+			"tags",
+			names.map((name) => ({ set: { id: 0, name } })),
+		)
+	).mutation.keys;
 }
 
 export function JsonEditorPanel() {

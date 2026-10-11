@@ -250,6 +250,108 @@ impl<T: Patchable + Keyed + Clone> Edit<T> {
     }
 }
 
+/// A row whose table keeps one field unique and numbers others in sequence.
+/// Implemented by `#[derive(mma_fields::Patch)]` for structs with `unique` or `sequence` fields.
+pub trait Constrained: Keyed + Sized {
+    /// The row's unique value, trimmed and compared case-insensitively.
+    fn unique(&self) -> Option<String>;
+    /// Fill each sequence field this row leaves empty with one past the highest in `rows`.
+    fn sequence<'a>(&mut self, rows: impl Iterator<Item = &'a Self> + Clone)
+    where
+        Self: 'a;
+    /// This row with the fields it leaves empty taken from `from`.
+    fn filled(&self, from: &Self) -> Self;
+    fn set_key(&mut self, key: Self::Key);
+}
+
+/// What edits to a constrained table did beyond the rows they wrote.
+#[derive(Debug)]
+pub struct Applied<K> {
+    /// The key each keyless set landed on, in order.
+    pub keys: Vec<K>,
+    /// Rows whose write took a unique value another row holds, mapped to that row.
+    pub redirects: HashMap<K, K>,
+}
+
+/// Apply edits to a table under its constraints.
+/// A keyless set lands on the row holding its unique value, filling what that row leaves
+/// empty, or takes a key from `next`; either way its empty sequence fields are numbered.
+/// A write that takes a unique value another row holds leaves its row unchanged and is
+/// reported in `redirects`.
+pub fn apply<T>(
+    table: &mut HashMap<T::Key, T>,
+    edits: impl IntoIterator<Item = Edit<T>>,
+    mut next: impl FnMut() -> T::Key,
+) -> Applied<T::Key>
+where
+    T: Constrained + Patchable + Clone,
+    T::Key: Default,
+    Patch<T>: Keyed<Key = T::Key>,
+{
+    let mut holders: HashMap<String, T::Key> = table
+        .iter()
+        .filter_map(|(k, row)| Some((row.unique()?, k.clone())))
+        .collect();
+    let mut applied = Applied {
+        keys: Vec::new(),
+        redirects: HashMap::new(),
+    };
+    for edit in edits {
+        let (key, row) = match edit {
+            Op::Remove(key) => {
+                if let Some(u) = table.remove(&key).and_then(|row| row.unique()) {
+                    if holders.get(&u) == Some(&key) {
+                        holders.remove(&u);
+                    }
+                }
+                continue;
+            }
+            Op::Set(row) if row.key() == T::Key::default() => {
+                let (key, mut row) = match row.unique().and_then(|u| holders.get(&u)) {
+                    Some(held) => (held.clone(), table[held].filled(&row)),
+                    None => {
+                        let key = next();
+                        let mut row = row;
+                        row.set_key(key.clone());
+                        (key, row)
+                    }
+                };
+                row.sequence(table.values().filter(|other| other.key() != key));
+                if let Some(u) = row.unique() {
+                    holders.insert(u, key.clone());
+                }
+                applied.keys.push(key.clone());
+                table.insert(key, row);
+                continue;
+            }
+            Op::Set(row) => (row.key(), row),
+            Op::Put(patch) => match table.get(&patch.key()) {
+                Some(old) => (patch.key(), old.patched(&patch)),
+                None => continue,
+            },
+        };
+        let was = table.get(&key).and_then(Constrained::unique);
+        let unique = row.unique();
+        if unique != was {
+            match unique.as_ref().and_then(|u| holders.get(u)) {
+                Some(held) if *held != key => {
+                    applied.redirects.insert(key, held.clone());
+                    continue;
+                }
+                _ => {}
+            }
+            if let Some(was) = was.filter(|was| holders.get(was) == Some(&key)) {
+                holders.remove(&was);
+            }
+            if let Some(u) = unique {
+                holders.insert(u, key.clone());
+            }
+        }
+        table.insert(key, row);
+    }
+    applied
+}
+
 /// Pending edits applied over the current underlying rows.
 /// Underlying changes remain visible in fields the layer has not overwritten.
 #[derive(Clone, Debug, PartialEq)]

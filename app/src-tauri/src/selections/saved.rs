@@ -306,7 +306,7 @@ fn capture_names(
             if name == field {
                 if let Some(name) = store
                     .value_record(field, id)
-                    .and_then(crate::store::engine::record_name)
+                    .and_then(|record| record.name.as_deref())
                 {
                     names.insert(id, name.to_string());
                 }

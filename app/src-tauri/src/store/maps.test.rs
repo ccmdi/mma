@@ -773,16 +773,21 @@ fn tag_records_read_and_write_the_one_column_format() {
         records,
         HashMap::from([(
             7,
-            serde_json::json!({ "name": "a", "color": "red" })
-                .as_object()
-                .unwrap()
-                .clone()
+            ValueRecord {
+                id: 7,
+                name: Some("a".into()),
+                extra: Some(serde_json::Map::from_iter([(
+                    "color".to_string(),
+                    "red".into()
+                )])),
+                ..Default::default()
+            }
         )])
     );
-    let written = crate::io::records::write(&records).unwrap();
+    let written = serde_json::to_value(&records).unwrap();
     assert_eq!(
         written,
-        serde_json::json!({ "7": { "id": 7, "name": "a", "color": "red" } })
+        serde_json::json!({ "7": { "id": 7, "name": "a", "order": null, "color": "red" } })
     );
 }
 
@@ -839,8 +844,11 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let store = mgr.store_for_map("m1").unwrap();
-    let mut rec = ValueRecord::new();
-    rec.insert("name".into(), "A".into());
+    let rec = ValueRecord {
+        id: 1,
+        name: Some("A".into()),
+        ..Default::default()
+    };
     store
         .value_meta
         .get_mut("tags")

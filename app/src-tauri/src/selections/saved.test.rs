@@ -3,6 +3,7 @@ use crate::selections::FilterOp;
 use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
 use crate::selections::Selector;
+use crate::store::engine::ValueRecord;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -257,16 +258,17 @@ fn a_flag_filter_row_written_as_zero_or_one_reads_as_a_boolean() {
 
 fn map_with_records() -> Store {
     let mut store = Store::new();
-    let records = HashMap::from([
+    let record = |id: u32, name: &str| {
         (
-            9,
-            serde_json::Map::from_iter([("name".into(), "japan".into())]),
-        ),
-        (
-            3,
-            serde_json::Map::from_iter([("name".into(), "Coastal".into())]),
-        ),
-    ]);
+            id,
+            ValueRecord {
+                id,
+                name: Some(name.into()),
+                ..Default::default()
+            },
+        )
+    };
+    let records = HashMap::from([record(9, "japan"), record(3, "Coastal")]);
     store
         .value_meta
         .insert("tags".into(), crate::store::engine::Tracked::new(records));
@@ -297,7 +299,7 @@ fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
         .edit()
         .get_mut(&9)
         .unwrap()
-        .insert("name".into(), "Asia/Japan".into());
+        .name = Some("Asia/Japan".into());
     assert_eq!(
         saved.resolved(&mut store),
         Selector::Locations {

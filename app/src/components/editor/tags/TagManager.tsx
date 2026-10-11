@@ -112,41 +112,35 @@ export function TagManager() {
 		(updates: Patch<Tag>[]) => {
 			startTransition(async () => {
 				addOptimisticTags(updates);
-				await edit.values("tags", { update: updates });
+				await edit.values(
+					"tags",
+					updates.map((put) => ({ put })),
+				);
 			});
 		},
 		[addOptimisticTags],
 	);
 	const commitReorder = useCallback(
 		({ orderedIds, virtualTags }: FlatOrder) => {
-			startTransition(async () => {
-				addOptimisticTags(orderedIds.map((id, i) => ({ id, order: i })));
-				await edit.values("tags", { reorder: orderedIds });
-			});
+			commitTags(orderedIds.map((id, i) => ({ id, order: i })));
 			setVirtualTags(virtualTags);
 		},
-		[addOptimisticTags, setVirtualTags],
+		[commitTags, setVirtualTags],
 	);
 	const commitMoveInto = useCallback(
 		(move: TagMoveResult) => {
-			startTransition(async () => {
-				// One merged patch per id -- the optimistic reducer applies the first match only.
-				const patchById = new Map<number, Patch<Tag>>();
-				move.orderedIds.forEach((id, i) => patchById.set(id, { id, order: i }));
-				for (const r of move.tagRenames)
-					patchById.set(r.id, { ...patchById.get(r.id), id: r.id, name: r.name });
-				addOptimisticTags([...patchById.values()]);
-				await edit.values("tags", {
-					update: move.tagRenames.map((r) => ({ id: r.id, name: r.name })),
-				});
-				await edit.values("tags", { reorder: move.orderedIds });
-			});
+			// One merged patch per id -- the optimistic reducer applies the first match only.
+			const patchById = new Map<number, Patch<Tag>>();
+			move.orderedIds.forEach((id, i) => patchById.set(id, { id, order: i }));
+			for (const r of move.tagRenames)
+				patchById.set(r.id, { ...patchById.get(r.id), id: r.id, name: r.name });
+			commitTags([...patchById.values()]);
 			setVirtualTags(move.virtualTags);
 			setAliases(move.aliases);
 			for (const [oldPath, newPath] of move.pathRemaps)
 				treeRef.current?.remapExpanded(oldPath, newPath);
 		},
-		[addOptimisticTags, setVirtualTags, setAliases],
+		[commitTags, setVirtualTags, setAliases],
 	);
 
 	// Stamp `color` onto `tagIds`, and with a `root` onto every folder node at or under it too.
@@ -403,7 +397,7 @@ function RenameTagsDialog({
 	const [name, setName] = useState(initialName);
 
 	const moveInto = async (trimmed: string) => {
-		const [target] = await edit.values("tags", { create: [{ name: trimmed }] });
+		const [target] = (await edit.values("tags", [{ set: { id: 0, name: trimmed } }])).mutation.keys;
 		const sources = tagIds.filter((id) => id !== target);
 		if (sources.length === 0) return;
 		const carriers = any(...sources.map(tagSelector));

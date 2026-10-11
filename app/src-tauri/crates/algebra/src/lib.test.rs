@@ -604,3 +604,221 @@ fn dependency_cycles_terminate_and_mark_each_reachable_output_once() {
         HashSet::from(["a".to_string(), "b".to_string(), "c".to_string()])
     );
 }
+
+#[derive(Clone, Debug, Default, PartialEq)]
+struct Named {
+    id: u32,
+    name: Option<String>,
+    order: Option<u32>,
+    note: Option<String>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+struct NamedPatch {
+    id: u32,
+    name: Field<String>,
+    order: Field<u32>,
+    note: Field<String>,
+}
+
+impl Keyed for Named {
+    type Key = u32;
+    fn key(&self) -> u32 {
+        self.id
+    }
+}
+
+impl Keyed for NamedPatch {
+    type Key = u32;
+    fn key(&self) -> u32 {
+        self.id
+    }
+}
+
+impl Patchable for Named {
+    type Patch = NamedPatch;
+    const WRITES: &'static [(&'static str, &'static str)] = &[];
+    const MERGED: &'static [&'static str] = &[];
+    const CLEARS: &'static [&'static str] = &[];
+
+    fn patched(&self, patch: &NamedPatch) -> Self {
+        Named {
+            id: self.id,
+            name: patch.name.applied(&self.name),
+            order: patch.order.applied(&self.order),
+            note: patch.note.applied(&self.note),
+        }
+    }
+
+    fn between(old: &Self, new: &Self) -> NamedPatch {
+        NamedPatch {
+            id: new.id,
+            name: Field::between(&old.name, &new.name),
+            order: Field::between(&old.order, &new.order),
+            note: Field::between(&old.note, &new.note),
+        }
+    }
+
+    fn to_patch(&self) -> NamedPatch {
+        Named::between(&Named::default(), self)
+    }
+}
+
+impl Constrained for Named {
+    fn unique(&self) -> Option<String> {
+        self.name
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_lowercase)
+    }
+
+    fn sequence<'a>(&mut self, rows: impl Iterator<Item = &'a Self> + Clone) {
+        if self.order.is_none() {
+            self.order = Some(rows.filter_map(|r| r.order).max().map_or(1, |m| m + 1));
+        }
+    }
+
+    fn filled(&self, from: &Self) -> Self {
+        Named {
+            id: self.id,
+            name: self.name.clone().or_else(|| from.name.clone()),
+            order: self.order.or(from.order),
+            note: self.note.clone().or_else(|| from.note.clone()),
+        }
+    }
+
+    fn set_key(&mut self, key: u32) {
+        self.id = key;
+    }
+}
+
+fn named(id: u32, name: &str, order: Option<u32>) -> Named {
+    Named {
+        id,
+        name: Some(name.into()),
+        order,
+        note: None,
+    }
+}
+
+fn named_table(rows: &[Named]) -> HashMap<u32, Named> {
+    rows.iter().map(|v| (v.id, v.clone())).collect()
+}
+
+fn counter(from: u32) -> impl FnMut() -> u32 {
+    let mut next = from;
+    move || {
+        next += 1;
+        next
+    }
+}
+
+#[test]
+fn a_keyless_set_takes_a_fresh_key_and_the_next_place_in_sequence() {
+    let mut table = named_table(&[named(1, "a", Some(4))]);
+    let applied = crate::apply(
+        &mut table,
+        [Op::Set(named(0, "b", None)), Op::Set(named(0, "c", None))],
+        counter(9),
+    );
+    assert_eq!(applied.keys, vec![10, 11]);
+    assert_eq!(table[&10], named(10, "b", Some(5)));
+    assert_eq!(table[&11], named(11, "c", Some(6)));
+}
+
+#[test]
+fn a_keyless_set_lands_on_the_row_holding_its_unique_value_and_fills_its_gaps() {
+    let mut held = named(1, "Urban", None);
+    held.note = Some("kept".into());
+    let mut table = named_table(&[held, named(2, "rural", Some(3))]);
+    let mut incoming = named(0, " URBAN ", Some(9));
+    incoming.note = Some("ignored".into());
+    let applied = crate::apply(&mut table, [Op::Set(incoming)], counter(5));
+    assert_eq!(applied.keys, vec![1], "no key is spent on a landing");
+    assert_eq!(table.len(), 2);
+    assert_eq!(table[&1].name.as_deref(), Some("Urban"));
+    assert_eq!(table[&1].note.as_deref(), Some("kept"), "the held row wins");
+    assert_eq!(
+        table[&1].order,
+        Some(9),
+        "an empty field takes the set's value"
+    );
+}
+
+#[test]
+fn a_landing_numbers_a_held_row_that_has_no_place_yet() {
+    let mut table = named_table(&[named(1, "a", None), named(2, "b", Some(7))]);
+    crate::apply(&mut table, [Op::Set(named(0, "A", None))], counter(5));
+    assert_eq!(table[&1].order, Some(8));
+}
+
+#[test]
+fn a_write_that_takes_another_rows_unique_value_is_redirected_and_leaves_its_row() {
+    let mut table = named_table(&[named(1, "a", Some(1)), named(2, "b", Some(2))]);
+    let before = table.clone();
+    let applied = crate::apply(
+        &mut table,
+        [Op::Put(NamedPatch {
+            id: 1,
+            name: Field::Set("B".into()),
+            note: Field::Set("dropped".into()),
+            ..Default::default()
+        })],
+        counter(5),
+    );
+    assert_eq!(applied.redirects, HashMap::from([(1, 2)]));
+    assert_eq!(table, before);
+}
+
+#[test]
+fn a_write_that_keeps_its_unique_value_is_never_redirected_even_beside_a_duplicate() {
+    let mut table = named_table(&[named(1, "a", Some(1)), named(2, "A", Some(2))]);
+    let applied = crate::apply(
+        &mut table,
+        [Op::Put(NamedPatch {
+            id: 2,
+            order: Field::Set(0),
+            ..Default::default()
+        })],
+        counter(5),
+    );
+    assert!(applied.redirects.is_empty());
+    assert_eq!(table[&2].order, Some(0));
+}
+
+#[test]
+fn a_renamed_row_frees_its_old_value_for_a_later_set_in_the_same_batch() {
+    let mut table = named_table(&[named(1, "a", Some(1))]);
+    let applied = crate::apply(
+        &mut table,
+        [
+            Op::Put(NamedPatch {
+                id: 1,
+                name: Field::Set("z".into()),
+                ..Default::default()
+            }),
+            Op::Set(named(0, "a", None)),
+        ],
+        counter(5),
+    );
+    assert_eq!(applied.keys, vec![6]);
+    assert_eq!(table[&1].name.as_deref(), Some("z"));
+    assert_eq!(table[&6].name.as_deref(), Some("a"));
+}
+
+#[test]
+fn a_patch_to_a_missing_row_does_nothing() {
+    let mut table = named_table(&[named(1, "a", Some(1))]);
+    let before = table.clone();
+    crate::apply(
+        &mut table,
+        [Op::Put(NamedPatch {
+            id: 4,
+            name: Field::Set("x".into()),
+            ..Default::default()
+        })],
+        counter(5),
+    );
+    assert_eq!(table, before);
+}

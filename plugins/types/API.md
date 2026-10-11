@@ -4684,6 +4684,19 @@ cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult>
 
 Edit the selection tree.
 
+#### cmd.storeEditValues
+
+`unstable` · unreleased
+
+```ts
+cmd.storeEditValues(
+  field: string,
+  edits: Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>[],
+): Promise<MutationResult>
+```
+
+Edit an interned field's value records; membership uses ordinary row edits.
+
 #### cmd.storeExportBulkZip
 
 `unstable` · since v0.4.0
@@ -4867,19 +4880,6 @@ cmd.storeOpenMap(mapId: string): Promise<StoreStatus>
 
 Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
 Must be called before any other store commands.
-
-#### cmd.storePatchFieldValues
-
-`unstable` · since v0.11.1
-
-```ts
-cmd.storePatchFieldValues(
-  field: string,
-  patch: FieldValuesPatch,
-): Promise<FieldValuesResult>
-```
-
-Patch an interned field's value records; membership uses ordinary row edits.
 
 #### cmd.storeRead
 

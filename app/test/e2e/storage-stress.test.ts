@@ -459,14 +459,15 @@ describe("Unicode in all fields", () => {
 	it("Unicode panoId, extra keys/values, and tag names survive round-trip", async () => {
 		const result = await withApi(async (api) => {
 			const resolved = await api.edit
-				.values("tags", {
-					create: [
+				.values(
+					"tags",
+					[
 						"東京タワー", // CJK
 						"café crème", // diacritics
 						"Москва", // Cyrillic
-					].map((name) => ({ name })),
-				})
-				.then((ids) => ids.map((id) => api.getTag(id)!));
+					].map((name) => ({ set: { id: 0, name } })),
+				)
+				.then(({ mutation: { keys: ids } }) => ids.map((id) => api.getTag(id)!));
 
 			const loc = api.createLocation({
 				lat: 35.6762,

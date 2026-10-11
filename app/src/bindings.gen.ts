@@ -12,8 +12,8 @@ export const commands = {
 	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
-	/** Patch an interned field's value records; membership uses ordinary row edits. */
-	storePatchFieldValues: (field: string, patch: FieldValuesPatch) => __TAURI_INVOKE<FieldValuesResult>("store_patch_field_values", { field, patch }),
+	/** Edit an interned field's value records; membership uses ordinary row edits. */
+	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult>("store_edit_values", { field, edits }),
 	/** Return the uncommitted location change counts. */
 	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
 	/** Edit the selection tree. */
@@ -794,25 +794,6 @@ export type FieldValue = {
 	label: string | null,
 };
 
-/**  One batch of record edits for an interned field's values. */
-export type FieldValuesPatch = {
-	/**  Create records by name, reusing existing ids case-insensitively. */
-	create?: { [key in string]: unknown }[],
-	/**
-	 *  Patch records by id; null deletes a metadata key.
-	 *  Renaming to an existing name merges the values and remaps their rows in one undoable edit.
-	 */
-	update?: { [key in string]: unknown }[],
-	/**  New display order: each id gets its index in this list as `order`. */
-	reorder?: number[] | null,
-};
-
-/**  Resolved ids for `create`, in request order, and the mutation result. */
-export type FieldValuesResult = {
-	resolved: number[],
-	mutation: Mutation,
-};
-
 /**  A map file as the link picker shows it. */
 export type FileSource = {
 	/**  The name the file gives its map; empty when it names none. */
@@ -1042,7 +1023,7 @@ export type MapMeta_Deserialize = {
 	scoreBounds: ScoreBounds,
 	extra: MapExtra,
 	/**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
-	tags: { [key in string]: { [key in string]: unknown } },
+	tags: { [key in string]: ValueRecord },
 	labels: string[],
 	locationCount: number,
 	/**  Location changes since the last commit. */
@@ -1062,7 +1043,7 @@ export type MapMeta = {
 	scoreBounds: ScoreBounds,
 	extra: MapExtra,
 	/**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
-	tags: { [key in string]: { [key in string]: unknown } },
+	tags: { [key in string]: ValueRecord },
 	labels: string[],
 	locationCount: number,
 	/**  Location changes since the last commit. */
@@ -1882,6 +1863,15 @@ export type ValiLocation = {
 };
 
 export type ValiProgress = { kind: "workItems"; total: number } | { kind: "workItemDone"; countryCode: string; subdivisionCode: string | null; done: number; total: number } | { kind: "countryDownloadStarted"; countryCode: string; files: number; bytes: number; updates: boolean } | { kind: "fileDownloaded"; countryCode: string; name: string; bytes: number };
+
+/**  Metadata for one interned value. */
+export type ValueRecord = {
+	id: number,
+	/**  The value's display name, unique within its field regardless of case. */
+	name?: string | null,
+	/**  The value's place in its field's list. */
+	order?: number | null,
+} & { [key in string]: unknown };
 
 /**
  *  Per-map config for a virtual tag-tree node - a folder node with no underlying

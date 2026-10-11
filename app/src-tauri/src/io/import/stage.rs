@@ -8,7 +8,7 @@ use crate::store::engine::WindowLabel;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
-use mma_algebra::Patch;
+use mma_algebra::{Op, Patch};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -77,12 +77,15 @@ pub(super) fn stage_parsed(
         .into_iter()
         .map(|mut loc| {
             loc.id = 0;
-            mma_algebra::Op::Set(loc)
+            Op::Set(loc)
         })
         .collect();
     let result = store.edit(&import_target(window), edits, false, &mut None);
     if let Some(p) = store.pending.get_mut(&key) {
-        p.incoming.insert("tags".to_string(), parsed.tags);
+        p.incoming.insert(
+            "tags".to_string(),
+            parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
+        );
     }
     result.keys.first().copied()
 }
@@ -165,7 +168,7 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
 
     let preview = EditorImportPreview {
         location_count: n as u32,
-        tags: parsed.tags.iter().map(|(_, r)| r.clone()).collect(),
+        tags: parsed.tags.clone(),
         fields,
         warnings: parsed.warnings.clone(),
         preview_positions_path: path.to_string_lossy().into_owned(),
@@ -291,7 +294,7 @@ pub struct EditorImportResult {
 pub(crate) fn add_copied_to_store(
     store: &mut engine::Store,
     locations: Vec<Location>,
-    tags: Vec<(u32, ValueRecord)>,
+    tags: Vec<ValueRecord>,
 ) -> AppResult<engine::Mutation> {
     const LAYER: &str = "copy-to-map";
     store.drop_pending(LAYER);
@@ -300,12 +303,15 @@ pub(crate) fn add_copied_to_store(
         .entry(LAYER.to_string())
         .or_default()
         .incoming
-        .insert("tags".to_string(), tags);
+        .insert(
+            "tags".to_string(),
+            tags.into_iter().map(|t| (t.id, t)).collect(),
+        );
     let edits = locations
         .into_iter()
         .map(|mut loc| {
             loc.id = 0;
-            mma_algebra::Op::Set(loc)
+            Op::Set(loc)
         })
         .collect();
     let target = engine::Target::Pending {
@@ -421,29 +427,27 @@ pub(super) fn bulk_tag_ids(store: &mut engine::Store, key: &str, names: &[String
         return Vec::new();
     };
     let piles = p.incoming.entry("tags".to_string()).or_default();
-    let mut next = piles.iter().map(|(id, _)| *id).max().unwrap_or(0) + 1;
-    let mut ids = Vec::new();
-    for name in names {
-        let name = name.trim();
-        if name.is_empty() {
-            continue;
-        }
-        let found = piles.iter().find(|(_, r)| {
-            r.get("name")
-                .and_then(Value::as_str)
-                .is_some_and(|n| n.eq_ignore_ascii_case(name))
+    let mut next = piles.keys().max().copied().unwrap_or(0);
+    let seeds = names
+        .iter()
+        .map(|name| name.trim())
+        .filter(|name| !name.is_empty())
+        .map(|name| {
+            Op::Set(ValueRecord {
+                name: Some(name.into()),
+                ..Default::default()
+            })
         });
-        let id = match found {
-            Some((id, _)) => *id,
-            None => {
-                let mut seed = ValueRecord::new();
-                seed.insert("name".into(), name.into());
-                seed.insert("color".into(), crate::util::color_for_name(name).into());
-                piles.push((next, seed));
-                next += 1;
-                next - 1
-            }
-        };
+    let landed = mma_algebra::apply(piles, seeds, || {
+        next += 1;
+        next
+    });
+    let mut ids = Vec::new();
+    for id in landed.keys {
+        piles
+            .get_mut(&id)
+            .expect("a set lands on a record")
+            .ensure_color();
         if !ids.contains(&id) {
             ids.push(id);
         }

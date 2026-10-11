@@ -587,8 +587,8 @@ declare const commands$1: {
     storeDrop: (name: string) => Promise<null>;
     /** Run work over every location matched by selector. @unstable */
     storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
-    /** Patch an interned field's value records; membership uses ordinary row edits. @unstable */
-    storePatchFieldValues: (field: string, patch: FieldValuesPatch) => Promise<FieldValuesResult>;
+    /** Edit an interned field's value records; membership uses ordinary row edits. @unstable */
+    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult>;
     /** Return the uncommitted location change counts. @unstable */
     storeCommitDiff: () => Promise<Counts>;
     /** Edit the selection tree. @unstable */
@@ -1607,27 +1607,6 @@ type FieldValue = {
     value: string;
     label: string | null;
 };
-/**  One batch of record edits for an interned field's values. */
-type FieldValuesPatch = {
-    /**  Create records by name, reusing existing ids case-insensitively. */
-    create?: {
-        [key in string]: unknown;
-    }[];
-    /**
-     *  Patch records by id; null deletes a metadata key.
-     *  Renaming to an existing name merges the values and remaps their rows in one undoable edit.
-     */
-    update?: {
-        [key in string]: unknown;
-    }[];
-    /**  New display order: each id gets its index in this list as `order`. */
-    reorder?: number[] | null;
-};
-/**  Resolved ids for `create`, in request order, and the mutation result. @unstable */
-type FieldValuesResult = {
-    resolved: number[];
-    mutation: Mutation;
-};
 /**  A map file as the link picker shows it. @unstable */
 type FileSource = {
     /**  The name the file gives its map; empty when it names none. */
@@ -1909,9 +1888,7 @@ type MapMeta_Deserialize = {
     extra: MapExtra;
     /**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
     tags: {
-        [key in string]: {
-            [key in string]: unknown;
-        };
+        [key in string]: ValueRecord;
     };
     labels: string[];
     locationCount: number;
@@ -1932,9 +1909,7 @@ type MapMeta = {
     extra: MapExtra;
     /**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
     tags: {
-        [key in string]: {
-            [key in string]: unknown;
-        };
+        [key in string]: ValueRecord;
     };
     labels: string[];
     locationCount: number;
@@ -2954,6 +2929,16 @@ type ValiProgress = {
     name: string;
     bytes: number;
 };
+/**  Metadata for one interned value. */
+type ValueRecord = {
+    id: number;
+    /**  The value's display name, unique within its field regardless of case. */
+    name?: string | null;
+    /**  The value's place in its field's list. */
+    order?: number | null;
+} & {
+    [key in string]: unknown;
+};
 /**
  *  Per-map config for a virtual tag-tree node - a folder node with no underlying
  *  tag (e.g. "a" when only "a/b" and "a/c" exist). Keyed by the node's full slash
@@ -3739,9 +3724,8 @@ declare function rows(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>
 declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
     id?: string;
 }): Promise<void>;
-/** Create, patch, or reorder value records in one undoable step.
- * Returns resolved ids for `create`, in request order. */
-declare function values(field: string, patch: FieldValuesPatch): Promise<number[]>;
+/** Edit an interned field's value records in one undoable step. */
+declare function values(...[field, edits]: Parameters<typeof cmd.storeEditValues>): Promise<MutationResult>;
 /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
 declare function work(selector: Selector, op: Work): Promise<WorkResult>;
 
@@ -7919,4 +7903,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FieldValuesPatch, FieldValuesResult, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

@@ -248,6 +248,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 /// Generate a struct's patch type and implement `Patchable`.
 /// `key` fields are required; `skip` fields are excluded; `merge` fields update key by key.
 /// `stamp` fields can be written but are ignored when comparing values.
+/// A `unique` field's value names at most one row; `sequence` fields are numbered on insert.
 /// Other fields are optional; `column` overrides their storage column name.
 #[proc_macro_derive(Patch, attributes(patch, row, field))]
 pub fn derive_patch(input: TokenStream) -> TokenStream {
@@ -268,10 +269,12 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let (mut keys, mut skips, mut whole) = (Vec::new(), Vec::new(), Vec::new());
     let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
     let (mut clears, mut key_fields) = (Vec::new(), Vec::new());
+    let (mut unique_field, mut sequences, mut fills) = (None, Vec::new(), Vec::new());
     for f in &data.fields {
         let name = f.ident.as_ref().expect("named fields");
         let ty = &f.ty;
         let (mut key, mut skip, mut merge, mut stamp) = (false, false, false, false);
+        let (mut unique, mut sequence) = (false, false);
         let mut column = name.to_string();
         for attr in f.attrs.iter().filter(|a| a.path().is_ident("patch")) {
             attr.parse_nested_meta(|meta| {
@@ -283,6 +286,10 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     merge = true;
                 } else if meta.path.is_ident("stamp") {
                     stamp = true;
+                } else if meta.path.is_ident("unique") {
+                    unique = true;
+                } else if meta.path.is_ident("sequence") {
+                    sequence = true;
                 } else if meta.path.is_ident("column") {
                     column = meta.value()?.parse::<LitStr>()?.value();
                 } else {
@@ -308,6 +315,21 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
         let codec = f.attrs.iter().filter(|attr| attr.path().is_ident("serde"));
         columns.push(quote! { (#key_name, #column), });
+        if (unique || sequence) && option_inner(ty).is_none() {
+            return Err(syn::Error::new_spanned(
+                f,
+                "unique and sequence fields are optional",
+            ));
+        }
+        if unique && unique_field.replace(name).is_some() {
+            return Err(syn::Error::new_spanned(
+                f,
+                "a row has at most one unique field",
+            ));
+        }
+        if sequence {
+            sequences.push(name);
+        }
         let Some(inner) = option_inner(ty) else {
             slots.push(quote! {
                 #(#codec)*
@@ -330,6 +352,17 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             pub #name: ::mma_algebra::Field<#inner>,
         });
         whole.push(quote! { #name: ::mma_algebra::Field::from(self.#name.clone()), });
+        fills.push(if merge {
+            quote! {
+                if out.#name.is_some() {
+                    out.#name = ::mma_algebra::Merge::merged(&from.#name, &::mma_algebra::Field::from(out.#name.clone()));
+                } else {
+                    out.#name = from.#name.clone();
+                }
+            }
+        } else {
+            quote! { if out.#name.is_none() { out.#name = from.#name.clone(); } }
+        });
         let change = if merge {
             merged.push(key_name);
             writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Merge::merged(&out.#name, &patch.#name); } });
@@ -375,9 +408,57 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         },
         _ => quote!(),
     };
+    let constrained = match (&unique_field, key_fields.as_slice()) {
+        (None, _) if sequences.is_empty() => quote!(),
+        (_, [(key, key_ty)]) => {
+            let unique = match unique_field {
+                Some(field) => quote! {
+                    self.#field.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_lowercase)
+                },
+                None => quote!(None),
+            };
+            quote! {
+                impl ::mma_algebra::Constrained for #ident {
+                    fn unique(&self) -> Option<String> {
+                        #unique
+                    }
+
+                    fn sequence<'a>(&mut self, rows: impl Iterator<Item = &'a Self> + Clone)
+                    where
+                        Self: 'a,
+                    {
+                        #(
+                            if self.#sequences.is_none() {
+                                self.#sequences = Some(
+                                    rows.clone().filter_map(|row| row.#sequences).max().map_or(1, |max| max + 1),
+                                );
+                            }
+                        )*
+                    }
+
+                    fn filled(&self, from: &Self) -> Self {
+                        let mut out = self.clone();
+                        #(#fills)*
+                        out
+                    }
+
+                    fn set_key(&mut self, key: #key_ty) {
+                        self.#key = key;
+                    }
+                }
+            }
+        }
+        _ => {
+            return Err(syn::Error::new_spanned(
+                input,
+                "unique and sequence fields need a single key",
+            ))
+        }
+    };
     Ok(quote! {
         #row
         #keyed
+        #constrained
         /// A change to some of one value's fields: an absent field is unchanged.
         #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
         #(#serde)*

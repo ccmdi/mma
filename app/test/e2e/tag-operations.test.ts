@@ -31,7 +31,10 @@ describe("Tag reordering", () => {
 	it("reorderTags changes tag order field", async () => {
 		const result = await withApi(
 			async (api, id1, id2, id3) => {
-				await api.edit.values("tags", { reorder: [id3, id1, id2] });
+				await api.edit.values(
+					"tags",
+					[id3, id1, id2].map((id, order) => ({ put: { id, order } })),
+				);
 				const tags = api.getTags() as any;
 				return {
 					order1: tags[String(id1)]?.order,
@@ -257,7 +260,8 @@ describe("Rename tags within a selection", () => {
 	it("splits a tag, moving only the selected locations to a new name", async () => {
 		const created = await withApi(
 			async (api, a, ids) => {
-				const [into] = await api.edit.values("tags", { create: [{ name: "Split" }] });
+				const [into] = (await api.edit.values("tags", [{ set: { id: 0, name: "Split" } }])).mutation
+					.keys;
 				const scope = { type: "Locations" as const, locations: ids, name: null };
 				await api.edit.work(api.all(api.tagSelector(a), scope), {
 					kind: "listSet",
@@ -278,7 +282,8 @@ describe("Rename tags within a selection", () => {
 	it("merges the selected locations into a tag that already exists", async () => {
 		await withApi(
 			async (api, a, ids) => {
-				const [into] = await api.edit.values("tags", { create: [{ name: "Into" }] });
+				const [into] = (await api.edit.values("tags", [{ set: { id: 0, name: "Into" } }])).mutation
+					.keys;
 				const scope = { type: "Locations" as const, locations: ids, name: null };
 				await api.edit.work(api.all(api.tagSelector(a), scope), {
 					kind: "listSet",
@@ -295,7 +300,8 @@ describe("Rename tags within a selection", () => {
 
 	it("merges every location of the tag when no selector narrows it", async () => {
 		await withApi(async (api, a) => {
-			const [into] = await api.edit.values("tags", { create: [{ name: "Into" }] });
+			const [into] = (await api.edit.values("tags", [{ set: { id: 0, name: "Into" } }])).mutation
+				.keys;
 			await api.edit.work(api.tagSelector(a), {
 				kind: "listSet",
 				key: "tags",
@@ -321,7 +327,7 @@ describe("Tag color update", () => {
 	});
 	it("can update tag color", async () => {
 		await withApi(async (api, tagId) => {
-			await api.edit.values("tags", { update: [{ id: tagId, color: "#ff0000" }] });
+			await api.edit.values("tags", [{ put: { id: tagId, color: "#ff0000" } }]);
 		}, colorTagId);
 
 		const color = await withApi(async (api, tagId) => {
@@ -332,7 +338,7 @@ describe("Tag color update", () => {
 
 	it("tag color persists after save/close/reopen", async () => {
 		await withApi(async (api, tagId) => {
-			await api.edit.values("tags", { update: [{ id: tagId, color: "#00ff00" }] });
+			await api.edit.values("tags", [{ put: { id: tagId, color: "#00ff00" } }]);
 		}, colorTagId);
 
 		await flushAndWait();

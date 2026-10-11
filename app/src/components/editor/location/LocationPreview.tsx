@@ -226,7 +226,12 @@ export function LocationPreview() {
 		// and its undo step when it finishes.
 		await land({
 			...pano.captureView(),
-			tags: await mapEdit.values("tags", { create: pendingTags.map((name) => ({ name })) }),
+			tags: (
+				await mapEdit.values(
+					"tags",
+					pendingTags.map((name) => ({ set: { id: 0, name } })),
+				)
+			).mutation.keys,
 		});
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {

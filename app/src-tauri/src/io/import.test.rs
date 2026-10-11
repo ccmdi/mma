@@ -4,7 +4,7 @@ use crate::store::engine;
 use crate::store::engine::frame::tests::Captured;
 use crate::store::engine::tests::{shipped_count, shipped_record, FeedCapture};
 use crate::store::engine::Store;
-use crate::store::engine::{record_name, record_order, ValueRecord};
+use crate::store::engine::ValueRecord;
 use crate::store::maps;
 use crate::store::maps::VirtualTag;
 use crate::store::maps::{MapPreferences, MapSettings};
@@ -15,11 +15,16 @@ use std::env;
 use std::fs;
 use std::time::Instant;
 
-fn tag(id: u32, name: &str) -> (u32, ValueRecord) {
-    let mut rec = ValueRecord::new();
-    rec.insert("name".into(), name.into());
-    rec.insert("color".into(), "#000".into());
-    (id, rec)
+fn tag(id: u32, name: &str) -> ValueRecord {
+    ValueRecord {
+        id,
+        name: Some(name.into()),
+        extra: Some(serde_json::Map::from_iter([(
+            "color".to_string(),
+            "#000".into(),
+        )])),
+        ..Default::default()
+    }
 }
 
 fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
@@ -36,21 +41,19 @@ fn loc_with_tags(id: u32, tags: Vec<u32>) -> Location {
 // the map's display metadata the way import does.
 // -----------------------------------------------------------------------
 
-fn reconcile(
-    meta: &mut HashMap<u32, ValueRecord>,
-    tags: &[(u32, ValueRecord)],
-) -> HashMap<u32, u32> {
+fn reconcile(meta: &mut HashMap<u32, ValueRecord>, tags: &[ValueRecord]) -> HashMap<u32, u32> {
     engine::reconcile_values_by_name(tags, meta, 0)
 }
 
-fn ordered_tag(id: u32, name: &str, order: u32) -> (u32, ValueRecord) {
-    let (id, mut rec) = tag(id, name);
-    rec.insert("order".into(), order.into());
-    (id, rec)
+fn ordered_tag(id: u32, name: &str, order: u32) -> ValueRecord {
+    ValueRecord {
+        order: Some(order),
+        ..tag(id, name)
+    }
 }
 
-fn meta_with(tags: &[(u32, ValueRecord)]) -> HashMap<u32, ValueRecord> {
-    tags.iter().cloned().collect()
+fn meta_with(tags: &[ValueRecord]) -> HashMap<u32, ValueRecord> {
+    tags.iter().map(|t| (t.id, t.clone())).collect()
 }
 
 #[test]
@@ -74,7 +77,7 @@ fn reconcile_new_tag_gets_fresh_id() {
     let mut meta = meta_with(&[]);
     let remap = reconcile(&mut meta, &[tag(99, "Rural")]);
     assert_ne!(remap[&99], 99, "new tag should get a fresh ID");
-    assert_eq!(record_name(&meta[&remap[&99]]), Some("Rural"));
+    assert_eq!(meta[&remap[&99]].name.as_deref(), Some("Rural"));
 }
 
 #[test]
@@ -92,7 +95,7 @@ fn reconcile_mixed_existing_and_new() {
     let remap = reconcile(&mut meta, &[tag(1, "Urban"), tag(2, "Rural")]);
     assert_eq!(remap[&1], 10, "Urban remaps to existing");
     assert_eq!(meta.len(), 2, "only Rural created");
-    assert_eq!(record_name(&meta[&remap[&2]]), Some("Rural"));
+    assert_eq!(meta[&remap[&2]].name.as_deref(), Some("Rural"));
 }
 
 #[test]
@@ -155,16 +158,16 @@ fn reconcile_rebases_new_ordered_tags_dense_from_one() {
             ordered_tag(3, "Apple", 133),
         ],
     );
-    assert_eq!(record_order(&meta[&remap[&1]]), Some(1));
-    assert_eq!(record_order(&meta[&remap[&2]]), Some(2));
-    assert_eq!(record_order(&meta[&remap[&3]]), Some(3));
+    assert_eq!(meta[&remap[&1]].order, Some(1));
+    assert_eq!(meta[&remap[&2]].order, Some(2));
+    assert_eq!(meta[&remap[&3]].order, Some(3));
 }
 
 #[test]
 fn reconcile_appends_new_ordered_tags_after_existing_max() {
     let mut meta = meta_with(&[ordered_tag(5, "Kept", 4)]);
     let remap = reconcile(&mut meta, &[ordered_tag(1, "New", 131)]);
-    assert_eq!(record_order(&meta[&remap[&1]]), Some(5));
+    assert_eq!(meta[&remap[&1]].order, Some(5));
 }
 
 #[test]
@@ -176,23 +179,23 @@ fn reconcile_ordered_source_claims_unordered_existing() {
         &mut meta,
         &[ordered_tag(1, "Zebra", 131), ordered_tag(2, "Apple", 132)],
     );
-    assert_eq!(record_order(&meta[&7]), Some(2), "ordered tag untouched");
-    assert_eq!(record_order(&meta[&5]), Some(3), "Zebra first per file");
-    assert_eq!(record_order(&meta[&6]), Some(4), "Apple second per file");
+    assert_eq!(meta[&7].order, Some(2), "ordered tag untouched");
+    assert_eq!(meta[&5].order, Some(3), "Zebra first per file");
+    assert_eq!(meta[&6].order, Some(4), "Apple second per file");
 }
 
 #[test]
 fn reconcile_ordered_source_does_not_override_concrete_order() {
     let mut meta = meta_with(&[ordered_tag(5, "Urban", 2)]);
     reconcile(&mut meta, &[ordered_tag(1, "Urban", 131)]);
-    assert_eq!(record_order(&meta[&5]), Some(2));
+    assert_eq!(meta[&5].order, Some(2));
 }
 
 #[test]
-fn reconcile_unordered_source_tags_stay_unordered() {
-    let mut meta = meta_with(&[]);
+fn reconcile_unordered_source_tags_join_the_end_of_the_order() {
+    let mut meta = meta_with(&[ordered_tag(5, "Kept", 4)]);
     let remap = reconcile(&mut meta, &[tag(1, "Bare")]);
-    assert_eq!(record_order(&meta[&remap[&1]]), None);
+    assert_eq!(meta[&remap[&1]].order, Some(5));
 }
 
 #[test]
@@ -203,9 +206,9 @@ fn renumber_ordered_tags_dense_and_leaves_none() {
         ordered_tag(3, "A", 131),
     ];
     renumber_ordered_tags(&mut tags);
-    assert_eq!(record_order(&tags[0].1), Some(2), "C after A");
-    assert_eq!(record_order(&tags[1].1), None);
-    assert_eq!(record_order(&tags[2].1), Some(1), "A first");
+    assert_eq!(tags[0].order, Some(2), "C after A");
+    assert_eq!(tags[1].order, None);
+    assert_eq!(tags[2].order, Some(1), "A first");
 }
 
 /// Scan `extra` from a buffer and pull tag meta, as the parse path does internally.
@@ -465,9 +468,9 @@ fn boundaries_tag_meta_after_brace_heavy_strings() {
     let parsed = parse_single_json_mut(&mut buf);
     assert_eq!(parsed.locations.len(), 1);
     assert_eq!(parsed.tags.len(), 1);
-    assert_eq!(record_name(&parsed.tags[0].1), Some("X"));
-    assert_eq!(record_order(&parsed.tags[0].1), Some(7));
-    assert_eq!(parsed.tags[0].1["color"], "#010203");
+    assert_eq!(parsed.tags[0].name.as_deref(), Some("X"));
+    assert_eq!(parsed.tags[0].order, Some(7));
+    assert_eq!(parsed.tags[0].color(), Some("#010203"));
 }
 
 /// A nameless map previews as no name at all; naming the placeholder is JS's job.
@@ -500,12 +503,12 @@ fn parsed_tags_sorted_by_order() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     assert_eq!(parsed.tags.len(), 3);
-    assert_eq!(record_name(&parsed.tags[0].1), Some("Beta"));
-    assert_eq!(record_order(&parsed.tags[0].1), Some(0));
-    assert_eq!(record_name(&parsed.tags[1].1), Some("Gamma"));
-    assert_eq!(record_order(&parsed.tags[1].1), Some(1));
-    assert_eq!(record_name(&parsed.tags[2].1), Some("Alpha"));
-    assert_eq!(record_order(&parsed.tags[2].1), Some(2));
+    assert_eq!(parsed.tags[0].name.as_deref(), Some("Beta"));
+    assert_eq!(parsed.tags[0].order, Some(0));
+    assert_eq!(parsed.tags[1].name.as_deref(), Some("Gamma"));
+    assert_eq!(parsed.tags[1].order, Some(1));
+    assert_eq!(parsed.tags[2].name.as_deref(), Some("Alpha"));
+    assert_eq!(parsed.tags[2].order, Some(2));
 }
 
 // -----------------------------------------------------------------------
@@ -514,7 +517,7 @@ fn parsed_tags_sorted_by_order() {
 // the same semantic result the old map-building parser did.
 // -----------------------------------------------------------------------
 
-fn parse_one(json: &[u8]) -> (Location, Vec<(u32, ValueRecord)>) {
+fn parse_one(json: &[u8]) -> (Location, Vec<ValueRecord>) {
     let mut buf = json.to_vec();
     let p = parse_single_json_mut(&mut buf);
     (
@@ -538,7 +541,7 @@ fn fast_path_strips_tags_keeps_rest() {
     assert_eq!(loc.tags.len(), 2);
     let mut names: Vec<_> = tags
         .iter()
-        .map(|(_, rec)| record_name(rec).unwrap_or_default().to_string())
+        .map(|rec| rec.name.clone().unwrap_or_default())
         .collect();
     names.sort();
     assert_eq!(names, vec!["A", "B"]);
@@ -1029,13 +1032,13 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     let meta = &store.value_meta["tags"];
     let (unique_id, _) = meta
         .iter()
-        .find(|(_, rec)| record_name(rec) == Some("Unique"))
+        .find(|(_, rec)| rec.name.as_deref() == Some("Unique"))
         .expect("Unique created");
     let unique_id = *unique_id;
     assert_ne!(unique_id, 2);
     assert_eq!(
         meta.values()
-            .filter(|rec| record_name(rec) == Some("Shared"))
+            .filter(|rec| rec.name.as_deref() == Some("Shared"))
             .count(),
         1
     );
@@ -1096,7 +1099,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     let meta = &store.value_meta["tags"];
     let (france, _) = meta
         .iter()
-        .find(|(_, rec)| record_name(rec) == Some("France"))
+        .find(|(_, rec)| rec.name.as_deref() == Some("France"))
         .expect("France created");
     let france = *france;
     assert_eq!(meta.values().count(), 2);

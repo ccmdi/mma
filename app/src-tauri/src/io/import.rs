@@ -123,9 +123,12 @@ fn write_map_to_db(
 
     let tx = conn.unchecked_transaction()?;
 
-    let tags_json =
-        crate::io::records::write(&map.tags.iter().cloned().collect::<HashMap<_, _>>())?
-            .to_string();
+    let tags_json = serde_json::to_string(
+        &map.tags
+            .iter()
+            .map(|t| (t.id, t))
+            .collect::<HashMap<_, _>>(),
+    )?;
 
     tx.execute(
         "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8, ?9)",

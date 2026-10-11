@@ -90,8 +90,9 @@ impl Store {
             .piles
             .iter()
             .flat_map(|(field, pile)| {
-                pile.after()
-                    .filter_map(move |(id, rec)| Some(((field.as_str(), *id), record_color(rec)?)))
+                pile.after().filter_map(move |(id, rec)| {
+                    Some(((field.as_str(), *id), util::hex_to_rgb(rec.color()?)?))
+                })
             })
             .collect();
         if colors.is_empty() {
@@ -331,7 +332,8 @@ impl Store {
                 true => row,
                 false => ListedSelection {
                     selection: row.selection.recolored(&|field, id| {
-                        self.value_record(field, id).and_then(record_color)
+                        self.value_record(field, id)
+                            .and_then(|rec| util::hex_to_rgb(rec.color()?))
                     }),
                     ..row
                 },

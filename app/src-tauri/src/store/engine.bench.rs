@@ -109,10 +109,15 @@ impl Fixture {
         let locs = locations(n, seed);
         let tags: HashMap<u32, ValueRecord> = (1..=TAG_COUNT)
             .map(|id| {
-                let mut rec = ValueRecord::new();
-                rec.insert("name".into(), format!("tag{id}").into());
-                rec.insert("color".into(), "#3a7fc2".into());
-                rec.insert("order".into(), id.into());
+                let rec = ValueRecord {
+                    id,
+                    name: Some(format!("tag{id}")),
+                    order: Some(id),
+                    extra: Some(serde_json::Map::from_iter([(
+                        "color".to_string(),
+                        "#3a7fc2".into(),
+                    )])),
+                };
                 (id, rec)
             })
             .collect();

@@ -53,7 +53,7 @@ function saveValiProject(project: ValiProject) {
 async function importLocations(valiLocs: ValiLocation[], tagName: string): Promise<number> {
 	let tagId: number | null = null;
 	if (tagName) {
-		[tagId] = await edit.values("tags", { create: [{ name: tagName }] });
+		[tagId] = (await edit.values("tags", [{ set: { id: 0, name: tagName } }])).mutation.keys;
 	}
 	const locations = valiLocs.map((v) =>
 		createLocation({

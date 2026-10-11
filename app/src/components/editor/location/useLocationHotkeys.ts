@@ -130,7 +130,12 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!location) return null;
 		const live = pano.capture();
 		if (!live) return null;
-		const tags = await edit.values("tags", { create: pendingTags.map((name) => ({ name })) });
+		const { keys: tags } = (
+			await edit.values(
+				"tags",
+				pendingTags.map((name) => ({ set: { id: 0, name } })),
+			)
+		).mutation;
 		return dropLocation(location, live, live.panoId ?? location.panoId, tags);
 	};
 

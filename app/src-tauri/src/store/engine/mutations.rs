@@ -127,7 +127,7 @@ pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
     pub(crate) landed: Option<u64>,
     /// Incoming value records to reconcile when the pending rows are applied to the map.
-    pub(crate) incoming: HashMap<String, Vec<(u32, ValueRecord)>>,
+    pub(crate) incoming: HashMap<String, HashMap<u32, ValueRecord>>,
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -236,7 +236,8 @@ impl Store {
                             let floor = self.intern_floor(&field);
                             let before = self.records(&field);
                             let mut after = before.clone();
-                            let remap = reconcile_values_by_name(&incoming, &mut after, floor);
+                            let remap =
+                                reconcile_values_by_name(incoming.values(), &mut after, floor);
                             for row in &mut sets {
                                 let Some(serde_json::Value::Array(values)) =
                                     selections::RowRef::from_loc(row).resolve_field(&field)

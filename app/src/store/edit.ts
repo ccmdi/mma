@@ -1,5 +1,5 @@
 import type { Selector } from "@/types";
-import type { FieldValuesPatch, Work, WorkResult } from "@/bindings.gen";
+import type { MutationResult, Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { getMapState, mutate } from "./useMapStore";
 import { invalidateMapList } from "./mapList";
@@ -24,17 +24,11 @@ export async function meta(
 	await invalidateMapList();
 }
 
-/** Create, patch, or reorder value records in one undoable step.
- * Returns resolved ids for `create`, in request order. */
-export async function values(field: string, patch: FieldValuesPatch): Promise<number[]> {
-	if (!patch.create?.length && !patch.update?.length && !patch.reorder) return [];
-	let ids: number[] = [];
-	await mutate(async () => {
-		const r = await cmd.storePatchFieldValues(field, patch);
-		ids = r.resolved;
-		return { mutation: r.mutation };
-	});
-	return ids;
+/** Edit an interned field's value records in one undoable step. */
+export function values(
+	...[field, edits]: Parameters<typeof cmd.storeEditValues>
+): Promise<MutationResult> {
+	return mutate(() => cmd.storeEditValues(field, edits));
 }
 
 /** Run `op` across every location `selector` matches, in one undoable step. @unstable */

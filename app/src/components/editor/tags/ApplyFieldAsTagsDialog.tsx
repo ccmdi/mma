@@ -144,7 +144,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		);
 		// Groups with the same label reuse one tag.
 		const tagInto = async (name: string, selector: Selector) => {
-			const add = await edit.values("tags", { create: [{ name }] });
+			const { keys: add } = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation;
 			await edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
 		};
 		for (const [i, g] of groups.entries())

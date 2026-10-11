@@ -40,7 +40,7 @@ function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: n
 
 async function resolveTagByName(name: string): Promise<number | null> {
 	if (!name) return null;
-	const [id] = await edit.values("tags", { create: [{ name }] });
+	const [id] = (await edit.values("tags", [{ set: { id: 0, name } }])).mutation.keys;
 	return id;
 }
 

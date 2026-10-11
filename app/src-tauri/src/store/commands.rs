@@ -162,7 +162,7 @@ async fn open_claimed_map(
     let mut tags = mem::take(&mut meta.tags);
     let filled = tags
         .values_mut()
-        .fold(false, |any, rec| ensure_color(rec) | any);
+        .fold(false, |any, rec| rec.ensure_color() | any);
     store.value_meta.insert(
         "tags".into(),
         if filled {
@@ -377,10 +377,10 @@ fn copy_to_map(
         });
     }
 
-    let used_tags = |fresh: &[Location]| -> Vec<(u32, ValueRecord)> {
+    let used_tags = |fresh: &[Location]| -> Vec<ValueRecord> {
         let used: HashSet<u32> = fresh.iter().flat_map(|l| l.tags.iter().copied()).collect();
         used.iter()
-            .filter_map(|&id| source_tags.get(&id).map(|r| (id, r.clone())))
+            .filter_map(|&id| source_tags.get(&id).cloned())
             .collect()
     };
 
@@ -782,8 +782,8 @@ macro_rules! command_table {
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)
             };
-            "Patch an interned field's value records; membership uses ordinary row edits." store_patch_field_values(field: String, patch: FieldValuesPatch) -> FieldValuesResult => |store| {
-                store.patch_field_values(&field, &patch)
+            "Edit an interned field's value records; membership uses ordinary row edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult => |store| {
+                Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
             "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {
                 Ok(store.overlay_diff_counts())

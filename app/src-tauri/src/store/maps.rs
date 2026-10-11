@@ -585,11 +585,8 @@ pub struct MapMeta {
     #[field(json, decode = "MapExtra::from_json", default = "'{}'")]
     pub extra: MapExtra,
     /// Tag records keyed by id, loaded from `maps.tags` when opening the map.
-    #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
-    #[serde(
-        serialize_with = "crate::io::records::encode",
-        deserialize_with = "crate::io::records::decode"
-    )]
+    #[specta(type = HashMap<String, ValueRecord>)]
+    #[serde(deserialize_with = "crate::io::records::decode")]
     #[field(json, codec = "crate::io::records::read", default = "'{}'")]
     pub tags: HashMap<u32, ValueRecord>,
     #[field(json, default = "'[]'")]
