@@ -21,8 +21,7 @@ export async function countMissingTimezone(
 	tzLocal: boolean,
 ): Promise<number> {
 	if (!tzLocal || fieldType !== "date") return 0;
-	return (await read(all(selector, has(field), lacks("timezone")), { kind: "count" }, "count"))
-		.count;
+	return read(all(selector, has(field), lacks("timezone")), { kind: "count" });
 }
 
 export function missingTimezoneMessage(n: number): string {

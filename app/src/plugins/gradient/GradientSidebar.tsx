@@ -155,11 +155,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 								tzLocal: dateTimezone === "location",
 							};
 
-			const { groups } = await read(
-				picker.selector,
-				{ kind: "groupBy", field: fieldKey, key },
-				"groups",
-			);
+			const groups = await read(picker.selector, { kind: "groupBy", field: fieldKey, key });
 			if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 			const skipped = await countMissingTimezone(
 				picker.selector,

@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { FullscreenTagBar } from "@/components/editor/location/FullscreenTagBar";
 import {
 	read,
-	rowsOf,
 	getVisibleTags,
 	tagIdsToNames,
 	updateLocations,
@@ -24,12 +23,10 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
-			const { rows } = await read(
+			const [loc] = await read(
 				{ type: "Locations", locations: [locationId], name: null },
 				{ kind: "rows" },
-				"rows",
 			);
-			const [loc] = await rowsOf(rows);
 			if (!cancelled) setNames(tagIdsToNames(loc?.tags ?? []));
 		})();
 		return () => {

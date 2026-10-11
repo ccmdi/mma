@@ -31,7 +31,7 @@ vi.mock("@/lib/commands", () => ({
 		storeRead: (_target: unknown, _selector: unknown, ask: { lats?: number[] }) =>
 			new Promise((resolve) => {
 				h.nearResolvers.push(() =>
-					resolve({ kind: "booleans", values: (ask.lats ?? []).map(() => false) }),
+					resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) }),
 				);
 			}),
 	},

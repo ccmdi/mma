@@ -1203,10 +1203,10 @@ type Answer = {
     kind: "values";
     values: string[];
 } | {
-    kind: "groups";
+    kind: "groupBy";
     groups: PartitionBucket[];
 } | {
-    kind: "counts";
+    kind: "countBy";
     counts: CountBy[];
 } | {
     kind: "coverage";
@@ -1215,10 +1215,10 @@ type Answer = {
     kind: "bounds";
     bounds: [number, number, number, number] | null;
 } | {
-    kind: "idGroups";
+    kind: "duplicateGroups";
     groups: number[][];
 } | {
-    kind: "booleans";
+    kind: "nearAny";
     values: boolean[];
 };
 /**  A query over selected rows. */
@@ -3529,9 +3529,15 @@ declare function discardOpenMap(): void;
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
     kind: K;
 }>;
-/** Query matching rows against the map's current state. */
-declare function read<K extends Answer["kind"]>(selector: Selector, ask: Ask, kind: K, target?: Target): Promise<AnswerOf<K>>;
-/** Unpack a row query, fetching large results from its temp file. */
+export type Payload<T> = {
+    [K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
+}[keyof T];
+export type Materialized<T> = T extends AnswerOf<"rows">["rows"] ? Awaited<ReturnType<typeof rowsOf>> : T;
+export type ReadResult<A extends Answer> = A extends Answer ? Materialized<Payload<Omit<A, "kind">>> : never;
+/** Query matching rows and return the requested payload. Full row reads load any
+ *  backing file automatically; use ids or columns when full rows are unnecessary. */
+declare function read<A extends Ask>(selector: Selector, ask: A, target?: Target): Promise<ReadResult<AnswerOf<A["kind"]>>>;
+/** Unpack a wire row answer, fetching large results from its temp file. */
 declare function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>;
 /** The selection: every listed selection that is not ghosted. */
 declare const getActiveSelections: () => Selection[];
@@ -3571,7 +3577,7 @@ declare function applySelectionUpdate(op: SelectionOp): Promise<void>;
 declare function restoreSelections(): Promise<void>;
 /** Redo the last undone selection change without redoing data edits. @unstable */
 declare function redoSelections(): Promise<void>;
-declare function select<R extends {
+declare function select<R extends number[] | {
     ids: number[];
 }>(pick: (selector: Selector) => Promise<R>, perSelection?: boolean): Promise<{
     picked: number;
@@ -3728,7 +3734,7 @@ declare namespace autosave {
 }
 
 /** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
-declare function rows(target: Target, edits: Parameters<typeof cmd.storeEdit>[1], opts?: EditOpts): Promise<MutationResult>;
+declare function rows(...[target, edits, opts]: Parameters<typeof cmd.storeEdit>): Promise<MutationResult>;
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */
 declare function meta(patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
     id?: string;
@@ -7415,29 +7421,6 @@ declare namespace useJob$1 {
   export type { useJob$1_Job as Job, useJob$1_JobContext as JobContext };
 }
 
-/** Query matching rows against the map's current state. @deprecated v0.12.0. Use `MMA.read(selector, ask, answerKind)` instead. @unstable */
-declare function query(selector: Selector, target?: Target): {
-    /** Resolved ids in ascending order, or in ranked-selector order. */
-    ids: () => Promise<number[]>;
-    /** Number of locations the selector resolves to. */
-    count: () => Promise<number>;
-    /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
-    bounds: () => Promise<[number, number, number, number] | null>;
-    /** `n` ids drawn uniformly at random, without replacement. */
-    sample: (n: number) => Promise<number[]>;
-    /** Distinct values of `field`, sorted. */
-    values: (field: string) => Promise<string[]>;
-    /** Group each field by a derived key and count, one result per field. */
-    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
-    /** How many locations hold a value for each field, key-sorted. */
-    coverage: () => Promise<[string, number][]>;
-    /** One column per field: null for missing values and tag-id arrays for `tags`. */
-    columns: (fields: string[]) => Promise<unknown[][]>;
-    /** Group by a derived key; bins use bound order and other keys sort naturally. */
-    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
-    /** Full matching locations, loading any large result from its temporary file. */
-    locations: () => Promise<Location[]>;
-};
 /** @deprecated v0.8.1. Use `MMA.getMapHost()` and narrow via `hostInstance`. @unstable */
 declare function getGoogleMap(): google.maps.Map | null;
 /** @deprecated v0.8.1. Use `MMA.waitForMapHost()`. @unstable */
@@ -7460,35 +7443,35 @@ declare function getGhostedSelections(): Set<string>;
 declare function getSelections(): Selection[];
 /** @deprecated v0.8.2. Ask `MMA.read` for the summary and take `dirtyCount`. @unstable */
 declare function getDirtyCount(): Promise<number>;
-/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows)`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" })`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
-/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" }, "rows")).rows)`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" })`. @unstable */
 declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
-/** @deprecated v0.8.4. Use `MMA.rowsOf((await MMA.read({ type: "Everything" }, { kind: "rows" }, "rows")).rows)`. @unstable */
+/** @deprecated v0.8.4. Use `MMA.read({ type: "Everything" }, { kind: "rows" })`. @unstable */
 declare function fetchAllLocations(): Promise<Location[]>;
-/** @deprecated v0.10.2. Use `MMA.read(selector, { kind: "coverage" }, "coverage")`. @unstable */
+/** @deprecated v0.10.2. Use `MMA.read(selector, { kind: "coverage" })`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.11.7. Use the `{ type: "Selected" }` selector. @unstable */
 declare function currentSelection(): Selector;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "ids" }, "ids")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "ids" })`. @unstable */
 declare function resolveIds(selector: Selector): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "count" }, "count")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "count" })`. @unstable */
 declare function countIn(selector: Selector): Promise<number>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "bounds" }, "bounds")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "bounds" })`. @unstable */
 declare function fetchBounds(selector: Selector): Promise<[number, number, number, number] | null>;
-/** @deprecated v0.11.3. Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" }, "ids")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`. @unstable */
 declare function sampleFrom(selector: Selector, n: number): Promise<number[]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "values", field }, "values")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "values", field })`. @unstable */
 declare function fieldValues(selector: Selector, field: string): Promise<string[]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "countBy", fields: [field], key }, "counts")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "countBy", fields: [field], key })`. @unstable */
 declare function countBy(selector: Selector, field: string, key: KeySpec): Promise<CountBy>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "coverage" }, "coverage")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "coverage" })`. @unstable */
 declare function coverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "columns", fields }, "columns")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "columns", fields })`. @unstable */
 declare function fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>;
-/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "groupBy", field, key }, "groups")`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "groupBy", field, key })`. @unstable */
 declare function partition(field: string, key: KeySpec, selector: Selector): Promise<PartitionBucket[]>;
-/** @deprecated v0.11.3. Use `MMA.rowsOf((await MMA.read(selector, { kind: "rows" }, "rows")).rows)`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.read(selector, { kind: "rows" })`. @unstable */
 declare function fetchLocations(selector: Selector): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
@@ -7517,6 +7500,29 @@ declare function addSelections(selectors: Selector[]): Promise<void>;
 declare function removeSelections(keys: string[]): Promise<void>;
 /** @deprecated v0.11.3. Use `MMA.applySelectionUpdate({ kind: "set", selections: [] })`. @unstable */
 declare function resetSelections(): Promise<void>;
+/** @deprecated v0.12.0. Use MMA.read(selector, ask) instead. @unstable */
+declare function query(selector: Selector, target?: Target): {
+    /** Resolved ids in ascending order, or in ranked-selector order. */
+    ids: () => Promise<number[]>;
+    /** Number of locations the selector resolves to. */
+    count: () => Promise<number>;
+    /** Bounding box [west, south, east, north], or null when nothing resolves. */
+    bounds: () => Promise<[number, number, number, number] | null>;
+    /** n ids drawn uniformly at random, without replacement. */
+    sample: (n: number) => Promise<number[]>;
+    /** Distinct values of field, sorted. */
+    values: (field: string) => Promise<string[]>;
+    /** Group each field by a derived key and count, one result per field. */
+    countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
+    /** How many locations hold a value for each field, key-sorted. */
+    coverage: () => Promise<[string, number][]>;
+    /** One column per field: null for missing values and tag-id arrays for tags. */
+    columns: (fields: string[]) => Promise<unknown[][]>;
+    /** Group by a derived key; bins use bound order and other keys sort naturally. */
+    partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
+    /** Full matching locations, loading any large result from its temporary file. */
+    locations: () => Promise<Location[]>;
+};
 
 /** @unstable */
 declare const legacy_addSelections: typeof addSelections;

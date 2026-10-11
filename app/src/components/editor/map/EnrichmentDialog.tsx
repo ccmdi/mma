@@ -108,7 +108,7 @@ function useCoverage(epoch = 0): Map<string, number> {
 	useEffect(() => {
 		const total = getMapState().locationCount;
 		if (total === 0) return;
-		void read({ type: "Everything" }, { kind: "coverage" }, "coverage").then(({ coverage }) => {
+		void read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
 			setCoverage(new Map(coverage.map(([key, n]) => [key, n / total])));
 		});
 	}, [epoch]);
@@ -290,7 +290,7 @@ function FieldsTab() {
 
 	const proposeRename = async (target: string) => {
 		if (!row || !target || target === row.key) return;
-		const counts = (await read({ type: "Everything" }, { kind: "coverage" }, "coverage")).coverage;
+		const counts = await read({ type: "Everything" }, { kind: "coverage" });
 		const affected = counts.find(([key]) => key === row.key)?.[1] ?? 0;
 		setRenamePrompt({
 			key: row.key,
@@ -592,11 +592,9 @@ function EnumValues({
 	useEffect(() => {
 		let live = true;
 		const have = new Set((row.values ?? []).map((v) => v.value));
-		void read({ type: "Everything" }, { kind: "values", field: row.key }, "values").then(
-			({ values }) => {
-				if (live) setCandidates(values.filter((v) => !have.has(v)));
-			},
-		);
+		void read({ type: "Everything" }, { kind: "values", field: row.key }).then((values) => {
+			if (live) setCandidates(values.filter((v) => !have.has(v)));
+		});
 		return () => {
 			live = false;
 		};

@@ -577,10 +577,10 @@ pub enum Answer {
     Values {
         values: Vec<String>,
     },
-    Groups {
+    GroupBy {
         groups: Vec<selections::PartitionBucket>,
     },
-    Counts {
+    CountBy {
         counts: Vec<selections::CountBy>,
     },
     Coverage {
@@ -589,10 +589,10 @@ pub enum Answer {
     Bounds {
         bounds: Option<[f64; 4]>,
     },
-    IdGroups {
+    DuplicateGroups {
         groups: Vec<Vec<u32>>,
     },
-    Booleans {
+    NearAny {
         values: Vec<bool>,
     },
 }
@@ -666,7 +666,7 @@ impl Store {
                     lats,
                     lngs,
                     radius_m,
-                } => Answer::Booleans {
+                } => Answer::NearAny {
                     values: lats
                         .iter()
                         .zip(lngs)
@@ -696,13 +696,13 @@ impl Store {
                 Ask::Values { field } => Answer::Values {
                     values: scope.distinct_values(field),
                 },
-                Ask::GroupBy { field, key } => Answer::Groups {
+                Ask::GroupBy { field, key } => Answer::GroupBy {
                     groups: scope.partition(field, key),
                 },
-                Ask::CountBy { fields, key } => Answer::Counts {
+                Ask::CountBy { fields, key } => Answer::CountBy {
                     counts: scope.count_by(fields, key),
                 },
-                Ask::DuplicateGroups { distance } => Answer::IdGroups {
+                Ask::DuplicateGroups { distance } => Answer::DuplicateGroups {
                     groups: scope.duplicate_groups(*distance),
                 },
             })

@@ -478,7 +478,7 @@ export type AnonIssueRef = {
 };
 
 /**  The result of a row query. */
-export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groups"; groups: PartitionBucket[] } | { kind: "counts"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "idGroups"; groups: number[][] } | { kind: "booleans"; values: boolean[] };
+export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "rows"; rows: Rows } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groupBy"; groups: PartitionBucket[] } | { kind: "countBy"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "duplicateGroups"; groups: number[][] } | { kind: "nearAny"; values: boolean[] };
 
 /**  A query over selected rows. */
 export type Ask = 

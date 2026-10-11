@@ -214,7 +214,7 @@ export function MapEmbed({
 				mapOpen.mark("map-ready");
 				created.once("tilesloaded", () => mapOpen.mark("tiles"));
 				if (map.locationCount > 0) {
-					void read({ type: "Everything" }, { kind: "bounds" }, "bounds").then(({ bounds }) => {
+					void read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
 						if (cancelled || !hostRef.current || !bounds) return;
 						const [west, south, east, north] = bounds;
 						hostRef.current.fitBounds({ west, south, east, north }, undefined, {
@@ -353,7 +353,7 @@ export function MapEmbed({
 	useHotkey(useBinding("toggleSvOpacity"), () => toggleLayer("sv"));
 	useHotkey(useBinding("toggleMarkerOpacity"), () => toggleLayer("marker"));
 	useHotkey(useBinding("mapZoomBounds"), () => {
-		void read({ type: "Everything" }, { kind: "bounds" }, "bounds").then(({ bounds }) => {
+		void read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });
@@ -361,7 +361,7 @@ export function MapEmbed({
 	});
 
 	useHotkey(useBinding("mapZoomSelection"), () => {
-		void read({ type: "Selected" }, { kind: "bounds" }, "bounds").then(({ bounds }) => {
+		void read({ type: "Selected" }, { kind: "bounds" }).then((bounds) => {
 			if (!hostRef.current || !bounds) return;
 			const [west, south, east, north] = bounds;
 			hostRef.current.fitBounds({ west, south, east, north }, undefined, { snap: true });

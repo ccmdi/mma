@@ -83,12 +83,10 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		let live = true;
 		const selector = picker.selector;
 		void Promise.all([
-			read(selector, { kind: "count" }, "count").then((r) => r.count),
-			read(selector, { kind: "coverage" }, "coverage").then((r) => r.coverage),
+			read(selector, { kind: "count" }),
+			read(selector, { kind: "coverage" }),
 			key
-				? read(selector, { kind: "countBy", fields: [field], key }, "counts").then(
-						({ counts }) => counts[0],
-					)
+				? read(selector, { kind: "countBy", fields: [field], key }).then((counts) => counts[0])
 				: Promise.resolve<CountBy>({ counts: [], covered: 0 }),
 		]).then(([total, counts, grouped]) => {
 			if (!live) return;
@@ -127,7 +125,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 	const handleApply = async () => {
 		if (!field || !key) return;
 
-		const groups = (await read(picker.selector, { kind: "groupBy", field, key }, "groups")).groups;
+		const groups = await read(picker.selector, { kind: "groupBy", field, key });
 		if (key.kind !== "numericBin") groups.sort((a, b) => compareNatural(a.key, b.key));
 
 		// Rust drops rows whose key does not resolve, so whatever the groups miss is exactly
@@ -136,7 +134,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const missing = tagMissing
 			? all(picker.selector, not({ type: "Locations", locations: grouped, name: null }))
 			: null;
-		const missingCount = missing ? (await read(missing, { kind: "count" }, "count")).count : 0;
+		const missingCount = missing ? await read(missing, { kind: "count" }) : 0;
 		if (groups.length === 0 && missingCount === 0) return;
 
 		const labels = await resolveFieldLabels(

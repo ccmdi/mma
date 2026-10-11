@@ -25,7 +25,7 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 		(await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }))
 			.mutation,
 	);
-	return { ids: (await read({ type: "Selected" }, { kind: "ids" }, "ids")).ids };
+	return { ids: await read({ type: "Selected" }, { kind: "ids" }) };
 }
 
 /** Open a map by id and navigate to it. */

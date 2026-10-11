@@ -40,7 +40,7 @@ vi.mock("@/lib/commands", () => ({
 			ask: { kind: string; lats?: number[] },
 		) => {
 			if (ask.kind === "nearAny") {
-				return Promise.resolve({ kind: "booleans", values: (ask.lats ?? []).map(() => false) });
+				return Promise.resolve({ kind: "nearAny", values: (ask.lats ?? []).map(() => false) });
 			}
 			if (selector.type === "Nearby") {
 				return Promise.resolve({ kind: "rows", rows: { kind: "inline", locations: h.seeds } });

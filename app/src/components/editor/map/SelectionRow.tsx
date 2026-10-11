@@ -60,7 +60,7 @@ async function fitSelectionBounds(host: MapHost, selection: Selection) {
 	const box =
 		selection.selector.type === "Polygon"
 			? await cmd.polygonBounds(selection.selector.polygon)
-			: (await read(selection.selector, { kind: "bounds" }, "bounds")).bounds;
+			: await read(selection.selector, { kind: "bounds" });
 	if (box) host.fitBounds({ west: box[0], south: box[1], east: box[2], north: box[3] }, 100);
 }
 
@@ -303,7 +303,7 @@ export const SelectionRow = memo(function SelectionRow({
 										disabled={count === 0}
 										onClick={() =>
 											void (async () => {
-												const ids = (await read(selection.selector, { kind: "ids" }, "ids")).ids;
+												const ids = await read(selection.selector, { kind: "ids" });
 												void beginReview(ids, selection);
 											})()
 										}

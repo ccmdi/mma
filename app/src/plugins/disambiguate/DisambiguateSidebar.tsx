@@ -140,9 +140,9 @@ async function analyze(): Promise<Analysis> {
 	for (const [id, t] of Object.entries(MMA.getTags()))
 		tagNames[Number(id)] = (t as { name: string }).name;
 
-	const [{ count: unionSize }, { coverage: present }] = await Promise.all([
-		MMA.read(union, { kind: "count" }, "count"),
-		MMA.read(union, { kind: "coverage" }, "coverage"),
+	const [unionSize, present] = await Promise.all([
+		MMA.read(union, { kind: "count" }),
+		MMA.read(union, { kind: "coverage" }),
 	]);
 	const fields = analysisColumns(
 		fieldDefs,
@@ -150,9 +150,9 @@ async function analyze(): Promise<Analysis> {
 	);
 	const groups = await Promise.all(
 		exclusiveGroups(selectors).map(async (selector) => {
-			const [{ count: size }, { counts }] = await Promise.all([
-				MMA.read(selector, { kind: "count" }, "count"),
-				MMA.read(selector, { kind: "countBy", fields, key: { kind: "value" } }, "counts"),
+			const [size, counts] = await Promise.all([
+				MMA.read(selector, { kind: "count" }),
+				MMA.read(selector, { kind: "countBy", fields, key: { kind: "value" } }),
 			]);
 			return { size, counts: Object.fromEntries(fields.map((f, i) => [f, counts[i]])) };
 		}),

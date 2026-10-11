@@ -89,7 +89,7 @@ export function useScoreMaxError(override?: ScoreBounds): number {
 	const [autoBbox, setAutoBbox] = useState<Bbox | null>(null);
 
 	const refresh = useCallback(async () => {
-		const res = (await read({ type: "Everything" }, { kind: "bounds" }, "bounds")).bounds;
+		const res = await read({ type: "Everything" }, { kind: "bounds" });
 		setAutoBbox(res ?? null);
 	}, []);
 

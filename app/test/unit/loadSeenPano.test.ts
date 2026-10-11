@@ -9,8 +9,7 @@ vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
 vi.mock("@/store/useMapStore", () => ({
 	getMapState: () => ({ open: { row: active } }),
-	read: async () => ({ kind: "rows", rows: { kind: "inline", locations: [active] } }),
-	rowsOf: async (rows: { locations: unknown[] }) => rows.locations,
+	read: async () => [active],
 	addLocations: vi.fn(),
 	setActiveLocation: vi.fn(),
 }));

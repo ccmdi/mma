@@ -288,19 +288,37 @@ export function discardOpenMap() {
 
 type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
 
-/** Query matching rows against the map's current state. */
-export async function read<K extends Answer["kind"]>(
+// A single payload field becomes its value; several fields stay together.
+type Payload<T> = {
+	[K in keyof T]: Exclude<keyof T, K> extends never ? T[K] : T;
+}[keyof T];
+
+type Materialized<T> = T extends AnswerOf<"rows">["rows"] ? Awaited<ReturnType<typeof rowsOf>> : T;
+
+type ReadResult<A extends Answer> = A extends Answer
+	? Materialized<Payload<Omit<A, "kind">>>
+	: never;
+
+/** Query matching rows and return the requested payload. Full row reads load any
+ *  backing file automatically; use ids or columns when full rows are unnecessary. */
+export async function read<A extends Ask>(
 	selector: Selector,
-	ask: Ask,
-	kind: K,
+	ask: A,
 	target: Target = MAP,
-): Promise<AnswerOf<K>> {
+): Promise<ReadResult<AnswerOf<A["kind"]>>> {
 	const answer = await cmd.storeRead(target, selector, ask);
-	if (answer.kind !== kind) throw new Error(`read answered ${answer.kind}, expected ${kind}`);
-	return answer as AnswerOf<K>;
+	if (answer.kind !== ask.kind)
+		throw new Error(`read answered ${answer.kind}, expected ${ask.kind}`);
+	const { kind: _, ...payload } = answer;
+	const values = Object.values(payload);
+	const value = values.length === 1 ? values[0] : payload;
+	// Buffered payloads carry their own transport tag; ordinary payloads do not.
+	const result =
+		value && typeof value === "object" && "kind" in value ? await rowsOf(value) : value;
+	return result as ReadResult<AnswerOf<A["kind"]>>;
 }
 
-/** Unpack a row query, fetching large results from its temp file. */
+/** Unpack a wire row answer, fetching large results from its temp file. */
 export async function rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]> {
 	return rows.kind === "inline" ? rows.locations : (await fetch(mmaBufUrl(rows.path))).json();
 }
@@ -408,6 +426,7 @@ export async function addLocations(locs: Location[]) {
 			: await edit.rows(
 					MAP,
 					locs.map((l) => ({ set: l })),
+					null,
 				);
 	t.end({ added: locs.length });
 	if (state.map) locs.forEach((l, i) => (l.id = r.mutation.added[i] ?? l.id));
@@ -416,9 +435,7 @@ export async function addLocations(locs: Location[]) {
 /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 export async function duplicateLocation(id: number): Promise<number | null> {
 	if (!state.map) return null;
-	const [loc] = await rowsOf(
-		(await read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows,
-	);
+	const [loc] = await read({ type: "Locations", locations: [id], name: null }, { kind: "rows" });
 	if (!loc) return null;
 	const now = nowUnix();
 	const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
@@ -435,6 +452,7 @@ export async function removeLocations(ids: ReadonlyIdSet) {
 		.rows(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),
+			null,
 		)
 		.catch((e) => log.error("[delete] store_edit remove failed:", e));
 }
@@ -446,6 +464,7 @@ export async function updateLocations(updates: Patch<Location>[]) {
 	await edit.rows(
 		MAP,
 		updates.map((put) => ({ put })),
+		null,
 	);
 }
 
@@ -490,7 +509,7 @@ async function updateSelections(write: () => Promise<MutationResult>) {
 	emitEvent("selection:change", getActiveSelections());
 }
 
-export async function select<R extends { ids: number[] }>(
+export async function select<R extends number[] | { ids: number[] }>(
 	pick: (selector: Selector) => Promise<R>,
 	perSelection = false,
 ): Promise<{ picked: number; results: R[] }> {
@@ -498,7 +517,7 @@ export async function select<R extends { ids: number[] }>(
 	const buckets: Selector[] =
 		perSelection && active.length >= 2 ? active.map((s) => s.selector) : [{ type: "Selected" }];
 	const results = await Promise.all(buckets.map(pick));
-	const ids = [...new Set(results.flatMap((r) => r.ids))];
+	const ids = [...new Set(results.flatMap((r) => (Array.isArray(r) ? r : r.ids)))];
 	if (ids.length)
 		await applySelectionUpdate(
 			onActive(setSelections([selection({ type: "Manual", locations: ids })])),
@@ -508,11 +527,7 @@ export async function select<R extends { ids: number[] }>(
 
 /** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */
 export async function previewDuplicateGroups(distance: number): Promise<number[][]> {
-	const { groups } = await read(
-		{ type: "Everything" },
-		{ kind: "duplicateGroups", distance },
-		"idGroups",
-	);
+	const groups = await read({ type: "Everything" }, { kind: "duplicateGroups", distance });
 	return groups;
 }
 
@@ -524,16 +539,7 @@ async function openPreview(loc: Location, origin: OpenOrigin) {
 	if (added == null) return;
 	const row =
 		(
-			await rowsOf(
-				(
-					await read(
-						{ type: "Locations", locations: [added], name: null },
-						{ kind: "rows" },
-						"rows",
-						VIEWER,
-					)
-				).rows,
-			)
+			await read({ type: "Locations", locations: [added], name: null }, { kind: "rows" }, VIEWER)
 		)[0] ?? null;
 	setState({ open: opening(added, origin, row), workArea: "location" });
 	emitEvent("active:change", null);
@@ -545,15 +551,10 @@ export async function openStagedLocation(index: number) {
 	if (first == null) return;
 	const loc =
 		(
-			await rowsOf(
-				(
-					await read(
-						{ type: "Locations", locations: [first + index], name: null },
-						{ kind: "rows" },
-						"rows",
-						importTarget(),
-					)
-				).rows,
+			await read(
+				{ type: "Locations", locations: [first + index], name: null },
+				{ kind: "rows" },
+				importTarget(),
 			)
 		)[0] ?? null;
 	if (!loc) return;
@@ -577,12 +578,7 @@ function clearActiveLocation(): void {
 /** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 export async function resolveLocation(m: MaybeLocation): Promise<Location | null> {
 	return typeof m === "number"
-		? ((
-				await rowsOf(
-					(await read({ type: "Locations", locations: [m], name: null }, { kind: "rows" }, "rows"))
-						.rows,
-				)
-			)[0] ?? null)
+		? ((await read({ type: "Locations", locations: [m], name: null }, { kind: "rows" }))[0] ?? null)
 		: m;
 }
 
@@ -611,14 +607,9 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 		t.step("ipc");
 		if (activation !== lastSession) return t.end({ superseded: true });
 		if (checkDuplicates && loc) {
-			const nearby = await rowsOf(
-				(
-					await read(
-						{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
-						{ kind: "rows" },
-						"rows",
-					)
-				).rows,
+			const nearby = await read(
+				{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
+				{ kind: "rows" },
 			);
 			if (activation !== lastSession) return t.end({ superseded: true });
 			if (nearby.length >= 2) {

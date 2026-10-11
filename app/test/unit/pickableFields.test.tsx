@@ -15,9 +15,7 @@ vi.mock("@/store/useMapStore", () => {
 		getMapState: state,
 		useMapState: (sel: (s: unknown) => unknown) => sel(state()),
 		read: async (_selector: unknown, ask: { kind: string }) =>
-			ask.kind === "coverage"
-				? { kind: "coverage", coverage: h.held }
-				: { kind: "values", values: [] },
+			ask.kind === "coverage" ? h.held : [],
 		applySelectionUpdate: async () => {},
 	};
 });

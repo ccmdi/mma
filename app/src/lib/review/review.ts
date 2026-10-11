@@ -213,9 +213,7 @@ export async function beginReview(ids: number[], source?: Selection): Promise<vo
 
 	// Freeze the worklist to ids that still exist, in the map's review order.
 	const worklist: Selector = { type: "Locations", locations: ids, name: null };
-	const order = (
-		await read(reviewOrdering(worklist, map.settings.reviewOrder), { kind: "ids" }, "ids")
-	).ids;
+	const order = await read(reviewOrdering(worklist, map.settings.reviewOrder), { kind: "ids" });
 	if (order.length === 0) return;
 
 	const name = source ? selectionDisplayName(source) : t("Selected locations");
@@ -393,8 +391,7 @@ async function adopt(s: ReviewSession): Promise<void> {
 	let v: ReviewSession | null = s;
 	try {
 		const liveIds = new Set(
-			(await read({ type: "Locations", locations: s.order, name: null }, { kind: "ids" }, "ids"))
-				.ids,
+			await read({ type: "Locations", locations: s.order, name: null }, { kind: "ids" }),
 		);
 		v = pruneSession(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
 	} catch (e) {

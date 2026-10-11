@@ -1,4 +1,4 @@
-import { read, rowsOf } from "@/store/useMapStore";
+import { read } from "@/store/useMapStore";
 import type {
 	GeneratorSettings,
 	GeneratorRegion,
@@ -406,18 +406,15 @@ export class GenerationEngine {
 	private async withoutExisting(coords: LatLng[]): Promise<LatLng[]> {
 		if (!this.settings.skipExisting) return coords;
 		try {
-			const near = (
-				await read(
-					{ type: "Everything" },
-					{
-						kind: "nearAny",
-						lats: coords.map((c) => c.lat),
-						lngs: coords.map((c) => c.lng),
-						radiusM: this.settings.skipExistingRadius,
-					},
-					"booleans",
-				)
-			).values;
+			const near = await read(
+				{ type: "Everything" },
+				{
+					kind: "nearAny",
+					lats: coords.map((c) => c.lat),
+					lngs: coords.map((c) => c.lng),
+					radiusM: this.settings.skipExistingRadius,
+				},
+			);
 			return coords.filter((_, i) => !near[i]);
 		} catch (e) {
 			log.warn("[generator] storeNearAny failed, probing unfiltered:", e);
@@ -438,20 +435,15 @@ export class GenerationEngine {
 
 		let seeds: string[];
 		try {
-			const locs = await rowsOf(
-				(
-					await read(
-						{
-							type: "Nearby",
-							selection: null,
-							lat: centroidLat,
-							lng: centroidLng,
-							radiusM: coveringRadius,
-						},
-						{ kind: "rows" },
-						"rows",
-					)
-				).rows,
+			const locs = await read(
+				{
+					type: "Nearby",
+					selection: null,
+					lat: centroidLat,
+					lng: centroidLng,
+					radiusM: coveringRadius,
+				},
+				{ kind: "rows" },
 			);
 			const withPano = locs.filter((l) => l.panoId);
 			const inside = await regionContains(region, withPano);
@@ -825,13 +817,10 @@ export class GenerationEngine {
 		// its probe coordinate didn't — final skip-existing gate before accepting.
 		if (s.skipExisting) {
 			try {
-				const covered = (
-					await read(
-						{ type: "Everything" },
-						{ kind: "nearAny", lats: [pano.lat], lngs: [pano.lng], radiusM: s.skipExistingRadius },
-						"booleans",
-					)
-				).values;
+				const covered = await read(
+					{ type: "Everything" },
+					{ kind: "nearAny", lats: [pano.lat], lngs: [pano.lng], radiusM: s.skipExistingRadius },
+				);
 				if (covered[0]) return;
 			} catch (e) {
 				log.warn("[generator] storeNearAny failed, accepting unchecked:", e);

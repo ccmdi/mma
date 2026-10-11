@@ -95,7 +95,7 @@ export function usePickableFields(): FieldEntry[] {
 	const [held, setHeld] = useState<ReadonlySet<string> | null>(null);
 	useEffect(() => {
 		let live = true;
-		void read({ type: "Everything" }, { kind: "coverage" }, "coverage").then(({ coverage }) => {
+		void read({ type: "Everything" }, { kind: "coverage" }).then((coverage) => {
 			if (live) setHeld(new Set(coverage.map(([key]) => key)));
 		});
 		return () => {
@@ -131,8 +131,8 @@ function useEnumValues(fieldKey: string | undefined, def: FieldDef | undefined):
 			setValues([]);
 			return;
 		}
-		void read({ type: "Everything" }, { kind: "values", field: fieldKey }, "values").then(
-			({ values }) => setValues(values),
+		void read({ type: "Everything" }, { kind: "values", field: fieldKey }).then((values) =>
+			setValues(values),
 		);
 	}, [fieldKey, def]);
 	return values;

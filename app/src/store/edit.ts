@@ -1,12 +1,5 @@
 import type { Selector } from "@/types";
-import type {
-	EditOpts,
-	FieldValuesPatch,
-	MutationResult,
-	Target,
-	Work,
-	WorkResult,
-} from "@/bindings.gen";
+import type { FieldValuesPatch, MutationResult, Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { getMapState, mutate } from "./useMapStore";
 import { invalidateMapList } from "./mapList";
@@ -16,11 +9,9 @@ const NO_WORK: WorkResult = { mutation: { version: 0, added: [] }, changed: 0, f
 
 /** Apply edits to the map or a pending layer. Map changes are undoable. @unstable */
 export function rows(
-	target: Target,
-	edits: Parameters<typeof cmd.storeEdit>[1],
-	opts?: EditOpts,
+	...[target, edits, opts]: Parameters<typeof cmd.storeEdit>
 ): Promise<MutationResult> {
-	return mutate(() => cmd.storeEdit(target, edits, opts ?? null));
+	return mutate(() => cmd.storeEdit(target, edits, opts));
 }
 
 /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`. */

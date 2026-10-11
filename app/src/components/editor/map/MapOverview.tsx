@@ -72,11 +72,7 @@ function RandomPickPanel() {
 				if (!valid) return;
 				select(
 					(selector) =>
-						read(
-							{ type: "Sample", selection: selection(selector), n: count },
-							{ kind: "ids" },
-							"ids",
-						),
+						read({ type: "Sample", selection: selection(selector), n: count }, { kind: "ids" }),
 					perSelection,
 				)
 					.then(({ picked }) => {
@@ -143,7 +139,6 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 						thin: mode === "count" ? { by: "count", n: count } : { by: "metres", m: distance },
 					},
 					{ kind: "spacing" },
-					"spacing",
 				),
 			perSelection,
 		);

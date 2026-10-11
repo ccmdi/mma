@@ -991,15 +991,15 @@ adding anything to the map. The caller sets LoadAsPanoId so the exact pano resol
 `stable` · since v0.12.0
 
 ```ts
-read<K extends Answer["kind"]>(
+read<A extends Ask>(
   selector: Selector,
-  ask: Ask,
-  kind: K,
+  ask: A,
   target?: Target,
-): Promise<AnswerOf<K>>
+): Promise<ReadResult<AnswerOf<A["kind"]>>>
 ```
 
-Query matching rows against the map's current state.
+Query matching rows and return the requested payload. Full row reads load any
+backing file automatically; use ids or columns when full rows are unnecessary.
 
 ### redo
 
@@ -1085,7 +1085,7 @@ Undo the last selection change without undoing data edits.
 rowsOf(rows: AnswerOf<"rows">["rows"]): Promise<Location[]>
 ```
 
-Unpack a row query, fetching large results from its temp file.
+Unpack a wire row answer, fetching large results from its temp file.
 
 ### select
 
@@ -1093,9 +1093,11 @@ Unpack a row query, fetching large results from its temp file.
 
 ```ts
 select<
-  R extends {
-    ids: number[];
-  },
+  R extends
+    | number[]
+    | {
+        ids: number[];
+      },
 >(
   pick: (selector: Selector) => Promise<R>,
   perSelection?: boolean,
@@ -7394,7 +7396,7 @@ countBy(
 ): Promise<CountBy>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "countBy", fields: [field], key }, "counts")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "countBy", fields: [field], key })`.
 
 ### countIn
 
@@ -7404,7 +7406,7 @@ countBy(
 countIn(selector: Selector): Promise<number>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "count" }, "count")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "count" })`.
 
 ### coverage
 
@@ -7414,7 +7416,7 @@ countIn(selector: Selector): Promise<number>
 coverage(selector: Selector): Promise<[string, number][]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "coverage" }, "coverage")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "coverage" })`.
 
 ### createPluginStorage
 
@@ -7444,7 +7446,7 @@ currentSelection(): Selector
 fetchAllLocations(): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Everything" }, { kind: "rows" }, "rows")).rows)`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Everything" }, { kind: "rows" })`.
 
 ### fetchBounds
 
@@ -7456,7 +7458,7 @@ fetchBounds(
 ): Promise<[number, number, number, number] | null>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "bounds" }, "bounds")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "bounds" })`.
 
 ### fetchColumns
 
@@ -7466,7 +7468,7 @@ fetchBounds(
 fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "columns", fields }, "columns")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "columns", fields })`.
 
 ### fetchLocation
 
@@ -7476,7 +7478,7 @@ fetchColumns(selector: Selector, fields: string[]): Promise<unknown[][]>
 fetchLocation(id: number): Promise<Location>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" }, "rows")).rows)`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: [id], name: null }, { kind: "rows" })`.
 
 ### fetchLocations
 
@@ -7486,7 +7488,7 @@ fetchLocation(id: number): Promise<Location>
 fetchLocations(selector: Selector): Promise<Location[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.rowsOf((await MMA.read(selector, { kind: "rows" }, "rows")).rows)`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "rows" })`.
 
 ### fetchLocationsByIds
 
@@ -7496,7 +7498,7 @@ fetchLocations(selector: Selector): Promise<Location[]>
 fetchLocationsByIds(ids: number[]): Promise<Location[]>
 ```
 
-**Deprecated in v0.8.4.** Use `MMA.rowsOf((await MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" }, "rows")).rows)`.
+**Deprecated in v0.8.4.** Use `MMA.read({ type: "Locations", locations: ids, name: null }, { kind: "rows" })`.
 
 ### fieldCoverage
 
@@ -7506,7 +7508,7 @@ fetchLocationsByIds(ids: number[]): Promise<Location[]>
 fieldCoverage(selector: Selector): Promise<[string, number][]>
 ```
 
-**Deprecated in v0.10.2.** Use `MMA.read(selector, { kind: "coverage" }, "coverage")`.
+**Deprecated in v0.10.2.** Use `MMA.read(selector, { kind: "coverage" })`.
 
 ### fieldValues
 
@@ -7516,7 +7518,7 @@ fieldCoverage(selector: Selector): Promise<[string, number][]>
 fieldValues(selector: Selector, field: string): Promise<string[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "values", field }, "values")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "values", field })`.
 
 ### getActiveLocation
 
@@ -7640,7 +7642,7 @@ partition(
 ): Promise<PartitionBucket[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "groupBy", field, key }, "groups")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "groupBy", field, key })`.
 
 ### query
 
@@ -7655,17 +7657,17 @@ query(
   ids: () => Promise<number[]>;
   /** Number of locations the selector resolves to. */
   count: () => Promise<number>;
-  /** Bounding box `[west, south, east, north]`, or null when nothing resolves. */
+  /** Bounding box [west, south, east, north], or null when nothing resolves. */
   bounds: () => Promise<[number, number, number, number] | null>;
-  /** `n` ids drawn uniformly at random, without replacement. */
+  /** n ids drawn uniformly at random, without replacement. */
   sample: (n: number) => Promise<number[]>;
-  /** Distinct values of `field`, sorted. */
+  /** Distinct values of field, sorted. */
   values: (field: string) => Promise<string[]>;
   /** Group each field by a derived key and count, one result per field. */
   countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
   /** How many locations hold a value for each field, key-sorted. */
   coverage: () => Promise<[string, number][]>;
-  /** One column per field: null for missing values and tag-id arrays for `tags`. */
+  /** One column per field: null for missing values and tag-id arrays for tags. */
   columns: (fields: string[]) => Promise<unknown[][]>;
   /** Group by a derived key; bins use bound order and other keys sort naturally. */
   partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
@@ -7674,9 +7676,7 @@ query(
 }
 ```
 
-**Deprecated in v0.12.0.** Use `MMA.read(selector, ask, answerKind)` instead.
-
-Query matching rows against the map's current state.
+**Deprecated in v0.12.0.** Use MMA.read(selector, ask) instead.
 
 ### registerEnrichFields
 
@@ -7762,7 +7762,7 @@ resetSelections(): Promise<void>
 resolveIds(selector: Selector): Promise<number[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "ids" }, "ids")`.
+**Deprecated in v0.11.3.** Use `MMA.read(selector, { kind: "ids" })`.
 
 ### sampleFrom
 
@@ -7772,7 +7772,7 @@ resolveIds(selector: Selector): Promise<number[]>
 sampleFrom(selector: Selector, n: number): Promise<number[]>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" }, "ids")`.
+**Deprecated in v0.11.3.** Use `MMA.read({ type: "Sample", selection: MMA.selection(selector), n }, { kind: "ids" })`.
 
 ### setUserFieldDefs
 

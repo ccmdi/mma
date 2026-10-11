@@ -1,7 +1,7 @@
 import { cmd } from "@/lib/commands";
 import type { PanoViewer } from "@/lib/sv/pano";
 import { getSettings } from "@/store/settings";
-import { addLocations, getMapState, read, rowsOf, setActiveLocation } from "@/store/useMapStore";
+import { addLocations, getMapState, read, setActiveLocation } from "@/store/useMapStore";
 import { log } from "@/lib/util/log";
 import { wrapDeg } from "@/lib/geo/geo";
 import { createLocation, type LocationPOV } from "@/types";
@@ -156,14 +156,9 @@ export async function loadSeenPano(entry: SeenPano, viewer: PanoViewer) {
 
 	const [fetched] =
 		entry.locationId != null
-			? await rowsOf(
-					(
-						await read(
-							{ type: "Locations", locations: [entry.locationId], name: null },
-							{ kind: "rows" },
-							"rows",
-						)
-					).rows,
+			? await read(
+					{ type: "Locations", locations: [entry.locationId], name: null },
+					{ kind: "rows" },
 				)
 			: [];
 	const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;

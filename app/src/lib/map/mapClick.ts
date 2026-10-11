@@ -22,7 +22,6 @@ import {
 	resolveLocation,
 	setActiveLocation,
 	read,
-	rowsOf,
 } from "@/store/useMapStore";
 import * as edit from "@/store/edit";
 import { toggleManualSelection } from "@/store/selections";
@@ -86,14 +85,9 @@ export async function openHref(href: string) {
 		await openExternal(href);
 		return;
 	}
-	const nearby = await rowsOf(
-		(
-			await read(
-				{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
-				{ kind: "rows" },
-				"rows",
-			)
-		).rows,
+	const nearby = await read(
+		{ type: "Nearby", selection: null, lat: parsed.lat, lng: parsed.lng, radiusM: 2.0 },
+		{ kind: "rows" },
 	);
 	const match = nearby.find((l) => parsed.panoId && l.panoId === parsed.panoId) ?? nearby[0];
 	if (match) {
@@ -232,19 +226,14 @@ export async function handleMapClick(
 		if (ctx.clickMode === "nearest") {
 			const nearest =
 				(
-					await rowsOf(
-						(
-							await read(
-								{
-									type: "Nearest",
-									selection: null,
-									lat: info.coordinate[1],
-									lng: info.coordinate[0],
-								},
-								{ kind: "rows" },
-								"rows",
-							)
-						).rows,
+					await read(
+						{
+							type: "Nearest",
+							selection: null,
+							lat: info.coordinate[1],
+							lng: info.coordinate[0],
+						},
+						{ kind: "rows" },
 					)
 				)[0] ?? null;
 			if (!nearest) return;

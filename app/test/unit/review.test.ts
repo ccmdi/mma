@@ -15,10 +15,8 @@ vi.mock("@/store/useMapStore", () => ({
 	getActiveSelections: () => store.active,
 	setActiveLocation: vi.fn(),
 	applySelectionUpdate: vi.fn(),
-	read: async ({ locations }: { locations: number[] }) => ({
-		kind: "ids",
-		ids: locations.filter((id) => store.liveIds.includes(id)),
-	}),
+	read: async ({ locations }: { locations: number[] }) =>
+		locations.filter((id) => store.liveIds.includes(id)),
 	removeLocations: vi.fn(),
 	mutate: vi.fn(),
 }));

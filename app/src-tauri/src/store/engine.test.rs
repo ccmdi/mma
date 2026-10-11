@@ -7719,14 +7719,14 @@ fn indexed_proximity_respects_the_scope_and_pending_reads_use_overlaid_rows() {
         name: None,
     };
     assert!(
-        matches!(store.read(&Target::Map, &pick, &ask).unwrap(), Answer::Booleans { values } if values == vec![false, true])
+        matches!(store.read(&Target::Map, &pick, &ask).unwrap(), Answer::NearAny { values } if values == vec![false, true])
     );
     let pending = Target::Pending {
         name: "test".into(),
     };
     store.edit(&pending, vec![Op::Set(loc(2, 0.0, 0.0))], false, &mut None);
     assert!(
-        matches!(store.read(&pending, &pick, &ask).unwrap(), Answer::Booleans { values } if values == vec![true, false])
+        matches!(store.read(&pending, &pick, &ask).unwrap(), Answer::NearAny { values } if values == vec![true, false])
     );
     assert_eq!(store.get_loc_by_id(2).unwrap().lat, 40.0);
 }
@@ -7753,7 +7753,7 @@ fn near_any(store: &mut Store, lat: f64, lng: f64, radius_m: f64) -> bool {
         lngs: vec![lng],
         radius_m,
     };
-    let Answer::Booleans { values } = store
+    let Answer::NearAny { values } = store
         .read(&Target::Map, &Selector::Everything, &ask)
         .unwrap()
     else {

@@ -94,7 +94,7 @@ import { addSelection, tagSelector } from "@/store/selections";
 async function sample(n: number, perSelection = false) {
 	return (
 		await select(
-			(s) => read({ type: "Sample", selection: selectionFixture(s), n }, { kind: "ids" }, "ids"),
+			(s) => read({ type: "Sample", selection: selectionFixture(s), n }, { kind: "ids" }),
 			perSelection,
 		)
 	).picked;
@@ -105,7 +105,7 @@ async function spaced(
 	perSelection = false,
 ) {
 	const { picked, results } = await select(
-		(s) => read({ type, selection: selectionFixture(s), thin }, { kind: "spacing" }, "spacing"),
+		(s) => read({ type, selection: selectionFixture(s), thin }, { kind: "spacing" }),
 		perSelection,
 	);
 	return { picked, distanceM: results.length === 1 ? results[0].spacingM : 0 };
