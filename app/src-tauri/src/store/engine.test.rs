@@ -8614,3 +8614,37 @@ fn an_edit_landed_from_a_pending_layer_stamps_its_modified_time() {
     assert_eq!(landed.heading, 90.0);
     assert!(landed.modified_at.is_some());
 }
+
+#[test]
+fn undoing_a_row_edit_leaves_a_selection_the_user_has_since_removed() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7, 8])]);
+    let tag = |id: u32| SelectionInput {
+        selector: Selector::Filter {
+            field: "tags".into(),
+            test: selections::FilterOp::Contains { value: id.into() },
+        },
+        color: None,
+    };
+    store.edit_selections(&SelectionOp::Add {
+        selections: vec![SelectionInput {
+            selector: Selector::Union {
+                selections: vec![tag(7), tag(8)],
+            },
+            color: None,
+        }],
+    });
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
+    row.tags = vec![Id::new(8)];
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    assert_eq!(store.selections.list().len(), 1, "the union lost one child");
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+
+    let entry = store
+        .step(Stack::Undo, |_| panic!("in-memory edit"))
+        .unwrap()
+        .unwrap();
+    store.finish_entry(&entry);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags.len(), 2);
+    assert!(store.selections.list().is_empty());
+}

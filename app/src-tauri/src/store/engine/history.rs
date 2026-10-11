@@ -240,11 +240,12 @@ impl Store {
         from: Stack,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let changes = self.edits.edit().step(from, fetch)?;
-        if let Some(changes) = &changes {
-            self.put_entry(changes);
-        }
-        Ok(changes)
+        let Some(mut changes) = self.edits.edit().step(from, fetch)? else {
+            return Ok(None);
+        };
+        changes.selections = changes.selections.if_standing(&self.selections.table());
+        self.put_entry(&changes);
+        Ok(Some(changes))
     }
 
     pub(crate) fn step_key(

@@ -805,6 +805,19 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
             .collect()
     }
 
+    /// This change if `table` still holds every state it starts from; otherwise no change.
+    pub fn if_standing(self, table: &HashMap<K, V>) -> Self {
+        let stands = self.transitions().all(|t| {
+            let key = t.before.or(t.after).map(|(k, _)| k);
+            key.is_some_and(|k| t.before.map(|(_, v)| v) == table.get(k))
+        });
+        if stands {
+            self
+        } else {
+            Self::default()
+        }
+    }
+
     /// Apply this change to `table`.
     pub fn apply_to(&self, table: &mut HashMap<K, V>) {
         for (k, _) in self.before() {
@@ -915,10 +928,10 @@ pub fn ordered_table<T: Keyed>(rows: impl IntoIterator<Item = T>) -> HashMap<T::
         .collect()
 }
 
-pub fn ordered_rows<K, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
-    let mut rows: Vec<_> = table.into_values().collect();
-    rows.sort_by_key(|(order, _)| *order);
-    rows.into_iter().map(|(_, row)| row).collect()
+pub fn ordered_rows<K: Ord, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
+    let mut rows: Vec<_> = table.into_iter().collect();
+    rows.sort_by(|(a, (i, _)), (b, (j, _))| i.cmp(j).then_with(|| a.cmp(b)));
+    rows.into_iter().map(|(_, (_, row))| row).collect()
 }
 
 pub trait Dependencies<K> {
