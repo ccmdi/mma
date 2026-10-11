@@ -24,6 +24,7 @@ const OBJECTS = {
 	"lib/map/host": "MapHost",
 	"lib/review/review": "Review",
 	"lib/seen/seen": "Seen",
+	"lib/sv/pano": "Pano",
 };
 const objects = new Map(
 	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),

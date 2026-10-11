@@ -27,8 +27,8 @@ describe("check-unstable matches plugin code by member path", () => {
 	it("keeps a stable member stable when an unstable one elsewhere shares its name", () => {
 		const surface = surfaceOf(join(__dirname, "../../../plugins/types/mma.d.ts"));
 		expect(surface.get("on")).toBe(false);
-		expect(surface.get("pano.on")).toBe(true);
+		expect(surface.get("Pano.on")).toBe(true);
 		expect(surface.get("toast")).toBe(false);
-		expect(surface.get("pano.toast")).toBe(true);
+		expect(surface.get("Pano.toast")).toBe(true);
 	});
 });

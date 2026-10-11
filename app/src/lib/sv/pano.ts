@@ -1,4 +1,5 @@
-import type { CameraFrame, Location, Pano } from "@/bindings.gen";
+import type * as bindings from "@/bindings.gen";
+import type { CameraFrame, Location } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
 import { isPinned, type LocationPOV, type PanoCapture, type PanoView } from "@/types";
 import { clamp } from "@/types/util";
@@ -20,6 +21,7 @@ import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
 import { toast as showToast } from "@/lib/util/toast";
 import { releaseWebglContexts } from "@/lib/render/webglContexts";
 
+export type Pano = bindings.Pano;
 export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & { zoom?: number };
 export type ShowResult = { status: "shown"; pano: Pano | null } | { status: "superseded" };
@@ -641,4 +643,4 @@ export function createPano() {
 }
 
 /** The app's default pano viewer. */
-export const pano = createPano();
+export const Pano = createPano();

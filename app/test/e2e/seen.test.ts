@@ -231,7 +231,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 						locationId: locId,
 						countryCode: null,
 					},
-					api.pano,
+					api.Pano,
 				);
 			},
 			OFFICIAL_PANO,
@@ -265,7 +265,7 @@ describe("Seen -- loadSeenPano opens location viewer", () => {
 						locationId: 999999,
 						countryCode: "RU",
 					},
-					api.pano,
+					api.Pano,
 				);
 			},
 			OFFICIAL_PANO,

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef } from "react";
-import { pano, type PanoEvent, type PanoViewer } from "@/lib/sv/pano";
+import { Pano, type PanoEvent, type PanoViewer } from "@/lib/sv/pano";
 
-export const PanoContext = createContext<PanoViewer>(pano);
+export const PanoContext = createContext<PanoViewer>(Pano);
 
 export function usePano(): PanoViewer {
 	return useContext(PanoContext);

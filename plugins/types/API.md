@@ -50,7 +50,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Scope](#scope)
 - [FieldProjections](#fieldprojections)
 - [Procedures](#procedures)
-- [Pano](#pano)
 - [Enrich](#enrich)
 - [Providers](#providers)
 - [PinPano](#pinpano)
@@ -69,6 +68,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [MapHost](#maphost)
 - [Review](#review)
 - [Seen](#seen)
+- [Pano](#pano)
 
 ## Consts
 
@@ -7635,471 +7635,6 @@ runProviders<C extends readonly unknown[]>(
 Run a set of providers over the locations `selector` matches and write their results back.
 Resolves once every provider finishes, or on abort.
 
-## Pano
-
-The shared panorama viewer.
-
-### createPano
-
-`unstable` · since v0.11.0
-
-```ts
-createPano(): {
-  /** Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken. */
-  show: (
-    loc: Location,
-    {
-      concealUntilReady,
-    }?: {
-      concealUntilReady?: boolean;
-    },
-  ) => Promise<ShowResult>;
-  /** Move to a pano id or position now, optionally setting the camera, overtaking pending requests. */
-  jump: (to: PanoDestination, frame?: PanoFrame) => void;
-  /** Step to the linked pano nearest the camera heading, or its reverse. */
-  step: (direction: "forward" | "backward") => boolean;
-  /** Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees. */
-  jumpAhead: (headingOffset: number) => Promise<boolean>;
-  /** Stage a location's pano while nothing newer is pending, so a later show is instant. */
-  preload: (loc: Location) => Promise<void>;
-  /** Rebuild a stuck viewer in place, keeping its pano and camera. */
-  reload: (fallback: google.maps.LatLngLiteral) => void;
-  /** Whether the viewer has been created. */
-  exists: () => boolean;
-  /** Whether the viewer has finished loading its current pano. */
-  isLoaded: () => boolean;
-  /** The current pano id, or null before one loads. */
-  panoId: () => string | null;
-  /** The current pano's position, or null before one loads. */
-  position: () => google.maps.LatLngLiteral | null;
-  /** The camera heading and pitch. */
-  pov: () => CameraFrame;
-  /** The viewer's display zoom. */
-  zoom: () => number;
-  /** The current pano's navigable links. */
-  links: () => google.maps.StreetViewLink[];
-  /** The camera in the stored zoom domain, zeroed without a viewer. */
-  captureView: () => LocationPOV;
-  /** The viewer read back into Location fields, or null until it has a position. */
-  capture: () => PanoCapture | null;
-  /** Freeze the live camera for an offscreen render; throws until a pano is ready. */
-  snapshot: () => PanoView;
-  /** The live WebGL scene canvas, or null before the first render. */
-  canvas: () => HTMLCanvasElement | null;
-  /** Cover-crop the live frame into an exact image, or null until real imagery renders. */
-  captureImage: (width: number, height: number) => HTMLCanvasElement | null;
-  /** Point the camera now. */
-  look: (frame: PanoFrame) => void;
-  /** Reserve a camera move across an async wait; it lands only if nothing moved the pano since. */
-  reserveLook: () => (frame: PanoFrame) => boolean;
-  /** Nudge heading and pitch by a delta, keeping pitch in range. */
-  nudge: (dHeading: number, dPitch: number) => void;
-  /** Animate the camera to a frame, replacing any turn in progress. */
-  turnTo: (target: CameraFrame) => void;
-  /** Face north level, or look straight down zoomed out when already facing north. */
-  pointNorth: () => void;
-  /** Face the linked road nearest the camera heading. */
-  faceRoad: () => void;
-  /** Turn to face the opposite direction. */
-  turnAround: () => void;
-  /** Turn to the next linked road clockwise from the camera. */
-  turnToNextLink: () => void;
-  /** Step the zoom in. */
-  zoomIn: () => void;
-  /** Step the zoom out. */
-  zoomOut: () => void;
-  /** Zoom fully out. */
-  resetZoom: () => void;
-  /** Listen to a viewer event, across viewer rebuilds; returns an unsubscribe. */
-  on: (event: PanoEvent, fn: () => void) => () => void;
-  /** Apply display options to the viewer. */
-  configure: (options: google.maps.StreetViewPanoramaOptions) => void;
-  /** Hide the viewer. */
-  hide: () => void;
-  /** Parent the viewer into a container; the newest mount wins until released. */
-  mount: (target: HTMLElement) => () => void;
-  /** Draw the crosshair over the viewer; returns a remove. */
-  showCrosshair: () => () => void;
-  /** Show a toast anchored over the viewer. */
-  toast: (message: string, durationMs: number) => void;
-  /** Release the viewer, its container and every listener; the instance is unusable afterwards. */
-  dispose: () => void;
-}
-```
-
-Create an independent pano viewer with its own camera, requests, listeners and mounts.
-
-### pano
-
-`unstable` · since v0.11.0
-
-The app's default pano viewer.
-
-#### pano.canvas
-
-`unstable` · since v0.11.0
-
-```ts
-pano.canvas(): HTMLCanvasElement | null
-```
-
-The live WebGL scene canvas, or null before the first render.
-
-#### pano.capture
-
-`unstable` · since v0.11.0
-
-```ts
-pano.capture(): PanoCapture | null
-```
-
-The viewer read back into Location fields, or null until it has a position.
-
-#### pano.captureImage
-
-`unstable` · since v0.11.0
-
-```ts
-pano.captureImage(width: number, height: number): HTMLCanvasElement | null
-```
-
-Cover-crop the live frame into an exact image, or null until real imagery renders.
-
-#### pano.captureView
-
-`unstable` · since v0.11.0
-
-```ts
-pano.captureView(): LocationPOV
-```
-
-The camera in the stored zoom domain, zeroed without a viewer.
-
-#### pano.configure
-
-`unstable` · since v0.11.0
-
-```ts
-pano.configure(options: google.maps.StreetViewPanoramaOptions): void
-```
-
-Apply display options to the viewer.
-
-#### pano.dispose
-
-`unstable` · since v0.11.0
-
-```ts
-pano.dispose(): void
-```
-
-Release the viewer, its container and every listener; the instance is unusable afterwards.
-
-#### pano.exists
-
-`unstable` · since v0.11.0
-
-```ts
-pano.exists(): boolean
-```
-
-Whether the viewer has been created.
-
-#### pano.faceRoad
-
-`unstable` · since v0.11.0
-
-```ts
-pano.faceRoad(): void
-```
-
-Face the linked road nearest the camera heading.
-
-#### pano.hide
-
-`unstable` · since v0.11.0
-
-```ts
-pano.hide(): void
-```
-
-Hide the viewer.
-
-#### pano.isLoaded
-
-`unstable` · since v0.11.0
-
-```ts
-pano.isLoaded(): boolean
-```
-
-Whether the viewer has finished loading its current pano.
-
-#### pano.jump
-
-`unstable` · since v0.11.0
-
-```ts
-pano.jump(to: PanoDestination, frame?: PanoFrame): void
-```
-
-Move to a pano id or position now, optionally setting the camera, overtaking pending requests.
-
-#### pano.jumpAhead
-
-`unstable` · since v0.11.0
-
-```ts
-pano.jumpAhead(headingOffset: number): Promise<boolean>
-```
-
-Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees.
-
-#### pano.links
-
-`unstable` · since v0.11.0
-
-```ts
-pano.links(): google.maps.StreetViewLink[]
-```
-
-The current pano's navigable links.
-
-#### pano.look
-
-`unstable` · since v0.11.0
-
-```ts
-pano.look(frame: PanoFrame): void
-```
-
-Point the camera now.
-
-#### pano.mount
-
-`unstable` · since v0.11.0
-
-```ts
-pano.mount(target: HTMLElement): () => void
-```
-
-Parent the viewer into a container; the newest mount wins until released.
-
-#### pano.nudge
-
-`unstable` · since v0.11.0
-
-```ts
-pano.nudge(dHeading: number, dPitch: number): void
-```
-
-Nudge heading and pitch by a delta, keeping pitch in range.
-
-#### pano.on
-
-`unstable` · since v0.11.0
-
-```ts
-pano.on(event: PanoEvent, fn: () => void): () => void
-```
-
-Listen to a viewer event, across viewer rebuilds; returns an unsubscribe.
-
-#### pano.panoId
-
-`unstable` · since v0.11.0
-
-```ts
-pano.panoId(): string | null
-```
-
-The current pano id, or null before one loads.
-
-#### pano.pointNorth
-
-`unstable` · since v0.11.0
-
-```ts
-pano.pointNorth(): void
-```
-
-Face north level, or look straight down zoomed out when already facing north.
-
-#### pano.position
-
-`unstable` · since v0.11.0
-
-```ts
-pano.position(): google.maps.LatLngLiteral | null
-```
-
-The current pano's position, or null before one loads.
-
-#### pano.pov
-
-`unstable` · since v0.11.0
-
-```ts
-pano.pov(): CameraFrame
-```
-
-The camera heading and pitch.
-
-#### pano.preload
-
-`unstable` · since v0.11.0
-
-```ts
-pano.preload(loc: Location): Promise<void>
-```
-
-Stage a location's pano while nothing newer is pending, so a later show is instant.
-
-#### pano.reload
-
-`unstable` · since v0.11.0
-
-```ts
-pano.reload(fallback: google.maps.LatLngLiteral): void
-```
-
-Rebuild a stuck viewer in place, keeping its pano and camera.
-
-#### pano.reserveLook
-
-`unstable` · since v0.11.0
-
-```ts
-pano.reserveLook(): (frame: PanoFrame) => boolean
-```
-
-Reserve a camera move across an async wait; it lands only if nothing moved the pano since.
-
-#### pano.resetZoom
-
-`unstable` · since v0.11.0
-
-```ts
-pano.resetZoom(): void
-```
-
-Zoom fully out.
-
-#### pano.show
-
-`unstable` · since v0.11.0
-
-```ts
-pano.show(
-  loc: Location,
-  props?: {
-    concealUntilReady?: boolean;
-  },
-): Promise<ShowResult>
-```
-
-Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken.
-
-#### pano.showCrosshair
-
-`unstable` · since v0.11.0
-
-```ts
-pano.showCrosshair(): () => void
-```
-
-Draw the crosshair over the viewer; returns a remove.
-
-#### pano.snapshot
-
-`unstable` · since v0.11.0
-
-```ts
-pano.snapshot(): PanoView
-```
-
-Freeze the live camera for an offscreen render; throws until a pano is ready.
-
-#### pano.step
-
-`unstable` · since v0.11.0
-
-```ts
-pano.step(direction: "forward" | "backward"): boolean
-```
-
-Step to the linked pano nearest the camera heading, or its reverse.
-
-#### pano.toast
-
-`unstable` · since v0.11.0
-
-```ts
-pano.toast(message: string, durationMs: number): void
-```
-
-Show a toast anchored over the viewer.
-
-#### pano.turnAround
-
-`unstable` · since v0.11.0
-
-```ts
-pano.turnAround(): void
-```
-
-Turn to face the opposite direction.
-
-#### pano.turnTo
-
-`unstable` · since v0.11.0
-
-```ts
-pano.turnTo(target: CameraFrame): void
-```
-
-Animate the camera to a frame, replacing any turn in progress.
-
-#### pano.turnToNextLink
-
-`unstable` · since v0.11.0
-
-```ts
-pano.turnToNextLink(): void
-```
-
-Turn to the next linked road clockwise from the camera.
-
-#### pano.zoom
-
-`unstable` · since v0.11.0
-
-```ts
-pano.zoom(): number
-```
-
-The viewer's display zoom.
-
-#### pano.zoomIn
-
-`unstable` · since v0.11.0
-
-```ts
-pano.zoomIn(): void
-```
-
-Step the zoom in.
-
-#### pano.zoomOut
-
-`unstable` · since v0.11.0
-
-```ts
-pano.zoomOut(): void
-```
-
-Step the zoom out.
-
 ## Enrich
 
 Enrichment passes over the open map.
@@ -9828,3 +9363,376 @@ Seen.updateGeo(geo: GeoDisplay): void
 ```
 
 Update the pending seen entry's geocode info (country, address).
+
+## Pano
+
+### Pano
+
+`unstable` · unreleased
+
+The shared panorama viewer.
+
+#### Pano.canvas
+
+`unstable` · unreleased
+
+```ts
+Pano.canvas(): HTMLCanvasElement | null
+```
+
+The live WebGL scene canvas, or null before the first render.
+
+#### Pano.capture
+
+`unstable` · unreleased
+
+```ts
+Pano.capture(): PanoCapture | null
+```
+
+The viewer read back into Location fields, or null until it has a position.
+
+#### Pano.captureImage
+
+`unstable` · unreleased
+
+```ts
+Pano.captureImage(width: number, height: number): HTMLCanvasElement | null
+```
+
+Cover-crop the live frame into an exact image, or null until real imagery renders.
+
+#### Pano.captureView
+
+`unstable` · unreleased
+
+```ts
+Pano.captureView(): LocationPOV
+```
+
+The camera in the stored zoom domain, zeroed without a viewer.
+
+#### Pano.configure
+
+`unstable` · unreleased
+
+```ts
+Pano.configure(options: google.maps.StreetViewPanoramaOptions): void
+```
+
+Apply display options to the viewer.
+
+#### Pano.dispose
+
+`unstable` · unreleased
+
+```ts
+Pano.dispose(): void
+```
+
+Release the viewer, its container and every listener; the instance is unusable afterwards.
+
+#### Pano.exists
+
+`unstable` · unreleased
+
+```ts
+Pano.exists(): boolean
+```
+
+Whether the viewer has been created.
+
+#### Pano.faceRoad
+
+`unstable` · unreleased
+
+```ts
+Pano.faceRoad(): void
+```
+
+Face the linked road nearest the camera heading.
+
+#### Pano.hide
+
+`unstable` · unreleased
+
+```ts
+Pano.hide(): void
+```
+
+Hide the viewer.
+
+#### Pano.isLoaded
+
+`unstable` · unreleased
+
+```ts
+Pano.isLoaded(): boolean
+```
+
+Whether the viewer has finished loading its current pano.
+
+#### Pano.jump
+
+`unstable` · unreleased
+
+```ts
+Pano.jump(to: PanoDestination, frame?: PanoFrame): void
+```
+
+Move to a pano id or position now, optionally setting the camera, overtaking pending requests.
+
+#### Pano.jumpAhead
+
+`unstable` · unreleased
+
+```ts
+Pano.jumpAhead(headingOffset: number): Promise<boolean>
+```
+
+Jump to the nearest official pano ahead of the camera, turned by `headingOffset` degrees.
+
+#### Pano.links
+
+`unstable` · unreleased
+
+```ts
+Pano.links(): google.maps.StreetViewLink[]
+```
+
+The current pano's navigable links.
+
+#### Pano.look
+
+`unstable` · unreleased
+
+```ts
+Pano.look(frame: PanoFrame): void
+```
+
+Point the camera now.
+
+#### Pano.mount
+
+`unstable` · unreleased
+
+```ts
+Pano.mount(target: HTMLElement): () => void
+```
+
+Parent the viewer into a container; the newest mount wins until released.
+
+#### Pano.nudge
+
+`unstable` · unreleased
+
+```ts
+Pano.nudge(dHeading: number, dPitch: number): void
+```
+
+Nudge heading and pitch by a delta, keeping pitch in range.
+
+#### Pano.on
+
+`unstable` · unreleased
+
+```ts
+Pano.on(event: PanoEvent, fn: () => void): () => void
+```
+
+Listen to a viewer event, across viewer rebuilds; returns an unsubscribe.
+
+#### Pano.panoId
+
+`unstable` · unreleased
+
+```ts
+Pano.panoId(): string | null
+```
+
+The current pano id, or null before one loads.
+
+#### Pano.pointNorth
+
+`unstable` · unreleased
+
+```ts
+Pano.pointNorth(): void
+```
+
+Face north level, or look straight down zoomed out when already facing north.
+
+#### Pano.position
+
+`unstable` · unreleased
+
+```ts
+Pano.position(): google.maps.LatLngLiteral | null
+```
+
+The current pano's position, or null before one loads.
+
+#### Pano.pov
+
+`unstable` · unreleased
+
+```ts
+Pano.pov(): CameraFrame
+```
+
+The camera heading and pitch.
+
+#### Pano.preload
+
+`unstable` · unreleased
+
+```ts
+Pano.preload(loc: Location): Promise<void>
+```
+
+Stage a location's pano while nothing newer is pending, so a later show is instant.
+
+#### Pano.reload
+
+`unstable` · unreleased
+
+```ts
+Pano.reload(fallback: google.maps.LatLngLiteral): void
+```
+
+Rebuild a stuck viewer in place, keeping its pano and camera.
+
+#### Pano.reserveLook
+
+`unstable` · unreleased
+
+```ts
+Pano.reserveLook(): (frame: PanoFrame) => boolean
+```
+
+Reserve a camera move across an async wait; it lands only if nothing moved the pano since.
+
+#### Pano.resetZoom
+
+`unstable` · unreleased
+
+```ts
+Pano.resetZoom(): void
+```
+
+Zoom fully out.
+
+#### Pano.show
+
+`unstable` · unreleased
+
+```ts
+Pano.show(
+  loc: Location,
+  props?: {
+    concealUntilReady?: boolean;
+  },
+): Promise<ShowResult>
+```
+
+Resolve and show a location's pano, optionally hidden until it loads; "superseded" when overtaken.
+
+#### Pano.showCrosshair
+
+`unstable` · unreleased
+
+```ts
+Pano.showCrosshair(): () => void
+```
+
+Draw the crosshair over the viewer; returns a remove.
+
+#### Pano.snapshot
+
+`unstable` · unreleased
+
+```ts
+Pano.snapshot(): PanoView
+```
+
+Freeze the live camera for an offscreen render; throws until a pano is ready.
+
+#### Pano.step
+
+`unstable` · unreleased
+
+```ts
+Pano.step(direction: "forward" | "backward"): boolean
+```
+
+Step to the linked pano nearest the camera heading, or its reverse.
+
+#### Pano.toast
+
+`unstable` · unreleased
+
+```ts
+Pano.toast(message: string, durationMs: number): void
+```
+
+Show a toast anchored over the viewer.
+
+#### Pano.turnAround
+
+`unstable` · unreleased
+
+```ts
+Pano.turnAround(): void
+```
+
+Turn to face the opposite direction.
+
+#### Pano.turnTo
+
+`unstable` · unreleased
+
+```ts
+Pano.turnTo(target: CameraFrame): void
+```
+
+Animate the camera to a frame, replacing any turn in progress.
+
+#### Pano.turnToNextLink
+
+`unstable` · unreleased
+
+```ts
+Pano.turnToNextLink(): void
+```
+
+Turn to the next linked road clockwise from the camera.
+
+#### Pano.zoom
+
+`unstable` · unreleased
+
+```ts
+Pano.zoom(): number
+```
+
+The viewer's display zoom.
+
+#### Pano.zoomIn
+
+`unstable` · unreleased
+
+```ts
+Pano.zoomIn(): void
+```
+
+Step the zoom in.
+
+#### Pano.zoomOut
+
+`unstable` · unreleased
+
+```ts
+Pano.zoomOut(): void
+```
+
+Step the zoom out.

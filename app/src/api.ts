@@ -21,6 +21,7 @@ import { Scene } from "@/lib/render/scene";
 import { MapHost } from "@/lib/map/host";
 import { Review } from "@/lib/review/review";
 import { Seen } from "@/lib/seen/seen";
+import { Pano } from "@/lib/sv/pano";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as settings from "@/store/settings";
@@ -40,7 +41,6 @@ import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as fieldProjections from "@/lib/data/fieldProjections";
 import * as procedures from "@/lib/data/procedures";
-import * as panoSurface from "@/lib/sv/pano";
 import * as enrich from "@/lib/sv/enrich";
 import * as providers from "@/lib/sv/providers";
 import * as pinPano from "@/lib/sv/pinPano";
@@ -87,8 +87,6 @@ type FieldDefRegistryApi = typeof fieldDefRegistry;
 type FieldProjectionsApi = typeof fieldProjections;
 /** Running procedures directly, outside a registered provider. @unstable */
 type ProceduresApi = typeof procedures;
-/** The shared panorama viewer. @unstable */
-type PanoApi = typeof panoSurface;
 /** Enrichment passes over the open map. @unstable */
 type EnrichApi = typeof enrich;
 /** The providers the app registers for enrichment. @unstable */
@@ -138,7 +136,6 @@ export interface MMA
 		FieldDefRegistryApi,
 		FieldProjectionsApi,
 		ProceduresApi,
-		PanoApi,
 		EnrichApi,
 		ProvidersApi,
 		PinPanoApi,
@@ -197,6 +194,8 @@ export interface MMA
 	Review: typeof Review;
 	/** The seen-location history and how panorama visits are recorded into it. @unstable */
 	Seen: typeof Seen;
+	/** The shared panorama viewer. @unstable */
+	Pano: typeof Pano;
 }
 
 export type { MMA as MMAApi };
@@ -221,7 +220,6 @@ const mma: MMA = {
 	...fieldDefRegistry,
 	...fieldProjections,
 	...procedures,
-	...panoSurface,
 	...enrich,
 	...providers,
 	...pinPano,
@@ -258,6 +256,7 @@ const mma: MMA = {
 	MapHost,
 	Review,
 	Seen,
+	Pano,
 };
 
 declare global {

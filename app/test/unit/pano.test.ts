@@ -95,7 +95,7 @@ function deferred<T>() {
 
 async function freshPano() {
 	vi.resetModules();
-	const { pano } = await import("@/lib/sv/pano");
+	const { Pano: pano } = await import("@/lib/sv/pano");
 	const host = document.createElement("div");
 	pano.mount(host);
 	return { pano, surface: host.firstElementChild as HTMLElement };
@@ -325,7 +325,7 @@ describe("capturing the live frame", () => {
 describe("mounting", () => {
 	it("lives in the newest container and returns to the previous one on release", async () => {
 		vi.resetModules();
-		const { pano } = await import("@/lib/sv/pano");
+		const { Pano: pano } = await import("@/lib/sv/pano");
 		const editor = document.createElement("div");
 		const game = document.createElement("div");
 		const releaseEditor = pano.mount(editor);
@@ -340,7 +340,7 @@ describe("mounting", () => {
 
 	it("stays put when an older container releases first", async () => {
 		vi.resetModules();
-		const { pano } = await import("@/lib/sv/pano");
+		const { Pano: pano } = await import("@/lib/sv/pano");
 		const editor = document.createElement("div");
 		const game = document.createElement("div");
 		const releaseEditor = pano.mount(editor);
