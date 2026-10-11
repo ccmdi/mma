@@ -8648,3 +8648,36 @@ fn undoing_a_row_edit_leaves_a_selection_the_user_has_since_removed() {
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags.len(), 2);
     assert!(store.selections.list().is_empty());
 }
+
+#[test]
+fn a_field_index_is_rebuilt_once_its_definition_changes() {
+    let mut store = setup_store_with(&[loc_with_extra(1, r#"{"n":"a"}"#)]);
+    let has = Selector::Filter {
+        field: "n".into(),
+        test: selections::FilterOp::Has,
+    };
+    store.collect(&Target::Map, &has);
+    assert_eq!(
+        store.field_indexes["n"].shape,
+        maps::IndexShape::None,
+        "an undeclared key is indexed without a shape"
+    );
+    let mut defs = store.meta.extra.fields.clone();
+    defs.insert(
+        "n".into(),
+        maps::FieldDef {
+            field_type: crate::store::maps::FieldType::Enum,
+            ..def_of("n")
+        },
+    );
+    store.write(
+        [],
+        &mut None,
+        Entry {
+            defs: DefsDelta::at(&store.meta.extra.fields, &defs, ["n".to_string()]),
+            ..Default::default()
+        },
+    );
+    store.collect(&Target::Map, &has);
+    assert_ne!(store.field_indexes["n"].shape, maps::IndexShape::None);
+}

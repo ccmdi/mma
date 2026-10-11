@@ -281,6 +281,8 @@ impl Store {
 
     /// Apply row, value-record, and field-definition changes to the store.
     pub(crate) fn put_entry(&mut self, entry: &Entry) {
+        let defs = (!entry.meta.is_empty() || !entry.defs.is_empty())
+            .then(|| self.meta.extra.fields.clone());
         for (old, new) in &entry.meta.updated {
             self.meta
                 .replace(self.meta.patched(&maps::MapMeta::between(old, new)));
@@ -294,6 +296,11 @@ impl Store {
         }
         if !entry.defs.is_empty() {
             entry.defs.apply_to(&mut self.meta.edit().extra.fields);
+        }
+        if let Some(defs) = defs {
+            let fields = &self.meta.extra.fields;
+            self.field_indexes
+                .retain(|key, _| defs.get(key) == fields.get(key));
         }
     }
 
