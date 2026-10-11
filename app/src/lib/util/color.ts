@@ -87,6 +87,7 @@ export function colorForName(name: string): string {
 	for (const b of new TextEncoder().encode(name)) {
 		h = (h + ((b + (h << 5)) | 0)) | 0;
 	}
+	// One linear congruential step, with the MSVC rand() constants.
 	h = (Math.imul(h, 214013) + 2531011) | 0;
 	const hue = Math.abs(h) % 360;
 	return rgbToHex(hslToRgb(hue, 0.5, 0.5));

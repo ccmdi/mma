@@ -161,6 +161,7 @@ pub trait Merge: Sized {
     fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self>;
 }
 
+// RFC 7386 JSON Merge Patch, one level deep: a nested object is replaced, not merged.
 impl Merge for Json {
     fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self> {
         let patch = match patch {

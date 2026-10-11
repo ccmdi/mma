@@ -140,6 +140,7 @@ impl Rgb {
         for b in name.bytes() {
             h = h.wrapping_add((b as i32).wrapping_add(h << 5));
         }
+        // One linear congruential step, with the MSVC rand() constants.
         h = h.wrapping_mul(214013).wrapping_add(2531011);
         Rgb::hsl((h.abs() % 360) as f64, 0.5, 0.5)
     }

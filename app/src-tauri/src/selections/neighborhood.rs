@@ -81,6 +81,7 @@ pub(super) fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<
 /// Points quantized into hashed cells at a radius, answering "what is within that
 /// radius of here". Read-only after build, so callers may probe it from parallel
 /// iterators.
+// Cell-hashed grid in CSR layout, after Müller, "Blazing Fast Neighbor Search with Spatial Hashing".
 pub(super) struct Grid {
     /// (lat, lng) per point, the coordinates the cells were quantized from.
     pts: Vec<(f64, f64)>,
