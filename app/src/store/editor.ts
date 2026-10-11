@@ -1,6 +1,6 @@
-import { type Open, type OpenOrigin, Store } from "./store";
+import { type OpenOrigin, Store } from "./store";
 import { Query } from "./query";
-import type { Location } from "@/bindings.gen";
+import type { Location, Target } from "@/bindings.gen";
 import type { MaybeLocation, WorkArea } from "@/types";
 import { locId } from "@/types";
 import { cmd } from "@/lib/commands";
@@ -9,28 +9,24 @@ import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
 
 let lastSession = 0;
-const opening = (id: number, origin: OpenOrigin, location: Location | null = null): Open => ({
-	id,
-	origin,
-	session: ++lastSession,
-	location,
-});
 
-/** Open a copy of `loc` in the viewer's layer. Closing discards draft edits. */
+/** Open a copy of `loc` in its session's layer, unless a later opening or closing overtook it. */
 async function openPreview(loc: Location, origin: OpenOrigin) {
-	await cmd.storeDrop(Editor.VIEWER.name);
-	const r = await cmd.storeEdit(Editor.VIEWER, [{ set: { ...loc, id: 0 } }], null);
-	const [added] = r.mutation.keys;
-	if (added == null) return;
-	const row =
-		(
-			await Query.read(
-				{ type: "Locations", locations: [added], name: null },
-				{ kind: "locations" },
-				Editor.VIEWER,
-			)
-		)[0] ?? null;
-	Store.patch({ open: opening(added, origin, row), workArea: "location" });
+	const session = ++lastSession;
+	const layer = Editor.layer(session);
+	const r = await cmd.storeEdit(layer, [{ set: { ...loc, id: 0 } }], null);
+	const [id] = r.mutation.keys;
+	if (id == null) return;
+	const [location = null] = await Query.read(
+		{ type: "Locations", locations: [id], name: null },
+		{ kind: "locations" },
+		layer,
+	);
+	if (session !== lastSession) {
+		await cmd.storeDrop(layer.name);
+		return;
+	}
+	Store.patch({ open: { id, origin, session, location }, workArea: "location" });
 	emitEvent("open:change", null);
 }
 
@@ -43,7 +39,11 @@ function dropOpen(): void {
 }
 
 export const Editor = {
-	VIEWER: { kind: "pending", name: "viewer" } as const,
+	/** The pending layer holding the open location's draft edits for editor session `session`. */
+	layer: (session: number): Extract<Target, { kind: "pending" }> => ({
+		kind: "pending",
+		name: `viewer:${session}`,
+	}),
 	/** Set the open location if `session` is still current. */
 	setLocation: (location: Location | null, session: number) => {
 		const state = Store.get();
@@ -104,7 +104,10 @@ export const Editor = {
 				return;
 			}
 		}
-		Store.patch({ open: opening(id, "map", loc), workArea: "location" });
+		Store.patch({
+			open: { id, origin: "map", session: activation, location: loc },
+			workArea: "location",
+		});
 		emitEvent("open:change", id);
 		t.end();
 	},
@@ -124,7 +127,10 @@ export const Editor = {
 	},
 	/** Open one location from the duplicate-resolution panel in the editor. @unstable */
 	openDuplicate: (loc: Location) => {
-		Store.patch({ open: opening(loc.id, "map", loc), workArea: "location" });
+		Store.patch({
+			open: { id: loc.id, origin: "map", session: ++lastSession, location: loc },
+			workArea: "location",
+		});
 	},
 	/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 	removeDuplicate: (id: number) => {

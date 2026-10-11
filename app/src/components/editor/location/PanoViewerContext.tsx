@@ -55,6 +55,7 @@ interface PanoViewerContextValue {
 type ViewerSession = { open: Open; landed: boolean };
 
 const isOpen = (session: number | undefined) => Store.get().open?.session === session;
+const layerOf = (h: ViewerSession) => Editor.layer(h.open.session);
 
 const PanoViewerContext = createContext<PanoViewerContextValue | null>(null);
 
@@ -98,14 +99,13 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		const [fresh] = await Query.read(
 			{ type: "Locations", locations: [h.open.id], name: null },
 			{ kind: "locations" },
-			Editor.VIEWER,
+			layerOf(h),
 		);
 		Editor.setLocation(fresh ?? null, h.open.session);
 	}, []);
 
 	const release = useCallback(async (h: ViewerSession | null) => {
-		if (Store.get().open && !isOpen(h?.open.session)) return;
-		await cmd.storeDrop(Editor.VIEWER.name);
+		if (h) await cmd.storeDrop(layerOf(h).name);
 	}, []);
 
 	// Native changes invalidate the projection; publishing the projection does not.
@@ -119,19 +119,21 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		(loc: Location, resolved: string | null) => {
 			const opened = Store.get().open;
 			if (!opened) return;
+			const h: ViewerSession = { open: opened, landed: false };
 			void queue(async () => {
-				if (opened.origin === "map") await cmd.storeDrop(Editor.VIEWER.name);
+				const before = session.current;
+				if (before && before.open.session !== opened.session && !before.landed)
+					await release(before);
 				await cmd.storeEdit(
-					Editor.VIEWER,
+					layerOf(h),
 					[put(loc.id, { panoId: resolved ?? loc.panoId ?? null })],
 					null,
 				);
-				const h: ViewerSession = { open: opened, landed: false };
 				session.current = h;
 				await refresh(h);
 			});
 		},
-		[queue, refresh],
+		[queue, refresh, release],
 	);
 
 	const edit = useCallback(
@@ -141,7 +143,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				const base = Store.get().open?.location;
 				if (!h || !base) return;
 				const p = typeof patch === "function" ? patch(base) : patch;
-				await Mutation.run(() => cmd.storeEdit(Editor.VIEWER, [put(h.open.id, p)], null));
+				await Mutation.run(() => cmd.storeEdit(layerOf(h), [put(h.open.id, p)], null));
 				await refresh(h);
 			});
 		},
@@ -154,7 +156,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				const h = currentSession();
 				if (!h) return null;
 				await Mutation.run(() =>
-					cmd.storeEdit(Editor.VIEWER, [put(h.open.id, patch)], { land: true }),
+					cmd.storeEdit(layerOf(h), [put(h.open.id, patch)], { land: true }),
 				);
 				h.landed = true;
 				return h.open.id;
@@ -215,7 +217,7 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 		enrich(
 			{ type: "Locations", locations: [h.open.id], name: null },
 			{
-				on: Editor.VIEWER,
+				on: layerOf(h),
 				resolve: false,
 				signal: ac.signal,
 				onPartial: (rows) => {
@@ -236,11 +238,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 				else void queue(() => refresh(h), h.open.session);
 			});
 		return () => {
-			// A saved draft's run keeps going: its answers land on the map location it became.
-			if (!h.landed) {
-				ac.abort();
-				setEnriching(false);
-			}
+			// A saved draft's run keeps going in its own layer, so its answers land on the
+			// map location it became and never on the next one.
+			if (!h.landed) ac.abort();
+			setEnriching(false);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps -- one run per pano shown
 	}, [opened?.session, draft?.panoId, currentSession, queue, refresh, release]);

@@ -3934,10 +3934,10 @@ declare const Location: {
 };
 
 declare const Editor: {
-    VIEWER: {
-        readonly kind: "pending";
-        readonly name: "viewer";
-    };
+    /** The pending layer holding the open location's draft edits for editor session `session`. */
+    layer: (session: number) => Extract<Target, {
+        kind: "pending";
+    }>;
     /** Set the open location if `session` is still current. */
     setLocation: (location: Location | null, session: number) => void;
     /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
@@ -7518,8 +7518,6 @@ declare const discardOpenMap: typeof Maps.discard;
 declare const getSelectedTagIds: typeof SelectionList.tagIds;
 /** @deprecated v0.12.1. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
 declare const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep;
-/** @deprecated v0.12.1. Use `MMA.Editor.VIEWER`. */
-declare const VIEWER: typeof Editor.VIEWER;
 /** @deprecated v0.12.1. Use `MMA.Maps.useList`. */
 declare const useMapList: typeof Maps.useList;
 /** @deprecated v0.12.1. Use `MMA.Maps.list`. */
@@ -7565,7 +7563,6 @@ declare const getMapHost: typeof MapHost.get;
 /** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
 declare const waitForMapHost: typeof MapHost.wait;
 
-declare const legacy_VIEWER: typeof VIEWER;
 declare const legacy_addLocations: typeof addLocations;
 /** @unstable */
 declare const legacy_addSelections: typeof addSelections;
@@ -7716,7 +7713,6 @@ declare const legacy_waitForGoogleMap: typeof waitForGoogleMap;
 declare const legacy_waitForMapHost: typeof waitForMapHost;
 declare namespace legacy {
   export {
-    legacy_VIEWER as VIEWER,
     legacy_addLocations as addLocations,
     legacy_addSelections as addSelections,
     legacy_addTagToLocations as addTagToLocations,

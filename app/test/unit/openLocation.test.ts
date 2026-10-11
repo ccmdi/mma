@@ -3,12 +3,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const h = vi.hoisted(() => ({
 	nearby: [] as { id: number }[],
 	held: new Map<number, Promise<void>>(),
+	dropped: [] as string[],
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeEdit: async () => ({ mutation: { version: 0, keys: [100] } }),
+		storeDrop: async (name: string) => {
+			h.dropped.push(name);
+		},
 		storeRead: async (_target: unknown, selector: { type: string; locations?: number[] }) => {
 			if (selector.type === "Nearby") {
 				return { kind: "locations", locations: { kind: "inline", locations: h.nearby } };
@@ -33,6 +38,7 @@ import { subscribe } from "@/lib/events";
 beforeEach(() => {
 	h.nearby = [];
 	h.held.clear();
+	h.dropped = [];
 });
 
 describe("open location", () => {
@@ -62,6 +68,19 @@ describe("open location", () => {
 
 		expect(Store.get().open?.id).toBe(8);
 		expect(Store.get().open?.location?.id).toBe(8);
+		Editor.setArea("overview");
+	});
+
+	it("a slow preview that lands after a newer opening drops its layer instead of opening", async () => {
+		let release!: () => void;
+		h.held.set(100, new Promise((r) => (release = r)));
+		Editor.preview({ id: 0, lat: 0, lng: 0, tags: [] } as unknown as Location);
+		await Editor.open(8);
+		release();
+		await vi.waitUntil(() => h.dropped.length > 0);
+
+		expect(Store.get().open?.id).toBe(8);
+		expect(h.dropped).toEqual([expect.stringMatching(/^viewer:/)]);
 		Editor.setArea("overview");
 	});
 

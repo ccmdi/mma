@@ -130,7 +130,7 @@ vi.mock("@/store/editor", async () => {
 				h.openLocation = location;
 				for (const changed of h.listeners) changed();
 			},
-			VIEWER: { kind: "pending", name: "viewer" },
+			layer: (session: number) => ({ kind: "pending", name: `viewer:${session}` }),
 		},
 	};
 });
@@ -233,7 +233,7 @@ describe("the draft is the viewer's layer row", () => {
 	it("opening seeds the layer with the resolved pano and reads the draft from it", async () => {
 		const m = mountHost();
 		await open("pResolved");
-		expect(h.drops).toBe(1);
+		expect(h.drops).toBe(0);
 		expect(puts()[0].put).toEqual({ id: 7, panoId: "pResolved" });
 		expect(viewer.draft).toMatchObject({ id: 7, panoId: "pResolved" });
 		expect(h.edits.every((e) => !e.opts?.land)).toBe(true);
@@ -287,7 +287,7 @@ describe("the draft is the viewer's layer row", () => {
 		h.openLocation = null;
 		await act(async () => refresh());
 		expect(viewer.draft).toBeNull();
-		expect(h.drops).toBe(2);
+		expect(h.drops).toBe(1);
 		m.unmount();
 	});
 
@@ -307,7 +307,7 @@ describe("enrichment runs at the viewer's layer", () => {
 		const m = mountHost();
 		await open("pA");
 		expect(h.runs).toHaveLength(1);
-		expect(h.runs[0].target).toEqual({ kind: "pending", name: "viewer" });
+		expect(h.runs[0].target).toEqual({ kind: "pending", name: `viewer:${h.opened!.session}` });
 		expect(viewer.enriching).toBe(true);
 		await act(async () => {
 			h.onPartials[0]([{ ...viewer.draft!, extra: { custom: "kept", enriched: "pA" } }]);
@@ -376,6 +376,25 @@ describe("saving lands the layer", () => {
 		const dropsBefore = h.drops;
 		await settleRun();
 		expect(h.drops).toBe(dropsBefore + 1);
+		m.unmount();
+	});
+
+	it("a saved run keeps its own layer, apart from the next location's, and the spinner clears", async () => {
+		const m = mountHost();
+		await open("pA");
+		const saved = h.runs[0].target.name;
+		await act(async () => {
+			await viewer.land({ heading: 30 });
+		});
+		h.openLocation = { ...createLocation({ lat: 3, lng: 4 }), id: 8 } satisfies Location;
+		await act(async () => refresh());
+		await open("pC");
+		expect(h.runs[0].signal?.aborted).toBe(false);
+		expect(h.runs.at(-1)!.target.name).not.toBe(saved);
+		expect(h.drops).toBe(0);
+		h.openLocation = null;
+		await act(async () => refresh());
+		expect(viewer.enriching).toBe(false);
 		m.unmount();
 	});
 

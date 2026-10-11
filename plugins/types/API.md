@@ -2852,16 +2852,6 @@ Reactive slice of the map state. Re-renders only when the selected value's
 reference changes (`Object.is`), so selectors must return state fields or
 memoized values, not a new value per call.
 
-### VIEWER
-
-`stable` · `deprecated` · since v0.12.0
-
-```ts
-VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
-```
-
-**Deprecated in v0.12.1.** Use `MMA.Editor.VIEWER`.
-
 ### waitForGoogleMap
 
 `unstable` · `deprecated` · since v0.5.0
@@ -3886,6 +3876,21 @@ Editor.closePlugin(): void
 
 Close the plugin sidebar and return to the overview.
 
+#### Editor.layer
+
+`stable` · unreleased
+
+```ts
+Editor.layer(session: number): Extract<
+  Target,
+  {
+    kind: "pending";
+  }
+>
+```
+
+The pending layer holding the open location's draft edits for editor session `session`.
+
 #### Editor.open
 
 `stable` · unreleased
@@ -3982,14 +3987,6 @@ Editor.setLocation(location: Location | null, session: number): void
 ```
 
 Set the open location if `session` is still current.
-
-#### Editor.VIEWER
-
-`stable` · unreleased
-
-```ts
-Editor.VIEWER: { readonly kind: "pending"; readonly name: "viewer" }
-```
 
 ## History
 

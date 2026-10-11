@@ -113,10 +113,10 @@ describe("read payloads", () => {
 
 	it("preserves multiple payload fields and forwards the pending target", async () => {
 		h.read.mockResolvedValue({ kind: "spacing", ids: [2, 8], spacingM: 75 } satisfies Answer);
-		const picked = Query.read(selector, { kind: "spacing" }, Editor.VIEWER);
+		const picked = Query.read(selector, { kind: "spacing" }, Editor.layer(1));
 		expectTypeOf(picked).toEqualTypeOf<Promise<{ ids: number[]; spacingM: number }>>();
 		expect(await picked).toEqual({ ids: [2, 8], spacingM: 75 });
-		expect(h.read).toHaveBeenCalledWith(Editor.VIEWER, selector, { kind: "spacing" });
+		expect(h.read).toHaveBeenCalledWith(Editor.layer(1), selector, { kind: "spacing" });
 	});
 
 	it("loads inline and file-backed rows through the same public read", async () => {

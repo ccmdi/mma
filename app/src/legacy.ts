@@ -426,9 +426,6 @@ export const getSelectedTagIds: typeof SelectionList.tagIds = SelectionList.tagI
 /** @deprecated v0.12.1. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
 export const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep = SelectionList.tagIdsDeep;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.VIEWER`. */
-export const VIEWER: typeof Editor.VIEWER = Editor.VIEWER;
-
 /** @deprecated v0.12.1. Use `MMA.Maps.useList`. */
 export const useMapList: typeof Maps.useList = Maps.useList;
 
