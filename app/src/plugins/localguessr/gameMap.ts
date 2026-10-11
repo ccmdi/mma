@@ -13,7 +13,8 @@ import { getLocal } from "@/lib/hooks/useLocalStorage";
 import { cmd } from "@/lib/commands";
 import { usePluginState } from "@/plugins/pluginStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
-import { rgbCss, type RGB } from "@/lib/util/color";
+import { rgbCss } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 import type { LatLng } from "@/types";
 import type { RoundResult } from "./game";
 

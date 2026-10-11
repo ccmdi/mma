@@ -12,6 +12,7 @@ use crate::test_util::TempDir;
 use crate::test_util::{loc, patch};
 use crate::types::LocationFlags;
 use crate::types::RawExtra;
+use crate::util::Rgb;
 use frame::tests::Captured;
 use mma_algebra::{Delta, Edit, Field, Op, Patch};
 use proptest::collection;
@@ -790,7 +791,7 @@ fn a_moved_location_leaves_its_old_cell_and_joins_the_new_one() {
 #[test]
 fn an_unselected_add_is_drawn_by_the_base_layer() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.render.marker_color = [10, 20, 30];
+    store.render.marker_color = Rgb([10, 20, 30]);
 
     let entry = Change::from_sides(vec![loc(2, 30.0, 40.0)], vec![]);
     let changes = forward(&mut store, &entry);
@@ -1227,7 +1228,7 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
         .map(|id| loc_with_heading(id, id as f64 / 10.0, 0.0, 45.0))
         .collect();
     let mut store = setup_store_with(&rows);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
     let rev = store.overlay.rev();
     let undo_len = store.edits.len(Stack::Undo);
@@ -2138,7 +2139,7 @@ fn delta_overlay_round_trip_preserves_store_state() {
 // -----------------------------------------------------------------------
 
 /// Push a selection with an explicit member set, bypassing resolution.
-fn push_resolved(store: &mut Store, key: &str, color: [u8; 3], members: &[u32]) {
+fn push_resolved(store: &mut Store, key: &str, color: Rgb, members: &[u32]) {
     edit_selection_fixture(store, |rows| {
         rows.push(ListedSelection {
             selection: Selection {
@@ -2175,10 +2176,15 @@ fn selection_bitmask_fixture() -> Vec<u8> {
     locs.extend((201..=203).map(|i| loc(i, -33.8, 151.2 + f64::from(i) * 0.001)));
     let mut store = setup_store_with(&locs);
     store.bake_overlay();
-    push_resolved(&mut store, "a", [255, 0, 0], &[1, 5, 9]);
-    push_resolved(&mut store, "b", [0, 0, 255], &[201, 203]);
+    push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[1, 5, 9]);
+    push_resolved(&mut store, "b", Rgb([0, 0, 255]), &[201, 203]);
     for i in 0..298u32 {
-        push_resolved(&mut store, &format!("f{i}"), [(i % 256) as u8, 0, 0], &[1]);
+        push_resolved(
+            &mut store,
+            &format!("f{i}"),
+            Rgb([(i % 256) as u8, 0, 0]),
+            &[1],
+        );
     }
     let live: Vec<&ResolvedSelection> = store.selections.live().collect();
     build_selection_buf(&store.render, &live).0
@@ -2224,8 +2230,8 @@ fn render_frame_fixture() -> Vec<u8> {
     ];
     let mut store = setup_store_with(&locs);
     store.bake_overlay();
-    push_resolved(&mut store, "a", [255, 0, 0], &[1, 4]);
-    push_resolved(&mut store, "b", [0, 0, 255], &[2]);
+    push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[1, 4]);
+    push_resolved(&mut store, "b", Rgb([0, 0, 255]), &[2]);
     edit_selection_fixture(&mut store, |rows| {
         rows[1].selection.selector = Selector::Ranked {
             expr: "id".into(),
@@ -2233,7 +2239,7 @@ fn render_frame_fixture() -> Vec<u8> {
             ascending: true,
             selection: Some(Box::new(Selection {
                 key: "b0".into(),
-                color: [0, 0, 255],
+                color: Rgb([0, 0, 255]),
                 selector: Selector::Manual { locations: vec![2] },
             })),
         }
@@ -2469,7 +2475,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     store.bake_overlay();
     let bounds = store.cached_bounds();
     let frames = watch(&mut store);
-    push_resolved(&mut store, "a", [255, 0, 0], &[2]);
+    push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[2]);
     store.selections.ids = store.selections.live_ids();
 
     let feed = FeedCapture::attach(&mut store);
@@ -2478,7 +2484,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     let frame = frames.last();
     assert_eq!(frame.version, result.version);
     assert!(frame.cells.is_empty(), "no row moved");
-    assert_eq!(frame.palette, [[255, 0, 0]]);
+    assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
     let section = frame.selection.expect("every cell's membership restated");
     assert_eq!(section, store.selection_section());
     assert!(feed.last().derived.selection_counts.is_some());
@@ -2528,7 +2534,7 @@ fn the_render_frame_fixture_covers_every_section() {
     };
     assert_eq!(scene.kind, FrameKind::REPLACE);
     assert_eq!(edit.kind, FrameKind::PATCH);
-    assert_eq!(edit.palette, [[255, 0, 0], [0, 0, 255]]);
+    assert_eq!(edit.palette, [Rgb([255, 0, 0]), Rgb([0, 0, 255])]);
     assert!(!removed(&edit.cells).is_empty());
     let moved_in = added(&edit.cells).iter().any(|r| r.key == 2);
     assert!(moved_in, "the move lands in its new cell");
@@ -2545,12 +2551,12 @@ fn the_scene_frame_states_each_rows_selection() {
     let l2 = loc(2, 30.0, 40.0);
     let mut store = setup_store_with(&[l1, l2]);
     store.bake_overlay();
-    push_resolved(&mut store, "manual", [255, 0, 0], &[1]);
+    push_resolved(&mut store, "manual", Rgb([255, 0, 0]), &[1]);
     store.selections.ids.insert(1);
 
     let frame = store.scene_frame();
 
-    assert_eq!(frame.palette, [[255, 0, 0]]);
+    assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
     let mut sel: Vec<(u32, u32)> = added(&frame.cells).iter().map(|r| (r.key, r.sel)).collect();
     sel.sort_unstable();
     assert_eq!(sel, [(1, 0), (2, NO_SEL)]);
@@ -2564,8 +2570,8 @@ fn the_scene_frame_tags_each_row_with_its_drawing_selection() {
     let locs: Vec<_> = (1..=4).map(|id| loc(id, 10.0, 20.0)).collect();
     let mut store = setup_store_with(&locs);
     store.bake_overlay();
-    push_resolved(&mut store, "a", [255, 0, 0], &[1, 3]);
-    push_resolved(&mut store, "b", [0, 0, 255], &[2, 4]);
+    push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[1, 3]);
+    push_resolved(&mut store, "b", Rgb([0, 0, 255]), &[2, 4]);
     for id in 1..=4 {
         store.selections.ids.insert(id);
     }
@@ -2585,7 +2591,7 @@ fn the_scene_frame_tags_each_row_with_its_drawing_selection() {
 fn paint_for_uses_last_matching_selection() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     // id 1 belongs to two selections with different colors.
-    for (key, color) in [("a", [255, 0, 0]), ("b", [0, 0, 255])] {
+    for (key, color) in [("a", Rgb([255, 0, 0])), ("b", Rgb([0, 0, 255]))] {
         push_resolved(&mut store, key, color, &[1]);
     }
     store.selections.ids.insert(1);
@@ -2593,7 +2599,10 @@ fn paint_for_uses_last_matching_selection() {
     // The index is what the overlay orders by, so it must name the winning selection.
     let paint = store.selections.paint_for(1).expect("id 1 is selected");
     assert_eq!(paint, 1, "last selection wins");
-    assert_eq!(store.scene_frame().palette[paint as usize], [0, 0, 255]);
+    assert_eq!(
+        store.scene_frame().palette[paint as usize],
+        Rgb([0, 0, 255])
+    );
     assert!(store.selections.paint_for(2).is_none(), "unselected id");
 }
 
@@ -2601,8 +2610,8 @@ fn paint_for_uses_last_matching_selection() {
 fn paint_map_matches_paint_for() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 0.0, 0.0), loc(3, 0.0, 0.0)]);
     for (key, color, members) in [
-        ("a", [255, 0, 0], vec![1u32, 2]),
-        ("b", [0, 0, 255], vec![2u32, 3]),
+        ("a", Rgb([255, 0, 0]), vec![1u32, 2]),
+        ("b", Rgb([0, 0, 255]), vec![2u32, 3]),
     ] {
         push_resolved(&mut store, key, color, &members);
         for id in &members {
@@ -3010,7 +3019,7 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
     let first = shipped_record(&derived, "tags", ids[0]).unwrap();
     let second = shipped_record(&derived, "tags", ids[1]).unwrap();
     assert_eq!(first.name.as_deref(), Some("Alpha"));
-    assert_eq!(first.color(), Some("#123456"));
+    assert_eq!(first.color(), "#123456".parse().ok());
     assert_eq!(second.order, Some(0));
     assert_eq!(first.order, Some(1));
 
@@ -3705,7 +3714,7 @@ fn a_boolean_field_answers_from_the_postings_over_stored_and_overlay_rows() {
 // Selection bitmask: partial cell invariants
 // -----------------------------------------------------------------------
 
-fn add_tag_selection(store: &mut Store, tag_id: u32, color: [u8; 3]) {
+fn add_tag_selection(store: &mut Store, tag_id: u32, color: Rgb) {
     edit_selection_fixture(store, |rows| {
         rows.push(ListedSelection {
             selection: Selection {
@@ -3724,9 +3733,9 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     let mut store = setup_store_with(slice::from_ref(&l1));
     insert_tag(&mut store, 1, 0);
     insert_tag(&mut store, 2, 0);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     edit_selection_fixture(&mut store, |rows| rows[0].ghosted = true);
-    add_tag_selection(&mut store, 2, [0, 255, 0]);
+    add_tag_selection(&mut store, 2, Rgb([0, 255, 0]));
 
     let after = loc_with_tags(1, 10.0, 20.0, vec![1, 2]);
     let frames = watch(&mut store);
@@ -3757,7 +3766,7 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     );
     assert_eq!(
         frame.palette,
-        [[0, 255, 0]],
+        [Rgb([0, 255, 0])],
         "the palette holds live selections only"
     );
 }
@@ -3765,9 +3774,9 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
 #[test]
 fn a_full_resolve_counts_a_ghosted_selection_and_keeps_it_out_of_the_selected_set() {
     let mut store = setup_store_with(&[loc_with_tags(1, 10.0, 20.0, vec![1, 2])]);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     edit_selection_fixture(&mut store, |rows| rows[0].ghosted = true);
-    add_tag_selection(&mut store, 2, [0, 255, 0]);
+    add_tag_selection(&mut store, 2, Rgb([0, 255, 0]));
 
     store.resolve_selection_membership();
 
@@ -3832,7 +3841,7 @@ fn incremental_membership_change_ships_no_bitmask() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
     let mut store = setup_store_with(slice::from_ref(&l1));
     insert_tag(&mut store, 1, 0);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     let frames = watch(&mut store);
     let feed = FeedCapture::attach(&mut store);
 
@@ -3859,7 +3868,7 @@ fn incremental_membership_change_ships_no_bitmask() {
         "membership rides on a patch for the row that changed"
     );
     assert_eq!(rows[0].sel, 0);
-    assert_eq!(frame.palette, [[255, 0, 0]]);
+    assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
 }
 
 #[test]
@@ -3874,7 +3883,7 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
     );
     let mut store = setup_store_with(&[l1.clone(), l2.clone()]);
     insert_tag(&mut store, 1, 2);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
 
     // More than 100 rows in one change forces the full-resolve branch, all of them in l1's cell.
     let changes = apply_edit(
@@ -3900,7 +3909,7 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
 fn membership_delta_reports_gained_on_tag_add() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![]);
     let mut store = setup_store_with(slice::from_ref(&l1));
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
 
     // Add tag 1 to location 1
     let with_tag = loc_with_tags(1, 10.0, 20.0, vec![1]);
@@ -3918,7 +3927,7 @@ fn membership_delta_reports_gained_on_tag_add() {
         .expect("a row that joins a selection must state it");
     assert_eq!(
         frame.palette[p.sel as usize],
-        [255, 0, 0],
+        Rgb([255, 0, 0]),
         "the selection colour"
     );
     assert_eq!(
@@ -3933,7 +3942,7 @@ fn membership_delta_reports_lost_on_tag_remove() {
     let tagged = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(slice::from_ref(&tagged));
     insert_tag(&mut store, 1, 1);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
     assert!(store.selections.ids.contains(1), "starts selected");
 
@@ -3963,7 +3972,7 @@ fn selected_leaf_tracks_the_selection_through_mutations() {
     let other = loc_with_tags(2, 11.0, 21.0, vec![]);
     let mut store = setup_store_with(&[tagged.clone(), other]);
     insert_tag(&mut store, 1, 0);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
     assert_eq!(store.selections.ids, [1u32].into_iter().collect());
 
@@ -3994,7 +4003,7 @@ fn removed_selected_location_leaves_no_patch() {
     let l2 = loc_with_tags(2, 10.001, 20.001, vec![1]);
     let mut store = setup_store_with(&[l1, l2]);
     insert_tag(&mut store, 1, 2);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
 
     let frames = watch(&mut store);
@@ -4026,8 +4035,8 @@ fn leaving_winning_selection_restates_survivors_paint() {
     let mut store = setup_store_with(slice::from_ref(&both));
     insert_tag(&mut store, 1, 1);
     insert_tag(&mut store, 2, 1);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
-    add_tag_selection(&mut store, 2, [0, 0, 255]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
+    add_tag_selection(&mut store, 2, Rgb([0, 0, 255]));
     store.resolve_selection_membership();
     assert_eq!(
         store.selections.paint_for(1),
@@ -4050,7 +4059,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
         "leaving the winner while staying selected must still ship a patch"
     );
     assert_eq!(rows[0].sel, 0, "the surviving selection's paint");
-    assert_eq!(frame.palette[0], [255, 0, 0]);
+    assert_eq!(frame.palette[0], Rgb([255, 0, 0]));
     assert_eq!(
         (rows[0].lng, rows[0].lat),
         (20.0, 10.0),
@@ -4062,7 +4071,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
 fn membership_delta_no_patch_when_nothing_changed() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(slice::from_ref(&l1));
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     // Resolve initial membership
     store.resolve_selection_membership();
 
@@ -4093,7 +4102,7 @@ fn selected_row_moving_across_cells_keeps_its_selection() {
     let l1 = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let mut store = setup_store_with(slice::from_ref(&l1));
     insert_tag(&mut store, 1, 1);
-    add_tag_selection(&mut store, 1, [255, 0, 0]);
+    add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
     assert!(store.selections.ids.contains(1), "starts selected");
 
@@ -4324,7 +4333,7 @@ fn selection_cell_segment_adapts_format() {
         cells,
         id_to_cell_idx: vec![0u8; n],
         arrow_style: false,
-        marker_color: [42, 42, 42],
+        marker_color: Rgb([42, 42, 42]),
     };
     let cr = render.cells[0].as_ref().unwrap();
     // header = 1 base32 byte + 4-byte loc count; per selection a format byte follows.
@@ -5010,7 +5019,7 @@ fn reconcile_values_match_by_name_case_insensitive() {
     assert_eq!(target, before, "pure match mutates nothing");
     assert_eq!(target.len(), 1);
     // The existing target record keeps its own color.
-    assert_eq!(target.get(&3).unwrap().color(), Some("#222222"));
+    assert_eq!(target.get(&3).unwrap().color(), "#222222".parse().ok());
 }
 
 #[test]
@@ -5020,7 +5029,7 @@ fn reconcile_values_create_missing_with_source_pile() {
     assert_eq!(remap.get(&7), Some(&10));
     let rec = target.get(&10).unwrap();
     assert_eq!(rec.name.as_deref(), Some("Trekker"));
-    assert_eq!(rec.color(), Some("#abcdef"));
+    assert_eq!(rec.color(), "#abcdef".parse().ok());
 }
 
 #[test]
@@ -7285,7 +7294,7 @@ fn undoing_a_rename_collision_restores_records_and_rows_together() {
         .edit_values("tags", vec![rename(a, "b"), recolor(b, "#abcdef")])
         .unwrap();
     assert_eq!(store.get_loc_by_id(1).unwrap().tags, vec![b]);
-    assert_eq!(tag_records(&store)[&b].color(), Some("#abcdef"));
+    assert_eq!(tag_records(&store)[&b].color(), "#abcdef".parse().ok());
 
     undo_and_finish(&mut store);
     assert_eq!(tag_records(&store), records);
@@ -7560,8 +7569,8 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 10.1, 20.1)]);
     tag_onto(&mut store, 7, &[1]);
     tag_onto(&mut store, 8, &[2]);
-    add_tag_selection(&mut store, 7, [1, 1, 1]);
-    add_tag_selection(&mut store, 8, [2, 2, 2]);
+    add_tag_selection(&mut store, 7, Rgb([1, 1, 1]));
+    add_tag_selection(&mut store, 8, Rgb([2, 2, 2]));
     edit_selection_fixture(&mut store, |rows| rows[1].ghosted = true);
     store.resolve_selection_membership();
     let feed = FeedCapture::attach(&mut store);
@@ -7586,23 +7595,23 @@ fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     let t = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
     tag_onto(&mut store, t, &[1]);
-    add_tag_selection(&mut store, t, [9, 9, 9]);
+    add_tag_selection(&mut store, t, Rgb([9, 9, 9]));
     store.resolve_selection_membership();
     assert_eq!(
         store.scene_frame().palette,
-        vec![[9, 9, 9]],
+        vec![Rgb([9, 9, 9])],
         "no record color: its own"
     );
 
     store
         .edit_values("tags", vec![recolor(t, "#ff8000")])
         .unwrap();
-    assert_eq!(store.scene_frame().palette, vec![[255, 128, 0]]);
+    assert_eq!(store.scene_frame().palette, vec![Rgb([255, 128, 0])]);
 
     store.edit_selections(&crate::selections::tree::SelectionOp::Invert { path: vec![0] });
     assert_eq!(
         store.scene_frame().palette,
-        vec![[255, 128, 0]],
+        vec![Rgb([255, 128, 0])],
         "an inverted test too"
     );
 }
@@ -7946,14 +7955,14 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
         selections: vec![
             SelectionInput {
                 selector: Selector::Everything,
-                color: Some([1, 2, 3]),
+                color: Some(Rgb([1, 2, 3])),
             },
             SelectionInput {
                 selector: Selector::Locations {
                     locations: vec![1],
                     name: None,
                 },
-                color: Some([4, 5, 6]),
+                color: Some(Rgb([4, 5, 6])),
             },
         ],
     });
@@ -8211,7 +8220,7 @@ fn a_new_tag_selection_takes_its_tags_colour_everywhere_it_is_drawn() {
     black_tag_selected(&mut store);
 
     let frame = frames.last();
-    assert_eq!(frame.palette, [[0, 0, 0]]);
+    assert_eq!(frame.palette, [Rgb([0, 0, 0])]);
     let section = frame
         .selection
         .expect("adding a selection restates membership");
@@ -8220,7 +8229,7 @@ fn a_new_tag_selection_takes_its_tags_colour_everywhere_it_is_drawn() {
         [0, 0, 0],
         "the section paints what the palette says"
     );
-    assert_eq!(store.selections.list()[0].selection.color, [0, 0, 0]);
+    assert_eq!(store.selections.list()[0].selection.color, Rgb([0, 0, 0]));
 }
 
 #[test]
@@ -8234,12 +8243,12 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
         .unwrap();
 
     let frame = frames.last();
-    assert_eq!(frame.palette, [[255, 0, 0]]);
+    assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
     let section = frame
         .selection
         .expect("a recolour restates the painted rows");
     assert_eq!(section[4..7], [255, 0, 0]);
-    assert_eq!(store.selections.list()[0].selection.color, [255, 0, 0]);
+    assert_eq!(store.selections.list()[0].selection.color, Rgb([255, 0, 0]));
 }
 
 #[test]
@@ -8248,7 +8257,7 @@ fn a_created_tag_without_a_colour_gets_its_names() {
     let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
     assert_eq!(
         tag_records(&store)[&id].color(),
-        Some(util::color_for_name("Urban").as_str())
+        Some(Rgb::for_name("Urban"))
     );
 }
 
@@ -8256,15 +8265,12 @@ fn a_created_tag_without_a_colour_gets_its_names() {
 fn ensuring_a_colour_fills_only_a_colourless_record_and_reports_it() {
     let mut colourless = named("Rural");
     assert!(colourless.ensure_color());
-    assert_eq!(
-        colourless.color(),
-        Some(util::color_for_name("Rural").as_str())
-    );
+    assert_eq!(colourless.color(), Some(Rgb::for_name("Rural")));
     assert!(!colourless.ensure_color(), "nothing left to fill");
 
     let mut coloured = tag(0, "Urban", "#123456");
     assert!(!coloured.ensure_color());
-    assert_eq!(coloured.color(), Some("#123456"));
+    assert_eq!(coloured.color(), "#123456".parse().ok());
 }
 
 #[test]

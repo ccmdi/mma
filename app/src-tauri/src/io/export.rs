@@ -10,7 +10,7 @@ use crate::types::shape::{MapPart, MapShape};
 use crate::types::Location;
 use crate::types::LocationFlags;
 use crate::types::{AppError, AppResult};
-use crate::util::hex_to_rgb;
+use crate::util::Rgb;
 use serde::de::DeserializeOwned;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -84,8 +84,8 @@ fn tag_color_meta(
             v.get("color").and_then(|c| c.as_str()),
         ) {
             let mut entry = serde_json::Map::new();
-            if let Some(rgb) = hex_to_rgb(color) {
-                entry.insert("color".into(), serde_json::json!([rgb[0], rgb[1], rgb[2]]));
+            if let Ok(rgb) = color.parse::<Rgb>() {
+                entry.insert("color".into(), serde_json::json!(rgb));
             }
             if let Some(order) = v.get("order").and_then(serde_json::Value::as_u64) {
                 entry.insert("order".into(), serde_json::json!(order));

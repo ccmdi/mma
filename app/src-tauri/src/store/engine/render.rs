@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::store::arrow::Columns;
+use crate::util::Rgb;
 use roaring::RoaringBitmap;
 use std::array;
 use std::collections::{HashMap, HashSet};
@@ -55,13 +56,13 @@ pub(crate) fn cell_idx_from_key(key: &str) -> Option<u8> {
 /// The count is u32 so thousands of selections (e.g. shift-selecting many tags)
 /// don't wrap the header and desync the JS parser.
 pub(super) fn assemble_selection_bitmask<'a>(
-    colors: impl ExactSizeIterator<Item = &'a [u8; 3]>,
+    colors: impl ExactSizeIterator<Item = &'a Rgb>,
     segments: &[Vec<u8>],
 ) -> Vec<u8> {
     let mut buf: Vec<u8> = Vec::new();
     buf.extend_from_slice(&(colors.len() as u32).to_le_bytes());
     for c in colors {
-        buf.extend_from_slice(c);
+        buf.extend_from_slice(&c.0);
     }
     buf.push(segments.len() as u8);
     for seg in segments {
@@ -184,7 +185,7 @@ pub(crate) struct RenderState {
     pub cells: [Option<CellRender>; 32],
     pub id_to_cell_idx: Vec<u8>,
     pub arrow_style: bool,
-    pub marker_color: [u8; 3],
+    pub marker_color: Rgb,
 }
 
 impl RenderState {
@@ -210,7 +211,7 @@ pub struct RenderRequest {
     pub north: f64,
     pub selected_ids: Option<Vec<u32>>,
     pub marker_style: String,
-    pub marker_color: Option<[u8; 3]>,
+    pub marker_color: Option<Rgb>,
 }
 
 impl Store {

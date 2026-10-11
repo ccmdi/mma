@@ -184,7 +184,7 @@ export const commands = {
 	/**  Register field dependencies. Changing an input clears fields derived from it. */
 	storeSetDerived: (edges: { [key in string]: string[] }) => __TAURI_INVOKE<null>("store_set_derived", { edges }),
 	/**  Set the default marker color for new render updates. */
-	storeSetMarkerColor: (color: [number, number, number]) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
+	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
 	 *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 	 *  one entry per row of points.
@@ -362,7 +362,7 @@ export const commands = {
 	/**  Fetch the full saved selection rules for the given `ids`, including their selector trees. */
 	storeGetSavedSelections: (ids: string[]) => __TAURI_INVOKE<SavedSelection[]>("store_get_saved_selections", { ids }),
 	/**  Save a new selection rule. */
-	storeSaveSelection: (name: string, selector: Selector<SelectionInput>, color: [number, number, number]) => __TAURI_INVOKE<SavedSelection>("store_save_selection", { name, selector, color }),
+	storeSaveSelection: (name: string, selector: Selector<SelectionInput>, color: RGB) => __TAURI_INVOKE<SavedSelection>("store_save_selection", { name, selector, color }),
 	/**  Delete a saved selection rule by `id`. */
 	storeDeleteSavedSelection: (id: string) => __TAURI_INVOKE<null>("store_delete_saved_selection", { id }),
 	/**
@@ -1489,6 +1489,9 @@ export type QueryActivity = {
 	retries: number,
 };
 
+/**  A colour as red, green and blue bytes, serialized as `[r, g, b]`. */
+export type RGB = [number, number, number];
+
 
 /**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. */
 export type RateSpec = {
@@ -1508,7 +1511,7 @@ export type RenderRequest = {
 	north?: number,
 	selectedIds?: number[] | null,
 	markerStyle?: string,
-	markerColor?: [number, number, number] | null,
+	markerColor?: RGB | null,
 };
 
 
@@ -1593,7 +1596,7 @@ export type SavedSelection = {
 export type SavedSelectionInfo = {
 	id: string,
 	name: string,
-	color: [number, number, number],
+	color: RGB,
 	createdAt: string,
 };
 
@@ -1674,21 +1677,21 @@ export type SeenWriteEntry = {
 
 export type Selection = {
 	key: string,
-	color: [number, number, number],
+	color: RGB,
 	selector: Selector,
 };
 
 export type SelectionInput = {
 	selector: Selector<SelectionInput>,
-	color?: [number, number, number] | null,
+	color?: RGB | null,
 };
 
-export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: [number, number, number] } | { kind: "polygonName"; path: number[]; name: string };
+export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: RGB } | { kind: "polygonName"; path: number[]; name: string };
 
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
 export type Selector<S = {
 	key: string,
-	color: [number, number, number],
+	color: RGB,
 	selector: Selector,
 }> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
 /**  The locations currently selected in the editor. */

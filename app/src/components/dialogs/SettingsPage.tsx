@@ -46,7 +46,7 @@ import { formatBytes } from "@/lib/util/format";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import type { DeviceCodeInfo, GhUser, MapPreferences } from "@/bindings.gen";
+import type { DeviceCodeInfo, GhUser, MapPreferences, RGB } from "@/bindings.gen";
 import { collectDiagnostics } from "@/lib/diagnostics";
 import { appVersion } from "@/lib/version";
 import { refreshStoredReports } from "@/lib/feedback/submit";
@@ -112,7 +112,7 @@ import { Markdown } from "@/lib/util/markdown";
 import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { ColorPicker } from "@/components/primitives/ColorPicker";
-import type { RGB } from "@/lib/util/color";
+
 import { t, msg } from "@/lib/i18n";
 import { isPrereleaseVersion } from "@/lib/util/util";
 import { errText } from "@/lib/util/format";

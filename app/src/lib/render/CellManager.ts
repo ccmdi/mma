@@ -1,5 +1,5 @@
 import { FrameKind, NO_SEL } from "@/bindings.consts";
-import type { RGB } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 
 /** Render cells are keyed by the first character of a location's geohash. */
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";

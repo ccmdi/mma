@@ -1,5 +1,6 @@
 use super::*;
 use crate::selections::{FilterOp, Selector};
+use crate::util::Rgb;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -55,11 +56,11 @@ fn import_unions_multi_item_rules_and_keeps_single_ones_flat() {
     let all = all(&conn);
     assert_eq!(all.len(), 2);
     assert_eq!(all[0].info.name, "two rules");
-    assert_eq!(all[0].info.color, [1, 2, 3]);
+    assert_eq!(all[0].info.color, Rgb([1, 2, 3]));
     match &all[0].selector {
         Selector::Union { selections } => {
             assert_eq!(selections.len(), 2);
-            assert_eq!(selections[1].color, [4, 5, 6]);
+            assert_eq!(selections[1].color, Rgb([4, 5, 6]));
         }
         _ => panic!("expected a Union"),
     }

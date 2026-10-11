@@ -1,5 +1,5 @@
-import type { FieldDef, KeySpec, PartitionBucket, SelectionInput } from "@/bindings.gen";
-import type { RGB } from "@/lib/util/color";
+import type { FieldDef, KeySpec, PartitionBucket, RGB, SelectionInput } from "@/bindings.gen";
+
 import { ymOrdinal } from "@/lib/util/date";
 import { partitionLabel } from "@/lib/util/format";
 import { selection } from "@/store/selections";

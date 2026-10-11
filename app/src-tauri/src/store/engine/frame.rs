@@ -1,6 +1,7 @@
 //! Render frames: the one binary message that carries every marker change to a window.
 
 use crate::types::{wire_enum, wire_names, TsConst};
+use crate::util::Rgb;
 use specta::datatype::DataType;
 use std::collections::HashMap;
 use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
@@ -73,7 +74,7 @@ pub(crate) struct Frame {
     /// The store version the scene is at once this frame is applied.
     pub version: u64,
     /// The colour of every live selection, in `SelectionState::live` order.
-    pub palette: Vec<[u8; 3]>,
+    pub palette: Vec<Rgb>,
     /// Ascending by cell, empty cells left out.
     pub cells: Vec<CellFrame>,
     /// Every cell's selection membership restated, in `build_selection_buf`'s layout.
@@ -105,7 +106,7 @@ impl Frame {
         put(&mut buf, (self.version >> 32) as u32);
         put(&mut buf, self.palette.len() as u32);
         for rgb in &self.palette {
-            buf.extend_from_slice(rgb);
+            buf.extend_from_slice(&rgb.0);
         }
         pad4(&mut buf);
         put(&mut buf, self.cells.len() as u32);

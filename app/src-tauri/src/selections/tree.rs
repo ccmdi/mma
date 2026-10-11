@@ -1,5 +1,6 @@
 use super::{FilterOp, Selection, Selector, Thinning};
 use crate::store::engine::ListedSelection;
+use crate::util::Rgb;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -8,7 +9,7 @@ pub struct SelectionInput {
     pub selector: Selector<SelectionInput>,
     #[serde(default)]
     #[specta(optional)]
-    pub color: Option<[u8; 3]>,
+    pub color: Option<Rgb>,
 }
 
 impl SelectionInput {
@@ -17,7 +18,7 @@ impl SelectionInput {
         let mut selection = Selection::of(selector);
         selection.color = self.color.unwrap_or_else(|| match &selection.selector {
             Selector::Reviewed { mode, .. } => {
-                hsl(if mode == "unreviewed" { 280.0 } else { 145.0 }, 0.6, 0.5)
+                Rgb::hsl(if mode == "unreviewed" { 280.0 } else { 145.0 }, 0.6, 0.5)
             }
             _ => selection.color,
         });
@@ -188,20 +189,12 @@ pub fn key(selector: &Selector) -> String {
     }
 }
 
-fn hsl(h: f64, s: f64, l: f64) -> [u8; 3] {
-    let a = s * l.min(1.0 - l);
-    [0.0, 8.0, 4.0].map(|n| {
-        let k = (n + h / 30.0) % 12.0;
-        (255.0 * (l - a * (k - 3.0).min(9.0 - k).min(1.0).max(-1.0))).round() as u8
-    })
-}
-
-pub fn color(key: &str) -> [u8; 3] {
+pub fn color(key: &str) -> Rgb {
     let hash = key
         .encode_utf16()
         .fold(0i32, |h, c| h.wrapping_mul(33).wrapping_add(c as i32));
     let hash = hash.wrapping_mul(214013).wrapping_add(2531011);
-    hsl((i64::from(hash).abs() % 360) as f64, 0.5, 0.5)
+    Rgb::hsl((i64::from(hash).abs() % 360) as f64, 0.5, 0.5)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
@@ -270,7 +263,7 @@ pub enum SelectionOp {
     },
     Color {
         path: Vec<usize>,
-        color: [u8; 3],
+        color: Rgb,
     },
     PolygonName {
         path: Vec<usize>,

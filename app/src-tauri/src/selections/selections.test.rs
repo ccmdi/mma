@@ -7,6 +7,7 @@ use crate::test_util::{loc, Fx};
 use crate::types::AppResult;
 use crate::types::Location;
 use crate::types::RawExtra;
+use crate::util::Rgb;
 use chrono::TimeZone;
 use chrono::Utc;
 use std::collections::HashSet;
@@ -1186,12 +1187,12 @@ fn tag_index_in_composite() {
 
     let t10 = Selection {
         key: "t10".into(),
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector: Selector::tag(10),
     };
     let t20 = Selection {
         key: "t20".into(),
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector: Selector::tag(20),
     };
     // 10 AND 20 -> only loc 1
@@ -1310,12 +1311,12 @@ fn resolve_intersection() {
         selections: vec![
             Selection {
                 key: "a".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::tag(10),
             },
             Selection {
                 key: "b".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::pano_ids(true),
             },
         ],
@@ -1339,12 +1340,12 @@ fn resolve_union() {
         selections: vec![
             Selection {
                 key: "a".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::tag(10),
             },
             Selection {
                 key: "b".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::pano_ids(true),
             },
         ],
@@ -1368,7 +1369,7 @@ fn resolve_invert() {
     let selector = Selector::Invert {
         selections: vec![Selection {
             key: "a".into(),
-            color: [0, 0, 0],
+            color: Rgb([0, 0, 0]),
             selector: Selector::pano_ids(true),
         }],
     };
@@ -1397,17 +1398,17 @@ fn node_counts_cover_nested_children() {
 
     let tree = vec![Selection {
         key: "root".into(),
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector: Selector::Intersection {
             selections: vec![
                 Selection {
                     key: "a".into(),
-                    color: [0, 0, 0],
+                    color: Rgb([0, 0, 0]),
                     selector: Selector::tag(10),
                 },
                 Selection {
                     key: "b".into(),
-                    color: [0, 0, 0],
+                    color: Rgb([0, 0, 0]),
                     selector: Selector::tag(20),
                 },
             ],
@@ -1433,11 +1434,11 @@ fn node_counts_invert_is_global_complement() {
 
     let tree = vec![Selection {
         key: "inv".into(),
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector: Selector::Invert {
             selections: vec![Selection {
                 key: "t".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::tag(10),
             }],
         },
@@ -1466,26 +1467,26 @@ fn resolve_forest_matches_individual_resolve() {
     let sels = vec![
         Selection {
             key: "t10".into(),
-            color: [0, 0, 0],
+            color: Rgb([0, 0, 0]),
             selector: Selector::tag(10),
         },
         Selection {
             key: "inv".into(),
-            color: [0, 0, 0],
+            color: Rgb([0, 0, 0]),
             selector: Selector::Invert {
                 selections: vec![Selection {
                     key: "u".into(),
-                    color: [0, 0, 0],
+                    color: Rgb([0, 0, 0]),
                     selector: Selector::Union {
                         selections: vec![
                             Selection {
                                 key: "a".into(),
-                                color: [0, 0, 0],
+                                color: Rgb([0, 0, 0]),
                                 selector: Selector::tag(10),
                             },
                             Selection {
                                 key: "b".into(),
-                                color: [0, 0, 0],
+                                color: Rgb([0, 0, 0]),
                                 selector: Selector::tag(20),
                             },
                         ],
@@ -1495,7 +1496,7 @@ fn resolve_forest_matches_individual_resolve() {
         },
         Selection {
             key: "none".into(),
-            color: [0, 0, 0],
+            color: Rgb([0, 0, 0]),
             selector: Selector::untagged(),
         },
     ];
@@ -2582,7 +2583,7 @@ fn to_selection(o: &OracleProps, counter: &mut u32) -> Selection {
     };
     Selection {
         key,
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector,
     }
 }
@@ -2755,7 +2756,7 @@ proptest! {
         let double_invert = Selector::Invert {
             selections: vec![Selection {
                 key: "outer".into(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: Selector::Invert {
                     selections: vec![inner],
                 },
@@ -2823,7 +2824,7 @@ fn within_selector(t: &WithinTree) -> Selector {
         c.iter()
             .map(|t| Selection {
                 key: String::new(),
-                color: [0, 0, 0],
+                color: Rgb([0, 0, 0]),
                 selector: within_selector(t),
             })
             .collect()
@@ -3324,7 +3325,7 @@ fn pinned(id: u32, pano: Option<&str>, flag: bool) -> Location {
 fn leaf(key: &str, selector: Selector) -> Selection {
     Selection {
         key: key.into(),
-        color: [0, 0, 0],
+        color: Rgb([0, 0, 0]),
         selector,
     }
 }

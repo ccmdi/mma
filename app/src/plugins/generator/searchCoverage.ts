@@ -7,7 +7,7 @@
 
 import { wrapDeg, lngSpan, unionBounds, M_PER_DEG } from "@/lib/geo/geo";
 import type { Bounds } from "@/types";
-import type { RGB } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 
 /** deck.gl BitmapLayer bounds, `[left, bottom, right, top]`. Unwrapped, so `right` runs
  *  past 180 for a region crossing the antimeridian rather than doubling back west. */

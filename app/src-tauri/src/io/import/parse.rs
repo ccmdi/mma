@@ -6,8 +6,8 @@ use crate::types;
 use crate::types::AppResult;
 use crate::types::RawExtra;
 use crate::types::{is_ws, scan_fields_from, skip_string, Location, LocationFlags};
-use crate::util::color_for_name;
 use crate::util::now_unix;
+use crate::util::Rgb;
 use memchr::memmem;
 use rayon::prelude::*;
 use serde_json::value::RawValue;
@@ -178,7 +178,7 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
 }
 
 pub(super) struct ExtraTagMeta {
-    pub(super) color: Option<String>,
+    pub(super) color: Option<Rgb>,
     pub(super) order: Option<u32>,
     pub(super) doclinks: Vec<String>,
 }
@@ -210,14 +210,8 @@ pub(super) fn tag_meta_from_extra(extra: &Value) -> HashMap<String, ExtraTagMeta
                 .get("color")
                 .and_then(|c| c.as_array())
                 .and_then(|arr| {
-                    if arr.len() >= 3 {
-                        let r = arr[0].as_u64().unwrap_or(0) as u8;
-                        let g = arr[1].as_u64().unwrap_or(0) as u8;
-                        let b = arr[2].as_u64().unwrap_or(0) as u8;
-                        Some(format!("#{r:02x}{g:02x}{b:02x}"))
-                    } else {
-                        None
-                    }
+                    let rgb = Value::Array(arr.get(..3)?.to_vec());
+                    serde_json::from_value::<Rgb>(rgb).ok()
                 });
             let order = entry.get("order").and_then(Value::as_u64).map(|o| o as u32);
             // `doclinks` array is the convention; a bare `doclink` string is tolerated.
@@ -836,12 +830,12 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
             let meta = tag_meta.get(&name);
             let color = meta
                 .and_then(|m| m.color.clone())
-                .unwrap_or_else(|| color_for_name(&name));
+                .unwrap_or_else(|| Rgb::for_name(&name));
             let mut extra = serde_json::Map::new();
             if let Some(doclinks) = meta.map(|m| &m.doclinks).filter(|d| !d.is_empty()) {
                 extra.insert("doclinks".into(), serde_json::json!(doclinks));
             }
-            extra.insert("color".into(), color.into());
+            extra.insert("color".into(), color.to_string().into());
             ValueRecord {
                 id,
                 name: Some(name),

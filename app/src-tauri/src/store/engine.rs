@@ -30,7 +30,7 @@ use crate::store::arrow;
 use crate::store::arrow::{schema, Columns};
 use crate::store::maps;
 use crate::types::Location;
-use crate::util;
+use crate::util::Rgb;
 use arrow_select::concat;
 use arrow_select::take;
 use specta::datatype::DataType;
@@ -175,7 +175,7 @@ impl Store {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
                 arrow_style: false,
-                marker_color: [42, 42, 42],
+                marker_color: Rgb([42, 42, 42]),
             },
             selections: SelectionState::default(),
             value_meta: HashMap::new(),

@@ -5,7 +5,7 @@ import type {
 	SelCellEntry,
 	SelectedIds,
 } from "@/lib/render/CellManager";
-import type { RGB } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 

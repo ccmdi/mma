@@ -7,8 +7,8 @@ import { Bar } from "@/components/primitives/Bar";
 import { Notice } from "@/components/primitives/Hint";
 import { Pill } from "@/components/primitives/Pill";
 import { Spinner } from "@/components/primitives/Spinner";
-import type { Selection, FieldDef } from "@/bindings.gen";
-import type { RGB } from "@/lib/util/color";
+import type { FieldDef, RGB, Selection } from "@/bindings.gen";
+
 import { analysisColumns, computeDivergence, exclusiveGroups } from "./engine";
 import type { DisambiguateResult, FieldDivergence, GroupSummary, ValueFormat } from "./engine";
 import "./disambiguate.css";

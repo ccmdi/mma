@@ -10,6 +10,7 @@ use crate::store::maps::VirtualTag;
 use crate::store::maps::{MapPreferences, MapSettings};
 use crate::types::RawExtra;
 use crate::types::{Location, LocationFlags};
+use crate::util::Rgb;
 use std::collections::HashMap;
 use std::env;
 use std::fs;
@@ -226,11 +227,11 @@ fn tag_meta_reads_color_and_order() {
     assert_eq!(meta.len(), 2);
 
     let roof = &meta["Roof"];
-    assert_eq!(roof.color.as_deref(), Some("#ff0000"));
+    assert_eq!(roof.color, Some(Rgb([255, 0, 0])));
     assert_eq!(roof.order, Some(3));
 
     let wall = &meta["Wall"];
-    assert_eq!(wall.color.as_deref(), Some("#0080ff"));
+    assert_eq!(wall.color, Some(Rgb([0, 128, 255])));
     assert_eq!(wall.order, Some(1));
 }
 
@@ -239,7 +240,7 @@ fn tag_meta_missing_order() {
     let json = br#"{"extra":{"tags":{"NoOrder":{"color":[10,20,30]}}}}"#;
     let meta = tag_meta(json);
     let tag = &meta["NoOrder"];
-    assert_eq!(tag.color.as_deref(), Some("#0a141e"));
+    assert_eq!(tag.color, Some(Rgb([10, 20, 30])));
     assert_eq!(tag.order, None);
 }
 
@@ -470,7 +471,7 @@ fn boundaries_tag_meta_after_brace_heavy_strings() {
     assert_eq!(parsed.tags.len(), 1);
     assert_eq!(parsed.tags[0].name.as_deref(), Some("X"));
     assert_eq!(parsed.tags[0].order, Some(7));
-    assert_eq!(parsed.tags[0].color(), Some("#010203"));
+    assert_eq!(parsed.tags[0].color(), "#010203".parse().ok());
 }
 
 /// A nameless map previews as no name at all; naming the placeholder is JS's job.

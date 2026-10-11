@@ -1,5 +1,5 @@
 import type { Selector } from "@/types";
-import type { RGB } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 import { localeFormat } from "@/lib/util/format";
 
 /** One row or column: a selection, or one value of a field. */

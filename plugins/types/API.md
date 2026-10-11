@@ -5007,7 +5007,7 @@ Move a temp export file to `destPath` and remove the temp source.
 cmd.storeSaveSelection(
   name: string,
   selector: Selector$1<SelectionInput>,
-  color: [number, number, number],
+  color: RGB,
 ): Promise<SavedSelection>
 ```
 
@@ -5115,7 +5115,7 @@ that already exist keep their own.
 `unstable` · since v0.7.1
 
 ```ts
-cmd.storeSetMarkerColor(color: [number, number, number]): Promise<null>
+cmd.storeSetMarkerColor(color: RGB): Promise<null>
 ```
 
 Set the default marker color for new render updates.
@@ -5425,8 +5425,14 @@ dialog: { open: typeof open; save: typeof save }
 `unstable` · since v0.3.1
 
 ```ts
-invoke: any
+invoke<T>(
+  cmd: string,
+  args?: InvokeArgs,
+  options?: InvokeOptions,
+): Promise<T>
 ```
+
+Sends a message to the backend.
 
 ### shell
 

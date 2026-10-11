@@ -1,4 +1,5 @@
 use super::*;
+use crate::util::Rgb;
 use std::sync::{Arc, Mutex};
 
 /// Read a frame back off the wire, asserting every array starts 4-byte aligned. The page
@@ -9,7 +10,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Frame {
     let palette_len = head[3] as usize;
     let palette = bytes[read.off..read.off + palette_len * 3]
         .chunks_exact(3)
-        .map(|c| [c[0], c[1], c[2]])
+        .map(|c| Rgb([c[0], c[1], c[2]]))
         .collect();
     read.off = (read.off + palette_len * 3).next_multiple_of(4);
     let cell_count = read.u32s(1)[0] as usize;
@@ -119,7 +120,7 @@ fn sample_frame() -> Frame {
     Frame {
         kind: FrameKind::PATCH,
         version: (7 << 32) | 9,
-        palette: vec![[255, 0, 0]],
+        palette: vec![Rgb([255, 0, 0])],
         cells: vec![
             CellFrame {
                 cell: 3,

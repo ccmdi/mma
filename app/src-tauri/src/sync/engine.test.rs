@@ -1545,7 +1545,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     assert_eq!(meta[&5].order, Some(4));
     assert_eq!(second_rec.order, Some(5));
     assert_eq!(new_rec.order, Some(6));
-    assert_eq!(new_rec.color(), Some("#123456"));
+    assert_eq!(new_rec.color(), "#123456".parse().ok());
     assert_eq!(store.get_loc_by_id(1).unwrap().heading, 45.0);
     assert!(store.get_loc_by_id(2).is_none());
     assert_eq!(rows.len(), 1);

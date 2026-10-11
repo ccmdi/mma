@@ -1,7 +1,8 @@
 import { Channel } from "@tauri-apps/api/core";
 import { CellManager, type FrameSummary } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
-import type { RGB, RGBA } from "@/lib/util/color";
+import type { RGBA } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { getMapState, setSelectedLocationIds } from "@/store/useMapStore";

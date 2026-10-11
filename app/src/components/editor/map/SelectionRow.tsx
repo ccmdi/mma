@@ -27,8 +27,8 @@ import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
 import { polygonFeature } from "@/lib/util/geojson";
 import { stepFilterWindow } from "@/lib/util/date";
-import type { RGB } from "@/lib/util/color";
-import type { Selection } from "@/bindings.gen";
+
+import type { RGB, Selection } from "@/bindings.gen";
 import {
 	FilterForm,
 	filterPropsToSeed,

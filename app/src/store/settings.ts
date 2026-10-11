@@ -3,7 +3,7 @@ import { getLocal, setLocal, reloadLocal, persisted } from "@/lib/hooks/useLocal
 import { msg } from "@/lib/i18n";
 import type { TagSortMode } from "@/types";
 import type { PinnedEntry } from "./commandDefs";
-import type { RGB } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 
 /** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. */
 export const LANGUAGES = {

@@ -6,6 +6,7 @@
 use super::*;
 use crate::selections;
 use crate::types::{AppError, AppResult};
+use crate::util::Rgb;
 use mma_algebra::{Constrained, Edit, Field, Op, Patch};
 use std::collections::HashMap;
 
@@ -35,21 +36,25 @@ pub struct ValueRecord {
 impl ValueRecord {
     const COLOR: &str = "color";
 
-    pub(crate) fn color(&self) -> Option<&str> {
+    fn raw_color(&self) -> Option<&str> {
         self.extra.as_ref()?.get(Self::COLOR)?.as_str()
+    }
+
+    pub(crate) fn color(&self) -> Option<Rgb> {
+        self.raw_color()?.parse().ok()
     }
 
     /// Fill in a missing colour from the record's name. Returns whether it changed.
     pub(crate) fn ensure_color(&mut self) -> bool {
-        if self.color().is_some() {
+        if self.raw_color().is_some() {
             return false;
         }
-        let Some(color) = self.name.as_deref().map(util::color_for_name) else {
+        let Some(color) = self.name.as_deref().map(Rgb::for_name) else {
             return false;
         };
         self.extra
             .get_or_insert_with(Default::default)
-            .insert(Self::COLOR.into(), color.into());
+            .insert(Self::COLOR.into(), color.to_string().into());
         true
     }
 }

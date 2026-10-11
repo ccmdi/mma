@@ -78,7 +78,7 @@ fn remote_tags(map: &ParsedMap) -> Vec<RemoteTag> {
         .filter_map(|rec| {
             Some(RemoteTag {
                 name: rec.name.clone()?,
-                color: rec.color().map(str::to_string),
+                color: rec.color().map(|c| c.to_string()),
                 order: rec.order,
             })
         })

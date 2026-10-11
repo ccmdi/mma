@@ -4,15 +4,16 @@ import { displayTagName } from "@/lib/data/tags";
 import type {
 	FilterOp,
 	ListedSelection,
+	RGB,
 	Selection,
-	Selector as SelectorTree,
 	SelectionInput,
 	SelectionOp,
+	Selector as SelectorTree,
 } from "@/bindings.gen";
 import type { Selector } from "@/types";
 import { cmd } from "@/lib/commands";
 import { getTag } from "@/store/useMapStore";
-import type { RGB } from "@/lib/util/color";
+
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
 import { unionTuple, type Variant } from "@/types/util";

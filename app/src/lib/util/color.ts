@@ -1,5 +1,5 @@
-/** An [r, g, b] byte tuple. */
-export type RGB = [number, number, number];
+import type { RGB } from "@/bindings.gen";
+
 /** An [r, g, b, a] byte tuple. */
 export type RGBA = [...RGB, number];
 /** Hue in degrees, saturation and lightness in percent. */

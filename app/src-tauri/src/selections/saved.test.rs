@@ -4,6 +4,7 @@ use crate::selections::PolygonGeometry;
 use crate::selections::Selection;
 use crate::selections::Selector;
 use crate::store::engine::ValueRecord;
+use crate::util::Rgb;
 use rusqlite::Connection;
 
 /// In-memory DB with the v21 `saved_selections` schema.
@@ -43,18 +44,18 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
             selections: vec![
                 Selection {
                     key: "tag:4".into(),
-                    color: [1, 2, 3],
+                    color: Rgb([1, 2, 3]),
                     selector: Selector::tag(4),
                 },
                 Selection {
                     key: "untagged".into(),
-                    color: [4, 5, 6],
+                    color: Rgb([4, 5, 6]),
                     selector: Selector::untagged(),
                 },
             ],
         },
         tag_names(&[(4, "Japan")]),
-        [9, 9, 9],
+        Rgb([9, 9, 9]),
     )
     .unwrap();
 
@@ -63,7 +64,7 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     let got = &all[0];
     assert_eq!(got.info.id, created.info.id);
     assert_eq!(got.info.name, "Japan dupes");
-    assert_eq!(got.info.color, [9, 9, 9]);
+    assert_eq!(got.info.color, Rgb([9, 9, 9]));
     assert_eq!(got.tag_names.get(&4).map(String::as_str), Some("Japan"));
     match &got.selector {
         Selector::Union { selections } => {
@@ -72,7 +73,7 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
                 serde_json::to_value(&selections[0].selector).unwrap(),
                 serde_json::to_value(Selector::tag(4)).unwrap()
             );
-            assert_eq!(selections[0].color, [1, 2, 3]);
+            assert_eq!(selections[0].color, Rgb([1, 2, 3]));
         }
         _ => panic!("expected a Union"),
     }
@@ -86,7 +87,7 @@ fn delete_removes_only_the_named_rule() {
         "a".into(),
         Selector::untagged(),
         HashMap::new(),
-        [0; 3],
+        Rgb([0; 3]),
     )
     .unwrap();
     create(
@@ -94,7 +95,7 @@ fn delete_removes_only_the_named_rule() {
         "b".into(),
         Selector::unpanned(),
         HashMap::new(),
-        [0; 3],
+        Rgb([0; 3]),
     )
     .unwrap();
     delete(&conn, &a.info.id).unwrap();
@@ -110,7 +111,7 @@ fn an_unreadable_row_is_skipped_not_fatal() {
         "good".into(),
         Selector::untagged(),
         HashMap::new(),
-        [0; 3],
+        Rgb([0; 3]),
     )
     .unwrap();
     conn.execute(
@@ -136,14 +137,14 @@ fn the_index_carries_identity_without_reading_any_tree() {
             },
         },
         HashMap::new(),
-        [4, 5, 6],
+        Rgb([4, 5, 6]),
     )
     .unwrap();
 
     let index = list_info(&conn).unwrap();
     assert_eq!(index.len(), 1);
     assert_eq!(index[0].name, "heavy");
-    assert_eq!(index[0].color, [4, 5, 6]);
+    assert_eq!(index[0].color, Rgb([4, 5, 6]));
     // The body is a separate read; asking for none does no query at all.
     assert!(get(&conn, &[]).unwrap().is_empty());
     assert_eq!(get(&conn, &[index[0].id.clone()]).unwrap().len(), 1);
@@ -157,7 +158,7 @@ fn get_ignores_ids_that_are_not_there() {
         "a".into(),
         Selector::untagged(),
         HashMap::new(),
-        [0; 3],
+        Rgb([0; 3]),
     )
     .unwrap();
     let got = get(&conn, &[a.info.id.clone(), "nope".into()]).unwrap();
@@ -286,7 +287,7 @@ fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
         "rule".into(),
         Selector::tag(5),
         tag_names(&[(5, "Japan")]),
-        [1, 2, 3],
+        Rgb([1, 2, 3]),
     )
     .unwrap();
     let mut store = map_with_records();
@@ -318,7 +319,7 @@ fn saved_names_do_not_resurrect_dark_records() {
         "rule".into(),
         Selector::tag(3),
         tag_names(&[(3, "Coastal")]),
-        [1, 2, 3],
+        Rgb([1, 2, 3]),
     )
     .unwrap();
     assert_eq!(
@@ -334,7 +335,7 @@ fn saved_names_do_not_resurrect_dark_records() {
 fn a_missing_saved_leaf_preserves_its_composite_and_child_colors() {
     let conn = setup();
     let mut alive = Selection::of(Selector::tag(5));
-    alive.color = [8, 7, 6];
+    alive.color = Rgb([8, 7, 6]);
     let saved = create(
         &conn,
         "rule".into(),
@@ -342,14 +343,14 @@ fn a_missing_saved_leaf_preserves_its_composite_and_child_colors() {
             selections: vec![alive, Selection::of(Selector::tag(8))],
         },
         tag_names(&[(5, "Japan"), (8, "Gone")]),
-        [1, 2, 3],
+        Rgb([1, 2, 3]),
     )
     .unwrap();
     let Selector::Intersection { selections } = saved.resolved(&mut map_with_records()) else {
         panic!("composite lost")
     };
     assert_eq!(selections[0].selector, Selector::tag(9));
-    assert_eq!(selections[0].color, [8, 7, 6]);
+    assert_eq!(selections[0].color, Rgb([8, 7, 6]));
     assert_eq!(
         selections[1].selector,
         Selector::Locations {

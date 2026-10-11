@@ -9,6 +9,7 @@ use crate::store::engine::{with_store, MutationResult, Store, StoreState, Window
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::now_iso;
+use crate::util::Rgb;
 use rusqlite::Connection;
 use std::collections::HashMap;
 
@@ -20,7 +21,7 @@ use std::collections::HashMap;
 pub struct SavedSelectionInfo {
     pub id: String,
     pub name: String,
-    pub color: [u8; 3],
+    pub color: Rgb,
     pub created_at: String,
 }
 
@@ -37,7 +38,7 @@ pub struct SavedSelection {
 const COLS: &str = "id, name, selector, tag_names, color, created_at";
 
 /// Stand-in color for a rule imported without one.
-const NO_COLOR: [u8; 3] = [128, 128, 128];
+const NO_COLOR: Rgb = Rgb([128, 128, 128]);
 
 // --- Core (testable against any Connection) ---
 
@@ -216,7 +217,7 @@ pub(crate) fn create(
     name: String,
     selector: Selector,
     tag_names: HashMap<u32, String>,
-    color: [u8; 3],
+    color: Rgb,
 ) -> AppResult<SavedSelection> {
     let saved = SavedSelection {
         info: SavedSelectionInfo {
@@ -280,7 +281,7 @@ pub async fn store_save_selection(
     state: tauri::State<'_, StoreState>,
     name: String,
     selector: Selector<super::tree::SelectionInput>,
-    color: [u8; 3],
+    color: Rgb,
 ) -> AppResult<SavedSelection> {
     let selector = selector.map_children(super::tree::SelectionInput::compile);
     // A rule saved with no map open keeps an empty side table: names resolve per map.

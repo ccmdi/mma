@@ -776,7 +776,7 @@ declare const commands$1: {
     /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
     storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
-    storeSetMarkerColor: (color: [number, number, number]) => Promise<null>;
+    storeSetMarkerColor: (color: RGB) => Promise<null>;
     /**
      *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
      *  one entry per row of points.
@@ -973,7 +973,7 @@ declare const commands$1: {
     /**  Fetch the full saved selection rules for the given `ids`, including their selector trees. @unstable */
     storeGetSavedSelections: (ids: string[]) => Promise<SavedSelection[]>;
     /**  Save a new selection rule. @unstable */
-    storeSaveSelection: (name: string, selector: Selector$1<SelectionInput>, color: [number, number, number]) => Promise<SavedSelection>;
+    storeSaveSelection: (name: string, selector: Selector$1<SelectionInput>, color: RGB) => Promise<SavedSelection>;
     /**  Delete a saved selection rule by `id`. @unstable */
     storeDeleteSavedSelection: (id: string) => Promise<null>;
     /**
@@ -2363,6 +2363,8 @@ type QueryActivity = {
     /**  Requests retried so far by the queries in flight. */
     retries: number;
 };
+/**  A colour as red, green and blue bytes, serialized as `[r, g, b]`. */
+type RGB = [number, number, number];
 /**  Rate limit: `units` calls per `perMs` milliseconds, refilled continuously. @unstable */
 type RateSpec = {
     units: number;
@@ -2381,7 +2383,7 @@ type RenderRequest = {
     north?: number;
     selectedIds?: number[] | null;
     markerStyle?: string;
-    markerColor?: [number, number, number] | null;
+    markerColor?: RGB | null;
 };
 /**  One location's answer from a procedure, as the JSON its module emitted. @unstable */
 type ResultEntry = {
@@ -2489,7 +2491,7 @@ type SavedSelection = {
 type SavedSelectionInfo = {
     id: string;
     name: string;
-    color: [number, number, number];
+    color: RGB;
     createdAt: string;
 };
 /**
@@ -2565,13 +2567,13 @@ type SeenWriteEntry = {
 };
 type Selection = {
     key: string;
-    color: [number, number, number];
+    color: RGB;
     selector: Selector$1;
 };
 /** @unstable */
 type SelectionInput = {
     selector: Selector$1<SelectionInput>;
-    color?: [number, number, number] | null;
+    color?: RGB | null;
 };
 /** @unstable */
 type SelectionOp = {
@@ -2643,7 +2645,7 @@ type SelectionOp = {
     /** @unstable */
     kind: "color";
     path: number[];
-    color: [number, number, number];
+    color: RGB;
 } | {
     /** @unstable */
     kind: "polygonName";
@@ -2653,7 +2655,7 @@ type SelectionOp = {
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
 type Selector$1<S = {
     key: string;
-    color: [number, number, number];
+    color: RGB;
     selector: Selector$1;
 }> = {
     type: "Locations";
@@ -3192,76 +3194,6 @@ declare const types_setPinned: typeof setPinned;
 declare namespace types {
   export { types_bboxTupleToBounds as bboxTupleToBounds, types_boundsToScoreTuple as boundsToScoreTuple, types_createFieldDef as createFieldDef, types_createLocation as createLocation, types_dropLocation as dropLocation, types_isPinned as isPinned, types_isWorldBounds as isWorldBounds, types_locId as locId, types_scoreTupleToBounds as scoreTupleToBounds, types_setPinned as setPinned };
   export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_Selector as Selector, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, types_Tag as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
-}
-
-/** An [r, g, b] byte tuple. */
-export type RGB = [number, number, number];
-/** An [r, g, b, a] byte tuple. @unstable */
-export type RGBA = [...RGB, number];
-/** Hue in degrees, saturation and lightness in percent. @unstable */
-export type HSL = {
-    h: number;
-    s: number;
-    l: number;
-};
-/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
-declare function hexToRgb(hex: string): RGB;
-/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
-declare function textColorFor(bg: string): string;
-/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
- *  ramp name (legacy stored format). @unstable */
-declare function resolveSvColorHex(color: string): string;
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
-declare function applyAccentColor(hex: string): void;
-/** Convert "#rrggbb" to HSL. @unstable */
-declare function hexToHsl(hex: string): HSL;
-/** Convert HSL to "#rrggbb". @unstable */
-declare function hslToHex({ h, s, l }: HSL): string;
-/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
-declare function hslToRgb(h: number, s: number, l: number): RGB;
-/**
- * Deterministic tag color from a name.
- *  @unstable
- */
-declare function colorForName(name: string): string;
-/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
-declare function rgbCss([r, g, b]: RGB): string;
-/** Convert an RGB byte tuple to "#rrggbb". @unstable */
-declare function rgbToHex(rgb: RGB): string;
-/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
-declare function labelColor(name: string, overrides: Record<string, string>): string;
-
-/** @unstable */
-export type colorUtils_HSL = HSL;
-/** @unstable */
-export type colorUtils_RGB = RGB;
-/** @unstable */
-export type colorUtils_RGBA = RGBA;
-/** @unstable */
-declare const colorUtils_applyAccentColor: typeof applyAccentColor;
-/** @unstable */
-declare const colorUtils_colorForName: typeof colorForName;
-/** @unstable */
-declare const colorUtils_hexToHsl: typeof hexToHsl;
-/** @unstable */
-declare const colorUtils_hexToRgb: typeof hexToRgb;
-/** @unstable */
-declare const colorUtils_hslToHex: typeof hslToHex;
-/** @unstable */
-declare const colorUtils_hslToRgb: typeof hslToRgb;
-/** @unstable */
-declare const colorUtils_labelColor: typeof labelColor;
-/** @unstable */
-declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
-/** @unstable */
-declare const colorUtils_rgbCss: typeof rgbCss;
-/** @unstable */
-declare const colorUtils_rgbToHex: typeof rgbToHex;
-/** @unstable */
-declare const colorUtils_textColorFor: typeof textColorFor;
-declare namespace colorUtils {
-  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
-  export type { colorUtils_HSL as HSL, colorUtils_RGB as RGB, colorUtils_RGBA as RGBA };
 }
 
 /** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
@@ -7191,6 +7123,72 @@ declare namespace mapState {
   };
 }
 
+/** An [r, g, b, a] byte tuple. @unstable */
+export type RGBA = [...RGB, number];
+/** Hue in degrees, saturation and lightness in percent. @unstable */
+export type HSL = {
+    h: number;
+    s: number;
+    l: number;
+};
+/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
+declare function hexToRgb(hex: string): RGB;
+/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
+declare function textColorFor(bg: string): string;
+/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ *  ramp name (legacy stored format). @unstable */
+declare function resolveSvColorHex(color: string): string;
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
+declare function applyAccentColor(hex: string): void;
+/** Convert "#rrggbb" to HSL. @unstable */
+declare function hexToHsl(hex: string): HSL;
+/** Convert HSL to "#rrggbb". @unstable */
+declare function hslToHex({ h, s, l }: HSL): string;
+/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
+declare function hslToRgb(h: number, s: number, l: number): RGB;
+/**
+ * Deterministic tag color from a name.
+ *  @unstable
+ */
+declare function colorForName(name: string): string;
+/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
+declare function rgbCss([r, g, b]: RGB): string;
+/** Convert an RGB byte tuple to "#rrggbb". @unstable */
+declare function rgbToHex(rgb: RGB): string;
+/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
+declare function labelColor(name: string, overrides: Record<string, string>): string;
+
+/** @unstable */
+export type colorUtils_HSL = HSL;
+/** @unstable */
+export type colorUtils_RGBA = RGBA;
+/** @unstable */
+declare const colorUtils_applyAccentColor: typeof applyAccentColor;
+/** @unstable */
+declare const colorUtils_colorForName: typeof colorForName;
+/** @unstable */
+declare const colorUtils_hexToHsl: typeof hexToHsl;
+/** @unstable */
+declare const colorUtils_hexToRgb: typeof hexToRgb;
+/** @unstable */
+declare const colorUtils_hslToHex: typeof hslToHex;
+/** @unstable */
+declare const colorUtils_hslToRgb: typeof hslToRgb;
+/** @unstable */
+declare const colorUtils_labelColor: typeof labelColor;
+/** @unstable */
+declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
+/** @unstable */
+declare const colorUtils_rgbCss: typeof rgbCss;
+/** @unstable */
+declare const colorUtils_rgbToHex: typeof rgbToHex;
+/** @unstable */
+declare const colorUtils_textColorFor: typeof textColorFor;
+declare namespace colorUtils {
+  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
+  export type { colorUtils_HSL as HSL, colorUtils_RGBA as RGBA };
+}
+
 /** The shared scene that all map surfaces render from. @unstable */
 declare function getScene(): CellManager;
 /** Set the default marker color (RGB bytes). @unstable */
@@ -7903,4 +7901,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RowOp, Rows, SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

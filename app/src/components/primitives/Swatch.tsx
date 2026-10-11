@@ -1,5 +1,6 @@
 import clsx from "clsx";
-import { rgbCss, type RGB } from "@/lib/util/color";
+import { rgbCss } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 
 /** A small block of color standing for a selection, a group or a series. */
 export function Swatch({

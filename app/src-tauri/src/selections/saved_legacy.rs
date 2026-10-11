@@ -10,6 +10,7 @@ use super::{insert, SavedSelection, SavedSelectionInfo, NO_COLOR};
 use crate::selections::{Selection, Selector};
 use crate::store::storage;
 use crate::types::AppResult;
+use crate::util::Rgb;
 use crate::util::{now_iso, unix_ms_to_iso};
 use rusqlite::Connection;
 use std::collections::HashMap;
@@ -31,7 +32,7 @@ struct LegacyRule {
 struct LegacyItem {
     props: serde_json::Value,
     #[serde(default)]
-    color: Option<[u8; 3]>,
+    color: Option<Rgb>,
 }
 
 /// Rewrites `TagName` leaves to `Tag` leaves carrying a synthetic id, recording each

@@ -13,6 +13,7 @@ use crate::store::engine::{pick_even, pick_spaced, SpacedPickResult, SPATIAL_CEL
 use crate::store::maps::IndexShape;
 use crate::types;
 use crate::types::{Location, LocationFlags, RawExtra};
+use crate::util::Rgb;
 use arrow_array::RecordBatch;
 use mma_algebra::{rank_by, Change, Keyed};
 use mma_fields::Children;
@@ -255,7 +256,7 @@ pub struct PolygonGeometry {
 #[serde(rename_all = "camelCase")]
 pub struct Selection {
     pub key: String,
-    pub color: [u8; 3],
+    pub color: Rgb,
     pub selector: Selector,
 }
 
@@ -329,7 +330,7 @@ impl Selection {
         next
     }
 
-    fn named_value_color(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> [u8; 3] {
+    fn named_value_color(&self, color: &impl Fn(&str, u32) -> Option<Rgb>) -> Rgb {
         let inner = match &self.selector {
             Selector::Invert { selections } => selections.first().unwrap_or(self),
             _ => self,
@@ -342,7 +343,7 @@ impl Selection {
     }
 
     /// Use the named value's colour for membership nodes when available.
-    pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<[u8; 3]>) -> Self {
+    pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<Rgb>) -> Self {
         self.fold(&mut |node, children| Self {
             key: node.key.clone(),
             color: node.named_value_color(color),

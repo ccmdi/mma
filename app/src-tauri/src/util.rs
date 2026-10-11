@@ -3,11 +3,13 @@
 //! Provides timestamps, color math, hashing, and deterministic tag color
 //! assignment. No I/O, no state -- safe to call from any context.
 
-use crate::types::AppResult;
+use crate::types::{AppError, AppResult};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::fmt;
+use std::str::FromStr;
 use std::sync::OnceLock;
 use tauri::async_runtime;
 
@@ -109,46 +111,63 @@ pub fn tz_offset_seconds(tz_name: &str, ts: f64) -> Option<i32> {
     Some(table.offset_at(zone, ts as i64))
 }
 
-/// Converts HSL to RGB. `h` is in degrees [0, 360), `s` and `l` in [0, 1].
-#[allow(
-    clippy::manual_clamp,
-    reason = "the min/max chain scrubs a NaN that clamp would carry into the u8 cast"
+/// A colour as red, green and blue bytes, serialized as `[r, g, b]`.
+#[derive(
+    Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, specta::Type,
 )]
-pub fn hsl_to_rgb(h: f64, s: f64, l: f64) -> (u8, u8, u8) {
-    let a = s * l.min(1.0 - l);
-    let f = |n: f64| -> u8 {
-        let k = (n + h / 30.0) % 12.0;
-        (255.0 * (l - a * (k - 3.0).min(9.0 - k).min(1.0).max(-1.0))).round() as u8
-    };
-    (f(0.0), f(8.0), f(4.0))
-}
+#[serde(transparent)]
+#[serde(rename = "RGB")]
+pub struct Rgb(pub [u8; 3]);
 
-/// Generates a deterministic hex color string from a tag name.
-///
-/// Hashes the name bytes into a hue via a linear congruential generator,
-/// then converts to RGB at fixed saturation/lightness (50%/50%) so every
-/// tag gets a distinct, moderately saturated color that's stable across sessions.
-pub fn color_for_name(name: &str) -> String {
-    let mut h: i32 = 0;
-    for b in name.bytes() {
-        h = h.wrapping_add((b as i32).wrapping_add(h << 5));
+impl Rgb {
+    /// `h` is in degrees [0, 360), `s` and `l` in [0, 1].
+    #[allow(
+        clippy::manual_clamp,
+        reason = "the min/max chain scrubs a NaN that clamp would carry into the u8 cast"
+    )]
+    pub fn hsl(h: f64, s: f64, l: f64) -> Self {
+        let a = s * l.min(1.0 - l);
+        Rgb([0.0, 8.0, 4.0].map(|n| {
+            let k = (n + h / 30.0) % 12.0;
+            (255.0 * (l - a * (k - 3.0).min(9.0 - k).min(1.0).max(-1.0))).round() as u8
+        }))
     }
-    h = h.wrapping_mul(214013).wrapping_add(2531011);
-    let hue = (h.abs() % 360) as f64;
-    let (r, g, b) = hsl_to_rgb(hue, 0.5, 0.5);
-    format!("#{r:02x}{g:02x}{b:02x}")
+
+    /// A tag's colour when it has none of its own: a hue hashed from its name, stable
+    /// across sessions.
+    pub fn for_name(name: &str) -> Self {
+        let mut h: i32 = 0;
+        for b in name.bytes() {
+            h = h.wrapping_add((b as i32).wrapping_add(h << 5));
+        }
+        h = h.wrapping_mul(214013).wrapping_add(2531011);
+        Rgb::hsl((h.abs() % 360) as f64, 0.5, 0.5)
+    }
 }
 
-/// Parses a "#rrggbb" hex color string to an RGB byte array.
-pub fn hex_to_rgb(hex: &str) -> Option<[u8; 3]> {
-    let h = hex.trim_start_matches('#');
-    let h: String = match h.len() {
-        3 => h.chars().flat_map(|c| [c, c]).collect(),
-        6 => h.into(),
-        _ => return None,
-    };
-    let n = u32::from_str_radix(&h, 16).ok()?;
-    Some([(n >> 16) as u8, (n >> 8) as u8, n as u8])
+/// `#rrggbb` or `#rgb`, with or without the `#`.
+impl FromStr for Rgb {
+    type Err = AppError;
+
+    fn from_str(hex: &str) -> AppResult<Self> {
+        let h = hex.trim_start_matches('#');
+        let h: String = match h.len() {
+            3 => h.chars().flat_map(|c| [c, c]).collect(),
+            6 => h.into(),
+            _ => return Err(AppError(format!("'{hex}' is not a hex colour"))),
+        };
+        let n = u32::from_str_radix(&h, 16)
+            .map_err(|_| AppError(format!("'{hex}' is not a hex colour")))?;
+        Ok(Rgb([(n >> 16) as u8, (n >> 8) as u8, n as u8]))
+    }
+}
+
+/// `#rrggbb`.
+impl fmt::Display for Rgb {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let [r, g, b] = self.0;
+        write!(f, "#{r:02x}{g:02x}{b:02x}")
+    }
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {

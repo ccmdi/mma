@@ -16,6 +16,7 @@ use crate::types::Location;
 use crate::types::RawExtra;
 use crate::types::{AppError, AppResult};
 use crate::util;
+use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
 use mma_algebra::{Edit, Op, Patch};
@@ -267,7 +268,7 @@ pub fn store_set_derived(
 pub fn store_set_marker_color(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    color: [u8; 3],
+    color: Rgb,
 ) -> AppResult<()> {
     with_store!(label, state, |store| {
         store.render.marker_color = color;

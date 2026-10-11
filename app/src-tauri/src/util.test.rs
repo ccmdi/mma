@@ -19,115 +19,65 @@ fn tz_offset_fixed_and_dst() {
 }
 
 #[test]
-fn hsl_pure_red() {
-    let (r, g, b) = hsl_to_rgb(0.0, 1.0, 0.5);
-    assert_eq!(r, 255);
-    assert_eq!(g, 0);
-    assert_eq!(b, 0);
+fn hsl_primaries() {
+    assert_eq!(Rgb::hsl(0.0, 1.0, 0.5), Rgb([255, 0, 0]));
+    assert_eq!(Rgb::hsl(120.0, 1.0, 0.5), Rgb([0, 255, 0]));
+    assert_eq!(Rgb::hsl(240.0, 1.0, 0.5), Rgb([0, 0, 255]));
 }
 
 #[test]
-fn hsl_pure_green() {
-    let (r, g, b) = hsl_to_rgb(120.0, 1.0, 0.5);
-    assert_eq!(r, 0);
-    assert_eq!(g, 255);
-    assert_eq!(b, 0);
+fn hsl_greys() {
+    assert_eq!(Rgb::hsl(0.0, 0.0, 1.0), Rgb([255, 255, 255]));
+    assert_eq!(Rgb::hsl(0.0, 0.0, 0.0), Rgb([0, 0, 0]));
+    assert_eq!(Rgb::hsl(0.0, 0.0, 0.5), Rgb([128, 128, 128]));
 }
 
 #[test]
-fn hsl_pure_blue() {
-    let (r, g, b) = hsl_to_rgb(240.0, 1.0, 0.5);
-    assert_eq!(r, 0);
-    assert_eq!(g, 0);
-    assert_eq!(b, 255);
-}
-
-#[test]
-fn hsl_white() {
-    let (r, g, b) = hsl_to_rgb(0.0, 0.0, 1.0);
-    assert_eq!((r, g, b), (255, 255, 255));
-}
-
-#[test]
-fn hsl_black() {
-    let (r, g, b) = hsl_to_rgb(0.0, 0.0, 0.0);
-    assert_eq!((r, g, b), (0, 0, 0));
-}
-
-#[test]
-fn hsl_mid_gray() {
-    let (r, g, b) = hsl_to_rgb(0.0, 0.0, 0.5);
-    assert_eq!(r, g);
-    assert_eq!(g, b);
-    assert_eq!(r, 128);
-}
-
-#[test]
-fn color_for_name_returns_hex() {
-    let c = color_for_name("test");
-    assert!(c.starts_with('#'));
-    assert_eq!(c.len(), 7);
-}
-
-#[test]
-fn color_for_name_deterministic() {
-    assert_eq!(color_for_name("hello"), color_for_name("hello"));
-}
-
-#[test]
-fn color_for_name_varies() {
-    assert_ne!(color_for_name("alpha"), color_for_name("beta"));
+fn for_name_is_deterministic_and_varies() {
+    assert_eq!(Rgb::for_name("hello"), Rgb::for_name("hello"));
+    assert_ne!(Rgb::for_name("alpha"), Rgb::for_name("beta"));
 }
 
 // Ground-truth fixtures shared with the JS port (app/test/unit/colorForName.test.ts).
 // If either side drifts, one of the two suites goes red. Keep both lists identical.
 #[test]
-fn color_for_name_parity_fixtures() {
-    assert_eq!(color_for_name("red"), "#bf9940");
-    assert_eq!(color_for_name("blue"), "#6c40bf");
-    assert_eq!(color_for_name("urban"), "#40acbf");
-    assert_eq!(color_for_name("test"), "#40bfbd");
-    assert_eq!(color_for_name("hello"), "#4fbf40");
-    assert_eq!(color_for_name("Tag 1"), "#bf40ae");
-    assert_eq!(color_for_name("café"), "#9340bf");
-    assert_eq!(color_for_name("東京"), "#bf4071");
-    assert_eq!(color_for_name(""), "#407dbf");
+fn for_name_parity_fixtures() {
+    for (name, hex) in [
+        ("red", "#bf9940"),
+        ("blue", "#6c40bf"),
+        ("urban", "#40acbf"),
+        ("test", "#40bfbd"),
+        ("hello", "#4fbf40"),
+        ("Tag 1", "#bf40ae"),
+        ("café", "#9340bf"),
+        ("東京", "#bf4071"),
+        ("", "#407dbf"),
+    ] {
+        assert_eq!(Rgb::for_name(name).to_string(), hex, "{name}");
+    }
 }
 
 #[test]
-fn hex_to_rgb_with_hash() {
-    assert_eq!(hex_to_rgb("#ff8800"), Some([255, 136, 0]));
+fn hex_parses_with_or_without_hash_and_in_shorthand() {
+    assert_eq!("#ff8800".parse::<Rgb>().unwrap(), Rgb([255, 136, 0]));
+    assert_eq!("00ff00".parse::<Rgb>().unwrap(), Rgb([0, 255, 0]));
+    assert_eq!("#f80".parse::<Rgb>().unwrap(), Rgb([255, 136, 0]));
 }
 
 #[test]
-fn hex_to_rgb_without_hash() {
-    assert_eq!(hex_to_rgb("00ff00"), Some([0, 255, 0]));
+fn hex_rejects_bad_length_and_characters() {
+    assert!("#ffff".parse::<Rgb>().is_err());
+    assert!("".parse::<Rgb>().is_err());
+    assert!("#gggggg".parse::<Rgb>().is_err());
 }
 
 #[test]
-fn hex_to_rgb_black() {
-    assert_eq!(hex_to_rgb("#000000"), Some([0, 0, 0]));
-}
-
-#[test]
-fn hex_to_rgb_white() {
-    assert_eq!(hex_to_rgb("#ffffff"), Some([255, 255, 255]));
-}
-
-#[test]
-fn hex_to_rgb_shorthand() {
-    assert_eq!(hex_to_rgb("#f80"), Some([255, 136, 0]));
-}
-
-#[test]
-fn hex_to_rgb_invalid_length() {
-    assert_eq!(hex_to_rgb("#ffff"), None);
-    assert_eq!(hex_to_rgb(""), None);
-}
-
-#[test]
-fn hex_to_rgb_invalid_chars() {
-    assert_eq!(hex_to_rgb("#gggggg"), None);
+fn hex_round_trips_and_the_wire_form_is_a_byte_array() {
+    let c = Rgb([58, 127, 194]);
+    assert_eq!(c.to_string(), "#3a7fc2");
+    assert_eq!(c.to_string().parse::<Rgb>().unwrap(), c);
+    assert_eq!(serde_json::to_string(&c).unwrap(), "[58,127,194]");
+    assert!(serde_json::from_str::<Rgb>("[300,0,0]").is_err());
 }
 
 #[test]

@@ -13,7 +13,7 @@ import { getMarkerDefaultColor } from "@/lib/render/sceneStore";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { MarkerStyle } from "@/types";
 import type { LatLng } from "@/types";
-import type { Location, SeenEntry } from "@/bindings.gen";
+import type { Location, RGB, SeenEntry } from "@/bindings.gen";
 import {
 	isSeenOverlayActive,
 	getSeenOverlayEntries,
@@ -31,7 +31,7 @@ import {
 	getMeasureSegments,
 	MEASURE_NODE_PX,
 } from "@/lib/sv/measure";
-import type { RGB, RGBA } from "@/lib/util/color";
+import type { RGBA } from "@/lib/util/color";
 import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
 
 /** Lines drawn at a fixed on-screen width. */

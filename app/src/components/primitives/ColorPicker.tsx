@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Popover } from "@base-ui-components/react/popover";
 import { RgbColorPicker } from "react-colorful";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
-import { rgbCss, type RGB } from "@/lib/util/color";
+import { rgbCss } from "@/lib/util/color";
+import type { RGB } from "@/bindings.gen";
 import { t } from "@/lib/i18n";
 
 /** A color picker surface without a swatch. Takes and returns an `[r, g, b]` tuple, debounced. @unstable */

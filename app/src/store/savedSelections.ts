@@ -2,8 +2,14 @@
  * so rules can be applied on maps with different tag ids. */
 
 import type { Selector } from "@/types";
-import type { SavedSelection, SavedSelectionInfo, Selection, SelectionInput } from "@/bindings.gen";
-import type { RGB } from "@/lib/util/color";
+import type {
+	RGB,
+	SavedSelection,
+	SavedSelectionInfo,
+	Selection,
+	SelectionInput,
+} from "@/bindings.gen";
+
 import { selection, childSelections, selectionDisplayName } from "./selections";
 import { cmd } from "@/lib/commands";
 import { importLegacySavedSelections } from "./migrations";
