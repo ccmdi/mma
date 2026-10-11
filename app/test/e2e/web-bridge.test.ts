@@ -23,7 +23,7 @@ import { setFaults } from "./parityDriver";
 /** Markers this tab's scene holds, once it has applied every frame sent so far. */
 const sceneTotal = () =>
 	withApi(async (api) => {
-		await api.sceneReached(
+		await api.Scene.reached(
 			(
 				(await api.cmd.storeSummary()) as {
 					locationCount: number;
@@ -32,7 +32,7 @@ const sceneTotal = () =>
 				}
 			).version,
 		);
-		return api.getScene().totalCount;
+		return api.Scene.get().totalCount;
 	});
 
 describe("Web bridge", () => {

@@ -4,7 +4,7 @@ import { Autosave } from "./autosave";
 import { Feed } from "./feed";
 import type { Location } from "@/bindings.gen";
 import type { MutationResult } from "@/bindings.gen";
-import { sceneReached } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 
 export type Mutation<T = Location> = bindings.Mutation<T>;
 
@@ -13,7 +13,7 @@ const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
 export const Mutation = {
 	settle: async (m: Mutation): Promise<void> => {
 		await Autosave.waitForInflight();
-		await Promise.all([sceneReached(m.version), Feed.waitFor(m.version)]);
+		await Promise.all([Scene.reached(m.version), Feed.waitFor(m.version)]);
 		Autosave.schedule();
 	},
 	run: async <R extends MutationResult = MutationResult>(

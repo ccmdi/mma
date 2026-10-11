@@ -525,12 +525,12 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 		run: () =>
 			withApi(async (api) => {
 				const start = performance.now();
-				await api.loadScene("pin");
+				await api.Scene.load("pin");
 				const durationMs = performance.now() - start;
 				return {
 					durationMs,
 					operationMs: durationMs,
-					metrics: { markers: api.getScene().totalCount },
+					metrics: { markers: api.Scene.get().totalCount },
 				};
 			}),
 	});

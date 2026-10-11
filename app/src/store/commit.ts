@@ -4,7 +4,7 @@ import { Mutation } from "./mutation";
 import { Autosave } from "./autosave";
 import { cmd } from "@/lib/commands";
 import { trace } from "@/lib/util/debug";
-import { loadScene } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { CommitDiff } from "./commitDiff";
 
 export const Commit = {
@@ -33,7 +33,7 @@ export const Commit = {
 		const map = await cmd.storeGetMap(Store.get().mapId!);
 		Store.patch({ map, open: null });
 
-		void loadScene();
+		void Scene.load();
 		await Maps.invalidate();
 	},
 };

@@ -3823,6 +3823,98 @@ declare const SavedSelection: {
     apply: (saved: SavedSelection) => number;
 };
 
+/** An [r, g, b, a] byte tuple. @unstable */
+export type RGBA = [...RGB, number];
+/** Hue in degrees, saturation and lightness in percent. @unstable */
+export type HSL = {
+    h: number;
+    s: number;
+    l: number;
+};
+/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
+declare function hexToRgb(hex: string): RGB;
+/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
+declare function textColorFor(bg: string): string;
+/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
+ *  ramp name (legacy stored format). @unstable */
+declare function resolveSvColorHex(color: string): string;
+/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
+declare function applyAccentColor(hex: string): void;
+/** Convert "#rrggbb" to HSL. @unstable */
+declare function hexToHsl(hex: string): HSL;
+/** Convert HSL to "#rrggbb". @unstable */
+declare function hslToHex({ h, s, l }: HSL): string;
+/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
+declare function hslToRgb(h: number, s: number, l: number): RGB;
+/**
+ * Deterministic tag color from a name.
+ *  @unstable
+ */
+declare function colorForName(name: string): string;
+/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
+declare function rgbCss([r, g, b]: RGB): string;
+/** Convert an RGB byte tuple to "#rrggbb". @unstable */
+declare function rgbToHex(rgb: RGB): string;
+/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
+declare function labelColor(name: string, overrides: Record<string, string>): string;
+
+/** @unstable */
+export type colorUtils_HSL = HSL;
+/** @unstable */
+export type colorUtils_RGBA = RGBA;
+/** @unstable */
+declare const colorUtils_applyAccentColor: typeof applyAccentColor;
+/** @unstable */
+declare const colorUtils_colorForName: typeof colorForName;
+/** @unstable */
+declare const colorUtils_hexToHsl: typeof hexToHsl;
+/** @unstable */
+declare const colorUtils_hexToRgb: typeof hexToRgb;
+/** @unstable */
+declare const colorUtils_hslToHex: typeof hslToHex;
+/** @unstable */
+declare const colorUtils_hslToRgb: typeof hslToRgb;
+/** @unstable */
+declare const colorUtils_labelColor: typeof labelColor;
+/** @unstable */
+declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
+/** @unstable */
+declare const colorUtils_rgbCss: typeof rgbCss;
+/** @unstable */
+declare const colorUtils_rgbToHex: typeof rgbToHex;
+/** @unstable */
+declare const colorUtils_textColorFor: typeof textColorFor;
+declare namespace colorUtils {
+  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
+  export type { colorUtils_HSL as HSL, colorUtils_RGBA as RGBA };
+}
+
+/** @unstable */
+declare const Scene: {
+    /** The shared scene that all map surfaces render from. @unstable */
+    get: () => CellManager;
+    /** Set the default marker color (RGB bytes). @unstable */
+    setDefaultColor: (r: number, g: number, b: number) => void;
+    /** Change the default marker color and repaint. @unstable */
+    recolor: (mc: RGB) => void;
+    /** Current default marker color as RGBA. @unstable */
+    defaultColor: () => RGBA;
+    /**
+     * Resolves once the scene has applied the frame for map version `version`, with what that
+     * frame did. Resolves at once, with nothing applied, when the scene follows no map.
+     * @unstable
+     */
+    reached: (version: number) => Promise<FrameSummary>;
+    /** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
+    settled: () => Promise<void>;
+    /** Load the whole scene again and follow every change to it from there. @unstable */
+    load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
+    /** Clear all marker data from the scene and stop following the map. @unstable */
+    clear: () => void;
+    /** Start following open-location changes. Returns a stop function. @unstable */
+    start: () => (() => void);
+};
+
 /** Pure selection transforms: build, compose, invert, rewrite, and remove selections. */
 
 /** Selector variants with child selections. @unstable */
@@ -6931,127 +7023,6 @@ declare namespace mapState {
   };
 }
 
-/** An [r, g, b, a] byte tuple. @unstable */
-export type RGBA = [...RGB, number];
-/** Hue in degrees, saturation and lightness in percent. @unstable */
-export type HSL = {
-    h: number;
-    s: number;
-    l: number;
-};
-/** Parse "#rrggbb" or "#rgb" to an [r, g, b] byte tuple; black when it is not hex. @unstable */
-declare function hexToRgb(hex: string): RGB;
-/** Return "#000" or "#fff" for readable text on the given hex background. @unstable */
-declare function textColorFor(bg: string): string;
-/** Resolve an SV coverage color to hex. Accepts "#rrggbb" or a CSS custom-property
- *  ramp name (legacy stored format). @unstable */
-declare function resolveSvColorHex(color: string): string;
-/** Set the app's `--accent` and `--on-accent` CSS custom properties from a hex color. @unstable */
-declare function applyAccentColor(hex: string): void;
-/** Convert "#rrggbb" to HSL. @unstable */
-declare function hexToHsl(hex: string): HSL;
-/** Convert HSL to "#rrggbb". @unstable */
-declare function hslToHex({ h, s, l }: HSL): string;
-/** Convert HSL (h in degrees, s and l in 0-1) to an RGB byte tuple. @unstable */
-declare function hslToRgb(h: number, s: number, l: number): RGB;
-/**
- * Deterministic tag color from a name.
- *  @unstable
- */
-declare function colorForName(name: string): string;
-/** Format an RGB tuple as a CSS `rgb(r, g, b)` string. @unstable */
-declare function rgbCss([r, g, b]: RGB): string;
-/** Convert an RGB byte tuple to "#rrggbb". @unstable */
-declare function rgbToHex(rgb: RGB): string;
-/** A label's color: a user override if set, else a deterministic color from its name. @unstable */
-declare function labelColor(name: string, overrides: Record<string, string>): string;
-
-/** @unstable */
-export type colorUtils_HSL = HSL;
-/** @unstable */
-export type colorUtils_RGBA = RGBA;
-/** @unstable */
-declare const colorUtils_applyAccentColor: typeof applyAccentColor;
-/** @unstable */
-declare const colorUtils_colorForName: typeof colorForName;
-/** @unstable */
-declare const colorUtils_hexToHsl: typeof hexToHsl;
-/** @unstable */
-declare const colorUtils_hexToRgb: typeof hexToRgb;
-/** @unstable */
-declare const colorUtils_hslToHex: typeof hslToHex;
-/** @unstable */
-declare const colorUtils_hslToRgb: typeof hslToRgb;
-/** @unstable */
-declare const colorUtils_labelColor: typeof labelColor;
-/** @unstable */
-declare const colorUtils_resolveSvColorHex: typeof resolveSvColorHex;
-/** @unstable */
-declare const colorUtils_rgbCss: typeof rgbCss;
-/** @unstable */
-declare const colorUtils_rgbToHex: typeof rgbToHex;
-/** @unstable */
-declare const colorUtils_textColorFor: typeof textColorFor;
-declare namespace colorUtils {
-  export { colorUtils_applyAccentColor as applyAccentColor, colorUtils_colorForName as colorForName, colorUtils_hexToHsl as hexToHsl, colorUtils_hexToRgb as hexToRgb, colorUtils_hslToHex as hslToHex, colorUtils_hslToRgb as hslToRgb, colorUtils_labelColor as labelColor, colorUtils_resolveSvColorHex as resolveSvColorHex, colorUtils_rgbCss as rgbCss, colorUtils_rgbToHex as rgbToHex, colorUtils_textColorFor as textColorFor };
-  export type { colorUtils_HSL as HSL, colorUtils_RGBA as RGBA };
-}
-
-/** The shared scene that all map surfaces render from. @unstable */
-declare function getScene(): CellManager;
-/** Set the default marker color (RGB bytes). @unstable */
-declare function setMarkerDefaultColor(r: number, g: number, b: number): void;
-/** Change the default marker color and repaint. @unstable */
-declare function recolorScene(mc: RGB): void;
-/** Current default marker color as RGBA. @unstable */
-declare function getMarkerDefaultColor(): RGBA;
-/**
- * Resolves once the scene has applied the frame for map version `version`, with what that
- * frame did. Resolves at once, with nothing applied, when the scene follows no map.
- * @unstable
- */
-declare function sceneReached(version: number): Promise<FrameSummary>;
-/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). @unstable */
-declare function whenSceneSettled(): Promise<void>;
-/** Load the whole scene again and follow every change to it from there. @unstable */
-declare function loadScene(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>;
-/** Clear all marker data from the scene and stop following the map. @unstable */
-declare function clearScene(): void;
-/** Start following open-location changes. Returns a stop function. @unstable */
-declare function startSceneEngine(): () => void;
-
-/** @unstable */
-declare const sceneStore_clearScene: typeof clearScene;
-/** @unstable */
-declare const sceneStore_getMarkerDefaultColor: typeof getMarkerDefaultColor;
-/** @unstable */
-declare const sceneStore_getScene: typeof getScene;
-/** @unstable */
-declare const sceneStore_loadScene: typeof loadScene;
-/** @unstable */
-declare const sceneStore_recolorScene: typeof recolorScene;
-/** @unstable */
-declare const sceneStore_sceneReached: typeof sceneReached;
-/** @unstable */
-declare const sceneStore_setMarkerDefaultColor: typeof setMarkerDefaultColor;
-/** @unstable */
-declare const sceneStore_startSceneEngine: typeof startSceneEngine;
-/** @unstable */
-declare const sceneStore_whenSceneSettled: typeof whenSceneSettled;
-declare namespace sceneStore {
-  export {
-    sceneStore_clearScene as clearScene,
-    sceneStore_getMarkerDefaultColor as getMarkerDefaultColor,
-    sceneStore_getScene as getScene,
-    sceneStore_loadScene as loadScene,
-    sceneStore_recolorScene as recolorScene,
-    sceneStore_sceneReached as sceneReached,
-    sceneStore_setMarkerDefaultColor as setMarkerDefaultColor,
-    sceneStore_startSceneEngine as startSceneEngine,
-    sceneStore_whenSceneSettled as whenSceneSettled,
-  };
-}
-
 /** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). @unstable */
 declare function getScenePositions(): {
     ids: Uint32Array;
@@ -7944,8 +7915,6 @@ export type ValidationCategoriesApi = typeof validationCategories;
 export type QueryApi = typeof query$1;
 /** The embedded map host, its preferences, and click interceptors. @unstable */
 export type MapStateApi = typeof mapState;
-/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
-export type SceneStoreApi = typeof sceneStore;
 /** Screen positions of the rendered markers. @unstable */
 export type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
@@ -7963,7 +7932,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, SceneStoreApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, ReviewApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, SeenApi, SeenRecorderApi, PanoApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, MapStateApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -7998,6 +7967,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     Import: typeof Import;
     /** Saved selection rules. @unstable */
     SavedSelection: typeof SavedSelection;
+    /** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
+    Scene: typeof Scene;
 }
 
 declare global {

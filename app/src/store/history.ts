@@ -5,7 +5,7 @@ import { Editor } from "./editor";
 import type { EntryKey } from "@/bindings.gen";
 import type { Stack } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
-import { sceneReached } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { log } from "@/lib/util/log";
 
 export type History = bindings.History;
@@ -14,7 +14,7 @@ export type History = bindings.History;
 async function step(stack: Stack) {
 	try {
 		const r = await Mutation.run(() => cmd.storeStep(stack, null));
-		const { removed } = await sceneReached(r.mutation.version);
+		const { removed } = await Scene.reached(r.mutation.version);
 		const state = Store.get();
 		if (state.open && removed.includes(state.open.id)) Editor.setArea("overview");
 	} catch (e) {

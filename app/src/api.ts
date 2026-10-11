@@ -17,6 +17,7 @@ import { Field } from "@/store/field";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { SavedSelection } from "@/store/savedSelection";
+import { Scene } from "@/lib/render/scene";
 import * as consts from "@/bindings.consts";
 import * as selectionOps from "@/store/selections";
 import * as settings from "@/store/settings";
@@ -47,7 +48,6 @@ import * as validate from "@/lib/sv/validate";
 import * as validationCategories from "@/lib/sv/validationCategories";
 import * as query from "@/lib/sv/query";
 import * as mapState from "@/lib/map/mapState";
-import * as sceneStore from "@/lib/render/sceneStore";
 import * as scenePositions from "@/lib/render/scenePositions";
 import * as colorUtils from "@/lib/util/color";
 import * as toast from "@/lib/util/toast";
@@ -109,8 +109,6 @@ type ValidationCategoriesApi = typeof validationCategories;
 type QueryApi = typeof query;
 /** The embedded map host, its preferences, and click interceptors. @unstable */
 type MapStateApi = typeof mapState;
-/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
-type SceneStoreApi = typeof sceneStore;
 /** Screen positions of the rendered markers. @unstable */
 type ScenePositionsApi = typeof scenePositions;
 /** Color conversion helpers. @unstable */
@@ -160,7 +158,6 @@ export interface MMA
 		ValidationCategoriesApi,
 		QueryApi,
 		MapStateApi,
-		SceneStoreApi,
 		ScenePositionsApi,
 		ColorApi,
 		ToastApi,
@@ -205,6 +202,8 @@ export interface MMA
 	Import: typeof Import;
 	/** Saved selection rules. @unstable */
 	SavedSelection: typeof SavedSelection;
+	/** The marker scene the map surfaces render from, and its load lifecycle. @unstable */
+	Scene: typeof Scene;
 }
 
 export type { MMA as MMAApi };
@@ -240,7 +239,6 @@ const mma: MMA = {
 	...validationCategories,
 	...query,
 	...mapState,
-	...sceneStore,
 	...scenePositions,
 	...colorUtils,
 	...toast,
@@ -267,6 +265,7 @@ const mma: MMA = {
 	CommitDiff,
 	Import,
 	SavedSelection,
+	Scene,
 };
 
 declare global {

@@ -11,7 +11,7 @@ import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
 import { fitMapToBounds } from "@/lib/map/mapState";
 import { getSettings } from "@/store/settings";
-import { whenSceneSettled } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { emit as emitEvent } from "@/lib/events";
 
 /** Parsed-but-not-committed import shown while `workArea === "import"`. */
@@ -85,7 +85,7 @@ export const Import = {
 		if (r.autoCommit) {
 			const mapId = Store.get().mapId;
 			if (mapId) {
-				await whenSceneSettled();
+				await Scene.settled();
 				Autosave.cancel();
 				await Autosave.waitForInflight();
 				Autosave.scheduleAutoCommit(mapId, r.importedCount);

@@ -11,7 +11,7 @@ import {
 import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { Query } from "@/store/query";
-import { startSceneEngine, loadScene, clearScene, recolorScene } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { Icon } from "@/components/primitives/Icon";
 import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
@@ -243,18 +243,18 @@ export function MapEmbed({
 	}, [hostKind]);
 
 	// The editor map drives the single scene engine.
-	useEffect(() => startSceneEngine(), []);
+	useEffect(() => Scene.start(), []);
 
 	// Full (re)load on open and on marker-style change; clear when the map isn't ready.
 	useEffect(() => {
-		if (host) void loadScene(markerStyle, getSettings().markerColor);
-		else clearScene();
+		if (host) void Scene.load(markerStyle, getSettings().markerColor);
+		else Scene.clear();
 	}, [host, markerStyle]);
 
 	// Marker color repaints buffers in place — never a full scene reload.
 	const markerColor = useSetting("markerColor");
 	useEffect(() => {
-		recolorScene(markerColor);
+		Scene.recolor(markerColor);
 	}, [markerColor]);
 
 	useEffect(() => {

@@ -1,8 +1,8 @@
-import { getScene } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 
 /** Snapshot of every rendered location's id and position (`[lng, lat, ...]`). */
 export function getScenePositions(): { ids: Uint32Array; positions: Float32Array } {
-	const scene = getScene();
+	const scene = Scene.get();
 	const ids = new Uint32Array(scene.totalCount);
 	const positions = new Float32Array(scene.totalCount * 2);
 	let n = 0;

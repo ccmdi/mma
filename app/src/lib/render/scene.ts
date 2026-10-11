@@ -26,32 +26,8 @@ let applied: FrameSummary[] = [];
 const APPLIED_KEPT = 16;
 let waiters: { version: number; resolve: (s: FrameSummary) => void }[] = [];
 
-/** The shared scene that all map surfaces render from. */
-export function getScene(): CellManager {
-	return scene;
-}
-
 function syncOpen(): boolean {
 	return scene.setOpen(Store.get().open?.location?.id ?? null);
-}
-
-/** Set the default marker color (RGB bytes). */
-export function setMarkerDefaultColor(r: number, g: number, b: number) {
-	markerDefault = [r, g, b, 255];
-}
-
-/** Change the default marker color and repaint. */
-export function recolorScene(mc: RGB) {
-	if (markerDefault.every((c, i) => c === mc[i])) return;
-	setMarkerDefaultColor(...mc);
-	void cmd.storeSetMarkerColor(mc);
-	scene.version++;
-	emitEvent("scene:changed");
-}
-
-/** Current default marker color as RGBA. */
-export function getMarkerDefaultColor(): RGBA {
-	return markerDefault;
 }
 
 function nothingApplied(version: number): FrameSummary {
@@ -64,18 +40,6 @@ function follow(channel: Channel<ArrayBuffer> | null) {
 	applied = [];
 	for (const w of waiters) w.resolve(nothingApplied(w.version));
 	waiters = [];
-}
-
-/**
- * Resolves once the scene has applied the frame for map version `version`, with what that
- * frame did. Resolves at once, with nothing applied, when the scene follows no map.
- * @unstable
- */
-export function sceneReached(version: number): Promise<FrameSummary> {
-	if (!following) return Promise.resolve(nothingApplied(version));
-	const hit = applied.find((s) => s.version >= version);
-	if (hit) return Promise.resolve(hit);
-	return new Promise((resolve) => waiters.push({ version, resolve }));
 }
 
 function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary | null {
@@ -105,25 +69,9 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 let sceneSettled: Promise<void> = Promise.resolve();
 let loadRequested = 0;
 
-/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
-export function whenSceneSettled(): Promise<void> {
-	return sceneSettled;
-}
-
-/** Load the whole scene again and follow every change to it from there. */
-export function loadScene(markerStyle: MarkerStyle = lastMarkerStyle, mc?: RGB): Promise<void> {
-	const seq = ++loadRequested;
-	return (sceneSettled = sceneSettled
-		.catch(() => {})
-		.then(() => {
-			if (seq !== loadRequested) return;
-			return doLoadScene(markerStyle, mc);
-		}));
-}
-
 async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	lastMarkerStyle = markerStyle;
-	if (mc) setMarkerDefaultColor(...mc);
+	if (mc) Scene.setDefaultColor(...mc);
 	const t = trace("render", { summary: true });
 	const channel = new Channel<ArrayBuffer>();
 	const loaded = new Promise<void>((resolve) => {
@@ -148,27 +96,73 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 		t.end({ cells: scene.cells.size, total: scene.totalCount });
 	} catch (e) {
 		if (following === channel) follow(null);
-		log.error("[scene] loadScene failed:", e);
+		log.error("[scene] load failed:", e);
 	}
 }
 
-/** Clear all marker data from the scene and stop following the map. */
-export function clearScene() {
-	follow(null);
-	scene.clear();
-	emitEvent("scene:changed");
-}
+export const Scene = {
+	/** The shared scene that all map surfaces render from. */
+	get: (): CellManager => {
+		return scene;
+	},
+	/** Set the default marker color (RGB bytes). */
+	setDefaultColor: (r: number, g: number, b: number) => {
+		markerDefault = [r, g, b, 255];
+	},
+	/** Change the default marker color and repaint. */
+	recolor: (mc: RGB) => {
+		if (markerDefault.every((c, i) => c === mc[i])) return;
+		Scene.setDefaultColor(...mc);
+		void cmd.storeSetMarkerColor(mc);
+		scene.version++;
+		emitEvent("scene:changed");
+	},
+	/** Current default marker color as RGBA. */
+	defaultColor: (): RGBA => {
+		return markerDefault;
+	},
+	/**
+	 * Resolves once the scene has applied the frame for map version `version`, with what that
+	 * frame did. Resolves at once, with nothing applied, when the scene follows no map.
+	 * @unstable
+	 */
+	reached: (version: number): Promise<FrameSummary> => {
+		if (!following) return Promise.resolve(nothingApplied(version));
+		const hit = applied.find((s) => s.version >= version);
+		if (hit) return Promise.resolve(hit);
+		return new Promise((resolve) => waiters.push({ version, resolve }));
+	},
+	/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
+	settled: (): Promise<void> => {
+		return sceneSettled;
+	},
+	/** Load the whole scene again and follow every change to it from there. */
+	load: (markerStyle: MarkerStyle = lastMarkerStyle, mc?: RGB): Promise<void> => {
+		const seq = ++loadRequested;
+		return (sceneSettled = sceneSettled
+			.catch(() => {})
+			.then(() => {
+				if (seq !== loadRequested) return;
+				return doLoadScene(markerStyle, mc);
+			}));
+	},
+	/** Clear all marker data from the scene and stop following the map. */
+	clear: () => {
+		follow(null);
+		scene.clear();
+		emitEvent("scene:changed");
+	},
+	/** Start following open-location changes. Returns a stop function. */
+	start: (): (() => void) => {
+		// Opening a location sends no frame, so the scene follows the store state; `setOpen` is a
+		// no-op when the id hasn't moved.
+		const unsubStore = subscribeEvent("store:changed", () => {
+			if (syncOpen()) emitEvent("scene:changed");
+		});
 
-/** Start following open-location changes. Returns a stop function. */
-export function startSceneEngine(): () => void {
-	// Opening a location sends no frame, so the scene follows the store state; `setOpen` is a
-	// no-op when the id hasn't moved.
-	const unsubStore = subscribeEvent("store:changed", () => {
-		if (syncOpen()) emitEvent("scene:changed");
-	});
-
-	return () => {
-		unsubStore();
-		clearScene();
-	};
-}
+		return () => {
+			unsubStore();
+			Scene.clear();
+		};
+	},
+};

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from "
 import type { PickingInfo } from "@deck.gl/core";
 import { Store } from "@/store/store";
 import { buildSceneLayers, type PolyGeom } from "@/lib/render/buildSceneLayers";
-import { getScene } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import type { MapHost, DeckOverlayHandle } from "@/lib/map/host";
 import { useSetting, getSettings } from "@/store/settings";
 import { useScoreMaxError } from "@/lib/geo/scoring";
@@ -59,13 +59,13 @@ export function useMapSurface(
 		if (!overlay) return;
 		const onClick = (info: PickingInfo, domEvent?: Event) =>
 			void handleMapClick(info, domEvent, {
-				cm: getScene(),
+				cm: Scene.get(),
 				host,
 				clickMode: opts.prefs.clickMode,
 				measuring: opts.measuring,
 				onContextMenu: opts.onContextMenu,
 			});
-		const layers = buildSceneLayers(getScene(), {
+		const layers = buildSceneLayers(Scene.get(), {
 			markerStyle: opts.prefs.markerStyle,
 			markerOpacity,
 			selectedOpacity,

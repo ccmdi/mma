@@ -60,7 +60,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Validate](#validate)
 - [ValidationCategories](#validationcategories)
 - [MapState](#mapstate)
-- [SceneStore](#scenestore)
 - [ScenePositions](#scenepositions)
 - [Color](#color)
 - [Jobs](#jobs)
@@ -70,6 +69,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [CommitDiff](#commitdiff)
 - [Import](#import)
 - [SavedSelection](#savedselection)
+- [Scene](#scene)
 
 ## Consts
 
@@ -8773,101 +8773,6 @@ waitForMapHost(): Promise<MapHost>
 
 Wait for the main editor map to be ready.
 
-## SceneStore
-
-The marker scene the map surfaces render from, and its load lifecycle.
-
-### clearScene
-
-`unstable` · since v0.10.3
-
-```ts
-clearScene(): void
-```
-
-Clear all marker data from the scene and stop following the map.
-
-### getMarkerDefaultColor
-
-`unstable` · since v0.10.3
-
-```ts
-getMarkerDefaultColor(): RGBA
-```
-
-Current default marker color as RGBA.
-
-### getScene
-
-`unstable` · since v0.10.3
-
-```ts
-getScene(): CellManager
-```
-
-The shared scene that all map surfaces render from.
-
-### loadScene
-
-`unstable` · since v0.10.3
-
-```ts
-loadScene(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
-```
-
-Load the whole scene again and follow every change to it from there.
-
-### recolorScene
-
-`unstable` · since v0.10.3
-
-```ts
-recolorScene(mc: RGB): void
-```
-
-Change the default marker color and repaint.
-
-### sceneReached
-
-`unstable` · since v0.11.5
-
-```ts
-sceneReached(version: number): Promise<FrameSummary>
-```
-
-Resolves once the scene has applied the frame for map version `version`, with what that
-frame did. Resolves at once, with nothing applied, when the scene follows no map.
-
-### setMarkerDefaultColor
-
-`unstable` · since v0.10.3
-
-```ts
-setMarkerDefaultColor(r: number, g: number, b: number): void
-```
-
-Set the default marker color (RGB bytes).
-
-### startSceneEngine
-
-`unstable` · since v0.10.3
-
-```ts
-startSceneEngine(): () => void
-```
-
-Start following open-location changes. Returns a stop function.
-
-### whenSceneSettled
-
-`unstable` · since v0.10.3
-
-```ts
-whenSceneSettled(): Promise<void>
-```
-
-Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
-
 ## ScenePositions
 
 Screen positions of the rendered markers.
@@ -9759,3 +9664,102 @@ SavedSelection.save(name: string, selections: Selection[]): Promise<boolean>
 ```
 
 Persists the saveable selections as one rule. False when none of them are saveable.
+
+## Scene
+
+### Scene
+
+`unstable` · unreleased
+
+The marker scene the map surfaces render from, and its load lifecycle.
+
+#### Scene.clear
+
+`unstable` · unreleased
+
+```ts
+Scene.clear(): void
+```
+
+Clear all marker data from the scene and stop following the map.
+
+#### Scene.defaultColor
+
+`unstable` · unreleased
+
+```ts
+Scene.defaultColor(): RGBA
+```
+
+Current default marker color as RGBA.
+
+#### Scene.get
+
+`unstable` · unreleased
+
+```ts
+Scene.get(): CellManager
+```
+
+The shared scene that all map surfaces render from.
+
+#### Scene.load
+
+`unstable` · unreleased
+
+```ts
+Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
+```
+
+Load the whole scene again and follow every change to it from there.
+
+#### Scene.reached
+
+`unstable` · unreleased
+
+```ts
+Scene.reached(version: number): Promise<FrameSummary>
+```
+
+Resolves once the scene has applied the frame for map version `version`, with what that
+frame did. Resolves at once, with nothing applied, when the scene follows no map.
+
+#### Scene.recolor
+
+`unstable` · unreleased
+
+```ts
+Scene.recolor(mc: RGB): void
+```
+
+Change the default marker color and repaint.
+
+#### Scene.setDefaultColor
+
+`unstable` · unreleased
+
+```ts
+Scene.setDefaultColor(r: number, g: number, b: number): void
+```
+
+Set the default marker color (RGB bytes).
+
+#### Scene.settled
+
+`unstable` · unreleased
+
+```ts
+Scene.settled(): Promise<void>
+```
+
+Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
+
+#### Scene.start
+
+`unstable` · unreleased
+
+```ts
+Scene.start(): () => void
+```
+
+Start following open-location changes. Returns a stop function.

@@ -8,7 +8,7 @@ import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { SelectedIds } from "@/lib/render/CellManager";
-import { clearScene } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { Import } from "./import";
 import { CommitDiff } from "./commitDiff";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
@@ -92,7 +92,7 @@ function resetMapState() {
 
 	clearEditState();
 
-	clearScene();
+	Scene.clear();
 	Feed.reset();
 	Store.resetDerived();
 }

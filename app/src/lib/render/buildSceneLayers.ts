@@ -10,7 +10,7 @@ import {
 } from "@/lib/render/markerLayer";
 import PanoCoverageLayer from "@/lib/render/PanoCoverageLayer";
 import { packedPositions } from "@/lib/render/packedPositions";
-import { getMarkerDefaultColor } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import type { CellManager } from "@/lib/render/CellManager";
 import type { MarkerStyle } from "@/types";
 import type { LatLng } from "@/types";
@@ -229,7 +229,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		...baseMarkerLayers(
 			cm,
 			ctx.markerStyle,
-			getMarkerDefaultColor(),
+			Scene.defaultColor(),
 			ctx.markerOpacity,
 			ctx.markerSize,
 		),

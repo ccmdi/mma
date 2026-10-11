@@ -20,6 +20,7 @@ const OBJECTS = {
 	"store/commitDiff": "CommitDiff",
 	"store/import": "Import",
 	"store/savedSelection": "SavedSelection",
+	"lib/render/scene": "Scene",
 };
 const objects = new Map(
 	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),

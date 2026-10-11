@@ -3,8 +3,7 @@
 // counters aren't exposed to WebGL, but every marker is an instanced quad whose
 // size we set, so the estimate is geometry math, not sampling. Feeds the Stats
 // for Nerds "Rendering" section and the window.__mmaPerf perf-harness bridge.
-
-import { getScene, whenSceneSettled } from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { MARKER_STYLE } from "@/lib/render/markerLayer";
 import { getMapHost } from "@/lib/map/mapState";
@@ -109,7 +108,7 @@ export function computeRenderStats(): RenderStats | null {
 	const host = getMapHost();
 	const bounds = host?.getBounds();
 	if (!host || !bounds) return null;
-	const scene = getScene();
+	const scene = Scene.get();
 	const prefs = currentPrefs();
 	const dpr = window.devicePixelRatio || 1;
 	const s = MARKER_STYLE[prefs.markerStyle];
@@ -194,6 +193,6 @@ if (typeof window !== "undefined") {
 				}
 			});
 		},
-		settled: whenSceneSettled,
+		settled: Scene.settled,
 	};
 }

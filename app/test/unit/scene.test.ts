@@ -61,14 +61,7 @@ vi.mock("@/lib/commands", () => ({
 		},
 	},
 }));
-
-import {
-	clearScene,
-	getScene,
-	loadScene,
-	sceneReached,
-	startSceneEngine,
-} from "@/lib/render/sceneStore";
+import { Scene } from "@/lib/render/scene";
 import { subscribe as subscribeEvent } from "@/lib/events";
 import { entry, frame, scene } from "./fixtures/renderFixtures";
 
@@ -81,18 +74,18 @@ beforeEach(() => {
 	h.marks = [];
 	h.channels = [];
 	h.subscribe = null;
-	clearScene();
+	Scene.clear();
 });
 
-describe("sceneStore (single scene source)", () => {
+describe("Scene (single scene source)", () => {
 	it("exposes one stable CellManager", () => {
-		expect(getScene()).toBe(getScene());
+		expect(Scene.get()).toBe(Scene.get());
 	});
 
 	it("open-location change bumps the scene version (fast path, no reload)", () => {
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
-		const stop = startSceneEngine();
+		const stop = Scene.start();
 
 		h.openId = 5;
 		notifyStore();
@@ -107,7 +100,7 @@ describe("sceneStore (single scene source)", () => {
 	});
 
 	it("stops reacting to active changes after the engine stops", () => {
-		const stop = startSceneEngine();
+		const stop = Scene.start();
 		stop();
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
@@ -118,10 +111,10 @@ describe("sceneStore (single scene source)", () => {
 	});
 });
 
-describe("sceneStore frames", () => {
+describe("Scene frames", () => {
 	/** Start a load, wait for its subscription, and answer it with the scene `buf` holds. */
 	async function load(buf: ArrayBuffer) {
-		const done = loadScene("pin");
+		const done = Scene.load("pin");
 		await vi.waitFor(() => expect(h.channels.length).toBeGreaterThan(0));
 		const channel = h.channels.at(-1)!;
 		channel.onmessage(buf);
@@ -134,7 +127,7 @@ describe("sceneStore frames", () => {
 
 	it("a load fills the scene from the replace frame and marks it", async () => {
 		await load(scene([entry("s", 1, 1, 1), entry("t", 2, 2, 2)], 3));
-		expect(getScene().totalCount).toBe(2);
+		expect(Scene.get().totalCount).toBe(2);
 		expect(h.marks).toContain("markers");
 	});
 
@@ -144,16 +137,16 @@ describe("sceneStore frames", () => {
 		await load(scene([entry("s", 1, 1, 1)], 4));
 
 		first.onmessage(added(5, 9));
-		expect(getScene().totalCount).toBe(1);
+		expect(Scene.get().totalCount).toBe(1);
 	});
 
 	it("a wait for a version gets that frame's summary, whether it landed before or after", async () => {
 		const channel = await load(scene([entry("s", 1, 1, 1)], 3));
 
 		channel.onmessage(added(4, 7));
-		expect(Array.from((await sceneReached(4)).added)).toEqual([7]);
+		expect(Array.from((await Scene.reached(4)).added)).toEqual([7]);
 
-		const later = sceneReached(5);
+		const later = Scene.reached(5);
 		channel.onmessage(added(5, 8));
 		expect(Array.from((await later).added)).toEqual([8]);
 	});
@@ -163,7 +156,7 @@ describe("sceneStore frames", () => {
 		let repaints = 0;
 		const unsub = subscribeEvent("scene:changed", () => repaints++);
 		channel.onmessage(frame({ version: 4 }));
-		expect((await sceneReached(4)).version).toBe(4);
+		expect((await Scene.reached(4)).version).toBe(4);
 		expect(repaints).toBe(0);
 		channel.onmessage(added(5, 7));
 		expect(repaints).toBe(1);
@@ -171,33 +164,33 @@ describe("sceneStore frames", () => {
 	});
 
 	it("a wait resolves at once when the scene follows no map", async () => {
-		const s = await sceneReached(3);
+		const s = await Scene.reached(3);
 		expect(s.version).toBe(3);
 		expect(s.added).toHaveLength(0);
 	});
 
 	it("a replace frame from a reopened map answers every wait and forgets the old versions", async () => {
 		const channel = await load(scene([entry("s", 1, 1, 1)], 30));
-		const pending = sceneReached(31);
+		const pending = Scene.reached(31);
 		channel.onmessage(scene([entry("s", 1, 1, 1)], 2));
 		expect((await pending).replace).toBe(true);
 
-		const next = sceneReached(3);
+		const next = Scene.reached(3);
 		channel.onmessage(added(3, 9));
 		expect(Array.from((await next).added)).toEqual([9]);
 	});
 
 	it("clearing the scene releases every wait", async () => {
 		await load(scene([], 3));
-		const pending = sceneReached(10);
-		clearScene();
+		const pending = Scene.reached(10);
+		Scene.clear();
 		expect((await pending).added).toHaveLength(0);
 	});
 
 	it("a subscription that fails stops following", async () => {
 		h.subscribe = () => Promise.reject(new Error("no map open"));
-		await loadScene("pin");
-		expect((await sceneReached(1)).version).toBe(1);
+		await Scene.load("pin");
+		expect((await Scene.reached(1)).version).toBe(1);
 		expect(h.marks).not.toContain("markers");
 	});
 });
