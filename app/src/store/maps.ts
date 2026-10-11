@@ -1,6 +1,7 @@
 import { Autosave } from "./autosave";
 import { Feed } from "./feed";
 import { Store } from "./store";
+import { Editor } from "./editor";
 import type { StoreStatus, StoreWarning } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { log } from "@/lib/util/log";
@@ -69,11 +70,8 @@ function invalidateMapBadges() {
 
 /** Reset all per-map editing state to its initial values. */
 function clearEditState() {
-	Store.patch({
-		selectedLocationIds: SelectedIds.EMPTY,
-		open: null,
-		workArea: "overview",
-	});
+	Store.setSelected(SelectedIds.EMPTY);
+	Editor.setArea("overview");
 	Import.reset();
 	CommitDiff.reset();
 }
