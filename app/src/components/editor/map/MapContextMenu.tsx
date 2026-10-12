@@ -36,10 +36,16 @@ async function copyLocationLink(loc: Location) {
 	toast(t("Link copied"), 1500);
 }
 
-export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) => {
+export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) => (
+	<MenuPopup ref={ref}>
+		<MapContextMenuItems />
+	</MenuPopup>
+));
+
+function MapContextMenuItems() {
 	const isMeasuring = useIsMeasuring();
 	const anchor = useEventValue("anchor:changed", getLatLngAnchor);
-	// Read during render: the popup unmounts on close, so this is the click just handled.
+	// Mount inside the popup portal so each opening reads the right-click just handled.
 	const { location, latLng } = getContextMenuTarget();
 	const [polygonCount, setPolygonCount] = useState(0);
 	useEffect(() => {
@@ -53,7 +59,7 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 	}, [latLng.lat, latLng.lng]);
 
 	return (
-		<MenuPopup ref={ref}>
+		<>
 			{location && (
 				<>
 					<MenuItem onClick={() => void copyLocationLink(location)}>
@@ -122,6 +128,6 @@ export const MapContextMenuContent = forwardRef<HTMLDivElement>((_props, ref) =>
 			<MenuItem disabled={!anchor} onClick={() => setLatLngAnchor(null)}>
 				{t("Clear latitude/longitude anchors")}
 			</MenuItem>
-		</MenuPopup>
+		</>
 	);
-});
+}
