@@ -2,7 +2,7 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { mdiCloudDownloadOutline } from "@mdi/js";
-import { Edit } from "@/store/edit";
+import { Tag } from "@/store/tag";
 import { cmd } from "@/lib/commands";
 import type { ValiCountryStatus, ValiLocation } from "@/bindings.gen";
 import { createLocation } from "@/types";
@@ -53,7 +53,7 @@ function saveValiProject(project: ValiProject) {
 async function importLocations(valiLocs: ValiLocation[], tagName: string): Promise<number> {
 	let tagId: number | null = null;
 	if (tagName) {
-		[tagId] = (await Edit.values("tags", [{ set: { id: 0, name: tagName } }])).mutation.keys;
+		[tagId] = await Tag.create([{ name: tagName }]);
 	}
 	const locations = valiLocs.map((v) =>
 		createLocation({

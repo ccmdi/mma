@@ -196,8 +196,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleSaveAsTag = async () => {
 		const name = tagName.trim();
 		if (!name || count === 0) return;
-		const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation;
-		await Edit.work(currentSelection.selector, { kind: "listSet", key: "tags", add, remove: [] });
+		await Tag.assign(currentSelection.selector, [{ name }]);
 		setSavingTag(false);
 		setTagName("");
 	};

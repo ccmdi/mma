@@ -1,5 +1,5 @@
 import { Editor } from "@/store/editor";
-import { Edit } from "@/store/edit";
+import { Tag } from "@/store/tag";
 import { LocationFlag } from "@/bindings.consts";
 import { t } from "@/lib/i18n";
 import { registerJob, type JobHandle } from "@/lib/jobs";
@@ -40,7 +40,7 @@ function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: n
 
 async function resolveTagByName(name: string): Promise<number | null> {
 	if (!name) return null;
-	const [id] = (await Edit.values("tags", [{ set: { id: 0, name } }])).mutation.keys;
+	const [id] = await Tag.create([{ name }]);
 	return id;
 }
 

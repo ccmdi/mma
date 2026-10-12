@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
-import { Edit } from "@/store/edit";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { SuggestInput } from "@/components/primitives/SuggestInput";
 import { TagPill } from "@/components/primitives/TagPill";
@@ -29,12 +28,9 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 			if (!trimmed || busy || locationIds.length === 0) return;
 			setBusy(true);
 			try {
-				const { keys: add } = (await Edit.values("tags", [{ set: { id: 0, name: trimmed } }]))
-					.mutation;
-				await Edit.work(
-					{ type: "Locations", locations: locationIds, name: null },
-					{ kind: "listSet", key: "tags", add, remove: [] },
-				);
+				await Tag.assign({ type: "Locations", locations: locationIds, name: null }, [
+					{ name: trimmed },
+				]);
 				toast(
 					locationIds.length === 1
 						? t("Tagged with {tag}", { tag: trimmed })

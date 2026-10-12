@@ -3,7 +3,6 @@ import clsx from "clsx";
 import { mdiArrowRight, mdiChevronDown, mdiChevronRight, mdiClose, mdiFolder } from "@mdi/js";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
-import { Edit } from "@/store/edit";
 import { TagPill } from "@/components/primitives/TagPill";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Hint } from "@/components/primitives/Hint";
@@ -272,10 +271,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 				id: t.id,
 				doclinks: (t.doclinks ?? []).filter((u) => parseDoclink(u)?.docId !== docRef.docId),
 			}));
-		await Edit.values(
-			"tags",
-			updates.map((put) => ({ put })),
-		);
+		await Tag.update(updates);
 	};
 
 	const toggle = async (tag: Tag, anchor: string) => {
@@ -292,7 +288,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 					return !(r?.docId === docRef.docId && r.anchor === anchor);
 				})
 			: [...existing, target];
-		await Edit.values("tags", [{ put: { id: tag.id, doclinks } }]);
+		await Tag.update([{ id: tag.id, doclinks }]);
 	};
 
 	const runMatch = () => {
@@ -315,10 +311,7 @@ export function DoclinkAssignDialog({ open, onOpenChange }: DialogProps) {
 			id,
 			doclinks: [...(tagMap[id].doclinks ?? []), ...added],
 		}));
-		await Edit.values(
-			"tags",
-			updates.map((put) => ({ put })),
-		);
+		await Tag.update(updates);
 		setMatches(null);
 	};
 
