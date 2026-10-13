@@ -4,7 +4,6 @@ import { Mutation } from "./mutation";
 import { Autosave } from "./autosave";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
-import { emit as emitEvent } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Scene } from "@/lib/render/scene";
 import { CommitDiff } from "./commitDiff";
@@ -30,8 +29,7 @@ export const Commit = {
 				CommitDiff.resetCounts();
 				void Maps.invalidate();
 			})
-			.catch((e: unknown) => log.error("[commit] background commit failed:", e))
-			.finally(() => emitEvent("store:changed"));
+			.catch((e: unknown) => log.error("[commit] background commit failed:", e));
 	},
 	/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
 	checkout: async (commitId: string) => {

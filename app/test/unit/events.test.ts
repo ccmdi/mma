@@ -4,13 +4,24 @@ import { describe, it, expect, vi } from "vitest";
 // (absent under vitest). Stub it so the error-isolation test doesn't leak a rejection.
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-import { emit, subscribe, subscribeMany, SELECTION_EVENTS } from "@/lib/events";
+import {
+	emit,
+	subscribe,
+	subscribeMany,
+	OVERLAY_REPAINT_EVENTS,
+	SELECTION_EVENTS,
+} from "@/lib/events";
 
 // The group constants are derived from the event registry by prefix. If an event name
 // stops matching its prefix, a whole group silently drops it — pin them explicitly.
 describe("event group constants", () => {
 	it("SELECTION_EVENTS is only user-facing selection state", () => {
 		expect([...SELECTION_EVENTS].sort()).toEqual(["selection:change"]);
+	});
+
+	it("the staged import and the commit-diff preview repaint every map surface", () => {
+		expect(OVERLAY_REPAINT_EVENTS).toContain("import-markers:changed");
+		expect(OVERLAY_REPAINT_EVENTS).toContain("diff-markers:changed");
 	});
 });
 

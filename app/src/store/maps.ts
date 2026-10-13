@@ -98,8 +98,7 @@ function resetMapState() {
 export const Maps = {
 	/** One-time store startup. The app calls this; plugins never need to. @unstable */
 	init: async () => {
-		Maps.setList(await cmd.storeListMaps());
-		emitEvent("store:changed");
+		await Maps.reload();
 		// App-lifetime listeners: never unsubscribed, so the handles are dropped on purpose.
 		void listen("map-list-changed", () => void Maps.reload());
 		void listen<StoreWarning>("store-warning", (e) => toast(storeWarningText(e.payload), 8000));
@@ -166,10 +165,6 @@ export const Maps = {
 	invalidate: async () => {
 		await Maps.reload();
 		await tauriEmit("map-list-changed");
-	},
-	/** Set the map list directly without a disk read. @unstable */
-	setList: (list: MapMeta[]) => {
-		cachedMapList = list;
 	},
 	/** Create a new empty map and return its metadata. */
 	create: async (name: string, folder: string | null = null) => {

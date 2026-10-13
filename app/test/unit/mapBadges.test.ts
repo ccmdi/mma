@@ -1,4 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+const disk = vi.hoisted(() => ({ maps: [] as unknown[] }));
+vi.mock("@/lib/commands", async () =>
+	(await import("./fixtures/mocks")).cmdProxy({ storeListMaps: async () => disk.maps }),
+);
 import { Maps, type MapBadge } from "@/store/maps";
 import { emit } from "@/lib/events";
 import type { MapMeta } from "@/bindings.gen";
@@ -13,10 +18,10 @@ const map = (id: string, added: number, removed: number, updated: number) =>
 	({ id, pending: { added, removed, updated } }) as MapMeta;
 
 describe("map badges", () => {
-	it("hides pending changes when the source is configured as hidden", () => {
+	it("hides pending changes when the source is configured as hidden", async () => {
 		setSetting("hiddenMapBadges", ["pending"]);
-		Maps.setList([map("edited", 3, 0, 1)]);
-		emit("map-list:changed");
+		disk.maps = [map("edited", 3, 0, 1)];
+		await Maps.reload();
 		expect(keysOn("edited")).toBeUndefined();
 	});
 
@@ -49,10 +54,10 @@ describe("map badges", () => {
 		expect(keysOn("map-b")).toEqual(["first"]);
 	});
 
-	it("a map with uncommitted changes carries them as a diff badge, a clean map carries none", () => {
+	it("a map with uncommitted changes carries them as a diff badge, a clean map carries none", async () => {
 		setSetting("hiddenMapBadges", []);
-		Maps.setList([map("edited", 3, 0, 1), map("clean", 0, 0, 0)]);
-		emit("map-list:changed");
+		disk.maps = [map("edited", 3, 0, 1), map("clean", 0, 0, 0)];
+		await Maps.reload();
 
 		const pending = Maps.badges()
 			.get("edited")

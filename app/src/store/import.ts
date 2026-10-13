@@ -93,10 +93,7 @@ export const Import = {
 	cancel: () => {
 		Import.reset();
 		emitEvent("import-markers:changed");
-		if (Editor.get().open?.origin === "import" || Editor.get().workArea === "import") {
+		if (Editor.get().open?.origin === "import" || Editor.get().workArea === "import")
 			Editor.setArea("overview");
-		} else {
-			emitEvent("store:changed");
-		}
 	},
 };

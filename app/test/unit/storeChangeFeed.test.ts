@@ -4,6 +4,7 @@ import { Tag } from "@/store/tag";
 import { Mutation } from "@/store/mutation";
 import { Autosave } from "@/store/autosave";
 import { createFieldDef } from "@/types";
+import { subscribe } from "@/lib/events";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Pins the change-feed contract: an event carries only what moved. A present value
@@ -225,6 +226,26 @@ describe("change feed merge semantics", () => {
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
 		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
+	});
+});
+
+describe("store announcements", () => {
+	it("merging derived state announces the snapshot change the way a patch does", () => {
+		const heard = vi.fn();
+		const off = subscribe("store:changed", heard);
+		Store.merge(event({ locationCount: 9 }).derived);
+		expect(heard).toHaveBeenCalledOnce();
+		Store.patch({});
+		expect(heard).toHaveBeenCalledTimes(2);
+		off();
+	});
+
+	it("a feed event announces the snapshot change exactly once", () => {
+		const heard = vi.fn();
+		const off = subscribe("store:changed", heard);
+		arrive(event({ locationCount: 4 }, 2));
+		expect(heard).toHaveBeenCalledOnce();
+		off();
 	});
 });
 

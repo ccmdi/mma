@@ -103,6 +103,5 @@ export const CommitDiff = {
 		commitDiffPreview = null;
 		emitEvent("diff-markers:changed");
 		if (Editor.get().workArea === "diff") Editor.setArea("overview");
-		else emitEvent("store:changed");
 	},
 };

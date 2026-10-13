@@ -15,7 +15,6 @@ function applyChange(e: ChangeEvent) {
 	Store.merge(e.derived);
 	if (moved) Autosave.schedule();
 	emitEvent("store:change", e);
-	emitEvent("store:changed");
 }
 
 export const Feed = {

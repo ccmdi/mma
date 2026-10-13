@@ -46,17 +46,19 @@ export const Store = {
 		const { fieldValues, meta, ...rest } = v;
 		if (meta && state.map) state = { ...state, map: meta };
 		state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
-		if (!fieldValues) return;
-		const merged = { ...state.fieldValues };
-		for (const [field, values] of Object.entries(fieldValues)) {
-			const next = { ...merged[field] };
-			for (const [key, value] of Object.entries(values)) {
-				if (value) next[key] = value;
-				else delete next[key];
+		if (fieldValues) {
+			const merged = { ...state.fieldValues };
+			for (const [field, values] of Object.entries(fieldValues)) {
+				const next = { ...merged[field] };
+				for (const [key, value] of Object.entries(values)) {
+					if (value) next[key] = value;
+					else delete next[key];
+				}
+				merged[field] = next;
 			}
-			merged[field] = next;
+			state = { ...state, fieldValues: merged };
 		}
-		state = { ...state, fieldValues: merged };
+		emitEvent("store:changed");
 	},
 	/** Reactive slice of the map state. Re-renders only when the selected value's
 	 *  reference changes (`Object.is`), so selectors must return state fields or

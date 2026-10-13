@@ -3428,8 +3428,6 @@ declare const Maps: {
     reload: () => Promise<void>;
     /** Refresh the map list and notify other windows of the change. @unstable */
     invalidate: () => Promise<void>;
-    /** Set the map list directly without a disk read. @unstable */
-    setList: (list: MapMeta[]) => void;
     /** Create a new empty map and return its metadata. */
     create: (name: string, folder?: string | null) => Promise<MapMeta>;
     /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
@@ -7438,8 +7436,6 @@ declare const getMapList: typeof Maps.list;
 declare const reloadMapList: typeof Maps.reload;
 /** @deprecated v0.12.1. Use `MMA.Maps.invalidate`. @unstable */
 declare const invalidateMapList: typeof Maps.invalidate;
-/** @deprecated v0.12.1. Use `MMA.Maps.setList`. @unstable */
-declare const setCachedMapList: typeof Maps.setList;
 /** @deprecated v0.12.1. Use `MMA.Maps.create`. */
 declare const createMap: typeof Maps.create;
 /** @deprecated v0.12.1. Use `MMA.Maps.duplicate`. */
@@ -7608,7 +7604,6 @@ declare const legacy_sampleFrom: typeof sampleFrom;
 declare const legacy_select: typeof select;
 /** @unstable */
 declare const legacy_setActiveLocation: typeof setActiveLocation;
-declare const legacy_setCachedMapList: typeof setCachedMapList;
 declare const legacy_setMap: typeof setMap;
 declare const legacy_setPluginMode: typeof setPluginMode;
 declare const legacy_setSelectedLocationIds: typeof setSelectedLocationIds;
@@ -7723,7 +7718,6 @@ declare namespace legacy {
     legacy_sampleFrom as sampleFrom,
     legacy_select as select,
     legacy_setActiveLocation as setActiveLocation,
-    legacy_setCachedMapList as setCachedMapList,
     legacy_setMap as setMap,
     legacy_setPluginMode as setPluginMode,
     legacy_setSelectedLocationIds as setSelectedLocationIds,

@@ -436,9 +436,6 @@ export const reloadMapList: typeof Maps.reload = Maps.reload;
 /** @deprecated v0.12.1. Use `MMA.Maps.invalidate`. @unstable */
 export const invalidateMapList: typeof Maps.invalidate = Maps.invalidate;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.setList`. @unstable */
-export const setCachedMapList: typeof Maps.setList = Maps.setList;
-
 /** @deprecated v0.12.1. Use `MMA.Maps.create`. */
 export const createMap: typeof Maps.create = Maps.create;
 

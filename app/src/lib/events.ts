@@ -208,6 +208,8 @@ export const OVERLAY_REPAINT_EVENTS = [
 	"seen:changed",
 	"anchor:changed",
 	"measure:changed",
+	"import-markers:changed",
+	"diff-markers:changed",
 ] as const satisfies readonly EditorEvent[];
 
 /** Selection-related events. */

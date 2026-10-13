@@ -2654,18 +2654,6 @@ setActiveLocation(
 
 **Deprecated in v0.12.0.** Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null.
 
-### setCachedMapList
-
-`unstable` · `deprecated` · since v0.8.1
-
-```ts
-setCachedMapList(list: MapMeta[]): void
-```
-
-**Deprecated in v0.12.1.** Use `MMA.Maps.setList`.
-
-Set the map list directly without a disk read.
-
 ### setMap
 
 `unstable` · `deprecated` · since v0.12.0
@@ -4512,16 +4500,6 @@ Maps.renameFolder(from: string, to: string): Promise<void>
 ```
 
 Rename a folder, moving all its maps to the new name.
-
-#### Maps.setList
-
-`unstable` · unreleased
-
-```ts
-Maps.setList(list: MapMeta[]): void
-```
-
-Set the map list directly without a disk read.
 
 #### Maps.useBadges
 

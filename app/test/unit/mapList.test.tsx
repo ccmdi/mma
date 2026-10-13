@@ -1,11 +1,16 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, useEffect } from "react";
 import { mount as mountRoot } from "./fixtures/harness";
 import { Maps } from "@/store/maps";
 import { emit } from "@/lib/events";
 import { SCRATCH_MAP_ID } from "@/bindings.consts";
 import { type MapMeta } from "@/bindings.gen";
+
+const disk = vi.hoisted(() => ({ maps: [] as unknown[] }));
+vi.mock("@/lib/commands", async () =>
+	(await import("./fixtures/mocks")).cmdProxy({ storeListMaps: async () => disk.maps }),
+);
 
 const meta = (id: string) => ({ id, name: id }) as MapMeta;
 
@@ -25,22 +30,21 @@ function mount() {
 	return mountRoot(<Probe />).unmount;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+	disk.maps = [];
+	await Maps.reload();
 	renders = 0;
-	Maps.setList([]);
 });
 
 // The map list is its own signal, not a slice of the store: every location edit fires
 // `store:changed`, and the list must not re-render for any of them.
 describe("useMapList subscription granularity", () => {
-	it("re-renders on map-list:changed", () => {
+	it("re-renders on map-list:changed", async () => {
 		const unmount = mount();
 		expect(renders).toBe(1);
 
-		act(() => {
-			Maps.setList([meta("a")]);
-			emit("map-list:changed");
-		});
+		disk.maps = [meta("a")];
+		await act(() => Maps.reload());
 		expect(renders).toBe(2);
 		expect(seen).toHaveLength(1);
 		unmount();
@@ -50,10 +54,7 @@ describe("useMapList subscription granularity", () => {
 		const unmount = mount();
 		expect(renders).toBe(1);
 
-		act(() => {
-			Maps.setList([meta("a"), meta("b")]);
-			emit("store:changed");
-		});
+		act(() => emit("store:changed"));
 		expect(renders).toBe(1);
 		unmount();
 	});
