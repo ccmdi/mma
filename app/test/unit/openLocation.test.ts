@@ -59,8 +59,8 @@ vi.mock("@/lib/sv/enrich", () => ({
 }));
 import { Store } from "@/store/store";
 import { Editor } from "@/store/editor";
-import type { Location, MapMeta } from "@/bindings.gen";
-import { subscribe } from "@/lib/events";
+import type { ChangeEvent, Location, MapMeta } from "@/bindings.gen";
+import { emit, subscribe } from "@/lib/events";
 
 beforeEach(() => {
 	Editor.close();
@@ -99,6 +99,21 @@ describe("open location", () => {
 		await Editor.open(7);
 		h.missing.add(7);
 		await Editor.refresh();
+		expect(Editor.get().open).toBeNull();
+		expect(Editor.get().workArea).toBe("overview");
+	});
+
+	it("a change that removes the open map location closes it, whatever made the change", async () => {
+		await Editor.open(7);
+		const change: Omit<ChangeEvent, "removed"> = {
+			version: 1,
+			derived: {} as ChangeEvent["derived"],
+			added: [],
+			updated: [],
+		};
+		emit("store:change", { ...change, removed: [8] });
+		expect(Editor.get().open?.id).toBe(7);
+		emit("store:change", { ...change, removed: [7] });
 		expect(Editor.get().open).toBeNull();
 		expect(Editor.get().workArea).toBe("overview");
 	});

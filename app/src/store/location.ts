@@ -3,7 +3,6 @@ import { Store } from "./store";
 import { Mutation } from "./mutation";
 import { Query } from "./query";
 import { Edit } from "./edit";
-import { Editor } from "./editor";
 import type { MutationResult, Target } from "@/bindings.gen";
 import type { Patch } from "@/types";
 import type { ReadonlyIdSet } from "@/lib/render/CellManager";
@@ -11,7 +10,6 @@ import { cmd } from "@/lib/commands";
 import { mmaBufUrl, nowUnix } from "@/lib/util/util";
 import { trace } from "@/lib/util/debug";
 import { log } from "@/lib/util/log";
-import { emit as emitEvent } from "@/lib/events";
 
 export type Location = bindings.Location;
 
@@ -72,9 +70,6 @@ export const Location = {
 	/** Remove locations by id. Undoable. */
 	remove: async (ids: ReadonlyIdSet) => {
 		if (ids.size === 0) return;
-		const { open } = Editor.get();
-		if (open && ids.has(open.id)) Editor.setArea("overview");
-		emitEvent("snapshot:changed");
 		await Edit.locations(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),

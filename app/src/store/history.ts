@@ -1,22 +1,17 @@
 import type * as bindings from "@/bindings.gen";
 import type { MapState } from "./store";
 import { Mutation } from "./mutation";
-import { Editor } from "./editor";
 import type { EntryKey } from "@/bindings.gen";
 import type { Stack } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
-import { Scene } from "@/lib/render/scene";
 import { log } from "@/lib/util/log";
 
 export type History = bindings.History;
 
-/** Step through the edit history one way, closing the open location if the step removed it. */
+/** Step through the edit history one way. */
 async function step(stack: Stack) {
 	try {
-		const r = await Mutation.run(() => cmd.storeStep(stack, null));
-		const { removed } = await Scene.reached(r.mutation.version);
-		const { open } = Editor.get();
-		if (open && removed.includes(open.id)) Editor.setArea("overview");
+		await Mutation.run(() => cmd.storeStep(stack, null));
 	} catch (e) {
 		log.debug(`[${stack}] nothing or failed:`, e);
 	}

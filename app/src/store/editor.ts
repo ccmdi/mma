@@ -304,7 +304,8 @@ export const Editor = {
 	},
 };
 
-// The feed requests a refresh; request ownership controls which result may publish.
-subscribe("store:change", () => {
-	void Editor.refresh();
+subscribe("store:change", ({ removed }) => {
+	const open = state.open;
+	if (open?.origin === "map" && removed.includes(open.id)) Editor.close();
+	else void Editor.refresh();
 });
