@@ -3834,8 +3834,8 @@ export interface Opening {
     origin: OpeningOrigin;
     /** The pending layer holding this opening's draft. */
     layer: Layer;
-    /** The draft as last read from its layer, or null while loading. */
-    location: Location | null;
+    /** The draft as last read from its layer. */
+    location: Location;
 }
 /** What the editor shows: the open location, the pane, and the panels that lead to them. */
 export interface EditorState {

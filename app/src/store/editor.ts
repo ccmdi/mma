@@ -20,8 +20,8 @@ export interface Opening {
 	origin: OpeningOrigin;
 	/** The pending layer holding this opening's draft. */
 	layer: Layer;
-	/** The draft as last read from its layer, or null while loading. */
-	location: Location | null;
+	/** The draft as last read from its layer. */
+	location: Location;
 }
 
 /** What the editor shows: the open location, the pane, and the panels that lead to them. */
@@ -51,27 +51,28 @@ function update(next: Partial<EditorState>): void {
 const refreshes = latest<{ open: Opening; location: Location | null }>({
 	owner: () => state.open?.layer,
 	publish: ({ open, location }) => {
+		if (!location) return Editor.close();
 		const next = { ...open, location };
 		update({ open: next });
-		if (location?.panoId !== open.location?.panoId) enrichDraft(next);
+		if (location.panoId !== open.location.panoId) enrichDraft(next);
 	},
 	failed: (error) => log.error("[editor] draft read failed:", error),
 });
 const enrichments = new WeakMap<Layer, ReturnType<typeof latest>>();
-const openings = latest<Opening | Location[] | null>({
+type Opened = { kind: "opening"; opening: Opening } | { kind: "duplicates"; locations: Location[] };
+
+const openings = latest<Opened | null>({
 	publish: (result) => {
-		if (!result) return;
-		if (Array.isArray(result)) {
-			update({ duplicateLocations: result, workArea: "duplicates" });
+		if (result?.kind === "duplicates") {
+			update({ duplicateLocations: result.locations, workArea: "duplicates" });
 			setOpen(null);
-		} else {
-			setOpen(result, "location");
-			if (result.origin === "import") emitEvent("import-markers:changed");
-		}
+		} else if (result) setOpen(result.opening, "location");
 	},
 	discard: (result) =>
-		result && !Array.isArray(result)
-			? result.layer.close().catch((error) => log.error("[editor] layer close failed:", error))
+		result?.kind === "opening"
+			? result.opening.layer
+					.close()
+					.catch((error) => log.error("[editor] layer close failed:", error))
 			: undefined,
 });
 
@@ -129,7 +130,7 @@ function setOpen(open: Opening | null, workArea?: WorkArea): void {
 }
 
 function enrichDraft(open: Opening): void {
-	if (!open.location || !Store.get().map?.settings.enrichMetadata) {
+	if (!Store.get().map?.settings.enrichMetadata) {
 		enrichments.get(open.layer)?.cancel();
 		return;
 	}
@@ -146,30 +147,36 @@ function enrichDraft(open: Opening): void {
 	);
 }
 
-async function createOpening(
+async function opening(
 	id: number,
-	location: Location | null,
+	location: Location,
 	origin: OpeningOrigin,
 	layer?: Layer,
-): Promise<Opening> {
-	return { id, location, origin, layer: layer ?? (await Layer.open()) };
+): Promise<Opened> {
+	return {
+		kind: "opening",
+		opening: { id, location, origin, layer: layer ?? (await Layer.open()) },
+	};
 }
 
 /** Prepare a copy while keeping the import or seen record unchanged. */
-async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opening | null> {
+async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opened | null> {
 	const layer = await Layer.open();
 	try {
 		const result = await layer.edit([{ set: { ...loc, id: 0 } }]);
 		const [id] = result.mutation.keys;
-		if (id == null) {
+		const [location] =
+			id == null
+				? []
+				: await layer.read(
+						{ type: "Locations", locations: [id], name: null },
+						{ kind: "locations" },
+					);
+		if (id == null || !location) {
 			await layer.close();
 			return null;
 		}
-		const [location = null] = await layer.read(
-			{ type: "Locations", locations: [id], name: null },
-			{ kind: "locations" },
-		);
-		return await createOpening(id, location, origin, layer);
+		return await opening(id, location, origin, layer);
 	} catch (error) {
 		await layer.close();
 		throw error;
@@ -240,18 +247,18 @@ export const Editor = {
 	 *  supersedes one still loading. */
 	open: async (target: MaybeLocation, checkDuplicates = true) => {
 		const t = trace("open");
-		if (state.open && state.open.origin !== "map") emitEvent("import-markers:changed");
 		await openings.replace(async () => {
 			const loc = await Editor.resolve(target);
 			t.step("ipc");
-			if (checkDuplicates && loc) {
+			if (!loc) return null;
+			if (checkDuplicates) {
 				const nearby = await Query.read(
 					{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
 					{ kind: "locations" },
 				);
-				if (nearby.length >= 2) return nearby;
+				if (nearby.length >= 2) return { kind: "duplicates", locations: nearby };
 			}
-			return createOpening(locId(target), loc, "map");
+			return opening(locId(target), loc, "map");
 		});
 		t.end();
 	},
@@ -259,7 +266,6 @@ export const Editor = {
 	close: () => {
 		openings.cancel();
 		const preview = state.open && state.open.origin !== "map" ? state.open.origin : null;
-		if (preview) emitEvent("import-markers:changed");
 		setOpen(null);
 		const fallback = state.activePluginId ? "plugin" : "overview";
 		update(
@@ -269,7 +275,7 @@ export const Editor = {
 		);
 	},
 	/** Open one location from the duplicate-resolution panel in the editor. @unstable */
-	openDuplicate: (loc: Location) => openings.replace(() => createOpening(loc.id, loc, "map")),
+	openDuplicate: (loc: Location) => openings.replace(() => opening(loc.id, loc, "map")),
 	/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 	removeDuplicate: (id: number) => {
 		update({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });

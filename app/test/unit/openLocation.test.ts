@@ -5,6 +5,7 @@ const h = vi.hoisted(() => ({
 	held: new Map<number, Promise<void>>(),
 	dropped: [] as string[],
 	reads: [] as number[],
+	missing: new Set<number>(),
 	lat: 0,
 	edits: 0,
 	panoId: "A",
@@ -42,7 +43,9 @@ vi.mock("@/lib/commands", () => ({
 				kind: "locations",
 				rows: {
 					kind: "inline",
-					locations: ids.map((id) => ({ id, lat, lng: 0, tags: [], panoId: h.panoId })),
+					locations: ids
+						.filter((id) => !h.missing.has(id))
+						.map((id) => ({ id, lat, lng: 0, tags: [], panoId: h.panoId })),
 				},
 			};
 		},
@@ -65,6 +68,7 @@ beforeEach(() => {
 	h.held.clear();
 	h.dropped = [];
 	h.reads = [];
+	h.missing.clear();
 	h.lat = 0;
 	h.edits = 0;
 	h.editError = null;
@@ -79,6 +83,24 @@ describe("open location", () => {
 		await Editor.open(7);
 
 		expect(Editor.get().open).toBeNull();
+	});
+
+	it("opening an id with no row leaves the current opening in place", async () => {
+		await Editor.open(7);
+		const layers = h.dropped.length;
+		h.missing.add(9);
+		await Editor.open(9);
+		expect(Editor.get().open?.id).toBe(7);
+		expect(h.dropped).toHaveLength(layers);
+		Editor.close();
+	});
+
+	it("a refresh that finds the open row deleted closes the opening", async () => {
+		await Editor.open(7);
+		h.missing.add(7);
+		await Editor.refresh();
+		expect(Editor.get().open).toBeNull();
+		expect(Editor.get().workArea).toBe("overview");
 	});
 
 	it("drops the open row when leaving the location pane", async () => {
