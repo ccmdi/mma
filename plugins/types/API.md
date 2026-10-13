@@ -3801,19 +3801,15 @@ Editor.closePlugin(): void
 
 Close the plugin sidebar and return to the overview.
 
-#### Editor.edit
+#### Editor.draft
 
 `unstable` · unreleased
 
 ```ts
-Editor.edit(
-  patch:
-    | Omit<Patch<Location>, "id">
-    | ((location: Location) => Omit<Patch<Location>, "id">),
-): Promise<void | null>
+Editor.draft(): Draft
 ```
 
-Edit this opening's draft. Retained callbacks become inert when the opening ends.
+The open draft's edit and save, the same pair for as long as this opening lasts.
 
 #### Editor.get
 
@@ -3910,16 +3906,6 @@ Editor.resolve(m: MaybeLocation): Promise<Location | null>
 ```
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
-
-#### Editor.save
-
-`unstable` · unreleased
-
-```ts
-Editor.save(patch: Omit<Patch<Location>, "id">): Promise<number | null>
-```
-
-Save this opening's draft. Retained callbacks become inert when the opening ends.
 
 #### Editor.setArea
 

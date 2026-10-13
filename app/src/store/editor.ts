@@ -8,7 +8,7 @@ import { log } from "@/lib/util/log";
 import { subscribe, emit as emitEvent, useEventValue } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
-import { latest, owned } from "@/lib/util/latest";
+import { latest } from "@/lib/util/latest";
 import { enrich } from "@/lib/sv/enrich";
 
 /** Where an open location came from: the map, the seen history, or a pending import. */
@@ -49,6 +49,7 @@ function update(next: Partial<EditorState>): void {
 }
 
 const refreshes = latest<{ open: Opening; location: Location | null }>({
+	owner: () => state.open?.layer,
 	publish: ({ open, location }) => {
 		const next = { ...open, location };
 		update({ open: next });
@@ -74,36 +75,50 @@ const openings = latest<Opening | Location[] | null>({
 			: undefined,
 });
 
-const operations = owned(
-	() => state.open,
-	{
-		edit: async (
-			open: Opening,
-			patch: Omit<Patch<Location>, "id"> | ((location: Location) => Omit<Patch<Location>, "id">),
-		): Promise<void> => {
-			await open.layer
-				.edit(async (read) => {
-					const [location] = await read(
-						{ type: "Locations", locations: [open.id], name: null },
-						{ kind: "locations" },
-					);
-					if (!location) return [];
-					const fields = typeof patch === "function" ? patch(location) : patch;
-					return [{ put: { ...fields, id: open.id } }];
-				})
-				.catch((error) => log.error("[editor] edit failed:", error));
-		},
-		save: async (open: Opening, patch: Omit<Patch<Location>, "id">): Promise<number> => {
-			await open.layer.land([{ put: { ...patch, id: open.id } }]);
-			return open.id;
-		},
-	},
-	(open) => open.layer,
-);
+type DraftPatch = Omit<Patch<Location>, "id">;
+
+/** Edits and saves bound to one opening. Once another opening or none is current, they do
+ *  nothing and resolve null. A failed edit or save is logged and resolves null. */
+export interface Draft {
+	/** Patch the draft, or derive the patch from the draft as it stands. */
+	edit: (patch: DraftPatch | ((location: Location) => DraftPatch)) => Promise<void | null>;
+	/** Land the draft with `patch` applied, resolving its id. */
+	save: (patch: DraftPatch) => Promise<number | null>;
+}
+
+const lifetime = latest({ owner: () => state.open?.layer });
+const drafts = new WeakMap<Layer, Draft>();
+const inert: Draft = { edit: async () => null, save: async () => null };
+
+function draftOf({ id, layer }: Opening): Draft {
+	const edit = async (patch: DraftPatch | ((location: Location) => DraftPatch)) => {
+		await layer.edit(async (read) => {
+			const [location] = await read(
+				{ type: "Locations", locations: [id], name: null },
+				{ kind: "locations" },
+			);
+			if (!location) return [];
+			return [{ put: { ...(typeof patch === "function" ? patch(location) : patch), id } }];
+		});
+	};
+	const save = async (patch: DraftPatch) => {
+		await layer.land([{ put: { ...patch, id } }]);
+		return id;
+	};
+	const bound = <A extends unknown[], R>(name: string, run: (...args: A) => Promise<R>) =>
+		lifetime.bind(
+			(...args: A): Promise<R | null> =>
+				run(...args).catch((error) => {
+					log.error(`[editor] ${name} failed:`, error);
+					return null;
+				}),
+			async () => null,
+		);
+	return { edit: bound("edit", edit), save: bound("save", save) };
+}
 
 /** Publish an opening and close the previous opening's layer. */
 function setOpen(open: Opening | null, workArea?: WorkArea): void {
-	refreshes.cancel();
 	const previous = state.open;
 	if (!open && !previous) return;
 	update({ open, ...(workArea && { workArea }) });
@@ -179,13 +194,13 @@ export const Editor = {
 			return { open, location };
 		});
 	},
-	/** Edit this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
-	get edit() {
-		return operations.edit;
-	},
-	/** Save this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
-	get save() {
-		return operations.save;
+	/** The open draft's edit and save, the same pair for as long as this opening lasts. @unstable */
+	draft: (): Draft => {
+		const open = state.open;
+		if (!open) return inert;
+		let draft = drafts.get(open.layer);
+		if (!draft) drafts.set(open.layer, (draft = draftOf(open)));
+		return draft;
 	},
 	/** Whether procedure work is still writing to the open draft. @unstable */
 	useWriting: (): boolean => {

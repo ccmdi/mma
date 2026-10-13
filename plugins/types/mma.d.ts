@@ -3848,6 +3848,16 @@ export interface EditorState {
     /** @unstable */
     activePluginId: string | null;
 }
+/** @unstable */
+export type DraftPatch = Omit<Patch<Location>, "id">;
+/** Edits and saves bound to one opening. Once another opening or none is current, they do
+ *  nothing and resolve null. A failed edit or save is logged and resolves null. @unstable */
+export interface Draft {
+    /** Patch the draft, or derive the patch from the draft as it stands. */
+    edit: (patch: DraftPatch | ((location: Location) => DraftPatch)) => Promise<void | null>;
+    /** Land the draft with `patch` applied, resolving its id. */
+    save: (patch: DraftPatch) => Promise<number | null>;
+}
 declare const Editor: {
     /** Imperative snapshot of the editor state. */
     get: () => Readonly<EditorState>;
@@ -3855,10 +3865,8 @@ declare const Editor: {
     use: <T>(selector: (s: EditorState) => T) => T;
     /** Reread the current draft. Superseded reads and errors cannot update the next opening. @unstable */
     refresh: () => Promise<void>;
-    /** Edit this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
-    readonly edit: (patch: Omit<Patch<Location>, "id"> | ((location: Location) => Omit<Patch<Location>, "id">)) => Promise<void | null>;
-    /** Save this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
-    readonly save: (patch: Omit<Patch<Location>, "id">) => Promise<number | null>;
+    /** The open draft's edit and save, the same pair for as long as this opening lasts. @unstable */
+    draft: () => Draft;
     /** Whether procedure work is still writing to the open draft. @unstable */
     useWriting: () => boolean;
     /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */

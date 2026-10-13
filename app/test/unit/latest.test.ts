@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { latest, owned } from "@/lib/util/latest";
+import { latest } from "@/lib/util/latest";
 
 function deferred<T>() {
 	let resolve!: (value: T) => void;
@@ -122,45 +122,4 @@ it("bound operations keep their promised result shape after invalidation", async
 	scope.cancel();
 	expect(await bound()).toBeNull();
 	expect(operation).toHaveBeenCalledTimes(1);
-});
-
-describe("owned method APIs", () => {
-	it("provides stable methods with current context, and retained methods go inert when the owner ends", async () => {
-		const first = {};
-		let current: { resource: object; value: number } | null = { resource: first, value: 1 };
-		const run = vi.fn(
-			async (owner: { resource: object; value: number }, add: number) => owner.value + add,
-		);
-		const api = owned(
-			() => current,
-			{ run },
-			(owner) => owner.resource,
-		);
-		const retained = api.run;
-		expect(await retained(2)).toBe(3);
-		current = { resource: first, value: 4 };
-		expect(api.run).toBe(retained);
-		expect(await retained(2)).toBe(6);
-		current = { resource: {}, value: 10 };
-		expect(api.run).not.toBe(retained);
-		expect(await retained(2)).toBeNull();
-		expect(await api.run(2)).toBe(12);
-		const active = api.run;
-		current = null;
-		expect(await active(2)).toBeNull();
-		expect(await api.run(2)).toBeNull();
-		expect(run).toHaveBeenCalledTimes(3);
-	});
-	it("allows an admitted operation to finish for its original owner", async () => {
-		const oldOwner = {};
-		let current: object | null = oldOwner;
-		const pending = deferred<number>();
-		const write = vi.fn((_owner: object) => pending.promise);
-		const api = owned(() => current, { write });
-		const admitted = api.write();
-		current = {};
-		pending.resolve(7);
-		expect(await admitted).toBe(7);
-		expect(write).toHaveBeenCalledExactlyOnceWith(oldOwner);
-	});
 });

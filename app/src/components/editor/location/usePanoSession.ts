@@ -16,7 +16,7 @@ export function usePanoSession() {
 	const location = open?.location ?? null;
 	const layer = open?.layer;
 	const hasLocation = location !== null;
-	const { edit } = Editor;
+	const { edit } = Editor.draft();
 	const pano = usePano();
 
 	useEffect(() => {

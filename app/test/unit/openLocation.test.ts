@@ -198,7 +198,7 @@ describe("open location", () => {
 
 	it("callbacks retained from an earlier opening cannot edit or save a reopening", async () => {
 		await Editor.open(7);
-		const { edit, save } = Editor;
+		const { edit, save } = Editor.draft();
 		await Editor.open(7);
 		const count = h.edits;
 		await edit({ lat: 99 });
@@ -208,12 +208,24 @@ describe("open location", () => {
 		Editor.close();
 	});
 
+	it("a draft retained from one opening resolves null once another location opens", async () => {
+		await Editor.open(7);
+		const retained = Editor.draft();
+		await Editor.open(8);
+		const count = h.edits;
+		expect(await retained.edit({ lat: 99 })).toBeNull();
+		expect(await retained.save({ lat: 99 })).toBeNull();
+		expect(h.edits).toBe(count);
+		expect(Editor.draft()).not.toBe(retained);
+		Editor.close();
+	});
+
 	it("callbacks stay stable through refreshes and become inert on close", async () => {
 		await Editor.open(7);
-		const { edit, save } = Editor;
+		const { edit, save } = Editor.draft();
 		await Editor.refresh();
-		expect(Editor.edit).toBe(edit);
-		expect(Editor.save).toBe(save);
+		expect(Editor.draft().edit).toBe(edit);
+		expect(Editor.draft().save).toBe(save);
 		Editor.close();
 		const count = h.edits;
 		await edit({ lat: 99 });
@@ -302,7 +314,7 @@ describe("editor-owned enrichment", () => {
 		await Editor.open(7);
 		await vi.waitUntil(() => h.runs.length === 1);
 		const first = h.runs[0];
-		await Editor.save({ heading: 30 });
+		await Editor.draft().save({ heading: 30 });
 		Editor.close();
 		expect(first.signal.aborted).toBe(false);
 		await Editor.open(8);
@@ -314,13 +326,15 @@ describe("editor-owned enrichment", () => {
 		expect(h.runs[1].signal.aborted).toBe(false);
 		expect(h.dropped.length).toBeGreaterThan(0);
 	});
-	it("logs edit failures and resolves", async () => {
+	it("logs edit and save failures and resolves null", async () => {
 		const { log } = await import("@/lib/util/log");
 		settings(false);
 		await Editor.open(7);
-		h.editError = new Error("edit failed");
-		await expect(Editor.edit({ heading: 30 })).resolves.toBeUndefined();
+		h.editError = new Error("write failed");
+		await expect(Editor.draft().edit({ heading: 30 })).resolves.toBeNull();
 		expect(log.error).toHaveBeenCalledWith("[editor] edit failed:", h.editError);
+		await expect(Editor.draft().save({ heading: 30 })).resolves.toBeNull();
+		expect(log.error).toHaveBeenCalledWith("[editor] save failed:", h.editError);
 	});
 });
 

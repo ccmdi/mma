@@ -162,7 +162,7 @@ export function LocationPreview() {
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
 	const { defaultPano, geo } = usePanoViewer();
-	const { edit, save } = Editor;
+	const { edit, save } = Editor.draft();
 	const writing = Editor.useWriting();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = usePendingTags(location);
@@ -214,7 +214,7 @@ export function LocationPreview() {
 
 		// Save with the live camera. Pending enrichment joins the saved location
 		// and its undo step when it finishes.
-		await save({
+		const saved = await save({
 			...pano.captureView(),
 			tags: (
 				await Edit.values(
@@ -223,6 +223,7 @@ export function LocationPreview() {
 				)
 			).mutation.keys,
 		});
+		if (saved == null) return;
 
 		if (isReviewMode && reviewSession?.cursorId === location.id) {
 			void Review.next();
