@@ -2,6 +2,7 @@ import { Store } from "@/store/store";
 import { Mutation } from "@/store/mutation";
 import { Editor } from "@/store/editor";
 import { Autosave } from "@/store/autosave";
+import { Commit } from "@/store/commit";
 import { Edit } from "./edit";
 import { bboxTupleToBounds } from "@/types";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
@@ -83,7 +84,7 @@ export const Import = {
 			const mapId = Store.get().mapId;
 			if (mapId) {
 				await Scene.settled();
-				Autosave.scheduleAutoCommit(mapId, r.importedCount);
+				Commit.background(mapId, `Import ${r.importedCount} locations`);
 			}
 		}
 		return r;
@@ -92,7 +93,7 @@ export const Import = {
 	cancel: () => {
 		Import.reset();
 		emitEvent("import-markers:changed");
-		if (Store.get().open?.origin === "import" || Store.get().workArea === "import") {
+		if (Editor.get().open?.origin === "import" || Editor.get().workArea === "import") {
 			Editor.setArea("overview");
 		} else {
 			emitEvent("store:changed");

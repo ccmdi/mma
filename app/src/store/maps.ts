@@ -248,6 +248,8 @@ export const Maps = {
 	},
 };
 
+subscribe("map:saved", () => void Maps.invalidate());
+
 subscribe("settings:changed", () => {
 	if (collected && collected.hidden !== getSettings().hiddenMapBadges) invalidateMapBadges();
 });

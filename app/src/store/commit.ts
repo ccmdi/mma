@@ -3,6 +3,8 @@ import { Store } from "./store";
 import { Mutation } from "./mutation";
 import { Autosave } from "./autosave";
 import { cmd } from "@/lib/commands";
+import { log } from "@/lib/util/log";
+import { emit as emitEvent } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Scene } from "@/lib/render/scene";
 import { CommitDiff } from "./commitDiff";
@@ -21,6 +23,16 @@ export const Commit = {
 		void Maps.invalidate();
 		return r.id;
 	},
+	/** Commit `mapId` in the background once pending saves finish. @unstable */
+	background: (mapId: string, message: string) => {
+		void Autosave.exclusive(() => cmd.storeCommit(mapId, message))
+			.then(() => {
+				CommitDiff.resetCounts();
+				void Maps.invalidate();
+			})
+			.catch((e: unknown) => log.error("[commit] background commit failed:", e))
+			.finally(() => emitEvent("store:changed"));
+	},
 	/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
 	checkout: async (commitId: string) => {
 		const state = Store.get();
@@ -32,7 +44,7 @@ export const Commit = {
 		);
 		const map = await cmd.storeGetMap(Store.get().mapId!);
 		if (map) Store.setMeta(map);
-		if (Store.get().open) Editor.close();
+		if (Editor.get().open) Editor.close();
 
 		void Scene.load();
 		await Maps.invalidate();

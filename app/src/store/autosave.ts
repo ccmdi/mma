@@ -1,10 +1,8 @@
-import { Maps } from "./maps";
 import { Store } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { emit as emitEvent } from "@/lib/events";
-import { CommitDiff } from "./commitDiff";
 
 let timer: ReturnType<typeof setTimeout> | null = null;
 /** Every write to the map's files, each starting only after the one before has finished. */
@@ -21,7 +19,7 @@ function save(): Promise<void> {
 		try {
 			await cmd.storeSaveDirty();
 			t.end();
-			void Maps.invalidate();
+			emitEvent("map:saved");
 		} catch (err) {
 			Autosave.schedule();
 			log.error("Autosave failed, will retry:", err);
@@ -74,16 +72,6 @@ export const Autosave = {
 			() => {},
 		);
 		return result;
-	},
-	/** Background auto-commit after an import with autoCommit set. @unstable */
-	scheduleAutoCommit: (mapId: string, importedCount: number) => {
-		void Autosave.exclusive(() => cmd.storeCommit(mapId, `Import ${importedCount} locations`))
-			.then(() => {
-				CommitDiff.resetCounts();
-				void Maps.invalidate();
-			})
-			.catch((e: unknown) => log.error("[import] background commit failed:", e))
-			.finally(() => emitEvent("store:changed"));
 	},
 	/** Save any unsaved changes now instead of waiting for the timer. @unstable */
 	flush: (): Promise<void> => save(),

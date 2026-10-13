@@ -18,7 +18,11 @@ const EVENT_DEFS = {
 	"map:open": event<MapMeta>(),
 	"map:close": event<void>(),
 	/** @unstable */
+	"map:saved": event<void>(),
+	/** @unstable */
 	"store:changed": event<void>(),
+	/** @unstable */
+	"editor:changed": event<void>(),
 	"map-list:changed": event<void>(),
 	/** @unstable */
 	"saved-selections:changed": event<void>(),
@@ -198,6 +202,7 @@ const eventsWithPrefix = <P extends string>(
  *  the members share a consequence, not a namespace. */
 export const OVERLAY_REPAINT_EVENTS = [
 	"store:changed",
+	"editor:changed",
 	"scene:changed",
 	"trail:changed",
 	"seen:changed",

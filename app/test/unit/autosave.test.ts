@@ -6,10 +6,9 @@ vi.mock("@/lib/util/log", () => ({
 }));
 vi.mock("@/lib/commands", () => ({ cmd: { storeSaveDirty: vi.fn(async () => null) } }));
 vi.mock("@/store/store", () => ({ Store: { get: () => ({ mapId: "m1", map: { id: "m1" } }) } }));
-
-vi.mock("@/store/maps", () => ({ Maps: { invalidate: vi.fn(async () => {}) } }));
 import { Autosave } from "@/store/autosave";
 import { cmd } from "@/lib/commands";
+import { subscribe } from "@/lib/events";
 
 beforeEach(() => {
 	vi.useFakeTimers();
@@ -101,5 +100,18 @@ describe("writes to the map's files never overlap", () => {
 		);
 		await Autosave.flush();
 		expect(cmd.storeSaveDirty).toHaveBeenCalledOnce();
+	});
+});
+
+describe("autosave announces completed saves", () => {
+	it("emits map:saved after a successful save and not after a failed one", async () => {
+		const saved = vi.fn();
+		const off = subscribe("map:saved", saved);
+		await Autosave.flush();
+		expect(saved).toHaveBeenCalledOnce();
+		vi.mocked(cmd.storeSaveDirty).mockRejectedValueOnce(new Error("disk"));
+		await Autosave.flush();
+		expect(saved).toHaveBeenCalledOnce();
+		off();
 	});
 });
