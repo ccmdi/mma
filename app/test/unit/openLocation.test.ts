@@ -225,7 +225,7 @@ describe("open location", () => {
 	it("switching locations keeps the current one open until the next has its row", async () => {
 		await Editor.open(7);
 		const seen: { id: number; row: boolean }[] = [];
-		const unsub = subscribe("store:changed", () => {
+		const unsub = subscribe("snapshot:changed", () => {
 			const open = Editor.get().open;
 			if (open) seen.push({ id: open.id, row: open.location != null });
 		});

@@ -51,7 +51,7 @@ export function PinnedToolbar({
 			setDrop(null);
 		},
 	}));
-	useEventValue(["store:changed", "editor:changed"], () =>
+	useEventValue(["snapshot:changed", "editor:changed"], () =>
 		pinned.map((id) => (getCommand(id)?.enabled?.() === false ? "0" : "1")).join(""),
 	);
 

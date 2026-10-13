@@ -232,7 +232,7 @@ describe("change feed merge semantics", () => {
 describe("store announcements", () => {
 	it("merging derived state announces the snapshot change the way a patch does", () => {
 		const heard = vi.fn();
-		const off = subscribe("store:changed", heard);
+		const off = subscribe("snapshot:changed", heard);
 		Store.merge(event({ locationCount: 9 }).derived);
 		expect(heard).toHaveBeenCalledOnce();
 		Store.patch({});
@@ -242,7 +242,7 @@ describe("store announcements", () => {
 
 	it("a feed event announces the snapshot change exactly once", () => {
 		const heard = vi.fn();
-		const off = subscribe("store:changed", heard);
+		const off = subscribe("snapshot:changed", heard);
 		arrive(event({ locationCount: 4 }, 2));
 		expect(heard).toHaveBeenCalledOnce();
 		off();

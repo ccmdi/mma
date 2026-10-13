@@ -39,7 +39,7 @@ export const Store = {
 	/** Replace state fields and notify subscribers. @unstable */
 	patch: (patch: Partial<MapState>) => {
 		state = { ...state, ...patch };
-		emitEvent("store:changed");
+		emitEvent("snapshot:changed");
 	},
 	/** Apply complete derived state and remove null field values. @unstable */
 	merge: (v: Derived) => {
@@ -58,13 +58,13 @@ export const Store = {
 			}
 			state = { ...state, fieldValues: merged };
 		}
-		emitEvent("store:changed");
+		emitEvent("snapshot:changed");
 	},
 	/** Reactive slice of the map state. Re-renders only when the selected value's
 	 *  reference changes (`Object.is`), so selectors must return state fields or
 	 *  memoized values, not a new value per call. */
 	use: <T>(selector: (s: MapState) => T): T => {
-		return useEventValue("store:changed", () => selector(state));
+		return useEventValue("snapshot:changed", () => selector(state));
 	},
 	/** Imperative snapshot of the map state. */
 	get: (): Readonly<MapState> => {

@@ -75,6 +75,6 @@ export const closeManual = () => navigate({ ...route, manual: null });
 export function initRouter() {
 	window.addEventListener("popstate", applyRoute);
 	window.addEventListener("hashchange", applyRoute);
-	subscribeEvent("store:changed", () => syncTitle(Store.get().map?.name ?? null));
+	subscribeEvent("snapshot:changed", () => syncTitle(Store.get().map?.name ?? null));
 	applyRoute();
 }

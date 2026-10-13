@@ -93,7 +93,7 @@ export function useExtraFieldKeys(): FieldEntry[] {
 /** {@link useExtraFieldKeys} without this map's own fields that no location holds. */
 export function usePickableFields(): FieldEntry[] {
 	const all = useExtraFieldKeys();
-	const changed = useEvent("store:changed");
+	const changed = useEvent("snapshot:changed");
 	const [held, setHeld] = useState<ReadonlySet<string> | null>(null);
 	useEffect(() => {
 		let live = true;

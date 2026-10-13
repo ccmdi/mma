@@ -37,7 +37,7 @@ beforeEach(async () => {
 });
 
 // The map list is its own signal, not a slice of the store: every location edit fires
-// `store:changed`, and the list must not re-render for any of them.
+// `snapshot:changed`, and the list must not re-render for any of them.
 describe("useMapList subscription granularity", () => {
 	it("re-renders on map-list:changed", async () => {
 		const unmount = mount();
@@ -50,11 +50,11 @@ describe("useMapList subscription granularity", () => {
 		unmount();
 	});
 
-	it("ignores store:changed", () => {
+	it("ignores snapshot:changed", () => {
 		const unmount = mount();
 		expect(renders).toBe(1);
 
-		act(() => emit("store:changed"));
+		act(() => emit("snapshot:changed"));
 		expect(renders).toBe(1);
 		unmount();
 	});

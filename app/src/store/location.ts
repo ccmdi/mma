@@ -74,7 +74,7 @@ export const Location = {
 		if (ids.size === 0) return;
 		const { open } = Editor.get();
 		if (open && ids.has(open.id)) Editor.setArea("overview");
-		emitEvent("store:changed");
+		emitEvent("snapshot:changed");
 		await Edit.locations(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),

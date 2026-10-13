@@ -55,7 +55,7 @@ export const CommitDiff = {
 		const diff = useEventValue("commit-diff:changed", () => cachedCommitDiff);
 		useEffect(() => {
 			void refreshCommitDiff();
-			return subscribe("store:changed", () => void refreshCommitDiff());
+			return subscribe("snapshot:changed", () => void refreshCommitDiff());
 		}, []);
 		return diff;
 	},

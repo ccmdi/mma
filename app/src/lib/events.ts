@@ -8,8 +8,12 @@ import type { MapMeta, Selection } from "@/bindings.gen";
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;
 
+/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
+ *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
+ *  so listeners re-read it. A noun takes one of the two forms, never both. */
 const EVENT_DEFS = {
-	/** Map changes with affected location ids. Consumers re-read derived location data on this event. */
+	/** A change to the open map: the version it reached, the locations it added, removed and
+	 *  updated, and the derived state that moved. */
 	"store:change": event<ChangeEvent>(),
 	"selection:change": event<Selection[]>(),
 	"open:change": event<number | null>(),
@@ -19,8 +23,8 @@ const EVENT_DEFS = {
 	"map:close": event<void>(),
 	/** @unstable */
 	"map:saved": event<void>(),
-	/** @unstable */
-	"store:changed": event<void>(),
+	/** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
+	"snapshot:changed": event<void>(),
 	/** @unstable */
 	"editor:changed": event<void>(),
 	"map-list:changed": event<void>(),
@@ -201,7 +205,7 @@ const eventsWithPrefix = <P extends string>(
  *  module emits its own event and never calls back into the surface. Not prefix-derived:
  *  the members share a consequence, not a namespace. */
 export const OVERLAY_REPAINT_EVENTS = [
-	"store:changed",
+	"snapshot:changed",
 	"editor:changed",
 	"scene:changed",
 	"trail:changed",

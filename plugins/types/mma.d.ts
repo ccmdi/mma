@@ -3320,8 +3320,12 @@ declare const Store: {
     resetDerived: () => void;
 };
 
+/** Every app event and what it hands its listeners. A `<noun>:change` event carries the change
+ *  itself; a `<noun>:changed` event carries nothing and means the state its noun names moved,
+ *  so listeners re-read it. A noun takes one of the two forms, never both. */
 declare const EVENT_DEFS: {
-    /** Map changes with affected location ids. Consumers re-read derived location data on this event. */
+    /** A change to the open map: the version it reached, the locations it added, removed and
+     *  updated, and the derived state that moved. */
     "store:change": ChangeEvent;
     "selection:change": Selection[];
     "open:change": number | null;
@@ -3331,8 +3335,8 @@ declare const EVENT_DEFS: {
     "map:close": void;
     /** @unstable */
     "map:saved": void;
-    /** @unstable */
-    "store:changed": void;
+    /** The open map's state, as `Store.get` and `Store.use` read it, moved. @unstable */
+    "snapshot:changed": void;
     /** @unstable */
     "editor:changed": void;
     "map-list:changed": void;
