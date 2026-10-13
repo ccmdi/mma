@@ -10,8 +10,7 @@ use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::{fmt, mem};
 
-mod dependencies;
-pub(crate) use dependencies::*;
+mod dependents;
 pub use frame::*;
 pub(crate) use history::*;
 pub use membership::*;
@@ -149,7 +148,7 @@ pub struct Store {
     /// Subscribers to map changes and derived state updates.
     pub(crate) changes: Sinks<ChangeEvent>,
     /// Field dependencies declared by providers.
-    pub(crate) derived: ComputedFrom,
+    pub(crate) dependents: std::sync::Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
     pub(crate) pending: HashMap<String, Pending>,
 }
@@ -186,7 +185,7 @@ impl Store {
             spatial: Ensured::default(),
             frames: Sinks::default(),
             changes: Sinks::default(),
-            derived: ComputedFrom::default(),
+            dependents: Default::default(),
             pending: HashMap::new(),
         }
     }

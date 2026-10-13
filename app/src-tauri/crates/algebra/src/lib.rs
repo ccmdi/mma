@@ -1147,27 +1147,36 @@ pub fn ordered_rows<K: Ord, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
     rows.into_iter().map(|(_, (_, row))| row).collect()
 }
 
-pub trait Dependencies<K> {
-    fn inputs_changed_by(&self, changed: impl Fn(&K) -> bool) -> Vec<K>;
-    fn outputs_of<'a>(
-        &'a self,
-        inputs: impl IntoIterator<Item = &'a K>,
-    ) -> std::collections::HashSet<K>
-    where
-        K: 'a;
-    fn invalidated(
-        &self,
-        inputs: Vec<K>,
-        written: impl Fn(&K) -> bool,
-    ) -> std::collections::HashSet<K>;
+/// For each key, the keys computed from it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Dependents<K: Eq + Hash>(HashMap<K, Vec<K>>);
+
+impl<K: Eq + Hash> Default for Dependents<K> {
+    fn default() -> Self {
+        Self(HashMap::new())
+    }
 }
 
-impl<K: Clone + Eq + Hash> Dependencies<K> for HashMap<K, Vec<K>> {
-    fn inputs_changed_by(&self, changed: impl Fn(&K) -> bool) -> Vec<K> {
-        self.keys().filter(|key| changed(key)).cloned().collect()
+impl<K: Clone + Eq + Hash> Dependents<K> {
+    pub fn new(edges: HashMap<K, Vec<K>>) -> Self {
+        Self(edges)
     }
 
-    fn outputs_of<'a>(
+    /// The keys computed directly from `key`.
+    pub fn get<Q: ?Sized + Eq + Hash>(&self, key: &Q) -> Option<&[K]>
+    where
+        K: std::borrow::Borrow<Q>,
+    {
+        self.0.get(key).map(Vec::as_slice)
+    }
+
+    /// The inputs `changed` reports as changed.
+    pub fn inputs_changed_by(&self, changed: impl Fn(&K) -> bool) -> Vec<K> {
+        self.0.keys().filter(|key| changed(key)).cloned().collect()
+    }
+
+    /// The keys computed directly from any of `inputs`.
+    pub fn outputs_of<'a>(
         &'a self,
         inputs: impl IntoIterator<Item = &'a K>,
     ) -> std::collections::HashSet<K>
@@ -1176,19 +1185,21 @@ impl<K: Clone + Eq + Hash> Dependencies<K> for HashMap<K, Vec<K>> {
     {
         inputs
             .into_iter()
-            .flat_map(|input| self.get(input).into_iter().flatten())
+            .flat_map(|input| self.0.get(input).into_iter().flatten())
             .cloned()
             .collect()
     }
 
-    fn invalidated(
+    /// Every key computed, directly or through others, from `inputs`, stopping at keys the
+    /// same write sets itself.
+    pub fn invalidated(
         &self,
         mut inputs: Vec<K>,
         written: impl Fn(&K) -> bool,
     ) -> std::collections::HashSet<K> {
         let mut stale = std::collections::HashSet::new();
         while let Some(input) = inputs.pop() {
-            for output in self.get(&input).into_iter().flatten() {
+            for output in self.0.get(&input).into_iter().flatten() {
                 if !written(output) && stale.insert(output.clone()) {
                     inputs.push(output.clone());
                 }

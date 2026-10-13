@@ -26,7 +26,7 @@ fn run(id: &str, fields: Option<&[&str]>) -> RunItem {
 }
 
 #[test]
-fn the_graph_maps_each_input_to_what_its_providers_write() {
+fn dependents_map_each_input_to_what_its_providers_write() {
     let mut providers = Providers::default();
     providers.register(def("panoResolve", &[], &["panoId"], &["lat", "lng"]));
     providers.register(def(
@@ -35,14 +35,14 @@ fn the_graph_maps_each_input_to_what_its_providers_write() {
         &[],
         &["panoId"],
     ));
-    let graph = providers.graph();
-    assert_eq!(graph["lat"], vec!["panoId".to_string()]);
-    let mut from_pano = graph["panoId"].clone();
+    let dependents = providers.dependents();
+    assert_eq!(dependents.get("lat").unwrap(), ["panoId".to_string()]);
+    let mut from_pano = dependents.get("panoId").unwrap().to_vec();
     from_pano.sort();
     assert_eq!(from_pano, vec!["countryCode", "imageDate"]);
 
     providers.unregister("svMeta");
-    assert!(!providers.graph().contains_key("panoId"));
+    assert!(providers.dependents().get("panoId").is_none());
 }
 
 #[test]
@@ -50,9 +50,9 @@ fn registering_an_id_again_replaces_the_provider() {
     let mut providers = Providers::default();
     providers.register(def("sun", &["sunAltitude"], &[], &["lat"]));
     providers.register(def("sun", &["sunAzimuth"], &[], &["lng"]));
-    let graph = providers.graph();
-    assert!(!graph.contains_key("lat"));
-    assert_eq!(graph["lng"], vec!["sunAzimuth".to_string()]);
+    let dependents = providers.dependents();
+    assert!(dependents.get("lat").is_none());
+    assert_eq!(dependents.get("lng").unwrap(), ["sunAzimuth".to_string()]);
 }
 
 #[test]

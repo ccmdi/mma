@@ -162,7 +162,7 @@ async fn open_claimed_map(
         .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
     store.meta = Tracked::new(meta);
     let status = store.open_status();
-    store.derived = mgr.providers.graph();
+    store.dependents = mgr.providers.dependents();
     mgr.window_map.insert(label.clone(), map_id.clone());
     if let Some(replaced) = mgr.stores.remove(&map_id) {
         store.adopt_watchers(replaced);

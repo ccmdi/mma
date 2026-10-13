@@ -2,8 +2,9 @@
 
 use super::engine::{BatchMode, ProcedureDecl, ProviderDecl, Sink};
 use crate::selections::Selector;
-use crate::store::engine::{ComputedFrom, StoreState};
+use crate::store::engine::StoreState;
 use crate::types::{AppError, AppResult};
+use mma_algebra::Dependents;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -59,7 +60,7 @@ pub enum RunItem {
 #[derive(Default)]
 pub struct Providers {
     defs: HashMap<String, ProviderDef>,
-    graph: ComputedFrom,
+    dependents: Arc<Dependents<String>>,
 }
 
 impl Providers {
@@ -75,9 +76,9 @@ impl Providers {
         }
     }
 
-    /// Each field mapped to the fields computed from it.
-    pub fn graph(&self) -> ComputedFrom {
-        self.graph.clone()
+    /// For each field, the fields computed from it.
+    pub fn dependents(&self) -> Arc<Dependents<String>> {
+        self.dependents.clone()
     }
 
     /// The declarations a run executes, in order.
@@ -131,16 +132,16 @@ impl Providers {
                     .extend(outputs.clone().cloned());
             }
         }
-        self.graph = Arc::new(edges);
+        self.dependents = Arc::new(Dependents::new(edges));
     }
 }
 
-fn publish_graph(state: &StoreState, change: impl FnOnce(&mut Providers)) -> AppResult<()> {
+fn publish(state: &StoreState, change: impl FnOnce(&mut Providers)) -> AppResult<()> {
     let mut mgr = state.lock()?;
     change(&mut mgr.providers);
-    let graph = mgr.providers.graph();
+    let dependents = mgr.providers.dependents();
     for store in mgr.stores.values_mut() {
-        store.derived = graph.clone();
+        store.dependents = dependents.clone();
     }
     Ok(())
 }
@@ -152,14 +153,14 @@ pub fn provider_register(
     state: tauri::State<'_, StoreState>,
     provider: ProviderDef,
 ) -> AppResult<()> {
-    publish_graph(state.inner(), |providers| providers.register(provider))
+    publish(state.inner(), |providers| providers.register(provider))
 }
 
 /// Remove a registered provider.
 #[tauri::command]
 #[specta::specta]
 pub fn provider_unregister(state: tauri::State<'_, StoreState>, id: String) -> AppResult<()> {
-    publish_graph(state.inner(), |providers| providers.unregister(&id))
+    publish(state.inner(), |providers| providers.unregister(&id))
 }
 
 #[cfg(test)]

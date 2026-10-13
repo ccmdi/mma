@@ -5296,10 +5296,10 @@ fn any_write_that_changes_an_input_clears_what_was_computed_from_it() {
     let mut row = loc_with_heading(1, 10.0, 20.0, 0.0);
     row.extra = raw_extra(r#"{"timezone":"Europe/Oslo","sunrise":6,"kept":1}"#);
     let mut store = setup_store_with(&[row]);
-    store.derived = ComputedFrom::new(HashMap::from([
+    store.dependents = std::sync::Arc::new(mma_algebra::Dependents::new(HashMap::from([
         ("lat".to_string(), vec!["timezone".to_string()]),
         ("timezone".to_string(), vec!["sunrise".to_string()]),
-    ]));
+    ])));
     apply_updates(&mut store, &[patch!(1; lat: 11.0)], &mut None);
     let extra = store
         .get_loc_by_id(Id::new(1))
@@ -7417,10 +7417,10 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
 #[test]
 fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let mut store = setup_store_with(&[]);
-    store.derived = std::sync::Arc::new(HashMap::from([(
+    store.dependents = std::sync::Arc::new(mma_algebra::Dependents::new(HashMap::from([(
         "panoId".to_string(),
         vec!["countryCode".to_string()],
-    )]));
+    )])));
     let read = Location {
         pano_id: Some("old".into()),
         ..loc(1, 0.0, 0.0)

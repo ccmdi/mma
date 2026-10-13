@@ -560,11 +560,11 @@ fn change_at_deduplicates_requested_keys_and_ignores_keys_absent_on_both_sides()
 
 #[test]
 fn dependency_invalidation_walks_a_transitive_chain_and_keeps_other_roots() {
-    let deps = HashMap::from([
+    let deps = Dependents::new(HashMap::from([
         ("lat".to_string(), vec!["timezone".to_string()]),
         ("timezone".to_string(), vec!["sunrise".to_string()]),
         ("lng".to_string(), vec!["country".to_string()]),
-    ]);
+    ]));
     let stale = deps.invalidated(vec!["lat".into()], |_| false);
     assert_eq!(
         stale,
@@ -574,7 +574,7 @@ fn dependency_invalidation_walks_a_transitive_chain_and_keeps_other_roots() {
 
 #[test]
 fn explicitly_rewritten_outputs_break_their_invalidation_branch() {
-    let deps = HashMap::from([
+    let deps = Dependents::new(HashMap::from([
         (
             "source".to_string(),
             vec!["rewritten".to_string(), "sibling".to_string()],
@@ -584,7 +584,7 @@ fn explicitly_rewritten_outputs_break_their_invalidation_branch() {
             "sibling".to_string(),
             vec!["sibling_downstream".to_string()],
         ),
-    ]);
+    ]));
     let stale = deps.invalidated(vec!["source".into()], |output| output == "rewritten");
     assert_eq!(
         stale,
@@ -594,12 +594,12 @@ fn explicitly_rewritten_outputs_break_their_invalidation_branch() {
 
 #[test]
 fn dependency_cycles_terminate_and_mark_each_reachable_output_once() {
-    let deps = HashMap::from([
+    let deps = Dependents::new(HashMap::from([
         ("a".to_string(), vec!["b".to_string()]),
         ("b".to_string(), vec!["c".to_string()]),
         ("c".to_string(), vec!["a".to_string(), "b".to_string()]),
         ("unrelated".to_string(), vec!["other".to_string()]),
-    ]);
+    ]));
     let stale = deps.invalidated(vec!["a".into()], |_| false);
     assert_eq!(
         stale,

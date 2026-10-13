@@ -1128,7 +1128,12 @@ fn force_false_skips_rows_that_already_hold_every_field() {
 fn computed_from(state: &StoreState, map_id: &Id<MapMeta, String>, input: &str, outputs: &[&str]) {
     let outputs = outputs.iter().map(ToString::to_string).collect();
     let edges = HashMap::from([(input.to_string(), outputs)]);
-    state.lock().unwrap().store_for_map(map_id).unwrap().derived = Arc::new(edges);
+    state
+        .lock()
+        .unwrap()
+        .store_for_map(map_id)
+        .unwrap()
+        .dependents = Arc::new(mma_algebra::Dependents::new(edges));
 }
 
 #[test]

@@ -1,17 +1,14 @@
 use super::*;
 use crate::types::Location;
-use mma_algebra::{same_field_value, Dependencies, Field, Patch, Patchable};
-use std::sync::Arc;
-
-pub type ComputedFrom = Arc<HashMap<String, Vec<String>>>;
+use mma_algebra::{same_field_value, Field, Patch, Patchable};
 
 impl Store {
     pub(super) fn applied(&self, row: &Location, patch: &Patch<Location>) -> Location {
         let mut new = row.patched(patch);
         let inputs = self
-            .derived
+            .dependents
             .inputs_changed_by(|key| field_changed(row, &new, key));
-        let stale = self.derived.invalidated(inputs, |key| {
+        let stale = self.dependents.invalidated(inputs, |key| {
             <Location as Patchable>::WRITES
                 .iter()
                 .any(|(k, _)| *k == key)
@@ -39,9 +36,9 @@ impl Store {
             return patch;
         };
         let inputs = self
-            .derived
+            .dependents
             .inputs_changed_by(|key| field_changed(read, now, key));
-        let stale = self.derived.outputs_of(&inputs);
+        let stale = self.dependents.outputs_of(&inputs);
         if stale.is_empty() {
             return patch;
         }
