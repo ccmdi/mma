@@ -1,6 +1,15 @@
-/** Only current work may publish or invoke callbacks. The owner can be an existing resource. */
+/**
+ * Latest-wins async work: each `replace` supersedes the run before it, so only the newest
+ * run's value reaches `publish`. A run's `signal` aborts once `replace` or `cancel` supersedes it.
+ * A superseded value goes to `discard` instead, so a run can release what it built.
+ * A value `read` returns synchronously publishes before `replace` returns.
+ * A current run's error goes to `failed`, or rejects `replace` when `failed` is unset; a
+ * superseded run's error is dropped. With `owner`, a run is also superseded once `owner()`
+ * returns something other than it did when the run began. `bind` wraps a callback so it runs
+ * only while nothing has superseded the moment it was bound, and returns `inactive()` after.
+ */
 export function latest<T = unknown>(
-	defaults: {
+	options: {
 		publish?: (value: T) => void;
 		discard?: (value: T) => void | Promise<void>;
 		failed?: (error: unknown) => void;
@@ -10,14 +19,13 @@ export function latest<T = unknown>(
 	let current = new AbortController();
 	const supersede = () => {
 		const previous = current;
-		const next = new AbortController();
-		current = next;
+		current = new AbortController();
 		previous.abort();
-		return next.signal;
+		return current.signal;
 	};
 	const owns = (signal: AbortSignal) => {
-		const owner = defaults.owner?.();
-		return () => !signal.aborted && (!defaults.owner || defaults.owner() === owner);
+		const owner = options.owner?.();
+		return () => !signal.aborted && (!options.owner || options.owner() === owner);
 	};
 	function bind<A extends unknown[], R>(
 		callback: (...args: A) => R,
@@ -33,28 +41,19 @@ export function latest<T = unknown>(
 			supersede();
 		},
 		bind,
-		replace<V extends T = T>(
-			read: (signal: AbortSignal) => V | Promise<V>,
-			publish?: (value: V) => void,
-			options: {
-				discard?: (value: V) => void | Promise<void>;
-				failed?: (error: unknown) => void;
-			} = {},
-		): Promise<void> {
+		replace(read: (signal: AbortSignal) => T | Promise<T>): Promise<void> {
 			const signal = supersede();
 			const valid = owns(signal);
-			const accept = (value: V) => {
-				if (!valid()) return (options.discard ?? defaults.discard)?.(value);
-				(publish ?? defaults.publish)?.(value);
+			const accept = (value: T) => {
+				if (!valid()) return options.discard?.(value);
+				options.publish?.(value);
 			};
 			const fail = (error: unknown) => {
 				if (!valid()) return;
-				const failed = options.failed ?? defaults.failed;
-				if (failed) failed(error);
+				if (options.failed) options.failed(error);
 				else throw error;
 			};
 			try {
-				if (!valid()) return Promise.resolve();
 				const result = read(signal);
 				return result instanceof Promise
 					? result.then(accept).catch(fail)

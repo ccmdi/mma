@@ -48,7 +48,14 @@ function update(next: Partial<EditorState>): void {
 	emitEvent("editor:changed");
 }
 
-const refreshes = latest();
+const refreshes = latest<{ open: Opening; location: Location | null }>({
+	publish: ({ open, location }) => {
+		const next = { ...open, location };
+		update({ open: next });
+		if (location?.panoId !== open.location?.panoId) enrichDraft(next);
+	},
+	failed: (error) => log.error("[editor] draft read failed:", error),
+});
 const enrichments = new WeakMap<Layer, ReturnType<typeof latest>>();
 const openings = latest<Opening | Location[] | null>({
 	publish: (result) => {
@@ -164,23 +171,13 @@ export const Editor = {
 	refresh: (): Promise<void> => {
 		const open = state.open;
 		if (!open) return Promise.resolve();
-		return refreshes.replace(
-			async () => {
-				const [location = null] = await open.layer.read(
-					{ type: "Locations", locations: [open.id], name: null },
-					{ kind: "locations" },
-				);
-				return location;
-			},
-			(location) => {
-				const next = { ...open, location };
-				update({ open: next });
-				if (location?.panoId !== open.location?.panoId) enrichDraft(next);
-			},
-			{
-				failed: (error) => log.error("[editor] draft read failed:", error),
-			},
-		);
+		return refreshes.replace(async () => {
+			const [location = null] = await open.layer.read(
+				{ type: "Locations", locations: [open.id], name: null },
+				{ kind: "locations" },
+			);
+			return { open, location };
+		});
 	},
 	/** Edit this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
 	get edit() {

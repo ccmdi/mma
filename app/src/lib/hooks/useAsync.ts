@@ -17,25 +17,24 @@ export function useAsync<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
 ): AsyncState<T> {
-	const requests = useRef(latest()).current;
 	const [state, setState] = useState<AsyncState<T>>({ data: null, loading: true, error: null });
+	const [requests] = useState(() =>
+		latest<T>({
+			publish: (data) => setState({ data, loading: false, error: null }),
+			failed: (e) =>
+				setState({
+					data: null,
+					loading: false,
+					error: e instanceof Error ? e : new Error(String(e)),
+				}),
+		}),
+	);
 	useEffect(() => {
-		void requests.replace(
-			(signal) => {
-				const result = fn(signal);
-				if (result instanceof Promise) setState({ data: null, loading: true, error: null });
-				return result;
-			},
-			(data) => setState({ data, loading: false, error: null }),
-			{
-				failed: (e) =>
-					setState({
-						data: null,
-						loading: false,
-						error: e instanceof Error ? e : new Error(String(e)),
-					}),
-			},
-		);
+		void requests.replace((signal) => {
+			const result = fn(signal);
+			if (result instanceof Promise) setState({ data: null, loading: true, error: null });
+			return result;
+		});
 		return () => requests.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, deps);
