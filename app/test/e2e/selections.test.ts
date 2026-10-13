@@ -53,7 +53,7 @@ describe("Selections - basic types", () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
 			const sels = api.SelectionList.active();
-			return { count: api.Store.get().selectedLocationIds.size, selCount: sels.length };
+			return { count: api.Scene.selected().size, selCount: sels.length };
 		});
 		expect(result.count).toBe(50);
 		expect(result.selCount).toBe(1);
@@ -62,7 +62,7 @@ describe("Selections - basic types", () => {
 	it("selectNotPanoIds selects locations without LoadAsPanoId flag", async () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(false)));
-			return api.Store.get().selectedLocationIds.size;
+			return api.Scene.selected().size;
 		});
 		expect(result).toBe(150);
 	});
@@ -71,7 +71,7 @@ describe("Selections - basic types", () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(false)));
-			return api.Store.get().selectedLocationIds.size;
+			return api.Scene.selected().size;
 		});
 		expect(result).toBe(200);
 	});
@@ -170,7 +170,7 @@ describe("Selections - basic types", () => {
 			const count = async (polygon: PolygonGeometry) => {
 				await api.SelectionList.update({ kind: "set", selections: [] });
 				await api.SelectionList.update(api.addSelection({ type: "Polygon", polygon }));
-				return api.Store.get().selectedLocationIds.size;
+				return api.Scene.selected().size;
 			};
 			const [first, ...rest] = await api.cmd.polygonFill(crossed);
 			return {
@@ -194,7 +194,7 @@ describe("Selections - basic types", () => {
 
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection({ type: "Duplicates", distance: 1 }));
-			const ids = api.Store.get().selectedLocationIds;
+			const ids = api.Scene.selected();
 			return { count: ids.size };
 		});
 		expect(result.count).toBeGreaterThanOrEqual(1);
@@ -228,7 +228,7 @@ describe("Selection operations", () => {
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
 			await api.SelectionList.update(api.onActive(api.intersectSelections()));
 			const sels = api.SelectionList.active();
-			return { count: api.Store.get().selectedLocationIds.size, selCount: sels.length };
+			return { count: api.Scene.selected().size, selCount: sels.length };
 		}, tagAId);
 		expect(result.count).toBe(30);
 	});
@@ -239,7 +239,7 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
 			await api.SelectionList.update(api.onActive(api.unionSelections()));
-			return api.Store.get().selectedLocationIds.size;
+			return api.Scene.selected().size;
 		}, tagAId);
 		expect(result).toBe(50);
 	});
@@ -248,7 +248,7 @@ describe("Selection operations", () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
 			await api.SelectionList.update(api.onActive(api.invertSelections())); // 100 - 30 = 70
-			return api.Store.get().selectedLocationIds.size;
+			return api.Scene.selected().size;
 		});
 		expect(result).toBe(70);
 	});
@@ -316,13 +316,13 @@ describe("Selection correctness after mutations", () => {
 		for (let i = 0; i < 5; i++) locsToFlag.push(await getLoc(locIds[i]));
 		const result = await withApi(async (api, locs) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-			const before = api.Store.get().selectedLocationIds.size;
+			const before = api.Scene.selected().size;
 			for (const l of locs) {
 				await api.Location.update([{ id: l.id, flags: 1 }]);
 			}
 			await api.SelectionList.update({ kind: "set", selections: [] });
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
-			const after = api.Store.get().selectedLocationIds.size;
+			const after = api.Scene.selected().size;
 			return { before, after };
 		}, locsToFlag);
 		expect(result.before).toBe(0);

@@ -1,6 +1,5 @@
 import type { MapMeta, Derived } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
-import { SelectedIds } from "@/lib/render/CellManager";
 
 /** The full local mirror of the store's derived state. */
 type EngineState = {
@@ -11,7 +10,6 @@ export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
-	selectedLocationIds: SelectedIds;
 }
 
 export type MapState = UiState & EngineState;
@@ -30,7 +28,6 @@ const INITIAL_STATE: MapState = {
 	...ENGINE_INITIAL,
 	mapId: null,
 	map: null,
-	selectedLocationIds: SelectedIds.EMPTY,
 };
 
 let state: MapState = INITIAL_STATE;
@@ -69,10 +66,6 @@ export const Store = {
 	/** Imperative snapshot of the map state. */
 	get: (): Readonly<MapState> => {
 		return state;
-	},
-	/** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
-	setSelected: (ids: SelectedIds) => {
-		Store.patch({ selectedLocationIds: ids });
 	},
 	/** Replace the open map's row in state; persisting it is the caller's. @unstable */
 	setMeta: (map: MapMeta) => {

@@ -557,7 +557,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 						await new Promise<void>((resolve) =>
 							requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 						);
-						const selected = api.Store.get().selectedLocationIds.size;
+						const selected = api.Scene.selected().size;
 						if (selected < minimum) throw new Error(`selected ${selected}, expected >= ${minimum}`);
 						return {
 							durationMs: performance.now() - start,
@@ -771,14 +771,14 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				await api.SelectionList.update({ kind: "set", selections: [] });
 				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
-				if (api.Store.get().selectedLocationIds.size === 0) {
+				if (api.Scene.selected().size === 0) {
 					throw new Error("delete setup selected nothing");
 				}
 			}, tagId);
 		},
 		run: () =>
 			withApi(async (api, target) => {
-				const ids = api.Store.get().selectedLocationIds;
+				const ids = api.Scene.selected();
 				const removed = ids.size;
 				const start = performance.now();
 				await api.Location.remove(ids);
@@ -833,7 +833,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				await api.SelectionList.update({ kind: "set", selections: [] });
 				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
-				await api.Location.remove(api.Store.get().selectedLocationIds);
+				await api.Location.remove(api.Scene.selected());
 				api.Autosave.cancel();
 				if (!api.History.available(api.Store.get().history, "undo"))
 					throw new Error("bulk delete is not undoable");
@@ -866,7 +866,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				await api.SelectionList.update({ kind: "set", selections: [] });
 				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
-				await api.Location.remove(api.Store.get().selectedLocationIds);
+				await api.Location.remove(api.Scene.selected());
 				await api.History.undo();
 				api.Autosave.cancel();
 				if (!api.History.available(api.Store.get().history, "redo"))

@@ -1,15 +1,13 @@
 import { Channel } from "@tauri-apps/api/core";
-import { Store } from "@/store/store";
-import { CellManager, type FrameSummary } from "@/lib/render/CellManager";
+import { CellManager, SelectedIds, type FrameSummary } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
 import type { RGBA } from "@/lib/util/color";
 import type { RGB } from "@/bindings.gen";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { mapOpen } from "@/lib/util/debug";
-import { emit as emitEvent, subscribe as subscribeEvent } from "@/lib/events";
+import { emit as emitEvent, subscribe as subscribeEvent, useEventValue } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
-import { Editor } from "@/store/editor";
 import { watermark } from "@/lib/util/watermark";
 
 // Owns marker/scene data for every map surface. The editor map drives the engine (the
@@ -29,10 +27,15 @@ const APPLIED_KEPT = 16;
 const drawnUpTo = watermark<FrameSummary>(
 	(version) => applied.find((s) => s.version >= version) ?? nothingApplied(version),
 );
+/** The map row open in the editor, which a clear forgets and the next load hides again. */
+let openRow: number | null = null;
+let selected = SelectedIds.EMPTY;
 
-function syncOpen(): boolean {
-	return scene.setOpen(Editor.get().open?.location?.id ?? null);
-}
+subscribeEvent("open:change", (id) => {
+	openRow = id;
+	scene.setOpen(id);
+	emitEvent("scene:changed");
+});
 
 function nothingApplied(version: number): FrameSummary {
 	return { version, replace: false, added: new Uint32Array(0), removed: new Uint32Array(0) };
@@ -52,10 +55,10 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 	const drawn = scene.version;
 	const s = scene.apply(buf);
 	if (s.replace) {
-		syncOpen();
+		scene.setOpen(openRow);
 		applied = [];
 	}
-	if (scene.overlay.version !== before) Store.setSelected(scene.selectedIds());
+	if (scene.overlay.version !== before) selected = scene.selectedIds();
 	applied.push(s);
 	if (applied.length > APPLIED_KEPT) applied.shift();
 	// A replace frame draws the store as it stands, which answers every wait on it.
@@ -148,19 +151,15 @@ export const Scene = {
 	clear: () => {
 		follow(null);
 		scene.clear();
+		selected = SelectedIds.EMPTY;
 		emitEvent("scene:changed");
 	},
-	/** Start following open-location changes. Returns a stop function. */
-	start: (): (() => void) => {
-		// Opening a location sends no frame, so the scene follows the editor; `setOpen` is a
-		// no-op when the id hasn't moved.
-		const unsubEditor = subscribeEvent("editor:changed", () => {
-			if (syncOpen()) emitEvent("scene:changed");
-		});
-
-		return () => {
-			unsubEditor();
-			Scene.clear();
-		};
+	/** The ids of the locations the listed selections select. */
+	selected: (): SelectedIds => {
+		return selected;
+	},
+	/** Reactive {@link Scene.selected}. */
+	useSelected: (): SelectedIds => {
+		return useEventValue("scene:changed", Scene.selected);
 	},
 };

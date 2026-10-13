@@ -8,7 +8,6 @@ import { log } from "@/lib/util/log";
 import { toast } from "@/lib/util/toast";
 import { storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
-import { SelectedIds } from "@/lib/render/CellManager";
 import { Scene } from "@/lib/render/scene";
 import { Import } from "./import";
 import { CommitDiff } from "./commitDiff";
@@ -70,7 +69,6 @@ function invalidateMapBadges() {
 
 /** Reset all per-map editing state to its initial values. */
 function clearEditState() {
-	Store.setSelected(SelectedIds.EMPTY);
 	Editor.setArea("overview");
 	Import.reset();
 	CommitDiff.reset();

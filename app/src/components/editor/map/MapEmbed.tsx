@@ -241,8 +241,7 @@ export function MapEmbed({
 		};
 	}, [hostKind]);
 
-	// The editor map drives the single scene engine.
-	useEffect(() => Scene.start(), []);
+	useEffect(() => Scene.clear, []);
 
 	// Full (re)load on open and on marker-style change; clear when the map isn't ready.
 	useEffect(() => {

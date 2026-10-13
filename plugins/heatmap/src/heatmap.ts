@@ -13,7 +13,7 @@ import {
 const {
   storage,
   mapStorage,
-  getMapState,
+  Scene,
   resolveIds,
   selectorForPick,
   getScenePositions,
@@ -53,7 +53,7 @@ function saveProject(key: string, value: unknown) {
 }
 
 function defaultSource(): SelectorPick {
-  return getMapState().selectedLocationIds.size > 0
+  return Scene.selected().size > 0
     ? { pick: "selection" }
     : { pick: "all" };
 }

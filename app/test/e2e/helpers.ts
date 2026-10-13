@@ -224,7 +224,7 @@ export async function select(...selector: Selector[]) {
 export async function selectCount(...selector: Selector[]): Promise<number> {
 	return withApi(async (api, p) => {
 		await api.SelectionList.update(api.addSelection(...p));
-		return api.Store.get().selectedLocationIds.size;
+		return api.Scene.selected().size;
 	}, selector);
 }
 

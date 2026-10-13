@@ -599,16 +599,13 @@ export class CellManager {
 		cb.visible[i] = sel !== NO_SEL || id === this.openId ? 0 : 255;
 	}
 
-	/** Set the open location, whose marker the open-location layer draws instead of the base cell.
-	 *  Returns whether the open location actually moved. */
-	setOpen(id: number | null): boolean {
-		if (id === this.openId) return false;
+	/** Set the open location, whose marker the open-location layer draws instead of the base cell. */
+	setOpen(id: number | null) {
 		const prev = this.openId;
 		this.openId = id;
 		if (prev != null) this.syncVisible(prev);
 		if (id != null) this.syncVisible(id);
 		this.version++;
-		return true;
 	}
 
 	/**

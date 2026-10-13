@@ -65,6 +65,7 @@ import { CommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
 import { Maps } from "./maps";
 import { Store } from "@/store/store";
+import { Scene } from "@/lib/render/scene";
 import { SelectionList } from "@/store/selectionList";
 import { Tag } from "@/store/tag";
 import { History } from "@/store/history";
@@ -82,7 +83,7 @@ import { Editor } from "@/store/editor";
 const requiresMap = () => Store.get().map !== null;
 const requiresVersioning = () => requiresMap() && !Maps.isReserved(Store.get().mapId);
 const hasOpenLocation = () => Editor.get().open?.location != null;
-const hasSelection = () => Store.get().selectedLocationIds.size > 0;
+const hasSelection = () => Scene.selected().size > 0;
 const hasAnySelections = () => Store.get().selectionList.length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
 const openInlinePanel = (id: string) => () => openDialog("inline-panel", id);
@@ -399,7 +400,7 @@ const COMMANDS = {
 		group: msg("Selections"),
 		enabled: hasSelection,
 		execute: async () => {
-			const ids = Store.get().selectedLocationIds;
+			const ids = Scene.selected();
 			if (ids.size > 0) await Location.remove(ids);
 		},
 	},

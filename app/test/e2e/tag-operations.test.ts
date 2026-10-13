@@ -142,7 +142,7 @@ describe("Bulk tag add", () => {
 	it("bulkAddTag adds tag to all selected locations", async () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			await api.addTagToLocations(tagId, [...api.Store.get().selectedLocationIds]);
+			await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 			const counts = api.Tag.counts();
 			return (counts as any)[String(tagId)] ?? 0;
 		}, bulkTagId);
@@ -153,7 +153,7 @@ describe("Bulk tag add", () => {
 		const result = await withApi(
 			async (api, tagId, firstLocId) => {
 				await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-				await api.addTagToLocations(tagId, [...api.Store.get().selectedLocationIds]);
+				await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 				const loc = await api.fetchLocation(firstLocId);
 				return loc!.tags.filter((t: number) => t === tagId).length;
 			},
@@ -176,7 +176,7 @@ describe("Bulk tag add", () => {
 		const newTag = await createTag("UndoBulk");
 		await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			await api.addTagToLocations(tagId, [...api.Store.get().selectedLocationIds]);
+			await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 		}, newTag.id);
 
 		const beforeCount = await withApi(async (api, tagId) => {

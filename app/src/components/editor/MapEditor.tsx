@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
+import { Scene } from "@/lib/render/scene";
 import { Location } from "@/store/location";
 import { Tag } from "@/store/tag";
 import { Import } from "@/store/import";
@@ -252,7 +253,7 @@ export function MapEditor() {
 	useHotkey(
 		useBinding("locationDelete"),
 		() => {
-			const ids = Store.get().selectedLocationIds;
+			const ids = Scene.selected();
 			if (ids.size > 0) void Location.remove(ids);
 		},
 		{ bubble: true },

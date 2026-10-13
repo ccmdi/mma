@@ -1171,7 +1171,7 @@ function hexToRgb(hex) {
 var {
   storage,
   mapStorage,
-  getMapState,
+  Scene,
   resolveIds,
   selectorForPick,
   getScenePositions,
@@ -1194,7 +1194,7 @@ function saveProject(key, value) {
   void mapStorage("heatmap").set(key, value);
 }
 function defaultSource() {
-  return getMapState().selectedLocationIds.size > 0 ? { pick: "selection" } : { pick: "all" };
+  return Scene.selected().size > 0 ? { pick: "selection" } : { pick: "all" };
 }
 function newLayer() {
   return {
@@ -1367,6 +1367,7 @@ style.textContent = '.heatmap-sidebar__gradients {\n  display: grid; grid-templa
 var import_jsx_runtime = __toESM(require_jsx_runtime());
 var {
   useMapState,
+  Scene: Scene2,
   selectorForPick: selectorForPick2,
   ui: { Button, ConfirmButton, Field, Section, SelectorPicker, Sidebar, Slider, Switch, TextInput }
 } = MMA;
@@ -1380,7 +1381,7 @@ function HeatmapSidebar({ onClose }) {
     };
   }, []);
   const allCount = useMapState((s) => s.locationCount);
-  const selectedIds = useMapState((s) => s.selectedLocationIds);
+  const selectedIds = Scene2.useSelected();
   return /* @__PURE__ */ (0, import_jsx_runtime.jsxs)(
     Sidebar,
     {

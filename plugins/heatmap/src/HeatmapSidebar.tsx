@@ -33,6 +33,7 @@ import "./HeatmapSidebar.css";
 
 const {
   useMapState,
+  Scene,
   selectorForPick,
   ui: { Button, ConfirmButton, Field, Section, SelectorPicker, Sidebar, Slider, Switch, TextInput },
 } = MMA;
@@ -49,7 +50,7 @@ export function HeatmapSidebar({ onClose }: { onClose: () => void }) {
   }, []);
 
   const allCount = useMapState((s) => s.locationCount);
-  const selectedIds = useMapState((s) => s.selectedLocationIds);
+  const selectedIds = Scene.useSelected();
 
   return (
     <Sidebar

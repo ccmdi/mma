@@ -2036,7 +2036,7 @@ Imperative snapshot of the map state.
 getSelectedLocationIds(): SelectedIds
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.Store.get().selectedLocationIds`.
+**Deprecated in v0.8.2.** Read `MMA.Scene.selected()`.
 
 ### getSelectedTagIds
 
@@ -2677,18 +2677,6 @@ setPluginMode(pluginId: string): void
 **Deprecated in v0.12.1.** Use `MMA.Editor.openPlugin`.
 
 Open a plugin's sidebar (switches the editor pane to "plugin").
-
-### setSelectedLocationIds
-
-`unstable` · `deprecated` · since v0.6.6
-
-```ts
-setSelectedLocationIds(ids: SelectedIds): void
-```
-
-**Deprecated in v0.12.1.** Use `MMA.Store.setSelected`.
-
-Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
 
 ### settled
 
@@ -4280,16 +4268,6 @@ Store.setMeta(map: MapMeta): void
 ```
 
 Replace the open map's row in state; persisting it is the caller's.
-
-#### Store.setSelected
-
-`unstable` · unreleased
-
-```ts
-Store.setSelected(ids: SelectedIds): void
-```
-
-Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want.
 
 #### Store.use
 
@@ -8945,6 +8923,16 @@ Scene.recolor(mc: RGB): void
 
 Change the default marker color and repaint.
 
+#### Scene.selected
+
+`unstable` · unreleased
+
+```ts
+Scene.selected(): SelectedIds
+```
+
+The ids of the locations the listed selections select.
+
 #### Scene.setDefaultColor
 
 `unstable` · unreleased
@@ -8965,15 +8953,15 @@ Scene.settled(): Promise<void>
 
 Resolves when the most recently started full scene load has finished (or immediately if none is in flight).
 
-#### Scene.start
+#### Scene.useSelected
 
 `unstable` · unreleased
 
 ```ts
-Scene.start(): () => void
+Scene.useSelected(): SelectedIds
 ```
 
-Start following open-location changes. Returns a stop function.
+Reactive Scene.selected.
 
 ## MapHost
 

@@ -1,5 +1,6 @@
 import { useState, useId } from "react";
 import { Store } from "@/store/store";
+import { Scene } from "@/lib/render/scene";
 import { Tag } from "@/store/tag";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
@@ -34,7 +35,7 @@ const SHAPE_HINTS: Record<MapShape, string> = {
 
 export function ExportDialog({ open, onOpenChange }: DialogProps) {
 	const map = Store.use((s) => s.map);
-	const selectedIds = Store.use((s) => s.selectedLocationIds);
+	const selectedIds = Scene.useSelected();
 	const locationCount = Store.use((s) => s.locationCount);
 	const uid = useId();
 

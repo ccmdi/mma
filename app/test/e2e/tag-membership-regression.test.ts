@@ -350,10 +350,10 @@ describe("Multiple tags on same location", () => {
 });
 
 // ============================================================================
-// 6. Full scene reset preserves selectedLocationIds (255ffb1)
+// 6. Full scene reset preserves the selected ids (255ffb1)
 // ============================================================================
 
-describe("Full scene reset preserves selectedLocationIds", () => {
+describe("Full scene reset preserves the selected ids", () => {
 	let mapId: string;
 	let tagId: number;
 

@@ -118,7 +118,7 @@ describe("Tag operations on locations", () => {
 	it("bulkAddTag adds tag to all selected locations", async () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			await api.addTagToLocations(tagId, [...api.Store.get().selectedLocationIds]);
+			await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 			const locs = await api.fetchAllLocations();
 			const tagged = locs.filter((l: any) => l.tags.includes(tagId));
 			return tagged.length;
@@ -130,7 +130,7 @@ describe("Tag operations on locations", () => {
 		const result = await withApi(
 			async (api, tagId, locId) => {
 				await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-				await api.addTagToLocations(tagId, [...api.Store.get().selectedLocationIds]);
+				await api.addTagToLocations(tagId, [...api.Scene.selected()]);
 				const loc = await api.fetchLocation(locId);
 				return loc!.tags.filter((t: number) => t === tagId).length;
 			},

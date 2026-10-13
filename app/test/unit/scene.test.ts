@@ -2,9 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const h = vi.hoisted(() => ({
-	openId: null as number | null,
-	selected: new Set<number>(),
-	listeners: new Map<string, Array<() => void>>(),
+	listeners: new Map<string, Array<(payload?: unknown) => void>>(),
 	marks: [] as string[],
 	channels: [] as { onmessage: (buf: ArrayBuffer) => void }[],
 	subscribe: null as null | (() => Promise<null>),
@@ -17,10 +15,11 @@ vi.mock("@tauri-apps/api/core", () => ({
 }));
 
 vi.mock("@/lib/events", () => ({
-	emit: (evt: string) => {
-		for (const fn of h.listeners.get(evt) ?? []) fn();
+	emit: (evt: string, payload?: unknown) => {
+		for (const fn of h.listeners.get(evt) ?? []) fn(payload);
 	},
-	subscribe: (evt: string, fn: () => void) => {
+	useEventValue: (_evt: string, get: () => unknown) => get(),
+	subscribe: (evt: string, fn: (payload?: unknown) => void) => {
 		let list = h.listeners.get(evt);
 		if (!list) {
 			list = [];
@@ -38,19 +37,6 @@ vi.mock("@/lib/events", () => ({
 	},
 }));
 
-vi.mock("@/store/store", () => ({
-	Store: {
-		get: () => ({ selectedLocationIds: h.selected }),
-		setSelected: () => {},
-	},
-}));
-
-vi.mock("@/store/editor", () => ({
-	Editor: {
-		get: () => ({ open: h.openId == null ? null : { location: { id: h.openId } } }),
-	},
-}));
-
 vi.mock("@/lib/util/debug", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@/lib/util/debug")>()),
 	mapOpen: { mark: (phase: string) => h.marks.push(phase) },
@@ -65,15 +51,19 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 import { Scene } from "@/lib/render/scene";
-import { subscribe as subscribeEvent } from "@/lib/events";
-import { entry, frame, scene } from "./fixtures/renderFixtures";
+import { emit, subscribe as subscribeEvent } from "@/lib/events";
+import { entry, frame, paint, scene } from "./fixtures/renderFixtures";
 
-const notifyEditor = () => (h.listeners.get("editor:changed") ?? []).forEach((fn) => fn());
+const visibleByte = (id: number) => {
+	for (const cb of Scene.get().cells.values()) {
+		const i = cb.idToIndex.get(id);
+		if (i != null) return cb.visible[i];
+	}
+	return null;
+};
 
 beforeEach(() => {
-	h.openId = null;
-	h.selected = new Set();
-	h.listeners.clear();
+	emit("open:change", null);
 	h.marks = [];
 	h.channels = [];
 	h.subscribe = null;
@@ -85,31 +75,11 @@ describe("Scene (single scene source)", () => {
 		expect(Scene.get()).toBe(Scene.get());
 	});
 
-	it("open-location change bumps the scene version (fast path, no reload)", () => {
+	it("opening a map row repaints without a reload", () => {
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
-		const stop = Scene.start();
-
-		h.openId = 5;
-		notifyEditor();
-		expect(bumps).toBeGreaterThan(0);
-
-		const after = bumps;
-		notifyEditor(); // same active id -> no work, no bump
-		expect(bumps).toBe(after);
-
-		stop();
-		unsub();
-	});
-
-	it("stops reacting to active changes after the engine stops", () => {
-		const stop = Scene.start();
-		stop();
-		let bumps = 0;
-		const unsub = subscribeEvent("scene:changed", () => bumps++);
-		h.openId = 9;
-		notifyEditor();
-		expect(bumps).toBe(0);
+		emit("open:change", 5);
+		expect(bumps).toBe(1);
 		unsub();
 	});
 });
@@ -127,6 +97,31 @@ describe("Scene frames", () => {
 
 	const added = (version: number, id: number) =>
 		frame({ version, cells: [{ cell: "s", add: [{ key: id, lng: id, lat: id }] }] });
+
+	it("the open map row stays hidden across a clear and the next load", async () => {
+		await load(scene([entry("s", 1, 1, 1), entry("s", 2, 2, 2)], 3));
+		emit("open:change", 1);
+		expect(visibleByte(1)).toBe(0);
+		Scene.clear();
+		h.channels = [];
+		await load(scene([entry("s", 1, 1, 1), entry("s", 2, 2, 2)], 4));
+		expect(visibleByte(1)).toBe(0);
+		expect(visibleByte(2)).toBe(255);
+	});
+
+	it("an opening that names no map row shows every row again", async () => {
+		await load(scene([entry("s", 1, 1, 1)], 3));
+		emit("open:change", 1);
+		emit("open:change", null);
+		expect(visibleByte(1)).toBe(255);
+	});
+
+	it("the selected ids come from the frames, and a clear empties them", async () => {
+		await load(scene([entry("s", 1, 1, 1, 0, paint([255, 0, 0])), entry("s", 2, 2, 2)], 3));
+		expect([...Scene.selected()]).toEqual([1]);
+		Scene.clear();
+		expect(Scene.selected().size).toBe(0);
+	});
 
 	it("a load fills the scene from the replace frame and marks it", async () => {
 		await load(scene([entry("s", 1, 1, 1), entry("t", 2, 2, 2)], 3));

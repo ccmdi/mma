@@ -38,7 +38,7 @@ beforeAll(async () => {
 	vi.stubGlobal("MMA", {
 		storage,
 		mapStorage,
-		getMapState: Store.get,
+		Scene: { selected: () => new Set() },
 		resolveIds: async () => [],
 		selectorForPick: () => ({ type: "Everything" }),
 		getScenePositions: () => ({ ids: new Uint32Array(), positions: new Float32Array() }),

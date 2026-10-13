@@ -346,7 +346,7 @@ describe("Tag count accuracy", () => {
 
 		await withApi(async (api, tId) => {
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			await api.addTagToLocations(tId, [...api.Store.get().selectedLocationIds]);
+			await api.addTagToLocations(tId, [...api.Scene.selected()]);
 		}, tagId);
 
 		const counts = await withApi((api) => api.Tag.counts());
@@ -569,7 +569,7 @@ describe("Export with scope", () => {
 		// Select by tag (first 5 have the tag)
 		await select(tagSelector(tagId));
 
-		const selectedIds: number[] = await withApi((api) => [...api.Store.get().selectedLocationIds]);
+		const selectedIds: number[] = await withApi((api) => [...api.Scene.selected()]);
 		expect(selectedIds.length).toBe(5);
 
 		// Export with scope = selectedIds
@@ -1075,7 +1075,7 @@ describe("Selection during mutation", () => {
 		const count2 = await withApi(async (api, tid) => {
 			await api.SelectionList.update({ kind: "set", selections: [] });
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tid)));
-			return api.Store.get().selectedLocationIds.size;
+			return api.Scene.selected().size;
 		}, tag.id);
 		expect(count2).toBe(40);
 	});
@@ -1084,11 +1084,11 @@ describe("Selection during mutation", () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update({ kind: "set", selections: [] });
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			const beforeCount = api.Store.get().selectedLocationIds.size;
-			const ids = [...api.Store.get().selectedLocationIds].slice(0, 5);
+			const beforeCount = api.Scene.selected().size;
+			const ids = [...api.Scene.selected()].slice(0, 5);
 			await api.Location.remove(new Set(ids));
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			return { before: beforeCount, after: api.Store.get().selectedLocationIds.size };
+			return { before: beforeCount, after: api.Scene.selected().size };
 		});
 		expect(result.after).toBe(result.before - 5);
 	});

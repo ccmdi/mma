@@ -13,6 +13,7 @@ import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
 import { MapHost } from "@/lib/map/host";
+import { Scene } from "@/lib/render/scene";
 import { addSelection, removeSelection, tagSelector, selection } from "@/store/selections";
 import { emit, subscribe } from "@/lib/events";
 import { cmd } from "@/lib/commands";
@@ -50,9 +51,9 @@ export function getActiveLocation() {
 	return Editor.get().open?.location ?? null;
 }
 
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectedLocationIds`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Scene.selected()`. @unstable */
 export function getSelectedLocationIds() {
-	return Store.get().selectedLocationIds;
+	return Scene.selected();
 }
 
 /** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
@@ -288,9 +289,6 @@ export const useMapState: typeof Store.use = Store.use;
 
 /** @deprecated v0.12.1. Use `MMA.Store.setMeta`. @unstable */
 export const setMap: typeof Store.setMeta = Store.setMeta;
-
-/** @deprecated v0.12.1. Use `MMA.Store.setSelected`. @unstable */
-export const setSelectedLocationIds: typeof Store.setSelected = Store.setSelected;
 
 /** @deprecated v0.12.1. Use `MMA.Tag.counts`. */
 export const getTagCounts: typeof Tag.counts = Tag.counts;

@@ -3101,195 +3101,6 @@ declare global {
     const mma: ProcedureHost;
 }
 
-/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
- *  that only needs `size` / `has` / iteration over either. */
-export interface ReadonlyIdSet extends Iterable<number> {
-    readonly size: number;
-    has(id: number): boolean;
-}
-/**
- * Membership set of selected location ids, backed by a bit array indexed by id rather than a
- * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
- * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
- * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
- */
-declare class SelectedIds {
-    /** Shared empty selection (no map open / cleared). */
-    static readonly EMPTY: SelectedIds;
-    private readonly bits;
-    /** Count of distinct selected ids (not overlay entries - an id selected by N
-     *  overlapping selections still counts once). */
-    readonly size: number;
-    constructor(bits: Uint8Array, size: number);
-    has(id: number): boolean;
-    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
-     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
-    [Symbol.iterator](): Iterator<number>;
-}
-/**
- * The markers drawn by the selection overlay, keyed by location id.
- *
- * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
- * base cells hold no selection state, they derive their visibility byte from `has`.
- * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
- * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
- * alone, and every by-id operation is O(1).
- *
- * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
- * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
- * puts the slots back in selection order, and the batch entry points call it once they
- * settle. Nothing else may hand these arrays to a layer.
- */
-declare class SelectionOverlay {
-    positions: Float32Array<ArrayBuffer>;
-    colors: Uint8Array<ArrayBuffer>;
-    angles: Float32Array<ArrayBuffer>;
-    ids: Uint32Array<ArrayBuffer>;
-    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
-     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
-    sel: Uint32Array<ArrayBuffer>;
-    count: number;
-    version: number;
-    private capacity;
-    private bits;
-    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
-    private slot;
-    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
-    private dest;
-    has(id: number): boolean;
-    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
-     *  selection's index - the sort key `order()` needs, which no caller can recover from
-     *  the colour alone once two selections share one. */
-    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
-    /** Follow a row that moved. No-op when the row isn't in the overlay. */
-    move(id: number, lng?: number, lat?: number, heading?: number): void;
-    delete(id: number): void;
-    clear(): void;
-    /**
-     * Sort the entries by selection index, so a later selection's markers overdraw an
-     * earlier one's everywhere rather than wherever slot order happens to favour them.
-     *
-     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
-     * array sized by the selection count. The leading scan makes the cases that need no
-     * work - already ordered, or one selection in play - a single pass with no allocation,
-     * which covers a plain single-selection map entirely.
-     */
-    order(): void;
-    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
-    private swap;
-    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
-    selectedIds(): SelectedIds;
-    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
-    reserve(n: number, maxId: number): void;
-    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
-    private ensure;
-}
-/**
- * Typed-array backed buffer for one geohash cell's marker data.
- * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
- * Versioned per-attribute so deck.gl can skip unchanged layers.
- */
-declare class CellBuffer {
-    ids: number[];
-    idToIndex: Map<number, number>;
-    positions: Float32Array;
-    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
-     *  global marker colour, which the layer supplies as a constant, so the only per-marker
-     *  colour fact is whether a selection or the open-location highlight is covering it. */
-    visible: Uint8Array;
-    angles: Float32Array;
-    count: number;
-    capacity: number;
-    positionVersion: number;
-    colorVersion: number;
-    constructor(capacity?: number);
-    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
-     *  them. Every row starts hidden until the caller paints it. */
-    static of(rows: FrameRows): CellBuffer;
-    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
-     *  the overlay knows about the row. */
-    append(id: number, lng: number, lat: number, angle: number): void;
-    /** O(1) removal by swapping with the last element. Mirrors Rust's cell_remove_render. */
-    swapRemove(index: number): void;
-    patchPosition(index: number, lng: number, lat: number, angle: number): void;
-    /** Show (255) or hide (0) one marker in the base layer. */
-    patchVisible(index: number, visible: number): void;
-    private ensureCapacity;
-}
-/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
-export interface FrameRows {
-    key: Uint32Array<ArrayBuffer>;
-    pos: Float32Array<ArrayBuffer>;
-    angle: Float32Array<ArrayBuffer>;
-    sel: Uint32Array<ArrayBuffer>;
-}
-/** What applying one frame did: the map version the scene reached, whether it started the
- *  scene over, and the ids it added and removed, ascending. A row that moved between cells
- *  is in neither; a replace lists nothing. @unstable */
-export interface FrameSummary {
-    version: number;
-    replace: boolean;
-    added: Uint32Array;
-    removed: Uint32Array;
-}
-/**
- * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
- * kept in step with the map by applying its render frames in order (`apply`).
- * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
- */
-declare class CellManager {
-    cells: Map<string, CellBuffer>;
-    totalCount: number;
-    version: number;
-    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
-     *  removal; an overestimate just over-allocates a few bytes). */
-    maxId: number;
-    /** The rows the selection overlay draws, and the only record of which rows are selected. */
-    readonly overlay: SelectionOverlay;
-    /** The location the open-location layer draws, hidden in its base cell. */
-    private openId;
-    /** Scratch for `restateSelections`: per-row winning selection index, reused across
-     *  cells so a full restate does not allocate one array per cell. */
-    private selWinner;
-    /**
-     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
-     * cell the adds append and the patches restate rows by their slot. Every added or patched row
-     * states the selection painting it, so the base cells and the overlay are written from
-     * one fact. A selection section, when present, then restates every cell's membership.
-     */
-    apply(buf: ArrayBuffer): FrameSummary;
-    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
-     *  Idempotent, so restating a row's current state costs nothing but is always safe.
-     *  The caller bumps the cell's colour version once for the whole frame. */
-    private paint;
-    /** Set the open location, whose marker the open-location layer draws instead of the base cell.
-     *  Returns whether the open location actually moved. */
-    setOpen(id: number | null): boolean;
-    /**
-     * A base row is hidden exactly when something else is drawing it: the selection overlay
-     * or the open-location layer. The only place `visible` is decided for a single row, so
-     * "selected" and "open" never have to negotiate over the byte.
-     */
-    private syncVisible;
-    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
-     *  0 only means the overlay or open-location layer draws that row instead), so this is the
-     *  maintained full-map position set. */
-    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
-    /** Map a deck.gl pick (cell + index) back to a location ID. */
-    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
-    /** Selected-id set, snapshotted from the overlay. */
-    selectedIds(): SelectedIds;
-    /**
-     * Restate the selection overlay from a frame's selection section. Selected rows are
-     * drawn by the overlay in their selection's color and hidden in their base cell.
-     *
-     * Partial updates are supported: only the cells named in `cellEntries` are restated,
-     * and overlay entries for every other cell survive untouched.
-     */
-    private restateSelections;
-    clear(): void;
-}
-
 /** The full local mirror of the store's derived state. */
 export type EngineState = {
     [K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
@@ -3298,7 +3109,6 @@ export interface UiState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
     map: MapMeta | null;
-    selectedLocationIds: SelectedIds;
 }
 export type MapState = UiState & EngineState;
 declare const Store: {
@@ -3312,8 +3122,6 @@ declare const Store: {
     use: <T>(selector: (s: MapState) => T) => T;
     /** Imperative snapshot of the map state. */
     get: () => Readonly<MapState>;
-    /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
-    setSelected: (ids: SelectedIds) => void;
     /** Replace the open map's row in state; persisting it is the caller's. @unstable */
     setMeta: (map: MapMeta) => void;
     /** Clear derived state when the map closes. @unstable */
@@ -3728,6 +3536,194 @@ declare const Tag: {
     /** Get or create tag records and assign them to matching locations. */
     assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
 };
+
+/** The read-only id-membership surface shared by `Set<number>` and `SelectedIds`, for code
+ *  that only needs `size` / `has` / iteration over either. */
+export interface ReadonlyIdSet extends Iterable<number> {
+    readonly size: number;
+    has(id: number): boolean;
+}
+/**
+ * Membership set of selected location ids, backed by a bit array indexed by id rather than a
+ * hash `Set`. Location ids are dense u32s, so a bitset makes the build ~10x cheaper than 1M
+ * `Set.add`s (a typed-array OR vs hashing), with O(1) `has`/`size`. Iteration yields the
+ * selected ids from the overlay's id array. Exposes the Set-like surface its consumers use.
+ */
+declare class SelectedIds {
+    /** Shared empty selection (no map open / cleared). */
+    static readonly EMPTY: SelectedIds;
+    private readonly bits;
+    /** Count of distinct selected ids (not overlay entries - an id selected by N
+     *  overlapping selections still counts once). */
+    readonly size: number;
+    constructor(bits: Uint8Array, size: number);
+    has(id: number): boolean;
+    /** Yields each selected id once, ascending. Scans the bit array, so it's O(maxId/8);
+     *  used by deliberate bulk consumers (export, bulk-tag, delete), not the per-frame path. */
+    [Symbol.iterator](): Iterator<number>;
+}
+/**
+ * The markers drawn by the selection overlay, keyed by location id.
+ *
+ * Sole authority on "is this row drawn by the overlay rather than the base layer" - the
+ * base cells hold no selection state, they derive their visibility byte from `has`.
+ * Presence is a bit array and id -> slot is a plain `Uint32Array`, so nothing here
+ * hashes: a bulk rebuild costs one extra store per marker over writing the draw arrays
+ * alone, and every by-id operation is O(1).
+ *
+ * Writes swap-remove, so slots land unordered - but the overlay is one deck.gl layer and
+ * every marker sits at z=0, which makes slot order the only z-stacking there is. `order()`
+ * puts the slots back in selection order, and the batch entry points call it once they
+ * settle. Nothing else may hand these arrays to a layer.
+ */
+declare class SelectionOverlay {
+    positions: Float32Array<ArrayBuffer>;
+    colors: Uint8Array<ArrayBuffer>;
+    angles: Float32Array<ArrayBuffer>;
+    ids: Uint32Array<ArrayBuffer>;
+    /** Per-entry index of the selection drawing it, and the sort key `order()` uses.
+     *  CPU-side bookkeeping like `ids` - never an attribute, never uploaded. */
+    sel: Uint32Array<ArrayBuffer>;
+    count: number;
+    version: number;
+    private capacity;
+    private bits;
+    /** id -> slot. Only meaningful where `bits` is set, so it needs no empty sentinel. */
+    private slot;
+    /** Scratch for `order()`: entry -> destination slot. Reused across calls. */
+    private dest;
+    has(id: number): boolean;
+    /** Add `id` to the overlay, or restate an existing entry. `selIdx` is the drawing
+     *  selection's index - the sort key `order()` needs, which no caller can recover from
+     *  the colour alone once two selections share one. */
+    set(id: number, lng: number, lat: number, heading: number, color: Readonly<RGB>, selIdx: number): void;
+    /** Follow a row that moved. No-op when the row isn't in the overlay. */
+    move(id: number, lng?: number, lat?: number, heading?: number): void;
+    delete(id: number): void;
+    clear(): void;
+    /**
+     * Sort the entries by selection index, so a later selection's markers overdraw an
+     * earlier one's everywhere rather than wherever slot order happens to favour them.
+     *
+     * Counting sort: the key is a small dense integer, so it is two O(n) passes and an
+     * array sized by the selection count. The leading scan makes the cases that need no
+     * work - already ordered, or one selection in play - a single pass with no allocation,
+     * which covers a plain single-selection map entirely.
+     */
+    order(): void;
+    /** Exchange two slots, keeping `slot` pointing at where each id actually lives. */
+    private swap;
+    /** Snapshot of the selected ids. Copies the bit array so later edits can't mutate it. */
+    selectedIds(): SelectedIds;
+    /** Size up front for a rebuild of known size, so `set` never reallocates mid-loop. */
+    reserve(n: number, maxId: number): void;
+    /** Grow the draw arrays to hold `n` entries and the id-keyed arrays to cover `maxId`. */
+    private ensure;
+}
+/**
+ * Typed-array backed buffer for one geohash cell's marker data.
+ * Grows by doubling. Removals use swap-remove (O(1), order not preserved).
+ * Versioned per-attribute so deck.gl can skip unchanged layers.
+ */
+declare class CellBuffer {
+    ids: number[];
+    idToIndex: Map<number, number>;
+    positions: Float32Array;
+    /** Per-marker visibility, 255 draws and 0 hides. Every base marker is drawn in the one
+     *  global marker colour, which the layer supplies as a constant, so the only per-marker
+     *  colour fact is whether a selection or the open-location highlight is covering it. */
+    visible: Uint8Array;
+    angles: Float32Array;
+    count: number;
+    capacity: number;
+    positionVersion: number;
+    colorVersion: number;
+    constructor(capacity?: number);
+    /** A cell holding `rows` as they are, viewing the frame's arrays rather than copying
+     *  them. Every row starts hidden until the caller paints it. */
+    static of(rows: FrameRows): CellBuffer;
+    /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
+     *  the overlay knows about the row. */
+    append(id: number, lng: number, lat: number, angle: number): void;
+    /** O(1) removal by swapping with the last element. Mirrors Rust's cell_remove_render. */
+    swapRemove(index: number): void;
+    patchPosition(index: number, lng: number, lat: number, angle: number): void;
+    /** Show (255) or hide (0) one marker in the base layer. */
+    patchVisible(index: number, visible: number): void;
+    private ensureCapacity;
+}
+/** One cell's rows in a frame, viewed in place: ids for adds, slots for patches. @unstable */
+export interface FrameRows {
+    key: Uint32Array<ArrayBuffer>;
+    pos: Float32Array<ArrayBuffer>;
+    angle: Float32Array<ArrayBuffer>;
+    sel: Uint32Array<ArrayBuffer>;
+}
+/** What applying one frame did: the map version the scene reached, whether it started the
+ *  scene over, and the ids it added and removed, ascending. A row that moved between cells
+ *  is in neither; a replace lists nothing. @unstable */
+export interface FrameSummary {
+    version: number;
+    replace: boolean;
+    added: Uint32Array;
+    removed: Uint32Array;
+}
+/**
+ * Owns all marker render data as 32 geohash-cell CellBuffers plus a selection overlay,
+ * kept in step with the map by applying its render frames in order (`apply`).
+ * deck.gl layers read the typed arrays directly - no JSON serialization in the render loop.
+ */
+declare class CellManager {
+    cells: Map<string, CellBuffer>;
+    totalCount: number;
+    version: number;
+    /** Largest location id seen - sizes the selection bitset. Monotonic (never shrinks on
+     *  removal; an overestimate just over-allocates a few bytes). */
+    maxId: number;
+    /** The rows the selection overlay draws, and the only record of which rows are selected. */
+    readonly overlay: SelectionOverlay;
+    /** The location the open-location layer draws, hidden in its base cell. */
+    private openId;
+    /** Scratch for `restateSelections`: per-row winning selection index, reused across
+     *  cells so a full restate does not allocate one array per cell. */
+    private selWinner;
+    /**
+     * Apply one render frame. Every cell's removals swap-remove their slots first; then per
+     * cell the adds append and the patches restate rows by their slot. Every added or patched row
+     * states the selection painting it, so the base cells and the overlay are written from
+     * one fact. A selection section, when present, then restates every cell's membership.
+     */
+    apply(buf: ArrayBuffer): FrameSummary;
+    /** Put the row at `cb[i]` in or out of the selection overlay and set its base visibility.
+     *  Idempotent, so restating a row's current state costs nothing but is always safe.
+     *  The caller bumps the cell's colour version once for the whole frame. */
+    private paint;
+    /** Set the open location, whose marker the open-location layer draws instead of the base cell. */
+    setOpen(id: number | null): void;
+    /**
+     * A base row is hidden exactly when something else is drawing it: the selection overlay
+     * or the open-location layer. The only place `visible` is decided for a single row, so
+     * "selected" and "open" never have to negotiate over the byte.
+     */
+    private syncVisible;
+    /** Visit every rendered location's position. The cells hold all alive rows (a `visible`
+     *  0 only means the overlay or open-location layer draws that row instead), so this is the
+     *  maintained full-map position set. */
+    forEachPosition(f: (id: number, lng: number, lat: number) => void): void;
+    /** Map a deck.gl pick (cell + index) back to a location ID. */
+    resolvePickFromCell(cellKey: string, cellIndex: number): number | null;
+    /** Selected-id set, snapshotted from the overlay. */
+    selectedIds(): SelectedIds;
+    /**
+     * Restate the selection overlay from a frame's selection section. Selected rows are
+     * drawn by the overlay in their selection's color and hidden in their base cell.
+     *
+     * Partial updates are supported: only the cells named in `cellEntries` are restated,
+     * and overlay entries for every other cell survive untouched.
+     */
+    private restateSelections;
+    clear(): void;
+}
 
 declare const Location: {
     /** Add locations to the map. Real ids are assigned and written back into the passed
@@ -4249,8 +4245,10 @@ declare const Scene: {
     load: (markerStyle?: MarkerStyle, mc?: RGB) => Promise<void>;
     /** Clear all marker data from the scene and stop following the map. @unstable */
     clear: () => void;
-    /** Start following open-location changes. Returns a stop function. @unstable */
-    start: () => (() => void);
+    /** The ids of the locations the listed selections select. @unstable */
+    selected: () => SelectedIds;
+    /** Reactive {@link Scene.selected}. @unstable */
+    useSelected: () => SelectedIds;
 };
 
 /** A value saved in local storage: its key and its defaults. @unstable */
@@ -7242,7 +7240,7 @@ declare function getCurrentMap(): MapMeta | null;
 declare function getCurrentMapId(): string | null;
 /** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
 declare function getActiveLocation(): Location | null;
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectedLocationIds`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Scene.selected()`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;
 /** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
@@ -7342,8 +7340,6 @@ declare const getMapState: typeof Store.get;
 declare const useMapState: typeof Store.use;
 /** @deprecated v0.12.1. Use `MMA.Store.setMeta`. @unstable */
 declare const setMap: typeof Store.setMeta;
-/** @deprecated v0.12.1. Use `MMA.Store.setSelected`. @unstable */
-declare const setSelectedLocationIds: typeof Store.setSelected;
 /** @deprecated v0.12.1. Use `MMA.Tag.counts`. */
 declare const getTagCounts: typeof Tag.counts;
 /** @deprecated v0.12.1. Use `MMA.Tag.all`. */
@@ -7610,7 +7606,6 @@ declare const legacy_select: typeof select;
 declare const legacy_setActiveLocation: typeof setActiveLocation;
 declare const legacy_setMap: typeof setMap;
 declare const legacy_setPluginMode: typeof setPluginMode;
-declare const legacy_setSelectedLocationIds: typeof setSelectedLocationIds;
 /** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 declare const legacy_setWorkArea: typeof setWorkArea;
@@ -7724,7 +7719,6 @@ declare namespace legacy {
     legacy_setActiveLocation as setActiveLocation,
     legacy_setMap as setMap,
     legacy_setPluginMode as setPluginMode,
-    legacy_setSelectedLocationIds as setSelectedLocationIds,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_setWorkArea as setWorkArea,
     legacy_settled as settled,

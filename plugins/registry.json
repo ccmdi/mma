@@ -74,10 +74,15 @@
 		"name": "Heatmap",
 		"description": "Visualize location density as a heatmap overlay",
 		"icon": "M14,6L10.25,11L13.1,14.8L11.5,16C9.81,13.75 7,10 7,10L1,18H23L14,6Z",
-		"version": "1.3.1",
+		"version": "1.3.2",
 		"main": "index.js",
-		"minAppVersion": "0.11.4",
+		"minAppVersion": "0.12.1",
 		"builds": [
+			{
+				"version": "1.3.1",
+				"ref": "7c7e190e1bd44c6c965a91f4e2a658fa2b9142c4",
+				"minAppVersion": "0.11.4"
+			},
 			{
 				"version": "1.2.10",
 				"ref": "132e72e82f402839a1b960553797c0e93c679641",

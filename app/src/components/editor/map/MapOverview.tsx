@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Store } from "@/store/store";
+import { Scene } from "@/lib/render/scene";
 import { SelectionList } from "@/store/selectionList";
 import { Tag } from "@/store/tag";
 import { Query } from "@/store/query";
@@ -52,7 +53,7 @@ function PerSelectionToggle({
 function RandomPickPanel() {
 	const [value, setValue] = useState("");
 	const [perSelection, setPerSelection] = useState(false);
-	const total = Store.use((s) => s.selectedLocationIds).size;
+	const total = Scene.useSelected().size;
 	const parsed = Math.floor(Number(value));
 	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
 	const count = valid ? (perSelection ? parsed : Math.min(parsed, total)) : 0;
@@ -114,7 +115,7 @@ function SpacedPickPanel({ method }: { method: "minDistance" | "even" }) {
 	const [mode, setMode] = useState<"count" | "distance">("count");
 	const [value, setValue] = useState("");
 	const [perSelection, setPerSelection] = useState(false);
-	const total = Store.use((s) => s.selectedLocationIds).size;
+	const total = Scene.useSelected().size;
 	const parsed = Math.floor(Number(value));
 	const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed > 0;
 	useSetting("units");
@@ -253,7 +254,7 @@ function RankedPanel({
 }
 
 function SelectedCount({ className }: { className?: string }) {
-	const total = Store.use((s) => s.selectedLocationIds.size);
+	const total = Scene.useSelected().size;
 	return (
 		<span className={className}>
 			<Trans msg="{count} selected" count={<span className="mono">{fmt.format(total)}</span>} />
@@ -280,7 +281,7 @@ function ListedSelections() {
 
 function BulkTagForm() {
 	const [bulkTagInput, setBulkTagInput] = useState("");
-	const hasSelection = Store.use((s) => s.selectedLocationIds.size > 0);
+	const hasSelection = Scene.useSelected().size > 0;
 	const visibleTags = Store.use(Tag.visible);
 	const tagCounts = Store.use(() => Tag.counts());
 	const tagSortMode = useSetting("tagSortMode");
@@ -288,7 +289,7 @@ function BulkTagForm() {
 	const handleBulkAddTag = async (e: React.FormEvent) => {
 		e.preventDefault();
 		const name = bulkTagInput.trim();
-		const selected = Store.get().selectedLocationIds;
+		const selected = Scene.selected();
 		if (!name || selected.size === 0) return;
 		await Tag.assign({ type: "Selected" }, [{ name }]);
 		setBulkTagInput("");
@@ -301,7 +302,7 @@ function BulkTagForm() {
 	).slice(0, 15);
 
 	const handleBulkPick = (t: Tag) => {
-		const selected = Store.get().selectedLocationIds;
+		const selected = Scene.selected();
 		if (selected.size === 0) return;
 		void Edit.work(
 			{ type: "Locations", locations: [...selected], name: null },

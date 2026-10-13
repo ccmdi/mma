@@ -1,5 +1,6 @@
 //! Review sessions. Owns the active session, cursor navigation, and persistence.
 import { Store } from "@/store/store";
+import { Scene } from "@/lib/render/scene";
 import { SelectionList } from "@/store/selectionList";
 import { Query } from "@/store/query";
 import { Location } from "@/store/location";
@@ -314,7 +315,7 @@ export const Review = {
 	 *  resumes with it. */
 	beginSelected: (): Promise<void> => {
 		const active = SelectionList.active();
-		const ids = [...Store.get().selectedLocationIds];
+		const ids = [...Scene.selected()];
 		return Review.begin(ids, active.length === 1 ? active[0] : undefined);
 	},
 	/** Resume a session picked from the resume modal. */

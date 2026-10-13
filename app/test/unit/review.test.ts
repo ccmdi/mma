@@ -6,7 +6,9 @@ const store = vi.hoisted(() => ({
 	liveIds: [] as number[],
 	mapState: { mapId: null, map: null, open: null, selectionList: [] } as Record<string, unknown>,
 	active: [] as { key: string; selector: { type: string } }[],
+	selected: new Set<number>(),
 }));
+vi.mock("@/lib/render/scene", () => ({ Scene: { selected: () => store.selected } }));
 vi.mock("@/store/store", () => ({
 	Store: {
 		get: () => store.mapState,
@@ -235,13 +237,15 @@ describe("worklist positions", () => {
 describe("Review.beginSelected", () => {
 	it("belongs to the one active selection, whatever is ghosted beside it", async () => {
 		const mapState = store.mapState;
-		store.mapState = { mapId: "m", map: { settings: {} }, selectedLocationIds: new Set([1]) };
+		store.mapState = { mapId: "m", map: { settings: {} } };
+		store.selected = new Set([1]);
 		store.active = [{ key: "tag:1", selector: { type: "Filter" } }];
 
 		await Review.beginSelected();
 
 		expect(cmd.storeReviewGet).toHaveBeenCalledWith("m", "tag:1");
 		store.mapState = mapState;
+		store.selected = new Set();
 		store.active = [];
 	});
 });
