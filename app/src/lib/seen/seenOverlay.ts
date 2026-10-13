@@ -3,6 +3,7 @@
 import { Query } from "@/store/query";
 import { Editor } from "@/store/editor";
 import { log } from "@/lib/util/log";
+import { latest } from "@/lib/util/latest";
 import { emit as emitEvent, subscribe as onEvent } from "@/lib/events";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
@@ -55,27 +56,34 @@ async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
 	return out;
 }
 
-export function toggleSeenOverlay(): void {
-	active = !active;
-	if (!active) {
-		entries = [];
-		onMapIds = new Set();
-	}
-	emitEvent("seen:changed");
-	if (active) void load();
+const loads = latest<{ entries: SeenEntry[]; onMapIds: Set<number> }>({
+	publish: (loaded) => {
+		({ entries, onMapIds } = loaded);
+		emitEvent("seen:changed");
+	},
+	failed: (e) => {
+		log.error("[seen-overlay] load failed:", e);
+		clear();
+		emitEvent("seen:changed");
+	},
+});
+
+function clear(): void {
+	loads.cancel();
+	entries = [];
+	onMapIds = new Set();
 }
 
-async function load() {
-	try {
-		const count = await Seen.count();
-		entries = count > 0 ? await Seen.entries(count, 0, undefined, false) : [];
-		onMapIds = await computeOnMap(entries);
-	} catch (e) {
-		log.error("[seen-overlay] load failed:", e);
-		entries = [];
-		onMapIds = new Set();
-	}
-	if (active) emitEvent("seen:changed");
+export function toggleSeenOverlay(): void {
+	active = !active;
+	if (!active) clear();
+	emitEvent("seen:changed");
+	if (active)
+		void loads.replace(async () => {
+			const count = await Seen.count();
+			const loaded = count > 0 ? await Seen.entries(count, 0, undefined, false) : [];
+			return { entries: loaded, onMapIds: await computeOnMap(loaded) };
+		});
 }
 
 /** Open the seen entry at `index` (deck pick index): select its real location if present on
@@ -110,7 +118,6 @@ export async function openSeenEntry(index: number): Promise<void> {
 onEvent("map:close", () => {
 	if (!active && entries.length === 0) return;
 	active = false;
-	entries = [];
-	onMapIds = new Set();
+	clear();
 	emitEvent("seen:changed");
 });

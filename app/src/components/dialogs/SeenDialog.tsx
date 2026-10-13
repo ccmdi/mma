@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { useDebouncedCallback } from "@/lib/hooks/useDebouncedCallback";
 import {
 	Dialog,
@@ -61,60 +62,50 @@ export function SeenDialog({
 	onOpenChange,
 	onLoadPano,
 }: DialogProps & { onLoadPano: (entry: SeenEntry) => void }) {
-	const [entries, setEntries] = useState<SeenEntry[]>([]);
-	const [total, setTotal] = useState(0);
 	const [page, setPage] = useState(0);
-	const [loading, setLoading] = useState(false);
-	const [ready, setReady] = useState(false);
-
-	const [countries, setCountries] = useState<string[]>([]);
-	const [maps, setMaps] = useState<{ id: string; name: string }[]>([]);
-
-	const [filterCountry, setFilterCountry] = useState<string>("");
-	const [filterMap, setFilterMap] = useState<string>("");
-	const [filterSearch, setFilterSearch] = useState<string>("");
-
-	const buildFilter = useCallback((): SeenFilter | undefined => {
-		const f: SeenFilter = {};
-		if (filterCountry) f.country = filterCountry;
-		if (filterMap) f.mapId = filterMap;
-		if (filterSearch) f.search = filterSearch;
-		return f.country || f.mapId || f.search ? f : undefined;
-	}, [filterCountry, filterMap, filterSearch]);
-
-	const load = useCallback(async (p: number, filter?: SeenFilter) => {
-		setLoading(true);
-		const [rows, count] = await Promise.all([
-			Seen.entries(PAGE_SIZE, p * PAGE_SIZE, filter),
-			Seen.count(filter),
-		]);
-		setEntries(rows);
-		setTotal(count);
-		setPage(p);
-		setLoading(false);
-	}, []);
+	const [filterCountry, setFilterCountry] = useState("");
+	const [filterMap, setFilterMap] = useState("");
+	const [filterSearch, setFilterSearch] = useState("");
+	const [search, setSearch] = useState("");
+	const [cleared, setCleared] = useState(0);
 
 	useEffect(() => {
-		if (open) {
-			setReady(false);
-			setFilterCountry("");
-			setFilterMap("");
-			setFilterSearch("");
-			void Promise.all([
-				load(0),
-				Seen.countries().then(setCountries),
-				Seen.maps().then(setMaps),
-			]).then(() => setReady(true));
-		}
-	}, [open, load]);
+		if (open) return;
+		setPage(0);
+		setFilterCountry("");
+		setFilterMap("");
+		setFilterSearch("");
+		setSearch("");
+	}, [open]);
 
-	useEffect(() => {
-		if (!ready) return;
-		void load(0, buildFilter());
-	}, [filterCountry, filterMap]);
+	const options = useAsync(
+		() => (open ? Promise.all([Seen.countries(), Seen.maps()]) : null),
+		[open],
+	).data;
+	const listing = useAsync(() => {
+		if (!open) return null;
+		const filter: SeenFilter = {
+			country: filterCountry || undefined,
+			mapId: filterMap || undefined,
+			search: search || undefined,
+		};
+		const used = filter.country || filter.mapId || filter.search ? filter : undefined;
+		return Promise.all([Seen.entries(PAGE_SIZE, page * PAGE_SIZE, used), Seen.count(used)]);
+	}, [open, page, filterCountry, filterMap, search, cleared]);
+	const shown = useSticky(listing);
+	const [entries, total] = shown ?? [[], 0];
+	const [countries, maps] = options ?? [[], []];
+	const loading = listing.loading;
+	const ready = shown !== null && options !== null;
+
+	const filterBy = (set: (value: string) => void) => (value: string) => {
+		set(value);
+		setPage(0);
+	};
 
 	const debouncedSearch = useDebouncedCallback((value: string) => {
-		void load(0, { ...buildFilter(), search: value || undefined });
+		setSearch(value);
+		setPage(0);
 	}, 250);
 
 	const handleSearchInput = (value: string) => {
@@ -129,8 +120,7 @@ export function SeenDialog({
 
 	const handleClear = async () => {
 		await Seen.clear();
-		setEntries([]);
-		setTotal(0);
+		setCleared((n) => n + 1);
 	};
 
 	const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -142,7 +132,9 @@ export function SeenDialog({
 					<NSelect
 						className="seen-dialog__select"
 						value={filterCountry || "_all"}
-						onChange={(e) => setFilterCountry(e.target.value === "_all" ? "" : e.target.value)}
+						onChange={(e) =>
+							filterBy(setFilterCountry)(e.target.value === "_all" ? "" : e.target.value)
+						}
 					>
 						<option value="_all">{t("All countries")}</option>
 						{countries.map((c) => (
@@ -154,7 +146,9 @@ export function SeenDialog({
 					<NSelect
 						className="seen-dialog__select"
 						value={filterMap || "_all"}
-						onChange={(e) => setFilterMap(e.target.value === "_all" ? "" : e.target.value)}
+						onChange={(e) =>
+							filterBy(setFilterMap)(e.target.value === "_all" ? "" : e.target.value)
+						}
 					>
 						<option value="_all">{t("All maps")}</option>
 						{maps.map((m) => (
@@ -178,17 +172,11 @@ export function SeenDialog({
 					)}
 				</div>
 				<div className="seen-dialog__pagination">
-					<Button
-						disabled={page === 0 || loading}
-						onClick={() => void load(page - 1, buildFilter())}
-					>
+					<Button disabled={page === 0 || loading} onClick={() => setPage(page - 1)}>
 						{t("Prev")}
 					</Button>
 					<span className="mono">{totalPages > 0 ? `${page + 1} / ${totalPages}` : "0 / 0"}</span>
-					<Button
-						disabled={page >= totalPages - 1 || loading}
-						onClick={() => void load(page + 1, buildFilter())}
-					>
+					<Button disabled={page >= totalPages - 1 || loading} onClick={() => setPage(page + 1)}>
 						{t("Next")}
 					</Button>
 				</div>
