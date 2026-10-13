@@ -9,8 +9,18 @@ import { type MapMeta } from "@/bindings.gen";
 
 const disk = vi.hoisted(() => ({ maps: [] as unknown[] }));
 vi.mock("@/lib/commands", async () =>
-	(await import("./fixtures/mocks")).cmdProxy({ storeListMaps: async () => disk.maps }),
+	(await import("./fixtures/mocks")).cmdProxy({
+		storeListMaps: async () => disk.maps,
+		storeUpdateMapMeta: async (...args: unknown[]) => {
+			const patch = args[0] as { id: string; folder: string | null };
+			disk.maps = disk.maps.map((m) =>
+				(m as MapMeta).id === patch.id ? { ...(m as MapMeta), folder: patch.folder } : m,
+			);
+			return { mutation: { version: 0, keys: [] } };
+		},
+	}),
 );
+vi.mock("@tauri-apps/api/event", () => ({ emit: async () => {}, listen: async () => () => {} }));
 
 const meta = (id: string) => ({ id, name: id }) as MapMeta;
 
@@ -57,6 +67,16 @@ describe("useMapList subscription granularity", () => {
 		act(() => emit("snapshot:changed"));
 		expect(renders).toBe(1);
 		unmount();
+	});
+});
+
+describe("moving a map into a folder", () => {
+	it("writes through the one metadata writer, so the list rereads what was stored", async () => {
+		disk.maps = [meta("a"), meta("b")];
+		await Maps.reload();
+		await Maps.moveToFolder("a", "Europe");
+		expect(Maps.list().find((m) => m.id === "a")?.folder).toBe("Europe");
+		expect(Maps.list()).toEqual(disk.maps);
 	});
 });
 

@@ -8,9 +8,9 @@ import { Scene } from "@/lib/render/scene";
 
 export type Mutation<T = Location> = bindings.Mutation<T>;
 
-const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
-
 export const Mutation = {
+	/** The result of a mutation that reached no map. */
+	none: (): MutationResult => ({ mutation: { version: 0, keys: [] } }),
 	/** Resolves once the open map's state and its markers both show `m`. A mutation that reached
 	 *  no map (version 0) settles at once. */
 	settle: async (m: Mutation): Promise<void> => {
@@ -23,7 +23,7 @@ export const Mutation = {
 		fn: () => Promise<R>,
 		...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
 	): Promise<R> => {
-		if (!Store.get().map) return (fallback[0] ?? EMPTY_MUTATION) as R;
+		if (!Store.get().map) return (fallback[0] ?? Mutation.none()) as R;
 		const r = await fn();
 		await Mutation.settle(r.mutation);
 		return r;

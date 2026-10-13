@@ -24,7 +24,7 @@ const EMPTY_IMPORT = { staging: null, positions: new Float32Array(0) };
 let importState: { staging: ImportStaging | null; positions: Float32Array } = EMPTY_IMPORT;
 
 async function setImportStaging(preview: EditorImportPreview) {
-	let positions = new Float32Array(0);
+	let positions = EMPTY_IMPORT.positions;
 	try {
 		const resp = await fetch(mmaBufUrl(preview.previewPositionsPath));
 		if (!resp.ok) throw new Error(`preview fetch ${resp.status}: ${await resp.text()}`);

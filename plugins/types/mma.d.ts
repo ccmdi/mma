@@ -3451,6 +3451,8 @@ declare const Query: {
 };
 
 declare const Mutation: {
+    /** The result of a mutation that reached no map. */
+    none: () => MutationResult;
     /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
      *  no map (version 0) settles at once. */
     settle: (m: Mutation) => Promise<void>;

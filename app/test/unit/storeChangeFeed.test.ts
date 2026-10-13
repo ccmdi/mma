@@ -3,6 +3,7 @@ import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { Mutation } from "@/store/mutation";
 import { Autosave } from "@/store/autosave";
+import { Edit } from "@/store/edit";
 import { createFieldDef } from "@/types";
 import { subscribe } from "@/lib/events";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -226,6 +227,15 @@ describe("change feed merge semantics", () => {
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
 		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
+	});
+});
+
+describe("work on no map", () => {
+	it("resolves to an empty result without reaching the store", async () => {
+		Maps.discard();
+		const r = await Edit.work({ type: "Everything" }, { kind: "delete", keys: ["alt"] });
+		expect(r).toEqual({ mutation: { version: 0, keys: [] }, changed: 0, failed: [] });
+		expect(r.mutation).not.toBe(Mutation.none().mutation);
 	});
 });
 

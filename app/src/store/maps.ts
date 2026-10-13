@@ -2,6 +2,7 @@ import { Autosave } from "./autosave";
 import { Feed } from "./feed";
 import { Store } from "./store";
 import { Editor } from "./editor";
+import { Edit } from "./edit";
 import type { StoreStatus, StoreWarning } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { log } from "@/lib/util/log";
@@ -209,8 +210,7 @@ export const Maps = {
 			cachedMapList = cachedMapList.map((m) => (m.id === mapId ? { ...m, folder } : m));
 			emitEvent("map-list:changed");
 		}
-		await cmd.storeUpdateMapMeta({ id: mapId, folder });
-		await tauriEmit("map-list-changed");
+		await Edit.meta({ id: mapId, folder });
 	},
 	/** Delete a folder. Maps in it become unfoldered. */
 	removeFolder: async (name: string) => {

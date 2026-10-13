@@ -5,8 +5,6 @@ import type { Selector } from "@/types";
 import type { Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
-const NO_WORK: WorkResult = { mutation: { version: 0, keys: [] }, changed: 0, failed: [] };
-
 export const Edit = {
 	/** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
 	locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => {
@@ -30,6 +28,10 @@ export const Edit = {
 	},
 	/** Run `op` across every location `selector` matches, in one undoable step. @unstable */
 	work: (selector: Selector, op: Work): Promise<WorkResult> => {
-		return Mutation.run(() => cmd.storeWork(selector, op), NO_WORK);
+		return Mutation.run(() => cmd.storeWork(selector, op), {
+			...Mutation.none(),
+			changed: 0,
+			failed: [],
+		});
 	},
 };

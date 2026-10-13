@@ -4540,6 +4540,16 @@ backing file automatically; ask for ids or columns when full locations are unnec
 
 Run mutations and wait for their state and display updates.
 
+#### Mutation.none
+
+`stable` · unreleased
+
+```ts
+Mutation.none(): MutationResult
+```
+
+The result of a mutation that reached no map.
+
 #### Mutation.run
 
 `stable` · unreleased
