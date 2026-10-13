@@ -1,7 +1,7 @@
 import { useState, useCallback, type SetStateAction } from "react";
 import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
-import type { MapMeta } from "@/bindings.gen";
+import type { MapMeta, Op } from "@/bindings.gen";
 import { getLocal, reloadLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 
 export interface PluginStorage {
@@ -20,19 +20,16 @@ export interface MapPluginStorage {
 }
 
 type Entries = Record<string, unknown>;
+type KeyChange = Op<unknown, never, null>;
 
-function keyValue<W>(read: () => Entries, write: (data: Entries) => W) {
+function keyValue<W>(read: () => Entries, write: (key: string, change: KeyChange) => W) {
 	return {
 		get<T = unknown>(key: string, fallback?: T): T {
 			const data = read();
 			return (key in data ? data[key] : fallback) as T;
 		},
-		set: (key: string, value: unknown) => write({ ...read(), [key]: value }),
-		remove: (key: string) => {
-			const data = { ...read() };
-			delete data[key];
-			return write(data);
-		},
+		set: (key: string, value: unknown) => write(key, { set: value }),
+		remove: (key: string) => write(key, { remove: null }),
 		keys: () => Object.keys(read()),
 	};
 }
@@ -53,7 +50,12 @@ function writePluginStore(id: string, data: Record<string, unknown>) {
 export function storage(id: string): PluginStorage {
 	return keyValue(
 		() => readPluginStore(id),
-		(data) => writePluginStore(id, data),
+		(key, change) => {
+			const data = { ...readPluginStore(id) };
+			if ("set" in change) data[key] = change.set;
+			else delete data[key];
+			writePluginStore(id, data);
+		},
 	);
 }
 
@@ -67,20 +69,20 @@ function readMapPluginStore(id: string): Entries {
 	return requireOpenMap().settings.pluginData?.[id] ?? {};
 }
 
-function writeMapPluginStore(id: string, data: Entries): Promise<void> {
+function writeMapPluginKey(id: string, key: string, change: KeyChange): Promise<void> {
 	const map = requireOpenMap();
-	const pluginData = { ...map.settings.pluginData };
-	if (Object.keys(data).length > 0) pluginData[id] = data;
-	else delete pluginData[id];
-	return Edit.meta({ id: map.id, settings: { pluginData } });
+	return Edit.meta({
+		id: map.id,
+		settings: { pluginData: { [id]: { put: { [key]: change } } } },
+	});
 }
 
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Throws when no map is open. */
+ *  Each write changes only one key; Rust applies these patches to the current map settings. */
 export function mapStorage(id: string): MapPluginStorage {
 	return keyValue(
 		() => readMapPluginStore(id),
-		(data) => writeMapPluginStore(id, data),
+		(key, change) => writeMapPluginKey(id, key, change),
 	);
 }
 

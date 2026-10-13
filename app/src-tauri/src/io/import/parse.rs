@@ -840,7 +840,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 id: Id::new(id),
                 name: Some(name),
                 order: meta.and_then(|m| m.order),
-                extra: Some(extra),
+                extra,
             }
         })
         .collect();

@@ -12,6 +12,7 @@ vi.mock("@/store/maps", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
 			(await import("./fixtures/mocks")).metadataWritten(patch),
 		),
@@ -71,10 +72,14 @@ describe("heatmap setup per map", () => {
 		expect(ownProject()).toBeUndefined();
 	});
 
-	it("saves edits with the map and leaves the shared layers alone", () => {
+	it("saves edits with the map and leaves the shared layers alone", async () => {
 		openMap("a");
 		heatmap.updateLayer("shared", { opacity: 0.9 });
-		expect(ownProject()?.layers).toEqual([expect.objectContaining({ id: "shared", opacity: 0.9 })]);
+		await vi.waitFor(() =>
+			expect(ownProject()?.layers).toEqual([
+				expect.objectContaining({ id: "shared", opacity: 0.9 }),
+			]),
+		);
 		expect(getLocal(SHARED_KEY, {})).toEqual({ layers: [{ id: "shared", opacity: 0.2 }] });
 	});
 
@@ -83,9 +88,10 @@ describe("heatmap setup per map", () => {
 		expect(heatmap.getLayers().map((l) => l.id)).toEqual(["mine"]);
 	});
 
-	it("resets to one default layer and no custom gradients, not to the shared setup", () => {
+	it("resets to one default layer and no custom gradients, not to the shared setup", async () => {
 		openMap("a", { pluginData: { heatmap: { gradients: [{ id: "g", stops: [] }] } } });
 		heatmap.resetProject();
+		await vi.waitFor(() => expect(ownProject()?.gradients).toEqual([]));
 		const own = ownProject() as { layers: { id: string }[]; gradients: unknown[] };
 		expect(own.gradients).toEqual([]);
 		expect(own.layers).toHaveLength(1);

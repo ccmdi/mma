@@ -1,12 +1,13 @@
-import type { Selector } from "@/types";
+import type { Patch, Selector } from "@/types";
 import { Store } from "./store";
 import { Edit } from "./edit";
-import type { HeldValue, ValueRecord } from "@/bindings.gen";
+import type { HeldValue } from "@/bindings.gen";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import { colorForName } from "@/lib/util/color";
 import { selection, tagSelector, any, all as and } from "./selections";
 
 export type Tag = import("@/types").Tag;
+type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
 
 const NO_VALUES: Record<string, HeldValue | null> = {};
 
@@ -61,14 +62,14 @@ export const Tag = {
 		);
 	},
 	/** Update tag display records in one undoable edit. */
-	update: (updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]) => {
+	update: (updates: Patch<Tag>[]) => {
 		return Edit.values(
 			"tags",
 			updates.map((put) => ({ put })),
 		);
 	},
 	/** Get or create tag records by name and return their ids. */
-	create: async (records: Omit<ValueRecord, "id">[]): Promise<number[]> => {
+	create: async (records: TagCreate[]): Promise<number[]> => {
 		const result = await Edit.values(
 			"tags",
 			records.map((record) => ({ set: { ...record, id: 0 } })),
@@ -93,7 +94,7 @@ export const Tag = {
 		});
 	},
 	/** Get or create tag records and assign them to matching locations. */
-	assign: async (selector: Selector, records: Omit<ValueRecord, "id">[]) => {
+	assign: async (selector: Selector, records: TagCreate[]) => {
 		const add = await Tag.create(records);
 		return Edit.work(selector, { kind: "listSet", key: "tags", add, remove: [] });
 	},

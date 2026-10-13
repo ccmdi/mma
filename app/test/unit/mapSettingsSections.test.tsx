@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
 import { act } from "react";
+import { Edit } from "@/store/edit";
 import type { MapMeta } from "@/bindings.gen";
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
+
+vi.mock("@/store/edit", () => ({ Edit: { meta: vi.fn(async () => {}) } }));
 
 vi.mock("@/store/maps", () => ({ Maps: { remove: vi.fn() } }));
 vi.mock("@/store/settings", () => ({
@@ -45,8 +48,8 @@ const map: MapMeta = {
 	lastOpenedAt: null,
 };
 
-function render(context: MapFormContext) {
-	const m = mount(<MapSettingsForm map={map} context={context} />);
+function render(context: MapFormContext, current = map) {
+	const m = mount(<MapSettingsForm map={current} context={context} />);
 	const save = () =>
 		[...m.container.querySelectorAll("button")].find(
 			(b) => b.getAttribute("type") === "submit",
@@ -77,6 +80,23 @@ describe("MapSettingsForm is composed from SECTIONS", () => {
 		expect(editor.container.querySelector('[data-testid="scoring"]')).not.toBeNull();
 		expect(exprInput(editor.inputs())).toBeDefined();
 		editor.unmount();
+	});
+
+	it("submits only edited settings while keeping each section's draft", async () => {
+		const m = render("editor", {
+			...map,
+			settings: { searchRadius: 50, duplicateScore: "year", reviewOrder: "year" },
+		});
+		const expressions = m.inputs().filter((input) => input.className.includes("mono"));
+		type(expressions[0], "");
+		type(expressions[1], "-year");
+		await act(async () => {});
+		act(() => m.save().click());
+		expect(Edit.meta).toHaveBeenLastCalledWith({
+			id: map.id,
+			settings: { duplicateScore: null, reviewOrder: "-year" },
+		});
+		m.unmount();
 	});
 
 	it("disables Save while a section blocks and enables it again when the section clears", () => {

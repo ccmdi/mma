@@ -13,6 +13,7 @@ vi.mock("@/store/maps", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		valiDataStatus: vi.fn(async () => []),
 		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
 			(await import("./fixtures/mocks")).metadataWritten(patch),
@@ -104,8 +105,8 @@ describe("Vali setup per map", () => {
 		const reset = [...view.container.querySelectorAll("button")].find(
 			(b) => b.textContent === "Reset",
 		)!;
-		act(() => reset.click());
-		act(() => reset.click());
+		await act(async () => reset.click());
+		await act(async () => reset.click());
 		expect(ownProject()).toEqual({});
 		expect(toGui).toHaveBeenCalledWith({ type: "vali:load" }, "*");
 	});

@@ -48,17 +48,30 @@ pub fn number_value(v: f64) -> Value {
 pub trait Patchable: Sized {
     type Patch: Clone + PartialEq + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned;
     /// The wire name and column of each field a patch writes.
-    const WRITES: &'static [(&'static str, &'static str)];
+    const WRITES: &'static [(&'static str, &'static str)] = &[];
     /// The wire names of the fields a patch changes key by key.
-    const MERGED: &'static [&'static str];
+    const MERGED: &'static [&'static str] = &[];
     /// Wire names of fields that can be cleared with null.
-    const CLEARS: &'static [&'static str];
+    const CLEARS: &'static [&'static str] = &[];
     /// Apply `patch` to this value.
     fn patched(&self, patch: &Self::Patch) -> Self;
-    /// The patch that turns `old` into `new`.
-    fn between(old: &Self, new: &Self) -> Self::Patch;
+    /// The patch that turns `old` into `new`, for transitions a patch can express.
+    fn between(old: &Self, new: &Self) -> Self::Patch {
+        Self::try_between(old, new).expect("transition requires Set")
+    }
+    /// A patch when this policy can express the transition; replacement remains available otherwise.
+    fn try_between(old: &Self, new: &Self) -> Option<Self::Patch>;
     /// A patch setting every writable field to its current value.
     fn to_patch(&self) -> Self::Patch;
+    /// Whether this value means the same as no value, so an optional slot holding it is empty.
+    fn is_absent(&self) -> bool {
+        false
+    }
+}
+
+/// Whether `value` serializes to an empty JSON object.
+pub fn json_is_absent<T: serde::Serialize>(value: &T) -> bool {
+    serde_json::to_value(value).is_ok_and(|v| v.as_object().is_some_and(Json::is_empty))
 }
 
 /// A change to some of a `T`'s fields: an absent field is unchanged.
@@ -157,50 +170,250 @@ impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Field<T> {
     }
 }
 
-/// A map updated key by key. Null deletes a key; clearing the field removes the map.
-/// A missing map is treated as empty when merging.
-pub trait Merge: Sized {
-    /// Apply `patch` to `old`.
-    fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self>;
-    /// The patch that turns `old` into `new`.
-    fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self>;
-}
+impl<T: Patchable + Clone + Default + PartialEq> Patchable for Option<T> {
+    type Patch = Field<Patch<T>>;
 
-// RFC 7386 JSON Merge Patch, one level deep: a nested object is replaced, not merged.
-impl Merge for Json {
-    fn merged(old: &Option<Self>, patch: &Field<Self>) -> Option<Self> {
-        let patch = match patch {
-            Field::Keep => return old.clone(),
-            Field::Clear => return None,
-            Field::Set(patch) => patch,
-        };
-        let mut m = old.clone().unwrap_or_default();
-        for (k, v) in patch {
-            if v.is_null() {
-                m.remove(k);
-            } else {
-                m.insert(k.clone(), v.clone());
+    fn patched(&self, patch: &Self::Patch) -> Self {
+        match patch {
+            Field::Keep => self.clone(),
+            Field::Clear => None,
+            Field::Set(patch) => {
+                Some(self.clone().unwrap_or_default().patched(patch)).filter(|v| !v.is_absent())
             }
         }
-        (!m.is_empty()).then_some(m)
     }
 
-    fn between(old: &Option<Self>, new: &Option<Self>) -> Field<Self> {
-        let none = Json::new();
-        let (old, new) = (old.as_ref().unwrap_or(&none), new.as_ref().unwrap_or(&none));
-        let mut patch: Json = new
-            .iter()
-            .filter(|(k, v)| !same_field_value(old.get(*k), Some(v)))
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        for k in old.keys().filter(|k| !new.contains_key(*k)) {
-            patch.insert(k.clone(), Value::Null);
+    fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+        if old == new {
+            return Some(Field::Keep);
         }
-        if patch.is_empty() {
-            Field::Keep
+        match new {
+            None => Some(Field::Clear),
+            Some(value) => T::try_between(&old.clone().unwrap_or_default(), value).map(Field::Set),
+        }
+    }
+
+    fn to_patch(&self) -> Self::Patch {
+        self.as_ref().map(Patchable::to_patch).into()
+    }
+}
+
+/// Apply RFC 7396 to any JSON target and patch.
+pub fn merge_patch(target: &Value, patch: &Value) -> Value {
+    let Value::Object(changes) = patch else {
+        return patch.clone();
+    };
+    let mut out = target.as_object().cloned().unwrap_or_default();
+    for (key, patch) in changes {
+        if patch.is_null() {
+            out.remove(key);
         } else {
-            Field::Set(patch)
+            out.insert(
+                key.clone(),
+                merge_patch(out.get(key).unwrap_or(&Value::Null), patch),
+            );
         }
+    }
+    Value::Object(out)
+}
+
+/// A merge patch when the target state is expressible by RFC 7396.
+pub fn merge_patch_between(old: &Value, new: &Value) -> Option<Value> {
+    let patch = if let Value::Object(new) = new {
+        let empty = Json::new();
+        let old = old.as_object().unwrap_or(&empty);
+        let mut patch = Json::new();
+        for (key, value) in new {
+            if old.get(key) != Some(value) {
+                patch.insert(
+                    key.clone(),
+                    merge_patch_between(old.get(key).unwrap_or(&Value::Null), value)?,
+                );
+            }
+        }
+        for key in old.keys().filter(|key| !new.contains_key(*key)) {
+            patch.insert(key.clone(), Value::Null);
+        }
+        Value::Object(patch)
+    } else {
+        new.clone()
+    };
+    (merge_patch(old, &patch) == *new).then_some(patch)
+}
+
+/// The root policy and explicit field overrides generated by `mma_fields::Patch`.
+/// With merge and no overrides, this is exactly RFC 7396.
+fn policy_patched(target: &Value, patch: &Value, merge: bool, fields: &[(&str, bool)]) -> Value {
+    let mut out = if merge {
+        merge_patch(target, patch)
+    } else {
+        patch.clone()
+    };
+    if let (Some(changes), Some(out)) = (patch.as_object(), out.as_object_mut()) {
+        for &(key, child_merge) in fields {
+            if let Some(change) = changes.get(key) {
+                out.insert(
+                    key.to_owned(),
+                    if child_merge {
+                        merge_patch(target.get(key).unwrap_or(&Value::Null), change)
+                    } else {
+                        change.clone()
+                    },
+                );
+            }
+        }
+    }
+    out
+}
+
+pub fn json_patched<T: serde::Serialize + serde::de::DeserializeOwned>(
+    value: &T,
+    patch: &Value,
+    merge: bool,
+    fields: &[(&str, bool)],
+) -> T {
+    serde_json::from_value(policy_patched(
+        &serde_json::to_value(value).expect("patch target serializes"),
+        patch,
+        merge,
+        fields,
+    ))
+    .expect("patched JSON fits the target type")
+}
+
+pub fn json_between<T: serde::Serialize>(
+    old: &T,
+    new: &T,
+    merge: bool,
+    fields: &[(&str, bool)],
+) -> Option<Value> {
+    let old = serde_json::to_value(old).expect("patch target serializes");
+    let new = serde_json::to_value(new).expect("patch target serializes");
+    let mut base_old = old.clone();
+    let mut base_new = new.clone();
+    for &(key, _) in fields {
+        if let Some(map) = base_old.as_object_mut() {
+            map.remove(key);
+        }
+        if let Some(map) = base_new.as_object_mut() {
+            map.remove(key);
+        }
+    }
+    let mut patch = if merge {
+        merge_patch_between(&base_old, &base_new)?
+    } else {
+        new.clone()
+    };
+    if let Some(changes) = patch.as_object_mut() {
+        for &(key, child_merge) in fields {
+            if !merge || old.get(key) != new.get(key) {
+                let after = new.get(key).unwrap_or(&Value::Null);
+                changes.insert(
+                    key.to_owned(),
+                    if child_merge {
+                        merge_patch_between(old.get(key).unwrap_or(&Value::Null), after)?
+                    } else {
+                        after.clone()
+                    },
+                );
+            }
+        }
+    }
+    (policy_patched(&old, &patch, merge, fields) == new).then_some(patch)
+}
+
+impl Patchable for Value {
+    type Patch = Value;
+    fn patched(&self, patch: &Self::Patch) -> Self {
+        merge_patch(self, patch)
+    }
+    fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+        merge_patch_between(old, new)
+    }
+    fn to_patch(&self) -> Self::Patch {
+        self.clone()
+    }
+    fn is_absent(&self) -> bool {
+        self.as_object().is_some_and(Json::is_empty)
+    }
+}
+
+/// Keyed edits preserve untouched entries; patching an absent entry starts from its default.
+impl<K, V> Patchable for HashMap<K, V>
+where
+    K: Clone + Eq + Hash + std::fmt::Debug + serde::Serialize + serde::de::DeserializeOwned,
+    V: Patchable
+        + Clone
+        + Default
+        + PartialEq
+        + std::fmt::Debug
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
+{
+    type Patch = HashMap<K, Op<V, Patch<V>, ()>>;
+
+    fn patched(&self, patch: &Self::Patch) -> Self {
+        let mut out = self.clone();
+        for (key, edit) in patch {
+            match edit.applied(Some(out.get(key).cloned().unwrap_or_default()), V::patched) {
+                Some(value) => {
+                    out.insert(key.clone(), value);
+                }
+                None => {
+                    out.remove(key);
+                }
+            }
+        }
+        out
+    }
+
+    fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+        let mut patch = HashMap::new();
+        for (key, value) in new {
+            match old.get(key) {
+                Some(before) if before == value => {}
+                Some(before) => {
+                    patch.insert(
+                        key.clone(),
+                        V::try_between(before, value)
+                            .map_or_else(|| Op::Set(value.clone()), Op::Put),
+                    );
+                }
+                None => {
+                    patch.insert(key.clone(), Op::Set(value.clone()));
+                }
+            }
+        }
+        for key in old.keys().filter(|key| !new.contains_key(*key)) {
+            patch.insert(key.clone(), Op::Remove(()));
+        }
+        Some(patch)
+    }
+
+    fn to_patch(&self) -> Self::Patch {
+        self.iter()
+            .map(|(key, value)| (key.clone(), Op::Set(value.clone())))
+            .collect()
+    }
+}
+
+impl Patchable for Json {
+    type Patch = Self;
+    fn patched(&self, patch: &Self::Patch) -> Self {
+        merge_patch(&Value::Object(self.clone()), &Value::Object(patch.clone()))
+            .as_object()
+            .cloned()
+            .expect("object merge returns an object")
+    }
+    fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+        merge_patch_between(&Value::Object(old.clone()), &Value::Object(new.clone()))
+            .and_then(|patch| patch.as_object().cloned())
+    }
+    fn to_patch(&self) -> Self::Patch {
+        self.clone()
+    }
+    fn is_absent(&self) -> bool {
+        self.is_empty()
     }
 }
 
@@ -317,7 +530,7 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
 }
 
 /// An edit to one keyed row: replace it, patch it, or remove it.
-#[derive(Clone, Debug, PartialEq, serde::Deserialize, specta::Type)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Op<T, P, K> {
     /// The row exactly as given.
@@ -344,9 +557,9 @@ where
     }
 }
 
-impl<T: Patchable + Keyed + Clone> Edit<T> {
+impl<T: Clone, P, K> Op<T, P, K> {
     /// Apply this edit to the underlying row. Patching a missing row has no effect.
-    pub fn applied(&self, below: Option<T>, apply: impl Fn(&T, &Patch<T>) -> T) -> Option<T> {
+    pub fn applied(&self, below: Option<T>, apply: impl Fn(&T, &P) -> T) -> Option<T> {
         match self {
             Op::Set(row) => Some(row.clone()),
             Op::Remove(_) => None,

@@ -41,16 +41,16 @@ impl Patchable for Row {
         if let Some(v) = &patch.name {
             out.name = v.clone();
         }
-        out.extra = Merge::merged(&out.extra, &patch.extra);
+        out.extra = out.extra.patched(&patch.extra);
         out
     }
 
-    fn between(old: &Self, new: &Self) -> RowPatch {
-        RowPatch {
+    fn try_between(old: &Self, new: &Self) -> Option<RowPatch> {
+        Some(RowPatch {
             id: new.id,
             name: (old.name != new.name).then(|| new.name.clone()),
-            extra: Merge::between(&old.extra, &new.extra),
-        }
+            extra: Patchable::try_between(&old.extra, &new.extra)?,
+        })
     }
 
     fn to_patch(&self) -> RowPatch {
@@ -151,12 +151,12 @@ fn merging_the_patch_between_two_maps_yields_the_second() {
     ];
     for old in &cases {
         for new in &cases {
-            match Merge::between(old, new) {
+            match Patchable::between(old, new) {
                 Field::Keep => assert!(same_field_value(
                     old.clone().map(Value::Object).as_ref(),
                     new.clone().map(Value::Object).as_ref(),
                 )),
-                patch => assert_eq!(Merge::merged(old, &patch), *new),
+                patch => assert_eq!(old.patched(&patch), *new),
             }
         }
     }
@@ -494,7 +494,9 @@ fn merged_arrays_replace_whole_values_without_mutating_the_inputs() {
     let original_before = original.clone();
     let patch_before = patch.clone();
 
-    let result = Merge::merged(&Some(original.clone()), &Field::Set(patch.clone())).unwrap();
+    let result = Some(original.clone())
+        .patched(&Field::Set(patch.clone()))
+        .unwrap();
     assert_eq!(
         Value::Object(result),
         json!({
@@ -516,27 +518,27 @@ fn a_null_patch_key_removes_one_key_while_clear_removes_the_entire_map() {
     let original = json!({ "first": 1, "last": [2, 3] }).as_object().cloned();
     let remove_first = json!({ "first": null }).as_object().cloned().unwrap();
     assert_eq!(
-        Merge::merged(&original, &Field::Set(remove_first)),
+        original.patched(&Field::Set(remove_first)),
         json!({ "last": [2, 3] }).as_object().cloned()
     );
 
     let remove_last = json!({ "last": null }).as_object().cloned().unwrap();
     assert_eq!(
-        Merge::merged(&original, &Field::Set(remove_last)),
+        original.patched(&Field::Set(remove_last)),
         json!({ "first": 1 }).as_object().cloned()
     );
     let only_entry = json!({ "last": [2, 3] }).as_object().cloned();
     let remove_only = json!({ "last": null }).as_object().cloned().unwrap();
-    assert_eq!(Merge::merged(&only_entry, &Field::Set(remove_only)), None);
-    assert_eq!(Merge::merged(&original, &Field::Clear), None);
-    assert_eq!(<Json as Merge>::merged(&None, &Field::Clear), None);
+    assert_eq!(only_entry.patched(&Field::Set(remove_only)), None);
+    assert_eq!(original.patched(&Field::Clear), None);
+    assert_eq!(Option::<Json>::None.patched(&Field::Clear), None);
 }
 
 #[test]
 fn an_empty_key_patch_is_a_no_op_but_a_clear_is_not() {
     let original = json!({ "x": [1, 2] }).as_object().cloned();
-    assert_eq!(Merge::merged(&original, &Field::Set(Json::new())), original);
-    assert_eq!(Merge::merged(&original, &Field::Clear), None);
+    assert_eq!(original.patched(&Field::Set(Json::new())), original);
+    assert_eq!(original.patched(&Field::Clear), None);
 }
 
 #[test]
@@ -650,13 +652,13 @@ impl Patchable for Named {
         }
     }
 
-    fn between(old: &Self, new: &Self) -> NamedPatch {
-        NamedPatch {
+    fn try_between(old: &Self, new: &Self) -> Option<NamedPatch> {
+        Some(NamedPatch {
             id: new.id,
             name: Field::between(&old.name, &new.name),
             order: Field::between(&old.order, &new.order),
             note: Field::between(&old.note, &new.note),
-        }
+        })
     }
 
     fn to_patch(&self) -> NamedPatch {
@@ -838,4 +840,159 @@ fn ids_order_and_hash_by_their_raw_value() {
     assert!(a < b);
     assert_eq!(HashMap::from([(a, "a")])[&Id::new(1)], "a");
     assert_eq!(Id::<Named>::default(), Id::UNSET);
+}
+
+#[test]
+fn nested_map_edits_compose_and_preserve_json_null() {
+    type Entries = HashMap<String, HashMap<String, Value>>;
+    let old = Entries::from([(
+        "first".into(),
+        HashMap::from([("kept".into(), json!(1)), ("removed".into(), json!(2))]),
+    )]);
+    let patch: Patch<Entries> = serde_json::from_value(json!({
+        "first": { "put": {
+            "kept": { "set": 3 },
+            "removed": { "remove": null },
+            "null": { "set": null }
+        }},
+        "second": { "put": { "independent": { "set": true } } }
+    }))
+    .unwrap();
+    let updated = old.patched(&patch);
+    assert_eq!(updated["first"]["kept"], json!(3));
+    assert!(!updated["first"].contains_key("removed"));
+    assert_eq!(updated["first"]["null"], Value::Null);
+    assert_eq!(updated["second"]["independent"], json!(true));
+    assert_eq!(old.patched(&Entries::between(&old, &updated)), updated);
+    assert_eq!(updated.patched(&Entries::between(&updated, &old)), old);
+    assert_eq!(
+        serde_json::to_value(&patch).unwrap()["first"]["put"]["null"]["set"],
+        Value::Null
+    );
+}
+
+#[test]
+fn map_set_replaces_while_put_preserves_other_entries() {
+    type Entries = HashMap<String, HashMap<String, Value>>;
+    let old = Entries::from([(
+        "first".into(),
+        HashMap::from([("keep".into(), json!(1)), ("change".into(), json!(2))]),
+    )]);
+    let set: Patch<Entries> =
+        serde_json::from_value(json!({ "first": { "set": { "change": 3 } } })).unwrap();
+    let put: Patch<Entries> =
+        serde_json::from_value(json!({ "first": { "put": { "change": { "set": 3 } } } })).unwrap();
+    assert!(!old.patched(&set)["first"].contains_key("keep"));
+    assert_eq!(old.patched(&put)["first"]["keep"], json!(1));
+    assert_eq!(old.patched(&put)["first"]["change"], json!(3));
+    let empty: Patch<Entries> = serde_json::from_value(json!({ "first": { "set": {} } })).unwrap();
+    assert!(old.patched(&empty)["first"].is_empty());
+}
+
+#[test]
+fn optional_maps_delegate_keyed_edits_and_preserve_present_empty_values() {
+    type Entries = HashMap<String, Value>;
+    let old = Some(Entries::from([
+        ("keep".into(), json!(1)),
+        ("change".into(), json!(2)),
+    ]));
+    let patch = Field::Set(<Entries as Patchable>::Patch::from([(
+        "change".into(),
+        Op::Set(json!(3)),
+    )]));
+    let updated = old.patched(&patch).unwrap();
+    assert_eq!(updated["keep"], json!(1));
+    assert_eq!(updated["change"], json!(3));
+    assert_eq!(
+        Option::<Entries>::None.patched(&patch).unwrap(),
+        Entries::from([("change".into(), json!(3))])
+    );
+    assert_eq!(old.patched(&Field::Keep), old);
+    assert_eq!(old.patched(&Field::Clear), None);
+    for before in [None, Some(Entries::new()), old] {
+        for after in [None, Some(Entries::new()), Some(updated.clone())] {
+            assert_eq!(
+                before.patched(&Option::<Entries>::between(&before, &after)),
+                after
+            );
+        }
+    }
+}
+
+#[test]
+fn optional_json_patches_collapse_empty_objects_and_use_normal_equality() {
+    let absent: Option<Json> = None;
+    let empty = Some(Json::new());
+    assert_eq!(
+        absent.patched(&Option::<Json>::between(&absent, &empty)),
+        None
+    );
+    assert_eq!(Option::<Json>::between(&empty, &absent), Field::Clear);
+    let integer = json!({ "n": 1 }).as_object().cloned();
+    let decimal = json!({ "n": 1.0 }).as_object().cloned();
+    assert_eq!(
+        integer.patched(&Option::<Json>::between(&integer, &decimal)),
+        decimal
+    );
+    let scalar = Some(json!(true));
+    let null = Some(Value::Null);
+    assert_eq!(
+        scalar.patched(&Option::<Value>::between(&scalar, &null)),
+        null
+    );
+}
+
+#[test]
+fn rfc_7396_appendix_a() {
+    let cases = [
+        (json!({"a":"b"}), json!({"a":"c"}), json!({"a":"c"})),
+        (json!({"a":"b"}), json!({"b":"c"}), json!({"a":"b","b":"c"})),
+        (json!({"a":"b"}), json!({"a":null}), json!({})),
+        (
+            json!({"a":"b","b":"c"}),
+            json!({"a":null}),
+            json!({"b":"c"}),
+        ),
+        (json!({"a":["b"]}), json!({"a":"c"}), json!({"a":"c"})),
+        (json!({"a":"c"}), json!({"a":["b"]}), json!({"a":["b"]})),
+        (
+            json!({"a":{"b":"c"}}),
+            json!({"a":{"b":"d","c":null}}),
+            json!({"a":{"b":"d"}}),
+        ),
+        (json!({"a":[{"b":"c"}]}), json!({"a":[1]}), json!({"a":[1]})),
+        (json!(["a", "b"]), json!(["c", "d"]), json!(["c", "d"])),
+        (json!({"a":"b"}), json!(["c"]), json!(["c"])),
+        (json!({"a":"foo"}), Value::Null, Value::Null),
+        (json!({"a":"foo"}), json!("bar"), json!("bar")),
+        (json!({"e":null}), json!({"a":1}), json!({"e":null,"a":1})),
+        (json!([1, 2]), json!({"a":"b","c":null}), json!({"a":"b"})),
+        (
+            json!({}),
+            json!({"a":{"bb":{"ccc":null}}}),
+            json!({"a":{"bb":{}}}),
+        ),
+    ];
+    for (target, patch, expected) in cases {
+        assert_eq!(merge_patch(&target, &patch), expected);
+        assert_eq!(target.patched(&patch), expected);
+    }
+}
+
+#[test]
+fn recursive_merge_diffs_and_set_fallback_preserve_exact_states() {
+    let old = json!({"child":{"keep":1,"change":2,"drop":3},"array":[1,2]});
+    let new = json!({"child":{"keep":1,"change":4},"array":[3]});
+    let patch = Value::try_between(&old, &new).unwrap();
+    assert_eq!(patch, json!({"child":{"change":4,"drop":null},"array":[3]}));
+    assert_eq!(old.patched(&patch), new);
+    assert_eq!(new.patched(&Value::between(&new, &old)), old);
+    let nullable = json!({"child":{"literal":null}});
+    assert_eq!(Value::try_between(&old, &nullable), None);
+    let before = HashMap::from([("row".to_owned(), old)]);
+    let after = HashMap::from([("row".to_owned(), nullable)]);
+    let edits = HashMap::between(&before, &after);
+    assert!(matches!(edits["row"], Op::Set(_)));
+    assert_eq!(before.patched(&edits), after);
+    assert_eq!(after.patched(&HashMap::between(&after, &before)), before);
 }

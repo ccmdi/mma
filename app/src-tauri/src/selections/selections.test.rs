@@ -4361,7 +4361,7 @@ fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
         panic!("extra keys write into extra");
     };
     assert_eq!(
-        serde_json::Value::Object(extra.to_map()),
+        extra.clone(),
         serde_json::json!({ "cameraType": "gen4", "loose": null })
     );
 }

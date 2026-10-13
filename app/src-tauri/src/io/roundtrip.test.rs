@@ -68,7 +68,7 @@ fn tag(id: u32, name: &str, color: &str, order: Option<u32>, doclinks: &[&str]) 
         id: Id::new(id),
         name: Some(name.into()),
         order,
-        extra: Some(extra),
+        extra,
     }
 }
 
@@ -208,7 +208,7 @@ fn view(l: &Location, names: &HashMap<Id<ValueRecord>, String>) -> Value {
         "pano": l.pano_id.as_deref(),
         "pinned": l.flags.contains(LocationFlags::LOAD_AS_PANO_ID),
         "tags": tags,
-        "extra": l.extra.as_ref().map(RawExtra::to_map),
+        "extra": l.extra.as_ref().map(RawExtra::to_map).unwrap_or_default(),
     })
 }
 
@@ -249,11 +249,7 @@ fn shaped_view(l: &Location, names: &HashMap<Id<ValueRecord>, String>, shape: Ma
                 _ => false,
             })
             .collect();
-        v["extra"] = if kept.is_empty() {
-            Value::Null
-        } else {
-            Value::Object(kept)
-        };
+        v["extra"] = Value::Object(kept);
     }
     v
 }
@@ -266,7 +262,7 @@ fn tag_view(tags: &[ValueRecord], shape: MapShape) -> HashMap<String, Value> {
     }
     tags.iter()
         .map(|rec| {
-            let extra = |key: &str| rec.extra.as_ref().and_then(|e| e.get(key));
+            let extra = |key: &str| rec.extra.get(key);
             (
                 rec.name.clone().unwrap_or_default(),
                 json!({

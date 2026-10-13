@@ -19,7 +19,8 @@ use std::sync::Arc;
 /// both (see [`BinRawExtraVisitor`]). Parsing happens only
 /// when a consumer needs keyed access, via [`RawExtra::to_map`] (deep) or
 /// [`RawExtra::get`]/[`RawExtra::for_each_field`] (zero-alloc byte scan).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, mma_fields::Patch)]
+#[patch(merge)]
 pub struct RawExtra(Arc<Box<RawValue>>);
 
 impl RawExtra {
@@ -282,7 +283,16 @@ pub(super) fn is_empty_object(s: &str) -> bool {
 
 impl PartialEq for RawExtra {
     fn eq(&self, other: &Self) -> bool {
-        Arc::ptr_eq(&self.0, &other.0) || self.0.get() == other.0.get()
+        Arc::ptr_eq(&self.0, &other.0)
+            || self.0.get() == other.0.get()
+            || mma_algebra::same_field_value(
+                serde_json::from_str::<serde_json::Value>(self.as_str())
+                    .ok()
+                    .as_ref(),
+                serde_json::from_str::<serde_json::Value>(other.as_str())
+                    .ok()
+                    .as_ref(),
+            )
     }
 }
 
@@ -344,20 +354,8 @@ impl<'de> Visitor<'de> for BinRawExtraVisitor {
     }
 }
 
-impl mma_algebra::Merge for RawExtra {
-    fn merged(old: &Option<Self>, patch: &mma_algebra::Field<Self>) -> Option<Self> {
-        let m = mma_algebra::Merge::merged(
-            &old.as_ref().map(RawExtra::to_map),
-            &patch.as_ref().map(RawExtra::to_map),
-        );
-        RawExtra::from_map(&m?)
-    }
-
-    fn between(old: &Option<Self>, new: &Option<Self>) -> mma_algebra::Field<Self> {
-        mma_algebra::Merge::between(
-            &old.as_ref().map(RawExtra::to_map),
-            &new.as_ref().map(RawExtra::to_map),
-        )
-        .and_then(|m| RawExtra::from_map(&m))
+impl Default for RawExtra {
+    fn default() -> Self {
+        Self::wrap(RawValue::from_string("{}".into()).expect("empty JSON object"))
     }
 }

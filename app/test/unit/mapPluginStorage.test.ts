@@ -14,6 +14,7 @@ vi.mock("@/store/maps", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
 			(await import("./fixtures/mocks")).metadataWritten(patch),
 		),
@@ -83,10 +84,13 @@ describe("map metadata writes", () => {
 		expect(Store.get().map?.settings).toMatchObject({ searchRadius: 50, exportZoom: true });
 	});
 
-	it("arriving on the change feed merge settings by key", () => {
+	it("replaces settings from a complete metadata row on the change feed", () => {
 		openMap("a", { searchRadius: 50 });
-		Store.merge({ meta: { settings: { exportZoom: true } } } as unknown as Derived);
-		expect(Store.get().map?.settings).toEqual({ searchRadius: 50, exportZoom: true });
+		const before = Store.get().map!;
+		const next = { ...before, settings: { exportZoom: true } } as MapMeta;
+		Store.merge({ meta: next } as Derived);
+		expect(Store.get().map).toBe(next);
+		expect(Store.get().map?.settings).toEqual({ exportZoom: true });
 	});
 
 	it("on the open map settle as a mutation, scheduling the save that persists them", async () => {
@@ -112,10 +116,25 @@ describe("mapStorage", () => {
 
 		expect(mapStorage("gen").get("tag")).toBe("Europe");
 		expect(mapStorage("gen").keys()).toEqual(["tag"]);
-		expect(sentSettings().at(-1)).toEqual({
-			pluginData: { gen: { tag: "Europe" }, heat: { layers: [1] } },
-		});
+		expect(sentSettings()).toEqual([
+			{ pluginData: { gen: { put: { tag: { set: "Europe" } } } } },
+			{ pluginData: { heat: { put: { layers: { set: [1] } } } } },
+		]);
 		expect(Store.get().map?.settings.pointAlongRoad).toBe(false);
+	});
+
+	it("preserves JSON null and sends overlapping writes as independent key patches", async () => {
+		const settle = holdWrites();
+		const writes = [mapStorage("gen").set("nullable", null), mapStorage("gen").set("count", 2)];
+		await settle();
+		await settle();
+		await Promise.all(writes);
+
+		expect(mapStorage("gen").get("nullable", "fallback")).toBeNull();
+		expect(sentSettings()).toEqual([
+			{ pluginData: { gen: { put: { nullable: { set: null } } } } },
+			{ pluginData: { gen: { put: { count: { set: 2 } } } } },
+		]);
 	});
 
 	it("gives every map its own values", async () => {
@@ -124,10 +143,12 @@ describe("mapStorage", () => {
 		expect(mapStorage("gen").get("tag", "none")).toBe("none");
 	});
 
-	it("drops a plugin's entry once its last key is removed", async () => {
+	it("removes only the named key", async () => {
 		await mapStorage("gen").set("tag", "Europe");
 		await mapStorage("gen").remove("tag");
-		expect(sentSettings().at(-1)).toEqual({ pluginData: {} });
+		expect(sentSettings().at(-1)).toEqual({
+			pluginData: { gen: { put: { tag: { remove: null } } } },
+		});
 	});
 
 	it("throws with no map open", () => {

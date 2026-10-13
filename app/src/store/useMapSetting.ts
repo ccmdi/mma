@@ -3,21 +3,23 @@ import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import type { MapSettings } from "@/bindings.gen";
 
-export function useMapSetting<K extends keyof MapSettings>(
+type WritableSettings = Omit<MapSettings, "pluginData">;
+
+export function useMapSetting<K extends keyof WritableSettings>(
 	key: K,
 	defaultValue: NonNullable<MapSettings[K]>,
 ): [NonNullable<MapSettings[K]>, (v: MapSettings[K]) => void];
-export function useMapSetting<K extends keyof MapSettings>(
+export function useMapSetting<K extends keyof WritableSettings>(
 	key: K,
 ): [Exclude<MapSettings[K], undefined>, (v: MapSettings[K]) => void];
-export function useMapSetting<K extends keyof MapSettings>(
+export function useMapSetting<K extends keyof WritableSettings>(
 	key: K,
 	defaultValue?: NonNullable<MapSettings[K]>,
 ): [Exclude<MapSettings[K], undefined>, (v: MapSettings[K]) => void] {
 	const map = Store.use((s) => s.map);
 	const set = useCallback(
 		(v: MapSettings[K]) => {
-			void Edit.meta({ settings: { [key]: v } as Partial<MapSettings> });
+			void Edit.meta({ settings: { [key]: v } as Partial<WritableSettings> });
 		},
 		[key],
 	);

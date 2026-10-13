@@ -1,6 +1,6 @@
 use super::*;
-use crate::types::{Location, RawExtra};
-use mma_algebra::{same_field_value, Dependencies, Field, Merge, Patch, Patchable};
+use crate::types::Location;
+use mma_algebra::{same_field_value, Dependencies, Field, Patch, Patchable};
 use std::sync::Arc;
 
 pub type ComputedFrom = Arc<HashMap<String, Vec<String>>>;
@@ -22,7 +22,9 @@ impl Store {
                 .into_iter()
                 .map(|key| (key, serde_json::Value::Null))
                 .collect();
-            new.extra = Merge::merged(&new.extra, &RawExtra::from_map(&clears).into());
+            new.extra = new
+                .extra
+                .patched(&Field::Set(serde_json::Value::Object(clears)));
         }
         new
     }
@@ -43,11 +45,17 @@ impl Store {
         if stale.is_empty() {
             return patch;
         }
-        let mut values = extra.to_map();
+        let Some(mut values) = extra.as_object().cloned() else {
+            return patch;
+        };
         let before = values.len();
         values.retain(|key, _| !stale.contains(key));
         if values.len() != before {
-            patch.extra = RawExtra::from_map(&values).map_or(Field::Keep, Field::Set);
+            patch.extra = if values.is_empty() {
+                Field::Keep
+            } else {
+                Field::Set(serde_json::Value::Object(values))
+            };
         }
         patch
     }

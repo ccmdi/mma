@@ -27,10 +27,12 @@ import { IconButton } from "@/components/primitives/IconButton";
  *  map as a catalogue entry, the editor also tunes how the open map behaves. */
 export type MapFormContext = "list" | "editor";
 
+type MapEdit = Omit<Parameters<typeof Edit.meta>[0], "id">;
+
 interface SectionProps {
 	/** The map with its unsaved edits already applied. */
 	draft: MapMeta;
-	edit: (patch: Partial<MapMeta>) => void;
+	edit: (patch: MapEdit) => void;
 	/** Hold Save while this section's input is unusable. */
 	block: (blocked: boolean) => void;
 }
@@ -169,8 +171,7 @@ function ExprSection({
 	}, [value]);
 	useEffect(() => block(error != null), [error, block]);
 
-	const setExpr = (v: string) =>
-		edit({ settings: { ...draft.settings, [setting]: v.trim() || null } });
+	const setExpr = (v: string) => edit({ settings: { [setting]: v.trim() || null } });
 
 	return (
 		<>
@@ -276,10 +277,10 @@ export function DeleteMapDialog({
 export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFormContext }) {
 	const close = useCloseDialog();
 	const [deleting, setDeleting] = useState(false);
-	const [patch, setPatch] = useState<Partial<MapMeta>>({});
+	const [patch, setPatch] = useState<MapEdit>({});
 	const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
 
-	const draft: MapMeta = { ...map, ...patch };
+	const draft: MapMeta = { ...map, ...patch, settings: { ...map.settings, ...patch.settings } };
 	const sections = SECTIONS.filter((s) => s.in.includes(context));
 
 	// Stable per-section callbacks: sections put them in effect deps.
@@ -289,7 +290,12 @@ export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFo
 				SECTIONS.map((s) => [
 					s.id,
 					{
-						edit: (p: Partial<MapMeta>) => setPatch((prev) => ({ ...prev, ...p })),
+						edit: (p: MapEdit) =>
+							setPatch((prev) => ({
+								...prev,
+								...p,
+								...(p.settings && { settings: { ...prev.settings, ...p.settings } }),
+							})),
 						block: (v: boolean) =>
 							setBlocked((prev) => {
 								if (prev.has(s.id) === v) return prev;

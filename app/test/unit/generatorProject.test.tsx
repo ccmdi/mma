@@ -43,8 +43,8 @@ function sidebar(): Mounted {
 
 const tagInput = (m: Mounted) => m.container.querySelector("input") as HTMLInputElement;
 
-function type(input: HTMLInputElement, value: string) {
-	act(() => {
+async function type(input: HTMLInputElement, value: string) {
+	await act(async () => {
 		Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
 		input.dispatchEvent(new Event("input", { bubbles: true }));
 	});
@@ -69,8 +69,8 @@ describe("generator setup per map", () => {
 		expect(ownProject()).toBeUndefined();
 	});
 
-	it("saves changes with the map, leaving the shared setup and other maps alone", () => {
-		type(tagInput(sidebar()), "Mine");
+	it("saves changes with the map, leaving the shared setup and other maps alone", async () => {
+		await type(tagInput(sidebar()), "Mine");
 		expect(ownProject()).toEqual({ tagName: "Mine" });
 		expect(getLocal(SHARED_KEY, {})).toEqual({ tagName: "Shared", settings: { defaultTarget: 7 } });
 
@@ -83,13 +83,13 @@ describe("generator setup per map", () => {
 		expect(tagInput(sidebar()).value).toBe("Mine");
 	});
 
-	it("resets to the factory setup, not the shared one", () => {
+	it("resets to the factory setup, not the shared one", async () => {
 		const m = sidebar();
 		const reset = [...m.container.querySelectorAll("button")].find(
 			(b) => b.textContent === "Reset",
 		);
-		act(() => reset!.click());
-		act(() => reset!.click());
+		await act(async () => reset!.click());
+		await act(async () => reset!.click());
 		expect(tagInput(m).value).toBe("");
 		expect(ownProject()).toEqual({ settings: normalizeGeneratorSettings(undefined), tagName: "" });
 	});

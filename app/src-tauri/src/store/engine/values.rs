@@ -30,13 +30,13 @@ pub struct ValueRecord {
     #[patch(merge)]
     #[serde(flatten)]
     #[specta(type = HashMap<String, specta_typescript::Unknown>)]
-    pub extra: Option<serde_json::Map<String, serde_json::Value>>,
+    pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
 impl ValueRecord {
     /// The colour someone chose for this value, if any.
     pub(crate) fn color(&self) -> Option<Rgb> {
-        self.extra.as_ref()?.get("color")?.as_str()?.parse().ok()
+        self.extra.get("color")?.as_str()?.parse().ok()
     }
 
     /// The colour the value is drawn in: its chosen one, else its name's.

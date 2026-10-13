@@ -12,7 +12,7 @@
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
-use quote::{format_ident, quote, ToTokens};
+use quote::{format_ident, quote};
 use syn::{parse_macro_input, Data, DeriveInput, Ident, LitFloat, LitStr, Type};
 
 struct Row {
@@ -248,7 +248,7 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
 /// Generate a struct's patch type and implement `Patchable`.
 /// `key` fields are required; `skip` fields are excluded; `merge` fields update key by key,
-/// and a `merge` field that is not optional takes a nested patch of its own type.
+/// and a non-optional nested value uses its own patch type.
 /// `stamp` fields can be written but are ignored when comparing values.
 /// A `unique` field's value names at most one row; `sequence` fields are numbered on insert.
 /// Other fields are optional; `column` overrides their storage column name.
@@ -262,6 +262,73 @@ pub fn derive_patch(input: TokenStream) -> TokenStream {
 }
 
 fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
+    let mut policy = None;
+    for attr in input
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("patch"))
+    {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("merge") {
+                policy = Some(true);
+            } else if meta.path.is_ident("replace") {
+                policy = Some(false);
+            } else {
+                return Err(meta.error("expected merge or replace patch policy"));
+            }
+            Ok(())
+        })?;
+    }
+    if let Some(merge) = policy {
+        let Data::Struct(data) = &input.data else {
+            return Err(syn::Error::new_spanned(input, "Patch derives on a struct"));
+        };
+        let ident = &input.ident;
+        let mut overrides = Vec::new();
+        for field in &data.fields {
+            let mut child = None;
+            for attr in field.attrs.iter().filter(|a| a.path().is_ident("patch")) {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("merge") { child = Some(true); }
+                    else if meta.path.is_ident("replace") { child = Some(false); }
+                    else { return Err(meta.error("whole-value patch policy accepts only merge or replace field overrides")); }
+                    Ok(())
+                })?;
+            }
+            if let Some(child) = child {
+                if child == merge {
+                    continue;
+                }
+                if field.ident.is_none() || serde_flatten(field) {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "field overrides require a named, non-flattened JSON member",
+                    ));
+                }
+                let name = patch_json_name(input, field)?;
+                overrides.push(quote!((#name, #child)));
+            }
+        }
+        let mut generics = input.generics.clone();
+        generics
+            .make_where_clause()
+            .predicates
+            .push(syn::parse_quote!(Self: serde::Serialize + serde::de::DeserializeOwned));
+        let (implementation, types, bounds) = generics.split_for_impl();
+        return Ok(quote! {
+            impl #implementation ::mma_algebra::Patchable for #ident #types #bounds {
+                type Patch = serde_json::Value;
+                fn patched(&self, patch: &Self::Patch) -> Self {
+                    ::mma_algebra::json_patched(self, patch, #merge, &[#(#overrides),*])
+                }
+                fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+                    ::mma_algebra::json_between(old, new, #merge, &[#(#overrides),*])
+                }
+                fn to_patch(&self) -> Self::Patch { serde_json::to_value(self).expect("patch target serializes") }
+                fn is_absent(&self) -> bool { #merge && ::mma_algebra::json_is_absent(self) }
+            }
+        });
+    }
     let Data::Struct(data) = &input.data else {
         return Err(syn::Error::new_spanned(input, "Patch derives on a struct"));
     };
@@ -274,7 +341,12 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let (mut unique_field, mut sequences, mut fills) = (None, Vec::new(), Vec::new());
     let mut nested = Vec::new();
     for f in &data.fields {
-        let name = f.ident.as_ref().expect("named fields");
+        let name = f.ident.as_ref().ok_or_else(|| {
+            syn::Error::new_spanned(
+                f,
+                "tuple structs declare #[patch(merge)] or #[patch(replace)]",
+            )
+        })?;
         let ty = &f.ty;
         let (mut key, mut skip, mut merge, mut stamp) = (false, false, false, false);
         let (mut unique, mut sequence) = (false, false);
@@ -287,6 +359,8 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     skip = true;
                 } else if meta.path.is_ident("merge") {
                     merge = true;
+                } else if meta.path.is_ident("replace") {
+                    merge = false;
                 } else if meta.path.is_ident("stamp") {
                     stamp = true;
                 } else if meta.path.is_ident("unique") {
@@ -333,12 +407,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         if sequence {
             sequences.push(name);
         }
+        let flatten = serde_flatten(f);
         let Some(inner) = option_inner(ty) else {
             if merge {
-                let flatten = f.attrs.iter().any(|attr| {
-                    attr.path().is_ident("serde")
-                        && attr.to_token_stream().to_string().contains("flatten")
-                });
                 let skip = (!flatten).then(|| {
                     quote! { #[serde(default, skip_serializing_if = "::mma_algebra::is_default")] }
                 });
@@ -348,12 +419,17 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     pub #name: ::mma_algebra::Patch<#ty>,
                 });
                 whole.push(quote! { #name: ::mma_algebra::Patchable::to_patch(&self.#name), });
+                fills.push(quote! { out.#name = ::mma_algebra::Patchable::patched(&from.#name, &::mma_algebra::Patchable::to_patch(&out.#name)); });
                 writes.push(quote! { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); });
                 reads.push(
-                    quote! { #name: ::mma_algebra::Patchable::between(&old.#name, &new.#name), },
+                    quote! { #name: ::mma_algebra::Patchable::try_between(&old.#name, &new.#name)?, },
                 );
                 same.push(quote! { old.#name == new.#name });
-                nested.push((key_name, type_name(ty)));
+                // Flattened JSON object patches already have the parent's partial wire shape.
+                let json_object = matches!(ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Map"));
+                if !flatten || !json_object {
+                    nested.push((key_name, ty, flatten, patch_wire_type(f)?));
+                }
                 continue;
             }
             slots.push(quote! {
@@ -371,16 +447,25 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
             continue;
         };
+        let slot = if merge {
+            quote!(::mma_algebra::Patch<#ty>)
+        } else {
+            quote!(::mma_algebra::Field<#inner>)
+        };
         slots.push(quote! {
             #(#codec)*
             #[serde(default, skip_serializing_if = "::mma_algebra::Field::is_keep")]
-            pub #name: ::mma_algebra::Field<#inner>,
+            pub #name: #slot,
         });
-        whole.push(quote! { #name: ::mma_algebra::Field::from(self.#name.clone()), });
+        whole.push(if merge {
+            quote!(#name: ::mma_algebra::Patchable::to_patch(&self.#name),)
+        } else {
+            quote!(#name: ::mma_algebra::Field::from(self.#name.clone()),)
+        });
         fills.push(if merge {
             quote! {
                 if out.#name.is_some() {
-                    out.#name = ::mma_algebra::Merge::merged(&from.#name, &::mma_algebra::Field::from(out.#name.clone()));
+                    out.#name = ::mma_algebra::Patchable::patched(&from.#name, &::mma_algebra::Patchable::to_patch(&out.#name));
                 } else {
                     out.#name = from.#name.clone();
                 }
@@ -390,8 +475,8 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         });
         let change = if merge {
             merged.push(key_name);
-            writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Merge::merged(&out.#name, &patch.#name); } });
-            quote! { ::mma_algebra::Merge::between(&old.#name, &new.#name) }
+            writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); } });
+            quote! { ::mma_algebra::Patchable::try_between(&old.#name, &new.#name)? }
         } else {
             if !stamp {
                 clears.push(key_name);
@@ -402,25 +487,56 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         if stamp {
             reads.push(quote! { #name: ::mma_algebra::Field::Keep, });
         } else {
-            same.push(quote! { (#change).is_keep() });
+            same.push(if merge {
+                quote!(old.#name == new.#name)
+            } else {
+                quote!((#change).is_keep())
+            });
             reads.push(quote! { #name: #change, });
         }
     }
     let hidden: Vec<String> = skips
         .iter()
         .cloned()
-        .chain(nested.iter().map(|(key, _)| format!("\"{key}\"")))
+        .chain(nested.iter().map(|(key, ty, flatten, _)| {
+            if *flatten {
+                format!("keyof {}", type_name(ty))
+            } else {
+                format!("\"{key}\"")
+            }
+        }))
         .collect();
     let mut wire = format!("Partial<{ident}>");
     if !hidden.is_empty() {
         wire = format!("Partial<Omit<{ident}, {}>>", hidden.join(" | "));
     }
-    for (key, ty) in &nested {
-        wire = format!("{wire} & {{ {key}?: Partial<{ty}> }}");
-    }
     if !keys.is_empty() {
         wire = format!("{wire} & Pick<{ident}, {}>", keys.join(" | "));
     }
+    let nested_wire = nested.iter().map(|(key, _, flatten, wire_ty)| {
+        if *flatten {
+            quote! {
+                let datatype = <#wire_ty as specta::Type>::definition(types);
+                let child = ::specta_typescript::primitives::inline(
+                    &::specta_typescript::Typescript::default(),
+                    types,
+                    &datatype,
+                ).expect("nested patch types are inlineable");
+                wire = format!("{wire} & ({child})");
+            }
+        } else {
+            quote! {
+            let key = #key;
+            let datatype = <#wire_ty as specta::Type>::definition(types);
+            let child = ::specta_typescript::primitives::inline(
+                &::specta_typescript::Typescript::default(),
+                types,
+                &datatype,
+            ).expect("nested patch types are inlineable");
+            wire = format!("{wire} & {{ {key}?: {child} }}");
+                }
+        }
+    });
     let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
     let row = expand_row(input)?;
     let keyed = match key_fields.as_slice() {
@@ -505,8 +621,10 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
 
         impl specta::Type for #patch {
-            fn definition(_: &mut specta::Types) -> specta::datatype::DataType {
-                specta::datatype::DataType::Reference(specta_typescript::define(#wire))
+            fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+                let mut wire = #wire.to_string();
+                #(#nested_wire)*
+                specta::datatype::DataType::Reference(specta_typescript::define(wire))
             }
         }
 
@@ -522,8 +640,8 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 out
             }
 
-            fn between(old: &Self, new: &Self) -> #patch {
-                #patch { #(#reads)* }
+            fn try_between(old: &Self, new: &Self) -> Option<#patch> {
+                Some(#patch { #(#reads)* })
             }
 
             fn to_patch(&self) -> #patch {
@@ -531,6 +649,123 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     })
+}
+
+fn patch_wire_type(field: &syn::Field) -> syn::Result<TokenStream2> {
+    let mut wire = None;
+    for attr in field
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("specta"))
+    {
+        attr.parse_nested_meta(|meta| {
+            if meta.path.is_ident("type") {
+                wire = Some(meta.value()?.parse::<Type>()?);
+            }
+            Ok(())
+        })?;
+    }
+    fn patch(ty: &Type) -> TokenStream2 {
+        if let Type::Path(path) = ty {
+            if let Some(segment) = path.path.segments.last() {
+                if segment.ident == "HashMap" {
+                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
+                        let mut args = args.args.iter();
+                        if let (
+                            Some(syn::GenericArgument::Type(key)),
+                            Some(syn::GenericArgument::Type(value)),
+                        ) = (args.next(), args.next())
+                        {
+                            let child = patch(value);
+                            return quote!(std::collections::HashMap<#key, ::mma_algebra::Op<#value, #child, ()>>);
+                        }
+                    }
+                }
+                if segment.ident == "Unknown" || segment.ident == "Any" {
+                    return quote!(#ty);
+                }
+            }
+        }
+        quote!(::mma_algebra::Patch<#ty>)
+    }
+    Ok(wire.as_ref().map_or_else(
+        || {
+            let ty = &field.ty;
+            quote!(::mma_algebra::Patch<#ty>)
+        },
+        patch,
+    ))
+}
+
+fn patch_json_name(input: &DeriveInput, field: &syn::Field) -> syn::Result<String> {
+    fn setting(attrs: &[syn::Attribute], key: &str) -> syn::Result<Option<String>> {
+        for attr in attrs.iter().filter(|a| a.path().is_ident("serde")) {
+            let items = attr.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+            )?;
+            for item in items {
+                if let syn::Meta::NameValue(value) = item {
+                    if value.path.is_ident(key) {
+                        if let syn::Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Str(value),
+                            ..
+                        }) = value.value
+                        {
+                            return Ok(Some(value.value()));
+                        }
+                    }
+                }
+            }
+        }
+        Ok(None)
+    }
+    if let Some(name) = setting(&field.attrs, "rename")? {
+        return Ok(name);
+    }
+    let name = field
+        .ident
+        .as_ref()
+        .unwrap()
+        .to_string()
+        .trim_start_matches("r#")
+        .to_owned();
+    Ok(match setting(&input.attrs, "rename_all")?.as_deref() {
+        None | Some("snake_case") | Some("lowercase") => name,
+        Some("camelCase") => camel(&name),
+        Some("PascalCase") => {
+            let mut c = camel(&name).chars().collect::<Vec<_>>();
+            if let Some(first) = c.first_mut() {
+                first.make_ascii_uppercase();
+            }
+            c.into_iter().collect()
+        }
+        Some("UPPERCASE") | Some("SCREAMING_SNAKE_CASE") => name.to_uppercase(),
+        Some("kebab-case") => name.replace('_', "-"),
+        Some("SCREAMING-KEBAB-CASE") => name.replace('_', "-").to_uppercase(),
+        _ => {
+            return Err(syn::Error::new_spanned(
+                field,
+                "unsupported serde rename_all",
+            ))
+        }
+    })
+}
+
+fn serde_flatten(field: &syn::Field) -> bool {
+    field
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident("serde"))
+        .any(|attr| {
+            attr.parse_args_with(
+                syn::punctuated::Punctuated::<syn::Meta, syn::Token![,]>::parse_terminated,
+            )
+            .is_ok_and(|items| {
+                items
+                    .iter()
+                    .any(|item| matches!(item, syn::Meta::Path(path) if path.is_ident("flatten")))
+            })
+        })
 }
 
 fn option_inner(ty: &Type) -> Option<&Type> {

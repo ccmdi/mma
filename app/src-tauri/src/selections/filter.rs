@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::maps::{ComparisonType, FieldDef, FieldType};
-use crate::types::{location_fields, AppError, AppResult, Location, RawExtra};
+use crate::types::{location_fields, AppError, AppResult, Location};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
 use mma_algebra::Patch;
 use serde::Serialize;
@@ -95,11 +95,11 @@ impl<'k> FieldWriter<'k> {
             }
             Address::Extra => {
                 let mut extra = match &patch.extra {
-                    mma_algebra::Field::Set(raw) => raw.to_map(),
+                    mma_algebra::Field::Set(raw) => raw.as_object().cloned().unwrap_or_default(),
                     _ => serde_json::Map::new(),
                 };
                 extra.insert(self.key.to_string(), value.clone());
-                patch.extra = RawExtra::from_map(&extra).into();
+                patch.extra = mma_algebra::Field::Set(serde_json::Value::Object(extra));
                 Ok(())
             }
         }
