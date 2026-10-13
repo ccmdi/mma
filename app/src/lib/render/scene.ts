@@ -10,6 +10,7 @@ import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
 import { Editor } from "@/store/editor";
+import { watermark } from "@/lib/util/watermark";
 
 // Owns marker/scene data for every map surface. The editor map drives the engine (the
 // frame subscription and its lifecycle); both it and the minimap render from the same
@@ -25,7 +26,9 @@ let following: Channel<ArrayBuffer> | null = null;
 /** The last few frames applied, for a wait that starts after its frame landed. */
 let applied: FrameSummary[] = [];
 const APPLIED_KEPT = 16;
-let waiters: { version: number; resolve: (s: FrameSummary) => void }[] = [];
+const drawnUpTo = watermark<FrameSummary>(
+	(version) => applied.find((s) => s.version >= version) ?? nothingApplied(version),
+);
 
 function syncOpen(): boolean {
 	return scene.setOpen(Editor.get().open?.location?.id ?? null);
@@ -39,8 +42,7 @@ function nothingApplied(version: number): FrameSummary {
 function follow(channel: Channel<ArrayBuffer> | null) {
 	following = channel;
 	applied = [];
-	for (const w of waiters) w.resolve(nothingApplied(w.version));
-	waiters = [];
+	drawnUpTo.reset(0, nothingApplied);
 }
 
 function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary | null {
@@ -57,11 +59,8 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 	applied.push(s);
 	if (applied.length > APPLIED_KEPT) applied.shift();
 	// A replace frame draws the store as it stands, which answers every wait on it.
-	waiters = waiters.filter((w) => {
-		if (!s.replace && w.version > s.version) return true;
-		w.resolve(s);
-		return false;
-	});
+	if (s.replace) drawnUpTo.reset(s.version, () => s);
+	else drawnUpTo.pass(s.version, s);
 	t.end({ added: s.added.length, removed: s.removed.length, bytes: buf.byteLength });
 	if (scene.version !== drawn) emitEvent("scene:changed");
 	return s;
@@ -129,9 +128,7 @@ export const Scene = {
 	 */
 	reached: (version: number): Promise<FrameSummary> => {
 		if (!following) return Promise.resolve(nothingApplied(version));
-		const hit = applied.find((s) => s.version >= version);
-		if (hit) return Promise.resolve(hit);
-		return new Promise((resolve) => waiters.push({ version, resolve }));
+		return drawnUpTo.reached(version);
 	},
 	/** Resolves when the most recently started full scene load has finished (or immediately if none is in flight). */
 	settled: (): Promise<void> => {

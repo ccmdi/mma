@@ -4,17 +4,12 @@ import type { ChangeEvent } from "@/bindings.gen";
 import { Channel } from "@tauri-apps/api/core";
 import { cmd } from "@/lib/commands";
 import { emit as emitEvent } from "@/lib/events";
+import { watermark } from "@/lib/util/watermark";
 
-let feedVersion = 0;
-let feedWaiters: { version: number; resolve: () => void }[] = [];
+const delivered = watermark<void>(() => {});
 
 function applyChange(e: ChangeEvent) {
-	feedVersion = Math.max(feedVersion, e.version);
-	feedWaiters = feedWaiters.filter((w) => {
-		if (e.version < w.version) return true;
-		w.resolve();
-		return false;
-	});
+	delivered.pass(e.version);
 	if (!Store.get().map) return;
 	Store.merge(e.derived);
 	Autosave.schedule();
@@ -24,16 +19,14 @@ function applyChange(e: ChangeEvent) {
 
 export const Feed = {
 	seed: (version: number) => {
-		feedVersion = version;
+		delivered.reset(version, () => {});
 	},
-	/** Resolves once the change feed has delivered `version`'s event (or a later one). */
+	/** Resolves once the change feed has delivered `version`'s event (or a later one), or the map closes. */
 	waitFor: (version: number): Promise<void> => {
-		if (feedVersion >= version) return Promise.resolve();
-		return new Promise((resolve) => feedWaiters.push({ version, resolve }));
+		return delivered.reached(version);
 	},
 	reset: () => {
-		feedVersion = 0;
-		feedWaiters = [];
+		delivered.reset(0, () => {});
 	},
 	start: async () => {
 		const ch = new Channel<ChangeEvent>();

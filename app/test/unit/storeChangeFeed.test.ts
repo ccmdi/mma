@@ -216,6 +216,12 @@ describe("change feed merge semantics", () => {
 		expect(Store.get().locationCount).toBe(13);
 	});
 
+	it("a write whose map closes before its feed event arrives still settles", async () => {
+		const pending = Mutation.settle({ version: 99, keys: [] });
+		Maps.discard();
+		await expect(pending).resolves.toBeUndefined();
+	});
+
 	it("a write the open already covers settles without waiting for the feed", async () => {
 		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
 	});

@@ -12,8 +12,9 @@ const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
 
 export const Mutation = {
 	settle: async (m: Mutation): Promise<void> => {
+		const caughtUp = Promise.all([Scene.reached(m.version), Feed.waitFor(m.version)]);
 		await Autosave.waitForInflight();
-		await Promise.all([Scene.reached(m.version), Feed.waitFor(m.version)]);
+		await caughtUp;
 		Autosave.schedule();
 	},
 	run: async <R extends MutationResult = MutationResult>(
