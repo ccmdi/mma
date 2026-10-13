@@ -2712,6 +2712,9 @@ settled(m: Mutation): Promise<void>
 
 **Deprecated in v0.12.1.** Use `MMA.Mutation.settle`.
 
+Resolves once the open map's state and its markers both show `m`. A mutation that reached
+no map (version 0) settles at once.
+
 ### setUserFieldDefs
 
 `unstable` · `deprecated` · since v0.10.3
@@ -4599,6 +4602,9 @@ Mutation.run<R extends MutationResult = MutationResult>(
 ```ts
 Mutation.settle(m: Mutation): Promise<void>
 ```
+
+Resolves once the open map's state and its markers both show `m`. A mutation that reached
+no map (version 0) settles at once.
 
 # Unstable surfaces
 

@@ -21,7 +21,7 @@ export const Edit = {
 		const id = patch.id ?? mapId;
 		if (!id) return;
 		const { mutation } = await cmd.storeUpdateMapMeta({ ...patch, id });
-		if (mutation.version) await Mutation.settle(mutation);
+		await Mutation.settle(mutation);
 		await Maps.invalidate();
 	},
 	/** Edit an interned field's value records in one undoable step. */

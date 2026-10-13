@@ -11,11 +11,13 @@ export type Mutation<T = Location> = bindings.Mutation<T>;
 const EMPTY_MUTATION: MutationResult = { mutation: { version: 0, keys: [] } };
 
 export const Mutation = {
+	/** Resolves once the open map's state and its markers both show `m`. A mutation that reached
+	 *  no map (version 0) settles at once. */
 	settle: async (m: Mutation): Promise<void> => {
+		if (!m.version) return;
 		const caughtUp = Promise.all([Scene.reached(m.version), Feed.waitFor(m.version)]);
 		await Autosave.waitForInflight();
 		await caughtUp;
-		Autosave.schedule();
 	},
 	run: async <R extends MutationResult = MutationResult>(
 		fn: () => Promise<R>,

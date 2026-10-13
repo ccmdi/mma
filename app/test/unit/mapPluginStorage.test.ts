@@ -12,12 +12,21 @@ vi.mock("@/store/maps", () => ({
 	Maps: { setList: vi.fn(), invalidate: vi.fn(async () => {}), reload: vi.fn(async () => {}) },
 }));
 
+const feed = vi.hoisted(() => ({ deliver: (_e: unknown) => {} }));
+vi.mock("@tauri-apps/api/core", () => ({
+	Channel: class {
+		onmessage: (e: unknown) => void = () => {};
+	},
+}));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
 			(await import("./fixtures/mocks")).metadataWritten(patch),
 		),
 		storeSaveDirty: vi.fn(async () => null),
+		storeSubscribeChanges: vi.fn(async (channel: { onmessage: (e: unknown) => void }) => {
+			feed.deliver = (e) => channel.onmessage(e);
+		}),
 	},
 }));
 
@@ -93,9 +102,11 @@ describe("map metadata writes", () => {
 	});
 
 	it("on the open map settle as a mutation, scheduling the save that persists them", async () => {
+		Feed.seed(0);
+		await Feed.start();
 		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(async (patch) => {
 			await metadataWritten(patch);
-			Feed.seed(1);
+			feed.deliver({ version: 1, added: [], removed: [], updated: [], derived: {} });
 			return { mutation: { version: 1, keys: [] } };
 		});
 		vi.useFakeTimers();

@@ -3641,6 +3641,8 @@ declare const Query: {
 };
 
 declare const Mutation: {
+    /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
+     *  no map (version 0) settles at once. */
     settle: (m: Mutation) => Promise<void>;
     run: <R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]) => Promise<R>;
 };

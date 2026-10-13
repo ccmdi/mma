@@ -2,6 +2,7 @@ import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { Mutation } from "@/store/mutation";
+import { Autosave } from "@/store/autosave";
 import { createFieldDef } from "@/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -224,5 +225,24 @@ describe("change feed merge semantics", () => {
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
 		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
+	});
+});
+
+describe("autosave follows the map version", () => {
+	it("a held edit, which leaves the version where it was, schedules no autosave", async () => {
+		const schedule = vi.spyOn(Autosave, "schedule");
+		arrive(event({ writingLayers: ["import:main"] }, 1));
+		await Mutation.settle({ version: 1, keys: [] });
+		expect(schedule).not.toHaveBeenCalled();
+		schedule.mockRestore();
+	});
+
+	it("an edit that moves the version schedules exactly one autosave", async () => {
+		const schedule = vi.spyOn(Autosave, "schedule");
+		const settling = Mutation.settle({ version: 2, keys: [] });
+		arrive(event({ locationCount: 3 }, 2));
+		await settling;
+		expect(schedule).toHaveBeenCalledOnce();
+		schedule.mockRestore();
 	});
 });
