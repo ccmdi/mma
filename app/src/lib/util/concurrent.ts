@@ -31,3 +31,14 @@ export function delay(ms: number, signal?: AbortSignal): Promise<void> {
 		);
 	});
 }
+
+/** A queue that runs each task after every earlier task settles, in call order. A task's
+ *  failure rejects only its own call; the tasks after it still run. */
+export function serial(): <T>(task: () => T | Promise<T>) => Promise<T> {
+	let tail: Promise<unknown> = Promise.resolve();
+	return (task) => {
+		const run = tail.then(task);
+		tail = run.catch(() => {});
+		return run;
+	};
+}

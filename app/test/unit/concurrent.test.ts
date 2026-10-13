@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { delay } from "@/lib/util/concurrent";
+import { delay, serial } from "@/lib/util/concurrent";
 
 describe("delay", () => {
 	it("resolves after its time and rejects with the signal's reason once aborted", async () => {
@@ -19,5 +19,42 @@ describe("delay", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+});
+
+describe("serial", () => {
+	it("starts each task only after every earlier task settles, in call order", async () => {
+		const run = serial();
+		const order: string[] = [];
+		let release!: () => void;
+		const first = run(
+			() =>
+				new Promise<void>((resolve) => {
+					order.push("first starts");
+					release = resolve;
+				}),
+		);
+		const second = run(() => {
+			order.push("second starts");
+			return 2;
+		});
+		await Promise.resolve();
+		expect(order).toEqual(["first starts"]);
+		release();
+		await first;
+		expect(await second).toBe(2);
+		expect(order).toEqual(["first starts", "second starts"]);
+	});
+	it("a failed task rejects only its own call and the queue keeps going", async () => {
+		const run = serial();
+		const error = new Error("task failed");
+		const failing = run(() => Promise.reject(error));
+		const throwing = run(() => {
+			throw error;
+		});
+		const after = run(() => "after");
+		await expect(failing).rejects.toBe(error);
+		await expect(throwing).rejects.toBe(error);
+		expect(await after).toBe("after");
 	});
 });

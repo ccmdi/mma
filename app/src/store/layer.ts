@@ -4,6 +4,7 @@ import { Edit } from "./edit";
 import { Store } from "./store";
 import { Query, type AnswerOf, type ReadResult } from "./query";
 import { cmd } from "@/lib/commands";
+import { serial } from "@/lib/util/concurrent";
 
 type LocationEdits = Parameters<typeof Edit.locations>[1];
 type LayerRead = <A extends Ask>(
@@ -14,9 +15,8 @@ type LayerRead = <A extends Ask>(
 /** A pending layer. Operations run in order; work still writing to a landed layer outlives close. */
 export class Layer {
 	readonly target: Extract<Target, { kind: "pending" }>;
-	private queue: { open: Promise<unknown> } | { closed: Promise<void> } = {
-		open: Promise.resolve(),
-	};
+	private readonly queue = serial();
+	private closed: Promise<void> | null = null;
 
 	private readonly mapId: string;
 
@@ -40,13 +40,11 @@ export class Layer {
 	}
 
 	private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-		if ("closed" in this.queue) return Promise.reject(new Error("Layer is closed"));
-		const next = this.queue.open.then(() => {
+		if (this.closed) return Promise.reject(new Error("Layer is closed"));
+		return this.queue(() => {
 			if (Store.get().mapId !== this.mapId) throw new Error("Layer belongs to another map");
 			return operation();
 		});
-		this.queue = { open: next.catch(() => {}) };
-		return next;
 	}
 
 	/** Read through the layer after its earlier operations finish. */
@@ -73,11 +71,8 @@ export class Layer {
 
 	/** Close after queued operations finish. Edits not yet landed are discarded. */
 	close(): Promise<void> {
-		if ("closed" in this.queue) return this.queue.closed;
-		const closing = this.queue.open.then(async () => {
+		return (this.closed ??= this.queue(async () => {
 			await cmd.storeCloseLayer(this.target.name, this.mapId);
-		});
-		this.queue = { closed: closing };
-		return closing;
+		}));
 	}
 }

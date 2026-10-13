@@ -3749,7 +3749,8 @@ declare class Layer {
     readonly target: Extract<Target, {
         kind: "pending";
     }>;
-    private queue;
+    private readonly queue;
+    private closed;
     private readonly mapId;
     private constructor();
     /** Create a layer and stage its first edits. */

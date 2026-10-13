@@ -18,6 +18,7 @@ import {
 	zoomOutStep,
 } from "@/lib/sv/constants";
 import { normalizeHeading, reverseHeading, wrapDeg } from "@/lib/geo/geo";
+import { serial } from "@/lib/util/concurrent";
 import { toast as showToast } from "@/lib/util/toast";
 import { releaseWebglContexts } from "@/lib/render/webglContexts";
 
@@ -125,7 +126,7 @@ export function createPano() {
 	let latestClaim = 0;
 	let concealedFor: number | null = null;
 	let activeTurn: { target: CameraFrame; stop: () => void } | null = null;
-	let jumpAheadPending: Promise<boolean> = Promise.resolve(false);
+	const jumpsAhead = serial();
 	const subscribers: Record<PanoEvent, Set<() => void>> = {
 		pov_changed: new Set(),
 		zoom_changed: new Set(),
@@ -287,9 +288,7 @@ export function createPano() {
 	}
 
 	function jumpAhead(headingOffset: number): Promise<boolean> {
-		const previous = jumpAheadPending;
-		const pending = (async () => {
-			await previous;
+		return jumpsAhead(async () => {
 			const from = viewer?.getPosition();
 			if (!viewer || !from || !google?.maps?.geometry) return false;
 			const target = google.maps.geometry.spherical.computeOffset(
@@ -306,9 +305,7 @@ export function createPano() {
 			return go(
 				found.flags & LocationFlag.LoadAsPanoId ? found.panoId : { lat: found.lat, lng: found.lng },
 			);
-		})().catch(() => false);
-		jumpAheadPending = pending;
-		return pending;
+		}).catch(() => false);
 	}
 
 	function pov(): CameraFrame {
