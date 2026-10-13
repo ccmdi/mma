@@ -226,3 +226,26 @@ fn an_unreadable_delta_is_quarantined_and_not_replayed() {
         b"truncated arrow sidecar"
     );
 }
+
+#[test]
+fn close_flush_waits_for_the_shared_file_writer_lock() {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .build()
+        .unwrap();
+
+    runtime.block_on(async {
+        let store = Store::new();
+        let files = store.files.clone();
+        let writing = files.lock().await;
+        let close = tokio::spawn(flush_closed_store(Id::new("m".into()), store));
+
+        tokio::task::yield_now().await;
+        assert!(
+            !close.is_finished(),
+            "close must wait for the active file writer"
+        );
+
+        drop(writing);
+        close.await.unwrap().unwrap();
+    });
+}

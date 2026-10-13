@@ -4,7 +4,7 @@
 
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Counts, Delta, Id, Patch, Patchable};
+use mma_algebra::{Counts, Delta, Id};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -202,6 +202,20 @@ impl Store {
         self.version
     }
 
+    /// Current map metadata projected from its owned state and location changes.
+    pub(crate) fn map(&self) -> MapMeta {
+        MapMeta {
+            tags: self
+                .value_meta
+                .get("tags")
+                .map(|records| (**records).clone())
+                .unwrap_or_default(),
+            location_count: *self.alive_count as i64,
+            pending: self.overlay_diff_counts(),
+            ..(*self.meta).clone()
+        }
+    }
+
     /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.alive_count.ship();
@@ -229,6 +243,7 @@ impl Store {
                 field_defs: Some(self.meta.extra.fields.clone()),
                 selection_counts: Some(self.selections.node_counts.clone()),
                 selection_list: Some(self.selections.list()),
+                writing_layers: Some(crate::procedure::engine::pending_writers(&self.meta.id)),
             },
         }
     }
@@ -261,11 +276,7 @@ impl Store {
 
     /// Finish a change to rows, value records, or field definitions.
     pub(crate) fn finish_entry(&mut self, entry: &Entry) -> Mutation {
-        let meta = entry
-            .meta
-            .updated
-            .first()
-            .map(|(old, new)| MapMeta::between(old, new));
+        let meta = !entry.meta.is_empty();
         self.finish(
             &entry.locations,
             &entry.piles,
@@ -277,7 +288,7 @@ impl Store {
     /// Finish a change to the selection list itself: no row moves, and the frame restates
     /// every row's selection.
     pub(crate) fn finish_selection_change(&mut self) -> Mutation {
-        self.finish(&Change::default(), &Piles::new(), true, None)
+        self.finish(&Change::default(), &Piles::new(), true, false)
     }
 
     fn finish(
@@ -285,7 +296,7 @@ impl Store {
         changes: &Change,
         piles: &Piles,
         selections_replaced: bool,
-        meta: Option<Patch<MapMeta>>,
+        meta: bool,
     ) -> Mutation {
         let before = self.version;
         self.bump();
@@ -347,7 +358,7 @@ impl Store {
         }
 
         let mut derived = Derived {
-            meta,
+            meta: meta.then(|| self.map()),
             field_values: (!field_values.is_empty()).then_some(field_values),
             field_defs: self.meta.ship().then(|| self.meta.extra.fields.clone()),
             selection_counts: (has_selections || selections_replaced)

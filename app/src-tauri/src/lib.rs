@@ -111,6 +111,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(store::commands::command_table!(
             register_commands,
             [
+                store::commands::store_close_layer,
                 app_ready,
                 app_uptime,
                 store::storage::write_temp_file,

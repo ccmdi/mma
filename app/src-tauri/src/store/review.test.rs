@@ -86,14 +86,14 @@ fn update_persists_cursor_reviewed_and_ordering() {
         &conn,
         "review_sessions",
         &s.id,
-        &ReviewSessionPatch {
+        &s.patched(&ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: Some(Id::new(3)),
             reviewed: Some(vec![Id::new(1), Id::new(2)]),
             order: None,
             status: None,
-        },
+        }),
     )
     .unwrap();
     let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
@@ -112,29 +112,30 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
         &conn,
         "review_sessions",
         &s.id,
-        &ReviewSessionPatch {
+        &s.patched(&ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: Some(Id::new(3)),
             reviewed: Some(vec![Id::new(1), Id::new(2)]),
             order: None,
             status: None,
-        },
+        }),
     )
     .unwrap();
+    let s = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
     // Locations 2 and 4 deleted: prune them from ordering + reviewed, cursor stays 3.
     storage::update_row::<ReviewSession>(
         &conn,
         "review_sessions",
         &s.id,
-        &ReviewSessionPatch {
+        &s.patched(&ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: None,
             reviewed: Some(vec![Id::new(1)]),
             order: Some(vec![Id::new(1), Id::new(3), Id::new(5)]),
             status: None,
-        },
+        }),
     )
     .unwrap();
     let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
@@ -151,14 +152,14 @@ fn done_sessions_are_excluded_from_get_but_listable() {
         &conn,
         "review_sessions",
         &s.id,
-        &ReviewSessionPatch {
+        &s.patched(&ReviewSessionPatch {
             id: s.id.clone(),
             name: None,
             cursor_id: None,
             reviewed: None,
             order: None,
             status: Some("done".into()),
-        },
+        }),
     )
     .unwrap();
     assert!(get(&conn, &Id::new("m1".into()), "tag:1")

@@ -738,18 +738,10 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         assert_eq!(n, 0, "{table} came along");
     }
 
-    storage::update_row::<MapMeta>(
-        &conn,
-        "maps",
-        "copy",
-        &MapMetaPatch {
-            id: Id::new("copy".into()),
-            name: Some("Renamed".into()),
-            settings: MapSettings::default().to_patch(),
-            ..Patch::<MapMeta>::default()
-        },
-    )
-    .unwrap();
+    let mut copy_row = read_map_meta(&conn, &Id::new("copy".into())).unwrap();
+    copy_row.name = "Renamed".into();
+    copy_row.settings = MapSettings::default();
+    storage::update_row::<MapMeta>(&conn, "maps", "copy", &copy_row).unwrap();
     let source = conn
         .query_row("SELECT * FROM maps WHERE id = 'm1'", [], MapMeta::read)
         .unwrap();
@@ -792,10 +784,7 @@ fn tag_records_read_and_write_the_one_column_format() {
             ValueRecord {
                 id: Id::new(7),
                 name: Some("a".into()),
-                extra: Some(serde_json::Map::from_iter([(
-                    "color".to_string(),
-                    "red".into()
-                )])),
+                extra: serde_json::Map::from_iter([("color".to_string(), "red".into())]),
                 ..Default::default()
             }
         )])
@@ -837,10 +826,7 @@ fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
     };
     update_map_meta(&mut mgr, &conn, patch).unwrap();
 
-    assert_eq!(
-        live_row(&mgr, read_map_meta(&conn, &Id::new("m1".into())).unwrap()).name,
-        "Renamed"
-    );
+    assert_eq!(mgr.stores[&Id::new("m1".into())].map().name, "Renamed");
     assert_eq!(name_on_disk(&conn), "Real");
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     assert_eq!(store.meta.name, "Renamed");
@@ -986,11 +972,7 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
     };
     update_map_meta(&mut mgr, &conn, patch).unwrap();
     let dir = TempDir::new("mma_test_duplicate_live");
-    let live = Some(
-        mgr.store_for_map(&Id::new("m1".into()))
-            .unwrap()
-            .meta_patch(),
-    );
+    let live = Some(mgr.store_for_map(&Id::new("m1".into())).unwrap().map());
     let empty = RecordBatch::new_empty(arrow::schema());
     let copy = duplicate_map_row(
         &conn,
@@ -1013,7 +995,14 @@ fn a_whole_row_as_a_patch_writes_every_column_back() {
     row.name = "Other".into();
     row.folder = Some("F".into());
     row.labels = vec!["x".into()];
-    storage::update_row::<MapMeta>(&conn, "maps", "m1", &row.to_patch()).unwrap();
+    row.settings.plugin_data = HashMap::from([(
+        "plugin".into(),
+        HashMap::from([
+            ("null".into(), serde_json::Value::Null),
+            ("count".into(), serde_json::json!(2)),
+        ]),
+    )]);
+    storage::update_row::<MapMeta>(&conn, "maps", "m1", &row).unwrap();
     let back = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
     assert!(back == row);
 }
@@ -1129,4 +1118,120 @@ fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
         .extra
         .fields
         .contains_key("plates"));
+}
+
+#[test]
+fn plugin_settings_patch_changes_only_named_keys_and_keeps_null_values() {
+    let mut old = MapSettings::default();
+    old.plugin_data.insert(
+        "first".into(),
+        HashMap::from([
+            ("keep".into(), serde_json::json!(1)),
+            ("remove".into(), serde_json::json!(2)),
+        ]),
+    );
+    old.plugin_data.insert(
+        "other".into(),
+        HashMap::from([("keep".into(), serde_json::json!(true))]),
+    );
+
+    let mut new = old.clone();
+    new.plugin_data
+        .get_mut("first")
+        .unwrap()
+        .insert("nullable".into(), serde_json::Value::Null);
+    new.plugin_data.get_mut("first").unwrap().remove("remove");
+    new.plugin_data
+        .get_mut("other")
+        .unwrap()
+        .insert("keep".into(), serde_json::json!(false));
+
+    let patch = MapSettings::between(&old, &new);
+    let wire = serde_json::to_value(&patch).unwrap();
+    let decoded: <MapSettings as Patchable>::Patch = serde_json::from_value(wire.clone()).unwrap();
+    assert!(wire["pluginData"]["first"].get("put").is_some());
+    assert_eq!(
+        wire["pluginData"]["first"]["put"]["nullable"]["set"],
+        serde_json::Value::Null
+    );
+    assert_eq!(
+        wire["pluginData"]["first"]["put"]["remove"],
+        serde_json::json!({ "remove": null })
+    );
+    assert_eq!(old.patched(&decoded), new);
+}
+
+#[test]
+fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
+    store.write(
+        [mma_algebra::Op::Set(crate::test_util::loc(1, 1.0, 1.0))],
+        &mut None,
+        engine::Entry::default(),
+    );
+    let current = store.map();
+    assert_eq!(current.location_count, 1);
+    assert_eq!(current.pending.added, 1);
+    assert_eq!(current.tags, **store.value_meta.get("tags").unwrap());
+    assert_eq!(current.updated_at, store.meta.updated_at);
+    let before = read_map_meta(&conn, &current.id).unwrap();
+    assert_eq!(before.location_count, 0);
+    assert_eq!(before.pending.added, 0);
+    let dir = TempDir::new("mma_current_map_view");
+    store
+        .unsaved()
+        .unwrap()
+        .unwrap()
+        .write(&conn, &current.id, &dir.join("delta.arrow"))
+        .unwrap();
+    let saved = read_map_meta(&conn, &current.id).unwrap();
+    assert_eq!(saved.location_count, current.location_count);
+    assert_eq!(saved.pending, current.pending);
+    assert_eq!(saved.tags, current.tags);
+}
+
+#[test]
+fn derived_optional_struct_fields_compose_their_generated_patches() {
+    #[derive(Clone, Debug, Default, serde::Serialize, serde::Deserialize, mma_fields::Patch)]
+    struct OptionalSettings {
+        #[patch(merge)]
+        settings: Option<MapSettings>,
+    }
+    let mut settings = MapSettings::default();
+    settings.preferences.export_zoom = true;
+    let before = OptionalSettings {
+        settings: Some(settings),
+    };
+    let patch: Patch<OptionalSettings> = serde_json::from_value(serde_json::json!({
+        "settings": { "searchRadius": 25 }
+    }))
+    .unwrap();
+    let after = before.patched(&patch);
+    let result = after.settings.as_ref().unwrap();
+    assert!(result.preferences.export_zoom);
+    assert_eq!(result.preferences.search_radius, Some(25));
+    assert_eq!(
+        before.patched(&OptionalSettings::between(&before, &after)),
+        after
+    );
+    assert_eq!(
+        after.patched(&OptionalSettings::between(&after, &before)),
+        before
+    );
+    let absent = OptionalSettings::default();
+    assert_eq!(
+        absent
+            .patched(&patch)
+            .settings
+            .unwrap()
+            .preferences
+            .search_radius,
+        Some(25)
+    );
+    assert!(before
+        .patched(&OptionalSettings::between(&before, &absent))
+        .settings
+        .is_none());
 }

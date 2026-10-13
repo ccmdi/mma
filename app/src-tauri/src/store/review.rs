@@ -12,7 +12,7 @@ use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use crate::util::now_iso;
-use mma_algebra::{Id, Patch};
+use mma_algebra::{Id, Patch, Patchable};
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
@@ -196,7 +196,21 @@ pub async fn store_review_list(
 #[specta::specta]
 pub async fn store_review_update(update: Patch<ReviewSession>) -> AppResult<()> {
     storage::with_db(move |conn| {
-        storage::update_row::<ReviewSession>(conn, "review_sessions", &update.id, &update)
+        let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let row = tx.query_row(
+            &format!("SELECT {COLS} FROM review_sessions WHERE id = ?"),
+            [&update.id],
+            row_to_session,
+        );
+        match row {
+            Ok(row) => {
+                storage::update_row(&tx, "review_sessions", &update.id, &row.patched(&update))
+            }
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(()),
+            Err(error) => Err(error.into()),
+        }?;
+        tx.commit()?;
+        Ok(())
     })
     .await
 }

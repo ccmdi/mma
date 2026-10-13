@@ -36,13 +36,14 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import type { ChangeEvent } from "@/bindings.gen";
+import type { ChangeEvent, MapMeta } from "@/bindings.gen";
 const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): ChangeEvent => ({
 	version,
 	added: [],
 	removed: [],
 	updated: [],
 	derived: {
+		writingLayers: null,
 		locationCount: null,
 		meta: null,
 		history: null,
@@ -61,11 +62,16 @@ beforeEach(async () => {
 });
 
 describe("change feed merge semantics", () => {
-	it("metadata arrives through the feed and preserves untouched map fields", () => {
+	it("metadata arrives as a complete row and replaces the map snapshot", () => {
 		const before = Store.get().map!;
-		arrive(event({ meta: { id: before.id, name: "Renamed" } }));
-		expect(Store.get().map).toEqual({ ...before, name: "Renamed" });
-		expect(Store.get().map!.settings).toBe(before.settings);
+		const next = {
+			...before,
+			name: "Renamed",
+			settings: { ...before.settings, searchRadius: 25 },
+		} as MapMeta;
+		arrive(event({ meta: next }));
+		expect(Store.get().map).toBe(next);
+		expect(Store.get().map!.settings).toEqual({ ...before.settings, searchRadius: 25 });
 		const updated = Store.get().map;
 		arrive(event());
 		expect(Store.get().map).toBe(updated);

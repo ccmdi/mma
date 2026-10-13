@@ -7,6 +7,7 @@ const OBJECTS = {
 	"store/maps": "Maps",
 	"store/tag": "Tag",
 	"store/location": "Location",
+	"store/layer": "Layer",
 	"store/editor": "Editor",
 	"store/history": "History",
 	"store/commit": "Commit",

@@ -9,7 +9,7 @@ use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use mma_algebra::{
-    number_value, same_field_value, Delta, Edit, Id, Keys, Layer, Merge, Op, Patch, Patchable,
+    number_value, same_field_value, Delta, Edit, Id, Keys, Layer, Op, Patch, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
@@ -22,7 +22,7 @@ pub type Change = mma_algebra::Change<Location>;
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase", default)]
 pub struct EditOpts {
-    /// Apply the pending layer to the map after these edits.
+    /// Land the pending layer on the map after these edits.
     #[specta(optional)]
     pub land: bool,
 }
@@ -34,7 +34,7 @@ pub struct EditOpts {
 #[serde(rename_all = "camelCase")]
 pub struct Derived {
     pub location_count: Option<usize>,
-    pub meta: Option<Patch<maps::MapMeta>>,
+    pub meta: Option<maps::MapMeta>,
     pub history: Option<HashMap<EntryKey, History>>,
     /// Changed values, keyed by field and value. Null removes a value with no record or locations.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
@@ -44,6 +44,8 @@ pub struct Derived {
     pub selection_counts: Option<HashMap<String, u32>>,
     /// The listed selections, when the list changed.
     pub selection_list: Option<Vec<ListedSelection>>,
+    /// Pending layers that procedure work is currently writing to.
+    pub writing_layers: Option<BTreeSet<String>>,
 }
 
 impl Derived {
@@ -56,6 +58,7 @@ impl Derived {
             && self.field_defs.is_none()
             && self.selection_counts.is_none()
             && self.selection_list.is_none()
+            && self.writing_layers.is_none()
     }
 }
 
@@ -113,17 +116,29 @@ pub enum Target {
     /// The map's rows.
     Map,
     /// A pending layer, created on first use. Reads include current underlying map data;
-    /// edits reach the map when the layer is applied.
+    /// edits reach the map when the layer lands.
     Pending { name: String },
 }
 
 /// A named layer of pending edits and, once landed, the undo step its edits join.
-#[derive(Default)]
 pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
     pub(crate) landed: Option<u64>,
-    /// Incoming value records to reconcile when the pending rows are applied to the map.
+    /// Whether its owner closed the layer; it stays only while procedures still write to it.
+    pub(crate) closed: bool,
+    /// Incoming value records to reconcile when the layer lands.
     pub(crate) incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+}
+
+impl Default for Pending {
+    fn default() -> Self {
+        Self {
+            layer: Layer::default(),
+            landed: None,
+            closed: false,
+            incoming: HashMap::new(),
+        }
+    }
 }
 
 /// What the store has to warn the user about. The sentence is TS's to write.
@@ -203,43 +218,36 @@ impl Store {
         let (edits, update_landed, piles) = match target {
             Target::Map => (edits, None, Piles::new()),
             Target::Pending { name } => {
-                let entry = self.pending.entry(name.clone()).or_default();
-                match entry.landed {
-                    Some(seq) => {
-                        join.get_or_insert(seq);
-                        (edits, Some(name.clone()), Piles::new())
+                let pending = self.pending.entry(name.clone()).or_default();
+                if let Some(seq) = pending.landed {
+                    join.get_or_insert(seq);
+                    (edits, Some(name.clone()), Piles::new())
+                } else {
+                    pending.layer.extend(edits);
+                    if !land {
+                        let result = self.held(added);
+                        self.settle_layers();
+                        return result;
                     }
-                    None => {
-                        entry.layer.extend(edits);
-                        if !land {
-                            return self.held(added);
+                    let mut layer = std::mem::take(&mut pending.layer);
+                    let incoming = std::mem::take(&mut pending.incoming);
+                    let mut piles = Piles::new();
+                    for (field, incoming) in incoming {
+                        if incoming.is_empty() {
+                            continue;
                         }
-                        let Pending {
-                            mut layer,
-                            incoming,
-                            ..
-                        } = self.pending.remove(name).expect("entry just touched");
-                        // Incoming ids live only in the layer's edits, never in the rows below.
-                        let mut piles = Piles::new();
-                        for (field, incoming) in incoming {
-                            if incoming.is_empty() {
-                                continue;
-                            }
-                            let floor = self.intern_floor(&field);
-                            let before = self.records(&field);
-                            let mut after = before.clone();
-                            let remap =
-                                reconcile_values_by_name(incoming.values(), &mut after, floor);
-                            let to = self
-                                .registry()
-                                .assign(&field)
-                                .expect("declared interned fields are writable");
-                            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
-                            piles
-                                .insert(field, PileDelta::at(&before, &after, remap.into_values()));
-                        }
-                        (layer.into_edits().collect(), Some(name.clone()), piles)
+                        let floor = self.intern_floor(&field);
+                        let before = self.records(&field);
+                        let mut after = before.clone();
+                        let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
+                        let to = self
+                            .registry()
+                            .assign(&field)
+                            .expect("declared interned fields are writable");
+                        layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
+                        piles.insert(field, PileDelta::at(&before, &after, remap.into_values()));
                     }
+                    (layer.into_edits().collect(), Some(name.clone()), piles)
                 }
             }
         };
@@ -255,22 +263,39 @@ impl Store {
             )
         };
         if let Some(name) = update_landed {
-            self.pending.insert(
-                name,
-                Pending {
-                    landed: *join,
-                    ..Default::default()
-                },
-            );
+            if let Some(pending) = self.pending.get_mut(&name) {
+                pending.landed = *join;
+            }
+            self.settle_layers();
         }
         result
     }
 
-    /// Drop the named pending layer and everything it holds.
-    pub(crate) fn drop_pending(&mut self, name: &str) {
-        self.pending.remove(name);
+    /// Remove closed layers nothing still writes to, then announce which layers are being written.
+    pub(crate) fn settle_layers(&mut self) {
+        let writing = crate::procedure::engine::pending_writers(&self.meta.id);
+        self.pending
+            .retain(|name, pending| !pending.closed || writing.contains(name));
+        self.changes.send(ChangeEvent {
+            version: self.version,
+            keys: Change::default().keys(),
+            derived: Derived {
+                writing_layers: Some(writing),
+                ..Default::default()
+            },
+        });
     }
 
+    /// Close the layer. Unlanded work is cancelled; a landed layer stays until its writers finish.
+    pub(crate) fn close_layer(&mut self, name: &str) {
+        if let Some(pending) = self.pending.get_mut(name) {
+            if pending.landed.is_none() {
+                crate::procedure::engine::cancel_pending_writers(&self.meta.id, name);
+            }
+            pending.closed = true;
+        }
+        self.settle_layers();
+    }
     /// Result for a staged edit that did not change the map.
     fn held(&self, keys: Vec<Id<Location>>) -> Mutation {
         Mutation {
@@ -289,6 +314,9 @@ impl Store {
         }
         if !entry.selections.is_empty() {
             self.selections.apply(&entry.selections);
+        }
+        if !entry.meta.is_empty() || !entry.piles.is_empty() || !entry.defs.is_empty() {
+            self.meta.value.updated_at = crate::util::now_iso();
         }
         self.put(&entry.locations);
         for (field, delta) in entry.piles.iter().filter(|(_, d)| !d.is_empty()) {
@@ -866,9 +894,7 @@ pub(crate) fn merge_group(
         .into_iter()
         .chain([survivor])
         .filter(|m| m.extra.is_some())
-        .fold(None, |held, m| {
-            Merge::merged(&held, &m.extra.clone().into())
-        });
+        .fold(None, |held, m| held.patched(&m.extra.to_patch()));
 
     let mut new_survivor = survivor.clone();
     for key in fields.interned() {

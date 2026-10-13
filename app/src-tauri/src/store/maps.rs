@@ -101,6 +101,7 @@ pub struct MapSettings {
     /// there. Tree-view only; clicking the alias leaf toggles the real tag.
     pub aliases: HashMap<String, u32>,
     /// What each plugin keeps with this map, by plugin id and then key.
+    #[patch(merge)]
     #[specta(type = HashMap<String, HashMap<String, specta_typescript::Unknown>>)]
     pub plugin_data: HashMap<String, HashMap<String, serde_json::Value>>,
 }
@@ -637,15 +638,10 @@ pub(crate) fn read_map_meta(
 pub async fn store_list_maps(state: tauri::State<'_, StoreState>) -> AppResult<Vec<MapMeta>> {
     let rows = storage::with_db(move |conn| Ok(list_map_rows(conn)?)).await?;
     let mgr = state.lock()?;
-    Ok(rows.into_iter().map(|row| live_row(&mgr, row)).collect())
-}
-
-/// Use current metadata from the open store when available.
-fn live_row(mgr: &StoreManager, row: MapMeta) -> MapMeta {
-    match mgr.stores.get(&row.id) {
-        Some(store) => row.patched(&store.meta_patch()),
-        None => row,
-    }
+    Ok(rows
+        .into_iter()
+        .map(|row| mgr.stores.get(&row.id).map_or(row, engine::Store::map))
+        .collect())
 }
 
 /// The one ephemeral map. A reserved id rather than a flag column: the row is an
@@ -708,7 +704,7 @@ pub async fn store_get_map(
     })
     .await?;
     let mgr = state.lock()?;
-    Ok(row.map(|row| live_row(&mgr, row)))
+    Ok(row.map(|row| mgr.stores.get(&row.id).map_or(row, engine::Store::map)))
 }
 
 fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppResult<MapMeta> {
@@ -734,7 +730,7 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
 fn duplicate_map_row(
     conn: &Connection,
     source: &Id<MapMeta, String>,
-    live: Option<Patch<MapMeta>>,
+    live: Option<MapMeta>,
     copy_id: &Id<MapMeta, String>,
     name: &str,
     batch: &RecordBatch,
@@ -750,13 +746,10 @@ fn duplicate_map_row(
     if copied == 0 {
         return Err(AppError(format!("no map {source} to copy")));
     }
-    if let Some(live) = live {
-        let patch = Patch::<MapMeta> {
-            id: copy_id.clone(),
-            name: None,
-            ..live
-        };
-        storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &patch)?;
+    if let Some(mut live) = live {
+        live.id = copy_id.clone();
+        live.name = name.to_string();
+        storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &live)?;
     }
     arrow::write_arrow_ipc(arrow_path, batch)?;
     if let Err(e) = tx.commit() {
@@ -783,7 +776,7 @@ pub fn store_duplicate_map(
             store
                 .current_batch()
                 .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
-            Some(store.meta_patch()),
+            Some(store.map()),
         ),
         None => {
             let mut locations = engine::read_full_state_from_disk(&id)?;
@@ -872,7 +865,7 @@ fn update_map_meta(
     }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         let next = read_map_meta(conn, &patch.id)?.patched(&patch);
-        storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &next.to_patch())?;
+        storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &next)?;
         return Ok(engine::MutationResult {
             mutation: engine::Mutation {
                 version: 0,
@@ -905,16 +898,21 @@ fn update_map_meta(
 /// Mark a map as opened now, for sorting the map list by recency.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_touch_map_opened(map_id: Id<MapMeta, String>) -> AppResult<()> {
-    storage::with_db(move |conn| {
-        let now = now_iso();
-        conn.execute(
-            "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
-            params![now, map_id.raw()],
-        )?;
-        Ok(())
-    })
-    .await
+pub fn store_touch_map_opened(
+    state: tauri::State<'_, StoreState>,
+    map_id: Id<MapMeta, String>,
+) -> AppResult<()> {
+    let mut mgr = state.lock()?;
+    let conn = storage::open_db()?;
+    let now = now_iso();
+    conn.execute(
+        "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
+        params![now, map_id.raw()],
+    )?;
+    if let Some(store) = mgr.stores.get_mut(&map_id) {
+        store.meta.edit().last_opened_at = Some(now);
+    }
+    Ok(())
 }
 
 /// Rename a folder across all maps that reference it.

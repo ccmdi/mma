@@ -2,7 +2,7 @@ import type { Answer, Ask, LocationList, Location, Target } from "@/bindings.gen
 import type { Selector } from "@/types";
 import { cmd } from "@/lib/commands";
 import { mmaBufUrl } from "@/lib/util/util";
-type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
+export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, { kind: K }>;
 
 // A single payload field becomes its value; several fields stay together.
 type Payload<T> = {
@@ -11,7 +11,7 @@ type Payload<T> = {
 
 type Materialized<T> = T extends LocationList ? Location[] : T;
 
-type ReadResult<A extends Answer> = A extends Answer
+export type ReadResult<A extends Answer> = A extends Answer
 	? Materialized<Payload<Omit<A, "kind">>>
 	: never;
 

@@ -257,7 +257,10 @@ fn overlay_update_extra_merges_keys() {
     let mut l = loc(1, 10.0, 20.0);
     l.extra = raw_extra(r#"{"a":1,"b":2}"#);
     let mut store = setup_store_with(&[l]);
-    overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"b":3,"c":4}"#)));
+    overlay_update(
+        &mut store,
+        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"b":3,"c":4}"#).unwrap())),
+    );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
     assert_eq!(got.get("b"), Some(serde_json::json!(3)));
@@ -269,7 +272,10 @@ fn overlay_update_extra_null_value_deletes_key() {
     let mut l = loc(1, 10.0, 20.0);
     l.extra = raw_extra(r#"{"a":1,"b":2}"#);
     let mut store = setup_store_with(&[l]);
-    overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":null}"#)));
+    overlay_update(
+        &mut store,
+        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap())),
+    );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), None);
     assert_eq!(got.get("b"), Some(serde_json::json!(2)));
@@ -279,18 +285,27 @@ fn overlay_update_extra_null_value_deletes_key() {
 fn overlay_update_extra_creates_extra_when_none() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
-    overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":1}"#)));
+    overlay_update(
+        &mut store,
+        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":1}"#).unwrap())),
+    );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
 }
 
 #[test]
-fn overlay_update_extra_empty_after_deletes_is_none() {
+fn overlay_update_deleting_every_extra_member_clears_it() {
     let mut l = loc(1, 10.0, 20.0);
     l.extra = raw_extra(r#"{"a":1}"#);
     let mut store = setup_store_with(&[l]);
-    overlay_update(&mut store, &patch!(1; extra: raw_extra(r#"{"a":null}"#)));
-    assert!(store.get_loc_by_id(Id::new(1)).unwrap().extra.is_none());
+    store.bake_overlay();
+    overlay_update(
+        &mut store,
+        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap())),
+    );
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
+    let restored = through_sidecar(&store);
+    assert_eq!(restored.patches[&Id::new(1)].extra, None);
 }
 
 #[test]
@@ -3065,15 +3080,11 @@ fn value_put(id: u32) -> Patch<ValueRecord> {
     }
 }
 
-fn extra_of(
-    pairs: &[(&str, serde_json::Value)],
-) -> Field<serde_json::Map<String, serde_json::Value>> {
-    Field::Set(
-        pairs
-            .iter()
-            .map(|(k, v)| (k.to_string(), v.clone()))
-            .collect(),
-    )
+fn extra_of(pairs: &[(&str, serde_json::Value)]) -> serde_json::Map<String, serde_json::Value> {
+    pairs
+        .iter()
+        .map(|(k, v)| (k.to_string(), v.clone()))
+        .collect()
 }
 
 #[test]
@@ -3621,11 +3632,13 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
     assert_existence_matches_scan(&mut store, "k", &[1, 2, 10]);
 
-    let drop_k = patch!(1; extra: raw_extra(r#"{"k":null}"#));
+    let drop_k =
+        patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"k":null}"#).unwrap()));
     apply_updates(&mut store, &[drop_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 10]);
 
-    let gain_k = patch!(3; extra: raw_extra(r#"{"k":4}"#));
+    let gain_k =
+        patch!(3; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"k":4}"#).unwrap()));
     apply_updates(&mut store, &[gain_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 3, 10]);
 
@@ -3671,7 +3684,8 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     apply_work(&mut store, &all, &Work::Locations(del_op(&["b"]))).unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
-    let gain_b = patch!(2; extra: raw_extra(r#"{"b":5}"#));
+    let gain_b =
+        patch!(2; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"b":5}"#).unwrap()));
     apply_updates(&mut store, &[gain_b], &mut None);
     assert_eq!(
         extra_coverage(&mut store, &all),
@@ -5158,23 +5172,18 @@ fn tag(id: u32, name: &str, color: &str) -> ValueRecord {
     ValueRecord {
         id: Id::new(id),
         name: Some(name.into()),
-        extra: Some(serde_json::Map::from_iter([(
-            "color".to_string(),
-            color.into(),
-        )])),
+        extra: serde_json::Map::from_iter([("color".to_string(), color.into())]),
         ..Default::default()
     }
 }
 
 fn with_extra(mut rec: ValueRecord, key: &str, value: serde_json::Value) -> ValueRecord {
-    rec.extra
-        .get_or_insert_with(Default::default)
-        .insert(key.into(), value);
+    rec.extra.insert(key.into(), value);
     rec
 }
 
 fn extra_at<'a>(rec: &'a ValueRecord, key: &str) -> &'a serde_json::Value {
-    &rec.extra.as_ref().unwrap()[key]
+    &rec.extra[key]
 }
 
 fn table(records: impl IntoIterator<Item = ValueRecord>) -> HashMap<Id<ValueRecord>, ValueRecord> {
@@ -6318,11 +6327,10 @@ fn loc_with_extra(id: u32, json: &str) -> Location {
 }
 
 fn planned_extra(u: &Patch<Location>) -> serde_json::Value {
-    serde_json::from_str(match &u.extra {
-        Field::Set(e) => e.as_str(),
+    match &u.extra {
+        Field::Set(e) => e.clone(),
         other => panic!("extra is {other:?}"),
-    })
-    .unwrap()
+    }
 }
 
 struct Planned {
@@ -6724,7 +6732,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
         &mut store,
         &[Patch::<Location> {
             id: Id::new(1),
-            extra: RawExtra::from_string(r#"{"zz":1,"yy":2}"#.into()).into(),
+            extra: Field::Set(serde_json::json!({"zz":1,"yy":2})),
             ..Default::default()
         }],
         &mut None,
@@ -7248,11 +7256,57 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
 }
 
 #[test]
+fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
+    store.next_id = Id::new(3);
+    let target = viewer();
+    store.edit(&target, vec![Op::Put(heading(1, 90.0))], true, &mut None);
+    store.edit(
+        &Target::Map,
+        vec![Op::Put(Patch::<Location> {
+            id: Id::new(2),
+            pitch: Some(15.0),
+            ..Default::default()
+        })],
+        false,
+        &mut None,
+    );
+
+    store.edit(
+        &target,
+        vec![Op::Put(Patch::<Location> {
+            id: Id::new(1),
+            pitch: Some(5.0),
+            ..Default::default()
+        })],
+        false,
+        &mut None,
+    );
+    store.edit(
+        &target,
+        vec![Op::Put(Patch::<Location> {
+            id: Id::new(1),
+            zoom: Some(3.0),
+            ..Default::default()
+        })],
+        false,
+        &mut None,
+    );
+
+    assert_eq!(store.edits.len(Stack::Undo), 3);
+    press_undo(&mut store);
+    let first = store.get_loc_by_id(Id::new(1)).unwrap();
+    let second = store.get_loc_by_id(Id::new(2)).unwrap();
+    assert_eq!((first.heading, first.pitch, first.zoom), (90.0, 0.0, 1.0));
+    assert_eq!(second.pitch, 15.0);
+}
+
+#[test]
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Id::new(2);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
-    store.drop_pending("viewer");
+    store.close_layer("viewer");
     assert_eq!(
         store
             .collect(
@@ -7322,7 +7376,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
 }
 
 #[test]
-fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
+fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Id::new(2);
     let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
@@ -7347,11 +7401,14 @@ fn every_landed_change_reaches_the_change_feed_and_held_edits_do_not() {
         .iter()
         .map(|s| serde_json::from_str(s).unwrap())
         .collect();
-    assert_eq!(
-        events.len(),
-        2,
-        "one per landed change; the held edit is silent"
-    );
+    assert_eq!(events.len(), 3);
+    assert_eq!(events[1]["derived"]["writingLayers"], serde_json::json!([]));
+    assert_eq!(events[1]["updated"], serde_json::json!([]));
+    let events: Vec<_> = events
+        .into_iter()
+        .filter(|event| event["derived"]["writingLayers"].is_null())
+        .collect();
+    assert_eq!(events.len(), 2, "one location change per landed edit");
     assert_eq!(events[0]["updated"], serde_json::json!([1]));
     assert_eq!(events[1]["updated"], serde_json::json!([1]));
     assert!(events[1]["version"].as_u64() > events[0]["version"].as_u64());
@@ -7375,12 +7432,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let answer = || Patch::<Location> {
         id: Id::new(1),
         heading: Some(2.0),
-        extra: RawExtra::from_map(
-            serde_json::json!({ "countryCode": "FR", "altitude": 9 })
-                .as_object()
-                .unwrap(),
-        )
-        .into(),
+        extra: Field::Set(serde_json::json!({ "countryCode": "FR", "altitude": 9 })),
         ..Default::default()
     };
 
@@ -7388,7 +7440,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let Field::Set(extra) = kept.extra else {
         panic!("the fresh output is kept");
     };
-    let extra = extra.to_map();
+    let extra = extra.as_object().unwrap();
     assert!(extra.get("countryCode").is_none());
     assert_eq!(extra.get("altitude"), Some(&serde_json::json!(9)));
     assert_eq!(kept.heading, Some(2.0));
@@ -7397,16 +7449,11 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let Field::Set(extra) = same.extra else {
         panic!("nothing went stale");
     };
-    assert!(extra.to_map().contains_key("countryCode"));
+    assert!(extra.as_object().unwrap().contains_key("countryCode"));
 
     let all_stale = Patch::<Location> {
         id: Id::new(1),
-        extra: RawExtra::from_map(
-            serde_json::json!({ "countryCode": "FR" })
-                .as_object()
-                .unwrap(),
-        )
-        .into(),
+        extra: Field::Set(serde_json::json!({ "countryCode": "FR" })),
         ..Default::default()
     };
     assert_eq!(
@@ -7921,10 +7968,7 @@ fn metadata_edits_apply_and_ship_but_stay_out_of_history() {
         },
     );
     assert_eq!(store.meta.name, "Renamed");
-    assert_eq!(
-        feed.last().derived.meta.unwrap().name.as_deref(),
-        Some("Renamed")
-    );
+    assert_eq!(feed.last().derived.meta.unwrap().name, "Renamed");
     assert_eq!(store.edits.len(Stack::Undo), 0, "meta edits never record");
 }
 
@@ -8680,4 +8724,41 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
     );
     store.collect(&Target::Map, &has);
     assert_ne!(store.field_indexes["n"].shape, maps::IndexShape::None);
+}
+
+#[test]
+fn deleting_the_last_extra_member_survives_undo_redo_and_stored_history() {
+    let mut original = loc(1, 1.0, 2.0);
+    original.extra = raw_extra(r#"{"last":1}"#);
+    let mut store = setup_store_with(&[original.clone()]);
+    let patch: Patch<Location> =
+        serde_json::from_value(serde_json::json!({"id":1,"extra":{"last":null}})).unwrap();
+    apply_updates(&mut store, &[patch], &mut None);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
+    with_history_db(|conn| {
+        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        for (_, edit) in store.edits.iter() {
+            let restored = load_edit(conn, &Id::new("m".into()), edit.seq).unwrap();
+            assert_eq!(&restored, edit.entry.as_deref().unwrap());
+        }
+    });
+    undo_and_finish(&mut store);
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().extra,
+        original.extra
+    );
+    press_redo(&mut store);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
+}
+
+#[test]
+fn deleting_an_extra_member_a_location_never_had_changes_nothing() {
+    let mut store = setup_store_with(&[loc(1, 1.0, 2.0)]);
+    let before = store.get_loc_by_id(Id::new(1)).unwrap();
+    let patch: Patch<Location> =
+        serde_json::from_value(serde_json::json!({"id":1,"extra":{"gone":null}})).unwrap();
+    apply_updates(&mut store, &[patch], &mut None);
+    let after = store.get_loc_by_id(Id::new(1)).unwrap();
+    assert_eq!(after.extra, None);
+    assert_eq!(after.modified_at, before.modified_at);
 }

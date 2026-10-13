@@ -11,6 +11,7 @@ import { Edit } from "@/store/edit";
 import { Tag } from "@/store/tag";
 import { Location } from "@/store/location";
 import { Editor } from "@/store/editor";
+import { Layer } from "@/store/layer";
 import { History } from "@/store/history";
 import { Commit } from "@/store/commit";
 import { Field } from "@/store/field";
@@ -164,6 +165,8 @@ export interface MMA
 	Tag: typeof Tag;
 	/** Open locations and change the editor pane. */
 	Editor: typeof Editor;
+	/** Pending layers: staged edits that land on the map as one undo step. @unstable */
+	Layer: typeof Layer;
 	/** Navigate undo and redo history. */
 	History: typeof History;
 	/** Save and restore map versions. */
@@ -241,6 +244,7 @@ const mma: MMA = {
 	Location,
 	Tag,
 	Editor,
+	Layer,
 	History,
 	Commit,
 	Field,

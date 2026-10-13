@@ -868,7 +868,7 @@ fn apply_pull(
     let target = Target::Pending {
         name: layer.clone(),
     };
-    store.drop_pending(&layer);
+    store.close_layer(&layer);
 
     let needed: HashMap<&str, &RemoteTag> = out
         .needed_tags
@@ -885,7 +885,8 @@ fn apply_pull(
         let tag = needed.get(name);
         let extra = tag
             .and_then(|t| t.color.as_deref())
-            .map(|color| serde_json::Map::from_iter([("color".to_string(), color.into())]));
+            .map(|color| serde_json::Map::from_iter([("color".to_string(), color.into())]))
+            .unwrap_or_default();
         piles.insert(
             id,
             ValueRecord {
@@ -972,7 +973,10 @@ fn pulled_patch(
             .tags
             .as_ref()
             .map(|names| names.iter().map(|t| tag_of(t)).collect()),
-        extra: p.extra.as_ref().and_then(crate::types::RawExtra::from_map),
+        extra: p
+            .extra
+            .as_ref()
+            .map(|extra| serde_json::Value::Object(extra.clone())),
         ..Default::default()
     }
 }

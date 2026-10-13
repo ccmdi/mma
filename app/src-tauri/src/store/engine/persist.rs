@@ -5,7 +5,7 @@ use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, Location};
 use arrow_array::RecordBatch;
-use mma_algebra::{Counts, Id, Patch, Patchable};
+use mma_algebra::{Counts, Id};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -37,20 +37,27 @@ pub(crate) fn set_aside_delta(delta_path: &Path, reason: &AppError) {
     crate::emit_event(StoreWarning::DeltaSetAside);
 }
 
-pub(crate) fn flush_closed_store(map_id: &Id<MapMeta, String>, store: &Store) -> AppResult<()> {
-    if let Some(unsaved) = store.unsaved()? {
-        unsaved.write(
-            &storage::open_db()?,
-            map_id,
-            &storage::arrow_delta_path(map_id)?,
-        )?;
-    }
-    log::debug!(
-        "[close_map] {map_id} flushed: undo={} redo={}",
-        store.edits.len(Stack::Undo),
-        store.edits.len(Stack::Redo)
-    );
-    Ok(())
+/// Flush a store after its final window closes, using the same per-map file lock as saves and
+/// commits. Taking ownership keeps the detached store alive until its flush completes.
+pub(crate) async fn flush_closed_store(map_id: Id<MapMeta, String>, store: Store) -> AppResult<()> {
+    let files = store.files.clone();
+    let _writing = files.lock().await;
+    tokio::task::spawn_blocking(move || {
+        if let Some(unsaved) = store.unsaved()? {
+            unsaved.write(
+                &storage::open_db()?,
+                &map_id,
+                &storage::arrow_delta_path(&map_id)?,
+            )?;
+        }
+        log::debug!(
+            "[close_map] {map_id} flushed: undo={} redo={}",
+            store.edits.len(Stack::Undo),
+            store.edits.len(Stack::Redo)
+        );
+        Ok(())
+    })
+    .await?
 }
 
 /// Read a map's full current state from disk = base file + uncommitted delta sidecar.
@@ -86,7 +93,7 @@ pub(crate) struct Unsaved {
 
 /// A metadata patch and the revisions it includes.
 struct MetaRow {
-    patch: Patch<MapMeta>,
+    row: MapMeta,
     meta: u64,
     values: Vec<(String, u64)>,
 }
@@ -104,7 +111,7 @@ impl Unsaved {
         }
         storage::set_map_counts(conn, map_id, self.alive, self.pending)?;
         if let Some(row) = &self.meta {
-            storage::update_row::<MapMeta>(conn, "maps", map_id.raw(), &row.patch)?;
+            storage::update_row::<MapMeta>(conn, "maps", map_id.raw(), &row.row)?;
         }
         if let Some(edits) = &self.edits {
             save_edit_history(conn, map_id, edits.value())?;
@@ -114,23 +121,11 @@ impl Unsaved {
 }
 
 impl Store {
-    /// The map's current metadata as a complete patch.
-    pub(crate) fn meta_patch(&self) -> Patch<MapMeta> {
-        let mut patch = self.meta.to_patch();
-        patch.tags = Some(
-            self.value_meta
-                .get("tags")
-                .map(|t| (**t).clone())
-                .unwrap_or_default(),
-        );
-        patch
-    }
-
     /// The state disk lacks, or `None` when disk is current.
     pub(crate) fn unsaved(&self) -> AppResult<Option<Unsaved>> {
         let meta = (self.meta.is_unsaved() || self.value_meta.values().any(Tracked::is_unsaved))
             .then(|| MetaRow {
-                patch: self.meta_patch(),
+                row: self.map(),
                 meta: self.meta.rev(),
                 values: self
                     .value_meta

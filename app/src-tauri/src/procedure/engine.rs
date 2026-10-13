@@ -11,9 +11,9 @@ use crate::store::engine::{Store, StoreState, Target, WindowLabel};
 use crate::store::maps::MapMeta;
 use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::{wire_str_enum, AppError, AppResult, Location};
-use mma_algebra::{Edit, Id, Op, Patch, Patchable};
+use mma_algebra::{Id, Op, Patch, Patchable};
 use serde_json::value::RawValue;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -286,8 +286,15 @@ fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
 // Run registry
 // ---------------------------------------------------------------------------
 
-fn runs() -> &'static Mutex<HashMap<u32, Arc<AtomicBool>>> {
-    static R: OnceLock<Mutex<HashMap<u32, Arc<AtomicBool>>>> = OnceLock::new();
+#[derive(Clone)]
+struct RunEntry {
+    cancel: Arc<AtomicBool>,
+    map_id: Option<Id<MapMeta, String>>,
+    target: Option<Target>,
+}
+
+fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
+    static R: OnceLock<Mutex<HashMap<u32, RunEntry>>> = OnceLock::new();
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -296,15 +303,82 @@ fn next_run_id() -> u32 {
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
 
-fn register_run(run_id: u32) -> AppResult<Arc<AtomicBool>> {
+fn register_run(
+    run_id: u32,
+    map_id: Option<Id<MapMeta, String>>,
+    target: Option<Target>,
+) -> AppResult<Arc<AtomicBool>> {
     let cancel = Arc::new(AtomicBool::new(false));
-    runs().lock()?.insert(run_id, cancel.clone());
+    runs().lock()?.insert(
+        run_id,
+        RunEntry {
+            cancel: cancel.clone(),
+            map_id,
+            target,
+        },
+    );
     Ok(cancel)
 }
 
-fn unregister_run(run_id: u32) {
-    if let Ok(mut m) = runs().lock() {
-        m.remove(&run_id);
+fn unregister_run(run_id: u32) -> Option<RunEntry> {
+    runs().lock().ok()?.remove(&run_id)
+}
+
+pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> {
+    runs()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .values()
+        .filter_map(|run| {
+            if run.map_id.as_ref() != Some(map_id) {
+                return None;
+            }
+            match run.target.as_ref() {
+                Some(Target::Pending { name }) => Some(name.clone()),
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// Cancel only active procedures that still target this unlanded pending layer.
+pub(crate) fn cancel_pending_writers(map_id: &Id<MapMeta, String>, name: &str) {
+    for run in runs()
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .values()
+    {
+        if run.map_id.as_ref() == Some(map_id)
+            && matches!(run.target.as_ref(), Some(Target::Pending { name: target }) if target == name)
+        {
+            run.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+}
+
+fn finish_writer_run(state: &StoreState, run_id: u32) {
+    let Ok(mut manager) = state.lock() else {
+        drop(unregister_run(run_id));
+        return;
+    };
+    let Some(run) = unregister_run(run_id) else {
+        return;
+    };
+    if let Some(map_id) = run.map_id {
+        if let Ok(store) = manager.store_for_map(&map_id) {
+            store.settle_layers();
+        }
+    }
+}
+
+struct RunGuard<'a> {
+    state: &'a StoreState,
+    run_id: u32,
+}
+
+impl Drop for RunGuard<'_> {
+    fn drop(&mut self) {
+        finish_writer_run(self.state, self.run_id);
     }
 }
 
@@ -641,6 +715,7 @@ pub(crate) fn run_all(
     progress: &Arc<ProgressSink>,
     results: &Arc<ResultSink>,
 ) {
+    let _registration = RunGuard { state, run_id };
     let gates = producers(providers);
     let undo_group = Arc::new(std::sync::Mutex::new(None));
     let (tx, rx) = mpsc::channel::<usize>();
@@ -708,7 +783,21 @@ pub(crate) fn run_all(
             done[idx] = true;
         }
     });
-    unregister_run(run_id);
+    // Providers held behind dependency gates never enter `run_provider`, so they cannot
+    // emit their own terminal progress event when cancellation stops the scheduler.
+    for (idx, decl) in providers.iter().enumerate() {
+        if !done[idx] {
+            (progress)(ProcedureProgress {
+                run_id,
+                provider_id: decl.id.clone(),
+                done: 0,
+                total: 0,
+                failed: 0,
+                skipped: 0,
+                finished: true,
+            });
+        }
+    }
 }
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
@@ -1494,6 +1583,33 @@ pub fn run_query(
 // Commands
 // ---------------------------------------------------------------------------
 
+fn register_store_run(
+    state: &StoreState,
+    label: &WindowLabel,
+    run_id: u32,
+    target: Target,
+) -> AppResult<(Id<MapMeta, String>, Arc<AtomicBool>)> {
+    let mut manager = state.lock()?;
+    let map_id = manager.map_id_for_window(label)?;
+    let store = manager.store_for_map(&map_id)?;
+    if let Target::Pending { name } = &target {
+        if !store
+            .pending
+            .get(name)
+            .is_some_and(|pending| !pending.closed)
+        {
+            return Err(AppError(format!(
+                "pending layer '{name}' is no longer available"
+            )));
+        }
+    }
+    let cancel = register_run(run_id, Some(map_id.clone()), Some(target.clone()))?;
+    if matches!(&target, Target::Pending { .. }) {
+        manager.store_for_map(&map_id)?.settle_layers();
+    }
+    Ok((map_id, cancel))
+}
+
 /// Start a procedure run over the open map's locations. Returns immediately with
 /// the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 #[tauri::command]
@@ -1505,13 +1621,13 @@ pub async fn procedure_run(
     force: bool,
     target: Option<Target>,
 ) -> AppResult<u32> {
-    let map_id = state.lock()?.map_id_for_window(&label)?;
+    let target = target.unwrap_or(Target::Map);
     let run_id = next_run_id();
-    let cancel = register_run(run_id)?;
+    let (map_id, cancel) = register_store_run(state.inner(), &label, run_id, target.clone())?;
     task::spawn_blocking(move || {
         let Some(app) = crate::app_handle() else {
             log::error!("[procedure] no app handle; run {run_id} aborted");
-            unregister_run(run_id);
+            drop(unregister_run(run_id));
             return;
         };
         let state: tauri::State<'_, StoreState> = tauri::Manager::state(app);
@@ -1519,7 +1635,6 @@ pub async fn procedure_run(
         let progress: Arc<ProgressSink> =
             Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
         let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
-        let target = target.unwrap_or(Target::Map);
         run_all(
             state.inner(),
             &map_id,
@@ -1540,8 +1655,8 @@ pub async fn procedure_run(
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
-    if let Some(flag) = runs().lock()?.get(&run_id) {
-        flag.store(true, Ordering::Relaxed);
+    if let Some(run) = runs().lock()?.get(&run_id) {
+        run.cancel.store(true, Ordering::Relaxed);
     }
     Ok(())
 }
@@ -1585,7 +1700,7 @@ pub async fn procedure_query(
     run_id: Option<u32>,
 ) -> AppResult<String> {
     let flag = match run_id {
-        Some(id) => register_run(id)?,
+        Some(id) => register_run(id, None, None)?,
         None => Arc::new(AtomicBool::new(false)),
     };
     let out = task::spawn_blocking(move || {
@@ -1603,7 +1718,7 @@ pub async fn procedure_query(
     })
     .await;
     if let Some(id) = run_id {
-        unregister_run(id);
+        drop(unregister_run(id));
     }
     out?
 }

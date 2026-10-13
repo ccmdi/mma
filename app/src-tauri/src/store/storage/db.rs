@@ -4,7 +4,7 @@ use super::*;
 use crate::store::maps::MapMeta;
 use crate::types::AppResult;
 use crate::util::now_iso;
-use mma_algebra::{Counts, Id, Patch, Patchable};
+use mma_algebra::{Counts, Id, Patchable};
 use rusqlite::types::FromSql;
 use rusqlite::types::Value as SqlValue;
 use rusqlite::{Connection, Row};
@@ -67,14 +67,14 @@ pub(crate) fn json_col<T: Default + DeserializeOwned>(row: &Row, col: &str) -> r
     Ok(serde_json::from_str(&s).unwrap_or_default())
 }
 
-/// Update the fields present in `patch` and stamp `updated_at`. Lists and objects are stored as JSON.
-pub(crate) fn update_row<T: Patchable>(
+/// Persist a row's writable values and stamp its modification time.
+pub(crate) fn update_row<T: Patchable + serde::Serialize>(
     conn: &Connection,
     table: &str,
     id: &str,
-    patch: &Patch<T>,
+    row: &T,
 ) -> AppResult<()> {
-    let serde_json::Value::Object(set) = serde_json::to_value(patch)? else {
+    let serde_json::Value::Object(set) = serde_json::to_value(row)? else {
         return Ok(());
     };
     let mut sets: Vec<String> = Vec::new();

@@ -69,7 +69,7 @@ pub(super) fn stage_parsed(
     parsed: ParsedMap,
 ) -> Option<Id<Location>> {
     let key = import_layer(window);
-    store.drop_pending(&key);
+    store.close_layer(&key);
     let edits = parsed
         .locations
         .into_iter()
@@ -205,7 +205,7 @@ pub fn store_import_cancel(
 ) -> AppResult<()> {
     let _ = fs::remove_file(preview_positions_path(&label.0));
     with_store!(label, state, |store| {
-        store.drop_pending(&import_layer(&label.0));
+        store.close_layer(&import_layer(&label.0));
         Ok(())
     })
 }
@@ -295,7 +295,7 @@ pub(crate) fn add_copied_to_store(
     tags: Vec<ValueRecord>,
 ) -> AppResult<engine::Mutation> {
     const LAYER: &str = "copy-to-map";
-    store.drop_pending(LAYER);
+    store.close_layer(LAYER);
     store
         .pending
         .entry(LAYER.to_string())
@@ -391,7 +391,7 @@ pub async fn store_import_file(
                         .map(|k| (k.clone(), Value::Null))
                         .collect();
                     if !dropped.is_empty() {
-                        patch.extra = RawExtra::from_map(&dropped).into();
+                        patch.extra = mma_algebra::Field::Set(serde_json::Value::Object(dropped));
                     }
                 }
             }

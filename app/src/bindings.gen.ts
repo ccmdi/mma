@@ -8,8 +8,6 @@ import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, Issue
 export const commands = {
 	/** Edit locations where target says; a pending layer holds edits until land. */
 	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
-	/** Drop a named pending layer and everything it holds. */
-	storeDrop: (name: string) => __TAURI_INVOKE<null>("store_drop", { name }),
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
@@ -24,6 +22,8 @@ export const commands = {
 	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult>("store_apply_saved_selection", { id }),
 	/** Return the open store's location count, version and dirty count. */
 	storeSummary: () => __TAURI_INVOKE<Summary>("store_summary"),
+	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
+	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_INVOKE<null>("store_close_layer", { name, mapId }),
 	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
@@ -223,7 +223,7 @@ export const commands = {
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
 	/**  Subscribe to map changes, including the ids of added, removed, and updated rows. */
-	storeSubscribeChanges: (changes: Channel<ChangeEvent>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
+	storeSubscribeChanges: (changes: Channel<ChangeEvent_Deserialize>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
@@ -249,7 +249,7 @@ export const commands = {
 	 *  Open maps save through their store; tag records are edited separately.
 	 *  A closed map writes straight to disk and reaches no version.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & { settings?: Partial<MapSettings> } & Pick<MapMeta, "id">) => __TAURI_INVOKE<MutationResult>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult>("store_update_map_meta", { patch }),
 	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
@@ -549,6 +549,15 @@ export type Change<T> = {
 	updated: ([T, T])[],
 };
 
+
+/**  A map change broadcast to subscribers, with affected ids and derived state. */
+export type ChangeEvent_Deserialize = {
+	/**  The map version this change brought the map to. */
+	version: number,
+	/**  Changed derived state. Null fields are unchanged. */
+	derived: Derived_Deserialize,
+} & Keys<number>;
+
 /**  A map change broadcast to subscribers, with affected ids and derived state. */
 export type ChangeEvent = {
 	/**  The map version this change brought the map to. */
@@ -650,10 +659,11 @@ export type DbStats = {
 	foreignKeys: boolean,
 };
 
+
 /**  Map state a change affected. Each field is `null` when it did not change. */
-export type Derived = {
+export type Derived_Deserialize = {
 	locationCount: number | null,
-	meta: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & { settings?: Partial<MapSettings> } & Pick<MapMeta, "id"> | null,
+	meta: MapMeta_Deserialize | null,
 	history: Partial<{ [key in EntryKey]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
@@ -663,6 +673,25 @@ export type Derived = {
 	selectionCounts: { [key in string]: number } | null,
 	/**  The listed selections, when the list changed. */
 	selectionList: ListedSelection[] | null,
+	/**  Pending layers that procedure work is currently writing to. */
+	writingLayers: string[] | null,
+};
+
+/**  Map state a change affected. Each field is `null` when it did not change. */
+export type Derived = {
+	locationCount: number | null,
+	meta: MapMeta | null,
+	history: Partial<{ [key in EntryKey]: History }> | null,
+	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
+	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
+	/**  The whole extra-field registry, when the map's row changed. */
+	fieldDefs: { [key in string]: FieldDef } | null,
+	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
+	selectionCounts: { [key in string]: number } | null,
+	/**  The listed selections, when the list changed. */
+	selectionList: ListedSelection[] | null,
+	/**  Pending layers that procedure work is currently writing to. */
+	writingLayers: string[] | null,
 };
 
 /**  What the user needs in order to authorize: the code to type and where to type it. */
@@ -675,7 +704,7 @@ export type DeviceCodeInfo = {
 
 /**  Options for applying an edit. */
 export type EditOpts = {
-	/**  Apply the pending layer to the map after these edits. */
+	/**  Land the pending layer on the map after these edits. */
 	land?: boolean,
 };
 
@@ -1756,6 +1785,11 @@ export type SidecarProgress = {
 
 
 
+export type StoreStatus_Deserialize = {
+	version: number,
+	derived: Derived_Deserialize,
+};
+
 export type StoreStatus = {
 	version: number,
 	derived: Derived,
@@ -1809,7 +1843,7 @@ export type Target =
 { kind: "map" } | 
 /**
  *  A pending layer, created on first use. Reads include current underlying map data;
- *  edits reach the map when the layer is applied.
+ *  edits reach the map when the layer lands.
  */
 { kind: "pending"; name: string };
 

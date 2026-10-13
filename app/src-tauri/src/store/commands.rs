@@ -16,7 +16,7 @@ use crate::util;
 use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
-use mma_algebra::{Edit, Id, Op, Patch};
+use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::sync::Arc;
@@ -181,7 +181,7 @@ pub async fn store_close_map(
     let Some((map_id, store)) = state.lock()?.unbind_window(&label) else {
         return Ok(());
     };
-    task::spawn_blocking(move || flush_closed_store(&map_id, &store)).await?
+    flush_closed_store(map_id, store).await
 }
 
 /// Close a window's map binding when its webview goes away without a proper close.
@@ -194,10 +194,32 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
         .ok()
         .and_then(|mut mgr| mgr.unbind_window(&WindowLabel(label.to_string())));
     if let Some((map_id, store)) = unbound {
-        if let Err(e) = flush_closed_store(&map_id, &store) {
+        // The webserve release callback runs on a synchronous HTTP worker; wait here so its
+        // flush cannot be cancelled when the callback returns and destroys the client webview.
+        if let Err(e) = tauri::async_runtime::block_on(flush_closed_store(map_id.clone(), store)) {
             log::error!("[close_map] flush for released window '{label}' failed: {e} ({map_id})");
         }
     }
+}
+
+/// Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first.
+#[tauri::command]
+#[specta::specta]
+pub fn store_close_layer(
+    label: WindowLabel,
+    state: tauri::State<'_, StoreState>,
+    name: String,
+    map_id: Option<Id<MapMeta, String>>,
+) -> AppResult<()> {
+    let mut manager = state.lock()?;
+    let map_id = map_id.or_else(|| manager.window_map.get(&label).cloned());
+    let Some(map_id) = map_id else {
+        return Ok(());
+    };
+    if let Some(store) = manager.stores.get_mut(&map_id) {
+        store.close_layer(&name);
+    }
+    Ok(())
 }
 
 /// Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
@@ -451,17 +473,13 @@ fn copy_to_map(
             existing.len() + copied as usize,
             pending,
         )?;
-        storage::update_row::<maps::MapMeta>(
-            &conn,
-            "maps",
-            target_map_id.raw(),
-            &Patch::<maps::MapMeta> {
-                id: target_map_id.clone(),
-                tags: Some(target_tags),
-                extra: Some(maps::MapExtra { fields }),
-                ..Default::default()
-            },
-        )?;
+        let row = maps::read_map_meta(&conn, &target_map_id)?.patched(&Patch::<maps::MapMeta> {
+            id: target_map_id.clone(),
+            tags: Some(target_tags),
+            extra: Some(maps::MapExtra { fields }),
+            ..Default::default()
+        });
+        storage::update_row(&conn, "maps", target_map_id.raw(), &row)?;
         log::debug!(
             "[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
             read_ms,
@@ -766,10 +784,6 @@ macro_rules! command_table {
             "Edit locations where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit<Location>>, opts: Option<EditOpts>) -> MutationResult => |store| {
                 let opts = opts.unwrap_or_default();
                 Ok(MutationResult { mutation: store.edit(&target, edits, opts.land, &mut None) })
-            };
-            "Drop a named pending layer and everything it holds." store_drop(name: String) -> () => |store| {
-                store.drop_pending(&name);
-                Ok(())
             };
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)

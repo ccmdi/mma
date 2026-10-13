@@ -111,6 +111,7 @@ export function openMapResult(
 	return {
 		version: 1,
 		derived: {
+			writingLayers: [],
 			locationCount: 0,
 			history: {},
 			fieldValues: {
@@ -171,10 +172,42 @@ export async function selectionsHeld(value: unknown) {
 export async function metadataWritten(patch: unknown) {
 	const { Store } = await import("@/store/store");
 	const state = Store.get();
-	const change = patch as Partial<import("@/bindings.gen").MapMeta>;
+	const change = patch as {
+		id?: string;
+		settings?: Record<string, unknown>;
+		[key: string]: unknown;
+	};
 	if (state.map && state.mapId === change.id) {
-		const settings = { ...state.map.settings, ...change.settings };
-		Store.setMeta({ ...state.map, ...change, settings });
+		const { pluginData: pluginPatch, ...settingsPatch } = change.settings ?? {};
+		const settings = { ...state.map.settings, ...settingsPatch };
+		if (pluginPatch && typeof pluginPatch === "object") {
+			const pluginData = { ...state.map.settings.pluginData };
+			for (const [plugin, rawChange] of Object.entries(pluginPatch)) {
+				const edit = rawChange as {
+					set?: Record<string, unknown>;
+					put?: Record<string, unknown>;
+					remove?: null;
+				};
+				if ("remove" in edit) {
+					delete pluginData[plugin];
+					continue;
+				}
+				if ("set" in edit) {
+					pluginData[plugin] = edit.set!;
+					continue;
+				}
+				const values = { ...(pluginData[plugin] ?? {}) };
+				for (const [key, rawValue] of Object.entries(edit.put ?? {})) {
+					const change = rawValue as { set?: unknown; put?: unknown; remove?: null };
+					if ("remove" in change) delete values[key];
+					else if ("set" in change) values[key] = change.set;
+					else if ("put" in change) values[key] = change.put;
+				}
+				pluginData[plugin] = values;
+			}
+			settings.pluginData = pluginData;
+		}
+		Store.setMeta({ ...state.map, ...change, settings } as import("@/bindings.gen").MapMeta);
 	}
 	return { mutation: { version: 0, keys: [] } };
 }

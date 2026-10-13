@@ -450,6 +450,60 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
 }
 
 #[test]
+fn cancellation_finishes_providers_still_held_by_dependency_gates() {
+    let mut a = decl("a", BatchMode::PerRow);
+    a.fields = vec!["x".into()];
+    let mut b = decl("b", BatchMode::PerRow);
+    b.fields = vec!["y".into()];
+    b.requires = vec!["x".into()];
+    let h = Harness::map_only(patch_all(r#"{"extra":{"ran":true}}"#));
+    let (state, map_id) = setup(&[loc(1, 1.0, 0.0)]);
+    let target = Target::Map;
+    let events: Arc<Mutex<Vec<ProcedureProgress>>> = Arc::default();
+    let events_sink = events.clone();
+    let cancel = h.cancel.clone();
+    let progress: Arc<ProgressSink> = Arc::new(Box::new(move |p| {
+        if p.provider_id == "a" && !p.finished {
+            cancel.store(true, Ordering::Relaxed);
+        }
+        events_sink.lock().unwrap().push(p);
+    }));
+    let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
+
+    run_all(
+        &state,
+        &map_id,
+        &target,
+        &[a, b],
+        false,
+        95,
+        &h.cancel,
+        &h.deps,
+        &progress,
+        &results,
+    );
+
+    let events = events.lock().unwrap();
+    let finished: Vec<_> = events
+        .iter()
+        .filter(|event| event.finished)
+        .map(|event| event.provider_id.as_str())
+        .collect();
+    assert_eq!(finished, vec!["a", "b"]);
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.provider_id == "b")
+            .count(),
+        1,
+        "the dependent never started, so it should only receive the terminal fallback"
+    );
+    assert!(events
+        .iter()
+        .any(|event| event.provider_id == "b" && event.finished && event.total == 0));
+}
+
+#[test]
 fn a_dependency_cycle_still_runs_as_one_block() {
     let mut a = decl("a", BatchMode::PerRow);
     a.fields = vec!["x".into()];
@@ -2589,8 +2643,119 @@ fn a_cancelled_run_leaves_nothing_reported() {
 fn a_reserved_run_id_is_never_handed_out_again_and_cancels_like_any_run() {
     let reserved = tauri::async_runtime::block_on(procedure_reserve_run());
     assert_ne!(next_run_id(), reserved);
-    let cancel = register_run(reserved).unwrap();
+    let cancel = register_run(reserved, None, None).unwrap();
     tauri::async_runtime::block_on(procedure_cancel(reserved)).unwrap();
     assert!(cancel.load(Ordering::Relaxed));
-    unregister_run(reserved);
+    drop(unregister_run(reserved));
+}
+
+#[test]
+fn a_released_pending_layer_waits_for_its_last_registered_writer() {
+    let (state, map_id) = setup(&[]);
+    let label = WindowLabel("pending-layer-lifetime".into());
+    let target = Target::Pending {
+        name: "draft".into(),
+    };
+    {
+        let mut manager = state.lock().unwrap();
+        manager.window_map.insert(label.clone(), map_id.clone());
+        manager.store_for_map(&map_id).unwrap().edit(
+            &target,
+            vec![Op::Set(loc(1, 1.0, 1.0))],
+            false,
+            &mut None,
+        );
+    }
+
+    let first = next_run_id();
+    let second = next_run_id();
+    register_store_run(&state, &label, first, target.clone()).unwrap();
+    register_store_run(&state, &label, second, target.clone()).unwrap();
+    {
+        let mut manager = state.lock().unwrap();
+        manager.store_for_map(&map_id).unwrap().close_layer("draft");
+    }
+    assert!(runs().lock().unwrap()[&first]
+        .cancel
+        .load(Ordering::Relaxed));
+    assert!(runs().lock().unwrap()[&second]
+        .cancel
+        .load(Ordering::Relaxed));
+
+    let late = next_run_id();
+    assert!(register_store_run(&state, &label, late, target.clone()).is_err());
+    assert!(!runs().lock().unwrap().contains_key(&late));
+
+    {
+        let mut manager = state.lock().unwrap();
+        let store = manager.store_for_map(&map_id).unwrap();
+        store.edit(&target, Vec::new(), true, &mut None);
+        let pending = store.pending.get("draft").unwrap();
+        assert!(pending.closed);
+        assert!(pending.landed.is_some());
+    }
+
+    finish_writer_run(&state, first);
+    assert!(state
+        .lock()
+        .unwrap()
+        .store_for_map(&map_id)
+        .unwrap()
+        .pending
+        .contains_key("draft"));
+
+    finish_writer_run(&state, second);
+    assert!(!state
+        .lock()
+        .unwrap()
+        .store_for_map(&map_id)
+        .unwrap()
+        .pending
+        .contains_key("draft"));
+}
+
+#[test]
+fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
+    let (state, map_id) = setup(&[]);
+    let label = WindowLabel("landed-pending-layer-lifetime".into());
+    let target = Target::Pending {
+        name: "draft".into(),
+    };
+    {
+        let mut manager = state.lock().unwrap();
+        manager.window_map.insert(label.clone(), map_id.clone());
+        let store = manager.store_for_map(&map_id).unwrap();
+        store.edit(&target, vec![Op::Set(loc(1, 1.0, 1.0))], false, &mut None);
+        store.edit(&target, Vec::new(), true, &mut None);
+    }
+
+    let run_id = next_run_id();
+    register_store_run(&state, &label, run_id, target).unwrap();
+    {
+        let mut manager = state.lock().unwrap();
+        manager.store_for_map(&map_id).unwrap().close_layer("draft");
+    }
+    assert!(!runs().lock().unwrap()[&run_id]
+        .cancel
+        .load(Ordering::Relaxed));
+    assert!(
+        state
+            .lock()
+            .unwrap()
+            .store_for_map(&map_id)
+            .unwrap()
+            .pending
+            .get("draft")
+            .unwrap()
+            .closed
+    );
+
+    finish_writer_run(&state, run_id);
+    assert!(!state
+        .lock()
+        .unwrap()
+        .store_for_map(&map_id)
+        .unwrap()
+        .pending
+        .contains_key("draft"));
 }

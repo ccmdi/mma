@@ -17,10 +17,7 @@ fn tag(id: u32, name: &str) -> ValueRecord {
     ValueRecord {
         id: Id::new(id),
         name: Some(name.into()),
-        extra: Some(serde_json::Map::from_iter([(
-            "color".to_string(),
-            "#000".into(),
-        )])),
+        extra: serde_json::Map::from_iter([("color".to_string(), "#000".into())]),
         ..Default::default()
     }
 }
@@ -666,18 +663,17 @@ fn pano_id_nested_in_extra_extracted() {
         "nested panoId is not a top-level pano"
     );
     assert_eq!(loc.tags.len(), 1);
-    // panoId consumed out of extra, only tags were there → no extra left
-    assert!(loc.extra.is_none());
+    assert_eq!(loc.extra, None);
 }
 
 #[test]
-fn extra_with_only_tags_becomes_none() {
+fn extra_with_only_tags_leaves_no_extra() {
     let (loc, _tags) = parse_one(
         br#"{"customCoordinates":[
         {"lat":1,"lng":2,"extra":{"tags":["X"]}}
     ]}"#,
     );
-    assert!(loc.extra.is_none());
+    assert_eq!(loc.extra, None);
     assert_eq!(loc.tags.len(), 1);
 }
 
@@ -931,7 +927,7 @@ fn cancelling_a_staged_import_drops_its_layer() {
         ..Default::default()
     });
     stage_parsed(&mut store, "cancel-me", parsed).unwrap();
-    store.drop_pending(&import_layer("cancel-me"));
+    store.close_layer(&import_layer("cancel-me"));
     assert!(store
         .collect(
             &import_target("cancel-me"),
@@ -1038,7 +1034,11 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     let feed = FeedCapture::attach(&mut store);
     let r = add_copied_to_store(&mut store, parsed.locations, parsed.tags).unwrap();
     let _ = r;
-    let event = feed.last();
+    let event = feed
+        .all()
+        .into_iter()
+        .find(|event| event.derived.location_count.is_some())
+        .unwrap();
 
     // Both copies landed in the target store.
     assert_eq!(event.derived.location_count, Some(2));
