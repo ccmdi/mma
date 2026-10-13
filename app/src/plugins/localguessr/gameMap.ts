@@ -6,6 +6,7 @@ import { MapHost, type DeckOverlayHandle } from "@/lib/map/host";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { getLocal } from "@/lib/hooks/useLocalStorage";
 import { cmd } from "@/lib/commands";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { usePluginState } from "@/plugins/pluginStorage";
 import type { MapEmbedPrefs } from "@/store/mapEmbedPrefs";
 import { rgbCss } from "@/lib/util/color";
@@ -35,15 +36,13 @@ export function useGameMap(
 	latest.current = { prefs, prepare, onReady };
 	const kind = MapHost.kindForMapType(prefs.mapType);
 
-	useLayoutEffect(() => {
-		const container = containerRef.current;
-		if (!container) return;
-		let cancelled = false;
-		const div = document.createElement("div");
-		div.style.cssText = "position:absolute;inset:0";
-		container.appendChild(div);
-
-		void (async () => {
+	const built = useAsync(
+		async () => {
+			const container = containerRef.current;
+			if (!container) return null;
+			const div = document.createElement("div");
+			div.style.cssText = "position:absolute;inset:0";
+			container.appendChild(div);
 			try {
 				const [host] = await Promise.all([
 					MapHost.create(kind, div, latest.current.prefs, {
@@ -53,29 +52,38 @@ export function useGameMap(
 					}),
 					latest.current.prepare?.(),
 				]);
-				if (cancelled) {
-					host.destroy();
-					return;
-				}
-				hostRef.current = host;
-				overlayRef.current = host.createDeckOverlay();
-				latest.current.onReady?.(host);
-				setReady(true);
+				return { host, div };
 			} catch {
-				if (!cancelled) setReady(false);
+				div.remove();
+				return null;
 			}
-		})();
+		},
+		[containerRef, kind],
+		{
+			discard: (superseded) => {
+				superseded?.host.destroy();
+				superseded?.div.remove();
+			},
+		},
+	);
+	const surface = built.data;
 
+	useLayoutEffect(() => {
+		if (!surface) return;
+		const { host, div } = surface;
+		hostRef.current = host;
+		overlayRef.current = host.createDeckOverlay();
+		latest.current.onReady?.(host);
+		setReady(true);
 		return () => {
-			cancelled = true;
 			overlayRef.current?.finalize();
 			overlayRef.current = null;
-			hostRef.current?.destroy();
+			host.destroy();
 			hostRef.current = null;
 			div.remove();
 			setReady(false);
 		};
-	}, [containerRef, kind]);
+	}, [surface]);
 
 	useEffect(() => {
 		const host = hostRef.current;
@@ -235,18 +243,16 @@ function loadImage(url: string): Promise<HTMLImageElement> {
 
 /** The signed-in GitHub account's avatar, or null when signed out. */
 export function useGitHubAvatar(): string | null {
-	const [url, setUrl] = useState<string | null>(null);
-	useEffect(() => {
-		let cancelled = false;
-		void cmd
-			.githubMe()
-			.then((user) => !cancelled && setUrl(user?.avatarUrl ?? null))
-			.catch(() => {});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-	return url;
+	return (
+		useAsync(
+			() =>
+				cmd
+					.githubMe()
+					.then((user) => user?.avatarUrl ?? null)
+					.catch(() => null),
+			[],
+		).data ?? null
+	);
 }
 
 export function useAvatarPinSetting() {
@@ -257,20 +263,15 @@ export function useAvatarPinSetting() {
 export function useGuessPin(): () => PinIcon {
 	const [avatarPin] = useAvatarPinSetting();
 	const avatarUrl = useGitHubAvatar();
-	const [avatar, setAvatar] = useState<PinIcon | null>(null);
-	useEffect(() => {
-		setAvatar(null);
-		if (!avatarPin || !avatarUrl) return;
-		let cancelled = false;
-		void loadImage(avatarUrl)
-			.then((image) => {
-				if (!cancelled) setAvatar(drawPin(`avatar:${avatarUrl}`, GUESS_COLOR, imageFace(image)));
-			})
-			.catch(() => {});
-		return () => {
-			cancelled = true;
-		};
-	}, [avatarPin, avatarUrl]);
+	const avatar = useAsync(
+		() =>
+			avatarPin && avatarUrl
+				? loadImage(avatarUrl)
+						.then((image) => drawPin(`avatar:${avatarUrl}`, GUESS_COLOR, imageFace(image)))
+						.catch(() => null)
+				: null,
+		[avatarPin, avatarUrl],
+	).data;
 	return useMemo(() => (avatar ? () => avatar : GUESS_PIN), [avatar]);
 }
 

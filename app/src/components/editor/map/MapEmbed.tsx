@@ -18,6 +18,9 @@ import { svThumbnailUrl, svSearchRadius } from "@/lib/sv/lookup";
 import { PanoType } from "@/bindings.consts";
 import { panosAt } from "@/lib/sv/query";
 import { log } from "@/lib/util/log";
+import { latest } from "@/lib/util/latest";
+import { delay } from "@/lib/util/concurrent";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { getSettings, useSetting } from "@/store/settings";
 import { useMeasure, useMeasureInteraction } from "@/lib/sv/measure";
 import { MeasurementBar } from "@/components/primitives/MeasurementBar";
@@ -116,7 +119,15 @@ export function MapEmbed({
 		url: string;
 		date?: string;
 	} | null>(null);
-	const previewAbortRef = useRef<AbortController | null>(null);
+	const [previews] = useState(() =>
+		latest<string | null>({
+			publish: (url) => setSvPreview(url ? { url } : null),
+			discard: (url) => {
+				if (url) URL.revokeObjectURL(url);
+			},
+			failed: (error) => log.debug("[map] pano preview failed:", error),
+		}),
+	);
 	const [pickedOpacityTarget, setOpacityTarget] = useState<OpacityLayer>("sv");
 	const selectionTint = Store.use(() => {
 		const active = SelectionList.active();
@@ -169,77 +180,80 @@ export function MapEmbed({
 
 	const hostKind = MapHost.kindForMapType(mapType);
 
-	useEffect(() => {
-		if (!containerRef.current || !map) return;
-		if (!savedCameraRef.current) mapOpen.mark("mounted");
-		let cancelled = false;
-		const offs: (() => void)[] = [];
-		let created: MapHost | null = null;
-		let hostDiv: HTMLDivElement | null = null;
-
-		// opensv always loads: the Google host renders with it, and every host needs
-		// the SV services (click lookup, previews, pano).
-		void loadOpenSV().then(async () => {
-			if (cancelled || !containerRef.current) return;
-			if (hostKind === "google" && !google?.maps) return;
-
-			const first = !savedCameraRef.current;
-			hostDiv = document.createElement("div");
-			hostDiv.style.cssText = "position:absolute;inset:0";
-			containerRef.current.appendChild(hostDiv);
-
+	// opensv always loads: the Google host renders with it, and every host needs
+	// the SV services (click lookup, previews, pano).
+	const built = useAsync(
+		async (signal) => {
+			if (!containerRef.current || !map) return null;
+			const previous = hostRef.current;
+			const center = previous?.getCenter();
+			const camera =
+				previous && center ? { center, zoom: previous.getZoom() } : savedCameraRef.current;
+			if (!camera) mapOpen.mark("mounted");
+			await loadOpenSV();
+			const container = containerRef.current;
+			if (signal.aborted || !container) return null;
+			if (hostKind === "google" && !google?.maps) return null;
+			const div = document.createElement("div");
+			div.style.cssText = "position:absolute;inset:0";
+			container.appendChild(div);
 			const { prefs: p, customStyles: cs } = buildRef.current;
-			created = await MapHost.create(hostKind, hostDiv, p, {
-				customStyles: cs,
-				camera: savedCameraRef.current ?? undefined,
-			});
-			if (cancelled) {
-				created.destroy();
-				hostDiv.remove();
-				return;
+			try {
+				const created = await MapHost.create(hostKind, div, p, {
+					customStyles: cs,
+					camera: camera ?? undefined,
+				});
+				return { host: created, div, first: !camera };
+			} catch (error) {
+				div.remove();
+				log.error("[map] host creation failed:", error);
+				return null;
 			}
+		},
+		[hostKind],
+		{
+			discard: (superseded) => {
+				superseded?.host.destroy();
+				superseded?.div.remove();
+			},
+		},
+	);
+	const surface = built.data;
 
-			offs.push(
-				created.on("mousemove", (ll) => {
-					if (coordDisplayRef.current) {
-						coordDisplayRef.current.textContent = `${ll.lat.toFixed(6)}° ${ll.lng.toFixed(6)}°`;
-					}
-				}),
-			);
-
-			hostRef.current = created;
-			MapHost.set(created);
-			setHost(created);
-			if (first) {
-				mapOpen.mark("map-ready");
-				created.once("tilesloaded", () => mapOpen.mark("tiles"));
-				if (map.locationCount > 0) {
-					void Query.read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
-						if (cancelled || !hostRef.current || !bounds) return;
-						const [west, south, east, north] = bounds;
-						hostRef.current.fitBounds({ west, south, east, north }, undefined, {
-							snap: true,
-						});
-					});
-				}
+	useEffect(() => {
+		if (!surface) return;
+		const { host: created, div, first } = surface;
+		const offMove = created.on("mousemove", (ll) => {
+			if (coordDisplayRef.current) {
+				coordDisplayRef.current.textContent = `${ll.lat.toFixed(6)}° ${ll.lng.toFixed(6)}°`;
 			}
 		});
+		hostRef.current = created;
+		MapHost.set(created);
+		setHost(created);
+		if (first) {
+			mapOpen.mark("map-ready");
+			created.once("tilesloaded", () => mapOpen.mark("tiles"));
+			if ((Store.get().map?.locationCount ?? 0) > 0) {
+				void Query.read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
+					if (hostRef.current !== created || !bounds) return;
+					const [west, south, east, north] = bounds;
+					created.fitBounds({ west, south, east, north }, undefined, { snap: true });
+				});
+			}
+		}
 
 		return () => {
-			cancelled = true;
-			offs.forEach((off) => off());
-			const h = hostRef.current ?? created;
-			if (h) {
-				const center = h.getCenter();
-				if (center) savedCameraRef.current = { center, zoom: h.getZoom() };
-				h.destroy();
-			}
-			hostDiv?.remove();
+			offMove();
+			const center = created.getCenter();
+			if (center) savedCameraRef.current = { center, zoom: created.getZoom() };
+			created.destroy();
+			div.remove();
 			hostRef.current = null;
 			MapHost.set(null);
 			setHost(null);
 		};
-	}, [hostKind]);
+	}, [surface]);
 
 	useEffect(() => Scene.clear, []);
 
@@ -266,55 +280,35 @@ export function MapEmbed({
 		}
 		if (!google?.maps) return;
 
-		const offMove = host.on(
-			"mousemove",
-			(ll) =>
-				void (async () => {
-					setSvPreview(null);
-					previewAbortRef.current?.abort();
-					const ac = new AbortController();
-					previewAbortRef.current = ac;
-
-					const { lat, lng } = ll;
-					const zoom = host.getZoom();
-
-					await new Promise((r) => setTimeout(r, 300));
-					if (ac.signal.aborted) return;
-
-					try {
-						const [pano] = await panosAt(
-							[{ lat, lng }],
-							svSearchRadius(lat, zoom),
-							{ sources: [PanoType.Official] },
-							ac.signal,
-						);
-						if (!pano || ac.signal.aborted) return;
-						const res = await fetch(svThumbnailUrl(pano.id, pano.centerHeading), {
-							signal: ac.signal,
-						});
-						if (!res.ok || ac.signal.aborted) return;
-						const blob = await res.blob();
-						if (ac.signal.aborted) return;
-						setSvPreview({ url: URL.createObjectURL(blob) });
-					} catch {
-						// ignored
-					}
-				})(),
-		);
+		const offMove = host.on("mousemove", ({ lat, lng }) => {
+			setSvPreview(null);
+			const zoom = host.getZoom();
+			void previews.replace(async (signal) => {
+				await delay(300, signal);
+				const [pano] = await panosAt(
+					[{ lat, lng }],
+					svSearchRadius(lat, zoom),
+					{ sources: [PanoType.Official] },
+					signal,
+				);
+				if (!pano) return null;
+				const res = await fetch(svThumbnailUrl(pano.id, pano.centerHeading), { signal });
+				return res.ok ? URL.createObjectURL(await res.blob()) : null;
+			});
+		});
 
 		const offOut = host.on("mouseout", () => {
-			previewAbortRef.current?.abort();
-			previewAbortRef.current = null;
+			previews.cancel();
 			setSvPreview(null);
 		});
 
 		return () => {
 			offMove();
 			offOut();
-			previewAbortRef.current?.abort();
+			previews.cancel();
 			setSvPreview(null);
 		};
-	}, [host, showPreviews]);
+	}, [host, showPreviews, previews]);
 
 	useEffect(() => {
 		hostRef.current?.applyPrefs(prefs, { customStyles });

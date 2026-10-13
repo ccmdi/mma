@@ -12,14 +12,19 @@ interface AsyncState<T> {
  *  cancel its own requests rather than only having its answer dropped. `fn` may return a
  *  value synchronously - then the result is applied immediately with no loading frame
  *  (so a synchronous short-circuit never flashes a spinner). A returned promise resets
- *  to `{loading: true}` until it resolves to `{data}` or rejects to `{error}`. */
+ *  to `{loading: true}` until it resolves to `{data}` or rejects to `{error}`. A value a
+ *  superseded run still produces goes to `discard`, so a run can release what it built. */
 export function useAsync<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
+	options: { discard?: (value: T) => void } = {},
 ): AsyncState<T> {
 	const [state, setState] = useState<AsyncState<T>>({ data: null, loading: true, error: null });
+	const discard = useRef(options.discard);
+	discard.current = options.discard;
 	const [requests] = useState(() =>
 		latest<T>({
+			discard: (value) => discard.current?.(value),
 			publish: (data) => setState({ data, loading: false, error: null }),
 			failed: (e) =>
 				setState({

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { CUSTOM_STYLES_KEY, type CustomStyle } from "@/lib/geo/mapStack";
 import { useMapSurface } from "@/lib/render/useMapSurface";
 import { useSetting } from "@/store/settings";
@@ -10,6 +10,7 @@ import { useHoverExpand, panelSize } from "@/lib/hooks/useHoverExpand";
 import { t } from "@/lib/i18n";
 import { ScaleStepper } from "./ScaleStepper";
 import { Editor } from "@/store/editor";
+import { useAsyncSticky } from "@/lib/hooks/useAsync";
 
 const MINIMAP_SCALE = range([0.5, 2]);
 const MINIMAP_SCALE_STEP = 0.25;
@@ -61,22 +62,8 @@ export function FullscreenMiniMap() {
 	const closeDelay = useSetting("fullscreenMinimapCloseDelay");
 	const { expanded, hoverProps } = useHoverExpand(rootRef, closeDelay);
 	const [prefs] = useLocalStorage(MAP_EMBED_PREFS);
-	const [surface, setSurface] = useState<{
-		host: MapHost;
-		div: HTMLDivElement;
-		overlay: DeckOverlayHandle;
-	} | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		void ensureMinimapHost(prefs, lat, lng).then((s) => {
-			if (!cancelled) setSurface(s);
-		});
-		return () => {
-			cancelled = true;
-		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps -- kind is the only creation input
-	}, [prefs.mapType]);
+	// The map kind is the only creation input.
+	const surface = useAsyncSticky(() => ensureMinimapHost(prefs, lat, lng), [prefs.mapType]);
 
 	useMapSurface(surface?.host ?? null, {
 		prefs,

@@ -1,6 +1,7 @@
 import { google } from "@/lib/sv/opensv";
 import { releaseWebglContexts } from "@/lib/render/webglContexts";
 import type { PanoView } from "@/types";
+import { delay } from "@/lib/util/concurrent";
 
 const PANO_LOAD_TIMEOUT_MS = 15_000;
 const CANVAS_SETTLE_TIMEOUT_MS = 3_000;
@@ -134,10 +135,6 @@ function waitForPanoReady(panorama: google.maps.StreetViewPanorama, panoId: stri
 
 function nextFrame(): Promise<void> {
 	return new Promise((resolve) => window.requestAnimationFrame(() => resolve()));
-}
-
-function delay(ms: number): Promise<void> {
-	return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 /** Hash of a downsampled frame, or null while it is still blank or a solid fill. */

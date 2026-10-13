@@ -24,7 +24,7 @@ export function usePanoSession() {
 		let cancelled = false;
 
 		const offStatus = pano.on("status_changed", () => {
-			if (cancelled || !pano.isLoaded()) return;
+			if (!pano.isLoaded()) return;
 			const panoId = pano.panoId();
 			const position = pano.position();
 			if (!panoId || !position) return;

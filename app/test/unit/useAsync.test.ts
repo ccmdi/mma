@@ -30,6 +30,33 @@ describe("useAsync signal", () => {
 	});
 });
 
+describe("useAsync discard", () => {
+	it("hands a superseded run's value to discard and never returns it", async () => {
+		let bump: () => void = () => {};
+		let seen: string | null = null;
+		const pending: ((v: string) => void)[] = [];
+		const discarded: string[] = [];
+		function Probe() {
+			const [dep, setDep] = useState(0);
+			const { data } = useAsync(() => new Promise<string>((r) => pending.push(r)), [dep], {
+				discard: (value) => discarded.push(value),
+			});
+			useEffect(() => {
+				bump = () => setDep((n) => n + 1);
+				seen = data;
+			}, [data]);
+			return null;
+		}
+		const m = mount(createElement(Probe));
+		await act(async () => bump());
+		await act(async () => pending[0]("old"));
+		await act(async () => pending[1]("new"));
+		expect(discarded).toEqual(["old"]);
+		expect(seen).toBe("new");
+		m.unmount();
+	});
+});
+
 describe("useAsyncSticky key", () => {
 	it("holds the last value across runs under one key and drops it when the key changes", async () => {
 		let setDep: (n: number) => void = () => {};

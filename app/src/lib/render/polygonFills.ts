@@ -1,12 +1,13 @@
 import type { Selector } from "@/types";
 import type { ListedSelection, Selection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
+import { latest } from "@/lib/util/latest";
 
 type PolygonSelection = Selection & { selector: Extract<Selector, { type: "Polygon" }> };
 type Fill = [number, number][][][];
 
 let fills = new Map<string, Fill>();
-let generation = 0;
+const refreshes = latest<Map<string, Fill>>({ publish: (next) => (fills = next) });
 
 /** The polygons the map draws: listed polygon selections and the polygon parts of listed intersections. */
 export function drawnPolygons(rows: ListedSelection[]): PolygonSelection[] {
@@ -23,13 +24,14 @@ export function getPolygonFill(key: string): Fill | undefined {
 }
 
 /** Hold the fill of every polygon `rows` draw, asking the store only for ones not yet held. */
-export async function refreshPolygonFills(rows: ListedSelection[]): Promise<void> {
-	const current = ++generation;
-	const next = new Map<string, Fill>();
-	await Promise.all(
-		drawnPolygons(rows).map(async ({ key, selector }) => {
-			next.set(key, fills.get(key) ?? (await cmd.polygonFill(selector.polygon)));
-		}),
-	);
-	if (current === generation) fills = next;
+export function refreshPolygonFills(rows: ListedSelection[]): Promise<void> {
+	return refreshes.replace(async () => {
+		const next = new Map<string, Fill>();
+		await Promise.all(
+			drawnPolygons(rows).map(async ({ key, selector }) => {
+				next.set(key, fills.get(key) ?? (await cmd.polygonFill(selector.polygon)));
+			}),
+		);
+		return next;
+	});
 }

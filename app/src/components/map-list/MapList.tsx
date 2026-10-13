@@ -56,6 +56,7 @@ import { UnreadReplyDot } from "@/components/dialogs/SettingsPage";
 import { Pill } from "@/components/primitives/Pill";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { fetchReleases, type Release } from "@/lib/util/updateCheck";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { Markdown } from "@/lib/util/markdown";
 import { Button } from "@/components/primitives/Button";
 import { SearchInput } from "@/components/primitives/SearchInput";
@@ -104,22 +105,11 @@ function RollChar({ ch }: { ch: string }) {
 }
 
 function WhatsNew() {
-	const [releases, setReleases] = useState<Release[] | null>(null);
-	const [failed, setFailed] = useState(false);
+	const fetched = useAsync(() => fetchReleases(), []);
+	const releases = fetched.data;
+	const failed = !fetched.loading && !releases;
 	const [activeTag, setActiveTag] = useState<string | null>(null);
 	const historyRef = useRef<HTMLDivElement>(null);
-
-	useEffect(() => {
-		let alive = true;
-		void fetchReleases().then((v) => {
-			if (!alive) return;
-			if (v) setReleases(v);
-			else setFailed(true);
-		});
-		return () => {
-			alive = false;
-		};
-	}, []);
 
 	// Track which release is at the top of the scroll viewport.
 	const onScroll = () => {

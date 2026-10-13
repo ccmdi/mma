@@ -732,32 +732,23 @@ function MapBody() {
 	);
 }
 
+const BORDER_FILES = ["medium", "heavy", "adm1"] as const;
+type BorderFile = (typeof BORDER_FILES)[number];
+
 function BorderDetailGroup() {
 	const s = useSettings();
-	const [mediumReady, setMediumReady] = useState<boolean | null>(null);
-	const [heavyReady, setHeavyReady] = useState<boolean | null>(null);
-	const [adm1Ready, setAdm1Ready] = useState<boolean | null>(null);
+	const [downloaded, setDownloaded] = useState<ReadonlySet<BorderFile>>(new Set());
 	const [downloading, setDownloading] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			const [m, h, a] = await Promise.all([
-				cmd.checkBorderFile("medium").catch(() => false),
-				cmd.checkBorderFile("heavy").catch(() => false),
-				cmd.checkBorderFile("adm1").catch(() => false),
-			]);
-			if (!cancelled) {
-				setMediumReady(m);
-				setHeavyReady(h);
-				setAdm1Ready(a);
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, []);
+	const checked = useAsync(async () => {
+		const [medium, heavy, adm1] = await Promise.all(
+			BORDER_FILES.map((file) => cmd.checkBorderFile(file).catch(() => false)),
+		);
+		return { medium, heavy, adm1 };
+	}, []).data;
+	const ready = (file: BorderFile) => downloaded.has(file) || (checked?.[file] ?? null);
+	const adm1Ready = ready("adm1");
 
 	const handleChange = async (level: BorderDetail) => {
 		setError(null);
@@ -765,16 +756,14 @@ function BorderDetailGroup() {
 			setSetting("borderDetail", level);
 			return;
 		}
-		const isReady = level === "medium" ? mediumReady : heavyReady;
-		if (isReady) {
+		if (ready(level)) {
 			setSetting("borderDetail", level);
 			return;
 		}
 		setDownloading(level);
 		try {
 			await cmd.downloadBorderFile(level);
-			if (level === "medium") setMediumReady(true);
-			else setHeavyReady(true);
+			setDownloaded((files) => new Set(files).add(level));
 			setSetting("borderDetail", level);
 		} catch (e) {
 			setError(t("Download failed: {error}", { error: errText(e) }));
@@ -792,7 +781,7 @@ function BorderDetailGroup() {
 		setDownloading(level);
 		try {
 			await cmd.downloadBorderFile(level);
-			setAdm1Ready(true);
+			setDownloaded((files) => new Set(files).add("adm1"));
 			setSetting("subdivisionDetail", level);
 		} catch (e) {
 			setError(t("Download failed: {error}", { error: errText(e) }));
@@ -803,9 +792,9 @@ function BorderDetailGroup() {
 
 	const statusLabel = (level: "medium" | "heavy") => {
 		if (downloading === level) return ` ${t("(downloading...)")}`;
-		const ready = level === "medium" ? mediumReady : heavyReady;
-		if (ready === null) return "";
-		return ready ? "" : ` ${t("(will download)")}`;
+		const present = ready(level);
+		if (present === null) return "";
+		return present ? "" : ` ${t("(will download)")}`;
 	};
 
 	const subdivisionStatus = () => {

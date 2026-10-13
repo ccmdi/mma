@@ -15,3 +15,19 @@ export async function runConcurrent<T>(
 		Array.from({ length: Math.min(opts.concurrency, items.length) }, () => worker()),
 	);
 }
+
+/** Resolve after `ms`, or reject with the signal's reason as soon as it aborts. */
+export function delay(ms: number, signal?: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		signal?.throwIfAborted();
+		const timer = setTimeout(resolve, ms);
+		signal?.addEventListener(
+			"abort",
+			() => {
+				clearTimeout(timer);
+				reject(signal.reason);
+			},
+			{ once: true },
+		);
+	});
+}

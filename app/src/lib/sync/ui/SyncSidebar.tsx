@@ -16,6 +16,7 @@ import type { SyncOutcome } from "../engine";
 import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
 import { errText } from "@/lib/util/format";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { t, msg } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { dateTimeFmt } from "@/lib/util/format";
@@ -316,7 +317,6 @@ function ConflictItem({
 
 export function SyncSidebar({ onClose, controller, auth, identity, source }: SyncSidebarProps) {
 	const icon = controller.provider.icon;
-	const [maps, setMaps] = useState<RemoteMapSummary[] | null>(null);
 	const [filter, setFilter] = useState("");
 	const [link, setLink] = useState(controller.getLink());
 	const [busy, setBusy] = useState(false);
@@ -350,19 +350,16 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	fetchMaps.current = listMaps;
 	const [mapsAttempt, setMapsAttempt] = useState(0);
 
-	useEffect(() => {
+	const remote = useAsync(() => {
 		const list = fetchMaps.current;
-		if (!list || !authed || !mapId || link) return;
-		let cancelled = false;
-		setMaps(null);
+		if (!list || !authed || !mapId || link) return null;
 		setError(null);
-		list()
-			.then((m) => !cancelled && setMaps(m))
-			.catch((e: unknown) => !cancelled && setError(errText(e)));
-		return () => {
-			cancelled = true;
-		};
+		return list().catch((e: unknown) => {
+			throw new Error(errText(e));
+		});
 	}, [authed, mapId, link, mapsAttempt]);
+	const maps = remote.data;
+	const shownError = error ?? remote.error?.message ?? null;
 
 	const performLink = useCallback(
 		async (m: RemoteMapSummary, mode: FirstSyncMode) => {
@@ -611,7 +608,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 				<Section title={t("Link this map")} defaultOpen>
 					{source.kind === "address" ? (
 						<AddressPicker source={source} busy={busy} onPick={doLink} />
-					) : !maps && error ? (
+					) : !maps && shownError ? (
 						<Button onClick={() => setMapsAttempt((n) => n + 1)}>{t("Retry loading maps")}</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
@@ -706,7 +703,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 
 			{mapId && <SyncHistory controller={controller} mapId={mapId} pullOnly={pullOnly} />}
 
-			{error && <Notice tone="error">{error}</Notice>}
+			{shownError && <Notice tone="error">{shownError}</Notice>}
 		</Sidebar>
 	);
 }
