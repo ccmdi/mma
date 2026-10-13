@@ -1,8 +1,10 @@
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const srcDir = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
-const OBJECTS = {
+/** Every companion object, by the module under `src` that owns it. Each one is on the `MMA`
+ *  object plugins see, except those in `INTERNAL`. */
+const COMPANIONS = {
 	"store/store": "Store",
 	"store/maps": "Maps",
 	"store/tag": "Tag",
@@ -29,17 +31,48 @@ const OBJECTS = {
 	"lib/data/procedure": "Procedure",
 	"lib/data/provider": "Provider",
 };
+const INTERNAL = new Set(["Feed"]);
+const EXPOSED = Object.values(COMPANIONS).filter((name) => !INTERNAL.has(name));
+
 const objects = new Map(
-	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),
+	Object.entries(COMPANIONS).map(([module, name]) => [resolve(srcDir, module), name]),
 );
+const withoutExtension = (path) => path.replace(/\.tsx?$/, "");
 const objectName = (source, filename) => {
 	const target = source.startsWith("@/")
 		? resolve(srcDir, source.slice(2))
 		: source.startsWith(".")
 			? resolve(dirname(filename), source)
 			: null;
-	return target ? objects.get(target.replace(/\.tsx?$/, "")) : undefined;
+	return target ? objects.get(withoutExtension(target)) : undefined;
 };
+/** The name a module's companion takes: its file name, capitalized. Only plain modules have one. */
+const companionNameOf = (filename) => {
+	if (!filename.endsWith(".ts")) return null;
+	const base = basename(filename, ".ts");
+	return base[0].toUpperCase() + base.slice(1);
+};
+const isCompanionName = (name) => /^[A-Z][a-z]/.test(name);
+
+/** Names of the objects a declaration exports, built as a literal or by a factory call. */
+function exportedObjects(declaration) {
+	if (declaration?.type !== "VariableDeclaration") return [];
+	return declaration.declarations.flatMap((d) =>
+		d.id.type === "Identifier" &&
+		(d.init?.type === "ObjectExpression" || d.init?.type === "CallExpression")
+			? [d.id.name]
+			: [],
+	);
+}
+
+function compareSurface(context, node, members, where) {
+	const names = new Set(members.filter(isCompanionName));
+	for (const name of EXPOSED)
+		if (!names.has(name)) context.report({ node, messageId: "missing", data: { name, where } });
+	for (const name of names)
+		if (!EXPOSED.includes(name))
+			context.report({ node, messageId: "unlisted", data: { name, where } });
+}
 
 export default {
 	meta: {
@@ -48,10 +81,16 @@ export default {
 		messages: {
 			canonical: "Import the domain object as {{name}}",
 			barrel: "Import domain objects directly from their owning modules; do not re-export them.",
+			unrostered:
+				"{{name}} is a companion object; add its module to COMPANIONS in lint-rules/domain-objects.js.",
+			missing: "The companion {{name}} is missing from the {{where}}.",
+			unlisted: "{{name}} is in the {{where}} but is not a plugin-facing companion in COMPANIONS.",
 		},
 	},
 	create(context) {
 		const imported = new Set();
+		const ownName = companionNameOf(context.filename);
+		const rostered = objects.has(withoutExtension(resolve(context.filename)));
 		return {
 			ImportDeclaration(node) {
 				if (node.importKind === "type") return;
@@ -74,12 +113,33 @@ export default {
 			},
 			ExportNamedDeclaration(node) {
 				if (node.exportKind === "type") return;
+				if (!rostered && ownName && exportedObjects(node.declaration).includes(ownName))
+					context.report({ node, messageId: "unrostered", data: { name: ownName } });
 				const domainSource = node.source && objectName(node.source.value, context.filename);
 				for (const specifier of node.specifiers) {
 					if (specifier.exportKind === "type") continue;
 					if (domainSource || (!node.source && imported.has(specifier.local.name)))
 						context.report({ node: specifier, messageId: "barrel" });
 				}
+			},
+			TSInterfaceDeclaration(node) {
+				if (node.id.name !== "MMA") return;
+				const members = node.body.body.flatMap((m) =>
+					m.type === "TSPropertySignature" && m.key.type === "Identifier" ? [m.key.name] : [],
+				);
+				compareSurface(context, node, members, "MMA interface");
+			},
+			VariableDeclarator(node) {
+				if (
+					node.id.type !== "Identifier" ||
+					node.id.typeAnnotation?.typeAnnotation?.typeName?.name !== "MMA" ||
+					node.init?.type !== "ObjectExpression"
+				)
+					return;
+				const members = node.init.properties.flatMap((p) =>
+					p.type === "Property" && p.key.type === "Identifier" ? [p.key.name] : [],
+				);
+				compareSurface(context, node, members, "MMA object");
 			},
 		};
 	},
