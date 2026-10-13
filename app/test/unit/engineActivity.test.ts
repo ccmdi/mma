@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
 import type { ProcedureActivity, ProviderActivity, QueryActivity } from "@/bindings.gen";
-import { procedureName } from "@/lib/data/procedures";
+import { Procedure } from "@/lib/data/procedure";
 import { engineRows } from "@/lib/diagnostics";
 
 function provider(over: Partial<ProviderActivity> = {}): ProviderActivity {
@@ -29,13 +29,13 @@ function activity(over: Partial<ProcedureActivity> = {}): ProcedureActivity {
 	return { runs: [], queries: [], requestsPerSecond: 0, ...over };
 }
 
-describe("procedureName", () => {
+describe("Procedure.name", () => {
 	it("is the inverse of a bundled entry point", () => {
-		expect(procedureName("res://procedures/svMeta.js")).toBe("svMeta");
+		expect(Procedure.name("res://procedures/svMeta.js")).toBe("svMeta");
 	});
 
 	it("leaves a plugin's own path recognisable", () => {
-		expect(procedureName("C:/plugins/foo/bar.js")).toBe("C:/plugins/foo/bar");
+		expect(Procedure.name("C:/plugins/foo/bar.js")).toBe("C:/plugins/foo/bar");
 	});
 });
 

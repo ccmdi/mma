@@ -14,7 +14,6 @@ vi.mock("@/store/maps", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetDerived: async () => {},
 		storeUpdateMapMeta: vi.fn(async (patch: unknown) =>
 			(await import("./fixtures/mocks")).metadataWritten(patch),
 		),

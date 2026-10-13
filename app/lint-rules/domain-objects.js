@@ -26,6 +26,8 @@ const OBJECTS = {
 	"lib/review/review": "Review",
 	"lib/seen/seen": "Seen",
 	"lib/sv/pano": "Pano",
+	"lib/data/procedure": "Procedure",
+	"lib/data/provider": "Provider",
 };
 const objects = new Map(
 	Object.entries(OBJECTS).map(([module, name]) => [resolve(srcDir, module), name]),

@@ -510,7 +510,7 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 		// `select` to these ids is what keeps it off every other suite's locations.
 		await withApi(
 			async (api, ids, entry, fieldDefs) => {
-				api.registerProvider({
+				void api.Provider.register({
 					id: "e2e-sun",
 					label: "Sun position",
 					requires: ["datetime"],

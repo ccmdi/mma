@@ -30,6 +30,8 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Location](#location)
 - [Tag](#tag)
 - [Editor](#editor)
+- [Procedure](#procedure)
+- [Provider](#provider)
 - [History](#history)
 - [Commit](#commit)
 - [Field](#field)
@@ -49,7 +51,6 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Marketplace](#marketplace)
 - [Scope](#scope)
 - [FieldProjections](#fieldprojections)
-- [Procedures](#procedures)
 - [Enrich](#enrich)
 - [Providers](#providers)
 - [PinPano](#pinpano)
@@ -992,26 +993,6 @@ getEnrichFieldOptions(): EnrichFieldOption[]
 
 All enrichment field options: the core fields, then every registered provider's own fields.
 
-### getProviderForField
-
-`unstable` · since v0.10.3
-
-```ts
-getProviderForField(field: string): Provider | undefined
-```
-
-The provider that produces a given extra field, if any.
-
-### getProviders
-
-`unstable` · since v0.10.3
-
-```ts
-getProviders(): Provider[]
-```
-
-All registered providers.
-
 ### isFieldEnabled
 
 `unstable` · since v0.10.3
@@ -1031,17 +1012,6 @@ knownFieldDefs(...keys: string[]): Record<string, FieldDef>
 ```
 
 Build field definitions for well-known keys (e.g. `"altitude"`, `"countryCode"`).
-
-### registerProvider
-
-`stable` · since v0.10.2
-
-```ts
-registerProvider(provider: Provider): void
-```
-
-Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
-deactivates.
 
 ## FieldDefRegistry
 
@@ -2457,7 +2427,7 @@ own; set `defaultOff` on the provider to make them opt-in.
 registerEnrichmentProvider(provider: Provider): void
 ```
 
-**Deprecated in v0.10.2.** Use `MMA.registerProvider()`.
+**Deprecated in v0.10.2.** Use `MMA.Provider.register()`.
 
 ### registerMapBadges
 
@@ -2470,6 +2440,19 @@ registerMapBadges(source: BadgeSource): void
 **Deprecated in v0.12.1.** Use `MMA.Maps.registerBadges`.
 
 Add a source of map-row badges.
+
+### registerProvider
+
+`stable` · `deprecated` · since v0.10.2
+
+```ts
+registerProvider(provider: Provider): Promise<void>
+```
+
+**Deprecated in v0.12.1.** Use `MMA.Provider.register`.
+
+Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+deactivates. Resolves once the provider can run.
 
 ### reloadMapList
 
@@ -3989,6 +3972,180 @@ Editor.useWriting(): boolean
 ```
 
 Whether procedure work is still writing to the open draft.
+
+## Procedure
+
+### Procedure
+
+`stable` · unreleased
+
+Procedure modules: ask one a question, or run one over locations.
+
+#### Procedure.decl
+
+`unstable` · unreleased
+
+```ts
+Procedure.decl(spec: ProcedureSpec, config?: unknown): ProcedureDecl
+```
+
+The part of a spec the engine reads for a run and a query alike, with `config` as the
+JSON text the wire carries.
+
+#### Procedure.drive
+
+`unstable` · unreleased
+
+```ts
+Procedure.drive(
+  scheduled: Scheduled[],
+  opts: RunOpts,
+): Promise<ProcedureOutcomes>
+```
+
+Drive scheduled items through the engine as one run and gather what comes back.
+
+#### Procedure.entry
+
+`unstable` · unreleased
+
+```ts
+Procedure.entry(name: string): string
+```
+
+Entry point of a procedure this app bundles. Plugins ship their own paths.
+
+#### Procedure.name
+
+`unstable` · unreleased
+
+```ts
+Procedure.name(entry: string): string
+```
+
+The readable name behind an entry point, for surfaces that show one.
+
+#### Procedure.noWork
+
+`unstable` · unreleased
+
+```ts
+Procedure.noWork(): BatchOutcome
+```
+
+An outcome for work that never ran.
+
+#### Procedure.query
+
+`unstable` · unreleased
+
+```ts
+Procedure.query<T = unknown, P = unknown>(
+  spec: ProcedureSpec,
+  input: unknown,
+  opts?: {
+    signal?: AbortSignal;
+    onPartial?: (
+      entries: {
+        id: number;
+        value: P;
+      }[],
+    ) => void;
+  },
+): Promise<T>
+```
+
+Ask a procedure a read-only question under its declared network limits. Rejects when it
+exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+pages of answers as they resolve, ahead of the full result; each entry carries the id
+the emitting side chose for it.
+
+#### Procedure.run
+
+`unstable` · unreleased
+
+```ts
+Procedure.run<T, C>(
+  spec: ProcedureSpec<T, C>,
+  selector: Selector,
+  opts: Omit<RunOpts, "force"> &
+    RunSettings & {
+      config?: Partial<NoInfer<C>>;
+    },
+): Promise<ProcedureOutcome<T>>
+```
+
+Run a single procedure over `selector` and return its typed results.
+
+## Provider
+
+### Provider
+
+`stable` · unreleased
+
+Registered field producers: register one, list them, or run them over locations.
+
+#### Provider.forField
+
+`unstable` · unreleased
+
+```ts
+Provider.forField(field: string): Provider | undefined
+```
+
+The provider that produces a given extra field, if any.
+
+#### Provider.labels
+
+`unstable` · unreleased
+
+```ts
+Provider.labels(
+  field: string,
+  keys: string[],
+  key?: KeySpec,
+): Promise<string[]>
+```
+
+Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+become locale month names; otherwise falls back to the keys themselves when the field's
+procedure has no `label` query or returns a non-matching array.
+
+#### Provider.list
+
+`unstable` · unreleased
+
+```ts
+Provider.list(): Provider[]
+```
+
+All registered providers.
+
+#### Provider.register
+
+`stable` · unreleased
+
+```ts
+Provider.register(provider: Provider): Promise<void>
+```
+
+Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+deactivates. Resolves once the provider can run.
+
+#### Provider.run
+
+`unstable` · unreleased
+
+```ts
+Provider.run<C extends readonly unknown[]>(
+  runs: { [K in keyof C]: ProviderRun<C[K]> },
+  selector: Selector,
+  opts?: RunOpts,
+): Promise<ProcedureOutcomes>
+```
+
+Run registered providers over the locations `selector` matches and write their results
+back. Resolves once every provider finishes, or on abort.
 
 ## History
 
@@ -6112,7 +6269,7 @@ its streamed results carry the id, and `procedureCancel` stops it.
 
 ```ts
 cmd.procedureRun(
-  providers: ProviderDecl[],
+  items: RunItem[],
   force: boolean,
   target: Target | null,
 ): Promise<number>
@@ -6120,6 +6277,26 @@ cmd.procedureRun(
 
 Start a procedure run over the open map's locations. Returns immediately with
 the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+
+#### cmd.providerRegister
+
+`unstable` · unreleased
+
+```ts
+cmd.providerRegister(provider: ProviderDef): Promise<null>
+```
+
+Register a provider, replacing one with the same id.
+
+#### cmd.providerUnregister
+
+`unstable` · unreleased
+
+```ts
+cmd.providerUnregister(id: string): Promise<null>
+```
+
+Remove a registered provider.
 
 #### cmd.readFile
 
@@ -6889,16 +7066,6 @@ cmd.storeSeenWrite(entry: SeenWriteEntry): Promise<null>
 
 Record a panorama visit. The history is capped; oldest entries are evicted when full.
 
-#### cmd.storeSetDerived
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeSetDerived(edges: { [key in string]: string[] }): Promise<null>
-```
-
-Register field dependencies. Changing an input clears fields derived from it.
-
 #### cmd.storeSetMapDefaults
 
 `unstable` · since v0.11.4
@@ -7583,112 +7750,6 @@ RANGE_ID: "range"
 
 The "Range" partition option (numeric binning).
 
-## Procedures
-
-Running procedures directly, outside a registered provider.
-
-### noWork
-
-`unstable` · since v0.10.3
-
-```ts
-noWork(): BatchOutcome
-```
-
-### procedureEntry
-
-`unstable` · since v0.10.3
-
-```ts
-procedureEntry(name: string): string
-```
-
-Entry point of a procedure this app bundles. Plugins ship their own paths.
-
-### procedureName
-
-`unstable` · since v0.11.0
-
-```ts
-procedureName(entry: string): string
-```
-
-The readable name behind an entry point, for surfaces that show one.
-
-### queryProcedure
-
-`unstable` · since v0.10.3
-
-```ts
-queryProcedure<T = unknown, P = unknown>(
-  spec: ProcedureSpec,
-  input: unknown,
-  signal?: AbortSignal,
-  onPartial?: (
-    entries: {
-      id: number;
-      value: P;
-    }[],
-  ) => void,
-): Promise<T>
-```
-
-Ask a procedure a read-only question under its declared network limits. Rejects when it
-exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
-pages of answers as they resolve, ahead of the full result; each entry carries the id
-the emitting side chose for it.
-
-### resolveFieldLabels
-
-`unstable` · since v0.10.3
-
-```ts
-resolveFieldLabels(
-  field: string,
-  keys: string[],
-  key?: KeySpec,
-): Promise<string[]>
-```
-
-Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
-become locale month names; otherwise falls back to the keys themselves when the field's
-procedure has no `label` query or returns a non-matching array.
-
-### runProcedure
-
-`unstable` · since v0.10.3
-
-```ts
-runProcedure<T, C>(
-  spec: ProcedureSpec<T, C>,
-  selector: Selector,
-  opts: Omit<RunOpts, "force"> &
-    Omit<DeclOpts, "fields" | "requires" | "config"> & {
-      id: string;
-      config?: Partial<NoInfer<C>>;
-    },
-): Promise<ProcedureOutcome<T>>
-```
-
-Run a single procedure over `selector` and return its typed results.
-
-### runProviders
-
-`unstable` · since v0.10.3
-
-```ts
-runProviders<C extends readonly unknown[]>(
-  items: {
-    [K in keyof C]: ProviderRun<C[K]>;
-  },
-  selector: Selector,
-  opts?: RunOpts,
-): Promise<ProviderOutcomes>
-```
-
-Run a set of providers over the locations `selector` matches and write their results back.
-Resolves once every provider finishes, or on abort.
-
 ## Enrich
 
 Enrichment passes over the open map.
@@ -7703,12 +7764,22 @@ enrich(
   props?: RunOpts & {
     resolve?: boolean;
   },
-): Promise<ProviderOutcomes>
+): Promise<ProcedureOutcomes>
 ```
 
 ## Providers
 
 The providers the app registers for enrichment.
+
+### BUILTIN_PROVIDERS
+
+`unstable` · unreleased
+
+```ts
+BUILTIN_PROVIDERS: readonly Provider<unknown, unknown>[]
+```
+
+The providers the app registers at startup.
 
 ### enrichRuns
 
@@ -7735,6 +7806,31 @@ exactDateProvider: {
   label: string;
   /** The procedure that computes this provider's fields. */
   procedure: ProcedureSpec<unknown, unknown>;
+  /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
+  fieldDefs: Record<string, FieldDef> | undefined;
+  /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
+  defaultOff: boolean | undefined;
+  /** Core columns this provider writes (e.g. `panoId`). */
+  provides: string[] | undefined;
+  /** Fields this provider reads; it runs after their producers finish. */
+  requires: string[] | undefined;
+}
+```
+
+A named procedure with dependency-graph placement. Providers that declare
+`fieldDefs` are enrichment providers whose fields appear in the enrichment UI.
+
+### headingRoadProvider
+
+`unstable` · unreleased
+
+```ts
+headingRoadProvider: {
+  id: string;
+  /** Name shown in enrichment progress and results. */
+  label: string;
+  /** The procedure that computes this provider's fields. */
+  procedure: ProcedureSpec<unknown, HeadingRoadConfig>;
   /** Extra-field keys this provider produces. Each is offered as an enrichment option. */
   fieldDefs: Record<string, FieldDef> | undefined;
   /** Leaves this provider's fields out of the default enrichment set, so users opt in. */
@@ -8207,34 +8303,6 @@ _test.openMap(id: string): Promise<void>
 ```
 
 Open a map by id and navigate to it.
-
-#### _test.procedureEntry
-
-`unstable` · since v0.10.0
-
-```ts
-_test.procedureEntry(name: string): string
-```
-
-Entry point of a procedure this app bundles. Plugins ship their own paths.
-
-#### _test.runProcedure
-
-`unstable` · since v0.10.0
-
-```ts
-_test.runProcedure<T, C>(
-  spec: ProcedureSpec<T, C>,
-  selector: Selector,
-  opts: Omit<RunOpts, "force"> &
-    Omit<DeclOpts, "fields" | "requires" | "config"> & {
-      id: string;
-      config?: Partial<NoInfer<C>>;
-    },
-): Promise<ProcedureOutcome<T>>
-```
-
-Run a single procedure over `selector` and return its typed results.
 
 #### _test.syncSelections
 

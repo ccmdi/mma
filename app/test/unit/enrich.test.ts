@@ -20,23 +20,28 @@ vi.mock("@/store/store", () => ({
 }));
 
 vi.mock("@/lib/sv/query", () => ({ svMetadata: async () => [] }));
-vi.mock("@/lib/data/procedures", () => ({
-	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProviders: async (
-		items: { provider: { id: string }; fields?: string[] }[],
-		_rows: unknown,
-		opts?: { on?: unknown },
-	) => {
-		h.runs++;
-		h.ran = items.map((i) => [i.provider.id, i.fields ?? []]);
-		h.targets.push(opts?.on ?? null);
-		return {};
-	},
-}));
+vi.mock("@/lib/data/provider", async (original) => {
+	const { Provider } = await original<typeof import("@/lib/data/provider")>();
+	return {
+		Provider: {
+			...Provider,
+			run: async (
+				items: { provider: { id: string }; fields?: string[] }[],
+				_rows: unknown,
+				opts?: { on?: unknown },
+			) => {
+				h.runs++;
+				h.ran = items.map((i) => [i.provider.id, i.fields ?? []]);
+				h.targets.push(opts?.on ?? null);
+				return {};
+			},
+		},
+	};
+});
 vi.mock("@/lib/util/timezone", () => ({ resolveTimezone: () => "America/New_York" }));
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 const cmdMock = vi.hoisted(() => ({
-	storeSetDerived: vi.fn(async () => null),
+	providerRegister: vi.fn(async () => null),
 	checkBorderFile: vi.fn(async () => true),
 	downloadBorderFile: vi.fn(async () => {}),
 	borderClassify: vi.fn(async (_level: string, pts: [number, number][]) =>
@@ -47,13 +52,17 @@ vi.mock("@/lib/commands", () => ({ cmd: cmdMock }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));
 
 import { enrich } from "@/lib/sv/enrich";
+import { Provider } from "@/lib/data/provider";
 import {
+	BUILTIN_PROVIDERS,
 	exactDateProvider,
 	panoResolveProvider,
 	subdivisionProvider,
 	svMetaProvider,
 	timezoneProvider,
 } from "@/lib/sv/providers";
+
+for (const provider of BUILTIN_PROVIDERS) void Provider.register(provider);
 
 describe("enrich", () => {
 	beforeEach(() => {

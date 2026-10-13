@@ -152,9 +152,9 @@ describe("provider throughput", () => {
 						await api.Location.add(
 							seed.map((v) => api.createLocation({ lat: v.lat, lng: v.lng, panoId: v.panoId })),
 						);
-						const provider = api.getProviders().find((p) => p.id === caseId);
+						const provider = api.Provider.list().find((p) => p.id === caseId);
 						if (!provider) return;
-						await api.runProviders(
+						await api.Provider.run(
 							[{ provider, fields: Object.keys(provider.fieldDefs ?? {}) }],
 							{ type: "Everything" },
 							{ force: true },
@@ -219,11 +219,11 @@ describe("provider throughput", () => {
 							succeeded = o.succeeded;
 							failed = o.failed.length;
 						} else {
-							const provider = api.getProviders().find((p) => p.id === caseId);
+							const provider = api.Provider.list().find((p) => p.id === caseId);
 							if (!provider) throw new Error(`no provider '${caseId}' registered`);
 							const fields =
 								caseId === "svMeta" ? svmetaKeys : Object.keys(provider.fieldDefs ?? {});
-							const run = await api.runProviders([{ provider, fields }], everything, {
+							const run = await api.Provider.run([{ provider, fields }], everything, {
 								force: true,
 								onProgress,
 							});

@@ -42,15 +42,12 @@ import {
 	VALIDATION_CATEGORIES,
 } from "@/lib/sv/validationCategories";
 import { enrich } from "@/lib/sv/enrich";
-import type { ProviderOutcomes } from "@/lib/data/procedures";
-import {
-	getProviders,
-	getEnrichFieldOptions,
-	getDefaultEnrichKeys,
-	isFieldEnabled,
-} from "@/lib/data/fieldDefs";
+import type { ProcedureOutcomes } from "@/lib/data/procedure";
+import { Provider } from "@/lib/data/provider";
+import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
-import { bulkPanHeading, type RoadDirection } from "@/lib/sv/headingRoad";
+import { bulkPanHeading } from "@/lib/sv/headingRoad";
+import type { RoadDirection } from "@/lib/sv/providers";
 import {
 	bulkDownloadPanoramas,
 	type BulkDownloadResult,
@@ -60,7 +57,7 @@ import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
 import { exprErrorText, fmt } from "@/lib/util/format";
 import { phaseRate, type PhaseRate } from "@/lib/util/util";
-import type { BatchOutcome, BulkOpts, ProviderPart } from "@/lib/data/procedures";
+import type { BatchOutcome, BulkOpts, ProcedurePart } from "@/lib/data/procedure";
 import { toast } from "@/lib/util/toast";
 import { registerJob, type JobHandle } from "@/lib/jobs";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
@@ -833,7 +830,7 @@ export function SelectFailedButton({
 	);
 }
 
-function EnrichSummary({ result }: { result: ProviderOutcomes }) {
+function EnrichSummary({ result }: { result: ProcedureOutcomes }) {
 	const rows = Object.entries(result).filter(([, r]) => r.succeeded > 0 || r.failed.length > 0);
 	if (rows.length === 0) {
 		return (
@@ -846,7 +843,7 @@ function EnrichSummary({ result }: { result: ProviderOutcomes }) {
 		<div>
 			{rows.map(([id, r]) => (
 				<div key={id}>
-					{t(getProviders().find((p) => p.id === id)?.label ?? id)}
+					{t(Provider.list().find((p) => p.id === id)?.label ?? id)}
 					{t(":")} {t({ one: "{n} updated", other: "{n} updated" }, { n: r.succeeded })}
 					{r.failed.length > 0 &&
 						t({ one: ", {n} failed", other: ", {n} failed" }, { n: r.failed.length })}
@@ -872,7 +869,7 @@ export interface BulkRunState {
 	done: number;
 	rate: number | null;
 	elapsed: number | null;
-	parts: ProviderPart[];
+	parts: ProcedurePart[];
 	providerRates: ReadonlyMap<string, number | null>;
 	error: string | null;
 	result: BulkRunResult;

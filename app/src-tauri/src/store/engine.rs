@@ -617,8 +617,8 @@ impl Store {
 pub struct StoreManager {
     pub(crate) stores: HashMap<Id<MapMeta, String>, Store>,
     pub(crate) window_map: HashMap<WindowLabel, Id<MapMeta, String>>,
-    /// Field dependencies shared with each opened store.
-    pub(crate) derived: ComputedFrom,
+    /// Registered providers, whose field dependencies every opened store shares.
+    pub(crate) providers: crate::procedure::registry::Providers,
 }
 
 impl StoreManager {
@@ -626,7 +626,7 @@ impl StoreManager {
         Self {
             stores: HashMap::new(),
             window_map: HashMap::new(),
-            derived: ComputedFrom::default(),
+            providers: Default::default(),
         }
     }
 

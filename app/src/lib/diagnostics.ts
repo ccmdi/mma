@@ -2,7 +2,7 @@ import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import type { ProcedureActivity } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { procedureName } from "@/lib/data/procedures";
+import { Procedure } from "@/lib/data/procedure";
 import { google } from "@/lib/sv/opensv";
 import { getEnabledPlugins } from "@/plugins/pluginHost";
 import { DEFAULTS, PRIVATE_SETTINGS, getSettings, type AppSettings } from "@/store/settings";
@@ -85,7 +85,7 @@ export function engineRows(activity: ProcedureActivity | null): EngineRows {
 		instances: r.instances,
 	}));
 	const queries = (activity?.queries ?? []).map((q) => ({
-		entry: procedureName(q.entry),
+		entry: Procedure.name(q.entry),
 		inflight: q.inflight,
 		inflightLimit: q.inflightLimit,
 		retries: q.retries,

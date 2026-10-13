@@ -5,7 +5,7 @@ import { Tag } from "@/store/tag";
 import { NSelect } from "@/components/primitives/NSelect";
 import type { CountBy, KeySpec } from "@/bindings.gen";
 import type { DatePart } from "@/bindings.consts";
-import { resolveFieldLabels } from "@/lib/data/procedures";
+import { Provider } from "@/lib/data/provider";
 import { projectionsForType, partitionKeyOptions, RANGE_ID } from "@/lib/data/fieldProjections";
 import { usePickableFields } from "@/components/editor/map/FilterBuilder";
 import { all, not } from "@/store/selections";
@@ -138,7 +138,7 @@ export function ApplyFieldAsTagsDialog({ open, onOpenChange }: DialogProps) {
 		const missingCount = missing ? await Query.read(missing, { kind: "count" }) : 0;
 		if (groups.length === 0 && missingCount === 0) return;
 
-		const labels = await resolveFieldLabels(
+		const labels = await Provider.labels(
 			field,
 			groups.map((g) => g.key),
 			key,

@@ -17,7 +17,8 @@ import { addSelection, removeSelection, tagSelector, selection } from "@/store/s
 import { emit, subscribe } from "@/lib/events";
 import { cmd } from "@/lib/commands";
 import type { CountBy, KeySpec, PartitionBucket, Target } from "@/bindings.gen";
-import { registerProvider, type EnrichFieldOption, type Provider } from "@/lib/data/fieldDefs";
+import type { EnrichFieldOption } from "@/lib/data/fieldDefs";
+import { Provider } from "@/lib/data/provider";
 import { storage } from "@/plugins/pluginStorage";
 import { sidecar, type SidecarOptions } from "@/plugins/sidecar";
 import type { MaybeLocation, Selector } from "@/types";
@@ -103,9 +104,9 @@ export function fieldCoverage(selector: Selector): Promise<[string, number][]> {
 	return query(selector).coverage();
 }
 
-/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
+/** @deprecated v0.10.2. Use `MMA.Provider.register()`. @unstable */
 export function registerEnrichmentProvider(provider: Provider): void {
-	registerProvider(provider);
+	void Provider.register(provider);
 }
 
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
@@ -488,3 +489,6 @@ export const getMapHost: typeof MapHost.get = MapHost.get;
 
 /** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
 export const waitForMapHost: typeof MapHost.wait = MapHost.wait;
+
+/** @deprecated v0.12.1. Use `MMA.Provider.register`. */
+export const registerProvider: typeof Provider.register = Provider.register;

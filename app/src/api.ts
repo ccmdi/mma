@@ -12,6 +12,8 @@ import { Tag } from "@/store/tag";
 import { Location } from "@/store/location";
 import { Editor } from "@/store/editor";
 import { Layer } from "@/store/layer";
+import { Procedure } from "@/lib/data/procedure";
+import { Provider } from "@/lib/data/provider";
 import { History } from "@/store/history";
 import { Commit } from "@/store/commit";
 import { Field } from "@/store/field";
@@ -41,7 +43,6 @@ import * as primitives from "@/components/primitives";
 import * as fieldDefs from "@/lib/data/fieldDefs";
 import * as fieldDefRegistry from "@/lib/data/fieldDefRegistry";
 import * as fieldProjections from "@/lib/data/fieldProjections";
-import * as procedures from "@/lib/data/procedures";
 import * as enrich from "@/lib/sv/enrich";
 import * as providers from "@/lib/sv/providers";
 import * as pinPano from "@/lib/sv/pinPano";
@@ -86,8 +87,6 @@ type FieldDefsApi = typeof fieldDefs;
 type FieldDefRegistryApi = typeof fieldDefRegistry;
 /** The keys a field can be grouped by. @unstable */
 type FieldProjectionsApi = typeof fieldProjections;
-/** Running procedures directly, outside a registered provider. @unstable */
-type ProceduresApi = typeof procedures;
 /** Enrichment passes over the open map. @unstable */
 type EnrichApi = typeof enrich;
 /** The providers the app registers for enrichment. @unstable */
@@ -136,7 +135,6 @@ export interface MMA
 		FieldDefsApi,
 		FieldDefRegistryApi,
 		FieldProjectionsApi,
-		ProceduresApi,
 		EnrichApi,
 		ProvidersApi,
 		PinPanoApi,
@@ -167,6 +165,10 @@ export interface MMA
 	Editor: typeof Editor;
 	/** Pending layers: staged edits that land on the map as one undo step. @unstable */
 	Layer: typeof Layer;
+	/** Procedure modules: ask one a question, or run one over locations. */
+	Procedure: typeof Procedure;
+	/** Registered field producers: register one, list them, or run them over locations. */
+	Provider: typeof Provider;
 	/** Navigate undo and redo history. */
 	History: typeof History;
 	/** Save and restore map versions. */
@@ -222,7 +224,6 @@ const mma: MMA = {
 	...fieldDefs,
 	...fieldDefRegistry,
 	...fieldProjections,
-	...procedures,
 	...enrich,
 	...providers,
 	...pinPano,
@@ -245,6 +246,8 @@ const mma: MMA = {
 	Tag,
 	Editor,
 	Layer,
+	Procedure,
+	Provider,
 	History,
 	Commit,
 	Field,

@@ -22,7 +22,8 @@ import {
 import { isPluginCompatible } from "@/plugins/marketplace";
 import { emit, subscribe } from "@/lib/events";
 import { on } from "@/plugins/pluginEvents";
-import { registerProvider, getProviders, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
+import { getEnrichFieldOptions } from "@/lib/data/fieldDefs";
+import { Provider } from "@/lib/data/provider";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 
 function makePlugin(id: string, name: string, activate: Plugin["activate"] = vi.fn()): Plugin {
@@ -308,7 +309,7 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 		// activate() returns nothing — teardown must still happen via the registry.
 		registerPlugin(
 			makePlugin(pid, "Enrich " + sfx, () => {
-				registerProvider({
+				void Provider.register({
 					id: provId,
 					label: "WX",
 					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
@@ -319,13 +320,13 @@ describe("plugin deactivation tears down enrichment registrations", () => {
 		setPluginEnabled(pid, true);
 		activatePlugin(pid);
 
-		expect(getProviders().some((p) => p.id === provId)).toBe(true);
+		expect(Provider.list().some((p) => p.id === provId)).toBe(true);
 		expect(getEnrichFieldOptions().some((o) => o.key === fieldKey)).toBe(true);
 		expect(getFieldDef(fieldKey)).toBeDefined();
 
 		deactivatePlugin(pid);
 
-		expect(getProviders().some((p) => p.id === provId)).toBe(false);
+		expect(Provider.list().some((p) => p.id === provId)).toBe(false);
 		expect(getEnrichFieldOptions().some((o) => o.key === fieldKey)).toBe(false);
 		expect(getFieldDef(fieldKey)).toBeUndefined();
 	});
@@ -350,7 +351,7 @@ describe("a plugin that throws while activating", () => {
 		const fieldKey = "partial_" + Math.random().toString(36).slice(2);
 		registerPlugin(
 			makePlugin("partial", "Partial", () => {
-				registerProvider({
+				void Provider.register({
 					id: "partial-provider",
 					label: "Partial",
 					procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },

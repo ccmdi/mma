@@ -1,12 +1,11 @@
 import type { Selector } from "@/types";
 import { ValidationFlag } from "@/bindings.consts";
-import type { ProcedureSpec } from "@/lib/data/fieldDefs";
 import {
-	procedureEntry,
-	runProcedure,
+	Procedure,
 	type BatchOutcome,
 	type BulkOpts,
-} from "@/lib/data/procedures";
+	type ProcedureSpec,
+} from "@/lib/data/procedure";
 import {
 	STANDARD_VALIDATION_CATEGORIES,
 	VALIDATION_CATEGORIES,
@@ -25,7 +24,7 @@ export interface ValidateConfig {
  *  lookup, unofficial status, camera quality, and timeline. Answers with a
  *  `ValidationAnswer` per location without writing anything. */
 const validateSpec: ProcedureSpec<ValidationAnswer, ValidateConfig> = {
-	entry: procedureEntry("validate"),
+	entry: Procedure.entry("validate"),
 	batch: { mode: "chunk", size: 200 },
 	sink: "collect",
 	config: { radius: SV_SEARCH_RADIUS },
@@ -46,7 +45,7 @@ export async function validateLocations(
 	opts: BulkOpts & { config?: Partial<ValidateConfig>; categories?: readonly string[] } = {},
 ): Promise<ValidationOutcome> {
 	const { categories: asked = STANDARD_VALIDATION_CATEGORIES, ...runOpts } = opts;
-	const run = await runProcedure(validateSpec, selector, {
+	const run = await Procedure.run(validateSpec, selector, {
 		id: "validate",
 		label: msg("Validating"),
 		...runOpts,

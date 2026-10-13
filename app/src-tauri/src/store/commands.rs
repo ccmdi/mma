@@ -162,7 +162,7 @@ async fn open_claimed_map(
         .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
     store.meta = Tracked::new(meta);
     let status = store.open_status();
-    store.derived = mgr.derived.clone();
+    store.derived = mgr.providers.graph();
     mgr.window_map.insert(label.clone(), map_id.clone());
     if let Some(replaced) = mgr.stores.remove(&map_id) {
         store.adopt_watchers(replaced);
@@ -254,22 +254,6 @@ pub async fn store_add_locations_uploaded(
         );
         Ok(MutationResult { mutation: result })
     })
-}
-
-/// Register field dependencies. Changing an input clears fields derived from it.
-#[tauri::command]
-#[specta::specta]
-pub fn store_set_derived(
-    state: tauri::State<'_, StoreState>,
-    edges: HashMap<String, Vec<String>>,
-) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    mgr.derived = Arc::new(edges);
-    let derived = mgr.derived.clone();
-    for store in mgr.stores.values_mut() {
-        store.derived = derived.clone();
-    }
-    Ok(())
 }
 
 /// Set the default marker color for new render updates.

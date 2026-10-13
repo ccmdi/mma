@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Location } from "@/bindings.gen";
 import type { Selector } from "@/types";
-import type { ProcedureSpec } from "@/lib/data/fieldDefs";
+import type { ProcedureSpec } from "@/lib/data/procedure";
 import type { PanoDownloadConfig } from "@/lib/sv/panoDownload";
 
 // A download resolves missing pano ids through the engine and keeps the answers to
@@ -14,17 +14,21 @@ const h = vi.hoisted(() => ({
 	finished: false,
 }));
 
-vi.mock("@/lib/data/procedures", () => ({
-	procedureEntry: (name: string) => `res://procedures/${name}.js`,
-	runProcedure: (spec: ProcedureSpec, selector: Selector, opts: Record<string, unknown>) => {
-		h.runs.push({ spec, selector, opts });
-		return Promise.resolve({ succeeded: h.answers.length, failed: [], collected: h.answers });
-	},
-}));
+vi.mock("@/lib/data/procedure", async (original) => {
+	const { Procedure } = await original<typeof import("@/lib/data/procedure")>();
+	return {
+		Procedure: {
+			...Procedure,
+			run: (spec: ProcedureSpec, selector: Selector, opts: Record<string, unknown>) => {
+				h.runs.push({ spec, selector, opts });
+				return Promise.resolve({ succeeded: h.answers.length, failed: [], collected: h.answers });
+			},
+		},
+	};
+});
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetDerived: async () => null,
 		storeUploadBegin: async () => "session-1",
 		storeUploadFinish: async () => {
 			h.finished = true;

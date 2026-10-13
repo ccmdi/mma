@@ -9,9 +9,6 @@ import { goTo } from "@/store/router";
 
 export { mapOpen } from "@/lib/util/debug";
 
-/** Run a single procedure over a selector. */
-export { runProcedure, procedureEntry } from "@/lib/data/procedures";
-
 /** Force a full selection re-resolve and return the selected IDs. */
 export async function syncSelections(): Promise<{ ids: number[] }> {
 	const rows = Store.get().selectionList;

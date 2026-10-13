@@ -8,7 +8,6 @@ const storeFindNearby = vi.fn();
 const parseMapsUrl = vi.fn();
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetDerived: async () => null,
 		storeResolvePick: (...a: unknown[]) => storeResolvePick(...a),
 		storeRead: (...a: unknown[]) =>
 			(storeFindNearby(...a.slice(1)) as Promise<unknown[]>).then((locations) => ({

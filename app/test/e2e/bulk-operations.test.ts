@@ -210,9 +210,9 @@ describe("Bulk operations -- cancel preserves progress", () => {
 			// procedure such as timezone finishes every page before the first report lands.
 			const controller = new AbortController();
 			try {
-				await api._test.runProcedure(
+				await api.Procedure.run(
 					{
-						entry: api._test.procedureEntry("panoResolve"),
+						entry: api.Procedure.entry("panoResolve"),
 						batch: { mode: "chunk", size: 200 },
 						instances: 1,
 						// Paced per request, so the run outlasts the round trip of its first progress

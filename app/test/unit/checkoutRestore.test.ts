@@ -16,7 +16,6 @@ vi.mock("@/lib/render/scene", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetDerived: async () => {},
 		storeSaveDirty: vi.fn(async () => {}),
 		storeCheckoutCommit: vi.fn(async () => ({ mutation: { version: 0, keys: [] } })),
 		storeCommit: vi.fn(async () => ({ id: "rev" })),

@@ -8,7 +8,6 @@ vi.mock("@/lib/commands", async () => {
 	const { selectionsHeld } = await import("./fixtures/mocks");
 	return {
 		cmd: {
-			storeSetDerived: async () => {},
 			storeEditSelections: vi.fn(async (rows: unknown[]) => selectionsHeld(rows)),
 		},
 	};

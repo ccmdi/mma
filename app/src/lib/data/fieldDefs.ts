@@ -1,9 +1,6 @@
 import { KNOWN_FIELDS } from "@/bindings.consts";
-import type { BatchMode, FieldDef, ProcedureDecl, ProviderDecl } from "@/bindings.gen";
-import { registerPluginFieldDefs, unregisterPluginFieldDefs } from "@/lib/data/fieldDefRegistry";
-import { resolvePluginPath, trackDisposable } from "@/plugins/scope";
-import { log } from "@/lib/util/log";
-import { cmd } from "@/lib/commands";
+import type { FieldDef } from "@/bindings.gen";
+import { Provider } from "@/lib/data/provider";
 
 export interface EnrichFieldOption {
 	key: string;
@@ -44,7 +41,7 @@ export function knownFieldDefs(...keys: string[]): Record<string, FieldDef> {
 
 /** All enrichment field options: the core fields, then every registered provider's own fields. @unstable */
 export function getEnrichFieldOptions(): EnrichFieldOption[] {
-	const providerOptions = providers.flatMap((p) =>
+	const providerOptions = Provider.list().flatMap((p) =>
 		Object.entries(p.fieldDefs ?? {})
 			.filter(([key]) => !coreFieldKeys.has(key))
 			.map(([key, def]) => ({ key, label: def.label ?? key, defaultOff: p.defaultOff })),
@@ -62,91 +59,6 @@ export function getDefaultEnrichKeys(): string[] {
 	return getEnrichFieldOptions()
 		.filter((f) => !f.defaultOff)
 		.map((f) => f.key);
-}
-
-/** The declared form of a wire struct: every field optional, absent where the wire says null. */
-type Declared<T> = { [K in keyof T]?: NonNullable<T[K]> };
-
-/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
- *  what a run and a query both read) plus how a run schedules it. */
-export interface ProcedureSpec<TCollected = unknown, TConfig = unknown>
-	extends
-		Declared<Omit<ProcedureDecl, "entry" | "config">>,
-		Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
-	/** Phantom field carrying the `TCollected` type. Never set at runtime. */
-	readonly collects?: TCollected;
-	/** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
-	 *  procedures, or a relative filename (resolved against the plugin's directory). */
-	entry: string;
-	batch: BatchMode;
-	/** The procedure's own configuration, handed to every entry point as `config`. */
-	config?: TConfig;
-	/** Awaited before the provider joins a run; returning false excludes it. */
-	prepare?: () => Promise<boolean>;
-}
-
-/** A named procedure with dependency-graph placement. Providers that declare
- *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. */
-export interface Provider<TCollected = unknown, TConfig = unknown> {
-	id: string;
-	/** Name shown in enrichment progress and results. */
-	label: string;
-	/** The procedure that computes this provider's fields. */
-	procedure: ProcedureSpec<TCollected, TConfig>;
-	/** Extra-field keys this provider produces. Each is offered as an enrichment option. */
-	fieldDefs?: Record<string, FieldDef>;
-	/** Leaves this provider's fields out of the default enrichment set, so users opt in. */
-	defaultOff?: boolean;
-	/** Core columns this provider writes (e.g. `panoId`). */
-	provides?: string[];
-	/** Fields this provider reads; it runs after their producers finish. */
-	requires?: string[];
-}
-
-const providers: Provider[] = [];
-
-/** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
- *  deactivates. */
-export function registerProvider(provider: Provider) {
-	if (!provider.procedure) {
-		log.error(`[procedure] provider "${provider.id}" declares no procedure; ignored`);
-		return;
-	}
-	provider.procedure.entry = resolvePluginPath(provider.procedure.entry);
-	if (!providers.some((p) => p.id === provider.id)) {
-		providers.push(provider);
-		registerPluginFieldDefs(provider.fieldDefs ?? {});
-		const defKeys = Object.keys(provider.fieldDefs ?? {});
-		declareComputedFrom();
-		trackDisposable(() => {
-			const i = providers.findIndex((p) => p.id === provider.id);
-			if (i >= 0) providers.splice(i, 1);
-			unregisterPluginFieldDefs(defKeys);
-			declareComputedFrom();
-		});
-	}
-}
-
-/** Register provider field dependencies with the store. */
-function declareComputedFrom() {
-	const edges: Record<string, string[]> = {};
-	for (const p of providers) {
-		const outputs = [...Object.keys(p.fieldDefs ?? {}), ...(p.provides ?? [])];
-		for (const input of p.requires ?? []) edges[input] = [...(edges[input] ?? []), ...outputs];
-	}
-	void cmd
-		.storeSetDerived(edges)
-		.catch((e) => log.error("[procedure] declaring derived fields failed:", e));
-}
-
-/** All registered providers. @unstable */
-export function getProviders(): Provider[] {
-	return providers;
-}
-
-/** The provider that produces a given extra field, if any. @unstable */
-export function getProviderForField(field: string): Provider | undefined {
-	return providers.find((p) => p.fieldDefs != null && field in p.fieldDefs);
 }
 
 /** True when `key` is in the given enrichment set (or in the default set when null). @unstable */

@@ -68,7 +68,7 @@ describe("svMeta metadata query", () => {
 
 const { procedureQuery } = vi.hoisted(() => ({ procedureQuery: vi.fn() }));
 vi.mock("@/lib/commands", () => ({
-	cmd: { procedureQuery, storeSetDerived: async () => null },
+	cmd: { procedureQuery },
 }));
 
 const ANSWER = {

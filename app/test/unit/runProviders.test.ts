@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { KeySpec, ProcedureProgress } from "@/bindings.gen";
 import type { Selector } from "@/types";
 
@@ -40,6 +40,10 @@ const h = vi.hoisted(() => ({
 	queryAnswer: ((input: string) => Promise.resolve(input)) as (i: string) => Promise<string>,
 	runHook: null as ((runId: number) => void) | null,
 	fieldOps: [] as { selector: Selector; op: unknown }[],
+	registered: {} as Record<
+		string,
+		Record<string, unknown> & { fields: string[]; provides: string[] }
+	>,
 }));
 
 vi.mock("@/lib/util/log", () => ({
@@ -122,10 +126,34 @@ vi.mock("@/bindings.gen", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeSetDerived: async () => null,
 		checkBorderFile: async () => true,
 		downloadBorderFile: async () => {},
-		procedureRun: (decls: typeof h.decls, _force: boolean, target: unknown) => {
+		providerRegister: async (def: (typeof h.registered)[string] & { id: string }) => {
+			h.registered[def.id] = def;
+		},
+		providerUnregister: async (id: string) => {
+			delete h.registered[id];
+		},
+		// The engine expands a provider item from what the provider registered.
+		procedureRun: (
+			items: ({ kind: string; id: string } & Record<string, unknown>)[],
+			_force: boolean,
+			target: unknown,
+		) => {
+			const decls = items.map((item) => {
+				if (item.kind === "procedure") return item as unknown as (typeof h.decls)[number];
+				const def = h.registered[item.id];
+				if (!def) throw new Error(`no provider '${item.id}' is registered`);
+				return {
+					...def,
+					id: item.id,
+					select: item.select,
+					fields: [...((item.fields as string[] | null) ?? def.fields), ...def.provides],
+					config: (item.config as string | null) ?? def.config,
+					sink: "patch",
+					force: (item.force as boolean | null) ?? null,
+				} as unknown as (typeof h.decls)[number];
+			});
 			h.decls.push(...decls);
 			h.targets.push(target ?? null);
 			queueMicrotask(() => {
@@ -173,19 +201,19 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-import {
-	runProcedure,
-	runProviders,
-	queryProcedure,
-	resolveFieldLabels,
-	type ProviderPart,
-} from "@/lib/data/procedures";
-import { registerProvider, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
+import { Procedure, type ProcedurePart, type ProcedureSpec } from "@/lib/data/procedure";
+import { Provider } from "@/lib/data/provider";
+import { disposePlugin, runAsPlugin } from "@/plugins/scope";
+import { getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { enrich } from "@/lib/sv/enrich";
-import { enrichRuns, panoResolveProvider, svMetaProvider } from "@/lib/sv/providers";
+import {
+	BUILTIN_PROVIDERS,
+	enrichRuns,
+	panoResolveProvider,
+	svMetaProvider,
+} from "@/lib/sv/providers";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
-import type { Provider, ProcedureSpec } from "@/lib/data/fieldDefs";
 
 const plainProvider: Provider = {
 	id: "prov",
@@ -202,6 +230,17 @@ const coreProvider: Provider = {
 	provides: ["panoId"],
 	procedure: { entry: "res://procedures/c.js", batch: { mode: "chunk", size: 10 } },
 };
+
+for (const p of BUILTIN_PROVIDERS) void Provider.register(p);
+
+/** Run providers the way a plugin would: registered first, then run by id. */
+const runRegistered: typeof Provider.run = (runs, selector, opts) => {
+	runAsPlugin("test-providers", () => {
+		for (const { provider } of runs) void Provider.register(provider);
+	});
+	return Provider.run(runs, selector, opts);
+};
+afterEach(() => disposePlugin("test-providers"));
 
 beforeEach(() => {
 	h.decls = [];
@@ -224,27 +263,27 @@ beforeEach(() => {
 
 const ids = () => h.decls.map((d) => d.id);
 
-const collectProvider: Provider = {
-	id: "collect",
-	label: "Collect",
-	procedure: { entry: "res://q.js", batch: { mode: "perRow" }, sink: "collect" },
+const collectSpec: ProcedureSpec = {
+	entry: "res://q.js",
+	batch: { mode: "perRow" },
+	sink: "collect",
 };
 
-describe("a collect provider's answers reach the caller", () => {
-	it("declares the sink its procedure asks for", async () => {
-		await runProviders([{ provider: collectProvider }], { type: "Everything" });
+describe("answers reach the caller", () => {
+	it("a one-off run declares the sink its procedure asks for", async () => {
+		await Procedure.run(collectSpec, { type: "Everything" }, { id: "collect" });
 		expect(h.decls[0].sink).toBe("collect");
 	});
 
-	it("defaults to the patch sink", async () => {
-		await runProviders([{ provider: plainProvider }], { type: "Everything" });
+	it("a provider run always patches", async () => {
+		await runRegistered([{ provider: plainProvider }], { type: "Everything" });
 		expect(h.decls[0].sink).toBe("patch");
 	});
 
-	it("runProcedure borrows a writing procedure for its answers alone, typed by its spec", async () => {
+	it("Procedure.run borrows a writing procedure for its answers alone, typed by its spec", async () => {
 		h.answers = { core: [{ id: 1, json: '{"panoId":"ABC"}' }] };
 		const spec = coreProvider.procedure as ProcedureSpec<{ panoId: string }>;
-		const run = await runProcedure(spec, { type: "Everything" }, { id: "core", sink: "collect" });
+		const run = await Procedure.run(spec, { type: "Everything" }, { id: "core", sink: "collect" });
 		expect(h.decls[0]).toMatchObject({ id: "core", sink: "collect", fields: [] });
 		expect(run.collected?.[0].value.panoId).toBe("ABC");
 	});
@@ -256,41 +295,41 @@ describe("a collect provider's answers reach the caller", () => {
 				{ id: 2, json: '{"panoId":"ABC"}' },
 			],
 		};
-		const run = await runProviders([{ provider: collectProvider }], { type: "Everything" });
-		expect(run.collect.collected).toEqual([
+		const run = await Procedure.run(collectSpec, { type: "Everything" }, { id: "collect" });
+		expect(run.collected).toEqual([
 			{ id: 1, value: 3 },
 			{ id: 2, value: { panoId: "ABC" } },
 		]);
 	});
 
 	it("leaves `collected` off a provider that wrote its results", async () => {
-		const run = await runProviders([{ provider: plainProvider }], { type: "Everything" });
+		const run = await runRegistered([{ provider: plainProvider }], { type: "Everything" });
 		expect(run.prov.collected).toBeUndefined();
 	});
 
 	it("drops an entry that is not JSON rather than the run", async () => {
 		h.answers = { collect: [{ id: 1, json: "not json" }] };
-		const run = await runProviders([{ provider: collectProvider }], { type: "Everything" });
-		expect(run.collect.collected).toEqual([{ id: 1, value: null }]);
+		const run = await Procedure.run(collectSpec, { type: "Everything" }, { id: "collect" });
+		expect(run.collected).toEqual([{ id: 1, value: null }]);
 	});
 });
 
-describe("runProviders hands the engine the caller's selector", () => {
+describe("Provider.run hands the engine the caller's selector", () => {
 	it("passes the run selector through when the procedure declares no select of its own", async () => {
 		const selector: Selector = { type: "Manual", locations: [1, 2] };
-		await runProviders([{ provider: plainProvider }], selector);
+		await runRegistered([{ provider: plainProvider }], selector);
 
 		expect(h.decls).toHaveLength(1);
 		expect(h.decls[0].select).toEqual(selector);
 	});
 
 	it("drops a provider whose every field was deselected", async () => {
-		await runProviders([{ provider: plainProvider, fields: [] }], { type: "Everything" });
+		await runRegistered([{ provider: plainProvider, fields: [] }], { type: "Everything" });
 		expect(h.decls).toEqual([]);
 	});
 
 	it("keeps a provider with no fieldDefs whatever the field selection is", async () => {
-		await runProviders([{ provider: coreProvider, fields: [] }], { type: "Everything" });
+		await runRegistered([{ provider: coreProvider, fields: [] }], { type: "Everything" });
 		expect(ids()).toEqual(["core"]);
 		expect(h.decls[0].fields).toEqual(["panoId"]);
 	});
@@ -298,13 +337,16 @@ describe("runProviders hands the engine the caller's selector", () => {
 	it("lets the caller override the config the procedure declares", async () => {
 		const withConfig: Provider = {
 			...coreProvider,
+			id: "withConfig",
 			procedure: { ...coreProvider.procedure, config: { radius: 50 } },
 		};
-		await runProviders([{ provider: withConfig, config: { radius: 999 } }], { type: "Everything" });
+		await runRegistered([{ provider: withConfig, config: { radius: 999 } }], {
+			type: "Everything",
+		});
 		expect(h.decls[0].config).toBe(JSON.stringify({ radius: 999 }));
 
 		h.decls = [];
-		await runProviders([{ provider: withConfig }], { type: "Everything" });
+		await runRegistered([{ provider: withConfig }], { type: "Everything" });
 		expect(h.decls[0].config).toBe(JSON.stringify({ radius: 50 }));
 	});
 
@@ -312,7 +354,7 @@ describe("runProviders hands the engine the caller's selector", () => {
 		h.total = 10;
 		h.failed = 3;
 		h.failedIds = { prov: [4, 8, 9] };
-		const result = await runProviders([{ provider: plainProvider }], { type: "Everything" });
+		const result = await runRegistered([{ provider: plainProvider }], { type: "Everything" });
 		expect(result.prov).toMatchObject({ succeeded: 7, failed: [4, 8, 9] });
 	});
 });
@@ -356,7 +398,7 @@ describe("the implicit provider set", () => {
 	});
 
 	it("the single-location path runs no core-column provider", async () => {
-		await runProviders(enrichRuns(null, ["svMeta"]), {
+		await runRegistered(enrichRuns(null, ["svMeta"]), {
 			type: "Locations",
 			locations: [42],
 			name: null,
@@ -446,15 +488,15 @@ describe("a provider's config type", () => {
 			},
 		};
 		const compileOnly = () => {
-			void runProviders([{ provider: typed, config: { direction: "backwards" } }], {
+			void runRegistered([{ provider: typed, config: { direction: "backwards" } }], {
 				type: "Everything",
 			});
-			void runProviders(
+			void runRegistered(
 				// @ts-expect-error a key the procedure's config does not have
 				[{ provider: typed, config: { speed: 1 } }],
 				{ type: "Everything" },
 			);
-			void runProcedure(
+			void Procedure.run(
 				typed.procedure,
 				{ type: "Everything" },
 				// @ts-expect-error a value the procedure's config does not accept
@@ -477,7 +519,7 @@ describe("the query surface", () => {
 
 	it("carries JSON both ways and only sends a config when one is given", async () => {
 		h.queryAnswer = () => Promise.resolve('{"ok":true}');
-		expect(await queryProcedure(Q, { op: "label" })).toEqual({ ok: true });
+		expect(await Procedure.query(Q, { op: "label" })).toEqual({ ok: true });
 		expect(h.queries).toEqual([
 			{
 				procedure: expect.objectContaining({ entry: "res://q.js", config: null }) as unknown,
@@ -489,7 +531,7 @@ describe("the query surface", () => {
 
 	it("asks within the network limits the procedure declares for its runs", async () => {
 		h.queryAnswer = () => Promise.resolve("[]");
-		await queryProcedure(
+		await Procedure.query(
 			{ ...Q, inflight: 192, retry: { attempts: 2, on: [429] }, config: { radius: 50 } },
 			{ op: "at" },
 		);
@@ -506,7 +548,7 @@ describe("the query surface", () => {
 		const ac = new AbortController();
 		let answer = () => {};
 		h.queryAnswer = () => new Promise<string>((resolve) => (answer = () => resolve("[]")));
-		const pending = queryProcedure(Q, { op: "at" }, ac.signal);
+		const pending = Procedure.query(Q, { op: "at" }, { signal: ac.signal });
 		await vi.waitFor(() => expect(h.queries).toHaveLength(1));
 		expect(h.queries[0].cancel).toBe(h.reservedRuns[0]);
 		ac.abort();
@@ -517,13 +559,13 @@ describe("the query surface", () => {
 
 	it("a call with nothing to cancel or stream reserves no run id", async () => {
 		h.queryAnswer = () => Promise.resolve("[]");
-		await queryProcedure(Q, { op: "at" });
+		await Procedure.query(Q, { op: "at" });
 		expect(h.queries[0].cancel).toBeNull();
 		expect(h.reservedRuns).toEqual([]);
 	});
 
 	it("asks the field's provider for display labels", async () => {
-		registerProvider({
+		void Provider.register({
 			id: "labelled",
 			label: "Labelled",
 			defaultOff: true,
@@ -534,7 +576,7 @@ describe("the query surface", () => {
 		});
 		h.queryAnswer = () => Promise.resolve('["\u00a9 2019","\u00a9 2022"]');
 
-		expect(await resolveFieldLabels("labelledField", ["2019", "2022"])).toEqual([
+		expect(await Provider.labels("labelledField", ["2019", "2022"])).toEqual([
 			"\u00a9 2019",
 			"\u00a9 2022",
 		]);
@@ -547,27 +589,27 @@ describe("the query surface", () => {
 
 	it("keeps the raw keys when the module has no query, throws, or answers wrong", async () => {
 		// No provider owns this field at all.
-		expect(await resolveFieldLabels("unowned", ["a"])).toEqual(["a"]);
+		expect(await Provider.labels("unowned", ["a"])).toEqual(["a"]);
 		expect(h.queries).toEqual([]);
 
 		h.queryAnswer = () => Promise.reject(new Error("module exports no `query`"));
-		expect(await resolveFieldLabels("labelledField", ["a", "b"])).toEqual(["a", "b"]);
+		expect(await Provider.labels("labelledField", ["a", "b"])).toEqual(["a", "b"]);
 
 		h.queryAnswer = () => Promise.resolve('["only one"]');
-		expect(await resolveFieldLabels("labelledField", ["a", "b"])).toEqual(["a", "b"]);
+		expect(await Provider.labels("labelledField", ["a", "b"])).toEqual(["a", "b"]);
 
 		h.queryAnswer = () => Promise.resolve('{"error":"nope"}');
-		expect(await resolveFieldLabels("labelledField", ["a"])).toEqual(["a"]);
+		expect(await Provider.labels("labelledField", ["a"])).toEqual(["a"]);
 	});
 
 	it("never queries for an empty key set", async () => {
-		expect(await resolveFieldLabels("labelledField", [])).toEqual([]);
+		expect(await Provider.labels("labelledField", [])).toEqual([]);
 		expect(h.queries).toEqual([]);
 	});
 
 	it("names month-of-year tokens itself rather than asking the procedure", async () => {
 		const spec: KeySpec = { kind: "datePart", part: "monthOfYear", tzLocal: false };
-		expect(await resolveFieldLabels("labelledField", ["01", "07", "12"], spec)).toEqual([
+		expect(await Provider.labels("labelledField", ["01", "07", "12"], spec)).toEqual([
 			"January",
 			"July",
 			"December",
@@ -614,7 +656,7 @@ type Tick = [number, number];
 async function ticks(providers: Provider[], script: Omit<ProcedureProgress, "runId">[]) {
 	h.script = script;
 	const seen: Tick[] = [];
-	await runProviders(
+	await runRegistered(
 		providers.map((provider) => ({ provider })),
 		{ type: "Everything" },
 		{ onProgress: (done, total) => seen.push([done, total]) },
@@ -678,7 +720,7 @@ describe("the progress bar counts real work", () => {
 	it("never reports a run it was not asked to make", async () => {
 		const seen: Tick[] = [];
 		// Every field of the only provider was deselected, so no provider ever starts.
-		const result = await runProviders(
+		const result = await runRegistered(
 			[{ provider: plainProvider, fields: [] }],
 			{ type: "Everything" },
 			{ onProgress: (done, total) => seen.push([done, total]) },
@@ -737,8 +779,8 @@ describe("the progress bar is rows finished through every provider", () => {
 			step("provA", 10, 10, { finished: true }),
 			step("provB", 10, 10, { failed: 1, finished: true }),
 		];
-		const parts: ProviderPart[][] = [];
-		await runProviders(
+		const parts: ProcedurePart[][] = [];
+		await runRegistered(
 			[provA, { ...provB, requires: [], provides: ["heading"] }].map((provider) => ({ provider })),
 			{ type: "Everything" },
 			{ onProgress: (_d, _t, p) => parts.push(p) },
@@ -789,7 +831,7 @@ describe("the progress bar is rows finished through every provider", () => {
 
 	it("keeps success counts on raw engine totals, not the bar's net ones", async () => {
 		h.script = [step("provA", 10, 10, { failed: 3, skipped: 2, finished: true })];
-		const result = await runProviders([{ provider: provA }], { type: "Everything" });
+		const result = await runRegistered([{ provider: provA }], { type: "Everything" });
 		expect(result.provA).toMatchObject({ succeeded: 5 });
 	});
 });
@@ -800,7 +842,7 @@ describe("aborting a run", () => {
 			{ providerId: "svMeta", done: 0, total: 1, failed: 0, skipped: 0, finished: false },
 		];
 		const ac = new AbortController();
-		const run = runProviders(
+		const run = runRegistered(
 			[{ provider: svMetaProvider }],
 			{ type: "Everything" },
 			{
@@ -842,7 +884,7 @@ const chainC: Provider = {
 
 describe("provider dependency declarations propagate requires through a chain", () => {
 	it("each declaration carries its own requires array for the engine to gate on", async () => {
-		await runProviders(
+		await runRegistered(
 			[chainA, chainB, chainC].map((provider) => ({ provider })),
 			{ type: "Everything" },
 		);
@@ -853,7 +895,7 @@ describe("provider dependency declarations propagate requires through a chain", 
 	});
 
 	it("all providers are declared regardless of the order they were handed in", async () => {
-		await runProviders(
+		await runRegistered(
 			[chainC, chainA, chainB].map((provider) => ({ provider })),
 			{ type: "Everything" },
 		);
@@ -891,7 +933,7 @@ describe("provider dependency declarations propagate requires through a chain", 
 			step("chainC", 10, 10, { skipped: 10, finished: true }),
 		];
 		h.failedIds = { chainA: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] };
-		const result = await runProviders(
+		const result = await runRegistered(
 			[chainA, chainB, chainC].map((provider) => ({ provider })),
 			{ type: "Everything" },
 		);
@@ -909,8 +951,8 @@ describe("provider dependency declarations propagate requires through a chain", 
 			step("chainB", 10, 10, { finished: true }),
 			step("chainC", 10, 10, { finished: true }),
 		];
-		const parts: ProviderPart[][] = [];
-		await runProviders(
+		const parts: ProcedurePart[][] = [];
+		await runRegistered(
 			[chainA, chainB, chainC].map((provider) => ({ provider })),
 			{ type: "Everything" },
 			{ onProgress: (_d, _t, p) => parts.push(p) },
@@ -957,8 +999,8 @@ describe("concurrent providers report progress independently", () => {
 			step("slow", 6, 10),
 			step("slow", 10, 10, { finished: true }),
 		];
-		const parts: ProviderPart[][] = [];
-		await runProviders(
+		const parts: ProcedurePart[][] = [];
+		await runRegistered(
 			[fast, slow].map((provider) => ({ provider })),
 			{ type: "Everything" },
 			{ onProgress: (_d, _t, p) => parts.push(p) },

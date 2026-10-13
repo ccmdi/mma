@@ -5,7 +5,7 @@ import type { Patch } from "@/types";
 import type { ProcedureConfig } from "@/bindings.gen";
 import type { Location } from "@/bindings.gen";
 import { reverseHeading } from "@/lib/geo/geo";
-import type { HeadingRoadConfig } from "@/lib/sv/headingRoad";
+import type { HeadingRoadConfig } from "@/lib/sv/providers";
 
 export function run(
 	rows: Location[],

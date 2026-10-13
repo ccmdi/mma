@@ -4,7 +4,7 @@ import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/bindings.gen";
 import { panoResolveProvider } from "@/lib/sv/providers";
-import { runProcedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedures";
+import { Procedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedure";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
@@ -252,7 +252,7 @@ export async function bulkDownloadPanoramas(
 		resolving(0, needResolve.length);
 		// The same procedure enrichment runs, borrowed for its answers: a download must
 		// not move the panorama the user's location points at.
-		const run = await runProcedure(
+		const run = await Procedure.run(
 			panoResolveProvider.procedure,
 			{ type: "Locations", locations: needResolve.map((l) => l.id), name: null },
 			{

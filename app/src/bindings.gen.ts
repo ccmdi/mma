@@ -181,8 +181,6 @@ export const commands = {
 	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
 	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
 	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }),
-	/**  Register field dependencies. Changing an input clears fields derived from it. */
-	storeSetDerived: (edges: { [key in string]: string[] }) => __TAURI_INVOKE<null>("store_set_derived", { edges }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
@@ -434,7 +432,11 @@ export const commands = {
 	 *  Start a procedure run over the open map's locations. Returns immediately with
 	 *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 	 */
-	procedureRun: (providers: ProviderDecl[], force: boolean, target: Target | null) => __TAURI_INVOKE<number>("procedure_run", { providers, force, target }),
+	procedureRun: (items: RunItem[], force: boolean, target: Target | null) => __TAURI_INVOKE<number>("procedure_run", { items, force, target }),
+	/**  Register a provider, replacing one with the same id. */
+	providerRegister: (provider: ProviderDef) => __TAURI_INVOKE<null>("provider_register", { provider }),
+	/**  Remove a registered provider. */
+	providerUnregister: (id: string) => __TAURI_INVOKE<null>("provider_unregister", { id }),
 	/**  Stop a run before its next batch. Already-applied patches stay applied. */
 	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
@@ -1532,6 +1534,22 @@ export type ProviderDecl = {
 	instances?: number | null,
 } & ProcedureDecl;
 
+/**  A provider as registered: the procedure it runs, the fields it writes and the fields it reads. */
+export type ProviderDef = {
+	id: string,
+	/**  Name shown while it runs. */
+	label?: string | null,
+	/**  Extra-field keys it produces. */
+	fields?: string[],
+	/**  Core columns it writes, such as `panoId`. */
+	provides?: string[],
+	/**  Fields it reads. Changing one clears what this provider wrote. */
+	requires?: string[],
+	batch: BatchMode,
+	/**  Instances it may run at once, when it cannot run beside itself. */
+	instances?: number | null,
+} & ProcedureDecl;
+
 /**  The questions one procedure is answering, taken together. */
 export type QueryActivity = {
 	/**  The procedure answering. */
@@ -1608,6 +1626,21 @@ export type ReviewSession = {
 	createdAt: string,
 	updatedAt: string,
 };
+
+/**  One item of a run: a registered provider, or a procedure that is not one. */
+export type RunItem = 
+/**  A registered provider, with what this run sets on it. */
+{ kind: "provider"; id: string; 
+/**  Extra-field keys to produce. When absent, every key the provider declares. */
+fields?: string[] | null; select: Selector<SelectionInput>; 
+/**  Replaces the registered configuration, as JSON text. */
+config?: string | null; 
+/**  Re-derive its fields even on a run that is not forced. */
+force?: boolean | null } | 
+/**  A procedure declared in full by the caller. */
+{
+	kind: "procedure",
+} & ProviderDecl;
 
 export type SavedSelection = {
 	selector: Selector,

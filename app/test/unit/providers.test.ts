@@ -6,53 +6,52 @@ vi.mock("@/lib/util/log", () => ({
 }));
 
 import {
-	registerProvider,
-	getProviders,
 	getEnrichFieldOptions,
 	getAllEnrichKeys,
 	getDefaultEnrichKeys,
 	isFieldEnabled,
 } from "@/lib/data/fieldDefs";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
-import type { ProcedureSpec } from "@/lib/data/fieldDefs";
+import type { ProcedureSpec } from "@/lib/data/procedure";
+import { Provider } from "@/lib/data/provider";
 
 const procedure: ProcedureSpec = { entry: "res://procedures/test.js", batch: { mode: "perRow" } };
 
 // The providers array is module-level and accumulates, so tests see
 // providers from prior registrations. We test behavior, not count.
 
-describe("registerProvider", () => {
-	it("registers a provider that appears in getProviders", () => {
+describe("Provider.register", () => {
+	it("registers a provider that appears in Provider.list", () => {
 		const provider = {
 			id: "test-provider-" + Math.random(),
 			label: "Test",
 			procedure: { ...procedure },
 			fieldDefs: { testField: createFieldDef("number", { label: "Test" }) },
 		};
-		registerProvider(provider);
-		expect(getProviders()).toContain(provider);
+		void Provider.register(provider);
+		expect(Provider.list()).toContain(provider);
 	});
 
 	it("does not register duplicate providers", () => {
 		const id = "dedup-test-" + Math.random();
 		const p1 = { id, label: "P1", procedure: { ...procedure }, fieldDefs: {} };
 		const p2 = { id, label: "P2", procedure: { ...procedure }, fieldDefs: {} };
-		registerProvider(p1);
-		registerProvider(p2);
-		expect(getProviders().filter((p) => p.id === id)).toHaveLength(1);
+		void Provider.register(p1);
+		void Provider.register(p2);
+		expect(Provider.list().filter((p) => p.id === id)).toHaveLength(1);
 	});
 
 	it("ignores a provider that declares no procedure", () => {
 		const id = "no-procedure-" + Math.random();
 		// @ts-expect-error procedure is required; this is the runtime guard for plugins.
-		registerProvider({ id, fieldDefs: {} });
-		expect(getProviders().some((p) => p.id === id)).toBe(false);
+		void Provider.register({ id, fieldDefs: {} });
+		expect(Provider.list().some((p) => p.id === id)).toBe(false);
 	});
 
 	it("registers plugin fieldDefs into the registry", () => {
 		const id = "registry-test-" + Math.random();
 		const key = "registryTestField_" + Math.random().toString(36).slice(2);
-		registerProvider({
+		void Provider.register({
 			id,
 			label: "Registry test",
 			procedure: { ...procedure },
@@ -65,7 +64,7 @@ describe("registerProvider", () => {
 
 describe("enrichment field options", () => {
 	const provide = (key: string, extra: { defaultOff?: boolean } = {}) =>
-		registerProvider({
+		void Provider.register({
 			id: "options-" + key,
 			label: "Options",
 			procedure: { ...procedure },

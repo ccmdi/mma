@@ -1,4 +1,6 @@
 import { Maps } from "@/store/maps";
+import { Provider } from "@/lib/data/provider";
+import { BUILTIN_PROVIDERS } from "@/lib/sv/providers";
 import { Autosave } from "@/store/autosave";
 import "@/lib/render/webglContexts";
 import "@/lib/sv/shaderPatch";
@@ -43,6 +45,7 @@ async function boot() {
 	mark("initLogging");
 	await initLocale(getSettings().language);
 	mark("initLocale");
+	await Promise.all(BUILTIN_PROVIDERS.map(Provider.register));
 	await Maps.init();
 	mark("initStore");
 

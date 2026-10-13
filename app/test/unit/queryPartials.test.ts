@@ -10,11 +10,6 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 
-vi.mock("@/lib/data/fieldDefs", () => ({
-	derivedFrom: () => new Set<string>(),
-	getProviderForField: () => undefined,
-	getProviders: () => [],
-}));
 vi.mock("@/bindings.gen", () => ({
 	events: {
 		procedureResult: {
@@ -37,15 +32,15 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 
-import { queryProcedure } from "@/lib/data/procedures";
+import { Procedure, type ProcedureSpec } from "@/lib/data/procedure";
 
-const SPEC = { entry: "e.js" } as Parameters<typeof queryProcedure>[0];
+const SPEC = { entry: "e.js" } as ProcedureSpec;
 
 async function flush(times = 4): Promise<void> {
 	for (let i = 0; i < times; i++) await Promise.resolve();
 }
 
-describe("queryProcedure partials", () => {
+describe("Procedure.query partials", () => {
 	beforeEach(() => {
 		h.listens = 0;
 		h.unlistened = 0;
@@ -55,7 +50,7 @@ describe("queryProcedure partials", () => {
 
 	it("hands pages to onPartial under its own token and unlistens after", async () => {
 		const got: { id: number; value: unknown }[][] = [];
-		const p = queryProcedure(SPEC, { op: "x" }, undefined, (entries) => got.push(entries));
+		const p = Procedure.query(SPEC, { op: "x" }, { onPartial: (entries) => got.push(entries) });
 		await flush();
 
 		h.onResult!({
@@ -79,7 +74,7 @@ describe("queryProcedure partials", () => {
 	});
 
 	it("never subscribes without an onPartial", async () => {
-		const p = queryProcedure(SPEC, { op: "x" });
+		const p = Procedure.query(SPEC, { op: "x" });
 		await flush();
 		h.resolveQuery!("[]");
 		await p;

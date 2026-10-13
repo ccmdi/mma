@@ -1,34 +1,7 @@
 import type { Selector } from "@/types";
-import {
-	noWork,
-	procedureEntry,
-	runProviders,
-	type BatchOutcome,
-	type BulkOpts,
-} from "@/lib/data/procedures";
-import { panoResolveProvider } from "@/lib/sv/providers";
-import { registerProvider, type Provider } from "@/lib/data/fieldDefs";
-import { msg } from "@/lib/i18n";
-
-export type RoadDirection = "forwards" | "backwards";
-
-export interface HeadingRoadConfig {
-	direction: RoadDirection;
-}
-
-/** Pan a location's heading along the road. The driving direction is the pano's
- *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. */
-export const headingRoadProvider: Provider<unknown, HeadingRoadConfig> = {
-	id: "headingRoad",
-	label: msg("Pan heading along road"),
-	requires: ["panoId"],
-	procedure: {
-		entry: procedureEntry("headingRoad"),
-		batch: { mode: "dedupeBy", key: "panoId" },
-	},
-};
-
-registerProvider(headingRoadProvider);
+import { Procedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedure";
+import { Provider } from "@/lib/data/provider";
+import { headingRoadProvider, panoResolveProvider, type RoadDirection } from "@/lib/sv/providers";
 
 /** Pan every heading in the selector along the road. */
 export async function bulkPanHeading(
@@ -36,10 +9,10 @@ export async function bulkPanHeading(
 	direction: RoadDirection,
 	opts: BulkOpts = {},
 ): Promise<BatchOutcome> {
-	const result = await runProviders(
+	const result = await Provider.run(
 		[{ provider: panoResolveProvider }, { provider: headingRoadProvider, config: { direction } }],
 		selector,
 		opts,
 	);
-	return result.headingRoad ?? noWork();
+	return result.headingRoad ?? Procedure.noWork();
 }

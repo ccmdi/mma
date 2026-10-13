@@ -3,6 +3,7 @@
 
 pub mod engine;
 pub mod quickjs;
+pub mod registry;
 
 use crate::net::fetch::{HttpRequestSpec, HttpResponse};
 use crate::plugins::borders;

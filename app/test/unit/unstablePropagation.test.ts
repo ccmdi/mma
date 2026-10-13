@@ -42,7 +42,7 @@ describe("@unstable propagation reaches the members plugins actually call", () =
 	});
 
 	it("a const typed as a function carries the tag, not only its function type", () => {
-		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const procedureEntry: \(/);
+		expect(dts).toMatch(/@unstable[^\n]*\n\s*declare const tagSelector: \(/);
 	});
 
 	it("domain object members carry their doc and unstable tag on the property", () => {

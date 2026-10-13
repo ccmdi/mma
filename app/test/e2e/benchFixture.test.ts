@@ -96,9 +96,9 @@ describe("bench fixture", () => {
 				}
 				const everything = { type: "Everything" } as const;
 				const run = async (id: string, fields: string[]) => {
-					const provider = api.getProviders().find((p) => p.id === id);
+					const provider = api.Provider.list().find((p) => p.id === id);
 					if (!provider) throw new Error(`no provider '${id}'`);
-					await api.runProviders([{ provider, fields }], everything, { force: true });
+					await api.Provider.run([{ provider, fields }], everything, { force: true });
 				};
 				await run("panoResolve", []);
 				await run("svMeta", metaKeys);

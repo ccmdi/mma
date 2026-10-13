@@ -773,8 +773,6 @@ declare const commands$1: {
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
     storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<Location>>;
-    /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
-    storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
     storeSetMarkerColor: (color: RGB) => Promise<null>;
     /**
@@ -1056,7 +1054,11 @@ declare const commands$1: {
      *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
      *  @unstable
      */
-    procedureRun: (providers: ProviderDecl[], force: boolean, target: Target | null) => Promise<number>;
+    procedureRun: (items: RunItem[], force: boolean, target: Target | null) => Promise<number>;
+    /**  Register a provider, replacing one with the same id. @unstable */
+    providerRegister: (provider: ProviderDef) => Promise<null>;
+    /**  Remove a registered provider. @unstable */
+    providerUnregister: (id: string) => Promise<null>;
     /**  Stop a run before its next batch. Already-applied patches stay applied. @unstable */
     procedureCancel: (runId: number) => Promise<null>;
     /**
@@ -2442,6 +2444,21 @@ type ProviderDecl = {
      */
     instances?: number | null;
 } & ProcedureDecl;
+/**  A provider as registered: the procedure it runs, the fields it writes and the fields it reads. @unstable */
+type ProviderDef = {
+    id: string;
+    /**  Name shown while it runs. */
+    label?: string | null;
+    /**  Extra-field keys it produces. */
+    fields?: string[];
+    /**  Core columns it writes, such as `panoId`. */
+    provides?: string[];
+    /**  Fields it reads. Changing one clears what this provider wrote. */
+    requires?: string[];
+    batch: BatchMode;
+    /**  Instances it may run at once, when it cannot run beside itself. */
+    instances?: number | null;
+} & ProcedureDecl;
 /**  The questions one procedure is answering, taken together. @unstable */
 type QueryActivity = {
     /**  The procedure answering. */
@@ -2511,6 +2528,24 @@ type ReviewSession = {
     createdAt: string;
     updatedAt: string;
 };
+/**  One item of a run: a registered provider, or a procedure that is not one. @unstable */
+type RunItem = 
+/**  A registered provider, with what this run sets on it. */
+{
+    kind: "provider";
+    id: string;
+    /**  Extra-field keys to produce. When absent, every key the provider declares. */
+    fields?: string[] | null;
+    select: Selector$1<SelectionInput>;
+    /**  Replaces the registered configuration, as JSON text. */
+    config?: string | null;
+    /**  Re-derive its fields even on a run that is not forced. */
+    force?: boolean | null;
+} | (
+/**  A procedure declared in full by the caller. */
+{
+    kind: "procedure";
+} & ProviderDecl);
 /** @unstable */
 type SavedSelection = {
     selector: Selector$1;
@@ -3850,6 +3885,158 @@ declare const Editor: {
     openPlugin: (pluginId: string) => void;
     /** Close the plugin sidebar and return to the overview. */
     closePlugin: () => void;
+};
+
+/** The declared form of a wire struct: every field optional, absent where the wire says null. @unstable */
+export type Declared<T> = {
+    [K in keyof T]?: NonNullable<T[K]>;
+};
+/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
+ *  what a run and a query both read) plus how a run schedules it. @unstable */
+export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
+    /** Phantom field carrying the `TCollected` type. Never set at runtime. */
+    readonly collects?: TCollected;
+    /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
+     *  procedures, or a relative filename (resolved against the plugin's directory). */
+    entry: string;
+    batch: BatchMode;
+    /** The procedure's own configuration, handed to every entry point as `config`. */
+    config?: TConfig;
+    /** Awaited before the procedure joins a run; returning false excludes it. */
+    prepare?: () => Promise<boolean>;
+}
+/** One location's answer from a `collect` run. @unstable */
+export interface CollectedEntry<T = unknown> {
+    id: number;
+    value: T;
+}
+/** @unstable */
+export interface BatchOutcome {
+    /** Count of locations the procedure processed successfully. */
+    succeeded: number;
+    /** IDs of locations the procedure failed on. */
+    failed: number[];
+}
+/** @unstable */
+export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
+    /** Answers from a `collect` run, in page order. Absent when results were written as patches. */
+    collected?: CollectedEntry<TCollected>[];
+}
+/** Every item a run scheduled, by id. @unstable */
+export type ProcedureOutcomes = Record<string, ProcedureOutcome>;
+/** One item's own progress. Counts are net of skipped locations. @unstable */
+export interface ProcedurePart {
+    label: string;
+    done: number;
+    total: number;
+    failed: number;
+    finished: boolean;
+}
+/** @unstable */
+export interface RunOpts {
+    signal?: AbortSignal;
+    force?: boolean;
+    /** Read locations and write results at this target instead of the map. */
+    on?: Target;
+    /** `done`/`total` reflect the slowest item. `parts` carries each labeled item's own
+     *  counts, ordered as declared. */
+    onProgress?: (done: number, total: number, parts: ProcedurePart[]) => void;
+    /** Each location as an item finishes with it (locations-only runs). The same location
+     *  arrives again from each later item. */
+    onPartial?: (rows: Location[]) => void;
+}
+/** @unstable */
+export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
+/** An item for `Procedure.drive`, with the label its progress shows. @unstable */
+export interface Scheduled {
+    id: string;
+    label: string | null;
+    item: RunItem;
+}
+/** What a one-off run may set on top of what the spec declares. @unstable */
+export interface RunSettings {
+    id: string;
+    label?: string;
+    /** `collect` takes the answers instead of writing them. */
+    sink?: Sink;
+    /** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
+    force?: boolean;
+}
+declare const Procedure: {
+    /** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
+    entry: (name: string) => string;
+    /** The readable name behind an entry point, for surfaces that show one. @unstable */
+    name: (entry: string) => string;
+    /** The part of a spec the engine reads for a run and a query alike, with `config` as the
+     *  JSON text the wire carries. @unstable */
+    decl: (spec: ProcedureSpec, config?: unknown) => ProcedureDecl;
+    /** An outcome for work that never ran. @unstable */
+    noWork: () => BatchOutcome;
+    /** Ask a procedure a read-only question under its declared network limits. Rejects when it
+     *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
+     *  pages of answers as they resolve, ahead of the full result; each entry carries the id
+     *  the emitting side chose for it. @unstable */
+    query: <T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, opts?: {
+        signal?: AbortSignal;
+        onPartial?: (entries: {
+            id: number;
+            value: P;
+        }[]) => void;
+    }) => Promise<T>;
+    /** Run a single procedure over `selector` and return its typed results. @unstable */
+    run: <T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & RunSettings & {
+        config?: Partial<NoInfer<C>>;
+    }) => Promise<ProcedureOutcome<T>>;
+    /** Drive scheduled items through the engine as one run and gather what comes back. @unstable */
+    drive: (scheduled: Scheduled[], opts: RunOpts) => Promise<ProcedureOutcomes>;
+};
+
+/** A registered provider to run, and what this run changes about it. @unstable */
+export interface ProviderRun<TConfig = unknown> {
+    provider: Provider<unknown, TConfig>;
+    /** Replaces the config the provider registered. */
+    config?: Partial<NoInfer<TConfig>>;
+    /** Re-derive this provider's fields even on an unforced run. For an operation whose
+     *  point is to recompute one provider rather than fill in what is missing. */
+    force?: boolean;
+    /** The `fieldDefs` keys to produce; omitted, every key it declares. */
+    fields?: string[];
+    /** The locations to run over; omitted, the run's selector. */
+    select?: Selector;
+}
+/** A named procedure with dependency-graph placement. Providers that declare
+ *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. @unstable */
+export interface Provider<TCollected = unknown, TConfig = unknown> {
+    /** @unstable */
+    id: string;
+    /** Name shown in enrichment progress and results. @unstable */
+    label: string;
+    /** The procedure that computes this provider's fields. @unstable */
+    procedure: ProcedureSpec<TCollected, TConfig>;
+    /** Extra-field keys this provider produces. Each is offered as an enrichment option. @unstable */
+    fieldDefs?: Record<string, FieldDef>;
+    /** Leaves this provider's fields out of the default enrichment set, so users opt in. @unstable */
+    defaultOff?: boolean;
+    /** Core columns this provider writes (e.g. `panoId`). @unstable */
+    provides?: string[];
+    /** Fields this provider reads; it runs after their producers finish. @unstable */
+    requires?: string[];
+}
+declare const Provider: {
+    /** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
+     *  deactivates. Resolves once the provider can run. */
+    register: (provider: Provider) => Promise<void>;
+    /** All registered providers. @unstable */
+    list: () => Provider[];
+    /** The provider that produces a given extra field, if any. @unstable */
+    forField: (field: string) => Provider | undefined;
+    /** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
+     *  become locale month names; otherwise falls back to the keys themselves when the field's
+     *  procedure has no `label` query or returns a non-matching array. @unstable */
+    labels: (field: string, keys: string[], key?: KeySpec) => Promise<string[]>;
+    /** Run registered providers over the locations `selector` matches and write their results
+     *  back. Resolves once every provider finishes, or on abort. @unstable */
+    run: <C extends readonly unknown[]>(runs: { [K in keyof C]: ProviderRun<C[K]>; }, selector: Selector, opts?: RunOpts) => Promise<ProcedureOutcomes>;
 };
 
 declare const History: {
@@ -6574,58 +6761,11 @@ declare function getEnrichFieldOptions(): EnrichFieldOption[];
 declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
 declare function getDefaultEnrichKeys(): string[];
-/** The declared form of a wire struct: every field optional, absent where the wire says null. @unstable */
-export type Declared<T> = {
-    [K in keyof T]?: NonNullable<T[K]>;
-};
-/** A unit of work for the procedure engine: the procedure's own declaration (`ProcedureDecl`,
- *  what a run and a query both read) plus how a run schedules it. @unstable */
-export interface ProcedureSpec<TCollected = unknown, TConfig = unknown> extends Declared<Omit<ProcedureDecl, "entry" | "config">>, Declared<Pick<ProviderDecl, "select" | "sink" | "instances">> {
-    /** Phantom field carrying the `TCollected` type. Never set at runtime. */
-    readonly collects?: TCollected;
-    /** Module entry point: absolute path, `res://procedures/<name>.js` for built-in
-     *  procedures, or a relative filename (resolved against the plugin's directory). */
-    entry: string;
-    batch: BatchMode;
-    /** The procedure's own configuration, handed to every entry point as `config`. */
-    config?: TConfig;
-    /** Awaited before the provider joins a run; returning false excludes it. */
-    prepare?: () => Promise<boolean>;
-}
-/** A named procedure with dependency-graph placement. Providers that declare
- *  `fieldDefs` are enrichment providers whose fields appear in the enrichment UI. @unstable */
-export interface Provider<TCollected = unknown, TConfig = unknown> {
-    /** @unstable */
-    id: string;
-    /** Name shown in enrichment progress and results. @unstable */
-    label: string;
-    /** The procedure that computes this provider's fields. @unstable */
-    procedure: ProcedureSpec<TCollected, TConfig>;
-    /** Extra-field keys this provider produces. Each is offered as an enrichment option. @unstable */
-    fieldDefs?: Record<string, FieldDef>;
-    /** Leaves this provider's fields out of the default enrichment set, so users opt in. @unstable */
-    defaultOff?: boolean;
-    /** Core columns this provider writes (e.g. `panoId`). @unstable */
-    provides?: string[];
-    /** Fields this provider reads; it runs after their producers finish. @unstable */
-    requires?: string[];
-}
-/** Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
- *  deactivates. */
-declare function registerProvider(provider: Provider): void;
-/** All registered providers. @unstable */
-declare function getProviders(): Provider[];
-/** The provider that produces a given extra field, if any. @unstable */
-declare function getProviderForField(field: string): Provider | undefined;
 /** True when `key` is in the given enrichment set (or in the default set when null). @unstable */
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
 
 /** @unstable */
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
-/** @unstable */
-export type fieldDefs_ProcedureSpec<TCollected = unknown, TConfig = unknown> = ProcedureSpec<TCollected, TConfig>;
-/** @unstable */
-export type fieldDefs_Provider<TCollected = unknown, TConfig = unknown> = Provider<TCollected, TConfig>;
 /** @unstable */
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
 /** @unstable */
@@ -6633,16 +6773,11 @@ declare const fieldDefs_getDefaultEnrichKeys: typeof getDefaultEnrichKeys;
 /** @unstable */
 declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
 /** @unstable */
-declare const fieldDefs_getProviderForField: typeof getProviderForField;
-/** @unstable */
-declare const fieldDefs_getProviders: typeof getProviders;
-/** @unstable */
 declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
-declare const fieldDefs_registerProvider: typeof registerProvider;
 declare namespace fieldDefs {
-  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_getProviderForField as getProviderForField, fieldDefs_getProviders as getProviders, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs, fieldDefs_registerProvider as registerProvider };
-  export type { fieldDefs_EnrichFieldOption as EnrichFieldOption, fieldDefs_ProcedureSpec as ProcedureSpec, fieldDefs_Provider as Provider };
+  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs };
+  export type { fieldDefs_EnrichFieldOption as EnrichFieldOption };
 }
 
 /** True when `key` is a built-in Location field (stored top-level, not under `extra`). */
@@ -6743,138 +6878,10 @@ declare namespace fieldProjections {
   export type { fieldProjections_FieldProjection as FieldProjection };
 }
 
-/** Entry point of a procedure this app bundles. Plugins ship their own paths. @unstable */
-declare const procedureEntry: (name: string) => string;
-/** The readable name behind an entry point, for surfaces that show one. @unstable */
-declare const procedureName: (entry: string) => string;
-/** Ask a procedure a read-only question under its declared network limits. Rejects when it
- *  exports no `query`, when the call fails, or when `signal` aborts. `onPartial` receives
- *  pages of answers as they resolve, ahead of the full result; each entry carries the id
- *  the emitting side chose for it. @unstable */
-declare function queryProcedure<T = unknown, P = unknown>(spec: ProcedureSpec, input: unknown, signal?: AbortSignal, onPartial?: (entries: {
-    id: number;
-    value: P;
-}[]) => void): Promise<T>;
-/** Display labels for a field's partition keys. Month-of-year keys are numeric tokens and
- *  become locale month names; otherwise falls back to the keys themselves when the field's
- *  procedure has no `label` query or returns a non-matching array. @unstable */
-declare function resolveFieldLabels(field: string, keys: string[], key?: KeySpec): Promise<string[]>;
-/** One location's answer from a `collect` run. @unstable */
-export interface CollectedEntry<T = unknown> {
-    id: number;
-    value: T;
-}
-/** @unstable */
-export interface BatchOutcome {
-    /** Count of locations the procedure processed successfully. */
-    succeeded: number;
-    /** IDs of locations the procedure failed on. */
-    failed: number[];
-}
-/** @unstable */
-export interface ProcedureOutcome<TCollected = unknown> extends BatchOutcome {
-    /** Answers from a `collect` run, in page order. Absent when results were written as patches. */
-    collected?: CollectedEntry<TCollected>[];
-}
-/** Every declaration a run scheduled, by provider id. @unstable */
-export type ProviderOutcomes = Record<string, ProcedureOutcome>;
-/** @unstable */
-declare const noWork: () => BatchOutcome;
-/** One provider's own progress. Counts are net of skipped locations. @unstable */
-export interface ProviderPart {
-    label: string;
-    done: number;
-    total: number;
-    failed: number;
-    finished: boolean;
-}
-/** @unstable */
-export interface RunOpts {
-    signal?: AbortSignal;
-    force?: boolean;
-    /** Read locations and write results at this target instead of the map. */
-    on?: Target;
-    /** `done`/`total` reflect the slowest provider. `parts` carries each labeled
-     *  provider's own counts, ordered as declared. */
-    onProgress?: (done: number, total: number, parts: ProviderPart[]) => void;
-    /** Each location as a provider finishes with it (locations-only runs). The same location arrives
-     *  again from each subsequent provider. */
-    onPartial?: (rows: Location[]) => void;
-}
-/** @unstable */
-export type BulkOpts = Pick<RunOpts, "signal" | "onProgress">;
-/** A provider to run, optionally overriding the config its procedure declares. @unstable */
-export interface ProviderRun<TConfig = unknown> {
-    provider: Provider<unknown, TConfig>;
-    config?: Partial<NoInfer<TConfig>>;
-    /** Re-derive this provider's fields even on an unforced run. For an operation whose
-     *  point is to recompute one provider rather than fill in what is missing. */
-    force?: boolean;
-    /** The `fieldDefs` keys to produce; omitted, every key it declares. */
-    fields?: string[];
-}
-/** Run a set of providers over the locations `selector` matches and write their results back.
- *  Resolves once every provider finishes, or on abort. @unstable */
-declare function runProviders<C extends readonly unknown[]>(items: {
-    [K in keyof C]: ProviderRun<C[K]>;
-}, selector: Selector, opts?: RunOpts): Promise<ProviderOutcomes>;
-/** What a run may set on top of what the spec declares. @unstable */
-export interface DeclOpts {
-    label?: string;
-    /** Replaces the spec's `config`. */
-    config?: unknown;
-    /** `collect` takes the answers instead of writing them. */
-    sink?: Sink;
-    /** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
-    force?: boolean;
-    fields?: string[];
-    requires?: string[];
-}
-/** Run a single procedure over `selector` and return its typed results. @unstable */
-declare function runProcedure<T, C>(spec: ProcedureSpec<T, C>, selector: Selector, opts: Omit<RunOpts, "force"> & Omit<DeclOpts, "fields" | "requires" | "config"> & {
-    id: string;
-    config?: Partial<NoInfer<C>>;
-}): Promise<ProcedureOutcome<T>>;
-
-/** @unstable */
-export type procedures_BatchOutcome = BatchOutcome;
-/** @unstable */
-export type procedures_BulkOpts = BulkOpts;
-/** @unstable */
-export type procedures_CollectedEntry<T = unknown> = CollectedEntry<T>;
-/** @unstable */
-export type procedures_ProcedureOutcome<TCollected = unknown> = ProcedureOutcome<TCollected>;
-/** @unstable */
-export type procedures_ProviderOutcomes = ProviderOutcomes;
-/** @unstable */
-export type procedures_ProviderPart = ProviderPart;
-/** @unstable */
-export type procedures_ProviderRun<TConfig = unknown> = ProviderRun<TConfig>;
-/** @unstable */
-export type procedures_RunOpts = RunOpts;
-/** @unstable */
-declare const procedures_noWork: typeof noWork;
-/** @unstable */
-declare const procedures_procedureEntry: typeof procedureEntry;
-/** @unstable */
-declare const procedures_procedureName: typeof procedureName;
-/** @unstable */
-declare const procedures_queryProcedure: typeof queryProcedure;
-/** @unstable */
-declare const procedures_resolveFieldLabels: typeof resolveFieldLabels;
-/** @unstable */
-declare const procedures_runProcedure: typeof runProcedure;
-/** @unstable */
-declare const procedures_runProviders: typeof runProviders;
-declare namespace procedures {
-  export { procedures_noWork as noWork, procedures_procedureEntry as procedureEntry, procedures_procedureName as procedureName, procedures_queryProcedure as queryProcedure, procedures_resolveFieldLabels as resolveFieldLabels, procedures_runProcedure as runProcedure, procedures_runProviders as runProviders };
-  export type { procedures_BatchOutcome as BatchOutcome, procedures_BulkOpts as BulkOpts, procedures_CollectedEntry as CollectedEntry, procedures_ProcedureOutcome as ProcedureOutcome, procedures_ProviderOutcomes as ProviderOutcomes, procedures_ProviderPart as ProviderPart, procedures_ProviderRun as ProviderRun, procedures_RunOpts as RunOpts };
-}
-
 /** @unstable */
 declare function enrich(selector: Selector, { resolve, ...opts }?: RunOpts & {
     resolve?: boolean;
-}): Promise<ProviderOutcomes>;
+}): Promise<ProcedureOutcomes>;
 
 /** @unstable */
 declare const enrich$1_enrich: typeof enrich;
@@ -6909,13 +6916,32 @@ declare const timezoneProvider: Provider;
 declare const subdivisionProvider: Provider;
 /** Core panorama metadata via Google's GetMetadata RPC. @unstable */
 declare const svMetaProvider: Provider;
+/** @unstable */
+export type RoadDirection = "forwards" | "backwards";
+/** @unstable */
+export interface HeadingRoadConfig {
+    direction: RoadDirection;
+}
+/** Pan a location's heading along the road. The driving direction is the pano's
+ *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. @unstable */
+declare const headingRoadProvider: Provider<unknown, HeadingRoadConfig>;
+/** The providers the app registers at startup. @unstable */
+declare const BUILTIN_PROVIDERS: readonly Provider[];
 
 /** @unstable */
+declare const providers_BUILTIN_PROVIDERS: typeof BUILTIN_PROVIDERS;
+/** @unstable */
+export type providers_HeadingRoadConfig = HeadingRoadConfig;
+/** @unstable */
 export type providers_PanoResolveConfig = PanoResolveConfig;
+/** @unstable */
+export type providers_RoadDirection = RoadDirection;
 /** @unstable */
 declare const providers_enrichRuns: typeof enrichRuns;
 /** @unstable */
 declare const providers_exactDateProvider: typeof exactDateProvider;
+/** @unstable */
+declare const providers_headingRoadProvider: typeof headingRoadProvider;
 /** @unstable */
 declare const providers_panoResolveProvider: typeof panoResolveProvider;
 /** @unstable */
@@ -6925,8 +6951,8 @@ declare const providers_svMetaProvider: typeof svMetaProvider;
 /** @unstable */
 declare const providers_timezoneProvider: typeof timezoneProvider;
 declare namespace providers {
-  export { providers_enrichRuns as enrichRuns, providers_exactDateProvider as exactDateProvider, providers_panoResolveProvider as panoResolveProvider, providers_subdivisionProvider as subdivisionProvider, providers_svMetaProvider as svMetaProvider, providers_timezoneProvider as timezoneProvider };
-  export type { providers_PanoResolveConfig as PanoResolveConfig };
+  export { providers_BUILTIN_PROVIDERS as BUILTIN_PROVIDERS, providers_enrichRuns as enrichRuns, providers_exactDateProvider as exactDateProvider, providers_headingRoadProvider as headingRoadProvider, providers_panoResolveProvider as panoResolveProvider, providers_subdivisionProvider as subdivisionProvider, providers_svMetaProvider as svMetaProvider, providers_timezoneProvider as timezoneProvider };
+  export type { providers_HeadingRoadConfig as HeadingRoadConfig, providers_PanoResolveConfig as PanoResolveConfig, providers_RoadDirection as RoadDirection };
 }
 
 /** How a bulk pin settles each location's pano before pinning it. @unstable */
@@ -7232,7 +7258,7 @@ declare function fetchLocationsByIds(ids: number[]): Promise<Location[]>;
 declare function fetchAllLocations(): Promise<Location[]>;
 /** @deprecated v0.10.2. Use `MMA.Query.read(selector, { kind: "coverage" })`. @unstable */
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
-/** @deprecated v0.10.2. Use `MMA.registerProvider()`. @unstable */
+/** @deprecated v0.10.2. Use `MMA.Provider.register()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
 /** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
  *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
@@ -7446,6 +7472,8 @@ declare const autosave: typeof Autosave;
 declare const getMapHost: typeof MapHost.get;
 /** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
 declare const waitForMapHost: typeof MapHost.wait;
+/** @deprecated v0.12.1. Use `MMA.Provider.register`. */
+declare const registerProvider: typeof Provider.register;
 
 declare const legacy_addLocations: typeof addLocations;
 /** @unstable */
@@ -7553,6 +7581,7 @@ declare const legacy_registerEnrichFields: typeof registerEnrichFields;
 /** @unstable */
 declare const legacy_registerEnrichmentProvider: typeof registerEnrichmentProvider;
 declare const legacy_registerMapBadges: typeof registerMapBadges;
+declare const legacy_registerProvider: typeof registerProvider;
 declare const legacy_reloadMapList: typeof reloadMapList;
 declare const legacy_removeDuplicate: typeof removeDuplicate;
 declare const legacy_removeLocations: typeof removeLocations;
@@ -7675,6 +7704,7 @@ declare namespace legacy {
     legacy_registerEnrichFields as registerEnrichFields,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_registerMapBadges as registerMapBadges,
+    legacy_registerProvider as registerProvider,
     legacy_reloadMapList as reloadMapList,
     legacy_removeDuplicate as removeDuplicate,
     legacy_removeLocations as removeLocations,
@@ -7717,6 +7747,7 @@ declare const mapOpen: {
     mark(phase: string): void;
 };
 
+/** Run a single procedure over a selector. */
 /** Force a full selection re-resolve and return the selected IDs. @unstable */
 declare function syncSelections(): Promise<{
     ids: number[];
@@ -7745,10 +7776,6 @@ declare const testApi_mapOpen: typeof mapOpen;
 /** @unstable */
 declare const testApi_openMap: typeof openMap;
 /** @unstable */
-declare const testApi_procedureEntry: typeof procedureEntry;
-/** @unstable */
-declare const testApi_runProcedure: typeof runProcedure;
-/** @unstable */
 declare const testApi_syncSelections: typeof syncSelections;
 declare namespace testApi {
   export {
@@ -7758,8 +7785,6 @@ declare namespace testApi {
     testApi_importPaste as importPaste,
     testApi_mapOpen as mapOpen,
     testApi_openMap as openMap,
-    testApi_procedureEntry as procedureEntry,
-    testApi_runProcedure as runProcedure,
     testApi_syncSelections as syncSelections,
   };
 }
@@ -7912,8 +7937,6 @@ export type FieldDefsApi = typeof fieldDefs;
 export type FieldDefRegistryApi = typeof fieldDefRegistry;
 /** The keys a field can be grouped by. @unstable */
 export type FieldProjectionsApi = typeof fieldProjections;
-/** Running procedures directly, outside a registered provider. @unstable */
-export type ProceduresApi = typeof procedures;
 /** Enrichment passes over the open map. @unstable */
 export type EnrichApi = typeof enrich$1;
 /** The providers the app registers for enrichment. @unstable */
@@ -7942,7 +7965,7 @@ export type TypesApi = typeof types;
 export type UtilApi = typeof util;
 export type TagsApi = typeof tags;
 /** The global `MMA` object (also `window.MMA`). */
-interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, ProceduresApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
+interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, CommandsApi, TauriApi, RegistryApi, PluginHostApi, MarketplaceApi, PluginStorageApi, ScopeApi, PluginEventsApi, ExternalsApi, SidecarApi, FieldDefsApi, FieldDefRegistryApi, FieldProjectionsApi, EnrichApi, ProvidersApi, PinPanoApi, ValidateApi, ValidationCategoriesApi, QueryApi, ScenePositionsApi, ColorApi, ToastApi, JobsApi, UseJobApi, TestApi, TypesApi, UtilApi, TagsApi, LegacyApi {
     /** Shared UI primitives for plugin sidebars and dialogs. */
     ui: typeof primitives;
     /** Debounced persistence of the open map: schedule, hold, cancel, or flush it. */
@@ -7957,6 +7980,10 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     Editor: typeof Editor;
     /** Pending layers: staged edits that land on the map as one undo step. @unstable */
     Layer: typeof Layer;
+    /** Procedure modules: ask one a question, or run one over locations. */
+    Procedure: typeof Procedure;
+    /** Registered field producers: register one, list them, or run them over locations. */
+    Provider: typeof Provider;
     /** Navigate undo and redo history. */
     History: typeof History;
     /** Save and restore map versions. */
@@ -7999,4 +8026,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

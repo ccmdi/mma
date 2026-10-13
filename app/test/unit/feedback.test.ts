@@ -24,7 +24,6 @@ import { leadingZeroBits } from "../../../workers/feedback/src/verify";
 vi.mock("@/lib/commands", async (orig) => ({
 	...(await orig()),
 	cmd: {
-		storeSetDerived: async () => {},
 		githubCreateIssue: vi.fn(async () => ({ number: 7, url: "https://x/7" })),
 		feedbackRequestLabel: vi.fn(async () => null),
 		githubMe: vi.fn(async () => ({ login: "me", avatarUrl: null })),

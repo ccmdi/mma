@@ -1,6 +1,6 @@
 // Read-only Street View queries.
 
-import { queryProcedure } from "@/lib/data/procedures";
+import { Procedure } from "@/lib/data/procedure";
 import { panoResolveProvider, svMetaProvider } from "@/lib/sv/providers";
 import type { LatLng } from "@/types";
 import type { Pano, PanoAnswer } from "@/bindings.gen";
@@ -19,10 +19,10 @@ export async function svMetadata(
 	signal?: AbortSignal,
 ): Promise<(Pano | null)[]> {
 	if (panoIds.length === 0) return [];
-	const answers = await queryProcedure<(Pano | null)[]>(
+	const answers = await Procedure.query<(Pano | null)[]>(
 		svMetaProvider.procedure,
 		{ op: "metadata", panoIds },
-		signal,
+		{ signal },
 	);
 	if (!Array.isArray(answers)) throw new Error(`svMeta query answered ${typeof answers}`);
 	return panoIds.map((_, i) => answers[i] ?? null);
@@ -40,14 +40,17 @@ export async function panosAt(
 	onPano?: (index: number, pano: Pano | null) => void,
 ): Promise<(Pano | null)[]> {
 	if (points.length === 0) return [];
-	const answers = await queryProcedure<(Pano | null)[], PanoAnswer>(
+	const answers = await Procedure.query<(Pano | null)[], PanoAnswer>(
 		panoResolveProvider.procedure,
 		{ op: "at", points, radius, ...opts },
-		signal,
-		onPano &&
-			((entries) => {
-				for (const e of entries) onPano(e.id, e.value.state === "found" ? e.value.pano : null);
-			}),
+		{
+			signal,
+			onPartial:
+				onPano &&
+				((entries) => {
+					for (const e of entries) onPano(e.id, e.value.state === "found" ? e.value.pano : null);
+				}),
+		},
 	);
 	if (!Array.isArray(answers)) throw new Error(`panoResolve query answered ${typeof answers}`);
 	return points.map((_, i) => answers[i] ?? null);

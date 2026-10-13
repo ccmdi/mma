@@ -1617,10 +1617,11 @@ fn register_store_run(
 pub async fn procedure_run(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    providers: Vec<ProviderDecl>,
+    items: Vec<super::registry::RunItem>,
     force: bool,
     target: Option<Target>,
 ) -> AppResult<u32> {
+    let providers = state.lock()?.providers.resolve(items)?;
     let target = target.unwrap_or(Target::Map);
     let run_id = next_run_id();
     let (map_id, cancel) = register_store_run(state.inner(), &label, run_id, target.clone())?;

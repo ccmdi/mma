@@ -1,14 +1,8 @@
 import { createFieldDef } from "@/types";
 import type { CapturePick, PanoType } from "@/bindings.consts";
-import {
-	getAllEnrichKeys,
-	getProviders,
-	getDefaultEnrichKeys,
-	knownFieldDefs,
-	registerProvider,
-	type Provider,
-} from "@/lib/data/fieldDefs";
-import { procedureEntry, type ProviderRun } from "@/lib/data/procedures";
+import { getAllEnrichKeys, getDefaultEnrichKeys, knownFieldDefs } from "@/lib/data/fieldDefs";
+import { Procedure } from "@/lib/data/procedure";
+import { Provider, type ProviderRun } from "@/lib/data/provider";
 import { SVMETA_FIELDS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
 import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
@@ -19,7 +13,7 @@ import { msg, t } from "@/lib/i18n";
 export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
 	const selectable = new Set(getAllEnrichKeys());
 	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
-	return getProviders()
+	return Provider.list()
 		.filter((p) => p.fieldDefs && !exclude.includes(p.id))
 		.map((provider) => ({
 			provider,
@@ -45,7 +39,7 @@ export const panoResolveProvider: Provider<{ panoId: string }, PanoResolveConfig
 	label: msg("Resolving panoramas"),
 	provides: ["panoId"],
 	procedure: {
-		entry: procedureEntry("panoResolve"),
+		entry: Procedure.entry("panoResolve"),
 		batch: { mode: "chunk", size: 200 },
 		config: { radius: SV_SEARCH_RADIUS },
 	},
@@ -58,7 +52,7 @@ export const exactDateProvider: Provider = {
 	requires: ["imageDate"],
 	fieldDefs: knownFieldDefs("datetime"),
 	procedure: {
-		entry: procedureEntry("exactDate"),
+		entry: Procedure.entry("exactDate"),
 		batch: { mode: "chunk", size: 50 },
 	},
 };
@@ -70,7 +64,7 @@ export const timezoneProvider: Provider = {
 	requires: ["datetime"],
 	fieldDefs: knownFieldDefs("timezone"),
 	procedure: {
-		entry: procedureEntry("timezone"),
+		entry: Procedure.entry("timezone"),
 		batch: { mode: "chunk", size: 10000 },
 	},
 };
@@ -102,7 +96,7 @@ export const subdivisionProvider: Provider = {
 		subdivision: createFieldDef("string", { label: msg("Subdivision") }),
 	},
 	procedure: {
-		entry: procedureEntry("subdivision"),
+		entry: Procedure.entry("subdivision"),
 		batch: { mode: "chunk", size: 2000 },
 		prepare: ensureAdm1,
 	},
@@ -115,13 +109,35 @@ export const svMetaProvider: Provider = {
 	requires: ["panoId"],
 	fieldDefs: knownFieldDefs(...SVMETA_FIELDS),
 	procedure: {
-		entry: procedureEntry("svMeta"),
+		entry: Procedure.entry("svMeta"),
 		batch: { mode: "chunk", size: 1000 },
 	},
 };
 
-registerProvider(panoResolveProvider);
-registerProvider(svMetaProvider);
-registerProvider(exactDateProvider);
-registerProvider(timezoneProvider);
-registerProvider(subdivisionProvider);
+export type RoadDirection = "forwards" | "backwards";
+
+export interface HeadingRoadConfig {
+	direction: RoadDirection;
+}
+
+/** Pan a location's heading along the road. The driving direction is the pano's
+ *  `centerHeading`; "forwards" faces it, "backwards" faces the opposite. */
+export const headingRoadProvider: Provider<unknown, HeadingRoadConfig> = {
+	id: "headingRoad",
+	label: msg("Pan heading along road"),
+	requires: ["panoId"],
+	procedure: {
+		entry: Procedure.entry("headingRoad"),
+		batch: { mode: "dedupeBy", key: "panoId" },
+	},
+};
+
+/** The providers the app registers at startup. */
+export const BUILTIN_PROVIDERS: readonly Provider[] = [
+	panoResolveProvider,
+	svMetaProvider,
+	exactDateProvider,
+	timezoneProvider,
+	subdivisionProvider,
+	headingRoadProvider,
+];
