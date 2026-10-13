@@ -259,7 +259,7 @@ const WAIT = { interval: 50 } as const;
 /** Wait until the open location id equals `id` (null = back to overview). */
 export async function waitForActive(id: number | null) {
 	await browser.waitUntil(
-		() => withApi((api, target) => (api.Store.get().open?.location?.id ?? null) === target, id),
+		() => withApi((api, target) => (api.Editor.get().open?.location?.id ?? null) === target, id),
 		{ ...WAIT, timeoutMsg: `open location never became ${id}` },
 	);
 }
@@ -267,8 +267,7 @@ export async function waitForActive(id: number | null) {
 /** Wait until the store's work area matches (e.g. "overview" | "location"). */
 export async function updateMapSettings(patch: Record<string, unknown>) {
 	await withApi(async (api, p) => {
-		const map = api.Store.get().map!;
-		await api.Edit.meta({ settings: { ...map.settings, ...p } });
+		await api.Edit.meta({ settings: p });
 		return "ok";
 	}, patch);
 }
@@ -310,7 +309,8 @@ export async function waitForEnriched() {
 export async function saveLocation() {
 	await waitForEnriched();
 	await withApi((api) => {
-		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving = api.Store.get().open?.session;
+		(window as unknown as { __e2eSaving?: unknown }).__e2eSaving =
+			api.Editor.get().open?.layer.target.name;
 	});
 	const btn = await browser.$("[data-qa='location-save']");
 	await btn.waitForExist();
@@ -319,7 +319,7 @@ export async function saveLocation() {
 		() =>
 			withApi(
 				(api) =>
-					api.Store.get().open?.session !==
+					api.Editor.get().open?.layer.target.name !==
 					(window as unknown as { __e2eSaving?: unknown }).__e2eSaving,
 			),
 		{ timeoutMsg: "Save never finished" },
@@ -332,7 +332,7 @@ export async function waitForPreview() {
 }
 
 export async function waitForWorkArea(area: string) {
-	await browser.waitUntil(() => withApi((api, a) => api.Store.get().workArea === a, area), {
+	await browser.waitUntil(() => withApi((api, a) => api.Editor.get().workArea === a, area), {
 		...WAIT,
 		timeoutMsg: `workArea never became ${area}`,
 	});

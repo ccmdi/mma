@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Store } from "@/store/store";
 import { Editor } from "@/store/editor";
 import { getPlugin } from "@/plugins/registry";
 import { isPluginEnabled } from "@/plugins/pluginHost";
@@ -10,8 +9,8 @@ import { useEvent } from "@/lib/events";
  *  plugin mode; keepAlive sidebars stay mounted after first open, hidden via
  *  display:none, so state living in DOM we don't own (e.g. iframes) survives. */
 export function PluginSidebarHost() {
-	const pluginId = Store.use((s) => s.activePluginId);
-	const inPluginMode = Store.use((s) => s.workArea) === "plugin";
+	const pluginId = Editor.use((s) => s.activePluginId);
+	const inPluginMode = Editor.use((s) => s.workArea) === "plugin";
 	useEvent("plugins:changed");
 	const [kept, setKept] = useState<string[]>([]);
 

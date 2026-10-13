@@ -6,7 +6,12 @@ import type { ListedSelection } from "@/bindings.gen";
 
 vi.mock("@/lib/commands", async () => {
 	const { selectionsHeld } = await import("./fixtures/mocks");
-	return { cmd: { storeEditSelections: vi.fn(async (rows: unknown[]) => selectionsHeld(rows)) } };
+	return {
+		cmd: {
+			storeSetDerived: async () => {},
+			storeEditSelections: vi.fn(async (rows: unknown[]) => selectionsHeld(rows)),
+		},
+	};
 });
 
 const fakeRow = (key: string): ListedSelection => ({

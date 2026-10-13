@@ -513,7 +513,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				if (api.Store.get().open?.location?.id !== id) throw new Error(`not active: ${id}`);
+				if (api.Editor.get().open?.location?.id !== id) throw new Error(`not active: ${id}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, helperB),
 	});

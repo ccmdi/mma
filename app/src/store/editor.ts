@@ -1,75 +1,219 @@
-import { type OpenOrigin, Store } from "./store";
+import { Store } from "./store";
 import { Query } from "./query";
-import type { Location, Target } from "@/bindings.gen";
-import type { MaybeLocation, WorkArea } from "@/types";
+import type { Location } from "@/bindings.gen";
+import type { MaybeLocation, WorkArea, Patch } from "@/types";
 import { locId } from "@/types";
-import { cmd } from "@/lib/commands";
-import { emit as emitEvent } from "@/lib/events";
+import { Layer } from "./layer";
+import { log } from "@/lib/util/log";
+import { subscribe, emit as emitEvent, useEventValue } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
+import { latest, owned } from "@/lib/util/latest";
+import { enrich } from "@/lib/sv/enrich";
 
-let lastSession = 0;
+/** Where an open location came from: the map, the seen history, or a pending import. */
+export type OpeningOrigin = "map" | "seen" | "import";
 
-/** Open a copy of `loc` in its session's layer, unless a later opening or closing overtook it. */
-async function openPreview(loc: Location, origin: OpenOrigin) {
-	const session = ++lastSession;
-	const layer = Editor.layer(session);
-	const r = await cmd.storeEdit(layer, [{ set: { ...loc, id: 0 } }], null);
-	const [id] = r.mutation.keys;
-	if (id == null) return;
-	const [location = null] = await Query.read(
-		{ type: "Locations", locations: [id], name: null },
-		{ kind: "locations" },
-		layer,
-	);
-	if (session !== lastSession) {
-		await cmd.storeDrop(layer.name);
-		return;
-	}
-	Store.patch({ open: { id, origin, session, location }, workArea: "location" });
-	emitEvent("open:change", null);
+/** A location open in the editor. A preview's id is its viewer-layer id. */
+export interface Opening {
+	id: number;
+	origin: OpeningOrigin;
+	/** The pending layer holding this opening's draft. */
+	layer: Layer;
+	/** The draft as last read from its layer, or null while loading. */
+	location: Location | null;
 }
 
-/** Drop the open location, keeping `open:change` in step. */
-function dropOpen(): void {
-	const state = Store.get();
-	if (state.open == null) return;
-	Store.patch({ open: null });
-	emitEvent("open:change", null);
+/** What the editor shows: the open location, the pane, and the panels that lead to them. */
+export interface EditorState {
+	/** The location open in the editor, or null. */
+	open: Opening | null;
+	/** @unstable */
+	duplicateLocations: Location[];
+	/** @unstable */
+	workArea: WorkArea;
+	/** @unstable */
+	activePluginId: string | null;
+}
+
+let state: EditorState = {
+	open: null,
+	duplicateLocations: [],
+	workArea: "overview",
+	activePluginId: null,
+};
+
+function update(next: Partial<EditorState>): void {
+	state = { ...state, ...next };
+	emitEvent("editor:changed");
+}
+
+const refreshes = latest();
+const enrichments = new WeakMap<Layer, ReturnType<typeof latest>>();
+const openings = latest<Opening | Location[] | null>({
+	publish: (result) => {
+		if (!result) return;
+		if (Array.isArray(result)) {
+			update({ duplicateLocations: result, workArea: "duplicates" });
+			setOpen(null);
+		} else {
+			setOpen(result, "location");
+			if (result.origin === "import") emitEvent("import-markers:changed");
+		}
+	},
+	discard: (result) =>
+		result && !Array.isArray(result)
+			? result.layer.close().catch((error) => log.error("[editor] layer close failed:", error))
+			: undefined,
+});
+
+const operations = owned(
+	() => state.open,
+	{
+		edit: async (
+			open: Opening,
+			patch: Omit<Patch<Location>, "id"> | ((location: Location) => Omit<Patch<Location>, "id">),
+		): Promise<void> => {
+			await open.layer
+				.edit(async (read) => {
+					const [location] = await read(
+						{ type: "Locations", locations: [open.id], name: null },
+						{ kind: "locations" },
+					);
+					if (!location) return [];
+					const fields = typeof patch === "function" ? patch(location) : patch;
+					return [{ put: { ...fields, id: open.id } }];
+				})
+				.catch((error) => log.error("[editor] edit failed:", error));
+		},
+		save: async (open: Opening, patch: Omit<Patch<Location>, "id">): Promise<number> => {
+			await open.layer.land([{ put: { ...patch, id: open.id } }]);
+			return open.id;
+		},
+	},
+	(open) => open.layer,
+);
+
+/** Publish an opening and close the previous opening's layer. */
+function setOpen(open: Opening | null, workArea?: WorkArea): void {
+	refreshes.cancel();
+	const previous = state.open;
+	if (!open && !previous) return;
+	update({ open, ...(workArea && { workArea }) });
+	if (open) enrichDraft(open);
+	if (previous)
+		void previous.layer.close().catch((error) => log.error("[editor] layer close failed:", error));
+	emitEvent("open:change", open?.origin === "map" ? open.id : null);
+}
+
+function enrichDraft(open: Opening): void {
+	if (!open.location || !Store.get().map?.settings.enrichMetadata) {
+		enrichments.get(open.layer)?.cancel();
+		return;
+	}
+	let runs = enrichments.get(open.layer);
+	if (!runs) {
+		runs = latest({ failed: (error) => log.error("[editor] enrichment failed:", error) });
+		enrichments.set(open.layer, runs);
+	}
+	void runs.replace((signal) =>
+		enrich(
+			{ type: "Locations", locations: [open.id], name: null },
+			{ on: open.layer.target, resolve: false, signal },
+		),
+	);
+}
+
+async function createOpening(
+	id: number,
+	location: Location | null,
+	origin: OpeningOrigin,
+	layer?: Layer,
+): Promise<Opening> {
+	return { id, location, origin, layer: layer ?? (await Layer.open()) };
+}
+
+/** Prepare a copy while keeping the import or seen record unchanged. */
+async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opening | null> {
+	const layer = await Layer.open();
+	try {
+		const result = await layer.edit([{ set: { ...loc, id: 0 } }]);
+		const [id] = result.mutation.keys;
+		if (id == null) {
+			await layer.close();
+			return null;
+		}
+		const [location = null] = await layer.read(
+			{ type: "Locations", locations: [id], name: null },
+			{ kind: "locations" },
+		);
+		return await createOpening(id, location, origin, layer);
+	} catch (error) {
+		await layer.close();
+		throw error;
+	}
 }
 
 export const Editor = {
-	/** The pending layer holding the open location's draft edits for editor session `session`. */
-	layer: (session: number): Extract<Target, { kind: "pending" }> => ({
-		kind: "pending",
-		name: `viewer:${session}`,
-	}),
-	/** Set the open location if `session` is still current. */
-	setLocation: (location: Location | null, session: number) => {
-		const state = Store.get();
-		if (state.open?.session !== session) return;
-		Store.patch({ open: { ...state.open, location } });
+	/** Imperative snapshot of the editor state. */
+	get: (): Readonly<EditorState> => state,
+	/** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */
+	use: <T>(selector: (s: EditorState) => T): T =>
+		useEventValue("editor:changed", () => selector(state)),
+	/** Reread the current draft. Superseded reads and errors cannot update the next opening. @unstable */
+	refresh: (): Promise<void> => {
+		const open = state.open;
+		if (!open) return Promise.resolve();
+		return refreshes.replace(
+			async () => {
+				const [location = null] = await open.layer.read(
+					{ type: "Locations", locations: [open.id], name: null },
+					{ kind: "locations" },
+				);
+				return location;
+			},
+			(location) => {
+				const next = { ...open, location };
+				update({ open: next });
+				if (location?.panoId !== open.location?.panoId) enrichDraft(next);
+			},
+			{
+				failed: (error) => log.error("[editor] draft read failed:", error),
+			},
+		);
+	},
+	/** Edit this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
+	get edit() {
+		return operations.edit;
+	},
+	/** Save this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
+	get save() {
+		return operations.save;
+	},
+	/** Whether procedure work is still writing to the open draft. @unstable */
+	useWriting: (): boolean => {
+		const name = Editor.use((s) => s.open?.layer.target.name);
+		return Store.use((s) => name != null && s.writingLayers.includes(name));
 	},
 	/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
-	openImport: async (index: number) => {
+	openImport: (index: number): Promise<void> => {
 		const first = Import.staging()?.preview.firstId;
-		if (first == null) return;
-		const loc =
-			(
-				await Query.read(
-					{ type: "Locations", locations: [first + index], name: null },
-					{ kind: "locations" },
-					Import.target(),
-				)
-			)[0] ?? null;
-		if (!loc) return;
-		await openPreview(loc, "import");
-		emitEvent("import-markers:changed");
+		if (first == null) return Promise.resolve();
+		return openings.replace(async () => {
+			const [loc] = await Query.read(
+				{ type: "Locations", locations: [first + index], name: null },
+				{ kind: "locations" },
+				Import.target(),
+			);
+			return loc ? openPreview(loc, "import") : null;
+		});
 	},
 	/** Open an arbitrary location read-only as a seen-preview: loads its pano without
 	 *  adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves. @unstable */
 	preview: (loc: Location) => {
-		void openPreview(loc, "seen");
+		void openings
+			.replace(() => openPreview(loc, "seen"))
+			.catch((error) => log.error("[editor] preview failed:", error));
 	},
 	/** Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found. */
 	resolve: async (m: MaybeLocation): Promise<Location | null> => {
@@ -83,76 +227,57 @@ export const Editor = {
 	 *  within 2m opens the duplicate-resolution panel instead. A later opening or closing
 	 *  supersedes one still loading. */
 	open: async (target: MaybeLocation, checkDuplicates = true) => {
-		const state = Store.get();
 		const t = trace("open");
-		const id = locId(target);
-		const activation = ++lastSession;
 		if (state.open && state.open.origin !== "map") emitEvent("import-markers:changed");
-		const loc = await Editor.resolve(target);
-		t.step("ipc");
-		if (activation !== lastSession) return t.end({ superseded: true });
-		if (checkDuplicates && loc) {
-			const nearby = await Query.read(
-				{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
-				{ kind: "locations" },
-			);
-			if (activation !== lastSession) return t.end({ superseded: true });
-			if (nearby.length >= 2) {
-				Store.patch({ duplicateLocations: nearby, workArea: "duplicates" });
-				dropOpen();
-				t.end({ duplicates: nearby.length });
-				return;
+		await openings.replace(async () => {
+			const loc = await Editor.resolve(target);
+			t.step("ipc");
+			if (checkDuplicates && loc) {
+				const nearby = await Query.read(
+					{ type: "Nearby", selection: null, lat: loc.lat, lng: loc.lng, radiusM: 2.0 },
+					{ kind: "locations" },
+				);
+				if (nearby.length >= 2) return nearby;
 			}
-		}
-		Store.patch({
-			open: { id, origin: "map", session: activation, location: loc },
-			workArea: "location",
+			return createOpening(locId(target), loc, "map");
 		});
-		emitEvent("open:change", id);
 		t.end();
 	},
 	/** Close the open location and return to the pane it was opened from. */
 	close: () => {
-		const state = Store.get();
-		++lastSession;
+		openings.cancel();
 		const preview = state.open && state.open.origin !== "map" ? state.open.origin : null;
 		if (preview) emitEvent("import-markers:changed");
-		dropOpen();
-		const fallback = Store.get().activePluginId ? "plugin" : "overview";
-		Store.patch(
+		setOpen(null);
+		const fallback = state.activePluginId ? "plugin" : "overview";
+		update(
 			preview
 				? { workArea: preview === "import" ? "import" : fallback }
 				: { duplicateLocations: [], workArea: fallback },
 		);
 	},
 	/** Open one location from the duplicate-resolution panel in the editor. @unstable */
-	openDuplicate: (loc: Location) => {
-		Store.patch({
-			open: { id: loc.id, origin: "map", session: ++lastSession, location: loc },
-			workArea: "location",
-		});
-		emitEvent("open:change", loc.id);
-	},
+	openDuplicate: (loc: Location) => openings.replace(() => createOpening(loc.id, loc, "map")),
 	/** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
 	removeDuplicate: (id: number) => {
-		const state = Store.get();
-		Store.patch({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });
+		update({ duplicateLocations: state.duplicateLocations.filter((l) => l.id !== id) });
 	},
 	/** Close the duplicate-resolution panel and return to the overview. @unstable */
 	closeDuplicates: () => {
-		Store.patch({ duplicateLocations: [] });
+		update({ duplicateLocations: [] });
 		Editor.setArea("overview");
 	},
 	/** Transition the editor pane, enforcing state invariants:
 	 *  leaving "location" closes the open location, leaving "plugin" clears the plugin id. @unstable */
 	setArea: (area: WorkArea) => {
-		Store.patch({ workArea: area });
-		if (area !== "location") dropOpen();
-		if (area !== "plugin") Store.patch({ activePluginId: null });
+		if (area !== "location") openings.cancel();
+		update({ workArea: area });
+		if (area !== "location") setOpen(null);
+		if (area !== "plugin") update({ activePluginId: null });
 	},
 	/** Open a plugin's sidebar (switches the editor pane to "plugin"). */
 	openPlugin: (pluginId: string) => {
-		Store.patch({ activePluginId: pluginId });
+		update({ activePluginId: pluginId });
 		Editor.setArea("plugin");
 	},
 	/** Close the plugin sidebar and return to the overview. */
@@ -160,3 +285,8 @@ export const Editor = {
 		Editor.setArea("overview");
 	},
 };
+
+// The feed requests a refresh; request ownership controls which result may publish.
+subscribe("store:change", () => {
+	void Editor.refresh();
+});

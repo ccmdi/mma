@@ -18,6 +18,7 @@ vi.mock("@/store/store", () => ({
 // Rectangle containment stands in for the store's ray-casting answer.
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => {
 			const polys = [polygon.coordinates, ...(polygon.extraPolygons ?? [])];
 			return Promise.resolve(

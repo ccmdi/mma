@@ -171,7 +171,7 @@ function reconcile(removed: number[]): void {
 	setSession(next);
 	scheduleSave();
 	scheduleProjection();
-	if (cursorMoved && Store.get().open?.location?.id !== next.cursorId) {
+	if (cursorMoved && Editor.get().open?.location?.id !== next.cursorId) {
 		void gotoCursor(next);
 	}
 }

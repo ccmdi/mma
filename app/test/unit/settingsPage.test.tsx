@@ -20,6 +20,7 @@ vi.mock("@/lib/util/updateCheck", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		checkBorderFile: vi.fn().mockResolvedValue(true),
 		downloadBorderFile: vi.fn(),
 		getDataLocation: vi.fn().mockResolvedValue({ path: "/data", default_path: "/data" }),

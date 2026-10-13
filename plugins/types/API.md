@@ -60,6 +60,7 @@ Every member of the global `MMA` object (also `window.MMA`), grouped by surface.
 - [Jobs](#jobs)
 - [Test](#test)
 - [Util](#util)
+- [Layer](#layer)
 - [SelectionList](#selectionlist)
 - [CommitDiff](#commitdiff)
 - [Import](#import)
@@ -804,7 +805,7 @@ mapStorage(id: string): MapPluginStorage
 ```
 
 Persistent key-value storage a plugin keeps with the open map, so every map has its own.
-Throws when no map is open.
+Each write changes only one key; Rust applies these patches to the current map settings.
 
 ### reloadStorage
 
@@ -1532,16 +1533,6 @@ autosave.schedule(): void
 
 Schedule a debounced autosave. Mutations call this automatically.
 
-#### autosave.scheduleAutoCommit
-
-`unstable` · since v0.12.0
-
-```ts
-autosave.scheduleAutoCommit(mapId: string, importedCount: number): void
-```
-
-Background auto-commit after an import with autoCommit set.
-
 #### autosave.waitForInflight
 
 `unstable` · since v0.12.0
@@ -1787,22 +1778,9 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 `unstable` · unreleased
 
 ```ts
-edit.locations(...props: Parameters<typeof cmd.storeEdit>): Promise<
-  MutationResult<{
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    panoId: string | null;
-    flags: number;
-    tags: number[];
-    extra: { [key in string]: unknown } | null;
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+edit.locations(
+  ...props: Parameters<typeof cmd.storeEdit>
+): Promise<MutationResult<Location>>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -1946,7 +1924,7 @@ fieldValues(selector: Selector, field: string): Promise<string[]>
 getActiveLocation(): Location | null
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.Store.get().open?.location`.
+**Deprecated in v0.8.2.** Read `MMA.Editor.get().open?.location`.
 
 ### getActiveSelections
 
@@ -2180,7 +2158,7 @@ Tag records referenced by at least one location.
 getWorkArea(): WorkArea
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.Store.get().workArea`.
+**Deprecated in v0.8.2.** Read `MMA.Editor.get().workArea`.
 
 ### historyAvailable
 
@@ -2286,7 +2264,7 @@ mutate<R extends MutationResult = MutationResult>(
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-openDuplicateLocation(loc: Location): void
+openDuplicateLocation(loc: Location): Promise<void>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Editor.openDuplicate`.
@@ -2716,18 +2694,6 @@ setMap(map: MapMeta): void
 **Deprecated in v0.12.1.** Use `MMA.Store.setMeta`.
 
 Replace the open map's row in state; persisting it is the caller's.
-
-### setOpenLocation
-
-`stable` · `deprecated` · unreleased
-
-```ts
-setOpenLocation(location: Location | null, session: number): void
-```
-
-**Deprecated in v0.12.1.** Use `MMA.Editor.setLocation`.
-
-Set the open location if `session` is still current.
 
 ### setPluginMode
 
@@ -3582,16 +3548,6 @@ Autosave.schedule(): void
 
 Schedule a debounced autosave. Mutations call this automatically.
 
-#### Autosave.scheduleAutoCommit
-
-`unstable` · unreleased
-
-```ts
-Autosave.scheduleAutoCommit(mapId: string, importedCount: number): void
-```
-
-Background auto-commit after an import with autoCommit set.
-
 #### Autosave.waitForInflight
 
 `unstable` · unreleased
@@ -3615,22 +3571,9 @@ Edit map locations, metadata, value records, and selections.
 `unstable` · unreleased
 
 ```ts
-Edit.locations(...props: Parameters<typeof cmd.storeEdit>): Promise<
-  MutationResult<{
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    panoId: string | null;
-    flags: number;
-    tags: number[];
-    extra: { [key in string]: unknown } | null;
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+Edit.locations(
+  ...props: Parameters<typeof cmd.storeEdit>
+): Promise<MutationResult<Location>>
 ```
 
 Edit locations on the map or in a pending layer. Map changes are undoable.
@@ -3757,7 +3700,7 @@ Tag records, including unreferenced records and generated display defaults.
 ```ts
 Tag.assign(
   selector: Selector,
-  records: Omit<ValueRecord, "id">[],
+  records: TagCreate[],
 ): Promise<WorkResult>
 ```
 
@@ -3778,7 +3721,7 @@ Per-tag location counts, keyed by numeric id.
 `stable` · unreleased
 
 ```ts
-Tag.create(records: Omit<ValueRecord, "id">[]): Promise<number[]>
+Tag.create(records: TagCreate[]): Promise<number[]>
 ```
 
 Get or create tag records by name and return their ids.
@@ -3843,9 +3786,7 @@ Set tag display order from an ordered list of ids.
 `stable` · unreleased
 
 ```ts
-Tag.update(
-  updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[],
-): Promise<MutationResult<ValueRecord>>
+Tag.update(updates: Patch<Tag>[]): Promise<MutationResult<ValueRecord>>
 ```
 
 Update tag display records in one undoable edit.
@@ -3898,20 +3839,29 @@ Editor.closePlugin(): void
 
 Close the plugin sidebar and return to the overview.
 
-#### Editor.layer
+#### Editor.edit
+
+`unstable` · unreleased
+
+```ts
+Editor.edit(
+  patch:
+    | Omit<Patch<Location>, "id">
+    | ((location: Location) => Omit<Patch<Location>, "id">),
+): Promise<void | null>
+```
+
+Edit this opening's draft. Retained callbacks become inert when the opening ends.
+
+#### Editor.get
 
 `stable` · unreleased
 
 ```ts
-Editor.layer(session: number): Extract<
-  Target,
-  {
-    kind: "pending";
-  }
->
+Editor.get(): Readonly<EditorState>
 ```
 
-The pending layer holding the open location's draft edits for editor session `session`.
+Imperative snapshot of the editor state.
 
 #### Editor.open
 
@@ -3933,7 +3883,7 @@ supersedes one still loading.
 `unstable` · unreleased
 
 ```ts
-Editor.openDuplicate(loc: Location): void
+Editor.openDuplicate(loc: Location): Promise<void>
 ```
 
 Open one location from the duplicate-resolution panel in the editor.
@@ -3969,6 +3919,16 @@ Editor.preview(loc: Location): void
 Open an arbitrary location read-only as a seen-preview: loads its pano without
 adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
 
+#### Editor.refresh
+
+`unstable` · unreleased
+
+```ts
+Editor.refresh(): Promise<void>
+```
+
+Reread the current draft. Superseded reads and errors cannot update the next opening.
+
 #### Editor.removeDuplicate
 
 `unstable` · unreleased
@@ -3989,6 +3949,16 @@ Editor.resolve(m: MaybeLocation): Promise<Location | null>
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
 
+#### Editor.save
+
+`unstable` · unreleased
+
+```ts
+Editor.save(patch: Omit<Patch<Location>, "id">): Promise<number | null>
+```
+
+Save this opening's draft. Retained callbacks become inert when the opening ends.
+
 #### Editor.setArea
 
 `unstable` · unreleased
@@ -4000,15 +3970,25 @@ Editor.setArea(area: WorkArea): void
 Transition the editor pane, enforcing state invariants:
 leaving "location" closes the open location, leaving "plugin" clears the plugin id.
 
-#### Editor.setLocation
+#### Editor.use
 
 `stable` · unreleased
 
 ```ts
-Editor.setLocation(location: Location | null, session: number): void
+Editor.use<T>(selector: (s: EditorState) => T): T
 ```
 
-Set the open location if `session` is still current.
+Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`.
+
+#### Editor.useWriting
+
+`unstable` · unreleased
+
+```ts
+Editor.useWriting(): boolean
+```
+
+Whether procedure work is still writing to the open draft.
 
 ## History
 
@@ -4059,6 +4039,16 @@ Undo the last edit.
 `stable` · unreleased
 
 Save and restore map versions.
+
+#### Commit.background
+
+`unstable` · unreleased
+
+```ts
+Commit.background(mapId: string, message: string): void
+```
+
+Commit `mapId` in the background once pending saves finish.
 
 #### Commit.checkout
 
@@ -6314,35 +6304,7 @@ map's tag table.
 `unstable` · since v0.10.0
 
 ```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location>>
 ```
 
 Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
@@ -6352,35 +6314,7 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeApplySavedSelection(id: string): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location>>
 ```
 
 Apply a saved rule with its value names resolved against the open map.
@@ -6393,38 +6327,20 @@ Apply a saved rule with its value names resolved against the open map.
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+): Promise<MutationResult<Location>>
 ```
 
 Restore a map to a previous commit. An open map changes through its normal write path.
+
+#### cmd.storeCloseLayer
+
+`unstable` · unreleased
+
+```ts
+cmd.storeCloseLayer(name: string, mapId: string | null): Promise<null>
+```
+
+Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first.
 
 #### cmd.storeCloseMap
 
@@ -6533,16 +6449,6 @@ cmd.storeDeleteSavedSelection(id: string): Promise<null>
 
 Delete a saved selection rule by `id`.
 
-#### cmd.storeDrop
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeDrop(name: string): Promise<null>
-```
-
-Drop a named pending layer and everything it holds.
-
 #### cmd.storeDuplicateMap
 
 `unstable` · since v0.11.4
@@ -6563,35 +6469,7 @@ cmd.storeEdit(
   target: Target,
   edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
   opts: EditOpts | null,
-): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+): Promise<MutationResult<Location>>
 ```
 
 Edit locations where target says; a pending layer holds edits until land.
@@ -6601,35 +6479,7 @@ Edit locations where target says; a pending layer holds edits until land.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location>>
 ```
 
 Edit the selection tree.
@@ -7078,35 +6928,7 @@ Set the default marker color for new render updates.
 cmd.storeStep(
   stack: Stack,
   key: EntryKey | null,
-): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+): Promise<MutationResult<Location>>
 ```
 
 Undo the newest edit, or redo the newest undone one.
@@ -7116,7 +6938,7 @@ Undo the newest edit, or redo the newest undone one.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
+cmd.storeSubscribeChanges(changes: Channel<ChangeEvent_Deserialize>): Promise<null>
 ```
 
 Subscribe to map changes, including the ids of added, removed, and updated rows.
@@ -7170,38 +6992,20 @@ cmd.storeUpdateMapMeta(
       | "lastOpenedAt"
       | "settings"
     >
-  > & {
-    settings?: Partial<MapSettings>;
-  } & Pick<MapMeta, "id">,
-): Promise<
-  MutationResult<{
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: { [key in string]: unknown } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-  }>
->
+  > &
+    Pick<MapMeta, "id"> & {
+      settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> &
+        Partial<MapPreferences> & {
+          pluginData?: {
+            [key in string]: Op<
+              { [key_1 in string]: unknown },
+              { [key_1 in string]: Op<unknown, unknown, null> },
+              null
+            >;
+          };
+        };
+    },
+): Promise<MutationResult<Location>>
 ```
 
 Patch map metadata, leaving omitted fields unchanged.
@@ -8626,6 +8430,24 @@ toggleInSet<T>(set: ReadonlySet<T>, value: T, on?: boolean): Set<T>
 ```
 
 Copy of `set` with `value` toggled, or forced on/off by `on`.
+
+## Layer
+
+### Layer
+
+`unstable` · unreleased
+
+Pending layers: staged edits that land on the map as one undo step.
+
+#### Layer.open
+
+`unstable` · unreleased
+
+```ts
+Layer.open(edits?: LocationEdits): Promise<Layer>
+```
+
+Create a layer and stage its first edits.
 
 ## SelectionList
 

@@ -110,9 +110,9 @@ export async function createLocationAtLatLng(
 	zoom: number,
 	opts?: { container?: HTMLElement | null },
 ): Promise<Location | null> {
-	const area = Store.get().workArea;
+	const area = Editor.get().workArea;
 	if (area === "plugin" || area === "import" || area === "diff") return null;
-	if (Store.get().open?.origin === "import") return null;
+	if (Editor.get().open?.origin === "import") return null;
 
 	const tr = trace("add");
 	const ms = Store.get().map?.settings;
@@ -208,7 +208,7 @@ export async function handleMapClick(
 	if (isLocationLayer(info.layer?.id)) {
 		const picked = await resolvePicked();
 		if (picked != null) {
-			const open = Store.get().open;
+			const open = Editor.get().open;
 			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
 				void SelectionList.update(toggleManualSelection(locId(picked)));

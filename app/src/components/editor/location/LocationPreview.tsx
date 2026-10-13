@@ -154,14 +154,16 @@ const TagEditor = memo(function TagEditor({
 });
 
 export function LocationPreview() {
-	const location = Store.use((s) => s.open?.location ?? null);
-	const origin = Store.use((s) => s.open?.origin);
+	const location = Editor.use((s) => s.open?.location ?? null);
+	const origin = Editor.use((s) => s.open?.origin);
 	const map = Store.use((s) => s.map);
 	const reviewSession = Review.useSession();
 	const isReviewMode = reviewSession !== null;
 	const panoContainerRef = useRef<HTMLDivElement>(null);
 	const fullscreenContainerRef = useRef<HTMLDivElement>(null);
-	const { draft, defaultPano, edit, land, geo, enriching } = usePanoViewer();
+	const { defaultPano, geo } = usePanoViewer();
+	const { edit, save } = Editor;
+	const writing = Editor.useWriting();
 	const isFullscreen = usePanoFullscreen();
 	const [pendingTags, setPendingTags] = usePendingTags(location);
 	const visibleTags = Store.use(Tag.visible);
@@ -196,7 +198,7 @@ export function LocationPreview() {
 	// A chosen date pins the draft to that pano; Default floats it on the pano Google resolves for the position.
 	const handleDateChange = useCallback(
 		(selectedPanoId: string | null) => {
-			edit((d) => setPinned(d, selectedPanoId != null));
+			void edit((location) => setPinned(location, selectedPanoId != null));
 			const target = selectedPanoId ?? defaultPano?.id;
 			if (target) pano.jump(target);
 		},
@@ -204,7 +206,7 @@ export function LocationPreview() {
 	);
 
 	const handleSave = useCallback(async () => {
-		if (!location || !pano.exists() || !draft) return;
+		if (!location || !pano.exists()) return;
 		if (origin === "import") {
 			Editor.close();
 			return;
@@ -212,7 +214,7 @@ export function LocationPreview() {
 
 		// Save with the live camera. Pending enrichment joins the saved location
 		// and its undo step when it finishes.
-		await land({
+		await save({
 			...pano.captureView(),
 			tags: (
 				await Edit.values(
@@ -227,7 +229,7 @@ export function LocationPreview() {
 		} else {
 			Editor.close();
 		}
-	}, [pano, location, origin, draft, land, isReviewMode, reviewSession, pendingTags]);
+	}, [pano, location, origin, save, isReviewMode, reviewSession, pendingTags]);
 
 	const handleClose = useCallback(() => {
 		if (exitPanoFullscreen()) return;
@@ -255,10 +257,10 @@ export function LocationPreview() {
 	// Reads the open location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		const loc = Store.get().open?.location;
+		const loc = Editor.get().open?.location;
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
-		edit((d) => setPinned(d, false));
+		await edit((location) => setPinned(location, false));
 	}, [pano, edit]);
 
 	const handleFullscreen = useCallback(() => {
@@ -299,7 +301,7 @@ export function LocationPreview() {
 			<ReviewBar />
 			<section
 				className={`location-preview${appSettings.previewAspectRatio === "free" ? " free-resize" : ""}`}
-				data-enriching={enriching || undefined}
+				data-enriching={writing || undefined}
 			>
 				<div
 					className={`location-preview__panorama${isFullscreen ? " is-fullscreen" : ""}${appSettings.hidePanoUI ? " hide-pano-ui" : ""}`}
@@ -317,7 +319,7 @@ export function LocationPreview() {
 						{appSettings.defaultMovementMode === "nmpz" && (
 							<div style={{ position: "absolute", inset: 0, zIndex: 1 }} />
 						)}
-						{draft && pano.exists() && (
+						{location && pano.exists() && (
 							<PanoControls
 								isFullscreen={isFullscreen}
 								onFullscreen={handleFullscreen}

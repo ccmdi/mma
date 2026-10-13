@@ -9,6 +9,7 @@ import { trace } from "@/lib/util/debug";
 import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
+import { Editor } from "@/store/editor";
 
 // Owns marker/scene data for every map surface. The editor map drives the engine (the
 // frame subscription and its lifecycle); both it and the minimap render from the same
@@ -27,7 +28,7 @@ const APPLIED_KEPT = 16;
 let waiters: { version: number; resolve: (s: FrameSummary) => void }[] = [];
 
 function syncOpen(): boolean {
-	return scene.setOpen(Store.get().open?.location?.id ?? null);
+	return scene.setOpen(Editor.get().open?.location?.id ?? null);
 }
 
 function nothingApplied(version: number): FrameSummary {
@@ -154,14 +155,14 @@ export const Scene = {
 	},
 	/** Start following open-location changes. Returns a stop function. */
 	start: (): (() => void) => {
-		// Opening a location sends no frame, so the scene follows the store state; `setOpen` is a
+		// Opening a location sends no frame, so the scene follows the editor; `setOpen` is a
 		// no-op when the id hasn't moved.
-		const unsubStore = subscribeEvent("store:changed", () => {
+		const unsubEditor = subscribeEvent("editor:changed", () => {
 			if (syncOpen()) emitEvent("scene:changed");
 		});
 
 		return () => {
-			unsubStore();
+			unsubEditor();
 			Scene.clear();
 		};
 	},

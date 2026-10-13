@@ -40,11 +40,14 @@ vi.mock("@/lib/events", () => ({
 
 vi.mock("@/store/store", () => ({
 	Store: {
-		get: () => ({
-			open: h.openId == null ? null : { location: { id: h.openId } },
-			selectedLocationIds: h.selected,
-		}),
+		get: () => ({ selectedLocationIds: h.selected }),
 		setSelected: () => {},
+	},
+}));
+
+vi.mock("@/store/editor", () => ({
+	Editor: {
+		get: () => ({ open: h.openId == null ? null : { location: { id: h.openId } } }),
 	},
 }));
 
@@ -65,7 +68,7 @@ import { Scene } from "@/lib/render/scene";
 import { subscribe as subscribeEvent } from "@/lib/events";
 import { entry, frame, scene } from "./fixtures/renderFixtures";
 
-const notifyStore = () => (h.listeners.get("store:changed") ?? []).forEach((fn) => fn());
+const notifyEditor = () => (h.listeners.get("editor:changed") ?? []).forEach((fn) => fn());
 
 beforeEach(() => {
 	h.openId = null;
@@ -88,11 +91,11 @@ describe("Scene (single scene source)", () => {
 		const stop = Scene.start();
 
 		h.openId = 5;
-		notifyStore();
+		notifyEditor();
 		expect(bumps).toBeGreaterThan(0);
 
 		const after = bumps;
-		notifyStore(); // same active id -> no work, no bump
+		notifyEditor(); // same active id -> no work, no bump
 		expect(bumps).toBe(after);
 
 		stop();
@@ -105,7 +108,7 @@ describe("Scene (single scene source)", () => {
 		let bumps = 0;
 		const unsub = subscribeEvent("scene:changed", () => bumps++);
 		h.openId = 9;
-		notifyStore();
+		notifyEditor();
 		expect(bumps).toBe(0);
 		unsub();
 	});

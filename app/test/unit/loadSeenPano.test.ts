@@ -7,11 +7,6 @@ const active = { ...createLocation({ lat: 1, lng: 2, panoId: null }), id: 7 };
 
 vi.mock("@/lib/commands", () => ({ cmd: {} }));
 vi.mock("@/store/settings", () => ({ getSettings: () => ({}) }));
-vi.mock("@/store/store", () => ({
-	Store: {
-		get: () => ({ open: { location: active } }),
-	},
-}));
 vi.mock("@/store/query", () => ({
 	Query: {
 		read: async () => [active],
@@ -24,6 +19,7 @@ vi.mock("@/store/location", () => ({
 }));
 vi.mock("@/store/editor", () => ({
 	Editor: {
+		get: () => ({ open: { location: active } }),
 		open: vi.fn(),
 	},
 }));

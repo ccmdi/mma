@@ -28,6 +28,7 @@ import { toggleViewportLock } from "@/lib/sv/viewportLock";
 import { sendHideCar } from "./PanoControls";
 import { usePanoViewer } from "./PanoViewerContext";
 import { usePano } from "@/lib/hooks/usePano";
+import { Editor } from "@/store/editor";
 
 interface LocationHotkeyDeps {
 	pendingTags: string[];
@@ -42,9 +43,9 @@ interface LocationHotkeyDeps {
 }
 
 export function useLocationHotkeys(deps: LocationHotkeyDeps) {
-	const { draft, timeline } = usePanoViewer();
+	const { timeline } = usePanoViewer();
 	const pano = usePano();
-	const location = Store.use((s) => s.open?.location ?? null);
+	const location = Editor.use((s) => s.open?.location ?? null);
 	const isReviewMode = Review.useSession() !== null;
 	const {
 		pendingTags,
@@ -150,7 +151,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const stepPanoDate = (step: 1 | -1) => {
 		const panoDates = timeline ?? [];
 		if (!panoDates.length) return;
-		const current = draft?.panoId ?? location?.panoId ?? null;
+		const current = location?.panoId ?? null;
 		void handleDateChange(
 			cycle(
 				panoDates.map((d) => d.panoId),
@@ -202,7 +203,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	};
 
 	const onApplyTag = useEffectEvent(({ tagId }: { tagId: number }) => {
-		const active = Store.get().open?.location;
+		const active = Editor.get().open?.location;
 		if (!active) return false;
 		const tag = Tag.visible().find((t) => t.id === tagId);
 		if (!tag) return false;
@@ -221,7 +222,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (!hasLocation) return;
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
 		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
-			const loc = Store.get().open?.location;
+			const loc = Editor.get().open?.location;
 			if (!loc) return false;
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();

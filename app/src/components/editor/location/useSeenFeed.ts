@@ -1,15 +1,15 @@
 import { useEffect, useEffectEvent, useMemo } from "react";
-import { Store } from "@/store/store";
 import { Seen } from "@/lib/seen/seen";
 import { usePano } from "@/lib/hooks/usePano";
 import { usePanoViewer } from "./PanoViewerContext";
+import { Editor } from "@/store/editor";
 
 /** Record viewed panos, add geocoding when ready, and flush on close.
  *  The location's stored countryCode takes precedence over geocoding. */
 export function useSeenFeed() {
-	const location = Store.use((s) => s.open?.location ?? null);
-	const origin = Store.use((s) => s.open?.origin);
-	const { draft, geo } = usePanoViewer();
+	const location = Editor.use((s) => s.open?.location ?? null);
+	const origin = Editor.use((s) => s.open?.origin);
+	const { geo } = usePanoViewer();
 	const pano = usePano();
 	const storedCountry =
 		typeof location?.extra?.countryCode === "string" ? location.extra.countryCode : null;
@@ -17,29 +17,29 @@ export function useSeenFeed() {
 		() => geo && { address: geo.address, countryCode: storedCountry ?? geo.countryCode },
 		[geo, storedCountry],
 	);
-	const getSeed = useEffectEvent(() => ({ draft, location, origin, effectiveGeo }));
+	const getSeed = useEffectEvent(() => ({ location, origin, effectiveGeo }));
 
 	useEffect(() => {
-		const { draft, location, origin, effectiveGeo } = getSeed();
-		if (!draft?.panoId || !location) return;
+		const { location, origin, effectiveGeo } = getSeed();
+		if (!location?.panoId) return;
 		Seen.panoChanged(
 			{
 				locationId: origin === "map" ? location.id : null,
-				panoId: draft.panoId,
-				lat: draft.lat,
-				lng: draft.lng,
+				panoId: location.panoId,
+				lat: location.lat,
+				lng: location.lng,
 			},
 			effectiveGeo,
 			pano,
 		);
-	}, [pano, draft?.panoId]);
+	}, [pano, location?.panoId]);
 
 	useEffect(() => {
 		if (effectiveGeo) Seen.updateGeo(effectiveGeo);
 	}, [effectiveGeo]);
 
 	useEffect(() => {
-		if (!location) return;
+		if (location?.id == null) return;
 		return () => {
 			if (pano.exists()) Seen.flush(pano);
 		};

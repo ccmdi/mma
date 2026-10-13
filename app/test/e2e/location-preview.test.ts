@@ -115,7 +115,7 @@ describe("LocationPreview — basics", () => {
 
 	it("work area is 'location' when preview is open", async () => {
 		await openLocation(basicCoordId);
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("location");
 	});
 
@@ -125,7 +125,7 @@ describe("LocationPreview — basics", () => {
 		await btn.waitForExist();
 		await btn.click();
 		await waitForWorkArea("overview");
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("overview");
 	});
 
@@ -414,7 +414,7 @@ describe("LocationPreview — dead pano (fallback)", () => {
 		await openLocation(dead1Id);
 		await waitForDates();
 		const draftPanoId = await withApi(
-			async (api) => api.Store.get().open?.location?.panoId ?? null,
+			async (api) => api.Editor.get().open?.location?.panoId ?? null,
 		);
 		expect((await getLoc(dead1Id)).panoId).toBe(DEAD_PANO);
 		expect(draftPanoId).not.toBe(DEAD_PANO);
@@ -527,10 +527,10 @@ describe("LocationPreview — switching between pano types", () => {
 		expect(await getDateCount()).toBeGreaterThan(0);
 
 		// Verify it's showing data for the coord location, not a stale one
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("location");
 		const active = await withApi(async (api) => {
-			return api.Store.get().open?.location?.id ?? null;
+			return api.Editor.get().open?.location?.id ?? null;
 		});
 		expect(active).toBe(swCoordId);
 	});
@@ -589,10 +589,8 @@ describe("LocationPreview — exact date resolution", () => {
 
 	before(async () => {
 		await withApi(async (api) => {
-			const map = api.Store.get().map!;
 			await api.Edit.meta({
 				settings: {
-					...map.settings,
 					enrichMetadata: true,
 					enrichFields: [
 						"altitude",
@@ -1353,7 +1351,7 @@ describe("LocationPreview — edge cases", () => {
 
 		// Open location should be B
 		const activeId = await withApi(async (api) => {
-			return api.Store.get().open?.location?.id ?? null;
+			return api.Editor.get().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeBId);
 	});
@@ -1369,7 +1367,7 @@ describe("LocationPreview — edge cases", () => {
 		await waitForDates();
 
 		const activeId = await withApi(async (api) => {
-			return api.Store.get().open?.location?.id ?? null;
+			return api.Editor.get().open?.location?.id ?? null;
 		});
 		expect(activeId).toBe(edgeAId);
 		expect(await getDateCount()).toBeGreaterThan(0);

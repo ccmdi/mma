@@ -77,10 +77,11 @@ import { Review } from "@/lib/review/review";
 import { openDialog } from "./dialogBus";
 import { panoIdSelector, unpannedSelector, untaggedSelector } from "@/store/selections";
 import { msg } from "@/lib/i18n";
+import { Editor } from "@/store/editor";
 
 const requiresMap = () => Store.get().map !== null;
 const requiresVersioning = () => requiresMap() && !Maps.isReserved(Store.get().mapId);
-const hasOpenLocation = () => Store.get().open?.location != null;
+const hasOpenLocation = () => Editor.get().open?.location != null;
 const hasSelection = () => Store.get().selectedLocationIds.size > 0;
 const hasAnySelections = () => Store.get().selectionList.length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
@@ -148,7 +149,7 @@ const COMMANDS = {
 		icon: mdiMapMarkerPlus,
 		group: msg("Map"),
 		execute: () => {
-			const id = Store.get().open?.location?.id;
+			const id = Editor.get().open?.location?.id;
 			if (id != null) openDialog("quick-copy-to-map", id);
 		},
 		enabled: hasOpenLocation,

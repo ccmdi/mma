@@ -145,8 +145,7 @@ describe("Map metadata updates", () => {
 
 	it("update settings", async () => {
 		await withApi(async (api) => {
-			const cur = api.Store.get().map!.settings;
-			await api.Edit.meta({ settings: { ...cur, enrichMetadata: true } });
+			await api.Edit.meta({ settings: { enrichMetadata: true } });
 		});
 
 		const settings = await withApi(async (api) => api.Store.get().map!.settings);
@@ -195,9 +194,9 @@ describe("Open location and work area", () => {
 
 		const result = await withApi(async (api) => {
 			return {
-				workArea: api.Store.get().workArea,
-				activeId: api.Store.get().open?.location?.id,
-				activeLat: api.Store.get().open?.location?.lat,
+				workArea: api.Editor.get().workArea,
+				activeId: api.Editor.get().open?.location?.id,
+				activeLat: api.Editor.get().open?.location?.lat,
 			};
 		});
 		expect(result.workArea).toBe("location");
@@ -211,8 +210,8 @@ describe("Open location and work area", () => {
 		});
 
 		const result = await withApi(async (api) => ({
-			workArea: api.Store.get().workArea,
-			active: api.Store.get().open?.location ?? null,
+			workArea: api.Editor.get().workArea,
+			active: api.Editor.get().open?.location ?? null,
 		}));
 		expect(result.workArea).toBe("overview");
 		expect(result.active).toBeNull();
@@ -231,8 +230,8 @@ describe("Open location and work area", () => {
 		);
 
 		const result = await withApi(async (api) => ({
-			activeId: api.Store.get().open?.location?.id,
-			activeLat: api.Store.get().open?.location?.lat,
+			activeId: api.Editor.get().open?.location?.id,
+			activeLat: api.Editor.get().open?.location?.lat,
 		}));
 		expect(result.activeId).toBe(id1);
 		expect(result.activeLat).toBe(30);

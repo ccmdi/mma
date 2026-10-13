@@ -71,9 +71,9 @@ export const Location = {
 	},
 	/** Remove locations by id. Undoable. */
 	remove: async (ids: ReadonlyIdSet) => {
-		const state = Store.get();
 		if (ids.size === 0) return;
-		if (state.open && ids.has(state.open.id)) Editor.setArea("overview");
+		const { open } = Editor.get();
+		if (open && ids.has(open.id)) Editor.setArea("overview");
 		emitEvent("store:changed");
 		await Edit.locations(
 			MAP,

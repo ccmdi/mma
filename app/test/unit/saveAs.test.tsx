@@ -13,6 +13,7 @@ vi.mock("@tauri-apps/api/event", () => ({ emit: vi.fn(async () => {}), listen: v
 vi.mock("@/store/router", () => ({ goTo: vi.fn() }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		storeDuplicateMap: vi.fn(async (_id: string, name: string) => ({ id: "copy", name })),
 		storeListMaps: vi.fn(async () => []),
 		storeSaveDirty: vi.fn(async () => null),

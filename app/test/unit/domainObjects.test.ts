@@ -35,7 +35,7 @@ const lint = (source: string) => {
 describe("domain import conventions", () => {
 	it("accepts canonical objects, type imports, and unrelated modules", () => {
 		const result = lint(
-			'import { Tag } from "@/store/tag"; import { Store, type MapState } from "@/store/store"; import type { Open } from "@/store/store"; import * as other from "@/lib/data/tags"; void Tag; void Store; void other;',
+			'import { Tag } from "@/store/tag"; import { Store, type MapState } from "@/store/store"; import type { Opening } from "@/store/store"; import * as other from "@/lib/data/tags"; void Tag; void Store; void other;',
 		);
 		expect(result.output).not.toContain("local(domain-objects)");
 		expect(result.status).toBe(0);
@@ -63,7 +63,7 @@ describe("domain import conventions", () => {
 	it("allows re-exporting types without a runtime barrel", () => {
 		expect(
 			lint(
-				'export type { MapState } from "@/store/store"; export { type Open } from "@/store/store";',
+				'export type { MapState } from "@/store/store"; export { type Opening } from "@/store/store";',
 			).status,
 		).toBe(0);
 	});

@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		remoteMappingClear: async () => {},
 		syncReconcile: (...args: unknown[]) =>
 			new Promise<SyncReconcileResult>((resolve) => h.calls.push({ args, resolve })),

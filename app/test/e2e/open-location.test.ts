@@ -12,24 +12,24 @@ describe("Open location and work area", () => {
 		]);
 	});
 	it("starts with no open location", async () => {
-		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
+		const active = await withApi(async (api) => api.Editor.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 
 	it("starts in overview work area", async () => {
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("overview");
 	});
 
 	it("setting open location changes work area to 'location'", async () => {
 		await withApi(async (api, id) => api.Editor.open(id), locIds[0]);
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("location");
 	});
 
 	it("open location returns the correct location data", async () => {
 		const active = await withApi(async (api) => {
-			const loc = api.Store.get().open?.location ?? null;
+			const loc = api.Editor.get().open?.location ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active).not.toBeNull();
@@ -40,7 +40,7 @@ describe("Open location and work area", () => {
 	it("switching open location updates the data", async () => {
 		await withApi(async (api, id) => api.Editor.open(id), locIds[1]);
 		const active = await withApi(async (api) => {
-			const loc = api.Store.get().open?.location ?? null;
+			const loc = api.Editor.get().open?.location ?? null;
 			return loc ? { id: loc.id, lat: loc.lat } : null;
 		});
 		expect(active!.id).toBe(locIds[1]);
@@ -49,23 +49,23 @@ describe("Open location and work area", () => {
 
 	it("clearing open location returns to overview", async () => {
 		await withApi(async (api) => api.Editor.close());
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("overview");
 
-		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
+		const active = await withApi(async (api) => api.Editor.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 
 	it("deleting the open location clears it", async () => {
 		await withApi(async (api, id) => api.Editor.open(id), locIds[2]);
-		const areaBefore = await withApi(async (api) => api.Store.get().workArea);
+		const areaBefore = await withApi(async (api) => api.Editor.get().workArea);
 		expect(areaBefore).toBe("location");
 
 		await withApi(async (api, id) => {
 			await api.Location.remove(new Set([id]));
 		}, locIds[2]);
 
-		const active = await withApi(async (api) => api.Store.get().open?.location ?? null);
+		const active = await withApi(async (api) => api.Editor.get().open?.location ?? null);
 		expect(active).toBeNull();
 	});
 });

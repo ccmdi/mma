@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from "react";
 import type { PickingInfo } from "@deck.gl/core";
-import { Store } from "@/store/store";
 import { buildSceneLayers, type PolyGeom } from "@/lib/render/buildSceneLayers";
 import { Scene } from "@/lib/render/scene";
 import type { MapHost, DeckOverlayHandle } from "@/lib/map/host";
@@ -13,6 +12,7 @@ import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
 import { useMapKeyboardNav } from "@/lib/hooks/useMapKeyboardNav";
 import { layerOpacity, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
+import { Editor } from "@/store/editor";
 
 export interface MapSurfaceOpts {
 	prefs: MapEmbedPrefs;
@@ -161,14 +161,14 @@ export function useMapSurface(
 		if (!host || !opts.followOpen) return;
 		return subscribe("open:change", (id) => {
 			if (id == null || !Review.session() || !getSettings().followActiveInReview) return;
-			const loc = Store.get().open?.location;
+			const loc = Editor.get().open?.location;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});
 	}, [host, opts.followOpen]);
 
 	useHotkey(useBinding("panToLocation"), () => {
 		if (!host || !opts.panToActiveHotkey) return;
-		const loc = Store.get().open?.location;
+		const loc = Editor.get().open?.location;
 		if (loc) host.panTo({ lat: loc.lat, lng: loc.lng });
 	});
 

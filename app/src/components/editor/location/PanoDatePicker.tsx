@@ -1,11 +1,13 @@
 import { memo, useCallback } from "react";
 import { Store } from "@/store/store";
+import { Editor } from "@/store/editor";
 import { useSetting } from "@/store/settings";
 import { dateFmt } from "@/lib/util/format";
 import { civilToDate } from "@/lib/util/date";
 import type { Pano } from "@/bindings.gen";
 import { useCameraType, type FullCameraType } from "./useCameraType";
-import { usePanoViewer, usePanoDates, viewerPosition } from "./PanoViewerContext";
+import { usePanoViewer } from "./PanoViewerContext";
+import { panoDates } from "./panoDate";
 import { isFieldEnabled } from "@/lib/data/fieldDefs";
 import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { useTimezone } from "@/lib/util/timezone";
@@ -55,18 +57,21 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 }: {
 	onChange: (panoId: string | null) => void;
 }) {
-	const { draft, currentPano, timeline, enriching } = usePanoViewer();
+	const { currentPano, timeline, defaultPano } = usePanoViewer();
+	const writing = Editor.useWriting();
 	const entries = timeline ?? [];
-	const exactTs = (draft?.extra?.datetime as number | undefined) ?? null;
-	const location = Store.use((s) => s.open?.location ?? null);
+	const location = Editor.use((s) => s.open?.location ?? null);
+	const exactTs = (location?.extra?.datetime as number | undefined) ?? null;
 	const enrichFields = Store.use((s) => s.map?.settings.enrichFields ?? null);
-	// An exact date is on its way: the field is on, and what the draft holds is not this pano's yet.
-	const resolvingExact =
-		enriching &&
-		isFieldEnabled(enrichFields, "datetime") &&
-		(exactTs == null || draft?.panoId !== location?.panoId);
+	// An exact date is on its way: the field is on and the location has no date yet.
+	const resolvingExact = writing && isFieldEnabled(enrichFields, "datetime") && exactTs == null;
 
-	const { defaultEntry, currentEntry, isDefault } = usePanoDates();
+	const { defaultEntry, currentEntry, isDefault } = panoDates(
+		currentPano,
+		timeline,
+		defaultPano,
+		location,
+	);
 	const displayDate = currentEntry ? civilToDate(currentEntry.date) : null;
 	const displayLabel = displayDate
 		? isDefault
@@ -85,7 +90,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const showBadges = useSetting("showCameraBadges");
 	const exactDateFormat = useSetting("exactDateFormat");
 	const dateTimezone = useSetting("dateTimezone");
-	const { lat, lng } = viewerPosition(draft, location);
+	const { lat, lng } = location ?? { lat: 0, lng: 0 };
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
 	const triggerCameraType = useCameraType(
 		currentEntry?.panoId ?? currentPano?.id ?? null,

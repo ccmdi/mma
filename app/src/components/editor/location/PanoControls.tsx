@@ -1,6 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
 import { memo, useEffect, useRef, useState, useCallback } from "react";
-import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { isPinned } from "@/types";
 import { useFlashState, type FlashState } from "@/lib/hooks/useFlashState";
@@ -37,6 +36,7 @@ import {
 	mdiImageFilterHdrOutline,
 } from "@mdi/js";
 import { t } from "@/lib/i18n";
+import { Editor } from "@/store/editor";
 
 // --- Compass ---
 
@@ -227,7 +227,7 @@ function ReturnToSpawnControl({
 	onReturnToSpawn: () => void | Promise<void>;
 }) {
 	const pano = usePano();
-	const location = Store.use((s) => s.open?.location ?? null);
+	const location = Editor.use((s) => s.open?.location ?? null);
 	const [hasChanged, setHasChanged] = useState(false);
 	const checkChanged = () => {
 		if (!location) return;
@@ -292,12 +292,11 @@ function CoordinateControl() {
 
 // --- PanoControls ---
 
-// The draft's extra: the location as a save would write it.
+// Metadata from the open location, including pending edits.
 function PanoMetadataControl() {
-	const location = Store.use((s) => s.open?.location ?? null);
-	const { draft } = usePanoViewer();
+	const location = Editor.use((s) => s.open?.location ?? null);
 	if (!location) return null;
-	const fields = draft?.extra ?? location.extra;
+	const fields = location.extra;
 	return (
 		<div
 			className="embed-controls__control"
@@ -309,7 +308,7 @@ function PanoMetadataControl() {
 				style={{ display: "flex", flexDirection: "column", gap: "2px" }}
 			>
 				<span>
-					{t("Pinned pano:")} {isPinned(draft ?? location) ? t("yes") : t("no")}
+					{t("Pinned pano:")} {isPinned(location) ? t("yes") : t("no")}
 				</span>
 				{fields &&
 					Object.entries(fields).map(([key, val]) => (
@@ -360,7 +359,7 @@ export const PanoControls = memo(function PanoControls({
 		async ({ long, noTags }: { long: boolean; noTags: boolean }) => {
 			const url = buildMapsUrl();
 			if (!url) return;
-			const location = Store.get().open?.location;
+			const location = Editor.get().open?.location;
 			if (!noTags && location) appendLinkTags(url, location, Tag.all());
 			await flashCopy(() => copyMapsLink(url, { long }));
 		},

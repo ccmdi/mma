@@ -97,27 +97,27 @@ describe("Delete clears open location", () => {
 	});
 	it("open location cleared when it is deleted", async () => {
 		await openLocation(locIds[0]);
-		const activeBefore = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeBefore).toBe(locIds[0]);
 
 		await withApi(async (api, id) => {
 			await api.Location.remove(new Set([id]));
 		}, locIds[0]);
 
-		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeAfter).toBeNull();
 	});
 
 	it("work area returns to overview when active is deleted", async () => {
 		await openLocation(locIds[1]);
-		const areaBefore = await withApi(async (api) => api.Store.get().workArea);
+		const areaBefore = await withApi(async (api) => api.Editor.get().workArea);
 		expect(areaBefore).toBe("location");
 
 		await withApi(async (api, id) => {
 			await api.Location.remove(new Set([id]));
 		}, locIds[1]);
 
-		const areaAfter = await withApi(async (api) => api.Store.get().workArea);
+		const areaAfter = await withApi(async (api) => api.Editor.get().workArea);
 		expect(areaAfter).toBe("overview");
 	});
 
@@ -128,7 +128,7 @@ describe("Delete clears open location", () => {
 			await api.Location.remove(new Set([id]));
 		}, locIds[3]);
 
-		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeAfter).toBe(locIds[2]);
 	});
 });

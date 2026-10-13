@@ -33,6 +33,7 @@ import {
 } from "@/lib/sv/measure";
 import type { RGBA } from "@/lib/util/color";
 import { bearingDeg, unwrapRing } from "@/lib/geo/geo";
+import { Editor } from "@/store/editor";
 
 /** Lines drawn at a fixed on-screen width. */
 const SCREEN_LINE = {
@@ -151,7 +152,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	const layers: Layer[] = [];
 
 	// Commit-diff overlay temporarily replaces the regular markers.
-	if (Store.get().workArea === "diff") {
+	if (Editor.get().workArea === "diff") {
 		const diff = CommitDiff.preview();
 		if (diff) {
 			for (const [kind, alpha] of [
@@ -259,7 +260,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
 	// active marker, which highlights whichever staged location is open — no per-index coloring.
-	if (Store.get().workArea === "import" || Store.get().open?.origin === "import") {
+	if (Editor.get().workArea === "import" || Editor.get().open?.origin === "import") {
 		const previewPos = Import.previewPositions();
 		if (previewPos.length > 0) {
 			layers.push(
@@ -292,7 +293,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 
 	// The open-location marker renders even with no committed locations so previews (staged/seen)
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
-	const openLoc = Store.get().open?.location;
+	const openLoc = Editor.get().open?.location;
 	if (openLoc) {
 		const openColor: RGBA = [...ctx.activeLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];

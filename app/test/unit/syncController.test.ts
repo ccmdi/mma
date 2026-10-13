@@ -13,6 +13,7 @@ const eng = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeSetDerived: async () => {},
 		syncReconcile: async () => {
 			if (eng.gate) await eng.gate;
 			if (eng.failWith) throw new Error(eng.failWith);

@@ -66,7 +66,7 @@ function DuplicateItem({
 }
 
 export default function SameLocation() {
-	const locations = Store.use((s) => s.duplicateLocations);
+	const locations = Editor.use((s) => s.duplicateLocations);
 	const tagMap = Store.use(() => Tag.all());
 
 	const [selected, setSelected] = useState<Set<number>>(() => new Set());
@@ -89,7 +89,7 @@ export default function SameLocation() {
 			Editor.removeDuplicate(loc.id);
 			const remaining = locations.filter((l) => l.id !== loc.id);
 			if (remaining.length <= 1) {
-				if (remaining.length === 1) Editor.openDuplicate(remaining[0]);
+				if (remaining.length === 1) void Editor.openDuplicate(remaining[0]);
 				else Editor.closeDuplicates();
 			}
 		},
@@ -100,14 +100,14 @@ export default function SameLocation() {
 		const toDelete = new Set(locations.map((l) => l.id)).difference(selected);
 		void Location.remove(toDelete);
 		const remaining = locations.find((l) => selected.has(l.id));
-		if (remaining) Editor.openDuplicate(remaining);
+		if (remaining) void Editor.openDuplicate(remaining);
 		else Editor.closeDuplicates();
 	}, [locations, selected]);
 
 	const deleteSelected = useCallback(() => {
 		void Location.remove(new Set(selected));
 		const remaining = locations.find((l) => !selected.has(l.id));
-		if (remaining) Editor.openDuplicate(remaining);
+		if (remaining) void Editor.openDuplicate(remaining);
 		else Editor.closeDuplicates();
 	}, [locations, selected]);
 
@@ -133,7 +133,7 @@ export default function SameLocation() {
 						selected={selected.has(loc.id)}
 						onDelete={() => deleteSingle(loc)}
 						onSelect={(checked) => toggleSelect(loc, checked)}
-						onClick={() => Editor.openDuplicate(loc)}
+						onClick={() => void Editor.openDuplicate(loc)}
 						tagMap={tagMap}
 					/>
 				))}

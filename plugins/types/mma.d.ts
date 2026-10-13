@@ -4,7 +4,7 @@ import * as _tauri_apps_api_window from '@tauri-apps/api/window';
 import * as _tauri_apps_api_webview from '@tauri-apps/api/webview';
 import { Channel, invoke } from '@tauri-apps/api/core';
 import * as __TAURI_EVENT from '@tauri-apps/api/event';
-import { Layer, PickingInfo } from '@deck.gl/core';
+import { Layer as Layer$1, PickingInfo } from '@deck.gl/core';
 import * as maplibregl from 'maplibre-gl';
 import { Command } from '@tauri-apps/plugin-shell';
 import { open, save } from '@tauri-apps/plugin-dialog';
@@ -582,35 +582,7 @@ declare namespace consts {
 /** Commands @unstable */
 declare const commands$1: {
     /** Edit locations where target says; a pending layer holds edits until land. @unstable */
-    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
-    /** Drop a named pending layer and everything it holds. @unstable */
-    storeDrop: (name: string) => Promise<null>;
+    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => Promise<MutationResult<Location>>;
     /** Run work over every location matched by selector. @unstable */
     storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
@@ -618,65 +590,15 @@ declare const commands$1: {
     /** Return the uncommitted location change counts. @unstable */
     storeCommitDiff: () => Promise<Counts>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<Location>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /** Apply a saved rule with its value names resolved against the open map. @unstable */
-    storeApplySavedSelection: (id: string) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeApplySavedSelection: (id: string) => Promise<MutationResult<Location>>;
     /** Return the open store's location count, version and dirty count. @unstable */
     storeSummary: () => Promise<Summary>;
+    /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
+    storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
     /**  Milliseconds from app launch until the window was ready. @unstable */
     appReady: () => Promise<number>;
     /**
@@ -850,33 +772,7 @@ declare const commands$1: {
      */
     storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => Promise<CopyToMapResult>;
     /**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. @unstable */
-    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeAddLocationsUploaded: (sessionDir: string) => Promise<MutationResult<Location>>;
     /**  Register field dependencies. Changing an input clears fields derived from it. @unstable */
     storeSetDerived: (edges: { [key in string]: string[]; }) => Promise<null>;
     /**  Set the default marker color for new render updates. @unstable */
@@ -918,39 +814,13 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<Location>>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
     /**  Subscribe to map changes, including the ids of added, removed, and updated rows. @unstable */
-    storeSubscribeChanges: (changes: Channel<ChangeEvent>) => Promise<null>;
+    storeSubscribeChanges: (changes: Channel<ChangeEvent_Deserialize>) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
@@ -979,35 +849,11 @@ declare const commands$1: {
      *  A closed map writes straight to disk and reaches no version.
      *  @unstable
      */
-    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & {
-        settings?: Partial<MapSettings>;
-    } & Pick<MapMeta, "id">) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & {
+        settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & {
+            pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
+        };
+    }) => Promise<MutationResult<Location>>;
     /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
@@ -1102,33 +948,7 @@ declare const commands$1: {
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
     /**  Restore a map to a previous commit. An open map changes through its normal write path. @unstable */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<{
-        /**  Monotonically increasing within a map. Zero until the store assigns one. */
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        /**  The empty string means absent, the same absence a missing key has. */
-        panoId: string | null;
-        /**  The location's bits, such as whether it opens exactly its stored pano. */
-        flags: number;
-        /**
-         *  Tag IDs applied to this location. References interned values of the `tags`
-         *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-         *  `Nothas` on an absent field.
-         */
-        tags: number[];
-        /**
-         *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-         *  name past the builtins.
-         */
-        extra: { [key in string]: unknown; } | null;
-        /**  Unix timestamp (seconds) */
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location>>;
     /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
     storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
@@ -1510,6 +1330,13 @@ type Change<T> = {
     /**  Updated rows as before/after pairs. */
     updated: ([T, T])[];
 };
+/**  A map change broadcast to subscribers, with affected ids and derived state. @unstable */
+type ChangeEvent_Deserialize = {
+    /**  The map version this change brought the map to. */
+    version: number;
+    /**  Changed derived state. Null fields are unchanged. */
+    derived: Derived_Deserialize;
+} & Keys<number>;
 /**  A map change broadcast to subscribers, with affected ids and derived state. */
 type ChangeEvent = {
     /**  The map version this change brought the map to. */
@@ -1608,12 +1435,10 @@ type DbStats = {
     journalMode: string;
     foreignKeys: boolean;
 };
-/**  Map state a change affected. Each field is `null` when it did not change. */
-type Derived = {
+/**  Map state a change affected. Each field is `null` when it did not change. @unstable */
+type Derived_Deserialize = {
     locationCount: number | null;
-    meta: (Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & {
-        settings?: Partial<MapSettings>;
-    } & Pick<MapMeta, "id">) | null;
+    meta: MapMeta_Deserialize | null;
     history: Partial<{
         [key in EntryKey]: History;
     }> | null;
@@ -1633,6 +1458,34 @@ type Derived = {
     } | null;
     /**  The listed selections, when the list changed. */
     selectionList: ListedSelection[] | null;
+    /**  Pending layers that procedure work is currently writing to. */
+    writingLayers: string[] | null;
+};
+/**  Map state a change affected. Each field is `null` when it did not change. */
+type Derived = {
+    locationCount: number | null;
+    meta: MapMeta | null;
+    history: Partial<{
+        [key in EntryKey]: History;
+    }> | null;
+    /**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
+    fieldValues: {
+        [key in string]: {
+            [key in string]: HeldValue | null;
+        };
+    } | null;
+    /**  The whole extra-field registry, when the map's row changed. */
+    fieldDefs: {
+        [key in string]: FieldDef;
+    } | null;
+    /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
+    selectionCounts: {
+        [key in string]: number;
+    } | null;
+    /**  The listed selections, when the list changed. */
+    selectionList: ListedSelection[] | null;
+    /**  Pending layers that procedure work is currently writing to. */
+    writingLayers: string[] | null;
 };
 /**  What the user needs in order to authorize: the code to type and where to type it. @unstable */
 type DeviceCodeInfo = {
@@ -1643,7 +1496,7 @@ type DeviceCodeInfo = {
 };
 /**  Options for applying an edit. @unstable */
 type EditOpts = {
-    /**  Apply the pending layer to the map after these edits. */
+    /**  Land the pending layer on the map after these edits. */
     land?: boolean;
 };
 /**
@@ -2220,69 +2073,13 @@ type MmUser = {
     username: string;
 };
 /**  The version a write reached and the keys it assigned. Other updates arrive on the change feed. */
-type Mutation<_T = {
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: {
-        [key in string]: unknown;
-    } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-}> = {
+type Mutation<_T = Location> = {
     /**  The map version this change brought the map to. */
     version: number;
     /**  The key the store gave each keyless set, in the order they were written. */
     keys: number[];
 };
-type MutationResult<T = {
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
-    id: number;
-    lat: number;
-    lng: number;
-    heading: number;
-    pitch: number;
-    zoom: number;
-    /**  The empty string means absent, the same absence a missing key has. */
-    panoId: string | null;
-    /**  The location's bits, such as whether it opens exactly its stored pano. */
-    flags: number;
-    /**
-     *  Tag IDs applied to this location. References interned values of the `tags`
-     *  field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
-     *  `Nothas` on an absent field.
-     */
-    tags: number[];
-    /**
-     *  Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
-     *  name past the builtins.
-     */
-    extra: {
-        [key in string]: unknown;
-    } | null;
-    /**  Unix timestamp (seconds) */
-    createdAt: number;
-    modifiedAt: number | null;
-}> = {
+type MutationResult<T = Location> = {
     mutation: Mutation<T>;
 };
 /**
@@ -2893,11 +2690,7 @@ type SelectionOp = {
     name: string;
 };
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
-type Selector$1<S = {
-    key: string;
-    color: RGB;
-    selector: Selector$1;
-}> = {
+type Selector$1<S = Selection> = {
     type: "Locations";
     locations: number[];
     name: string | null;
@@ -3034,6 +2827,11 @@ type SidecarProgress = {
     total: number;
 };
 /** @unstable */
+type StoreStatus_Deserialize = {
+    version: number;
+    derived: Derived_Deserialize;
+};
+/** @unstable */
 type StoreStatus = {
     version: number;
     derived: Derived;
@@ -3094,7 +2892,7 @@ type Target =
 } | 
 /**
  *  A pending layer, created on first use. Reads include current underlying map data;
- *  edits reach the map when the layer is applied.
+ *  edits reach the map when the layer lands.
  */
 {
     kind: "pending";
@@ -3457,6 +3255,174 @@ declare class CellManager {
     clear(): void;
 }
 
+/** The full local mirror of the store's derived state. */
+export type EngineState = {
+    [K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
+};
+export interface UiState {
+    mapId: string | null;
+    /** Persisted identity slice (metadata + settings). Changes rarely. */
+    map: MapMeta | null;
+    selectedLocationIds: SelectedIds;
+}
+export type MapState = UiState & EngineState;
+declare const Store: {
+    /** Replace state fields and notify subscribers. @unstable */
+    patch: (patch: Partial<MapState>) => void;
+    /** Apply complete derived state and remove null field values. @unstable */
+    merge: (v: Derived) => void;
+    /** Reactive slice of the map state. Re-renders only when the selected value's
+     *  reference changes (`Object.is`), so selectors must return state fields or
+     *  memoized values, not a new value per call. */
+    use: <T>(selector: (s: MapState) => T) => T;
+    /** Imperative snapshot of the map state. */
+    get: () => Readonly<MapState>;
+    /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
+    setSelected: (ids: SelectedIds) => void;
+    /** Replace the open map's row in state; persisting it is the caller's. @unstable */
+    setMeta: (map: MapMeta) => void;
+    /** Clear derived state when the map closes. @unstable */
+    resetDerived: () => void;
+};
+
+declare const EVENT_DEFS: {
+    /** Map changes with affected location ids. Consumers re-read derived location data on this event. */
+    "store:change": ChangeEvent;
+    "selection:change": Selection[];
+    "open:change": number | null;
+    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
+    "active:change": number | null;
+    "map:open": MapMeta;
+    "map:close": void;
+    /** @unstable */
+    "map:saved": void;
+    /** @unstable */
+    "store:changed": void;
+    /** @unstable */
+    "editor:changed": void;
+    "map-list:changed": void;
+    /** @unstable */
+    "saved-selections:changed": void;
+    "settings:changed": void;
+    /** @unstable */
+    "fullscreen:changed": void;
+    "plugins:changed": void;
+    /** @unstable */
+    "sync-links:changed": void;
+    /** @unstable */
+    "map-badges:changed": void;
+    /** @unstable */
+    "hotkeys:changed": void;
+    /** @unstable */
+    "toasts:changed": void;
+    /** @unstable */
+    "jobs:changed": void;
+    /** @unstable */
+    "bulkruns:changed": void;
+    /** @unstable */
+    "scene:changed": void;
+    /** @unstable */
+    "measure:changed": void;
+    /** @unstable */
+    "anchor:changed": void;
+    /** @unstable */
+    "viewport-lock:changed": void;
+    /** @unstable */
+    "trail:changed": void;
+    "seen:changed": void;
+    /** @unstable */
+    "update:changed": void;
+    /** @unstable */
+    "review:changed": void;
+    "fields:changed": void;
+    /** @unstable */
+    "route:changed": void;
+    /** @unstable */
+    "import-markers:changed": void;
+    /** @unstable */
+    "diff-markers:changed": void;
+    /** @unstable */
+    "commit-diff:changed": void;
+};
+export type EditorEventMap = typeof EVENT_DEFS;
+export type EditorEvent = keyof EditorEventMap;
+declare const pluginEventPayload: unique symbol;
+/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
+ *  hears it. `definePluginEvent` makes one. @unstable */
+export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
+    readonly [pluginEventPayload]: T;
+};
+/** What an event hands its handlers. */
+export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
+export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
+
+/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
+export type MapBadge = {
+    key: string;
+    title: string;
+} & ({
+    icon: string;
+} | {
+    diff: Counts;
+});
+/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
+export interface BadgeSource {
+    /** Stable id, remembered by the setting that hides it. */
+    id: string;
+    /** Name shown next to its checkbox in settings. */
+    label: string;
+    /** Events after which the badges are collected again. */
+    events: readonly EditorEvent[];
+    /** Yields the badges to show, each paired with its map id. */
+    collect(): Iterable<[mapId: string, badge: MapBadge]>;
+}
+declare const Maps: {
+    /** One-time store startup. The app calls this; plugins never need to. @unstable */
+    init: () => Promise<void>;
+    /** Open a map in this window, closing any currently open map first. */
+    open: (id: string) => Promise<void>;
+    /** Close the open map, saving unsaved changes first. */
+    close: () => Promise<void>;
+    /** Drop the open map without persisting anything @unstable */
+    discard: () => void;
+    /** Reactive list of all maps (metadata only). */
+    useList: () => MapMeta[];
+    /** The list of all maps (metadata only). */
+    list: () => MapMeta[];
+    /** Refresh the map list from disk. @unstable */
+    reload: () => Promise<void>;
+    /** Refresh the map list and notify other windows of the change. @unstable */
+    invalidate: () => Promise<void>;
+    /** Set the map list directly without a disk read. @unstable */
+    setList: (list: MapMeta[]) => void;
+    /** Create a new empty map and return its metadata. */
+    create: (name: string, folder?: string | null) => Promise<MapMeta>;
+    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
+    duplicate: (id: string, name: string) => Promise<MapMeta>;
+    /** Permanently delete a map and all its data. Not undoable. */
+    remove: (id: string) => Promise<void>;
+    /** Open the scratch map, creating it on first use. */
+    openScratch: () => Promise<void>;
+    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
+    isReserved: (id: string | null) => boolean;
+    /** The name a copy of the map named `name` starts with. @unstable */
+    copyName: (name: string) => string;
+    /** Rename a folder, moving all its maps to the new name. */
+    renameFolder: (from: string, to: string) => Promise<void>;
+    /** Move a map into a folder, or to the root when `folder` is null. */
+    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
+    /** Delete a folder. Maps in it become unfoldered. */
+    removeFolder: (name: string) => Promise<void>;
+    /** Add a source of map-row badges. @unstable */
+    registerBadges: (source: BadgeSource) => void;
+    /** Every registered badge source, in registration order. @unstable */
+    badgeSources: () => readonly BadgeSource[];
+    /** Badges per map id, from every registered source. @unstable */
+    badges: () => Map<string, MapBadge[]>;
+    /** Reactive {@link Maps.badges}. @unstable */
+    useBadges: () => Map<string, MapBadge[]>;
+};
+
 export type Cmd = typeof commands$1;
 /** Every backend command, typed. Any of them can change in a release. @unstable */
 declare const cmd: Cmd;
@@ -3623,189 +3589,6 @@ declare namespace types {
   export type { types_Bounds as Bounds, types_LatLng as LatLng, types_LocationPOV as LocationPOV, types_MapTypeKey as MapTypeKey, types_MarkerStyle as MarkerStyle, types_MaybeLocation as MaybeLocation, types_PanoCapture as PanoCapture, types_PanoView as PanoView, types_Patch as Patch, types_Selector as Selector, types_SortMode as SortMode, types_SvColor as SvColor, types_SvCoverageType as SvCoverageType, types_SvThickness as SvThickness, Tag as Tag, types_TagSortMode as TagSortMode, types_WorkArea as WorkArea };
 }
 
-/** The full local mirror of the store's derived state. */
-export type EngineState = {
-    [K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
-};
-export interface UiState {
-    mapId: string | null;
-    /** Persisted identity slice (metadata + settings). Changes rarely. */
-    map: MapMeta | null;
-    selectedLocationIds: SelectedIds;
-    /** The location open in the editor, or null. */
-    open: Open | null;
-    /** @unstable */
-    duplicateLocations: Location[];
-    /** @unstable */
-    workArea: WorkArea;
-    /** @unstable */
-    activePluginId: string | null;
-}
-/** Where an open location came from: the map, the seen history, or a pending import. */
-export type OpenOrigin = "map" | "seen" | "import";
-/** A location open in the editor. A preview's id is its viewer-layer id. */
-export interface Open {
-    id: number;
-    origin: OpenOrigin;
-    /** Identifies this editor session, even when reopening the same location. */
-    session: number;
-    /** The location as last read from the viewer's layer, or null while loading. */
-    location: Location | null;
-}
-export type MapState = UiState & EngineState;
-declare const Store: {
-    /** Replace state fields and notify subscribers. @unstable */
-    patch: (patch: Partial<MapState>) => void;
-    /** Merge derived updates, preserving null fields and removing null field values. @unstable */
-    merge: (v: Derived) => void;
-    /** Reactive slice of the map state. Re-renders only when the selected value's
-     *  reference changes (`Object.is`), so selectors must return state fields or
-     *  memoized values, not a new value per call. */
-    use: <T>(selector: (s: MapState) => T) => T;
-    /** Imperative snapshot of the map state. */
-    get: () => Readonly<MapState>;
-    /** Overwrite the selected-id set directly, bypassing selection resolution. Rarely what you want. @unstable */
-    setSelected: (ids: SelectedIds) => void;
-    /** Replace the open map's row in state; persisting it is the caller's. @unstable */
-    setMeta: (map: MapMeta) => void;
-    /** Clear derived state when the map closes. @unstable */
-    resetDerived: () => void;
-};
-
-declare const EVENT_DEFS: {
-    /** Map changes with affected location ids. Consumers re-read derived location data on this event. */
-    "store:change": ChangeEvent;
-    "selection:change": Selection[];
-    "open:change": number | null;
-    /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
-    "active:change": number | null;
-    "map:open": MapMeta;
-    "map:close": void;
-    /** @unstable */
-    "store:changed": void;
-    "map-list:changed": void;
-    /** @unstable */
-    "saved-selections:changed": void;
-    "settings:changed": void;
-    /** @unstable */
-    "fullscreen:changed": void;
-    "plugins:changed": void;
-    /** @unstable */
-    "sync-links:changed": void;
-    /** @unstable */
-    "map-badges:changed": void;
-    /** @unstable */
-    "hotkeys:changed": void;
-    /** @unstable */
-    "toasts:changed": void;
-    /** @unstable */
-    "jobs:changed": void;
-    /** @unstable */
-    "bulkruns:changed": void;
-    /** @unstable */
-    "scene:changed": void;
-    /** @unstable */
-    "measure:changed": void;
-    /** @unstable */
-    "anchor:changed": void;
-    /** @unstable */
-    "viewport-lock:changed": void;
-    /** @unstable */
-    "trail:changed": void;
-    "seen:changed": void;
-    /** @unstable */
-    "update:changed": void;
-    /** @unstable */
-    "review:changed": void;
-    "fields:changed": void;
-    /** @unstable */
-    "route:changed": void;
-    /** @unstable */
-    "import-markers:changed": void;
-    /** @unstable */
-    "diff-markers:changed": void;
-    /** @unstable */
-    "commit-diff:changed": void;
-};
-export type EditorEventMap = typeof EVENT_DEFS;
-export type EditorEvent = keyof EditorEventMap;
-declare const pluginEventPayload: unique symbol;
-/** One of a plugin's own events, named `plugin:<plugin id>:<name>` and carrying a `T` to whoever
- *  hears it. `definePluginEvent` makes one. @unstable */
-export type PluginEvent<T = void> = `plugin:${string}:${string}` & {
-    readonly [pluginEventPayload]: T;
-};
-/** What an event hands its handlers. */
-export type EventPayload<E extends EditorEvent | PluginEvent<unknown>> = E extends EditorEvent ? EditorEventMap[E] : E extends PluginEvent<infer T> ? T : never;
-export type EventHandler<E extends EditorEvent | PluginEvent<unknown>> = (payload: EventPayload<E>) => void;
-
-/** A mark drawn after a map's name in the map list: an icon, or a count of changes. @unstable */
-export type MapBadge = {
-    key: string;
-    title: string;
-} & ({
-    icon: string;
-} | {
-    diff: Counts;
-});
-/** A feature that marks map rows, shown or hidden as a unit in settings. @unstable */
-export interface BadgeSource {
-    /** Stable id, remembered by the setting that hides it. */
-    id: string;
-    /** Name shown next to its checkbox in settings. */
-    label: string;
-    /** Events after which the badges are collected again. */
-    events: readonly EditorEvent[];
-    /** Yields the badges to show, each paired with its map id. */
-    collect(): Iterable<[mapId: string, badge: MapBadge]>;
-}
-declare const Maps: {
-    /** One-time store startup. The app calls this; plugins never need to. @unstable */
-    init: () => Promise<void>;
-    /** Open a map in this window, closing any currently open map first. */
-    open: (id: string) => Promise<void>;
-    /** Close the open map, saving unsaved changes first. */
-    close: () => Promise<void>;
-    /** Drop the open map without persisting anything @unstable */
-    discard: () => void;
-    /** Reactive list of all maps (metadata only). */
-    useList: () => MapMeta[];
-    /** The list of all maps (metadata only). */
-    list: () => MapMeta[];
-    /** Refresh the map list from disk. @unstable */
-    reload: () => Promise<void>;
-    /** Refresh the map list and notify other windows of the change. @unstable */
-    invalidate: () => Promise<void>;
-    /** Set the map list directly without a disk read. @unstable */
-    setList: (list: MapMeta[]) => void;
-    /** Create a new empty map and return its metadata. */
-    create: (name: string, folder?: string | null) => Promise<MapMeta>;
-    /** Copy a map, uncommitted edits included, into a new map named `name` and return its metadata. */
-    duplicate: (id: string, name: string) => Promise<MapMeta>;
-    /** Permanently delete a map and all its data. Not undoable. */
-    remove: (id: string) => Promise<void>;
-    /** Open the scratch map, creating it on first use. */
-    openScratch: () => Promise<void>;
-    /** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
-    isReserved: (id: string | null) => boolean;
-    /** The name a copy of the map named `name` starts with. @unstable */
-    copyName: (name: string) => string;
-    /** Rename a folder, moving all its maps to the new name. */
-    renameFolder: (from: string, to: string) => Promise<void>;
-    /** Move a map into a folder, or to the root when `folder` is null. */
-    moveToFolder: (mapId: string, folder: string | null) => Promise<void>;
-    /** Delete a folder. Maps in it become unfoldered. */
-    removeFolder: (name: string) => Promise<void>;
-    /** Add a source of map-row badges. @unstable */
-    registerBadges: (source: BadgeSource) => void;
-    /** Every registered badge source, in registration order. @unstable */
-    badgeSources: () => readonly BadgeSource[];
-    /** Badges per map id, from every registered source. @unstable */
-    badges: () => Map<string, MapBadge[]>;
-    /** Reactive {@link Maps.badges}. @unstable */
-    useBadges: () => Map<string, MapBadge[]>;
-};
-
 export type AnswerOf<K extends Answer["kind"]> = Extract<Answer, {
     kind: K;
 }>;
@@ -3862,28 +3645,13 @@ declare const Autosave: {
     /** Run `write` once every save started so far has finished, and hold later saves until it does.
      *  Writes to the map's files that must not interleave with a save go through here. @unstable */
     exclusive: <T>(write: () => Promise<T>) => Promise<T>;
-    /** Background auto-commit after an import with autoCommit set. @unstable */
-    scheduleAutoCommit: (mapId: string, importedCount: number) => void;
     /** Save any unsaved changes now instead of waiting for the timer. @unstable */
     flush: () => Promise<void>;
 };
 
 declare const Edit: {
     /** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
-    locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<{
-        id: number;
-        lat: number;
-        lng: number;
-        heading: number;
-        pitch: number;
-        zoom: number;
-        panoId: string | null;
-        flags: number;
-        tags: number[];
-        extra: { [key in string]: unknown; } | null;
-        createdAt: number;
-        modifiedAt: number | null;
-    }>>;
+    locations: (...[target, edits, opts]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<Location>>;
     /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
      *  Settings merge key by key, so send only the keys that change. */
     meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
@@ -3895,6 +3663,7 @@ declare const Edit: {
     work: (selector: Selector, op: Work) => Promise<WorkResult>;
 };
 
+export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
 declare const Tag: {
     /** Per-tag location counts, keyed by numeric id. */
     counts: () => Record<number, number>;
@@ -3910,15 +3679,15 @@ declare const Tag: {
      * Unreferenced tags are hidden; undo restores them. */
     remove: (tagIds: number[]) => Promise<WorkResult>;
     /** Update tag display records in one undoable edit. */
-    update: (updates: (Partial<ValueRecord> & Pick<ValueRecord, "id">)[]) => Promise<MutationResult<ValueRecord>>;
+    update: (updates: Patch<Tag>[]) => Promise<MutationResult<ValueRecord>>;
     /** Get or create tag records by name and return their ids. */
-    create: (records: Omit<ValueRecord, "id">[]) => Promise<number[]>;
+    create: (records: TagCreate[]) => Promise<number[]>;
     /** Set tag display order from an ordered list of ids. */
     reorder: (ids: number[]) => Promise<MutationResult<ValueRecord>>;
     /** Move matching locations to a tag with the given name, optionally within a selector. */
     rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
     /** Get or create tag records and assign them to matching locations. */
-    assign: (selector: Selector, records: Omit<ValueRecord, "id">[]) => Promise<WorkResult>;
+    assign: (selector: Selector, records: TagCreate[]) => Promise<WorkResult>;
 };
 
 declare const Location: {
@@ -3936,13 +3705,125 @@ declare const Location: {
     duplicateGroups: (distance: number) => Promise<number[][]>;
 };
 
-declare const Editor: {
-    /** The pending layer holding the open location's draft edits for editor session `session`. */
-    layer: (session: number) => Extract<Target, {
+export type LocationEdits = Parameters<typeof Edit.locations>[1];
+export type LayerRead = <A extends Ask>(selector: Selector, ask: A) => Promise<ReadResult<AnswerOf<A["kind"]>>>;
+/** A pending layer. Operations run in order; work still writing to a landed layer outlives close. */
+declare class Layer {
+    readonly target: Extract<Target, {
         kind: "pending";
     }>;
-    /** Set the open location if `session` is still current. */
-    setLocation: (location: Location | null, session: number) => void;
+    private queue;
+    private readonly mapId;
+    private constructor();
+    /** Create a layer and stage its first edits. */
+    static open(edits?: LocationEdits): Promise<Layer>;
+    private enqueue;
+    /** Read through the layer after its earlier operations finish. */
+    read<A extends Ask>(selector: Selector, ask: A): Promise<ReadResult<Extract<{
+        kind: "ids";
+        ids: number[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "spacing";
+        ids: number[];
+        spacingM: number;
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "count";
+        count: number;
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "locations";
+        locations: LocationList;
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "columns";
+        columns: unknown[][];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "values";
+        values: string[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "groupBy";
+        groups: PartitionBucket[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "countBy";
+        counts: CountBy[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "coverage";
+        coverage: ([string, number])[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "bounds";
+        bounds: [number, number, number, number] | null;
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "duplicateGroups";
+        groups: number[][];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "nearAny";
+        values: boolean[];
+    }, {
+        kind: A["kind"];
+    }>>>;
+    /** Stage location edits using the shared mutation path. */
+    edit(edits: LocationEdits | ((read: LayerRead) => Promise<LocationEdits>)): Promise<MutationResult<Location>>;
+    /** Land the layer's edits as one undo step; later writes to the layer join that step. */
+    land(edits: LocationEdits): Promise<MutationResult<Location>>;
+    /** Close after queued operations finish. Edits not yet landed are discarded. */
+    close(): Promise<void>;
+}
+
+/** Where an open location came from: the map, the seen history, or a pending import. */
+export type OpeningOrigin = "map" | "seen" | "import";
+/** A location open in the editor. A preview's id is its viewer-layer id. */
+export interface Opening {
+    id: number;
+    origin: OpeningOrigin;
+    /** The pending layer holding this opening's draft. */
+    layer: Layer;
+    /** The draft as last read from its layer, or null while loading. */
+    location: Location | null;
+}
+/** What the editor shows: the open location, the pane, and the panels that lead to them. */
+export interface EditorState {
+    /** The location open in the editor, or null. */
+    open: Opening | null;
+    /** @unstable */
+    duplicateLocations: Location[];
+    /** @unstable */
+    workArea: WorkArea;
+    /** @unstable */
+    activePluginId: string | null;
+}
+declare const Editor: {
+    /** Imperative snapshot of the editor state. */
+    get: () => Readonly<EditorState>;
+    /** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */
+    use: <T>(selector: (s: EditorState) => T) => T;
+    /** Reread the current draft. Superseded reads and errors cannot update the next opening. @unstable */
+    refresh: () => Promise<void>;
+    /** Edit this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
+    readonly edit: (patch: Omit<Patch<Location>, "id"> | ((location: Location) => Omit<Patch<Location>, "id">)) => Promise<void | null>;
+    /** Save this opening's draft. Retained callbacks become inert when the opening ends. @unstable */
+    readonly save: (patch: Omit<Patch<Location>, "id">) => Promise<number | null>;
+    /** Whether procedure work is still writing to the open draft. @unstable */
+    useWriting: () => boolean;
     /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
     openImport: (index: number) => Promise<void>;
     /** Open an arbitrary location read-only as a seen-preview: loads its pano without
@@ -3957,7 +3838,7 @@ declare const Editor: {
     /** Close the open location and return to the pane it was opened from. */
     close: () => void;
     /** Open one location from the duplicate-resolution panel in the editor. @unstable */
-    openDuplicate: (loc: Location) => void;
+    openDuplicate: (loc: Location) => Promise<void>;
     /** Drop a location from the duplicate-resolution panel (does not delete it). @unstable */
     removeDuplicate: (id: number) => void;
     /** Close the duplicate-resolution panel and return to the overview. @unstable */
@@ -3983,6 +3864,8 @@ declare const History: {
 declare const Commit: {
     /** Commit all pending changes to the map's version history. Clears the undo stack. */
     create: (message?: string) => Promise<string>;
+    /** Commit `mapId` in the background once pending saves finish. @unstable */
+    background: (mapId: string, message: string) => void;
     /** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
     checkout: (commitId: string) => Promise<void>;
 };
@@ -5222,7 +5105,7 @@ export interface HostInstances {
 export type MapHostKind = keyof HostInstances;
 /** @unstable */
 export interface DeckOverlayProps {
-    layers: Layer[];
+    layers: Layer$1[];
     onClick?: (info: PickingInfo, domEvent?: Event) => void;
     onHover?: (info: PickingInfo, domEvent?: Event) => void;
     onError?: (e: unknown) => void;
@@ -6037,7 +5920,7 @@ export interface MapPluginStorage {
 /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
 declare function storage(id: string): PluginStorage;
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Throws when no map is open. */
+ *  Each write changes only one key; Rust applies these patches to the current map settings. */
 declare function mapStorage(id: string): MapPluginStorage;
 /** Re-read a plugin's store after another window wrote it. @unstable */
 declare function reloadStorage(id: string): void;
@@ -7327,11 +7210,11 @@ declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 declare function getCurrentMap(): MapMeta | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
-/** @deprecated v0.8.2. Read `MMA.Store.get().open?.location`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
 declare function getActiveLocation(): Location | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().selectedLocationIds`. @unstable */
 declare function getSelectedLocationIds(): SelectedIds;
-/** @deprecated v0.8.2. Read `MMA.Store.get().workArea`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
 /** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
 declare function getAllSelections(): Selection[];
@@ -7461,8 +7344,6 @@ declare const removeLocations: typeof Location.remove;
 declare const updateLocations: typeof Location.update;
 /** @deprecated v0.12.1. Use `MMA.Location.duplicateGroups`. @unstable */
 declare const previewDuplicateGroups: typeof Location.duplicateGroups;
-/** @deprecated v0.12.1. Use `MMA.Editor.setLocation`. */
-declare const setOpenLocation: typeof Editor.setLocation;
 /** @deprecated v0.12.1. Use `MMA.Editor.openImport`. @unstable */
 declare const openStagedLocation: typeof Editor.openImport;
 /** @deprecated v0.12.1. Use `MMA.Editor.preview`. @unstable */
@@ -7698,7 +7579,6 @@ declare const legacy_select: typeof select;
 declare const legacy_setActiveLocation: typeof setActiveLocation;
 declare const legacy_setCachedMapList: typeof setCachedMapList;
 declare const legacy_setMap: typeof setMap;
-declare const legacy_setOpenLocation: typeof setOpenLocation;
 declare const legacy_setPluginMode: typeof setPluginMode;
 declare const legacy_setSelectedLocationIds: typeof setSelectedLocationIds;
 /** @unstable */
@@ -7813,7 +7693,6 @@ declare namespace legacy {
     legacy_setActiveLocation as setActiveLocation,
     legacy_setCachedMapList as setCachedMapList,
     legacy_setMap as setMap,
-    legacy_setOpenLocation as setOpenLocation,
     legacy_setPluginMode as setPluginMode,
     legacy_setSelectedLocationIds as setSelectedLocationIds,
     legacy_setUserFieldDefs as setUserFieldDefs,
@@ -8076,6 +7955,8 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     Tag: typeof Tag;
     /** Open locations and change the editor pane. */
     Editor: typeof Editor;
+    /** Pending layers: staged edits that land on the map as one undo step. @unstable */
+    Layer: typeof Layer;
     /** Navigate undo and redo history. */
     History: typeof History;
     /** Save and restore map versions. */
@@ -8118,4 +7999,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LOCATION_MERGED, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

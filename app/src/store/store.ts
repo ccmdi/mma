@@ -1,7 +1,6 @@
-import type { MapMeta, Derived, Location } from "@/bindings.gen";
+import type { MapMeta, Derived } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 import { SelectedIds } from "@/lib/render/CellManager";
-import type { WorkArea } from "@/types";
 
 /** The full local mirror of the store's derived state. */
 type EngineState = {
@@ -13,32 +12,12 @@ export interface UiState {
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapMeta | null;
 	selectedLocationIds: SelectedIds;
-	/** The location open in the editor, or null. */
-	open: Open | null;
-	/** @unstable */
-	duplicateLocations: Location[];
-	/** @unstable */
-	workArea: WorkArea;
-	/** @unstable */
-	activePluginId: string | null;
-}
-
-/** Where an open location came from: the map, the seen history, or a pending import. */
-export type OpenOrigin = "map" | "seen" | "import";
-
-/** A location open in the editor. A preview's id is its viewer-layer id. */
-export interface Open {
-	id: number;
-	origin: OpenOrigin;
-	/** Identifies this editor session, even when reopening the same location. */
-	session: number;
-	/** The location as last read from the viewer's layer, or null while loading. */
-	location: Location | null;
 }
 
 export type MapState = UiState & EngineState;
 
 const ENGINE_INITIAL: EngineState = {
+	writingLayers: [],
 	locationCount: 0,
 	history: {},
 	fieldValues: {},
@@ -52,10 +31,6 @@ const INITIAL_STATE: MapState = {
 	mapId: null,
 	map: null,
 	selectedLocationIds: SelectedIds.EMPTY,
-	open: null,
-	duplicateLocations: [],
-	workArea: "overview",
-	activePluginId: null,
 };
 
 let state: MapState = INITIAL_STATE;
@@ -66,13 +41,10 @@ export const Store = {
 		state = { ...state, ...patch };
 		emitEvent("store:changed");
 	},
-	/** Merge derived updates, preserving null fields and removing null field values. @unstable */
+	/** Apply complete derived state and remove null field values. @unstable */
 	merge: (v: Derived) => {
 		const { fieldValues, meta, ...rest } = v;
-		if (meta && state.map) {
-			const settings = meta.settings && { ...state.map.settings, ...meta.settings };
-			state = { ...state, map: { ...state.map, ...meta, settings: settings ?? state.map.settings } };
-		}
+		if (meta && state.map) state = { ...state, map: meta };
 		state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
 		if (!fieldValues) return;
 		const merged = { ...state.fieldValues };

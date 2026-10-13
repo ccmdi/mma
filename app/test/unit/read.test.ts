@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
-import { Editor } from "@/store/editor";
 import { Query } from "@/store/query";
 import type { Answer, Ask, Location, PartitionBucket, CountBy } from "@/bindings.gen";
 
@@ -113,10 +112,11 @@ describe("read payloads", () => {
 
 	it("preserves multiple payload fields and forwards the pending target", async () => {
 		h.read.mockResolvedValue({ kind: "spacing", ids: [2, 8], spacingM: 75 } satisfies Answer);
-		const picked = Query.read(selector, { kind: "spacing" }, Editor.layer(1));
+		const target = { kind: "pending", name: "read-test" } as const;
+		const picked = Query.read(selector, { kind: "spacing" }, target);
 		expectTypeOf(picked).toEqualTypeOf<Promise<{ ids: number[]; spacingM: number }>>();
 		expect(await picked).toEqual({ ids: [2, 8], spacingM: 75 });
-		expect(h.read).toHaveBeenCalledWith(Editor.layer(1), selector, { kind: "spacing" });
+		expect(h.read).toHaveBeenCalledWith(target, selector, { kind: "spacing" });
 	});
 
 	it("loads inline and file-backed rows through the same public read", async () => {

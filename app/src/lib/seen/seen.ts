@@ -183,7 +183,7 @@ export const Seen = {
 		const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
 
 		if (existing) {
-			const active = Store.get().open?.location;
+			const active = Editor.get().open?.location;
 			if (active?.id !== existing.id) {
 				await Editor.open(existing.id);
 				return;

@@ -210,13 +210,11 @@ describe("Per-map settings isolation", () => {
 	before(async () => {
 		await waitForReady();
 
-		// Only patch individual settings via the existing defaults, not full replacement
+		// Send only the settings that change.
 		mapAId = await createAndOpenMap("E2E SettingsIso A");
 		await withApi(async (api) => {
-			const current = api.Store.get().map!.settings;
 			await api.Edit.meta({
 				settings: {
-					...current,
 					exportZoom: true,
 					preferOfficial: true,
 				},
@@ -227,10 +225,8 @@ describe("Per-map settings isolation", () => {
 
 		mapBId = await createAndOpenMap("E2E SettingsIso B");
 		await withApi(async (api) => {
-			const current = api.Store.get().map!.settings;
 			await api.Edit.meta({
 				settings: {
-					...current,
 					exportZoom: false,
 					preferOfficial: false,
 					onlyOfficial: true,
@@ -267,10 +263,8 @@ describe("Per-map settings isolation", () => {
 	it("modifying A settings does not change B", async () => {
 		await openMap(mapAId);
 		await withApi(async (api) => {
-			const current = api.Store.get().map!.settings;
 			await api.Edit.meta({
 				settings: {
-					...current,
 					exportZoom: false,
 					preferOfficial: false,
 				},
@@ -316,10 +310,10 @@ describe("Open location isolation across maps", () => {
 
 	it("opening map B starts with no open location", async () => {
 		await openMap(mapBId);
-		const activeB = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeB = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeB).toBeNull();
 
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("overview");
 		await closeMap();
 	});

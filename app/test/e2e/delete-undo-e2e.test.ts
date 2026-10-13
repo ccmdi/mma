@@ -128,17 +128,17 @@ describe("Delete open location + undo", () => {
 	});
 	it("delete open location closes it and resets the work area", async () => {
 		await withApi(async (api, lid) => await api.Editor.open(lid, false), locIds[2]);
-		const activeBefore = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeBefore = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeBefore).toBe(locIds[2]);
 
 		await withApi(async (api, id) => {
 			await api.Location.remove(new Set([id]));
 		}, locIds[2]);
 
-		const activeAfter = await withApi(async (api) => api.Store.get().open?.location?.id ?? null);
+		const activeAfter = await withApi(async (api) => api.Editor.get().open?.location?.id ?? null);
 		expect(activeAfter).toBeNull();
 
-		const area = await withApi(async (api) => api.Store.get().workArea);
+		const area = await withApi(async (api) => api.Editor.get().workArea);
 		expect(area).toBe("overview");
 	});
 

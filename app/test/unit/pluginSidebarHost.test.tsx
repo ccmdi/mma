@@ -6,14 +6,10 @@ import { createRoot, type Root } from "react-dom/client";
 let workArea = "plugin";
 let activePluginId: string | null = null;
 
-vi.mock("@/store/store", () => ({
-	Store: {
-		use: (sel: (s: { workArea: string; activePluginId: string | null }) => unknown) =>
-			sel({ workArea, activePluginId }),
-	},
-}));
 vi.mock("@/store/editor", () => ({
 	Editor: {
+		use: (sel: (s: { workArea: string; activePluginId: string | null }) => unknown) =>
+			sel({ workArea, activePluginId }),
 		closePlugin: vi.fn(),
 	},
 }));

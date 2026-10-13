@@ -65,6 +65,7 @@ import {
 import { range, clamp } from "@/types/util";
 import { t } from "@/lib/i18n";
 import { IconButton } from "@/components/primitives/IconButton";
+import { Editor } from "@/store/editor";
 
 function usePasteHandler() {
 	useEffect(() => {
@@ -194,7 +195,7 @@ export function MapEditor() {
 		if (map) prefetchDoclinks(Tag.all());
 	});
 	useEffect(() => prefetchDocs(), [map?.id]);
-	const workArea = Store.use((s) => s.workArea);
+	const workArea = Editor.use((s) => s.workArea);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const [split, setSplit] = useLocalStorage("editorSplit", 50);
 	const [docPanelOpen, setDocPanelOpen] = useLocalStorage("doclinkPanelOpen", false);
@@ -267,7 +268,7 @@ export function MapEditor() {
 			if (isEditableElement(e.target)) return;
 			if (isActivationElement(document.activeElement)) return;
 			if (!getSettings().enterOpensCenter) return;
-			if (Store.get().open?.location) return;
+			if (Editor.get().open?.location) return;
 			showMapCursorRef.current = true;
 			setShowMapCursor(true);
 		}

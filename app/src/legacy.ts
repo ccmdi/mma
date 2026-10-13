@@ -44,9 +44,9 @@ export function getCurrentMapId() {
 	return Store.get().mapId;
 }
 
-/** @deprecated v0.8.2. Read `MMA.Store.get().open?.location`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
 export function getActiveLocation() {
-	return Store.get().open?.location ?? null;
+	return Editor.get().open?.location ?? null;
 }
 
 /** @deprecated v0.8.2. Read `MMA.Store.get().selectedLocationIds`. @unstable */
@@ -54,9 +54,9 @@ export function getSelectedLocationIds() {
 	return Store.get().selectedLocationIds;
 }
 
-/** @deprecated v0.8.2. Read `MMA.Store.get().workArea`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
 export function getWorkArea() {
-	return Store.get().workArea;
+	return Editor.get().workArea;
 }
 
 /** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
@@ -335,9 +335,6 @@ export const updateLocations: typeof Location.update = Location.update;
 
 /** @deprecated v0.12.1. Use `MMA.Location.duplicateGroups`. @unstable */
 export const previewDuplicateGroups: typeof Location.duplicateGroups = Location.duplicateGroups;
-
-/** @deprecated v0.12.1. Use `MMA.Editor.setLocation`. */
-export const setOpenLocation: typeof Editor.setLocation = Editor.setLocation;
 
 /** @deprecated v0.12.1. Use `MMA.Editor.openImport`. @unstable */
 export const openStagedLocation: typeof Editor.openImport = Editor.openImport;

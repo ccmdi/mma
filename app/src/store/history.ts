@@ -1,5 +1,5 @@
 import type * as bindings from "@/bindings.gen";
-import { type MapState, Store } from "./store";
+import type { MapState } from "./store";
 import { Mutation } from "./mutation";
 import { Editor } from "./editor";
 import type { EntryKey } from "@/bindings.gen";
@@ -15,8 +15,8 @@ async function step(stack: Stack) {
 	try {
 		const r = await Mutation.run(() => cmd.storeStep(stack, null));
 		const { removed } = await Scene.reached(r.mutation.version);
-		const state = Store.get();
-		if (state.open && removed.includes(state.open.id)) Editor.setArea("overview");
+		const { open } = Editor.get();
+		if (open && removed.includes(open.id)) Editor.setArea("overview");
 	} catch (e) {
 		log.debug(`[${stack}] nothing or failed:`, e);
 	}

@@ -64,6 +64,7 @@ import { PastStats } from "./PastStats";
 import { useAvatarPinSetting, useGitHubAvatar } from "./gameMap";
 import "./localguessr.css";
 import { IconButton } from "@/components/primitives/IconButton";
+import { Editor } from "@/store/editor";
 
 async function drawRounds(selector: Selector, n: number): Promise<RoundLocation[]> {
 	const ids = await Query.read(
@@ -311,7 +312,7 @@ export function LocalGuessrSidebar({ onClose }: { onClose: () => void }) {
 		setShowHistory(false);
 	}, []);
 
-	const inspecting = Store.use((s) => s.workArea) === "location";
+	const inspecting = Editor.use((s) => s.workArea) === "location";
 
 	const content =
 		view.phase === "playing" || view.phase === "result" ? (
