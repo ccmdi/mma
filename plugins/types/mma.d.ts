@@ -597,8 +597,6 @@ declare const commands$1: {
     storeApplySavedSelection: (id: string) => Promise<MutationResult<Location>>;
     /** Return the open store's location count, version and dirty count. @unstable */
     storeSummary: () => Promise<Summary>;
-    /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
-    storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
     /**  Milliseconds from app launch until the window was ready. @unstable */
     appReady: () => Promise<number>;
     /**
@@ -761,6 +759,8 @@ declare const commands$1: {
     storeOpenMap: (mapId: string) => Promise<StoreStatus>;
     /**  Close the open map, saving unsaved changes first. @unstable */
     storeCloseMap: () => Promise<null>;
+    /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
+    storeCloseLayer: (name: string, mapId: string | null) => Promise<null>;
     /**  Save uncommitted changes to disk. No-op when nothing has changed. @unstable */
     storeSaveDirty: () => Promise<null>;
     /**  Copy locations already stored in this map into another map. @unstable */
@@ -7747,7 +7747,6 @@ declare const mapOpen: {
     mark(phase: string): void;
 };
 
-/** Run a single procedure over a selector. */
 /** Force a full selection re-resolve and return the selected IDs. @unstable */
 declare function syncSelections(): Promise<{
     ids: number[];

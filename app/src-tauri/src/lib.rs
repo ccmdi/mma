@@ -111,7 +111,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
         .commands(store::commands::command_table!(
             register_commands,
             [
-                store::commands::store_close_layer,
                 app_ready,
                 app_uptime,
                 store::storage::write_temp_file,
@@ -160,6 +159,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 net::remote_api::remote_api_respond,
                 store::commands::store_open_map,
                 store::commands::store_close_map,
+                store::commands::store_close_layer,
                 store::commands::store_save_dirty,
                 store::commands::store_copy_locations_to_map,
                 store::commands::store_add_locations_to_map,

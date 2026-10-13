@@ -22,8 +22,6 @@ export const commands = {
 	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult>("store_apply_saved_selection", { id }),
 	/** Return the open store's location count, version and dirty count. */
 	storeSummary: () => __TAURI_INVOKE<Summary>("store_summary"),
-	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
-	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_INVOKE<null>("store_close_layer", { name, mapId }),
 	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
@@ -170,6 +168,8 @@ export const commands = {
 	storeOpenMap: (mapId: string) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId }),
 	/**  Close the open map, saving unsaved changes first. */
 	storeCloseMap: () => __TAURI_INVOKE<null>("store_close_map"),
+	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
+	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_INVOKE<null>("store_close_layer", { name, mapId }),
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
 	/**  Copy locations already stored in this map into another map. */
