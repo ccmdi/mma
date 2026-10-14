@@ -1032,8 +1032,19 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     };
 
     let feed = FeedCapture::attach(&mut store);
-    let r = add_copied_to_store(&mut store, parsed.locations, parsed.tags).unwrap();
-    let _ = r;
+    store.edit(
+        &crate::store::engine::Target::Map,
+        parsed
+            .locations
+            .into_iter()
+            .map(mma_algebra::Op::Add)
+            .collect(),
+        engine::IncomingRecords::from([(
+            "tags".to_string(),
+            parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
+        )]),
+        &mut None,
+    );
     let event = feed
         .all()
         .into_iter()
@@ -1096,24 +1107,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     let names = ["shared", " France ", "", "france"].map(String::from);
 
     stage_parsed(&mut store, "bulk-win", parsed);
-    let key = import_layer("bulk-win");
-    let target = import_target("bulk-win");
-    let bulk = bulk_tag_ids(&mut store, &key, &names);
-    let edits = store
-        .collect(&target, &crate::selections::Selector::Everything)
-        .into_iter()
-        .map(|loc| {
-            let mut tags = loc.tags.clone();
-            tags.extend(bulk.iter().copied().filter(|b| !loc.tags.contains(b)));
-            mma_algebra::Op::Put(mma_algebra::Patch::<Location> {
-                id: loc.id,
-                tags: Some(tags),
-                ..Default::default()
-            })
-        })
-        .collect();
-    store.edit(&target, edits, &mut None);
-    store.land(&key, &mut None);
+    confirm_staged(&mut store, "bulk-win", &[], &names).unwrap();
 
     let meta = &store.records["tags"];
     let (france, _) = meta
@@ -1127,6 +1121,60 @@ fn bulk_tags_apply_every_name_to_every_import() {
     for l in &stored {
         assert_eq!(l.tags, vec![Id::new(5), france]);
     }
+}
+
+fn store_tagged(tags: &[ValueRecord]) -> Store {
+    let mut store = Store::new();
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: Id::new("test".into()),
+        ..Default::default()
+    });
+    store
+        .records
+        .insert("tags".into(), engine::Tracked::new(meta_with(tags)));
+    store
+}
+
+#[test]
+fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
+    let mut store = store_tagged(&[tag(5, "Shared")]);
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, vec![1]), loc_with_tags(0, vec![1, 2])],
+        tags: vec![tag(1, "shared"), tag(2, "Unique")],
+        ..Default::default()
+    };
+    stage_parsed(&mut store, "tags-win", parsed);
+    assert_eq!(store.records["tags"].len(), 1);
+
+    confirm_staged(&mut store, "tags-win", &[], &[]).unwrap();
+    let unique = store.records["tags"]
+        .iter()
+        .find_map(|(&id, rec)| (rec.name.as_deref() == Some("Unique")).then_some(id))
+        .expect("Unique created");
+    assert_eq!(store.records["tags"].len(), 2);
+    let mut held: Vec<_> = store
+        .collect(&crate::store::engine::Target::Map, &Selector::Everything)
+        .into_iter()
+        .map(|l| l.tags)
+        .collect();
+    held.sort();
+    assert_eq!(held, vec![vec![Id::new(5)], vec![Id::new(5), unique]]);
+}
+
+#[test]
+fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
+    let mut store = store_tagged(&[]);
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, vec![1])],
+        tags: vec![tag(1, "Unwanted")],
+        ..Default::default()
+    };
+    stage_parsed(&mut store, "drop-win", parsed);
+    confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[]).unwrap();
+    assert!(store.records["tags"].is_empty());
+    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
+    assert_eq!(stored.len(), 1);
+    assert!(stored[0].tags.is_empty());
 }
 
 #[test]

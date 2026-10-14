@@ -78,6 +78,7 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
             name: "viewer".into(),
         },
         vec![mma_algebra::Op::Set(loc(1, 3.0, 3.0))],
+        Default::default(),
         &mut None,
     );
     let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);

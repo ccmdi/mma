@@ -61,24 +61,21 @@ pub(super) fn import_layer(window: &str) -> String {
     format!("import:{window}")
 }
 
-/// Stage rows and tag records in this window's import layer.
+/// Stage rows and tag records in this window's import layer, replacing any import it held.
 /// Confirm applies them to the map; cancel discards them.
 pub(super) fn stage_parsed(
     store: &mut engine::Store,
     window: &str,
     parsed: ParsedMap,
 ) -> Option<Id<Location>> {
-    let key = import_layer(window);
-    store.close_layer(&key);
+    store.close_layer(&import_layer(window));
     let edits = parsed.locations.into_iter().map(Op::Add).collect();
-    let result = store.edit(&import_target(window), edits, &mut None);
-    if let Some(p) = store.pending.get_mut(&key) {
-        p.incoming.insert(
-            "tags".to_string(),
-            parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
-        );
-    }
-    result.keys.first().copied()
+    let records = engine::IncomingRecords::from([(
+        "tags".to_string(),
+        parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
+    )]);
+    let staged = store.edit(&import_target(window), edits, records, &mut None);
+    staged.keys.first().copied()
 }
 
 /// Build preview field counts, bounds, and a temp file of interleaved LE f32 `[lng, lat]` positions.
@@ -281,34 +278,6 @@ pub struct EditorImportResult {
     pub auto_commit: bool,
 }
 
-/// Copy pre-deduplicated locations through the import path, with tag reconciliation and undo.
-pub(crate) fn add_copied_to_store(
-    store: &mut engine::Store,
-    locations: Vec<Location>,
-    tags: Vec<ValueRecord>,
-) -> AppResult<engine::Mutation> {
-    const LAYER: &str = "copy-to-map";
-    store.close_layer(LAYER);
-    store
-        .pending
-        .entry(LAYER.to_string())
-        .or_default()
-        .incoming
-        .insert(
-            "tags".to_string(),
-            tags.into_iter().map(|t| (t.id, t)).collect(),
-        );
-    let edits = locations.into_iter().map(Op::Add).collect();
-    let target = engine::Target::Pending {
-        name: LAYER.to_string(),
-    };
-    let staged = store.edit(&target, edits, &mut None);
-    Ok(engine::Mutation {
-        keys: staged.keys,
-        ..store.land(LAYER, &mut None)
-    })
-}
-
 /// Commit a previously previewed editor import into the open map, optionally
 /// dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
 /// and/or applying each of `tagNames` to every imported location.
@@ -324,105 +293,107 @@ pub async fn store_import_file(
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
     let _ = fs::remove_file(preview_positions_path(&label.0));
-    let target = import_target(&label.0);
-    let key = import_layer(&label.0);
-    let drop_set: HashSet<&str> = dropped_fields.iter().map(String::as_str).collect();
+    let result = with_store!(label, state, |store| {
+        confirm_staged(store, &label.0, &dropped_fields, &tag_names)
+    });
+    log::debug!("[import] total={:.0}ms", t0.elapsed().as_millis());
+    result
+}
 
-    with_store!(label, state, |store| {
-        if !store.pending.contains_key(&key) {
-            return Err("no staged import - call store_import_preview first".into());
+/// Land `window`'s staged import with `dropped` fields cleared and every name in `tag_names`
+/// applied to each imported location.
+pub(super) fn confirm_staged(
+    store: &mut engine::Store,
+    window: &str,
+    dropped: &[String],
+    tag_names: &[String],
+) -> AppResult<EditorImportResult> {
+    let target = import_target(window);
+    let key = import_layer(window);
+    let drop_set: HashSet<&str> = dropped.iter().map(String::as_str).collect();
+    if !store.pending.contains_key(&key) {
+        return Err("no staged import - call store_import_preview first".into());
+    }
+    let rows = store.collect(&target, &crate::selections::Selector::Everything);
+
+    let mut records = engine::IncomingRecords::new();
+    let mut bulk = Vec::new();
+    if drop_set.contains("tags") {
+        records.insert("tags".to_string(), HashMap::new());
+    } else if !tag_names.is_empty() {
+        let mut tags = store.held_records(&key, "tags");
+        bulk = bulk_tag_ids(&mut tags, tag_names);
+        records.insert("tags".to_string(), tags);
+    }
+    let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
+    for loc in &rows {
+        let mut patch = Patch::<Location>::default();
+        patch.id = loc.id;
+        if drop_set.contains("heading") {
+            patch.heading = Some(0.0);
         }
-        let rows = store.collect(&target, &crate::selections::Selector::Everything);
-
-        let bulk = if drop_set.contains("tags") {
-            Vec::new()
+        if drop_set.contains("pitch") {
+            patch.pitch = Some(0.0);
+        }
+        if drop_set.contains("zoom") {
+            patch.zoom = Some(0.0);
+        }
+        if drop_set.contains("panoId") {
+            patch.pano_id = mma_algebra::Field::Clear;
+            let mut flags = loc.flags;
+            flags.remove(LocationFlags::LOAD_AS_PANO_ID);
+            patch.flags = Some(flags);
+        }
+        let mut tags = if drop_set.contains("tags") {
+            Some(Vec::new())
         } else {
-            bulk_tag_ids(store, &key, &tag_names)
+            None
         };
-        let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
-        for loc in &rows {
-            let mut patch = Patch::<Location>::default();
-            patch.id = loc.id;
-            if drop_set.contains("heading") {
-                patch.heading = Some(0.0);
-            }
-            if drop_set.contains("pitch") {
-                patch.pitch = Some(0.0);
-            }
-            if drop_set.contains("zoom") {
-                patch.zoom = Some(0.0);
-            }
-            if drop_set.contains("panoId") {
-                patch.pano_id = mma_algebra::Field::Clear;
-                let mut flags = loc.flags;
-                flags.remove(LocationFlags::LOAD_AS_PANO_ID);
-                patch.flags = Some(flags);
-            }
-            let mut tags = if drop_set.contains("tags") {
-                Some(Vec::new())
-            } else {
-                None
-            };
-            if !bulk.is_empty() {
-                let mut next = loc.tags.clone();
-                for b in bulk.iter().copied() {
-                    if !next.contains(&b) {
-                        next.push(b);
-                    }
-                }
-                tags = Some(next);
-            }
-            patch.tags = tags;
-            if !drop_set.is_empty() {
-                if let Some(extra) = &loc.extra {
-                    let dropped: serde_json::Map<String, Value> = extra
-                        .to_map()
-                        .keys()
-                        .filter(|k| drop_set.contains(format!("extra.{k}").as_str()))
-                        .map(|k| (k.clone(), Value::Null))
-                        .collect();
-                    if !dropped.is_empty() {
-                        patch.extra = mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(
-                            Value::Object(dropped),
-                        ));
-                    }
+        if !bulk.is_empty() {
+            let mut next = loc.tags.clone();
+            for b in bulk.iter().copied() {
+                if !next.contains(&b) {
+                    next.push(b);
                 }
             }
-            edits.push(mma_algebra::Op::Put(patch));
+            tags = Some(next);
         }
-        if drop_set.contains("tags") {
-            if let Some(p) = store.pending.get_mut(&key) {
-                p.incoming.remove("tags");
+        patch.tags = tags;
+        if !drop_set.is_empty() {
+            if let Some(extra) = &loc.extra {
+                let dropped: serde_json::Map<String, Value> = extra
+                    .to_map()
+                    .keys()
+                    .filter(|k| drop_set.contains(format!("extra.{k}").as_str()))
+                    .map(|k| (k.clone(), Value::Null))
+                    .collect();
+                if !dropped.is_empty() {
+                    patch.extra = mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(
+                        Value::Object(dropped),
+                    ));
+                }
             }
         }
+        edits.push(mma_algebra::Op::Put(patch));
+    }
 
-        let imported_count = rows.len() as u32;
-        let auto_commit = rows.len() > engine::MAX_UNDO_LOCATIONS;
-        store.edit(&target, edits, &mut None);
-        let mutation = store.land(&key, &mut None);
-        log::debug!(
-            "[import] total={:.0}ms locs={}",
-            t0.elapsed().as_millis(),
-            imported_count
-        );
-        Ok(EditorImportResult {
-            imported_count,
-            auto_commit,
-            mutation,
-        })
+    let imported_count = rows.len() as u32;
+    let auto_commit = rows.len() > engine::MAX_UNDO_LOCATIONS;
+    store.edit(&target, edits, records, &mut None);
+    let mutation = store.land(&key, &mut None);
+    Ok(EditorImportResult {
+        imported_count,
+        auto_commit,
+        mutation,
     })
 }
 
-/// Create tag records in the import layer and return their provisional ids.
+/// Add a record to `records` for each of `names` it lacks, matching names regardless of case,
+/// and return the ids of all of them.
 pub(super) fn bulk_tag_ids(
-    store: &mut engine::Store,
-    key: &str,
+    records: &mut HashMap<Id<ValueRecord>, ValueRecord>,
     names: &[String],
 ) -> Vec<Id<ValueRecord>> {
-    let Some(p) = store.pending.get_mut(key) else {
-        return Vec::new();
-    };
-    let records = p.incoming.entry("tags".to_string()).or_default();
     let seeds = names.iter().filter_map(|name| {
         engine::named(Op::Add(ValueRecord {
             name: Some(name.clone()),

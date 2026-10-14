@@ -847,7 +847,7 @@ pub async fn sync_reconcile(
     })
 }
 
-/// Apply pulled rows and reconcile their tags as one undoable edit.
+/// Apply pulled rows with their tags matched to the map's by name, as one undoable edit.
 /// Return the mutation and mappings for newly created rows.
 fn apply_pull(
     store: &mut crate::store::engine::Store,
@@ -856,7 +856,7 @@ fn apply_pull(
     Option<crate::store::engine::Mutation>,
     Vec<RemoteMappingRow>,
 )> {
-    use crate::store::engine::{Target, ValueRecord};
+    use crate::store::engine::{IncomingRecords, Target, ValueRecord};
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
         + out.pull_delete_ids.len()
@@ -864,12 +864,6 @@ fn apply_pull(
     if edit_count == 0 {
         return Ok((None, Vec::new()));
     }
-    let layer = format!("sync:{}", store.meta.id);
-    let target = Target::Pending {
-        name: layer.clone(),
-    };
-    store.close_layer(&layer);
-
     let needed: HashMap<&str, &RemoteTag> = out
         .needed_tags
         .iter()
@@ -915,15 +909,12 @@ fn apply_pull(
         edits.push(Op::Remove(id));
     }
 
-    store.edit(&target, Vec::new(), &mut None);
-    if let Some(p) = store.pending.get_mut(&layer) {
-        p.incoming.insert("tags".to_string(), records);
-    }
-    let staged = store.edit(&target, edits, &mut None);
-    let result = crate::store::engine::Mutation {
-        keys: staged.keys,
-        ..store.land(&layer, &mut None)
-    };
+    let result = store.edit(
+        &Target::Map,
+        edits,
+        IncomingRecords::from([("tags".to_string(), records)]),
+        &mut None,
+    );
     let rows = result
         .keys
         .iter()

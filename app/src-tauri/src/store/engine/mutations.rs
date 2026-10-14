@@ -108,12 +108,14 @@ pub enum Target {
     Pending { name: String },
 }
 
+/// Value records that arriving rows reference, by field and by the ids those rows use.
+pub(crate) type IncomingRecords = HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>;
+
 /// A named layer of pending edits and where it is in its lifecycle.
 #[derive(Default)]
 pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
-    /// Incoming value records to reconcile when the layer lands.
-    pub(crate) incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    records: IncomingRecords,
     pub(crate) stage: Stage,
 }
 
@@ -182,6 +184,18 @@ impl Store {
     ) -> Mutation {
         let mut layer = Layer::default();
         let keys = layered(&mut layer, edits, &mut self.next_id);
+        Mutation {
+            keys,
+            ..self.write_layer(&layer, join, entry)
+        }
+    }
+
+    fn write_layer(
+        &mut self,
+        layer: &Layer<Location>,
+        join: &mut Option<u64>,
+        entry: Entry,
+    ) -> Mutation {
         let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
@@ -216,29 +230,62 @@ impl Store {
         let entry = Arc::new(entry);
         self.put_entry(&entry);
         self.record(&entry, join);
+        self.finish(Finished::Entry(&entry))
+    }
+
+    /// Write `edits` with the incoming records they reference matched to the map's by name.
+    fn write_incoming(
+        &mut self,
+        edits: Vec<Edit<Location>>,
+        records: IncomingRecords,
+        join: &mut Option<u64>,
+    ) -> Mutation {
+        let mut layer = Layer::default();
+        let keys = layered(&mut layer, edits, &mut self.next_id);
         Mutation {
             keys,
-            ..self.finish(Finished::Entry(&entry))
+            ..self.land_incoming(layer, records, join)
         }
     }
 
-    /// Add, patch, or remove rows at `target`. An open layer holds its edits until it lands;
-    /// a landed layer writes them through, joining its undo step while that remains newest.
+    fn land_incoming(
+        &mut self,
+        layer: Layer<Location>,
+        records: IncomingRecords,
+        join: &mut Option<u64>,
+    ) -> Mutation {
+        let (layer, records) = self.reconcile_incoming(layer, records);
+        self.write_layer(
+            &layer,
+            join,
+            Entry {
+                records,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// Add, patch, or remove rows at `target`, whose references to an interned field's values
+    /// use the ids of `records`; those records are matched to the map's by name when the rows
+    /// reach the map. An open layer holds its edits until it lands, each field's records
+    /// replacing what the layer held for that field; a landed layer writes them through,
+    /// joining its undo step while that remains newest.
     pub(crate) fn edit(
         &mut self,
         target: &Target,
         edits: Vec<Edit<Location>>,
+        records: IncomingRecords,
         join: &mut Option<u64>,
     ) -> Mutation {
         let Target::Pending { name } = target else {
-            return self.write(edits, join, Entry::default());
+            return self.write_incoming(edits, records, join);
         };
         let pending = self.pending.entry(name.clone()).or_default();
         let result = if let Some(joins) = pending.stage.landed() {
             if let Joins::Step(step) = joins {
                 join.get_or_insert(step);
             }
-            let result = self.write(edits, join, Entry::default());
+            let result = self.write_incoming(edits, records, join);
             if let Some(pending) = self.pending.get_mut(name) {
                 pending.stage = match pending.stage {
                     Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
@@ -248,31 +295,39 @@ impl Store {
             result
         } else {
             let keys = layered(&mut pending.layer, edits, &mut self.next_id);
+            pending.records.extend(records);
             self.held(keys)
         };
         self.settle_layers();
         result
     }
 
+    /// The records an unlanded layer holds for `field`.
+    pub(crate) fn held_records(
+        &self,
+        name: &str,
+        field: &str,
+    ) -> HashMap<Id<ValueRecord>, ValueRecord> {
+        self.pending
+            .get(name)
+            .and_then(|pending| pending.records.get(field))
+            .cloned()
+            .unwrap_or_default()
+    }
+
     /// Land an open layer's edits on the map as one undo step. A layer lands once: landing it
     /// again, after it was discarded, or when no such layer exists changes nothing.
     pub(crate) fn land(&mut self, name: &str, join: &mut Option<u64>) -> Mutation {
-        if self
+        let Some(pending) = self
             .pending
-            .get(name)
-            .is_none_or(|p| p.stage != Stage::Open)
-        {
+            .get_mut(name)
+            .filter(|p| p.stage == Stage::Open)
+        else {
             return self.held(Vec::new());
-        }
-        let (layer, records) = self.reconcile_incoming(name);
-        let result = self.write(
-            layer.into_edits(),
-            join,
-            Entry {
-                records,
-                ..Default::default()
-            },
-        );
+        };
+        let layer = mem::take(&mut pending.layer);
+        let records = mem::take(&mut pending.records);
+        let result = self.land_incoming(layer, records, join);
         if let Some(pending) = self.pending.get_mut(name) {
             pending.stage = Stage::Landed(Joins::from(*join));
         }
@@ -280,12 +335,13 @@ impl Store {
         result
     }
 
-    /// Take `name`'s staged rows for landing, with incoming value records matched to the map's
-    /// by name and the rows' references remapped to them.
-    fn reconcile_incoming(&mut self, name: &str) -> (Layer<Location>, RecordDeltas) {
-        let pending = self.pending.entry(name.to_string()).or_default();
-        let mut layer = mem::take(&mut pending.layer);
-        let incoming = mem::take(&mut pending.incoming);
+    /// `layer` with the incoming records its rows reference matched to the map's by name and
+    /// the references remapped to them, and what that did to the map's records.
+    fn reconcile_incoming(
+        &mut self,
+        mut layer: Layer<Location>,
+        incoming: IncomingRecords,
+    ) -> (Layer<Location>, RecordDeltas) {
         let mut records = RecordDeltas::new();
         for (field, incoming) in incoming {
             if incoming.is_empty() {

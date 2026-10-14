@@ -1536,6 +1536,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     let (mutation, rows) = apply_pull(&mut store, &out).unwrap();
     let mutation = mutation.expect("the pull landed a change");
     assert_eq!(mutation.keys, loc_ids([3]));
+    assert!(store.pending.is_empty(), "a pull leaves no layer behind");
     assert_eq!(
         store.steps[crate::store::engine::Timeline::Edits].len(Stack::Undo),
         1

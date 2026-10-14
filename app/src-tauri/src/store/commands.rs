@@ -2,7 +2,7 @@
 //! and maps the result. Workflow belongs in the engine or in TS, not here.
 #![allow(clippy::needless_pass_by_value)]
 
-use crate::io::{export, import};
+use crate::io::export;
 use crate::plugins::borders;
 use crate::selections::saved::SavedSelection;
 use crate::selections::tree::{SelectionInput, SelectionOp};
@@ -238,7 +238,7 @@ pub async fn store_add_locations_uploaded(
     with_store!(label, state, |store| {
         let n = locations.len();
         let edits = locations.into_iter().map(Op::Add).collect();
-        let result = store.edit(&Target::Map, edits, &mut None);
+        let result = store.edit(&Target::Map, edits, IncomingRecords::new(), &mut None);
         log::debug!(
             "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
             n,
@@ -369,8 +369,7 @@ fn copy_to_map(
     };
 
     if mgr.stores.contains_key(&target_map_id) {
-        // The import path handles an open target. Its window receives the change feed
-        // and schedules autosave.
+        // An open target's windows receive the change feed and schedule autosave.
         let target = mgr.store_for_map(&target_map_id)?;
         let t_scan = Instant::now();
         let existing = target.collect(&Target::Map, &Selector::Everything);
@@ -378,9 +377,13 @@ fn copy_to_map(
         let scan_ms = t_scan.elapsed().as_millis();
         let copied = fresh.len() as u32;
         if copied > 0 {
-            let tags = used_tags(&fresh);
+            let records = IncomingRecords::from([(
+                "tags".to_string(),
+                used_tags(&fresh).into_iter().map(|t| (t.id, t)).collect(),
+            )]);
             let t_add = Instant::now();
-            import::add_copied_to_store(target, fresh, tags)?;
+            let adds = fresh.into_iter().map(Op::Add).collect();
+            target.edit(&Target::Map, adds, records, &mut None);
             log::debug!(
                 "[cmd] copy_to_map open-target scan={}ms add={}ms total={}ms",
                 scan_ms,
@@ -761,7 +764,7 @@ macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
             "Edit locations where target says; an open pending layer holds edits until it lands." store_edit(target: Target, edits: Vec<Edit<Location>>) -> MutationResult => |store| {
-                Ok(MutationResult { mutation: store.edit(&target, edits, &mut None) })
+                Ok(MutationResult { mutation: store.edit(&target, edits, IncomingRecords::new(), &mut None) })
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })

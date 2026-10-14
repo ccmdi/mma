@@ -44,7 +44,12 @@ fn given(state: &StoreState, map_id: &Id<MapMeta, String>, rows: Vec<Location>) 
     };
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    store.edit(&target, rows.into_iter().map(Op::Set).collect(), &mut None);
+    store.edit(
+        &target,
+        rows.into_iter().map(Op::Set).collect(),
+        Default::default(),
+        &mut None,
+    );
     target
 }
 
@@ -2662,6 +2667,7 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         manager.store_for_map(&map_id).unwrap().edit(
             &target,
             vec![Op::Set(loc(1, 1.0, 1.0))],
+            Default::default(),
             &mut None,
         );
     }
@@ -2727,7 +2733,12 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
         let mut manager = state.lock().unwrap();
         manager.window_map.insert(label.clone(), map_id.clone());
         let store = manager.store_for_map(&map_id).unwrap();
-        store.edit(&target, vec![Op::Set(loc(1, 1.0, 1.0))], &mut None);
+        store.edit(
+            &target,
+            vec![Op::Set(loc(1, 1.0, 1.0))],
+            Default::default(),
+            &mut None,
+        );
         store.land("draft", &mut None);
     }
 

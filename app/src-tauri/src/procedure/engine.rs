@@ -1099,7 +1099,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                     .is_none_or(|p| p.stage.landed().is_none()),
                 Target::Map => false,
             };
-            store.edit(&ctx.target, edits, &mut group);
+            store.edit(&ctx.target, edits, Default::default(), &mut group);
             Ok(held.then(|| {
                 store.collect(
                     &ctx.target,

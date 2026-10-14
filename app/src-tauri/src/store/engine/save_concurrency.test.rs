@@ -15,7 +15,12 @@ fn database() -> Connection {
 }
 
 fn add(store: &mut Store, lat: f64) {
-    store.edit(&Target::Map, vec![Op::Add(loc(0, lat, 0.0))], &mut None);
+    store.edit(
+        &Target::Map,
+        vec![Op::Add(loc(0, lat, 0.0))],
+        Default::default(),
+        &mut None,
+    );
 }
 
 fn disk_latitudes(path: &std::path::Path) -> Vec<f64> {
