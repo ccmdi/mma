@@ -8355,7 +8355,9 @@ fn step_selection(store: &mut Store, stack: Stack) {
 fn delta_keys_follow_named_fields_and_only_report_populated_parts() {
     #[derive(Default, mma_fields::Delta)]
     struct Example<T: Default> {
+        /// Rows beside the main ones.
         extra_rows: T,
+        /// The kind of row.
         r#type: T,
     }
     #[derive(Default, mma_fields::Delta)]

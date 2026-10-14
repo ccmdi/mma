@@ -88,3 +88,29 @@ fn a_virtual_field_names_its_column_with_of_and_a_flag_names_its_bit() {
         "unknown key"
     );
 }
+
+#[test]
+fn a_delta_field_without_a_doc_is_an_error_and_its_doc_becomes_its_keys() {
+    assert_eq!(
+        expand_delta(&syn::parse_quote! {
+            struct Entry {
+                /// The rows.
+                rows: Change,
+                piles: Change,
+            }
+        })
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default(),
+        "a Delta field documents what it holds, which is also its key's doc"
+    );
+    let expanded = expand_delta(&syn::parse_quote! {
+        struct Entry {
+            /// The rows.
+            rows: Change,
+        }
+    })
+    .unwrap()
+    .to_string();
+    assert!(expanded.contains("enum EntryKey { # [doc = r\" The rows.\"] Rows }"));
+}

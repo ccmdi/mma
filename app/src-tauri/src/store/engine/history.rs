@@ -18,12 +18,17 @@ pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 /// An undoable change to locations, value records, and field definitions.
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
 pub struct Entry {
+    /// The edit's changes to locations.
     #[serde(skip)]
     pub locations: Change<Location>,
+    /// The edit's changes to the records of interned values such as tags, by field.
     pub piles: Piles,
+    /// The edit's changes to the map's field definitions.
     pub defs: DefsDelta,
+    /// The edit's changes to the map's details and settings.
     #[serde(default)]
     pub meta: Change<MapMeta>,
+    /// The edit's changes to saved selections.
     #[serde(default)]
     pub selections: SelectionDelta,
 }

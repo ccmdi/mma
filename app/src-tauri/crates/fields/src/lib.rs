@@ -861,15 +861,24 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
 #[proc_macro_derive(Delta)]
 pub fn derive_delta(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
+    match expand_delta(&input) {
+        Ok(tokens) => tokens.into(),
+        Err(error) => error.to_compile_error().into(),
+    }
+}
+
+fn expand_delta(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let Data::Struct(data) = &input.data else {
-        return syn::Error::new_spanned(&input, "Delta derives on a named struct")
-            .to_compile_error()
-            .into();
+        return Err(syn::Error::new_spanned(
+            input,
+            "Delta derives on a named struct",
+        ));
     };
     let syn::Fields::Named(fields) = &data.fields else {
-        return syn::Error::new_spanned(&input, "Delta requires named fields")
-            .to_compile_error()
-            .into();
+        return Err(syn::Error::new_spanned(
+            input,
+            "Delta requires named fields",
+        ));
     };
     let name = &input.ident;
     let visibility = &input.vis;
@@ -887,26 +896,21 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
             )
         })
         .collect();
-    let docs: Vec<_> = fields
-        .named
-        .iter()
-        .map(|field| {
-            let docs: Vec<_> = field
-                .attrs
-                .iter()
-                .filter(|attr| attr.path().is_ident("doc"))
-                .collect();
-            if docs.is_empty() {
-                let doc = format!(
-                    "Changes to {}.",
-                    field.ident.as_ref().unwrap().to_string().replace('_', " ")
-                );
-                quote!(#[doc = #doc])
-            } else {
-                quote!(#(#docs)*)
-            }
-        })
-        .collect();
+    let mut docs = Vec::new();
+    for field in &fields.named {
+        let doc: Vec<_> = field
+            .attrs
+            .iter()
+            .filter(|attr| attr.path().is_ident("doc"))
+            .collect();
+        if doc.is_empty() {
+            return Err(syn::Error::new_spanned(
+                field,
+                "a Delta field documents what it holds, which is also its key's doc",
+            ));
+        }
+        docs.push(quote!(#(#doc)*));
+    }
     let mut generics = input.generics.clone();
     for field in &fields.named {
         let ty = &field.ty;
@@ -922,7 +926,7 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
         .map(|field| field.ident.as_ref().unwrap())
         .collect();
     let count = names.len();
-    quote! {
+    Ok(quote! {
         #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize, specta::Type)]
         #[serde(rename_all = "camelCase")]
         #visibility enum #key {
@@ -950,8 +954,7 @@ pub fn derive_delta(input: TokenStream) -> TokenStream {
                 true #(&& mma_algebra::Delta::is_empty(&self.#names))*
             }
         }
-    }
-    .into()
+    })
 }
 
 #[proc_macro_derive(Children, attributes(children))]

@@ -745,15 +745,15 @@ export type EditorImportResult = {
 };
 
 export type EntryKey = 
-/** Changes to locations. */
+/**  The edit's changes to locations. */
 "locations" | 
-/** Changes to piles. */
+/**  The edit's changes to the records of interned values such as tags, by field. */
 "piles" | 
-/** Changes to defs. */
+/**  The edit's changes to the map's field definitions. */
 "defs" | 
-/** Changes to meta. */
+/**  The edit's changes to the map's details and settings. */
 "meta" | 
-/** Changes to selections. */
+/**  The edit's changes to saved selections. */
 "selections";
 
 /**
