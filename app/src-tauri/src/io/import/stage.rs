@@ -347,7 +347,6 @@ pub(super) fn confirm_staged(
     let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
     for loc in &rows {
         let mut patch = Patch::<Location>::default();
-        patch.id = loc.id;
         if drop_set.contains("heading") {
             patch.heading = Some(0.0);
         }
@@ -391,7 +390,10 @@ pub(super) fn confirm_staged(
                 }
             }
         }
-        edits.push(Op::Put(patch));
+        if patch != Patch::<Location>::default() {
+            patch.id = loc.id;
+            edits.push(Op::Put(patch));
+        }
     }
 
     store.at(&target).edit(edits, records, &mut None);
