@@ -192,10 +192,11 @@ impl<'a> FieldValues<'a> {
             .unwrap_or(0)
     }
 
-    pub(crate) fn named(&self, name: &str, visible: bool) -> Option<Id<ValueRecord>> {
+    /// The value named `name` that at least one row holds.
+    pub(crate) fn named(&self, name: &str) -> Option<Id<ValueRecord>> {
         let name = unique_name(name)?;
         self.records?.iter().find_map(|(&id, record)| {
-            ((!visible || self.count(&id.to_string()) > 0)
+            (self.count(&id.to_string()) > 0
                 && record.unique().is_some_and(|current| current == name))
             .then_some(id)
         })

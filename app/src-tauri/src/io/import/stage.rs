@@ -71,7 +71,7 @@ pub(super) fn stage_parsed(
     let key = import_layer(window);
     store.close_layer(&key);
     let edits = parsed.locations.into_iter().map(Op::Add).collect();
-    let result = store.edit(&import_target(window), edits, false, &mut None);
+    let result = store.edit(&import_target(window), edits, &mut None);
     if let Some(p) = store.pending.get_mut(&key) {
         p.incoming.insert(
             "tags".to_string(),
@@ -302,7 +302,11 @@ pub(crate) fn add_copied_to_store(
     let target = engine::Target::Pending {
         name: LAYER.to_string(),
     };
-    Ok(store.edit(&target, edits, true, &mut None))
+    let staged = store.edit(&target, edits, &mut None);
+    Ok(engine::Mutation {
+        keys: staged.keys,
+        ..store.land(LAYER, &mut None)
+    })
 }
 
 /// Commit a previously previewed editor import into the open map, optionally
@@ -394,7 +398,8 @@ pub async fn store_import_file(
 
         let imported_count = rows.len() as u32;
         let auto_commit = rows.len() > engine::MAX_UNDO_LOCATIONS;
-        let mutation = store.edit(&target, edits, true, &mut None);
+        store.edit(&target, edits, &mut None);
+        let mutation = store.land(&key, &mut None);
         log::debug!(
             "[import] total={:.0}ms locs={}",
             t0.elapsed().as_millis(),

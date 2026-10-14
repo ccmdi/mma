@@ -1,6 +1,7 @@
 import type { Ask, Target } from "@/bindings.gen";
 import type { Selector } from "@/types";
 import { Edit } from "./edit";
+import { Mutation } from "./mutation";
 import { Store } from "./store";
 import { Query, type AnswerOf, type ReadResult } from "./query";
 import { cmd } from "@/lib/commands";
@@ -60,13 +61,13 @@ export class Layer {
 					? await edits((selector, ask) => Query.read(selector, ask, this.target))
 					: edits;
 			if (Store.get().mapId !== this.mapId) throw new Error("Layer belongs to another map");
-			return Edit.locations(this.target, changes, null);
+			return Edit.locations(this.target, changes);
 		});
 	}
 
-	/** Land the layer's edits as one undo step; later writes to the layer join that step. */
-	land(edits: LocationEdits) {
-		return this.enqueue(() => Edit.locations(this.target, edits, { land: true }));
+	/** Land the layer's edits as one undo step; later writes to the layer join that step. A layer lands once. */
+	land() {
+		return this.enqueue(() => Mutation.run(() => cmd.storeLandLayer(this.target.name)));
 	}
 
 	/** Close after queued operations finish. Edits not yet landed are discarded. */

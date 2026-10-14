@@ -633,33 +633,26 @@ impl Store {
         } else {
             Vec::new()
         };
-        let (pool, spaced) = match (selector, ask) {
-            (Selector::Spaced { selection, thin }, Ask::Spacing) => (
-                selection
-                    .as_ref()
-                    .map_or(&Selector::Everything, |s| &s.selector),
-                Some((*thin, false)),
-            ),
-            (Selector::EvenlySpaced { selection, thin }, Ask::Spacing) => (
-                selection
-                    .as_ref()
-                    .map_or(&Selector::Everything, |s| &s.selector),
-                Some((*thin, true)),
-            ),
+        let pool = match (selector, ask) {
+            (
+                Selector::Spaced { selection, .. } | Selector::EvenlySpaced { selection, .. },
+                Ask::Spacing,
+            ) => selection
+                .as_ref()
+                .map_or(&Selector::Everything, |s| &s.selector),
             (_, Ask::Spacing) => {
                 return Err(AppError::from("read: spacing is asked of a spaced pick"))
             }
-            _ => (selector, None),
+            _ => selector,
         };
         self.with_scope(target, pool, Some(ask), |scope| {
             Ok(match ask {
                 Ask::Spacing => {
-                    let (thin, even) = spaced.expect("spacing validated before resolve");
                     let points = scope.points();
-                    let picked = if even {
-                        pick_even(&points, thin)?
-                    } else {
-                        pick_spaced(points, thin)?
+                    let picked = match selector {
+                        Selector::EvenlySpaced { thin, .. } => pick_even(&points, *thin)?,
+                        Selector::Spaced { thin, .. } => pick_spaced(points, *thin)?,
+                        _ => unreachable!("spacing validated before resolve"),
                     };
                     Answer::Spacing {
                         ids: picked.ids,

@@ -188,7 +188,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         .step(Stack::Redo, Timeline::Edits, fetch_stored)
                         .unwrap()
                         .unwrap();
-                    store.finish_entry(&changes);
+                    store.finish(Finished::Entry(&changes));
                     (model, selection_active) = next;
                 }
                 _ => {}

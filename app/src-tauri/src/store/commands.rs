@@ -238,7 +238,7 @@ pub async fn store_add_locations_uploaded(
     with_store!(label, state, |store| {
         let n = locations.len();
         let edits = locations.into_iter().map(Op::Add).collect();
-        let result = store.edit(&Target::Map, edits, false, &mut None);
+        let result = store.edit(&Target::Map, edits, &mut None);
         log::debug!(
             "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
             n,
@@ -603,7 +603,7 @@ pub async fn store_step(
             changes.locations.removed.len()
         );
         Ok(MutationResult {
-            mutation: store.finish_entry(&changes),
+            mutation: store.finish(Finished::Entry(&changes)),
         })
     })
 }
@@ -760,9 +760,11 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit locations where target says; a pending layer holds edits until land." store_edit(target: Target, edits: Vec<Edit<Location>>, opts: Option<EditOpts>) -> MutationResult => |store| {
-                let opts = opts.unwrap_or_default();
-                Ok(MutationResult { mutation: store.edit(&target, edits, opts.land, &mut None) })
+            "Edit locations where target says; an open pending layer holds edits until it lands." store_edit(target: Target, edits: Vec<Edit<Location>>) -> MutationResult => |store| {
+                Ok(MutationResult { mutation: store.edit(&target, edits, &mut None) })
+            };
+            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
+                Ok(MutationResult { mutation: store.land(&name, &mut None) })
             };
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)

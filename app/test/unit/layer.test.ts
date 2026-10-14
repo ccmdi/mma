@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-type EditCall = { target: { name: string }; edits: unknown[]; opts: { land?: boolean } | null };
+type EditCall = { target: { name: string }; edits: unknown[] };
 const h = vi.hoisted(() => ({
 	id: 0,
 	order: [] as string[],
 	edits: [] as EditCall[],
+	lands: [] as string[],
 	reads: [] as { target: { name: string }; selector: unknown; ask: unknown }[],
 	drops: [] as { name: string; mapId?: string }[],
 	mapId: "map-test" as string | null,
@@ -18,13 +19,9 @@ const h = vi.hoisted(() => ({
 vi.mock("@/store/store", () => ({ Store: { get: () => ({ mapId: h.mapId }) } }));
 vi.mock("@/store/edit", () => ({
 	Edit: {
-		locations: async (
-			target: { name: string },
-			edits: unknown[],
-			opts: { land?: boolean } | null,
-		) => {
-			h.order.push(opts?.land ? "land" : "edit");
-			h.edits.push({ target, edits, opts });
+		locations: async (target: { name: string }, edits: unknown[]) => {
+			h.order.push("edit");
+			h.edits.push({ target, edits });
 			if (h.blockNextEdit) {
 				h.blockNextEdit = false;
 				h.started?.();
@@ -40,6 +37,9 @@ vi.mock("@/store/edit", () => ({
 		},
 	},
 }));
+vi.mock("@/store/mutation", () => ({
+	Mutation: { run: (write: () => Promise<unknown>) => write() },
+}));
 vi.mock("@/store/query", () => ({
 	Query: {
 		read: async (selector: unknown, ask: unknown, target: { name: string }) => {
@@ -51,6 +51,11 @@ vi.mock("@/store/query", () => ({
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeLandLayer: async (name: string) => {
+			h.order.push("land");
+			h.lands.push(name);
+			return { mutation: { version: 0, keys: [] } };
+		},
 		storeCloseLayer: async (name: string, mapId?: string) => {
 			h.order.push("drop");
 			h.drops.push({ name, mapId });
@@ -64,6 +69,7 @@ beforeEach(() => {
 	h.id = 0;
 	h.order = [];
 	h.edits = [];
+	h.lands = [];
 	h.reads = [];
 	h.drops = [];
 	h.mapId = "map-test";
@@ -81,7 +87,7 @@ describe("Layer", () => {
 		const layer = await Layer.open();
 		const name = layer.target.name;
 		expect(h.edits).toHaveLength(1);
-		expect(h.edits[0]).toMatchObject({ target: layer.target, edits: [], opts: null });
+		expect(h.edits[0]).toMatchObject({ target: layer.target, edits: [] });
 
 		h.order = [];
 		h.edits = [];
@@ -96,15 +102,15 @@ describe("Layer", () => {
 			{ type: "Locations", locations: [7], name: null },
 			{ kind: "locations" },
 		);
-		const landing = layer.land(patch);
+		const landing = layer.land();
 
 		expect(h.order).toEqual(["edit"]);
 		h.release?.();
 		await Promise.all([editing, reading, landing]);
 
 		expect(h.order).toEqual(["edit", "read", "land"]);
-		expect(h.edits.map((call) => call.target.name)).toEqual([name, name]);
-		expect(h.edits.map((call) => call.opts?.land ?? false)).toEqual([false, true]);
+		expect(h.edits.map((call) => call.target.name)).toEqual([name]);
+		expect(h.lands).toEqual([name]);
 		expect(h.reads).toEqual([
 			{
 				target: layer.target,

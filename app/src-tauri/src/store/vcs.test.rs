@@ -1,5 +1,5 @@
 use super::*;
-use crate::store::engine::{Store, WindowLabel};
+use crate::store::engine::{Finished, Store, WindowLabel};
 use crate::test_util::loc;
 use mma_algebra::Id;
 
@@ -78,7 +78,6 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
             name: "viewer".into(),
         },
         vec![mma_algebra::Op::Set(loc(1, 3.0, 3.0))],
-        false,
         &mut None,
     );
     let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
@@ -94,7 +93,7 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
         })
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
     assert!(store.get_loc_by_id(Id::new(7)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
     assert!(store.selections.ids.contains(Id::new(1)));

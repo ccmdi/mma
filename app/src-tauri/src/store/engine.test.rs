@@ -46,7 +46,7 @@ fn entry(locations: Change) -> Entry {
 
 fn add_rows(store: &mut Store, locs: Vec<Location>) -> Mutation {
     let edits = locs.into_iter().map(Op::Add).collect();
-    store.edit(&Target::Map, edits, false, &mut None)
+    store.edit(&Target::Map, edits, &mut None)
 }
 
 fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Location, Location)> {
@@ -657,7 +657,7 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     let big: Vec<Edit<Location>> = (0..=MAX_UNDO_LOCATIONS as u32)
         .map(|_| Op::Add(loc(0, 0.0, 0.0)))
         .collect();
-    store.edit(&Target::Map, big, false, &mut None);
+    store.edit(&Target::Map, big, &mut None);
 
     assert_eq!(*store.alive_count as usize, MAX_UNDO_LOCATIONS + 2);
     assert_eq!(store.edits.len(Stack::Undo), 0);
@@ -2541,7 +2541,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     store.selections.ids = store.selections.live_ids();
 
     let feed = FeedCapture::attach(&mut store);
-    let result = store.finish_selection_change();
+    let result = store.finish(Finished::Base);
 
     let frame = frames.last();
     assert_eq!(frame.version, result.version);
@@ -4660,7 +4660,7 @@ fn undo_and_finish(store: &mut Store) {
         .step(Stack::Undo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish_entry(&changes);
+    store.finish(Finished::Entry(&changes));
 }
 
 /// The count `derived` shipped for one value of `field`: `None` when it did not ship the
@@ -7077,7 +7077,7 @@ fn heading(id: u32, heading: f64) -> Patch<Location> {
 fn a_pending_edit_is_held_and_read_through_until_it_lands() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     assert_eq!(
         store
             .collect(
@@ -7115,7 +7115,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
 fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     store.write(
         [Op::Put(Patch::<Location> {
             id: Id::new(1),
@@ -7144,11 +7144,11 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
 fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
     store.next_id = Ids::starting_at(Id::new(3));
-    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
-    store.edit(&viewer(), vec![Op::Remove(Id::new(2))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
+    store.edit(&viewer(), vec![Op::Remove(Id::new(2))], &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 0);
 
-    store.edit(&viewer(), vec![], true, &mut None);
+    store.land("viewer", &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 1);
     assert_eq!(
         store
@@ -7207,10 +7207,51 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
 }
 
 #[test]
+fn a_layer_lands_once_and_a_layer_closed_before_landing_never_lands() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
+    let landed = store.land("viewer", &mut None);
+    assert!(matches!(
+        store.pending["viewer"].stage,
+        Stage::Landed(Joins::Step(_))
+    ));
+    let again = store.land("viewer", &mut None);
+    assert_eq!(again.version, landed.version);
+    assert_eq!(store.edits.len(Stack::Undo), 1);
+
+    let draft = Target::Pending {
+        name: "draft".into(),
+    };
+    store.edit(&draft, vec![Op::Put(heading(1, 10.0))], &mut None);
+    store.close_layer("draft");
+    assert!(!store.pending.contains_key("draft"));
+    let after = store.land("draft", &mut None);
+    assert_eq!(after.version, landed.version);
+    assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 90.0);
+    assert!(!store.pending.contains_key("draft"));
+}
+
+#[test]
+fn an_empty_landing_joins_no_step_and_the_next_edit_through_it_starts_one() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.edit(&viewer(), vec![], &mut None);
+    store.land("viewer", &mut None);
+    assert_eq!(store.pending["viewer"].stage, Stage::Landed(Joins::NewStep));
+    assert_eq!(store.edits.len(Stack::Undo), 0);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
+    assert!(matches!(
+        store.pending["viewer"].stage,
+        Stage::Landed(Joins::Step(_))
+    ));
+    assert_eq!(store.edits.len(Stack::Undo), 1);
+}
+
+#[test]
 fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], true, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
+    store.land("viewer", &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 1);
 
     store.edit(
@@ -7220,7 +7261,6 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
             pitch: Some(5.0),
             ..Default::default()
         })],
-        false,
         &mut None,
     );
     let row = store
@@ -7257,7 +7297,8 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
     store.next_id = Ids::starting_at(Id::new(3));
     let target = viewer();
-    store.edit(&target, vec![Op::Put(heading(1, 90.0))], true, &mut None);
+    store.edit(&target, vec![Op::Put(heading(1, 90.0))], &mut None);
+    store.land("viewer", &mut None);
     store.edit(
         &Target::Map,
         vec![Op::Put(Patch::<Location> {
@@ -7265,7 +7306,6 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
             pitch: Some(15.0),
             ..Default::default()
         })],
-        false,
         &mut None,
     );
 
@@ -7276,7 +7316,6 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
             pitch: Some(5.0),
             ..Default::default()
         })],
-        false,
         &mut None,
     );
     store.edit(
@@ -7286,7 +7325,6 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
             zoom: Some(3.0),
             ..Default::default()
         })],
-        false,
         &mut None,
     );
 
@@ -7302,7 +7340,7 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     store.close_layer("viewer");
     assert_eq!(
         store
@@ -7325,7 +7363,7 @@ fn dropping_a_pending_layer_discards_what_it_held() {
 fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    let r = store.edit(&viewer(), vec![Op::Add(loc(0, 2.0, 2.0))], false, &mut None);
+    let r = store.edit(&viewer(), vec![Op::Add(loc(0, 2.0, 2.0))], &mut None);
     assert_eq!(r.keys, loc_ids([2]));
     assert!(store
         .collect(
@@ -7354,7 +7392,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
         2.0
     );
 
-    store.edit(&viewer(), vec![], true, &mut None);
+    store.land("viewer", &mut None);
     assert_eq!(
         store
             .collect(
@@ -7389,7 +7427,7 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     store.changes.insert(WindowLabel("win".into()), sink);
 
     apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
-    store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], false, &mut None);
+    store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], &mut None);
     undo_and_finish(&mut store);
 
     let events: Vec<serde_json::Value> = got
@@ -7981,14 +8019,14 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
     assert!(!store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     let entry = store
         .step(Stack::Redo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
     assert!(store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
@@ -8016,7 +8054,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
     assert_eq!(store.selections.list(), before);
     assert!(store.selections.ids.contains(Id::new(1)));
 }
@@ -8058,7 +8096,7 @@ fn indexed_proximity_respects_the_scope_and_pending_reads_use_overlaid_rows() {
     let pending = Target::Pending {
         name: "test".into(),
     };
-    store.edit(&pending, vec![Op::Set(loc(2, 0.0, 0.0))], false, &mut None);
+    store.edit(&pending, vec![Op::Set(loc(2, 0.0, 0.0))], &mut None);
     assert!(
         matches!(store.read(&pending, &pick, &ask).unwrap(), Answer::NearAny { values } if values == vec![true, false])
     );
@@ -8153,7 +8191,7 @@ fn redo_reapplies_a_bulk_tag_removal() {
         .step(Stack::Redo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish_entry(&changes);
+    store.finish(Finished::Entry(&changes));
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-applies the removal");
 }
 
@@ -8177,7 +8215,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
         .step(Stack::Redo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish_entry(&changes);
+    store.finish(Finished::Entry(&changes));
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-removes the rows");
     let shipped = feed.last().derived.field_values;
     let count = shipped
@@ -8345,7 +8383,7 @@ fn step_selection(store: &mut Store, stack: Stack) {
         .step(stack, Timeline::Selections, fetch_stored)
         .unwrap()
     {
-        store.finish_entry(&entry);
+        store.finish(Finished::Entry(&entry));
     }
 }
 
@@ -8404,7 +8442,7 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
         .step(Stack::Undo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish_entry(&changes);
+    store.finish(Finished::Entry(&changes));
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
     assert!(store.history()[&Timeline::Edits].redo);
@@ -8627,12 +8665,13 @@ fn every_location_write_path_hands_out_ids_no_row_has_held() {
     let add = || vec![Op::Add(loc(0, 1.0, 1.0))];
     let written = store.write(add(), &mut None, Entry::default());
     fresh(&mut seen, &written.keys);
-    let edited = store.edit(&Target::Map, add(), false, &mut None);
+    let edited = store.edit(&Target::Map, add(), &mut None);
     fresh(&mut seen, &edited.keys);
     let pending = Target::Pending { name: "p".into() };
-    let staged = store.edit(&pending, add(), false, &mut None);
+    let staged = store.edit(&pending, add(), &mut None);
     fresh(&mut seen, &staged.keys);
-    let landed = store.edit(&pending, add(), true, &mut None);
+    let landed = store.edit(&pending, add(), &mut None);
+    store.land("p", &mut None);
     fresh(&mut seen, &landed.keys);
     let copied =
         crate::io::import::add_copied_to_store(&mut store, vec![loc(0, 5.0, 5.0)], vec![]).unwrap();
@@ -8647,16 +8686,10 @@ fn every_location_write_path_hands_out_ids_no_row_has_held() {
 #[test]
 fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
     let mut store = setup_store_with(&[]);
-    store.edit(
-        &Target::Map,
-        vec![Op::Set(loc(5, 0.0, 0.0))],
-        false,
-        &mut None,
-    );
+    store.edit(&Target::Map, vec![Op::Set(loc(5, 0.0, 0.0))], &mut None);
     let fresh = store.edit(
         &Target::Map,
         vec![Op::Add(loc(0, 1.0, 1.0)), Op::Add(loc(0, 2.0, 2.0))],
-        false,
         &mut None,
     );
     assert!(fresh.keys.iter().all(|id| id.get() > 5));
@@ -8674,7 +8707,8 @@ fn an_edit_landed_from_a_pending_layer_stamps_its_modified_time() {
         ..Default::default()
     };
     patch.heading = Some(90.0);
-    store.edit(&viewer, vec![Op::Put(patch)], true, &mut None);
+    store.edit(&viewer, vec![Op::Put(patch)], &mut None);
+    store.land("viewer", &mut None);
     let landed = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(landed.heading, 90.0);
     assert!(landed.modified_at.is_some());
@@ -8709,7 +8743,7 @@ fn undoing_a_row_edit_leaves_a_selection_the_user_has_since_removed() {
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags.len(), 2);
     assert!(store.selections.list().is_empty());
 }
@@ -8813,8 +8847,8 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
     assert_eq!(row.modified_at, None);
 
     let pending = Target::Pending { name: "p".into() };
-    let staged = store.edit(&pending, vec![Op::Add(given)], false, &mut None);
-    store.edit(&pending, Vec::new(), true, &mut None);
+    let staged = store.edit(&pending, vec![Op::Add(given)], &mut None);
+    store.land("p", &mut None);
     let landed = store.get_loc_by_id(staged.keys[0]).unwrap();
     assert!(landed.created_at > 4);
     assert_eq!(landed.modified_at, None);
@@ -8901,7 +8935,7 @@ fn step_and_finish(store: &mut Store, stack: Stack) {
         .step(stack, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish_entry(&entry);
+    store.finish(Finished::Entry(&entry));
 }
 
 #[test]
@@ -8914,14 +8948,14 @@ fn pending_counts_ride_the_change_feed_after_edit_undo_redo_and_commit() {
     assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
     step_and_finish(&mut store, Stack::Redo);
     assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
-    store.finish_selection_change();
+    store.finish(Finished::Base);
     assert_eq!(
         feed.last().derived.pending,
         None,
         "unchanged counts stay off the feed"
     );
     store.bake_overlay();
-    store.finish_selection_change();
+    store.finish(Finished::Base);
     assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
     assert_eq!(store.open_status().derived.pending, Some(net(0, 0, 0)));
 }
@@ -8939,7 +8973,7 @@ fn a_commits_finish_resolves_selections_once_and_leaves_them_right_after_the_bak
     });
     store.bake_overlay();
     RESOLVES.with(|n| n.set(0));
-    store.finish_selection_change();
+    store.finish(Finished::Base);
     assert_eq!(RESOLVES.with(std::cell::Cell::get), 1);
     assert_eq!(store.selections.ids.len(), 2);
 }
@@ -8950,7 +8984,7 @@ fn a_held_edit_that_changes_nothing_on_the_map_announces_nothing() {
     store.open_status();
     let feed = FeedCapture::attach(&mut store);
     let version = store.version;
-    let held = store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], false, &mut None);
+    let held = store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], &mut None);
     assert_eq!(held.version, version);
     assert_eq!(feed.len(), 0);
     store.close_layer("viewer");
@@ -8961,7 +8995,7 @@ fn a_held_edit_that_changes_nothing_on_the_map_announces_nothing() {
 fn a_folder_rename_ships_the_maps_details_but_not_its_field_definitions() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.field_defs.edit().insert("a".into(), def_of("a"));
-    store.finish_selection_change();
+    store.finish(Finished::Base);
     let feed = FeedCapture::attach(&mut store);
     let before = (*store.meta).clone();
     let after = MapMeta {

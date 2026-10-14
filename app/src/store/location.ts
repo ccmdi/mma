@@ -48,7 +48,6 @@ export const Location = {
 				: await Edit.locations(
 						MAP,
 						locs.map((l) => ({ add: l })),
-						null,
 					);
 		t.end({ added: locs.length });
 		if (Store.get().map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
@@ -72,7 +71,6 @@ export const Location = {
 		await Edit.locations(
 			MAP,
 			[...ids].map((id) => ({ remove: id })),
-			null,
 		).catch((e) => log.error("[delete] store_edit remove failed:", e));
 	},
 	/** Patch locations by id. Only include the fields you're changing; `extra` merges
@@ -82,7 +80,6 @@ export const Location = {
 		await Edit.locations(
 			MAP,
 			updates.map((put) => ({ put })),
-			null,
 		);
 	},
 	/** Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres. @unstable */

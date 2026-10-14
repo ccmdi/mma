@@ -1001,7 +1001,7 @@ fn editor_import_reports_marker_additions_only_when_it_lands() {
     stage_parsed(&mut store, "frames-win", parsed);
     assert!(frames.frames().is_empty());
 
-    store.edit(&import_target("frames-win"), vec![], true, &mut None);
+    store.land(&import_layer("frames-win"), &mut None);
     let cells = frames.last().cells;
     assert_eq!(cells.iter().map(|c| c.add.len()).sum::<usize>(), 2);
     assert!(cells
@@ -1112,7 +1112,8 @@ fn bulk_tags_apply_every_name_to_every_import() {
             })
         })
         .collect();
-    store.edit(&target, edits, true, &mut None);
+    store.edit(&target, edits, &mut None);
+    store.land(&key, &mut None);
 
     let meta = &store.value_meta["tags"];
     let (france, _) = meta

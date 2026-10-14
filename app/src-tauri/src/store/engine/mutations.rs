@@ -18,15 +18,6 @@ use std::sync::Arc;
 /// A reversible row change shared by rendering, indexes, selections, and undo.
 pub type Change = mma_algebra::Change<Location>;
 
-/// Options for applying an edit.
-#[derive(Default, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase", default)]
-pub struct EditOpts {
-    /// Land the pending layer on the map after these edits.
-    #[specta(optional)]
-    pub land: bool,
-}
-
 /// Map state a change affected. Each field is `null` when it did not change.
 // The open-time form (`super::StoreStatus`) has every field present. The JS mirror's type
 // and merge are derived from this struct.
@@ -137,24 +128,56 @@ pub enum Target {
     Pending { name: String },
 }
 
-/// A named layer of pending edits and, once landed, the undo step its edits join.
+/// A named layer of pending edits and where it is in its lifecycle.
+#[derive(Default)]
 pub(crate) struct Pending {
     pub(crate) layer: Layer<Location>,
-    pub(crate) landed: Option<u64>,
-    /// Whether its owner closed the layer; it stays only while procedures still write to it.
-    pub(crate) closed: bool,
     /// Incoming value records to reconcile when the layer lands.
     pub(crate) incoming: HashMap<String, HashMap<Id<ValueRecord>, ValueRecord>>,
+    pub(crate) stage: Stage,
 }
 
-impl Default for Pending {
-    fn default() -> Self {
-        Self {
-            layer: Layer::default(),
-            landed: None,
-            closed: false,
-            incoming: HashMap::new(),
+/// Where a pending layer is in its lifecycle: open, then landed or discarded, and closed.
+#[derive(Default, Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Stage {
+    /// Edits are held in the layer until it lands.
+    #[default]
+    Open,
+    /// The layer landed. Later edits write through.
+    Landed(Joins),
+    /// The layer landed and its owner closed it; it stays while procedures still write to it.
+    Closing(Joins),
+    /// Its owner closed the layer before it landed; its edits never reach the map.
+    Discarded,
+}
+
+/// The undo step a landed layer's later edits join.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Joins {
+    /// This step, while it is the newest.
+    Step(u64),
+    /// No step was recorded yet, so the next edit starts one.
+    NewStep,
+}
+
+impl From<Option<u64>> for Joins {
+    fn from(step: Option<u64>) -> Self {
+        step.map_or(Joins::NewStep, Joins::Step)
+    }
+}
+
+impl Stage {
+    /// What later edits join, when the layer has landed.
+    pub(crate) fn landed(self) -> Option<Joins> {
+        match self {
+            Stage::Landed(joins) | Stage::Closing(joins) => Some(joins),
+            Stage::Open | Stage::Discarded => None,
         }
+    }
+
+    /// Whether the owner closed the layer.
+    pub(crate) fn closed(self) -> bool {
+        matches!(self, Stage::Closing(_) | Stage::Discarded)
     }
 }
 
@@ -215,48 +238,63 @@ impl Store {
         self.record(&entry, join);
         Mutation {
             keys,
-            ..self.finish_entry(&entry)
+            ..self.finish(Finished::Entry(&entry))
         }
     }
 
-    /// Add, patch, or remove rows at `target`. Pending edits stay staged until `land`.
-    /// After landing, later edits write through and join that undo step while it remains newest.
+    /// Add, patch, or remove rows at `target`. An open layer holds its edits until it lands;
+    /// a landed layer writes them through, joining its undo step while that remains newest.
     pub(crate) fn edit(
         &mut self,
         target: &Target,
         edits: Vec<Edit<Location>>,
-        land: bool,
         join: &mut Option<u64>,
     ) -> Mutation {
         let Target::Pending { name } = target else {
             return self.write(edits, join, Entry::default());
         };
         let pending = self.pending.entry(name.clone()).or_default();
-        let result = if let Some(seq) = pending.landed {
-            join.get_or_insert(seq);
-            self.write(edits, join, Entry::default())
+        let result = if let Some(joins) = pending.stage.landed() {
+            if let Joins::Step(step) = joins {
+                join.get_or_insert(step);
+            }
+            let result = self.write(edits, join, Entry::default());
+            if let Some(pending) = self.pending.get_mut(name) {
+                pending.stage = match pending.stage {
+                    Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
+                    _ => Stage::Landed(Joins::from(*join)),
+                };
+            }
+            result
         } else {
             let keys = layered(&mut pending.layer, edits, &mut self.next_id);
-            if !land {
-                let result = self.held(keys);
-                self.settle_layers();
-                return result;
-            }
-            let (layer, piles) = self.reconcile_incoming(name);
-            Mutation {
-                keys,
-                ..self.write(
-                    layer.into_edits(),
-                    join,
-                    Entry {
-                        piles,
-                        ..Default::default()
-                    },
-                )
-            }
+            self.held(keys)
         };
+        self.settle_layers();
+        result
+    }
+
+    /// Land an open layer's edits on the map as one undo step. A layer lands once: landing it
+    /// again, after it was discarded, or when no such layer exists changes nothing.
+    pub(crate) fn land(&mut self, name: &str, join: &mut Option<u64>) -> Mutation {
+        if self
+            .pending
+            .get(name)
+            .is_none_or(|p| p.stage != Stage::Open)
+        {
+            return self.held(Vec::new());
+        }
+        let (layer, piles) = self.reconcile_incoming(name);
+        let result = self.write(
+            layer.into_edits(),
+            join,
+            Entry {
+                piles,
+                ..Default::default()
+            },
+        );
         if let Some(pending) = self.pending.get_mut(name) {
-            pending.landed = *join;
+            pending.stage = Stage::Landed(Joins::from(*join));
         }
         self.settle_layers();
         result
@@ -292,7 +330,7 @@ impl Store {
     pub(crate) fn settle_layers(&mut self) {
         let writing = crate::procedure::engine::pending_writers(&self.meta.id);
         self.pending
-            .retain(|name, pending| !pending.closed || writing.contains(name));
+            .retain(|name, pending| !pending.stage.closed() || writing.contains(name));
         if writing != *self.writing_layers {
             self.writing_layers.replace(writing);
         }
@@ -309,10 +347,14 @@ impl Store {
     /// Close the layer. Unlanded work is cancelled; a landed layer stays until its writers finish.
     pub(crate) fn close_layer(&mut self, name: &str) {
         if let Some(pending) = self.pending.get_mut(name) {
-            if pending.landed.is_none() {
-                crate::procedure::engine::cancel_pending_writers(&self.meta.id, name);
-            }
-            pending.closed = true;
+            pending.stage = match pending.stage {
+                Stage::Open => {
+                    crate::procedure::engine::cancel_pending_writers(&self.meta.id, name);
+                    Stage::Discarded
+                }
+                Stage::Landed(joins) => Stage::Closing(joins),
+                closed => closed,
+            };
         }
         self.settle_layers();
     }

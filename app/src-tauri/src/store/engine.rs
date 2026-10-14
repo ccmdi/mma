@@ -160,6 +160,15 @@ pub struct Store {
     pub(crate) pending: HashMap<String, Pending>,
 }
 
+/// What a finished change touched.
+#[derive(Clone, Copy)]
+pub(crate) enum Finished<'a> {
+    /// An entry's rows, value records, field definitions, or selections.
+    Entry(&'a Entry),
+    /// The base rows were rewritten, so every row restates its selection.
+    Base,
+}
+
 impl Default for Store {
     fn default() -> Self {
         Self::new()
@@ -295,18 +304,7 @@ impl Store {
             selections: entry.selections.clone(),
             ..Default::default()
         });
-        self.finish_entry(&entry)
-    }
-
-    /// Finish a change to rows, value records, or field definitions.
-    pub(crate) fn finish_entry(&mut self, entry: &Entry) -> Mutation {
-        self.finish(&entry.locations, &entry.piles, !entry.selections.is_empty())
-    }
-
-    /// Finish a change to the selection list itself: no row moves, and the frame restates
-    /// every row's selection.
-    pub(crate) fn finish_selection_change(&mut self) -> Mutation {
-        self.finish(&Change::default(), &Piles::new(), true)
+        self.finish(Finished::Entry(&entry))
     }
 
     /// Recount the pending changes if the overlay moved since they were last counted.
@@ -319,7 +317,14 @@ impl Store {
         }
     }
 
-    fn finish(&mut self, changes: &Change, piles: &Piles, selections_replaced: bool) -> Mutation {
+    /// Update derived state for what changed, broadcast frames and changes, and return its result.
+    pub(crate) fn finish(&mut self, finished: Finished) -> Mutation {
+        let empty = Entry::default();
+        let (entry, resolve_all) = match finished {
+            Finished::Entry(entry) => (entry, !entry.selections.is_empty()),
+            Finished::Base => (&empty, true),
+        };
+        let (changes, piles) = (&entry.locations, &entry.piles);
         let before = self.version;
         self.bump();
         self.update_bounds(changes, before);
@@ -345,13 +350,12 @@ impl Store {
 
         // A metadata-only mutation (a value rename or reorder, a create with nothing to
         // assign) moves no rows, so there is no membership to re-test.
-        let has_selections =
-            (!changes.is_empty() || selections_replaced) && !self.selections.is_empty();
-        let full_resolve = has_selections
-            && (selections_replaced || changes.len() > 100 || self.selections.set_dependent);
+        let has_selections = (!changes.is_empty() || resolve_all) && !self.selections.is_empty();
+        let full_resolve =
+            has_selections && (resolve_all || changes.len() > 100 || self.selections.set_dependent);
 
-        let membership_delta = if has_selections || selections_replaced {
-            if full_resolve || selections_replaced {
+        let membership_delta = if has_selections || resolve_all {
+            if full_resolve || resolve_all {
                 self.resolve_selection_membership();
                 None
             } else {
@@ -367,7 +371,7 @@ impl Store {
         // O(rows in the affected cells) where the patches cost O(changed).
         let changed = membership_delta.unwrap_or_default();
         let cells = self.derive_cell_frames(changes, &changed);
-        let restated = full_resolve || selections_replaced;
+        let restated = full_resolve || resolve_all;
         let frame = Frame {
             kind: FrameKind::PATCH,
             version: self.version,
@@ -381,9 +385,9 @@ impl Store {
 
         let derived = Derived {
             field_values: (!field_values.is_empty()).then_some(field_values),
-            selection_counts: (has_selections || selections_replaced)
+            selection_counts: (has_selections || resolve_all)
                 .then(|| self.selections.node_counts.clone()),
-            selection_list: (selections_replaced || piles.values().any(|delta| !delta.is_empty()))
+            selection_list: (resolve_all || piles.values().any(|delta| !delta.is_empty()))
                 .then(|| self.selections.list()),
             ..self.shipped()
         };

@@ -44,12 +44,7 @@ fn given(state: &StoreState, map_id: &Id<MapMeta, String>, rows: Vec<Location>) 
     };
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    store.edit(
-        &target,
-        rows.into_iter().map(Op::Set).collect(),
-        false,
-        &mut None,
-    );
+    store.edit(&target, rows.into_iter().map(Op::Set).collect(), &mut None);
     target
 }
 
@@ -2648,7 +2643,7 @@ fn a_cancelled_run_leaves_nothing_reported() {
 fn a_reserved_run_id_is_never_handed_out_again_and_cancels_like_any_run() {
     let reserved = tauri::async_runtime::block_on(procedure_reserve_run());
     assert_ne!(next_run_id(), reserved);
-    let cancel = register_run(reserved, None, None).unwrap();
+    let cancel = register_run(reserved, None).unwrap();
     tauri::async_runtime::block_on(procedure_cancel(reserved)).unwrap();
     assert!(cancel.load(Ordering::Relaxed));
     drop(unregister_run(reserved));
@@ -2667,7 +2662,6 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         manager.store_for_map(&map_id).unwrap().edit(
             &target,
             vec![Op::Set(loc(1, 1.0, 1.0))],
-            false,
             &mut None,
         );
     }
@@ -2694,10 +2688,13 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     {
         let mut manager = state.lock().unwrap();
         let store = manager.store_for_map(&map_id).unwrap();
-        store.edit(&target, Vec::new(), true, &mut None);
+        store.land("draft", &mut None);
         let pending = store.pending.get("draft").unwrap();
-        assert!(pending.closed);
-        assert!(pending.landed.is_some());
+        assert_eq!(pending.stage, crate::store::engine::Stage::Discarded);
+        assert!(
+            store.get_loc_by_id(Id::new(1)).is_none(),
+            "a discarded layer never lands"
+        );
     }
 
     finish_writer_run(&state, first);
@@ -2730,8 +2727,8 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
         let mut manager = state.lock().unwrap();
         manager.window_map.insert(label.clone(), map_id.clone());
         let store = manager.store_for_map(&map_id).unwrap();
-        store.edit(&target, vec![Op::Set(loc(1, 1.0, 1.0))], false, &mut None);
-        store.edit(&target, Vec::new(), true, &mut None);
+        store.edit(&target, vec![Op::Set(loc(1, 1.0, 1.0))], &mut None);
+        store.land("draft", &mut None);
     }
 
     let run_id = next_run_id();
@@ -2743,17 +2740,16 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
     assert!(!runs().lock().unwrap()[&run_id]
         .cancel
         .load(Ordering::Relaxed));
-    assert!(
-        state
-            .lock()
-            .unwrap()
-            .store_for_map(&map_id)
-            .unwrap()
-            .pending
-            .get("draft")
-            .unwrap()
-            .closed
-    );
+    assert!(state
+        .lock()
+        .unwrap()
+        .store_for_map(&map_id)
+        .unwrap()
+        .pending
+        .get("draft")
+        .unwrap()
+        .stage
+        .closed());
 
     finish_writer_run(&state, run_id);
     assert!(!state

@@ -381,7 +381,7 @@ impl SavedSelection {
             let id = Id::new(raw);
             match saved.tag_names.get(&id) {
                 None => values.record(id).map(|_| raw),
-                Some(name) => values.named(name, true).map(Id::get),
+                Some(name) => values.named(name).map(Id::get),
             }
         })
     }

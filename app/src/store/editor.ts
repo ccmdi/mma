@@ -103,7 +103,8 @@ function draftOf({ id, layer }: Opening): Draft {
 		});
 	};
 	const save = async (patch: DraftPatch) => {
-		await layer.land([{ put: { ...patch, id } }]);
+		await layer.edit([{ put: { ...patch, id } }]);
+		await layer.land();
 		return id;
 	};
 	const bound = <A extends unknown[], R>(name: string, run: (...args: A) => Promise<R>) =>

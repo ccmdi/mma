@@ -6519,11 +6519,10 @@ edit history, sync links, and review sessions stay with the original.
 cmd.storeEdit(
   target: Target,
   edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
-  opts: EditOpts | null,
 ): Promise<MutationResult<Location>>
 ```
 
-Edit locations where target says; a pending layer holds edits until land.
+Edit locations where target says; an open pending layer holds edits until it lands.
 
 #### cmd.storeEditSelections
 
@@ -6690,6 +6689,16 @@ cmd.storeImportPreview(path: string): Promise<EditorImportPreview>
 
 Parse a file and return field-level statistics and preview positions for the
 editor import dialog. Call `storeImportFile` to commit the import.
+
+#### cmd.storeLandLayer
+
+`unstable` · unreleased
+
+```ts
+cmd.storeLandLayer(name: string): Promise<MutationResult<Location>>
+```
+
+Land a pending layer's edits on the map as one undoable step; later edits to it join that step.
 
 #### cmd.storeListCommits
 

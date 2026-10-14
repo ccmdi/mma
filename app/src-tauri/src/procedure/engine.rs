@@ -289,8 +289,8 @@ fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
 #[derive(Clone)]
 struct RunEntry {
     cancel: Arc<AtomicBool>,
-    map_id: Option<Id<MapMeta, String>>,
-    target: Option<Target>,
+    /// The map and target the run writes to, when it writes to a store.
+    writer: Option<(Id<MapMeta, String>, Target)>,
 }
 
 fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
@@ -305,16 +305,14 @@ fn next_run_id() -> u32 {
 
 fn register_run(
     run_id: u32,
-    map_id: Option<Id<MapMeta, String>>,
-    target: Option<Target>,
+    writer: Option<(Id<MapMeta, String>, Target)>,
 ) -> AppResult<Arc<AtomicBool>> {
     let cancel = Arc::new(AtomicBool::new(false));
     runs().lock()?.insert(
         run_id,
         RunEntry {
             cancel: cancel.clone(),
-            map_id,
-            target,
+            writer,
         },
     );
     Ok(cancel)
@@ -329,14 +327,9 @@ pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> 
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .values()
-        .filter_map(|run| {
-            if run.map_id.as_ref() != Some(map_id) {
-                return None;
-            }
-            match run.target.as_ref() {
-                Some(Target::Pending { name }) => Some(name.clone()),
-                _ => None,
-            }
+        .filter_map(|run| match &run.writer {
+            Some((id, Target::Pending { name })) if id == map_id => Some(name.clone()),
+            _ => None,
         })
         .collect()
 }
@@ -348,8 +341,7 @@ pub(crate) fn cancel_pending_writers(map_id: &Id<MapMeta, String>, name: &str) {
         .unwrap_or_else(PoisonError::into_inner)
         .values()
     {
-        if run.map_id.as_ref() == Some(map_id)
-            && matches!(run.target.as_ref(), Some(Target::Pending { name: target }) if target == name)
+        if matches!(&run.writer, Some((id, Target::Pending { name: target })) if id == map_id && target == name)
         {
             run.cancel.store(true, Ordering::Relaxed);
         }
@@ -364,7 +356,7 @@ fn finish_writer_run(state: &StoreState, run_id: u32) {
     let Some(run) = unregister_run(run_id) else {
         return;
     };
-    if let Some(map_id) = run.map_id {
+    if let Some((map_id, _)) = run.writer {
         if let Ok(store) = manager.store_for_map(&map_id) {
             store.settle_layers();
         }
@@ -1101,12 +1093,13 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 .unwrap_or_else(PoisonError::into_inner);
             // Pending edits emit no map change event, so stream the updated rows to the caller.
             let held = match &ctx.target {
-                Target::Pending { name } => {
-                    store.pending.get(name).is_none_or(|p| p.landed.is_none())
-                }
+                Target::Pending { name } => store
+                    .pending
+                    .get(name)
+                    .is_none_or(|p| p.stage.landed().is_none()),
                 Target::Map => false,
             };
-            store.edit(&ctx.target, edits, false, &mut group);
+            store.edit(&ctx.target, edits, &mut group);
             Ok(held.then(|| {
                 store.collect(
                     &ctx.target,
@@ -1596,14 +1589,14 @@ fn register_store_run(
         if !store
             .pending
             .get(name)
-            .is_some_and(|pending| !pending.closed)
+            .is_some_and(|pending| !pending.stage.closed())
         {
             return Err(AppError(format!(
                 "pending layer '{name}' is no longer available"
             )));
         }
     }
-    let cancel = register_run(run_id, Some(map_id.clone()), Some(target.clone()))?;
+    let cancel = register_run(run_id, Some((map_id.clone(), target.clone())))?;
     if matches!(&target, Target::Pending { .. }) {
         manager.store_for_map(&map_id)?.settle_layers();
     }
@@ -1701,7 +1694,7 @@ pub async fn procedure_query(
     run_id: Option<u32>,
 ) -> AppResult<String> {
     let flag = match run_id {
-        Some(id) => register_run(id, None, None)?,
+        Some(id) => register_run(id, None)?,
         None => Arc::new(AtomicBool::new(false)),
     };
     let out = task::spawn_blocking(move || {

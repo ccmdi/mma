@@ -6,8 +6,10 @@ import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, Issue
 
 /** Commands */
 export const commands = {
-	/** Edit locations where target says; a pending layer holds edits until land. */
-	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], opts: EditOpts | null) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, opts }),
+	/** Edit locations where target says; an open pending layer holds edits until it lands. */
+	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[]) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits }),
+	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
+	storeLandLayer: (name: string) => __TAURI_INVOKE<MutationResult>("store_land_layer", { name }),
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
@@ -679,12 +681,6 @@ export type DeviceCodeInfo = {
 	verificationUri: string,
 	/**  Seconds until `userCode` stops working. */
 	expiresIn: number,
-};
-
-/**  Options for applying an edit. */
-export type EditOpts = {
-	/**  Land the pending layer on the map after these edits. */
-	land?: boolean,
 };
 
 /**

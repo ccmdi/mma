@@ -111,7 +111,7 @@ pub async fn store_commit(
             Vec::new()
         };
 
-        let status = store.finish_selection_change();
+        let status = store.finish(engine::Finished::Base);
         (pre_bake, current_fallback, location_count, status)
     };
     let t_bake = _t.elapsed();
