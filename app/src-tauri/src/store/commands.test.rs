@@ -1,6 +1,7 @@
 use super::*;
 use crate::selections::PolygonGeometry;
 use crate::test_util;
+use crate::util::now_unix;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -320,6 +321,19 @@ fn a_copy_treats_an_empty_pano_as_none() {
     let existing = [at_pano(10.0, 20.0, "")];
     let (_, skipped) = copy_over(&existing, &[at_pano(10.0, 20.0, "")]);
     assert_eq!(skipped, 1);
+}
+
+#[test]
+fn a_copied_location_is_created_now() {
+    let source = Location {
+        created_at: 5,
+        ..test_util::loc(0, 10.0, 20.0)
+    };
+    let now = now_unix();
+    let (fresh, _) = copy_over(&[], &[source]);
+    assert_eq!(fresh.len(), 1);
+    assert!(fresh[0].created_at >= now);
+    assert_eq!(fresh[0].modified_at, None);
 }
 
 #[test]

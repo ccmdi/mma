@@ -209,7 +209,15 @@ fn copy_locations_to_map(
         let total = matched.len() as u32;
         let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
         let records = referenced_records(&records, &fresh);
-        let adds = fresh.into_iter().map(Op::Add).collect();
+        let adds = fresh
+            .into_iter()
+            .map(|row| {
+                Op::Add(Location {
+                    created_at: 0,
+                    ..row
+                })
+            })
+            .collect();
         let copied = target.at(&there).edit(adds, records, &mut None).keys.len() as u32;
         Ok(CopyToMapResult {
             copied,
