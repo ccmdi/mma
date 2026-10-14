@@ -79,7 +79,8 @@ export const SavedSelection = {
 	/** A rule's parts: its top-level `Union` is the list it was saved from, anything else is
 	 *  a single part. */
 	parts: (saved: SavedSelection): SavedPart[] => {
-		const { selector, tagNames } = saved;
+		const { selector } = saved;
+		const tagNames = saved.valueNames.tags;
 		const parts: SelectionInput[] =
 			selector.type === "Union"
 				? selector.selections.map((s) => ({ ...selection(s.selector), color: s.color }))

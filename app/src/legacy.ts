@@ -253,7 +253,7 @@ export function query(selector: Selector, target: Target = { kind: "map" }) {
 		/** How many locations hold a value for each field, key-sorted. */
 		coverage: async (): Promise<[string, number][]> =>
 			Query.read(selector, { kind: "coverage" }, target),
-		/** One column per field: null for missing values and tag-id arrays for tags. */
+		/** One column per field: null for missing values and value-id lists for interned fields. */
 		columns: async (fields: string[]): Promise<unknown[][]> =>
 			Query.read(selector, { kind: "columns", fields }, target),
 		/** Group by a derived key; bins use bound order and other keys sort naturally. */

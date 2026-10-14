@@ -512,8 +512,8 @@ pub enum Ask {
     Count,
     /// Every location in full.
     Locations,
-    /// One column per field, `null` where a location lacks it; `tags` is a column of tag-id
-    /// arrays.
+    /// One column per field, `null` where a location lacks it; an interned field's column holds
+    /// lists of value ids.
     Columns { fields: Vec<String> },
     /// Distinct values of `field`, sorted.
     Values { field: String },

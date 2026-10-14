@@ -1169,3 +1169,28 @@ fn tag_records_held_on_the_map_row_move_to_the_records_table() {
         .unwrap();
     assert_eq!(tags_column, 0);
 }
+
+#[test]
+fn a_saved_rules_tag_names_become_its_names_for_the_tags_field() {
+    let conn = Connection::open_in_memory().unwrap();
+    configure_connection(&conn).unwrap();
+    apply_prefix(
+        &conn,
+        MIGRATIONS.iter().position(|(v, _)| *v == 31).unwrap(),
+    );
+    conn.execute_batch(
+        r#"INSERT INTO saved_selections (id, name, selector, tag_names, color, created_at) VALUES
+             ('named', 'n', '{"type":"Filter","field":"tags","test":{"op":"contains","value":5}}', '{"5":"Japan"}', '[1,2,3]', 'a'),
+             ('bare', 'b', '{"type":"Everything"}', '{}', '[1,2,3]', 'b');"#,
+    )
+    .unwrap();
+
+    run_migrations_on(&conn).unwrap();
+
+    let saved =
+        crate::selections::saved::get(&conn, &[Id::new("named".into()), Id::new("bare".into())])
+            .unwrap();
+    assert_eq!(saved.len(), 2);
+    assert_eq!(saved[0].value_names["tags"][&Id::new(5)], "Japan");
+    assert!(saved[1].value_names.is_empty());
+}

@@ -1,8 +1,8 @@
 //! Global saved selection rules.
 //!
-//! A saved rule is one `Selector` tree plus the names its tag-membership leaves carried
-//! at save time. Tag ids are map-local, so Rust resolves them through the names at apply time; the
-//! tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
+//! A saved rule is one `Selector` tree plus the names its interned-value membership leaves
+//! carried at save time. Value ids are map-local, so they resolve through the names at apply
+//! time; the tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::{Selection, Selector};
 use crate::store::engine::{
@@ -34,11 +34,15 @@ pub struct SavedSelection {
     #[serde(flatten)]
     pub info: SavedSelectionInfo,
     pub selector: Selector,
-    /// Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable.
-    pub tag_names: HashMap<Id<ValueRecord>, String>,
+    /// Each interned field's value ids and the names they carried when saved, which carry a
+    /// rule's value tests from one map to another.
+    pub value_names: ValueNames,
 }
 
-const COLS: &str = "id, name, selector, tag_names, color, created_at";
+/// Value id -> name, by interned field.
+pub type ValueNames = HashMap<String, HashMap<Id<ValueRecord>, String>>;
+
+const COLS: &str = "id, name, selector, value_names, color, created_at";
 
 /// Stand-in color for a rule imported without one.
 const NO_COLOR: Rgb = Rgb([128, 128, 128]);
@@ -86,9 +90,9 @@ pub(crate) fn get(
     })?;
     let mut out = Vec::new();
     for row in rows {
-        let (id, name, selector, tag_names, color, created_at) = row?;
+        let (id, name, selector, value_names, color, created_at) = row?;
         let id = Id::new(id);
-        match parse_row(&id, name, &selector, &tag_names, &color, created_at) {
+        match parse_row(&id, name, &selector, &value_names, &color, created_at) {
             Ok(s) => out.push(s),
             Err(e) => log::warn!("[saved-selections] skipping unreadable rule {id}: {e}"),
         }
@@ -100,7 +104,7 @@ fn parse_row(
     id: &Id<SavedSelection, String>,
     name: String,
     selector: &str,
-    tag_names: &str,
+    value_names: &str,
     color: &str,
     created_at: String,
 ) -> Result<SavedSelection, serde_json::Error> {
@@ -112,7 +116,7 @@ fn parse_row(
             created_at,
         },
         selector: serde_json::from_value(modernize(serde_json::from_str(selector)?))?,
-        tag_names: serde_json::from_str(tag_names)?,
+        value_names: serde_json::from_str(value_names)?,
     })
 }
 
@@ -223,7 +227,7 @@ pub(crate) fn create(
     conn: &Connection,
     name: String,
     selector: Selector,
-    tag_names: HashMap<Id<ValueRecord>, String>,
+    value_names: ValueNames,
     color: Rgb,
 ) -> AppResult<SavedSelection> {
     let saved = SavedSelection {
@@ -234,7 +238,7 @@ pub(crate) fn create(
             created_at: now_iso(),
         },
         selector,
-        tag_names,
+        value_names,
     };
     insert(conn, &saved)?;
     Ok(saved)
@@ -242,13 +246,13 @@ pub(crate) fn create(
 
 fn insert(conn: &Connection, s: &SavedSelection) -> AppResult<()> {
     conn.execute(
-        "INSERT INTO saved_selections (id, name, selector, tag_names, color, created_at)
+        "INSERT INTO saved_selections (id, name, selector, value_names, color, created_at)
          VALUES (?, ?, ?, ?, ?, ?)",
         rusqlite::params![
             s.info.id.raw(),
             s.info.name,
             serde_json::to_string(&s.selector)?,
-            serde_json::to_string(&s.tag_names)?,
+            serde_json::to_string(&s.value_names)?,
             serde_json::to_string(&s.info.color)?,
             s.info.created_at,
         ],
@@ -294,55 +298,51 @@ pub async fn store_save_selection(
 ) -> AppResult<SavedSelection> {
     let selector = selector.map_children(super::tree::SelectionInput::compile);
     // A rule saved with no map open keeps an empty side table: names resolve per map.
-    let tag_names = {
-        let mut mgr = state.lock()?;
-        let mut names = HashMap::new();
-        if let Ok(store) = mgr.store_for_window(&label) {
-            capture_names(&selector, "tags", store, &mut names);
-        }
-        names
+    let value_names = match state.lock()?.store_for_window(&label) {
+        Ok(store) => capture_names(&selector, store),
+        Err(_) => ValueNames::new(),
     };
-    storage::with_db(move |conn| create(conn, name, selector, tag_names, color)).await
+    storage::with_db(move |conn| create(conn, name, selector, value_names, color)).await
 }
 
-fn capture_names(
-    selector: &Selector,
-    field: &str,
-    store: &Store,
-    names: &mut HashMap<Id<ValueRecord>, String>,
-) {
+/// The names of the values `selector` tests membership in, by field.
+fn capture_names(selector: &Selector, store: &Store) -> ValueNames {
+    let mut names = ValueNames::new();
     selector.walk(&mut |selector| {
-        if let Some((name, id)) = selector.member_test() {
-            if name == field {
-                let id = Id::new(id);
-                if let Some(name) = store
-                    .value_record(field, id)
-                    .and_then(|record| record.name.as_deref())
-                {
-                    names.insert(id, name.to_string());
-                }
+        if let Some((field, id)) = selector.member_test() {
+            let id = Id::new(id);
+            if let Some(name) = store
+                .value_record(field, id)
+                .and_then(|record| record.name.as_deref())
+            {
+                names
+                    .entry(field.to_string())
+                    .or_default()
+                    .insert(id, name.to_string());
             }
         }
     });
+    names
 }
 
-fn remap(selector: &Selector, field: &str, resolve: &impl Fn(u32) -> Option<u32>) -> Selector {
+/// `selector` with each membership test `resolve` answers moved to the id it gives, or to no
+/// rows where it gives none.
+fn remap(selector: &Selector, resolve: &impl Fn(&str, u32) -> Option<Option<u32>>) -> Selector {
     let edit = |selector: Selector| {
-        if let Some((name, id)) = selector.member_test() {
-            if name == field {
-                return resolve(id).map_or_else(
-                    || Selector::Locations {
-                        locations: vec![],
-                        name: None,
-                    },
-                    |id| Selector::Filter {
-                        field: field.to_string(),
-                        test: super::FilterOp::Contains { value: id.into() },
-                    },
-                );
-            }
+        let Some((field, id)) = selector.member_test() else {
+            return selector;
+        };
+        match resolve(field, id) {
+            None => selector,
+            Some(None) => Selector::Locations {
+                locations: vec![],
+                name: None,
+            },
+            Some(Some(id)) => Selector::Filter {
+                field: field.to_string(),
+                test: super::FilterOp::Contains { value: id.into() },
+            },
         }
-        selector
     };
     edit(selector.map_children_ref(|child| child.mapped(&edit)))
 }
@@ -375,16 +375,26 @@ pub(crate) fn apply_saved_selection(
 
 impl SavedSelection {
     fn resolved(&self, store: &mut Store) -> Selector {
-        let saved = self;
-        let field = "tags";
-        let fields = store.fields([field]);
-        let values = &fields[0];
-        remap(&saved.selector, field, &|raw| {
-            let id = Id::new(raw);
-            match saved.tag_names.get(&id) {
-                None => values.record(id).map(|_| raw),
-                Some(name) => values.named(name).map(Id::get),
+        let mut interned = Vec::new();
+        self.selector.walk(&mut |selector| {
+            if let Some((field, _)) = selector.member_test() {
+                if !interned.iter().any(|known| known == field)
+                    && store.registry().get(field).is_some_and(|def| def.interned)
+                {
+                    interned.push(field.to_string());
+                }
             }
+        });
+        let fields = store.fields(interned.iter().map(String::as_str));
+        remap(&self.selector, &|field, raw| {
+            let values = fields.iter().find(|values| values.field() == field)?;
+            let id = Id::new(raw);
+            Some(
+                match self.value_names.get(field).and_then(|names| names.get(&id)) {
+                    None => values.record(id).map(|_| raw),
+                    Some(name) => values.named(name).map(Id::get),
+                },
+            )
         })
     }
 }

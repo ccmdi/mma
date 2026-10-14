@@ -285,8 +285,8 @@ pub enum CopySource {
     Given { locations: Vec<Location> },
 }
 
-/// Copy locations into another map, skipping ones the target already has. Tags and extra
-/// fields carry over, tags matched to the target's by name.
+/// Copy locations into another map, skipping ones the target already has. Extra fields carry
+/// over, and interned values such as tags are matched to the target's by name.
 // An open target's windows receive the change feed and schedule autosave; a closed target is
 // loaded, edited the same way, and saved.
 #[tauri::command]

@@ -267,7 +267,10 @@ impl Store {
         let fields: Vec<_> = self
             .registry()
             .iter()
-            .filter(|(_, def)| def.builtin.is_some() && def.index_shape() != maps::IndexShape::None)
+            .filter(|(_, def)| {
+                (def.builtin.is_some() || def.interned)
+                    && def.index_shape() != maps::IndexShape::None
+            })
             .map(|(key, _)| key.to_string())
             .collect();
         let field_values = self

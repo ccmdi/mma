@@ -1255,16 +1255,12 @@ impl<'v, 'a> Scope<'v, 'a> {
     }
 
     /// One value per row in scope for each of `fields`, in view order, `Null` where the
-    /// row lacks it; `"tags"` yields the row's tag ids.
+    /// row lacks it. An interned field's value is the row's list of value ids.
     pub fn columns(&self, fields: &[String]) -> Vec<Vec<serde_json::Value>> {
         let mut out: Vec<Vec<serde_json::Value>> = fields.iter().map(|_| Vec::new()).collect();
         for row in self.rows() {
             for (col, field) in out.iter_mut().zip(fields) {
-                col.push(if field == "tags" {
-                    serde_json::json!(row.tags())
-                } else {
-                    row.resolve_field(field).unwrap_or(serde_json::Value::Null)
-                });
+                col.push(row.resolve_field(field).unwrap_or(serde_json::Value::Null));
             }
         }
         out

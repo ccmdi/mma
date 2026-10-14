@@ -171,8 +171,8 @@ export const commands = {
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
 	/**
-	 *  Copy locations into another map, skipping ones the target already has. Tags and extra
-	 *  fields carry over, tags matched to the target's by name.
+	 *  Copy locations into another map, skipping ones the target already has. Extra fields carry
+	 *  over, and interned values such as tags are matched to the target's by name.
 	 */
 	storeCopyLocationsToMap: (targetMapId: string, source: CopySource) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, source }),
 	/**
@@ -520,8 +520,8 @@ export type Ask =
 /**  Every location in full. */
 { kind: "locations" } | 
 /**
- *  One column per field, `null` where a location lacks it; `tags` is a column of tag-id
- *  arrays.
+ *  One column per field, `null` where a location lacks it; an interned field's column holds
+ *  lists of value ids.
  */
 { kind: "columns"; fields: string[] } | 
 /**  Distinct values of `field`, sorted. */
@@ -1625,8 +1625,11 @@ force?: boolean | null } |
 
 export type SavedSelection = {
 	selector: Selector,
-	/**  Tag id -> the name it carried when saved. What makes a map-local `Tag` leaf portable. */
-	tagNames: { [key in number]: string },
+	/**
+	 *  Each interned field's value ids and the names they carried when saved, which carry a
+	 *  rule's value tests from one map to another.
+	 */
+	valueNames: { [key in string]: { [key in number]: string } },
 } & SavedSelectionInfo;
 
 /**

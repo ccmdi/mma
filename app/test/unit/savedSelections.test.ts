@@ -58,7 +58,7 @@ vi.mock("@/lib/commands", () => ({
 				id: `s${h.rows.length + 1}`,
 				name,
 				selector: selectionFixture(selector).selector,
-				tagNames: {},
+				valueNames: {},
 				color,
 				createdAt: "",
 			};
@@ -78,7 +78,7 @@ const rule = (selector: Selector, tagNames: Record<number, string> = {}): SavedS
 	id: "s1",
 	name: "rule",
 	selector: selectionFixture(selector).selector,
-	tagNames,
+	valueNames: { tags: tagNames },
 	color: [1, 2, 3],
 	createdAt: "2026-01-01T00:00:00.000Z",
 });
@@ -281,7 +281,7 @@ describe("saveCurrentSelections", () => {
 		expect(h.rows[0]).toMatchObject({
 			name: "japan",
 			selector: tagSelector(4),
-			tagNames: {},
+			valueNames: {},
 			color: [9, 9, 9],
 		});
 	});

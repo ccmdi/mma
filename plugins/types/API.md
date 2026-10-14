@@ -2395,7 +2395,7 @@ query(
   countBy: (fields: string[], key: KeySpec) => Promise<CountBy[]>;
   /** How many locations hold a value for each field, key-sorted. */
   coverage: () => Promise<[string, number][]>;
-  /** One column per field: null for missing values and tag-id arrays for tags. */
+  /** One column per field: null for missing values and value-id lists for interned fields. */
   columns: (fields: string[]) => Promise<unknown[][]>;
   /** Group by a derived key; bins use bound order and other keys sort naturally. */
   partition: (field: string, key: KeySpec) => Promise<PartitionBucket[]>;
@@ -6446,8 +6446,8 @@ cmd.storeCopyLocationsToMap(
 ): Promise<CopyToMapResult>
 ```
 
-Copy locations into another map, skipping ones the target already has. Tags and extra
-fields carry over, tags matched to the target's by name.
+Copy locations into another map, skipping ones the target already has. Extra fields carry
+over, and interned values such as tags are matched to the target's by name.
 
 #### cmd.storeCountryDistribution
 

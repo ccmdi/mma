@@ -6,7 +6,7 @@ use crate::util::Rgb;
 use mma_algebra::Id;
 use rusqlite::Connection;
 
-/// In-memory DB with the v21 `saved_selections` schema.
+/// In-memory DB with the current `saved_selections` schema.
 fn setup() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
     conn.execute_batch(
@@ -14,7 +14,7 @@ fn setup() -> Connection {
             id         TEXT PRIMARY KEY NOT NULL,
             name       TEXT NOT NULL,
             selector   TEXT NOT NULL,
-            tag_names  TEXT NOT NULL DEFAULT '{}',
+            value_names TEXT NOT NULL DEFAULT '{}',
             color      TEXT NOT NULL,
             created_at TEXT NOT NULL
          );",
@@ -23,11 +23,14 @@ fn setup() -> Connection {
     conn
 }
 
-fn tag_names(pairs: &[(u32, &str)]) -> HashMap<Id<ValueRecord>, String> {
-    pairs
-        .iter()
-        .map(|(id, n)| (Id::new(*id), n.to_string()))
-        .collect()
+fn tag_names(pairs: &[(u32, &str)]) -> ValueNames {
+    ValueNames::from([(
+        "tags".to_string(),
+        pairs
+            .iter()
+            .map(|(id, n)| (Id::new(*id), n.to_string()))
+            .collect(),
+    )])
 }
 
 /// Every rule's body, via the two primitives the frontend uses: index, then bodies.
@@ -68,7 +71,7 @@ fn create_round_trips_the_selector_tree_and_tag_names() {
     assert_eq!(got.info.name, "Japan dupes");
     assert_eq!(got.info.color, Rgb([9, 9, 9]));
     assert_eq!(
-        got.tag_names.get(&Id::new(4)).map(String::as_str),
+        got.value_names["tags"].get(&Id::new(4)).map(String::as_str),
         Some("Japan")
     );
     match &got.selector {
@@ -376,7 +379,87 @@ fn portable_names_are_captured_at_every_depth() {
             }),
         ],
     };
-    let mut names = HashMap::new();
-    capture_names(&selector, "tags", &store, &mut names);
-    assert_eq!(names, tag_names(&[(9, "japan"), (3, "Coastal")]));
+    assert_eq!(
+        capture_names(&selector, &store),
+        tag_names(&[(9, "japan"), (3, "Coastal")])
+    );
+}
+
+fn map_with_plates(records: &[(u32, &str)], held: &[u32]) -> Store {
+    let mut store = Store::new();
+    store.field_defs = crate::store::engine::Tracked::new(HashMap::from([(
+        "plates".to_string(),
+        crate::store::maps::FieldDef {
+            field_type: crate::store::maps::FieldType::Array,
+            label: None,
+            values: None,
+            comparison: None,
+            interned: true,
+            builtin: None,
+        },
+    )]));
+    let records = records
+        .iter()
+        .map(|&(id, name)| {
+            (
+                Id::new(id),
+                ValueRecord {
+                    id: Id::new(id),
+                    name: Some(name.into()),
+                    ..Default::default()
+                },
+            )
+        })
+        .collect();
+    store
+        .records
+        .insert("plates".into(), crate::store::engine::Tracked::new(records));
+    let row = crate::types::Location {
+        extra: crate::types::RawExtra::from_value(
+            &serde_json::json!({ "plates": held, "codes": [4] }),
+        ),
+        ..crate::test_util::loc(1, 0.0, 0.0)
+    };
+    store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
+    store
+}
+
+#[test]
+fn a_rule_over_any_interned_field_carries_its_values_to_another_map_by_name() {
+    let conn = setup();
+    let contains = |field: &str, id: u32| Selector::Filter {
+        field: field.into(),
+        test: FilterOp::Contains { value: id.into() },
+    };
+    let selector = Selector::Intersection {
+        selections: vec![
+            Selection::of(contains("plates", 4)),
+            Selection::of(contains("codes", 4)),
+        ],
+    };
+    let source = map_with_plates(&[(4, "AB-123")], &[4]);
+    let names = capture_names(&selector, &source);
+    assert_eq!(
+        names,
+        ValueNames::from([(
+            "plates".to_string(),
+            HashMap::from([(Id::new(4), "AB-123".to_string())])
+        )])
+    );
+    let id = create(&conn, "rule".into(), selector, names, Rgb([1, 2, 3]))
+        .unwrap()
+        .info
+        .id;
+    let saved = get(&conn, &[id]).unwrap().remove(0);
+
+    let mut target = map_with_plates(&[(4, "XY-999"), (7, "ab-123")], &[7]);
+    let Selector::Intersection { selections } = saved.resolved(&mut target) else {
+        panic!("composite lost")
+    };
+    assert_eq!(selections[0].selector, contains("plates", 7));
+    assert_eq!(
+        selections[1].selector,
+        contains("codes", 4),
+        "a list field that interns nothing keeps its literal test"
+    );
 }

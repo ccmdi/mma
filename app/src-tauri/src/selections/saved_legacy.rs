@@ -38,7 +38,7 @@ struct LegacyItem {
 
 /// Rewrites `TagName` leaves to `Tag` leaves carrying a synthetic id, recording each
 /// distinct name in `names`. The id is a placeholder: apply time resolves a saved rule's
-/// tags through `tag_names`, never through the stored id.
+/// tags through `value_names`, never through the stored id.
 fn convert(value: &mut serde_json::Value, names: &mut HashMap<Id<ValueRecord>, String>) {
     if value.get("type").and_then(|t| t.as_str()) == Some("TagName") {
         let name = value
@@ -116,7 +116,7 @@ fn legacy_to_saved(rule: LegacyRule) -> Option<SavedSelection> {
                 .unwrap_or_else(now_iso),
         },
         selector,
-        tag_names,
+        value_names: HashMap::from([("tags".to_string(), tag_names)]),
     })
 }
 

@@ -8019,6 +8019,32 @@ fn the_open_picture_ships_recordless_counts_and_dark_records_together() {
     assert!(matches!(&tags[&dark.to_string()], Some(v) if v.record.is_some() && v.count == 0));
 }
 
+#[test]
+fn the_open_picture_ships_a_map_level_interned_fields_values() {
+    let mut store = setup_store_with(&[Location {
+        extra: RawExtra::from_value(&serde_json::json!({ "plates": [3], "codes": [3] })),
+        ..loc(1, 0.0, 0.0)
+    }]);
+    let list = |interned| maps::FieldDef {
+        field_type: maps::FieldType::Array,
+        label: None,
+        values: None,
+        comparison: None,
+        interned,
+        builtin: None,
+    };
+    store.field_defs = Tracked::new(HashMap::from([
+        ("plates".to_string(), list(true)),
+        ("codes".to_string(), list(false)),
+    ]));
+    let named = store.edit_values("plates", adds(&["AB-123"])).unwrap().keys[0];
+    let values = store.open_status().derived.field_values.unwrap();
+    assert!(!values.contains_key("codes"));
+    let plates = &values["plates"];
+    assert!(matches!(&plates["3"], Some(v) if v.record.is_none() && v.count == 1));
+    assert!(matches!(&plates[&named.to_string()], Some(v) if v.record.is_some() && v.count == 0));
+}
+
 // -----------------------------------------------------------------------
 // The selection list the store holds
 // -----------------------------------------------------------------------

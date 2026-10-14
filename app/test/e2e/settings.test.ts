@@ -121,7 +121,7 @@ describe("Saved selections", () => {
 			saved.id,
 		);
 		expect(body.selector).toEqual(tagSelector(tagId));
-		expect(body.tagNames).toEqual({ [tagId]: "Japan" });
+		expect(body.valueNames).toEqual({ tags: { [tagId]: "Japan" } });
 	});
 
 	it("removes a rule", async () => {

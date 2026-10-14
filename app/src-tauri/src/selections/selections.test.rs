@@ -3334,9 +3334,9 @@ fn columns_within_projects_one_value_per_row_per_field() {
     assert_eq!(
         cols[3],
         vec![
-            serde_json::json!([]),
+            serde_json::Value::Null,
             serde_json::json!([7, 9]),
-            serde_json::json!([])
+            serde_json::Value::Null
         ]
     );
     assert_eq!(cols[4], vec![serde_json::Value::Null; 3]);
