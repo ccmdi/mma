@@ -4,6 +4,7 @@ use serde::de;
 use serde::de::value::MapAccessDeserializer;
 use serde::de::MapAccess;
 use serde::de::Visitor;
+use serde::Deserialize;
 use serde_json::value::RawValue;
 use std::borrow::Cow;
 use std::fmt;
@@ -15,35 +16,28 @@ use std::sync::Arc;
 ///
 /// Over IPC/JSON and into the Arrow `extra` string column it emits transparently, so
 /// those formats are unchanged. The binary (rmp) encoding of legacy msgpack delta sidecars
-/// carries a plain string, or a map from older builds, so the `Deserialize` impl accepts
+/// carries a plain string, or a map from older builds, and reading accepts
 /// both (see [`BinRawExtraVisitor`]). Parsing happens only
 /// when a consumer needs keyed access, via [`RawExtra::to_map`] (deep) or
 /// [`RawExtra::get`]/[`RawExtra::for_each_field`] (zero-alloc byte scan).
-#[derive(Clone, Debug, mma_fields::Patch)]
-#[patch(merge)]
+/// It is never an empty object: every constructor maps that to no extra.
+#[derive(Clone, Debug)]
 pub struct RawExtra(Arc<Box<RawValue>>);
 
 impl RawExtra {
-    /// Share an owned raw value. `Location` clones sit on the bulk-update and undo paths,
-    /// so the JSON payload is refcounted rather than copied. `Arc::new` over the existing
-    /// `Box` keeps construction to one pointer-sized allocation -- `Arc::from(box)` would
-    /// reallocate and copy the payload, which costs more than the clone saves.
-    pub(super) fn wrap(rv: Box<RawValue>) -> Self {
-        RawExtra(Arc::new(rv))
+    /// The one way in: `None` for an empty object, and member keys canonicalized.
+    /// `Arc::new` over the `Box` shares the payload without copying it, as `Arc::from` would.
+    fn from_raw(rv: Box<RawValue>) -> Option<Self> {
+        (!is_empty_object(rv.get())).then(|| RawExtra(Arc::new(canonicalize_keys(rv))))
     }
 
     /// Wrap an existing JSON string (e.g. from the Arrow column). Returns `None` for
     /// an empty object or an invalid JSON value, matching the `Option<...>` "no extra".
     pub fn from_string(s: String) -> Option<Self> {
-        let rv = RawValue::from_string(s).ok()?;
-        if is_empty_object(rv.get()) {
-            return None;
-        }
-        Some(RawExtra::wrap(canonicalize_keys(rv)))
+        RawValue::from_string(s).ok().and_then(Self::from_raw)
     }
 
     /// Build from a JSON value (an object). `None` if not an object or empty.
-    #[allow(dead_code, reason = "exercised by tests; no production caller")]
     pub fn from_value(v: &serde_json::Value) -> Option<Self> {
         v.as_object().and_then(Self::from_map)
     }
@@ -52,18 +46,15 @@ impl RawExtra {
     /// of blobs written to disk before canonicalization existed.
     #[cfg(test)]
     pub(crate) fn from_string_uncanonicalized(s: &str) -> Option<Self> {
-        RawValue::from_string(s.to_string())
+        Self::from_string(s.to_owned())?;
+        RawValue::from_string(s.to_owned())
             .ok()
-            .map(RawExtra::wrap)
+            .map(|rv| RawExtra(Arc::new(rv)))
     }
 
     /// Build from a map. `None` if the map is empty.
     pub fn from_map(m: &serde_json::Map<String, serde_json::Value>) -> Option<Self> {
-        if m.is_empty() {
-            return None;
-        }
-        let s = serde_json::to_string(m).ok()?;
-        RawValue::from_string(s).ok().map(RawExtra::wrap)
+        Self::from_string(serde_json::to_string(m).ok()?)
     }
 
     /// The raw JSON bytes -- what gets written to the Arrow column.
@@ -281,6 +272,30 @@ pub(super) fn is_empty_object(s: &str) -> bool {
     t == "{}" || (t.starts_with('{') && t.ends_with('}') && t[1..t.len() - 1].trim().is_empty())
 }
 
+/// A patch merges into the extra's object, and leaving that object empty leaves no extra.
+impl mma_algebra::Optional for RawExtra {
+    type Patch = mma_algebra::JsonWrite;
+
+    fn written(old: Option<&Self>, patch: &Self::Patch) -> Option<Self> {
+        RawExtra::from_value(&mma_algebra::Patchable::patched(&json_of(old), patch))
+    }
+
+    fn written_between(old: Option<&Self>, new: &Self) -> Self::Patch {
+        mma_algebra::JsonWrite::between(&json_of(old), &json_of(Some(new)))
+    }
+
+    fn writing(&self) -> Self::Patch {
+        mma_algebra::JsonWrite::Merge(json_of(Some(self)))
+    }
+}
+
+fn json_of(extra: Option<&RawExtra>) -> serde_json::Value {
+    extra.map_or_else(
+        || serde_json::Value::Object(serde_json::Map::new()),
+        |extra| serde_json::from_str(extra.as_str()).expect("an extra holds JSON"),
+    )
+}
+
 impl PartialEq for RawExtra {
     fn eq(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.0, &other.0)
@@ -311,51 +326,60 @@ impl serde::Serialize for RawExtra {
     }
 }
 
-impl<'de> serde::Deserialize<'de> for RawExtra {
+impl RawExtra {
+    /// Read an optional extra, where null and an empty object both read as no extra.
+    pub(crate) fn read_optional<'de, D: serde::Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<Self>, D::Error> {
+        Ok(Option::<Read>::deserialize(d)?.and_then(|read| read.0))
+    }
+}
+
+/// An extra as read, which is no extra when it is an empty object.
+struct Read(Option<RawExtra>);
+
+impl<'de> Deserialize<'de> for Read {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         if d.is_human_readable() {
-            Box::<RawValue>::deserialize(d)
-                .map(canonicalize_keys)
-                .map(RawExtra::wrap)
+            Box::<RawValue>::deserialize(d).map(|rv| Read(RawExtra::from_raw(rv)))
         } else {
-            d.deserialize_any(BinRawExtraVisitor)
+            d.deserialize_any(BinRawExtraVisitor).map(Read)
         }
+    }
+}
+
+/// A bare extra, which an empty object cannot be.
+impl<'de> Deserialize<'de> for RawExtra {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Read::deserialize(d)?
+            .0
+            .ok_or_else(|| de::Error::custom("an empty object is no extra"))
     }
 }
 
 pub(super) struct BinRawExtraVisitor;
 
 impl<'de> Visitor<'de> for BinRawExtraVisitor {
-    type Value = RawExtra;
+    type Value = Option<RawExtra>;
 
     fn expecting(&self, f: &mut Formatter) -> fmt::Result {
         f.write_str("a raw-JSON extra string or a legacy extra map")
     }
 
-    fn visit_str<E: de::Error>(self, v: &str) -> Result<RawExtra, E> {
+    fn visit_str<E: de::Error>(self, v: &str) -> Result<Option<RawExtra>, E> {
         self.visit_string(v.to_owned())
     }
 
-    fn visit_string<E: de::Error>(self, v: String) -> Result<RawExtra, E> {
+    fn visit_string<E: de::Error>(self, v: String) -> Result<Option<RawExtra>, E> {
         RawValue::from_string(v)
-            .map(canonicalize_keys)
-            .map(RawExtra::wrap)
+            .map(RawExtra::from_raw)
             .map_err(E::custom)
     }
 
-    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<RawExtra, A::Error> {
-        let m = <serde_json::Map<String, serde_json::Value> as serde::Deserialize>::deserialize(
+    fn visit_map<A: MapAccess<'de>>(self, map: A) -> Result<Option<RawExtra>, A::Error> {
+        let m = <serde_json::Map<String, serde_json::Value> as Deserialize>::deserialize(
             MapAccessDeserializer::new(map),
         )?;
-        let s = serde_json::to_string(&m).map_err(de::Error::custom)?;
-        RawValue::from_string(s)
-            .map(RawExtra::wrap)
-            .map_err(de::Error::custom)
-    }
-}
-
-impl Default for RawExtra {
-    fn default() -> Self {
-        Self::wrap(RawValue::from_string("{}".into()).expect("empty JSON object"))
+        Ok(RawExtra::from_map(&m))
     }
 }

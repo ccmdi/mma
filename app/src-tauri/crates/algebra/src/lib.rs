@@ -57,19 +57,41 @@ pub trait Patchable: Sized {
     fn between(old: &Self, new: &Self) -> Self::Patch;
     /// A patch setting every writable field to its current value.
     fn to_patch(&self) -> Self::Patch;
-    /// Whether this value means the same as no value, so an optional slot holding it is empty.
-    fn is_absent(&self) -> bool {
-        false
-    }
-}
-
-/// Whether `value` serializes to an empty JSON object.
-pub fn json_is_absent<T: serde::Serialize>(value: &T) -> bool {
-    serde_json::to_value(value).is_ok_and(|v| v.as_object().is_some_and(Json::is_empty))
 }
 
 /// A change to some of a `T`'s fields: an absent field is unchanged.
 pub type Patch<T> = <T as Patchable>::Patch;
+
+/// A value an optional slot holds, and how a patch writes it there.
+/// A patchable value with a default fills an empty slot by patching its default.
+pub trait Optional: Sized {
+    type Patch: Clone + PartialEq + std::fmt::Debug + serde::de::DeserializeOwned;
+    /// `patch` written over `old`, or over an empty slot; null when the result is no value.
+    fn written(old: Option<&Self>, patch: &Self::Patch) -> Option<Self>;
+    /// The patch that writes `new` over `old`, or into an empty slot.
+    fn written_between(old: Option<&Self>, new: &Self) -> Self::Patch;
+    /// A patch writing this whole value.
+    fn writing(&self) -> Self::Patch;
+}
+
+impl<T: Patchable + Default> Optional for T {
+    type Patch = Patch<T>;
+    fn written(old: Option<&Self>, patch: &Self::Patch) -> Option<Self> {
+        Some(match old {
+            Some(old) => old.patched(patch),
+            None => T::default().patched(patch),
+        })
+    }
+    fn written_between(old: Option<&Self>, new: &Self) -> Self::Patch {
+        match old {
+            Some(old) => T::between(old, new),
+            None => T::between(&T::default(), new),
+        }
+    }
+    fn writing(&self) -> Self::Patch {
+        Patchable::to_patch(self)
+    }
+}
 
 /// An optional field update: absent keeps it, null clears it, and a value replaces it.
 /// When updates are combined, the later update wins.
@@ -164,16 +186,14 @@ impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Field<T> {
     }
 }
 
-impl<T: Patchable + Clone + Default + PartialEq> Patchable for Option<T> {
-    type Patch = Field<Patch<T>>;
+impl<T: Optional + Clone + PartialEq> Patchable for Option<T> {
+    type Patch = Field<<T as Optional>::Patch>;
 
     fn patched(&self, patch: &Self::Patch) -> Self {
         match patch {
             Field::Keep => self.clone(),
             Field::Clear => None,
-            Field::Set(patch) => {
-                Some(self.clone().unwrap_or_default().patched(patch)).filter(|v| !v.is_absent())
-            }
+            Field::Set(patch) => T::written(self.as_ref(), patch),
         }
     }
 
@@ -183,12 +203,12 @@ impl<T: Patchable + Clone + Default + PartialEq> Patchable for Option<T> {
         }
         match new {
             None => Field::Clear,
-            Some(value) => Field::Set(T::between(&old.clone().unwrap_or_default(), value)),
+            Some(value) => Field::Set(T::written_between(old.as_ref(), value)),
         }
     }
 
     fn to_patch(&self) -> Self::Patch {
-        self.as_ref().map(Patchable::to_patch).into()
+        self.as_ref().map(Optional::writing).into()
     }
 }
 
@@ -409,9 +429,6 @@ impl Patchable for Value {
     fn to_patch(&self) -> Self::Patch {
         JsonWrite::Merge(self.clone())
     }
-    fn is_absent(&self) -> bool {
-        self.as_object().is_some_and(Json::is_empty)
-    }
 }
 
 /// Keyed edits preserve untouched entries; patching an absent entry starts from its default.
@@ -490,9 +507,6 @@ impl Patchable for Json {
     }
     fn to_patch(&self) -> Self::Patch {
         JsonWrite::Merge(self.clone())
-    }
-    fn is_absent(&self) -> bool {
-        self.is_empty()
     }
 }
 

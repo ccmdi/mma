@@ -26,15 +26,7 @@ pub use raw_extra::*;
 /// This is the atomic unit of data in the system. Locations are stored columnar
 /// in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
 /// within a map and assigned by the store's monotonic allocator.
-#[derive(
-    Clone,
-    Debug,
-    serde::Deserialize,
-    serde::Serialize,
-    specta::Type,
-    mma_fields::Fields,
-    mma_fields::Patch,
-)]
+#[derive(Clone, Debug, serde::Serialize, specta::Type, mma_fields::Fields, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 #[fields(
     derived_len(key = "tagCount", label = "Tag count", of = tags),
@@ -86,6 +78,36 @@ pub struct Location {
     reason = "lifts the derive-emitted macro into the module namespace so other modules can path-import it"
 )]
 pub(crate) use {location_columns, location_fields};
+
+// Each field reads the way its column does, so an empty extra object reads as no extra.
+macro_rules! location_read {
+    ($({ $idx:literal, $f:ident, $ty:ty }),* $(,)?) => {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct LocationRead {
+            $($f: Read<$ty>,)*
+        }
+
+        impl<'de> serde::Deserialize<'de> for Location {
+            fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+                let row = LocationRead::deserialize(d)?;
+                Ok(Location { $($f: row.$f.0,)* })
+            }
+        }
+    };
+}
+
+location_columns!(location_read);
+
+struct Read<T>(T);
+
+impl<'de, T: crate::store::arrow::Column + serde::Deserialize<'de>> serde::Deserialize<'de>
+    for Read<T>
+{
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        T::read(d).map(Read)
+    }
+}
 
 impl Default for Location {
     fn default() -> Self {

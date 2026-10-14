@@ -179,3 +179,36 @@ fn escaped_keys_in_the_binary_string_form_are_canonicalized() {
     };
     assert_eq!(back.get("café"), Some(serde_json::json!("au lait")));
 }
+
+#[test]
+fn a_msgpack_row_whose_extra_is_an_empty_object_converts_with_no_extra() {
+    let dir = TempDir::new("mma_test_delta_legacy_empty_extra");
+    let delta_path = dir.join("m_delta.arrow");
+    let row = |id: u32, extra: serde_json::Value| {
+        let mut row = serde_json::to_value(loc(id, id as f64, id as f64)).unwrap();
+        row["extra"] = extra;
+        row
+    };
+    let sidecar = serde_json::json!({
+        "adds": [
+            row(1, serde_json::json!("{}")),
+            row(2, serde_json::json!({})),
+            row(3, serde_json::json!(r#"{"k":"v"}"#)),
+        ],
+        "dead_ids": [],
+        "patches": [],
+    });
+    fs::write(&delta_path, rmp_serde::to_vec_named(&sidecar).unwrap()).unwrap();
+
+    assert!(!convert_msgpack_delta(&delta_path, &dir.join("m.arrow")).unwrap());
+
+    let mut kept = loc(3, 3.0, 3.0);
+    kept.extra = Some(extra(r#"{"k":"v"}"#));
+    assert_eq!(
+        reload(&delta_path),
+        Overlay {
+            adds: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), kept],
+            ..Overlay::default()
+        }
+    );
+}

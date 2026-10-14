@@ -41,6 +41,13 @@ pub(crate) trait Column {
     fn build<'c>(cells: impl Iterator<Item = Self::Cell<'c>>, n: usize) -> ArrayRef
     where
         Self: 'c;
+    /// Read this field from a document.
+    fn read<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error>
+    where
+        Self: serde::Deserialize<'de>,
+    {
+        Self::deserialize(d)
+    }
 }
 
 macro_rules! primitive_column {
@@ -235,6 +242,9 @@ impl Column for Option<RawExtra> {
     }
     fn own(cell: ExtraCell<'_>) -> Self {
         cell.0.and_then(|s| RawExtra::from_string(s.to_owned()))
+    }
+    fn read<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        RawExtra::read_optional(d)
     }
     fn build<'c>(cells: impl Iterator<Item = ExtraCell<'c>>, _: usize) -> ArrayRef
     where

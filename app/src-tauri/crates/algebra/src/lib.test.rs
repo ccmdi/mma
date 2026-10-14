@@ -529,7 +529,10 @@ fn a_null_patch_key_removes_one_key_while_clear_removes_the_entire_map() {
     );
     let only_entry = json!({ "last": [2, 3] }).as_object().cloned();
     let remove_only = json!({ "last": null }).as_object().cloned().unwrap();
-    assert_eq!(only_entry.patched(&Field::Set(remove_only.into())), None);
+    assert_eq!(
+        only_entry.patched(&Field::Set(remove_only.into())),
+        Some(Json::new())
+    );
     assert_eq!(original.patched(&Field::Clear), None);
     assert_eq!(Option::<Json>::None.patched(&Field::Clear), None);
 }
@@ -915,12 +918,12 @@ fn optional_maps_delegate_keyed_edits_and_preserve_present_empty_values() {
 }
 
 #[test]
-fn optional_json_patches_collapse_empty_objects_and_use_normal_equality() {
+fn optional_json_patches_keep_present_empty_objects_and_use_normal_equality() {
     let absent: Option<Json> = None;
     let empty = Some(Json::new());
     assert_eq!(
         absent.patched(&Option::<Json>::between(&absent, &empty)),
-        None
+        empty
     );
     assert_eq!(Option::<Json>::between(&empty, &absent), Field::Clear);
     let integer = json!({ "n": 1 }).as_object().cloned();

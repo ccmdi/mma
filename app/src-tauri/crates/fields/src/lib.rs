@@ -325,7 +325,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 overrides.push(quote!((#name, #child)));
             }
         }
-        let merges = policy == Policy::Merge;
         let mut generics = input.generics.clone();
         generics
             .make_where_clause()
@@ -342,7 +341,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     ::mma_algebra::json_between(old, new, #policy, &[#(#overrides),*])
                 }
                 fn to_patch(&self) -> Self::Patch { ::mma_algebra::JsonWrite::Merge(serde_json::to_value(self).expect("patch target serializes")) }
-                fn is_absent(&self) -> bool { #merges && ::mma_algebra::json_is_absent(self) }
             }
         });
     }

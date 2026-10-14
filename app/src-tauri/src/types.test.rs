@@ -1,13 +1,12 @@
 use super::*;
 use crate::test_util::tag_ids;
 use mma_algebra::{Id, Patch, Patchable};
-use serde_json::value::RawValue;
 use std::collections::HashSet;
 
 type ExtraField = mma_algebra::Field<RawExtra>;
 
 fn extra(json: &str) -> RawExtra {
-    RawExtra::wrap(RawValue::from_string(json.to_owned()).unwrap())
+    RawExtra::from_string_uncanonicalized(json).unwrap()
 }
 
 #[test]
@@ -320,9 +319,8 @@ fn raw_extra_patches_use_normal_equality_and_collapse_empty_objects() {
         Option::<RawExtra>::between(&old, &equivalent),
         mma_algebra::Field::Keep
     );
-    let empty = Some(RawExtra::default());
     assert_eq!(
-        Option::<RawExtra>::between(&empty, &None),
+        Option::<RawExtra>::between(&old, &None),
         mma_algebra::Field::Clear
     );
     assert_eq!(
@@ -493,4 +491,54 @@ fn raw_extra_empty_objects_mean_no_extra() {
         )),
         None
     );
+}
+
+#[test]
+fn an_extra_that_is_an_empty_object_reads_as_no_extra() {
+    let row = |extra: Option<serde_json::Value>| {
+        let mut row = serde_json::to_value(Location::default()).unwrap();
+        match extra {
+            Some(extra) => row["extra"] = extra,
+            None => {
+                row.as_object_mut().unwrap().remove("extra");
+            }
+        }
+        row
+    };
+    let readable = |extra| {
+        serde_json::from_value::<Location>(row(extra))
+            .unwrap()
+            .extra
+    };
+    let text = |extra| {
+        serde_json::from_str::<Location>(&row(extra).to_string())
+            .unwrap()
+            .extra
+    };
+    let binary = |extra| {
+        rmp_serde::from_slice::<Location>(&rmp_serde::to_vec_named(&row(extra)).unwrap())
+            .unwrap()
+            .extra
+    };
+    let reads: [&dyn Fn(Option<serde_json::Value>) -> Option<RawExtra>; 3] =
+        [&readable, &text, &binary];
+    for read in reads {
+        assert_eq!(read(None), None);
+        assert_eq!(read(Some(serde_json::Value::Null)), None);
+        assert_eq!(read(Some(serde_json::json!({}))), None);
+        let kept = read(Some(serde_json::json!({ "a": 1 }))).unwrap();
+        assert_eq!(kept.get("a"), Some(serde_json::json!(1)));
+    }
+    for empty in [serde_json::json!("{}"), serde_json::json!(" { } ")] {
+        assert_eq!(binary(Some(empty)), None);
+    }
+    assert!(serde_json::from_value::<Location>(serde_json::json!({ "extra": {} })).is_err());
+    assert!(serde_json::from_str::<RawExtra>("{}").is_err());
+    assert_eq!(RawExtra::from_string(" { } ".into()), None);
+    assert_eq!(RawExtra::from_value(&serde_json::json!({})), None);
+    let kept = Some(extra(r#"{"a":1}"#));
+    let gone = kept.patched(&mma_algebra::Field::Set(
+        serde_json::json!({ "a": null }).into(),
+    ));
+    assert_eq!(gone, None);
 }
