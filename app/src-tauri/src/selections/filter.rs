@@ -4,7 +4,7 @@ use super::*;
 use crate::store::maps::{ComparisonType, FieldDef, FieldType};
 use crate::types::{location_fields, AppError, AppResult, Location};
 use crate::util::{tz_offset_seconds, unix_to_hour_min, unix_to_month_day};
-use mma_algebra::Patch;
+use mma_algebra::{Field, JsonWrite, Patch};
 use serde::Serialize;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -94,19 +94,40 @@ impl<'k> FieldWriter<'k> {
                 Ok(())
             }
             Address::Extra => {
-                let mut extra = match &patch.extra {
-                    mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(raw)) => {
-                        raw.as_object().cloned().unwrap_or_default()
-                    }
-                    _ => serde_json::Map::new(),
-                };
-                extra.insert(self.key.to_string(), value.clone());
-                patch.extra = mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(
-                    serde_json::Value::Object(extra),
-                ));
+                patch.extra = extra_with(&patch.extra, self.key, value);
                 Ok(())
             }
         }
+    }
+}
+
+/// `pending` with `key` written to `value`, keeping a pending clear or replacement of the
+/// whole extra.
+fn extra_with(
+    pending: &Field<JsonWrite>,
+    key: &str,
+    value: &serde_json::Value,
+) -> Field<JsonWrite> {
+    let object = |raw: &serde_json::Value| raw.as_object().cloned().unwrap_or_default();
+    let mut whole = match pending {
+        Field::Keep => return Field::Set(JsonWrite::Merge(serde_json::json!({ key: value }))),
+        Field::Set(JsonWrite::Merge(raw)) => {
+            let mut merge = object(raw);
+            merge.insert(key.to_string(), value.clone());
+            return Field::Set(JsonWrite::Merge(serde_json::Value::Object(merge)));
+        }
+        Field::Clear => serde_json::Map::new(),
+        Field::Set(JsonWrite::Replace(raw)) => object(raw),
+    };
+    if value.is_null() {
+        whole.remove(key);
+    } else {
+        whole.insert(key.to_string(), value.clone());
+    }
+    if whole.is_empty() {
+        Field::Clear
+    } else {
+        Field::Set(JsonWrite::Replace(serde_json::Value::Object(whole)))
     }
 }
 

@@ -4367,6 +4367,55 @@ fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
 }
 
 #[test]
+fn an_extra_key_write_keeps_a_pending_clear_or_replacement_of_the_whole_extra() {
+    use mma_algebra::{Field, JsonWrite};
+    let fields = FieldRegistry::builtins();
+    let write = |pending: Field<JsonWrite>, key: &str, value: serde_json::Value| {
+        let mut patch = mma_algebra::Patch::<Location> {
+            id: Id::new(1),
+            extra: pending,
+            ..Default::default()
+        };
+        fields
+            .assign(key)
+            .unwrap()
+            .write(&mut patch, LocationFlags::empty(), &value)
+            .unwrap();
+        patch.extra
+    };
+    let replace = |v: serde_json::Value| Field::Set(JsonWrite::Replace(v));
+
+    assert_eq!(
+        write(Field::Clear, "a", serde_json::json!(1)),
+        replace(serde_json::json!({ "a": 1 }))
+    );
+    assert_eq!(
+        write(Field::Clear, "a", serde_json::json!(null)),
+        Field::Clear
+    );
+    assert_eq!(
+        write(
+            replace(serde_json::json!({ "b": 2 })),
+            "a",
+            serde_json::json!(1)
+        ),
+        replace(serde_json::json!({ "a": 1, "b": 2 }))
+    );
+    assert_eq!(
+        write(
+            replace(serde_json::json!({ "a": 1 })),
+            "a",
+            serde_json::json!(null)
+        ),
+        Field::Clear
+    );
+    assert_eq!(
+        write(Field::Keep, "a", serde_json::json!(1)),
+        Field::Set(JsonWrite::Merge(serde_json::json!({ "a": 1 })))
+    );
+}
+
+#[test]
 fn a_field_that_cannot_take_a_write_grants_no_writer() {
     let fields = FieldRegistry::builtins();
     for key in ["id", "lat", "panoId", "createdAt", "modifiedAt", "tagCount"] {
