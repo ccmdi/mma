@@ -4,6 +4,7 @@ import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
 import { Feed } from "@/store/feed";
 import type { Derived, MapMeta } from "@/bindings.gen";
+import type { MapDetails } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { mapStorage } from "@/plugins/pluginStorage";
 import { metadataWritten } from "./fixtures/mocks";
@@ -95,8 +96,8 @@ describe("map metadata writes", () => {
 	it("replaces settings from a complete metadata row on the change feed", () => {
 		openMap("a", { searchRadius: 50 });
 		const before = Store.get().map!;
-		const next = { ...before, settings: { exportZoom: true } } as MapMeta;
-		Store.merge({ meta: next } as Derived);
+		const next = { ...before, settings: { exportZoom: true } } as MapDetails;
+		Store.merge({ meta: next } as unknown as Derived);
 		expect(Store.get().map).toBe(next);
 		expect(Store.get().map?.settings).toEqual({ exportZoom: true });
 	});

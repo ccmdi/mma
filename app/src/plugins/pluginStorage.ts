@@ -1,7 +1,8 @@
 import { useState, useCallback, type SetStateAction } from "react";
 import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
-import type { MapMeta, Op } from "@/bindings.gen";
+import type { Op } from "@/bindings.gen";
+import type { MapDetails } from "@/store/store";
 import { getLocal, reloadLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 
 export interface PluginStorage {
@@ -59,7 +60,7 @@ export function storage(id: string): PluginStorage {
 	);
 }
 
-function requireOpenMap(): MapMeta {
+function requireOpenMap(): MapDetails {
 	const { map } = Store.get();
 	if (!map) throw new Error("No map is open");
 	return map;

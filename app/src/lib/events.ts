@@ -3,7 +3,8 @@ import type { ChangeEvent } from "@/bindings.gen";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
 import { log } from "@/lib/util/log";
-import type { MapMeta, Selection } from "@/bindings.gen";
+import type { Selection } from "@/bindings.gen";
+import type { MapDetails } from "@/store/store";
 
 /** Phantom helper: captures a payload type at the value level without a real value. */
 const event = <T>() => null as T;
@@ -19,7 +20,7 @@ const EVENT_DEFS = {
 	"open:change": event<number | null>(),
 	/** @deprecated v0.12.0. Listen for `open:change`. @unstable */
 	"active:change": event<number | null>(),
-	"map:open": event<MapMeta>(),
+	"map:open": event<MapDetails>(),
 	"map:close": event<void>(),
 	/** @unstable */
 	"map:saved": event<void>(),

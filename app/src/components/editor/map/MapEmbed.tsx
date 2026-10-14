@@ -234,7 +234,7 @@ export function MapEmbed({
 		if (first) {
 			mapOpen.mark("map-ready");
 			created.once("tilesloaded", () => mapOpen.mark("tiles"));
-			if ((Store.get().map?.locationCount ?? 0) > 0) {
+			if (Store.get().locationCount > 0) {
 				void Query.read({ type: "Everything" }, { kind: "bounds" }).then((bounds) => {
 					if (hostRef.current !== created || !bounds) return;
 					const [west, south, east, north] = bounds;

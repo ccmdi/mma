@@ -974,7 +974,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					selector: { type: "Everything" },
 					mapName: map.name,
 					tagsJson: JSON.stringify(api.Tag.all()),
-					extraFieldsJson: map.extra?.fields ? JSON.stringify(map.extra.fields) : null,
+					extraFieldsJson: JSON.stringify(api.Store.get().fieldDefs),
 				};
 				const start = performance.now();
 				const path = await api.cmd.storeExportJson(options);

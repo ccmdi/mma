@@ -219,7 +219,7 @@ export const commands = {
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
 	/**  Subscribe to map changes, including the ids of added, removed, and updated rows. */
-	storeSubscribeChanges: (changes: Channel<ChangeEvent_Deserialize>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
+	storeSubscribeChanges: (changes: Channel<ChangeEvent>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
@@ -552,15 +552,6 @@ export type Change<T> = {
 	updated: ([T, T])[],
 };
 
-
-/**  A map change broadcast to subscribers, with affected ids and derived state. */
-export type ChangeEvent_Deserialize = {
-	/**  The map version this change brought the map to. */
-	version: number,
-	/**  Changed derived state. Null fields are unchanged. */
-	derived: Derived_Deserialize,
-} & Keys<number>;
-
 /**  A map change broadcast to subscribers, with affected ids and derived state. */
 export type ChangeEvent = {
 	/**  The map version this change brought the map to. */
@@ -662,36 +653,17 @@ export type DbStats = {
 	foreignKeys: boolean,
 };
 
-
-/**  Map state a change affected. Each field is `null` when it did not change. */
-export type Derived_Deserialize = {
-	locationCount: number | null,
-	/**  Location changes since the last commit. */
-	pending: Counts | null,
-	meta: MapMeta_Deserialize | null,
-	history: Partial<{ [key in Timeline]: History }> | null,
-	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
-	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
-	/**  The whole extra-field registry, when the map's row changed. */
-	fieldDefs: { [key in string]: FieldDef } | null,
-	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
-	selectionCounts: { [key in string]: number } | null,
-	/**  The listed selections, when the list changed. */
-	selectionList: ListedSelection[] | null,
-	/**  Pending layers that procedure work is currently writing to. */
-	writingLayers: string[] | null,
-};
-
 /**  Map state a change affected. Each field is `null` when it did not change. */
 export type Derived = {
 	locationCount: number | null,
 	/**  Location changes since the last commit. */
 	pending: Counts | null,
-	meta: MapMeta | null,
+	/**  The map's own details, when they changed. */
+	meta: Omit<MapMeta, "tags" | "extra" | "locationCount" | "pending"> | null,
 	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
-	/**  The whole extra-field registry, when the map's row changed. */
+	/**  The whole extra-field registry, when it changed. */
 	fieldDefs: { [key in string]: FieldDef } | null,
 	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
 	selectionCounts: { [key in string]: number } | null,
@@ -1812,11 +1784,6 @@ export type SidecarProgress = {
 };
 
 
-
-export type StoreStatus_Deserialize = {
-	version: number,
-	derived: Derived_Deserialize,
-};
 
 export type StoreStatus = {
 	version: number,

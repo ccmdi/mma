@@ -622,6 +622,48 @@ impl Stamped for MapMeta {
     }
 }
 
+/// The map's own details: its row less the tag records, field definitions, and counts,
+/// which change on their own.
+#[derive(Clone, Debug)]
+pub struct MapDetails(pub MapMeta);
+
+const RESTATED: [&str; 4] = ["tags", "extra", "locationCount", "pending"];
+
+impl serde::Serialize for MapDetails {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        let mut row = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;
+        if let Some(row) = row.as_object_mut() {
+            for key in RESTATED {
+                row.remove(key);
+            }
+        }
+        row.serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for MapDetails {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let mut row = serde_json::Map::deserialize(d)?;
+        let blank = serde_json::to_value(MapMeta::default()).map_err(serde::de::Error::custom)?;
+        for key in RESTATED {
+            row.entry(key).or_insert_with(|| blank[key].clone());
+        }
+        serde_json::from_value(serde_json::Value::Object(row))
+            .map(MapDetails)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl specta::Type for MapDetails {
+    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+        MapMeta::definition(types);
+        let omitted = RESTATED.map(|key| format!("\"{key}\"")).join(" | ");
+        specta::datatype::DataType::Reference(specta_typescript::define(format!(
+            "Omit<MapMeta, {omitted}>"
+        )))
+    }
+}
+
 /// The map `id`'s metadata.
 pub(crate) fn read_map_meta(
     conn: &Connection,
@@ -889,11 +931,15 @@ fn update_map_meta(
             "an open map's tags change through their values".into(),
         ));
     }
-    let next = store.meta.patched(&patch);
-    let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
-        Some((*store.meta).clone()),
-        Some(next),
-    )]);
+    let current = MapMeta {
+        extra: MapExtra {
+            fields: (*store.field_defs).clone(),
+        },
+        ..(*store.meta).clone()
+    };
+    let next = current.patched(&patch);
+    let meta =
+        mma_algebra::Change::from_iter([mma_algebra::Transition::new(Some(current), Some(next))]);
     Ok(Some(engine::MutationResult {
         mutation: store.write(
             [],

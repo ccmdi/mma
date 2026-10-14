@@ -331,9 +331,9 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 			],
 		});
 		await withApi(async (api, countryCode) => {
-			const cur = api.Store.get().map!.extra?.fields ?? {};
+			const cur = api.Store.get().fieldDefs;
 			await api.Edit.meta({
-				extra: { ...api.Store.get().map!.extra, fields: { ...cur, countryCode } },
+				extra: { fields: { ...cur, countryCode } },
 			});
 			return "ok";
 		}, countryCode);
@@ -633,9 +633,9 @@ describe("Enrichment — metadata filter uses registered field types", () => {
 			imageDate: createFieldDef("month", { label: "Image date" }),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.Store.get().map!.extra?.fields ?? {};
+			const cur = api.Store.get().fieldDefs;
 			await api.Edit.meta({
-				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
+				extra: { fields: { ...cur, ...defs } },
 			});
 			return "ok";
 		}, defs);

@@ -3,7 +3,7 @@ import { mdiRestore, mdiClose } from "@mdi/js";
 import { Maps } from "@/store/maps";
 import { Edit } from "@/store/edit";
 import { DEFAULT_DUPLICATE_SCORE } from "@/bindings.consts";
-import type { MapMeta } from "@/bindings.gen";
+import type { MapDetails } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { useSetting, setSetting, getSettings } from "@/store/settings";
 import { labelColor, rgbToHex, hexToRgb } from "@/lib/util/color";
@@ -31,7 +31,7 @@ type MapEdit = Omit<Parameters<typeof Edit.meta>[0], "id">;
 
 interface SectionProps {
 	/** The map with its unsaved edits already applied. */
-	draft: MapMeta;
+	draft: MapDetails;
 	edit: (patch: MapEdit) => void;
 	/** Hold Save while this section's input is unusable. */
 	block: (blocked: boolean) => void;
@@ -274,13 +274,13 @@ export function DeleteMapDialog({
 
 /** Edits one map's metadata. The same form in both windows; `context` decides which
  *  sections it is made of. */
-export function MapSettingsForm({ map, context }: { map: MapMeta; context: MapFormContext }) {
+export function MapSettingsForm({ map, context }: { map: MapDetails; context: MapFormContext }) {
 	const close = useCloseDialog();
 	const [deleting, setDeleting] = useState(false);
 	const [patch, setPatch] = useState<MapEdit>({});
 	const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
 
-	const draft: MapMeta = { ...map, ...patch, settings: { ...map.settings, ...patch.settings } };
+	const draft: MapDetails = { ...map, ...patch, settings: { ...map.settings, ...patch.settings } };
 	const sections = SECTIONS.filter((s) => s.in.includes(context));
 
 	// Stable per-section callbacks: sections put them in effect deps.

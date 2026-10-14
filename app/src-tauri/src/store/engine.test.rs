@@ -3670,7 +3670,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     ]);
     store.bake_overlay();
     for k in ["a", "b"] {
-        store.meta.edit().extra.fields.insert(k.into(), def_of(k));
+        store.field_defs.edit().insert(k.into(), def_of(k));
     }
     let all = Selector::Everything;
     assert_eq!(
@@ -3727,12 +3727,7 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
     }
     store.overlay_add(adds);
     for k in keys {
-        store
-            .meta
-            .edit()
-            .extra
-            .fields
-            .insert((*k).to_string(), def_of(k));
+        store.field_defs.edit().insert((*k).to_string(), def_of(k));
     }
     store
 }
@@ -6723,7 +6718,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
     let mut store = setup_store_with(&[]);
     let feed = FeedCapture::attach(&mut store);
     add_rows(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
-    assert!(store.meta.extra.fields.contains_key("zz"));
+    assert!(store.field_defs.contains_key("zz"));
     assert!(feed
         .last()
         .derived
@@ -6755,16 +6750,13 @@ fn registering_fields_keeps_the_existing_def() {
     let mut store = setup_store_with(&[]);
     let mut user = def_of("k");
     user.label = Some("User edited".into());
-    store.meta.edit().extra.fields.insert("k".into(), user);
+    store.field_defs.edit().insert("k".into(), user);
     store.write(
         [Op::Set(loc_with_extra(1, r#"{"k":1}"#))],
         &mut None,
         Entry::default(),
     );
-    assert_eq!(
-        store.meta.extra.fields["k"].label.as_deref(),
-        Some("User edited")
-    );
+    assert_eq!(store.field_defs["k"].label.as_deref(), Some("User edited"));
 }
 
 // The command path, not just the plan: a gate that rejected a clearable builtin before
@@ -7406,14 +7398,11 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
         .iter()
         .map(|s| serde_json::from_str(s).unwrap())
         .collect();
-    assert_eq!(events.len(), 3);
-    assert_eq!(events[1]["derived"]["writingLayers"], serde_json::json!([]));
-    assert_eq!(events[1]["updated"], serde_json::json!([]));
-    let events: Vec<_> = events
-        .into_iter()
-        .filter(|event| event["derived"]["writingLayers"].is_null())
-        .collect();
-    assert_eq!(events.len(), 2, "one location change per landed edit");
+    assert_eq!(
+        events.len(),
+        2,
+        "one location change per landed edit, none for the held one"
+    );
     assert_eq!(events[0]["updated"], serde_json::json!([1]));
     assert_eq!(events[1]["updated"], serde_json::json!([1]));
     assert!(events[1]["version"].as_u64() > events[0]["version"].as_u64());
@@ -7638,22 +7627,20 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
         loc_with_extra(2, r#"{"a":2}"#),
     ]);
     store
-        .meta
+        .field_defs
         .edit()
-        .extra
-        .fields
         .insert("a".into(), labelled_def("a"));
     let steps = store.edits.len(Stack::Undo);
 
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
     assert_eq!(store.edits.len(Stack::Undo), steps + 1);
-    assert!(!store.meta.extra.fields.contains_key("a"));
-    assert_eq!(store.meta.extra.fields["b"], labelled_def("a"));
+    assert!(!store.field_defs.contains_key("a"));
+    assert_eq!(store.field_defs["b"], labelled_def("a"));
 
     undo_and_finish(&mut store);
-    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
-    assert!(!store.meta.extra.fields.contains_key("b"));
+    assert_eq!(store.field_defs["a"], labelled_def("a"));
+    assert!(!store.field_defs.contains_key("b"));
     let row = store
         .get_loc_by_id(Id::new(1))
         .unwrap()
@@ -7670,17 +7657,15 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
         loc_with_extra(2, r#"{"a":2}"#),
     ]);
     store
-        .meta
+        .field_defs
         .edit()
-        .extra
-        .fields
         .insert("a".into(), labelled_def("a"));
     let one = Selector::Locations {
         locations: loc_ids([1]),
         name: None,
     };
     apply_work(&mut store, &one, &Work::Locations(del_op(&["a"]))).unwrap();
-    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
+    assert_eq!(store.field_defs["a"], labelled_def("a"));
 
     apply_work(
         &mut store,
@@ -7688,9 +7673,9 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
         &Work::Locations(del_op(&["a"])),
     )
     .unwrap();
-    assert!(!store.meta.extra.fields.contains_key("a"));
+    assert!(!store.field_defs.contains_key("a"));
     undo_and_finish(&mut store);
-    assert_eq!(store.meta.extra.fields["a"], labelled_def("a"));
+    assert_eq!(store.field_defs["a"], labelled_def("a"));
 }
 
 #[test]
@@ -7704,10 +7689,8 @@ fn a_stored_edit_keeps_its_definition_moves() {
     .unwrap();
     let mut store = setup_store_with(&[loc_with_extra(1, r#"{"a":1}"#)]);
     store
-        .meta
+        .field_defs
         .edit()
-        .extra
-        .fields
         .insert("a".into(), labelled_def("a"));
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
@@ -7980,7 +7963,7 @@ fn metadata_edits_apply_and_ship_but_stay_out_of_history() {
         },
     );
     assert_eq!(store.meta.name, "Renamed");
-    assert_eq!(feed.last().derived.meta.unwrap().name, "Renamed");
+    assert_eq!(feed.last().derived.meta.unwrap().0.name, "Renamed");
     assert_eq!(store.edits.len(Stack::Undo), 0, "meta edits never record");
 }
 
@@ -7991,7 +7974,7 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
     row.extra = RawExtra::from_map(&serde_json::Map::from_iter([("height".into(), 12.into())]));
     store.write([Op::Set(row)], &mut None, Entry::default());
     assert_eq!(
-        store.meta.extra.fields["height"].field_type,
+        store.field_defs["height"].field_type,
         maps::FieldType::Number
     );
     let entry = store
@@ -7999,14 +7982,14 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
-    assert!(!store.meta.extra.fields.contains_key("height"));
+    assert!(!store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     let entry = store
         .step(Stack::Redo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
-    assert!(store.meta.extra.fields.contains_key("height"));
+    assert!(store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
 
@@ -8744,7 +8727,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
         maps::IndexShape::None,
         "an undeclared key is indexed without a shape"
     );
-    let mut defs = store.meta.extra.fields.clone();
+    let mut defs = store.field_defs.clone();
     defs.insert(
         "n".into(),
         maps::FieldDef {
@@ -8756,7 +8739,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
         [],
         &mut None,
         Entry {
-            defs: DefsDelta::at(&store.meta.extra.fields, &defs, ["n".to_string()]),
+            defs: DefsDelta::at(&store.field_defs, &defs, ["n".to_string()]),
             ..Default::default()
         },
     );
@@ -8959,4 +8942,60 @@ fn a_commits_finish_resolves_selections_once_and_leaves_them_right_after_the_bak
     store.finish_selection_change();
     assert_eq!(RESOLVES.with(std::cell::Cell::get), 1);
     assert_eq!(store.selections.ids.len(), 2);
+}
+
+#[test]
+fn a_held_edit_that_changes_nothing_on_the_map_announces_nothing() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.open_status();
+    let feed = FeedCapture::attach(&mut store);
+    let version = store.version;
+    let held = store.edit(&viewer(), vec![Op::Put(heading(1, 45.0))], false, &mut None);
+    assert_eq!(held.version, version);
+    assert_eq!(feed.len(), 0);
+    store.close_layer("viewer");
+    assert_eq!(feed.len(), 0);
+}
+
+#[test]
+fn a_folder_rename_ships_the_maps_details_but_not_its_field_definitions() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.field_defs.edit().insert("a".into(), def_of("a"));
+    store.finish_selection_change();
+    let feed = FeedCapture::attach(&mut store);
+    let before = (*store.meta).clone();
+    let after = MapMeta {
+        folder: Some("F".into()),
+        ..before.clone()
+    };
+    store.write(
+        [],
+        &mut None,
+        Entry {
+            meta: mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+                Some(before),
+                Some(after),
+            )]),
+            ..Default::default()
+        },
+    );
+    let shipped = feed.last().derived;
+    assert_eq!(shipped.meta.unwrap().0.folder.as_deref(), Some("F"));
+    assert!(shipped.field_defs.is_none());
+    assert!(store.field_defs.contains_key("a"));
+}
+
+#[test]
+fn the_maps_details_leave_out_what_ships_in_its_own_slices() {
+    let details = serde_json::to_value(maps::MapDetails(MapMeta {
+        name: "n".into(),
+        location_count: 3,
+        ..Default::default()
+    }))
+    .unwrap();
+    for key in ["tags", "extra", "locationCount", "pending"] {
+        assert!(details.get(key).is_none(), "{key} is restated");
+    }
+    let back: maps::MapDetails = serde_json::from_value(details).unwrap();
+    assert_eq!(back.0.name, "n");
 }

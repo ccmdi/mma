@@ -95,6 +95,7 @@ pub(crate) struct Unsaved {
 struct MetaRow {
     row: MapMeta,
     meta: u64,
+    defs: u64,
     values: Vec<(String, u64)>,
 }
 
@@ -123,16 +124,19 @@ impl Unsaved {
 impl Store {
     /// The state disk lacks, or `None` when disk is current.
     pub(crate) fn unsaved(&self) -> AppResult<Option<Unsaved>> {
-        let meta = (self.meta.is_unsaved() || self.value_meta.values().any(Tracked::is_unsaved))
-            .then(|| MetaRow {
-                row: self.map(),
-                meta: self.meta.rev(),
-                values: self
-                    .value_meta
-                    .iter()
-                    .map(|(field, v)| (field.clone(), v.rev()))
-                    .collect(),
-            });
+        let meta = (self.meta.is_unsaved()
+            || self.field_defs.is_unsaved()
+            || self.value_meta.values().any(Tracked::is_unsaved))
+        .then(|| MetaRow {
+            row: self.map(),
+            meta: self.meta.rev(),
+            defs: self.field_defs.rev(),
+            values: self
+                .value_meta
+                .iter()
+                .map(|(field, v)| (field.clone(), v.rev()))
+                .collect(),
+        });
         if !self.overlay.is_unsaved() && !self.edits.is_unsaved() && meta.is_none() {
             return Ok(None);
         }
@@ -158,6 +162,7 @@ impl Store {
         }
         if let Some(row) = &written.meta {
             self.meta.saved_at(row.meta);
+            self.field_defs.saved_at(row.defs);
             for (field, rev) in &row.values {
                 if let Some(v) = self.value_meta.get_mut(field) {
                     v.saved_at(*rev);

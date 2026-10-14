@@ -1,4 +1,4 @@
-import type { MapMeta, Derived } from "@/bindings.gen";
+import type { Derived } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 
 /** The full local mirror of the store's derived state. */
@@ -6,10 +6,14 @@ type EngineState = {
 	[K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 };
 
+/** The open map's own details. Its tag records, field definitions, and counts live in their
+ *  own slices. */
+export type MapDetails = NonNullable<Derived["meta"]>;
+
 export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
-	map: MapMeta | null;
+	map: MapDetails | null;
 }
 
 export type MapState = UiState & EngineState;

@@ -255,13 +255,13 @@ describe("Extra field definitions", () => {
 			}),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.Store.get().map!.extra?.fields ?? {};
+			const cur = api.Store.get().fieldDefs;
 			await api.Edit.meta({
-				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
+				extra: { fields: { ...cur, ...defs } },
 			});
 		}, defs);
 
-		const extra = await withApi(async (api) => api.Store.get().map?.extra);
+		const extra = await withApi(async (api) => ({ fields: api.Store.get().fieldDefs }));
 		expect(extra!.fields!.altitude.type).toBe("number");
 		expect(extra!.fields!.country.type).toBe("string");
 		expect(extra!.fields!.region.values).toEqual([
@@ -276,7 +276,7 @@ describe("Extra field definitions", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const extra = await withApi(async (api) => api.Store.get().map?.extra);
+		const extra = await withApi(async (api) => ({ fields: api.Store.get().fieldDefs }));
 		expect(extra!.fields!.altitude.type).toBe("number");
 		expect(extra!.fields!.altitude.label).toBe("Altitude (m)");
 	});
@@ -334,7 +334,7 @@ describe("Extra field definitions", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const extra = await withApi(async (api) => api.Store.get().map?.extra);
+		const extra = await withApi(async (api) => ({ fields: api.Store.get().fieldDefs }));
 		expect(extra!.fields!.fleeb).toBeDefined();
 		expect(extra!.fields!.fleeb.type).toBe("number");
 	});
@@ -364,9 +364,9 @@ describe("Extra field definitions", () => {
 		// Explicitly register with a custom label
 		const score = createFieldDef("number", { label: "My Score" });
 		await withApi(async (api, score) => {
-			const cur = api.Store.get().map!.extra?.fields ?? {};
+			const cur = api.Store.get().fieldDefs;
 			await api.Edit.meta({
-				extra: { ...api.Store.get().map!.extra, fields: { ...cur, score } },
+				extra: { fields: { ...cur, score } },
 			});
 		}, score);
 
@@ -375,7 +375,7 @@ describe("Extra field definitions", () => {
 			await api.Location.add([api.createLocation({ lat: 0, lng: 0, extra: { score: 42 } })]);
 		});
 
-		const extra = await withApi(async (api) => api.Store.get().map?.extra);
+		const extra = await withApi(async (api) => ({ fields: api.Store.get().fieldDefs }));
 		expect(extra!.fields!.score.label).toBe("My Score");
 	});
 });

@@ -279,7 +279,7 @@ function FieldsTab() {
 				comparison: r.comparison,
 			});
 		}
-		await Edit.meta({ extra: { ...Store.get().map?.extra, fields } });
+		await Edit.meta({ extra: { fields } });
 	};
 
 	const updateRow = (key: string, patch: Partial<FieldRow>, commit = false) => {

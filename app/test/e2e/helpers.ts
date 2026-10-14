@@ -274,10 +274,9 @@ export async function updateMapSettings(patch: Record<string, unknown>) {
 
 export async function registerFields(defs: Record<string, FieldDef>) {
 	await withApi(async (api, d) => {
-		const map = api.Store.get().map!;
-		const cur = map.extra?.fields ?? {};
+		const cur = api.Store.get().fieldDefs;
 		await api.Edit.meta({
-			extra: { ...map.extra, fields: { ...cur, ...d } },
+			extra: { fields: { ...cur, ...d } },
 		});
 		return "ok";
 	}, defs);

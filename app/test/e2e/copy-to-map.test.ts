@@ -145,7 +145,7 @@ describe("Copy to a closed map", () => {
 		const locs = await getAllLocs();
 		expect(locs[0].extra?.altitude).toBe(120);
 		expect(locs[0].extra?.country).toBe("US");
-		const fields = await withApi((api) => api.Store.get().map!.extra?.fields ?? {});
+		const fields = await withApi((api) => api.Store.get().fieldDefs);
 		expect(Object.keys(fields).sort()).toEqual(["altitude", "country"]);
 
 		await closeMap();

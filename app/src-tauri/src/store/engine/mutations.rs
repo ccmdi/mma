@@ -36,11 +36,12 @@ pub struct Derived {
     pub location_count: Option<usize>,
     /// Location changes since the last commit.
     pub pending: Option<Counts>,
-    pub meta: Option<maps::MapMeta>,
+    /// The map's own details, when they changed.
+    pub meta: Option<maps::MapDetails>,
     pub history: Option<HashMap<Timeline, History>>,
     /// Changed values, keyed by field and value. Null removes a value with no record or locations.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
-    /// The whole extra-field registry, when the map's row changed.
+    /// The whole extra-field registry, when it changed.
     pub field_defs: Option<HashMap<String, maps::FieldDef>>,
     /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).
     pub selection_counts: Option<HashMap<String, u32>>,
@@ -53,15 +54,26 @@ pub struct Derived {
 impl Derived {
     /// Nothing moved.
     pub(crate) fn is_empty(&self) -> bool {
-        self.location_count.is_none()
-            && self.pending.is_none()
-            && self.meta.is_none()
-            && self.history.is_none()
-            && self.field_values.is_none()
-            && self.field_defs.is_none()
-            && self.selection_counts.is_none()
-            && self.selection_list.is_none()
-            && self.writing_layers.is_none()
+        let Derived {
+            location_count,
+            pending,
+            meta,
+            history,
+            field_values,
+            field_defs,
+            selection_counts,
+            selection_list,
+            writing_layers,
+        } = self;
+        location_count.is_none()
+            && pending.is_none()
+            && meta.is_none()
+            && history.is_none()
+            && field_values.is_none()
+            && field_defs.is_none()
+            && selection_counts.is_none()
+            && selection_list.is_none()
+            && writing_layers.is_none()
     }
 }
 
@@ -182,7 +194,7 @@ impl Store {
             })
             .collect();
         let mut entry = Entry { locations, ..entry };
-        let mut fields = self.meta.extra.fields.clone();
+        let mut fields = (*self.field_defs).clone();
         entry.defs.apply_to(&mut fields);
         let extras: Vec<&RawExtra> = entry
             .locations
@@ -193,9 +205,9 @@ impl Store {
             fields.extend(inferred);
         }
         entry.defs = DefsDelta::at(
-            &self.meta.extra.fields,
+            &self.field_defs,
             &fields,
-            self.meta.extra.fields.keys().chain(fields.keys()).cloned(),
+            self.field_defs.keys().chain(fields.keys()).cloned(),
         );
         entry.selections = self.selection_consequences(&entry);
         let entry = Arc::new(entry);
@@ -265,7 +277,7 @@ impl Store {
             let before = self.records(&field);
             let mut after = before.clone();
             let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
-            let registry = FieldRegistry::new(&self.meta.extra.fields);
+            let registry = FieldRegistry::new(&self.field_defs);
             let to = registry
                 .assign(&field)
                 .expect("declared interned fields are writable");
@@ -275,19 +287,23 @@ impl Store {
         (layer, piles)
     }
 
-    /// Remove closed layers nothing still writes to, then announce which layers are being written.
+    /// Remove closed layers nothing still writes to, then announce which layers are being
+    /// written if that moved.
     pub(crate) fn settle_layers(&mut self) {
         let writing = crate::procedure::engine::pending_writers(&self.meta.id);
         self.pending
             .retain(|name, pending| !pending.closed || writing.contains(name));
-        self.changes.send(ChangeEvent {
-            version: self.version,
-            keys: Change::default().keys(),
-            derived: Derived {
-                writing_layers: Some(writing),
-                ..Default::default()
-            },
-        });
+        if writing != *self.writing_layers {
+            self.writing_layers.replace(writing);
+        }
+        let derived = self.shipped();
+        if !derived.is_empty() {
+            self.changes.send(ChangeEvent {
+                version: self.version,
+                keys: Change::default().keys(),
+                derived,
+            });
+        }
     }
 
     /// Close the layer. Unlanded work is cancelled; a landed layer stays until its writers finish.
@@ -308,13 +324,19 @@ impl Store {
         }
     }
 
-    /// Apply row, value-record, and field-definition changes to the store.
+    /// Apply row, value-record, and field-definition changes to the store. A change to the
+    /// map's details that names field definitions moves them into `field_defs`.
     pub(crate) fn put_entry(&mut self, entry: &Entry) {
-        let defs = (!entry.meta.is_empty() || !entry.defs.is_empty())
-            .then(|| self.meta.extra.fields.clone());
+        let defs =
+            (!entry.meta.is_empty() || !entry.defs.is_empty()).then(|| (*self.field_defs).clone());
         for (old, new) in &entry.meta.updated {
-            self.meta
-                .replace(self.meta.patched(&maps::MapMeta::between(old, new)));
+            let patch = MapMeta::between(old, new);
+            let mut next = self.meta.patched(&patch);
+            let extra = mem::take(&mut next.extra);
+            if patch.extra.is_some() && extra.fields != *self.field_defs {
+                self.field_defs.replace(extra.fields);
+            }
+            self.meta.replace(next);
         }
         if !entry.selections.is_empty() {
             self.selections.apply(&entry.selections);
@@ -327,10 +349,10 @@ impl Store {
             delta.apply_to(self.value_meta.entry(field.clone()).or_default().edit());
         }
         if !entry.defs.is_empty() {
-            entry.defs.apply_to(&mut self.meta.edit().extra.fields);
+            entry.defs.apply_to(self.field_defs.edit());
         }
         if let Some(defs) = defs {
-            let fields = &self.meta.extra.fields;
+            let fields = &self.field_defs;
             self.field_indexes
                 .retain(|key, _| defs.get(key) == fields.get(key));
         }
@@ -755,7 +777,7 @@ pub(crate) fn apply_work(
 ) -> AppResult<WorkResult> {
     let (plan, defs) = match work {
         Work::Locations(op) => {
-            let defs = store.meta.extra.fields.clone();
+            let defs = (*store.field_defs).clone();
             let plan = plan_fields(FieldRegistry::new(&defs), &store.scope(selector), op)?;
             let defs = plan_defs(store, op, &plan.edits);
             (plan, defs)
@@ -815,7 +837,7 @@ fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDe
         LocationOp::Delete { keys } => (keys.as_slice(), None),
         _ => return DefsDelta::default(),
     };
-    let before = &store.meta.extra.fields;
+    let before = &*store.field_defs;
     if !vacated.iter().any(|k| before.contains_key(k)) {
         return DefsDelta::default();
     }
@@ -840,7 +862,7 @@ fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDe
         }
     }
     let keys = vacated.iter().chain(into).cloned();
-    DefsDelta::at(&store.meta.extra.fields, &after, keys)
+    DefsDelta::at(&store.field_defs, &after, keys)
 }
 
 /// Result of copying locations to another map.

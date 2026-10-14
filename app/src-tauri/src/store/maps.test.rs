@@ -804,6 +804,7 @@ fn open_m1(conn: &Connection) -> StoreManager {
         "tags".into(),
         engine::Tracked::new(std::mem::take(&mut meta.tags)),
     );
+    store.field_defs = engine::Tracked::new(std::mem::take(&mut meta.extra.fields));
     store.meta = engine::Tracked::new(meta);
     let mut mgr = StoreManager::new();
     mgr.stores.insert(Id::new("m1".into()), store);
@@ -858,10 +859,8 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
         .edit()
         .insert(Id::new(1), rec);
     store
-        .meta
+        .field_defs
         .edit()
-        .extra
-        .fields
         .insert("altitude".into(), known_field_def("altitude").unwrap());
 
     let unsaved = store.unsaved().unwrap().unwrap();
@@ -957,7 +956,7 @@ fn an_open_maps_field_definitions_ship_when_patched() {
     let before = mgr.store_for_map(&Id::new("m1".into())).unwrap().version;
     update_map_meta(&mut mgr, &conn, patch).unwrap();
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
-    assert_eq!(store.meta.extra.fields, fields);
+    assert_eq!(*store.field_defs, fields);
     assert!(store.version > before, "the change landed and shipped");
 }
 
@@ -1109,7 +1108,7 @@ fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
     let mut mgr = open_m1(&conn);
     refused(update_map_meta(&mut mgr, &conn, patch()));
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
-    assert!(!store.meta.extra.fields.contains_key("plates"));
+    assert!(!store.field_defs.contains_key("plates"));
     assert!(store.unsaved().unwrap().is_none());
 
     refused(update_map_meta(&mut StoreManager::new(), &conn, patch()));

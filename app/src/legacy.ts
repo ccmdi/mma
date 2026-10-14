@@ -108,7 +108,7 @@ export function registerEnrichmentProvider(provider: Provider): void {
  *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
  *  for plugin-owned defs. @unstable */
 export function setUserFieldDefs(fields: Record<string, FieldDef>) {
-	return Edit.meta({ extra: { ...Store.get().map?.extra, fields } });
+	return Edit.meta({ extra: { fields } });
 }
 
 /** @deprecated v0.10.5. Use `MMA.Edit.work(selector, { kind: "listSet", key: "tags", add: [tagId], remove: [] })`. @unstable */

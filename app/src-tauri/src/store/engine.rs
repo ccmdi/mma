@@ -113,8 +113,11 @@ impl Overlay {
 }
 
 pub struct Store {
-    /// The open map's metadata and field definitions. Tag records live in `value_meta`.
+    /// The open map's metadata. Tag records live in `value_meta`, field definitions in
+    /// `field_defs`, and `meta` keeps neither.
     pub(crate) meta: Tracked<MapMeta>,
+    /// The map's extra-field definitions.
+    pub(crate) field_defs: Tracked<HashMap<String, maps::FieldDef>>,
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
@@ -149,6 +152,8 @@ pub struct Store {
     pub(crate) frames: Sinks<FrameBytes>,
     /// Subscribers to map changes and derived state updates.
     pub(crate) changes: Sinks<ChangeEvent>,
+    /// Pending layers that procedure work is currently writing to.
+    pub(crate) writing_layers: Tracked<BTreeSet<String>>,
     /// Field dependencies declared by providers.
     pub(crate) dependents: std::sync::Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
@@ -165,6 +170,7 @@ impl Store {
     pub fn new() -> Self {
         Self {
             meta: Tracked::default(),
+            field_defs: Tracked::default(),
             batch: None,
             mmap_handle: None,
             next_id: Ids::default(),
@@ -188,6 +194,7 @@ impl Store {
             spatial: Ensured::default(),
             frames: Sinks::default(),
             changes: Sinks::default(),
+            writing_layers: Tracked::default(),
             dependents: Default::default(),
             pending: HashMap::new(),
         }
@@ -195,7 +202,7 @@ impl Store {
 
     /// Every field this map's rows can hold, built-in or the map's own.
     pub(crate) fn registry(&self) -> selections::FieldRegistry<'_> {
-        selections::FieldRegistry::new(&self.meta.extra.fields)
+        selections::FieldRegistry::new(&self.field_defs)
     }
 
     /// Increment the store version counter. JS uses this to detect stale responses.
@@ -212,20 +219,43 @@ impl Store {
                 .get("tags")
                 .map(|records| (**records).clone())
                 .unwrap_or_default(),
+            extra: maps::MapExtra {
+                fields: (*self.field_defs).clone(),
+            },
             location_count: *self.alive_count as i64,
             pending: self.overlay_diff_counts(),
             ..(*self.meta).clone()
         }
     }
 
+    /// The derived state whose sources moved since they last shipped. Changes that are not
+    /// held in a tracked slice, such as field values, join it per change.
+    fn shipped(&mut self) -> Derived {
+        self.count_pending();
+        Derived {
+            location_count: self.alive_count.ship().then(|| *self.alive_count),
+            pending: self.pending_counts.ship().then(|| *self.pending_counts),
+            meta: self
+                .meta
+                .ship()
+                .then(|| maps::MapDetails((*self.meta).clone())),
+            history: (self.edits.ship() | self.selection_edits.ship()).then(|| self.history()),
+            field_values: None,
+            field_defs: self.field_defs.ship().then(|| (*self.field_defs).clone()),
+            selection_counts: None,
+            selection_list: None,
+            writing_layers: self
+                .writing_layers
+                .ship()
+                .then(|| (*self.writing_layers).clone()),
+        }
+    }
+
     /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
-        self.count_pending();
-        self.pending_counts.ship();
-        self.alive_count.ship();
-        self.edits.ship();
-        self.selection_edits.ship();
-        self.meta.ship();
+        self.writing_layers
+            .replace(crate::procedure::engine::pending_writers(&self.meta.id));
+        self.shipped();
         let fields: Vec<_> = self
             .registry()
             .iter()
@@ -242,13 +272,13 @@ impl Store {
             derived: Derived {
                 location_count: Some(*self.alive_count),
                 pending: Some(*self.pending_counts),
-                meta: None,
+                meta: Some(maps::MapDetails((*self.meta).clone())),
                 history: Some(self.history()),
                 field_values: Some(field_values),
-                field_defs: Some(self.meta.extra.fields.clone()),
+                field_defs: Some((*self.field_defs).clone()),
                 selection_counts: Some(self.selections.node_counts.clone()),
                 selection_list: Some(self.selections.list()),
-                writing_layers: Some(crate::procedure::engine::pending_writers(&self.meta.id)),
+                writing_layers: Some((*self.writing_layers).clone()),
             },
         }
     }
@@ -349,25 +379,14 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
-        let meta = self.meta.ship();
-        self.count_pending();
-        let mut derived = Derived {
-            meta: meta.then(|| self.map()),
-            pending: self.pending_counts.ship().then(|| *self.pending_counts),
+        let derived = Derived {
             field_values: (!field_values.is_empty()).then_some(field_values),
-            field_defs: meta.then(|| self.meta.extra.fields.clone()),
             selection_counts: (has_selections || selections_replaced)
                 .then(|| self.selections.node_counts.clone()),
             selection_list: (selections_replaced || piles.values().any(|delta| !delta.is_empty()))
                 .then(|| self.selections.list()),
-            ..Default::default()
+            ..self.shipped()
         };
-        if self.alive_count.ship() {
-            derived.location_count = Some(*self.alive_count);
-        }
-        if self.edits.ship() | self.selection_edits.ship() {
-            derived.history = Some(self.history());
-        }
         let result = Mutation {
             version: self.version,
             keys: Vec::new(),

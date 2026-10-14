@@ -158,6 +158,7 @@ async fn open_claimed_map(
     store
         .value_meta
         .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
+    store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = Tracked::new(meta);
     let status = store.open_status();
     store.dependents = mgr.providers.dependents();

@@ -19,9 +19,9 @@ describe("Extra field definitions", () => {
 			country: createFieldDef("string", { label: "Country" }),
 		};
 		await withApi(async (api, defs) => {
-			const cur = api.Store.get().map!.extra?.fields ?? {};
+			const cur = api.Store.get().fieldDefs;
 			await api.Edit.meta({
-				extra: { ...api.Store.get().map!.extra, fields: { ...cur, ...defs } },
+				extra: { fields: { ...cur, ...defs } },
 			});
 		}, defs);
 
@@ -29,7 +29,7 @@ describe("Extra field definitions", () => {
 		await closeMap();
 		await openMap(map.id);
 
-		const fields = await withApi(async (api) => api.Store.get().map!.extra?.fields);
+		const fields = await withApi(async (api) => api.Store.get().fieldDefs);
 		expect(fields).toBeTruthy();
 		expect(fields!.altitude).toBeTruthy();
 		expect(fields!.altitude.label).toBe("Altitude");

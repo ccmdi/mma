@@ -1925,7 +1925,10 @@ getAllSelections(): Selection[]
 `unstable` · `deprecated` · since v0.4.0
 
 ```ts
-getCurrentMap(): MapMeta | null
+getCurrentMap(): Omit<
+  MapMeta,
+  "extra" | "locationCount" | "pending" | "tags"
+> | null
 ```
 
 **Deprecated in v0.8.2.** Read `MMA.Store.get().map`.
@@ -6976,7 +6979,7 @@ Undo the newest edit, or redo the newest undone one.
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeSubscribeChanges(changes: Channel<ChangeEvent_Deserialize>): Promise<null>
+cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
 ```
 
 Subscribe to map changes, including the ids of added, removed, and updated rows.

@@ -825,7 +825,7 @@ declare const commands$1: {
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
     /**  Subscribe to map changes, including the ids of added, removed, and updated rows. @unstable */
-    storeSubscribeChanges: (changes: Channel<ChangeEvent_Deserialize>) => Promise<null>;
+    storeSubscribeChanges: (changes: Channel<ChangeEvent>) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
@@ -1343,13 +1343,6 @@ type Change<T> = {
     /**  Updated rows as before/after pairs. */
     updated: ([T, T])[];
 };
-/**  A map change broadcast to subscribers, with affected ids and derived state. @unstable */
-type ChangeEvent_Deserialize = {
-    /**  The map version this change brought the map to. */
-    version: number;
-    /**  Changed derived state. Null fields are unchanged. */
-    derived: Derived_Deserialize;
-} & Keys<number>;
 /**  A map change broadcast to subscribers, with affected ids and derived state. */
 type ChangeEvent = {
     /**  The map version this change brought the map to. */
@@ -1448,40 +1441,13 @@ type DbStats = {
     journalMode: string;
     foreignKeys: boolean;
 };
-/**  Map state a change affected. Each field is `null` when it did not change. @unstable */
-type Derived_Deserialize = {
-    locationCount: number | null;
-    /**  Location changes since the last commit. */
-    pending: Counts | null;
-    meta: MapMeta_Deserialize | null;
-    history: Partial<{
-        [key in Timeline]: History;
-    }> | null;
-    /**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
-    fieldValues: {
-        [key in string]: {
-            [key in string]: HeldValue | null;
-        };
-    } | null;
-    /**  The whole extra-field registry, when the map's row changed. */
-    fieldDefs: {
-        [key in string]: FieldDef;
-    } | null;
-    /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
-    selectionCounts: {
-        [key in string]: number;
-    } | null;
-    /**  The listed selections, when the list changed. */
-    selectionList: ListedSelection[] | null;
-    /**  Pending layers that procedure work is currently writing to. */
-    writingLayers: string[] | null;
-};
 /**  Map state a change affected. Each field is `null` when it did not change. */
 type Derived = {
     locationCount: number | null;
     /**  Location changes since the last commit. */
     pending: Counts | null;
-    meta: MapMeta | null;
+    /**  The map's own details, when they changed. */
+    meta: Omit<MapMeta, "tags" | "extra" | "locationCount" | "pending"> | null;
     history: Partial<{
         [key in Timeline]: History;
     }> | null;
@@ -1491,7 +1457,7 @@ type Derived = {
             [key in string]: HeldValue | null;
         };
     } | null;
-    /**  The whole extra-field registry, when the map's row changed. */
+    /**  The whole extra-field registry, when it changed. */
     fieldDefs: {
         [key in string]: FieldDef;
     } | null;
@@ -2877,11 +2843,6 @@ type SidecarProgress = {
     total: number;
 };
 /** @unstable */
-type StoreStatus_Deserialize = {
-    version: number;
-    derived: Derived_Deserialize;
-};
-/** @unstable */
 type StoreStatus = {
     version: number;
     derived: Derived;
@@ -3120,10 +3081,13 @@ declare global {
 export type EngineState = {
     [K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 };
+/** The open map's own details. Its tag records, field definitions, and counts live in their
+ *  own slices. */
+export type MapDetails = NonNullable<Derived["meta"]>;
 export interface UiState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
-    map: MapMeta | null;
+    map: MapDetails | null;
 }
 export type MapState = UiState & EngineState;
 declare const Store: {
@@ -3152,7 +3116,7 @@ declare const EVENT_DEFS: {
     "open:change": number | null;
     /** @deprecated v0.12.0. Listen for `open:change`. @unstable */
     "active:change": number | null;
-    "map:open": MapMeta;
+    "map:open": Omit<MapMeta, "extra" | "locationCount" | "pending" | "tags">;
     "map:close": void;
     /** @unstable */
     "map:saved": void;
@@ -7256,7 +7220,7 @@ declare function getGoogleMap(): google.maps.Map | null;
 /** @deprecated v0.8.1. Use `MMA.MapHost.wait()`. @unstable */
 declare function waitForGoogleMap(): Promise<google.maps.Map | null>;
 /** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */
-declare function getCurrentMap(): MapMeta | null;
+declare function getCurrentMap(): Omit<MapMeta, "extra" | "locationCount" | "pending" | "tags"> | null;
 /** @deprecated v0.8.2. Read `MMA.Store.get().mapId`. @unstable */
 declare function getCurrentMapId(): string | null;
 /** @deprecated v0.8.2. Read `MMA.Editor.get().open?.location`. @unstable */
@@ -8015,4 +7979,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
