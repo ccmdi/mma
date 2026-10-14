@@ -27,7 +27,6 @@ vi.mock("@/lib/commands", async () => {
 		storeGetMap: async () =>
 			testMap({
 				locationCount: 2,
-				tags: { 1: { id: 1, name: "red", color: "#ff0000", visible: true } },
 				extra: { fields: { alt: createFieldDef("number") } },
 			}),
 		storeOpenMap: async () =>

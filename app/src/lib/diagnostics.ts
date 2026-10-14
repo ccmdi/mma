@@ -24,7 +24,7 @@ export interface Diagnostics {
 		maps: number;
 		/** Totalled from each map's count as of its last save. */
 		savedLocations: number;
-		tags: number;
+		values: number;
 		commits: number;
 		sizeBytes: number;
 		locationSizeBytes: number;
@@ -213,7 +213,7 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 		db: {
 			maps: db.maps,
 			savedLocations: db.locations,
-			tags: db.tags,
+			values: db.values,
 			commits: db.commits,
 			sizeBytes: db.dbSizeBytes,
 			locationSizeBytes: db.locationSizeBytes,

@@ -24,7 +24,7 @@ vi.mock("@/store/store", () => ({
 	Store: {
 		get: () => ({
 			mapId: eng.mapId,
-			map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
+			map: eng.mapId ? { id: eng.mapId, locationCount: 0 } : null,
 			locationCount: 0,
 		}),
 	},
@@ -110,7 +110,7 @@ function makeMma() {
 		Store: {
 			get: () => ({
 				mapId: eng.mapId,
-				map: eng.mapId ? { id: eng.mapId, locationCount: 0, tags: {} } : null,
+				map: eng.mapId ? { id: eng.mapId, locationCount: 0 } : null,
 				locationCount: 0,
 			}),
 		},

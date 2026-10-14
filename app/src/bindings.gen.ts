@@ -243,7 +243,7 @@ export const commands = {
 	storeDuplicateMap: (id: string, name: string) => __TAURI_INVOKE<MapMeta>("store_duplicate_map", { id, name }),
 	/**
 	 *  Patch map metadata, leaving omitted fields unchanged.
-	 *  Open maps save through their store; tag records are edited separately.
+	 *  Open maps save through their store; value records are edited separately.
 	 *  A closed map writes straight to disk and returns null.
 	 */
 	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
@@ -672,7 +672,8 @@ export type DbStats = {
 	maps: number,
 	/**  Locations across every map as of the last time each was saved. */
 	locations: number,
-	tags: number,
+	/**  Value records across every map and field. */
+	values: number,
 	commits: number,
 	/**  Bytes the metadata database occupies, its write-ahead log included. */
 	dbSizeBytes: number,
@@ -688,7 +689,7 @@ export type Derived = {
 	/**  Location changes since the last commit. */
 	pending: Counts | null,
 	/**  The map's own details, when they changed. */
-	meta: Omit<MapMeta, "tags" | "extra" | "locationCount" | "pending"> | null,
+	meta: Omit<MapMeta, "extra" | "locationCount" | "pending"> | null,
 	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
@@ -1067,27 +1068,6 @@ export type MapKeyBinding = {
 	action: MapKeyAction,
 };
 
-
-/**  Full metadata for a map. */
-export type MapMeta_Deserialize = {
-	id: string,
-	name: string,
-	description: string,
-	folder: string | null,
-	settings: MapSettings,
-	scoreBounds: ScoreBounds,
-	extra: MapExtra,
-	/**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
-	tags: { [key in string]: ValueRecord },
-	labels: string[],
-	locationCount: number,
-	/**  Location changes since the last commit. */
-	pending: Counts,
-	createdAt: string,
-	updatedAt: string,
-	lastOpenedAt: string | null,
-};
-
 /**  Full metadata for a map. */
 export type MapMeta = {
 	id: string,
@@ -1097,8 +1077,6 @@ export type MapMeta = {
 	settings: MapSettings,
 	scoreBounds: ScoreBounds,
 	extra: MapExtra,
-	/**  Tag records keyed by id, loaded from `maps.tags` when opening the map. */
-	tags: { [key in string]: ValueRecord },
 	labels: string[],
 	locationCount: number,
 	/**  Location changes since the last commit. */

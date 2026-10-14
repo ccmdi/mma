@@ -38,7 +38,7 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 		["Build", d.buildMode],
 		["Maps", d.db.maps],
 		["Locations (saved)", fmt.format(d.db.savedLocations)],
-		["Tags", d.db.tags],
+		["Values", d.db.values],
 		["Commits", d.db.commits],
 		["Unsaved", d.map?.unsaved ? "yes" : "no"],
 		["DB size", formatBytes(d.db.sizeBytes)],

@@ -487,7 +487,10 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
         use std::io::Cursor;
 
         let conn = storage::open_db()?;
-        let mut stmt = conn.prepare("SELECT id, name, folder, tags, extra FROM maps")?;
+        let mut stmt = conn.prepare(
+            "SELECT m.id, m.name, m.folder, COALESCE(r.records, '{}'), m.extra FROM maps m
+             LEFT JOIN value_records r ON r.map_id = m.id AND r.field = 'tags'",
+        )?;
         let maps: Vec<_> = stmt
             .query_map([], |row| {
                 Ok((

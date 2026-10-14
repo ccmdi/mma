@@ -249,3 +249,29 @@ fn close_flush_waits_for_the_shared_file_writer_lock() {
         close.await.unwrap().unwrap();
     });
 }
+
+#[test]
+fn records_stored_by_older_versions_load_with_ids_from_their_keys_and_no_visibility() {
+    let dir = TempDir::new("mma_test_legacy_records");
+    let conn = database(&dir.join("db.sqlite"));
+    conn.execute(
+        "INSERT INTO value_records (map_id, field, records) VALUES ('m', 'tags', ?1)",
+        [r#"{"7":{"id":3,"name":"a","visible":true,"color":"red"},"x":{"name":"b"}}"#],
+    )
+    .unwrap();
+    let map = Id::new("m".to_string());
+    let a = ValueRecord {
+        id: Id::new(7),
+        name: Some("a".into()),
+        extra: serde_json::Map::from_iter([("color".to_string(), "red".into())]),
+        ..Default::default()
+    };
+    let loaded = load_value_records(&conn, &map).unwrap();
+    assert_eq!(loaded["tags"], HashMap::from([(Id::new(7), a.clone())]));
+
+    save_value_records(&conn, &map, "tags", &loaded["tags"]).unwrap();
+    assert_eq!(
+        load_value_records(&conn, &map).unwrap()["tags"],
+        HashMap::from([(Id::new(7), a)])
+    );
+}

@@ -651,12 +651,16 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
     let settings = r##"{"pointAlongRoad":false,"aliases":{"A/B":1},"pluginData":{"vali":{"project":{"tag":"T"}}}}"##;
     conn.execute(
         "UPDATE maps SET description = 'about', folder = 'Europe', settings = ?1, extra = ?2,
-             tags = ?3, labels = '[\"wip\"]', pending_added = 4 WHERE id = 'm1'",
+             labels = '[\"wip\"]', pending_added = 4 WHERE id = 'm1'",
         params![
             settings,
             r#"{"fields":{"altitude":{"type":"number","label":"Altitude","values":null,"comparison":null}}}"#,
-            r##"{"1":{"name":"A","color":"#ff0000"}}"##
         ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO value_records (map_id, field, records) VALUES ('m1', 'tags', ?1)",
+        [r##"{"1":{"name":"A","color":"#ff0000"}}"##],
     )
     .unwrap();
     conn.execute_batch(
@@ -707,7 +711,10 @@ fn a_duplicate_is_an_independent_copy_without_the_originals_history() {
         serde_json::to_value(&copy.extra).unwrap(),
         serde_json::to_value(&source.extra).unwrap()
     );
-    assert_eq!(copy.tags.len(), 1);
+    assert_eq!(
+        engine::load_value_records(&conn, &copy.id).unwrap()["tags"].len(),
+        1
+    );
     assert_eq!(copy.location_count, 2);
     assert_eq!(
         copy.pending.added, 0,
@@ -772,38 +779,15 @@ fn duplicating_a_missing_map_writes_nothing() {
     assert_eq!(maps, 1);
 }
 
-#[test]
-fn tag_records_read_and_write_the_one_column_format() {
-    let stored = r#"{"7":{"id":7,"name":"a","visible":true,"color":"red"},"x":{"name":"b"}}"#;
-    let records: HashMap<Id<ValueRecord>, ValueRecord> =
-        crate::io::records::decode(&mut serde_json::Deserializer::from_str(stored)).unwrap();
-    assert_eq!(
-        records,
-        HashMap::from([(
-            Id::new(7),
-            ValueRecord {
-                id: Id::new(7),
-                name: Some("a".into()),
-                extra: serde_json::Map::from_iter([("color".to_string(), "red".into())]),
-                ..Default::default()
-            }
-        )])
-    );
-    let written = serde_json::to_value(&records).unwrap();
-    assert_eq!(
-        written,
-        serde_json::json!({ "7": { "id": 7, "name": "a", "order": null, "color": "red" } })
-    );
-}
-
 /// A manager with map `m1` open, its store seeded from the row as opening does.
 fn open_m1(conn: &Connection) -> StoreManager {
     let mut store = engine::Store::new();
     let mut meta = read_map_meta(conn, &Id::new("m1".into())).unwrap();
-    store.records.insert(
-        "tags".into(),
-        engine::Tracked::new(std::mem::take(&mut meta.tags)),
-    );
+    store.records = engine::load_value_records(conn, &meta.id)
+        .unwrap()
+        .into_iter()
+        .map(|(field, records)| (field, engine::Tracked::new(records)))
+        .collect();
     store.field_defs = engine::Tracked::new(std::mem::take(&mut meta.extra.fields));
     store.meta = engine::Tracked::new(meta);
     let mut mgr = StoreManager::new();
@@ -843,19 +827,19 @@ fn an_open_maps_meta_lands_on_disk_only_through_the_save_path() {
 }
 
 #[test]
-fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
+fn an_open_maps_records_and_field_definitions_save_with_it() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
-    let rec = ValueRecord {
+    let rec = engine::ValueRecord {
         id: Id::new(1),
         name: Some("A".into()),
         ..Default::default()
     };
     store
         .records
-        .get_mut("tags")
-        .unwrap()
+        .entry("tags".into())
+        .or_default()
         .edit()
         .insert(Id::new(1), rec);
     store
@@ -871,27 +855,12 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
     store.saved(&unsaved);
 
     let row = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
-    assert_eq!(row.tags.len(), 1);
+    assert_eq!(
+        engine::load_value_records(&conn, &row.id).unwrap()["tags"].len(),
+        1
+    );
     assert!(row.extra.fields.contains_key("altitude"));
     assert!(store.unsaved().unwrap().is_none());
-}
-
-#[test]
-fn an_open_maps_tags_cannot_be_patched_behind_their_values() {
-    let conn = setup_real_db();
-    let mut mgr = open_m1(&conn);
-    let patch = Patch::<MapMeta> {
-        id: Id::new("m1".into()),
-        tags: Some(HashMap::new()),
-        ..Default::default()
-    };
-    assert!(update_map_meta(&mut mgr, &conn, patch).is_err());
-    assert!(mgr
-        .store_for_map(&Id::new("m1".into()))
-        .unwrap()
-        .unsaved()
-        .unwrap()
-        .is_none());
 }
 
 #[test]
@@ -961,7 +930,7 @@ fn an_open_maps_field_definitions_ship_when_patched() {
 }
 
 #[test]
-fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
+fn a_duplicate_of_an_open_map_carries_its_unsaved_row_and_records() {
     let conn = setup_real_db();
     let mut mgr = open_m1(&conn);
     let patch = Patch::<MapMeta> {
@@ -970,8 +939,22 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
         ..Default::default()
     };
     update_map_meta(&mut mgr, &conn, patch).unwrap();
+    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
+    store
+        .records
+        .entry("tags".into())
+        .or_default()
+        .edit()
+        .insert(
+            Id::new(4),
+            engine::ValueRecord {
+                id: Id::new(4),
+                name: Some("held".into()),
+                ..Default::default()
+            },
+        );
     let dir = TempDir::new("mma_test_duplicate_live");
-    let live = Some(mgr.store_for_map(&Id::new("m1".into())).unwrap().map());
+    let live = Some((store.map(), store.held_value_records()));
     let empty = RecordBatch::new_empty(arrow::schema());
     let copy = duplicate_map_row(
         &conn,
@@ -985,6 +968,12 @@ fn a_duplicate_of_an_open_map_carries_its_unsaved_row() {
     .unwrap();
     assert_eq!(copy.name, "Copy");
     assert_eq!(copy.description, "unsaved");
+    assert_eq!(
+        engine::load_value_records(&conn, &copy.id).unwrap()["tags"][&Id::new(4)]
+            .name
+            .as_deref(),
+        Some("held")
+    );
 }
 
 #[test]
@@ -1082,41 +1071,67 @@ fn a_builtins_physical_address_never_serializes_with_its_definition() {
 }
 
 #[test]
-fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
+fn a_map_level_interned_field_stores_reloads_and_undoes_its_records() {
     let conn = setup_real_db();
-    let patch = || Patch::<MapMeta> {
-        id: Id::new("m1".into()),
+    let m1 = Id::<MapMeta, String>::new("m1".into());
+    let mut mgr = open_m1(&conn);
+    let patch = Patch::<MapMeta> {
+        id: m1.clone(),
         extra: Some(MapExtra {
             fields: HashMap::from([(
                 "plates".to_string(),
                 FieldDef {
+                    field_type: FieldType::Array,
+                    label: None,
+                    values: None,
+                    comparison: None,
                     interned: true,
-                    ..known_field_def("altitude").unwrap()
+                    builtin: None,
                 },
             )]),
         }),
         ..Default::default()
     };
-    let refused = |result: AppResult<Option<engine::MutationResult>>| {
-        assert!(result
-            .err()
-            .unwrap()
-            .0
-            .contains("interned map fields are not supported yet"));
-    };
-
-    let mut mgr = open_m1(&conn);
-    refused(update_map_meta(&mut mgr, &conn, patch()));
-    let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
-    assert!(!store.field_defs.contains_key("plates"));
-    assert!(store.unsaved().unwrap().is_none());
-
-    refused(update_map_meta(&mut StoreManager::new(), &conn, patch()));
-    assert!(!read_map_meta(&conn, &Id::new("m1".into()))
+    update_map_meta(&mut mgr, &conn, patch).unwrap();
+    let store = mgr.store_for_map(&m1).unwrap();
+    let plate = store
+        .edit_values(
+            "plates",
+            vec![mma_algebra::Op::Add(engine::ValueRecord {
+                name: Some("AB-123".into()),
+                ..Default::default()
+            })],
+        )
         .unwrap()
-        .extra
-        .fields
-        .contains_key("plates"));
+        .keys[0];
+    let dir = TempDir::new("mma_test_interned_map_field");
+    let save = |store: &mut engine::Store| {
+        let unsaved = store.unsaved().unwrap().unwrap();
+        unsaved
+            .write(&conn, &m1, &dir.join("m1_delta.arrow"))
+            .unwrap();
+        store.saved(&unsaved);
+    };
+    save(store);
+
+    let reopened = open_m1(&conn);
+    let held = &reopened.stores[&m1];
+    assert!(held.field_defs["plates"].interned);
+    assert_eq!(
+        held.value_record("plates", plate)
+            .and_then(|r| r.name.as_deref()),
+        Some("AB-123")
+    );
+
+    store
+        .step(engine::Stack::Undo, engine::Timeline::Edits, |_| {
+            Err("the step is resident".into())
+        })
+        .unwrap()
+        .unwrap();
+    assert!(store.value_record("plates", plate).is_none());
+    save(store);
+    assert!(engine::load_value_records(&conn, &m1).unwrap()["plates"].is_empty());
 }
 
 #[test]
@@ -1170,7 +1185,6 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
     let current = store.map();
     assert_eq!(current.location_count, 1);
     assert_eq!(current.pending.added, 1);
-    assert_eq!(current.tags, **store.records.get("tags").unwrap());
     assert_eq!(current.updated_at, store.meta.updated_at);
     let before = read_map_meta(&conn, &current.id).unwrap();
     assert_eq!(before.location_count, 0);
@@ -1186,7 +1200,6 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
     assert_eq!(saved.updated_at, current.updated_at);
     assert_eq!(saved.location_count, current.location_count);
     assert_eq!(saved.pending, current.pending);
-    assert_eq!(saved.tags, current.tags);
 }
 
 #[test]

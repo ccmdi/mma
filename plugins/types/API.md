@@ -1971,7 +1971,7 @@ getAllSelections(): Selection[]
 ```ts
 getCurrentMap(): Omit<
   MapMeta,
-  "extra" | "locationCount" | "pending" | "tags"
+  "extra" | "locationCount" | "pending"
 > | null
 ```
 
@@ -7076,7 +7076,7 @@ cmd.storeUpdateMapMeta(
 ```
 
 Patch map metadata, leaving omitted fields unchanged.
-Open maps save through their store; tag records are edited separately.
+Open maps save through their store; value records are edited separately.
 A closed map writes straight to disk and returns null.
 
 #### cmd.storeUploadAbort

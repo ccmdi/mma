@@ -559,4 +559,16 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
     ),
     (28, "ALTER TABLE edit_entries RENAME COLUMN piles TO parts;"),
     (29, "ALTER TABLE commits DROP COLUMN tree_hash;"),
+    (
+        30,
+        "CREATE TABLE IF NOT EXISTS value_records (
+            map_id  TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE,
+            field   TEXT NOT NULL,
+            records TEXT NOT NULL,
+            PRIMARY KEY (map_id, field)
+          );
+          INSERT INTO value_records (map_id, field, records)
+            SELECT id, 'tags', tags FROM maps WHERE tags NOT IN ('', '{}');
+          ALTER TABLE maps DROP COLUMN tags;",
+    ),
 ];

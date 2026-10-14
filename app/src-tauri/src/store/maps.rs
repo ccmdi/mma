@@ -1,12 +1,12 @@
 //! Map metadata CRUD and extra-field registration.
 //!
-//! Each map's metadata (name, settings, tags, extra field definitions) lives in
+//! Each map's metadata (name, settings, extra field definitions) lives in
 //! SQLite. This module provides the IPC commands for listing, creating, updating,
 //! and deleting maps, plus the auto-registration logic that discovers new
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
-use crate::store::engine::{StoreManager, StoreState, ValueRecord};
+use crate::store::engine::{IncomingRecords, StoreManager, StoreState};
 use crate::store::storage::Stamped;
 use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
@@ -331,17 +331,6 @@ fn modernize_field_defs(raw: &mut serde_json::Value) {
 }
 
 impl MapExtra {
-    /// Refuse a definition no map can hold: interned values need record storage, which
-    /// only the built-in `tags` field has.
-    pub fn check(&self) -> AppResult<()> {
-        match self.fields.iter().find(|(_, def)| def.interned) {
-            Some((key, _)) => Err(AppError(format!(
-                "'{key}': interned map fields are not supported yet"
-            ))),
-            None => Ok(()),
-        }
-    }
-
     /// Parse from the `maps.extra` JSON column. Field defs registered before ingest
     /// canonicalized keys can carry escapes and match no location, so decode them
     /// here; the next def write persists the repair. Default on invalid JSON.
@@ -584,11 +573,6 @@ pub struct MapMeta {
     pub score_bounds: ScoreBounds,
     #[field(json, decode = "MapExtra::from_json", default = "'{}'")]
     pub extra: MapExtra,
-    /// Tag records keyed by id, loaded from `maps.tags` when opening the map.
-    #[specta(type = HashMap<String, ValueRecord>)]
-    #[serde(deserialize_with = "crate::io::records::decode")]
-    #[field(json, codec = "crate::io::records::read", default = "'{}'")]
-    pub tags: HashMap<Id<ValueRecord>, ValueRecord>,
     #[field(json, default = "'[]'")]
     pub labels: Vec<String>,
     #[patch(skip)]
@@ -622,12 +606,12 @@ impl Stamped for MapMeta {
     }
 }
 
-/// The map's own details: its row less the tag records, field definitions, and counts,
-/// which change on their own.
+/// The map's own details: its row less the field definitions and counts, which change on
+/// their own.
 #[derive(Clone, Debug, PartialEq)]
 pub struct MapDetails(pub MapMeta);
 
-const RESTATED: [&str; 4] = ["tags", "extra", "locationCount", "pending"];
+const RESTATED: [&str; 3] = ["extra", "locationCount", "pending"];
 
 impl serde::Serialize for MapDetails {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -782,7 +766,7 @@ pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult
 fn duplicate_map_row(
     conn: &Connection,
     source: &Id<MapMeta, String>,
-    live: Option<MapMeta>,
+    live: Option<(MapMeta, IncomingRecords)>,
     copy_id: &Id<MapMeta, String>,
     name: &str,
     batch: &RecordBatch,
@@ -791,18 +775,26 @@ fn duplicate_map_row(
     let tx = conn.unchecked_transaction()?;
     let now = now_iso();
     let copied = tx.execute(
-        "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, labels, location_count, created_at, updated_at)
-         SELECT ?1, ?2, description, folder, settings, score_bounds, extra, tags, labels, ?3, ?4, ?4 FROM maps WHERE id = ?5",
+        "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, labels, location_count, created_at, updated_at)
+         SELECT ?1, ?2, description, folder, settings, score_bounds, extra, labels, ?3, ?4, ?4 FROM maps WHERE id = ?5",
         params![copy_id.raw(), name, batch.num_rows() as i64, now, source.raw()],
     )?;
     if copied == 0 {
         return Err(AppError(format!("no map {source} to copy")));
     }
-    if let Some(mut live) = live {
+    tx.execute(
+        "INSERT INTO value_records (map_id, field, records)
+         SELECT ?1, field, records FROM value_records WHERE map_id = ?2",
+        params![copy_id.raw(), source.raw()],
+    )?;
+    if let Some((mut live, records)) = live {
         live.id = copy_id.clone();
         live.name = name.to_string();
         live.stamp(now);
         storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &live)?;
+        for (field, records) in &records {
+            engine::save_value_records(&tx, copy_id, field, records)?;
+        }
     }
     arrow::write_arrow_ipc(arrow_path, batch)?;
     if let Err(e) = tx.commit() {
@@ -829,7 +821,7 @@ pub fn store_duplicate_map(
             store
                 .current_batch()
                 .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
-            Some(store.map()),
+            Some((store.map(), store.held_value_records())),
         ),
         None => {
             let mut locations = engine::read_full_state_from_disk(&id)?;
@@ -896,7 +888,7 @@ pub fn store_delete_map(
 }
 
 /// Patch map metadata, leaving omitted fields unchanged.
-/// Open maps save through their store; tag records are edited separately.
+/// Open maps save through their store; value records are edited separately.
 /// A closed map writes straight to disk and returns null.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
@@ -913,9 +905,6 @@ fn update_map_meta(
     conn: &Connection,
     patch: Patch<MapMeta>,
 ) -> AppResult<Option<engine::MutationResult>> {
-    if let Some(extra) = &patch.extra {
-        extra.check()?;
-    }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         storage::patch_row(
             conn,
@@ -926,11 +915,6 @@ fn update_map_meta(
         )?;
         return Ok(None);
     };
-    if patch.tags.is_some() {
-        return Err(AppError(
-            "an open map's tags change through their values".into(),
-        ));
-    }
     let current = MapMeta {
         extra: MapExtra {
             fields: (*store.field_defs).clone(),
@@ -1044,7 +1028,8 @@ pub struct DbStats {
     pub maps: i64,
     /// Locations across every map as of the last time each was saved.
     pub locations: i64,
-    pub tags: i64,
+    /// Value records across every map and field.
+    pub values: i64,
     pub commits: i64,
     /// Bytes the metadata database occupies, its write-ahead log included.
     pub db_size_bytes: i64,
@@ -1104,8 +1089,8 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
                 |r| r.get(0),
             )
             .unwrap_or(0);
-        let tags: i64 = {
-            let mut stmt = conn.prepare("SELECT tags FROM maps")?;
+        let values: i64 = {
+            let mut stmt = conn.prepare("SELECT records FROM value_records")?;
             let rows: Vec<String> = stmt
                 .query_map([], |r| r.get(0))?
                 .filter_map(Result::ok)
@@ -1131,7 +1116,7 @@ pub async fn store_db_stats() -> AppResult<DbStats> {
         Ok(DbStats {
             maps,
             locations,
-            tags,
+            values,
             commits,
             db_size_bytes: storage::db_path().map_or(0, |p| sqlite_bytes(&p)),
             location_size_bytes: storage::arrow_dir().map_or(0, |d| dir_bytes(&d)),

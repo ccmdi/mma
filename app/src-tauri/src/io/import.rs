@@ -8,7 +8,7 @@
 use crate::store::maps::MapMeta;
 use crate::types::{AppResult, RawExtra};
 use mma_algebra::Id;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::sync::Mutex;
 
 pub(crate) mod parse;
@@ -21,7 +21,7 @@ use rayon::prelude::*;
 use rusqlite::Connection;
 use uuid::Uuid;
 
-use crate::store::{arrow, map_defaults, maps, storage};
+use crate::store::{arrow, engine, map_defaults, maps, storage};
 use std::path::Path;
 use tokio::task;
 
@@ -120,17 +120,18 @@ fn write_map_to_db(
 
     let tx = conn.unchecked_transaction()?;
 
-    let tags_json = serde_json::to_string(
-        &map.tags
-            .iter()
-            .map(|t| (t.id, t))
-            .collect::<HashMap<_, _>>(),
-    )?;
-
     tx.execute(
-        "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, tags, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8, ?9)",
-        rusqlite::params![map_id.raw(), map.name, map.folder, settings_json, extra_json, tags_json, loc_count, now, now],
+        "INSERT INTO maps (id, name, description, folder, settings, score_bounds, extra, location_count, created_at, updated_at) VALUES (?1, ?2, '', ?3, ?4, '\"auto\"', ?5, ?6, ?7, ?8)",
+        rusqlite::params![map_id.raw(), map.name, map.folder, settings_json, extra_json, loc_count, now, now],
     )?;
+    if !map.tags.is_empty() {
+        engine::save_value_records(
+            &tx,
+            map_id,
+            "tags",
+            &map.tags.iter().map(|t| (t.id, t.clone())).collect(),
+        )?;
+    }
 
     tx.commit()?;
 

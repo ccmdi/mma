@@ -39,7 +39,6 @@ const map: MapMeta = {
 	settings: {},
 	scoreBounds: "auto",
 	extra: {},
-	tags: {},
 	labels: [],
 	locationCount: 0,
 	pending: { added: 0, removed: 0, updated: 0 },

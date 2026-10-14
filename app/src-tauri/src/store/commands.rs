@@ -156,9 +156,10 @@ fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     store.steps[Timeline::Edits] = Tracked::new(edits);
 
     let mut meta = maps::read_map_meta(&conn, map_id)?;
-    store
-        .records
-        .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
+    store.records = load_value_records(&conn, map_id)?
+        .into_iter()
+        .map(|(field, records)| (field, Tracked::new(records)))
+        .collect();
     store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = Tracked::new(meta);
     log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());

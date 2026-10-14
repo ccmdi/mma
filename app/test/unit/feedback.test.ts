@@ -53,7 +53,7 @@ const diagnostics: Diagnostics = {
 	db: {
 		maps: 3,
 		savedLocations: 12000,
-		tags: 40,
+		values: 40,
 		commits: 7,
 		sizeBytes: 5_000_000,
 		locationSizeBytes: 9_000_000,

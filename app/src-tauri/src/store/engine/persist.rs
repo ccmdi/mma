@@ -82,10 +82,66 @@ pub(crate) fn read_full_state_from_disk(map_id: &Id<MapMeta, String>) -> AppResu
     Ok(locs)
 }
 
+/// Every interned field's value records stored for `map_id`.
+pub(crate) fn load_value_records(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+) -> AppResult<IncomingRecords> {
+    let rows = conn
+        .prepare("SELECT field, records FROM value_records WHERE map_id = ?1")?
+        .query_map([map_id.raw()], |r| {
+            Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows
+        .into_iter()
+        .map(|(field, text)| (field, decode_records(&text)))
+        .collect())
+}
+
+/// Store `records` as `field`'s value records for `map_id`.
+pub(crate) fn save_value_records(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+    field: &str,
+    records: &HashMap<Id<ValueRecord>, ValueRecord>,
+) -> AppResult<()> {
+    conn.prepare_cached(
+        "INSERT INTO value_records (map_id, field, records) VALUES (?1, ?2, ?3)
+         ON CONFLICT (map_id, field) DO UPDATE SET records = excluded.records",
+    )?
+    .execute(rusqlite::params![
+        map_id.raw(),
+        field,
+        serde_json::to_string(records)?
+    ])?;
+    Ok(())
+}
+
+/// Records stored as an object keyed by id. Each takes its id from its key and drops
+/// `visible`, which records written by older versions still hold.
+fn decode_records(text: &str) -> HashMap<Id<ValueRecord>, ValueRecord> {
+    let Ok(serde_json::Value::Object(stored)) = serde_json::from_str(text) else {
+        return HashMap::new();
+    };
+    stored
+        .into_iter()
+        .filter_map(|(key, mut record)| {
+            let id = key.parse::<u32>().ok()?;
+            let fields = record.as_object_mut()?;
+            fields.insert("id".into(), id.into());
+            fields.remove("visible");
+            let record: ValueRecord = serde_json::from_value(record).ok()?;
+            Some((record.id, record))
+        })
+        .collect()
+}
+
 /// Unsaved map data with revision stamps, so concurrent edits stay unsaved.
 pub(crate) struct Unsaved {
     delta: Option<At<RecordBatch>>,
     meta: Option<MetaRow>,
+    records: Vec<(String, At<HashMap<Id<ValueRecord>, ValueRecord>>)>,
     steps: Option<At<StepStacks>>,
     alive: usize,
     pending: Counts,
@@ -96,7 +152,6 @@ struct MetaRow {
     row: MapMeta,
     meta: u64,
     defs: u64,
-    values: Vec<(String, u64)>,
 }
 
 impl Unsaved {
@@ -114,6 +169,9 @@ impl Unsaved {
         if let Some(row) = &self.meta {
             storage::update_row::<MapMeta>(conn, "maps", map_id.raw(), &row.row)?;
         }
+        for (field, records) in &self.records {
+            save_value_records(conn, map_id, field, records.value())?;
+        }
         if let Some(steps) = &self.steps {
             save_edit_history(conn, map_id, steps.value())?;
         }
@@ -123,14 +181,15 @@ impl Unsaved {
 
 impl Store {
     fn meta_unsaved(&self) -> bool {
-        self.meta.is_unsaved()
-            || self.field_defs.is_unsaved()
-            || self.records.values().any(Tracked::is_unsaved)
+        self.meta.is_unsaved() || self.field_defs.is_unsaved()
     }
 
     /// Whether disk lacks some of the map's current state.
     pub(crate) fn is_unsaved(&self) -> bool {
-        self.overlay.is_unsaved() || self.steps[Timeline::Edits].is_unsaved() || self.meta_unsaved()
+        self.overlay.is_unsaved()
+            || self.steps[Timeline::Edits].is_unsaved()
+            || self.meta_unsaved()
+            || self.records.values().any(Tracked::is_unsaved)
     }
 
     /// The state disk lacks, or `None` when disk is current.
@@ -142,18 +201,20 @@ impl Store {
             row: self.map(),
             meta: self.meta.rev(),
             defs: self.field_defs.rev(),
-            values: self
-                .records
-                .iter()
-                .map(|(field, v)| (field.clone(), v.rev()))
-                .collect(),
         });
+        let records = self
+            .records
+            .iter()
+            .filter(|(_, records)| records.is_unsaved())
+            .map(|(field, records)| (field.clone(), records.stamp((**records).clone())))
+            .collect();
         Ok(Some(Unsaved {
             delta: self.overlay.is_unsaved().then(|| {
                 self.overlay
                     .stamp(self.overlay.to_delta(self.batch.as_ref()))
             }),
             meta,
+            records,
             steps: {
                 let steps = &self.steps[Timeline::Edits];
                 steps.is_unsaved().then(|| steps.stamp((**steps).clone()))
@@ -171,10 +232,10 @@ impl Store {
         if let Some(row) = &written.meta {
             self.meta.saved_at(row.meta);
             self.field_defs.saved_at(row.defs);
-            for (field, rev) in &row.values {
-                if let Some(v) = self.records.get_mut(field) {
-                    v.saved_at(*rev);
-                }
+        }
+        for (field, records) in &written.records {
+            if let Some(held) = self.records.get_mut(field) {
+                held.saved_at(records.rev());
             }
         }
         if let Some(steps) = &written.steps {

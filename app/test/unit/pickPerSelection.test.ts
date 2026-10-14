@@ -41,14 +41,7 @@ vi.mock("@/lib/commands", async () => {
 		return [...new Set(active.flatMap((s) => poolOf(s.selector)))];
 	};
 	const handlers: Record<string, (...args: never[]) => unknown> = {
-		storeGetMap: async () =>
-			testMap({
-				locationCount: 20,
-				tags: {
-					1: { id: 1, name: "a", color: "#ff0000", visible: true },
-					2: { id: 2, name: "b", color: "#00ff00", visible: true },
-				},
-			}),
+		storeGetMap: async () => testMap({ locationCount: 20 }),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeEditSelections: async (rows: unknown[]) => selectionsHeld(rows),
 		storeRead: async (

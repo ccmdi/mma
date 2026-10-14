@@ -1128,3 +1128,44 @@ fn v29_drops_the_commit_tree_hash_and_keeps_every_commit() {
         .unwrap();
     assert_eq!(kept, ("c1".to_string(), 4, 1, 2, 3));
 }
+
+#[test]
+fn tag_records_held_on_the_map_row_move_to_the_records_table() {
+    let conn = Connection::open_in_memory().unwrap();
+    configure_connection(&conn).unwrap();
+    apply_prefix(
+        &conn,
+        MIGRATIONS.iter().position(|(v, _)| *v == 30).unwrap(),
+    );
+    insert_map(&conn, "tagged", "Tagged");
+    insert_map(&conn, "bare", "Bare");
+    conn.execute(
+        "UPDATE maps SET tags = ?1 WHERE id = 'tagged'",
+        [r##"{"1":{"id":1,"name":"Urban","color":"#ff0000","visible":false},"2":{"name":"Rural","order":3}}"##],
+    )
+    .unwrap();
+
+    run_migrations_on(&conn).unwrap();
+
+    let tagged =
+        crate::store::engine::load_value_records(&conn, &Id::new("tagged".into())).unwrap();
+    let tags = &tagged["tags"];
+    assert_eq!(tags.len(), 2);
+    assert_eq!(tags[&Id::new(1)].name.as_deref(), Some("Urban"));
+    assert_eq!(tags[&Id::new(1)].color(), Some("#ff0000".parse().unwrap()));
+    assert!(!tags[&Id::new(1)].extra.contains_key("visible"));
+    assert_eq!(tags[&Id::new(2)].order, Some(3));
+    assert!(
+        crate::store::engine::load_value_records(&conn, &Id::new("bare".into()))
+            .unwrap()
+            .is_empty()
+    );
+    let tags_column: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('maps') WHERE name = 'tags'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(tags_column, 0);
+}

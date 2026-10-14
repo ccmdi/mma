@@ -111,7 +111,7 @@ impl Overlay {
 /// [`Store::bake_overlay`] merges the overlay into the batch. Rows are sorted by id in both
 /// `batch` and `overlay.added`, so a lookup by id is a binary search.
 pub struct Store {
-    /// The open map's metadata. Tag records live in `records`, field definitions in
+    /// The open map's metadata. Value records live in `records`, field definitions in
     /// `field_defs`, and `meta` keeps neither.
     pub(crate) meta: Tracked<MapMeta>,
     /// The map's extra-field definitions.
@@ -130,7 +130,7 @@ pub struct Store {
     pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
-    /// Per-field value records. `tags` is currently the only interned field.
+    /// Each interned field's value records.
     pub(crate) records: HashMap<String, Tracked<HashMap<Id<ValueRecord>, ValueRecord>>>,
     /// Lazy per-field indexes of live rows, maintained on mutation.
     /// Per-value counts come from index membership.
@@ -222,11 +222,6 @@ impl Store {
     /// Current map metadata projected from its owned state and location changes.
     pub(crate) fn map(&self) -> MapMeta {
         MapMeta {
-            tags: self
-                .records
-                .get("tags")
-                .map(|records| (**records).clone())
-                .unwrap_or_default(),
             extra: maps::MapExtra {
                 fields: (*self.field_defs).clone(),
             },

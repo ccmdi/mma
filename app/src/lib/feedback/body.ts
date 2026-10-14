@@ -63,7 +63,7 @@ function diagnosticsTable(d: Diagnostics): string {
 		["Startup", `${d.startupMs} ms`],
 		[
 			"Database",
-			`${d.db.maps} maps, ${d.db.savedLocations} locations, ${d.db.tags} tags, ${d.db.commits} commits, ` +
+			`${d.db.maps} maps, ${d.db.savedLocations} locations, ${d.db.values} values, ${d.db.commits} commits, ` +
 				`${formatBytes(d.db.sizeBytes)} + ${formatBytes(d.db.locationSizeBytes)} (${d.db.journalMode})`,
 		],
 		["Plugins", d.plugins.length ? d.plugins.join(", ") : "none"],

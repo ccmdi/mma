@@ -87,16 +87,13 @@ export function stackedMapTypeMock() {
 
 type Handlers = Record<string, (...args: unknown[]) => unknown>;
 
-export function testMap(
-	over: { locationCount?: number; tags?: Record<string, unknown>; extra?: unknown } = {},
-) {
+export function testMap(over: { locationCount?: number; extra?: unknown } = {}) {
 	return {
 		id: "m1",
 		name: "test",
 		description: "",
 		folder: null,
 		locationCount: over.locationCount ?? 1,
-		tags: over.tags ?? {},
 		settings: {},
 		scoreBounds: null,
 		createdAt: "",
