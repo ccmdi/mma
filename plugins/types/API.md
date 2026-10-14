@@ -9623,7 +9623,7 @@ The current pano id, or null before one loads.
 Pano.pointNorth(): void
 ```
 
-Face north level, or look straight down zoomed out when already facing north.
+Face north keeping the pitch, or look straight down zoomed out when already within two degrees of north.
 
 #### Pano.position
 

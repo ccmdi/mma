@@ -5584,7 +5584,7 @@ declare function createPano(): {
     nudge: (dHeading: number, dPitch: number) => void;
     /** Animate the camera to a frame, replacing any turn in progress. */
     turnTo: (target: CameraFrame) => void;
-    /** Face north level, or look straight down zoomed out when already facing north. */
+    /** Face north keeping the pitch, or look straight down zoomed out when already within two degrees of north. */
     pointNorth: () => void;
     /** Face the linked road nearest the camera heading. */
     faceRoad: () => void;
@@ -5661,7 +5661,7 @@ declare const Pano: {
     nudge: (dHeading: number, dPitch: number) => void;
     /** Animate the camera to a frame, replacing any turn in progress. @unstable */
     turnTo: (target: CameraFrame) => void;
-    /** Face north level, or look straight down zoomed out when already facing north. @unstable */
+    /** Face north keeping the pitch, or look straight down zoomed out when already within two degrees of north. @unstable */
     pointNorth: () => void;
     /** Face the linked road nearest the camera heading. @unstable */
     faceRoad: () => void;

@@ -409,11 +409,11 @@ export function createPano() {
 	function pointNorth() {
 		if (!viewer) return;
 		const { heading, pitch } = activeTurn?.target ?? pov();
-		if (Math.abs(normalizeHeading(heading)) < 1 && Math.abs(pitch) < 1) {
+		if (Math.abs(normalizeHeading(heading)) < 2) {
 			viewer.setZoom(PANO_ZOOM.min);
 			turnTo({ heading: 0, pitch: -90 });
 		} else {
-			turnTo({ heading: 0, pitch: 0 });
+			turnTo({ heading: 0, pitch });
 		}
 	}
 
@@ -608,7 +608,7 @@ export function createPano() {
 		nudge,
 		/** Animate the camera to a frame, replacing any turn in progress. */
 		turnTo,
-		/** Face north level, or look straight down zoomed out when already facing north. */
+		/** Face north keeping the pitch, or look straight down zoomed out when already within two degrees of north. */
 		pointNorth,
 		/** Face the linked road nearest the camera heading. */
 		faceRoad,

@@ -2,6 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Pano } from "@/bindings.gen";
 import { LocationFlag } from "@/bindings.consts";
+import { PANO_ZOOM } from "@/lib/sv/constants";
 import { createLocation } from "@/types";
 
 const sv = vi.hoisted(() => {
@@ -260,6 +261,33 @@ describe("the camera", () => {
 	it("refuses a snapshot before a pano is ready", async () => {
 		const { pano } = await freshPano();
 		expect(() => pano.snapshot()).toThrow("Street View is not ready");
+	});
+});
+
+describe("pointing north", () => {
+	async function settledPano(start: { heading: number; pitch: number }) {
+		vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+			cb(performance.now() + 10_000);
+			return 1;
+		});
+		vi.stubGlobal("cancelAnimationFrame", () => {});
+		const { pano } = await freshPano();
+		pano.jump("A", start);
+		return pano;
+	}
+
+	it("faces north and keeps the pitch when off north", async () => {
+		const pano = await settledPano({ heading: 90, pitch: 25 });
+		pano.pointNorth();
+		expect(live().povState).toEqual({ heading: 0, pitch: 25 });
+		expect(live().setZoom).not.toHaveBeenCalledWith(PANO_ZOOM.min);
+	});
+
+	it("looks straight down zoomed out within two degrees of north at any pitch", async () => {
+		const pano = await settledPano({ heading: 1.5, pitch: 30 });
+		pano.pointNorth();
+		expect(live().zoomValue).toBe(PANO_ZOOM.min);
+		expect(live().povState).toEqual({ heading: 0, pitch: -90 });
 	});
 });
 
