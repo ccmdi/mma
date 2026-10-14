@@ -543,3 +543,15 @@ fn an_extra_that_is_an_empty_object_reads_as_no_extra() {
     ));
     assert_eq!(gone, None);
 }
+
+#[test]
+fn a_new_location_keeps_the_creation_time_it_brings_and_is_stamped_without_one() {
+    let at = |created_at| Location {
+        created_at,
+        modified_at: Some(5),
+        ..Location::default()
+    };
+    assert_eq!(at(1_718_461_800).created(99).created_at, 1_718_461_800);
+    assert_eq!(at(0).created(99).created_at, 99);
+    assert_eq!(at(1_718_461_800).created(99).modified_at, None);
+}

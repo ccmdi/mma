@@ -133,10 +133,15 @@ impl Location {
         self.modified_at = Some(util::now_unix());
     }
 
-    /// This location as a new one: created at `now` and never modified since.
+    /// This location as a new one: created at `now` unless it brings its own creation time, and
+    /// never modified since.
     pub fn created(self, now: u32) -> Self {
         Location {
-            created_at: now,
+            created_at: if self.created_at == 0 {
+                now
+            } else {
+                self.created_at
+            },
             modified_at: None,
             ..self
         }
