@@ -21,3 +21,54 @@ fn membership_and_set_operations_preserve_raw_ids() {
     a.clear();
     assert!(a.is_empty());
 }
+
+#[test]
+fn every_form_of_each_set_operation_agrees() {
+    let a: IdSet<Location> = loc_ids([1, 2, 3, 70_000]).into_iter().collect();
+    let b: IdSet<Location> = loc_ids([2, 3, 4, 140_000]).into_iter().collect();
+    let ids = |set: &IdSet<Location>| set.iter().collect::<Vec<_>>();
+
+    let union = loc_ids([1, 2, 3, 4, 70_000, 140_000]);
+    let (mut owned, mut borrowed) = (a.clone(), a.clone());
+    owned |= b.clone();
+    borrowed |= &b;
+    for set in [
+        &a | &b,
+        a.clone() | b.clone(),
+        a.clone() | &b,
+        owned,
+        borrowed,
+    ] {
+        assert_eq!(ids(&set), union);
+    }
+
+    let both = loc_ids([2, 3]);
+    let (mut owned, mut borrowed) = (a.clone(), a.clone());
+    owned &= b.clone();
+    borrowed &= &b;
+    for set in [
+        &a & &b,
+        a.clone() & b.clone(),
+        a.clone() & &b,
+        owned,
+        borrowed,
+    ] {
+        assert_eq!(ids(&set), both);
+    }
+
+    let only_a = loc_ids([1, 70_000]);
+    let (mut owned, mut borrowed) = (a.clone(), a.clone());
+    owned -= b.clone();
+    borrowed -= &b;
+    for set in [
+        &a - &b,
+        a.clone() - b.clone(),
+        a.clone() - &b,
+        owned,
+        borrowed,
+    ] {
+        assert_eq!(ids(&set), only_a);
+    }
+    assert_eq!(ids(&a), loc_ids([1, 2, 3, 70_000]));
+    assert_eq!(ids(&b), loc_ids([2, 3, 4, 140_000]));
+}

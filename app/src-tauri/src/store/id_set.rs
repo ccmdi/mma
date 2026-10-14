@@ -5,6 +5,7 @@ use std::iter::Map;
 use std::marker::PhantomData;
 use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Sub, SubAssign};
 
+/// A set of ids of one kind, stored as a compressed bitmap.
 #[derive(Clone, Default, PartialEq)]
 pub(crate) struct IdSet<T> {
     raw: RoaringBitmap,
@@ -66,30 +67,42 @@ impl<'a, T> IntoIterator for &'a IdSet<T> {
     }
 }
 macro_rules! set_op {
-    ($trait:ident, $method:ident, $assign:ident, $assign_method:ident, $op:tt) => {
+    ($trait:ident, $method:ident, $assign:ident, $assign_method:ident, $op:tt, $op_assign:tt) => {
         impl<T> $trait for &IdSet<T> {
             type Output = IdSet<T>;
-            fn $method(self, rhs: Self) -> Self::Output { IdSet { raw: &self.raw $op &rhs.raw, marker: PhantomData } }
+            fn $method(self, rhs: Self) -> Self::Output {
+                IdSet { raw: &self.raw $op &rhs.raw, marker: PhantomData }
+            }
         }
         impl<T> $trait<&Self> for IdSet<T> {
             type Output = Self;
-            fn $method(self, rhs: &Self) -> Self { &self $op rhs }
+            fn $method(mut self, rhs: &Self) -> Self {
+                self.raw $op_assign &rhs.raw;
+                self
+            }
         }
         impl<T> $trait for IdSet<T> {
             type Output = Self;
-            fn $method(self, rhs: Self) -> Self { &self $op &rhs }
+            fn $method(mut self, rhs: Self) -> Self {
+                self.raw $op_assign rhs.raw;
+                self
+            }
         }
         impl<T> $assign<&Self> for IdSet<T> {
-            fn $assign_method(&mut self, rhs: &Self) { *self = &*self $op rhs; }
+            fn $assign_method(&mut self, rhs: &Self) {
+                self.raw $op_assign &rhs.raw;
+            }
         }
         impl<T> $assign for IdSet<T> {
-            fn $assign_method(&mut self, rhs: Self) { *self = &*self $op &rhs; }
+            fn $assign_method(&mut self, rhs: Self) {
+                self.raw $op_assign rhs.raw;
+            }
         }
     };
 }
-set_op!(BitOr, bitor, BitOrAssign, bitor_assign, |);
-set_op!(BitAnd, bitand, BitAndAssign, bitand_assign, &);
-set_op!(Sub, sub, SubAssign, sub_assign, -);
+set_op!(BitOr, bitor, BitOrAssign, bitor_assign, |, |=);
+set_op!(BitAnd, bitand, BitAndAssign, bitand_assign, &, &=);
+set_op!(Sub, sub, SubAssign, sub_assign, -, -=);
 
 #[cfg(test)]
 #[path = "id_set.test.rs"]
