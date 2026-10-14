@@ -120,8 +120,8 @@ pub fn flag_assignment(key: &str, value: &serde_json::Value) -> AppResult<bool> 
 // The field vocabulary is declared once, on the `Location` struct (`#[derive(Fields)]`,
 // see `mma-fields`): `location_fields!` hands the declared table to the callback below,
 // which expands it into the built-in definitions and the value resolver. The helper
-// macros translate each row's tokens; resolver bodies are chosen by the row's category,
-// so a quirk is a declared category, never a one-off closure.
+// macros translate each row's tokens; resolver bodies are chosen by the row's category and
+// its column's type, so a quirk is a declared category or column, never a one-off closure.
 
 macro_rules! field_kind {
     (identity) => {
@@ -156,37 +156,87 @@ macro_rules! field_interned {
     };
 }
 
+/// How a column reads as a built-in field: its type, and its value on a row, `None` when absent.
+trait FieldColumn: Column {
+    const FIELD_TYPE: FieldType;
+    fn field_value(cell: Self::Cell<'_>) -> Option<serde_json::Value>;
+}
+
+impl FieldColumn for f64 {
+    const FIELD_TYPE: FieldType = FieldType::Number;
+    fn field_value(cell: f64) -> Option<serde_json::Value> {
+        Some(serde_json::json!(cell))
+    }
+}
+
+impl<T: 'static> FieldColumn for Id<T> {
+    const FIELD_TYPE: FieldType = FieldType::Number;
+    fn field_value(cell: Id<T>) -> Option<serde_json::Value> {
+        Some(serde_json::json!(cell))
+    }
+}
+
+/// The empty string is absent, the same absence a missing key has.
+impl FieldColumn for Option<compact_str::CompactString> {
+    const FIELD_TYPE: FieldType = FieldType::String;
+    fn field_value(cell: Option<&str>) -> Option<serde_json::Value> {
+        cell.filter(|s| !s.is_empty()).map(|s| serde_json::json!(s))
+    }
+}
+
+/// The empty list is absent.
+impl<T: 'static> FieldColumn for Vec<Id<T>> {
+    const FIELD_TYPE: FieldType = FieldType::Array;
+    fn field_value(cell: &[Id<T>]) -> Option<serde_json::Value> {
+        (!cell.is_empty()).then(|| serde_json::json!(cell))
+    }
+}
+
+/// A column of unix seconds read as a date field.
+trait DateColumn: Column {
+    fn date_value(cell: Self::Cell<'_>) -> Option<serde_json::Value>;
+}
+
+impl DateColumn for u32 {
+    fn date_value(cell: u32) -> Option<serde_json::Value> {
+        Some(serde_json::json!(cell as f64))
+    }
+}
+
+impl DateColumn for Option<u32> {
+    fn date_value(cell: Option<u32>) -> Option<serde_json::Value> {
+        cell.map(|ts| serde_json::json!(ts as f64))
+    }
+}
+
+macro_rules! field_type {
+    (value, $t:ty) => {
+        <$t as FieldColumn>::FIELD_TYPE
+    };
+    (date, $t:ty) => {
+        FieldType::Date
+    };
+    (len_of, $t:ty) => {
+        FieldType::Number
+    };
+    (flag, $t:ty) => {
+        FieldType::Boolean
+    };
+}
+
 /// A built-in field's value on a row, by category, read through the row's typed column
 /// reader. `None` is absence.
 macro_rules! field_value {
-    (f64, $r:ident, $c:ident, $f:ident) => {
-        Some(serde_json::json!($r.$c()))
+    (value, $t:ty, $r:ident, $c:ident, $f:ident) => {
+        <$t as FieldColumn>::field_value($r.$c())
     };
-    (id, $r:ident, $c:ident, $f:ident) => {
-        Some(serde_json::json!($r.$c()))
+    (date, $t:ty, $r:ident, $c:ident, $f:ident) => {
+        <$t as DateColumn>::date_value($r.$c())
     };
-    (u32, $r:ident, $c:ident, $f:ident) => {
-        Some(serde_json::json!($r.$c()))
-    };
-    (date_u32, $r:ident, $c:ident, $f:ident) => {
-        Some(serde_json::json!($r.$c() as f64))
-    };
-    (opt_date_u32, $r:ident, $c:ident, $f:ident) => {
-        $r.$c().map(|ts| serde_json::json!(ts as f64))
-    };
-    (opt_str_empty, $r:ident, $c:ident, $f:ident) => {
-        $r.$c()
-            .filter(|s| !s.is_empty())
-            .map(|s| serde_json::json!(s))
-    };
-    (id_list_empty, $r:ident, $c:ident, $f:ident) => {{
-        let list = $r.$c();
-        (!list.is_empty()).then(|| serde_json::json!(list))
-    }};
-    (len_of, $r:ident, $c:ident, $f:ident) => {
+    (len_of, $t:ty, $r:ident, $c:ident, $f:ident) => {
         Some(serde_json::json!($r.$c().len()))
     };
-    (flag, $r:ident, $c:ident, $f:ident) => {
+    (flag, $t:ty, $r:ident, $c:ident, $f:ident) => {
         Some(flag_value($r.$c(), LocationFlags::$f))
     };
 }
@@ -207,7 +257,7 @@ macro_rules! field_address {
 }
 
 macro_rules! expand_location_fields {
-    ($({ $key:literal, $label:literal, $ty:ident, $kind:ident, $cmp:tt, $interned:ident,
+    ($({ $key:literal, $label:literal, $ty:ty, $kind:ident, $cmp:tt, $interned:ident,
          $cat:ident, $col:ident, $f:ident }),* $(,)?) => {
         /// Every built-in field's definition, in declaration order. Nullability is probed
         /// rather than declared: whatever a default location lacks, a row can lack.
@@ -215,7 +265,7 @@ macro_rules! expand_location_fields {
             let empty = Location::default();
             let empty = RowRef::from_loc(&empty);
             vec![$(($key, FieldDef {
-                field_type: FieldType::$ty,
+                field_type: field_type!($cat, $ty),
                 label: Some($label.into()),
                 values: None,
                 comparison: field_cmp!($cmp),
@@ -234,7 +284,7 @@ macro_rules! expand_location_fields {
         /// absence: resolving an `extra` key holding JSON null agrees.
         pub(super) fn builtin_value(row: &RowRef, field: &str) -> Option<Option<serde_json::Value>> {
             match field {
-                $($key => Some(field_value!($cat, row, $col, $f)),)*
+                $($key => Some(field_value!($cat, $ty, row, $col, $f)),)*
                 _ => None,
             }
         }

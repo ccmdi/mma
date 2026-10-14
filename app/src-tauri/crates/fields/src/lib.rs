@@ -4,7 +4,8 @@
 //! The field table describes selectable fields; the column table lists stored fields
 //! in declaration order, including skipped fields.
 //!
-//! Field rows: `{ key, label, type, kind, comparison, interned, category, column, field }`.
+//! Field rows: `{ key, label, type, kind, comparison, interned, category, column, field }`, where
+//! `type` is the column's type, or `()` for a virtual field.
 //! Column rows: `{ index, field, type }`.
 //!
 //! `#[field(...)]` configures a struct field; `#[field(skip)]` excludes it from the field table.
@@ -18,7 +19,7 @@ use syn::{parse_macro_input, Data, DeriveInput, Ident, LitFloat, LitStr, Type};
 struct Row {
     key: String,
     label: String,
-    ty: Ident,
+    ty: TokenStream2,
     kind: Ident,
     cmp: TokenStream2,
     interned: Ident,
@@ -93,7 +94,6 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let mut cmp = quote!(none);
         let mut interned = format_ident!("not_interned");
         let mut date = false;
-        let mut absent_when_empty = false;
 
         attr.parse_nested_meta(|meta| {
             let p = &meta.path;
@@ -115,8 +115,6 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 interned = format_ident!("interned");
             } else if p.is_ident("date") {
                 date = true;
-            } else if p.is_ident("absent_when_empty") {
-                absent_when_empty = true;
             } else {
                 return Err(meta.error("unknown #[field] key"));
             }
@@ -127,31 +125,14 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
         let label = label.ok_or_else(|| syn::Error::new_spanned(attr, "#[field] needs a label"))?;
 
-        let (ty, cat) = match (type_name(&f.ty).as_str(), date, absent_when_empty) {
-            ("f64", false, false) => ("Number", "f64"),
-            (id, false, false) if id.starts_with("Id<") => ("Number", "id"),
-            ("u32", false, false) => ("Number", "u32"),
-            ("u32", true, false) => ("Date", "date_u32"),
-            ("Option<u32>", true, false) => ("Date", "opt_date_u32"),
-            ("Option<compact_str::CompactString>", false, true)
-            | ("Option<CompactString>", false, true) => ("String", "opt_str_empty"),
-            (list, false, true) if list.starts_with("Vec<Id<") => ("Array", "id_list_empty"),
-            (other, ..) => {
-                return Err(syn::Error::new_spanned(
-                    &f.ty,
-                    format!("no field category for type '{other}' with these attributes"),
-                ))
-            }
-        };
-
         rows.push(Row {
             key: camel(&ident.to_string()),
             label,
-            ty: format_ident!("{ty}"),
+            ty: quote!(#ty),
             kind,
             cmp,
             interned,
-            cat: format_ident!("{cat}"),
+            cat: format_ident!("{}", if date { "date" } else { "value" }),
             col: ident.clone(),
             field: ident,
         });
@@ -168,25 +149,33 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
             let mut key: Option<String> = None;
             let mut label: Option<String> = None;
             let mut of: Option<Ident> = None;
+            let mut bit: Option<Ident> = None;
             meta.parse_nested_meta(|inner| {
                 if inner.path.is_ident("key") {
                     key = Some(inner.value()?.parse::<LitStr>()?.value());
                 } else if inner.path.is_ident("label") {
                     label = Some(inner.value()?.parse::<LitStr>()?.value());
-                } else if inner.path.is_ident("of") || inner.path.is_ident("bit") {
+                } else if inner.path.is_ident("of") {
                     of = Some(inner.value()?.parse()?);
+                } else if is_flag && inner.path.is_ident("bit") {
+                    bit = Some(inner.value()?.parse()?);
                 } else {
                     return Err(inner.error("unknown key"));
                 }
                 Ok(())
             })?;
             let (Some(key), Some(label), Some(of)) = (key, label, of) else {
-                return Err(meta.error("needs key, label, and of/bit"));
+                return Err(meta.error("needs key, label, and of"));
+            };
+            let field = match (is_flag, bit) {
+                (true, Some(bit)) => bit,
+                (true, None) => return Err(meta.error("a flag names its bit")),
+                (false, _) => of.clone(),
             };
             rows.push(Row {
                 key,
                 label,
-                ty: format_ident!("{}", if is_derived { "Number" } else { "Boolean" }),
+                ty: quote!(()),
                 kind: if is_derived {
                     format_ident!("virtual_")
                 } else {
@@ -195,12 +184,8 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 cmp: quote!(none),
                 interned: format_ident!("not_interned"),
                 cat: format_ident!("{}", if is_derived { "len_of" } else { "flag" }),
-                col: if is_derived {
-                    of.clone()
-                } else {
-                    format_ident!("flags")
-                },
-                field: of,
+                col: of,
+                field,
             });
             Ok(())
         })?;
@@ -457,11 +442,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     quote! { #name: ::mma_algebra::Patchable::between(&old.#name, &new.#name), },
                 );
                 same.push(quote! { old.#name == new.#name });
-                // Flattened JSON object patches already have the parent's partial wire shape.
-                let json_object = matches!(ty, Type::Path(path) if path.path.segments.last().is_some_and(|segment| segment.ident == "Map"));
-                if !flatten || !json_object {
-                    nested.push((key_name, ty, flatten, patch_wire_type(f)?));
-                }
+                nested.push((key_name, ty, flatten));
                 continue;
             }
             slots.push(quote! {
@@ -527,46 +508,27 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             reads.push(quote! { #name: #change, });
         }
     }
-    let hidden: Vec<String> = skips
-        .iter()
-        .cloned()
-        .chain(nested.iter().map(|(key, ty, flatten, _)| {
-            if *flatten {
-                format!("keyof {}", type_name(ty))
-            } else {
-                format!("\"{key}\"")
-            }
-        }))
-        .collect();
-    let mut wire = format!("Partial<{ident}>");
-    if !hidden.is_empty() {
-        wire = format!("Partial<Omit<{ident}, {}>>", hidden.join(" | "));
-    }
-    if !keys.is_empty() {
-        wire = format!("{wire} & Pick<{ident}, {}>", keys.join(" | "));
-    }
-    let nested_wire = nested.iter().map(|(key, _, flatten, wire_ty)| {
-        if *flatten {
-            quote! {
-                let datatype = <#wire_ty as specta::Type>::definition(types);
-                let child = ::specta_typescript::primitives::inline(
-                    &::specta_typescript::Typescript::default(),
-                    types,
-                    &datatype,
-                ).expect("nested patch types are inlineable");
-                wire = format!("{wire} & ({child})");
-            }
-        } else {
-            quote! {
-            let key = #key;
-            let datatype = <#wire_ty as specta::Type>::definition(types);
-            let child = ::specta_typescript::primitives::inline(
-                &::specta_typescript::Typescript::default(),
-                types,
-                &datatype,
-            ).expect("nested patch types are inlineable");
-            wire = format!("{wire} & {{ {key}?: {child} }}");
+    let ident_name = ident.to_string();
+    let pick = (!keys.is_empty()).then(|| format!(" & Pick<{ident}, {}>", keys.join(" | ")));
+    let pick = pick.unwrap_or_default();
+    let nested_wire = nested.iter().map(|(key, ty, flatten)| {
+        quote! {
+            let value = <<#ty as ::mma_algebra::Wire>::Value as specta::Type>::definition(types);
+            let patch = <<#ty as ::mma_algebra::Wire>::Patch as specta::Type>::definition(types);
+            if patch != value {
+                let ts = ::specta_typescript::Typescript::default();
+                let child = ::specta_typescript::primitives::inline(&ts, types, &patch)
+                    .expect("nested patch types are inlineable");
+                if #flatten {
+                    let value = ::specta_typescript::primitives::render(&ts, types, &value)
+                        .expect("flattened patch values are renderable");
+                    hidden.push(format!("keyof {value}"));
+                    parts.push(format!("({child})"));
+                } else {
+                    hidden.push(format!("\"{}\"", #key));
+                    parts.push(format!("{{ {}?: {child} }}", #key));
                 }
+            }
         }
     });
     let serde = input.attrs.iter().filter(|a| a.path().is_ident("serde"));
@@ -654,10 +616,25 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
 
         impl specta::Type for #patch {
             fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
-                let mut wire = #wire.to_string();
+                let mut hidden: Vec<String> = vec![#(#skips.to_string()),*];
+                let mut parts: Vec<String> = Vec::new();
                 #(#nested_wire)*
+                let mut wire = if hidden.is_empty() {
+                    format!("Partial<{}>", #ident_name)
+                } else {
+                    format!("Partial<Omit<{}, {}>>", #ident_name, hidden.join(" | "))
+                };
+                wire.push_str(#pick);
+                for part in parts {
+                    wire = format!("{wire} & {part}");
+                }
                 specta::datatype::DataType::Reference(specta_typescript::define(wire))
             }
+        }
+
+        impl ::mma_algebra::Wire for #ident {
+            type Value = Self;
+            type Patch = #patch;
         }
 
         impl ::mma_algebra::Patchable for #ident {
@@ -681,52 +658,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     })
-}
-
-fn patch_wire_type(field: &syn::Field) -> syn::Result<TokenStream2> {
-    let mut wire = None;
-    for attr in field
-        .attrs
-        .iter()
-        .filter(|attr| attr.path().is_ident("specta"))
-    {
-        attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("type") {
-                wire = Some(meta.value()?.parse::<Type>()?);
-            }
-            Ok(())
-        })?;
-    }
-    fn patch(ty: &Type) -> TokenStream2 {
-        if let Type::Path(path) = ty {
-            if let Some(segment) = path.path.segments.last() {
-                if segment.ident == "HashMap" {
-                    if let syn::PathArguments::AngleBracketed(args) = &segment.arguments {
-                        let mut args = args.args.iter();
-                        if let (
-                            Some(syn::GenericArgument::Type(key)),
-                            Some(syn::GenericArgument::Type(value)),
-                        ) = (args.next(), args.next())
-                        {
-                            let child = patch(value);
-                            return quote!(std::collections::HashMap<#key, ::mma_algebra::Op<#value, #child, ()>>);
-                        }
-                    }
-                }
-                if segment.ident == "Unknown" || segment.ident == "Any" {
-                    return quote!(#ty);
-                }
-            }
-        }
-        quote!(::mma_algebra::Patch<#ty>)
-    }
-    Ok(wire.as_ref().map_or_else(
-        || {
-            let ty = &field.ty;
-            quote!(::mma_algebra::Patch<#ty>)
-        },
-        patch,
-    ))
 }
 
 fn patch_json_name(input: &DeriveInput, field: &syn::Field) -> syn::Result<String> {

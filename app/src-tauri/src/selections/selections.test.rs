@@ -4382,3 +4382,44 @@ fn a_field_that_cannot_take_a_write_grants_no_writer() {
         );
     }
 }
+
+#[test]
+fn each_builtin_reads_its_type_and_absence_off_its_column() {
+    let fields = FieldRegistry::builtins();
+    let types: Vec<(&str, FieldType)> = fields
+        .iter()
+        .map(|(key, def)| (key, def.field_type.clone()))
+        .collect();
+    assert_eq!(
+        types,
+        [
+            ("id", FieldType::Number),
+            ("lat", FieldType::Number),
+            ("lng", FieldType::Number),
+            ("heading", FieldType::Number),
+            ("pitch", FieldType::Number),
+            ("zoom", FieldType::Number),
+            ("panoId", FieldType::String),
+            ("tags", FieldType::Array),
+            ("createdAt", FieldType::Date),
+            ("modifiedAt", FieldType::Date),
+            ("tagCount", FieldType::Number),
+            ("loadAsPanoId", FieldType::Boolean),
+        ]
+    );
+    let blank = Location {
+        pano_id: Some("".into()),
+        created_at: 7,
+        ..Location::default()
+    };
+    let row = RowRef::from_loc(&blank);
+    assert_eq!(row.resolve_field("panoId"), None);
+    assert_eq!(row.resolve_field("tags"), None);
+    assert_eq!(row.resolve_field("modifiedAt"), None);
+    assert_eq!(row.resolve_field("tagCount"), Some(serde_json::json!(0)));
+    assert_eq!(row.resolve_field("createdAt"), Some(serde_json::json!(7.0)));
+    assert_eq!(
+        row.resolve_field("loadAsPanoId"),
+        Some(serde_json::json!(false))
+    );
+}

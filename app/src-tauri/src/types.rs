@@ -38,7 +38,7 @@ pub use raw_extra::*;
 #[serde(rename_all = "camelCase")]
 #[fields(
     derived_len(key = "tagCount", label = "Tag count", of = tags),
-    flag(key = "loadAsPanoId", label = "Load as pano ID", bit = LOAD_AS_PANO_ID)
+    flag(key = "loadAsPanoId", label = "Load as pano ID", of = flags, bit = LOAD_AS_PANO_ID)
 )]
 pub struct Location {
     /// Monotonically increasing within a map. Zero until the store assigns one.
@@ -57,7 +57,7 @@ pub struct Location {
     pub zoom: f64,
     /// The empty string means absent, the same absence a missing key has.
     #[specta(type = Option<String>)]
-    #[field(label = "Pano ID", absent_when_empty)]
+    #[field(label = "Pano ID")]
     pub pano_id: Option<compact_str::CompactString>,
     /// The location's bits, such as whether it opens exactly its stored pano.
     #[field(skip)]
@@ -65,7 +65,7 @@ pub struct Location {
     /// Tag IDs applied to this location. References interned values of the `tags`
     /// field (`Tag.id`). Empty resolves to absent, so "untagged" is the ordinary
     /// `Nothas` on an absent field.
-    #[field(label = "Tags", kind = writable, interned, absent_when_empty)]
+    #[field(label = "Tags", kind = writable, interned)]
     pub tags: Vec<Id<ValueRecord>>,
     /// Arbitrary key-value metadata. Its keys are the `extra` fields, resolved by
     /// name past the builtins.

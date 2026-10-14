@@ -50,3 +50,41 @@ fn a_field_override_restating_the_struct_policy_is_an_error() {
     })
     .is_ok());
 }
+
+fn fields_error(input: DeriveInput) -> String {
+    expand(&input)
+        .err()
+        .map(|e| e.to_string())
+        .unwrap_or_default()
+}
+
+#[test]
+fn a_virtual_field_names_its_column_with_of_and_a_flag_names_its_bit() {
+    assert!(expand(&syn::parse_quote! {
+        #[fields(
+            derived_len(key = "tagCount", label = "Tag count", of = tags),
+            flag(key = "pinned", label = "Pinned", of = flags, bit = PINNED)
+        )]
+        struct Row {
+            #[field(skip)]
+            tags: Vec<u32>,
+            #[field(skip)]
+            flags: u32,
+        }
+    })
+    .is_ok());
+    assert_eq!(
+        fields_error(syn::parse_quote! {
+            #[fields(flag(key = "pinned", label = "Pinned", of = flags))]
+            struct Row {}
+        }),
+        "a flag names its bit"
+    );
+    assert_eq!(
+        fields_error(syn::parse_quote! {
+            #[fields(derived_len(key = "tagCount", label = "Tag count", of = tags, bit = X))]
+            struct Row {}
+        }),
+        "unknown key"
+    );
+}

@@ -498,6 +498,27 @@ impl Patchable for Json {
     }
 }
 
+/// How a patchable value and its patch look on the wire.
+pub trait Wire {
+    type Value;
+    type Patch;
+}
+
+impl Wire for Value {
+    type Value = specta_typescript::Unknown;
+    type Patch = specta_typescript::Unknown;
+}
+
+impl Wire for Json {
+    type Value = HashMap<String, specta_typescript::Unknown>;
+    type Patch = Self::Value;
+}
+
+impl<K, V: Wire> Wire for HashMap<K, V> {
+    type Value = HashMap<K, V::Value>;
+    type Patch = HashMap<K, Op<V::Value, V::Patch, ()>>;
+}
+
 /// An id that names what it identifies, so `Id<Location>` and `Id<ValueRecord>` never mix.
 /// `Raw` is what the id holds: a number by default, text for ids such as a map's.
 /// Serialized as `Raw`, so the stored and wire forms are unchanged.
