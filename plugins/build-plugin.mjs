@@ -96,6 +96,7 @@ export function uiOpts(pluginDir) {
 		format: "esm",
 		outfile: join(pluginDir, "index.js"),
 		absWorkingDir: pluginsDir,
+		preserveSymlinks: true,
 		plugins: [mmaExternals(), cssImports()],
 	};
 
@@ -125,6 +126,7 @@ export function procedureOpts(pluginDir) {
 		mainFields: ["module", "main"],
 		target: "es2022",
 		absWorkingDir: pluginsDir,
+		preserveSymlinks: true,
 		logLevel: "warning",
 	};
 }
