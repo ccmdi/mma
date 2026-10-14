@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Store } from "@/store/store";
 import { appWindow } from "@/lib/window";
 import { cmd } from "@/lib/commands";
-import { subscribe, MAP_LIFECYCLE_EVENTS } from "@/lib/events";
+import { subscribe, changedLocations, MAP_LIFECYCLE_EVENTS } from "@/lib/events";
 import { useSetting } from "@/store/settings";
 import type { DiscordPresenceMode } from "@/store/settings";
 import type { PresenceActivity } from "@/bindings.gen";
@@ -83,9 +83,14 @@ export function useDiscordPresence(): void {
 			sessionStart = null;
 			push();
 		});
-		const unsubData = [...MAP_LIFECYCLE_EVENTS, "store:change" as const]
-			.filter((e) => e !== "map:open" && e !== "map:close")
-			.map((e) => subscribe(e, schedule));
+		const unsubData = [
+			...MAP_LIFECYCLE_EVENTS.filter((e) => e !== "map:open" && e !== "map:close").map((e) =>
+				subscribe(e, schedule),
+			),
+			subscribe("store:change", (e) => {
+				if (changedLocations(e)) schedule();
+			}),
+		];
 		// On focus gain, this window takes over presence; on blur, hold last state.
 		const unlistenFocus = appWindow.onFocusChanged(({ payload }) => {
 			focused = payload;
