@@ -624,7 +624,7 @@ impl Stamped for MapMeta {
 
 /// The map's own details: its row less the tag records, field definitions, and counts,
 /// which change on their own.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct MapDetails(pub MapMeta);
 
 const RESTATED: [&str; 4] = ["tags", "extra", "locationCount", "pending"];

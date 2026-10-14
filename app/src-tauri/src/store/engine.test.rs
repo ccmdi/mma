@@ -9217,3 +9217,23 @@ fn a_record_without_a_place_takes_the_one_after_the_highest() {
     kept.sequence(held.iter());
     assert_eq!(kept.order, Some(9));
 }
+
+#[test]
+fn derived_state_is_empty_only_when_no_part_of_it_moved() {
+    assert!(Derived::default().is_empty());
+    let moved = [
+        Derived {
+            location_count: Some(0),
+            ..Default::default()
+        },
+        Derived {
+            selection_list: Some(Vec::new()),
+            ..Default::default()
+        },
+        Derived {
+            writing_layers: Some(BTreeSet::new()),
+            ..Default::default()
+        },
+    ];
+    assert!(moved.iter().all(|derived| !derived.is_empty()));
+}

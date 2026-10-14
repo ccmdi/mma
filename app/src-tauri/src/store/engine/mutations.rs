@@ -19,9 +19,7 @@ use std::sync::Arc;
 pub type Change = mma_algebra::Change<Location>;
 
 /// Map state a change affected. Each field is `null` when it did not change.
-// The open-time form (`super::StoreStatus`) has every field present. The JS mirror's type
-// and merge are derived from this struct.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Default, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Derived {
     pub location_count: Option<usize>,
@@ -45,26 +43,7 @@ pub struct Derived {
 impl Derived {
     /// Nothing moved.
     pub(crate) fn is_empty(&self) -> bool {
-        let Derived {
-            location_count,
-            pending,
-            meta,
-            history,
-            field_values,
-            field_defs,
-            selection_counts,
-            selection_list,
-            writing_layers,
-        } = self;
-        location_count.is_none()
-            && pending.is_none()
-            && meta.is_none()
-            && history.is_none()
-            && field_values.is_none()
-            && field_defs.is_none()
-            && selection_counts.is_none()
-            && selection_list.is_none()
-            && writing_layers.is_none()
+        mma_algebra::is_default(self)
     }
 }
 
@@ -80,7 +59,7 @@ pub struct History {
 }
 
 /// One value of a field as the map holds it.
-#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, PartialEq, specta::Type)]
 pub struct HeldValue {
     /// Optional metadata for an interned value.
     #[specta(type = Option<HashMap<String, specta_typescript::Unknown>>)]
