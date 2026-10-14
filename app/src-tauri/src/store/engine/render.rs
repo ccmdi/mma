@@ -281,16 +281,16 @@ impl Store {
             );
             for i in 0..b.num_rows() {
                 let id = Id::new(ids.value(i));
-                if self.overlay.dead.contains(id) {
+                if self.overlay.removed.contains(id) {
                     continue;
                 }
-                match self.overlay.patches.get(&id) {
+                match self.overlay.updated.get(&id) {
                     Some(p) => emit(id, p.lat, p.lng, p.heading),
                     None => emit(id, lats.value(i), lngs.value(i), headings.value(i)),
                 }
             }
         }
-        for loc in &self.overlay.adds {
+        for loc in &self.overlay.added {
             emit(loc.id, loc.lat, loc.lng, loc.heading);
         }
 

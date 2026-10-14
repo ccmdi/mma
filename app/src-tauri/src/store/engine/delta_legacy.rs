@@ -104,9 +104,9 @@ fn write_converted(delta_path: &Path, base_path: &Path, old: MsgpackDelta) -> Ap
         None
     };
     let overlay = Overlay {
-        adds: old.adds,
-        dead: old.dead_ids.into_iter().collect(),
-        patches: old.patches.into_iter().map(|l| (l.id, l)).collect(),
+        added: old.adds,
+        removed: old.dead_ids.into_iter().collect(),
+        updated: old.patches.into_iter().map(|l| (l.id, l)).collect(),
     };
     arrow::write_arrow_ipc(delta_path, &overlay.to_delta(base.as_ref()))
 }

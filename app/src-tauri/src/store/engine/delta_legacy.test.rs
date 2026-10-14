@@ -46,9 +46,9 @@ fn a_msgpack_sidecar_converts_to_an_arrow_delta_that_reloads_to_the_same_overlay
     assert_eq!(
         reload(&delta_path),
         Overlay {
-            adds: vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)],
-            dead: [2].into_iter().map(Id::new).collect(),
-            patches: HashMap::from([(Id::new(1), patched)]),
+            added: vec![loc(10, 10.0, 10.0), loc(11, 11.0, 11.0)],
+            removed: [2].into_iter().map(Id::new).collect(),
+            updated: HashMap::from([(Id::new(1), patched)]),
         },
         "id 12 was added then removed, so no base row stands behind it"
     );
@@ -72,7 +72,7 @@ fn a_msgpack_sidecar_of_a_map_with_no_base_converts_to_its_adds() {
     assert_eq!(
         reload(&delta_path),
         Overlay {
-            adds: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)],
+            added: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)],
             ..Overlay::default()
         }
     );
@@ -207,7 +207,7 @@ fn a_msgpack_row_whose_extra_is_an_empty_object_converts_with_no_extra() {
     assert_eq!(
         reload(&delta_path),
         Overlay {
-            adds: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), kept],
+            added: vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), kept],
             ..Overlay::default()
         }
     );

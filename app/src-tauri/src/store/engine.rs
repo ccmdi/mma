@@ -40,8 +40,8 @@ use tauri::ipc::{CommandArg, CommandItem, InvokeError};
 // ---------------------------------------------------------------------------
 
 /// Central state for one open map. Holds the immutable Arrow base batch plus an in-memory
-/// overlay that accumulates mutations (adds, patches, dead). `bake_overlay` merges the
-/// overlay back into the batch. The sorted ID invariant on `batch` + `overlay_adds` enables
+/// overlay that accumulates mutations (added, updated, removed). `bake_overlay` merges the
+/// overlay back into the batch. The sorted ID invariant on `batch` + `overlay.added` enables
 /// O(log n) lookups via binary search. Render cells, the windows watching them, undo/redo
 /// stacks, and tag metadata all live here.
 ///
@@ -49,15 +49,15 @@ use tauri::ipc::{CommandArg, CommandItem, InvokeError};
 /// ([`Overlay::to_delta`]), and reopening reads it back ([`Overlay::from_delta`]).
 #[derive(Default, Debug, PartialEq)]
 pub(crate) struct Overlay {
-    pub adds: Vec<Location>,
-    pub dead: IdSet<Location>,
-    pub patches: HashMap<Id<Location>, Location>,
+    pub added: Vec<Location>,
+    pub removed: IdSet<Location>,
+    pub updated: HashMap<Id<Location>, Location>,
 }
 
 impl Overlay {
     /// No uncommitted content. An autosaved overlay is clean but stays non-empty until baked.
     pub(crate) fn is_empty(&self) -> bool {
-        self.adds.is_empty() && self.dead.is_empty() && self.patches.is_empty()
+        self.added.is_empty() && self.removed.is_empty() && self.updated.is_empty()
     }
 
     /// These changes as a commit delta against `base`: adds and patched rows' new versions
@@ -67,14 +67,14 @@ impl Overlay {
         let cols = base.map(Columns::of);
         let base_row =
             |id: Id<Location>| cols.as_ref().and_then(|c| Some(c.location(c.row_of(id)?)));
-        let mut created: Vec<Location> = self.adds.clone();
-        created.extend(self.patches.values().cloned());
+        let mut created: Vec<Location> = self.added.clone();
+        created.extend(self.updated.values().cloned());
         created.sort_unstable_by_key(|l| l.id);
         let mut removed: Vec<Location> = self
-            .patches
+            .updated
             .keys()
             .copied()
-            .chain(&self.dead)
+            .chain(&self.removed)
             .filter_map(base_row)
             .collect();
         removed.sort_unstable_by_key(|l| l.id);
@@ -89,25 +89,25 @@ impl Overlay {
         let mut overlay = Self::default();
         for l in created {
             if dead.remove(l.id) {
-                overlay.patches.insert(l.id, l);
+                overlay.updated.insert(l.id, l);
             } else {
-                overlay.adds.push(l);
+                overlay.added.push(l);
             }
         }
-        overlay.adds.sort_unstable_by_key(|l| l.id);
-        overlay.dead = dead;
+        overlay.added.sort_unstable_by_key(|l| l.id);
+        overlay.removed = dead;
         overlay
     }
 
     /// Apply these changes onto a plain location list read off disk.
     fn apply_to(self, locs: &mut Vec<Location>) {
-        locs.retain(|l| !self.dead.contains(l.id));
+        locs.retain(|l| !self.removed.contains(l.id));
         for l in locs.iter_mut() {
-            if let Some(p) = self.patches.get(&l.id) {
+            if let Some(p) = self.updated.get(&l.id) {
                 *l = p.clone();
             }
         }
-        locs.extend(self.adds);
+        locs.extend(self.added);
     }
 }
 
@@ -401,7 +401,7 @@ impl Store {
         result
     }
 
-    /// Look up a location by ID across patches, overlay_adds (binary search), and batch.
+    /// Look up a location by ID across updated rows, added rows (binary search), and batch.
     pub(crate) fn get_loc_by_id(&self, id: Id<Location>) -> Option<Location> {
         self.view().get(id).map(|row| row.to_location())
     }
@@ -421,16 +421,21 @@ impl Store {
                 .as_ref()
                 .is_some_and(|b| Columns::of(b).row_of(id).is_some())
         };
-        let mut added = self.overlay.adds.len() as u32;
+        let mut added = self.overlay.added.len() as u32;
         let mut updated = 0u32;
-        for &id in self.overlay.patches.keys() {
+        for &id in self.overlay.updated.keys() {
             if in_base(id) {
                 updated += 1;
             } else {
                 added += 1;
             }
         }
-        let removed = self.overlay.dead.iter().filter(|&id| in_base(id)).count() as u32;
+        let removed = self
+            .overlay
+            .removed
+            .iter()
+            .filter(|&id| in_base(id))
+            .count() as u32;
         Counts {
             added,
             removed,
@@ -438,7 +443,7 @@ impl Store {
         }
     }
 
-    /// Insert or restore locations in the overlay. `adds` stays sorted by id (the invariant
+    /// Insert or restore locations in the overlay. `added` stays sorted by id (the invariant
     /// `bake_overlay` asserts): fresh ids sort above everything and are appended, O(k);
     /// anything else (an undo re-adding old ids) is merged in one linear pass, O(n + k),
     /// where inserting each row into its slot would shift the rows above it, O(n * k).
@@ -449,7 +454,7 @@ impl Store {
             if let Some(ix) = self.spatial.if_built_mut() {
                 ix.insert(loc.id.get(), loc.lat, loc.lng);
             }
-            self.overlay.edit().dead.remove(loc.id);
+            self.overlay.edit().removed.remove(loc.id);
             let in_batch = self
                 .batch
                 .as_ref()
@@ -458,9 +463,9 @@ impl Store {
             if !in_batch {
                 fresh.push(loc);
             } else if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
-                self.overlay.edit().patches.remove(&loc.id);
+                self.overlay.edit().updated.remove(&loc.id);
             } else {
-                self.overlay.edit().patches.insert(loc.id, loc);
+                self.overlay.edit().updated.insert(loc.id, loc);
             }
         }
         if fresh.is_empty() {
@@ -475,7 +480,7 @@ impl Store {
                 );
             }
         }
-        let adds = &mut self.overlay.edit().adds;
+        let adds = &mut self.overlay.edit().added;
         if adds.last().is_none_or(|last| last.id < fresh[0].id) {
             adds.extend(fresh);
         } else {
@@ -518,25 +523,28 @@ impl Store {
                     log::warn!("[spatial] remove miss for id {}", loc.id);
                 }
             }
-            self.overlay.edit().patches.remove(&loc.id);
+            self.overlay.edit().updated.remove(&loc.id);
         }
-        self.overlay.edit().dead.extend(remove_set.iter().copied());
         self.overlay
             .edit()
-            .adds
+            .removed
+            .extend(remove_set.iter().copied());
+        self.overlay
+            .edit()
+            .added
             .retain(|l| !remove_set.contains(&l.id));
     }
 
     /// Reset overlay state. Called after bake or on map close.
     fn clear_overlay(&mut self) {
         let overlay = self.overlay.edit();
-        overlay.adds.clear();
-        overlay.dead.clear();
-        overlay.patches.clear();
+        overlay.added.clear();
+        overlay.removed.clear();
+        overlay.updated.clear();
         self.overlay.mark_saved();
     }
 
-    /// Merge overlay (adds, patches, dead) into the Arrow batch.
+    /// Merge overlay (added, updated, removed) into the Arrow batch.
     #[cfg(any(test, feature = "bench"))]
     pub(crate) fn bake_overlay(&mut self) {
         if let Some(batch) = self.baked_batch() {
@@ -567,14 +575,14 @@ impl Store {
         let _t = Instant::now();
 
         let Some(mut batch) = self.batch.clone() else {
-            return Some(arrow::locations_to_batch(&self.overlay.adds));
+            return Some(arrow::locations_to_batch(&self.overlay.added));
         };
 
         // Step 1: filter out dead rows
-        if !self.overlay.dead.is_empty() {
+        if !self.overlay.removed.is_empty() {
             let ids = Columns::id(&batch);
             let keep: Vec<u32> = (0..batch.num_rows())
-                .filter(|&i| !self.overlay.dead.contains(Id::new(ids.value(i))))
+                .filter(|&i| !self.overlay.removed.contains(Id::new(ids.value(i))))
                 .map(|i| i as u32)
                 .collect();
             if keep.len() < batch.num_rows() {
@@ -592,13 +600,13 @@ impl Store {
         }
 
         // Step 2: apply patches column-wise (preserves row order for sorted ID invariant)
-        if !self.overlay.patches.is_empty() {
-            batch = arrow::patch_batch(&batch, &self.overlay.patches);
+        if !self.overlay.updated.is_empty() {
+            batch = arrow::patch_batch(&batch, &self.overlay.updated);
         }
 
         // Step 3: concat adds
-        if !self.overlay.adds.is_empty() {
-            let add_batch = arrow::locations_to_batch(&self.overlay.adds);
+        if !self.overlay.added.is_empty() {
+            let add_batch = arrow::locations_to_batch(&self.overlay.added);
             let s = schema();
             batch = concat::concat_batches(&s, &[batch, add_batch]).expect("concat failed");
         }

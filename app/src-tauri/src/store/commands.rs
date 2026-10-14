@@ -140,11 +140,11 @@ async fn open_claimed_map(
     store.mmap_handle = mmap_handle;
 
     // Load uncommitted edits into the overlay; the base batch stays at the last commit.
-    // `adds` are persisted in sorted-id order.
+    // `added` rows are persisted in sorted-id order.
     if let Some(d) = delta {
         store.overlay = Tracked::unsaved(d);
     }
-    store.next_id = seed_next_id(max_id, &store.overlay.adds, history_max);
+    store.next_id = seed_next_id(max_id, &store.overlay.added, history_max);
 
     let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);

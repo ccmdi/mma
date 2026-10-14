@@ -130,7 +130,7 @@ fn setup_store_with(locs: &[Location]) -> Store {
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
-    store.next_id = seed_next_id(None, &store.overlay.adds, None);
+    store.next_id = seed_next_id(None, &store.overlay.added, None);
     store
 }
 
@@ -167,7 +167,7 @@ fn overlay_add_batch_merges_into_sorted_adds() {
 
     let ids: Vec<u32> = store
         .overlay
-        .adds
+        .added
         .iter()
         .map(|l| l.id)
         .map(Id::get)
@@ -205,7 +205,7 @@ fn undo_of_a_page_keeps_the_overlay_sorted() {
     press_undo(&mut store);
     let ids: Vec<u32> = store
         .overlay
-        .adds
+        .added
         .iter()
         .map(|l| l.id)
         .map(Id::get)
@@ -300,7 +300,7 @@ fn overlay_update_deleting_every_extra_member_clears_it() {
     );
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
     let restored = through_sidecar(&store);
-    assert_eq!(restored.patches[&Id::new(1)].extra, None);
+    assert_eq!(restored.updated[&Id::new(1)].extra, None);
 }
 
 #[test]
@@ -321,7 +321,7 @@ fn overlay_update_nonexistent_is_noop() {
 
 #[test]
 fn overlay_update_stamps_modified_at_on_session_added_row() {
-    // Row lives in overlay.adds (not yet baked): an edit must stamp modified_at,
+    // Row lives in overlay.added (not yet baked): an edit must stamp modified_at,
     // same as an edit to a committed base row.
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(&[l]);
@@ -1186,10 +1186,10 @@ fn alloc_id_increments() {
 #[test]
 fn bake_overlay_merges_adds() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)]);
-    assert_eq!(store.overlay.adds.len(), 2);
+    assert_eq!(store.overlay.added.len(), 2);
 
     store.bake_overlay();
-    assert!(store.overlay.adds.is_empty());
+    assert!(store.overlay.added.is_empty());
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
     // locations still accessible
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
@@ -1206,7 +1206,7 @@ fn bake_overlay_applies_patches() {
 
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 99.0);
-    assert!(store.overlay.patches.is_empty());
+    assert!(store.overlay.updated.is_empty());
 }
 
 #[test]
@@ -1385,7 +1385,7 @@ fn undo_update_when_location_is_in_baked_batch() {
     let l = loc_with_heading(1, 10.0, 20.0, 0.0);
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
-    // l is now in the batch, not in overlay_adds
+    // l is now in the batch, not in overlay.added
 
     // update via overlay patch
     let updated = loc_with_heading(1, 10.0, 20.0, 90.0);
@@ -1542,7 +1542,7 @@ fn a_patch_index_counts_a_later_move_out_of_its_cell() {
 }
 
 // -----------------------------------------------------------------------
-// overlay_update on items in overlay_adds (not yet baked)
+// overlay_update on items in overlay.added (not yet baked)
 // -----------------------------------------------------------------------
 
 #[test]
@@ -1553,10 +1553,10 @@ fn overlay_update_on_overlay_add_item() {
     overlay_update(&mut store, &patch!(1; lat: 50.0));
     let got = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(got.lat, 50.0);
-    // should still be in overlay_adds, not overlay_patches
-    assert_eq!(store.overlay.adds.len(), 1);
-    assert_eq!(store.overlay.adds[0].lat, 50.0);
-    assert!(store.overlay.patches.is_empty());
+    // should still be in overlay.added, not overlay.updated
+    assert_eq!(store.overlay.added.len(), 1);
+    assert_eq!(store.overlay.added[0].lat, 50.0);
+    assert!(store.overlay.updated.is_empty());
 }
 
 // -----------------------------------------------------------------------
@@ -1613,9 +1613,9 @@ fn bake_overlay_all_three_simultaneously() {
 
     store.bake_overlay();
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
-    assert!(store.overlay.adds.is_empty());
-    assert!(store.overlay.patches.is_empty());
-    assert!(store.overlay.dead.is_empty());
+    assert!(store.overlay.added.is_empty());
+    assert!(store.overlay.updated.is_empty());
+    assert!(store.overlay.removed.is_empty());
     // verify data
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 180.0);
@@ -1650,23 +1650,23 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
     let l11 = store.get_loc_by_id(Id::new(11)).unwrap();
     store.overlay_remove([l3, l11].iter());
     assert!(
-        store.overlay.dead.contains(Id::new(11)),
+        store.overlay.removed.contains(Id::new(11)),
         "sanity: an added-then-removed id is dead"
     );
 
     let restored = through_sidecar(&store);
 
     assert_eq!(
-        restored.adds.iter().map(|l| l.id).collect::<Vec<_>>(),
+        restored.added.iter().map(|l| l.id).collect::<Vec<_>>(),
         loc_ids([10, 12]),
         "adds come back sorted by id"
     );
     assert_eq!(
         restored,
         Overlay {
-            adds: store.overlay.adds.clone(),
-            dead: [3].into_iter().map(Id::new).collect(),
-            patches: store.overlay.patches.clone(),
+            added: store.overlay.added.clone(),
+            removed: [3].into_iter().map(Id::new).collect(),
+            updated: store.overlay.updated.clone(),
         },
         "an id added then removed has no base row behind it and is dropped"
     );
@@ -1681,9 +1681,9 @@ fn delta_overlay_preserves_extra_fields() {
     let mut store = store_with_full_overlay_base();
     store.overlay_add(vec![l.clone()]);
     let restored = through_sidecar(&store);
-    assert_eq!(restored.adds[0].extra, l.extra);
-    assert_eq!(restored.adds[0].pano_id, l.pano_id);
-    assert_eq!(restored.adds[0].modified_at, l.modified_at);
+    assert_eq!(restored.added[0].extra, l.extra);
+    assert_eq!(restored.added[0].pano_id, l.pano_id);
+    assert_eq!(restored.added[0].modified_at, l.modified_at);
 }
 
 #[test]
@@ -1833,14 +1833,14 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
 
     // Remove it
     store.overlay_remove(slice::from_ref(&l).iter());
-    assert!(store.overlay.dead.contains(Id::new(1)));
-    assert!(!store.overlay.adds.iter().any(|l| l.id == Id::new(1)));
+    assert!(store.overlay.removed.contains(Id::new(1)));
+    assert!(!store.overlay.added.iter().any(|l| l.id == Id::new(1)));
 
     // Re-add it (overlay_add on a known batch ID goes to patches)
     store.overlay_add(vec![loc(1, 50.0, 60.0)]);
     // After re-add, it should NOT be in dead
     assert!(
-        !store.overlay.dead.contains(Id::new(1)),
+        !store.overlay.removed.contains(Id::new(1)),
         "re-added ID should be removed from dead set"
     );
 }
@@ -1850,8 +1850,8 @@ fn overlay_consistency_add_new_id_goes_to_adds() {
     let mut store = setup_store_with(&[]);
     store.batch = Some(empty_batch());
     store.overlay_add(vec![loc(99, 10.0, 20.0)]);
-    assert!(store.overlay.adds.iter().any(|l| l.id == Id::new(99)));
-    assert!(!store.overlay.patches.contains_key(&Id::new(99)));
+    assert!(store.overlay.added.iter().any(|l| l.id == Id::new(99)));
+    assert!(!store.overlay.updated.contains_key(&Id::new(99)));
 }
 
 #[test]
@@ -1861,8 +1861,8 @@ fn overlay_consistency_update_batch_id_goes_to_patches() {
     store.bake_overlay();
     // Now l is in the batch
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    assert!(store.overlay.patches.contains_key(&Id::new(1)));
-    assert!(!store.overlay.adds.iter().any(|l| l.id == Id::new(1)));
+    assert!(store.overlay.updated.contains_key(&Id::new(1)));
+    assert!(!store.overlay.added.iter().any(|l| l.id == Id::new(1)));
 }
 
 #[test]
@@ -1871,10 +1871,10 @@ fn overlay_consistency_update_add_id_stays_in_adds() {
     store.batch = Some(empty_batch());
     store.overlay_add(vec![loc(1, 10.0, 20.0)]);
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    // Should still be in overlay_adds, updated in place
-    assert_eq!(store.overlay.adds.len(), 1);
-    assert_eq!(store.overlay.adds[0].heading, 45.0);
-    assert!(!store.overlay.patches.contains_key(&Id::new(1)));
+    // Should still be in overlay.added, updated in place
+    assert_eq!(store.overlay.added.len(), 1);
+    assert_eq!(store.overlay.added[0].heading, 45.0);
+    assert!(!store.overlay.updated.contains_key(&Id::new(1)));
 }
 
 #[test]
@@ -1883,14 +1883,14 @@ fn overlay_consistency_remove_clears_patches() {
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     overlay_update(&mut store, &patch!(1; heading: 45.0));
-    assert!(store.overlay.patches.contains_key(&Id::new(1)));
+    assert!(store.overlay.updated.contains_key(&Id::new(1)));
 
     store.overlay_remove([l].iter());
     assert!(
-        !store.overlay.patches.contains_key(&Id::new(1)),
+        !store.overlay.updated.contains_key(&Id::new(1)),
         "remove should clear patches for the ID"
     );
-    assert!(store.overlay.dead.contains(Id::new(1)));
+    assert!(store.overlay.removed.contains(Id::new(1)));
 }
 
 #[test]
@@ -2171,14 +2171,14 @@ fn delta_overlay_only_includes_actual_changes() {
     overlay_update(&mut store, &patch!(1; heading: 90.0));
 
     let overlay = through_sidecar(&store);
-    assert!(overlay.adds.is_empty(), "no new locations added");
-    assert!(overlay.dead.is_empty(), "no locations deleted");
+    assert!(overlay.added.is_empty(), "no new locations added");
+    assert!(overlay.removed.is_empty(), "no locations deleted");
     assert_eq!(
-        overlay.patches.len(),
+        overlay.updated.len(),
         1,
         "only modified location in patches"
     );
-    assert_eq!(overlay.patches[&Id::new(1)].heading, 90.0);
+    assert_eq!(overlay.updated[&Id::new(1)].heading, 90.0);
 }
 
 #[test]
@@ -2195,11 +2195,11 @@ fn delta_overlay_round_trip_preserves_store_state() {
     overlay_update(&mut store, &patch!(2; heading: 180.0));
 
     let restored = through_sidecar(&store);
-    assert_eq!(restored.adds.len(), 1);
-    assert_eq!(restored.adds[0].id, Id::new(3));
-    assert!(restored.dead.contains(Id::new(1)));
-    assert_eq!(restored.patches.len(), 1);
-    assert_eq!(restored.patches[&Id::new(2)].heading, 180.0);
+    assert_eq!(restored.added.len(), 1);
+    assert_eq!(restored.added[0].id, Id::new(3));
+    assert!(restored.removed.contains(Id::new(1)));
+    assert_eq!(restored.updated.len(), 1);
+    assert_eq!(restored.updated[&Id::new(2)].heading, 180.0);
 }
 
 // -----------------------------------------------------------------------
@@ -2861,12 +2861,12 @@ fn overlay_add_distinguishes_batch_vs_new_ids() {
     store.bake_overlay();
     // Adding id=1 again should go to patches (exists in batch)
     store.overlay_add(vec![loc(1, 99.0, 99.0)]);
-    assert!(store.overlay.patches.contains_key(&Id::new(1)));
-    assert!(store.overlay.adds.is_empty());
+    assert!(store.overlay.updated.contains_key(&Id::new(1)));
+    assert!(store.overlay.added.is_empty());
     // Adding id=5 should go to adds (not in batch)
     store.overlay_add(vec![loc(5, 50.0, 50.0)]);
-    assert_eq!(store.overlay.adds.len(), 1);
-    assert_eq!(store.overlay.adds[0].id, Id::new(5));
+    assert_eq!(store.overlay.added.len(), 1);
+    assert_eq!(store.overlay.added[0].id, Id::new(5));
 }
 
 // -----------------------------------------------------------------------
@@ -4630,8 +4630,8 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened.meta = Tracked::new((*store.meta).clone());
     reopened.batch = Some(empty_batch());
     reopened.overlay = Tracked::unsaved(delta);
-    reopened.next_id = seed_next_id(None, &reopened.overlay.adds, history_max);
-    reopened.alive_count = Tracked::new(reopened.overlay.adds.len());
+    reopened.next_id = seed_next_id(None, &reopened.overlay.added, history_max);
+    reopened.alive_count = Tracked::new(reopened.overlay.added.len());
     reopened.steps[Timeline::Edits] = Tracked::new(edits);
     reopened
 }
@@ -5308,13 +5308,13 @@ fn undo_to_base_clears_overlay_patch() {
     let entry = Change::from_sides(vec![edited], vec![base]);
     forward(&mut store, &entry);
     assert!(
-        store.overlay.patches.contains_key(&Id::new(1)),
+        store.overlay.updated.contains_key(&Id::new(1)),
         "edit should create a patch"
     );
 
     reverse(&mut store, &entry);
     assert!(
-        store.overlay.patches.is_empty(),
+        store.overlay.updated.is_empty(),
         "undo to base state should clear the patch"
     );
 }
@@ -5351,11 +5351,11 @@ fn overlay_update_back_to_base_clears_patch() {
     store.bake_overlay();
 
     overlay_update(&mut store, &patch!(1; heading: 90.0));
-    assert!(store.overlay.patches.contains_key(&Id::new(1)));
+    assert!(store.overlay.updated.contains_key(&Id::new(1)));
 
     overlay_update(&mut store, &patch!(1; heading: 0.0));
     assert!(
-        !store.overlay.patches.contains_key(&Id::new(1)),
+        !store.overlay.updated.contains_key(&Id::new(1)),
         "a row edited back to its base is the base row again, whatever its stamp"
     );
 }
@@ -5456,8 +5456,8 @@ fn spatial_rebuilds_when_alive_count_drifts() {
 
     // Simulate a bulk path bypassing the overlay fns: the len/alive mismatch
     // must force a rebuild instead of returning stale results.
-    let pos = store.overlay.adds.partition_point(|l| l.id < Id::new(2));
-    store.overlay.edit().adds.insert(pos, loc(2, 10.0, 10.0));
+    let pos = store.overlay.added.partition_point(|l| l.id < Id::new(2));
+    store.overlay.edit().added.insert(pos, loc(2, 10.0, 10.0));
     *store.alive_count.edit() += 1;
     assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 5.0), vec![1, 2]);
 }
@@ -5926,13 +5926,13 @@ fn delta_bytes_roundtrip_exact() {
     let store = store_with_full_overlay();
     let parsed = through_sidecar(&store);
 
-    assert_eq!(parsed.adds, store.overlay.adds, "adds preserved exactly");
+    assert_eq!(parsed.added, store.overlay.added, "adds preserved exactly");
     assert_eq!(
-        parsed.dead, store.overlay.dead,
+        parsed.removed, store.overlay.removed,
         "dead ids preserved exactly"
     );
     assert_eq!(
-        parsed.patches, store.overlay.patches,
+        parsed.updated, store.overlay.updated,
         "patches preserved exactly"
     );
 }
@@ -6087,7 +6087,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
         "id 6 appears twice"
     );
 
-    // get_loc_by_id resolves via overlay.adds (binary search) before ever touching
+    // get_loc_by_id resolves via overlay.added (binary search) before ever touching
     // the batch, so single-id lookups don't see the duplicate -- only bulk
     // enumeration (alive_count, collect, tag counts, render) is corrupted.
     assert_eq!(store.get_loc_by_id(Id::new(5)), Some(loc(5, 5.0, 5.0)));

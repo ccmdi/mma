@@ -8,34 +8,34 @@ use crate::sync::{
 use std::collections::{HashMap, HashSet};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
-enum Change {
-    None,
+enum RowDiff {
+    Unchanged,
     Added,
     Removed,
-    Modified,
+    Updated,
 }
 
-fn classify(base_hash: Option<&String>, cur: Option<&NormalizedSyncLocation>) -> Change {
+fn classify(base_hash: Option<&String>, cur: Option<&NormalizedSyncLocation>) -> RowDiff {
     match (base_hash, cur) {
-        (None, None) => Change::None,
-        (None, Some(_)) => Change::Added,
-        (Some(_), None) => Change::Removed,
+        (None, None) => RowDiff::Unchanged,
+        (None, Some(_)) => RowDiff::Added,
+        (Some(_), None) => RowDiff::Removed,
         (Some(b), Some(c)) => {
             if sync_hash(c) == *b {
-                Change::None
+                RowDiff::Unchanged
             } else {
-                Change::Modified
+                RowDiff::Updated
             }
         }
     }
 }
 
-fn record(side: &mut SidePlan, change: Change, key: &IdentityKey) {
+fn record(side: &mut SidePlan, change: RowDiff, key: &IdentityKey) {
     match change {
-        Change::Added => side.create.push(key.clone()),
-        Change::Modified => side.update.push(key.clone()),
-        Change::Removed => side.delete.push(key.clone()),
-        Change::None => {}
+        RowDiff::Added => side.create.push(key.clone()),
+        RowDiff::Updated => side.update.push(key.clone()),
+        RowDiff::Removed => side.delete.push(key.clone()),
+        RowDiff::Unchanged => {}
     }
 }
 
@@ -62,24 +62,24 @@ pub(crate) fn compute_sync_plan(
         let lc = classify(b, l);
         let rc = classify(b, r);
 
-        if lc == Change::None && rc == Change::None {
+        if lc == RowDiff::Unchanged && rc == RowDiff::Unchanged {
             continue;
         }
-        if rc == Change::None {
+        if rc == RowDiff::Unchanged {
             record(&mut plan.push, lc, key); // only local moved
             continue;
         }
-        if lc == Change::None {
+        if lc == RowDiff::Unchanged {
             record(&mut plan.pull, rc, key); // only remote moved
             continue;
         }
 
         // Both sides moved since base.
-        if lc == Change::Removed && rc == Change::Removed {
+        if lc == RowDiff::Removed && rc == RowDiff::Removed {
             plan.converged.push(key.clone()); // both deleted -> agree
             continue;
         }
-        if lc == Change::Removed || rc == Change::Removed {
+        if lc == RowDiff::Removed || rc == RowDiff::Removed {
             plan.conflicts.push(Conflict {
                 key: key.clone(),
                 kind: ConflictKind::DeleteUpdate,
@@ -96,7 +96,7 @@ pub(crate) fn compute_sync_plan(
         }
         plan.conflicts.push(Conflict {
             key: key.clone(),
-            kind: if lc == Change::Added && rc == Change::Added {
+            kind: if lc == RowDiff::Added && rc == RowDiff::Added {
                 ConflictKind::AddAdd
             } else {
                 ConflictKind::UpdateUpdate

@@ -108,7 +108,7 @@ fn a_counts_failure_after_delta_write_reopens_data_without_ahead_history() {
         .unwrap();
     assert_eq!(history_rows, 0);
     assert_eq!(count, 0);
-    assert_eq!(load_delta(&delta_path).unwrap().adds, vec![expected]);
+    assert_eq!(load_delta(&delta_path).unwrap().added, vec![expected]);
 }
 
 #[test]

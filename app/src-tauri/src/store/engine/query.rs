@@ -346,9 +346,9 @@ impl Store {
     pub(super) fn view(&self) -> selections::LocView<'_> {
         selections::LocView::new(
             self.batch.as_ref(),
-            &self.overlay.dead,
-            &self.overlay.patches,
-            &self.overlay.adds,
+            &self.overlay.removed,
+            &self.overlay.updated,
+            &self.overlay.added,
             None,
             Some(&self.selections.ids),
             None,
