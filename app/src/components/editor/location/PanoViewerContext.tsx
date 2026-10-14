@@ -61,10 +61,10 @@ export function PanoViewerProvider({ children }: { children: ReactNode }) {
 	const defaultPano = onScreen?.defaultPano ?? null;
 
 	const geocodeProvider = useSetting("geocodeProvider");
+	const spawn = open?.spawn ?? null;
 	const looked = useAsyncSticky(
-		() =>
-			location && geocodeProvider !== "google" ? reverseGeocode(location.lat, location.lng) : null,
-		[location?.lat, location?.lng, geocodeProvider],
+		() => (spawn && geocodeProvider !== "google" ? reverseGeocode(spawn.lat, spawn.lng) : null),
+		[spawn?.lat, spawn?.lng, geocodeProvider],
 		open?.layer ?? null,
 	);
 	const geo = useMemo(

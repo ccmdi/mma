@@ -144,6 +144,16 @@ describe("open location", () => {
 		Editor.close();
 	});
 
+	it("a draft that walks away keeps where the opening began", async () => {
+		await Editor.open(7);
+		h.panoId = "B";
+		h.lat = 5;
+		await Editor.draft().edit({ panoId: "B", lat: 5 });
+		expect(Editor.get().open?.location).toMatchObject({ panoId: "B", lat: 5 });
+		expect(Editor.get().open?.spawn).toMatchObject({ id: 7, panoId: "A", lat: 0 });
+		Editor.close();
+	});
+
 	it("drops the open row when leaving the location pane", async () => {
 		await Editor.open(7);
 		expect(Editor.get().open?.location?.id).toBe(7);

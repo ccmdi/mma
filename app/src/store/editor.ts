@@ -22,6 +22,8 @@ export interface Opening {
 	layer: Layer;
 	/** The draft as last read from its layer. */
 	location: Location;
+	/** The location as this opening began. */
+	readonly spawn: Location;
 }
 
 /** What the editor shows: the open location, the pane, and the panels that lead to them. */
@@ -166,7 +168,7 @@ async function opening(
 ): Promise<Opened> {
 	return {
 		kind: "opening",
-		opening: { id, location, origin, layer: layer ?? (await Layer.open()) },
+		opening: { id, location, spawn: location, origin, layer: layer ?? (await Layer.open()) },
 	};
 }
 

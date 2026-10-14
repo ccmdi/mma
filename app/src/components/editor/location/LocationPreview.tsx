@@ -258,7 +258,7 @@ export function LocationPreview() {
 	// Reads the open location at call time so the callback stays referentially
 	// stable (it is a memo'd PanoControls prop).
 	const handleReturnToSpawn = useCallback(async () => {
-		const loc = Editor.get().open?.location;
+		const loc = Editor.get().open?.spawn;
 		if (!loc || !pano.exists()) return;
 		if ((await pano.show(loc)).status === "superseded") return;
 		await edit((location) => setPinned(location, false));

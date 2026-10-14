@@ -3889,6 +3889,8 @@ export interface Opening {
     layer: Layer;
     /** The draft as last read from its layer. */
     location: Location;
+    /** The location as this opening began. */
+    readonly spawn: Location;
 }
 /** What the editor shows: the open location, the pane, and the panels that lead to them. */
 export interface EditorState {
