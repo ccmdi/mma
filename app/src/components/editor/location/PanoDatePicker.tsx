@@ -90,7 +90,7 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 	const showBadges = useSetting("showCameraBadges");
 	const exactDateFormat = useSetting("exactDateFormat");
 	const dateTimezone = useSetting("dateTimezone");
-	const { lat, lng } = location ?? { lat: 0, lng: 0 };
+	const { lat, lng } = Editor.usePosition();
 	const resolvedTz = useTimezone(lat, lng, dateTimezone === "location");
 	const triggerCameraType = useCameraType(
 		currentEntry?.panoId ?? currentPano?.id ?? null,

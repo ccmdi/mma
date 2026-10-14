@@ -47,3 +47,15 @@ describe("Seen.loadPano", () => {
 		expect(jump).toHaveBeenCalledWith({ lat: 1, lng: 2 }, { heading: 90, pitch: 5, zoom: 1 });
 	});
 });
+
+describe("Seen.onMap", () => {
+	it("finds an entry's location only while that location still shows the entry's pano", async () => {
+		expect(
+			await Seen.onMap([
+				{ locationId: 7, panoId: null },
+				{ locationId: 7, panoId: "moved" },
+				{ locationId: null, panoId: null },
+			]),
+		).toEqual([active, null, null]);
+	});
+});

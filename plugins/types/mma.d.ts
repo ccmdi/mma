@@ -3868,6 +3868,8 @@ declare const Editor: {
     refresh: () => Promise<void>;
     /** The open draft's edit and save, the same pair for as long as this opening lasts. @unstable */
     draft: () => Draft;
+    /** Where the open location stands, or 0,0 while nothing is open. @unstable */
+    usePosition: () => LatLng;
     /** Whether procedure work is still writing to the open draft. @unstable */
     useWriting: () => boolean;
     /** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
@@ -5657,6 +5659,8 @@ export type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" |
 export type SeenPano = Pick<SeenEntry, "locationId" | "lat" | "lng" | "heading" | "pitch" | "zoom" | "countryCode"> & Pick<Location, "panoId">;
 /** @unstable */
 declare const Seen: {
+    /** The map location each entry was seen at, while it still shows the entry's pano; null otherwise. @unstable */
+    onMap: (list: readonly Pick<SeenPano, "locationId" | "panoId">[]) => Promise<(Location | null)[]>;
     /** Fetch a page of the seen (visited-panorama) history. @unstable */
     entries: (limit?: number, offset?: number, filter?: SeenFilter, thumbnails?: boolean) => Promise<SeenEntry[]>;
     /** Number of seen entries matching the filter (all when omitted). @unstable */

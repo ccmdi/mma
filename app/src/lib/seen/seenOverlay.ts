@@ -1,6 +1,5 @@
 // Toggle the seen-pano overlay and keep its data current.
 // The shared map scene renders its dots and handles picking.
-import { Query } from "@/store/query";
 import { Editor } from "@/store/editor";
 import { log } from "@/lib/util/log";
 import { latest } from "@/lib/util/latest";
@@ -39,21 +38,9 @@ export function getSeenOnMapIds(): ReadonlySet<number> {
 	return onMapIds;
 }
 
-/** Which seen entries map to a still-existing location on the current map (matching pano).
- *  Mirrors openSeenEntry's "open the real one" check, batched into a single lookup. */
 async function computeOnMap(list: SeenEntry[]): Promise<Set<number>> {
-	const locIds = [...new Set(list.map((e) => e.locationId).filter((x): x is number => x != null))];
-	if (locIds.length === 0) return new Set();
-	const onMap = await Query.read(
-		{ type: "Locations", locations: locIds, name: null },
-		{ kind: "locations" },
-	);
-	const panoById = new Map(onMap.map((l) => [l.id, l.panoId]));
-	const out = new Set<number>();
-	for (const e of list) {
-		if (e.locationId != null && panoById.get(e.locationId) === e.panoId) out.add(e.id);
-	}
-	return out;
+	const found = await Seen.onMap(list);
+	return new Set(list.filter((_, i) => found[i]).map((e) => e.id));
 }
 
 const loads = latest<{ entries: SeenEntry[]; onMapIds: Set<number> }>({
@@ -92,15 +79,10 @@ export async function openSeenEntry(index: number): Promise<void> {
 	const entry = entries[index];
 	if (!entry) return;
 	Seen.skipNext(entry.panoId);
-	if (entry.locationId != null) {
-		const [existing] = await Query.read(
-			{ type: "Locations", locations: [entry.locationId], name: null },
-			{ kind: "locations" },
-		);
-		if (existing && existing.panoId === entry.panoId) {
-			void Editor.open(existing.id);
-			return;
-		}
+	const [existing] = await Seen.onMap([entry]);
+	if (existing) {
+		void Editor.open(existing.id);
+		return;
 	}
 	const preview = createLocation({
 		lat: entry.lat,

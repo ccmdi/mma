@@ -10,6 +10,7 @@ vi.mock("@/lib/seen/seen", () => ({
 	Seen: {
 		count: async () => 1,
 		entries: () => new Promise<SeenEntry[]>((resolve) => (h.release = resolve)),
+		onMap: async (list: unknown[]) => list.map(() => null),
 	},
 }));
 

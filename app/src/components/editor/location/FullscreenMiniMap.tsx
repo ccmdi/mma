@@ -54,8 +54,7 @@ async function ensureMinimapHost(
 }
 
 export function FullscreenMiniMap() {
-	const location = Editor.use((s) => s.open?.location ?? null);
-	const { lat, lng } = location ?? { lat: 0, lng: 0 };
+	const { lat, lng } = Editor.usePosition();
 	const containerRef = useRef<HTMLDivElement>(null);
 	const rootRef = useRef<HTMLDivElement>(null);
 	const scale = useSetting("fullscreenMinimapScale");

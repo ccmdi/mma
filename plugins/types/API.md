@@ -3928,6 +3928,16 @@ Editor.use<T>(selector: (s: EditorState) => T): T
 
 Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`.
 
+#### Editor.usePosition
+
+`unstable` · unreleased
+
+```ts
+Editor.usePosition(): LatLng
+```
+
+Where the open location stands, or 0,0 while nothing is open.
+
 #### Editor.useWriting
 
 `unstable` · unreleased
@@ -9424,6 +9434,18 @@ Seen.maps(): Promise<SeenMapInfo[]>
 ```
 
 Maps that have seen-history entries.
+
+#### Seen.onMap
+
+`unstable` · unreleased
+
+```ts
+Seen.onMap(
+  list: readonly Pick<SeenPano, "locationId" | "panoId">[],
+): Promise<(Location | null)[]>
+```
+
+The map location each entry was seen at, while it still shows the entry's pano; null otherwise.
 
 #### Seen.panoChanged
 

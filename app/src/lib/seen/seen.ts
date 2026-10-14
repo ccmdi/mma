@@ -90,6 +90,22 @@ async function writeEntry(entry: PendingEntry, pov: LocationPOV, thumbnail: stri
 }
 
 export const Seen = {
+	/** The map location each entry was seen at, while it still shows the entry's pano; null otherwise. @unstable */
+	onMap: async (
+		list: readonly Pick<SeenPano, "locationId" | "panoId">[],
+	): Promise<(Location | null)[]> => {
+		const ids = [...new Set(list.flatMap((e) => (e.locationId == null ? [] : [e.locationId])))];
+		if (ids.length === 0) return list.map(() => null);
+		const rows = await Query.read(
+			{ type: "Locations", locations: ids, name: null },
+			{ kind: "locations" },
+		);
+		const byId = new Map(rows.map((row) => [row.id, row]));
+		return list.map((e) => {
+			const row = e.locationId == null ? undefined : byId.get(e.locationId);
+			return row && row.panoId === e.panoId ? row : null;
+		});
+	},
 	/** Fetch a page of the seen (visited-panorama) history. */
 	entries: async (
 		limit = 100,
@@ -173,14 +189,7 @@ export const Seen = {
 	loadPano: async (entry: SeenPano, viewer: PanoViewer) => {
 		if (entry.panoId) Seen.skipNext(entry.panoId);
 
-		const [fetched] =
-			entry.locationId != null
-				? await Query.read(
-						{ type: "Locations", locations: [entry.locationId], name: null },
-						{ kind: "locations" },
-					)
-				: [];
-		const existing = fetched && fetched.panoId === entry.panoId ? fetched : null;
+		const [existing] = await Seen.onMap([entry]);
 
 		if (existing) {
 			const active = Editor.get().open?.location;

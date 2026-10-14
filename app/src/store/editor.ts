@@ -1,7 +1,7 @@
 import { Store } from "./store";
 import { Query } from "./query";
 import type { Location } from "@/bindings.gen";
-import type { MaybeLocation, WorkArea, Patch } from "@/types";
+import type { LatLng, MaybeLocation, WorkArea, Patch } from "@/types";
 import { locId } from "@/types";
 import { Layer } from "./layer";
 import { log } from "@/lib/util/log";
@@ -208,6 +208,12 @@ export const Editor = {
 		let draft = drafts.get(open.layer);
 		if (!draft) drafts.set(open.layer, (draft = draftOf(open)));
 		return draft;
+	},
+	/** Where the open location stands, or 0,0 while nothing is open. @unstable */
+	usePosition: (): LatLng => {
+		const lat = Editor.use((s) => s.open?.location.lat ?? 0);
+		const lng = Editor.use((s) => s.open?.location.lng ?? 0);
+		return { lat, lng };
 	},
 	/** Whether procedure work is still writing to the open draft. @unstable */
 	useWriting: (): boolean => {
