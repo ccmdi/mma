@@ -2,6 +2,8 @@
 //! Commits merge the overlay into the batch. Rows stay sorted by id for fast lookup;
 //! render frames and selection membership are updated from the same row changes.
 
+use crate::procedure::engine;
+use crate::procedure::registry::Providers;
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::{Counts, Delta, Id, Ids};
@@ -9,6 +11,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::{fmt, mem};
+use tokio::sync;
 
 mod dependents;
 pub use frame::*;
@@ -28,7 +31,7 @@ use rayon::prelude::*;
 
 use crate::selections;
 use crate::store::arrow::{schema, Columns};
-use crate::store::{arrow, maps};
+use crate::store::{arrow, maps, storage};
 use arrow_select::{concat, take};
 use specta::datatype::DataType;
 use specta::function::FunctionArg;
@@ -152,7 +155,7 @@ pub struct Store {
     /// Whether disk lacks some of this state, as last derived.
     pub(crate) has_unsaved: Tracked<bool>,
     /// Field dependencies declared by providers.
-    pub(crate) dependents: std::sync::Arc<mma_algebra::Dependents<String>>,
+    pub(crate) dependents: Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
     pub(crate) pending: HashMap<String, Pending>,
 }
@@ -259,7 +262,7 @@ impl Store {
     /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.writing_layers
-            .replace(crate::procedure::engine::pending_writers(&self.meta.id));
+            .replace(engine::pending_writers(&self.meta.id));
         self.shipped();
         let fields: Vec<_> = self
             .registry()
@@ -639,9 +642,9 @@ pub struct StoreManager {
     pub(crate) stores: HashMap<Id<MapMeta, String>, Store>,
     pub(crate) window_map: HashMap<WindowLabel, Id<MapMeta, String>>,
     /// Registered providers, whose field dependencies every opened store shares.
-    pub(crate) providers: crate::procedure::registry::Providers,
+    pub(crate) providers: Providers,
     /// Each map's files lock, held across every read-to-write of its files on disk.
-    files: HashMap<Id<MapMeta, String>, Arc<tokio::sync::Mutex<()>>>,
+    files: HashMap<Id<MapMeta, String>, Arc<sync::Mutex<()>>>,
 }
 
 impl StoreManager {
@@ -656,7 +659,7 @@ impl StoreManager {
 
     /// The lock a map's files are written under: an open, save, commit, close, or write to
     /// the closed map holds it, so none of them interleave.
-    pub(crate) fn files(&mut self, map_id: &Id<MapMeta, String>) -> Arc<tokio::sync::Mutex<()>> {
+    pub(crate) fn files(&mut self, map_id: &Id<MapMeta, String>) -> Arc<sync::Mutex<()>> {
         self.files.entry(map_id.clone()).or_default().clone()
     }
 
@@ -752,9 +755,9 @@ pub(crate) fn with_target<R>(
     let result = f(&mut store)?;
     if let Some(unsaved) = store.unsaved()? {
         unsaved.write(
-            &crate::store::storage::open_db()?,
+            &storage::open_db()?,
             &map_id,
-            &crate::store::storage::arrow_delta_path(&map_id)?,
+            &storage::arrow_delta_path(&map_id)?,
         )?;
     }
     Ok(result)

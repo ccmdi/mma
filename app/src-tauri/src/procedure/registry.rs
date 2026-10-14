@@ -1,6 +1,7 @@
 //! The providers the app has registered, and the field dependencies they declare.
 
 use super::engine::{BatchMode, ProcedureDecl, ProviderDecl, Sink};
+use crate::selections::tree::SelectionInput;
 use crate::selections::Selector;
 use crate::store::engine::StoreState;
 use crate::types::{AppError, AppResult};
@@ -44,7 +45,7 @@ pub enum RunItem {
         /// Extra-field keys to produce. When absent, every key the provider declares.
         #[serde(default)]
         fields: Option<Vec<String>>,
-        #[specta(type = Selector<crate::selections::tree::SelectionInput>)]
+        #[specta(type = Selector<SelectionInput>)]
         select: Selector,
         /// Replaces the registered configuration, as JSON text.
         #[serde(default)]

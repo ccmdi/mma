@@ -11,6 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
+use tokio::task;
 
 /// Load the uncommitted-delta sidecar. An unreadable delta is set aside as a
 /// `.corrupt` sibling - never left in place where the next autosave would
@@ -57,7 +58,7 @@ pub(crate) async fn close_window(state: &StoreState, label: &WindowLabel) -> App
         let Some((map_id, store)) = unbound else {
             return Ok(());
         };
-        return tokio::task::spawn_blocking(move || {
+        return task::spawn_blocking(move || {
             if let Some(unsaved) = store.unsaved()? {
                 unsaved.write(
                     &storage::open_db()?,
@@ -109,7 +110,7 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
 
     // Legacy files may be unsorted; enforce the sorted ID invariant once.
     let (batch, mmap_handle) = {
-        let ids = arrow::Columns::id(&batch);
+        let ids = Columns::id(&batch);
         let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
         if sorted || batch.num_rows() == 0 {
             (batch, mmap_handle)
@@ -141,7 +142,7 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     let n = batch.num_rows();
     let max_id = n
         .checked_sub(1)
-        .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
+        .map(|last| Id::new(Columns::id(&batch).value(last)));
 
     let conn = storage::open_db()?;
     let edits = load_edit_history(&conn, map_id)?;

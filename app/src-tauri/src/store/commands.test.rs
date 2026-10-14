@@ -1,6 +1,10 @@
 use super::*;
 use crate::selections::PolygonGeometry;
+use crate::test_util;
 use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
+use tauri::async_runtime;
 
 fn square(w: f64, s: f64, e: f64, n: f64) -> Vec<[f64; 2]> {
     vec![[w, s], [e, s], [e, n], [w, n], [w, s]]
@@ -64,7 +68,7 @@ fn polygon_fill_covers_exactly_what_the_polygon_selects() {
         square(40.0, 0.0, 50.0, 10.0),
         square(44.0, 4.0, 46.0, 6.0),
     ]]);
-    let pieces = tauri::async_runtime::block_on(polygon_fill(drawn.clone()));
+    let pieces = async_runtime::block_on(polygon_fill(drawn.clone()));
     assert_eq!(pieces.len(), 3);
     let (first, rest) = pieces.split_first().unwrap();
     let mut fill = geom(first.clone());
@@ -84,7 +88,7 @@ fn polygon_fill_covers_exactly_what_the_polygon_selects() {
 #[test]
 fn polygon_fill_of_nothing_is_empty() {
     let flat = geom(vec![vec![[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]]);
-    assert!(tauri::async_runtime::block_on(polygon_fill(flat)).is_empty());
+    assert!(async_runtime::block_on(polygon_fill(flat)).is_empty());
 }
 
 #[test]
@@ -150,12 +154,9 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
         "copy-src",
         &[(1, "shared"), (2, "Only here"), (3, "Unused")],
     );
-    let mut copies = vec![
-        crate::test_util::loc(0, 1.0, 1.0),
-        crate::test_util::loc(0, 2.0, 2.0),
-    ];
-    copies[0].tags = crate::test_util::tag_ids([1]);
-    copies[1].tags = crate::test_util::tag_ids([1, 2]);
+    let mut copies = vec![test_util::loc(0, 1.0, 1.0), test_util::loc(0, 2.0, 2.0)];
+    copies[0].tags = test_util::tag_ids([1]);
+    copies[1].tags = test_util::tag_ids([1, 2]);
     let adds = copies.into_iter().map(Op::Add).collect();
     source.edit(
         &Target::Map { id: None },
@@ -164,7 +165,7 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
         &mut None,
     );
 
-    let closed = crate::store::storage::tests::map_on_disk("copy-closed");
+    let closed = storage::tests::map_on_disk("copy-closed");
     let open = Id::<MapMeta, String>::new("copy-open".into());
     let window = WindowLabel("w".into());
     let mut mgr = StoreManager::new();
@@ -228,19 +229,19 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
 
 #[test]
 fn opening_a_map_waits_while_its_files_are_being_written() {
-    let map = crate::store::storage::tests::map_on_disk("open-locked");
+    let map = storage::tests::map_on_disk("open-locked");
     let state = Arc::new(StoreState::new(StoreManager::new()));
     let files = state.lock().unwrap().files(&map);
     let writing = files.blocking_lock();
 
-    let opening = std::thread::spawn({
+    let opening = thread::spawn({
         let (state, map) = (state.clone(), map.clone());
         move || {
-            tauri::async_runtime::block_on(open_claimed_map(&WindowLabel("w".into()), &state, map))
+            async_runtime::block_on(open_claimed_map(&WindowLabel("w".into()), &state, map))
                 .unwrap();
         }
     });
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(100));
     assert!(!opening.is_finished(), "the open must wait for the writer");
     assert!(!state.lock().unwrap().stores.contains_key(&map));
 
@@ -286,7 +287,7 @@ fn copy_over(existing: &[Location], sources: &[Location]) -> (Vec<Location>, u32
 fn at_pano(lat: f64, lng: f64, pano: &str) -> Location {
     Location {
         pano_id: Some(pano.into()),
-        ..crate::test_util::loc(0, lat, lng)
+        ..test_util::loc(0, lat, lng)
     }
 }
 
@@ -303,14 +304,11 @@ fn a_copy_skips_by_pano_id_before_coordinates() {
 
 #[test]
 fn a_copy_skips_a_panoless_location_by_its_exact_coordinates() {
-    let existing = [
-        crate::test_util::loc(0, 10.0, 20.0),
-        at_pano(30.0, 40.0, "CCC"),
-    ];
+    let existing = [test_util::loc(0, 10.0, 20.0), at_pano(30.0, 40.0, "CCC")];
     let sources = [
-        crate::test_util::loc(0, 10.0, 20.0),
-        crate::test_util::loc(0, 30.0, 40.0),
-        crate::test_util::loc(0, 10.0, 20.000001),
+        test_util::loc(0, 10.0, 20.0),
+        test_util::loc(0, 30.0, 40.0),
+        test_util::loc(0, 10.0, 20.000001),
     ];
     let (fresh, skipped) = copy_over(&existing, &sources);
     // The first matches pano-less coords, the second CCC's coords; the third is off by
@@ -352,7 +350,7 @@ fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
         &mut store,
         &WindowLabel("w".into()),
         &at_other,
-        vec![Op::Add(crate::test_util::loc(0, 1.0, 2.0))],
+        vec![Op::Add(test_util::loc(0, 1.0, 2.0))],
         IncomingRecords::new(),
     )
     .unwrap();
@@ -363,7 +361,7 @@ fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
         &mut store,
         &WindowLabel("w".into()),
         &Target::Map { id: None },
-        vec![Op::Add(crate::test_util::loc(0, 3.0, 4.0))],
+        vec![Op::Add(test_util::loc(0, 3.0, 4.0))],
         IncomingRecords::new(),
     )
     .unwrap();

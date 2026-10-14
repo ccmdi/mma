@@ -1,6 +1,7 @@
 //! Resolved selection membership and the bitmasks shipped to the render overlay.
 
 use super::*;
+use crate::selections::tree::SelectionOp;
 use crate::selections::{self, Selection, Selector};
 use crate::store::id_set::IdSet;
 use crate::types::Location;
@@ -131,7 +132,7 @@ impl Store {
                 .records
                 .get(field)
                 .into_iter()
-                .flat_map(|pile| pile.keys_iter())
+                .flat_map(Change::keys_iter)
                 .map(|id| id.to_string())
                 .collect()
         });
@@ -395,10 +396,7 @@ impl SelectionState {
 }
 
 impl Store {
-    pub(crate) fn edit_selections(
-        &mut self,
-        op: &crate::selections::tree::SelectionOp,
-    ) -> MutationResult<ListedSelection> {
+    pub(crate) fn edit_selections(&mut self, op: &SelectionOp) -> MutationResult<ListedSelection> {
         let rows = op.apply(&self.selections.list());
         self.replace_selections(rows)
     }

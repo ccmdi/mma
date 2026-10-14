@@ -1,12 +1,13 @@
 //! Polygon containment and bounding boxes for polygon selections.
 
 use super::*;
+use std::iter;
 
 impl PolygonGeometry {
     /// Every polygon of the geometry (the primary one, then the extras), each an outer
     /// ring followed by its holes.
     pub(crate) fn parts(&self) -> impl Iterator<Item = &[Vec<[f64; 2]>]> {
-        std::iter::once(self.coordinates.as_slice())
+        iter::once(self.coordinates.as_slice())
             .chain(self.extra_polygons.iter().flatten().map(Vec::as_slice))
     }
 
@@ -90,11 +91,7 @@ impl DistanceTo {
             let candidates = self.within(scope, radius);
             if let Some(id) = scope
                 .within(&candidates)
-                .rank_by(
-                    |row| Some(self.score(row)),
-                    Some(1),
-                    super::Order::Ascending,
-                )
+                .rank_by(|row| Some(self.score(row)), Some(1), Order::Ascending)
                 .first()
             {
                 return Some(*id);

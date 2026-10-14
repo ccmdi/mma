@@ -1,9 +1,11 @@
 use super::*;
+use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::store::engine::{Finished, Store, WindowLabel};
 use crate::test_util::loc;
 use mma_algebra::Id;
+use std::path::PathBuf;
 
-fn staged(dir: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
+fn staged(dir: &Path) -> (PathBuf, PathBuf) {
     let base = dir.join("m.arrow");
     let delta = dir.join("m_delta.arrow");
     arrow::write_arrow_ipc(&base, &arrow::locations_to_batch(&[loc(1, 1.0, 1.0)])).unwrap();
@@ -67,8 +69,8 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
         &mut None,
         Default::default(),
     );
-    store.edit_selections(&crate::selections::tree::SelectionOp::Add {
-        selections: vec![crate::selections::tree::SelectionInput {
+    store.edit_selections(&SelectionOp::Add {
+        selections: vec![SelectionInput {
             selector: Selector::Everything,
             color: None,
         }],

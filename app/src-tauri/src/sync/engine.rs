@@ -3,13 +3,13 @@
 //! The command also applies pulls locally as one undoable edit.
 
 use crate::store::maps::MapMeta;
-use crate::types::{wire_str_enum, AppError, AppResult};
+use crate::types::{wire_str_enum, AppError, AppResult, LocationFlags, RawExtra};
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::store::engine::{StoreState, ValueRecord};
+use crate::store::engine::{Mutation, Store, StoreState, ValueRecord};
 use crate::store::storage;
 use crate::sync::diff::{compute_sync_plan, summarize};
 use crate::sync::file::FileProvider;
@@ -23,6 +23,7 @@ use crate::sync::{
     SideCounts, SyncDirection, SyncPlan, SyncProvider,
 };
 use crate::types::shape::MapPart;
+use crate::util;
 use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use std::mem;
 use std::time::Instant;
@@ -85,7 +86,7 @@ pub struct SyncReconcileResult {
     pub adopted: u32,
     pub conflicts: Vec<Conflict>,
     /// The change the pull half made locally, or `null` when nothing was pulled.
-    pub mutation: Option<crate::store::engine::Mutation>,
+    pub mutation: Option<Mutation>,
     /// The locations the pull removed.
     pub removed_ids: Vec<Id<Location>>,
 }
@@ -823,7 +824,7 @@ pub async fn sync_reconcile(
         })
         .collect();
     if !created_rows.is_empty() || !update_rows.is_empty() || !out.pull_delete_ids.is_empty() {
-        let mut conn = crate::store::storage::open_db()?;
+        let mut conn = storage::open_db()?;
         if !created_rows.is_empty() {
             remote_mapping::upsert(&mut conn, &provider, &map_id, &created_rows)?;
         }
@@ -850,12 +851,9 @@ pub async fn sync_reconcile(
 /// Apply pulled rows with their tags matched to the map's by name, as one undoable edit.
 /// Return the mutation and mappings for newly created rows.
 fn apply_pull(
-    store: &mut crate::store::engine::Store,
+    store: &mut Store,
     out: &ReconcileOutcome,
-) -> AppResult<(
-    Option<crate::store::engine::Mutation>,
-    Vec<RemoteMappingRow>,
-)> {
+) -> AppResult<(Option<Mutation>, Vec<RemoteMappingRow>)> {
     use crate::store::engine::{IncomingRecords, Target, ValueRecord};
     let edit_count = out.pull_creates.len()
         + out.pull_updates.len()
@@ -941,10 +939,10 @@ fn pulled_location(
         pitch: n.pitch,
         zoom: n.zoom,
         pano_id: n.pano_id.as_deref().map(Into::into),
-        flags: crate::types::LocationFlags::from_bits_truncate(n.flags),
+        flags: LocationFlags::from_bits_truncate(n.flags),
         tags: n.tags.iter().map(|t| tag_of(t)).collect(),
-        extra: n.extra.as_ref().and_then(crate::types::RawExtra::from_map),
-        created_at: crate::util::now_unix(),
+        extra: n.extra.as_ref().and_then(RawExtra::from_map),
+        created_at: util::now_unix(),
         modified_at: None,
     }
 }
@@ -963,7 +961,7 @@ fn pulled_patch(
         pitch: p.pitch,
         zoom: p.zoom,
         pano_id: p.pano_id.as_ref().map(|s| s.as_str().into()),
-        flags: p.flags.map(crate::types::LocationFlags::from_bits_truncate),
+        flags: p.flags.map(LocationFlags::from_bits_truncate),
         tags: p
             .tags
             .as_ref()

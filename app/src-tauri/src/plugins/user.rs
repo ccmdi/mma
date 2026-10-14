@@ -10,6 +10,7 @@ use reqwest::blocking;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::http::Response;
 use tokio::task;
 
@@ -184,8 +185,8 @@ fn read_manifest(dir: &Path) -> Option<PluginManifest> {
 #[tauri::command]
 #[specta::specta]
 pub fn claim_plugin_update_pass() -> bool {
-    static CLAIMED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    !CLAIMED.swap(true, std::sync::atomic::Ordering::SeqCst)
+    static CLAIMED: AtomicBool = AtomicBool::new(false);
+    !CLAIMED.swap(true, Ordering::SeqCst)
 }
 
 /// Manifests of every installed plugin.

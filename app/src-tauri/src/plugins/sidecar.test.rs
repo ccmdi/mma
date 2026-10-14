@@ -1,4 +1,6 @@
 use super::*;
+use rustls::crypto::ring;
+use std::net::{TcpListener, TcpStream};
 
 fn parse(json: &str) -> AppResult<SidecarSpec> {
     let val: serde_json::Value = serde_json::from_str(json)?;
@@ -263,14 +265,14 @@ fn path_traversal_entries_are_skipped_during_extraction() {
     assert!(!tmp.path().parent().unwrap().join("evil.txt").exists());
 }
 
-fn listen() -> (std::net::TcpListener, u16) {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+fn listen() -> (TcpListener, u16) {
+    let _ = ring::default_provider().install_default();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let port = listener.local_addr().unwrap().port();
     (listener, port)
 }
 
-fn accept_one(listener: std::net::TcpListener) -> std::net::TcpStream {
+fn accept_one(listener: TcpListener) -> TcpStream {
     use std::io::Read;
     let (mut sock, _) = listener.accept().unwrap();
     let mut request = [0u8; 4096];

@@ -1,5 +1,6 @@
 use super::*;
 use crate::selections::Selector;
+use std::string::ToString;
 
 fn def(id: &str, fields: &[&str], provides: &[&str], requires: &[&str]) -> ProviderDef {
     serde_json::from_value(serde_json::json!({
@@ -15,7 +16,7 @@ fn def(id: &str, fields: &[&str], provides: &[&str], requires: &[&str]) -> Provi
     .unwrap()
 }
 
-fn outputs(dependents: &mma_algebra::Dependents<String>, input: &str) -> Vec<String> {
+fn outputs(dependents: &Dependents<String>, input: &str) -> Vec<String> {
     let mut outputs: Vec<String> = dependents
         .outputs_of([&input.to_string()])
         .into_iter()
@@ -27,7 +28,7 @@ fn outputs(dependents: &mma_algebra::Dependents<String>, input: &str) -> Vec<Str
 fn run(id: &str, fields: Option<&[&str]>) -> RunItem {
     RunItem::Provider {
         id: id.into(),
-        fields: fields.map(|f| f.iter().map(|s| s.to_string()).collect()),
+        fields: fields.map(|f| f.iter().map(ToString::to_string).collect()),
         select: Selector::Everything,
         config: None,
         force: None,

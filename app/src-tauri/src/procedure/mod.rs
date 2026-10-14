@@ -12,6 +12,7 @@ use crate::plugins::sidecar::SidecarStream;
 use crate::sv::pano::{PanoAnswer, PanoQuery};
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::Id;
+use std::sync::Arc;
 
 /// One location's answer from a procedure, as the JSON its module emitted.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, specta::Type)]
@@ -40,7 +41,7 @@ pub trait ProcHost {
     /// Every pano lookup, answered aligned to `queries`.
     fn panos(&mut self, queries: &[PanoQuery]) -> Vec<PanoAnswer>;
     /// Where this host delivers partial results, when its caller listens for them.
-    fn emitter(&self) -> Option<std::sync::Arc<engine::Partials>> {
+    fn emitter(&self) -> Option<Arc<engine::Partials>> {
         None
     }
     /// Locations within `radius_m` metres of a coordinate, nearest first, each carrying

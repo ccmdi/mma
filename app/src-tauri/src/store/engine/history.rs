@@ -4,6 +4,7 @@ use super::*;
 use crate::types::{wire_str_enum, Location};
 use mma_algebra::{Change, Delta, Id};
 use mma_fields::Delta;
+use std::ops::{Index, IndexMut};
 use std::sync::Arc;
 
 /// What one write did to an interned field's records.
@@ -99,14 +100,14 @@ impl Timelines {
     }
 }
 
-impl std::ops::Index<Timeline> for Timelines {
+impl Index<Timeline> for Timelines {
     type Output = Tracked<StepStacks>;
     fn index(&self, timeline: Timeline) -> &Self::Output {
         &self.0[timeline as usize]
     }
 }
 
-impl std::ops::IndexMut<Timeline> for Timelines {
+impl IndexMut<Timeline> for Timelines {
     fn index_mut(&mut self, timeline: Timeline) -> &mut Self::Output {
         &mut self.0[timeline as usize]
     }

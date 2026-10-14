@@ -1,8 +1,10 @@
 use super::*;
-use crate::store::engine::Stack;
+use crate::store::arrow;
+use crate::store::engine::{Change, Stack, Timeline};
 use crate::sync::{
     sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, RemoteSnapshot, SyncDirection,
 };
+use crate::test_util;
 use crate::test_util::loc_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
@@ -1473,7 +1475,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         id: Id::new("sync-test".into()),
         ..Default::default()
     });
-    store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
+    store.batch = Some(arrow::locations_to_batch(&[]));
     let old_tag = ValueRecord {
         id: Id::new(5),
         name: Some("Old".into()),
@@ -1484,11 +1486,8 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         "tags".into(),
         Tracked::new([(Id::new(5), old_tag)].into_iter().collect()),
     );
-    store.put(&crate::store::engine::Change {
-        added: vec![
-            crate::test_util::loc(1, 0.0, 0.0),
-            crate::test_util::loc(2, 1.0, 1.0),
-        ],
+    store.put(&Change {
+        added: vec![test_util::loc(1, 0.0, 0.0), test_util::loc(2, 1.0, 1.0)],
         ..Default::default()
     });
     store.next_id = mma_algebra::Ids::starting_at(Id::new(3));
@@ -1537,10 +1536,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     let mutation = mutation.expect("the pull landed a change");
     assert_eq!(mutation.keys, loc_ids([3]));
     assert!(store.pending.is_empty(), "a pull leaves no layer behind");
-    assert_eq!(
-        store.steps[crate::store::engine::Timeline::Edits].len(Stack::Undo),
-        1
-    );
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     let created = store.get_loc_by_id(Id::new(3)).expect("create landed");
     let meta = &store.records["tags"];
@@ -1574,7 +1570,7 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
         id: Id::new("sync-test".into()),
         ..Default::default()
     });
-    store.batch = Some(crate::store::arrow::locations_to_batch(&[]));
+    store.batch = Some(arrow::locations_to_batch(&[]));
     let records = [(7, "Kept"), (8, "Pulled")].map(|(id, name)| {
         (
             Id::new(id),
@@ -1588,9 +1584,9 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
     store
         .records
         .insert("tags".into(), Tracked::new(records.into_iter().collect()));
-    let mut tagged = crate::test_util::loc(1, 0.0, 0.0);
-    tagged.tags = crate::test_util::tag_ids([7]);
-    store.put(&crate::store::engine::Change {
+    let mut tagged = test_util::loc(1, 0.0, 0.0);
+    tagged.tags = test_util::tag_ids([7]);
+    store.put(&Change {
         added: vec![tagged],
         ..Default::default()
     });
@@ -1623,9 +1619,9 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
     apply_pull(&mut store, &out).unwrap();
     let updated = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(updated.heading, 45.0);
-    assert_eq!(updated.tags, crate::test_util::tag_ids([7]));
+    assert_eq!(updated.tags, test_util::tag_ids([7]));
     assert_eq!(
         store.get_loc_by_id(Id::new(2)).unwrap().tags,
-        crate::test_util::tag_ids([8])
+        test_util::tag_ids([8])
     );
 }

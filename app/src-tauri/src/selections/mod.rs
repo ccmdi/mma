@@ -38,8 +38,7 @@ pub use partition::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 wire_str_enum! {
     /// Which locations of a review session a selection holds.
@@ -325,7 +324,7 @@ impl Selection {
         if children.is_empty() {
             return None;
         }
-        crate::selections::tree::regrouped(
+        tree::regrouped(
             &Selection {
                 selector,
                 ..self.clone()
@@ -586,7 +585,7 @@ impl FieldIndex {
         &self,
         change: &Change<(Id<Location>, Option<Vec<String>>)>,
         touched: impl IntoIterator<Item = String>,
-    ) -> std::collections::HashSet<String> {
+    ) -> HashSet<String> {
         let mut counts =
             change.count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
         for key in touched {

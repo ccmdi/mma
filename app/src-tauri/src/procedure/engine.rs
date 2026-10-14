@@ -6,6 +6,7 @@ use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
+use crate::selections::tree::SelectionInput;
 use crate::selections::{neighborhood, RowRef, Selector};
 use crate::store::engine::{Store, StoreState, Target, WindowLabel};
 use crate::store::maps::MapMeta;
@@ -85,7 +86,7 @@ pub struct ProviderDecl {
     pub fields: Vec<String>,
     #[serde(default)]
     pub requires: Vec<String>,
-    #[specta(type = Selector<crate::selections::tree::SelectionInput>)]
+    #[specta(type = Selector<SelectionInput>)]
     pub select: Selector,
     pub batch: BatchMode,
     #[serde(default)]
@@ -619,7 +620,7 @@ pub(crate) struct RunCtx<'a> {
     pub results: Arc<ResultSink>,
     pub neighbors: Arc<NeighborCache>,
     /// The undo entry every provider's pages share, so the whole run undoes as one step.
-    pub undo_group: Arc<std::sync::Mutex<Option<u64>>>,
+    pub undo_group: Arc<Mutex<Option<u64>>>,
 }
 
 impl RunCtx<'_> {
@@ -657,8 +658,7 @@ impl RunCtx<'_> {
                     neighborhood::Index::build(all.rows(), radius_m, fields)
                 }
                 Target::Pending { .. } => {
-                    let rows =
-                        store.collect(&self.target, &crate::selections::Selector::Everything);
+                    let rows = store.collect(&self.target, &Selector::Everything);
                     neighborhood::Index::build(rows.iter().map(RowRef::from_loc), radius_m, fields)
                 }
             };
@@ -709,7 +709,7 @@ pub(crate) fn run_all(
 ) {
     let _registration = RunGuard { state, run_id };
     let gates = producers(providers);
-    let undo_group = Arc::new(std::sync::Mutex::new(None));
+    let undo_group = Arc::new(Mutex::new(None));
     let (tx, rx) = mpsc::channel::<usize>();
     let mut pending: Vec<usize> = (0..providers.len()).collect();
     let mut done: Vec<bool> = vec![false; providers.len()];
@@ -874,7 +874,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
                 let _alive = live.instance();
                 run_instance(
                     ctx, decl, session, endpoint, prog, &mut *proc, batch_rx, &out_tx, config,
-                )
+                );
             });
         }
         let applier = s.spawn(|| apply_pages(ctx, decl, out_rx));
@@ -971,7 +971,7 @@ fn page_batches(
                 .filter(|id| todo_ids.contains(*id) && !workable.contains(*id))
                 .collect();
             let rows = store.collect(
-                &crate::store::engine::Target::Map { id: None },
+                &Target::Map { id: None },
                 &Selector::Locations {
                     locations: page
                         .iter()
@@ -988,7 +988,7 @@ fn page_batches(
             let (mut rows, mut unmet, mut skipped) = (Vec::new(), Vec::new(), 0);
             for row in store.collect(
                 &ctx.target,
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: (page).to_vec(),
                     name: None,
                 },
@@ -1071,7 +1071,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                         store
                             .collect(
                                 &ctx.target,
-                                &crate::selections::Selector::Locations {
+                                &Selector::Locations {
                                     locations: vec![patch.id],
                                     name: None,
                                 },
@@ -1103,8 +1103,8 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
             Ok(held.then(|| {
                 store.collect(
                     &ctx.target,
-                    &crate::selections::Selector::Locations {
-                        locations: (&ids).to_vec(),
+                    &Selector::Locations {
+                        locations: ids.to_vec(),
                         name: None,
                     },
                 )
@@ -1586,10 +1586,10 @@ fn register_store_run(
     let map_id = manager.target_map(label, &target)?;
     let store = manager.store_for_map(&map_id)?;
     if let Target::Pending { name } = &target {
-        if !store
+        if store
             .pending
             .get(name)
-            .is_some_and(|pending| !pending.stage.closed())
+            .is_none_or(|pending| pending.stage.closed())
         {
             return Err(AppError(format!(
                 "pending layer '{name}' is no longer available"

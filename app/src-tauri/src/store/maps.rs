@@ -17,6 +17,8 @@ use crate::util::now_iso;
 use arrow_array::RecordBatch;
 use mma_algebra::{Counts, Id, Patch, Patchable};
 use rusqlite::{params, Connection};
+use serde::{de::Error as _, ser::Error as _};
+use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
@@ -615,7 +617,7 @@ const RESTATED: [&str; 3] = ["extra", "locationCount", "pending"];
 
 impl serde::Serialize for MapDetails {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-        let mut row = serde_json::to_value(&self.0).map_err(serde::ser::Error::custom)?;
+        let mut row = serde_json::to_value(&self.0).map_err(S::Error::custom)?;
         if let Some(row) = row.as_object_mut() {
             for key in RESTATED {
                 row.remove(key);
@@ -628,21 +630,21 @@ impl serde::Serialize for MapDetails {
 impl<'de> serde::Deserialize<'de> for MapDetails {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let mut row = serde_json::Map::deserialize(d)?;
-        let blank = serde_json::to_value(MapMeta::default()).map_err(serde::de::Error::custom)?;
+        let blank = serde_json::to_value(MapMeta::default()).map_err(D::Error::custom)?;
         for key in RESTATED {
             row.entry(key).or_insert_with(|| blank[key].clone());
         }
         serde_json::from_value(serde_json::Value::Object(row))
             .map(MapDetails)
-            .map_err(serde::de::Error::custom)
+            .map_err(D::Error::custom)
     }
 }
 
 impl specta::Type for MapDetails {
-    fn definition(types: &mut specta::Types) -> specta::datatype::DataType {
+    fn definition(types: &mut specta::Types) -> DataType {
         MapMeta::definition(types);
         let omitted = RESTATED.map(|key| format!("\"{key}\"")).join(" | ");
-        specta::datatype::DataType::Reference(specta_typescript::define(format!(
+        DataType::Reference(specta_typescript::define(format!(
             "Omit<MapMeta, {omitted}>"
         )))
     }

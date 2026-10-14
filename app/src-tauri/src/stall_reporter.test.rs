@@ -1,12 +1,13 @@
 use super::*;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel, Receiver};
+use windows_sys::Win32::Foundation;
 
 fn frames(v: &[&str]) -> Vec<String> {
     v.iter().map(ToString::to_string).collect()
 }
 
 #[inline(never)]
-fn hold_until_released(release: std::sync::mpsc::Receiver<()>) {
+fn hold_until_released(release: Receiver<()>) {
     release.recv().expect("test releases the blocked worker");
 }
 
@@ -36,7 +37,7 @@ fn captures_the_stack_of_a_blocked_thread() {
             thread::yield_now();
         }
         unsafe {
-            windows_sys::Win32::Foundation::CloseHandle(handle);
+            Foundation::CloseHandle(handle);
         }
         latest
     } else {

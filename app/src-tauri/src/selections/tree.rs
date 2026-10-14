@@ -521,7 +521,7 @@ impl SelectionOp {
                     let selection = seed.clone().compile();
                     match out.iter().position(|r| r.selection.key == selection.key) {
                         Some(i) if matches!(self, Self::Toggle { .. }) => {
-                            out = splice_rows(&out, &[(vec![i], lifted(&out[i].selection))])
+                            out = splice_rows(&out, &[(vec![i], lifted(&out[i].selection))]);
                         }
                         Some(i) => out[i].selection = selection,
                         None => out.push(ListedSelection {

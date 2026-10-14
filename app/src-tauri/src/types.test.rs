@@ -2,6 +2,7 @@ use super::*;
 use crate::test_util::tag_ids;
 use mma_algebra::{Id, Patch, Patchable};
 use std::collections::HashSet;
+use std::marker::PhantomData;
 
 type ExtraField = mma_algebra::Field<RawExtra>;
 
@@ -393,7 +394,7 @@ fn derived_whole_value_policies_and_field_overrides() {
 
 #[test]
 fn a_location_patch_can_be_read_but_not_written() {
-    struct Probe<T>(std::marker::PhantomData<T>);
+    struct Probe<T>(PhantomData<T>);
     trait Unwritable {
         fn writable(&self) -> bool {
             false
@@ -405,8 +406,8 @@ fn a_location_patch_can_be_read_but_not_written() {
             true
         }
     }
-    assert!(Probe::<Location>(std::marker::PhantomData).writable());
-    assert!(!Probe::<Patch<Location>>(std::marker::PhantomData).writable());
+    assert!(Probe::<Location>(PhantomData).writable());
+    assert!(!Probe::<Patch<Location>>(PhantomData).writable());
 }
 
 #[test]
@@ -443,9 +444,9 @@ fn raw_extra_derived_merge_is_recursive_and_replacement_preserves_null() {
         nullable.patched(&Location::between(&nullable, &nullable)),
         nullable
     );
-    let old = std::collections::HashMap::from([(0u32, before)]);
-    let new = std::collections::HashMap::from([(0u32, nullable)]);
-    let edits = std::collections::HashMap::between(&old, &new);
+    let old = HashMap::from([(0u32, before)]);
+    let new = HashMap::from([(0u32, nullable)]);
+    let edits = HashMap::between(&old, &new);
     assert_eq!(old.patched(&edits), new);
 }
 

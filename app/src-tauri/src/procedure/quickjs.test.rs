@@ -1,4 +1,5 @@
 use super::*;
+use crate::procedure::engine::Partials;
 use crate::types::Location;
 use mma_algebra::Id;
 use serde_json::Value as Json;
@@ -53,7 +54,7 @@ struct MockProcHost {
     /// Interleaving of `line` pulls and `progress` calls, to pin that a line handler's
     /// progress reaches the host before the next line is pulled.
     trace: Arc<Mutex<Vec<&'static str>>>,
-    partials: Option<Arc<crate::procedure::engine::Partials>>,
+    partials: Option<Arc<Partials>>,
 }
 
 impl ProcHost for MockProcHost {
@@ -116,7 +117,7 @@ impl ProcHost for MockProcHost {
     fn fail(&mut self, id: Id<Location>) {
         self.failed.push(id.get());
     }
-    fn emitter(&self) -> Option<Arc<crate::procedure::engine::Partials>> {
+    fn emitter(&self) -> Option<Arc<Partials>> {
         self.partials.clone()
     }
     fn aborted(&self) -> bool {
@@ -435,7 +436,7 @@ fn emit_reaches_the_hosts_emitter() {
     let pages = Arc::new(Mutex::new(Vec::new()));
     let seen = pages.clone();
     let mut host = MockProcHost {
-        partials: Some(Arc::new(crate::procedure::engine::Partials::new(
+        partials: Some(Arc::new(Partials::new(
             3,
             "m.js".into(),
             Box::new(move |r| seen.lock().unwrap().push(r)),

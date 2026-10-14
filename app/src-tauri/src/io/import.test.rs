@@ -2,16 +2,17 @@ use super::*;
 use crate::selections::Selector;
 use crate::store::engine::frame::tests::Captured;
 use crate::store::engine::tests::{shipped_count, shipped_record, FeedCapture};
-use crate::store::engine::{Store, ValueRecord, WindowLabel};
+use crate::store::engine::{Store, Target, ValueRecord, WindowLabel};
 use crate::store::maps::{MapPreferences, MapSettings, VirtualTag};
 use crate::store::{engine, maps};
-use crate::test_util::tag_ids;
+use crate::test_util::{tag_ids, TempDir};
 use crate::types::{Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use std::collections::HashMap;
 use std::time::Instant;
 use std::{env, fs};
+use tokio::runtime::Runtime;
 
 fn tag(id: u32, name: &str) -> ValueRecord {
     ValueRecord {
@@ -378,7 +379,7 @@ fn imported_maps_start_from_the_saved_defaults_under_the_files_own_settings() {
     let json = br#"{"name":"Imported","customCoordinates":[{"lat":1,"lng":2}],"extra":{"settings":{"exportZoom":false}}}"#;
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
-    let dir = crate::test_util::TempDir::new("mma_test_import_defaults");
+    let dir = TempDir::new("mma_test_import_defaults");
 
     write_map_to_db(
         &conn,
@@ -834,7 +835,7 @@ fn a_bulk_preview_keeps_every_file_it_parsed() {
         .iter()
         .map(|name| {
             let path = dir.path().join(format!("{name}.json"));
-            std::fs::write(
+            fs::write(
                 &path,
                 br#"{"name":"m","customCoordinates":[{"lat":1,"lng":2}]}"#,
             )
@@ -842,7 +843,7 @@ fn a_bulk_preview_keeps_every_file_it_parsed() {
             path.to_string_lossy().into_owned()
         })
         .collect();
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = Runtime::new().unwrap();
     for path in &paths {
         rt.block_on(bulk_import_preview(path.clone())).unwrap();
     }
@@ -884,7 +885,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let mut buf = json.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -893,7 +894,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let target = import_target("staged-fetch");
     let first = store.collect(
         &target,
-        &crate::selections::Selector::Locations {
+        &Selector::Locations {
             locations: vec![keys.nth(0).unwrap()],
             name: None,
         },
@@ -904,7 +905,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
     let second = store.collect(
         &target,
-        &crate::selections::Selector::Locations {
+        &Selector::Locations {
             locations: vec![keys.nth(1).unwrap()],
             name: None,
         },
@@ -913,23 +914,20 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     assert_eq!(second.lng, 7.75);
     // Staged rows are held by the layer, not on the map.
     assert!(store
-        .collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything
-        )
+        .collect(&Target::Map { id: None }, &Selector::Everything)
         .is_empty());
 }
 
 #[test]
 fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
     let held = store
         .edit(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -951,7 +949,7 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     assert_eq!(staged, run.iter().collect::<Vec<_>>());
     let next = store
         .edit(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -965,24 +963,21 @@ fn cancelling_a_staged_import_drops_its_layer() {
     let mut buf = br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
     stage_parsed(&mut store, "cancel-me", parsed);
     store.close_layer(&import_layer("cancel-me"));
     assert!(store
-        .collect(
-            &import_target("cancel-me"),
-            &crate::selections::Selector::Everything
-        )
+        .collect(&import_target("cancel-me"), &Selector::Everything)
         .is_empty());
 }
 
 #[test]
 fn two_windows_previewing_at_once_keep_their_own_import() {
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -1003,8 +998,8 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
     assert_eq!(
         store.collect(
             &import_target("preview-a"),
-            &crate::selections::Selector::Locations {
-                locations: (&[a]).to_vec(),
+            &Selector::Locations {
+                locations: [a].to_vec(),
                 name: None
             }
         )[0]
@@ -1014,22 +1009,22 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
     assert_eq!(
         store.collect(
             &import_target("preview-b"),
-            &crate::selections::Selector::Locations {
-                locations: (&[b]).to_vec(),
+            &Selector::Locations {
+                locations: [b].to_vec(),
                 name: None
             }
         )[0]
         .lat,
         22.0
     );
-    let _ = std::fs::remove_file(preview_positions_path("preview-a"));
-    let _ = std::fs::remove_file(preview_positions_path("preview-b"));
+    let _ = fs::remove_file(preview_positions_path("preview-a"));
+    let _ = fs::remove_file(preview_positions_path("preview-b"));
 }
 
 #[test]
 fn editor_import_reports_marker_additions_only_when_it_lands() {
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -1061,7 +1056,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     // Target metadata already defines "Shared" (id 5). The copies reference the *source*
     // map's own tag ids (1 = Shared, 2 = Unique), as a real cross-map copy would.
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -1069,7 +1064,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
     );
-    let mut parsed = ParsedMap {
+    let parsed = ParsedMap {
         locations: vec![loc_with_tags(1, vec![1]), loc_with_tags(2, vec![1, 2])],
         tags: vec![tag(1, "Shared"), tag(2, "Unique")],
         ..Default::default()
@@ -1077,7 +1072,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     let feed = FeedCapture::attach(&mut store);
     store.edit(
-        &crate::store::engine::Target::Map { id: None },
+        &Target::Map { id: None },
         parsed
             .locations
             .into_iter()
@@ -1097,10 +1092,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(event.derived.location_count, Some(2));
-    let stored = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate created);
@@ -1139,7 +1131,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 fn bulk_tags_apply_every_name_to_every_import() {
     // "shared" reuses the existing "Shared" (id 5); blanks drop and repeats collapse.
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -1147,7 +1139,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
     );
-    let mut parsed = ParsedMap {
+    let parsed = ParsedMap {
         locations: vec![loc_with_tags(1, vec![]), loc_with_tags(2, vec![])],
         ..Default::default()
     };
@@ -1163,10 +1155,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
         .expect("France created");
     let france = *france;
     assert_eq!(meta.values().count(), 2);
-    let stored = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(stored.len(), 2);
     for l in &stored {
         assert_eq!(l.tags, vec![Id::new(5), france]);
@@ -1175,7 +1164,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
 
 fn store_tagged(tags: &[ValueRecord]) -> Store {
     let mut store = Store::new();
-    store.meta = engine::Tracked::new(maps::MapMeta {
+    store.meta = engine::Tracked::new(MapMeta {
         id: Id::new("test".into()),
         ..Default::default()
     });
@@ -1205,10 +1194,7 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
         .expect("Unique created");
     assert_eq!(store.records["tags"].len(), 2);
     let mut held: Vec<_> = store
-        .collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything,
-        )
+        .collect(&Target::Map { id: None }, &Selector::Everything)
         .into_iter()
         .map(|l| l.tags)
         .collect();
@@ -1227,10 +1213,7 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
     stage_parsed(&mut store, "drop-win", parsed);
     confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[]).unwrap();
     assert!(store.records["tags"].is_empty());
-    let stored = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(stored.len(), 1);
     assert!(stored[0].tags.is_empty());
 }

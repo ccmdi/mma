@@ -1,11 +1,13 @@
 //! Preview and stage editor imports, then apply them to the open map on confirmation.
 
 use super::*;
+use crate::selections::Selector;
 use crate::store::engine;
 use crate::store::engine::with_store;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
-use crate::types::{AppResult, Location, LocationFlags, RawExtra};
+use crate::types::{AppError, AppResult, Location, LocationFlags};
+use crate::util;
 use mma_algebra::{Id, IdRange, Op, Patch};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -72,7 +74,7 @@ pub(super) fn stage_parsed(
 ) -> IdRange<Location> {
     store.close_layer(&import_layer(window));
     let run = store.next_id.take_run(parsed.locations.len() as u32);
-    let now = crate::util::now_unix();
+    let now = util::now_unix();
     let edits = parsed
         .locations
         .into_iter()
@@ -241,7 +243,7 @@ pub async fn store_import_preview(
             (t0.elapsed() - t_parse).as_millis(),
             preview.location_count
         );
-        Ok::<_, crate::types::AppError>((parsed, preview))
+        Ok::<_, AppError>((parsed, preview))
     })
     .await??;
     with_store!(label, state, |store| {
@@ -273,7 +275,7 @@ pub async fn store_import_paste_preview(
             parsed.locations.len()
         );
         let preview = build_preview(&parsed, &window)?;
-        Ok::<_, crate::types::AppError>((parsed, preview))
+        Ok::<_, AppError>((parsed, preview))
     })
     .await??;
     with_store!(label, state, |store| {
@@ -329,7 +331,7 @@ pub(super) fn confirm_staged(
     if !store.pending.contains_key(&key) {
         return Err("no staged import - call store_import_preview first".into());
     }
-    let rows = store.collect(&target, &crate::selections::Selector::Everything);
+    let rows = store.collect(&target, &Selector::Everything);
 
     let mut records = engine::IncomingRecords::new();
     let mut bulk = Vec::new();
@@ -389,7 +391,7 @@ pub(super) fn confirm_staged(
                 }
             }
         }
-        edits.push(mma_algebra::Op::Put(patch));
+        edits.push(Op::Put(patch));
     }
 
     store.edit(&target, edits, records, &mut None);

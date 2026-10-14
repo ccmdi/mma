@@ -9,7 +9,7 @@ use crate::store::engine::{
     ListedSelection, MutationResult, Store, StoreState, ValueRecord, WindowLabel,
 };
 use crate::store::storage;
-use crate::types::AppResult;
+use crate::types::{AppError, AppResult};
 use crate::util::{now_iso, Rgb};
 use mma_algebra::Id;
 use rusqlite::Connection;
@@ -355,7 +355,7 @@ pub(crate) fn apply_saved_selection(
     let saved = get(&conn, from_ref(id))?
         .into_iter()
         .next()
-        .ok_or_else(|| crate::types::AppError("saved selection not found".into()))?;
+        .ok_or_else(|| AppError("saved selection not found".into()))?;
     let selector = saved.resolved(store);
     let selections = match selector {
         Selector::Union { selections } => selections

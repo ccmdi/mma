@@ -3,6 +3,7 @@ use crate::store::{arrow, storage};
 use crate::test_util::{loc, TempDir};
 use mma_algebra::Op;
 use rusqlite::Connection;
+use std::path::Path;
 
 fn database() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -23,7 +24,7 @@ fn add(store: &mut Store, lat: f64) {
     );
 }
 
-fn disk_latitudes(path: &std::path::Path) -> Vec<f64> {
+fn disk_latitudes(path: &Path) -> Vec<f64> {
     let batch = arrow::read_arrow_ipc(path).unwrap();
     let mut rows = arrow::batch_to_locations(&batch);
     rows.sort_by_key(|row| row.id);
@@ -44,7 +45,7 @@ fn acknowledging_an_inflight_save_preserves_later_rows_and_history_as_dirty() {
 
     assert_eq!(disk_latitudes(&path), [1.0]);
     assert_eq!(
-        persist::load_edit_history(&conn, &Id::new("m".into()))
+        load_edit_history(&conn, &Id::new("m".into()))
             .unwrap()
             .len(Stack::Undo),
         1
@@ -58,7 +59,7 @@ fn acknowledging_an_inflight_save_preserves_later_rows_and_history_as_dirty() {
     store.saved(&remaining);
     assert_eq!(disk_latitudes(&path), [1.0, 2.0]);
     assert_eq!(
-        persist::load_edit_history(&conn, &Id::new("m".into()))
+        load_edit_history(&conn, &Id::new("m".into()))
             .unwrap()
             .len(Stack::Undo),
         2

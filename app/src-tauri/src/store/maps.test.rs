@@ -1,8 +1,11 @@
 use super::*;
+use crate::test_util;
 use crate::test_util::{loc_ids, tag_ids, TempDir};
 use crate::types::Location;
 use mma_algebra::Id;
 use std::collections::HashSet;
+use std::time::Duration;
+use std::{mem, thread};
 
 #[test]
 fn map_settings_never_serializes_absent_keys() {
@@ -788,7 +791,7 @@ fn open_m1(conn: &Connection) -> StoreManager {
         .into_iter()
         .map(|(field, records)| (field, engine::Tracked::new(records)))
         .collect();
-    store.field_defs = engine::Tracked::new(std::mem::take(&mut meta.extra.fields));
+    store.field_defs = engine::Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = engine::Tracked::new(meta);
     let mut mgr = StoreManager::new();
     mgr.stores.insert(Id::new("m1".into()), store);
@@ -1178,7 +1181,7 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
     let mut mgr = open_m1(&conn);
     let store = mgr.store_for_map(&Id::new("m1".into())).unwrap();
     store.write(
-        [mma_algebra::Op::Set(crate::test_util::loc(1, 1.0, 1.0))],
+        [mma_algebra::Op::Set(test_util::loc(1, 1.0, 1.0))],
         &mut None,
         engine::Entry::default(),
     );
@@ -1269,7 +1272,7 @@ fn an_open_map_saves_the_updated_time_it_holds_and_only_a_change_moves_it() {
     assert_eq!(current.updated_at, edited.updated_at);
     let dir = TempDir::new("mma_saved_updated_at");
     let unsaved = store.unsaved().unwrap().unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(5));
+    thread::sleep(Duration::from_millis(5));
     unsaved.write(&conn, &id, &dir.join("delta.arrow")).unwrap();
     let saved = read_map_meta(&conn, &id).unwrap();
     assert_eq!(saved.name, "Renamed");

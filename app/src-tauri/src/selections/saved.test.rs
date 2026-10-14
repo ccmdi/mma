@@ -1,7 +1,10 @@
 use super::*;
 use crate::selections::{FilterOp, PolygonGeometry, Selection, Selector};
-use crate::store::engine::ValueRecord;
+use crate::store::engine::{Tracked, ValueRecord};
+use crate::store::maps::{FieldDef, FieldType};
+use crate::test_util;
 use crate::test_util::{loc_ids, tag_ids};
+use crate::types::{Location, RawExtra};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use rusqlite::Connection;
@@ -278,10 +281,8 @@ fn map_with_records() -> Store {
         )
     };
     let records = HashMap::from([record(9, "japan"), record(3, "Coastal")]);
-    store
-        .records
-        .insert("tags".into(), crate::store::engine::Tracked::new(records));
-    let mut row = crate::test_util::loc(1, 0.0, 0.0);
+    store.records.insert("tags".into(), Tracked::new(records));
+    let mut row = test_util::loc(1, 0.0, 0.0);
     row.tags = tag_ids([9]);
     store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
     store
@@ -387,10 +388,10 @@ fn portable_names_are_captured_at_every_depth() {
 
 fn map_with_plates(records: &[(u32, &str)], held: &[u32]) -> Store {
     let mut store = Store::new();
-    store.field_defs = crate::store::engine::Tracked::new(HashMap::from([(
+    store.field_defs = Tracked::new(HashMap::from([(
         "plates".to_string(),
-        crate::store::maps::FieldDef {
-            field_type: crate::store::maps::FieldType::Array,
+        FieldDef {
+            field_type: FieldType::Array,
             label: None,
             values: None,
             comparison: None,
@@ -411,14 +412,10 @@ fn map_with_plates(records: &[(u32, &str)], held: &[u32]) -> Store {
             )
         })
         .collect();
-    store
-        .records
-        .insert("plates".into(), crate::store::engine::Tracked::new(records));
-    let row = crate::types::Location {
-        extra: crate::types::RawExtra::from_value(
-            &serde_json::json!({ "plates": held, "codes": [4] }),
-        ),
-        ..crate::test_util::loc(1, 0.0, 0.0)
+    store.records.insert("plates".into(), Tracked::new(records));
+    let row = Location {
+        extra: RawExtra::from_value(&serde_json::json!({ "plates": held, "codes": [4] })),
+        ..test_util::loc(1, 0.0, 0.0)
     };
     store.write([mma_algebra::Op::Set(row)], &mut None, Default::default());
     store

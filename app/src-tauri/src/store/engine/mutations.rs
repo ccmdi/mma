@@ -1,18 +1,21 @@
 //! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `Mutation` they report.
 
 use super::*;
+use crate::procedure::engine;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::neighborhood::coord_key;
-use crate::selections::{self, Selector};
+use crate::selections::{self, tree, Selector};
 use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
+use crate::util;
 use mma_algebra::{
     number_value, same_field_value, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
+use std::slice;
 use std::sync::Arc;
 
 /// A reversible row change shared by rendering, indexes, selections, and undo.
@@ -376,7 +379,7 @@ impl Store {
     /// Remove closed layers nothing still writes to, then announce which layers are being
     /// written if that moved.
     pub(crate) fn settle_layers(&mut self) {
-        let writing = crate::procedure::engine::pending_writers(&self.meta.id);
+        let writing = engine::pending_writers(&self.meta.id);
         self.pending
             .retain(|name, pending| !pending.stage.closed() || writing.contains(name));
         if writing != *self.writing_layers {
@@ -402,7 +405,7 @@ impl Store {
         if let Some(pending) = self.pending.get_mut(name) {
             pending.stage = match pending.stage {
                 Stage::Open => {
-                    crate::procedure::engine::cancel_pending_writers(&self.meta.id, name);
+                    engine::cancel_pending_writers(&self.meta.id, name);
                     Stage::Discarded
                 }
                 Stage::Landed(joins) => Stage::Closing(joins),
@@ -438,7 +441,7 @@ impl Store {
             self.selections.apply(&entry.selections);
         }
         if !entry.meta.is_empty() || !entry.records.is_empty() || !entry.defs.is_empty() {
-            self.meta.edit().updated_at = crate::util::now_iso();
+            self.meta.edit().updated_at = util::now_iso();
         }
         self.put(&entry.locations);
         for (field, delta) in entry.records.iter().filter(|(_, d)| !d.is_empty()) {
@@ -706,7 +709,7 @@ fn layered(
     edits: impl IntoIterator<Item = Edit<Location>>,
     ids: &mut Ids<Id<Location>>,
 ) -> Vec<Id<Location>> {
-    let now = crate::util::now_unix();
+    let now = util::now_unix();
     let edits = edits.into_iter().map(|edit| match edit {
         Op::Add(row) => Op::Add(row.created(now)),
         edit => edit,
@@ -857,8 +860,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
         }
         SetOp::PruneDuplicates { distance, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> =
-                store.collect(&crate::store::engine::Target::Map { id: None }, selector);
+            let locs: Vec<Location> = store.collect(&Target::Map { id: None }, selector);
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()
@@ -898,11 +900,7 @@ pub(crate) fn apply_work(
                         .into_iter()
                         .filter_map(|row| {
                             Some(ListedSelection {
-                                selection: crate::selections::tree::rewrite(
-                                    &row.selection,
-                                    field,
-                                    to,
-                                )?,
+                                selection: tree::rewrite(&row.selection, field, to)?,
                                 ..row
                             })
                         })
@@ -933,7 +931,7 @@ pub(crate) fn apply_work(
 fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDelta {
     let (vacated, into) = match op {
         LocationOp::Move { from, to, .. } if from != to && !to.is_empty() => {
-            (std::slice::from_ref(from), Some(to))
+            (slice::from_ref(from), Some(to))
         }
         LocationOp::Delete { keys } => (keys.as_slice(), None),
         _ => return DefsDelta::default(),

@@ -2,14 +2,17 @@
 
 use super::*;
 use crate::selections::{self, Index, Selector, Thinning};
-use crate::store::arrow::Columns;
 use crate::store::id_set::IdSet;
 use crate::store::maps::{FieldDef, IndexShape, MapMeta};
+use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::Id;
 use mma_geo::{fold_lng, HexGrid, SpatialIndex, EARTH_R_M};
 use std::collections::{BTreeSet, HashMap};
 use std::f64::consts::PI;
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 /// ~25m cells: 1-100m queries walk a handful of cells; a 1km query walks ~80x80.
@@ -478,8 +481,8 @@ fn locations_answer(
     if locations.len() <= LOCATIONS_INLINE_MAX {
         return Ok(LocationList::Inline { locations });
     }
-    let path = locations_file_path(&crate::store::storage::temp_dir()?, map_id);
-    std::fs::write(&path, serde_json::to_vec(&locations)?)?;
+    let path = locations_file_path(&storage::temp_dir()?, map_id);
+    fs::write(&path, serde_json::to_vec(&locations)?)?;
     Ok(LocationList::File {
         path: path.to_string_lossy().into_owned(),
     })
@@ -487,12 +490,9 @@ fn locations_answer(
 
 /// Rotate temp-file slots to avoid collisions between concurrent location reads
 /// and limit leftover files.
-pub(crate) fn locations_file_path(
-    temp: &std::path::Path,
-    map_id: &Id<MapMeta, String>,
-) -> std::path::PathBuf {
-    static SLOT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    let slot = SLOT.fetch_add(1, std::sync::atomic::Ordering::Relaxed) % 8;
+pub(crate) fn locations_file_path(temp: &Path, map_id: &Id<MapMeta, String>) -> PathBuf {
+    static SLOT: AtomicUsize = AtomicUsize::new(0);
+    let slot = SLOT.fetch_add(1, Ordering::Relaxed) % 8;
     temp.join(format!("mma_locations_{map_id}_{slot}.json"))
 }
 

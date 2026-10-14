@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(any(target_os = "linux", feature = "web-serve"))]
 use std::env;
 
 #[cfg(feature = "web-serve")]

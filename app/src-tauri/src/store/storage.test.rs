@@ -1,6 +1,8 @@
 use super::*;
-use crate::store::arrow;
+use crate::selections::saved;
 use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
+use crate::store::maps::MapMeta;
+use crate::store::{arrow, engine};
 use crate::test_util::{tag_ids, TempDir};
 use crate::types::{AppError, Location, LocationFlags};
 use crate::util;
@@ -10,14 +12,15 @@ use rusqlite::Connection;
 use std::collections::{BTreeSet, HashSet};
 use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
-use std::{fs, panic};
+use std::sync::Once;
+use std::{env, fs, panic};
 
 /// A map row in a migrated database under a data folder this test process owns, for tests
 /// that open and save maps the way the app does.
-pub(crate) fn map_on_disk(id: &str) -> Id<crate::store::maps::MapMeta, String> {
-    static DISK: std::sync::Once = std::sync::Once::new();
+pub(crate) fn map_on_disk(id: &str) -> Id<MapMeta, String> {
+    static DISK: Once = Once::new();
     DISK.call_once(|| {
-        let dir = std::env::temp_dir().join("mma_unit_disk");
+        let dir = env::temp_dir().join("mma_unit_disk");
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         APP_DATA_DIR.set(dir).unwrap();
@@ -801,7 +804,7 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
         &conn,
         &Id::new("m".into()),
         12,
-        mma_algebra::Counts {
+        Counts {
             added: 5,
             removed: 1,
             updated: 2,
@@ -1112,7 +1115,7 @@ fn v28_keeps_a_stored_undo_step_readable_under_its_renamed_column() {
     .unwrap();
 
     run_migrations_on(&conn).unwrap();
-    let entry = crate::store::engine::load_edit(&conn, &Id::new("m".into()), 0).unwrap();
+    let entry = engine::load_edit(&conn, &Id::new("m".into()), 0).unwrap();
     let tags = &entry.records["tags"];
     assert_eq!(tags.added.len(), 1);
     assert_eq!(tags.added[0].1.name.as_deref(), Some("a"));
@@ -1168,19 +1171,16 @@ fn tag_records_held_on_the_map_row_move_to_the_records_table() {
 
     run_migrations_on(&conn).unwrap();
 
-    let tagged =
-        crate::store::engine::load_value_records(&conn, &Id::new("tagged".into())).unwrap();
+    let tagged = engine::load_value_records(&conn, &Id::new("tagged".into())).unwrap();
     let tags = &tagged["tags"];
     assert_eq!(tags.len(), 2);
     assert_eq!(tags[&Id::new(1)].name.as_deref(), Some("Urban"));
     assert_eq!(tags[&Id::new(1)].color(), Some("#ff0000".parse().unwrap()));
     assert!(!tags[&Id::new(1)].extra.contains_key("visible"));
     assert_eq!(tags[&Id::new(2)].order, Some(3));
-    assert!(
-        crate::store::engine::load_value_records(&conn, &Id::new("bare".into()))
-            .unwrap()
-            .is_empty()
-    );
+    assert!(engine::load_value_records(&conn, &Id::new("bare".into()))
+        .unwrap()
+        .is_empty());
     let tags_column: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM pragma_table_info('maps') WHERE name = 'tags'",
@@ -1208,9 +1208,7 @@ fn a_saved_rules_tag_names_become_its_names_for_the_tags_field() {
 
     run_migrations_on(&conn).unwrap();
 
-    let saved =
-        crate::selections::saved::get(&conn, &[Id::new("named".into()), Id::new("bare".into())])
-            .unwrap();
+    let saved = saved::get(&conn, &[Id::new("named".into()), Id::new("bare".into())]).unwrap();
     assert_eq!(saved.len(), 2);
     assert_eq!(saved[0].value_names["tags"][&Id::new(5)], "Japan");
     assert!(saved[1].value_names.is_empty());

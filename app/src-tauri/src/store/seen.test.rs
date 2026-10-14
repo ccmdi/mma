@@ -1,6 +1,7 @@
 use super::*;
 use mma_algebra::Id;
 use rusqlite::Connection;
+use std::string::ToString;
 
 fn setup() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -256,7 +257,7 @@ fn countries_returns_distinct_sorted_codes() {
     ];
     for (i, cc) in codes.iter().enumerate() {
         let mut e = mk(&format!("p{i}"), i as i64);
-        e.country_code = cc.map(|s| s.to_string());
+        e.country_code = cc.map(ToString::to_string);
         write(&conn, e).unwrap();
     }
 

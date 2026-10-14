@@ -393,7 +393,7 @@ impl Session {
             while let Some((i, result)) = pending.next().await {
                 on_each(i, result);
             }
-        })
+        });
     }
 
     /// [`Session::fetch_stream`], answered in request order once everything is done.

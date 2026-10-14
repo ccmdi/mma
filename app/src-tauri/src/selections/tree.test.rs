@@ -1,4 +1,5 @@
 use super::*;
+use crate::selections::saved;
 
 #[test]
 fn selection_tree_preserves_existing_behavior() {
@@ -213,7 +214,7 @@ fn a_stored_review_mode_string_reads_as_its_mode_and_keeps_its_key() {
         ("reviewed", ReviewMode::Reviewed),
         ("unreviewed", ReviewMode::Unreviewed),
     ] {
-        let selector: Selector = serde_json::from_value(crate::selections::saved::modernize(
+        let selector: Selector = serde_json::from_value(saved::modernize(
             serde_json::json!({"type": "Reviewed", "locations": [1], "sessionId": "s", "mode": stored}),
         ))
         .unwrap();

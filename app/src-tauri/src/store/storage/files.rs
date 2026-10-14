@@ -2,11 +2,11 @@
 
 use super::*;
 use crate::types::AppResult;
-use std::fs;
 use std::fs::{File, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::{fs, process};
 
 /// Write to `path` via a temporary `.tmp` sibling, then atomically rename.
 /// Guarantees readers never observe a partially-written file.
@@ -29,7 +29,7 @@ pub(crate) fn atomic_write(
 fn tmp_path(path: &Path) -> PathBuf {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
-    path.with_extension(format!("{}.{n}.tmp", std::process::id()))
+    path.with_extension(format!("{}.{n}.tmp", process::id()))
 }
 
 /// [`atomic_write`] of `from`'s bytes to `to`.

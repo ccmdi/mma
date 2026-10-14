@@ -4,10 +4,13 @@ use crate::test_util::{loc, TempDir};
 use mma_algebra::Op;
 use rusqlite::Connection;
 use std::fs;
+use std::time::Duration;
+use tokio::runtime::Builder;
+use tokio::time;
 
-fn database(path: &std::path::Path) -> Connection {
+fn database(path: &Path) -> Connection {
     let conn = Connection::open(path).unwrap();
-    crate::store::storage::run_migrations_on(&conn).unwrap();
+    storage::run_migrations_on(&conn).unwrap();
     conn.execute(
         "INSERT INTO maps (id, name, created_at, updated_at) VALUES ('m', 'before', '', '')",
         [],
@@ -28,7 +31,7 @@ fn store_with_one_edit() -> Store {
     store
 }
 
-fn rows(path: &std::path::Path) -> Vec<Location> {
+fn rows(path: &Path) -> Vec<Location> {
     if path.exists() {
         arrow::batch_to_locations(&arrow::read_arrow_ipc(path).unwrap())
     } else {
@@ -229,10 +232,7 @@ fn an_unreadable_delta_is_quarantined_and_not_replayed() {
 
 #[test]
 fn closing_a_window_waits_for_the_maps_files_lock_before_its_store_leaves() {
-    let runtime = tokio::runtime::Builder::new_current_thread()
-        .enable_time()
-        .build()
-        .unwrap();
+    let runtime = Builder::new_current_thread().enable_time().build().unwrap();
     let map = Id::<MapMeta, String>::new("m".into());
     let window = WindowLabel("w".into());
     let state = StoreState::new(StoreManager::new());
@@ -247,7 +247,7 @@ fn closing_a_window_waits_for_the_maps_files_lock_before_its_store_leaves() {
         let writing = files.lock().await;
         let close = close_window(&state, &window);
         tokio::pin!(close);
-        let waited = tokio::time::timeout(std::time::Duration::from_millis(50), &mut close).await;
+        let waited = time::timeout(Duration::from_millis(50), &mut close).await;
         assert!(
             waited.is_err(),
             "close must wait for the active file writer"

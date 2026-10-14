@@ -4,6 +4,7 @@
 //! Arrow IPC on disk, JSON over IPC to the JS frontend, and used throughout the
 //! store, import, and selection engines.
 
+use crate::store::arrow::Column;
 use crate::store::engine::ValueRecord;
 use crate::util;
 use mma_algebra::Id;
@@ -101,9 +102,7 @@ location_columns!(location_read);
 
 struct Read<T>(T);
 
-impl<'de, T: crate::store::arrow::Column + serde::Deserialize<'de>> serde::Deserialize<'de>
-    for Read<T>
-{
+impl<'de, T: Column + serde::Deserialize<'de>> serde::Deserialize<'de> for Read<T> {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         T::read(d).map(Read)
     }

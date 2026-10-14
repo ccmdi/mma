@@ -7,6 +7,8 @@ use crate::selections::{self, field_expr, Selection, Selector, Thinning};
 use crate::store::arrow::empty_batch;
 use crate::store::engine::query::locations_file_path;
 use crate::store::maps::IndexShape;
+use crate::store::storage;
+use crate::store::storage::tests;
 use crate::test_util::{loc, loc_ids, patch, tag_ids, Fx, TempDir};
 use crate::types::{LocationFlags, RawExtra};
 use crate::util::Rgb;
@@ -15,14 +17,17 @@ use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::{array, env, fs, panic, slice};
+use std::time::Duration;
+use std::{array, env, fs, iter, panic, slice, thread};
+use tauri::ipc::{Channel, InvokeResponseBody};
 
-fn net(added: u32, removed: u32, updated: u32) -> mma_algebra::Counts {
-    mma_algebra::Counts {
+fn net(added: u32, removed: u32, updated: u32) -> Counts {
+    Counts {
         added,
         removed,
         updated,
@@ -125,7 +130,7 @@ fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
 fn setup_store_with(locs: &[Location]) -> Store {
     static SEQ: AtomicU64 = AtomicU64::new(0);
     let mut store = Store::new();
-    store.meta = Tracked::new(maps::MapMeta {
+    store.meta = Tracked::new(MapMeta {
         id: Id::new(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed))),
         ..Default::default()
     });
@@ -417,10 +422,7 @@ fn overlay_update_noop_on_patched_row_stays_a_noop() {
 fn collect_everything() {
     let locs = vec![loc(1, 10.0, 20.0), loc(2, 30.0, 40.0)];
     let mut store = setup_store_with(&locs);
-    let all = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let all = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(all.len(), 2);
 }
 
@@ -435,7 +437,7 @@ fn named_id_ordering_is_consumer_defined() {
         name: None,
     };
     let rows: Vec<u32> = store
-        .collect(&crate::store::engine::Target::Map { id: None }, &selector)
+        .collect(&Target::Map { id: None }, &selector)
         .iter()
         .map(|l| l.id)
         .map(Id::get)
@@ -683,7 +685,7 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
         &mut None,
     );
     assert!(!small.history_cleared);
-    assert_eq!(*store.alive_count as usize, MAX_UNDO_LOCATIONS + 3);
+    assert_eq!(*store.alive_count, MAX_UNDO_LOCATIONS + 3);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);
 }
@@ -1600,10 +1602,7 @@ fn collect_all_with_dead_patches_and_adds() {
     store.overlay_add(vec![l4]);
     store.alive_count = Tracked::new(3); // l2, l3, l4
 
-    let all = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let all = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(all.len(), 3);
     let ids: Vec<u32> = all.iter().map(|l| l.id).map(Id::get).collect();
     assert!(!ids.contains(&1), "dead location should be excluded");
@@ -2242,7 +2241,7 @@ fn push_resolved(store: &mut Store, key: &str, color: Rgb, members: &[u32]) {
                 },
             },
             ghosted: false,
-        })
+        });
     });
     let sets = store
         .selections
@@ -2456,10 +2455,7 @@ fn replayed_frames_rebuild_the_render_cell_order() {
     );
 
     for round in 0..60 {
-        let alive: Vec<Location> = store.collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything,
-        );
+        let alive: Vec<Location> = store.collect(&Target::Map { id: None }, &Selector::Everything);
         let mut remove = Vec::new();
         let mut create = Vec::new();
         for l in &alive {
@@ -2564,10 +2560,7 @@ fn an_add_reports_the_id_its_first_location_was_given() {
     store.next_id = Ids::starting_at(Id::new(2));
     let added = add_rows(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
     let ids: Vec<u32> = store
-        .collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything,
-        )
+        .collect(&Target::Map { id: None }, &Selector::Everything)
         .iter()
         .filter(|l| l.lat > 0.5)
         .map(|l| l.id)
@@ -2950,13 +2943,13 @@ fn patch_all_rows_preserves_order() {
 fn manager_insert_and_lookup() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
-    s1.meta = Tracked::new(maps::MapMeta {
+    s1.meta = Tracked::new(MapMeta {
         id: Id::new("map-a".into()),
         ..Default::default()
     });
     s1.alive_count = Tracked::new(10);
     let mut s2 = Store::new();
-    s2.meta = Tracked::new(maps::MapMeta {
+    s2.meta = Tracked::new(MapMeta {
         id: Id::new("map-b".into()),
         ..Default::default()
     });
@@ -3062,7 +3055,7 @@ fn manager_with(maps: &[(&str, Option<&str>)]) -> StoreState {
     let mut mgr = StoreManager::new();
     for &(map, window) in maps {
         let mut store = Store::new();
-        store.meta = Tracked::new(maps::MapMeta {
+        store.meta = Tracked::new(MapMeta {
             id: Id::new(map.into()),
             ..Default::default()
         });
@@ -3075,7 +3068,7 @@ fn manager_with(maps: &[(&str, Option<&str>)]) -> StoreState {
     StoreState::new(mgr)
 }
 
-fn at_map(id: &Id<maps::MapMeta, String>) -> Target {
+fn at_map(id: &Id<MapMeta, String>) -> Target {
     Target::Map {
         id: Some(id.clone()),
     }
@@ -3136,7 +3129,7 @@ fn a_read_at_another_open_map_answers_from_that_map() {
 
 #[test]
 fn an_edit_at_a_closed_map_is_saved_and_reopens_with_its_undo_step() {
-    let closed = crate::store::storage::tests::map_on_disk("closed-edit");
+    let closed = tests::map_on_disk("closed-edit");
     let state = manager_with(&[("a", Some("w1"))]);
     let w1 = WindowLabel("w1".into());
     let target = at_map(&closed);
@@ -3155,12 +3148,12 @@ fn an_edit_at_a_closed_map_is_saved_and_reopens_with_its_undo_step() {
 
 #[test]
 fn a_read_at_a_closed_map_writes_nothing_and_an_edit_there_still_persists() {
-    let closed = crate::store::storage::tests::map_on_disk("closed-read");
+    let closed = tests::map_on_disk("closed-read");
     let state = manager_with(&[("a", Some("w1"))]);
     let w1 = WindowLabel("w1".into());
     let target = at_map(&closed);
     with_target(&state, &w1, &target, add_one(&target)).unwrap();
-    let delta = crate::store::storage::arrow_delta_path(&closed).unwrap();
+    let delta = storage::arrow_delta_path(&closed).unwrap();
     let stamp = || {
         (
             fs::read(&delta).unwrap(),
@@ -3168,7 +3161,7 @@ fn a_read_at_a_closed_map_writes_nothing_and_an_edit_there_still_persists() {
         )
     };
     let before = stamp();
-    std::thread::sleep(std::time::Duration::from_millis(20));
+    thread::sleep(Duration::from_millis(20));
 
     let count = with_target(&state, &w1, &target, |store| {
         store.read(&target, &Selector::Everything, &Ask::Count)
@@ -3203,19 +3196,19 @@ fn a_reopened_map_announces_the_pending_changes_its_delta_holds() {
 
 #[test]
 fn an_edit_at_a_closed_map_waits_while_its_files_are_being_written() {
-    let closed = crate::store::storage::tests::map_on_disk("closed-locked");
+    let closed = tests::map_on_disk("closed-locked");
     let state = Arc::new(manager_with(&[("a", Some("w1"))]));
     let files = state.lock().unwrap().files(&closed);
     let writing = files.blocking_lock();
 
-    let editing = std::thread::spawn({
+    let editing = thread::spawn({
         let state = state.clone();
         let target = at_map(&closed);
         move || {
             with_target(&state, &WindowLabel("w1".into()), &target, add_one(&target)).unwrap();
         }
     });
-    std::thread::sleep(std::time::Duration::from_millis(100));
+    thread::sleep(Duration::from_millis(100));
     assert!(!editing.is_finished(), "the edit must wait for the writer");
     assert!(load_store(&closed)
         .unwrap()
@@ -3235,19 +3228,19 @@ fn an_edit_at_a_closed_map_waits_while_its_files_are_being_written() {
 
 #[test]
 fn a_closed_map_that_opens_while_an_edit_waits_takes_the_edit_live() {
-    let map = crate::store::storage::tests::map_on_disk("opens-meanwhile");
+    let map = tests::map_on_disk("opens-meanwhile");
     let state = Arc::new(manager_with(&[("a", Some("w1"))]));
     let files = state.lock().unwrap().files(&map);
     let opening = files.blocking_lock();
 
-    let editing = std::thread::spawn({
+    let editing = thread::spawn({
         let state = state.clone();
         let target = at_map(&map);
         move || {
             with_target(&state, &WindowLabel("w1".into()), &target, add_one(&target)).unwrap();
         }
     });
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    thread::sleep(Duration::from_millis(50));
     let store = load_store(&map).unwrap();
     state.lock().unwrap().stores.insert(map.clone(), store);
     drop(opening);
@@ -3429,12 +3422,12 @@ fn records_for_a_field_the_map_does_not_intern_are_refused() {
 fn manager_remove_preserves_other() {
     let mut mgr = StoreManager::new();
     let mut s1 = Store::new();
-    s1.meta = Tracked::new(maps::MapMeta {
+    s1.meta = Tracked::new(MapMeta {
         id: Id::new("map-a".into()),
         ..Default::default()
     });
     let mut s2 = Store::new();
-    s2.meta = Tracked::new(maps::MapMeta {
+    s2.meta = Tracked::new(MapMeta {
         id: Id::new("map-b".into()),
         ..Default::default()
     });
@@ -4128,7 +4121,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
 /// defining each of `keys`.
 fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[&str]) -> Store {
     let mut store = Store::new();
-    store.meta = Tracked::new(maps::MapMeta {
+    store.meta = Tracked::new(MapMeta {
         id: Id::new("test-coverage".to_string()),
         ..Default::default()
     });
@@ -4283,7 +4276,7 @@ fn add_tag_selection(store: &mut Store, tag_id: u32, color: Rgb) {
                 selector: Selector::tag(tag_id),
             },
             ghosted: false,
-        })
+        });
     });
 }
 
@@ -4983,7 +4976,7 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
 thread_local! {
     static HISTORY_DB: rusqlite::Connection = {
         let conn = rusqlite::Connection::open_in_memory().unwrap();
-        crate::store::storage::run_migrations_on(&conn).unwrap();
+        storage::run_migrations_on(&conn).unwrap();
         conn.execute(
             "INSERT INTO maps (id, name, settings, created_at, updated_at) VALUES ('m', '', '{}', '', '')",
             [],
@@ -5007,7 +5000,7 @@ fn fetch_stored(seq: u64) -> AppResult<Entry> {
 // through the same delta bytes and history rows the app writes.
 fn close_and_reopen(store: &Store) -> Store {
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap()
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
     });
     reopen(store, &sidecar_bytes(store))
 }
@@ -5098,8 +5091,8 @@ impl FeedCapture {
         let got = cap.0.clone();
         store.changes.insert(
             WindowLabel("feed".into()),
-            tauri::ipc::Channel::new(move |body| {
-                let tauri::ipc::InvokeResponseBody::Json(s) = body else {
+            Channel::new(move |body| {
+                let InvokeResponseBody::Json(s) = body else {
                     panic!("change events travel as json");
                 };
                 got.lock().unwrap().push(serde_json::from_str(&s).unwrap());
@@ -5202,10 +5195,7 @@ fn autosave(store: &mut Store, delta: &Path) {
 
 fn live_ids(store: &mut Store) -> Vec<u32> {
     let mut ids: Vec<u32> = store
-        .collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything,
-        )
+        .collect(&Target::Map { id: None }, &Selector::Everything)
         .iter()
         .map(|l| l.id)
         .map(Id::get)
@@ -5469,7 +5459,7 @@ fn edits_after_a_cleared_history_never_reuse_a_stored_number() {
     click_add(&mut store, 0.0, 0.0);
     click_add(&mut store, 1.0, 0.0);
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap()
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
     });
 
     store.steps[Timeline::Edits].edit().clear();
@@ -5668,7 +5658,7 @@ fn any_write_that_changes_an_input_clears_what_was_computed_from_it() {
     let mut row = loc_with_heading(1, 10.0, 20.0, 0.0);
     row.extra = raw_extra(r#"{"timezone":"Europe/Oslo","sunrise":6,"kept":1}"#);
     let mut store = setup_store_with(&[row]);
-    store.dependents = std::sync::Arc::new(mma_algebra::Dependents::new(HashMap::from([
+    store.dependents = Arc::new(mma_algebra::Dependents::new(HashMap::from([
         ("lat".to_string(), vec!["timezone".to_string()]),
         ("timezone".to_string(), vec!["sunrise".to_string()]),
     ])));
@@ -5711,10 +5701,7 @@ fn overlay_update_back_to_base_clears_patch() {
 /// Brute-force reference: ids of alive locations within radius, sorted.
 fn brute_nearby(store: &mut Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
     let mut out: Vec<u32> = store
-        .collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything,
-        )
+        .collect(&Target::Map { id: None }, &Selector::Everything)
         .iter()
         .filter(|l| selections::haversine_m(lat, lng, l.lat, l.lng) <= r)
         .map(|l| l.id)
@@ -5839,16 +5826,13 @@ fn find_nearest_agrees_with_brute_force() {
 
     let brute_nearest = |store: &mut Store, lat: f64, lng: f64| {
         store
-            .collect(
-                &crate::store::engine::Target::Map { id: None },
-                &Selector::Everything,
-            )
+            .collect(&Target::Map { id: None }, &Selector::Everything)
             .iter()
             .map(|l| selections::haversine_m(lat, lng, l.lat, l.lng))
             .min_by(f64::total_cmp)
             .unwrap()
     };
-    let mut check = |store: &mut Store, lat: f64, lng: f64| {
+    let check = |store: &mut Store, lat: f64, lng: f64| {
         let id = nearest(store, lat, lng).expect("nonempty map");
         let (la, ln) = store.coords_of(Id::new(id)).expect("alive id");
         let d = selections::haversine_m(lat, lng, la, ln);
@@ -6216,7 +6200,7 @@ fn pick_even_empty_selection() {
 fn store_with_full_overlay_base() -> Store {
     let base = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0), loc(3, 3.0, 3.0)];
     let mut store = Store::new();
-    store.meta = Tracked::new(maps::MapMeta {
+    store.meta = Tracked::new(MapMeta {
         id: Id::new("test-full-overlay".to_string()),
         ..Default::default()
     });
@@ -6399,7 +6383,7 @@ fn patches_only_base_write_replaces_the_mapped_file_it_was_read_from() {
 fn crash_window_stale_delta_double_applies_baked_locations() {
     let x = vec![loc(5, 5.0, 5.0), loc(6, 6.0, 6.0)];
     let mut store = Store::new();
-    store.meta = Tracked::new(maps::MapMeta {
+    store.meta = Tracked::new(MapMeta {
         id: Id::new("test-crash-window".to_string()),
         ..Default::default()
     });
@@ -6423,10 +6407,7 @@ fn crash_window_stale_delta_double_applies_baked_locations() {
         "stale delta double-counts ids already in the baked base"
     );
 
-    let all = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let all = store.collect(&Target::Map { id: None }, &Selector::Everything);
     assert_eq!(all.len(), 4, "whole-map collect also yields duplicates");
     let ids: Vec<u32> = all.iter().map(|l| l.id).map(Id::get).collect();
     assert_eq!(
@@ -6607,10 +6588,7 @@ fn model_snapshot(model: &BTreeMap<Id<Location>, Location>) -> Vec<Location> {
 }
 
 fn store_snapshot(store: &mut Store) -> Vec<Location> {
-    let mut v = store.collect(
-        &crate::store::engine::Target::Map { id: None },
-        &Selector::Everything,
-    );
+    let mut v = store.collect(&Target::Map { id: None }, &Selector::Everything);
     v.sort_by_key(|l| l.id);
     for l in &mut v {
         l.modified_at = None;
@@ -7259,16 +7237,13 @@ fn collect_honours_each_selector_shape() {
     let ids = |locs: Vec<Location>| locs.iter().map(|l| l.id).map(Id::get).collect::<Vec<u32>>();
 
     assert_eq!(
-        ids(store.collect(
-            &crate::store::engine::Target::Map { id: None },
-            &Selector::Everything
-        )),
+        ids(store.collect(&Target::Map { id: None }, &Selector::Everything)),
         vec![1, 2, 3]
     );
     // The named-ids fast path keeps request order and skips dead ids.
     assert_eq!(
         ids(store.collect(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             &Selector::Locations {
                 locations: loc_ids([3, 1, 9]),
                 name: None,
@@ -7278,7 +7253,7 @@ fn collect_honours_each_selector_shape() {
     );
     assert_eq!(
         ids(store.collect(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             &Selector::Manual {
                 locations: loc_ids([1, 3])
             }
@@ -7518,7 +7493,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
         store
             .collect(
                 &Target::Map { id: None },
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([1]),
                     name: None
                 }
@@ -7533,7 +7508,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
         store
             .collect(
                 &viewer(),
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([1]),
                     name: None
                 }
@@ -7569,7 +7544,7 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let seen = store
         .collect(
             &viewer(),
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([1]),
                 name: None,
             },
@@ -7605,7 +7580,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
         store
             .collect(
                 &Target::Map { id: None },
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([1]),
                     name: None
                 }
@@ -7619,7 +7594,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     assert!(store
         .collect(
             &Target::Map { id: None },
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([2]),
                 name: None
             }
@@ -7633,7 +7608,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
         store
             .collect(
                 &Target::Map { id: None },
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([1]),
                     name: None
                 }
@@ -7647,7 +7622,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     assert!(store
         .collect(
             &Target::Map { id: None },
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([2]),
                 name: None
             }
@@ -7738,7 +7713,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let row = store
         .collect(
             &Target::Map { id: None },
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([1]),
                 name: None,
             },
@@ -7753,7 +7728,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let row = store
         .collect(
             &Target::Map { id: None },
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([1]),
                 name: None,
             },
@@ -7831,7 +7806,7 @@ fn dropping_a_pending_layer_discards_what_it_held() {
         store
             .collect(
                 &viewer(),
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([1]),
                     name: None
                 }
@@ -7858,7 +7833,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     assert!(store
         .collect(
             &Target::Map { id: None },
-            &crate::selections::Selector::Locations {
+            &Selector::Locations {
                 locations: loc_ids([2]),
                 name: None
             }
@@ -7870,7 +7845,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
         store
             .collect(
                 &viewer(),
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([2]),
                     name: None
                 }
@@ -7887,7 +7862,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
         store
             .collect(
                 &Target::Map { id: None },
-                &crate::selections::Selector::Locations {
+                &Selector::Locations {
                     locations: loc_ids([2]),
                     name: None
                 }
@@ -7904,11 +7879,11 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
 fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     store.next_id = Ids::starting_at(Id::new(2));
-    let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let got = Arc::new(Mutex::new(Vec::<String>::new()));
     let sink = {
         let got = got.clone();
-        tauri::ipc::Channel::new(move |body| {
-            if let tauri::ipc::InvokeResponseBody::Json(s) = body {
+        Channel::new(move |body| {
+            if let InvokeResponseBody::Json(s) = body {
                 got.lock().unwrap().push(s);
             }
             Ok(())
@@ -7944,7 +7919,7 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
 #[test]
 fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let mut store = setup_store_with(&[]);
-    store.dependents = std::sync::Arc::new(mma_algebra::Dependents::new(HashMap::from([(
+    store.dependents = Arc::new(mma_algebra::Dependents::new(HashMap::from([(
         "panoId".to_string(),
         vec!["countryCode".to_string()],
     )])));
@@ -8253,7 +8228,7 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
 #[test]
 fn a_stored_edit_keeps_its_definition_moves() {
     let conn = rusqlite::Connection::open_in_memory().unwrap();
-    crate::store::storage::run_migrations_on(&conn).unwrap();
+    storage::run_migrations_on(&conn).unwrap();
     conn.execute(
         "INSERT INTO maps (id, name, settings, created_at, updated_at) VALUES ('m', '', '{}', '', '')",
         [],
@@ -8349,7 +8324,7 @@ fn the_spacing_ask_answers_only_a_spaced_pick() {
     let mut store = setup_store_with(&locs);
     assert!(store
         .read(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             &Selector::Everything,
             &Ask::Spacing
         )
@@ -8359,11 +8334,7 @@ fn the_spacing_ask_answers_only_a_spaced_pick() {
         thin: Thinning::Count { n: 2 },
     };
     let answer = store
-        .read(
-            &crate::store::engine::Target::Map { id: None },
-            &spaced,
-            &Ask::Spacing,
-        )
+        .read(&Target::Map { id: None }, &spaced, &Ask::Spacing)
         .unwrap();
     assert!(matches!(answer, Answer::Spacing { ref ids, .. } if ids.len() == 2));
 }
@@ -8453,7 +8424,7 @@ fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
         .unwrap();
     assert_eq!(store.scene_frame().palette, vec![Rgb([255, 128, 0])]);
 
-    store.edit_selections(&crate::selections::tree::SelectionOp::Invert { path: vec![0] });
+    store.edit_selections(&selections::tree::SelectionOp::Invert { path: vec![0] });
     assert_eq!(
         store.scene_frame().palette,
         vec![Rgb([255, 128, 0])],
@@ -8602,14 +8573,14 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
 #[test]
 fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    let input = crate::selections::tree::SelectionInput {
+    let input = selections::tree::SelectionInput {
         selector: Selector::Filter {
             field: "tags".into(),
             test: selections::FilterOp::Contains { value: 7.into() },
         },
         color: None,
     };
-    store.edit_selections(&crate::selections::tree::SelectionOp::Add {
+    store.edit_selections(&selections::tree::SelectionOp::Add {
         selections: vec![input],
     });
     let before = store.selections.list();
@@ -8630,13 +8601,13 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
 #[test]
 fn clearing_the_selection_list_clears_membership_and_preserves_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.edit_selections(&crate::selections::tree::SelectionOp::Add {
-        selections: vec![crate::selections::tree::SelectionInput {
+    store.edit_selections(&selections::tree::SelectionOp::Add {
+        selections: vec![selections::tree::SelectionInput {
             selector: Selector::Everything,
             color: None,
         }],
     });
-    store.edit_selections(&crate::selections::tree::SelectionOp::Set { selections: vec![] });
+    store.edit_selections(&selections::tree::SelectionOp::Set { selections: vec![] });
     assert!(store.selections.ids.is_empty());
     assert!(store.selections.node_counts.is_empty());
     assert_eq!(
@@ -8712,10 +8683,10 @@ fn near_any(store: &mut Store, lat: f64, lng: f64, radius_m: f64) -> bool {
 #[test]
 fn field_access_preserves_request_order_and_builds_presence_for_unbounded_fields() {
     let mut store = setup_store_with(&[loc_with_extra(1, r#"{"note":"hello"}"#), loc(2, 1.0, 1.0)]);
-    assert!(store.fields(std::iter::empty()).is_empty());
+    assert!(store.fields(iter::empty()).is_empty());
     let fields = store.fields(["note", "tags", "note"]);
     assert_eq!(
-        fields.iter().map(|field| field.field()).collect::<Vec<_>>(),
+        fields.iter().map(FieldValues::field).collect::<Vec<_>>(),
         ["note", "tags", "note"]
     );
     assert_eq!(
@@ -8809,7 +8780,7 @@ fn selections_and_meta_only_edits_stay_out_of_data_history() {
     press_undo(&mut store);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
 
-    store.edit_selections(&crate::selections::tree::SelectionOp::Set { selections: vec![] });
+    store.edit_selections(&selections::tree::SelectionOp::Set { selections: vec![] });
     assert_eq!(
         store.steps[Timeline::Edits].len(Stack::Undo),
         0,
@@ -8845,10 +8816,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     store.edit_selections(&SelectionOp::Ghost { index: 1 });
     let before = store.selections.list();
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
-    assert_eq!(
-        feed.last().derived.history.unwrap()[&Timeline::Selections].undo,
-        true
-    );
+    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].undo);
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 90.0;
@@ -8859,10 +8827,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), undo);
     assert_eq!(store.selections.ids, IdSet::from_iter(loc_ids([1, 2])));
-    assert_eq!(
-        feed.last().derived.history.unwrap()[&Timeline::Selections].redo,
-        true
-    );
+    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].redo);
     press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.selections.list(), before);
@@ -8915,7 +8880,7 @@ fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
         ],
     });
     store.edit_selections(&SelectionOp::Combine {
-        group: crate::selections::tree::Group::Union,
+        group: selections::tree::Group::Union,
         keys: None,
     });
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
@@ -8951,10 +8916,7 @@ fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
     store.write([Op::Set(row)], &mut None, Entry::default());
     step_selection(&mut store, Stack::Undo);
     assert!(store.selections.list().is_empty());
-    assert_eq!(
-        feed.last().derived.history.unwrap()[&Timeline::Selections].redo,
-        true
-    );
+    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].redo);
 }
 
 fn step_selection(store: &mut Store, stack: Stack) {
@@ -9004,8 +8966,8 @@ fn delta_keys_follow_named_fields_and_only_report_populated_parts() {
 #[test]
 fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    store.edit_selections(&crate::selections::tree::SelectionOp::Set {
-        selections: vec![crate::selections::tree::SelectionInput {
+    store.edit_selections(&selections::tree::SelectionOp::Set {
+        selections: vec![selections::tree::SelectionInput {
             selector: Selector::Filter {
                 field: "tags".into(),
                 test: selections::FilterOp::Contains { value: 7.into() },
@@ -9037,7 +8999,7 @@ fn selection_key_never_replays_a_data_cascade_without_selection_history() {
                 test: selections::FilterOp::Contains { value: 7.into() },
             }),
             ghosted: false,
-        })
+        });
     });
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
@@ -9076,8 +9038,8 @@ fn black_tag_selected(store: &mut Store) -> u32 {
 
 fn select_tag(store: &mut Store, tag: Id<ValueRecord>) -> u32 {
     add_rows(store, vec![loc_with_tags(0, 1.0, 1.0, vec![tag.get()])]);
-    store.edit_selections(&crate::selections::tree::SelectionOp::Add {
-        selections: vec![crate::selections::tree::SelectionInput {
+    store.edit_selections(&selections::tree::SelectionOp::Add {
+        selections: vec![selections::tree::SelectionInput {
             selector: Selector::Filter {
                 field: "tags".into(),
                 test: selections::FilterOp::Contains {
@@ -9345,14 +9307,14 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
     store.collect(&Target::Map { id: None }, &has);
     assert_eq!(
         store.field_indexes["n"].shape,
-        maps::IndexShape::None,
+        IndexShape::None,
         "an undeclared key is indexed without a shape"
     );
     let mut defs = store.field_defs.clone();
     defs.insert(
         "n".into(),
         maps::FieldDef {
-            field_type: crate::store::maps::FieldType::Enum,
+            field_type: maps::FieldType::Enum,
             ..def_of("n")
         },
     );
@@ -9365,7 +9327,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
         },
     );
     store.collect(&Target::Map { id: None }, &has);
-    assert_ne!(store.field_indexes["n"].shape, maps::IndexShape::None);
+    assert_ne!(store.field_indexes["n"].shape, IndexShape::None);
 }
 
 #[test]
@@ -9519,7 +9481,7 @@ fn a_change_to_the_maps_details_records_no_undo_step() {
 }
 
 thread_local! {
-    pub(crate) static RESOLVES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+    pub(crate) static RESOLVES: Cell<u32> = const { Cell::new(0) };
 }
 
 fn step_and_finish(store: &mut Store, stack: Stack) {
@@ -9566,7 +9528,7 @@ fn a_commits_finish_resolves_selections_once_and_leaves_them_right_after_the_bak
     store.bake_overlay();
     RESOLVES.with(|n| n.set(0));
     store.finish(Finished::Base);
-    assert_eq!(RESOLVES.with(std::cell::Cell::get), 1);
+    assert_eq!(RESOLVES.with(Cell::get), 1);
     assert_eq!(store.selections.ids.len(), 2);
 }
 
@@ -9684,7 +9646,7 @@ fn tag_row(id: u32) -> ListedSelection {
 fn a_selection_list_change_numbers_rows_densely_and_names_only_the_rows_it_moved() {
     let mut store = setup_store_with(&[]);
     edit_selection_fixture(&mut store, |rows| {
-        rows.extend([tag_row(1), tag_row(2), tag_row(3)])
+        rows.extend([tag_row(1), tag_row(2), tag_row(3)]);
     });
     let orders = |store: &Store| {
         let mut orders: Vec<u32> = store
@@ -9804,7 +9766,7 @@ fn a_record_without_a_place_takes_the_one_after_the_highest() {
         ..Default::default()
     };
     let mut first = placed(None);
-    first.sequence(std::iter::empty());
+    first.sequence(iter::empty());
     assert_eq!(first.order, Some(1));
     let held = [placed(Some(4)), placed(None), placed(Some(2))];
     let mut next = placed(None);

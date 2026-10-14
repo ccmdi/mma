@@ -14,6 +14,7 @@ use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
 use mma_algebra::{Edit, Id, Op};
 use std::time::Instant;
+use tauri::async_runtime;
 use tauri::ipc::Channel;
 use tokio::task;
 
@@ -80,10 +81,8 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
     };
     // The webserve release callback runs on a synchronous HTTP worker; wait here so its
     // flush cannot be cancelled when the callback returns and destroys the client webview.
-    let closed = tauri::async_runtime::block_on(close_window(
-        state.inner(),
-        &WindowLabel(label.to_string()),
-    ));
+    let closed =
+        async_runtime::block_on(close_window(state.inner(), &WindowLabel(label.to_string())));
     if let Err(e) = closed {
         log::error!("[close_map] flush for released window '{label}' failed: {e}");
     }
@@ -364,7 +363,7 @@ pub async fn store_step(
 /// Compile unaddressed selections into keyed store inputs.
 #[tauri::command]
 #[specta::specta]
-pub fn selection_build(selections: Vec<SelectionInput>) -> Vec<crate::selections::Selection> {
+pub fn selection_build(selections: Vec<SelectionInput>) -> Vec<selections::Selection> {
     selections
         .into_iter()
         .map(SelectionInput::compile)
@@ -416,7 +415,7 @@ pub async fn honeycomb_points(
             lng,
             lng_step,
             count,
-        })
+        });
     });
     Ok(runs)
 }
@@ -429,7 +428,7 @@ pub async fn polygon_random_points(
     polygon: selections::PolygonGeometry,
     count: u32,
 ) -> Vec<[f64; 2]> {
-    mma_geo::random_points(&polygon.prepared(), count as usize, || fastrand::f64())
+    mma_geo::random_points(&polygon.prepared(), count as usize, fastrand::f64)
 }
 
 /// Points covering the polygon with no two closer than `spacingM` metres and no gap
@@ -448,7 +447,7 @@ pub async fn polygon_poisson_points(
     Ok(mma_geo::poisson_points(
         &polygon.prepared(),
         spacing_m,
-        || fastrand::f64(),
+        fastrand::f64,
     ))
 }
 

@@ -1,4 +1,5 @@
 use super::*;
+use std::thread;
 
 #[test]
 fn tmp_paths_are_unique_per_write_and_sweepable() {
@@ -15,7 +16,7 @@ fn concurrent_atomic_writes_to_one_destination_leave_one_intact_payload() {
     let dir = tempfile::tempdir().unwrap();
     let dest = dir.path().join("out.bin");
     let payloads: Vec<Vec<u8>> = (0u8..4).map(|i| vec![i; 4096]).collect();
-    std::thread::scope(|s| {
+    thread::scope(|s| {
         for p in &payloads {
             s.spawn(|| {
                 atomic_write(&dest, |mut file| Ok(io::Write::write_all(&mut file, p)?)).unwrap();

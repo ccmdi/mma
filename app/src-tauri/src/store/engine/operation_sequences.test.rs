@@ -138,7 +138,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         4 => row.lat = (rng() % 160) as f64 - 80.0,
                         _ => {
                             row.extra =
-                                RawExtra::from_string(format!(r#"{{"sequence":{}}}"#, rng()))
+                                RawExtra::from_string(format!(r#"{{"sequence":{}}}"#, rng()));
                         }
                     }
                     let before = (model.clone(), selection_active);

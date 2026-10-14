@@ -2,11 +2,12 @@ use super::*;
 use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT_STATUSES};
 use crate::procedure::quickjs::JsProcedure;
 use crate::store::arrow;
-use crate::store::engine::{render_cell_idx, Change, Store, StoreManager, Tracked};
+use crate::store::engine::{render_cell_idx, Change, Stage, Store, StoreManager, Tracked};
 use crate::test_util::{loc, loc_ids, tag_ids};
 use crate::types::{LocationFlags, RawExtra};
 use mma_algebra::{Id, Op, Patch, Patchable};
 use std::{env, thread};
+use tauri::async_runtime;
 use tokio::time;
 
 // -----------------------------------------------------------------------
@@ -59,7 +60,7 @@ fn layer_rows(state: &StoreState, map_id: &Id<MapMeta, String>, target: &Target)
         .unwrap()
         .store_for_map(map_id)
         .unwrap()
-        .collect(target, &crate::selections::Selector::Everything)
+        .collect(target, &Selector::Everything)
 }
 
 fn read_extra(
@@ -70,7 +71,7 @@ fn read_extra(
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     let rows = store.collect(
-        &crate::store::engine::Target::Map { id: None },
+        &Target::Map { id: None },
         &Selector::Locations {
             locations: loc_ids([id]),
             name: None,
@@ -87,7 +88,7 @@ fn read_loc(state: &StoreState, map_id: &Id<MapMeta, String>, id: u32) -> Locati
     let store = mgr.store_for_map(map_id).unwrap();
     store
         .collect(
-            &crate::store::engine::Target::Map { id: None },
+            &Target::Map { id: None },
             &Selector::Locations {
                 locations: loc_ids([id]),
                 name: None,
@@ -915,7 +916,7 @@ fn cancel_with_more_batches_queued_than_the_queue_holds_still_lands_and_returns(
         &*Box::leak(Box::new(map_id)),
         &*Box::leak(Box::new(d)),
     );
-    let (tx, rx) = std::sync::mpsc::channel();
+    let (tx, rx) = mpsc::channel();
     thread::spawn(move || {
         let _ = tx.send(run_provider(&h.ctx(state, map_id), d));
     });
@@ -2646,10 +2647,10 @@ fn a_cancelled_run_leaves_nothing_reported() {
 
 #[test]
 fn a_reserved_run_id_is_never_handed_out_again_and_cancels_like_any_run() {
-    let reserved = tauri::async_runtime::block_on(procedure_reserve_run());
+    let reserved = async_runtime::block_on(procedure_reserve_run());
     assert_ne!(next_run_id(), reserved);
     let cancel = register_run(reserved, None).unwrap();
-    tauri::async_runtime::block_on(procedure_cancel(reserved)).unwrap();
+    async_runtime::block_on(procedure_cancel(reserved)).unwrap();
     assert!(cancel.load(Ordering::Relaxed));
     drop(unregister_run(reserved));
 }
@@ -2696,7 +2697,7 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         let store = manager.store_for_map(&map_id).unwrap();
         store.land("draft", &mut None);
         let pending = store.pending.get("draft").unwrap();
-        assert_eq!(pending.stage, crate::store::engine::Stage::Discarded);
+        assert_eq!(pending.stage, Stage::Discarded);
         assert!(
             store.get_loc_by_id(Id::new(1)).is_none(),
             "a discarded layer never lands"

@@ -17,6 +17,7 @@ use crate::sync::{
 };
 use crate::types::shape::MapShape;
 use crate::util::blocking;
+use reqwest::blocking::RequestBuilder;
 
 const BASE_URL: &str = "https://map-making.app";
 
@@ -303,7 +304,7 @@ fn get_bytes(api_key: &str, path: &str) -> AppResult<Vec<u8>> {
     )
 }
 
-fn send_json(req: reqwest::blocking::RequestBuilder, api_key: &str) -> AppResult<Vec<u8>> {
+fn send_json(req: RequestBuilder, api_key: &str) -> AppResult<Vec<u8>> {
     let resp = req
         .header("authorization", format!("API {api_key}"))
         .header("accept", "application/json")
