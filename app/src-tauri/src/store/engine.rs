@@ -390,6 +390,7 @@ impl Store {
         let result = Mutation {
             version: self.version,
             keys: Vec::new(),
+            history_cleared: false,
         };
         // Announce every version, including no-ops, so callers can await their mutation.
         self.changes.send(ChangeEvent {

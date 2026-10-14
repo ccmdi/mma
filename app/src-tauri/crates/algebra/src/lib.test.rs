@@ -1108,3 +1108,15 @@ fn a_child_slot_visits_maps_and_refills_its_children_in_order() {
     );
     assert_eq!(rest.next(), Some(2), "an optional slot takes one child");
 }
+
+#[test]
+fn a_run_of_ids_is_contiguous_and_later_ids_go_above_it() {
+    let mut ids: Ids<Id<()>> = Ids::starting_at(Id::new(5));
+    let run = ids.take_run(3);
+    assert_eq!(run.iter().map(Id::get).collect::<Vec<_>>(), vec![5, 6, 7]);
+    assert_eq!(run.nth(2), Some(Id::new(7)));
+    assert_eq!(run.nth(3), None);
+    assert!(run.contains(Id::new(5)) && run.contains(Id::new(7)));
+    assert!(!run.contains(Id::new(4)) && !run.contains(Id::new(8)));
+    assert_eq!(ids.take(), Id::new(8));
+}

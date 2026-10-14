@@ -6,7 +6,7 @@ use crate::store::engine::with_store;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
 use crate::types::{AppResult, Location, LocationFlags, RawExtra};
-use mma_algebra::{Id, Op, Patch};
+use mma_algebra::{Id, IdRange, Op, Patch};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -45,8 +45,8 @@ pub struct EditorImportPreview {
     pub will_auto_commit: bool,
     /// The pending layer the staged locations are read through until the import lands.
     pub target: engine::Target,
-    /// The id the first staged location was given; the rest follow it in order.
-    pub first_id: Option<Id<Location>>,
+    /// The ids the staged locations were given, in the order the file lists them.
+    pub keys: IdRange<Location>,
     /// Map settings carried by the import (`extra.settings`).
     #[specta(type = HashMap<String, specta_typescript::Any>)]
     pub settings: serde_json::Map<String, Value>,
@@ -69,15 +69,27 @@ pub(super) fn stage_parsed(
     store: &mut engine::Store,
     window: &str,
     parsed: ParsedMap,
-) -> Option<Id<Location>> {
+) -> IdRange<Location> {
     store.close_layer(&import_layer(window));
-    let edits = parsed.locations.into_iter().map(Op::Add).collect();
+    let run = store.next_id.take_run(parsed.locations.len() as u32);
+    let now = crate::util::now_unix();
+    let edits = parsed
+        .locations
+        .into_iter()
+        .zip(run.iter())
+        .map(|(row, id)| {
+            Op::Set(Location {
+                id,
+                ..row.created(now)
+            })
+        })
+        .collect();
     let records = engine::IncomingRecords::from([(
         "tags".to_string(),
         parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
     )]);
-    let staged = store.edit(&import_target(window), edits, records, &mut None);
-    staged.keys.first().copied()
+    store.edit(&import_target(window), edits, records, &mut None);
+    run
 }
 
 /// Build preview field counts, bounds, and a temp file of interleaved LE f32 `[lng, lat]` positions.
@@ -167,9 +179,9 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
         } else {
             Some([west, south, east, north])
         },
-        will_auto_commit: n > engine::MAX_UNDO_LOCATIONS,
+        will_auto_commit: engine::too_large_to_undo(n),
         target: import_target(window),
-        first_id: None,
+        keys: IdRange::default(),
         settings: parsed.settings.clone(),
     };
     Ok(preview)
@@ -233,7 +245,7 @@ pub async fn store_import_preview(
     })
     .await??;
     with_store!(label, state, |store| {
-        preview.first_id = stage_parsed(store, &label.0, parsed);
+        preview.keys = stage_parsed(store, &label.0, parsed);
         Ok(preview)
     })
 }
@@ -265,7 +277,7 @@ pub async fn store_import_paste_preview(
     })
     .await??;
     with_store!(label, state, |store| {
-        preview.first_id = stage_parsed(store, &label.0, parsed);
+        preview.keys = stage_parsed(store, &label.0, parsed);
         Ok(preview)
     })
 }
@@ -277,7 +289,7 @@ pub async fn store_import_paste_preview(
 pub struct EditorImportResult {
     pub mutation: engine::Mutation,
     pub imported_count: u32,
-    /// True when the import was large enough to autocommit; the caller commits it.
+    /// True when the import was too large to undo; the caller commits it.
     pub auto_commit: bool,
 }
 
@@ -380,13 +392,11 @@ pub(super) fn confirm_staged(
         edits.push(mma_algebra::Op::Put(patch));
     }
 
-    let imported_count = rows.len() as u32;
-    let auto_commit = rows.len() > engine::MAX_UNDO_LOCATIONS;
     store.edit(&target, edits, records, &mut None);
     let mutation = store.land(&key, &mut None);
     Ok(EditorImportResult {
-        imported_count,
-        auto_commit,
+        imported_count: rows.len() as u32,
+        auto_commit: mutation.history_cleared,
         mutation,
     })
 }

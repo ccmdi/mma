@@ -38,7 +38,12 @@ pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
 /// Maximum rows in an undo step. Larger steps clear history to limit memory
 /// and prevent older undo entries from restoring stale rows.
-pub(crate) const MAX_UNDO_LOCATIONS: usize = 500_000;
+pub(super) const MAX_UNDO_LOCATIONS: usize = 500_000;
+
+/// Whether an edit changing `rows` rows is too large to undo.
+pub(crate) fn too_large_to_undo(rows: usize) -> bool {
+    rows > MAX_UNDO_LOCATIONS
+}
 
 wire_str_enum! {
     /// Which edit history stack to step through.

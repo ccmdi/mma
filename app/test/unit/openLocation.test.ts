@@ -18,7 +18,10 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 vi.mock("@/store/import", () => ({
 	Import: {
 		staging: () => ({
-			preview: { firstId: 100, target: { kind: "pending", name: "staged-by-rust" } },
+			preview: {
+				keys: { first: 100, len: 2 },
+				target: { kind: "pending", name: "staged-by-rust" },
+			},
 		}),
 	},
 }));

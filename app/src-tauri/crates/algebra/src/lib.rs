@@ -672,6 +672,51 @@ impl<T, Raw: specta::Type> specta::Type for Id<T, Raw> {
     }
 }
 
+/// Ids handed out together, one after another.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
+pub struct IdRange<_T> {
+    /// The first id in the run.
+    pub first: Id<_T>,
+    /// How many ids the run holds.
+    pub len: u32,
+}
+
+impl<_T> Default for IdRange<_T> {
+    fn default() -> Self {
+        Self {
+            first: Id::new(0),
+            len: 0,
+        }
+    }
+}
+
+impl<_T> IdRange<_T> {
+    /// The `i`th id of the run, or `None` past its end.
+    pub fn nth(&self, i: u32) -> Option<Id<_T>> {
+        (i < self.len).then(|| Id::new(self.first.0 + i))
+    }
+
+    /// Whether `id` is one of the run's.
+    pub fn contains(&self, id: Id<_T>) -> bool {
+        id.0.checked_sub(self.first.0).is_some_and(|i| i < self.len)
+    }
+
+    /// Every id of the run, in order.
+    pub fn iter(&self) -> impl Iterator<Item = Id<_T>> {
+        let first = self.first.0;
+        (first..first + self.len).map(Id::new)
+    }
+}
+
+impl<T> Ids<Id<T>> {
+    /// Hand out `len` ids no row holds, one after another.
+    pub fn take_run(&mut self, len: u32) -> IdRange<T> {
+        let first = self.next;
+        self.next = Id::new(first.0 + len);
+        IdRange { first, len }
+    }
+}
+
 /// A value addressed by key wherever it lives.
 pub trait Keyed {
     type Key: Clone + Eq + Hash + Ord;

@@ -42,7 +42,7 @@ const preview: EditorImportPreview = {
 	previewPositionsPath: "",
 	bounds: null,
 	target: { kind: "pending", name: "import:test" },
-	firstId: 1,
+	keys: { first: 1, len: 3 },
 	settings: {},
 	willAutoCommit: false,
 };

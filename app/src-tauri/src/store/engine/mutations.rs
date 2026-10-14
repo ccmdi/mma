@@ -76,6 +76,8 @@ pub struct Mutation<_T = Location> {
     pub version: u64,
     /// The key the store gave each keyless set, in the order they were written.
     pub keys: Vec<Id<_T>>,
+    #[serde(skip)]
+    pub(crate) history_cleared: bool,
 }
 
 /// What an edit did to the map.
@@ -229,8 +231,11 @@ impl Store {
         entry.selections = self.selection_consequences(&entry);
         let entry = Arc::new(entry);
         self.put_entry(&entry);
-        self.record(&entry, join);
-        self.finish(Finished::Entry(&entry))
+        let history_cleared = self.record(&entry, join);
+        Mutation {
+            history_cleared,
+            ..self.finish(Finished::Entry(&entry))
+        }
     }
 
     /// Write `edits` with the incoming records they reference matched to the map's by name.
@@ -399,6 +404,7 @@ impl Store {
         Mutation {
             version: self.version,
             keys,
+            history_cleared: false,
         }
     }
 
@@ -446,22 +452,24 @@ impl Store {
     }
 
     /// Join the newest undo step named by `join`, or record a new step in the entry's timeline.
-    fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
+    /// An entry too large to undo clears its timeline instead, and this returns true.
+    fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) -> bool {
         let Some(timeline) = entry.timeline() else {
-            return;
+            return false;
         };
         let steps = self.steps[timeline].edit();
-        if entry.locations.len() > MAX_UNDO_LOCATIONS {
+        if too_large_to_undo(entry.locations.len()) {
             steps.clear();
-            return;
+            return true;
         }
         if let Some(seq) = *join {
             if let Ok(seq) = steps.fold_into_newest(seq, (**entry).clone()) {
                 *join = Some(seq);
-                return;
+                return false;
             }
         }
         *join = Some(steps.record(Arc::clone(entry)));
+        false
     }
 }
 

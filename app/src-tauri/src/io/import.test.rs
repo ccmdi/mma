@@ -889,12 +889,12 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
         ..Default::default()
     });
 
-    let first_id = stage_parsed(&mut store, "staged-fetch", parsed).unwrap();
+    let keys = stage_parsed(&mut store, "staged-fetch", parsed);
     let target = import_target("staged-fetch");
     let first = store.collect(
         &target,
         &crate::selections::Selector::Locations {
-            locations: (&[first_id]).to_vec(),
+            locations: vec![keys.nth(0).unwrap()],
             name: None,
         },
     )[0]
@@ -905,7 +905,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let second = store.collect(
         &target,
         &crate::selections::Selector::Locations {
-            locations: vec![Id::new(first_id.get() + 1)],
+            locations: vec![keys.nth(1).unwrap()],
             name: None,
         },
     )[0]
@@ -918,6 +918,46 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
 }
 
 #[test]
+fn a_staged_imports_range_covers_exactly_its_staged_rows() {
+    let mut store = Store::new();
+    store.meta = engine::Tracked::new(maps::MapMeta {
+        id: Id::new("test".into()),
+        ..Default::default()
+    });
+    let held = store
+        .edit(
+            &crate::store::engine::Target::Map,
+            vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
+            Default::default(),
+            &mut None,
+        )
+        .keys[0];
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, Vec::new()); 3],
+        ..Default::default()
+    };
+    let run = stage_parsed(&mut store, "range-win", parsed);
+    assert_eq!(run.len, 3);
+    assert!(!run.contains(held));
+    let staged: Vec<_> = store
+        .collect(&import_target("range-win"), &Selector::Everything)
+        .into_iter()
+        .map(|l| l.id)
+        .filter(|&id| id != held)
+        .collect();
+    assert_eq!(staged, run.iter().collect::<Vec<_>>());
+    let next = store
+        .edit(
+            &crate::store::engine::Target::Map,
+            vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
+            Default::default(),
+            &mut None,
+        )
+        .keys[0];
+    assert!(!run.contains(next));
+}
+
+#[test]
 fn cancelling_a_staged_import_drops_its_layer() {
     let mut buf = br#"{"customCoordinates":[{"lat":1,"lng":2}]}"#.to_vec();
     let parsed = parse_single_json_mut(&mut buf);
@@ -926,7 +966,7 @@ fn cancelling_a_staged_import_drops_its_layer() {
         id: Id::new("test".into()),
         ..Default::default()
     });
-    stage_parsed(&mut store, "cancel-me", parsed).unwrap();
+    stage_parsed(&mut store, "cancel-me", parsed);
     store.close_layer(&import_layer("cancel-me"));
     assert!(store
         .collect(
@@ -949,7 +989,7 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
         let parsed = parse_single_json_mut(&mut buf);
         let preview = build_preview(&parsed, window).unwrap();
         assert!(preview.target == import_target(window));
-        stage_parsed(store, window, parsed).unwrap()
+        stage_parsed(store, window, parsed).first
     };
     let a = stage(&mut store, "preview-a", 11.0);
     let b = stage(&mut store, "preview-b", 22.0);
@@ -1147,7 +1187,9 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
     stage_parsed(&mut store, "tags-win", parsed);
     assert_eq!(store.records["tags"].len(), 1);
 
-    confirm_staged(&mut store, "tags-win", &[], &[]).unwrap();
+    let confirmed = confirm_staged(&mut store, "tags-win", &[], &[]).unwrap();
+    assert!(!confirmed.auto_commit);
+    assert_eq!(confirmed.imported_count, 2);
     let unique = store.records["tags"]
         .iter()
         .find_map(|(&id, rec)| (rec.name.as_deref() == Some("Unique")).then_some(id))

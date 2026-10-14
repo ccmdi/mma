@@ -449,6 +449,7 @@ impl Store {
             mutation: Mutation {
                 version: written.version,
                 keys: Vec::new(),
+                history_cleared: written.history_cleared,
             },
         }
     }

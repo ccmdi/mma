@@ -224,11 +224,11 @@ export const Editor = {
 	/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
 	openImport: (index: number): Promise<void> => {
 		const preview = Import.staging()?.preview;
-		const first = preview?.firstId;
-		if (preview == null || first == null) return Promise.resolve();
+		if (preview == null || index < 0 || index >= preview.keys.len) return Promise.resolve();
+		const id = preview.keys.first + index;
 		return openings.replace(async () => {
 			const [loc] = await Query.read(
-				{ type: "Locations", locations: [first + index], name: null },
+				{ type: "Locations", locations: [id], name: null },
 				{ kind: "locations" },
 				preview.target,
 			);

@@ -723,8 +723,8 @@ export type EditorImportPreview = {
 	willAutoCommit: boolean,
 	/**  The pending layer the staged locations are read through until the import lands. */
 	target: Target,
-	/**  The id the first staged location was given; the rest follow it in order. */
-	firstId: number | null,
+	/**  The ids the staged locations were given, in the order the file lists them. */
+	keys: IdRange<Location>,
 	/**  Map settings carried by the import (`extra.settings`). */
 	settings: { [key in string]: any },
 };
@@ -736,7 +736,7 @@ export type EditorImportPreview = {
 export type EditorImportResult = {
 	mutation: Mutation,
 	importedCount: number,
-	/**  True when the import was large enough to autocommit; the caller commits it. */
+	/**  True when the import was too large to undo; the caller commits it. */
 	autoCommit: boolean,
 };
 
@@ -874,6 +874,14 @@ export type HoneycombRun = {
 
 export type IdQuery = {
 	panoId: string,
+};
+
+/**  Ids handed out together, one after another. */
+export type IdRange<_T> = {
+	/**  The first id in the run. */
+	first: number,
+	/**  How many ids the run holds. */
+	len: number,
 };
 
 export type ImageSize = {

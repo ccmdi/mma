@@ -273,6 +273,7 @@ impl Store {
         Ok(Mutation {
             keys: applied.keys,
             version: mutation.version,
+            history_cleared: mutation.history_cleared,
         })
     }
 
