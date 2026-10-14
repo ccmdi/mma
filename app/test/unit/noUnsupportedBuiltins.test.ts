@@ -2,8 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { API } from "@typescript/native/unstable/sync";
+import type { API } from "@typescript/native/unstable/sync";
 import { checkProject } from "../../scripts/check-browser-compat.mjs";
+import { startCompiler } from "../../scripts/native-ts.mjs";
 
 let directory: string, filename: string, config: string, api: API;
 beforeAll(() => {
@@ -39,7 +40,7 @@ afterAll(() => {
 function check(code: string) {
 	writeFileSync(filename, code);
 	api?.close();
-	api = new API({ cwd: directory });
+	api = startCompiler({ cwd: directory });
 	const snapshot = api.updateSnapshot({ openProjects: [config] });
 	try {
 		const project = snapshot.getProject(config);

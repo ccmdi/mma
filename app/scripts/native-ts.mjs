@@ -12,11 +12,23 @@ const served = new Map();
 let api;
 let configs = 0;
 
+/** A compiler process for `options`, started again when a busy machine keeps it from opening
+ *  its pipe in time. Every script and test starts the native compiler through this. */
+export function startCompiler(options) {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return new ts.API(options);
+		} catch (error) {
+			if (attempt === 5 || !String(error?.message).includes("timed out connecting")) throw error;
+		}
+	}
+}
+
 /** Runs `use(project)` on one program over `rootFiles`. `files` maps a path to the text served
  *  in place of the disk; every other file is read from disk. One compiler process serves
  *  every program in this process. */
 export function withProgram(rootFiles, compilerOptions, use, files = new Map()) {
-	api ??= new ts.API({
+	api ??= startCompiler({
 		cwd: import.meta.dirname,
 		fs: {
 			readFile: (file) => served.get(fileKey(file)),

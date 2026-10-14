@@ -2,8 +2,7 @@ import { globSync } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { performance } from "node:perf_hooks";
-import { API } from "@typescript/native/unstable/sync";
-import * as ts from "@typescript/native/unstable/ast";
+import { startCompiler, ts } from "./native-ts.mjs";
 import { FLOOR, blockedGlobals, blockedMembers, toBcdOwner } from "./browser-compat-data.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
@@ -154,7 +153,7 @@ export function checkBrowserCompatibility() {
 	})
 		.filter((file) => !ignored.has(file.replaceAll("\\", "/")))
 		.sort();
-	const api = new API({ cwd: root });
+	const api = startCompiler({ cwd: root });
 	try {
 		const configs = ["tsconfig.app.json", "test/tsconfig.json"].map((file) =>
 			path.join(root, file),

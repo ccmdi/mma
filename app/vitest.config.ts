@@ -4,14 +4,15 @@ import { globSync, readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 
 const excludes = ["test/e2e/**", "test/integration/**", "procedures/**", "node_modules/**"];
-const vmTests = globSync("test/unit/**/*.{test,spec}.{ts,tsx}", { cwd: import.meta.dirname })
-	.map((file) => file.replaceAll("\\", "/"))
-	.filter((file) => {
-		const source = readFileSync(path.join(import.meta.dirname, file), "utf8");
-		return (
-			source.includes("@vitest-environment jsdom") || source.includes('from "oxlint/plugins-dev"')
-		);
-	});
+const unitTests = globSync("test/unit/**/*.{test,spec}.{ts,tsx}", { cwd: import.meta.dirname }).map(
+	(file) => file.replaceAll("\\", "/"),
+);
+const containing = (marker: string) =>
+	unitTests.filter((file) =>
+		readFileSync(path.join(import.meta.dirname, file), "utf8").includes(marker),
+	);
+const jsdomTests = containing("@vitest-environment jsdom");
+const lintTests = containing('from "oxlint/plugins-dev"');
 
 export default defineConfig({
 	resolve: {
@@ -24,15 +25,24 @@ export default defineConfig({
 		fsModuleCache: true,
 		// Past eight workers, worker and environment setup costs more than the parallelism saves.
 		maxWorkers: Math.max(1, Math.min(8, availableParallelism() - 1)),
-		// Reuse workers for jsdom and lint rules; app-state tests retain isolated workers.
+		// Reuse workers for jsdom; app-state tests retain isolated workers. Lint rules load
+		// oxlint's native module, which crashes when several worker threads load it at once.
 		projects: [
 			{
 				extends: true,
-				test: { name: "node", pool: "threads", exclude: [...excludes, ...vmTests] },
+				test: {
+					name: "node",
+					pool: "threads",
+					exclude: [...excludes, ...jsdomTests, ...lintTests],
+				},
 			},
 			{
 				extends: true,
-				test: { name: "vm", pool: "vmThreads", vmMemoryLimit: "512MiB", include: vmTests },
+				test: { name: "vm", pool: "vmThreads", vmMemoryLimit: "512MiB", include: jsdomTests },
+			},
+			{
+				extends: true,
+				test: { name: "lint", pool: "forks", include: lintTests },
 			},
 		],
 		setupFiles: ["test/unit/setup.ts"],

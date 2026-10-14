@@ -5,16 +5,13 @@
 // Run: node plugins/check-floors.mjs
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { createRequire } from "node:module";
 import { basename, dirname, join, relative } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { startCompiler, ts } from "../app/scripts/native-ts.mjs";
 
 const pluginsDir = dirname(fileURLToPath(import.meta.url));
 const typesDir = join(pluginsDir, "types");
-const appRequire = createRequire(join(pluginsDir, "../app/package.json"));
-const { API, DiagnosticCategory } = await import(
-	pathToFileURL(appRequire.resolve("@typescript/native/unstable/sync")).href
-);
+const { DiagnosticCategory } = ts;
 
 /** Declaration files older SDKs referenced from `mma.d.ts` that the current SDK no longer ships. */
 const RETIRED_SDK_FILES = ["google-maps.d.ts"];
@@ -63,7 +60,7 @@ function typecheck(dirs, sdk) {
 		readFile: (file) => sdk.get(fileKey(file)),
 		fileExists: (file) => (sdk.has(fileKey(file)) ? sdk.get(fileKey(file)) !== null : undefined),
 	};
-	const api = new API({ cwd: pluginsDir, fs });
+	const api = startCompiler({ cwd: pluginsDir, fs });
 	try {
 		const configs = dirs.map((dir) => join(dir, "tsconfig.json"));
 		const snapshot = api.updateSnapshot({ openProjects: configs });
