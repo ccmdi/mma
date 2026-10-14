@@ -81,7 +81,10 @@ import { Editor } from "@/store/editor";
 
 const requiresMap = () => Store.get().map !== null;
 const requiresVersioning = () => requiresMap() && !Maps.isReserved(Store.get().mapId);
-const hasOpenLocation = () => Editor.get().open?.location != null;
+const openMapLocation = () => {
+	const open = Editor.get().open;
+	return open?.origin === "map" ? open.id : null;
+};
 const hasSelection = () => Scene.selected().size > 0;
 const hasAnySelections = () => Store.get().selectionList.length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
@@ -149,10 +152,10 @@ const COMMANDS = {
 		icon: mdiMapMarkerPlus,
 		group: msg("Map"),
 		execute: () => {
-			const id = Editor.get().open?.location?.id;
+			const id = openMapLocation();
 			if (id != null) openDialog("quick-copy-to-map", id);
 		},
-		enabled: hasOpenLocation,
+		enabled: () => openMapLocation() != null,
 	},
 	undo: {
 		label: msg("Undo"),

@@ -4326,7 +4326,6 @@ declare function loadGeoJSON(): Promise<void>;
 
 declare const requiresMap: () => boolean;
 declare const requiresVersioning: () => boolean;
-declare const hasOpenLocation: () => boolean;
 declare const hasSelection: () => boolean;
 declare const hasAnySelections: () => boolean;
 /** Every editor command (palette entries; all are hotkey-bindable in Settings). */
@@ -4383,7 +4382,7 @@ declare const COMMANDS: {
         icon: string;
         group: "Map";
         execute: () => void;
-        enabled: typeof hasOpenLocation;
+        enabled: () => boolean;
     };
     undo: {
         label: "Undo";

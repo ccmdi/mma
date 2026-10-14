@@ -45,6 +45,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	const { timeline } = usePanoViewer();
 	const pano = usePano();
 	const location = Editor.use((s) => s.open?.location ?? null);
+	const onMap = Editor.use((s) => s.open?.origin === "map");
 	const isReviewMode = Review.useSession() !== null;
 	const {
 		pendingTags,
@@ -122,7 +123,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 	/** The open location as it is right now: live camera, staged tags. */
 	const dropped = () => {
-		const live = location && pano.capture();
+		const live = onMap && location && pano.capture();
 		return live ? dropLocation(location, live, live.panoId ?? location.panoId, pendingTags) : null;
 	};
 
@@ -208,9 +209,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		return drop && Location.addTo(mapId, drop.location, drop.records);
 	});
 
-	const hasLocation = location != null;
 	useEffect(() => {
-		if (!hasLocation) return;
+		if (!onMap) return;
 		const unregisterApply = registerMapKeyActionHandler("applyTag", (action) => onApplyTag(action));
 		const unregisterCopy = registerMapKeyActionHandler("copyToMap", ({ mapId }) => {
 			const loc = Editor.get().open?.location;
@@ -237,7 +237,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 			unregisterApply();
 			unregisterCopy();
 		};
-	}, [hasLocation, fullscreenContainerRef, panoContainerRef]);
+	}, [onMap, fullscreenContainerRef, panoContainerRef]);
 
 	useHotkey(useBinding("quicktag1"), () => quicktagSlot(0));
 	useHotkey(useBinding("quicktag2"), () => quicktagSlot(1));
