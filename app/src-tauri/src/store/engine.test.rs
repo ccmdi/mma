@@ -8999,3 +8999,36 @@ fn the_maps_details_leave_out_what_ships_in_its_own_slices() {
     let back: maps::MapDetails = serde_json::from_value(details).unwrap();
     assert_eq!(back.0.name, "n");
 }
+
+#[test]
+fn a_write_and_a_validity_check_drop_the_same_emptied_values() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[
+        loc_with_tags(1, 0.0, 0.0, vec![7]),
+        loc_with_tags(2, 1.0, 1.0, vec![8]),
+    ]);
+    let tag = |id: u32| SelectionInput {
+        selector: Selector::Filter {
+            field: "tags".into(),
+            test: selections::FilterOp::Contains { value: id.into() },
+        },
+        color: None,
+    };
+    store.edit_selections(&SelectionOp::Set {
+        selections: vec![
+            tag(7),
+            tag(8),
+            SelectionInput {
+                selector: Selector::Everything,
+                color: None,
+            },
+        ],
+    });
+    let listed = store.selections.list();
+    let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
+    row.tags.clear();
+    store.write([Op::Set(row)], &mut None, Entry::default());
+    let pruned = store.selections.list();
+    assert_eq!(pruned.len(), 2);
+    assert_eq!(store.valid_selections(listed), pruned);
+}

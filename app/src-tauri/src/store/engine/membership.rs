@@ -111,37 +111,40 @@ impl Store {
 
     /// Remove selections naming values that this write emptied.
     fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
-        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
-        let gone: HashSet<_> = self
-            .fields(fields.iter().map(String::as_str))
-            .into_iter()
-            .flat_map(|values| {
-                let field = values.field();
-                let touched = entry
-                    .piles
-                    .get(field)
-                    .into_iter()
-                    .flat_map(|pile| pile.keys_iter())
-                    .map(|id| id.to_string());
-                values
-                    .absent_after(&entry.locations, touched)
-                    .into_iter()
-                    .map(move |key| (field.to_string(), key))
-            })
-            .collect();
+        let gone = self.emptied_values(&entry.locations, |field| {
+            entry
+                .piles
+                .get(field)
+                .into_iter()
+                .flat_map(|pile| pile.keys_iter())
+                .map(|id| id.to_string())
+                .collect()
+        });
         if gone.is_empty() {
             return entry.selections.clone();
         }
-        self.selections.rewrite(&entry.selections, &|selector| {
-            if selector
-                .member_test()
-                .is_some_and(|(field, id)| gone.contains(&(field.to_string(), id.to_string())))
-            {
-                None
-            } else {
-                Some(selector.clone())
-            }
-        })
+        let kept = without(&gone);
+        self.selections.rewrite(&entry.selections, &kept)
+    }
+
+    /// Interned values that hold no row once `rows` apply, among the values `rows` move and
+    /// the ones `touched` names for each field, as field and value.
+    fn emptied_values(
+        &mut self,
+        rows: &Change<Location>,
+        touched: impl Fn(&str) -> Vec<String>,
+    ) -> HashSet<(String, String)> {
+        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
+        self.fields(fields.iter().map(String::as_str))
+            .into_iter()
+            .flat_map(|values| {
+                let field = values.field();
+                values
+                    .absent_after(rows, touched(field))
+                    .into_iter()
+                    .map(move |key| (field.to_string(), key))
+            })
+            .collect()
     }
 
     /// Recompute selection membership and per-node counts. Render bitmasks are built separately.
@@ -171,6 +174,17 @@ impl Store {
             num_cells,
         );
         buf
+    }
+}
+
+/// A selector edit that drops each test for membership of a value in `gone`.
+fn without(gone: &HashSet<(String, String)>) -> impl Fn(&Selector) -> Option<Selector> + '_ {
+    |selector| {
+        let named = selector.member_test();
+        match named.is_some_and(|(field, id)| gone.contains(&(field.to_string(), id.to_string()))) {
+            true => None,
+            false => Some(selector.clone()),
+        }
     }
 }
 
@@ -347,22 +361,26 @@ impl Store {
     }
 
     pub(crate) fn valid_selections(&mut self, rows: Vec<ListedSelection>) -> Vec<ListedSelection> {
-        let fields: Vec<_> = self.registry().interned().map(str::to_string).collect();
-        let values = self.fields(fields.iter().map(String::as_str));
+        let named = |field: &str| {
+            let mut ids = Vec::new();
+            for row in &rows {
+                row.selection.selector.walk(&mut |selector| {
+                    if let Some((tested, id)) = selector.member_test() {
+                        if tested == field {
+                            ids.push(id.to_string());
+                        }
+                    }
+                });
+            }
+            ids
+        };
+        let gone = self.emptied_values(&Change::default(), named);
         rows.into_iter()
             .filter_map(|row| {
-                let selection = row.selection.filter_map(&|selector| {
-                    if selector.member_test().is_some_and(|(field, id)| {
-                        values.iter().any(|values| {
-                            values.field() == field && values.count(&id.to_string()) == 0
-                        })
-                    }) {
-                        None
-                    } else {
-                        Some(selector.clone())
-                    }
-                })?;
-                Some(ListedSelection { selection, ..row })
+                Some(ListedSelection {
+                    selection: row.selection.filter_map(&without(&gone))?,
+                    ..row
+                })
             })
             .collect()
     }
