@@ -86,7 +86,7 @@ pub(crate) fn read_full_state_from_disk(map_id: &Id<MapMeta, String>) -> AppResu
 pub(crate) struct Unsaved {
     delta: Option<At<RecordBatch>>,
     meta: Option<MetaRow>,
-    edits: Option<At<EditStacks>>,
+    steps: Option<At<StepStacks>>,
     alive: usize,
     pending: Counts,
 }
@@ -114,8 +114,8 @@ impl Unsaved {
         if let Some(row) = &self.meta {
             storage::update_row::<MapMeta>(conn, "maps", map_id.raw(), &row.row)?;
         }
-        if let Some(edits) = &self.edits {
-            save_edit_history(conn, map_id, edits.value())?;
+        if let Some(steps) = &self.steps {
+            save_edit_history(conn, map_id, steps.value())?;
         }
         Ok(())
     }
@@ -147,9 +147,9 @@ impl Store {
                     .stamp(self.overlay.to_delta(self.batch.as_ref()))
             }),
             meta,
-            edits: {
-                let edits = &self.steps[Timeline::Edits];
-                edits.is_unsaved().then(|| edits.stamp((**edits).clone()))
+            steps: {
+                let steps = &self.steps[Timeline::Edits];
+                steps.is_unsaved().then(|| steps.stamp((**steps).clone()))
             },
             alive: *self.alive_count,
             pending: self.overlay_diff_counts(),
@@ -170,8 +170,8 @@ impl Store {
                 }
             }
         }
-        if let Some(edits) = &written.edits {
-            self.steps[Timeline::Edits].saved_at(edits.rev());
+        if let Some(steps) = &written.steps {
+            self.steps[Timeline::Edits].saved_at(steps.rev());
         }
     }
 }
@@ -183,13 +183,13 @@ fn stack_code(stack: Stack) -> i64 {
     }
 }
 
-/// Bring the stored history in line with the stacks: store edits it lacks, move the ones
-/// that changed stack, drop the ones the stacks no longer hold. An edit is serialized
+/// Bring the stored history in line with the stacks: store steps it lacks, move the ones
+/// that changed stack, drop the ones the stacks no longer hold. A step is serialized
 /// once, when first stored.
 pub(crate) fn save_edit_history(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,
-    edits: &EditStacks,
+    steps: &StepStacks,
 ) -> AppResult<()> {
     let stored: HashMap<u64, i64> = conn
         .prepare("SELECT seq, stack FROM edit_entries WHERE map_id = ?1")?
@@ -198,11 +198,11 @@ pub(crate) fn save_edit_history(
         })?
         .collect::<Result<_, _>>()?;
     let tx = conn.unchecked_transaction()?;
-    let mut live = HashSet::with_capacity(edits.len(Stack::Undo) + edits.len(Stack::Redo));
-    for (stack, edit) in edits.iter() {
-        live.insert(edit.seq);
+    let mut live = HashSet::with_capacity(steps.len(Stack::Undo) + steps.len(Stack::Redo));
+    for (stack, step) in steps.iter() {
+        live.insert(step.seq);
         let stack = stack_code(stack);
-        match (stored.get(&edit.seq), &edit.entry) {
+        match (stored.get(&step.seq), &step.entry) {
             (Some(&at), _) if at == stack => {}
             (Some(_), _) => {
                 tx.prepare_cached(
@@ -210,7 +210,7 @@ pub(crate) fn save_edit_history(
                 )?
                 .execute(rusqlite::params![
                     map_id.raw(),
-                    edit.seq as i64,
+                    step.seq as i64,
                     stack
                 ])?;
             }
@@ -220,7 +220,7 @@ pub(crate) fn save_edit_history(
                 )?
                 .execute(rusqlite::params![
                     map_id.raw(),
-                    edit.seq as i64,
+                    step.seq as i64,
                     stack,
                     entry.locations.max_key().map_or(0, Id::get),
                     arrow::arrow_ipc_bytes(&{
@@ -231,8 +231,8 @@ pub(crate) fn save_edit_history(
                 ])?;
             }
             (None, None) => log::warn!(
-                "[save_edit_history] {map_id} edit {} is on no disk",
-                edit.seq
+                "[save_edit_history] {map_id} step {} is on no disk",
+                step.seq
             ),
         }
     }
@@ -248,7 +248,7 @@ pub(crate) fn save_edit_history(
 pub(crate) fn load_edit_history(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,
-) -> AppResult<EditStacks> {
+) -> AppResult<StepStacks> {
     let rows = conn
         .prepare("SELECT seq, stack FROM edit_entries WHERE map_id = ?1")?
         .query_map([map_id.raw()], |r| {
@@ -260,11 +260,11 @@ pub(crate) fn load_edit_history(
             Ok((r.get::<_, i64>(0)? as u64, stack))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    log::debug!("[load_edit_history] {map_id} {} edits on disk", rows.len());
-    Ok(EditStacks::on_disk(rows))
+    log::debug!("[load_edit_history] {map_id} {} steps on disk", rows.len());
+    Ok(StepStacks::on_disk(rows))
 }
 
-/// One stored edit.
+/// One stored step.
 pub(crate) fn load_edit(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,

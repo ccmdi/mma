@@ -170,9 +170,9 @@ declare const Sink: {
 type Sink = (typeof Sink)[keyof typeof Sink];
 /** Which edit history stack to step through. */
 declare const Stack: {
-    /** The edits that can be undone. */
+    /** The steps that can be undone. */
     readonly Undo: "undo";
-    /** The undone edits that can be redone. */
+    /** The undone steps that can be redone. */
     readonly Redo: "redo";
 };
 type Stack = (typeof Stack)[keyof typeof Stack];

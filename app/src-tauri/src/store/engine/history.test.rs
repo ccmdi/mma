@@ -11,7 +11,7 @@ fn row_edit(before: Option<Location>, after: Option<Location>) -> Arc<Entry> {
 
 #[test]
 fn persisted_stack_rows_are_sorted_into_undo_and_redo_order() {
-    let mut stacks = EditStacks::on_disk(vec![
+    let mut stacks = StepStacks::on_disk(vec![
         (8, Stack::Redo),
         (2, Stack::Undo),
         (6, Stack::Redo),
@@ -37,7 +37,7 @@ fn persisted_stack_rows_are_sorted_into_undo_and_redo_order() {
 fn undo_and_redo_move_the_same_edit_and_invert_its_rows() {
     let before = loc(7, 1.0, 2.0);
     let after = loc(7, 3.0, 4.0);
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     stacks.record(row_edit(Some(before.clone()), Some(after.clone())));
 
     let undone = stacks
@@ -57,7 +57,7 @@ fn undo_and_redo_move_the_same_edit_and_invert_its_rows() {
 
 #[test]
 fn a_disk_only_edit_is_fetched_once_then_kept_resident() {
-    let mut stacks = EditStacks::on_disk(vec![(42, Stack::Undo)]);
+    let mut stacks = StepStacks::on_disk(vec![(42, Stack::Undo)]);
     let before = loc(4, 1.0, 1.0);
     let after = loc(4, 2.0, 2.0);
     let mut fetches = Vec::new();
@@ -86,7 +86,7 @@ fn a_disk_only_edit_is_fetched_once_then_kept_resident() {
 
 #[test]
 fn a_failed_disk_history_read_clears_both_stacks_instead_of_crossing_a_gap() {
-    let mut stacks = EditStacks::on_disk(vec![(1, Stack::Undo), (2, Stack::Redo)]);
+    let mut stacks = StepStacks::on_disk(vec![(1, Stack::Undo), (2, Stack::Redo)]);
     assert!(stacks
         .step(Stack::Undo, |_| Err("corrupt history".into()))
         .is_err());
@@ -96,7 +96,7 @@ fn a_failed_disk_history_read_clears_both_stacks_instead_of_crossing_a_gap() {
 
 #[test]
 fn recording_after_undo_discards_redo_without_reusing_a_sequence() {
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let first = stacks.record(Arc::new(Entry::default()));
     stacks
         .step(Stack::Undo, |_| panic!("resident edit"))
@@ -116,7 +116,7 @@ fn folding_adjacent_writes_keeps_the_first_before_and_last_after() {
     let a = loc(1, 1.0, 1.0);
     let b = loc(1, 2.0, 2.0);
     let c = loc(1, 3.0, 3.0);
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let first_seq = stacks.record(row_edit(Some(a.clone()), Some(b.clone())));
     let folded_seq = stacks
         .fold_into_newest(
@@ -141,7 +141,7 @@ fn a_non_adjacent_write_cannot_corrupt_the_newest_history_entry() {
     let a = loc(1, 1.0, 1.0);
     let b = loc(1, 2.0, 2.0);
     let unrelated = loc(1, 9.0, 9.0);
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let seq = stacks.record(row_edit(Some(a.clone()), Some(b.clone())));
     let later = Entry {
         locations: Change::from_iter([mma_algebra::Transition::new(
@@ -168,7 +168,7 @@ fn a_non_adjacent_write_cannot_corrupt_the_newest_history_entry() {
 
 #[test]
 fn the_history_entry_limit_discards_oldest_undo_rows_only() {
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     for _ in 0..=MAX_UNDO_ENTRIES {
         stacks.record(Arc::new(Entry::default()));
     }
@@ -190,7 +190,7 @@ fn next_id_reserves_the_highest_id_reachable_from_any_durable_layer() {
 
 #[test]
 fn stepping_an_empty_stack_does_not_call_the_loader() {
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     assert!(stacks
         .step(Stack::Undo, |_| panic!("empty stack must not fetch"))
         .unwrap()
@@ -203,7 +203,7 @@ fn stepping_an_empty_stack_does_not_call_the_loader() {
 
 #[test]
 fn clearing_history_does_not_reuse_edit_sequence_numbers() {
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let first = stacks.record(Arc::new(Entry::default()));
     stacks.clear();
     assert_eq!(stacks.len(Stack::Undo), 0);
@@ -217,7 +217,7 @@ fn folding_a_newest_write_clears_an_existing_redo_branch() {
     let b = loc(1, 2.0, 2.0);
     let c = loc(1, 3.0, 3.0);
     let d = loc(1, 4.0, 4.0);
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let first = stacks.record(row_edit(Some(a.clone()), Some(b.clone())));
     stacks.record(row_edit(Some(b.clone()), Some(c.clone())));
     stacks
@@ -242,7 +242,7 @@ fn a_stale_fold_sequence_cannot_join_a_different_newest_edit() {
     let first = loc(1, 1.0, 1.0);
     let second = loc(1, 2.0, 2.0);
     let later = loc(1, 3.0, 3.0);
-    let mut stacks = EditStacks::default();
+    let mut stacks = StepStacks::default();
     let stale_seq = stacks.record(row_edit(Some(first.clone()), Some(second.clone())));
     let current_seq = stacks.record(row_edit(Some(second.clone()), Some(later.clone())));
     let rejected = stacks.fold_into_newest(

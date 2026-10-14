@@ -35,7 +35,7 @@ pub struct Entry {
 
 pub(super) const MAX_UNDO_ENTRIES: usize = 1000;
 
-/// Maximum rows in an undoable edit. Larger edits clear history to limit memory
+/// Maximum rows in an undo step. Larger steps clear history to limit memory
 /// and prevent older undo entries from restoring stale rows.
 pub(crate) const MAX_UNDO_LOCATIONS: usize = 500_000;
 
@@ -43,9 +43,9 @@ wire_str_enum! {
     /// Which edit history stack to step through.
     derive(serde::Deserialize, specta::Type, Clone, Copy, PartialEq, Eq, Debug)
     pub enum Stack {
-        /// The edits that can be undone.
+        /// The steps that can be undone.
         Undo = "undo",
-        /// The undone edits that can be redone.
+        /// The undone steps that can be redone.
         Redo = "redo",
     }
 }
@@ -82,7 +82,7 @@ impl Entry {
 
 /// The undo and redo stacks of each timeline.
 #[derive(Default)]
-pub(crate) struct Timelines([Tracked<EditStacks>; Timeline::ALL.len()]);
+pub(crate) struct Timelines([Tracked<StepStacks>; Timeline::ALL.len()]);
 
 impl Timelines {
     /// Mark every timeline's stacks as seen; true when any had not been.
@@ -94,7 +94,7 @@ impl Timelines {
 }
 
 impl std::ops::Index<Timeline> for Timelines {
-    type Output = Tracked<EditStacks>;
+    type Output = Tracked<StepStacks>;
     fn index(&self, timeline: Timeline) -> &Self::Output {
         &self.0[timeline as usize]
     }
@@ -117,49 +117,49 @@ impl Stack {
 
 /// The undo and redo stacks. Undo holds ascending `seq`, redo descending, and every undo
 /// `seq` is below every redo `seq`, so the order of both is recoverable from `seq` alone.
-/// Only this module moves edits, which keeps that true.
+/// Only this module moves steps, which keeps that true.
 #[derive(Default, Clone)]
-pub(crate) struct EditStacks {
-    undo: Vec<LoggedEdit>,
-    redo: Vec<LoggedEdit>,
+pub(crate) struct StepStacks {
+    undo: Vec<LoggedStep>,
+    redo: Vec<LoggedStep>,
     next_seq: u64,
 }
 
-/// An edit and the number it is stored under, never reused within a map, so a stored
-/// row with a live `seq` always holds that same edit. `entry` is `None` while the edit
+/// An undo step and the number it is stored under, never reused within a map, so a stored
+/// row with a live `seq` always holds that same step. `entry` is `None` while the step
 /// is only on disk.
 #[derive(Clone)]
-pub(crate) struct LoggedEdit {
+pub(crate) struct LoggedStep {
     pub seq: u64,
     pub entry: Option<Arc<Entry>>,
 }
 
-impl EditStacks {
-    /// Stacks for edits that are only on disk, from each one's `seq` and stack. New edits
+impl StepStacks {
+    /// Stacks for steps that are only on disk, from each one's `seq` and stack. New steps
     /// number after every stored one.
     pub(crate) fn on_disk(mut rows: Vec<(u64, Stack)>) -> Self {
         rows.sort_unstable_by_key(|(seq, _)| *seq);
         let next_seq = rows.last().map_or(0, |(seq, _)| seq + 1);
         let (undo, mut redo): (Vec<_>, Vec<_>) = rows
             .into_iter()
-            .map(|(seq, stack)| (LoggedEdit { seq, entry: None }, stack))
+            .map(|(seq, stack)| (LoggedStep { seq, entry: None }, stack))
             .partition(|(_, stack)| *stack == Stack::Undo);
         redo.reverse();
         Self {
-            undo: undo.into_iter().map(|(edit, _)| edit).collect(),
-            redo: redo.into_iter().map(|(edit, _)| edit).collect(),
+            undo: undo.into_iter().map(|(step, _)| step).collect(),
+            redo: redo.into_iter().map(|(step, _)| step).collect(),
             next_seq,
         }
     }
 
-    /// Record a new edit: it goes on top of undo, under the cap, and redo is gone.
+    /// Record a new step: it goes on top of undo, under the cap, and redo is gone.
     /// Returns the `seq` it was stored under.
     pub(crate) fn record(&mut self, entry: Arc<Entry>) -> u64 {
         let seq = self.next_seq;
         self.next_seq += 1;
         self.push(
             Stack::Undo,
-            LoggedEdit {
+            LoggedStep {
                 seq,
                 entry: Some(entry),
             },
@@ -168,7 +168,7 @@ impl EditStacks {
         seq
     }
 
-    /// Join `later` to the newest edit if its sequence and states match.
+    /// Join `later` to the newest step if its sequence and states match.
     /// Assign a fresh sequence so persistence replaces the old entry; return `later` if it cannot join.
     pub(crate) fn fold_into_newest(&mut self, seq: u64, later: Entry) -> Result<u64, Entry> {
         let Some(top) = self.undo.last_mut().filter(|top| top.seq == seq) else {
@@ -191,19 +191,19 @@ impl EditStacks {
         Ok(top.seq)
     }
 
-    fn stack_mut(&mut self, stack: Stack) -> &mut Vec<LoggedEdit> {
+    fn stack_mut(&mut self, stack: Stack) -> &mut Vec<LoggedStep> {
         match stack {
             Stack::Undo => &mut self.undo,
             Stack::Redo => &mut self.redo,
         }
     }
 
-    fn push(&mut self, stack: Stack, edit: LoggedEdit) {
-        let edits = self.stack_mut(stack);
-        edits.push(edit);
-        if edits.len() > MAX_UNDO_ENTRIES {
-            let excess = edits.len() - MAX_UNDO_ENTRIES;
-            edits.drain(..excess);
+    fn push(&mut self, stack: Stack, step: LoggedStep) {
+        let steps = self.stack_mut(stack);
+        steps.push(step);
+        if steps.len() > MAX_UNDO_ENTRIES {
+            let excess = steps.len() - MAX_UNDO_ENTRIES;
+            steps.drain(..excess);
         }
     }
 
@@ -220,8 +220,8 @@ impl EditStacks {
         }
     }
 
-    /// Every edit with its stack: undo bottom to top, then redo bottom to top.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = (Stack, &LoggedEdit)> {
+    /// Every step with its stack: undo bottom to top, then redo bottom to top.
+    pub(crate) fn iter(&self) -> impl Iterator<Item = (Stack, &LoggedStep)> {
         let undo = self.undo.iter().map(|e| (Stack::Undo, e));
         undo.chain(self.redo.iter().map(|e| (Stack::Redo, e)))
     }
@@ -244,7 +244,7 @@ pub(crate) fn seed_next_id(
     )
 }
 
-impl EditStacks {
+impl StepStacks {
     pub(crate) fn availability(&self) -> History {
         History {
             undo: !self.undo.is_empty(),
@@ -252,26 +252,26 @@ impl EditStacks {
         }
     }
 
-    /// Move the newest edit to the other stack, reversing it for undo.
+    /// Move the newest step to the other stack, reversing it for undo.
     /// Load disk-only entries with `fetch`; a read failure clears history to avoid replaying across a gap.
     pub(crate) fn step(
         &mut self,
         from: Stack,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let Some(mut edit) = self.stack_mut(from).pop() else {
+        let Some(mut step) = self.stack_mut(from).pop() else {
             return Ok(None);
         };
-        let entry = match edit.entry.take() {
+        let entry = match step.entry.take() {
             Some(entry) => entry,
-            None => Arc::new(fetch(edit.seq).inspect_err(|_| self.clear())?),
+            None => Arc::new(fetch(step.seq).inspect_err(|_| self.clear())?),
         };
         let changes = match from {
             Stack::Undo => entry.inverse(),
             Stack::Redo => (*entry).clone(),
         };
-        edit.entry = Some(entry);
-        self.push(from.other(), edit);
+        step.entry = Some(entry);
+        self.push(from.other(), step);
         Ok(Some(changes))
     }
 }
@@ -285,7 +285,7 @@ impl Store {
             .collect()
     }
 
-    /// Move the newest edit of `timeline` to its other stack and apply it.
+    /// Move the newest step of `timeline` to its other stack and apply it.
     pub(crate) fn step(
         &mut self,
         from: Stack,

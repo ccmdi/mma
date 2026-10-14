@@ -170,9 +170,9 @@ export type Sink = (typeof Sink)[keyof typeof Sink];
 
 /** Which edit history stack to step through. */
 export const Stack = {
-	/** The edits that can be undone. */
+	/** The steps that can be undone. */
 	Undo: "undo",
-	/** The undone edits that can be redone. */
+	/** The undone steps that can be redone. */
 	Redo: "redo",
 } as const;
 export type Stack = (typeof Stack)[keyof typeof Stack];

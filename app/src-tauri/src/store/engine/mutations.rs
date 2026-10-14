@@ -393,18 +393,18 @@ impl Store {
         let Some(timeline) = entry.timeline() else {
             return;
         };
-        let edits = self.steps[timeline].edit();
+        let steps = self.steps[timeline].edit();
         if entry.locations.len() > MAX_UNDO_LOCATIONS {
-            edits.clear();
+            steps.clear();
             return;
         }
         if let Some(seq) = *join {
-            if let Ok(seq) = edits.fold_into_newest(seq, (**entry).clone()) {
+            if let Ok(seq) = steps.fold_into_newest(seq, (**entry).clone()) {
                 *join = Some(seq);
                 return;
             }
         }
-        *join = Some(edits.record(Arc::clone(entry)));
+        *join = Some(steps.record(Arc::clone(entry)));
     }
 }
 
