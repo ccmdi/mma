@@ -178,16 +178,29 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
             .and_then(Value::as_str)
             .and_then(|f| super::FieldRegistry::builtins().get(f))
             .is_some_and(|def| def.flag().is_some());
-        if on_flag {
-            if let Some(value) = obj
-                .get_mut("test")
-                .and_then(Value::as_object_mut)
-                .and_then(|t| t.get_mut("value"))
-            {
-                match value.as_f64() {
-                    Some(0.0) => *value = Value::Bool(false),
-                    Some(1.0) => *value = Value::Bool(true),
-                    _ => {}
+        if let Some(test) = obj
+            .get_mut("test")
+            .and_then(Value::as_object_mut)
+            .filter(|_| on_flag)
+        {
+            let op = test.get("op").and_then(Value::as_str).unwrap_or_default();
+            if let Some(v) = test.get("value").and_then(Value::as_f64) {
+                let holds = |x: f64| match op {
+                    "eq" => Some(x == v),
+                    "neq" => Some(x != v),
+                    "gt" => Some(x > v),
+                    "lt" => Some(x < v),
+                    "gte" => Some(x >= v),
+                    "lte" => Some(x <= v),
+                    _ => None,
+                };
+                if let (Some(off), Some(on)) = (holds(0.0), holds(1.0)) {
+                    if off != on {
+                        *test = serde_json::Map::from_iter([
+                            ("op".to_string(), Value::from("eq")),
+                            ("value".to_string(), Value::Bool(on)),
+                        ]);
+                    }
                 }
             }
         }

@@ -268,6 +268,38 @@ fn a_flag_filter_row_written_as_zero_or_one_reads_as_a_boolean() {
     }
 }
 
+#[test]
+fn a_flag_filter_row_under_a_range_operator_keeps_its_meaning() {
+    let eq = |value: bool| FilterOp::Eq {
+        value: serde_json::Value::Bool(value),
+    };
+    for (op, value, expected) in [
+        ("gt", 0, Some(eq(true))),
+        ("gte", 1, Some(eq(true))),
+        ("lt", 1, Some(eq(false))),
+        ("lte", 0, Some(eq(false))),
+        ("neq", 0, Some(eq(true))),
+        ("neq", 1, Some(eq(false))),
+        ("gt", 1, None),
+        ("gte", 0, None),
+        ("lt", 0, None),
+        ("lte", 1, None),
+    ] {
+        let stored =
+            format!(r#"{{"type":"Filter","field":"loadAsPanoId","op":"{op}","value":{value}}}"#);
+        let selector: Selector =
+            serde_json::from_value(modernize(serde_json::from_str(&stored).unwrap())).unwrap();
+        let Selector::Filter { test, .. } = selector else {
+            panic!("not a filter");
+        };
+        let unchanged = serde_json::from_value::<FilterOp>(
+            serde_json::json!({"op": op, "value": value, "tzLocal": false}),
+        )
+        .unwrap();
+        assert_eq!(test, expected.unwrap_or(unchanged), "{op} {value}");
+    }
+}
+
 fn map_with_records() -> Store {
     let mut store = Store::new();
     let record = |id: u32, name: &str| {
