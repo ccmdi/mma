@@ -458,14 +458,6 @@ KNOWN_FIELDS: readonly [
 ]
 ```
 
-### LOCATION_MERGED
-
-`stable` · since v0.12.0
-
-```ts
-LOCATION_MERGED: readonly ["extra"]
-```
-
 ### LocationFlag
 
 `stable` · since v0.11.0

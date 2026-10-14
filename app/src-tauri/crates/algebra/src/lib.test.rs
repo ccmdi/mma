@@ -33,7 +33,6 @@ impl Keyed for RowPatch {
 impl Patchable for Row {
     type Patch = RowPatch;
     const WRITES: &'static [(&'static str, &'static str)] = &[("name", "name"), ("extra", "extra")];
-    const MERGED: &'static [&'static str] = &["extra"];
     const CLEARS: &'static [&'static str] = &[];
 
     fn patched(&self, patch: &RowPatch) -> Self {
@@ -175,7 +174,7 @@ fn a_change_drops_rows_that_did_not_change() {
     assert_eq!(change.removed, vec![row(2, "b")]);
     assert_eq!(change.updated, vec![(row(4, "d"), row(4, "e"))]);
     assert_eq!(change.len(), 3);
-    assert!(change.touches(1) && change.touches(4) && !change.touches(2) && !change.touches(3));
+    assert_eq!(change.after().map(|r| r.id).collect::<Vec<_>>(), [1, 4]);
     assert_eq!(change.max_key(), Some(4));
     assert!(Change::<Row>::default().is_empty());
 }
@@ -293,7 +292,7 @@ fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
     );
     let change = Change::from_iter(resolved);
     assert_eq!(change.len(), 3);
-    assert!(layer.holds(2) && !layer.holds(4));
+    assert_eq!(layer.keys().collect::<Vec<_>>(), [1, 2, 3]);
 }
 
 #[test]
@@ -376,7 +375,8 @@ fn a_transition_composes_only_from_where_the_last_one_ended() {
         Some(Transition::new(Some(1), None))
     );
     assert_eq!(on.clone().then(up.clone()), None);
-    assert!(up.clone().then(up.clone().inverse()).unwrap().is_identity());
+    let there_and_back = up.clone().then(up.clone().inverse()).unwrap();
+    assert_eq!(there_and_back.before, there_and_back.after);
 }
 
 fn table(rows: &[(u32, i32)]) -> HashMap<u32, i32> {
@@ -640,7 +640,6 @@ impl Keyed for NamedPatch {
 impl Patchable for Named {
     type Patch = NamedPatch;
     const WRITES: &'static [(&'static str, &'static str)] = &[];
-    const MERGED: &'static [&'static str] = &[];
     const CLEARS: &'static [&'static str] = &[];
 
     fn patched(&self, patch: &NamedPatch) -> Self {

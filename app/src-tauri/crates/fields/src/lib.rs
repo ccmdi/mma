@@ -353,7 +353,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
     let patch = format_ident!("{ident}Patch");
     let (mut slots, mut writes, mut reads) = (Vec::new(), Vec::new(), Vec::new());
     let (mut keys, mut skips, mut whole) = (Vec::new(), Vec::new(), Vec::new());
-    let (mut columns, mut merged, mut same) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut columns, mut same) = (Vec::new(), Vec::new());
     let (mut clears, mut key_fields) = (Vec::new(), Vec::new());
     let (mut unique_field, mut sequences, mut fills) = (None, Vec::new(), Vec::new());
     let mut nested = Vec::new();
@@ -487,7 +487,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             quote! { if out.#name.is_none() { out.#name = from.#name.clone(); } }
         });
         let change = if merge {
-            merged.push(key_name);
             writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); } });
             quote! { ::mma_algebra::Patchable::between(&old.#name, &new.#name) }
         } else {
@@ -640,7 +639,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         impl ::mma_algebra::Patchable for #ident {
             type Patch = #patch;
             const WRITES: &'static [(&'static str, &'static str)] = &[#(#columns)*];
-            const MERGED: &'static [&'static str] = &[#(#merged),*];
             const CLEARS: &'static [&'static str] = &[#(#clears),*];
 
             fn patched(&self, patch: &#patch) -> Self {
@@ -858,6 +856,8 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
+/// Implement `Delta` on a struct of deltas field by field, and generate `<Struct>Key` naming
+/// each field, documented by that field's own doc, with `keys()` listing the non-empty ones.
 #[proc_macro_derive(Delta)]
 pub fn derive_delta(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -934,6 +934,7 @@ fn expand_delta(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
 
         impl #impl_generics #name #ty_generics #where_clause {
+            /// The fields holding a non-empty delta, in declaration order.
             #visibility fn keys(&self) -> impl Iterator<Item = #key> + '_ {
                 let fields: [(#key, bool); #count] = [#((#key::#variants, mma_algebra::Delta::is_empty(&self.#names))),*];
                 fields.into_iter().filter_map(|(key, empty)| (!empty).then_some(key))
@@ -957,6 +958,8 @@ fn expand_delta(input: &DeriveInput) -> syn::Result<TokenStream2> {
     })
 }
 
+/// Generate ways to visit and rebuild the children of an enum generic over its child type,
+/// held in the one field per variant marked `#[children]`: a `Vec` or an `Option<Box<_>>`.
 #[proc_macro_derive(Children, attributes(children))]
 pub fn derive_children(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -1075,19 +1078,24 @@ fn expand_children(input: &DeriveInput) -> syn::Result<TokenStream2> {
     }
     Ok(quote! {
         impl<#child> #name<#child> {
+            /// The children this value holds, in order.
             pub fn children(&self) -> Vec<&#child> {
                 match self { #(#refs),* }
             }
+            /// This value with each child mapped through `map`.
             pub fn map_children<T>(self, mut map: impl FnMut(#child) -> T) -> #name<T> {
                 match self { #(#maps),* }
             }
+            /// A copy of this value with each child mapped through `map`.
             pub fn map_children_ref<T>(&self, mut map: impl FnMut(&#child) -> T) -> #name<T> {
                 match self { #(#ref_maps),* }
             }
+            /// A copy of this value over another child type, its children replaced in order by `children`.
             pub fn with_children_ref<T>(&self, children: Vec<T>) -> #name<T> {
                 let mut children = children.into_iter();
                 match self { #(#ref_replacements),* }
             }
+            /// This value with its children replaced, in order, by `children`.
             pub fn with_children(self, children: Vec<#child>) -> Self {
                 let mut children = children.into_iter();
                 match self { #(#replacements),* }

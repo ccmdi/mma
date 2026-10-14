@@ -30,12 +30,12 @@ pub fn canonical(v: &Value) -> Value {
     }
 }
 
-/// A number as JSON: whole values as integers, the rest as floats.
 /// Whether `v` is its type's default: an empty nested patch, for one.
 pub fn is_default<T: Default + PartialEq>(v: &T) -> bool {
     *v == T::default()
 }
 
+/// A number as JSON: whole values as integers, the rest as floats.
 pub fn number_value(v: f64) -> Value {
     if v.fract() == 0.0 && v.abs() < 9.0e15 {
         Value::from(v as i64)
@@ -49,8 +49,6 @@ pub trait Patchable: Sized {
     type Patch: Clone + PartialEq + std::fmt::Debug + serde::de::DeserializeOwned;
     /// The wire name and column of each field a patch writes.
     const WRITES: &'static [(&'static str, &'static str)] = &[];
-    /// The wire names of the fields a patch changes key by key.
-    const MERGED: &'static [&'static str] = &[];
     /// Wire names of fields that can be cleared with null.
     const CLEARS: &'static [&'static str] = &[];
     /// Apply `patch` to this value.
@@ -861,22 +859,8 @@ impl<T: Patchable + Keyed + Clone + PartialEq> Layer<T> {
         self.ops.keys().cloned()
     }
 
-    /// Whether this layer has pending edits for `key`.
-    pub fn holds(&self, key: T::Key) -> bool {
-        self.ops.contains_key(&key)
-    }
-
-    /// Discard pending edits for `key`.
-    pub fn remove(&mut self, key: T::Key) {
-        self.ops.remove(&key);
-    }
-
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()
-    }
-
-    pub fn len(&self) -> usize {
-        self.ops.len()
     }
 }
 
@@ -905,10 +889,6 @@ impl<T: PartialEq> Transition<T> {
             before: self.before,
             after: later.after,
         })
-    }
-
-    pub fn is_identity(&self) -> bool {
-        self.before == self.after
     }
 }
 
@@ -1030,6 +1010,8 @@ impl<T> Change<T> {
         }
     }
 
+    /// The net change in rows under each key `project` files a row under, counting a row
+    /// before as minus one and a row after as plus one.
     pub fn count_by<K: Eq + Hash, I: IntoIterator<Item = K>>(
         &self,
         project: impl Fn(&T) -> I,
@@ -1048,6 +1030,7 @@ impl<T> Change<T> {
         counts
     }
 
+    /// This change seen through `project`, dropping rows whose projection did not change.
     pub fn project<U: PartialEq>(&self, project: impl Fn(&T) -> U) -> Change<U> {
         self.transitions()
             .map(|t| Transition::new(t.before.map(&project), t.after.map(&project)))
@@ -1078,11 +1061,6 @@ impl<T: Keyed + PartialEq> Change<T> {
             .collect();
         rows.extend(before.into_values().map(|r| Transition::new(Some(r), None)));
         rows.into_iter().collect()
-    }
-
-    /// Whether this change adds or updates `key`.
-    pub fn touches(&self, key: T::Key) -> bool {
-        self.after().any(|r| r.key() == key)
     }
 
     pub fn keys_iter(&self) -> impl Iterator<Item = T::Key> + '_ {
@@ -1236,6 +1214,7 @@ impl<K: Clone + Eq + Hash, D: Delta> Delta for HashMap<K, D> {
     }
 }
 
+/// `rows` keyed by their keys, each with its position in `rows`.
 pub fn ordered_table<T: Keyed>(rows: impl IntoIterator<Item = T>) -> HashMap<T::Key, (u32, T)> {
     rows.into_iter()
         .enumerate()
@@ -1243,6 +1222,7 @@ pub fn ordered_table<T: Keyed>(rows: impl IntoIterator<Item = T>) -> HashMap<T::
         .collect()
 }
 
+/// The rows of an `ordered_table` back in position order, ties broken by key.
 pub fn ordered_rows<K: Ord, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
     let mut rows: Vec<_> = table.into_iter().collect();
     rows.sort_by(|(a, (i, _)), (b, (j, _))| i.cmp(j).then_with(|| a.cmp(b)));
@@ -1262,14 +1242,6 @@ impl<K: Eq + Hash> Default for Dependents<K> {
 impl<K: Clone + Eq + Hash> Dependents<K> {
     pub fn new(edges: HashMap<K, Vec<K>>) -> Self {
         Self(edges)
-    }
-
-    /// The keys computed directly from `key`.
-    pub fn get<Q: ?Sized + Eq + Hash>(&self, key: &Q) -> Option<&[K]>
-    where
-        K: std::borrow::Borrow<Q>,
-    {
-        self.0.get(key).map(Vec::as_slice)
     }
 
     /// The inputs `changed` reports as changed.
@@ -1311,6 +1283,8 @@ impl<K: Clone + Eq + Hash> Dependents<K> {
     }
 }
 
+/// The first `take` of `rows` best first by `score` under `compare`, with unscored rows last
+/// and ties in input order.
 pub fn rank_by<T, S>(
     rows: impl IntoIterator<Item = T>,
     take: Option<usize>,

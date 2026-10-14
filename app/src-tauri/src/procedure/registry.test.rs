@@ -15,6 +15,15 @@ fn def(id: &str, fields: &[&str], provides: &[&str], requires: &[&str]) -> Provi
     .unwrap()
 }
 
+fn outputs(dependents: &mma_algebra::Dependents<String>, input: &str) -> Vec<String> {
+    let mut outputs: Vec<String> = dependents
+        .outputs_of([&input.to_string()])
+        .into_iter()
+        .collect();
+    outputs.sort();
+    outputs
+}
+
 fn run(id: &str, fields: Option<&[&str]>) -> RunItem {
     RunItem::Provider {
         id: id.into(),
@@ -36,13 +45,11 @@ fn dependents_map_each_input_to_what_its_providers_write() {
         &["panoId"],
     ));
     let dependents = providers.dependents();
-    assert_eq!(dependents.get("lat").unwrap(), ["panoId".to_string()]);
-    let mut from_pano = dependents.get("panoId").unwrap().to_vec();
-    from_pano.sort();
-    assert_eq!(from_pano, vec!["countryCode", "imageDate"]);
+    assert_eq!(outputs(&dependents, "lat"), ["panoId"]);
+    assert_eq!(outputs(&dependents, "panoId"), ["countryCode", "imageDate"]);
 
     providers.unregister("svMeta");
-    assert!(providers.dependents().get("panoId").is_none());
+    assert!(outputs(&providers.dependents(), "panoId").is_empty());
 }
 
 #[test]
@@ -51,8 +58,8 @@ fn registering_an_id_again_replaces_the_provider() {
     providers.register(def("sun", &["sunAltitude"], &[], &["lat"]));
     providers.register(def("sun", &["sunAzimuth"], &[], &["lng"]));
     let dependents = providers.dependents();
-    assert!(dependents.get("lat").is_none());
-    assert_eq!(dependents.get("lng").unwrap(), ["sunAzimuth".to_string()]);
+    assert!(outputs(&dependents, "lat").is_empty());
+    assert_eq!(outputs(&dependents, "lng"), ["sunAzimuth"]);
 }
 
 #[test]

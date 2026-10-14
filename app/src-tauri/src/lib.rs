@@ -422,10 +422,6 @@ fn export_consts() -> Result<(), String> {
         ),
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
         (
-            "LOCATION_MERGED",
-            TsConst::value(<types::Location as mma_algebra::Patchable>::MERGED),
-        ),
-        (
             "PROJECTIONS",
             TsConst::value(selections::PROJECTIONS).unstable(),
         ),
