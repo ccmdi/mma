@@ -5,7 +5,7 @@ use crate::selections::{self, Selection, Selector};
 use crate::store::id_set::IdSet;
 use crate::types::Location;
 use crate::util::Rgb;
-use mma_algebra::{ordered_rows, ordered_table, Change, Id, Keyed};
+use mma_algebra::{Change, Id};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
 
@@ -13,6 +13,8 @@ use std::time::Instant;
 /// vectors, so the index correspondence the color lookups depend on cannot drift.
 pub(crate) struct ResolvedSelection {
     pub sel: Selection,
+    /// Its place in the list.
+    pub order: u32,
     /// Member location ids.
     pub set: IdSet<Location>,
     /// Counted, but kept out of the overlay and the selected set.
@@ -201,17 +203,41 @@ fn without(gone: &HashSet<(String, String)>) -> impl Fn(&Selector) -> Option<Sel
     }
 }
 
-impl Keyed for ListedSelection {
-    type Key = String;
-    fn key(&self) -> String {
-        self.selection.key.clone()
-    }
-    fn set_key(&mut self, key: String) {
-        self.selection.key = key;
-    }
+/// A listed selection and its place in the list, counted from the top.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+pub(crate) struct Listing {
+    pub(crate) order: u32,
+    pub(crate) row: ListedSelection,
 }
 
-pub(crate) type SelectionDelta = Change<(String, (u32, ListedSelection))>;
+pub(crate) type SelectionDelta = Change<(String, Listing)>;
+
+/// `table`'s listings in list order, ties broken by key.
+fn in_order(table: HashMap<String, Listing>) -> Vec<Listing> {
+    let mut rows: Vec<Listing> = table.into_values().collect();
+    rows.sort_by(|x, y| {
+        x.order
+            .cmp(&y.order)
+            .then_with(|| x.row.selection.key.cmp(&y.row.selection.key))
+    });
+    rows
+}
+
+/// `table`'s rows in list order.
+pub(crate) fn listed_rows(table: HashMap<String, Listing>) -> Vec<ListedSelection> {
+    in_order(table)
+        .into_iter()
+        .map(|listing| listing.row)
+        .collect()
+}
+
+/// `rows` keyed by their keys, each placed at its position.
+fn numbered(rows: Vec<ListedSelection>) -> HashMap<String, Listing> {
+    rows.into_iter()
+        .zip(0..)
+        .map(|(row, order)| (row.selection.key.clone(), Listing { order, row }))
+        .collect()
+}
 
 impl SelectionState {
     pub(crate) fn list(&self) -> Vec<ListedSelection> {
@@ -229,8 +255,23 @@ impl SelectionState {
         self.live().map(|r| r.sel.color).collect()
     }
 
-    pub(crate) fn table(&self) -> HashMap<String, (u32, ListedSelection)> {
-        ordered_table(self.list())
+    pub(crate) fn table(&self) -> HashMap<String, Listing> {
+        self.resolved
+            .iter()
+            .map(|root| {
+                let row = ListedSelection {
+                    selection: root.sel.clone(),
+                    ghosted: root.ghosted,
+                };
+                (
+                    root.sel.key.clone(),
+                    Listing {
+                        order: root.order,
+                        row,
+                    },
+                )
+            })
+            .collect()
     }
 
     pub(crate) fn change(
@@ -241,7 +282,7 @@ impl SelectionState {
         let before = self.table();
         let mut held = before.clone();
         pending.apply_to(&mut held);
-        let after = ordered_table(edit(ordered_rows(held)));
+        let after = numbered(edit(listed_rows(held)));
         Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
     }
 
@@ -263,15 +304,18 @@ impl SelectionState {
     }
 
     pub(crate) fn apply(&mut self, change: &SelectionDelta) {
-        let mut rows = self.table();
-        change.apply_to(&mut rows);
-        let rows = ordered_rows(rows);
-        self.set_dependent = rows.iter().any(|root| !root.selection.selector.row_local());
+        let mut table = self.table();
+        change.apply_to(&mut table);
+        let rows = in_order(table);
+        self.set_dependent = rows
+            .iter()
+            .any(|listing| !listing.row.selection.selector.row_local());
         self.resolved = rows
             .into_iter()
-            .map(|root| ResolvedSelection {
-                sel: root.selection,
-                ghosted: root.ghosted,
+            .map(|Listing { order, row }| ResolvedSelection {
+                sel: row.selection,
+                order,
+                ghosted: row.ghosted,
                 set: IdSet::new(),
             })
             .collect();
@@ -359,11 +403,15 @@ impl Store {
         self.replace_selections(rows)
     }
 
-    pub(crate) fn valid_selections(&mut self, rows: Vec<ListedSelection>) -> Vec<ListedSelection> {
+    /// `table` without the tests for values no row holds any more. A row keeps its place.
+    pub(crate) fn valid_selections(
+        &mut self,
+        table: HashMap<String, Listing>,
+    ) -> HashMap<String, Listing> {
         let named = |field: &str| {
             let mut ids = Vec::new();
-            for row in &rows {
-                row.selection.selector.walk(&mut |selector| {
+            for listing in table.values() {
+                listing.row.selection.selector.walk(&mut |selector| {
                     if let Some((tested, id)) = selector.member_test() {
                         if tested == field {
                             ids.push(id.to_string());
@@ -374,12 +422,12 @@ impl Store {
             ids
         };
         let gone = self.emptied_values(&Change::default(), named);
-        rows.into_iter()
-            .filter_map(|row| {
-                Some(ListedSelection {
-                    selection: row.selection.filter_map(&without(&gone))?,
-                    ..row
-                })
+        table
+            .into_values()
+            .filter_map(|Listing { order, row }| {
+                let selection = row.selection.filter_map(&without(&gone))?;
+                let row = ListedSelection { selection, ..row };
+                Some((row.selection.key.clone(), Listing { order, row }))
             })
             .collect()
     }

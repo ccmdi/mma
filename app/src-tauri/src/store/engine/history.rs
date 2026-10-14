@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::types::{wire_str_enum, Location};
-use mma_algebra::{ordered_rows, Change, Delta, Id};
+use mma_algebra::{Change, Delta, Id};
 use mma_fields::Delta;
 use std::sync::Arc;
 
@@ -282,10 +282,11 @@ impl Store {
             // selection change applies only where the list still holds its before-state.
             Timeline::Edits => changes.selections.if_standing(&self.selections.table()),
             Timeline::Selections => {
-                let mut rows = self.selections.table();
+                let before = self.selections.table();
+                let mut rows = before.clone();
                 changes.selections.apply_to(&mut rows);
-                let rows = self.valid_selections(ordered_rows(rows));
-                self.selections.change(&SelectionDelta::default(), |_| rows)
+                let after = self.valid_selections(rows);
+                Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
             }
         };
         self.put_entry(&changes);

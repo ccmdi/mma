@@ -8860,13 +8860,13 @@ fn each_part_records_into_the_timeline_it_declares() {
     let listed = SelectionDelta::from_sides(
         vec![(
             "k".to_string(),
-            (
-                0,
-                ListedSelection {
+            Listing {
+                order: 0,
+                row: ListedSelection {
                     selection: Selection::of(Selector::Everything),
                     ghosted: false,
                 },
-            ),
+            },
         )],
         vec![],
     );
@@ -9058,11 +9058,143 @@ fn a_write_and_a_validity_check_drop_the_same_emptied_values() {
             },
         ],
     });
-    let listed = store.selections.list();
+    let listed = store.selections.table();
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     let pruned = store.selections.list();
     assert_eq!(pruned.len(), 2);
-    assert_eq!(store.valid_selections(listed), pruned);
+    assert_eq!(listed_rows(store.valid_selections(listed)), pruned);
+}
+
+fn listed_keys(store: &Store) -> Vec<String> {
+    store
+        .selections
+        .list()
+        .into_iter()
+        .map(|row| row.selection.key)
+        .collect()
+}
+
+fn tag_row(id: u32) -> ListedSelection {
+    ListedSelection {
+        selection: Selection::of(Selector::tag(id)),
+        ghosted: false,
+    }
+}
+
+#[test]
+fn a_selection_list_change_numbers_rows_densely_and_names_only_the_rows_it_moved() {
+    let mut store = setup_store_with(&[]);
+    edit_selection_fixture(&mut store, |rows| {
+        rows.extend([tag_row(1), tag_row(2), tag_row(3)])
+    });
+    let orders = |store: &Store| {
+        let mut orders: Vec<u32> = store
+            .selections
+            .table()
+            .into_values()
+            .map(|listing| listing.order)
+            .collect();
+        orders.sort();
+        orders
+    };
+    let counts =
+        |delta: &SelectionDelta| (delta.added.len(), delta.updated.len(), delta.removed.len());
+
+    let appended = store
+        .selections
+        .change(&SelectionDelta::default(), |mut rows| {
+            rows.push(tag_row(4));
+            rows
+        });
+    assert_eq!(counts(&appended), (1, 0, 0), "an append places only itself");
+
+    let inserted = store
+        .selections
+        .change(&SelectionDelta::default(), |mut rows| {
+            rows.insert(0, tag_row(4));
+            rows
+        });
+    assert_eq!(
+        counts(&inserted),
+        (1, 3, 0),
+        "a front insert moves every row below it"
+    );
+    store.selections.apply(&inserted);
+    let key = |id| Selection::of(Selector::tag(id)).key;
+    assert_eq!(listed_keys(&store), [key(4), key(1), key(2), key(3)]);
+    assert_eq!(orders(&store), [0, 1, 2, 3]);
+
+    let moved = store
+        .selections
+        .change(&SelectionDelta::default(), |mut rows| {
+            let last = rows.pop().unwrap();
+            rows.insert(2, last);
+            rows
+        });
+    assert_eq!(
+        counts(&moved),
+        (0, 2, 0),
+        "a move renumbers the rows it passes"
+    );
+    store.selections.apply(&moved);
+    assert_eq!(listed_keys(&store), [key(4), key(1), key(3), key(2)]);
+    assert_eq!(orders(&store), [0, 1, 2, 3]);
+}
+
+#[test]
+fn undo_and_redo_restore_the_selection_list_order_after_inserts_and_moves() {
+    use crate::selections::tree::{Place, SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let add = |field: &str| SelectionOp::Add {
+        selections: vec![SelectionInput {
+            selector: Selector::has(field).map_children(|_| unreachable!("a leaf")),
+            color: None,
+        }],
+    };
+    store.edit_selections(&add("panoId"));
+    store.edit_selections(&add("heading"));
+    let inserted = listed_keys(&store);
+    store.edit_selections(&SelectionOp::Move {
+        from: vec![1],
+        to: vec![0],
+        place: Place::Before,
+    });
+    let moved = listed_keys(&store);
+    assert_eq!(moved, [inserted[1].clone(), inserted[0].clone()]);
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(listed_keys(&store), inserted);
+    step_selection(&mut store, Stack::Undo);
+    assert_eq!(listed_keys(&store), [inserted[0].clone()]);
+    step_selection(&mut store, Stack::Redo);
+    assert_eq!(listed_keys(&store), inserted);
+    step_selection(&mut store, Stack::Redo);
+    assert_eq!(listed_keys(&store), moved);
+}
+
+#[test]
+fn an_edit_history_row_in_the_positioned_shape_reads_and_undoes() {
+    let mut store = setup_store_with(&[]);
+    edit_selection_fixture(&mut store, |rows| rows.extend([tag_row(1), tag_row(2)]));
+    let second = tag_row(2);
+    let mut stored = serde_json::to_value(Entry::default()).unwrap();
+    stored["selections"] = serde_json::json!({
+        "added": [],
+        "removed": [[second.selection.key, [1, second]]],
+        "updated": [],
+    });
+    let entry: Entry = serde_json::from_value(stored).unwrap();
+    let pruned = entry.selections.if_standing(&store.selections.table());
+    assert!(
+        !pruned.is_empty(),
+        "the old row names the list as it stands"
+    );
+    store.selections.apply(&pruned);
+    assert_eq!(listed_keys(&store), [tag_row(1).selection.key]);
+    store.selections.apply(&pruned.inverse());
+    assert_eq!(
+        listed_keys(&store),
+        [tag_row(1).selection.key, tag_row(2).selection.key]
+    );
 }

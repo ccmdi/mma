@@ -1324,21 +1324,6 @@ impl<K: Clone + Eq + Hash, D: Delta> Delta for HashMap<K, D> {
     }
 }
 
-/// `rows` keyed by their keys, each with its position in `rows`.
-pub fn ordered_table<T: Keyed>(rows: impl IntoIterator<Item = T>) -> HashMap<T::Key, (u32, T)> {
-    rows.into_iter()
-        .enumerate()
-        .map(|(i, row)| (row.key(), (i as u32, row)))
-        .collect()
-}
-
-/// The rows of an `ordered_table` back in position order, ties broken by key.
-pub fn ordered_rows<K: Ord, T>(table: HashMap<K, (u32, T)>) -> Vec<T> {
-    let mut rows: Vec<_> = table.into_iter().collect();
-    rows.sort_by(|(a, (i, _)), (b, (j, _))| i.cmp(j).then_with(|| a.cmp(b)));
-    rows.into_iter().map(|(_, (_, row))| row).collect()
-}
-
 /// For each key, the keys computed from it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Dependents<K: Eq + Hash>(HashMap<K, Vec<K>>);
