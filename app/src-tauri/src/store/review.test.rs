@@ -1,6 +1,6 @@
 use super::*;
 use crate::test_util::loc_ids;
-use mma_algebra::Id;
+use mma_algebra::{Id, Patchable};
 use rusqlite::Connection;
 
 /// In-memory DB with the v17 `review_sessions` schema (and a `maps` stub for the FK).
@@ -198,4 +198,32 @@ fn delete_removes_the_session() {
         .unwrap()
         .is_none());
     assert_eq!(list(&conn, &Id::new("m1".into()), None).unwrap().len(), 0);
+}
+
+#[test]
+fn a_stored_row_saves_its_own_updated_time_and_a_patch_stamps_a_new_one() {
+    let conn = setup();
+    let mut s = create(&conn, mk("m1", "tag:1", vec![1, 2])).unwrap();
+    s.updated_at = "2000-01-01".into();
+    storage::update_row::<ReviewSession>(&conn, "review_sessions", &s.id, &s).unwrap();
+    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    assert_eq!(got.updated_at, "2000-01-01");
+    let patched = storage::patch_row(
+        &conn,
+        "review_sessions",
+        &s.id,
+        &got,
+        &ReviewSessionPatch {
+            id: s.id.clone(),
+            name: None,
+            cursor_id: Some(Id::new(2)),
+            reviewed: None,
+            order: None,
+            status: None,
+        },
+    )
+    .unwrap();
+    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    assert_ne!(got.updated_at, "2000-01-01");
+    assert_eq!(got.updated_at, patched.updated_at);
 }

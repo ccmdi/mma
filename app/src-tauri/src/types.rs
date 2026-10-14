@@ -133,6 +133,15 @@ impl Location {
     pub fn touch(&mut self) {
         self.modified_at = Some(util::now_unix());
     }
+
+    /// This location as a new one: created at `now` and never modified since.
+    pub fn created(self, now: u32) -> Self {
+        Location {
+            created_at: now,
+            modified_at: None,
+            ..self
+        }
+    }
 }
 
 /// `SCREAMING_SNAKE` -> `PascalCase`, so a wire-visible name is spelled once here.

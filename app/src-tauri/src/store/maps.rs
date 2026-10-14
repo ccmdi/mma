@@ -7,6 +7,7 @@
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
 use crate::store::engine::{StoreManager, StoreState, ValueRecord};
+use crate::store::storage::Stamped;
 use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
 use crate::types;
@@ -612,6 +613,15 @@ pub struct MapMeta {
     pub last_opened_at: Option<String>,
 }
 
+impl Stamped for MapMeta {
+    fn updated_at(&self) -> &str {
+        &self.updated_at
+    }
+    fn stamp(&mut self, at: String) {
+        self.updated_at = at;
+    }
+}
+
 /// The map `id`'s metadata.
 pub(crate) fn read_map_meta(
     conn: &Connection,
@@ -749,6 +759,7 @@ fn duplicate_map_row(
     if let Some(mut live) = live {
         live.id = copy_id.clone();
         live.name = name.to_string();
+        live.stamp(now);
         storage::update_row::<MapMeta>(&tx, "maps", copy_id.raw(), &live)?;
     }
     arrow::write_arrow_ipc(arrow_path, batch)?;
@@ -864,8 +875,13 @@ fn update_map_meta(
         extra.check()?;
     }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
-        let next = read_map_meta(conn, &patch.id)?.patched(&patch);
-        storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &next)?;
+        storage::patch_row(
+            conn,
+            "maps",
+            patch.id.raw(),
+            &read_map_meta(conn, &patch.id)?,
+            &patch,
+        )?;
         return Ok(None);
     };
     if patch.tags.is_some() {

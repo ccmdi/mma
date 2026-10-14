@@ -16,7 +16,7 @@ use crate::util;
 use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
-use mma_algebra::{Edit, Id, Op, Patch, Patchable};
+use mma_algebra::{Edit, Id, Op, Patch};
 use std::collections::{HashMap, HashSet};
 use std::mem;
 use std::sync::Arc;
@@ -334,15 +334,10 @@ fn copy_to_map(
         return Err(AppError("cannot copy a location into its own map".into()));
     }
 
-    let now = util::now_unix();
     let mut sources: Vec<Location> = Vec::new();
     let source_tags: HashMap<Id<ValueRecord>, ValueRecord> = {
         let src = mgr.store_for_map(&source_map_id)?;
-        for mut loc in collect(src) {
-            loc.created_at = now;
-            loc.modified_at = Some(now);
-            sources.push(loc);
-        }
+        sources.extend(collect(src));
         let used: HashSet<Id<ValueRecord>> = sources
             .iter()
             .flat_map(|l| l.tags.iter().copied())
@@ -428,9 +423,14 @@ fn copy_to_map(
         let history_max = stored_history_max_id(&conn, &target_map_id)?;
         let hist_ms = t_hist.elapsed().as_millis();
         let mut ids = seed_next_id(existing.iter().map(|l| l.id).max(), &[], history_max);
-        for loc in &mut fresh {
-            loc.id = ids.take();
-        }
+        let now = util::now_unix();
+        let fresh: Vec<Location> = fresh
+            .into_iter()
+            .map(|loc| Location {
+                id: ids.take(),
+                ..loc.created(now)
+            })
+            .collect();
         let t_save = Instant::now();
         let delta_path = storage::arrow_delta_path(&target_map_id)?;
         let (mut created, removed) = if delta_path.exists() {
@@ -448,13 +448,18 @@ fn copy_to_map(
             existing.len() + copied as usize,
             pending,
         )?;
-        let row = maps::read_map_meta(&conn, &target_map_id)?.patched(&Patch::<maps::MapMeta> {
-            id: target_map_id.clone(),
-            tags: Some(target_tags),
-            extra: Some(maps::MapExtra { fields }),
-            ..Default::default()
-        });
-        storage::update_row(&conn, "maps", target_map_id.raw(), &row)?;
+        storage::patch_row(
+            &conn,
+            "maps",
+            target_map_id.raw(),
+            &maps::read_map_meta(&conn, &target_map_id)?,
+            &Patch::<maps::MapMeta> {
+                id: target_map_id.clone(),
+                tags: Some(target_tags),
+                extra: Some(maps::MapExtra { fields }),
+                ..Default::default()
+            },
+        )?;
         log::debug!(
             "[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
             read_ms,

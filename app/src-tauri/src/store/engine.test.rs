@@ -7894,6 +7894,11 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         store.get_loc_by_id(Id::new(1)).unwrap().tags,
         tag_ids([10, 20])
     );
+    assert!(store
+        .get_loc_by_id(Id::new(1))
+        .unwrap()
+        .modified_at
+        .is_some());
     assert!(store.get_loc_by_id(Id::new(3)).is_some());
     assert_eq!(store.edits.len(Stack::Undo), 1);
     store
@@ -8790,4 +8795,40 @@ fn deleting_an_extra_member_a_location_never_had_changes_nothing() {
     let after = store.get_loc_by_id(Id::new(1)).unwrap();
     assert_eq!(after.extra, None);
     assert_eq!(after.modified_at, before.modified_at);
+}
+
+#[test]
+fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.write([Op::Set(loc(1, 5.0, 5.0))], &mut None, Entry::default());
+    let replaced = store.get_loc_by_id(Id::new(1)).unwrap();
+    assert!(replaced.modified_at.is_some());
+
+    let unchanged = Location {
+        modified_at: None,
+        ..replaced.clone()
+    };
+    store.write([Op::Set(unchanged)], &mut None, Entry::default());
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().modified_at,
+        replaced.modified_at
+    );
+    assert_eq!(store.edits.len(Stack::Undo), 1);
+
+    let given = Location {
+        created_at: 3,
+        modified_at: Some(4),
+        ..loc(0, 1.0, 1.0)
+    };
+    let added = store.write([Op::Add(given.clone())], &mut None, Entry::default());
+    let row = store.get_loc_by_id(added.keys[0]).unwrap();
+    assert!(row.created_at > 4);
+    assert_eq!(row.modified_at, None);
+
+    let pending = Target::Pending { name: "p".into() };
+    let staged = store.edit(&pending, vec![Op::Add(given)], false, &mut None);
+    store.edit(&pending, Vec::new(), true, &mut None);
+    let landed = store.get_loc_by_id(staged.keys[0]).unwrap();
+    assert!(landed.created_at > 4);
+    assert_eq!(landed.modified_at, None);
 }

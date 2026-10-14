@@ -12,7 +12,7 @@ use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use crate::util::now_iso;
-use mma_algebra::{Id, Patch, Patchable};
+use mma_algebra::{Id, Patch};
 use rusqlite::types::ToSql;
 use rusqlite::Connection;
 
@@ -39,6 +39,15 @@ pub struct ReviewSession {
     pub created_at: String,
     #[patch(skip)]
     pub updated_at: String,
+}
+
+impl storage::Stamped for ReviewSession {
+    fn updated_at(&self) -> &str {
+        &self.updated_at
+    }
+    fn stamp(&mut self, at: String) {
+        self.updated_at = at;
+    }
 }
 
 /// Parameters for creating a review session. `order` is the frozen worklist (must be
@@ -204,7 +213,7 @@ pub async fn store_review_update(update: Patch<ReviewSession>) -> AppResult<()> 
         );
         match row {
             Ok(row) => {
-                storage::update_row(&tx, "review_sessions", &update.id, &row.patched(&update))
+                storage::patch_row(&tx, "review_sessions", &update.id, &row, &update).map(|_| ())
             }
             Err(rusqlite::Error::QueryReturnedNoRows) => Ok(()),
             Err(error) => Err(error.into()),

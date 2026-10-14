@@ -7,7 +7,7 @@ import type { MutationResult, Target } from "@/bindings.gen";
 import type { Patch } from "@/types";
 import type { ReadonlyIdSet } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
-import { mmaBufUrl, nowUnix } from "@/lib/util/util";
+import { mmaBufUrl } from "@/lib/util/util";
 import { trace } from "@/lib/util/debug";
 import { log } from "@/lib/util/log";
 
@@ -62,8 +62,7 @@ export const Location = {
 			{ kind: "locations" },
 		);
 		if (!loc) return null;
-		const now = nowUnix();
-		const clone: Location = { ...loc, id: 0, createdAt: now, modifiedAt: now };
+		const clone: Location = { ...loc };
 		await Location.add([clone]);
 		return clone.id;
 	},

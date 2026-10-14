@@ -99,7 +99,18 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                     let before = (model.clone(), selection_active);
                     let written = store.write([Op::Add(row.clone())], &mut None, Entry::default());
                     assert_eq!(written.keys, [Id::new(id)], "id allocation: {context}");
-                    model.insert(row.id, row);
+                    let stored = store.get_loc_by_id(row.id).unwrap();
+                    assert!(
+                        stored.created_at > 0,
+                        "an added row is created now: {context}"
+                    );
+                    model.insert(
+                        row.id,
+                        Location {
+                            created_at: stored.created_at,
+                            ..row
+                        },
+                    );
                     undo.push(before);
                     redo.clear();
                 }

@@ -9,7 +9,7 @@ use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use mma_algebra::{
-    number_value, same_field_value, Delta, Edit, Id, Keys, Layer, Op, Patch, Patchable,
+    number_value, same_field_value, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
@@ -151,8 +151,8 @@ pub enum StoreWarning {
 }
 
 impl Store {
-    /// Apply a complete edit, update derived state, and record it for undo. Every added row
-    /// takes its key here.
+    /// Apply a complete edit, update derived state, and record it for undo. A row that changes
+    /// is stamped modified now.
     /// `join` tracks the newest undo step for grouping later batches.
     pub(crate) fn write(
         &mut self,
@@ -161,18 +161,20 @@ impl Store {
         entry: Entry,
     ) -> Mutation {
         let mut layer = Layer::default();
-        let keys = layer.write(edits, &mut self.next_id);
+        let keys = layered(&mut layer, edits, &mut self.next_id);
         let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
-                |old, patch| {
-                    let mut new = self.applied(old, patch);
-                    if new != *old {
-                        new.touch();
-                    }
-                    new
-                },
+                |old, patch| self.applied(old, patch),
             )
+            .map(|mut row| {
+                if let (Some(before), Some(after)) = (&row.before, &mut row.after) {
+                    if after != before {
+                        after.touch();
+                    }
+                }
+                row
+            })
             .collect();
         let mut entry = Entry { locations, ..entry };
         let mut fields = self.meta.extra.fields.clone();
@@ -217,7 +219,7 @@ impl Store {
             join.get_or_insert(seq);
             self.write(edits, join, Entry::default())
         } else {
-            let keys = pending.layer.write(edits, &mut self.next_id);
+            let keys = layered(&mut pending.layer, edits, &mut self.next_id);
             if !land {
                 let result = self.held(keys);
                 self.settle_layers();
@@ -313,7 +315,7 @@ impl Store {
             self.selections.apply(&entry.selections);
         }
         if !entry.meta.is_empty() || !entry.piles.is_empty() || !entry.defs.is_empty() {
-            self.meta.value.updated_at = crate::util::now_iso();
+            self.meta.edit().updated_at = crate::util::now_iso();
         }
         self.put(&entry.locations);
         for (field, delta) in entry.piles.iter().filter(|(_, d)| !d.is_empty()) {
@@ -576,6 +578,20 @@ fn remap_written(
         }
         remove => remove,
     }
+}
+
+/// Layer `edits` as the store writes them: each added row takes a key from `ids` and is created now.
+fn layered(
+    layer: &mut Layer<Location>,
+    edits: impl IntoIterator<Item = Edit<Location>>,
+    ids: &mut Ids<Id<Location>>,
+) -> Vec<Id<Location>> {
+    let now = crate::util::now_unix();
+    let edits = edits.into_iter().map(|edit| match edit {
+        Op::Add(row) => Op::Add(row.created(now)),
+        edit => edit,
+    });
+    layer.write(edits, ids)
 }
 
 /// A patch naming row `id` and changing nothing yet.
@@ -916,6 +932,5 @@ pub(crate) fn merge_group(
         new_survivor = new_survivor.patched(&patch);
     }
     new_survivor.extra = extra;
-    new_survivor.touch();
     new_survivor
 }

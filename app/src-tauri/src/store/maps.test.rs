@@ -1184,6 +1184,7 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
         .write(&conn, &current.id, &dir.join("delta.arrow"))
         .unwrap();
     let saved = read_map_meta(&conn, &current.id).unwrap();
+    assert_eq!(saved.updated_at, current.updated_at);
     assert_eq!(saved.location_count, current.location_count);
     assert_eq!(saved.pending, current.pending);
     assert_eq!(saved.tags, current.tags);
@@ -1231,4 +1232,52 @@ fn derived_optional_struct_fields_compose_their_generated_patches() {
         .patched(&OptionalSettings::between(&before, &absent))
         .settings
         .is_none());
+}
+
+#[test]
+fn an_open_map_saves_the_updated_time_it_holds_and_only_a_change_moves_it() {
+    let conn = setup_real_db();
+    let mut mgr = open_m1(&conn);
+    let id = Id::new("m1".into());
+    update_map_meta(
+        &mut mgr,
+        &conn,
+        Patch::<MapMeta> {
+            id: id.clone(),
+            name: Some("Renamed".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let store = mgr.store_for_map(&id).unwrap();
+    let edited = store.map();
+    assert_ne!(edited.updated_at, "2020-01-01");
+    store.meta.edit().last_opened_at = Some("2030-01-01".into());
+    let current = store.map();
+    assert_eq!(current.updated_at, edited.updated_at);
+    let dir = TempDir::new("mma_saved_updated_at");
+    let unsaved = store.unsaved().unwrap().unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    unsaved.write(&conn, &id, &dir.join("delta.arrow")).unwrap();
+    let saved = read_map_meta(&conn, &id).unwrap();
+    assert_eq!(saved.name, "Renamed");
+    assert_eq!(saved.updated_at, current.updated_at);
+}
+
+#[test]
+fn patching_a_closed_map_stamps_its_updated_time() {
+    let conn = setup_real_db();
+    update_map_meta(
+        &mut StoreManager::new(),
+        &conn,
+        Patch::<MapMeta> {
+            id: Id::new("m1".into()),
+            name: Some("Renamed".into()),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    let saved = read_map_meta(&conn, &Id::new("m1".into())).unwrap();
+    assert_eq!(saved.name, "Renamed");
+    assert_ne!(saved.updated_at, "2020-01-01");
 }

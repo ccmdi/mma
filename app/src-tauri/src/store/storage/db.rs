@@ -67,8 +67,28 @@ pub(crate) fn json_col<T: Default + DeserializeOwned>(row: &Row, col: &str) -> r
     Ok(serde_json::from_str(&s).unwrap_or_default())
 }
 
-/// Persist a row's writable values and stamp its modification time.
-pub(crate) fn update_row<T: Patchable + serde::Serialize>(
+/// A stored row that carries the time its values last changed.
+pub(crate) trait Stamped {
+    fn updated_at(&self) -> &str;
+    fn stamp(&mut self, at: String);
+}
+
+/// Persist `row` with `patch` applied, stamped as changed now, and return what was stored.
+pub(crate) fn patch_row<T: Patchable + Stamped + serde::Serialize>(
+    conn: &Connection,
+    table: &str,
+    id: &str,
+    row: &T,
+    patch: &T::Patch,
+) -> AppResult<T> {
+    let mut next = row.patched(patch);
+    next.stamp(now_iso());
+    update_row(conn, table, id, &next)?;
+    Ok(next)
+}
+
+/// Persist a row's writable values and the time it says they last changed.
+pub(crate) fn update_row<T: Patchable + Stamped + serde::Serialize>(
     conn: &Connection,
     table: &str,
     id: &str,
@@ -98,7 +118,7 @@ pub(crate) fn update_row<T: Patchable + serde::Serialize>(
     if sets.is_empty() {
         return Ok(());
     }
-    values.push(SqlValue::Text(now_iso()));
+    values.push(SqlValue::Text(row.updated_at().to_string()));
     values.push(SqlValue::Text(id.to_string()));
     let sql = format!(
         "UPDATE {table} SET {}, updated_at = ? WHERE id = ?",
