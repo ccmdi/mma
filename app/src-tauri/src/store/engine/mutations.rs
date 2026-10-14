@@ -377,10 +377,10 @@ impl Store {
         }
         self.settle_layers();
     }
-    /// Result for a staged edit that did not change the map.
+    /// Result for a staged edit that did not change the map, at version 0 so nothing waits on it.
     fn held(&self, keys: Vec<Id<Location>>) -> Mutation {
         Mutation {
-            version: self.version,
+            version: 0,
             keys,
             history_cleared: false,
         }

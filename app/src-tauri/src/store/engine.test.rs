@@ -7623,12 +7623,13 @@ fn a_layer_lands_once_and_a_layer_closed_before_landing_never_lands() {
         &mut None,
     );
     let landed = store.land("viewer", &mut None);
+    assert_ne!(landed.version, 0);
     assert!(matches!(
         store.pending["viewer"].stage,
         Stage::Landed(Joins::Step(_))
     ));
     let again = store.land("viewer", &mut None);
-    assert_eq!(again.version, landed.version);
+    assert_eq!(again.version, 0);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     let draft = Target::Pending {
@@ -7642,7 +7643,7 @@ fn a_layer_lands_once_and_a_layer_closed_before_landing_never_lands() {
     store.close_layer("draft");
     assert!(!store.pending.contains_key("draft"));
     let after = store.land("draft", &mut None);
-    assert_eq!(after.version, landed.version);
+    assert_eq!(after.version, 0);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 90.0);
     assert!(!store.pending.contains_key("draft"));
 }
@@ -7785,6 +7786,34 @@ fn dropping_a_pending_layer_discards_what_it_held() {
             .heading,
         0.0
     );
+}
+
+#[test]
+fn only_an_edit_held_in_an_unlanded_layer_reports_version_zero() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let at_map = store.at(&Target::Map { id: None }).edit(
+        vec![Op::Put(heading(1, 10.0))],
+        Default::default(),
+        &mut None,
+    );
+    assert_ne!(at_map.version, 0);
+    assert_eq!(at_map.version, store.version);
+
+    let held = store.at(&viewer()).edit(
+        vec![Op::Put(heading(1, 20.0))],
+        Default::default(),
+        &mut None,
+    );
+    assert_eq!(held.version, 0);
+
+    store.land("viewer", &mut None);
+    let landed = store.at(&viewer()).edit(
+        vec![Op::Put(heading(1, 30.0))],
+        Default::default(),
+        &mut None,
+    );
+    assert_ne!(landed.version, 0);
+    assert_eq!(landed.version, store.version);
 }
 
 #[test]
