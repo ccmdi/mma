@@ -90,7 +90,9 @@ pub(super) fn stage_parsed(
         "tags".to_string(),
         parsed.tags.into_iter().map(|t| (t.id, t)).collect(),
     )]);
-    store.edit(&import_target(window), edits, records, &mut None);
+    store
+        .at(&import_target(window))
+        .edit(edits, records, &mut None);
     run
 }
 
@@ -331,7 +333,7 @@ pub(super) fn confirm_staged(
     if !store.pending.contains_key(&key) {
         return Err("no staged import - call store_import_preview first".into());
     }
-    let rows = store.collect(&target, &Selector::Everything);
+    let rows = store.at(&target).rows(&Selector::Everything);
 
     let mut records = engine::IncomingRecords::new();
     let mut bulk = Vec::new();
@@ -394,7 +396,7 @@ pub(super) fn confirm_staged(
         edits.push(Op::Put(patch));
     }
 
-    store.edit(&target, edits, records, &mut None);
+    store.at(&target).edit(edits, records, &mut None);
     let mutation = store.land(&key, &mut None);
     Ok(EditorImportResult {
         imported_count: rows.len() as u32,

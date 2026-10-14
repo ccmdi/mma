@@ -280,43 +280,6 @@ impl Store {
         )
     }
 
-    /// Add, patch, or remove rows at `target`, whose references to an interned field's values
-    /// use the ids of `records`; those records are matched to the map's by name when the rows
-    /// reach the map. An open layer holds its edits until it lands, each field's records
-    /// replacing what the layer held for that field; a landed layer writes them through,
-    /// joining its undo step while that remains newest.
-    pub(crate) fn edit(
-        &mut self,
-        target: &Target,
-        edits: Vec<Edit<Location>>,
-        records: IncomingRecords,
-        join: &mut Option<u64>,
-    ) -> Mutation {
-        let Target::Pending { name } = target else {
-            return self.write_incoming(edits, records, join);
-        };
-        let pending = self.pending.entry(name.clone()).or_default();
-        let result = if let Some(joins) = pending.stage.landed() {
-            if let Joins::Step(step) = joins {
-                join.get_or_insert(step);
-            }
-            let result = self.write_incoming(edits, records, join);
-            if let Some(pending) = self.pending.get_mut(name) {
-                pending.stage = match pending.stage {
-                    Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
-                    _ => Stage::Landed(Joins::from(*join)),
-                };
-            }
-            result
-        } else {
-            let keys = layered(&mut pending.layer, edits, &mut self.next_id);
-            pending.records.extend(records);
-            self.held(keys)
-        };
-        self.settle_layers();
-        result
-    }
-
     /// The records an unlanded layer holds for `field`.
     pub(crate) fn held_records(
         &self,
@@ -703,6 +666,45 @@ fn remap_written(
     }
 }
 
+impl Targeted<'_> {
+    /// Add, patch, or remove rows here, whose references to an interned field's values use
+    /// the ids of `records`; those records are matched to the map's by name when the rows
+    /// reach the map. An open layer holds its edits until it lands, each field's records
+    /// replacing what the layer held for that field; a landed layer writes them through,
+    /// joining its undo step while that remains newest.
+    pub(crate) fn edit(
+        &mut self,
+        edits: Vec<Edit<Location>>,
+        records: IncomingRecords,
+        join: &mut Option<u64>,
+    ) -> Mutation {
+        let store = &mut *self.store;
+        let Some(name) = self.layer else {
+            return store.write_incoming(edits, records, join);
+        };
+        let pending = store.pending.entry(name.to_string()).or_default();
+        let result = if let Some(joins) = pending.stage.landed() {
+            if let Joins::Step(step) = joins {
+                join.get_or_insert(step);
+            }
+            let result = store.write_incoming(edits, records, join);
+            if let Some(pending) = store.pending.get_mut(name) {
+                pending.stage = match pending.stage {
+                    Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
+                    _ => Stage::Landed(Joins::from(*join)),
+                };
+            }
+            result
+        } else {
+            let keys = layered(&mut pending.layer, edits, &mut store.next_id);
+            pending.records.extend(records);
+            store.held(keys)
+        };
+        store.settle_layers();
+        result
+    }
+}
+
 /// Layer `edits` as the store writes them: each added row takes a key from `ids` and is created now.
 fn layered(
     layer: &mut Layer<Location>,
@@ -860,7 +862,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
         }
         SetOp::PruneDuplicates { distance, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> = store.collect(&Target::Map { id: None }, selector);
+            let locs: Vec<Location> = store.at(&Target::Map { id: None }).rows(selector);
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()

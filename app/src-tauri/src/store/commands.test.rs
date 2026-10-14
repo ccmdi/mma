@@ -123,7 +123,9 @@ fn tagged_map(id: &str, tags: &[(u32, &str)]) -> Store {
 }
 
 fn named_rows(store: &mut Store) -> Vec<(f64, f64, Vec<String>)> {
-    let rows = store.collect(&Target::Map { id: None }, &Selector::Everything);
+    let rows = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
     rows.iter()
         .map(|row| {
             let names = row
@@ -158,12 +160,9 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
     copies[0].tags = test_util::tag_ids([1]);
     copies[1].tags = test_util::tag_ids([1, 2]);
     let adds = copies.into_iter().map(Op::Add).collect();
-    source.edit(
-        &Target::Map { id: None },
-        adds,
-        IncomingRecords::new(),
-        &mut None,
-    );
+    source
+        .at(&Target::Map { id: None })
+        .edit(adds, IncomingRecords::new(), &mut None);
 
     let closed = storage::tests::map_on_disk("copy-closed");
     let open = Id::<MapMeta, String>::new("copy-open".into());
@@ -253,12 +252,9 @@ fn opening_a_map_waits_while_its_files_are_being_written() {
 fn with_rows(id: &str, rows: &[Location]) -> Store {
     let mut store = tagged_map(id, &[]);
     let adds = rows.iter().cloned().map(Op::Add).collect();
-    store.edit(
-        &Target::Map { id: None },
-        adds,
-        IncomingRecords::new(),
-        &mut None,
-    );
+    store
+        .at(&Target::Map { id: None })
+        .edit(adds, IncomingRecords::new(), &mut None);
     store
 }
 
@@ -279,7 +275,8 @@ fn copy_over(existing: &[Location], sources: &[Location]) -> (Vec<Location>, u32
     let rows = mgr
         .store_for_map(&target)
         .unwrap()
-        .collect(&Target::Map { id: None }, &Selector::Everything);
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
     assert_eq!(rows.len() - before, copied.copied as usize);
     (rows[before..].to_vec(), copied.skipped)
 }
@@ -328,42 +325,33 @@ fn a_copy_treats_an_empty_pano_as_none() {
 #[test]
 fn a_plain_add_on_the_open_map_never_skips_a_row_it_holds() {
     let mut store = with_rows("m", &[at_pano(10.0, 20.0, "AAA")]);
-    let window = WindowLabel("w".into());
-    let added = edit_at(
-        &mut store,
-        &window,
-        &Target::Map { id: None },
+    let added = store.at(&Target::Map { id: None }).edit(
         vec![Op::Add(at_pano(10.0, 20.0, "AAA"))],
         IncomingRecords::new(),
-    )
-    .unwrap();
-    assert_eq!(added.mutation.keys.len(), 1);
+        &mut None,
+    );
+    assert_eq!(added.keys.len(), 1);
 }
 
 #[test]
 fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
     let mut store = with_rows("other", &[]);
+    let window = WindowLabel("w".into());
     let at_other = Target::Map {
         id: Some(Id::new("other".into())),
     };
-    let receipt = edit_at(
-        &mut store,
-        &WindowLabel("w".into()),
-        &at_other,
-        vec![Op::Add(test_util::loc(0, 1.0, 2.0))],
-        IncomingRecords::new(),
-    )
-    .unwrap();
-    assert_eq!(receipt.mutation.version, 0);
-    assert_eq!(receipt.mutation.keys.len(), 1);
+    let edit = |store: &mut Store, target: &Target, lat: f64| {
+        let mutation = store.at(target).edit(
+            vec![Op::Add(test_util::loc(0, lat, 2.0))],
+            IncomingRecords::new(),
+            &mut None,
+        );
+        receipt(store, &window, target, mutation)
+    };
+    let there = edit(&mut store, &at_other, 1.0);
+    assert_eq!(there.mutation.version, 0);
+    assert_eq!(there.mutation.keys.len(), 1);
 
-    let here = edit_at(
-        &mut store,
-        &WindowLabel("w".into()),
-        &Target::Map { id: None },
-        vec![Op::Add(test_util::loc(0, 3.0, 4.0))],
-        IncomingRecords::new(),
-    )
-    .unwrap();
+    let here = edit(&mut store, &Target::Map { id: None }, 3.0);
     assert_eq!(here.mutation.version, store.version);
 }

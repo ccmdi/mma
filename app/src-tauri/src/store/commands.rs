@@ -120,16 +120,13 @@ pub async fn store_edit_uploaded(
     let started = Instant::now();
     // Read before taking the store lock: a malformed chunk must leave the store untouched.
     let edits = task::spawn_blocking(move || export::read_uploaded_chunks(&session)).await??;
-    let mutation = task::block_in_place(|| {
-        with_target(&state, &label, &target, |store| {
-            Ok(store.edit(&target, edits, IncomingRecords::new(), &mut None))
-        })
-    })?;
+    let result =
+        task::block_in_place(|| store_edit(label, state, target, edits, IncomingRecords::new()))?;
     log::debug!(
         "[cmd] store_edit_uploaded total={}ms",
         started.elapsed().as_millis()
     );
-    Ok(MutationResult { mutation })
+    Ok(result)
 }
 
 /// Set the default marker color for new render updates.
@@ -199,19 +196,21 @@ fn copy_locations_to_map(
         if source.meta.id == target_map_id {
             return Err(AppError("cannot copy a location into its own map".into()));
         }
-        let rows = source.collect(&here, &selector.map_children(SelectionInput::compile));
+        let rows = source
+            .at(&here)
+            .rows(&selector.map_children(SelectionInput::compile));
         Ok((rows, source.held_value_records()))
     })?;
     let there = Target::Map {
         id: Some(target_map_id),
     };
     with_target(state, label, &there, |target| {
-        let held = HeldRows::of(&target.collect(&there, &Selector::Everything));
+        let held = HeldRows::of(&target.at(&there).rows(&Selector::Everything));
         let total = matched.len() as u32;
         let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
         let records = referenced_records(&records, &fresh);
         let adds = fresh.into_iter().map(Op::Add).collect();
-        let copied = target.edit(&there, adds, records, &mut None).keys.len() as u32;
+        let copied = target.at(&there).edit(adds, records, &mut None).keys.len() as u32;
         Ok(CopyToMapResult {
             copied,
             skipped: total - copied,
@@ -504,24 +503,21 @@ fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
     ]
 }
 
-/// Edit `store` at `target`. The receipt is at version 0 when the edit reached a map this
-/// window does not watch, so waiting for this window to catch up returns at once.
-fn edit_at(
-    store: &mut Store,
-    label: &WindowLabel,
+/// The receipt `window` waits on for `mutation` at `target`: version 0 when the edit reached
+/// a map this window does not watch, so waiting returns at once.
+fn receipt(
+    store: &Store,
+    window: &WindowLabel,
     target: &Target,
-    edits: Vec<Edit<Location>>,
-    records: IncomingRecords,
-) -> AppResult<MutationResult> {
-    store.check_interned(&records)?;
-    let mutation = store.edit(target, edits, records, &mut None);
-    let unwatched = matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(label);
-    Ok(MutationResult {
+    mutation: Mutation,
+) -> MutationResult {
+    let unwatched = matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(window);
+    MutationResult {
         mutation: Mutation {
             version: if unwatched { 0 } else { mutation.version },
             ..mutation
         },
-    })
+    }
 }
 
 #[cfg(test)]
@@ -532,7 +528,9 @@ macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
             "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> MutationResult => |store, window| {
-                edit_at(store, window, &target, edits, records)
+                store.check_interned(&records)?;
+                let mutation = store.at(&target).edit(edits, records, &mut None);
+                Ok(receipt(store, window, &target, mutation))
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })
@@ -548,7 +546,7 @@ macro_rules! command_table {
                 Ok(store.edit_selections(&op))
             };
             "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => |store| {
-                store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
+                store.at(&target).read(&selector.map_children(SelectionInput::compile), &ask)
             };
             "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {
                 selections::saved::apply_saved_selection(store, &id)

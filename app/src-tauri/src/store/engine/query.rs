@@ -203,78 +203,6 @@ impl Store {
         self.view().get(id).map(|row| (row.lat(), row.lng()))
     }
 
-    /// Read matching rows. Explicit map ids preserve request order and duplicates;
-    /// other reads return unique rows sorted by id.
-    pub(crate) fn collect(&mut self, target: &Target, selector: &Selector) -> Vec<Location> {
-        if let (Target::Map { .. }, Selector::Locations { locations, .. }) = (target, selector) {
-            return locations
-                .iter()
-                .filter_map(|&id| self.get_loc_by_id(id))
-                .collect();
-        }
-        self.with_scope(target, selector, None, |scope| {
-            scope.rows().map(|row| row.to_location()).collect()
-        })
-    }
-
-    fn with_scope<R>(
-        &mut self,
-        target: &Target,
-        selector: &Selector,
-        ask: Option<&Ask>,
-        read: impl FnOnce(selections::Scope<'_, '_>) -> R,
-    ) -> R {
-        match target {
-            Target::Map { .. } => {
-                let mut indexes = selector.indexes();
-                if let Some(ask) = ask {
-                    indexes.extend(ask.indexes(self.optional_fields()));
-                }
-                self.prepare(indexes);
-                read(
-                    self.view()
-                        .indexed(&self.field_indexes, self.spatial.peek())
-                        .select(selector),
-                )
-            }
-            Target::Pending { name } => {
-                let pending = self.pending.get(name);
-                let keys: Vec<Id<Location>> = match selector {
-                    Selector::Locations { locations, .. } => locations.clone(),
-                    _ => pending
-                        .map(|p| p.layer.keys().collect())
-                        .unwrap_or_default(),
-                };
-                let mut rows: Vec<Location> = keys
-                    .into_iter()
-                    .filter_map(|id| {
-                        let below = self.get_loc_by_id(id);
-                        match pending {
-                            Some(p) => p
-                                .layer
-                                .get(id, below, |row, patch| self.applied(row, patch)),
-                            None => below,
-                        }
-                    })
-                    .collect();
-                rows.sort_unstable_by_key(|row| row.id);
-                rows.dedup_by_key(|row| row.id);
-                let dead = IdSet::new();
-                let patches = HashMap::new();
-                let view = selections::LocView::new(
-                    None,
-                    &dead,
-                    &patches,
-                    &rows,
-                    None,
-                    Some(&self.selections.ids),
-                    None,
-                );
-                read(view.select(selector))
-            }
-        }
-    }
-
     /// Whole-map bounding box, cached. Recomputes O(N) only when stale (after a
     /// removal or bulk change); otherwise O(1). The scoring UI refreshes this on
     /// every edit, so it must not scan the whole map per mutation.
@@ -400,7 +328,7 @@ impl Store {
             .collect()
     }
 
-    fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
+    pub(super) fn prepare(&mut self, indexes: impl IntoIterator<Item = Index>) {
         let mut fields = HashMap::new();
         let mut spatial = false;
         for index in indexes {
@@ -449,7 +377,7 @@ impl Store {
         }
     }
 
-    fn optional_fields(&self) -> impl Iterator<Item = String> + '_ {
+    pub(super) fn optional_fields(&self) -> impl Iterator<Item = String> + '_ {
         self.registry()
             .iter()
             .filter(|(_, def)| def.optional())
@@ -545,7 +473,7 @@ pub enum Ask {
 }
 
 impl Ask {
-    fn indexes(&self, fields: impl Iterator<Item = String>) -> Vec<Index> {
+    pub(super) fn indexes(&self, fields: impl Iterator<Item = String>) -> Vec<Index> {
         match self {
             Self::Coverage => fields.map(Index::Presence).collect(),
             Self::NearAny { .. } => vec![Index::Spatial],
@@ -608,29 +536,25 @@ pub enum Answer {
     Held { held: Vec<bool> },
 }
 
-impl Store {
-    pub(crate) fn read(
-        &mut self,
-        target: &Target,
-        selector: &Selector,
-        ask: &Ask,
-    ) -> AppResult<Answer> {
+impl Targeted<'_> {
+    /// Answer one question about the locations `selector` matches here.
+    pub(crate) fn read(&mut self, selector: &Selector, ask: &Ask) -> AppResult<Answer> {
         if let Ask::NearAny { lats, lngs, .. } = ask {
             if lats.len() != lngs.len() {
                 return Err(AppError::from("read: lats/lngs length mismatch"));
             }
         }
         if matches!(
-            (target, selector, ask),
-            (Target::Map { .. }, Selector::Everything, Ask::Bounds)
+            (self.layer, selector, ask),
+            (None, Selector::Everything, Ask::Bounds)
         ) {
             return Ok(Answer::Bounds {
-                bounds: self.cached_bounds(),
+                bounds: self.store.cached_bounds(),
             });
         }
-        let map_id = self.meta.id.clone();
+        let map_id = self.store.meta.id.clone();
         let fields: Vec<String> = if matches!(ask, Ask::Coverage) {
-            self.optional_fields().collect()
+            self.store.optional_fields().collect()
         } else {
             Vec::new()
         };
@@ -646,7 +570,7 @@ impl Store {
             }
             _ => selector,
         };
-        self.with_scope(target, pool, Some(ask), |scope| {
+        self.scope(pool, Some(ask), |scope| {
             Ok(match ask {
                 Ask::Spacing => {
                     let points = scope.points();

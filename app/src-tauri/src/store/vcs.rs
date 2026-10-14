@@ -110,7 +110,9 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store.collect(&engine::Target::Map { id: None }, &Selector::Everything)
+            store
+                .at(&engine::Target::Map { id: None })
+                .rows(&Selector::Everything)
         } else {
             Vec::new()
         };
@@ -259,7 +261,9 @@ pub fn store_checkout_commit(
 }
 
 fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
-    let current = store.collect(&engine::Target::Map { id: None }, &Selector::Everything);
+    let current = store
+        .at(&engine::Target::Map { id: None })
+        .rows(&Selector::Everything);
     let before = store.selections.table();
     let selections = Change::at(&before, &Default::default(), before.keys().cloned());
     store.pending.clear();

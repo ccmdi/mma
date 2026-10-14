@@ -75,14 +75,15 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
             color: None,
         }],
     });
-    store.edit(
-        &engine::Target::Pending {
+    store
+        .at(&engine::Target::Pending {
             name: "viewer".into(),
-        },
-        vec![mma_algebra::Op::Set(loc(1, 3.0, 3.0))],
-        Default::default(),
-        &mut None,
-    );
+        })
+        .edit(
+            vec![mma_algebra::Op::Set(loc(1, 3.0, 3.0))],
+            Default::default(),
+            &mut None,
+        );
     let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
     assert_eq!(result.mutation.version, store.version);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());

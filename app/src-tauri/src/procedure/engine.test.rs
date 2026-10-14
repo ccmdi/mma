@@ -45,8 +45,7 @@ fn given(state: &StoreState, map_id: &Id<MapMeta, String>, rows: Vec<Location>) 
     };
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    store.edit(
-        &target,
+    store.at(&target).edit(
         rows.into_iter().map(Op::Set).collect(),
         Default::default(),
         &mut None,
@@ -60,7 +59,8 @@ fn layer_rows(state: &StoreState, map_id: &Id<MapMeta, String>, target: &Target)
         .unwrap()
         .store_for_map(map_id)
         .unwrap()
-        .collect(target, &Selector::Everything)
+        .at(target)
+        .rows(&Selector::Everything)
 }
 
 fn read_extra(
@@ -70,13 +70,12 @@ fn read_extra(
 ) -> Option<serde_json::Value> {
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
-    let rows = store.collect(
-        &Target::Map { id: None },
-        &Selector::Locations {
+    let rows = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Locations {
             locations: loc_ids([id]),
             name: None,
-        },
-    );
+        });
     rows[0]
         .extra
         .as_ref()
@@ -87,13 +86,11 @@ fn read_loc(state: &StoreState, map_id: &Id<MapMeta, String>, id: u32) -> Locati
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     store
-        .collect(
-            &Target::Map { id: None },
-            &Selector::Locations {
-                locations: loc_ids([id]),
-                name: None,
-            },
-        )
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Locations {
+            locations: loc_ids([id]),
+            name: None,
+        })
         .remove(0)
 }
 
@@ -2665,8 +2662,7 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     {
         let mut manager = state.lock().unwrap();
         manager.window_map.insert(label.clone(), map_id.clone());
-        manager.store_for_map(&map_id).unwrap().edit(
-            &target,
+        manager.store_for_map(&map_id).unwrap().at(&target).edit(
             vec![Op::Set(loc(1, 1.0, 1.0))],
             Default::default(),
             &mut None,
@@ -2734,8 +2730,7 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
         let mut manager = state.lock().unwrap();
         manager.window_map.insert(label.clone(), map_id.clone());
         let store = manager.store_for_map(&map_id).unwrap();
-        store.edit(
-            &target,
+        store.at(&target).edit(
             vec![Op::Set(loc(1, 1.0, 1.0))],
             Default::default(),
             &mut None,

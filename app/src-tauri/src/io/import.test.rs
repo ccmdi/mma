@@ -892,29 +892,24 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
 
     let keys = stage_parsed(&mut store, "staged-fetch", parsed);
     let target = import_target("staged-fetch");
-    let first = store.collect(
-        &target,
-        &Selector::Locations {
-            locations: vec![keys.nth(0).unwrap()],
-            name: None,
-        },
-    )[0]
-    .clone();
+    let first = store.at(&target).rows(&Selector::Locations {
+        locations: vec![keys.nth(0).unwrap()],
+        name: None,
+    })[0]
+        .clone();
     assert_eq!(first.lat, 10.5);
     assert_eq!(first.heading, 90.0);
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
-    let second = store.collect(
-        &target,
-        &Selector::Locations {
-            locations: vec![keys.nth(1).unwrap()],
-            name: None,
-        },
-    )[0]
-    .clone();
+    let second = store.at(&target).rows(&Selector::Locations {
+        locations: vec![keys.nth(1).unwrap()],
+        name: None,
+    })[0]
+        .clone();
     assert_eq!(second.lng, 7.75);
     // Staged rows are held by the layer, not on the map.
     assert!(store
-        .collect(&Target::Map { id: None }, &Selector::Everything)
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
         .is_empty());
 }
 
@@ -926,8 +921,8 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
         ..Default::default()
     });
     let held = store
+        .at(&Target::Map { id: None })
         .edit(
-            &Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -941,15 +936,16 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     assert_eq!(run.len, 3);
     assert!(!run.contains(held));
     let staged: Vec<_> = store
-        .collect(&import_target("range-win"), &Selector::Everything)
+        .at(&import_target("range-win"))
+        .rows(&Selector::Everything)
         .into_iter()
         .map(|l| l.id)
         .filter(|&id| id != held)
         .collect();
     assert_eq!(staged, run.iter().collect::<Vec<_>>());
     let next = store
+        .at(&Target::Map { id: None })
         .edit(
-            &Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -970,7 +966,8 @@ fn cancelling_a_staged_import_drops_its_layer() {
     stage_parsed(&mut store, "cancel-me", parsed);
     store.close_layer(&import_layer("cancel-me"));
     assert!(store
-        .collect(&import_target("cancel-me"), &Selector::Everything)
+        .at(&import_target("cancel-me"))
+        .rows(&Selector::Everything)
         .is_empty());
 }
 
@@ -996,25 +993,23 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
         preview_positions_path("preview-b")
     );
     assert_eq!(
-        store.collect(
-            &import_target("preview-a"),
-            &Selector::Locations {
+        store
+            .at(&import_target("preview-a"))
+            .rows(&Selector::Locations {
                 locations: [a].to_vec(),
                 name: None
-            }
-        )[0]
-        .lat,
+            })[0]
+            .lat,
         11.0
     );
     assert_eq!(
-        store.collect(
-            &import_target("preview-b"),
-            &Selector::Locations {
+        store
+            .at(&import_target("preview-b"))
+            .rows(&Selector::Locations {
                 locations: [b].to_vec(),
                 name: None
-            }
-        )[0]
-        .lat,
+            })[0]
+            .lat,
         22.0
     );
     let _ = fs::remove_file(preview_positions_path("preview-a"));
@@ -1071,8 +1066,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     };
 
     let feed = FeedCapture::attach(&mut store);
-    store.edit(
-        &Target::Map { id: None },
+    store.at(&Target::Map { id: None }).edit(
         parsed
             .locations
             .into_iter()
@@ -1092,7 +1086,9 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(event.derived.location_count, Some(2));
-    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
+    let stored = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate created);
@@ -1155,7 +1151,9 @@ fn bulk_tags_apply_every_name_to_every_import() {
         .expect("France created");
     let france = *france;
     assert_eq!(meta.values().count(), 2);
-    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
+    let stored = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
     assert_eq!(stored.len(), 2);
     for l in &stored {
         assert_eq!(l.tags, vec![Id::new(5), france]);
@@ -1194,7 +1192,8 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
         .expect("Unique created");
     assert_eq!(store.records["tags"].len(), 2);
     let mut held: Vec<_> = store
-        .collect(&Target::Map { id: None }, &Selector::Everything)
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
         .into_iter()
         .map(|l| l.tags)
         .collect();
@@ -1213,7 +1212,9 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
     stage_parsed(&mut store, "drop-win", parsed);
     confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[]).unwrap();
     assert!(store.records["tags"].is_empty());
-    let stored = store.collect(&Target::Map { id: None }, &Selector::Everything);
+    let stored = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
     assert_eq!(stored.len(), 1);
     assert!(stored[0].tags.is_empty());
 }

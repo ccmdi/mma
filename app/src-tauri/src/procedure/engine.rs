@@ -652,16 +652,11 @@ impl RunCtx<'_> {
         }
         log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
         let index = self.with_store(|store| {
-            let index = match &self.target {
-                Target::Map { .. } => {
-                    let all = store.all();
-                    neighborhood::Index::build(all.rows(), radius_m, fields)
-                }
-                Target::Pending { .. } => {
-                    let rows = store.collect(&self.target, &Selector::Everything);
-                    neighborhood::Index::build(rows.iter().map(RowRef::from_loc), radius_m, fields)
-                }
-            };
+            let index = store
+                .at(&self.target)
+                .scope(&Selector::Everything, None, |scope| {
+                    neighborhood::Index::build(scope.rows(), radius_m, fields)
+                });
             Ok(Arc::new(index))
         })?;
         *held = Some(BuiltIndex {
@@ -795,7 +790,8 @@ pub(crate) fn run_all(
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<Id<Location>> = ctx.with_store(|store| {
         Ok(store
-            .collect(&ctx.target, &decl.select)
+            .at(&ctx.target)
+            .rows(&decl.select)
             .into_iter()
             .map(|row| row.id)
             .collect())
@@ -970,29 +966,25 @@ fn page_batches(
                 .copied()
                 .filter(|id| todo_ids.contains(*id) && !workable.contains(*id))
                 .collect();
-            let rows = store.collect(
-                &Target::Map { id: None },
-                &Selector::Locations {
+            let rows = store
+                .at(&Target::Map { id: None })
+                .rows(&Selector::Locations {
                     locations: page
                         .iter()
                         .copied()
                         .filter(|id| workable.contains(*id))
                         .collect(),
                     name: None,
-                },
-            );
+                });
             Ok((rows, unmet))
         }
         Target::Pending { .. } => {
             let has = |row: &Location, f: &str| RowRef::from_loc(row).resolve_field(f).is_some();
             let (mut rows, mut unmet, mut skipped) = (Vec::new(), Vec::new(), 0);
-            for row in store.collect(
-                &ctx.target,
-                &Selector::Locations {
-                    locations: (page).to_vec(),
-                    name: None,
-                },
-            ) {
+            for row in store.at(&ctx.target).rows(&Selector::Locations {
+                locations: (page).to_vec(),
+                name: None,
+            }) {
                 let todo =
                     force || decl.fields.is_empty() || !decl.fields.iter().all(|f| has(&row, f));
                 if !todo {
@@ -1069,13 +1061,11 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                     let patch = match (
                         read,
                         store
-                            .collect(
-                                &ctx.target,
-                                &Selector::Locations {
-                                    locations: vec![patch.id],
-                                    name: None,
-                                },
-                            )
+                            .at(&ctx.target)
+                            .rows(&Selector::Locations {
+                                locations: vec![patch.id],
+                                name: None,
+                            })
                             .into_iter()
                             .next(),
                     ) {
@@ -1092,22 +1082,14 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner);
             // Pending edits emit no map change event, so stream the updated rows to the caller.
-            let held = match &ctx.target {
-                Target::Pending { name } => store
-                    .pending
-                    .get(name)
-                    .is_none_or(|p| p.stage.landed().is_none()),
-                Target::Map { .. } => false,
-            };
-            store.edit(&ctx.target, edits, Default::default(), &mut group);
+            let mut at = store.at(&ctx.target);
+            let held = at.held();
+            at.edit(edits, Default::default(), &mut group);
             Ok(held.then(|| {
-                store.collect(
-                    &ctx.target,
-                    &Selector::Locations {
-                        locations: ids.to_vec(),
-                        name: None,
-                    },
-                )
+                at.rows(&Selector::Locations {
+                    locations: ids.to_vec(),
+                    name: None,
+                })
             }))
         })?;
         if let Some(rows) = held_rows {

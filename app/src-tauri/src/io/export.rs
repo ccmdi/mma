@@ -275,7 +275,9 @@ pub fn store_export_json(
     opts: ExportOpts,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let locs = store.collect(&engine::Target::Map { id: None }, &opts.selector);
+        let locs = store
+            .at(&engine::Target::Map { id: None })
+            .rows(&opts.selector);
         let co = CoordOpts {
             export_zoom: opts.export_zoom,
             export_unpanned: opts.export_unpanned,
@@ -304,10 +306,11 @@ pub fn store_export_csv(
     selector: Selector<SelectionInput>,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let buf = csv_document(&store.collect(
-            &engine::Target::Map { id: None },
-            &selector.map_children(SelectionInput::compile),
-        ));
+        let buf = csv_document(
+            &store
+                .at(&engine::Target::Map { id: None })
+                .rows(&selector.map_children(SelectionInput::compile)),
+        );
         let path = export_temp_path("mma_export", "csv");
         fs::write(&path, &buf)?;
         Ok(path.to_string_lossy().into_owned())
@@ -327,10 +330,9 @@ pub fn store_export_geojson(
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
         let json = serde_json::to_string(&geojson_document(
-            &store.collect(
-                &engine::Target::Map { id: None },
-                &selector.map_children(SelectionInput::compile),
-            ),
+            &store
+                .at(&engine::Target::Map { id: None })
+                .rows(&selector.map_children(SelectionInput::compile)),
             &tags_json,
         ))?;
 

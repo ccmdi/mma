@@ -21,6 +21,7 @@ pub use mutations::*;
 pub use persist::*;
 pub use query::*;
 pub use render::*;
+pub(crate) use targeted::*;
 pub use values::*;
 
 use crate::store::id_set::IdSet;
@@ -974,6 +975,7 @@ mod mutations;
 mod persist;
 pub(crate) mod query;
 mod render;
+mod targeted;
 mod values;
 
 #[cfg(test)]
