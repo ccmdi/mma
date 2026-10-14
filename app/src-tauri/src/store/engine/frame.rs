@@ -180,6 +180,10 @@ impl<T: Clone + IpcResponse> Sinks<T> {
         self.0.remove(label);
     }
 
+    pub(crate) fn has(&self, label: &WindowLabel) -> bool {
+        self.0.contains_key(label)
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
     }

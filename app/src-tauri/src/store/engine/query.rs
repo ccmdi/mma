@@ -540,6 +540,8 @@ pub enum Ask {
         lngs: Vec<f64>,
         radius_m: f64,
     },
+    /// Per given location, whether a selected one is it: same pano, else same exact coordinates.
+    Held { locations: Vec<Location> },
 }
 
 impl Ask {
@@ -556,7 +558,8 @@ impl Ask {
             | Self::GroupBy { .. }
             | Self::CountBy { .. }
             | Self::Bounds
-            | Self::DuplicateGroups { .. } => Vec::new(),
+            | Self::DuplicateGroups { .. }
+            | Self::Held { .. } => Vec::new(),
         }
     }
 }
@@ -601,6 +604,8 @@ pub enum Answer {
     DuplicateGroups { groups: Vec<Vec<Id<Location>>> },
     /// Per input coordinate, whether a matched location lies near it.
     NearAny { values: Vec<bool> },
+    /// Per given location, whether the map already holds it.
+    Held { held: Vec<bool> },
 }
 
 impl Store {
@@ -704,6 +709,13 @@ impl Store {
                 Ask::DuplicateGroups { distance } => Answer::DuplicateGroups {
                     groups: scope.duplicate_groups(*distance),
                 },
+                Ask::Held { locations } => {
+                    let rows: Vec<Location> = scope.rows().map(|row| row.to_location()).collect();
+                    let held = HeldRows::of(&rows);
+                    Answer::Held {
+                        held: locations.iter().map(|l| held.holds(l)).collect(),
+                    }
+                }
             })
         })
     }

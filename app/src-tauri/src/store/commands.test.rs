@@ -164,6 +164,7 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
         tauri::State<'a, StoreState>,
         Target,
         Vec<Edit<Location>>,
+        IncomingRecords,
     ) -> AppResult<MutationResult> = store_edit;
 }
 
@@ -188,4 +189,66 @@ fn opening_a_map_waits_while_its_files_are_being_written() {
     drop(writing);
     opening.join().unwrap();
     assert!(state.lock().unwrap().stores.contains_key(&map));
+}
+
+fn with_rows(id: &str, rows: &[Location]) -> Store {
+    let mut store = tagged_map(id, &[]);
+    let adds = rows.iter().cloned().map(Op::Add).collect();
+    store.edit(
+        &Target::Map { id: None },
+        adds,
+        IncomingRecords::new(),
+        &mut None,
+    );
+    store
+}
+
+fn at_pano(lat: f64, lng: f64, pano: &str) -> Location {
+    Location {
+        pano_id: Some(pano.into()),
+        ..crate::test_util::loc(0, lat, lng)
+    }
+}
+
+#[test]
+fn a_plain_add_on_the_open_map_never_skips_a_row_it_holds() {
+    let mut store = with_rows("m", &[at_pano(10.0, 20.0, "AAA")]);
+    let window = WindowLabel("w".into());
+    let added = edit_at(
+        &mut store,
+        &window,
+        &Target::Map { id: None },
+        vec![Op::Add(at_pano(10.0, 20.0, "AAA"))],
+        IncomingRecords::new(),
+    )
+    .unwrap();
+    assert_eq!(added.mutation.keys.len(), 1);
+}
+
+#[test]
+fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
+    let mut store = with_rows("other", &[]);
+    let at_other = Target::Map {
+        id: Some(Id::new("other".into())),
+    };
+    let receipt = edit_at(
+        &mut store,
+        &WindowLabel("w".into()),
+        &at_other,
+        vec![Op::Add(crate::test_util::loc(0, 1.0, 2.0))],
+        IncomingRecords::new(),
+    )
+    .unwrap();
+    assert_eq!(receipt.mutation.version, 0);
+    assert_eq!(receipt.mutation.keys.len(), 1);
+
+    let here = edit_at(
+        &mut store,
+        &WindowLabel("w".into()),
+        &Target::Map { id: None },
+        vec![Op::Add(crate::test_util::loc(0, 3.0, 4.0))],
+        IncomingRecords::new(),
+    )
+    .unwrap();
+    assert_eq!(here.mutation.version, store.version);
 }

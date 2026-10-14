@@ -230,6 +230,18 @@ impl<'a> FieldValues<'a> {
 }
 
 impl Store {
+    /// Refuse records for a field this map does not intern.
+    pub(crate) fn check_interned(&self, records: &IncomingRecords) -> AppResult<()> {
+        let registry = self.registry();
+        match records
+            .keys()
+            .find(|field| !registry.get(field).is_some_and(|def| def.interned))
+        {
+            Some(field) => Err(AppError(format!("'{field}' does not intern its values"))),
+            None => Ok(()),
+        }
+    }
+
     /// Every interned field's records as they stand.
     pub(crate) fn held_value_records(&self) -> IncomingRecords {
         self.records

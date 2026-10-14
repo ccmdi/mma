@@ -6,8 +6,8 @@ import type { CameraType, CapturePick, DatePart, FieldType, Group, FirstSyncMode
 
 /** Commands */
 export const commands = {
-	/** Edit locations where target says; an open pending layer holds edits until it lands. */
-	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[]) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits }),
+	/** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. */
+	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, records }),
 	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
 	storeLandLayer: (name: string) => __TAURI_INVOKE<MutationResult>("store_land_layer", { name }),
 	/** Run work over every location matched by selector. */
@@ -508,7 +508,9 @@ export type Answer =
 /**  The ids of each group of nearby locations. */
 { kind: "duplicateGroups"; groups: number[][] } | 
 /**  Per input coordinate, whether a matched location lies near it. */
-{ kind: "nearAny"; values: boolean[] };
+{ kind: "nearAny"; values: boolean[] } | 
+/**  Per given location, whether the map already holds it. */
+{ kind: "held"; held: boolean[] };
 
 /**  A question about the selected locations. */
 export type Ask = 
@@ -541,7 +543,9 @@ export type Ask =
 /**  Groups of locations within `distance` metres of each other, two or more per group. */
 { kind: "duplicateGroups"; distance: number } | 
 /**  Per input coordinate, whether any selected location lies within `radiusM` metres. */
-{ kind: "nearAny"; lats: number[]; lngs: number[]; radiusM: number };
+{ kind: "nearAny"; lats: number[]; lngs: number[]; radiusM: number } | 
+/**  Per given location, whether a selected one is it: same pano, else same exact coordinates. */
+{ kind: "held"; locations: Location[] };
 
 /**  An image the reporter attached, once it is somewhere the issue can point at. */
 export type AttachmentRef = {

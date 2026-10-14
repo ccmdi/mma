@@ -66,23 +66,31 @@ describe("Pano.capture", () => {
 
 describe("dropLocation", () => {
 	it("takes the live camera, not the source's stored position", () => {
-		const drop = dropLocation(source, live, live.panoId, [7]);
-		expect(drop).toMatchObject(live);
-		expect(drop.id).toBe(0);
+		const { location } = dropLocation(source, live, live.panoId, ["a"]);
+		expect(location).toMatchObject(live);
+		expect(location.id).toBe(0);
 	});
 
-	it("carries the source's flags and the tags it is handed", () => {
-		const drop = dropLocation(source, live, live.panoId, [1, 2]);
-		expect(drop.flags).toBe(LocationFlag.LoadAsPanoId);
-		expect(drop.tags).toEqual([1, 2]);
+	it("carries the source's flags and leaves the source as it was", () => {
+		const before = structuredClone(source);
+		const { location } = dropLocation(source, live, live.panoId, []);
+		expect(location.flags).toBe(LocationFlag.LoadAsPanoId);
+		expect(source).toEqual(before);
+	});
+
+	it("tags the drop by name through records, not with the source map's tag ids", () => {
+		const { location, records } = dropLocation(source, live, live.panoId, ["Seen", "New"]);
+		expect(location.tags.map((id) => records.tags[id]?.name)).toEqual(["Seen", "New"]);
+		expect(Object.keys(records)).toEqual(["tags"]);
+		expect(dropLocation(source, live, live.panoId, []).location.tags).toEqual([]);
 	});
 
 	it("drops extra once the drop leaves the source's pano", () => {
-		expect(dropLocation(source, live, live.panoId, []).extra).toBeNull();
+		expect(dropLocation(source, live, live.panoId, []).location.extra).toBeNull();
 	});
 
 	it("keeps extra for a drop that never left the source's pano", () => {
 		const home = { ...live, panoId: source.panoId };
-		expect(dropLocation(source, home, source.panoId, []).extra).toEqual(source.extra);
+		expect(dropLocation(source, home, source.panoId, []).location.extra).toEqual(source.extra);
 	});
 });

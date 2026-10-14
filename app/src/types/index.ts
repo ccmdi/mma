@@ -1,6 +1,6 @@
 import type { Cmd } from "@/lib/commands";
 export type Selector = Parameters<Cmd["storeRead"]>[1];
-import type { FieldDef, Location } from "@/bindings.gen";
+import type { FieldDef, Location, ValueRecord } from "@/bindings.gen";
 import type { FieldType } from "@/bindings.consts";
 import { nowUnix } from "@/lib/util/util";
 import type { RequireNonNull } from "@/types/util";
@@ -101,22 +101,27 @@ export function createLocation(partial: Partial<Location> & LatLng): Location {
 	};
 }
 
-/** A new Location at the viewer's live camera, carrying `source`'s flags and the given
- *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
- *  stayed on that pano. @unstable */
+/** A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
+ *  through `records`, which the map it lands in matches to its own tags by name. `extra`
+ *  describes the pano it was fetched for, so it only survives a drop that stayed on that
+ *  pano. @unstable */
 export function dropLocation(
 	source: Location,
 	live: PanoCapture,
 	panoId: string | null,
-	tags: number[],
-): Location {
-	return createLocation({
-		...live,
-		panoId,
-		flags: source.flags,
-		tags,
-		extra: panoId === source.panoId ? source.extra : null,
-	});
+	tagNames: string[],
+): { location: Location; records: { tags: Record<number, ValueRecord> } } {
+	const tags = tagNames.map((name, i) => ({ id: i + 1, name }));
+	return {
+		location: createLocation({
+			...live,
+			panoId,
+			flags: source.flags,
+			tags: tags.map((tag) => tag.id),
+			extra: panoId === source.panoId ? source.extra : null,
+		}),
+		records: { tags: Object.fromEntries(tags.map((tag) => [tag.id, tag])) },
+	};
 }
 
 export type SortMode = "name" | "created" | "opened" | "amount";

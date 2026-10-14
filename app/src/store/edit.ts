@@ -2,15 +2,19 @@ import { Maps } from "./maps";
 import { Store } from "@/store/store";
 import { Mutation } from "@/store/mutation";
 import type { Selector } from "@/types";
-import type { Work, WorkResult } from "@/bindings.gen";
+import type { Target, Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
 export const Edit = {
-	/** Edit locations on a map or in a pending layer. Map changes are undoable in that map. @unstable */
-	locations: (...[target, edits]: Parameters<typeof cmd.storeEdit>) => {
-		const elsewhere = target.kind === "map" && target.id != null && target.id !== Store.get().mapId;
-		if (elsewhere) return cmd.storeEdit(target, edits);
-		return Mutation.run(() => cmd.storeEdit(target, edits));
+	/** Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+	 *  by their ids in `records`, matched to the map's by name. Map changes are undoable in that
+	 *  map. @unstable */
+	locations: (
+		target: Target,
+		edits: Parameters<typeof cmd.storeEdit>[1],
+		records: Parameters<typeof cmd.storeEdit>[2] = {},
+	) => {
+		return Mutation.run(() => cmd.storeEdit(target, edits, records));
 	},
 	/** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
 	 *  Settings merge key by key, so send only the keys that change. */

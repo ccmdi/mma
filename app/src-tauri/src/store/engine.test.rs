@@ -3267,6 +3267,164 @@ fn a_closed_map_that_opens_while_an_edit_waits_takes_the_edit_live() {
         .is_empty());
 }
 
+fn with_tags(state: &StoreState, map: &str, tags: &[(u32, &str)]) {
+    let records = tags
+        .iter()
+        .map(|&(id, name)| {
+            let record = ValueRecord {
+                id: Id::new(id),
+                name: Some(name.into()),
+                ..Default::default()
+            };
+            (Id::new(id), record)
+        })
+        .collect();
+    let mut mgr = state.lock().unwrap();
+    let store = mgr.store_for_map(&Id::new(map.into())).unwrap();
+    store.records.insert("tags".into(), Tracked::new(records));
+}
+
+fn sorted_tag_names(store: &Store) -> Vec<String> {
+    let mut names: Vec<_> = store.records["tags"]
+        .values()
+        .filter_map(|r| r.name.clone())
+        .collect();
+    names.sort();
+    names
+}
+
+fn dropped(tag_names: &str) -> (Vec<Edit<Location>>, IncomingRecords) {
+    let records: IncomingRecords = serde_json::from_str(tag_names).unwrap();
+    let mut drop = loc(0, 5.0, 6.0);
+    drop.tags = records["tags"].keys().copied().collect();
+    drop.tags.sort();
+    (vec![Op::Add(drop)], records)
+}
+
+#[test]
+fn a_drop_at_another_map_creates_its_missing_tags_there_undoably_and_leaves_the_source_alone() {
+    let state = manager_with(&[("a", Some("w1")), ("b", Some("w2"))]);
+    with_tags(&state, "a", &[(1, "Old")]);
+    with_tags(&state, "b", &[(4, "Shared")]);
+    let source_version = state.lock().unwrap().stores[&Id::new("a".into())].version;
+    let b = Id::new("b".into());
+    let target = at_map(&b);
+    let (edits, records) =
+        dropped(r#"{"tags":{"1":{"id":1,"name":"shared"},"2":{"id":2,"name":"New"}}}"#);
+
+    with_target(&state, &WindowLabel("w1".into()), &target, |store| {
+        store.check_interned(&records)?;
+        Ok(store.edit(&target, edits, records, &mut None))
+    })
+    .unwrap();
+
+    let mut mgr = state.lock().unwrap();
+    let there = mgr.store_for_map(&b).unwrap();
+    assert_eq!(sorted_tag_names(there), ["New", "Shared"]);
+    let row = &there.collect(&target, &Selector::Everything)[0];
+    let names: Vec<_> = row
+        .tags
+        .iter()
+        .map(|&id| {
+            there
+                .value_record("tags", id)
+                .unwrap()
+                .name
+                .clone()
+                .unwrap()
+        })
+        .collect();
+    assert_eq!(names, ["Shared", "New"]);
+    assert_eq!(undo_steps(there), 1);
+    there
+        .step(Stack::Undo, Timeline::Edits, |_| {
+            Err("held in memory".into())
+        })
+        .unwrap();
+    assert!(there.collect(&target, &Selector::Everything).is_empty());
+    assert_eq!(sorted_tag_names(there), ["Shared"]);
+
+    let here = mgr.store_for_map(&Id::new("a".into())).unwrap();
+    assert_eq!(sorted_tag_names(here), ["Old"]);
+    assert_eq!(undo_steps(here), 0);
+    assert_eq!(here.version, source_version);
+}
+
+#[test]
+fn a_map_answers_which_given_locations_it_already_holds() {
+    let mut store = setup_store_with(&[
+        Location {
+            pano_id: Some("PANO".into()),
+            ..loc(1, 10.0, 20.0)
+        },
+        loc(2, 30.0, 40.0),
+    ]);
+    let asked = vec![
+        Location {
+            pano_id: Some("PANO".into()),
+            ..loc(0, 99.0, 99.0)
+        },
+        Location {
+            pano_id: Some("OTHER".into()),
+            ..loc(0, 10.0, 20.0)
+        },
+        loc(0, 30.0, 40.0),
+        loc(0, 30.0, 40.000001),
+    ];
+    let answer = store
+        .read(
+            &Target::Map { id: None },
+            &Selector::Everything,
+            &Ask::Held { locations: asked },
+        )
+        .unwrap();
+    assert!(matches!(answer, Answer::Held { held } if held == [true, false, true, false]));
+}
+
+#[test]
+fn a_drop_on_this_map_reuses_its_tags_by_name_and_leaves_other_rows_alone() {
+    let state = manager_with(&[("a", Some("w1"))]);
+    with_tags(&state, "a", &[(1, "Kept")]);
+    let here = Target::Map { id: None };
+    let w1 = WindowLabel("w1".into());
+    with_target(&state, &w1, &here, add_one(&here)).unwrap();
+    let open = |state: &StoreState| {
+        let mut mgr = state.lock().unwrap();
+        mgr.store_for_window(&w1)
+            .unwrap()
+            .collect(&here, &Selector::Everything)[0]
+            .clone()
+    };
+    let before = open(&state);
+    let (edits, records) =
+        dropped(r#"{"tags":{"1":{"id":1,"name":"kept"},"2":{"id":2,"name":"Fresh"}}}"#);
+
+    with_target(&state, &w1, &here, |store| {
+        store.check_interned(&records)?;
+        Ok(store.edit(&here, edits, records, &mut None))
+    })
+    .unwrap();
+
+    assert!(open(&state) == before);
+    let mut mgr = state.lock().unwrap();
+    let store = mgr.store_for_window(&w1).unwrap();
+    assert_eq!(sorted_tag_names(store), ["Fresh", "Kept"]);
+    let rows = store.collect(&here, &Selector::Everything);
+    assert_eq!(rows.len(), 2);
+    assert!(rows[1].tags.contains(&Id::new(1)));
+}
+
+#[test]
+fn records_for_a_field_the_map_does_not_intern_are_refused() {
+    let store = Store::new();
+    for field in ["lat", "nothing"] {
+        let records = IncomingRecords::from([(field.to_string(), HashMap::new())]);
+        assert!(store.check_interned(&records).is_err(), "{field}");
+    }
+    let tags = IncomingRecords::from([("tags".to_string(), HashMap::new())]);
+    assert!(store.check_interned(&tags).is_ok());
+}
+
 #[test]
 fn manager_remove_preserves_other() {
     let mut mgr = StoreManager::new();
@@ -5379,8 +5537,14 @@ fn overlay_add_duplicate_id_asserts_in_debug() {
 }
 
 // -----------------------------------------------------------------------
-// Cross-map copy dedup (split_new_locations)
+// Cross-map copy dedup (HeldRows)
 // -----------------------------------------------------------------------
+
+fn split_new_locations(sources: Vec<Location>, existing: &[Location]) -> (Vec<Location>, u32) {
+    let held = HeldRows::of(existing);
+    let (held_rows, fresh): (Vec<_>, Vec<_>) = sources.into_iter().partition(|l| held.holds(l));
+    (fresh, held_rows.len() as u32)
+}
 
 fn loc_with_pano(id: u32, lat: f64, lng: f64, pano: &str) -> Location {
     Location {

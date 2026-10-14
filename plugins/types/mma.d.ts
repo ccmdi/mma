@@ -625,8 +625,8 @@ declare namespace consts {
 
 /** Commands @unstable */
 declare const commands$1: {
-    /** Edit locations where target says; an open pending layer holds edits until it lands. @unstable */
-    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[]) => Promise<MutationResult<Location>>;
+    /** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. @unstable */
+    storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key_1 in number]: ValueRecord; }; }) => Promise<MutationResult<Location>>;
     /** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. @unstable */
     storeLandLayer: (name: string) => Promise<MutationResult<Location>>;
     /** Run work over every location matched by selector. @unstable */
@@ -1099,7 +1099,8 @@ declare const commands$1: {
     valiDownloadStale: () => Promise<null>;
     /**
      *  Start a procedure run over an open map's locations, this window's unless the target names
-     *  another. Returns immediately with the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+     *  another. Returns immediately with the run id. Emits `procedure-progress` and
+     *  `procedure-result` as work completes.
      *  @unstable
      */
     procedureRun: (items: RunItem[], force: boolean, target: Target | null) => Promise<number>;
@@ -1299,6 +1300,11 @@ type Answer =
 {
     kind: "nearAny";
     values: boolean[];
+} | 
+/**  Per given location, whether the map already holds it. */
+{
+    kind: "held";
+    held: boolean[];
 };
 /**  A question about the selected locations. */
 type Ask = 
@@ -1365,6 +1371,11 @@ type Ask =
     lats: number[];
     lngs: number[];
     radiusM: number;
+} | 
+/**  Per given location, whether a selected one is it: same pano, else same exact coordinates. */
+{
+    kind: "held";
+    locations: Location[];
 };
 /**  An image the reporter attached, once it is somewhere the issue can point at. @unstable */
 type AttachmentRef = {
@@ -3403,10 +3414,16 @@ declare function locId(m: MaybeLocation): number;
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
  *  overrides hold, until `addLocations` writes the real id back into the object. */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
-/** A new Location at the viewer's live camera, carrying `source`'s flags and the given
- *  tags. `extra` describes the pano it was fetched for, so it only survives a drop that
- *  stayed on that pano. @unstable */
-declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tags: number[]): Location;
+/** A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
+ *  through `records`, which the map it lands in matches to its own tags by name. `extra`
+ *  describes the pano it was fetched for, so it only survives a drop that stayed on that
+ *  pano. @unstable */
+declare function dropLocation(source: Location, live: PanoCapture, panoId: string | null, tagNames: string[]): {
+    location: Location;
+    records: {
+        tags: Record<number, ValueRecord>;
+    };
+};
 /** @unstable */
 export type SortMode = "name" | "created" | "opened" | "amount";
 export type TagSortMode = "default" | "name" | "amount";
@@ -3540,8 +3557,10 @@ declare const Autosave: {
 };
 
 declare const Edit: {
-    /** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
-    locations: (...[target, edits]: Parameters<typeof cmd.storeEdit>) => Promise<MutationResult<Location>>;
+    /** Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+     *  by their ids in `records`, matched to the map's by name. Map changes are undoable in that
+     *  map. @unstable */
+    locations: (target: Target, edits: Parameters<typeof cmd.storeEdit>[1], records?: Parameters<typeof cmd.storeEdit>[2]) => Promise<MutationResult<Location>>;
     /** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
      *  Settings merge key by key, so send only the keys that change. */
     meta: (patch: Omit<Parameters<typeof cmd.storeUpdateMapMeta>[0], "id"> & {
@@ -3772,6 +3791,9 @@ declare const Location: {
     /** Add locations to the map. Each gets a fresh id, written back into the passed object,
      *  so read `loc.id` after. Undoable. */
     add: (locs: Location[]) => Promise<void>;
+    /** Add `location` to another map unless that map already holds it, its interned values
+     *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
+    addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
     /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
     duplicate: (id: number) => Promise<number | null>;
     /** Remove locations by id. Undoable. */
@@ -3857,6 +3879,11 @@ declare class Layer {
     }>> | ReadResult<Extract<{
         kind: "nearAny";
         values: boolean[];
+    }, {
+        kind: A["kind"];
+    }>> | ReadResult<Extract<{
+        kind: "held";
+        held: boolean[];
     }, {
         kind: A["kind"];
     }>>>;

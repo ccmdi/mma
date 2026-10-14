@@ -31,7 +31,7 @@ vi.mock("@/lib/commands", async () => {
 			}),
 		storeOpenMap: async () =>
 			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
-		storeEdit: async () => ({ mutation: { version: 999, keys: [5] } }),
+		storeEdit: async () => ({ mutation: { version: 0, keys: [5] } }),
 		storeSubscribeChanges: async (...args: unknown[]) => {
 			feed.onmessage = (args[0] as { onmessage: (e: unknown) => void }).onmessage;
 		},
@@ -233,9 +233,9 @@ describe("change feed merge semantics", () => {
 });
 
 describe("edits at another map", () => {
-	it("resolve with that map's result without waiting on this map's feed", async () => {
+	it("settle at once on the receipt that map's edit returns", async () => {
 		const r = await Edit.locations({ kind: "map", id: "m2" }, [{ remove: 1 }]);
-		expect(r.mutation).toEqual({ version: 999, keys: [5] });
+		expect(r.mutation).toEqual({ version: 0, keys: [5] });
 	});
 });
 

@@ -16,7 +16,6 @@ import { useBinding } from "@/lib/util/hotkeys";
 import { getSettings, setSetting, MOVEMENT_CYCLE, MOVEMENT_MODES } from "@/store/settings";
 import { followLinkedPanos } from "@/lib/sv/lookup";
 import { toast } from "@/lib/util/toast";
-import { cmd } from "@/lib/commands";
 import { t } from "@/lib/i18n";
 import { downloadPano } from "@/lib/sv/panoDownload";
 import { dropLocation } from "@/types";
@@ -122,23 +121,15 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		if (container) toast(t(MOVEMENT_MODES[mode]), 1200, container);
 	});
 	/** The open location as it is right now: live camera, staged tags. */
-	const buildDrop = async (): Promise<Location | null> => {
-		if (!location) return null;
-		const live = pano.capture();
-		if (!live) return null;
-		const { keys: tags } = (
-			await Edit.values(
-				"tags",
-				pendingTags.map((name) => ({ add: { id: 0, name } })),
-			)
-		).mutation;
-		return dropLocation(location, live, live.panoId ?? location.panoId, tags);
+	const dropped = () => {
+		const live = location && pano.capture();
+		return live ? dropLocation(location, live, live.panoId ?? location.panoId, pendingTags) : null;
 	};
 
 	useHotkey(useBinding("duplicateLocation"), () => {
-		void buildDrop().then(async (drop) => {
-			if (!drop) return;
-			await Location.add([drop]);
+		const drop = dropped();
+		if (!drop) return;
+		void Edit.locations({ kind: "map" }, [{ add: drop.location }], drop.records).then(() => {
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			if (container) toast(t("Marker dropped"), 1200, container);
 		});
@@ -213,8 +204,8 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 	});
 
 	const onDropToMap = useEffectEvent(async (mapId: string) => {
-		const drop = await buildDrop();
-		return drop && cmd.storeCopyLocationsToMap(mapId, { kind: "given", locations: [drop] });
+		const drop = dropped();
+		return drop && Location.addTo(mapId, drop.location, drop.records);
 	});
 
 	const hasLocation = location != null;
@@ -227,12 +218,12 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 			const container = fullscreenContainerRef.current ?? panoContainerRef.current?.parentElement;
 			const t0 = performance.now();
 			onDropToMap(mapId)
-				.then((res) => {
+				.then((added) => {
 					log.debug(`[copyToMap] ipc=${Math.round(performance.now() - t0)}ms`);
-					if (!res || !container) return;
+					if (added == null || !container) return;
 					const name = Maps.list().find((m) => m.id === mapId)?.name ?? "";
 					toast(
-						res.copied > 0 ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
+						added ? t('Copied to "{name}"', { name }) : t('Already in "{name}"', { name }),
 						1500,
 						container,
 					);

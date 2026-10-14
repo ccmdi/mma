@@ -251,9 +251,11 @@ fn copy_into(
     sources: Vec<Location>,
     records: &IncomingRecords,
 ) -> CopyToMapResult {
-    let existing = target.collect(&Target::Map { id: None }, &Selector::Everything);
-    let (fresh, skipped) = split_new_locations(sources, &existing);
+    let held = HeldRows::of(&target.collect(&Target::Map { id: None }, &Selector::Everything));
+    let total = sources.len() as u32;
+    let fresh: Vec<Location> = sources.into_iter().filter(|row| !held.holds(row)).collect();
     let copied = fresh.len() as u32;
+    let skipped = total - copied;
     if copied > 0 {
         let records = referenced_records(records, &fresh);
         let adds = fresh.into_iter().map(Op::Add).collect();
@@ -547,6 +549,26 @@ fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
     ]
 }
 
+/// Edit `store` at `target`. The receipt is at version 0 when the edit reached a map this
+/// window does not watch, so waiting for this window to catch up returns at once.
+fn edit_at(
+    store: &mut Store,
+    label: &WindowLabel,
+    target: &Target,
+    edits: Vec<Edit<Location>>,
+    records: IncomingRecords,
+) -> AppResult<MutationResult> {
+    store.check_interned(&records)?;
+    let mutation = store.edit(target, edits, records, &mut None);
+    let unwatched = matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(label);
+    Ok(MutationResult {
+        mutation: Mutation {
+            version: if unwatched { 0 } else { mutation.version },
+            ..mutation
+        },
+    })
+}
+
 #[cfg(test)]
 #[path = "commands.test.rs"]
 mod tests;
@@ -554,8 +576,8 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit locations where target says; an open pending layer holds edits until it lands." store_edit(target: Target, edits: Vec<Edit<Location>>) at target -> MutationResult => |store| {
-                Ok(MutationResult { mutation: store.edit(&target, edits, IncomingRecords::new(), &mut None) })
+            "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> MutationResult => |store, window| {
+                edit_at(store, window, &target, edits, records)
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })
@@ -591,14 +613,17 @@ macro_rules! table_target {
 }
 
 macro_rules! define_commands {
-    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => |$store:ident| $body:block; )*) => {
+    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => |$store:ident $(, $window:ident)?| $body:block; )*) => {
         $(
             #[doc = $doc]
             #[tauri::command]
             #[specta::specta]
             pub fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
                 let started = Instant::now();
-                let result = with_target(&state, &label, table_target!($( $at )?), |$store| $body);
+                let result = with_target(&state, &label, table_target!($( $at )?), |$store| {
+                    $( let $window = &label; )?
+                    $body
+                });
                 log::debug!("[cmd] {} total={}ms", stringify!($name), started.elapsed().as_millis());
                 result
             }

@@ -52,6 +52,23 @@ export const Location = {
 		t.end({ added: locs.length });
 		if (Store.get().map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
 	},
+	/** Add `location` to another map unless that map already holds it, its interned values
+	 *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
+	addTo: async (
+		mapId: string,
+		location: Location,
+		records: Parameters<typeof Edit.locations>[2],
+	): Promise<boolean> => {
+		const target: Target = { kind: "map", id: mapId };
+		const [held] = await Query.read(
+			{ type: "Everything" },
+			{ kind: "held", locations: [location] },
+			target,
+		);
+		if (held) return false;
+		await Edit.locations(target, [{ add: location }], records);
+		return true;
+	},
 	/** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
 	duplicate: async (id: number): Promise<number | null> => {
 		const state = Store.get();

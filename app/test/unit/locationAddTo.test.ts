@@ -1,0 +1,56 @@
+import { Maps } from "@/store/maps";
+import { Location } from "@/store/location";
+import { createLocation } from "@/types";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const calls = vi.hoisted(() => ({
+	held: false,
+	reads: [] as unknown[][],
+	edits: [] as unknown[][],
+}));
+
+vi.mock("@tauri-apps/api/core", () => ({
+	Channel: class {
+		onmessage: (e: unknown) => void = () => {};
+	},
+}));
+vi.mock("@/lib/commands", async () => {
+	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	return cmdProxy({
+		storeGetMap: async () => testMap({ locationCount: 0 }),
+		storeOpenMap: async () => openMapResult(),
+		storeRead: async (...args: unknown[]) => {
+			calls.reads.push(args);
+			return { kind: "held", held: [calls.held] };
+		},
+		storeEdit: async (...args: unknown[]) => {
+			calls.edits.push(args);
+			return { mutation: { version: 0, keys: [1] } };
+		},
+	});
+});
+vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
+
+const drop = createLocation({ lat: 1, lng: 2, panoId: "PANO", tags: [1] });
+const records = { tags: { 1: { id: 1, name: "New" } } };
+
+beforeEach(async () => {
+	calls.reads.length = 0;
+	calls.edits.length = 0;
+	await Maps.open("m1");
+});
+
+describe("Location.addTo", () => {
+	it("asks the other map whether it holds the location, then adds it with its records", async () => {
+		calls.held = false;
+		expect(await Location.addTo("m2", drop, records)).toBe(true);
+		expect(calls.reads[0][0]).toEqual({ kind: "map", id: "m2" });
+		expect(calls.edits).toEqual([[{ kind: "map", id: "m2" }, [{ add: drop }], records]]);
+	});
+
+	it("adds nothing, and so creates no tag, when the other map already holds it", async () => {
+		calls.held = true;
+		expect(await Location.addTo("m2", drop, records)).toBe(false);
+		expect(calls.edits).toEqual([]);
+	});
+});

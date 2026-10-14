@@ -1335,13 +1335,19 @@ dropLocation(
   source: Location,
   live: PanoCapture,
   panoId: string | null,
-  tags: number[],
-): Location
+  tagNames: string[],
+): {
+  location: Location;
+  records: {
+    tags: Record<number, ValueRecord>;
+  };
+}
 ```
 
-A new Location at the viewer's live camera, carrying `source`'s flags and the given
-tags. `extra` describes the pano it was fetched for, so it only survives a drop that
-stayed on that pano.
+A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
+through `records`, which the map it lands in matches to its own tags by name. `extra`
+describes the pano it was fetched for, so it only survives a drop that stayed on that
+pano.
 
 ### isPinned
 
@@ -1795,11 +1801,15 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 
 ```ts
 edit.locations(
-  ...props: Parameters<typeof cmd.storeEdit>
+  target: Target,
+  edits: Parameters<typeof cmd.storeEdit>[1],
+  records?: Parameters<typeof cmd.storeEdit>[2],
 ): Promise<MutationResult<Location>>
 ```
 
-Edit locations on the map or in a pending layer. Map changes are undoable.
+Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+by their ids in `records`, matched to the map's by name. Map changes are undoable in that
+map.
 
 #### edit.meta
 
@@ -3513,11 +3523,15 @@ Edit map locations, metadata, value records, and selections.
 
 ```ts
 Edit.locations(
-  ...props: Parameters<typeof cmd.storeEdit>
+  target: Target,
+  edits: Parameters<typeof cmd.storeEdit>[1],
+  records?: Parameters<typeof cmd.storeEdit>[2],
 ): Promise<MutationResult<Location>>
 ```
 
-Edit locations on the map or in a pending layer. Map changes are undoable.
+Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
+by their ids in `records`, matched to the map's by name. Map changes are undoable in that
+map.
 
 #### Edit.meta
 
@@ -3574,6 +3588,21 @@ Location.add(locs: Location[]): Promise<void>
 
 Add locations to the map. Each gets a fresh id, written back into the passed object,
 so read `loc.id` after. Undoable.
+
+#### Location.addTo
+
+`unstable` · unreleased
+
+```ts
+Location.addTo(
+  mapId: string,
+  location: Location,
+  records: Parameters<typeof Edit.locations>[2],
+): Promise<boolean>
+```
+
+Add `location` to another map unless that map already holds it, its interned values
+named by `records`. Resolves to whether it was added. Undoable in that map.
 
 #### Location.duplicate
 
@@ -6195,7 +6224,8 @@ cmd.procedureRun(
 ```
 
 Start a procedure run over an open map's locations, this window's unless the target names
-another. Returns immediately with the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+another. Returns immediately with the run id. Emits `procedure-progress` and
+`procedure-result` as work completes.
 
 #### cmd.providerRegister
 
@@ -6532,10 +6562,11 @@ edit history, sync links, and review sessions stay with the original.
 cmd.storeEdit(
   target: Target,
   edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
+  records: { [key in string]: { [key_1 in number]: ValueRecord } },
 ): Promise<MutationResult<Location>>
 ```
 
-Edit locations where target says; an open pending layer holds edits until it lands.
+Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing.
 
 #### cmd.storeEditSelections
 

@@ -974,38 +974,32 @@ pub struct CopyToMapResult {
     pub skipped: u32,
 }
 
-/// Cross-map dedup: a source is a duplicate of a target location if they share a
-/// panoId (when the source has one) or exact lat/lng bits (pano-less sources).
-/// Makes the copy hotkey idempotent; fuzzy spatial matching stays the job of the
-/// in-map Duplicates selection.
-pub(crate) fn split_new_locations(
-    sources: Vec<Location>,
-    existing: &[Location],
-) -> (Vec<Location>, u32) {
-    let mut panos: HashSet<&str> = HashSet::new();
-    let mut coords: HashSet<(u64, u64)> = HashSet::new();
-    for l in existing {
-        if let Some(p) = &l.pano_id {
-            if !p.is_empty() {
-                panos.insert(p.as_str());
-            }
-        }
-        coords.insert(coord_key(l.lat, l.lng));
-    }
-    let mut fresh = Vec::new();
-    let mut skipped = 0u32;
-    for l in sources {
-        let dup = match &l.pano_id {
-            Some(p) if !p.is_empty() => panos.contains(p.as_str()),
-            _ => coords.contains(&coord_key(l.lat, l.lng)),
-        };
-        if dup {
-            skipped += 1;
-        } else {
-            fresh.push(l);
+/// A map's rows as the duplicate rule sees them: a location is held when a row has its
+/// non-empty pano id, or, for a location without one, its exact coordinates. Fuzzy spatial
+/// matching stays the job of the in-map Duplicates selection.
+pub(crate) struct HeldRows {
+    panos: HashSet<String>,
+    coords: HashSet<(u64, u64)>,
+}
+
+impl HeldRows {
+    pub(crate) fn of(rows: &[Location]) -> Self {
+        Self {
+            panos: rows
+                .iter()
+                .filter_map(|row| row.pano_id.as_deref().filter(|p| !p.is_empty()))
+                .map(str::to_string)
+                .collect(),
+            coords: rows.iter().map(|row| coord_key(row.lat, row.lng)).collect(),
         }
     }
-    (fresh, skipped)
+
+    pub(crate) fn holds(&self, row: &Location) -> bool {
+        match &row.pano_id {
+            Some(p) if !p.is_empty() => self.panos.contains(p.as_str()),
+            _ => self.coords.contains(&coord_key(row.lat, row.lng)),
+        }
+    }
 }
 
 /// Merge a non-empty duplicate group into its best-scored survivor.
