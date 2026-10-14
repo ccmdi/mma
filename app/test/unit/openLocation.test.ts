@@ -144,6 +144,17 @@ describe("open location", () => {
 		Editor.close();
 	});
 
+	it("opening the location already open keeps its draft", async () => {
+		await Editor.open(7);
+		const open = Editor.get().open;
+		const draft = Editor.draft();
+		await Editor.open(7);
+		expect(Editor.get().open).toBe(open);
+		expect(Editor.draft()).toBe(draft);
+		expect(h.dropped).toEqual([]);
+		Editor.close();
+	});
+
 	it("a draft that walks away keeps where the opening began", async () => {
 		await Editor.open(7);
 		h.panoId = "B";
@@ -270,6 +281,7 @@ describe("open location", () => {
 		await vi.waitUntil(() => h.reads.length > count);
 		h.held.delete(7);
 		h.lat = 0;
+		Editor.close();
 		await Editor.open(7);
 		release();
 		await reading;
@@ -280,6 +292,7 @@ describe("open location", () => {
 	it("callbacks retained from an earlier opening cannot edit or save a reopening", async () => {
 		await Editor.open(7);
 		const { edit, save } = Editor.draft();
+		Editor.close();
 		await Editor.open(7);
 		const count = h.edits;
 		await edit({ lat: 99 });

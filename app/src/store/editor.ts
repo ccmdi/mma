@@ -268,6 +268,7 @@ export const Editor = {
 	open: async (target: MaybeLocation, checkDuplicates = true) => {
 		const t = trace("open");
 		await openings.replace(async () => {
+			if (state.open?.origin === "map" && state.open.id === locId(target)) return null;
 			const loc = await Editor.resolve(target);
 			t.step("ipc");
 			if (!loc) return null;
