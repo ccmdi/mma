@@ -277,14 +277,14 @@ describe("alive_count accuracy", () => {
 	});
 
 	it("undo remove -> count=100", async () => {
-		await withApi((api) => api.History.undo());
+		await withApi((api) => api.History.step("undo", "edits"));
 
 		const count = await getLocCount();
 		expect(count).toBe(100);
 	});
 
 	it("redo remove -> count=70", async () => {
-		await withApi((api) => api.History.redo());
+		await withApi((api) => api.History.step("redo", "edits"));
 
 		const count = await getLocCount();
 		expect(count).toBe(70);
@@ -334,7 +334,7 @@ describe("Tag count accuracy", () => {
 	});
 
 	it("undo remove -> tagCount=50", async () => {
-		await withApi((api) => api.History.undo());
+		await withApi((api) => api.History.step("undo", "edits"));
 
 		const counts = await withApi((api) => api.Tag.counts());
 		expect(counts[tagId]).toBe(50);
@@ -703,13 +703,13 @@ describe("Large batch undo correctness", () => {
 		expect(count).toBe(10000);
 
 		// Undo the entire batch
-		await withApi((api) => api.History.undo());
+		await withApi((api) => api.History.step("undo", "edits"));
 
 		count = await getLocCount();
 		expect(count).toBe(0);
 
 		// Redo
-		await withApi((api) => api.History.redo());
+		await withApi((api) => api.History.step("redo", "edits"));
 
 		count = await getLocCount();
 		expect(count).toBe(10000);
@@ -921,7 +921,7 @@ describe("Undo while save in-flight", () => {
 
 			// Fire save and undo simultaneously
 			const savePromise = api.Autosave.flush();
-			const undoPromise = api.History.undo();
+			const undoPromise = api.History.step("undo", "edits");
 			await Promise.all([savePromise, undoPromise]);
 
 			const count = (
@@ -1160,7 +1160,7 @@ describe("Delete all then undo", () => {
 		expect(count).toBe(0);
 
 		// Undo
-		await withApi((api) => api.History.undo());
+		await withApi((api) => api.History.step("undo", "edits"));
 
 		count = await getLocCount();
 		expect(count).toBe(25);

@@ -73,13 +73,13 @@ describe("Dirty tracking across undo/redo", () => {
 		await addLocs([createLocation({ lat: 10, lng: 20 })]);
 		await flushAndWait();
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const afterUndo = await getSummary().then((s) => s.dirtyCount);
 		expect(afterUndo).toBeGreaterThan(0);
 	});
 
 	it("redo after undo also marks dirty", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 		const count = await getSummary().then((s) => s.dirtyCount);
 		expect(count).toBeGreaterThan(0);
 	});

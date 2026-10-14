@@ -28,7 +28,7 @@ describe("Version control - commits", () => {
 
 	it("commit clears undo/redo history", async () => {
 		const before = await getLocCount();
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const after = await getLocCount();
 		expect(after).toBe(before);
 	});
@@ -97,7 +97,7 @@ describe("Version control - checkout", () => {
 
 	it("checkout clears undo/redo history", async () => {
 		const before = await getLocCount();
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const after = await getLocCount();
 		expect(after).toBe(before); // undo should be no-op
 	});

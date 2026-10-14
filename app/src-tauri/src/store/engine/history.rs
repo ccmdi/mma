@@ -15,7 +15,7 @@ pub(crate) type Piles = HashMap<String, PileDelta>;
 /// What one write did to the map's extra-field definitions.
 pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
 
-/// An undoable change to locations, value records, and field definitions.
+/// A change to the map, recorded for undo in the timeline its parts declare.
 #[derive(Clone, Default, Debug, PartialEq, serde::Serialize, serde::Deserialize, Delta)]
 pub struct Entry {
     /// The edit's changes to locations.
@@ -25,7 +25,7 @@ pub struct Entry {
     pub piles: Piles,
     /// The edit's changes to the map's field definitions.
     pub defs: DefsDelta,
-    /// The edit's changes to the map's details and settings.
+    /// The edit's changes to the map's details and settings, which are not undone.
     #[serde(default)]
     pub meta: Change<MapMeta>,
     /// The edit's changes to saved selections.
@@ -47,6 +47,36 @@ wire_str_enum! {
         Undo = "undo",
         /// The undone edits that can be redone.
         Redo = "redo",
+    }
+}
+
+wire_str_enum! {
+    /// Which edit history to step through. Each part of the map that undoes on its own has one.
+    derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)
+    pub enum Timeline {
+        /// Edits to locations, value records, and field definitions.
+        Edits = "edits",
+        /// Changes to the listed selections.
+        Selections = "selections",
+    }
+}
+
+impl EntryKey {
+    /// The timeline an edit holding this part records into, or `None` for a part never undone.
+    pub(crate) fn timeline(self) -> Option<Timeline> {
+        match self {
+            EntryKey::Locations | EntryKey::Piles | EntryKey::Defs => Some(Timeline::Edits),
+            EntryKey::Selections => Some(Timeline::Selections),
+            EntryKey::Meta => None,
+        }
+    }
+}
+
+impl Entry {
+    /// The first timeline any of its parts records into, so a selection change an edit
+    /// caused undoes with that edit.
+    pub(crate) fn timeline(&self) -> Option<Timeline> {
+        self.keys().filter_map(EntryKey::timeline).min()
     }
 }
 
@@ -76,27 +106,17 @@ pub(crate) struct EditStacks {
 pub(crate) struct LoggedEdit {
     pub seq: u64,
     pub entry: Option<Arc<Entry>>,
-    pub keys: Vec<EntryKey>,
 }
 
 impl EditStacks {
     /// Stacks for edits that are only on disk, from each one's `seq` and stack. New edits
     /// number after every stored one.
-    pub(crate) fn on_disk(mut rows: Vec<(u64, Stack, Vec<EntryKey>)>) -> Self {
-        rows.sort_unstable_by_key(|(seq, _, _)| *seq);
-        let next_seq = rows.last().map_or(0, |(seq, _, _)| seq + 1);
+    pub(crate) fn on_disk(mut rows: Vec<(u64, Stack)>) -> Self {
+        rows.sort_unstable_by_key(|(seq, _)| *seq);
+        let next_seq = rows.last().map_or(0, |(seq, _)| seq + 1);
         let (undo, mut redo): (Vec<_>, Vec<_>) = rows
             .into_iter()
-            .map(|(seq, stack, keys)| {
-                (
-                    LoggedEdit {
-                        seq,
-                        entry: None,
-                        keys,
-                    },
-                    stack,
-                )
-            })
+            .map(|(seq, stack)| (LoggedEdit { seq, entry: None }, stack))
             .partition(|(_, stack)| *stack == Stack::Undo);
         redo.reverse();
         Self {
@@ -115,7 +135,6 @@ impl EditStacks {
             Stack::Undo,
             LoggedEdit {
                 seq,
-                keys: entry.keys().collect(),
                 entry: Some(entry),
             },
         );
@@ -140,7 +159,6 @@ impl EditStacks {
                 return Err(later);
             }
         }
-        top.keys = held.keys().collect();
         top.seq = self.next_seq;
         self.next_seq += 1;
         self.redo.clear();
@@ -201,22 +219,11 @@ pub(crate) fn seed_next_id(
 }
 
 impl EditStacks {
-    pub(crate) fn availability(&self) -> HashMap<EntryKey, History> {
-        let mut histories: HashMap<EntryKey, History> = HashMap::new();
-        for stack in [Stack::Undo, Stack::Redo] {
-            let top = match stack {
-                Stack::Undo => self.undo.last(),
-                Stack::Redo => self.redo.last(),
-            };
-            for key in top.into_iter().flat_map(|edit| &edit.keys) {
-                let history = histories.entry(*key).or_default();
-                match stack {
-                    Stack::Undo => history.undo = true,
-                    Stack::Redo => history.redo = true,
-                }
-            }
+    pub(crate) fn availability(&self) -> History {
+        History {
+            undo: !self.undo.is_empty(),
+            redo: !self.redo.is_empty(),
         }
-        histories
     }
 
     /// Move the newest edit to the other stack, reversing it for undo.
@@ -244,48 +251,43 @@ impl EditStacks {
 }
 
 impl Store {
+    /// The stacks of `timeline`.
+    pub(crate) fn timeline(&mut self, timeline: Timeline) -> &mut Tracked<EditStacks> {
+        match timeline {
+            Timeline::Edits => &mut self.edits,
+            Timeline::Selections => &mut self.selection_edits,
+        }
+    }
+
+    /// Whether each timeline can step either way.
+    pub(crate) fn history(&self) -> HashMap<Timeline, History> {
+        HashMap::from([
+            (Timeline::Edits, self.edits.availability()),
+            (Timeline::Selections, self.selection_edits.availability()),
+        ])
+    }
+
+    /// Move the newest edit of `timeline` to its other stack and apply it.
     pub(crate) fn step(
         &mut self,
         from: Stack,
+        timeline: Timeline,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let Some(mut changes) = self.edits.edit().step(from, fetch)? else {
+        let Some(mut changes) = self.timeline(timeline).edit().step(from, fetch)? else {
             return Ok(None);
         };
-        changes.selections = changes.selections.if_standing(&self.selections.table());
-        self.put_entry(&changes);
-        Ok(Some(changes))
-    }
-
-    pub(crate) fn step_key(
-        &mut self,
-        from: Stack,
-        key: EntryKey,
-        fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Entry>> {
-        if !self.histories.contains_key(&key) {
-            let available = self.history().get(&key).is_some_and(|history| match from {
-                Stack::Undo => history.undo,
-                Stack::Redo => history.redo,
-            });
-            return if available {
-                self.step(from, fetch)
-            } else {
-                Ok(None)
-            };
-        }
-        let Some(history) = self.histories.edit().get_mut(&key) else {
-            return Ok(None);
+        changes.selections = match timeline {
+            // The selections timeline may have moved the list since, so an edit's own
+            // selection change applies only where the list still holds its before-state.
+            Timeline::Edits => changes.selections.if_standing(&self.selections.table()),
+            Timeline::Selections => {
+                let mut rows = self.selections.table();
+                changes.selections.apply_to(&mut rows);
+                let rows = self.valid_selections(ordered_rows(rows));
+                self.selections.change(&SelectionDelta::default(), |_| rows)
+            }
         };
-        let Some(mut changes) =
-            history.step(from, |_| Err("history entry is not resident".into()))?
-        else {
-            return Ok(None);
-        };
-        let mut rows = self.selections.table();
-        changes.selections.apply_to(&mut rows);
-        let rows = self.valid_selections(ordered_rows(rows));
-        changes.selections = self.selections.change(&SelectionDelta::default(), |_| rows);
         self.put_entry(&changes);
         Ok(Some(changes))
     }

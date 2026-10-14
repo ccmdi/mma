@@ -10,13 +10,6 @@ import type { Selector } from "@/types";
 import type { MutationResult } from "@/bindings.gen";
 import { tagIdOf } from "@/store/selections";
 
-async function updateSelections(write: () => Promise<MutationResult>) {
-	if (!Store.get().map) return;
-	await Mutation.run(write);
-	await refreshPolygonFills(Store.get().selectionList);
-	emitEvent("selection:change", SelectionList.active());
-}
-
 export const SelectionList = {
 	/** Tag ids with a top-level listed tag selection, including ghosted selections. */
 	tagIds: (() => {
@@ -59,15 +52,17 @@ export const SelectionList = {
 	),
 	/** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
 	update: async (op: import("@/bindings.gen").SelectionOp) => {
-		await updateSelections(() => cmd.storeEditSelections(op));
+		await SelectionList.run(() => cmd.storeEditSelections(op));
 	},
-	/** Undo the last selection change without undoing data edits. @unstable */
-	undo: async () => {
-		await updateSelections(() => cmd.storeStep("undo", "selections"));
-	},
-	/** Redo the last undone selection change without redoing data edits. @unstable */
-	redo: async () => {
-		await updateSelections(() => cmd.storeStep("redo", "selections"));
+	/** Run a mutation that may change the listed selections; when it does, redraw their fills
+	 *  and announce the change. @unstable */
+	run: async (write: () => Promise<MutationResult>) => {
+		if (!Store.get().map) return;
+		const before = Store.get().selectionList;
+		await Mutation.run(write);
+		if (Store.get().selectionList === before) return;
+		await refreshPolygonFills(Store.get().selectionList);
+		emitEvent("selection:change", SelectionList.active());
 	},
 	select: async <R extends number[] | { ids: number[] }>(
 		pick: (selector: Selector) => Promise<R>,

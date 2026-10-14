@@ -204,13 +204,13 @@ describe("Empty map edge cases", () => {
 	});
 
 	it("undo on empty map is a no-op", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const count = await getLocCount();
 		expect(count).toBe(0);
 	});
 
 	it("redo on empty map is a no-op", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 		const count = await getLocCount();
 		expect(count).toBe(0);
 	});

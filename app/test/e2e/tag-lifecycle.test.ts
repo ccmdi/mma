@@ -183,7 +183,7 @@ describe("Tag delete + undo restores all references", () => {
 		}, tagId);
 		expect(afterDelete.visible).toBe(false);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		// After undo, tag should be visible again
 		const afterUndo = await withApi(async (api, tid) => {

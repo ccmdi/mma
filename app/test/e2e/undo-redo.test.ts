@@ -23,7 +23,7 @@ describe("Undo/Redo", () => {
 		expect(count).toBe(1);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		count = await getLocCount();
@@ -32,7 +32,7 @@ describe("Undo/Redo", () => {
 
 	it("redo restores undone add", async () => {
 		await withApi(async (api) => {
-			await api.History.redo();
+			await api.History.step("redo", "edits");
 		});
 
 		const count = await getLocCount();
@@ -48,7 +48,7 @@ describe("Undo/Redo", () => {
 		expect(count).toBe(0);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		count = await getLocCount();
@@ -66,7 +66,7 @@ describe("Undo/Redo", () => {
 		expect(loc.heading).toBe(270);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		loc = await getLoc(undo1Id);
@@ -86,9 +86,9 @@ describe("Undo/Redo", () => {
 		expect(count).toBe(4); // undo-1 + seq-1,2,3
 
 		await withApi(async (api) => {
-			await api.History.undo(); // removes seq-3
-			await api.History.undo(); // removes seq-2
-			await api.History.undo(); // removes seq-1
+			await api.History.step("undo", "edits"); // removes seq-3
+			await api.History.step("undo", "edits"); // removes seq-2
+			await api.History.step("undo", "edits"); // removes seq-1
 		});
 
 		count = await getLocCount();
@@ -97,8 +97,8 @@ describe("Undo/Redo", () => {
 
 	it("redo after undo chain", async () => {
 		await withApi(async (api) => {
-			await api.History.redo();
-			await api.History.redo();
+			await api.History.step("redo", "edits");
+			await api.History.step("redo", "edits");
 		});
 
 		const count = await getLocCount();
@@ -108,7 +108,7 @@ describe("Undo/Redo", () => {
 	it("new edit clears redo stack", async () => {
 		await withApi(async (api) => {
 			await api.Location.add([api.createLocation({ lat: 0, lng: 0, zoom: 1 })]);
-			await api.History.redo(); // should be no-op since new edit clears redo
+			await api.History.step("redo", "edits"); // should be no-op since new edit clears redo
 		});
 
 		const count = await getLocCount();
@@ -128,7 +128,7 @@ describe("Undo/Redo", () => {
 		expect(count).toBe(204);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		count = await getLocCount();
@@ -159,7 +159,7 @@ describe("Undo/Redo", () => {
 		expect(s1.heading).toBe(222);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		u1 = await getLoc(undo1Id);
@@ -188,7 +188,7 @@ describe("Undo/Redo persistence", () => {
 		await openMap(map.id);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		const count = await getLocCount();
@@ -210,7 +210,7 @@ describe("Undo/Redo persistence", () => {
 		expect(before.panoId).toBe("PIN");
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		const after = await getLoc(uh1Id);

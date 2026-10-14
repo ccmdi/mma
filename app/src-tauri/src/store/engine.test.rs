@@ -929,7 +929,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Locations)
+            .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((false, false))
     );
@@ -941,7 +941,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Locations)
+            .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
@@ -954,7 +954,7 @@ fn open_status_reflects_undo_redo() {
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
-            .get(&EntryKey::Locations)
+            .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, true))
     );
@@ -975,7 +975,7 @@ fn finish_mutation_reports_correct_state() {
     assert_eq!(e.derived.location_count, Some(1));
     assert_eq!(
         e.derived.history.map(|h| h
-            .get(&EntryKey::Locations)
+            .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false)),
         "stack change ships both flags"
@@ -1004,7 +1004,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         .last()
         .derived
         .history
-        .is_some_and(|h| h.get(&EntryKey::Locations).is_some_and(|h| h.undo)));
+        .is_some_and(|h| h.get(&Timeline::Edits).is_some_and(|h| h.undo)));
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
     store.edits.edit().clear();
@@ -1016,7 +1016,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     store.finish_mutation(&Change::default());
     assert_eq!(
         feed.last().derived.history.map(|h| h
-            .get(&EntryKey::Locations)
+            .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
     );
@@ -4647,15 +4647,24 @@ fn delete_loc(store: &mut Store, id: u32) {
 
 // Replay undo or redo through the store history.
 fn press_undo(store: &mut Store) {
-    store.step(Stack::Undo, fetch_stored).unwrap().unwrap();
+    store
+        .step(Stack::Undo, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
 }
 
 fn press_redo(store: &mut Store) {
-    store.step(Stack::Redo, fetch_stored).unwrap().unwrap();
+    store
+        .step(Stack::Redo, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
 }
 
 fn undo_and_finish(store: &mut Store) {
-    let changes = store.step(Stack::Undo, fetch_stored).unwrap().unwrap();
+    let changes = store
+        .step(Stack::Undo, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
     store.finish_entry(&changes);
 }
 
@@ -5000,7 +5009,7 @@ fn an_unreadable_edit_drops_the_history_rather_than_replay_around_it() {
     click_add(&mut store, 1.0, 0.0);
     let mut store = close_and_reopen(&store);
 
-    let failed = store.step(Stack::Undo, |_| Err("unreadable".into()));
+    let failed = store.step(Stack::Undo, Timeline::Edits, |_| Err("unreadable".into()));
     assert!(failed.is_err());
     assert_eq!(
         (store.edits.len(Stack::Undo), store.edits.len(Stack::Redo)),
@@ -7902,7 +7911,9 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
     assert!(store.get_loc_by_id(Id::new(3)).is_some());
     assert_eq!(store.edits.len(Stack::Undo), 1);
     store
-        .step(Stack::Undo, |_| panic!("resident undo entry"))
+        .step(Stack::Undo, Timeline::Edits, |_| {
+            panic!("resident undo entry")
+        })
         .unwrap()
         .unwrap();
     for row in rows {
@@ -7984,14 +7995,14 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
         maps::FieldType::Number
     );
     let entry = store
-        .step(Stack::Undo, |_| panic!("in-memory edit"))
+        .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
     assert!(!store.meta.extra.fields.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     let entry = store
-        .step(Stack::Redo, |_| panic!("in-memory edit"))
+        .step(Stack::Redo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
@@ -8019,7 +8030,7 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
     assert!(store.selections.list().is_empty());
     assert!(store.selections.ids.is_empty());
     let entry = store
-        .step(Stack::Undo, |_| panic!("in-memory edit"))
+        .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
@@ -8155,7 +8166,10 @@ fn redo_reapplies_a_bulk_tag_removal() {
     undo_and_finish(&mut store);
     assert_eq!(tag_count(&mut store, 10), 12);
 
-    let changes = store.step(Stack::Redo, fetch_stored).unwrap().unwrap();
+    let changes = store
+        .step(Stack::Redo, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
     store.finish_entry(&changes);
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-applies the removal");
 }
@@ -8176,7 +8190,10 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
     assert_eq!(tag_count(&mut store, 10), 12);
 
     let feed = FeedCapture::attach(&mut store);
-    let changes = store.step(Stack::Redo, fetch_stored).unwrap().unwrap();
+    let changes = store
+        .step(Stack::Redo, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
     store.finish_entry(&changes);
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-removes the rows");
     let shipped = feed.last().derived.field_values;
@@ -8229,7 +8246,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     let before = store.selections.list();
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     assert_eq!(
-        feed.last().derived.history.unwrap()[&EntryKey::Selections].undo,
+        feed.last().derived.history.unwrap()[&Timeline::Selections].undo,
         true
     );
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
@@ -8243,7 +8260,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     assert_eq!(store.edits.len(Stack::Undo), undo);
     assert_eq!(store.selections.ids, IdSet::from_iter(loc_ids([1, 2])));
     assert_eq!(
-        feed.last().derived.history.unwrap()[&EntryKey::Selections].redo,
+        feed.last().derived.history.unwrap()[&Timeline::Selections].redo,
         true
     );
     press_undo(&mut store);
@@ -8261,7 +8278,7 @@ fn selection_history_undoes_and_redoes_each_change_in_order() {
     use crate::selections::tree::SelectionOp;
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     assert!(store
-        .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
+        .step(Stack::Undo, Timeline::Selections, fetch_stored)
         .unwrap()
         .is_none());
     store.edit_selections(&SelectionOp::Manual { id: Id::new(1) });
@@ -8275,9 +8292,7 @@ fn selection_history_undoes_and_redoes_each_change_in_order() {
     assert_eq!(store.selections.list(), before);
     step_selection(&mut store, Stack::Redo);
     assert!(store.selections.list().is_empty());
-    assert!(!setup_store_with(&[loc(1, 0.0, 0.0)])
-        .history()
-        .contains_key(&EntryKey::Selections));
+    assert!(!setup_store_with(&[loc(1, 0.0, 0.0)]).history()[&Timeline::Selections].undo);
 }
 
 #[test]
@@ -8337,14 +8352,14 @@ fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
     step_selection(&mut store, Stack::Undo);
     assert!(store.selections.list().is_empty());
     assert_eq!(
-        feed.last().derived.history.unwrap()[&EntryKey::Selections].redo,
+        feed.last().derived.history.unwrap()[&Timeline::Selections].redo,
         true
     );
 }
 
 fn step_selection(store: &mut Store, stack: Stack) {
     if let Some(entry) = store
-        .step_key(stack, EntryKey::Selections, fetch_stored)
+        .step(stack, Timeline::Selections, fetch_stored)
         .unwrap()
     {
         store.finish_entry(&entry);
@@ -8403,13 +8418,13 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
     let changes = store
-        .step_key(Stack::Undo, EntryKey::Locations, fetch_stored)
+        .step(Stack::Undo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
     store.finish_entry(&changes);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
-    assert!(store.history()[&EntryKey::Locations].redo);
+    assert!(store.history()[&Timeline::Edits].redo);
 }
 
 #[test]
@@ -8427,16 +8442,16 @@ fn selection_key_never_replays_a_data_cascade_without_selection_history() {
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
-    assert!(!store.history().contains_key(&EntryKey::Selections));
+    assert!(!store.history()[&Timeline::Selections].undo);
     assert!(store
-        .step_key(Stack::Undo, EntryKey::Selections, fetch_stored)
+        .step(Stack::Undo, Timeline::Selections, fetch_stored)
         .unwrap()
         .is_none());
     assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
 }
 
 #[test]
-fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
+fn persisted_history_reports_the_same_availability_without_loading_row_payloads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 45.0;
@@ -8446,19 +8461,8 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
         save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         let reopened = load_edit_history(conn, &Id::new("m".into())).unwrap();
         assert!(reopened.iter().all(|(_, edit)| edit.entry.is_none()));
-        let after = reopened.availability();
-        assert_eq!(
-            before.keys().collect::<Vec<_>>(),
-            after.keys().collect::<Vec<_>>()
-        );
-        assert_eq!(
-            after[&EntryKey::Locations].undo,
-            before[&EntryKey::Locations].undo
-        );
-        assert_eq!(
-            after[&EntryKey::Locations].redo,
-            before[&EntryKey::Locations].redo
-        );
+        assert!(before.undo);
+        assert_eq!(reopened.availability(), before);
     });
 }
 
@@ -8719,7 +8723,7 @@ fn undoing_a_row_edit_leaves_a_selection_the_user_has_since_removed() {
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
 
     let entry = store
-        .step(Stack::Undo, |_| panic!("in-memory edit"))
+        .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
@@ -8831,4 +8835,76 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
     let landed = store.get_loc_by_id(staged.keys[0]).unwrap();
     assert!(landed.created_at > 4);
     assert_eq!(landed.modified_at, None);
+}
+
+#[test]
+fn each_part_records_into_the_timeline_it_declares() {
+    let rows = Change::from_sides(vec![loc(1, 0.0, 0.0)], vec![]);
+    let listed = SelectionDelta::from_sides(
+        vec![(
+            "k".to_string(),
+            (
+                0,
+                ListedSelection {
+                    selection: Selection::of(Selector::Everything),
+                    ghosted: false,
+                },
+            ),
+        )],
+        vec![],
+    );
+    let renamed = MapMeta {
+        name: "renamed".into(),
+        ..Default::default()
+    };
+    let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+        Some(MapMeta::default()),
+        Some(renamed),
+    )]);
+    let caused = Entry {
+        locations: rows,
+        selections: listed.clone(),
+        ..Default::default()
+    };
+    assert_eq!(caused.timeline(), Some(Timeline::Edits));
+    let chosen = Entry {
+        selections: listed,
+        ..Default::default()
+    };
+    assert_eq!(chosen.timeline(), Some(Timeline::Selections));
+    let details = Entry {
+        meta,
+        ..Default::default()
+    };
+    assert_eq!(details.timeline(), None);
+    assert_eq!(Entry::default().timeline(), None);
+}
+
+#[test]
+fn a_change_to_the_maps_details_records_no_undo_step() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let renamed = MapMeta {
+        name: "renamed".into(),
+        ..(*store.meta).clone()
+    };
+    let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
+        Some((*store.meta).clone()),
+        Some(renamed),
+    )]);
+    store.write(
+        [],
+        &mut None,
+        Entry {
+            meta,
+            ..Default::default()
+        },
+    );
+    assert_eq!(store.meta.name, "renamed");
+    assert_eq!(
+        store.history(),
+        HashMap::from([
+            (Timeline::Edits, History::default()),
+            (Timeline::Selections, History::default()),
+        ])
+    );
 }

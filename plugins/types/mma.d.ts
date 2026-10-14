@@ -152,6 +152,14 @@ declare const Stack: {
     readonly Redo: "redo";
 };
 type Stack = (typeof Stack)[keyof typeof Stack];
+/** Which edit history to step through. Each part of the map that undoes on its own has one. */
+declare const Timeline: {
+    /** Edits to locations, value records, and field definitions. */
+    readonly Edits: "edits";
+    /** Changes to the listed selections. */
+    readonly Selections: "selections";
+};
+type Timeline = (typeof Timeline)[keyof typeof Timeline];
 /** What started a sync pass. @unstable */
 declare const SyncTrigger: {
     /** Sync now was pressed. @unstable */
@@ -569,12 +577,15 @@ export type consts_SyncDirection = SyncDirection;
 declare const consts_SyncTrigger: typeof SyncTrigger;
 /** @unstable */
 export type consts_SyncTrigger = SyncTrigger;
+declare const consts_Timeline: typeof Timeline;
+/** @unstable */
+export type consts_Timeline = Timeline;
 declare const consts_ValidationFlag: typeof ValidationFlag;
 /** @unstable */
 export type consts_ValidationFlag = ValidationFlag;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
-  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_ValidationFlag as ValidationFlag };
+  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_Timeline as Timeline, consts_ValidationFlag as ValidationFlag };
 }
 
 /** Commands @unstable */
@@ -810,7 +821,7 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack, key: EntryKey | null) => Promise<MutationResult<Location>>;
+    storeStep: (stack: Stack, timeline: Timeline) => Promise<MutationResult<Location>>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
@@ -1444,7 +1455,7 @@ type Derived_Deserialize = {
     locationCount: number | null;
     meta: MapMeta_Deserialize | null;
     history: Partial<{
-        [key in EntryKey]: History;
+        [key in Timeline]: History;
     }> | null;
     /**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
     fieldValues: {
@@ -1470,7 +1481,7 @@ type Derived = {
     locationCount: number | null;
     meta: MapMeta | null;
     history: Partial<{
-        [key in EntryKey]: History;
+        [key in Timeline]: History;
     }> | null;
     /**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
     fieldValues: {
@@ -1541,17 +1552,6 @@ type EditorImportResult = {
     /**  True when the import was large enough to autocommit; the caller commits it. */
     autoCommit: boolean;
 };
-type EntryKey = 
-/**  The edit's changes to locations. */
-"locations" | 
-/**  The edit's changes to the records of interned values such as tags, by field. */
-"piles" | 
-/**  The edit's changes to the map's field definitions. */
-"defs" | 
-/**  The edit's changes to the map's details and settings. */
-"meta" | 
-/**  The edit's changes to saved selections. */
-"selections";
 /**
  *  Configuration for JSON export. Controls which fields are included and
  *  whether the export covers all locations or a specific selection.
@@ -3482,10 +3482,9 @@ declare const SelectionList: {
     active: () => Selection[];
     /** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
     update: (op: SelectionOp) => Promise<void>;
-    /** Undo the last selection change without undoing data edits. @unstable */
-    undo: () => Promise<void>;
-    /** Redo the last undone selection change without redoing data edits. @unstable */
-    redo: () => Promise<void>;
+    /** Run a mutation that may change the listed selections; when it does, redraw their fills
+     *  and announce the change. @unstable */
+    run: (write: () => Promise<MutationResult>) => Promise<void>;
     /** @unstable */
     select: <R extends number[] | {
         ids: number[];
@@ -4066,12 +4065,10 @@ declare const Provider: {
 };
 
 declare const History: {
-    /** Whether a history action is available for one part or for the data edit as a whole. @unstable */
-    available: (history: MapState["history"], stack: Stack, key?: EntryKey) => boolean;
-    /** Undo the last edit. */
-    undo: () => Promise<void>;
-    /** Redo the last undone edit. */
-    redo: () => Promise<void>;
+    /** Whether `timeline` can step back (undo) or forward (redo). @unstable */
+    available: (history: MapState["history"], stack: Stack, timeline: Timeline) => boolean;
+    /** Undo the newest edit on `timeline`, or redo the newest undone one. */
+    step: (stack: Stack, timeline: Timeline) => Promise<void>;
 };
 
 declare const Commit: {
@@ -7428,18 +7425,10 @@ declare const deleteField: typeof Field$1.remove;
 declare const getActiveSelections: typeof SelectionList.active;
 /** @deprecated v0.12.1. Use `MMA.SelectionList.update`. @unstable */
 declare const applySelectionUpdate: typeof SelectionList.update;
-/** @deprecated v0.12.1. Use `MMA.SelectionList.undo`. @unstable */
-declare const restoreSelections: typeof SelectionList.undo;
-/** @deprecated v0.12.1. Use `MMA.SelectionList.redo`. @unstable */
-declare const redoSelections: typeof SelectionList.redo;
 /** @deprecated v0.12.1. Use `MMA.SelectionList.select`. */
 declare const select: typeof SelectionList.select;
 /** @deprecated v0.12.1. Use `MMA.History.available`. @unstable */
 declare const historyAvailable: typeof History.available;
-/** @deprecated v0.12.1. Use `MMA.History.undo`. */
-declare const undo: typeof History.undo;
-/** @deprecated v0.12.1. Use `MMA.History.redo`. */
-declare const redo: typeof History.redo;
 /** @deprecated v0.12.1. Use `MMA.Commit.create`. */
 declare const commitMap: typeof Commit.create;
 /** @deprecated v0.12.1. Use `MMA.Commit.checkout`. @unstable */
@@ -7600,8 +7589,6 @@ declare const legacy_previewLocation: typeof previewLocation;
 /** @unstable */
 declare const legacy_query: typeof query;
 declare const legacy_read: typeof read;
-declare const legacy_redo: typeof redo;
-declare const legacy_redoSelections: typeof redoSelections;
 /** @unstable */
 declare const legacy_registerEnrichFields: typeof registerEnrichFields;
 /** @unstable */
@@ -7626,7 +7613,6 @@ declare const legacy_resetSelections: typeof resetSelections;
 /** @unstable */
 declare const legacy_resolveIds: typeof resolveIds;
 declare const legacy_resolveLocation: typeof resolveLocation;
-declare const legacy_restoreSelections: typeof restoreSelections;
 /** @unstable */
 declare const legacy_sampleFrom: typeof sampleFrom;
 declare const legacy_select: typeof select;
@@ -7639,7 +7625,6 @@ declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
 declare const legacy_setWorkArea: typeof setWorkArea;
 declare const legacy_settled: typeof settled;
 declare const legacy_tagIdsToNames: typeof tagIdsToNames;
-declare const legacy_undo: typeof undo;
 declare const legacy_updateLocations: typeof updateLocations;
 declare const legacy_useMapBadges: typeof useMapBadges;
 declare const legacy_useMapList: typeof useMapList;
@@ -7723,8 +7708,6 @@ declare namespace legacy {
     legacy_previewLocation as previewLocation,
     legacy_query as query,
     legacy_read as read,
-    legacy_redo as redo,
-    legacy_redoSelections as redoSelections,
     legacy_registerEnrichFields as registerEnrichFields,
     legacy_registerEnrichmentProvider as registerEnrichmentProvider,
     legacy_registerMapBadges as registerMapBadges,
@@ -7741,7 +7724,6 @@ declare namespace legacy {
     legacy_resetSelections as resetSelections,
     legacy_resolveIds as resolveIds,
     legacy_resolveLocation as resolveLocation,
-    legacy_restoreSelections as restoreSelections,
     legacy_sampleFrom as sampleFrom,
     legacy_select as select,
     legacy_setActiveLocation as setActiveLocation,
@@ -7751,7 +7733,6 @@ declare namespace legacy {
     legacy_setWorkArea as setWorkArea,
     legacy_settled as settled,
     legacy_tagIdsToNames as tagIdsToNames,
-    legacy_undo as undo,
     legacy_updateLocations as updateLocations,
     legacy_useMapBadges as useMapBadges,
     legacy_useMapList as useMapList,
@@ -8046,5 +8027,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, EntryKey, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, ChangeEvent_Deserialize, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, Derived_Deserialize, DeviceCodeInfo, EditOpts, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreStatus_Deserialize, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

@@ -26,14 +26,14 @@ async function history() {
 	return withApi(async (api) => {
 		const s = api.Store.get();
 		return {
-			canUndo: api.History.available(s.history, "undo"),
-			canRedo: api.History.available(s.history, "redo"),
+			canUndo: api.History.available(s.history, "undo", "edits"),
+			canRedo: api.History.available(s.history, "redo", "edits"),
 		};
 	});
 }
 
-const undo = () => withApi(async (api) => api.History.undo());
-const redo = () => withApi(async (api) => api.History.redo());
+const undo = () => withApi(async (api) => api.History.step("undo", "edits"));
+const redo = () => withApi(async (api) => api.History.step("redo", "edits"));
 
 async function reopen(id: string) {
 	await flushAndWait();

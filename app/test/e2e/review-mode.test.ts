@@ -177,7 +177,7 @@ describe("Review mode - delete", () => {
 
 	it("undo after Review.deleteCurrent restores location", async () => {
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 			return { ok: true };
 		});
 		const restoredId = locIds[2];

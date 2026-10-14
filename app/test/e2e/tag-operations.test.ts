@@ -120,7 +120,7 @@ describe("Tag visibility affecting selections", () => {
 		expect(selCount).toBe(0);
 
 		// Undo the delete to restore for subsequent tests
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 	});
 });
 
@@ -185,7 +185,7 @@ describe("Bulk tag add", () => {
 		}, newTag.id);
 		expect(beforeCount).toBe(20);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const afterCount = await withApi(async (api, tagId) => {
 			const counts = api.Tag.counts();

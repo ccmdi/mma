@@ -155,7 +155,7 @@ describe("Undo bulk remove restores tag membership", () => {
 		}, tagId);
 		expect(afterRemove).toBe(6);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const afterUndo = await withApi(async (api, tid) => {
 			const counts = api.Tag.counts();
@@ -172,7 +172,7 @@ describe("Undo bulk remove restores tag membership", () => {
 	});
 
 	it("redo re-applies the removal", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 
 		const count = await withApi(async (api, tid) => {
 			const counts = api.Tag.counts();
@@ -378,14 +378,14 @@ describe("Full scene reset preserves the selected ids", () => {
 		const beforeIds = await refreshSelections();
 		expect(beforeIds.length).toBe(150);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const afterIds = await refreshSelections();
 		expect(afterIds.length).toBe(0);
 	});
 
 	it("redo restores tag membership after full_reset", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 
 		const count = await withApi(async (api, tid) => {
 			const counts = api.Tag.counts();

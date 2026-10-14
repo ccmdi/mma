@@ -371,7 +371,7 @@ describe("Selection correctness after undo/redo", () => {
 		const afterAddIds = await refreshSelections();
 		expect(afterAddIds.length).toBe(before + 1);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(before);
 	});
@@ -391,7 +391,7 @@ describe("Selection correctness after undo/redo", () => {
 		const before = afterRemoveIds.length;
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(before + 1);
@@ -414,7 +414,7 @@ describe("Selection correctness after undo/redo", () => {
 		const before = afterUpdateIds.length;
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(before - 1);
@@ -435,19 +435,19 @@ describe("Selection correctness after undo/redo", () => {
 		const afterAddIds = await refreshSelections();
 		expect(afterAddIds.length).toBe(baseline + 3);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const afterUndo1 = await refreshSelections();
 		expect(afterUndo1.length).toBe(baseline);
 
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 		const afterRedo1 = await refreshSelections();
 		expect(afterRedo1.length).toBe(baseline + 3);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const afterUndo2 = await refreshSelections();
 		expect(afterUndo2.length).toBe(baseline);
 
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 		const afterRedo2 = await refreshSelections();
 		expect(afterRedo2.length).toBe(baseline + 3);
 	});
@@ -461,13 +461,13 @@ describe("Selection correctness after undo/redo", () => {
 		const afterAdd = await refreshSelections();
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 		const afterUndoIds = await refreshSelections();
 		expect(afterUndoIds.length).toBe(afterAdd.length - 1);
 
 		await withApi(async (api) => {
-			await api.History.redo();
+			await api.History.step("redo", "edits");
 		});
 		const afterRedoIds = await refreshSelections();
 		expect(afterRedoIds.length).toBe(afterAdd.length);

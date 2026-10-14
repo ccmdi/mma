@@ -170,7 +170,7 @@ describe("Bounds cache - undo/redo consistency", () => {
 		let bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(10, 3);
@@ -178,7 +178,7 @@ describe("Bounds cache - undo/redo consistency", () => {
 	});
 
 	it("redo restores bounds", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 
 		const bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
@@ -195,7 +195,7 @@ describe("Bounds cache - undo/redo consistency", () => {
 		let bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(10, 3);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));
 		expect(bounds![3]).toBeCloseTo(60, 3);
@@ -203,9 +203,9 @@ describe("Bounds cache - undo/redo consistency", () => {
 
 	it("undo to empty returns null", async () => {
 		await withApi(async (api) => {
-			await api.History.undo();
-			await api.History.undo();
-			await api.History.undo();
+			await api.History.step("undo", "edits");
+			await api.History.step("undo", "edits");
+			await api.History.step("undo", "edits");
 		});
 
 		const bounds = await withApi(async (api) => api.fetchBounds({ type: "Everything" }));

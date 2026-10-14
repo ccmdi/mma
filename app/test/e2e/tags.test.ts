@@ -142,7 +142,7 @@ describe("Tag operations on locations", () => {
 
 	it("undo bulkAddTag removes tag from all", async () => {
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 			return "ok";
 		});
 
@@ -332,7 +332,7 @@ describe("Tag merge on rename collision", () => {
 	it("undo after merge restores the original tag", async () => {
 		const result = await withApi(
 			async (api, aId, bId) => {
-				await api.History.undo();
+				await api.History.step("undo", "edits");
 				const tags = api.Tag.all();
 				const aVisible = tags[aId]?.visible;
 				const bVisible = tags[bId]?.visible;
@@ -725,7 +725,7 @@ describe("Tag merge advanced", () => {
 	it("redo after undo of merge re-hides and remaps", async () => {
 		// Undo the C→B merge, then redo it
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 			return "ok";
 		});
 
@@ -747,7 +747,7 @@ describe("Tag merge advanced", () => {
 		expect(afterUndo.bCount).toBe(3);
 
 		await withApi(async (api) => {
-			await api.History.redo();
+			await api.History.step("redo", "edits");
 			return "ok";
 		});
 

@@ -315,7 +315,7 @@ pub fn export_bindings() -> Result<(), String> {
     export_consts()
 }
 
-fn wire_string_enums() -> [(&'static str, TsConst); 13] {
+fn wire_string_enums() -> [(&'static str, TsConst); 14] {
     [
         ("CameraType", store::maps::CameraType::ts_const()),
         ("CapturePick", store::maps::CapturePick::ts_const()),
@@ -332,6 +332,7 @@ fn wire_string_enums() -> [(&'static str, TsConst); 13] {
         ),
         ("Sink", procedure::engine::Sink::ts_const()),
         ("Stack", store::engine::Stack::ts_const()),
+        ("Timeline", store::engine::Timeline::ts_const()),
         ("SyncTrigger", sync::log::SyncTrigger::ts_const().unstable()),
     ]
 }

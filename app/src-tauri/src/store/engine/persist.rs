@@ -244,25 +244,14 @@ pub(crate) fn load_edit_history(
     map_id: &Id<MapMeta, String>,
 ) -> AppResult<EditStacks> {
     let rows = conn
-        .prepare("SELECT seq, stack, max_id, piles FROM edit_entries WHERE map_id = ?1")?
+        .prepare("SELECT seq, stack FROM edit_entries WHERE map_id = ?1")?
         .query_map([map_id.raw()], |r| {
             let stack = if r.get::<_, i64>(1)? == stack_code(Stack::Redo) {
                 Stack::Redo
             } else {
                 Stack::Undo
             };
-            let entry: Entry = serde_json::from_str(&r.get::<_, String>(3)?).map_err(|error| {
-                rusqlite::Error::FromSqlConversionFailure(
-                    3,
-                    rusqlite::types::Type::Text,
-                    Box::new(error),
-                )
-            })?;
-            let mut keys: Vec<_> = entry.keys().collect();
-            if r.get::<_, u32>(2)? > 0 {
-                keys.push(EntryKey::Locations);
-            }
-            Ok((r.get::<_, i64>(0)? as u64, stack, keys))
+            Ok((r.get::<_, i64>(0)? as u64, stack))
         })?
         .collect::<Result<Vec<_>, _>>()?;
     log::debug!("[load_edit_history] {map_id} {} edits on disk", rows.len());

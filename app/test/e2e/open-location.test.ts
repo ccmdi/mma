@@ -96,7 +96,7 @@ describe("Open location with undo/redo", () => {
 	});
 
 	it("undo of open location update reverts the field in store", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const heading = await withApi(async (api, id) => {
 			const loc = await api.fetchLocation(id);

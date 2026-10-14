@@ -27,7 +27,7 @@ describe("the generated API reference", () => {
 		);
 		expect(apiMd).toMatch(/^#### Tag.names$/m);
 		expect(apiMd).toMatch(/^#### Tag.rename$/m);
-		expect(apiMd).toMatch(/^#### History.undo$/m);
+		expect(apiMd).toMatch(/^#### History.step$/m);
 		expect(apiMd).toMatch(/^#### Field.remove$/m);
 	});
 

@@ -111,15 +111,15 @@ describe("Close map persistence", () => {
 
 		const canUndo = await withApi(async (api) => {
 			const state = await {
-				canUndo: api.History.available(api.Store.get().history, "undo"),
-				canRedo: api.History.available(api.Store.get().history, "redo"),
+				canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+				canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 			};
 			return state.canUndo;
 		});
 		expect(canUndo).toBe(true);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 		const afterUndo = await getLocCount();
 		expect(afterUndo).toBe(before);

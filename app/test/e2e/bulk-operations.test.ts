@@ -103,7 +103,7 @@ describe("Bulk operations -- enrich", () => {
 		// Undo until the resolved pano is gone (but stop before undoing the addLocations).
 		await withApi(async (api, id) => {
 			for (let i = 0; i < 100; i++) {
-				await api.History.undo();
+				await api.History.step("undo", "edits");
 				const loc = await api.fetchLocation(id);
 				if (!loc || !loc.panoId) break;
 			}
@@ -283,7 +283,7 @@ describe("Bulk operations -- field ops", () => {
 		expect((await getLoc(ids[2])).extra?.h).toBeUndefined();
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 			return "ok";
 		});
 		expect((await getLoc(ids[0])).extra?.h).toBeUndefined();

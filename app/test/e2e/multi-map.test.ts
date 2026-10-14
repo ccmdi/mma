@@ -95,8 +95,8 @@ describe("Multi-map isolation", () => {
 	it("undo history is scoped to each map", async () => {
 		await openMap(mapBId);
 		const historyB = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		expect(historyB.canUndo).toBe(true);
 		expect(historyB.canRedo).toBe(false);
@@ -107,25 +107,25 @@ describe("Multi-map isolation", () => {
 		const countBefore = await getLocCount();
 		await flushAndWait();
 		const historyA = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		expect(historyA.canUndo).toBe(true);
 		await closeMap();
 
 		await openMap(mapBId);
 		const historyBAfterSwitch = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		expect(historyBAfterSwitch).toEqual(historyB);
 		const countBeforeUndoB = await getLocCount();
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		expect(await getLocCount()).toBe(countBeforeUndoB - 1);
 		await closeMap();
 
 		await openMap(mapAId);
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		expect(await getLocCount()).toBe(countBefore - 1);
 		await closeMap();
 	});

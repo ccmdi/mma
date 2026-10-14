@@ -583,21 +583,19 @@ pub async fn store_step(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     stack: Stack,
-    key: Option<EntryKey>,
+    timeline: Timeline,
 ) -> AppResult<MutationResult> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
-        let changes = match key {
-            Some(key) => store.step_key(stack, key, |seq| {
+        let changes = store
+            .step(stack, timeline, |seq| {
                 load_edit(&storage::open_db()?, &map_id, seq)
-            })?,
-            None => store.step(stack, |seq| load_edit(&storage::open_db()?, &map_id, seq))?,
-        }
-        .ok_or("nothing to step through")?;
+            })?
+            .ok_or("nothing to step through")?;
         log::debug!(
-            "[{stack:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
-            store.edits.len(stack),
+            "[{stack:?} {timeline:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
+            store.timeline(timeline).len(stack),
             _t.elapsed().as_millis(),
             changes.locations.added.len(),
             changes.locations.updated.len(),

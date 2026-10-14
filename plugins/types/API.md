@@ -697,6 +697,16 @@ SyncTrigger: {
 
 What started a sync pass.
 
+### Timeline
+
+`stable` · unreleased
+
+```ts
+Timeline: { readonly Edits: "edits"; readonly Selections: "selections" }
+```
+
+Which edit history to step through. Each part of the map that undoes on its own has one.
+
 ### ValidationFlag
 
 `stable` · since v0.11.4
@@ -2130,13 +2140,13 @@ getWorkArea(): WorkArea
 historyAvailable(
   history: MapState["history"],
   stack: Stack,
-  key?: EntryKey,
+  timeline: Timeline,
 ): boolean
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.History.available`.
 
-Whether a history action is available for one part or for the data edit as a whole.
+Whether `timeline` can step back (undo) or forward (redo).
 
 ### initStore
 
@@ -2376,30 +2386,6 @@ read<A extends Ask>(
 Ask one question about the locations `selector` matches. A full-location answer loads any
 backing file automatically; ask for ids or columns when full locations are unnecessary.
 
-### redo
-
-`stable` · `deprecated` · since v0.4.0
-
-```ts
-redo(): Promise<void>
-```
-
-**Deprecated in v0.12.1.** Use `MMA.History.redo`.
-
-Redo the last undone edit.
-
-### redoSelections
-
-`unstable` · `deprecated` · since v0.12.0
-
-```ts
-redoSelections(): Promise<void>
-```
-
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.redo`.
-
-Redo the last undone selection change without redoing data edits.
-
 ### registerEnrichFields
 
 `unstable` · `deprecated` · since v0.3.1
@@ -2589,18 +2575,6 @@ resolveLocation(m: MaybeLocation): Promise<Location | null>
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
 
-### restoreSelections
-
-`unstable` · `deprecated` · since v0.12.0
-
-```ts
-restoreSelections(): Promise<void>
-```
-
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.undo`.
-
-Undo the last selection change without undoing data edits.
-
 ### sampleFrom
 
 `unstable` · `deprecated` · since v0.10.0
@@ -2719,18 +2693,6 @@ tagIdsToNames(ids: number[]): string[]
 **Deprecated in v0.12.1.** Use `MMA.Tag.names`.
 
 Tag names for the given ids, skipping any that no longer resolve.
-
-### undo
-
-`stable` · `deprecated` · since v0.4.0
-
-```ts
-undo(): Promise<void>
-```
-
-**Deprecated in v0.12.1.** Use `MMA.History.undo`.
-
-Undo the last edit.
 
 ### updateLocations
 
@@ -4130,31 +4092,21 @@ Navigate undo and redo history.
 History.available(
   history: MapState["history"],
   stack: Stack,
-  key?: EntryKey,
+  timeline: Timeline,
 ): boolean
 ```
 
-Whether a history action is available for one part or for the data edit as a whole.
+Whether `timeline` can step back (undo) or forward (redo).
 
-#### History.redo
-
-`stable` · unreleased
-
-```ts
-History.redo(): Promise<void>
-```
-
-Redo the last undone edit.
-
-#### History.undo
+#### History.step
 
 `stable` · unreleased
 
 ```ts
-History.undo(): Promise<void>
+History.step(stack: Stack, timeline: Timeline): Promise<void>
 ```
 
-Undo the last edit.
+Undo the newest edit on `timeline`, or redo the newest undone one.
 
 ## Commit
 
@@ -7055,7 +7007,7 @@ Set the default marker color for new render updates.
 ```ts
 cmd.storeStep(
   stack: Stack,
-  key: EntryKey | null,
+  timeline: Timeline,
 ): Promise<MutationResult<Location>>
 ```
 
@@ -8496,15 +8448,16 @@ SelectionList.active(): Selection[]
 
 Listed selections that are not ghosted.
 
-#### SelectionList.redo
+#### SelectionList.run
 
 `unstable` · unreleased
 
 ```ts
-SelectionList.redo(): Promise<void>
+SelectionList.run(write: () => Promise<MutationResult>): Promise<void>
 ```
 
-Redo the last undone selection change without redoing data edits.
+Run a mutation that may change the listed selections; when it does, redraw their fills
+and announce the change.
 
 #### SelectionList.select
 
@@ -8545,16 +8498,6 @@ SelectionList.tagIdsDeep(): readonly number[]
 ```
 
 Tag ids from active selection leaves, including repeated ids and composite children.
-
-#### SelectionList.undo
-
-`unstable` · unreleased
-
-```ts
-SelectionList.undo(): Promise<void>
-```
-
-Undo the last selection change without undoing data edits.
 
 #### SelectionList.update
 

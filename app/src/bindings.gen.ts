@@ -2,7 +2,7 @@
 
 import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
-import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MapShape, MergeWinner, RateCost, ResolutionSide, Sink, Stack, SyncTrigger } from "./bindings.consts";
+import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MapShape, MergeWinner, RateCost, ResolutionSide, Sink, Stack, Timeline, SyncTrigger } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
@@ -215,7 +215,7 @@ export const commands = {
 	 */
 	storeCountryDistribution: (selector: Selector<SelectionInput>, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
 	/**  Undo the newest edit, or redo the newest undone one. */
-	storeStep: (stack: Stack, key: EntryKey | null) => __TAURI_INVOKE<MutationResult>("store_step", { stack, key }),
+	storeStep: (stack: Stack, timeline: Timeline) => __TAURI_INVOKE<MutationResult>("store_step", { stack, timeline }),
 	/**  Compile unaddressed selections into keyed store inputs. */
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
@@ -669,7 +669,7 @@ export type DbStats = {
 export type Derived_Deserialize = {
 	locationCount: number | null,
 	meta: MapMeta_Deserialize | null,
-	history: Partial<{ [key in EntryKey]: History }> | null,
+	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
 	/**  The whole extra-field registry, when the map's row changed. */
@@ -686,7 +686,7 @@ export type Derived_Deserialize = {
 export type Derived = {
 	locationCount: number | null,
 	meta: MapMeta | null,
-	history: Partial<{ [key in EntryKey]: History }> | null,
+	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
 	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
 	/**  The whole extra-field registry, when the map's row changed. */
@@ -746,18 +746,6 @@ export type EditorImportResult = {
 	/**  True when the import was large enough to autocommit; the caller commits it. */
 	autoCommit: boolean,
 };
-
-export type EntryKey = 
-/**  The edit's changes to locations. */
-"locations" | 
-/**  The edit's changes to the records of interned values such as tags, by field. */
-"piles" | 
-/**  The edit's changes to the map's field definitions. */
-"defs" | 
-/**  The edit's changes to the map's details and settings. */
-"meta" | 
-/**  The edit's changes to saved selections. */
-"selections";
 
 /**
  *  Configuration for JSON export. Controls which fields are included and
@@ -1891,6 +1879,7 @@ export type Thinning =
 { by: "count"; n: number } | 
 /**  Locations about `m` metres apart. */
 { by: "metres"; m: number };
+
 
 export type UpdateAvailable = {
 	version: string,

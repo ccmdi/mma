@@ -218,12 +218,12 @@ async function unwind(mapId: string, minimumMarkers: number): Promise<void> {
 		await api.Editor.close();
 		for (
 			let guard = 0;
-			guard < 16 && api.History.available(api.Store.get().history, "undo");
+			guard < 16 && api.History.available(api.Store.get().history, "undo", "edits");
 			guard += 1
 		)
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		api.Autosave.cancel();
-		if (api.History.available(api.Store.get().history, "undo"))
+		if (api.History.available(api.Store.get().history, "undo", "edits"))
 			throw new Error("unwind did not reach the committed baseline");
 	});
 	await waitForScene(minimumMarkers);
@@ -835,14 +835,14 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
 				await api.Location.remove(api.Scene.selected());
 				api.Autosave.cancel();
-				if (!api.History.available(api.Store.get().history, "undo"))
+				if (!api.History.available(api.Store.get().history, "undo", "edits"))
 					throw new Error("bulk delete is not undoable");
 			}, tagId);
 		},
 		run: () =>
 			withApi(async (api, target) => {
 				const start = performance.now();
-				await api.History.undo();
+				await api.History.step("undo", "edits");
 				const operationMs = performance.now() - start;
 				api.Autosave.cancel();
 				await new Promise<void>((resolve) =>
@@ -867,16 +867,16 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await api.SelectionList.update({ kind: "set", selections: [] });
 				await api.SelectionList.update(api.addSelection(api.tagSelector(id)));
 				await api.Location.remove(api.Scene.selected());
-				await api.History.undo();
+				await api.History.step("undo", "edits");
 				api.Autosave.cancel();
-				if (!api.History.available(api.Store.get().history, "redo"))
+				if (!api.History.available(api.Store.get().history, "redo", "edits"))
 					throw new Error("bulk delete is not redoable");
 			}, tagId);
 		},
 		run: () =>
 			withApi(async (api, target) => {
 				const start = performance.now();
-				await api.History.redo();
+				await api.History.step("redo", "edits");
 				const operationMs = performance.now() - start;
 				api.Autosave.cancel();
 				await new Promise<void>((resolve) =>

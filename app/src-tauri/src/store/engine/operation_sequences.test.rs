@@ -184,7 +184,10 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                 10 if !redo.is_empty() => {
                     let next = redo.pop().unwrap();
                     undo.push((model.clone(), selection_active));
-                    let changes = store.step(Stack::Redo, fetch_stored).unwrap().unwrap();
+                    let changes = store
+                        .step(Stack::Redo, Timeline::Edits, fetch_stored)
+                        .unwrap()
+                        .unwrap();
                     store.finish_entry(&changes);
                     (model, selection_active) = next;
                 }

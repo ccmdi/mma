@@ -52,12 +52,12 @@ describe("Staged (chunked) location adds", () => {
 		const r = await withApi(async (api, tag: number) => {
 			const counts = api.Tag.counts();
 			const before = { count: api.Store.get().locationCount, tag: counts?.[tag] ?? 0 };
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 			const after = {
 				count: api.Store.get().locationCount,
 				tag: api.Tag.counts()?.[tag] ?? 0,
 			};
-			await api.History.redo();
+			await api.History.step("redo", "edits");
 			const redone = {
 				count: api.Store.get().locationCount,
 				tag: api.Tag.counts()?.[tag] ?? 0,

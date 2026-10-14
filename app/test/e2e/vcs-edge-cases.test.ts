@@ -50,8 +50,8 @@ describe("Version control — commit and restore", () => {
 
 	it("checkout resets undo history", async () => {
 		const state = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		expect(state.canUndo).toBe(false);
 		expect(state.canRedo).toBe(false);

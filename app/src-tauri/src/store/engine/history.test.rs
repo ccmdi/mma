@@ -12,10 +12,10 @@ fn row_edit(before: Option<Location>, after: Option<Location>) -> Arc<Entry> {
 #[test]
 fn persisted_stack_rows_are_sorted_into_undo_and_redo_order() {
     let mut stacks = EditStacks::on_disk(vec![
-        (8, Stack::Redo, vec![]),
-        (2, Stack::Undo, vec![]),
-        (6, Stack::Redo, vec![]),
-        (4, Stack::Undo, vec![]),
+        (8, Stack::Redo),
+        (2, Stack::Undo),
+        (6, Stack::Redo),
+        (4, Stack::Undo),
     ]);
     let order: Vec<_> = stacks
         .iter()
@@ -57,7 +57,7 @@ fn undo_and_redo_move_the_same_edit_and_invert_its_rows() {
 
 #[test]
 fn a_disk_only_edit_is_fetched_once_then_kept_resident() {
-    let mut stacks = EditStacks::on_disk(vec![(42, Stack::Undo, vec![])]);
+    let mut stacks = EditStacks::on_disk(vec![(42, Stack::Undo)]);
     let before = loc(4, 1.0, 1.0);
     let after = loc(4, 2.0, 2.0);
     let mut fetches = Vec::new();
@@ -86,7 +86,7 @@ fn a_disk_only_edit_is_fetched_once_then_kept_resident() {
 
 #[test]
 fn a_failed_disk_history_read_clears_both_stacks_instead_of_crossing_a_gap() {
-    let mut stacks = EditStacks::on_disk(vec![(1, Stack::Undo, vec![]), (2, Stack::Redo, vec![])]);
+    let mut stacks = EditStacks::on_disk(vec![(1, Stack::Undo), (2, Stack::Redo)]);
     assert!(stacks
         .step(Stack::Undo, |_| Err("corrupt history".into()))
         .is_err());

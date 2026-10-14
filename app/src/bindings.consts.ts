@@ -150,6 +150,15 @@ export const Stack = {
 } as const;
 export type Stack = (typeof Stack)[keyof typeof Stack];
 
+/** Which edit history to step through. Each part of the map that undoes on its own has one. */
+export const Timeline = {
+	/** Edits to locations, value records, and field definitions. */
+	Edits: "edits",
+	/** Changes to the listed selections. */
+	Selections: "selections",
+} as const;
+export type Timeline = (typeof Timeline)[keyof typeof Timeline];
+
 /** What started a sync pass. @unstable */
 export const SyncTrigger = {
 	/** Sync now was pressed. */

@@ -45,7 +45,7 @@ describe("Delete tagged location + undo", () => {
 	});
 
 	it("undo restores tag count", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const count = await withApi(async (api, tid) => {
 			const counts = api.Tag.counts();
@@ -60,7 +60,7 @@ describe("Delete tagged location + undo", () => {
 	});
 
 	it("redo re-deletes and tag count drops again", async () => {
-		await withApi(async (api) => api.History.redo());
+		await withApi(async (api) => api.History.step("redo", "edits"));
 
 		const count = await withApi(async (api, tid) => {
 			const counts = api.Tag.counts();
@@ -102,7 +102,7 @@ describe("Delete selected locations + undo restores selection", () => {
 	});
 
 	it("undo restores selection count", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const ids = await refreshSelections();
 		expect(ids.length).toBe(8);
@@ -143,7 +143,7 @@ describe("Delete open location + undo", () => {
 	});
 
 	it("undo restores the deleted location", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const loc = await getLocOrNull(locIds[2]);
 		expect(loc).not.toBeNull();
@@ -196,7 +196,7 @@ describe("Batch delete + undo data fidelity", () => {
 	});
 
 	it("undo restores all 5 with correct data", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 
 		const count = await getLocCount();
 		expect(count).toBe(10);
@@ -251,7 +251,7 @@ describe("Multiple delete-undo cycles", () => {
 			const countAfterDelete = await getLocCount();
 			expect(countAfterDelete).toBe(9);
 
-			await withApi(async (api) => api.History.undo());
+			await withApi(async (api) => api.History.step("undo", "edits"));
 
 			const countAfterUndo = await getLocCount();
 			expect(countAfterUndo).toBe(10);

@@ -101,7 +101,7 @@ describe("mergeDuplicates — transitive groups, tag/extra union, undo", () => {
 	});
 
 	it("merge is a single undoable edit that restores all 5 originals", async () => {
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		await flushAndWait();
 		expect(await getLocCount()).toBe(5);
 

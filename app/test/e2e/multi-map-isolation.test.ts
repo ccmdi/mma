@@ -167,7 +167,7 @@ describe("Undo history isolation across maps", () => {
 		await openMap(mapBId);
 		await addLocs([createLocation({ lat: 20, lng: 20 })]);
 		await addLocs([createLocation({ lat: 21, lng: 21 })]);
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		await closeMap();
 
 		// A should be untouched
@@ -180,15 +180,15 @@ describe("Undo history isolation across maps", () => {
 	it("undo state reports correctly per map", async () => {
 		await openMap(mapAId);
 		const stateA = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		await closeMap();
 
 		await openMap(mapBId);
 		const stateB = await withApi(async (api) => ({
-			canUndo: api.History.available(api.Store.get().history, "undo"),
-			canRedo: api.History.available(api.Store.get().history, "redo"),
+			canUndo: api.History.available(api.Store.get().history, "undo", "edits"),
+			canRedo: api.History.available(api.Store.get().history, "redo", "edits"),
 		}));
 		await closeMap();
 

@@ -370,7 +370,7 @@ describe("Selection correctness after mutations", () => {
 		expect(afterUnpin.length).toBe(4);
 
 		await withApi(async (api) => {
-			await api.History.undo();
+			await api.History.step("undo", "edits");
 		});
 
 		const afterUndo = await refreshSelections();

@@ -160,16 +160,16 @@ const COMMANDS = {
 		icon: mdiUndo,
 		group: msg("Map"),
 		defaultBinding: "Mod+z",
-		execute: () => History.undo(),
-		enabled: () => History.available(Store.get().history, "undo"),
+		execute: () => History.step("undo", "edits"),
+		enabled: () => History.available(Store.get().history, "undo", "edits"),
 	},
 	redo: {
 		label: msg("Redo"),
 		icon: mdiRedo,
 		group: msg("Map"),
 		defaultBinding: "Mod+y, Mod+Shift+z",
-		execute: () => History.redo(),
-		enabled: () => History.available(Store.get().history, "redo"),
+		execute: () => History.step("redo", "edits"),
+		enabled: () => History.available(Store.get().history, "redo", "edits"),
 	},
 	export: {
 		label: msg("Export"),
@@ -298,7 +298,7 @@ const COMMANDS = {
 		icon: mdiRestore,
 		group: msg("Selections"),
 		defaultBinding: "Mod+Alt+d",
-		execute: () => SelectionList.undo(),
+		execute: () => History.step("undo", "selections"),
 		enabled: () => requiresMap() && History.available(Store.get().history, "undo", "selections"),
 	},
 	"redo-selection": {
@@ -306,7 +306,7 @@ const COMMANDS = {
 		icon: mdiSelectionSearch,
 		group: msg("Selections"),
 		defaultBinding: "Mod+Alt+Shift+d",
-		execute: () => SelectionList.redo(),
+		execute: () => History.step("redo", "selections"),
 		enabled: () => requiresMap() && History.available(Store.get().history, "redo", "selections"),
 	},
 	"find-duplicates": {

@@ -35,10 +35,10 @@ describe("history availability", () => {
 	it("keeps selection availability separate from atomic data undo", () => {
 		const history = {
 			selections: { undo: true, redo: false },
-			piles: { undo: false, redo: true },
+			edits: { undo: false, redo: true },
 		};
-		expect(History.available(history, "undo")).toBe(false);
-		expect(History.available(history, "redo")).toBe(true);
+		expect(History.available(history, "undo", "edits")).toBe(false);
+		expect(History.available(history, "redo", "edits")).toBe(true);
 		expect(History.available(history, "undo", "selections")).toBe(true);
 		expect(History.available(history, "redo", "selections")).toBe(false);
 	});

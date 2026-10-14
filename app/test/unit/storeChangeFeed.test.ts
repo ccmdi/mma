@@ -91,14 +91,14 @@ describe("change feed merge semantics", () => {
 	});
 
 	it("present scalars replace, absent ones hold", () => {
-		arrive(event({ locationCount: 42, history: { locations: { undo: true, redo: true } } }));
+		arrive(event({ locationCount: 42, history: { edits: { undo: true, redo: true } } }));
 		let s = Store.get();
 		expect(s.locationCount).toBe(42);
-		expect(s.history).toEqual({ locations: { undo: true, redo: true } });
-		arrive(event({ history: { locations: { undo: true, redo: false } } }));
+		expect(s.history).toEqual({ edits: { undo: true, redo: true } });
+		arrive(event({ history: { edits: { undo: true, redo: false } } }));
 		s = Store.get();
 		expect(s.locationCount).toBe(42);
-		expect(s.history).toEqual({ locations: { undo: true, redo: false } });
+		expect(s.history).toEqual({ edits: { undo: true, redo: false } });
 	});
 
 	it("present values replace their slice; a tag change never re-mints the map", () => {

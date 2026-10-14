@@ -380,23 +380,11 @@ export const getActiveSelections: typeof SelectionList.active = SelectionList.ac
 /** @deprecated v0.12.1. Use `MMA.SelectionList.update`. @unstable */
 export const applySelectionUpdate: typeof SelectionList.update = SelectionList.update;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.undo`. @unstable */
-export const restoreSelections: typeof SelectionList.undo = SelectionList.undo;
-
-/** @deprecated v0.12.1. Use `MMA.SelectionList.redo`. @unstable */
-export const redoSelections: typeof SelectionList.redo = SelectionList.redo;
-
 /** @deprecated v0.12.1. Use `MMA.SelectionList.select`. */
 export const select: typeof SelectionList.select = SelectionList.select;
 
 /** @deprecated v0.12.1. Use `MMA.History.available`. @unstable */
 export const historyAvailable: typeof History.available = History.available;
-
-/** @deprecated v0.12.1. Use `MMA.History.undo`. */
-export const undo: typeof History.undo = History.undo;
-
-/** @deprecated v0.12.1. Use `MMA.History.redo`. */
-export const redo: typeof History.redo = History.redo;
 
 /** @deprecated v0.12.1. Use `MMA.Commit.create`. */
 export const commitMap: typeof Commit.create = Commit.create;

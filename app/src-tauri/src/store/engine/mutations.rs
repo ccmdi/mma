@@ -35,7 +35,7 @@ pub struct EditOpts {
 pub struct Derived {
     pub location_count: Option<usize>,
     pub meta: Option<maps::MapMeta>,
-    pub history: Option<HashMap<EntryKey, History>>,
+    pub history: Option<HashMap<Timeline, History>>,
     /// Changed values, keyed by field and value. Null removes a value with no record or locations.
     pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
     /// The whole extra-field registry, when the map's row changed.
@@ -63,7 +63,9 @@ impl Derived {
 }
 
 /// Whether undo and redo are available.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Default, specta::Type)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Clone, Copy, Default, Debug, PartialEq, specta::Type,
+)]
 pub struct History {
     /// An edit can be undone.
     pub undo: bool,
@@ -340,23 +342,16 @@ impl Store {
         self.overlay_add(change.after().cloned().collect());
     }
 
-    /// Join the newest undo step named by `join`, or record a new step.
+    /// Join the newest undo step named by `join`, or record a new step in the entry's timeline.
     fn record(&mut self, entry: &Arc<Entry>, join: &mut Option<u64>) {
-        if entry.locations.is_empty() && entry.piles.is_empty() && entry.defs.is_empty() {
-            if entry.keys().eq([EntryKey::Selections]) {
-                self.histories
-                    .edit()
-                    .entry(EntryKey::Selections)
-                    .or_default()
-                    .record(Arc::clone(entry));
-            }
+        let Some(timeline) = entry.timeline() else {
             return;
-        }
+        };
+        let edits = self.timeline(timeline).edit();
         if entry.locations.len() > MAX_UNDO_LOCATIONS {
-            self.edits.edit().clear();
+            edits.clear();
             return;
         }
-        let edits = self.edits.edit();
         if let Some(seq) = *join {
             if let Ok(seq) = edits.fold_into_newest(seq, (**entry).clone()) {
                 *join = Some(seq);

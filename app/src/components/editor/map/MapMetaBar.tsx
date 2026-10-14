@@ -53,21 +53,21 @@ function CommitControls() {
 }
 
 function UndoRedoControls() {
-	const canUndo = Store.use((s) => History.available(s.history, "undo"));
-	const canRedo = Store.use((s) => History.available(s.history, "redo"));
+	const canUndo = Store.use((s) => History.available(s.history, "undo", "edits"));
+	const canRedo = Store.use((s) => History.available(s.history, "redo", "edits"));
 	return (
 		<>
 			<IconButton
 				icon={mdiUndo}
 				label={t("Undo")}
 				disabled={!canUndo}
-				onClick={() => void History.undo()}
+				onClick={() => void History.step("undo", "edits")}
 			/>
 			<IconButton
 				icon={mdiRedo}
 				label={t("Redo")}
 				disabled={!canRedo}
-				onClick={() => void History.redo()}
+				onClick={() => void History.step("redo", "edits")}
 			/>
 		</>
 	);

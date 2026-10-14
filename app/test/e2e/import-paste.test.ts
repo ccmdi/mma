@@ -78,7 +78,7 @@ describe("Import from paste — undo", () => {
 		const before = await getLocCount();
 		expect(before).toBe(3);
 
-		await withApi(async (api) => api.History.undo());
+		await withApi(async (api) => api.History.step("undo", "edits"));
 		const after = await getLocCount();
 		expect(after).toBe(0);
 	});

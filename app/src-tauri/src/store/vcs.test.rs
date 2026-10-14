@@ -89,7 +89,9 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     assert!(store.pending.is_empty());
     assert_eq!(store.next_id.take(), Id::new(8));
     let entry = store
-        .step(engine::Stack::Undo, |_| panic!("in-memory edit"))
+        .step(engine::Stack::Undo, engine::Timeline::Edits, |_| {
+            panic!("in-memory edit")
+        })
         .unwrap()
         .unwrap();
     store.finish_entry(&entry);
