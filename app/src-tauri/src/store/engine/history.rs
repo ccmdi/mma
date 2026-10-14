@@ -80,6 +80,32 @@ impl Entry {
     }
 }
 
+/// The undo and redo stacks of each timeline.
+#[derive(Default)]
+pub(crate) struct Timelines([Tracked<EditStacks>; Timeline::ALL.len()]);
+
+impl Timelines {
+    /// Mark every timeline's stacks as seen; true when any had not been.
+    pub(crate) fn ship(&mut self) -> bool {
+        self.0
+            .iter_mut()
+            .fold(false, |any, stacks| stacks.ship() | any)
+    }
+}
+
+impl std::ops::Index<Timeline> for Timelines {
+    type Output = Tracked<EditStacks>;
+    fn index(&self, timeline: Timeline) -> &Self::Output {
+        &self.0[timeline as usize]
+    }
+}
+
+impl std::ops::IndexMut<Timeline> for Timelines {
+    fn index_mut(&mut self, timeline: Timeline) -> &mut Self::Output {
+        &mut self.0[timeline as usize]
+    }
+}
+
 impl Stack {
     fn other(self) -> Self {
         match self {
@@ -251,20 +277,12 @@ impl EditStacks {
 }
 
 impl Store {
-    /// The stacks of `timeline`.
-    pub(crate) fn timeline(&mut self, timeline: Timeline) -> &mut Tracked<EditStacks> {
-        match timeline {
-            Timeline::Edits => &mut self.edits,
-            Timeline::Selections => &mut self.selection_edits,
-        }
-    }
-
     /// Whether each timeline can step either way.
     pub(crate) fn history(&self) -> HashMap<Timeline, History> {
-        HashMap::from([
-            (Timeline::Edits, self.edits.availability()),
-            (Timeline::Selections, self.selection_edits.availability()),
-        ])
+        Timeline::ALL
+            .iter()
+            .map(|&timeline| (timeline, self.steps[timeline].availability()))
+            .collect()
     }
 
     /// Move the newest edit of `timeline` to its other stack and apply it.
@@ -274,7 +292,7 @@ impl Store {
         timeline: Timeline,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
     ) -> AppResult<Option<Entry>> {
-        let Some(mut changes) = self.timeline(timeline).edit().step(from, fetch)? else {
+        let Some(mut changes) = self.steps[timeline].edit().step(from, fetch)? else {
             return Ok(None);
         };
         changes.selections = match timeline {

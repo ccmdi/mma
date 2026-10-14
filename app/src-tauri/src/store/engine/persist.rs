@@ -52,8 +52,8 @@ pub(crate) async fn flush_closed_store(map_id: Id<MapMeta, String>, store: Store
         }
         log::debug!(
             "[close_map] {map_id} flushed: undo={} redo={}",
-            store.edits.len(Stack::Undo),
-            store.edits.len(Stack::Redo)
+            store.steps[Timeline::Edits].len(Stack::Undo),
+            store.steps[Timeline::Edits].len(Stack::Redo)
         );
         Ok(())
     })
@@ -137,7 +137,8 @@ impl Store {
                 .map(|(field, v)| (field.clone(), v.rev()))
                 .collect(),
         });
-        if !self.overlay.is_unsaved() && !self.edits.is_unsaved() && meta.is_none() {
+        if !self.overlay.is_unsaved() && !self.steps[Timeline::Edits].is_unsaved() && meta.is_none()
+        {
             return Ok(None);
         }
         Ok(Some(Unsaved {
@@ -146,10 +147,10 @@ impl Store {
                     .stamp(self.overlay.to_delta(self.batch.as_ref()))
             }),
             meta,
-            edits: self
-                .edits
-                .is_unsaved()
-                .then(|| self.edits.stamp((*self.edits).clone())),
+            edits: {
+                let edits = &self.steps[Timeline::Edits];
+                edits.is_unsaved().then(|| edits.stamp((**edits).clone()))
+            },
             alive: *self.alive_count,
             pending: self.overlay_diff_counts(),
         }))
@@ -170,7 +171,7 @@ impl Store {
             }
         }
         if let Some(edits) = &written.edits {
-            self.edits.saved_at(edits.rev());
+            self.steps[Timeline::Edits].saved_at(edits.rev());
         }
     }
 }

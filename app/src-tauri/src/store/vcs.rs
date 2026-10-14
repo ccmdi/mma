@@ -99,9 +99,10 @@ pub async fn store_commit(
         // Build the canonical full batch ONCE (bake), write the base, re-mmap, flush tags.
         engine::bake_and_save(store, &map_id)?;
 
-        store.edits.edit().clear();
-        engine::save_edit_history(&conn, &map_id, &store.edits)?;
-        store.edits.mark_saved();
+        let edits = &mut store.steps[engine::Timeline::Edits];
+        edits.edit().clear();
+        engine::save_edit_history(&conn, &map_id, edits)?;
+        edits.mark_saved();
 
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.

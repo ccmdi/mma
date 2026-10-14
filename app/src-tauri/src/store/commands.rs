@@ -151,7 +151,7 @@ async fn open_claimed_map(
     store.bounds.seed(At::new(store.version, bounds));
     let conn = storage::open_db()?;
     storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts())?;
-    store.edits = Tracked::new(edits);
+    store.steps[Timeline::Edits] = Tracked::new(edits);
 
     let mut mgr = state.lock()?;
     let mut meta = maps::read_map_meta(&conn, &map_id)?;
@@ -596,7 +596,7 @@ pub async fn store_step(
             .ok_or("nothing to step through")?;
         log::debug!(
             "[{stack:?} {timeline:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
-            store.timeline(timeline).len(stack),
+            store.steps[timeline].len(stack),
             _t.elapsed().as_millis(),
             changes.locations.added.len(),
             changes.locations.updated.len(),

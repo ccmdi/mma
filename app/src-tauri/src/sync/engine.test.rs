@@ -1536,7 +1536,10 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     let (mutation, rows) = apply_pull(&mut store, &out).unwrap();
     let mutation = mutation.expect("the pull landed a change");
     assert_eq!(mutation.keys, loc_ids([3]));
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(
+        store.steps[crate::store::engine::Timeline::Edits].len(Stack::Undo),
+        1
+    );
 
     let created = store.get_loc_by_id(Id::new(3)).expect("create landed");
     let meta = &store.value_meta["tags"];

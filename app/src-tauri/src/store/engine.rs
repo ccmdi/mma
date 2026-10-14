@@ -136,8 +136,7 @@ pub struct Store {
     /// Lazy per-field indexes of live rows, maintained on mutation.
     /// Per-value counts come from index membership.
     field_indexes: selections::FieldIndexes,
-    pub(crate) edits: Tracked<EditStacks>,
-    pub(crate) selection_edits: Tracked<EditStacks>,
+    pub(crate) steps: Timelines,
     /// Whole-map bounds as of a store version. `update_bounds` carries it across a
     /// mutation when the change can only grow the box; otherwise it is left behind and
     /// the next read rescans. Resolved to `[w,s,e,n]` on read.
@@ -196,8 +195,7 @@ impl Store {
             selections: SelectionState::default(),
             value_meta: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
-            edits: Tracked::default(),
-            selection_edits: Tracked::default(),
+            steps: Timelines::default(),
             bounds: Ensured::default(),
             spatial: Ensured::default(),
             frames: Sinks::default(),
@@ -247,7 +245,7 @@ impl Store {
                 .meta
                 .ship()
                 .then(|| maps::MapDetails((*self.meta).clone())),
-            history: (self.edits.ship() | self.selection_edits.ship()).then(|| self.history()),
+            history: self.steps.ship().then(|| self.history()),
             field_values: None,
             field_defs: self.field_defs.ship().then(|| (*self.field_defs).clone()),
             selection_counts: None,

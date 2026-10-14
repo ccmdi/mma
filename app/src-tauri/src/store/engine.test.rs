@@ -188,8 +188,8 @@ fn a_no_op_edit_pushes_no_undo_entry_and_keeps_redo() {
 
     undoable(&mut store, vec![], vec![]);
 
-    assert!(store.edits.len(Stack::Undo) == 0);
-    assert_eq!(store.edits.len(Stack::Redo), 1);
+    assert!(store.steps[Timeline::Edits].len(Stack::Undo) == 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
     assert_eq!(store.overlay.rev(), rev);
 }
 
@@ -494,7 +494,7 @@ fn commit_diff_counts_patch_on_base_row_without_undo() {
     store.bake_overlay();
     assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
     overlay_update(&mut store, &patch!(1; lat: 5.0));
-    assert!(store.edits.len(Stack::Undo) == 0);
+    assert!(store.steps[Timeline::Edits].len(Stack::Undo) == 0);
     assert_eq!(store.overlay_diff_counts(), net(0, 0, 1));
 }
 
@@ -566,8 +566,7 @@ fn removing_a_row_the_index_never_had_is_a_no_op() {
 fn undo_add() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    store
-        .edits
+    store.steps[Timeline::Edits]
         .edit()
         .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
 
@@ -619,12 +618,14 @@ fn undo_stack_capped_at_max() {
     let mut store = setup_store_with(&[]);
     for i in 0..MAX_UNDO_ENTRIES + 50 {
         let l = loc(i as u32, 0.0, 0.0);
-        store
-            .edits
+        store.steps[Timeline::Edits]
             .edit()
             .record(Arc::new(entry(Change::from_sides(vec![l], vec![]))));
     }
-    assert_eq!(store.edits.len(Stack::Undo), MAX_UNDO_ENTRIES);
+    assert_eq!(
+        store.steps[Timeline::Edits].len(Stack::Undo),
+        MAX_UNDO_ENTRIES
+    );
 }
 
 #[test]
@@ -632,14 +633,16 @@ fn redo_stack_cleared_on_new_edit() {
     let mut store = setup_store_with(&[]);
     click_add(&mut store, 0.0, 0.0);
     press_undo(&mut store);
-    assert_eq!(store.edits.len(Stack::Redo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
 
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(1, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(1, 0.0, 0.0)],
+            vec![],
+        ))));
     assert_eq!(
-        store.edits.len(Stack::Redo),
+        store.steps[Timeline::Edits].len(Stack::Redo),
         0,
         "a new edit drops redo by itself"
     );
@@ -651,8 +654,8 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     click_add(&mut store, 0.0, 0.0);
     click_add(&mut store, 0.0, 0.0);
     press_undo(&mut store);
-    assert_eq!(store.edits.len(Stack::Undo), 1);
-    assert_eq!(store.edits.len(Stack::Redo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
 
     let big: Vec<Edit<Location>> = (0..=MAX_UNDO_LOCATIONS as u32)
         .map(|_| Op::Add(loc(0, 0.0, 0.0)))
@@ -660,8 +663,8 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     store.edit(&Target::Map, big, &mut None);
 
     assert_eq!(*store.alive_count as usize, MAX_UNDO_LOCATIONS + 2);
-    assert_eq!(store.edits.len(Stack::Undo), 0);
-    assert_eq!(store.edits.len(Stack::Redo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);
 }
 
 // -----------------------------------------------------------------------
@@ -934,10 +937,12 @@ fn open_status_reflects_undo_redo() {
         Some((false, false))
     );
 
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(2, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(2, 0.0, 0.0)],
+            vec![],
+        ))));
     let s = store.open_status();
     assert_eq!(
         s.derived.history.map(|h| h
@@ -946,10 +951,12 @@ fn open_status_reflects_undo_redo() {
         Some((true, false))
     );
 
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(2, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(2, 0.0, 0.0)],
+            vec![],
+        ))));
     press_undo(&mut store);
     let s = store.open_status();
     assert_eq!(
@@ -964,10 +971,12 @@ fn open_status_reflects_undo_redo() {
 fn finish_mutation_reports_correct_state() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[l]);
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(2, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(2, 0.0, 0.0)],
+            vec![],
+        ))));
 
     let feed = FeedCapture::attach(&mut store);
     let result = store.finish_mutation(&Change::default());
@@ -995,10 +1004,12 @@ fn finish_mutation_reports_correct_state() {
 fn undo_flags_ship_again_after_out_of_band_stack_clear() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let feed = FeedCapture::attach(&mut store);
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(2, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(2, 0.0, 0.0)],
+            vec![],
+        ))));
     store.finish_mutation(&Change::default());
     assert!(feed
         .last()
@@ -1007,12 +1018,14 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         .is_some_and(|h| h.get(&Timeline::Edits).is_some_and(|h| h.undo)));
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
-    store.edits.edit().clear();
+    store.steps[Timeline::Edits].edit().clear();
 
-    store.edits.edit().record(Arc::new(entry(Change::from_sides(
-        vec![loc(2, 0.0, 0.0)],
-        vec![],
-    ))));
+    store.steps[Timeline::Edits]
+        .edit()
+        .record(Arc::new(entry(Change::from_sides(
+            vec![loc(2, 0.0, 0.0)],
+            vec![],
+        ))));
     store.finish_mutation(&Change::default());
     assert_eq!(
         feed.last().derived.history.map(|h| h
@@ -1271,7 +1284,7 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
     add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
     store.resolve_selection_membership();
     let rev = store.overlay.rev();
-    let undo_len = store.edits.len(Stack::Undo);
+    let undo_len = store.steps[Timeline::Edits].len(Stack::Undo);
     let updates: Vec<Patch<Location>> = rows
         .iter()
         .map(|row| patch!(row.id.get(); heading: row.heading))
@@ -1282,7 +1295,7 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
     apply_updates(&mut store, &updates, &mut None);
 
     assert_eq!(store.overlay.rev(), rev);
-    assert_eq!(store.edits.len(Stack::Undo), undo_len);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), undo_len);
     assert!(frames.last().cells.is_empty());
     assert!(feed.last().derived.selection_counts.is_none());
 }
@@ -1715,10 +1728,14 @@ fn stored_round_trip(entries: &[Change]) -> Vec<Change> {
     let mut store = setup_store_with(&[]);
     let seqs: Vec<u64> = entries
         .iter()
-        .map(|e| store.edits.edit().record(Arc::new(entry(e.clone()))))
+        .map(|e| {
+            store.steps[Timeline::Edits]
+                .edit()
+                .record(Arc::new(entry(e.clone())))
+        })
         .collect();
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         seqs.iter()
             .map(|&seq| {
                 load_edit(conn, &Id::new("m".into()), seq)
@@ -3249,10 +3266,10 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
 fn edit_values_that_change_nothing_record_no_undo_step() {
     let mut store = setup_store_with(&[]);
     store.edit_values("tags", adds(&["A"])).unwrap();
-    let steps = store.edits.len(Stack::Undo);
+    let steps = store.steps[Timeline::Edits].len(Stack::Undo);
     store.edit_values("tags", Vec::new()).unwrap();
     store.edit_values("tags", adds(&["a"])).unwrap();
-    assert_eq!(store.edits.len(Stack::Undo), steps);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), steps);
 }
 
 #[test]
@@ -3407,12 +3424,12 @@ fn set_tags_adds_and_removes_in_one_pass() {
 fn set_tags_records_no_update_for_a_row_already_in_the_requested_state() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     let t = tag_onto(&mut store, 7, &[1]);
-    let undo_len = store.edits.len(Stack::Undo);
+    let undo_len = store.steps[Timeline::Edits].len(Stack::Undo);
 
     set_tags(&mut store, &[t], &[], &[1]);
 
     assert_eq!(
-        store.edits.len(Stack::Undo),
+        store.steps[Timeline::Edits].len(Stack::Undo),
         undo_len,
         "no row moved, so no undo entry"
     );
@@ -4550,8 +4567,7 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
         (vec![], vec![loc(112, 0.0, 0.0)]),
         (vec![loc(7, 0.0, 0.0)], vec![loc(9, 0.0, 0.0)]),
     ] {
-        store
-            .edits
+        store.steps[Timeline::Edits]
             .edit()
             .record(Arc::new(entry(Change::from_sides(created, removed))));
     }
@@ -4560,7 +4576,7 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
             stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
             None
         );
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         assert_eq!(
             stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
             Some(Id::new(112))
@@ -4594,7 +4610,9 @@ fn fetch_stored(seq: u64) -> AppResult<Entry> {
 // (store_open_map's delta/history load + next_id seeding) at the Store level,
 // through the same delta bytes and history rows the app writes.
 fn close_and_reopen(store: &Store) -> Store {
-    with_history_db(|conn| save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap());
+    with_history_db(|conn| {
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap()
+    });
     reopen(store, &sidecar_bytes(store))
 }
 
@@ -4614,7 +4632,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened.overlay = Tracked::unsaved(delta);
     reopened.next_id = seed_next_id(None, &reopened.overlay.adds, history_max);
     reopened.alive_count = Tracked::new(reopened.overlay.adds.len());
-    reopened.edits = Tracked::new(edits);
+    reopened.steps[Timeline::Edits] = Tracked::new(edits);
     reopened
 }
 
@@ -4622,8 +4640,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
 fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
     let id = store.next_id.take();
     let l = loc(id.get(), lat, lng);
-    store
-        .edits
+    store.steps[Timeline::Edits]
         .edit()
         .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
     store.overlay_add(vec![l]);
@@ -4633,8 +4650,7 @@ fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
 // Remove a row through the store write path.
 fn delete_loc(store: &mut Store, id: u32) {
     let l = store.get_loc_by_id(Id::new(id)).unwrap();
-    store
-        .edits
+    store.steps[Timeline::Edits]
         .edit()
         .record(Arc::new(entry(Change::from_sides(vec![], vec![l.clone()]))));
     store.overlay_remove(slice::from_ref(&l).iter());
@@ -4716,8 +4732,7 @@ impl FeedCapture {
 }
 
 fn newest_undo(store: &Store) -> Change {
-    let (_, edit) = store
-        .edits
+    let (_, edit) = store.steps[Timeline::Edits]
         .iter()
         .filter(|(s, _)| *s == Stack::Undo)
         .last()
@@ -4730,8 +4745,7 @@ fn newest_undo(store: &Store) -> Change {
 }
 
 fn stack_ids(store: &Store, stack: Stack) -> Vec<(u64, Vec<u32>)> {
-    store
-        .edits
+    store.steps[Timeline::Edits]
         .iter()
         .filter(|(s, _)| *s == stack)
         .map(|(_, e)| {
@@ -4839,14 +4853,17 @@ fn an_autosave_writes_a_history_change_that_moved_no_location() {
     click_add(&mut store, 0.0, 0.0);
     autosave(&mut store, &delta);
 
-    store.edits.edit().clear();
+    store.steps[Timeline::Edits].edit().clear();
     autosave(&mut store, &delta);
     assert!(store.unsaved().unwrap().is_none());
 
     let mut store = reopen(&store, &fs::read(&delta).unwrap());
     assert_eq!(live_ids(&mut store), vec![1]);
     assert_eq!(
-        (store.edits.len(Stack::Undo), store.edits.len(Stack::Redo)),
+        (
+            store.steps[Timeline::Edits].len(Stack::Undo),
+            store.steps[Timeline::Edits].len(Stack::Redo)
+        ),
         (0, 0)
     );
 }
@@ -4858,11 +4875,12 @@ fn a_reopened_history_reads_no_edit_until_undo_reaches_it() {
         click_add(&mut store, f64::from(i), 0.0);
     }
     let mut store = close_and_reopen(&store);
-    assert!(store.edits.iter().all(|(_, e)| e.entry.is_none()));
+    assert!(store.steps[Timeline::Edits]
+        .iter()
+        .all(|(_, e)| e.entry.is_none()));
 
     press_undo(&mut store);
-    let read: Vec<u64> = store
-        .edits
+    let read: Vec<u64> = store.steps[Timeline::Edits]
         .iter()
         .filter(|(_, e)| e.entry.is_some())
         .map(|(_, e)| e.seq)
@@ -4882,7 +4900,7 @@ fn a_grouped_run_undoes_as_one_step() {
     page(&mut store, &mut group, 1, 90.0);
     page(&mut store, &mut group, 2, 180.0);
 
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     undo_and_finish(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
@@ -4906,8 +4924,7 @@ fn a_row_a_run_touches_twice_undoes_to_its_state_before_the_run() {
 fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     apply_updates(&mut store, &[patch!(1; heading: 90.0)], &mut None);
-    let mut join = store
-        .edits
+    let mut join = store.steps[Timeline::Edits]
         .iter()
         .filter(|(stack, _)| *stack == Stack::Undo)
         .last()
@@ -4915,7 +4932,7 @@ fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
     assert!(join.is_some(), "a recorded change names its step");
     page(&mut store, &mut join, 1, 180.0);
 
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     undo_and_finish(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
@@ -4929,7 +4946,7 @@ fn an_edit_between_pages_splits_the_group() {
     apply_updates(&mut store, &user_edit, &mut None);
     page(&mut store, &mut group, 1, 180.0);
 
-    assert_eq!(store.edits.len(Stack::Undo), 3);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 3);
     undo_and_finish(&mut store);
     assert_eq!(
         store.get_loc_by_id(Id::new(1)).unwrap().heading,
@@ -4951,7 +4968,10 @@ fn an_undo_mid_run_leaves_later_pages_as_their_own_step() {
     page(&mut store, &mut group, 1, 180.0);
 
     assert_eq!(
-        (store.edits.len(Stack::Undo), store.edits.len(Stack::Redo)),
+        (
+            store.steps[Timeline::Edits].len(Stack::Undo),
+            store.steps[Timeline::Edits].len(Stack::Redo)
+        ),
         (1, 0),
         "the late page is a fresh entry and clears the undone one from redo"
     );
@@ -4971,7 +4991,7 @@ fn a_run_an_autosave_lands_in_undoes_whole_after_reopen() {
     autosave(&mut store, &delta);
 
     let mut store = reopen(&store, &fs::read(&delta).unwrap());
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     undo_and_finish(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
@@ -4988,7 +5008,10 @@ fn a_page_folded_into_the_run_clears_redo() {
     page(&mut store, &mut group, 2, 180.0);
 
     assert_eq!(
-        (store.edits.len(Stack::Undo), store.edits.len(Stack::Redo)),
+        (
+            store.steps[Timeline::Edits].len(Stack::Undo),
+            store.steps[Timeline::Edits].len(Stack::Redo)
+        ),
         (1, 0),
         "the page joins the run, and the undone user edit cannot be redone over it"
     );
@@ -5007,7 +5030,10 @@ fn an_unreadable_edit_drops_the_history_rather_than_replay_around_it() {
     let failed = store.step(Stack::Undo, Timeline::Edits, |_| Err("unreadable".into()));
     assert!(failed.is_err());
     assert_eq!(
-        (store.edits.len(Stack::Undo), store.edits.len(Stack::Redo)),
+        (
+            store.steps[Timeline::Edits].len(Stack::Undo),
+            store.steps[Timeline::Edits].len(Stack::Redo)
+        ),
         (0, 0)
     );
 }
@@ -5019,9 +5045,9 @@ fn a_close_writes_only_what_changed_since_the_last() {
         click_add(&mut store, f64::from(i), 0.0);
     }
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         let before = conn.total_changes();
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         assert_eq!(
             conn.total_changes(),
             before,
@@ -5029,11 +5055,11 @@ fn a_close_writes_only_what_changed_since_the_last() {
         );
 
         click_add(&mut store, 9.0, 0.0);
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         assert_eq!(conn.total_changes(), before + 1, "one new edit is one row");
 
         press_undo(&mut store);
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         assert_eq!(conn.total_changes(), before + 2, "an undo moves one row");
     });
 }
@@ -5043,9 +5069,11 @@ fn edits_after_a_cleared_history_never_reuse_a_stored_number() {
     let mut store = setup_store_with(&[]);
     click_add(&mut store, 0.0, 0.0);
     click_add(&mut store, 1.0, 0.0);
-    with_history_db(|conn| save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap());
+    with_history_db(|conn| {
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap()
+    });
 
-    store.edits.edit().clear();
+    store.steps[Timeline::Edits].edit().clear();
     let id = click_add(&mut store, 2.0, 0.0);
     let store = close_and_reopen(&store);
 
@@ -6158,8 +6186,7 @@ fn apply_model_op(
         ModelOp::Add { lat, lng } => {
             let id = store.next_id.take();
             let l = loc(id.get(), *lat, *lng);
-            store
-                .edits
+            store.steps[Timeline::Edits]
                 .edit()
                 .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
             store.overlay_add(vec![l.clone()]);
@@ -6177,8 +6204,7 @@ fn apply_model_op(
             let l = store.get_loc_by_id(Id::new(id)).unwrap();
             store.overlay_remove(slice::from_ref(&l).iter());
             store.finish_mutation(&Change::from_sides(vec![], vec![l.clone()]));
-            store
-                .edits
+            store.steps[Timeline::Edits]
                 .edit()
                 .record(Arc::new(entry(Change::from_sides(vec![], vec![l]))));
             model.remove(&Id::new(id));
@@ -6205,9 +6231,11 @@ fn apply_model_op(
                 Some(new_loc.clone()),
             )]);
             store.finish_mutation(&change);
-            store.edits.edit().record(Arc::new(entry(Change::from_iter([
-                mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
-            ]))));
+            store.steps[Timeline::Edits]
+                .edit()
+                .record(Arc::new(entry(Change::from_iter([
+                    mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
+                ]))));
             model.insert(Id::new(id), new_loc);
         }
     }
@@ -6277,7 +6305,7 @@ proptest::proptest! {
         }
 
         let final_snapshot = model_snapshot(&model);
-        let pushed = store.edits.len(Stack::Undo);
+        let pushed = store.steps[Timeline::Edits].len(Stack::Undo);
 
         for _ in 0..pushed {
             press_undo(&mut store);
@@ -6982,8 +7010,8 @@ fn uploaded_add_matches_direct_add() {
         serde_json::to_value(&uploaded).unwrap()
     );
     assert_eq!(
-        direct_store.edits.len(Stack::Undo),
-        uploaded_store.edits.len(Stack::Undo)
+        direct_store.steps[Timeline::Edits].len(Stack::Undo),
+        uploaded_store.steps[Timeline::Edits].len(Stack::Undo)
     );
     assert_eq!(
         newest_undo(&direct_store).sides().0,
@@ -7009,7 +7037,7 @@ fn uploaded_add_rejects_malformed_chunk_before_mutating() {
     }
 
     assert_eq!(*store.alive_count, 1);
-    assert!(store.edits.len(Stack::Undo) == 0);
+    assert!(store.steps[Timeline::Edits].len(Stack::Undo) == 0);
 }
 
 #[test]
@@ -7108,7 +7136,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
             .heading,
         90.0
     );
-    assert_eq!(store.edits.len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
 }
 
 #[test]
@@ -7146,10 +7174,10 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     store.next_id = Ids::starting_at(Id::new(3));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     store.edit(&viewer(), vec![Op::Remove(Id::new(2))], &mut None);
-    assert_eq!(store.edits.len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
 
     store.land("viewer", &mut None);
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     assert_eq!(
         store
             .collect(
@@ -7217,7 +7245,7 @@ fn a_layer_lands_once_and_a_layer_closed_before_landing_never_lands() {
     ));
     let again = store.land("viewer", &mut None);
     assert_eq!(again.version, landed.version);
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     let draft = Target::Pending {
         name: "draft".into(),
@@ -7237,13 +7265,13 @@ fn an_empty_landing_joins_no_step_and_the_next_edit_through_it_starts_one() {
     store.edit(&viewer(), vec![], &mut None);
     store.land("viewer", &mut None);
     assert_eq!(store.pending["viewer"].stage, Stage::Landed(Joins::NewStep));
-    assert_eq!(store.edits.len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     assert!(matches!(
         store.pending["viewer"].stage,
         Stage::Landed(Joins::Step(_))
     ));
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 }
 
 #[test]
@@ -7252,7 +7280,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     store.next_id = Ids::starting_at(Id::new(2));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], &mut None);
     store.land("viewer", &mut None);
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     store.edit(
         &viewer(),
@@ -7275,7 +7303,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
         .next()
         .unwrap();
     assert_eq!((row.heading, row.pitch), (90.0, 5.0));
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     press_undo(&mut store);
     let row = store
@@ -7328,7 +7356,7 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
         &mut None,
     );
 
-    assert_eq!(store.edits.len(Stack::Undo), 3);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 3);
     press_undo(&mut store);
     let first = store.get_loc_by_id(Id::new(1)).unwrap();
     let second = store.get_loc_by_id(Id::new(2)).unwrap();
@@ -7542,7 +7570,7 @@ fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
         store.edit_values("tags", edits).unwrap();
         states.push(tag_records(&store));
     }
-    assert_eq!(store.edits.len(Stack::Undo), 4);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 4);
 
     for expected in states.iter().rev().skip(1) {
         undo_and_finish(&mut store);
@@ -7610,14 +7638,13 @@ fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
     store
         .edit_values("tags", vec![recolor(ids[0].get(), "#010203")])
         .unwrap();
-    let held: Vec<(u64, Entry)> = store
-        .edits
+    let held: Vec<(u64, Entry)> = store.steps[Timeline::Edits]
         .iter()
         .map(|(_, e)| (e.seq, (**e.entry.as_ref().unwrap()).clone()))
         .collect();
     assert!(held.iter().any(|(_, e)| !e.piles.is_empty()));
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         for (seq, entry) in &held {
             assert_eq!(&load_edit(conn, &Id::new("m".into()), *seq).unwrap(), entry);
         }
@@ -7668,11 +7695,11 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
         .field_defs
         .edit()
         .insert("a".into(), labelled_def("a"));
-    let steps = store.edits.len(Stack::Undo);
+    let steps = store.steps[Timeline::Edits].len(Stack::Undo);
 
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
-    assert_eq!(store.edits.len(Stack::Undo), steps + 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), steps + 1);
     assert!(!store.field_defs.contains_key("a"));
     assert_eq!(store.field_defs["b"], labelled_def("a"));
 
@@ -7732,11 +7759,11 @@ fn a_stored_edit_keeps_its_definition_moves() {
         .insert("a".into(), labelled_def("a"));
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
     apply_work(&mut store, &Selector::Everything, &rename).unwrap();
-    let (_, newest) = store.edits.iter().last().unwrap();
+    let (_, newest) = store.steps[Timeline::Edits].iter().last().unwrap();
     let held = (**newest.entry.as_ref().unwrap()).clone();
     assert!(!held.defs.is_empty());
 
-    save_edit_history(&conn, &Id::new("m".into()), &store.edits).unwrap();
+    save_edit_history(&conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
     assert_eq!(
         load_edit(&conn, &Id::new("m".into()), newest.seq).unwrap(),
         held
@@ -7930,7 +7957,7 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         .modified_at
         .is_some());
     assert!(store.get_loc_by_id(Id::new(3)).is_some());
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     store
         .step(Stack::Undo, Timeline::Edits, |_| {
             panic!("resident undo entry")
@@ -7976,7 +8003,7 @@ fn overlapping_merge_groups_fail_before_any_write() {
         })
     )
     .is_err());
-    assert_eq!(store.edits.len(Stack::Undo), 0);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
     for row in rows {
         assert_eq!(store.get_loc_by_id(row.id).unwrap(), row);
     }
@@ -8002,7 +8029,11 @@ fn metadata_edits_apply_and_ship_but_stay_out_of_history() {
     );
     assert_eq!(store.meta.name, "Renamed");
     assert_eq!(feed.last().derived.meta.unwrap().0.name, "Renamed");
-    assert_eq!(store.edits.len(Stack::Undo), 0, "meta edits never record");
+    assert_eq!(
+        store.steps[Timeline::Edits].len(Stack::Undo),
+        0,
+        "meta edits never record"
+    );
 }
 
 #[test]
@@ -8072,7 +8103,7 @@ fn clearing_the_selection_list_clears_membership_and_preserves_data_history() {
     assert!(store.selections.ids.is_empty());
     assert!(store.selections.node_counts.is_empty());
     assert_eq!(
-        store.edits.len(Stack::Undo),
+        store.steps[Timeline::Edits].len(Stack::Undo),
         0,
         "selection edits never record"
     );
@@ -8232,12 +8263,16 @@ fn selections_and_meta_only_edits_stay_out_of_data_history() {
     store.next_id = Ids::starting_at(Id::new(2));
     click_add(&mut store, 1.0, 1.0);
     press_undo(&mut store);
-    assert_eq!(store.edits.len(Stack::Redo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
 
     store.edit_selections(&crate::selections::tree::SelectionOp::Set { selections: vec![] });
-    assert_eq!(store.edits.len(Stack::Undo), 0, "no entry recorded");
     assert_eq!(
-        store.edits.len(Stack::Redo),
+        store.steps[Timeline::Edits].len(Stack::Undo),
+        0,
+        "no entry recorded"
+    );
+    assert_eq!(
+        store.steps[Timeline::Edits].len(Stack::Redo),
         1,
         "redo survives a selection edit"
     );
@@ -8274,11 +8309,11 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 90.0;
     store.write([Op::Set(row.clone())], &mut None, Entry::default());
-    let undo = store.edits.len(Stack::Undo);
+    let undo = store.steps[Timeline::Edits].len(Stack::Undo);
     step_selection(&mut store, Stack::Undo);
     assert_eq!(store.selections.list(), before);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
-    assert_eq!(store.edits.len(Stack::Undo), undo);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), undo);
     assert_eq!(store.selections.ids, IdSet::from_iter(loc_ids([1, 2])));
     assert_eq!(
         feed.last().derived.history.unwrap()[&Timeline::Selections].redo,
@@ -8289,7 +8324,7 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     assert_eq!(store.selections.list(), before);
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     step_selection(&mut store, Stack::Undo);
-    assert_eq!(store.edits.len(Stack::Redo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);
     press_redo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
 }
@@ -8477,9 +8512,9 @@ fn persisted_history_reports_the_same_availability_without_loading_row_payloads(
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 45.0;
     store.write([Op::Set(row)], &mut None, Entry::default());
-    let before = store.edits.availability();
+    let before = store.steps[Timeline::Edits].availability();
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         let reopened = load_edit_history(conn, &Id::new("m".into())).unwrap();
         assert!(reopened.iter().all(|(_, edit)| edit.entry.is_none()));
         assert!(before.undo);
@@ -8625,14 +8660,14 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
         "redo after reopen restores final rows"
     );
 
-    for _ in 0..reopened.edits.len(Stack::Undo) {
+    for _ in 0..reopened.steps[Timeline::Edits].len(Stack::Undo) {
         press_undo(&mut reopened);
     }
     assert!(
         store_snapshot(&mut reopened).is_empty(),
         "full undo reaches the empty start"
     );
-    for _ in 0..reopened.edits.len(Stack::Redo) {
+    for _ in 0..reopened.steps[Timeline::Edits].len(Stack::Redo) {
         press_redo(&mut reopened);
     }
     assert_eq!(
@@ -8791,8 +8826,8 @@ fn deleting_the_last_extra_member_survives_undo_redo_and_stored_history() {
     apply_updates(&mut store, &[patch], &mut None);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
     with_history_db(|conn| {
-        save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
-        for (_, edit) in store.edits.iter() {
+        save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
+        for (_, edit) in store.steps[Timeline::Edits].iter() {
             let restored = load_edit(conn, &Id::new("m".into()), edit.seq).unwrap();
             assert_eq!(&restored, edit.entry.as_deref().unwrap());
         }
@@ -8834,7 +8869,7 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
         store.get_loc_by_id(Id::new(1)).unwrap().modified_at,
         replaced.modified_at
     );
-    assert_eq!(store.edits.len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     let given = Location {
         created_at: 3,
@@ -9236,4 +9271,16 @@ fn derived_state_is_empty_only_when_no_part_of_it_moved() {
         },
     ];
     assert!(moved.iter().all(|derived| !derived.is_empty()));
+}
+
+#[test]
+fn each_timeline_has_its_own_stacks_and_reports_its_history() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.write([Op::Put(heading(1, 90.0))], &mut None, Entry::default());
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
+    assert_eq!(store.steps[Timeline::Selections].len(Stack::Undo), 0);
+    let history = store.history();
+    assert_eq!(history.len(), Timeline::ALL.len());
+    assert!(history[&Timeline::Edits].undo);
+    assert!(!history[&Timeline::Selections].undo);
 }

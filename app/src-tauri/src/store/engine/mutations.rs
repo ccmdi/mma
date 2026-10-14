@@ -393,7 +393,7 @@ impl Store {
         let Some(timeline) = entry.timeline() else {
             return;
         };
-        let edits = self.timeline(timeline).edit();
+        let edits = self.steps[timeline].edit();
         if entry.locations.len() > MAX_UNDO_LOCATIONS {
             edits.clear();
             return;

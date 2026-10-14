@@ -335,6 +335,9 @@ macro_rules! wire_str_enum {
             }
         }
         impl $name {
+            /// Every variant, in declaration order.
+            #[allow(dead_code, reason = "not every wire enum has an all-variants caller")]
+            pub const ALL: &'static [Self] = &[$(Self::$variant),*];
             pub fn ts_const() -> $crate::types::TsConst {
                 $crate::types::TsConst::strings([$((stringify!($variant), $value, $vdoc)),*]).with_doc(&[$($doc),*])
             }
