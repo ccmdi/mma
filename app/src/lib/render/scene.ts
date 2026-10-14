@@ -3,6 +3,7 @@ import { CellManager, SelectedIds, type FrameSummary } from "@/lib/render/CellMa
 import { cmd } from "@/lib/commands";
 import type { RGBA } from "@/lib/util/color";
 import type { RGB } from "@/bindings.gen";
+import { DEFAULT_MARKER_COLOR } from "@/bindings.consts";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { mapOpen } from "@/lib/util/debug";
@@ -15,7 +16,7 @@ import { serial } from "@/lib/util/concurrent";
 // frame subscription and its lifecycle); both it and the minimap render from the same
 // `CellManager`. Rust sends every change to the scene as a render frame on one channel.
 
-let markerDefault: RGBA = [42, 42, 42, 255];
+let markerDefault: RGBA = [...DEFAULT_MARKER_COLOR, 255];
 
 const scene = new CellManager();
 let lastMarkerStyle: MarkerStyle = "pin";

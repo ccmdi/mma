@@ -81,6 +81,7 @@ vi.mock("@/store/location", () => ({
 // The real fieldDefs module runs here, so the field catalog it reads has to be present.
 vi.mock("@/bindings.consts", () => ({
 	SCRATCH_MAP_ID: "scratch",
+	DEFAULT_MARKER_COLOR: [42, 42, 42],
 	LocationFlag: { None: 0, LoadAsPanoId: 1, Informational: 2 },
 	PanoType: { Official: 2, Unknown: 3, UserUploaded: 10 },
 	BUILTIN_FIELDS: {

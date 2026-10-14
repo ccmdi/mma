@@ -221,3 +221,67 @@ fn a_stored_review_mode_string_reads_as_its_mode_and_keeps_its_key() {
         assert_eq!(key(&selector), format!("review:s:{stored}"));
     }
 }
+
+#[test]
+fn a_selector_takes_the_same_default_colour_by_every_path_that_builds_it() {
+    let reviewed = Selector::Reviewed {
+        locations: vec![Id::new(1)],
+        session_id: "s".into(),
+        mode: ReviewMode::Unreviewed,
+    };
+    for selector in [tagged(1), reviewed] {
+        let key = key(&selector);
+        let expected = default_color(&selector, &key);
+        assert_eq!(Selection::of(selector.clone()).color, expected);
+        let compiled =
+            serde_json::from_value::<SelectionInput>(serde_json::json!({ "selector": selector }))
+                .unwrap()
+                .compile();
+        assert_eq!(compiled.color, expected);
+        let read: Selection =
+            serde_json::from_value(serde_json::json!({ "selector": selector })).unwrap();
+        assert_eq!(read.color, expected);
+    }
+    let rows = listed([tagged(1), tagged(2)]);
+    let combined = SelectionOp::Combine {
+        group: Group::Union,
+        keys: None,
+    }
+    .apply(&rows);
+    let group = Selection::of(combined[0].selection.selector.clone());
+    assert_eq!(combined[0].selection.color, group.color);
+}
+
+#[test]
+fn a_rewrite_keeps_a_leafs_colour_and_a_groups_colour_only_while_its_key_holds() {
+    let mut leaf = Selection::of(tagged(1));
+    leaf.color = Rgb([1, 2, 3]);
+    let renamed = leaf.rebuilt(tagged(2));
+    assert_eq!(renamed.key, Selection::of(tagged(2)).key);
+    assert_eq!(
+        renamed.color,
+        Rgb([1, 2, 3]),
+        "a rewritten leaf keeps its colour"
+    );
+
+    let mut group = Selection::of(Selector::Union {
+        selections: vec![leaf.clone(), Selection::of(tagged(3))],
+    });
+    group.color = Rgb([4, 5, 6]);
+    let mut recoloured_child = leaf.clone();
+    recoloured_child.color = Rgb([7, 8, 9]);
+    let same_key = group.rebuilt(Selector::Union {
+        selections: vec![recoloured_child, Selection::of(tagged(3))],
+    });
+    assert_eq!(same_key.color, Rgb([4, 5, 6]), "same members, same colour");
+
+    let new_members = Selector::Union {
+        selections: vec![leaf, Selection::of(tagged(4))],
+    };
+    let regrouped = group.rebuilt(new_members.clone());
+    assert_eq!(
+        regrouped.color,
+        Selection::of(new_members).color,
+        "a group whose members changed is new"
+    );
+}

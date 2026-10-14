@@ -426,6 +426,10 @@ fn export_consts() -> Result<(), String> {
         ),
         ("KNOWN_FIELDS", TsConst::value(store::maps::KNOWN_FIELDS)),
         (
+            "DEFAULT_MARKER_COLOR",
+            TsConst::value(store::engine::DEFAULT_MARKER_COLOR),
+        ),
+        (
             "PROJECTIONS",
             TsConst::value(selections::PROJECTIONS).unstable(),
         ),

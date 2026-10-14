@@ -84,9 +84,12 @@ pub struct ListedSelection {
 }
 
 impl Store {
+    /// What `entry` does to the selection list beyond its own changes: selections naming
+    /// values it empties are pruned, and a selection naming a value paints in that value's
+    /// record colour, when the selection is new to the list or the entry changes the record.
     pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
         let pruned = self.pruned_selections(entry);
-        let colors: HashMap<(&str, Id<ValueRecord>), Rgb> = entry
+        let changed: HashMap<(&str, Id<ValueRecord>), Rgb> = entry
             .piles
             .iter()
             .flat_map(|(field, pile)| {
@@ -94,16 +97,26 @@ impl Store {
                     .filter_map(move |(id, rec)| Some(((field.as_str(), *id), rec.shown_color()?)))
             })
             .collect();
-        if colors.is_empty() {
+        let listed = self.selections.table();
+        let is_new = |key: &str| !listed.contains_key(key);
+        if changed.is_empty() && !pruned.after().any(|(key, _)| is_new(key)) {
             return pruned;
         }
         self.selections.change(&pruned, |rows| {
             rows.into_iter()
-                .map(|row| ListedSelection {
-                    selection: row
-                        .selection
-                        .recolored(&|field, id| colors.get(&(field, Id::new(id))).copied()),
-                    ..row
+                .map(|row| {
+                    let new = is_new(&row.selection.key);
+                    let color = |field: &str, id: u32| {
+                        let id = Id::new(id);
+                        changed.get(&(field, id)).copied().or_else(|| {
+                            new.then(|| self.value_record(field, id)?.shown_color())
+                                .flatten()
+                        })
+                    };
+                    ListedSelection {
+                        selection: row.selection.recolored(&color),
+                        ..row
+                    }
                 })
                 .collect()
         })
@@ -342,21 +355,7 @@ impl Store {
         &mut self,
         op: &crate::selections::tree::SelectionOp,
     ) -> MutationResult {
-        let before = self.selections.table();
-        let rows = op
-            .apply(&self.selections.list())
-            .into_iter()
-            .map(|row| match before.contains_key(&row.selection.key) {
-                true => row,
-                false => ListedSelection {
-                    selection: row.selection.recolored(&|field, id| {
-                        self.value_record(field, Id::new(id))
-                            .and_then(ValueRecord::shown_color)
-                    }),
-                    ..row
-                },
-            })
-            .collect();
+        let rows = op.apply(&self.selections.list());
         self.replace_selections(rows)
     }
 

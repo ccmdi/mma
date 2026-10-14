@@ -4495,7 +4495,7 @@ fn selection_cell_segment_adapts_format() {
         cells,
         id_to_cell_idx: vec![0u8; n],
         arrow_style: false,
-        marker_color: Rgb([42, 42, 42]),
+        marker_color: DEFAULT_MARKER_COLOR,
     };
     let cr = render.cells[0].as_ref().unwrap();
     // header = 1 base32 byte + 4-byte loc count; per selection a format byte follows.

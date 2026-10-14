@@ -182,6 +182,9 @@ pub(crate) struct CellRender {
     pub id_to_index: HashMap<Id<Location>, usize>,
 }
 
+/// The colour a location's marker takes when no selection paints it.
+pub const DEFAULT_MARKER_COLOR: Rgb = Rgb([42, 42, 42]);
+
 pub(crate) struct RenderState {
     pub cells: [Option<CellRender>; 32],
     pub id_to_cell_idx: Vec<u8>,

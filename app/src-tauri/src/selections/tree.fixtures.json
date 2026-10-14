@@ -10788,7 +10788,7 @@
 				{
 					"selection": {
 						"key": "filter:b:eq:1",
-						"color": [89, 64, 191],
+						"color": [191, 64, 185],
 						"selector": { "type": "Filter", "field": "b", "test": { "op": "eq", "value": 1 } }
 					},
 					"ghosted": false
@@ -10868,7 +10868,7 @@
 							"selections": [
 								{
 									"key": "filter:b:eq:1",
-									"color": [89, 64, 191],
+									"color": [191, 64, 185],
 									"selector": { "type": "Filter", "field": "b", "test": { "op": "eq", "value": 1 } }
 								},
 								{

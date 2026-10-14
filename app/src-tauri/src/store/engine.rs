@@ -29,7 +29,6 @@ use rayon::prelude::*;
 use crate::selections;
 use crate::store::arrow::{schema, Columns};
 use crate::store::{arrow, maps};
-use crate::util::Rgb;
 use arrow_select::{concat, take};
 use specta::datatype::DataType;
 use specta::function::FunctionArg;
@@ -192,7 +191,7 @@ impl Store {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
                 arrow_style: false,
-                marker_color: Rgb([42, 42, 42]),
+                marker_color: DEFAULT_MARKER_COLOR,
             },
             selections: SelectionState::default(),
             value_meta: HashMap::new(),

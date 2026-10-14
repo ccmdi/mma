@@ -4,6 +4,7 @@ import { msg } from "@/lib/i18n";
 import type { TagSortMode } from "@/types";
 import type { PinnedEntry } from "./commandDefs";
 import type { RGB } from "@/bindings.gen";
+import { DEFAULT_MARKER_COLOR } from "@/bindings.consts";
 
 /** Supported languages, labeled in their own script. `en-XA` is a dev-only pseudolocale. */
 export const LANGUAGES = {
@@ -192,7 +193,7 @@ export const DEFAULTS = {
 	/** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
 	pastePadding: 0.003 as number,
 	followActiveInReview: true,
-	markerColor: [42, 42, 42] as RGB,
+	markerColor: [...DEFAULT_MARKER_COLOR] as RGB,
 	activeLocationColor: [200, 0, 0] as RGB,
 	importPreviewColor: [217, 70, 239] as RGB,
 	svTrail: true,

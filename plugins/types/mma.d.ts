@@ -480,6 +480,7 @@ declare const KNOWN_FIELDS: readonly [{
     readonly circularPeriod: null;
     readonly defaultOff: true;
 }];
+declare const DEFAULT_MARKER_COLOR: readonly [42, 42, 42];
 /** @unstable */
 declare const PROJECTIONS: readonly [{
     readonly id: "value";
@@ -537,6 +538,7 @@ declare const consts_CapturePick: typeof CapturePick;
 /** @unstable */
 export type consts_CapturePick = CapturePick;
 declare const consts_DEFAULT_DUPLICATE_SCORE: typeof DEFAULT_DUPLICATE_SCORE;
+declare const consts_DEFAULT_MARKER_COLOR: typeof DEFAULT_MARKER_COLOR;
 declare const consts_DatePart: typeof DatePart;
 /** @unstable */
 export type consts_DatePart = DatePart;
@@ -617,7 +619,7 @@ declare const consts_ValidationFlag: typeof ValidationFlag;
 /** @unstable */
 export type consts_ValidationFlag = ValidationFlag;
 declare namespace consts {
-  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
+  export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_DEFAULT_MARKER_COLOR as DEFAULT_MARKER_COLOR, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
   export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_Group as Group, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_Place as Place, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_ReviewMode as ReviewMode, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_Timeline as Timeline, consts_ValidationFlag as ValidationFlag };
 }
 
@@ -8011,5 +8013,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
+export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
 export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

@@ -16,20 +16,11 @@ pub struct SelectionInput {
 
 impl SelectionInput {
     pub fn compile(self) -> Selection {
-        let selector = self.selector.map_children(Self::compile);
-        let mut selection = Selection::of(selector);
-        selection.color = self.color.unwrap_or_else(|| match &selection.selector {
-            Selector::Reviewed { mode, .. } => Rgb::hsl(
-                match mode {
-                    ReviewMode::Reviewed => 145.0,
-                    ReviewMode::Unreviewed => 280.0,
-                },
-                0.6,
-                0.5,
-            ),
-            _ => selection.color,
-        });
-        selection
+        let selection = Selection::of(self.selector.map_children(Self::compile));
+        Selection {
+            color: self.color.unwrap_or(selection.color),
+            ..selection
+        }
     }
 }
 
@@ -196,7 +187,16 @@ pub fn key(selector: &Selector) -> String {
     }
 }
 
-pub fn color(key: &str) -> Rgb {
+/// The colour a selection takes when nothing chose one: a review's own hue, or one hashed
+/// from its key.
+pub fn default_color(selector: &Selector, key: &str) -> Rgb {
+    if let Selector::Reviewed { mode, .. } = selector {
+        let hue = match mode {
+            ReviewMode::Reviewed => 145.0,
+            ReviewMode::Unreviewed => 280.0,
+        };
+        return Rgb::hsl(hue, 0.6, 0.5);
+    }
     let hash = key
         .encode_utf16()
         .fold(0i32, |h, c| h.wrapping_mul(33).wrapping_add(c as i32));

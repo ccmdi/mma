@@ -251,6 +251,14 @@ A calendar component to group dates by.
 DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)"
 ```
 
+### DEFAULT_MARKER_COLOR
+
+`stable` · unreleased
+
+```ts
+DEFAULT_MARKER_COLOR: readonly [42, 42, 42]
+```
+
 ### EFFECT_CALLS
 
 `unstable` · since v0.10.7

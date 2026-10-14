@@ -287,12 +287,12 @@ impl<'de> Deserialize<'de> for Selection {
 }
 
 impl Selection {
-    /// A selection nobody displays, for code composing a query. The key is derived from
-    /// the selector so equal queries share it.
+    /// A new selection over `selector`, in its default colour. The key is derived from the
+    /// selector so equal queries share it.
     pub fn of(selector: Selector) -> Self {
         let key = tree::key(&selector);
         Selection {
-            color: tree::color(&key),
+            color: tree::default_color(&selector, &key),
             key,
             selector,
         }
@@ -309,9 +309,7 @@ impl Selection {
 
     pub fn mapped(&self, edit: &impl Fn(Selector) -> Selector) -> Self {
         self.fold(&mut |node, children| {
-            let mut next = Selection::of(edit(node.selector.with_children_ref(children)));
-            next.color = node.color;
-            next
+            node.rebuilt(edit(node.selector.with_children_ref(children)))
         })
     }
 
@@ -339,13 +337,19 @@ impl Selection {
         .next()
     }
 
+    /// This node over `selector`, rekeyed. Every tree rewrite goes through here, by one rule:
+    /// a rewritten leaf keeps its colour, and a group keeps its colour while its key holds.
+    /// A group whose members changed is a new group, in its default colour.
     pub fn rebuilt(&self, selector: Selector) -> Self {
         if selector == self.selector {
             return self.clone();
         }
-        let mut next = Selection::of(selector);
-        if next.key == self.key {
-            next.color = self.color;
+        let next = Selection::of(selector);
+        if next.key == self.key || next.selector.children().is_empty() {
+            return Selection {
+                color: self.color,
+                ..next
+            };
         }
         next
     }
@@ -365,9 +369,8 @@ impl Selection {
     /// Use the named value's colour for membership nodes when available.
     pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<Rgb>) -> Self {
         self.fold(&mut |node, children| Self {
-            key: node.key.clone(),
             color: node.named_value_color(color),
-            selector: node.selector.with_children_ref(children),
+            ..node.rebuilt(node.selector.with_children_ref(children))
         })
     }
 }
