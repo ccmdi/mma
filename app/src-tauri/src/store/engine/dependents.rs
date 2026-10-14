@@ -3,7 +3,12 @@ use crate::types::Location;
 use mma_algebra::{same_field_value, Field, JsonWrite, Patch, Patchable};
 
 impl Store {
-    pub(super) fn applied(&self, row: &Location, patch: &Patch<Location>) -> Location {
+    /// `row` with `patch` applied, and the derived fields the patch made stale, which it clears.
+    pub(super) fn applied(
+        &self,
+        row: &Location,
+        patch: &Patch<Location>,
+    ) -> (Location, HashSet<String>) {
         let mut new = row.patched(patch);
         let inputs = self
             .dependents
@@ -16,8 +21,8 @@ impl Store {
         });
         if !stale.is_empty() {
             let clears = stale
-                .into_iter()
-                .map(|key| (key, serde_json::Value::Null))
+                .iter()
+                .map(|key| (key.clone(), serde_json::Value::Null))
                 .collect();
             new.extra =
                 new.extra
@@ -25,7 +30,7 @@ impl Store {
                         clears,
                     ))));
         }
-        new
+        (new, stale)
     }
 
     pub(crate) fn retain_valid_outputs(

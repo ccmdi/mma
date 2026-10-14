@@ -224,7 +224,7 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
         Target,
         Vec<Edit<Location>>,
         IncomingRecords,
-    ) -> AppResult<MutationResult> = store_edit;
+    ) -> AppResult<EditResult> = store_edit;
 }
 
 #[test]
@@ -344,7 +344,7 @@ fn a_plain_add_on_the_open_map_never_skips_a_row_it_holds() {
         IncomingRecords::new(),
         &mut None,
     );
-    assert_eq!(added.keys.len(), 1);
+    assert_eq!(added.mutation.keys.len(), 1);
 }
 
 #[test]

@@ -927,6 +927,7 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
             Default::default(),
             &mut None,
         )
+        .mutation
         .keys[0];
     let parsed = ParsedMap {
         locations: vec![loc_with_tags(0, Vec::new()); 3],
@@ -950,6 +951,7 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
             Default::default(),
             &mut None,
         )
+        .mutation
         .keys[0];
     assert!(!run.contains(next));
 }

@@ -116,7 +116,7 @@ pub async fn store_edit_uploaded(
     state: tauri::State<'_, StoreState>,
     target: Target,
     session: String,
-) -> AppResult<MutationResult> {
+) -> AppResult<EditResult> {
     let started = Instant::now();
     // Read before taking the store lock: a malformed chunk must leave the store untouched.
     let edits = task::spawn_blocking(move || export::read_uploaded_chunks(&session)).await??;
@@ -218,7 +218,12 @@ fn copy_locations_to_map(
                 })
             })
             .collect();
-        let copied = target.at(&there).edit(adds, records, &mut None).keys.len() as u32;
+        let copied = target
+            .at(&there)
+            .edit(adds, records, &mut None)
+            .mutation
+            .keys
+            .len() as u32;
         Ok(CopyToMapResult {
             copied,
             skipped: total - copied,
@@ -511,21 +516,18 @@ fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
     ]
 }
 
-/// The receipt `window` waits on for `mutation` at `target`: version 0 when the edit reached
+/// The receipt `window` waits on for `edited` at `target`: version 0 when the edit reached
 /// a map this window does not watch, so waiting returns at once.
 fn receipt(
     store: &Store,
     window: &WindowLabel,
     target: &Target,
-    mutation: Mutation,
-) -> MutationResult {
-    let unwatched = matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(window);
-    MutationResult {
-        mutation: Mutation {
-            version: if unwatched { 0 } else { mutation.version },
-            ..mutation
-        },
+    mut edited: EditResult,
+) -> EditResult {
+    if matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(window) {
+        edited.mutation.version = 0;
     }
+    edited
 }
 
 #[cfg(test)]
@@ -535,10 +537,10 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> MutationResult => |store, window| {
+            "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> EditResult => |store, window| {
                 store.check_interned(&records)?;
-                let mutation = store.at(&target).edit(edits, records, &mut None);
-                Ok(receipt(store, window, &target, mutation))
+                let edited = store.at(&target).edit(edits, records, &mut None);
+                Ok(receipt(store, window, &target, edited))
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })

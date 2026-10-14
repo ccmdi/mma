@@ -2,7 +2,7 @@ use super::*;
 use crate::selections::{self, Selector};
 use crate::store::id_set::IdSet;
 use crate::types::Location;
-use mma_algebra::Id;
+use mma_algebra::{Id, Layer};
 
 /// The store as one target sees it: the map's own locations, or those under a pending layer.
 pub(crate) struct Targeted<'a> {
@@ -11,6 +11,13 @@ pub(crate) struct Targeted<'a> {
 }
 
 impl Store {
+    /// Location `id` with `layer`'s held edits applied.
+    pub(super) fn through(&self, layer: &Layer<Location>, id: Id<Location>) -> Option<Location> {
+        layer.get(id, self.get_loc_by_id(id), |row, patch| {
+            self.applied(row, patch).0
+        })
+    }
+
     /// The map as `target` sees it. Which map a target names is settled before this store
     /// is reached.
     pub(crate) fn at<'a>(&'a mut self, target: &'a Target) -> Targeted<'a> {
@@ -25,12 +32,9 @@ impl Store {
 impl Targeted<'_> {
     /// Location `id` as this target holds it.
     pub(crate) fn get(&self, id: Id<Location>) -> Option<Location> {
-        let below = self.store.get_loc_by_id(id);
         match self.layer.and_then(|name| self.store.pending.get(name)) {
-            Some(pending) => pending
-                .layer
-                .get(id, below, |row, patch| self.store.applied(row, patch)),
-            None => below,
+            Some(pending) => self.store.through(&pending.layer, id),
+            None => self.store.get_loc_by_id(id),
         }
     }
 

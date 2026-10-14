@@ -54,11 +54,12 @@ fn add_rows(store: &mut Store, locs: Vec<Location>) -> Mutation {
     store
         .at(&Target::Map { id: None })
         .edit(edits, Default::default(), &mut None)
+        .mutation
 }
 
 fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Location, Location)> {
     let old = store.get_loc_by_id(patch.id)?;
-    let mut new = store.applied(&old, patch);
+    let (mut new, _) = store.applied(&old, patch);
     if new != old {
         new.touch();
     }
@@ -674,13 +675,13 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
         .at(&Target::Map { id: None })
         .edit(big, Default::default(), &mut None);
 
-    assert!(written.history_cleared);
+    assert!(written.mutation.history_cleared);
     let small = store.at(&Target::Map { id: None }).edit(
         vec![Op::Add(loc(0, 0.0, 0.0))],
         Default::default(),
         &mut None,
     );
-    assert!(!small.history_cleared);
+    assert!(!small.mutation.history_cleared);
     assert_eq!(*store.alive_count, MAX_UNDO_LOCATIONS + 3);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 0);
@@ -3077,11 +3078,14 @@ fn at_map(id: &Id<MapMeta, String>) -> Target {
 
 fn add_one(target: &Target) -> impl FnOnce(&mut Store) -> AppResult<Mutation> + '_ {
     move |store| {
-        Ok(store.at(target).edit(
-            vec![Op::Add(loc(0, 1.0, 2.0))],
-            IncomingRecords::new(),
-            &mut None,
-        ))
+        Ok(store
+            .at(target)
+            .edit(
+                vec![Op::Add(loc(0, 1.0, 2.0))],
+                IncomingRecords::new(),
+                &mut None,
+            )
+            .mutation)
     }
 }
 
@@ -7355,11 +7359,14 @@ fn uploaded_add_matches_direct_add() {
     let direct = add_rows(&mut direct_store, locs.clone());
 
     let mut uploaded_store = setup_store_with(&[]);
-    let uploaded = uploaded_store.at(&Target::Map { id: None }).edit(
-        uploaded(&[locs[..2].to_vec(), locs[2..].to_vec()]),
-        Default::default(),
-        &mut None,
-    );
+    let uploaded = uploaded_store
+        .at(&Target::Map { id: None })
+        .edit(
+            uploaded(&[locs[..2].to_vec(), locs[2..].to_vec()]),
+            Default::default(),
+            &mut None,
+        )
+        .mutation;
 
     assert_eq!(
         serde_json::to_value(&direct).unwrap(),
@@ -7796,15 +7803,15 @@ fn only_an_edit_held_in_an_unlanded_layer_reports_version_zero() {
         Default::default(),
         &mut None,
     );
-    assert_ne!(at_map.version, 0);
-    assert_eq!(at_map.version, store.version);
+    assert_ne!(at_map.mutation.version, 0);
+    assert_eq!(at_map.mutation.version, store.version);
 
     let held = store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 20.0))],
         Default::default(),
         &mut None,
     );
-    assert_eq!(held.version, 0);
+    assert_eq!(held.mutation.version, 0);
 
     store.land("viewer", &mut None);
     let landed = store.at(&viewer()).edit(
@@ -7812,8 +7819,8 @@ fn only_an_edit_held_in_an_unlanded_layer_reports_version_zero() {
         Default::default(),
         &mut None,
     );
-    assert_ne!(landed.version, 0);
-    assert_eq!(landed.version, store.version);
+    assert_ne!(landed.mutation.version, 0);
+    assert_eq!(landed.mutation.version, store.version);
 }
 
 #[test]
@@ -7825,7 +7832,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
         Default::default(),
         &mut None,
     );
-    assert_eq!(r.keys, loc_ids([2]));
+    assert_eq!(r.mutation.keys, loc_ids([2]));
     assert!(store
         .at(&Target::Map { id: None })
         .rows(&Selector::Locations {
@@ -7903,6 +7910,52 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     assert_eq!(events[0]["updated"], serde_json::json!([1]));
     assert_eq!(events[1]["updated"], serde_json::json!([1]));
     assert!(events[1]["version"].as_u64() > events[0]["version"].as_u64());
+}
+
+fn held_on_pano(pano: &str) -> Store {
+    let mut store = setup_store_with(&[Location {
+        pano_id: Some(pano.into()),
+        ..loc(1, 0.0, 0.0)
+    }]);
+    store.dependents = Arc::new(mma_algebra::Dependents::new(HashMap::from([(
+        "panoId".to_string(),
+        vec!["countryCode".to_string()],
+    )])));
+    store
+}
+
+fn held_edit(store: &mut Store, patch: Patch<Location>) -> Vec<String> {
+    store
+        .at(&viewer())
+        .edit(vec![Op::Put(patch)], Default::default(), &mut None)
+        .invalidated
+}
+
+fn to_pano(pano: &str) -> Patch<Location> {
+    Patch::<Location> {
+        id: Id::new(1),
+        pano_id: Field::Set(pano.into()),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn a_held_patch_moving_an_input_reports_the_fields_it_makes_stale() {
+    let mut store = held_on_pano("A");
+    assert_eq!(held_edit(&mut store, to_pano("B")), ["countryCode"]);
+    assert_eq!(held_edit(&mut store, to_pano("A")), ["countryCode"]);
+}
+
+#[test]
+fn a_held_patch_changing_no_input_reports_nothing_stale() {
+    let mut store = held_on_pano("A");
+    let flags = Patch::<Location> {
+        id: Id::new(1),
+        flags: Some(LocationFlags::LOAD_AS_PANO_ID),
+        ..Default::default()
+    };
+    assert!(held_edit(&mut store, flags).is_empty());
+    assert!(held_edit(&mut store, to_pano("A")).is_empty());
 }
 
 #[test]
@@ -9230,22 +9283,24 @@ fn every_location_write_path_hands_out_ids_no_row_has_held() {
     let edited = store
         .at(&Target::Map { id: None })
         .edit(add(), Default::default(), &mut None);
-    fresh(&mut seen, &edited.keys);
+    fresh(&mut seen, &edited.mutation.keys);
     let pending = Target::Pending { name: "p".into() };
     let staged = store
         .at(&pending)
         .edit(add(), Default::default(), &mut None);
-    fresh(&mut seen, &staged.keys);
+    fresh(&mut seen, &staged.mutation.keys);
     let landed = store
         .at(&pending)
         .edit(add(), Default::default(), &mut None);
     store.land("p", &mut None);
-    fresh(&mut seen, &landed.keys);
+    fresh(&mut seen, &landed.mutation.keys);
     let newest = *seen.last().unwrap();
     store.write([Op::Remove(newest)], &mut None, Entry::default());
     let after_delete = store.write(add(), &mut None, Entry::default());
     fresh(&mut seen, &after_delete.keys);
-    assert!(store.get_loc_by_id(*staged.keys.first().unwrap()).is_some());
+    assert!(store
+        .get_loc_by_id(*staged.mutation.keys.first().unwrap())
+        .is_some());
 }
 
 #[test]
@@ -9261,7 +9316,7 @@ fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
         Default::default(),
         &mut None,
     );
-    assert!(fresh.keys.iter().all(|id| id.get() > 5));
+    assert!(fresh.mutation.keys.iter().all(|id| id.get() > 5));
     assert_eq!(store.get_loc_by_id(Id::new(5)).unwrap().lat, 0.0);
 }
 
@@ -9422,7 +9477,7 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
         .at(&pending)
         .edit(vec![Op::Add(given)], Default::default(), &mut None);
     store.land("p", &mut None);
-    let landed = store.get_loc_by_id(staged.keys[0]).unwrap();
+    let landed = store.get_loc_by_id(staged.mutation.keys[0]).unwrap();
     assert!(landed.created_at > 4);
     assert_eq!(landed.modified_at, None);
 }
@@ -9562,7 +9617,7 @@ fn a_held_edit_that_changes_nothing_on_the_map_announces_nothing() {
         Default::default(),
         &mut None,
     );
-    assert_eq!(held.version, version);
+    assert_eq!(held.mutation.version, version);
     assert_eq!(feed.len(), 0);
     store.close_layer("viewer");
     assert_eq!(feed.len(), 0);

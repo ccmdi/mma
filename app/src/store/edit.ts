@@ -14,7 +14,10 @@ export const Edit = {
 		edits: Parameters<typeof cmd.storeEdit>[1],
 		records: Parameters<typeof cmd.storeEdit>[2] = {},
 	) => {
-		return Mutation.run(() => cmd.storeEdit(target, edits, records));
+		return Mutation.run(() => cmd.storeEdit(target, edits, records), {
+			...Mutation.none(),
+			invalidated: [],
+		});
 	},
 	/** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.
 	 *  Settings merge key by key, so send only the keys that change. */

@@ -91,6 +91,15 @@ pub struct MutationResult<T = Location> {
     pub mutation: Mutation<T>,
 }
 
+/// What a location edit did.
+#[derive(serde::Serialize, specta::Type)]
+pub struct EditResult {
+    /// The version the edit reached and the keys it assigned.
+    pub mutation: Mutation,
+    /// Derived fields the edit cleared because a field they are computed from changed.
+    pub invalidated: Vec<String>,
+}
+
 /// A map change broadcast to subscribers, with the keys it changed and derived state.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -211,7 +220,7 @@ impl Store {
         let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
-                |old, patch| self.applied(old, patch),
+                |old, patch| self.applied(old, patch).0,
             )
             .map(|mut row| {
                 if let (Some(before), Some(after)) = (&row.before, &mut row.after) {
@@ -677,13 +686,16 @@ impl Targeted<'_> {
         edits: Vec<Edit<Location>>,
         records: IncomingRecords,
         join: &mut Option<u64>,
-    ) -> Mutation {
+    ) -> EditResult {
         let store = &mut *self.store;
         let Some(name) = self.layer else {
-            return store.write_incoming(edits, records, join);
+            return EditResult {
+                mutation: store.write_incoming(edits, records, join),
+                invalidated: Vec::new(),
+            };
         };
         let pending = store.pending.entry(name.to_string()).or_default();
-        let result = if let Some(joins) = pending.stage.landed() {
+        let (mutation, invalidated) = if let Some(joins) = pending.stage.landed() {
             if let Joins::Step(step) = joins {
                 join.get_or_insert(step);
             }
@@ -694,14 +706,29 @@ impl Targeted<'_> {
                     _ => Stage::Landed(Joins::from(*join)),
                 };
             }
-            result
+            (result, BTreeSet::new())
         } else {
-            let keys = layered(&mut pending.layer, edits, &mut store.next_id);
+            let mut layer = mem::take(&mut pending.layer);
+            let mut keys = Vec::new();
+            let mut invalidated = BTreeSet::new();
+            for edit in edits {
+                if let Op::Put(patch) = &edit {
+                    if let Some(row) = store.through(&layer, patch.id) {
+                        invalidated.extend(store.applied(&row, patch).1);
+                    }
+                }
+                keys.extend(layered(&mut layer, [edit], &mut store.next_id));
+            }
+            let pending = store.pending.entry(name.to_string()).or_default();
+            pending.layer = layer;
             pending.records.extend(records);
-            store.held(keys)
+            (store.held(keys), invalidated)
         };
         store.settle_layers();
-        result
+        EditResult {
+            mutation,
+            invalidated: invalidated.into_iter().collect(),
+        }
     }
 }
 

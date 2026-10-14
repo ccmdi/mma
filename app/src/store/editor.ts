@@ -56,7 +56,6 @@ const refreshes = latest<{ open: Opening; location: Location | null }>({
 		if (!location) return Editor.close();
 		const next = { ...open, location };
 		update({ open: next });
-		if (location.panoId !== open.location.panoId) enrichDraft(next);
 	},
 	failed: (error) => log.error("[editor] draft read failed:", error),
 });
@@ -94,9 +93,10 @@ const lifetime = latest({ owner: () => state.open?.layer });
 const drafts = new WeakMap<Layer, Draft>();
 const inert: Draft = { edit: async () => null, save: async () => null };
 
-function draftOf({ id, layer }: Opening): Draft {
+function draftOf(open: Opening): Draft {
+	const { id, layer } = open;
 	const edit = async (patch: DraftPatch | ((location: Location) => DraftPatch)) => {
-		await layer.edit(async (read) => {
+		const { invalidated } = await layer.edit(async (read) => {
 			const [location] = await read(
 				{ type: "Locations", locations: [id], name: null },
 				{ kind: "locations" },
@@ -104,6 +104,7 @@ function draftOf({ id, layer }: Opening): Draft {
 			if (!location) return [];
 			return [{ put: { ...(typeof patch === "function" ? patch(location) : patch), id } }];
 		});
+		if (invalidated.length > 0) enrichDraft(open);
 		await Editor.refresh();
 	};
 	const save = async (patch: DraftPatch) => {

@@ -1804,7 +1804,7 @@ edit.locations(
   target: Target,
   edits: Parameters<typeof cmd.storeEdit>[1],
   records?: Parameters<typeof cmd.storeEdit>[2],
-): Promise<MutationResult<Location>>
+): Promise<EditResult>
 ```
 
 Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
@@ -3526,7 +3526,7 @@ Edit.locations(
   target: Target,
   edits: Parameters<typeof cmd.storeEdit>[1],
   records?: Parameters<typeof cmd.storeEdit>[2],
-): Promise<MutationResult<Location>>
+): Promise<EditResult>
 ```
 
 Edit locations on a map or in a pending layer. Rows refer to interned values such as tags
@@ -6563,7 +6563,7 @@ cmd.storeEdit(
   target: Target,
   edits: Op<Location, Partial<Location> & Pick<Location, "id">, number>[],
   records: { [key in string]: { [key_1 in number]: ValueRecord } },
-): Promise<MutationResult<Location>>
+): Promise<EditResult>
 ```
 
 Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing.
@@ -6583,10 +6583,7 @@ Edit the selection tree.
 `unstable` · unreleased
 
 ```ts
-cmd.storeEditUploaded(
-  target: Target,
-  session: string,
-): Promise<MutationResult<Location>>
+cmd.storeEditUploaded(target: Target, session: string): Promise<EditResult>
 ```
 
 Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change.

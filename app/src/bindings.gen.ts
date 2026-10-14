@@ -7,7 +7,7 @@ import type { CameraType, CapturePick, DatePart, FieldType, Group, FirstSyncMode
 /** Commands */
 export const commands = {
 	/** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. */
-	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<MutationResult>("store_edit", { target, edits, records }),
+	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<EditResult>("store_edit", { target, edits, records }),
 	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
 	storeLandLayer: (name: string) => __TAURI_INVOKE<MutationResult>("store_land_layer", { name }),
 	/** Run work over every location matched by selector. */
@@ -176,7 +176,7 @@ export const commands = {
 	 */
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. */
-	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<MutationResult>("store_edit_uploaded", { target, session }),
+	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<EditResult>("store_edit_uploaded", { target, session }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
@@ -706,6 +706,14 @@ export type DeviceCodeInfo = {
 	verificationUri: string,
 	/**  Seconds until `userCode` stops working. */
 	expiresIn: number,
+};
+
+/**  What a location edit did. */
+export type EditResult = {
+	/**  The version the edit reached and the keys it assigned. */
+	mutation: Mutation,
+	/**  Derived fields the edit cleared because a field they are computed from changed. */
+	invalidated: string[],
 };
 
 /**

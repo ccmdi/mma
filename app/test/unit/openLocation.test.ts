@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
 	edits: 0,
 	panoId: "A",
 	editError: null as Error | null,
+	invalidated: [] as string[],
 	runs: [] as {
 		target: unknown;
 		signal: AbortSignal;
@@ -45,7 +46,7 @@ vi.mock("@/lib/commands", () => ({
 		storeEdit: async () => {
 			h.edits++;
 			if (h.editError) throw h.editError;
-			return { mutation: { version: 0, keys: [100] } };
+			return { mutation: { version: 0, keys: [100] }, invalidated: h.invalidated };
 		},
 		storeCloseLayer: async (name: string) => {
 			h.dropped.push(name);
@@ -98,6 +99,7 @@ beforeEach(() => {
 	h.missing.clear();
 	h.lat = 0;
 	h.edits = 0;
+	h.invalidated = [];
 	h.editError = null;
 	h.panoId = "A";
 	h.runs = [];
@@ -394,24 +396,33 @@ describe("editor-owned enrichment", () => {
 		expect(h.runs).toHaveLength(1);
 		expect(h.runs[0].signal.aborted).toBe(false);
 	});
-	it("supersedes a run when the current pano changes", async () => {
+	it("supersedes a run when a draft edit makes derived fields stale", async () => {
 		settings();
 		await Editor.open(7);
 		await vi.waitUntil(() => h.runs.length === 1);
-		h.panoId = "B";
-		await Editor.refresh();
+		h.invalidated = ["imageDate"];
+		await Editor.draft().edit({ panoId: "B" });
 		await vi.waitUntil(() => h.runs.length === 2);
 		expect(h.runs[0].signal.aborted).toBe(true);
 		expect(h.runs[1].signal.aborted).toBe(false);
 	});
-	it("reads the enabled setting when a pano change would start a run", async () => {
+	it("a draft edit that makes nothing stale starts no run", async () => {
+		settings();
+		await Editor.open(7);
+		await vi.waitUntil(() => h.runs.length === 1);
+		h.panoId = "B";
+		await Editor.draft().edit({ flags: 1 });
+		expect(h.runs).toHaveLength(1);
+		expect(h.runs[0].signal.aborted).toBe(false);
+	});
+	it("reads the enabled setting when a stale draft would start a run", async () => {
 		settings();
 		await Editor.open(7);
 		await vi.waitUntil(() => h.runs.length === 1);
 		settings(false);
 		expect(h.runs[0].signal.aborted).toBe(false);
-		h.panoId = "B";
-		await Editor.refresh();
+		h.invalidated = ["imageDate"];
+		await Editor.draft().edit({ panoId: "B" });
 		expect(h.runs[0].signal.aborted).toBe(true);
 		expect(h.runs).toHaveLength(1);
 	});
