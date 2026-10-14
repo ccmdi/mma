@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::selections::tree::SelectionOp;
-use crate::selections::{self, Selection, Selector};
+use crate::selections::{self, Selection};
 use crate::store::id_set::IdSet;
 use crate::types::Location;
 use crate::util::Rgb;
@@ -123,7 +123,7 @@ impl Store {
         })
     }
 
-    /// Remove selections naming values that this write emptied.
+    /// Remove the listed rows that are exactly a test for a value this write emptied.
     fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
         let gone = self.emptied_values(&entry.locations, |field| {
             entry
@@ -137,8 +137,11 @@ impl Store {
         if gone.is_empty() {
             return entry.selections.clone();
         }
-        let kept = without(&gone);
-        self.selections.rewrite(&entry.selections, &kept)
+        self.selections.change(&entry.selections, |rows| {
+            rows.into_iter()
+                .filter(|row| !names_emptied(&gone, row))
+                .collect()
+        })
     }
 
     /// Interned values that hold no row once `rows` apply, among the values `rows` move and
@@ -191,15 +194,12 @@ impl Store {
     }
 }
 
-/// A selector edit that drops each test for membership of a value in `gone`.
-fn without(gone: &HashSet<(String, String)>) -> impl Fn(&Selector) -> Option<Selector> + '_ {
-    |selector| {
-        let named = selector.member_test();
-        match named.is_some_and(|(field, id)| gone.contains(&(field.to_string(), id.to_string()))) {
-            true => None,
-            false => Some(selector.clone()),
-        }
-    }
+/// Whether `row` is exactly the test for membership of a value in `gone`.
+fn names_emptied(gone: &HashSet<(String, String)>, row: &ListedSelection) -> bool {
+    row.selection
+        .selector
+        .member_test()
+        .is_some_and(|(field, id)| gone.contains(&(field.to_string(), id.to_string())))
 }
 
 /// A listed selection and its place in the list, counted from the top.
@@ -283,23 +283,6 @@ impl SelectionState {
         pending.apply_to(&mut held);
         let after = numbered(edit(listed_rows(held)));
         Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
-    }
-
-    pub(crate) fn rewrite(
-        &self,
-        pending: &SelectionDelta,
-        edit: &impl Fn(&Selector) -> Option<Selector>,
-    ) -> SelectionDelta {
-        self.change(pending, |rows| {
-            rows.into_iter()
-                .filter_map(|row| {
-                    Some(ListedSelection {
-                        selection: row.selection.filter_map(edit)?,
-                        ..row
-                    })
-                })
-                .collect()
-        })
     }
 
     pub(crate) fn apply(&mut self, change: &SelectionDelta) {
@@ -399,32 +382,23 @@ impl Store {
         self.replace_selections(rows)
     }
 
-    /// `table` without the tests for values no row holds any more. A row keeps its place.
+    /// `table` without the rows that are exactly a test for a value no row holds any more.
     pub(crate) fn valid_selections(
         &mut self,
         table: HashMap<String, Listing>,
     ) -> HashMap<String, Listing> {
         let named = |field: &str| {
-            let mut ids = Vec::new();
-            for listing in table.values() {
-                listing.row.selection.selector.walk(&mut |selector| {
-                    if let Some((tested, id)) = selector.member_test() {
-                        if tested == field {
-                            ids.push(id.to_string());
-                        }
-                    }
-                });
-            }
-            ids
+            table
+                .values()
+                .filter_map(|listing| listing.row.selection.selector.member_test())
+                .filter(|(tested, _)| *tested == field)
+                .map(|(_, id)| id.to_string())
+                .collect()
         };
         let gone = self.emptied_values(&Change::default(), named);
         table
-            .into_values()
-            .filter_map(|Listing { order, row }| {
-                let selection = row.selection.filter_map(&without(&gone))?;
-                let row = ListedSelection { selection, ..row };
-                Some((row.selection.key.clone(), Listing { order, row }))
-            })
+            .into_iter()
+            .filter(|(_, listing)| !names_emptied(&gone, &listing.row))
             .collect()
     }
 

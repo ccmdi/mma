@@ -8850,40 +8850,71 @@ fn selection_history_undoes_and_redoes_each_change_in_order() {
     assert!(!setup_store_with(&[loc(1, 0.0, 0.0)]).history()[&Timeline::Selections].undo);
 }
 
-#[test]
-fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
-    use crate::selections::tree::{SelectionInput, SelectionOp};
-    let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    store.edit_selections(&SelectionOp::Set {
-        selections: vec![
-            SelectionInput {
-                selector: Selector::Filter {
-                    field: "tags".into(),
-                    test: selections::FilterOp::Contains { value: 7.into() },
-                },
-                color: None,
-            },
-            SelectionInput {
-                selector: Selector::Everything,
-                color: None,
-            },
-        ],
-    });
-    store.edit_selections(&SelectionOp::Combine {
-        group: selections::tree::Group::Union,
-        keys: None,
-    });
-    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+fn composites_naming(a: u32, b: u32) -> Vec<ListedSelection> {
+    let leaf = |id| Selection::of(Selector::tag(id));
+    [
+        Selector::Intersection {
+            selections: vec![leaf(a), leaf(b)],
+        },
+        Selector::Union {
+            selections: vec![leaf(a), leaf(b)],
+        },
+        Selector::Invert {
+            selections: vec![leaf(a)],
+        },
+    ]
+    .into_iter()
+    .map(|selector| ListedSelection {
+        selection: Selection::of(selector),
+        ghosted: false,
+    })
+    .collect()
+}
+
+fn untag_row_one(store: &mut Store) {
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
+}
+
+#[test]
+fn an_emptied_value_removes_only_the_listed_row_that_names_it() {
+    let mut store = setup_store_with(&[
+        loc_with_tags(1, 0.0, 0.0, vec![7]),
+        loc_with_tags(2, 1.0, 1.0, vec![8]),
+    ]);
+    let composites = composites_naming(7, 8);
+    edit_selection_fixture(&mut store, |rows| {
+        rows.push(tag_row(7));
+        rows.extend(composites.clone());
+    });
+    untag_row_one(&mut store);
+    assert_eq!(store.selections.list(), composites);
+}
+
+#[test]
+fn replaying_selections_removes_only_the_listed_row_that_names_an_emptied_value() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[
+        loc_with_tags(1, 0.0, 0.0, vec![7]),
+        loc_with_tags(2, 1.0, 1.0, vec![8]),
+    ]);
+    fn input(selection: Selection) -> SelectionInput {
+        SelectionInput {
+            selector: selection.selector.map_children(input),
+            color: None,
+        }
+    }
+    let inputs = iter::once(tag_row(7))
+        .chain(composites_naming(7, 8))
+        .map(|row| input(row.selection))
+        .collect();
+    store.edit_selections(&SelectionOp::Set { selections: inputs });
+    let listed = store.selections.list();
+    store.edit_selections(&SelectionOp::Set { selections: vec![] });
+    untag_row_one(&mut store);
     step_selection(&mut store, Stack::Undo);
-    assert_eq!(store.selections.list().len(), 1);
-    assert_eq!(
-        store.selections.list()[0].selection.selector,
-        Selector::Everything
-    );
-    assert!(store.selections.ids.contains(Id::new(1)));
+    assert_eq!(store.selections.list(), listed[1..]);
 }
 
 #[test]
