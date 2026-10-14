@@ -171,10 +171,10 @@ export const commands = {
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
 	/**
-	 *  Copy locations into another map, skipping ones the target already has. Extra fields carry
-	 *  over, and interned values such as tags are matched to the target's by name.
+	 *  Copy the locations that `selector` matches into another map, skipping ones it already has.
+	 *  Extra fields carry over, and interned values such as tags are matched to the target's by name.
 	 */
-	storeCopyLocationsToMap: (targetMapId: string, source: CopySource) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, source }),
+	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**
 	 *  Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
 	 *  one change.
@@ -629,13 +629,6 @@ export type ConflictKind =
 "delete-update" | 
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
-
-/**  The locations a copy to another map takes. */
-export type CopySource = 
-/**  The open map's locations that the selector matches. */
-{ kind: "selected"; selector: Selector<SelectionInput> } | 
-/**  Locations given with the call, whose interned values are this map's. */
-{ kind: "given"; locations: Location[] };
 
 /**  Result of copying locations to another map. */
 export type CopyToMapResult = {

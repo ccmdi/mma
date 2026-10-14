@@ -169,99 +169,56 @@ pub async fn store_country_distribution(
     borders::tally_countries(&level, &coords?)
 }
 
-/// The locations a copy to another map takes.
-#[derive(serde::Deserialize, specta::Type)]
-#[serde(tag = "kind", rename_all = "camelCase")]
-pub enum CopySource {
-    /// The open map's locations that the selector matches.
-    Selected { selector: Selector<SelectionInput> },
-    /// Locations given with the call, whose interned values are this map's.
-    Given { locations: Vec<Location> },
-}
-
-/// Copy locations into another map, skipping ones the target already has. Extra fields carry
-/// over, and interned values such as tags are matched to the target's by name.
-// An open target's windows receive the change feed and schedule autosave; a closed target is
-// loaded, edited the same way, and saved.
+/// Copy the locations that `selector` matches into another map, skipping ones it already has.
+/// Extra fields carry over, and interned values such as tags are matched to the target's by name.
 #[tauri::command]
 #[specta::specta]
 pub fn store_copy_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target_map_id: Id<MapMeta, String>,
-    source: CopySource,
+    selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
-    let _t = Instant::now();
-    // The manager lock is held throughout: it serializes a closed target's load and save
-    // against a concurrent store_open_map of the same map.
-    let mut mgr = state.lock()?;
-    let source_map_id = mgr.map_id_for_window(&label)?;
-    if source_map_id == target_map_id {
-        return Err(AppError("cannot copy a location into its own map".into()));
-    }
-
-    let (sources, source_records) = {
-        let src = mgr.store_for_map(&source_map_id)?;
-        let rows = match source {
-            CopySource::Selected { selector } => src.collect(
-                &Target::Map { id: None },
-                &selector.map_children(SelectionInput::compile),
-            ),
-            CopySource::Given { locations } => locations,
-        };
-        (rows, src.held_value_records())
-    };
-    if sources.is_empty() {
-        return Ok(CopyToMapResult {
-            copied: 0,
-            skipped: 0,
-        });
-    }
-
-    let open = mgr.stores.contains_key(&target_map_id);
-    let mut loaded;
-    let target = if open {
-        mgr.store_for_map(&target_map_id)?
-    } else {
-        loaded = load_store(&target_map_id)?;
-        loaded.dependents = mgr.providers.dependents();
-        &mut loaded
-    };
-    let copied = copy_into(target, sources, &source_records);
-    if !open {
-        if let Some(unsaved) = target.unsaved()? {
-            unsaved.write(
-                &storage::open_db()?,
-                &target_map_id,
-                &storage::arrow_delta_path(&target_map_id)?,
-            )?;
-        }
-    }
+    let started = Instant::now();
+    let copied = copy_locations_to_map(&state, &label, target_map_id, selector)?;
     log::debug!(
-        "[cmd] copy_to_map open={open} copied={} total={}ms",
+        "[cmd] copy_to_map copied={} skipped={} total={}ms",
         copied.copied,
-        _t.elapsed().as_millis()
+        copied.skipped,
+        started.elapsed().as_millis()
     );
     Ok(copied)
 }
 
-/// Add the `sources` that `target` lacks, with the records they reference among `records`.
-fn copy_into(
-    target: &mut Store,
-    sources: Vec<Location>,
-    records: &IncomingRecords,
-) -> CopyToMapResult {
-    let held = HeldRows::of(&target.collect(&Target::Map { id: None }, &Selector::Everything));
-    let total = sources.len() as u32;
-    let fresh: Vec<Location> = sources.into_iter().filter(|row| !held.holds(row)).collect();
-    let copied = fresh.len() as u32;
-    let skipped = total - copied;
-    if copied > 0 {
-        let records = referenced_records(records, &fresh);
+fn copy_locations_to_map(
+    state: &StoreState,
+    label: &WindowLabel,
+    target_map_id: Id<MapMeta, String>,
+    selector: Selector<SelectionInput>,
+) -> AppResult<CopyToMapResult> {
+    let here = Target::Map { id: None };
+    let (matched, records) = with_target(state, label, &here, |source| {
+        if source.meta.id == target_map_id {
+            return Err(AppError("cannot copy a location into its own map".into()));
+        }
+        let rows = source.collect(&here, &selector.map_children(SelectionInput::compile));
+        Ok((rows, source.held_value_records()))
+    })?;
+    let there = Target::Map {
+        id: Some(target_map_id),
+    };
+    with_target(state, label, &there, |target| {
+        let held = HeldRows::of(&target.collect(&there, &Selector::Everything));
+        let total = matched.len() as u32;
+        let fresh: Vec<Location> = matched.into_iter().filter(|row| !held.holds(row)).collect();
+        let records = referenced_records(&records, &fresh);
         let adds = fresh.into_iter().map(Op::Add).collect();
-        target.edit(&Target::Map { id: None }, adds, records, &mut None);
-    }
-    CopyToMapResult { copied, skipped }
+        let copied = target.edit(&there, adds, records, &mut None).keys.len() as u32;
+        Ok(CopyToMapResult {
+            copied,
+            skipped: total - copied,
+        })
+    })
 }
 
 /// Save uncommitted changes to disk. No-op when nothing has changed.

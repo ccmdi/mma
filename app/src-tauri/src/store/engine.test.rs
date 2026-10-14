@@ -5537,67 +5537,6 @@ fn overlay_add_duplicate_id_asserts_in_debug() {
 }
 
 // -----------------------------------------------------------------------
-// Cross-map copy dedup (HeldRows)
-// -----------------------------------------------------------------------
-
-fn split_new_locations(sources: Vec<Location>, existing: &[Location]) -> (Vec<Location>, u32) {
-    let held = HeldRows::of(existing);
-    let (held_rows, fresh): (Vec<_>, Vec<_>) = sources.into_iter().partition(|l| held.holds(l));
-    (fresh, held_rows.len() as u32)
-}
-
-fn loc_with_pano(id: u32, lat: f64, lng: f64, pano: &str) -> Location {
-    Location {
-        pano_id: Some(pano.into()),
-        ..loc(id, lat, lng)
-    }
-}
-
-#[test]
-fn copy_dedup_pano_id_wins_over_coords() {
-    let existing = vec![loc_with_pano(1, 10.0, 20.0, "AAA")];
-    // Same pano, different coords: duplicate. Different pano, same coords: fresh.
-    let sources = vec![
-        loc_with_pano(7, 99.0, 99.0, "AAA"),
-        loc_with_pano(8, 10.0, 20.0, "BBB"),
-    ];
-    let (fresh, skipped) = split_new_locations(sources, &existing);
-    assert_eq!(skipped, 1);
-    assert_eq!(fresh.len(), 1);
-    assert_eq!(fresh[0].pano_id.as_deref(), Some("BBB"));
-}
-
-#[test]
-fn copy_dedup_panoless_falls_back_to_exact_coords() {
-    let existing = vec![loc(1, 10.0, 20.0), loc_with_pano(2, 30.0, 40.0, "CCC")];
-    let sources = vec![
-        loc(7, 10.0, 20.0),
-        loc(8, 30.0, 40.0),
-        loc(9, 10.0, 20.000001),
-    ];
-    let (fresh, skipped) = split_new_locations(sources, &existing);
-    // id7 matches pano-less coords; id8 matches CCC's coords (pano-less source);
-    // id9 is off by 1e-6 -- exact bits only, so fresh.
-    assert_eq!(skipped, 2);
-    assert_eq!(fresh.len(), 1);
-    assert_eq!(fresh[0].id, Id::new(9));
-}
-
-#[test]
-fn copy_dedup_empty_pano_treated_as_panoless() {
-    let existing = vec![Location {
-        pano_id: Some(Default::default()),
-        ..loc(1, 10.0, 20.0)
-    }];
-    let sources = vec![Location {
-        pano_id: Some(Default::default()),
-        ..loc(7, 10.0, 20.0)
-    }];
-    let (_, skipped) = split_new_locations(sources, &existing);
-    assert_eq!(skipped, 1);
-}
-
-// -----------------------------------------------------------------------
 // Value reconciliation core (reconcile_values_by_name) — shared by import + copy
 // -----------------------------------------------------------------------
 

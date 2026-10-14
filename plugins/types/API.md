@@ -6472,12 +6472,12 @@ Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/red
 ```ts
 cmd.storeCopyLocationsToMap(
   targetMapId: string,
-  source: CopySource,
+  selector: Selector$1<SelectionInput>,
 ): Promise<CopyToMapResult>
 ```
 
-Copy locations into another map, skipping ones the target already has. Extra fields carry
-over, and interned values such as tags are matched to the target's by name.
+Copy the locations that `selector` matches into another map, skipping ones it already has.
+Extra fields carry over, and interned values such as tags are matched to the target's by name.
 
 #### cmd.storeCountryDistribution
 

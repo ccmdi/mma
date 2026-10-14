@@ -31,10 +31,7 @@ import {
 const copy = (targetMapId: string, ids: number[]) =>
 	withApi(
 		(api, t, i) =>
-			api.cmd.storeCopyLocationsToMap(t, {
-				kind: "selected",
-				selector: { type: "Locations", locations: i, name: null },
-			}),
+			api.cmd.storeCopyLocationsToMap(t, { type: "Locations", locations: i, name: null }),
 		targetMapId,
 		ids,
 	);
@@ -202,8 +199,9 @@ describe("Copy to a closed map", () => {
 			const selfId = api.Store.get().mapId!;
 			try {
 				await api.cmd.storeCopyLocationsToMap(selfId, {
-					kind: "selected",
-					selector: { type: "Locations", locations: i, name: null },
+					type: "Locations",
+					locations: i,
+					name: null,
 				});
 				return null;
 			} catch (e) {

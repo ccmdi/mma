@@ -40,8 +40,9 @@ export function QuickCopyToMapDialog({
 	const doCopy = (targetMapId: string) => {
 		cmd
 			.storeCopyLocationsToMap(targetMapId, {
-				kind: "selected",
-				selector: { type: "Locations", locations: [locationId], name: null },
+				type: "Locations",
+				locations: [locationId],
+				name: null,
 			})
 			.then((res) => {
 				const container = contentRef.current;

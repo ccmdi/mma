@@ -118,41 +118,99 @@ fn tagged_map(id: &str, tags: &[(u32, &str)]) -> Store {
     store
 }
 
+fn named_rows(store: &mut Store) -> Vec<(f64, f64, Vec<String>)> {
+    let rows = store.collect(&Target::Map { id: None }, &Selector::Everything);
+    rows.iter()
+        .map(|row| {
+            let names = row
+                .tags
+                .iter()
+                .map(|&id| {
+                    let record = store.value_record("tags", id).unwrap();
+                    record.name.clone().unwrap()
+                })
+                .collect();
+            (row.lat, row.lng, names)
+        })
+        .collect()
+}
+
+fn tag_names(store: &Store) -> Vec<String> {
+    let mut names: Vec<_> = store.records["tags"]
+        .values()
+        .filter_map(|r| r.name.clone())
+        .collect();
+    names.sort();
+    names
+}
+
 #[test]
 fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
-    let source = tagged_map("source", &[(1, "shared"), (2, "Only here"), (3, "Unused")]);
+    let mut source = tagged_map(
+        "copy-src",
+        &[(1, "shared"), (2, "Only here"), (3, "Unused")],
+    );
     let mut copies = vec![
         crate::test_util::loc(0, 1.0, 1.0),
         crate::test_util::loc(0, 2.0, 2.0),
     ];
     copies[0].tags = crate::test_util::tag_ids([1]);
     copies[1].tags = crate::test_util::tag_ids([1, 2]);
-    let records = source.held_value_records();
+    let adds = copies.into_iter().map(Op::Add).collect();
+    source.edit(
+        &Target::Map { id: None },
+        adds,
+        IncomingRecords::new(),
+        &mut None,
+    );
 
-    let mut open = tagged_map("target", &[(7, "Shared")]);
-    let mut closed = tagged_map("target", &[(7, "Shared")]);
-    let copied = copy_into(&mut open, copies.clone(), &records);
-    assert_eq!((copied.copied, copied.skipped), (2, 0));
-    copy_into(&mut closed, copies.clone(), &records);
+    let closed = crate::store::storage::tests::map_on_disk("copy-closed");
+    let open = Id::<MapMeta, String>::new("copy-open".into());
+    let window = WindowLabel("w".into());
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert(source.meta.id.clone(), source);
+    mgr.window_map
+        .insert(window.clone(), Id::new("copy-src".into()));
+    mgr.stores
+        .insert(open.clone(), tagged_map("copy-open", &[(7, "Shared")]));
+    let state = StoreState::new(mgr);
+    let at_closed = Target::Map {
+        id: Some(closed.clone()),
+    };
+    with_target(&state, &window, &at_closed, |store| {
+        let shared = ValueRecord {
+            name: Some("Shared".into()),
+            ..Default::default()
+        };
+        store.edit_values("tags", vec![Op::Add(shared)])
+    })
+    .unwrap();
+    let steps = |store: &Store| store.steps[Timeline::Edits].len(Stack::Undo);
+    let before = steps(&load_store(&closed).unwrap());
 
-    let landed = open.collect(&Target::Map { id: None }, &Selector::Everything);
-    assert!(landed == closed.collect(&Target::Map { id: None }, &Selector::Everything));
-    let mut names: Vec<_> = open.records["tags"]
-        .values()
-        .filter_map(|r| r.name.clone())
-        .collect();
-    names.sort();
-    assert_eq!(names, ["Only here", "Shared"]);
-    let only = open.records["tags"]
-        .iter()
-        .find_map(|(&id, r)| (r.name.as_deref() == Some("Only here")).then_some(id))
-        .unwrap();
-    assert_eq!(landed[1].tags, vec![Id::new(7), only]);
-    assert!(open.pending.is_empty() && closed.pending.is_empty());
-    assert!(closed.unsaved().unwrap().is_some());
+    let copy = |to: &Id<MapMeta, String>| {
+        let c = copy_locations_to_map(&state, &window, to.clone(), Selector::Everything).unwrap();
+        (c.copied, c.skipped)
+    };
+    assert_eq!(copy(&open), (2, 0));
+    assert_eq!(copy(&closed), (2, 0));
 
-    let again = copy_into(&mut open, copies, &records);
-    assert_eq!((again.copied, again.skipped), (0, 2));
+    let mut reopened = load_store(&closed).unwrap();
+    assert_eq!(steps(&reopened), before + 1);
+    let mut mgr = state.lock().unwrap();
+    let live = mgr.store_for_map(&open).unwrap();
+    assert_eq!(named_rows(live), named_rows(&mut reopened));
+    assert_eq!(
+        named_rows(live)[1].2,
+        ["Shared".to_string(), "Only here".to_string()]
+    );
+    assert_eq!(tag_names(live), ["Only here", "Shared"]);
+    assert_eq!(tag_names(&reopened), ["Only here", "Shared"]);
+    assert!(live.pending.is_empty() && reopened.pending.is_empty());
+    drop(mgr);
+
+    assert_eq!(copy(&closed), (0, 2));
+    assert_eq!(copy(&open), (0, 2));
 }
 
 #[test]
@@ -203,11 +261,70 @@ fn with_rows(id: &str, rows: &[Location]) -> Store {
     store
 }
 
+fn copy_over(existing: &[Location], sources: &[Location]) -> (Vec<Location>, u32) {
+    let window = WindowLabel("w".into());
+    let target = Id::<MapMeta, String>::new("dst".into());
+    let mut mgr = StoreManager::new();
+    mgr.stores
+        .insert(Id::new("src".into()), with_rows("src", sources));
+    mgr.window_map.insert(window.clone(), Id::new("src".into()));
+    mgr.stores
+        .insert(target.clone(), with_rows("dst", existing));
+    let state = StoreState::new(mgr);
+    let before = existing.len();
+    let copied =
+        copy_locations_to_map(&state, &window, target.clone(), Selector::Everything).unwrap();
+    let mut mgr = state.lock().unwrap();
+    let rows = mgr
+        .store_for_map(&target)
+        .unwrap()
+        .collect(&Target::Map { id: None }, &Selector::Everything);
+    assert_eq!(rows.len() - before, copied.copied as usize);
+    (rows[before..].to_vec(), copied.skipped)
+}
+
 fn at_pano(lat: f64, lng: f64, pano: &str) -> Location {
     Location {
         pano_id: Some(pano.into()),
         ..crate::test_util::loc(0, lat, lng)
     }
+}
+
+#[test]
+fn a_copy_skips_by_pano_id_before_coordinates() {
+    let existing = [at_pano(10.0, 20.0, "AAA")];
+    // Same pano, different coords: held. Different pano, same coords: copied.
+    let sources = [at_pano(99.0, 99.0, "AAA"), at_pano(10.0, 20.0, "BBB")];
+    let (fresh, skipped) = copy_over(&existing, &sources);
+    assert_eq!(skipped, 1);
+    assert_eq!(fresh.len(), 1);
+    assert_eq!(fresh[0].pano_id.as_deref(), Some("BBB"));
+}
+
+#[test]
+fn a_copy_skips_a_panoless_location_by_its_exact_coordinates() {
+    let existing = [
+        crate::test_util::loc(0, 10.0, 20.0),
+        at_pano(30.0, 40.0, "CCC"),
+    ];
+    let sources = [
+        crate::test_util::loc(0, 10.0, 20.0),
+        crate::test_util::loc(0, 30.0, 40.0),
+        crate::test_util::loc(0, 10.0, 20.000001),
+    ];
+    let (fresh, skipped) = copy_over(&existing, &sources);
+    // The first matches pano-less coords, the second CCC's coords; the third is off by
+    // 1e-6, and only exact bits match.
+    assert_eq!(skipped, 2);
+    assert_eq!(fresh.len(), 1);
+    assert_eq!((fresh[0].lat, fresh[0].lng), (10.0, 20.000001));
+}
+
+#[test]
+fn a_copy_treats_an_empty_pano_as_none() {
+    let existing = [at_pano(10.0, 20.0, "")];
+    let (_, skipped) = copy_over(&existing, &[at_pano(10.0, 20.0, "")]);
+    assert_eq!(skipped, 1);
 }
 
 #[test]
