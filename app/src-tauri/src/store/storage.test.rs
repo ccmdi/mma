@@ -12,6 +12,27 @@ use std::panic::AssertUnwindSafe;
 use std::path::PathBuf;
 use std::{fs, panic};
 
+/// A map row in a migrated database under a data folder this test process owns, for tests
+/// that open and save maps the way the app does.
+pub(crate) fn map_on_disk(id: &str) -> Id<crate::store::maps::MapMeta, String> {
+    static DISK: std::sync::Once = std::sync::Once::new();
+    DISK.call_once(|| {
+        let dir = std::env::temp_dir().join("mma_unit_disk");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        APP_DATA_DIR.set(dir).unwrap();
+        run_migrations_on(&open_db().unwrap()).unwrap();
+    });
+    open_db()
+        .unwrap()
+        .execute(
+            "INSERT INTO maps (id, name, settings, created_at, updated_at) VALUES (?1, ?1, '{}', '', '')",
+            [id],
+        )
+        .unwrap();
+    Id::new(id.into())
+}
+
 fn sample_loc() -> Location {
     Location {
         id: Id::new(42),

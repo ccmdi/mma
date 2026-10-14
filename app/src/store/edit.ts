@@ -6,8 +6,10 @@ import type { Work, WorkResult } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
 export const Edit = {
-	/** Edit locations on the map or in a pending layer. Map changes are undoable. @unstable */
+	/** Edit locations on a map or in a pending layer. Map changes are undoable in that map. @unstable */
 	locations: (...[target, edits]: Parameters<typeof cmd.storeEdit>) => {
+		const elsewhere = target.kind === "map" && target.id != null && target.id !== Store.get().mapId;
+		if (elsewhere) return cmd.storeEdit(target, edits);
 		return Mutation.run(() => cmd.storeEdit(target, edits));
 	},
 	/** Patch a map's metadata and persist it: the open map's unless the patch names an `id`.

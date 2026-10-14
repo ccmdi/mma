@@ -105,8 +105,13 @@ pub struct ChangeEvent {
 #[derive(serde::Deserialize, serde::Serialize, specta::Type, Clone, PartialEq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Target {
-    /// The map's rows.
-    Map,
+    /// A map's rows.
+    Map {
+        /// The map, or this window's map when null.
+        #[serde(default)]
+        #[specta(optional)]
+        id: Option<Id<MapMeta, String>>,
+    },
     /// A pending layer, created on first use. Reads include current underlying map data;
     /// edits reach the map when the layer lands.
     Pending { name: String },
@@ -852,7 +857,8 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
         }
         SetOp::PruneDuplicates { distance, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> = store.collect(&crate::store::engine::Target::Map, selector);
+            let locs: Vec<Location> =
+                store.collect(&crate::store::engine::Target::Map { id: None }, selector);
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()

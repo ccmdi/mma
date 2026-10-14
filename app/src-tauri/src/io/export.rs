@@ -275,7 +275,10 @@ pub fn store_export_json(
     opts: ExportOpts,
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
-        let locs = store.collect(&crate::store::engine::Target::Map, &opts.selector);
+        let locs = store.collect(
+            &crate::store::engine::Target::Map { id: None },
+            &opts.selector,
+        );
         let co = CoordOpts {
             export_zoom: opts.export_zoom,
             export_unpanned: opts.export_unpanned,
@@ -305,7 +308,7 @@ pub fn store_export_csv(
 ) -> AppResult<String> {
     with_store!(label, state, |store| {
         let buf = csv_document(&store.collect(
-            &crate::store::engine::Target::Map,
+            &crate::store::engine::Target::Map { id: None },
             &selector.map_children(SelectionInput::compile),
         ));
         let path = export_temp_path("mma_export", "csv");
@@ -328,7 +331,7 @@ pub fn store_export_geojson(
     with_store!(label, state, |store| {
         let json = serde_json::to_string(&geojson_document(
             &store.collect(
-                &crate::store::engine::Target::Map,
+                &crate::store::engine::Target::Map { id: None },
                 &selector.map_children(SelectionInput::compile),
             ),
             &tags_json,

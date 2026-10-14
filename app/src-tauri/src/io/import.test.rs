@@ -913,7 +913,10 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     assert_eq!(second.lng, 7.75);
     // Staged rows are held by the layer, not on the map.
     assert!(store
-        .collect(&crate::store::engine::Target::Map, &Selector::Everything)
+        .collect(
+            &crate::store::engine::Target::Map { id: None },
+            &Selector::Everything
+        )
         .is_empty());
 }
 
@@ -926,7 +929,7 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     });
     let held = store
         .edit(
-            &crate::store::engine::Target::Map,
+            &crate::store::engine::Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -948,7 +951,7 @@ fn a_staged_imports_range_covers_exactly_its_staged_rows() {
     assert_eq!(staged, run.iter().collect::<Vec<_>>());
     let next = store
         .edit(
-            &crate::store::engine::Target::Map,
+            &crate::store::engine::Target::Map { id: None },
             vec![mma_algebra::Op::Add(loc_with_tags(0, Vec::new()))],
             Default::default(),
             &mut None,
@@ -1074,7 +1077,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     let feed = FeedCapture::attach(&mut store);
     store.edit(
-        &crate::store::engine::Target::Map,
+        &crate::store::engine::Target::Map { id: None },
         parsed
             .locations
             .into_iter()
@@ -1094,7 +1097,10 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // Both copies landed in the target store.
     assert_eq!(event.derived.location_count, Some(2));
-    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
+    let stored = store.collect(
+        &crate::store::engine::Target::Map { id: None },
+        &Selector::Everything,
+    );
     assert_eq!(stored.len(), 2);
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate created);
@@ -1157,7 +1163,10 @@ fn bulk_tags_apply_every_name_to_every_import() {
         .expect("France created");
     let france = *france;
     assert_eq!(meta.values().count(), 2);
-    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
+    let stored = store.collect(
+        &crate::store::engine::Target::Map { id: None },
+        &Selector::Everything,
+    );
     assert_eq!(stored.len(), 2);
     for l in &stored {
         assert_eq!(l.tags, vec![Id::new(5), france]);
@@ -1196,7 +1205,10 @@ fn a_confirmed_import_lands_the_files_tags_matched_to_the_maps_by_name() {
         .expect("Unique created");
     assert_eq!(store.records["tags"].len(), 2);
     let mut held: Vec<_> = store
-        .collect(&crate::store::engine::Target::Map, &Selector::Everything)
+        .collect(
+            &crate::store::engine::Target::Map { id: None },
+            &Selector::Everything,
+        )
         .into_iter()
         .map(|l| l.tags)
         .collect();
@@ -1215,7 +1227,10 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
     stage_parsed(&mut store, "drop-win", parsed);
     confirm_staged(&mut store, "drop-win", &["tags".to_string()], &[]).unwrap();
     assert!(store.records["tags"].is_empty());
-    let stored = store.collect(&crate::store::engine::Target::Map, &Selector::Everything);
+    let stored = store.collect(
+        &crate::store::engine::Target::Map { id: None },
+        &Selector::Everything,
+    );
     assert_eq!(stored.len(), 1);
     assert!(stored[0].tags.is_empty());
 }

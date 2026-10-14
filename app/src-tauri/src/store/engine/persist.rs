@@ -4,7 +4,7 @@ use super::*;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, Location};
-use arrow_array::RecordBatch;
+use arrow_array::{RecordBatch, UInt32Array};
 use mma_algebra::{Counts, Id};
 use rusqlite::Connection;
 use std::collections::{HashMap, HashSet};
@@ -37,27 +37,144 @@ pub(crate) fn set_aside_delta(delta_path: &Path, reason: &AppError) {
     crate::emit_event(StoreWarning::DeltaSetAside);
 }
 
-/// Flush a store after its final window closes, using the same per-map file lock as saves and
-/// commits. Taking ownership keeps the detached store alive until its flush completes.
-pub(crate) async fn flush_closed_store(map_id: Id<MapMeta, String>, store: Store) -> AppResult<()> {
-    let files = store.files.clone();
-    let _writing = files.lock().await;
-    tokio::task::spawn_blocking(move || {
-        if let Some(unsaved) = store.unsaved()? {
-            unsaved.write(
-                &storage::open_db()?,
-                &map_id,
-                &storage::arrow_delta_path(&map_id)?,
-            )?;
+/// Unbind `label` from its map and, when no other window still has the map open, save what
+/// disk lacks, holding the map's files lock from before the store leaves the manager until the
+/// write lands.
+pub(crate) async fn close_window(state: &StoreState, label: &WindowLabel) -> AppResult<()> {
+    loop {
+        let Some(map_id) = state.lock()?.window_map.get(label).cloned() else {
+            return Ok(());
+        };
+        let files = state.lock()?.files(&map_id);
+        let _writing = files.lock().await;
+        let unbound = {
+            let mut mgr = state.lock()?;
+            if mgr.window_map.get(label) != Some(&map_id) {
+                continue;
+            }
+            mgr.unbind_window(label)
+        };
+        let Some((map_id, store)) = unbound else {
+            return Ok(());
+        };
+        return tokio::task::spawn_blocking(move || {
+            if let Some(unsaved) = store.unsaved()? {
+                unsaved.write(
+                    &storage::open_db()?,
+                    &map_id,
+                    &storage::arrow_delta_path(&map_id)?,
+                )?;
+            }
+            log::debug!(
+                "[close_map] {map_id} flushed: undo={} redo={}",
+                store.steps[Timeline::Edits].len(Stack::Undo),
+                store.steps[Timeline::Edits].len(Stack::Redo)
+            );
+            Ok(())
+        })
+        .await?;
+    }
+}
+
+/// A store holding what disk holds for `map_id`: its last commit, uncommitted changes, edit
+/// history, and metadata.
+pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
+    let t_total = Instant::now();
+
+    let (batch, mmap_handle, delta) = {
+        let t0 = Instant::now();
+        let path = storage::arrow_path(map_id)?;
+        let delta_path = storage::arrow_delta_path(map_id)?;
+
+        // The base file holds the last committed state -- it may not exist at all for a
+        // map with no commits, whose data then lives entirely in the delta sidecar. Mmap
+        // the base zero-copy and leave it untouched; load the delta into the overlay
+        // regardless of whether a base file exists (never folded into the base).
+        let (batch, handle) = if path.exists() {
+            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
+            log::debug!(
+                "[store_open] mmap_read={}ms rows={}",
+                t0.elapsed().as_millis(),
+                b.num_rows()
+            );
+            (b, Some(h))
+        } else {
+            log::debug!("[store_open] no base file, empty batch");
+            (RecordBatch::new_empty(schema()), None)
+        };
+        delta_legacy::convert_msgpack_delta(&delta_path, &path)?;
+        let delta = load_delta(&delta_path);
+        (batch, handle, delta)
+    };
+
+    // Legacy files may be unsorted; enforce the sorted ID invariant once.
+    let (batch, mmap_handle) = {
+        let ids = arrow::Columns::id(&batch);
+        let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
+        if sorted || batch.num_rows() == 0 {
+            (batch, mmap_handle)
+        } else {
+            log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
+            let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
+            order.sort_by_key(|&i| ids.value(i as usize));
+            let sort_idx = UInt32Array::from(order);
+            let sorted_batch = RecordBatch::try_new(
+                batch.schema(),
+                batch
+                    .columns()
+                    .iter()
+                    .map(|col| take::take(col.as_ref(), &sort_idx, None).unwrap())
+                    .collect(),
+            )
+            .unwrap();
+            drop(batch);
+            drop(mmap_handle);
+            let path = storage::arrow_path(map_id)?;
+            arrow::write_arrow_ipc(&path, &sorted_batch)?;
+            drop(sorted_batch);
+            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
+            log::info!("[store_open] migration complete, re-mmap'd sorted file");
+            (b, Some(h))
         }
-        log::debug!(
-            "[close_map] {map_id} flushed: undo={} redo={}",
-            store.steps[Timeline::Edits].len(Stack::Undo),
-            store.steps[Timeline::Edits].len(Stack::Redo)
-        );
-        Ok(())
-    })
-    .await?
+    };
+
+    let n = batch.num_rows();
+    let max_id = n
+        .checked_sub(1)
+        .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
+
+    let conn = storage::open_db()?;
+    let edits = load_edit_history(&conn, map_id)?;
+    let history_max = stored_history_max_id(&conn, map_id)?;
+
+    let mut store = Store::new();
+    store.bump();
+    store.batch = Some(batch);
+    store.mmap_handle = mmap_handle;
+
+    // Load uncommitted edits into the overlay; the base batch stays at the last commit.
+    // `added` rows are persisted in sorted-id order.
+    if let Some(d) = delta {
+        store.overlay = Tracked::new(d);
+    }
+    store.next_id = seed_next_id(max_id, &store.overlay.added, history_max);
+
+    let LocationAggregates { alive, bounds } = store.scan_locations();
+    store.alive_count = Tracked::new(alive);
+    store.bounds.seed(At::new(store.version, bounds));
+    store.pending_counts = Tracked::new(store.overlay_diff_counts());
+    storage::set_map_counts(&conn, map_id, alive, *store.pending_counts)?;
+    store.steps[Timeline::Edits] = Tracked::new(edits);
+
+    let mut meta = maps::read_map_meta(&conn, map_id)?;
+    store.records = load_value_records(&conn, map_id)?
+        .into_iter()
+        .map(|(field, records)| (field, Tracked::new(records)))
+        .collect();
+    store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
+    store.meta = Tracked::new(meta);
+    log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());
+    Ok(store)
 }
 
 /// Read a map's full current state from disk = base file + uncommitted delta sidecar.

@@ -652,7 +652,7 @@ impl RunCtx<'_> {
         log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
         let index = self.with_store(|store| {
             let index = match &self.target {
-                Target::Map => {
+                Target::Map { .. } => {
                     let all = store.all();
                     neighborhood::Index::build(all.rows(), radius_m, fields)
                 }
@@ -954,7 +954,7 @@ fn page_batches(
         Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
     };
     let (rows, unmet) = ctx.with_store(|store| match &ctx.target {
-        Target::Map => {
+        Target::Map { .. } => {
             let alive = store.scope(&page_sel).ids();
             let todo_ids = store.scope(&todo).ids();
             prog.add_skipped((alive.len() - todo_ids.len()) as u32);
@@ -971,7 +971,7 @@ fn page_batches(
                 .filter(|id| todo_ids.contains(*id) && !workable.contains(*id))
                 .collect();
             let rows = store.collect(
-                &crate::store::engine::Target::Map,
+                &crate::store::engine::Target::Map { id: None },
                 &Selector::Locations {
                     locations: page
                         .iter()
@@ -1097,7 +1097,7 @@ fn deliver_page(ctx: &RunCtx, decl: &ProviderDecl, page: PageOutput) -> AppResul
                     .pending
                     .get(name)
                     .is_none_or(|p| p.stage.landed().is_none()),
-                Target::Map => false,
+                Target::Map { .. } => false,
             };
             store.edit(&ctx.target, edits, Default::default(), &mut group);
             Ok(held.then(|| {
@@ -1583,7 +1583,7 @@ fn register_store_run(
     target: Target,
 ) -> AppResult<(Id<MapMeta, String>, Arc<AtomicBool>)> {
     let mut manager = state.lock()?;
-    let map_id = manager.map_id_for_window(label)?;
+    let map_id = manager.target_map(label, &target)?;
     let store = manager.store_for_map(&map_id)?;
     if let Target::Pending { name } = &target {
         if !store
@@ -1603,8 +1603,9 @@ fn register_store_run(
     Ok((map_id, cancel))
 }
 
-/// Start a procedure run over the open map's locations. Returns immediately with
-/// the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+/// Start a procedure run over an open map's locations, this window's unless the target names
+/// another. Returns immediately with the run id. Emits `procedure-progress` and
+/// `procedure-result` as work completes.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_run(
@@ -1615,7 +1616,7 @@ pub async fn procedure_run(
     target: Option<Target>,
 ) -> AppResult<u32> {
     let providers = state.lock()?.providers.resolve(items)?;
-    let target = target.unwrap_or(Target::Map);
+    let target = target.unwrap_or(Target::Map { id: None });
     let run_id = next_run_id();
     let (map_id, cancel) = register_store_run(state.inner(), &label, run_id, target.clone())?;
     task::spawn_blocking(move || {

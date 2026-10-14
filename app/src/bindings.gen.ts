@@ -431,8 +431,9 @@ export const commands = {
 	 */
 	valiDownloadStale: () => __TAURI_INVOKE<null>("vali_download_stale"),
 	/**
-	 *  Start a procedure run over the open map's locations. Returns immediately with
-	 *  the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+	 *  Start a procedure run over an open map's locations, this window's unless the target names
+	 *  another. Returns immediately with the run id. Emits `procedure-progress` and
+	 *  `procedure-result` as work completes.
 	 */
 	procedureRun: (items: RunItem[], force: boolean, target: Target | null) => __TAURI_INVOKE<number>("procedure_run", { items, force, target }),
 	/**  Register a provider, replacing one with the same id. */
@@ -1857,8 +1858,10 @@ export type SyncReconcileResult = {
 
 /**  Read or edit map rows directly, or through a named pending layer. */
 export type Target = 
-/**  The map's rows. */
-{ kind: "map" } | 
+/**  A map's rows. */
+{ kind: "map"; 
+/**  The map, or this window's map when null. */
+id?: string | null } | 
 /**
  *  A pending layer, created on first use. Reads include current underlying map data;
  *  edits reach the map when the layer lands.

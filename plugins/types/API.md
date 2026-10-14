@@ -6194,8 +6194,8 @@ cmd.procedureRun(
 ): Promise<number>
 ```
 
-Start a procedure run over the open map's locations. Returns immediately with
-the run id. Emits `procedure-progress` and `procedure-result` as work completes.
+Start a procedure run over an open map's locations, this window's unless the target names
+another. Returns immediately with the run id. Emits `procedure-progress` and `procedure-result` as work completes.
 
 #### cmd.providerRegister
 

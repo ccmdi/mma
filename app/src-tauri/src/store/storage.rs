@@ -25,4 +25,4 @@ pub(crate) use secrets::*;
 
 #[cfg(test)]
 #[path = "storage.test.rs"]
-mod tests;
+pub(crate) mod tests;

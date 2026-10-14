@@ -67,7 +67,11 @@ pub async fn store_commit(
     message: Option<String>,
 ) -> AppResult<CommitResult> {
     let _t = Instant::now();
-    let files = state.lock()?.store_for_map(&map_id)?.files.clone();
+    let files = {
+        let mut mgr = state.lock()?;
+        mgr.store_for_map(&map_id)?;
+        mgr.files(&map_id)
+    };
     let _writing = files.lock().await;
     let conn = storage::open_db()?;
 
@@ -106,7 +110,10 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store.collect(&crate::store::engine::Target::Map, &Selector::Everything)
+            store.collect(
+                &crate::store::engine::Target::Map { id: None },
+                &Selector::Everything,
+            )
         } else {
             Vec::new()
         };
@@ -255,7 +262,7 @@ pub fn store_checkout_commit(
 }
 
 fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
-    let current = store.collect(&engine::Target::Map, &Selector::Everything);
+    let current = store.collect(&engine::Target::Map { id: None }, &Selector::Everything);
     let before = store.selections.table();
     let selections = Change::at(&before, &Default::default(), before.keys().cloned());
     store.pending.clear();

@@ -120,8 +120,6 @@ pub struct Store {
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
     pub(crate) next_id: Ids<Id<Location>>,
-    /// Held across every write to the map's files, so a save and a commit never interleave.
-    pub(crate) files: Arc<tokio::sync::Mutex<()>>,
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
 
@@ -182,7 +180,6 @@ impl Store {
             batch: None,
             mmap_handle: None,
             next_id: Ids::default(),
-            files: Arc::default(),
             version: 0,
             alive_count: Tracked::default(),
             overlay: Tracked::default(),
@@ -643,6 +640,8 @@ pub struct StoreManager {
     pub(crate) window_map: HashMap<WindowLabel, Id<MapMeta, String>>,
     /// Registered providers, whose field dependencies every opened store shares.
     pub(crate) providers: crate::procedure::registry::Providers,
+    /// Each map's files lock, held across every read-to-write of its files on disk.
+    files: HashMap<Id<MapMeta, String>, Arc<tokio::sync::Mutex<()>>>,
 }
 
 impl StoreManager {
@@ -651,6 +650,25 @@ impl StoreManager {
             stores: HashMap::new(),
             window_map: HashMap::new(),
             providers: Default::default(),
+            files: HashMap::new(),
+        }
+    }
+
+    /// The lock a map's files are written under: an open, save, commit, close, or write to
+    /// the closed map holds it, so none of them interleave.
+    pub(crate) fn files(&mut self, map_id: &Id<MapMeta, String>) -> Arc<tokio::sync::Mutex<()>> {
+        self.files.entry(map_id.clone()).or_default().clone()
+    }
+
+    /// The map a target names.
+    pub(crate) fn target_map(
+        &self,
+        label: &WindowLabel,
+        target: &Target,
+    ) -> AppResult<Id<MapMeta, String>> {
+        match target {
+            Target::Map { id: Some(id) } => Ok(id.clone()),
+            _ => self.map_id_for_window(label),
         }
     }
 
@@ -699,6 +717,48 @@ impl StoreManager {
 }
 
 pub type StoreState = Mutex<StoreManager>;
+
+/// Run `f` on the store `target` names: this window's, the live store of a map open in any
+/// window, or a closed map loaded from disk and saved after `f`, under its files lock.
+// Lock order: files lock, then manager lock; never wait for a files lock under the manager lock.
+pub(crate) fn with_target<R>(
+    state: &StoreState,
+    label: &WindowLabel,
+    target: &Target,
+    f: impl FnOnce(&mut Store) -> AppResult<R>,
+) -> AppResult<R> {
+    let (map_id, files) = {
+        let mut mgr = state.lock()?;
+        let map_id = mgr.target_map(label, target)?;
+        if let Some(store) = mgr.stores.get_mut(&map_id) {
+            return f(store);
+        }
+        let Target::Map { id: Some(_) } = target else {
+            return Err(AppError(format!("store not found for map '{map_id}'")));
+        };
+        let files = mgr.files(&map_id);
+        (map_id, files)
+    };
+    let _writing = files.blocking_lock();
+    let dependents = {
+        let mut mgr = state.lock()?;
+        if let Some(store) = mgr.stores.get_mut(&map_id) {
+            return f(store);
+        }
+        mgr.providers.dependents()
+    };
+    let mut store = load_store(&map_id)?;
+    store.dependents = dependents;
+    let result = f(&mut store)?;
+    if let Some(unsaved) = store.unsaved()? {
+        unsaved.write(
+            &crate::store::storage::open_db()?,
+            &map_id,
+            &crate::store::storage::arrow_delta_path(&map_id)?,
+        )?;
+    }
+    Ok(result)
+}
 
 macro_rules! with_store {
     ($label:expr, $state:expr, |$store:ident| $body:block) => {{
@@ -843,16 +903,6 @@ impl<T> Tracked<T> {
             value,
             rev: 0,
             shipped: At::new(0, ()),
-            saved: At::new(0, ()),
-        }
-    }
-
-    /// A value disk does not hold yet.
-    pub(crate) fn unsaved(value: T) -> Self {
-        Self {
-            value,
-            rev: 1,
-            shipped: At::new(1, ()),
             saved: At::new(0, ()),
         }
     }

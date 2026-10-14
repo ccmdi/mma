@@ -7,17 +7,12 @@ use crate::plugins::borders;
 use crate::selections::saved::SavedSelection;
 use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::selections::{self, Selector};
-use crate::store::arrow::schema;
 use crate::store::engine::*;
 use crate::store::maps::MapMeta;
-use crate::store::{arrow, maps, storage};
+use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
-use arrow_array::{RecordBatch, UInt32Array};
-use arrow_select::take;
 use mma_algebra::{Edit, Id, Op};
-use std::mem;
-use std::sync::Arc;
 use std::time::Instant;
 use tauri::ipc::Channel;
 use tokio::task;
@@ -50,9 +45,11 @@ pub async fn store_open_map(
 
 async fn open_claimed_map(
     label: &WindowLabel,
-    state: &tauri::State<'_, StoreState>,
+    state: &StoreState,
     map_id: Id<MapMeta, String>,
 ) -> AppResult<StoreStatus> {
+    let files = state.lock()?.files(&map_id);
+    let _writing = files.lock().await;
     let map_id2 = map_id.clone();
     let mut store = task::spawn_blocking(move || load_store(&map_id2)).await??;
     let mut mgr = state.lock()?;
@@ -66,106 +63,6 @@ async fn open_claimed_map(
     Ok(status)
 }
 
-/// A store holding what disk holds for `map_id`: its last commit, uncommitted changes, edit
-/// history, and metadata.
-fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
-    let t_total = Instant::now();
-
-    let (batch, mmap_handle, delta) = {
-        let t0 = Instant::now();
-        let path = storage::arrow_path(map_id)?;
-        let delta_path = storage::arrow_delta_path(map_id)?;
-
-        // The base file holds the last committed state -- it may not exist at all for a
-        // map with no commits, whose data then lives entirely in the delta sidecar. Mmap
-        // the base zero-copy and leave it untouched; load the delta into the overlay
-        // regardless of whether a base file exists (never folded into the base).
-        let (batch, handle) = if path.exists() {
-            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
-            log::debug!(
-                "[store_open] mmap_read={}ms rows={}",
-                t0.elapsed().as_millis(),
-                b.num_rows()
-            );
-            (b, Some(h))
-        } else {
-            log::debug!("[store_open] no base file, empty batch");
-            (RecordBatch::new_empty(schema()), None)
-        };
-        delta_legacy::convert_msgpack_delta(&delta_path, &path)?;
-        let delta = load_delta(&delta_path);
-        (batch, handle, delta)
-    };
-
-    // Legacy files may be unsorted; enforce the sorted ID invariant once.
-    let (batch, mmap_handle) = {
-        let ids = arrow::Columns::id(&batch);
-        let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
-        if sorted || batch.num_rows() == 0 {
-            (batch, mmap_handle)
-        } else {
-            log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
-            let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
-            order.sort_by_key(|&i| ids.value(i as usize));
-            let sort_idx = UInt32Array::from(order);
-            let sorted_batch = RecordBatch::try_new(
-                batch.schema(),
-                batch
-                    .columns()
-                    .iter()
-                    .map(|col| take::take(col.as_ref(), &sort_idx, None).unwrap())
-                    .collect(),
-            )
-            .unwrap();
-            drop(batch);
-            drop(mmap_handle);
-            let path = storage::arrow_path(map_id)?;
-            arrow::write_arrow_ipc(&path, &sorted_batch)?;
-            drop(sorted_batch);
-            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
-            log::info!("[store_open] migration complete, re-mmap'd sorted file");
-            (b, Some(h))
-        }
-    };
-
-    let n = batch.num_rows();
-    let max_id = n
-        .checked_sub(1)
-        .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
-
-    let conn = storage::open_db()?;
-    let edits = load_edit_history(&conn, map_id)?;
-    let history_max = stored_history_max_id(&conn, map_id)?;
-
-    let mut store = Store::new();
-    store.bump();
-    store.batch = Some(batch);
-    store.mmap_handle = mmap_handle;
-
-    // Load uncommitted edits into the overlay; the base batch stays at the last commit.
-    // `added` rows are persisted in sorted-id order.
-    if let Some(d) = delta {
-        store.overlay = Tracked::unsaved(d);
-    }
-    store.next_id = seed_next_id(max_id, &store.overlay.added, history_max);
-
-    let LocationAggregates { alive, bounds } = store.scan_locations();
-    store.alive_count = Tracked::new(alive);
-    store.bounds.seed(At::new(store.version, bounds));
-    storage::set_map_counts(&conn, map_id, alive, store.overlay_diff_counts())?;
-    store.steps[Timeline::Edits] = Tracked::new(edits);
-
-    let mut meta = maps::read_map_meta(&conn, map_id)?;
-    store.records = load_value_records(&conn, map_id)?
-        .into_iter()
-        .map(|(field, records)| (field, Tracked::new(records)))
-        .collect();
-    store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
-    store.meta = Tracked::new(meta);
-    log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());
-    Ok(store)
-}
-
 /// Close the open map, saving unsaved changes first.
 #[tauri::command]
 #[specta::specta]
@@ -173,10 +70,7 @@ pub async fn store_close_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<()> {
-    let Some((map_id, store)) = state.lock()?.unbind_window(&label) else {
-        return Ok(());
-    };
-    flush_closed_store(map_id, store).await
+    close_window(&state, &label).await
 }
 
 /// Close a window's map binding when its webview goes away without a proper close.
@@ -184,16 +78,14 @@ pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
     let Some(state) = tauri::Manager::try_state::<StoreState>(app) else {
         return;
     };
-    let unbound = state
-        .lock()
-        .ok()
-        .and_then(|mut mgr| mgr.unbind_window(&WindowLabel(label.to_string())));
-    if let Some((map_id, store)) = unbound {
-        // The webserve release callback runs on a synchronous HTTP worker; wait here so its
-        // flush cannot be cancelled when the callback returns and destroys the client webview.
-        if let Err(e) = tauri::async_runtime::block_on(flush_closed_store(map_id.clone(), store)) {
-            log::error!("[close_map] flush for released window '{label}' failed: {e} ({map_id})");
-        }
+    // The webserve release callback runs on a synchronous HTTP worker; wait here so its
+    // flush cannot be cancelled when the callback returns and destroys the client webview.
+    let closed = tauri::async_runtime::block_on(close_window(
+        state.inner(),
+        &WindowLabel(label.to_string()),
+    ));
+    if let Err(e) = closed {
+        log::error!("[close_map] flush for released window '{label}' failed: {e}");
     }
 }
 
@@ -230,8 +122,10 @@ pub async fn store_edit_uploaded(
     let started = Instant::now();
     // Read before taking the store lock: a malformed chunk must leave the store untouched.
     let edits = task::spawn_blocking(move || export::read_uploaded_chunks(&session)).await??;
-    let mutation = with_store!(label, state, |store| {
-        Ok::<_, AppError>(store.edit(&target, edits, IncomingRecords::new(), &mut None))
+    let mutation = task::block_in_place(|| {
+        with_target(&state, &label, &target, |store| {
+            Ok(store.edit(&target, edits, IncomingRecords::new(), &mut None))
+        })
     })?;
     log::debug!(
         "[cmd] store_edit_uploaded total={}ms",
@@ -310,7 +204,7 @@ pub fn store_copy_locations_to_map(
         let src = mgr.store_for_map(&source_map_id)?;
         let rows = match source {
             CopySource::Selected { selector } => src.collect(
-                &Target::Map,
+                &Target::Map { id: None },
                 &selector.map_children(SelectionInput::compile),
             ),
             CopySource::Given { locations } => locations,
@@ -357,13 +251,13 @@ fn copy_into(
     sources: Vec<Location>,
     records: &IncomingRecords,
 ) -> CopyToMapResult {
-    let existing = target.collect(&Target::Map, &Selector::Everything);
+    let existing = target.collect(&Target::Map { id: None }, &Selector::Everything);
     let (fresh, skipped) = split_new_locations(sources, &existing);
     let copied = fresh.len() as u32;
     if copied > 0 {
         let records = referenced_records(records, &fresh);
         let adds = fresh.into_iter().map(Op::Add).collect();
-        target.edit(&Target::Map, adds, records, &mut None);
+        target.edit(&Target::Map { id: None }, adds, records, &mut None);
     }
     CopyToMapResult { copied, skipped }
 }
@@ -379,7 +273,11 @@ pub async fn store_save_dirty(
     log::debug!("[cmd] store_save_dirty ENTER");
     // The snapshot carries the revision it serialized, so the store can be told exactly
     // what disk holds once the write lands, however many edits arrived meanwhile.
-    let files = state.lock()?.store_for_window(&label)?.files.clone();
+    let files = {
+        let mut mgr = state.lock()?;
+        let map_id = mgr.map_id_for_window(&label)?;
+        mgr.files(&map_id)
+    };
     let _writing = files.lock().await;
     let (map_id, unsaved) = {
         let mut mgr = state.lock()?;
@@ -656,7 +554,7 @@ mod tests;
 macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
-            "Edit locations where target says; an open pending layer holds edits until it lands." store_edit(target: Target, edits: Vec<Edit<Location>>) -> MutationResult => |store| {
+            "Edit locations where target says; an open pending layer holds edits until it lands." store_edit(target: Target, edits: Vec<Edit<Location>>) at target -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.edit(&target, edits, IncomingRecords::new(), &mut None) })
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
@@ -672,7 +570,7 @@ macro_rules! command_table {
             "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult<ListedSelection> => |store| {
                 Ok(store.edit_selections(&op))
             };
-            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
+            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => |store| {
                 store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
             };
             "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {
@@ -683,15 +581,24 @@ macro_rules! command_table {
 }
 pub(crate) use command_table;
 
+macro_rules! table_target {
+    () => {
+        &Target::Map { id: None }
+    };
+    ($at:ident) => {
+        &$at
+    };
+}
+
 macro_rules! define_commands {
-    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) -> $ret:ty => |$store:ident| $body:block; )*) => {
+    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => |$store:ident| $body:block; )*) => {
         $(
             #[doc = $doc]
             #[tauri::command]
             #[specta::specta]
             pub fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
                 let started = Instant::now();
-                let result = with_store!(label, state, |$store| $body);
+                let result = with_target(&state, &label, table_target!($( $at )?), |$store| $body);
                 log::debug!("[cmd] {} total={}ms", stringify!($name), started.elapsed().as_millis());
                 result
             }

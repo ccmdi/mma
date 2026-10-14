@@ -70,7 +70,7 @@ fn read_extra(
     let mut mgr = state.lock().unwrap();
     let store = mgr.store_for_map(map_id).unwrap();
     let rows = store.collect(
-        &crate::store::engine::Target::Map,
+        &crate::store::engine::Target::Map { id: None },
         &Selector::Locations {
             locations: loc_ids([id]),
             name: None,
@@ -87,7 +87,7 @@ fn read_loc(state: &StoreState, map_id: &Id<MapMeta, String>, id: u32) -> Locati
     let store = mgr.store_for_map(map_id).unwrap();
     store
         .collect(
-            &crate::store::engine::Target::Map,
+            &crate::store::engine::Target::Map { id: None },
             &Selector::Locations {
                 locations: loc_ids([id]),
                 name: None,
@@ -257,7 +257,7 @@ impl Harness {
         RunCtx {
             state,
             map_id: map_id.clone(),
-            target: Target::Map,
+            target: Target::Map { id: None },
             run_id: 1,
             force: true,
             cancel: self.cancel.clone(),
@@ -458,7 +458,7 @@ fn cancellation_finishes_providers_still_held_by_dependency_gates() {
     b.requires = vec!["x".into()];
     let h = Harness::map_only(patch_all(r#"{"extra":{"ran":true}}"#));
     let (state, map_id) = setup(&[loc(1, 1.0, 0.0)]);
-    let target = Target::Map;
+    let target = Target::Map { id: None };
     let events: Arc<Mutex<Vec<ProcedureProgress>>> = Arc::default();
     let events_sink = events.clone();
     let cancel = h.cancel.clone();
@@ -1212,7 +1212,7 @@ fn run_shape_reaches_the_host_fetch() {
     let ctx = RunCtx {
         state: &state,
         map_id: map_id.clone(),
-        target: Target::Map,
+        target: Target::Map { id: None },
         run_id: 7,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1529,7 +1529,7 @@ fn every_procedure_call_receives_its_config() {
     let ctx = RunCtx {
         state: &state,
         map_id: map_id.clone(),
-        target: Target::Map,
+        target: Target::Map { id: None },
         run_id: 5,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1623,7 +1623,7 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
     let ctx = RunCtx {
         state: &state,
         map_id: map_id.clone(),
-        target: Target::Map,
+        target: Target::Map { id: None },
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1700,7 +1700,7 @@ fn neighbors_answers_a_procedure_from_the_maps_rows() {
     let ctx = RunCtx {
         state: &state,
         map_id: map_id.clone(),
-        target: Target::Map,
+        target: Target::Map { id: None },
         run_id: 1,
         force: true,
         cancel: Arc::new(AtomicBool::new(false)),
@@ -1860,7 +1860,7 @@ fn engine_throughput_probe() {
         let ctx = RunCtx {
             state: &state,
             map_id: map_id.clone(),
-            target: Target::Map,
+            target: Target::Map { id: None },
             run_id: 1,
             force: true,
             cancel: Arc::new(AtomicBool::new(false)),

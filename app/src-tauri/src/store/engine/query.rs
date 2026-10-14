@@ -203,7 +203,7 @@ impl Store {
     /// Read matching rows. Explicit map ids preserve request order and duplicates;
     /// other reads return unique rows sorted by id.
     pub(crate) fn collect(&mut self, target: &Target, selector: &Selector) -> Vec<Location> {
-        if let (Target::Map, Selector::Locations { locations, .. }) = (target, selector) {
+        if let (Target::Map { .. }, Selector::Locations { locations, .. }) = (target, selector) {
             return locations
                 .iter()
                 .filter_map(|&id| self.get_loc_by_id(id))
@@ -222,7 +222,7 @@ impl Store {
         read: impl FnOnce(selections::Scope<'_, '_>) -> R,
     ) -> R {
         match target {
-            Target::Map => {
+            Target::Map { .. } => {
                 let mut indexes = selector.indexes();
                 if let Some(ask) = ask {
                     indexes.extend(ask.indexes(self.optional_fields()));
@@ -617,7 +617,7 @@ impl Store {
         }
         if matches!(
             (target, selector, ask),
-            (Target::Map, Selector::Everything, Ask::Bounds)
+            (Target::Map { .. }, Selector::Everything, Ask::Bounds)
         ) {
             return Ok(Answer::Bounds {
                 bounds: self.cached_bounds(),

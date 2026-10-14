@@ -228,26 +228,36 @@ fn an_unreadable_delta_is_quarantined_and_not_replayed() {
 }
 
 #[test]
-fn close_flush_waits_for_the_shared_file_writer_lock() {
+fn closing_a_window_waits_for_the_maps_files_lock_before_its_store_leaves() {
     let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_time()
         .build()
         .unwrap();
+    let map = Id::<MapMeta, String>::new("m".into());
+    let window = WindowLabel("w".into());
+    let state = StoreState::new(StoreManager::new());
+    {
+        let mut mgr = state.lock().unwrap();
+        mgr.stores.insert(map.clone(), Store::new());
+        mgr.window_map.insert(window.clone(), map.clone());
+    }
+    let files = state.lock().unwrap().files(&map);
 
     runtime.block_on(async {
-        let store = Store::new();
-        let files = store.files.clone();
         let writing = files.lock().await;
-        let close = tokio::spawn(flush_closed_store(Id::new("m".into()), store));
-
-        tokio::task::yield_now().await;
+        let close = close_window(&state, &window);
+        tokio::pin!(close);
+        let waited = tokio::time::timeout(std::time::Duration::from_millis(50), &mut close).await;
         assert!(
-            !close.is_finished(),
+            waited.is_err(),
             "close must wait for the active file writer"
         );
+        assert!(state.lock().unwrap().stores.contains_key(&map));
 
         drop(writing);
-        close.await.unwrap().unwrap();
+        close.await.unwrap();
     });
+    assert!(state.lock().unwrap().stores.is_empty());
 }
 
 #[test]

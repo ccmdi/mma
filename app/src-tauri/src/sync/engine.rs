@@ -910,7 +910,7 @@ fn apply_pull(
     }
 
     let result = store.edit(
-        &Target::Map,
+        &Target::Map { id: None },
         edits,
         IncomingRecords::from([("tags".to_string(), records)]),
         &mut None,

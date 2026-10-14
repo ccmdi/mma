@@ -1,5 +1,6 @@
 use super::*;
 use crate::selections::PolygonGeometry;
+use std::sync::Arc;
 
 fn square(w: f64, s: f64, e: f64, n: f64) -> Vec<[f64; 2]> {
     vec![[w, s], [e, s], [e, n], [w, n], [w, s]]
@@ -134,8 +135,8 @@ fn a_copy_lands_the_same_in_an_open_and_a_closed_target() {
     assert_eq!((copied.copied, copied.skipped), (2, 0));
     copy_into(&mut closed, copies.clone(), &records);
 
-    let landed = open.collect(&Target::Map, &Selector::Everything);
-    assert!(landed == closed.collect(&Target::Map, &Selector::Everything));
+    let landed = open.collect(&Target::Map { id: None }, &Selector::Everything);
+    assert!(landed == closed.collect(&Target::Map { id: None }, &Selector::Everything));
     let mut names: Vec<_> = open.records["tags"]
         .values()
         .filter_map(|r| r.name.clone())
@@ -164,4 +165,27 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
         Target,
         Vec<Edit<Location>>,
     ) -> AppResult<MutationResult> = store_edit;
+}
+
+#[test]
+fn opening_a_map_waits_while_its_files_are_being_written() {
+    let map = crate::store::storage::tests::map_on_disk("open-locked");
+    let state = Arc::new(StoreState::new(StoreManager::new()));
+    let files = state.lock().unwrap().files(&map);
+    let writing = files.blocking_lock();
+
+    let opening = std::thread::spawn({
+        let (state, map) = (state.clone(), map.clone());
+        move || {
+            tauri::async_runtime::block_on(open_claimed_map(&WindowLabel("w".into()), &state, map))
+                .unwrap();
+        }
+    });
+    std::thread::sleep(std::time::Duration::from_millis(100));
+    assert!(!opening.is_finished(), "the open must wait for the writer");
+    assert!(!state.lock().unwrap().stores.contains_key(&map));
+
+    drop(writing);
+    opening.join().unwrap();
+    assert!(state.lock().unwrap().stores.contains_key(&map));
 }
