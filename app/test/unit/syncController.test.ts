@@ -10,10 +10,13 @@ const eng = vi.hoisted(() => ({
 	gate: null as Promise<void> | null,
 	failWith: null as string | null,
 	result: null as unknown,
+	reconciles: 0,
+	listeners: new Map<string, Set<(payload: unknown) => void>>(),
 }));
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		syncReconcile: async () => {
+			eng.reconciles++;
 			if (eng.gate) await eng.gate;
 			if (eng.failWith) throw new Error(eng.failWith);
 			return eng.result;
@@ -37,6 +40,7 @@ vi.mock("@/store/mutation", () => ({
 import { createSyncController } from "@/lib/sync/controller";
 import { setPluginEnabled } from "@/plugins/pluginHost";
 import { subscribe } from "@/lib/events";
+import type { ChangeEvent, Derived } from "@/bindings.gen";
 import type { SyncProvider } from "@/lib/sync/provider";
 type RemoteMappingRow = { localId: number; remoteId: number; hash: string };
 
@@ -63,6 +67,8 @@ function makeMma() {
 	eng.gate = null;
 	eng.failWith = null;
 	eng.result = EMPTY_RESULT;
+	eng.reconciles = 0;
+	eng.listeners.clear();
 	let release: (() => void) | null = null;
 	const history: { provider: string; mapId: string; entry: SyncLogEntry }[] = [];
 
@@ -78,7 +84,12 @@ function makeMma() {
 		storage: () => kv,
 		createLocation: (p: unknown) => p,
 		createTags: async () => [],
-		on: () => () => {},
+		on: (name: string, fn: (payload: unknown) => void) => {
+			const set = eng.listeners.get(name) ?? new Set();
+			set.add(fn);
+			eng.listeners.set(name, set);
+			return () => set.delete(fn);
+		},
 		cmd: {
 			syncLogAppend: async (provider: string, id: string, entry: SyncLogEntry) => {
 				history.push({ provider, mapId: id, entry });
@@ -353,5 +364,66 @@ describe("sync history", () => {
 		await new Promise((r) => setTimeout(r, 0));
 
 		expect(mma.history).toHaveLength(0);
+	});
+});
+
+describe("live sync triggers", () => {
+	const NO_DERIVED: Derived = {
+		locationCount: null,
+		pending: null,
+		meta: null,
+		history: null,
+		fieldValues: null,
+		fieldDefs: null,
+		selectionCounts: null,
+		selectionList: null,
+		writingLayers: null,
+		unsaved: null,
+	};
+	const change = (
+		patch: Partial<Omit<ChangeEvent, "derived">> & { derived?: Partial<Derived> } = {},
+	): ChangeEvent => ({
+		version: 1,
+		added: [],
+		removed: [],
+		updated: [],
+		...patch,
+		derived: { ...NO_DERIVED, ...patch.derived },
+	});
+
+	async function liveReconcilesAfter(e: ChangeEvent) {
+		vi.useFakeTimers();
+		try {
+			const mma = makeMma();
+			mma.install();
+			const controller = createSyncController(makeProvider(), PLUGIN);
+			await controller.link(REMOTE, null);
+			controller.startLive();
+			await vi.advanceTimersByTimeAsync(0);
+			const before = eng.reconciles;
+			for (const fn of eng.listeners.get("store:change") ?? []) fn(e);
+			await vi.advanceTimersByTimeAsync(5000);
+			const after = eng.reconciles;
+			controller.stopLive();
+			return after - before;
+		} finally {
+			vi.useRealTimers();
+		}
+	}
+
+	it("a selection, settings or review change does not start a reconcile", async () => {
+		expect(
+			await liveReconcilesAfter(
+				change({ derived: { selectionList: [], selectionCounts: {}, meta: null, unsaved: true } }),
+			),
+		).toBe(0);
+	});
+
+	it("a location change starts a reconcile", async () => {
+		expect(await liveReconcilesAfter(change({ updated: [4] }))).toBe(1);
+	});
+
+	it("a tag record change starts a reconcile", async () => {
+		expect(await liveReconcilesAfter(change({ derived: { fieldValues: { tags: {} } } }))).toBe(1);
 	});
 });

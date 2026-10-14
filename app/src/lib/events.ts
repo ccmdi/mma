@@ -187,6 +187,9 @@ export function subscribe<E extends AnyEvent>(evt: E, handler: EventHandler<E>):
 	};
 }
 
+export const changedLocations = (e: ChangeEvent): boolean =>
+	e.added.length + e.updated.length + e.removed.length > 0;
+
 /** Subscribe one payload-agnostic handler to several events; returns a single combined unsubscribe. */
 export function subscribeMany(events: readonly AnyEvent[], handler: () => void): () => void {
 	const unsubs = events.map((e) => subscribe(e, handler));

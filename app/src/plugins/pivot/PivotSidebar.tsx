@@ -23,7 +23,7 @@ import { Sidebar, Field, SegmentedControl } from "@/components/primitives/Sideba
 import { EmptyState } from "@/components/primitives/EmptyState";
 import type { FieldDef } from "@/bindings.gen";
 import { getFieldDef, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
-import { subscribe } from "@/lib/events";
+import { changedLocations, subscribe } from "@/lib/events";
 import { useExtraFieldKeys } from "@/components/editor/map/FilterBuilder";
 import { compareNatural } from "@/lib/util/util";
 import { usePluginState } from "@/plugins/pluginStorage";
@@ -376,7 +376,9 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 
 	useEffect(() => {
 		void recompute();
-		const unsubLoc = subscribe("store:change", debouncedRecompute);
+		const unsubLoc = subscribe("store:change", (e) => {
+			if (changedLocations(e)) debouncedRecompute();
+		});
 		const unsubSel = subscribe("selection:change", debouncedRecompute);
 		return () => {
 			unsubLoc();

@@ -1,5 +1,5 @@
 import { Maps } from "@/store/maps";
-import { bridgeAcrossWindows, emit } from "@/lib/events";
+import { bridgeAcrossWindows, changedLocations, emit } from "@/lib/events";
 import { reloadStorage } from "@/plugins/pluginStorage";
 import { isPluginEnabled } from "@/plugins/pluginHost";
 import { msg, t } from "@/lib/i18n";
@@ -303,7 +303,11 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 					onStatus: (s) => statusListeners.forEach((l) => l(s)),
 				},
 			);
-			unsubs = [window.MMA.on("store:change", () => scheduler?.request())];
+			unsubs = [
+				window.MMA.on("store:change", (e) => {
+					if (changedLocations(e) || e.derived.fieldValues?.tags) scheduler?.request();
+				}),
+			];
 			scheduler.start();
 			void scheduler.runNow();
 		},

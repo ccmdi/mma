@@ -4,7 +4,7 @@ import { Query } from "@/store/query";
 import type { LatLng, Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
-import { subscribe } from "@/lib/events";
+import { changedLocations, subscribe } from "@/lib/events";
 import { boundsOfCoords, distMeters } from "@/lib/geo/geo";
 
 const SCORE_BASE = 0.99866017;
@@ -96,7 +96,9 @@ export function useScoreMaxError(override?: ScoreBounds): number {
 	useEffect(() => {
 		if (!isAuto) return;
 		void refresh();
-		return subscribe("store:change", () => void refresh());
+		return subscribe("store:change", (e) => {
+			if (changedLocations(e)) void refresh();
+		});
 	}, [isAuto, refresh]);
 
 	if (isAuto) return resolveScoreMaxErrorFromBounds("auto", autoBbox);

@@ -4,7 +4,7 @@ import { Sidebar, SegmentedControl } from "@/components/primitives/Sidebar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
 import { cmd } from "@/lib/commands";
 import { getSettings } from "@/store/settings";
-import { subscribe } from "@/lib/events";
+import { changedLocations, subscribe } from "@/lib/events";
 import { usePluginState, storage } from "@/plugins/pluginStorage";
 import "./distribution.css";
 import { t } from "@/lib/i18n";
@@ -86,7 +86,9 @@ export function DistributionSidebar({ onClose }: { onClose: () => void }) {
 	useEffect(() => {
 		const run = () => void refresh();
 		run();
-		return subscribe("store:change", run);
+		return subscribe("store:change", (e) => {
+			if (changedLocations(e)) run();
+		});
 	}, [refresh]);
 
 	const maxCount = entries.length > 0 ? entries[0].count : 1;
