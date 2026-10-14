@@ -434,11 +434,12 @@ describe("Dirty tracking accuracy", () => {
 		await openMap(map.id);
 
 		const afterReopen = await withApi(async (api) => {
-			return api.Store.get().unsaved;
+			const { unsaved, pending } = api.Store.get();
+			return { unsaved, added: pending.added };
 		});
-		// Uncommitted edits persist in the delta sidecar and restore on reopen, so the map
-		// reopens dirty (a pending commit) rather than being silently baked into the base.
-		expect(afterReopen).toBe(true);
+		// Uncommitted edits persist in the delta sidecar and restore on reopen as a pending
+		// commit, not baked into the base; disk already holds them, so nothing is unsaved.
+		expect(afterReopen).toEqual({ unsaved: false, added: 1 });
 	});
 
 	it("mutation after reopen marks dirty again", async () => {
