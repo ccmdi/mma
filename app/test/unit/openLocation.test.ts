@@ -125,6 +125,14 @@ describe("open location", () => {
 		expect(Editor.get().workArea).toBe("overview");
 	});
 
+	it("a draft edit shows in the open location with no change from the map", async () => {
+		await Editor.open(7);
+		h.panoId = "B";
+		await Editor.draft().edit({ panoId: "B" });
+		expect(Editor.get().open?.location.panoId).toBe("B");
+		Editor.close();
+	});
+
 	it("drops the open row when leaving the location pane", async () => {
 		await Editor.open(7);
 		expect(Editor.get().open?.location?.id).toBe(7);

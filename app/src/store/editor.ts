@@ -81,7 +81,8 @@ type DraftPatch = Omit<Patch<Location>, "id">;
 /** Edits and saves bound to one opening. Once another opening or none is current, they do
  *  nothing and resolve null. A failed edit or save is logged and resolves null. */
 export interface Draft {
-	/** Patch the draft, or derive the patch from the draft as it stands. */
+	/** Patch the draft, or derive the patch from the draft as it stands; resolves once the open
+	 *  location shows it. */
 	edit: (patch: DraftPatch | ((location: Location) => DraftPatch)) => Promise<void | null>;
 	/** Land the draft with `patch` applied, resolving its id. */
 	save: (patch: DraftPatch) => Promise<number | null>;
@@ -101,6 +102,7 @@ function draftOf({ id, layer }: Opening): Draft {
 			if (!location) return [];
 			return [{ put: { ...(typeof patch === "function" ? patch(location) : patch), id } }];
 		});
+		await Editor.refresh();
 	};
 	const save = async (patch: DraftPatch) => {
 		await layer.edit([{ put: { ...patch, id } }]);
