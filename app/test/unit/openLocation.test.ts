@@ -10,7 +10,11 @@ const h = vi.hoisted(() => ({
 	edits: 0,
 	panoId: "A",
 	editError: null as Error | null,
-	runs: [] as { target: unknown; signal: AbortSignal }[],
+	runs: [] as {
+		target: unknown;
+		signal: AbortSignal;
+		onPartial?: (rows: Record<string, unknown>[]) => void;
+	}[],
 	readTargets: [] as unknown[],
 }));
 
@@ -58,8 +62,15 @@ vi.mock("@/lib/commands", () => ({
 	},
 }));
 vi.mock("@/lib/sv/enrich", () => ({
-	enrich: (_selector: unknown, opts: { on: unknown; signal: AbortSignal }) => {
-		h.runs.push({ target: opts.on, signal: opts.signal });
+	enrich: (
+		_selector: unknown,
+		opts: {
+			on: unknown;
+			signal: AbortSignal;
+			onPartial?: (rows: Record<string, unknown>[]) => void;
+		},
+	) => {
+		h.runs.push({ target: opts.on, signal: opts.signal, onPartial: opts.onPartial });
 		return new Promise(() => {});
 	},
 }));
@@ -368,6 +379,16 @@ describe("editor-owned enrichment", () => {
 		await Editor.refresh();
 		expect(h.runs[0].signal.aborted).toBe(true);
 		expect(h.runs).toHaveLength(1);
+	});
+	it("shows each provider's fields in the open location as they arrive, before the run ends", async () => {
+		settings();
+		await Editor.open(7);
+		await vi.waitUntil(() => h.runs.length === 1);
+		h.runs[0].onPartial?.([
+			{ id: 7, lat: 0, lng: 0, tags: [], panoId: "A", extra: { imageDate: "2012-08" } },
+		]);
+		await vi.waitUntil(() => Editor.get().open?.location.extra?.imageDate === "2012-08");
+		expect(h.runs[0].signal.aborted).toBe(false);
 	});
 	it("leaves saved writers to the engine when closing or switching openings", async () => {
 		settings();

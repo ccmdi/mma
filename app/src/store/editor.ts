@@ -145,7 +145,15 @@ function enrichDraft(open: Opening): void {
 	void runs.replace((signal) =>
 		enrich(
 			{ type: "Locations", locations: [open.id], name: null },
-			{ on: open.layer.target, resolve: false, signal },
+			{
+				on: open.layer.target,
+				resolve: false,
+				signal,
+				onPartial: (rows) => {
+					const location = rows.find((row) => row.id === open.id);
+					if (location && !signal.aborted) void refreshes.replace(() => ({ open, location }));
+				},
+			},
 		),
 	);
 }
