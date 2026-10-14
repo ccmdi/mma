@@ -469,12 +469,10 @@ impl Store {
                 .as_ref()
                 .and_then(|b| Columns::of(b).row_of(loc.id))
                 .is_some();
-            if !in_batch {
-                fresh.push(loc);
-            } else if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
-                self.overlay.edit().updated.remove(&loc.id);
+            if in_batch {
+                self.overlay_patch(loc);
             } else {
-                self.overlay.edit().updated.insert(loc.id, loc);
+                fresh.push(loc);
             }
         }
         if fresh.is_empty() {
@@ -515,6 +513,35 @@ impl Store {
                 }
             }
             *adds = merged;
+        }
+    }
+
+    /// Rewrite live locations where they sit: an added row in its sorted slot, a base row as
+    /// its patch. O(log n) per row, and the spatial index moves only a row whose coordinates did.
+    fn overlay_update<'a>(&mut self, locs: impl Iterator<Item = &'a Location>) {
+        for loc in locs {
+            let at = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
+            if at != (loc.lat, loc.lng) {
+                if let Some(ix) = self.spatial.if_built_mut() {
+                    if !ix.remove(loc.id.get(), at.0, at.1) {
+                        log::warn!("[spatial] remove miss for id {}", loc.id);
+                    }
+                    ix.insert(loc.id.get(), loc.lat, loc.lng);
+                }
+            }
+            match self.overlay.added.binary_search_by_key(&loc.id, |l| l.id) {
+                Ok(ix) => self.overlay.edit().added[ix] = loc.clone(),
+                Err(_) => self.overlay_patch(loc.clone()),
+            }
+        }
+    }
+
+    /// File a base row's new state as its patch, or drop the patch when it matches the base.
+    fn overlay_patch(&mut self, loc: Location) {
+        if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
+            self.overlay.edit().updated.remove(&loc.id);
+        } else {
+            self.overlay.edit().updated.insert(loc.id, loc);
         }
     }
 

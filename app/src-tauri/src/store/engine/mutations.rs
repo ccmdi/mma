@@ -434,8 +434,9 @@ impl Store {
         if change.is_empty() {
             return;
         }
-        self.overlay_remove(change.before());
-        self.overlay_add(change.after().cloned().collect());
+        self.overlay_remove(change.removed.iter());
+        self.overlay_update(change.updated.iter().map(|(_, new)| new));
+        self.overlay_add(change.added.clone());
     }
 
     /// Join the newest undo step named by `join`, or record a new step in the entry's timeline.

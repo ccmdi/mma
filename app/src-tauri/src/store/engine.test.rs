@@ -188,6 +188,27 @@ fn overlay_add_batch_merges_into_sorted_adds() {
 }
 
 #[test]
+fn updating_an_uncommitted_add_rewrites_only_its_slot() {
+    let locs: Vec<Location> = (1..=5).map(|i| loc(i * 2, 0.0, 0.0)).collect();
+    let mut store = setup_store_with(&locs);
+    let buffer = store.overlay.added.as_ptr();
+    overlay_update(&mut store, &patch!(6; lat: 1.0, heading: 90.0));
+    assert_eq!(
+        store.overlay.added.as_ptr(),
+        buffer,
+        "the adds are not rebuilt"
+    );
+
+    let mut expected = locs.clone();
+    expected[2] = store.get_loc_by_id(Id::new(6)).unwrap();
+    assert_eq!(expected[2].lat, 1.0);
+    assert_eq!(store.overlay.added, expected);
+    assert_eq!(*store.alive_count, 5);
+    assert!(store.overlay.updated.is_empty());
+    assert!(store.overlay.removed.is_empty());
+}
+
+#[test]
 fn a_no_op_edit_pushes_no_undo_entry_and_keeps_redo() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     undoable(&mut store, vec![], vec![loc(2, 0.0, 0.0)]);
@@ -5774,6 +5795,25 @@ fn spatial_matches_brute_force_across_mutations() {
         );
     }
     assert_eq!(store.spatial.peek().unwrap().len(), *store.alive_count);
+}
+
+#[test]
+fn an_update_that_keeps_its_coordinates_keeps_its_spatial_entry() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 10.0), loc(2, 10.0, 10.0)]);
+    assert_eq!(indexed_nearby(&mut store, 10.0, 10.0, 0.0), vec![1, 2]);
+    let filed = |store: &Store| {
+        let mut out = Vec::new();
+        store
+            .spatial
+            .peek()
+            .unwrap()
+            .candidates(10.0, 10.0, 0.0, &mut out);
+        out
+    };
+    let before = filed(&store);
+
+    overlay_update(&mut store, &patch!(before[0]; heading: 90.0));
+    assert_eq!(filed(&store), before);
 }
 
 #[test]
