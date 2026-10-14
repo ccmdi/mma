@@ -1393,7 +1393,6 @@ type CommitInfo = {
     mapId: string;
     parentId: string | null;
     message: string | null;
-    treeHash: string | null;
     locationCount: number;
     createdAt: string;
 } & Counts;

@@ -1096,3 +1096,35 @@ fn v28_keeps_a_stored_undo_step_readable_under_its_renamed_column() {
     assert_eq!(tags.added.len(), 1);
     assert_eq!(tags.added[0].1.name.as_deref(), Some("a"));
 }
+
+#[test]
+fn v29_drops_the_commit_tree_hash_and_keeps_every_commit() {
+    let conn = Connection::open_in_memory().unwrap();
+    configure_connection(&conn).unwrap();
+    let before = MIGRATIONS.iter().position(|(v, _)| *v == 29).unwrap();
+    apply_prefix(&conn, before);
+    insert_map(&conn, "map1", "m");
+    conn.execute(
+        "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES ('c1', 'map1', NULL, 'msg', 4, '2024-01-01T00:00:00Z', 'abc', 1, 2, 3)",
+        [],
+    )
+    .unwrap();
+
+    run_migrations_on(&conn).unwrap();
+    let columns: Vec<String> = conn
+        .prepare("SELECT name FROM pragma_table_info('commits')")
+        .unwrap()
+        .query_map([], |r| r.get(0))
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert!(!columns.iter().any(|c| c == "tree_hash"));
+    let kept: (String, i64, i64, i64, i64) = conn
+        .query_row(
+            "SELECT id, location_count, added, removed, modified FROM commits",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .unwrap();
+    assert_eq!(kept, ("c1".to_string(), 4, 1, 2, 3));
+}

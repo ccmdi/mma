@@ -558,4 +558,5 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
           DELETE FROM edit_entries;",
     ),
     (28, "ALTER TABLE edit_entries RENAME COLUMN piles TO parts;"),
+    (29, "ALTER TABLE commits DROP COLUMN tree_hash;"),
 ];

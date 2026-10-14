@@ -34,7 +34,6 @@ pub struct CommitInfo {
     pub map_id: Id<MapMeta, String>,
     pub parent_id: Option<Id<CommitInfo, String>>,
     pub message: Option<String>,
-    pub tree_hash: Option<String>,
     #[serde(flatten)]
     pub diff: Counts,
     pub location_count: u32,
@@ -160,8 +159,8 @@ pub async fn store_commit(
     let t_delta = _t.elapsed();
 
     conn.execute(
-        "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, tree_hash, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-        params![id.raw(), map_id.raw(), parent_id.as_ref().map(Id::raw), message, location_count, now, Option::<String>::None, counts.added, counts.removed, counts.updated],
+        "INSERT INTO commits (id, map_id, parent_id, message, location_count, created_at, added, removed, modified) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![id.raw(), map_id.raw(), parent_id.as_ref().map(Id::raw), message, location_count, now, counts.added, counts.removed, counts.updated],
     )?;
     storage::set_map_counts(&conn, &map_id, location_count as usize, Counts::default())?;
 
@@ -180,7 +179,7 @@ pub async fn store_list_commits(map_id: Id<MapMeta, String>) -> AppResult<Vec<Co
     storage::with_db(move |conn| {
         let mut stmt = conn
             .prepare(
-                "SELECT id, map_id, parent_id, message, tree_hash, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
+                "SELECT id, map_id, parent_id, message, added, removed, modified, location_count, created_at FROM commits WHERE map_id = ?1 ORDER BY created_at DESC, rowid DESC",
             )?;
 
         let rows = stmt.query_map(params![map_id.raw()], |row| {
@@ -189,14 +188,13 @@ pub async fn store_list_commits(map_id: Id<MapMeta, String>) -> AppResult<Vec<Co
                 map_id: Id::new(row.get(1)?),
                 parent_id: row.get::<_, Option<String>>(2)?.map(Id::new),
                 message: row.get(3)?,
-                tree_hash: row.get(4)?,
                 diff: Counts {
-                    added: row.get(5)?,
-                    removed: row.get(6)?,
-                    updated: row.get(7)?,
+                    added: row.get(4)?,
+                    removed: row.get(5)?,
+                    updated: row.get(6)?,
                 },
-                location_count: row.get(8)?,
-                created_at: row.get(9)?,
+                location_count: row.get(7)?,
+                created_at: row.get(8)?,
             })
         })?;
 
