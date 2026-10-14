@@ -55,10 +55,6 @@ fn snake(ident: &str) -> String {
     out
 }
 
-fn type_name(ty: &Type) -> String {
-    quote!(#ty).to_string().replace(' ', "")
-}
-
 #[proc_macro_derive(Fields, attributes(field, fields))]
 pub fn derive_fields(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -961,7 +957,8 @@ fn expand_delta(input: &DeriveInput) -> syn::Result<TokenStream2> {
 }
 
 /// Generate ways to visit and rebuild the children of an enum generic over its child type,
-/// held in the one field per variant marked `#[children]`: a `Vec` or an `Option<Box<_>>`.
+/// held in the one field per variant marked `#[children]`, whose type is a
+/// `mma_algebra::ChildSlot` over the child type.
 #[proc_macro_derive(Children, attributes(children))]
 pub fn derive_children(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -1037,25 +1034,13 @@ fn expand_children(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 ref_replaced.push(quote!(#f: #f.clone()));
                 continue;
             }
-            let ty = type_name(&field.ty);
-            if ty == format!("Vec<{child}>") {
-                borrowed = quote!(#f.iter().collect());
-                mapped.push(quote!(#f: #f.into_iter().map(&mut map).collect()));
-                replaced.push(quote!(#f: children.collect()));
-                ref_mapped.push(quote!(#f: #f.iter().map(&mut map).collect()));
-                ref_replaced.push(quote!(#f: children.collect()));
-            } else if ty == format!("Option<Box<{child}>>") {
-                borrowed = quote!(#f.as_deref().into_iter().collect());
-                mapped.push(quote!(#f: #f.map(|child| Box::new(map(*child)))));
-                replaced.push(quote!(#f: children.next().map(Box::new)));
-                ref_mapped.push(quote!(#f: #f.as_deref().map(|child| Box::new(map(child)))));
-                ref_replaced.push(quote!(#f: children.next().map(Box::new)));
-            } else {
-                return Err(syn::Error::new_spanned(
-                    field,
-                    "children must be Vec<S> or Option<Box<S>>",
-                ));
-            }
+            let ty = &field.ty;
+            let slot = quote!(<#ty as ::mma_algebra::ChildSlot<#child>>);
+            borrowed = quote!(#slot::held(#f));
+            mapped.push(quote!(#f: #slot::mapped(#f, &mut map)));
+            replaced.push(quote!(#f: #slot::filled(&mut children)));
+            ref_mapped.push(quote!(#f: #slot::mapped_ref(#f, &mut map)));
+            ref_replaced.push(quote!(#f: #slot::filled(&mut children)));
         }
         let container = recursive.first().map(|f| f.ident.as_ref().unwrap());
         refs.push(match container {

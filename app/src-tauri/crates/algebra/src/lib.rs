@@ -531,6 +531,52 @@ impl<K, V: Wire> Wire for HashMap<K, V> {
     type Patch = HashMap<K, Op<V::Value, V::Patch, ()>>;
 }
 
+/// Where a tree node holds its children, and how they are visited and rebuilt.
+pub trait ChildSlot<S> {
+    /// The same slot over another child type.
+    type Of<T>;
+    /// The children held, in order.
+    fn held(&self) -> Vec<&S>;
+    /// The slot with each child mapped through `map`.
+    fn mapped<T>(self, map: impl FnMut(S) -> T) -> Self::Of<T>;
+    /// A copy of the slot with each child mapped through `map`.
+    fn mapped_ref<T>(&self, map: impl FnMut(&S) -> T) -> Self::Of<T>;
+    /// A slot filled, in order, from `children`.
+    fn filled<T>(children: &mut impl Iterator<Item = T>) -> Self::Of<T>;
+}
+
+impl<S> ChildSlot<S> for Vec<S> {
+    type Of<T> = Vec<T>;
+    fn held(&self) -> Vec<&S> {
+        self.iter().collect()
+    }
+    fn mapped<T>(self, map: impl FnMut(S) -> T) -> Vec<T> {
+        self.into_iter().map(map).collect()
+    }
+    fn mapped_ref<T>(&self, map: impl FnMut(&S) -> T) -> Vec<T> {
+        self.iter().map(map).collect()
+    }
+    fn filled<T>(children: &mut impl Iterator<Item = T>) -> Vec<T> {
+        children.collect()
+    }
+}
+
+impl<S> ChildSlot<S> for Option<Box<S>> {
+    type Of<T> = Option<Box<T>>;
+    fn held(&self) -> Vec<&S> {
+        self.as_deref().into_iter().collect()
+    }
+    fn mapped<T>(self, mut map: impl FnMut(S) -> T) -> Option<Box<T>> {
+        self.map(|child| Box::new(map(*child)))
+    }
+    fn mapped_ref<T>(&self, mut map: impl FnMut(&S) -> T) -> Option<Box<T>> {
+        self.as_deref().map(|child| Box::new(map(child)))
+    }
+    fn filled<T>(children: &mut impl Iterator<Item = T>) -> Option<Box<T>> {
+        children.next().map(Box::new)
+    }
+}
+
 /// An id that names what it identifies, so `Id<Location>` and `Id<ValueRecord>` never mix.
 /// `Raw` is what the id holds: a number by default, text for ids such as a map's.
 /// Serialized as `Raw`, so the stored and wire forms are unchanged.

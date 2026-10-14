@@ -1085,3 +1085,26 @@ fn a_unique_name_is_trimmed_case_folded_and_absent_when_blank() {
     assert_eq!(unique_name("   "), None);
     assert_eq!(trimmed_name(" Urban "), Some("Urban"));
 }
+
+#[test]
+fn a_child_slot_visits_maps_and_refills_its_children_in_order() {
+    let list = vec![1, 2, 3];
+    assert_eq!(list.held(), [&1, &2, &3]);
+    assert_eq!(list.mapped_ref(|n| n * 10), [10, 20, 30]);
+    assert_eq!(list.mapped(|n| n + 1), [2, 3, 4]);
+    assert_eq!(
+        <Vec<u8> as ChildSlot<u8>>::filled(&mut [7, 8].into_iter()),
+        [7, 8]
+    );
+
+    let one = Some(Box::new(5));
+    assert_eq!(one.held(), [&5]);
+    assert_eq!(one.mapped_ref(|n| n * 2), Some(Box::new(10)));
+    assert_eq!(None::<Box<u8>>.held(), Vec::<&u8>::new());
+    let mut rest = [1, 2].into_iter();
+    assert_eq!(
+        <Option<Box<u8>> as ChildSlot<u8>>::filled(&mut rest),
+        Some(Box::new(1))
+    );
+    assert_eq!(rest.next(), Some(2), "an optional slot takes one child");
+}
