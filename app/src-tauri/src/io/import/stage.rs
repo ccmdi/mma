@@ -391,7 +391,9 @@ pub async fn store_import_file(
                         .map(|k| (k.clone(), Value::Null))
                         .collect();
                     if !dropped.is_empty() {
-                        patch.extra = mma_algebra::Field::Set(serde_json::Value::Object(dropped));
+                        patch.extra = mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(
+                            Value::Object(dropped),
+                        ));
                     }
                 }
             }

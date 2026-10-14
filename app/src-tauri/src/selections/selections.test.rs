@@ -4357,7 +4357,7 @@ fn map_fields_and_undeclared_keys_write_into_extra_key_by_key() {
     loose
         .write(&mut patch, LocationFlags::empty(), &serde_json::json!(null))
         .unwrap();
-    let mma_algebra::Field::Set(extra) = &patch.extra else {
+    let mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(extra)) = &patch.extra else {
         panic!("extra keys write into extra");
     };
     assert_eq!(

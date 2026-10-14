@@ -317,14 +317,14 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let (implementation, types, bounds) = generics.split_for_impl();
         return Ok(quote! {
             impl #implementation ::mma_algebra::Patchable for #ident #types #bounds {
-                type Patch = serde_json::Value;
+                type Patch = ::mma_algebra::JsonWrite;
                 fn patched(&self, patch: &Self::Patch) -> Self {
                     ::mma_algebra::json_patched(self, patch, #merge, &[#(#overrides),*])
                 }
-                fn try_between(old: &Self, new: &Self) -> Option<Self::Patch> {
+                fn between(old: &Self, new: &Self) -> Self::Patch {
                     ::mma_algebra::json_between(old, new, #merge, &[#(#overrides),*])
                 }
-                fn to_patch(&self) -> Self::Patch { serde_json::to_value(self).expect("patch target serializes") }
+                fn to_patch(&self) -> Self::Patch { ::mma_algebra::JsonWrite::Merge(serde_json::to_value(self).expect("patch target serializes")) }
                 fn is_absent(&self) -> bool { #merge && ::mma_algebra::json_is_absent(self) }
             }
         });
@@ -422,7 +422,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 fills.push(quote! { out.#name = ::mma_algebra::Patchable::patched(&from.#name, &::mma_algebra::Patchable::to_patch(&out.#name)); });
                 writes.push(quote! { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); });
                 reads.push(
-                    quote! { #name: ::mma_algebra::Patchable::try_between(&old.#name, &new.#name)?, },
+                    quote! { #name: ::mma_algebra::Patchable::between(&old.#name, &new.#name), },
                 );
                 same.push(quote! { old.#name == new.#name });
                 // Flattened JSON object patches already have the parent's partial wire shape.
@@ -476,7 +476,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         let change = if merge {
             merged.push(key_name);
             writes.push(quote! { if !patch.#name.is_keep() { out.#name = ::mma_algebra::Patchable::patched(&out.#name, &patch.#name); } });
-            quote! { ::mma_algebra::Patchable::try_between(&old.#name, &new.#name)? }
+            quote! { ::mma_algebra::Patchable::between(&old.#name, &new.#name) }
         } else {
             if !stamp {
                 clears.push(key_name);
@@ -609,7 +609,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         #keyed
         #constrained
         /// A change to some of one value's fields: an absent field is unchanged.
-        #[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
+        #[derive(Clone, Debug, Default, PartialEq, serde::Deserialize)]
         #(#serde)*
         pub struct #patch { #(#slots)* }
 
@@ -640,8 +640,8 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 out
             }
 
-            fn try_between(old: &Self, new: &Self) -> Option<#patch> {
-                Some(#patch { #(#reads)* })
+            fn between(old: &Self, new: &Self) -> #patch {
+                #patch { #(#reads)* }
             }
 
             fn to_patch(&self) -> #patch {

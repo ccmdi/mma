@@ -327,7 +327,7 @@ fn raw_extra_patches_use_normal_equality_and_collapse_empty_objects() {
     );
     assert_eq!(
         old.patched(&mma_algebra::Field::Set(
-            serde_json::json!({"n":null,"keep":null})
+            serde_json::json!({"n":null,"keep":null}).into()
         )),
         None
     );
@@ -351,11 +351,14 @@ fn derived_whole_value_policies_and_field_overrides() {
         replaced_child: serde_json::json!({"drop":1}),
         named_child: serde_json::json!({"drop":2}),
     };
-    let updated = old.patched(&serde_json::json!({
-        "mergedChild":{"change":3},
-        "replacedChild":{"literal":null},
-        "renamed":{"new":4}
-    }));
+    let updated = old.patched(
+        &serde_json::json!({
+            "mergedChild":{"change":3},
+            "replacedChild":{"literal":null},
+            "renamed":{"new":4}
+        })
+        .into(),
+    );
     assert_eq!(
         updated.merged_child,
         serde_json::json!({"keep":1,"change":3})
@@ -376,7 +379,7 @@ fn derived_whole_value_policies_and_field_overrides() {
         ordinary: serde_json::json!({"drop":1}),
         merged: serde_json::json!({"keep":2}),
     };
-    let updated = old.patched(&serde_json::json!({"ordinary":{"new":3},"merged":{"new":4}}));
+    let updated = old.patched(&serde_json::json!({"ordinary":{"new":3},"merged":{"new":4}}).into());
     assert_eq!(updated.ordinary, serde_json::json!({"new":3}));
     assert_eq!(updated.merged, serde_json::json!({"keep":2,"new":4}));
     assert_eq!(old.patched(&Replacement::between(&old, &updated)), updated);
@@ -385,13 +388,31 @@ fn derived_whole_value_policies_and_field_overrides() {
     #[patch(replace)]
     struct Whole(serde_json::Value);
     let before = Whole(serde_json::json!({"old":1}));
-    let after = before.patched(&serde_json::json!({"literal":null}));
+    let after = before.patched(&serde_json::json!({"literal":null}).into());
     assert_eq!(after.0, serde_json::json!({"literal":null}));
     assert_eq!(before.patched(&Whole::between(&before, &after)), after);
 }
 
 #[test]
-fn raw_extra_derived_merge_is_recursive_and_full_row_set_preserves_null() {
+fn a_location_patch_can_be_read_but_not_written() {
+    struct Probe<T>(std::marker::PhantomData<T>);
+    trait Unwritable {
+        fn writable(&self) -> bool {
+            false
+        }
+    }
+    impl<T> Unwritable for Probe<T> {}
+    impl<T: serde::Serialize> Probe<T> {
+        fn writable(&self) -> bool {
+            true
+        }
+    }
+    assert!(Probe::<Location>(std::marker::PhantomData).writable());
+    assert!(!Probe::<Patch<Location>>(std::marker::PhantomData).writable());
+}
+
+#[test]
+fn raw_extra_derived_merge_is_recursive_and_replacement_preserves_null() {
     let before = Location {
         extra: Some(extra(r#"{"nested":{"keep":1,"change":2}}"#)),
         ..Location::default()
@@ -410,11 +431,23 @@ fn raw_extra_derived_merge_is_recursive_and_full_row_set_preserves_null() {
         extra: Some(extra(r#"{"nested":{"literal":null}}"#)),
         ..before.clone()
     };
-    assert!(Location::try_between(&before, &nullable).is_none());
+    assert_eq!(
+        before.patched(&Location::between(&before, &nullable)),
+        nullable
+    );
+    assert_eq!(
+        nullable.patched(&Location::between(&nullable, &before)),
+        before
+    );
+    let bare = Location::default();
+    assert_eq!(bare.patched(&Location::between(&bare, &nullable)), nullable);
+    assert_eq!(
+        nullable.patched(&Location::between(&nullable, &nullable)),
+        nullable
+    );
     let old = std::collections::HashMap::from([(0u32, before)]);
     let new = std::collections::HashMap::from([(0u32, nullable)]);
     let edits = std::collections::HashMap::between(&old, &new);
-    assert!(matches!(edits[&0], mma_algebra::Op::Set(_)));
     assert_eq!(old.patched(&edits), new);
 }
 
@@ -425,7 +458,7 @@ fn merge_policy_supports_generic_wrappers_and_redundant_field_declarations() {
     struct Wrapper<T>(T);
     let old = Wrapper(serde_json::json!({"nested":{"keep":1,"drop":2}}));
     assert_eq!(
-        old.patched(&serde_json::json!({"nested":{"drop":null}})),
+        old.patched(&serde_json::json!({"nested":{"drop":null}}).into()),
         Wrapper(serde_json::json!({"nested":{"keep":1}}))
     );
     #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, mma_fields::Patch)]
@@ -439,7 +472,7 @@ fn merge_policy_supports_generic_wrappers_and_redundant_field_declarations() {
         value: Some(serde_json::json!({"nested":1})),
     };
     assert_eq!(
-        old.patched(&serde_json::json!({"value":null})),
+        old.patched(&serde_json::json!({"value":null}).into()),
         Document { value: None }
     );
 }
@@ -450,12 +483,15 @@ fn raw_extra_empty_objects_mean_no_extra() {
     assert_eq!(RawExtra::from_map(&serde_json::Map::new()), None);
     let last = Some(extra(r#"{"last":1}"#));
     assert_eq!(
-        last.patched(&mma_algebra::Field::Set(serde_json::json!({"last":null}))),
+        last.patched(&mma_algebra::Field::Set(
+            serde_json::json!({"last":null}).into()
+        )),
         None
     );
     assert_eq!(
-        Option::<RawExtra>::None
-            .patched(&mma_algebra::Field::Set(serde_json::json!({"gone":null}))),
+        Option::<RawExtra>::None.patched(&mma_algebra::Field::Set(
+            serde_json::json!({"gone":null}).into()
+        )),
         None
     );
 }

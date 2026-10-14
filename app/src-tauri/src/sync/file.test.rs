@@ -149,6 +149,7 @@ fn an_edited_custom_field_pulls_as_a_merge_patch() {
         json!({ "score": 4, "note": null })
             .as_object()
             .cloned()
+            .map(mma_algebra::JsonWrite::Merge)
             .into()
     );
     assert!(second.push_batch.is_none());

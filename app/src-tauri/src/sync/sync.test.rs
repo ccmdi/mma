@@ -2,7 +2,7 @@ use super::*;
 use crate::test_util::tag_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
-use mma_algebra::Id;
+use mma_algebra::{Id, Patchable};
 use serde_json::json;
 
 fn norm(over: impl FnOnce(&mut NormalizedSyncLocation)) -> NormalizedSyncLocation {
@@ -149,4 +149,14 @@ fn onto_keeps_custom_fields_only_for_local() {
     let n = norm(|n| n.extra = json!({ "score": 3 }).as_object().cloned());
     assert_eq!(n.clone().onto(MapShape::Local), n);
     assert_eq!(n.onto(MapShape::MapMaking).extra, None);
+}
+
+#[test]
+fn a_remote_extra_holding_a_nested_null_plans_a_patch_that_reaches_it() {
+    let local = norm(|n| n.extra = json!({ "m": { "x": 1 }, "k": 2 }).as_object().cloned());
+    let remote = norm(|n| n.extra = json!({ "m": { "x": null } }).as_object().cloned());
+    let patch = NormalizedSyncLocation::between(&local, &remote);
+    assert_eq!(local.patched(&patch).extra, remote.extra);
+    let back = NormalizedSyncLocation::between(&remote, &local);
+    assert_eq!(remote.patched(&back).extra, local.extra);
 }

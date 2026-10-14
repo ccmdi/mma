@@ -975,8 +975,8 @@ fn pulled_patch(
             .map(|names| names.iter().map(|t| tag_of(t)).collect()),
         extra: p
             .extra
-            .as_ref()
-            .map(|extra| serde_json::Value::Object(extra.clone())),
+            .clone()
+            .map(|extra| extra.map(serde_json::Value::Object)),
         ..Default::default()
     }
 }

@@ -259,7 +259,7 @@ fn overlay_update_extra_merges_keys() {
     let mut store = setup_store_with(&[l]);
     overlay_update(
         &mut store,
-        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"b":3,"c":4}"#).unwrap())),
+        &patch!(1; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"b":3,"c":4}"#).unwrap()))),
     );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
@@ -274,7 +274,7 @@ fn overlay_update_extra_null_value_deletes_key() {
     let mut store = setup_store_with(&[l]);
     overlay_update(
         &mut store,
-        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap())),
+        &patch!(1; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap()))),
     );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), None);
@@ -287,7 +287,7 @@ fn overlay_update_extra_creates_extra_when_none() {
     let mut store = setup_store_with(&[l]);
     overlay_update(
         &mut store,
-        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":1}"#).unwrap())),
+        &patch!(1; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"a":1}"#).unwrap()))),
     );
     let got = store.get_loc_by_id(Id::new(1)).unwrap().extra.unwrap();
     assert_eq!(got.get("a"), Some(serde_json::json!(1)));
@@ -301,7 +301,7 @@ fn overlay_update_deleting_every_extra_member_clears_it() {
     store.bake_overlay();
     overlay_update(
         &mut store,
-        &patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap())),
+        &patch!(1; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"a":null}"#).unwrap()))),
     );
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().extra, None);
     let restored = through_sidecar(&store);
@@ -3080,11 +3080,15 @@ fn value_put(id: u32) -> Patch<ValueRecord> {
     }
 }
 
-fn extra_of(pairs: &[(&str, serde_json::Value)]) -> serde_json::Map<String, serde_json::Value> {
-    pairs
-        .iter()
-        .map(|(k, v)| (k.to_string(), v.clone()))
-        .collect()
+fn extra_of(
+    pairs: &[(&str, serde_json::Value)],
+) -> Patch<serde_json::Map<String, serde_json::Value>> {
+    mma_algebra::JsonWrite::Merge(
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect(),
+    )
 }
 
 #[test]
@@ -3632,13 +3636,11 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
     assert_existence_matches_scan(&mut store, "k", &[1, 2, 10]);
 
-    let drop_k =
-        patch!(1; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"k":null}"#).unwrap()));
+    let drop_k = patch!(1; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"k":null}"#).unwrap())));
     apply_updates(&mut store, &[drop_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 10]);
 
-    let gain_k =
-        patch!(3; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"k":4}"#).unwrap()));
+    let gain_k = patch!(3; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"k":4}"#).unwrap())));
     apply_updates(&mut store, &[gain_k], &mut None);
     assert_existence_matches_scan(&mut store, "k", &[2, 3, 10]);
 
@@ -3684,8 +3686,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     apply_work(&mut store, &all, &Work::Locations(del_op(&["b"]))).unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
-    let gain_b =
-        patch!(2; extra: Some(serde_json::from_str::<serde_json::Value>(r#"{"b":5}"#).unwrap()));
+    let gain_b = patch!(2; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"b":5}"#).unwrap())));
     apply_updates(&mut store, &[gain_b], &mut None);
     assert_eq!(
         extra_coverage(&mut store, &all),
@@ -6328,7 +6329,7 @@ fn loc_with_extra(id: u32, json: &str) -> Location {
 
 fn planned_extra(u: &Patch<Location>) -> serde_json::Value {
     match &u.extra {
-        Field::Set(e) => e.clone(),
+        Field::Set(e) => e.value().clone(),
         other => panic!("extra is {other:?}"),
     }
 }
@@ -6732,7 +6733,7 @@ fn new_extra_key_is_announced_in_the_same_result() {
         &mut store,
         &[Patch::<Location> {
             id: Id::new(1),
-            extra: Field::Set(serde_json::json!({"zz":1,"yy":2})),
+            extra: Field::Set(serde_json::json!({"zz":1,"yy":2}).into()),
             ..Default::default()
         }],
         &mut None,
@@ -7432,12 +7433,12 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     let answer = || Patch::<Location> {
         id: Id::new(1),
         heading: Some(2.0),
-        extra: Field::Set(serde_json::json!({ "countryCode": "FR", "altitude": 9 })),
+        extra: Field::Set(serde_json::json!({ "countryCode": "FR", "altitude": 9 }).into()),
         ..Default::default()
     };
 
     let kept = store.retain_valid_outputs(answer(), &read, &now);
-    let Field::Set(extra) = kept.extra else {
+    let Field::Set(mma_algebra::JsonWrite::Merge(extra)) = kept.extra else {
         panic!("the fresh output is kept");
     };
     let extra = extra.as_object().unwrap();
@@ -7446,14 +7447,14 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
     assert_eq!(kept.heading, Some(2.0));
 
     let same = store.retain_valid_outputs(answer(), &read, &read);
-    let Field::Set(extra) = same.extra else {
+    let Field::Set(mma_algebra::JsonWrite::Merge(extra)) = same.extra else {
         panic!("nothing went stale");
     };
     assert!(extra.as_object().unwrap().contains_key("countryCode"));
 
     let all_stale = Patch::<Location> {
         id: Id::new(1),
-        extra: Field::Set(serde_json::json!({ "countryCode": "FR" })),
+        extra: Field::Set(serde_json::json!({ "countryCode": "FR" }).into()),
         ..Default::default()
     };
     assert_eq!(

@@ -95,11 +95,15 @@ impl<'k> FieldWriter<'k> {
             }
             Address::Extra => {
                 let mut extra = match &patch.extra {
-                    mma_algebra::Field::Set(raw) => raw.as_object().cloned().unwrap_or_default(),
+                    mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(raw)) => {
+                        raw.as_object().cloned().unwrap_or_default()
+                    }
                     _ => serde_json::Map::new(),
                 };
                 extra.insert(self.key.to_string(), value.clone());
-                patch.extra = mma_algebra::Field::Set(serde_json::Value::Object(extra));
+                patch.extra = mma_algebra::Field::Set(mma_algebra::JsonWrite::Merge(
+                    serde_json::Value::Object(extra),
+                ));
                 Ok(())
             }
         }

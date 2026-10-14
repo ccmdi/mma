@@ -1146,19 +1146,16 @@ fn plugin_settings_patch_changes_only_named_keys_and_keeps_null_values() {
         .unwrap()
         .insert("keep".into(), serde_json::json!(false));
 
-    let patch = MapSettings::between(&old, &new);
-    let wire = serde_json::to_value(&patch).unwrap();
-    let decoded: <MapSettings as Patchable>::Patch = serde_json::from_value(wire.clone()).unwrap();
-    assert!(wire["pluginData"]["first"].get("put").is_some());
-    assert_eq!(
-        wire["pluginData"]["first"]["put"]["nullable"]["set"],
-        serde_json::Value::Null
-    );
-    assert_eq!(
-        wire["pluginData"]["first"]["put"]["remove"],
-        serde_json::json!({ "remove": null })
-    );
+    let wire = serde_json::json!({ "pluginData": {
+        "first": { "put": {
+            "nullable": { "set": null },
+            "remove": { "remove": null }
+        } },
+        "other": { "put": { "keep": { "set": false } } }
+    } });
+    let decoded: <MapSettings as Patchable>::Patch = serde_json::from_value(wire).unwrap();
     assert_eq!(old.patched(&decoded), new);
+    assert_eq!(old.patched(&MapSettings::between(&old, &new)), new);
 }
 
 #[test]

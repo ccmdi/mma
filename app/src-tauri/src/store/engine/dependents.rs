@@ -1,6 +1,6 @@
 use super::*;
 use crate::types::Location;
-use mma_algebra::{same_field_value, Field, Patch, Patchable};
+use mma_algebra::{same_field_value, Field, JsonWrite, Patch, Patchable};
 
 impl Store {
     pub(super) fn applied(&self, row: &Location, patch: &Patch<Location>) -> Location {
@@ -12,16 +12,18 @@ impl Store {
             <Location as Patchable>::WRITES
                 .iter()
                 .any(|(k, _)| *k == key)
-                || matches!(&patch.extra, Field::Set(extra) if extra.get(key).is_some())
+                || matches!(&patch.extra, Field::Set(extra) if extra.value().get(key).is_some())
         });
         if !stale.is_empty() {
             let clears = stale
                 .into_iter()
                 .map(|key| (key, serde_json::Value::Null))
                 .collect();
-            new.extra = new
-                .extra
-                .patched(&Field::Set(serde_json::Value::Object(clears)));
+            new.extra =
+                new.extra
+                    .patched(&Field::Set(JsonWrite::Merge(serde_json::Value::Object(
+                        clears,
+                    ))));
         }
         new
     }
@@ -32,7 +34,7 @@ impl Store {
         read: &Location,
         now: &Location,
     ) -> Patch<Location> {
-        let Field::Set(extra) = &patch.extra else {
+        let Field::Set(JsonWrite::Merge(extra)) = &patch.extra else {
             return patch;
         };
         let inputs = self
@@ -51,7 +53,7 @@ impl Store {
             patch.extra = if values.is_empty() {
                 Field::Keep
             } else {
-                Field::Set(serde_json::Value::Object(values))
+                Field::Set(JsonWrite::Merge(serde_json::Value::Object(values)))
             };
         }
         patch
