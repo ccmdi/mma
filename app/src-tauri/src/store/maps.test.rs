@@ -800,7 +800,7 @@ fn tag_records_read_and_write_the_one_column_format() {
 fn open_m1(conn: &Connection) -> StoreManager {
     let mut store = engine::Store::new();
     let mut meta = read_map_meta(conn, &Id::new("m1".into())).unwrap();
-    store.value_meta.insert(
+    store.records.insert(
         "tags".into(),
         engine::Tracked::new(std::mem::take(&mut meta.tags)),
     );
@@ -853,7 +853,7 @@ fn an_open_maps_tags_and_field_definitions_save_with_its_row() {
         ..Default::default()
     };
     store
-        .value_meta
+        .records
         .get_mut("tags")
         .unwrap()
         .edit()
@@ -1170,7 +1170,7 @@ fn an_open_maps_view_uses_its_current_locations_and_owned_records() {
     let current = store.map();
     assert_eq!(current.location_count, 1);
     assert_eq!(current.pending.added, 1);
-    assert_eq!(current.tags, **store.value_meta.get("tags").unwrap());
+    assert_eq!(current.tags, **store.records.get("tags").unwrap());
     assert_eq!(current.updated_at, store.meta.updated_at);
     let before = read_map_meta(&conn, &current.id).unwrap();
     assert_eq!(before.location_count, 0);

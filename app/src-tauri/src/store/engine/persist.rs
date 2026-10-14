@@ -126,13 +126,13 @@ impl Store {
     pub(crate) fn unsaved(&self) -> AppResult<Option<Unsaved>> {
         let meta = (self.meta.is_unsaved()
             || self.field_defs.is_unsaved()
-            || self.value_meta.values().any(Tracked::is_unsaved))
+            || self.records.values().any(Tracked::is_unsaved))
         .then(|| MetaRow {
             row: self.map(),
             meta: self.meta.rev(),
             defs: self.field_defs.rev(),
             values: self
-                .value_meta
+                .records
                 .iter()
                 .map(|(field, v)| (field.clone(), v.rev()))
                 .collect(),
@@ -165,7 +165,7 @@ impl Store {
             self.meta.saved_at(row.meta);
             self.field_defs.saved_at(row.defs);
             for (field, rev) in &row.values {
-                if let Some(v) = self.value_meta.get_mut(field) {
+                if let Some(v) = self.records.get_mut(field) {
                     v.saved_at(*rev);
                 }
             }
@@ -216,7 +216,7 @@ pub(crate) fn save_edit_history(
             }
             (None, Some(entry)) => {
                 tx.prepare_cached(
-                    "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry, piles) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                    "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry, parts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                 )?
                 .execute(rusqlite::params![
                     map_id.raw(),
@@ -271,7 +271,7 @@ pub(crate) fn load_edit(
     seq: u64,
 ) -> AppResult<Entry> {
     let (bytes, json): (Vec<u8>, String) = conn.query_row(
-        "SELECT entry, piles FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
+        "SELECT entry, parts FROM edit_entries WHERE map_id = ?1 AND seq = ?2",
         rusqlite::params![map_id.raw(), seq as i64],
         |r| Ok((r.get(0)?, r.get(1)?)),
     )?;

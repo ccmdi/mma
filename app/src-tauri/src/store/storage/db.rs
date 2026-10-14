@@ -557,4 +557,5 @@ pub(super) const MIGRATIONS: &[(u32, &str)] = &[
         "ALTER TABLE edit_entries ADD COLUMN piles TEXT;
           DELETE FROM edit_entries;",
     ),
+    (28, "ALTER TABLE edit_entries RENAME COLUMN piles TO parts;"),
 ];

@@ -206,7 +206,7 @@ pub struct FieldDef {
     pub field_type: FieldType,
     pub label: Option<String>,
     /// The declared value space, in display order.
-    pub values: Option<Vec<FieldValue>>,
+    pub values: Option<Vec<FieldChoice>>,
     /// How this field is compared during disambiguation. `null` infers it from the field type.
     pub comparison: Option<ComparisonType>,
     /// The field's values are ids the map allocates, each wearing its own display record.
@@ -258,23 +258,23 @@ impl FieldDef {
 /// untouched.
 #[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
-pub struct FieldValue {
+pub struct FieldChoice {
     pub value: String,
     pub label: Option<String>,
 }
 
-impl FieldValue {
+impl FieldChoice {
     pub fn new(value: impl Into<String>) -> Self {
-        FieldValue {
+        FieldChoice {
             value: value.into(),
             label: None,
         }
     }
 
     pub fn labelled(value: impl Into<String>, label: impl Into<String>) -> Self {
-        FieldValue {
+        FieldChoice {
             label: Some(label.into()),
-            ..FieldValue::new(value)
+            ..FieldChoice::new(value)
         }
     }
 }
@@ -483,8 +483,8 @@ pub fn known_field_def(key: &str) -> Option<FieldDef> {
                 f.values
                     .iter()
                     .map(|v| match f.labels.iter().find(|(k, _)| k == v) {
-                        Some((_, label)) => FieldValue::labelled(*v, *label),
-                        None => FieldValue::new(*v),
+                        Some((_, label)) => FieldChoice::labelled(*v, *label),
+                        None => FieldChoice::new(*v),
                     })
                     .collect()
             }),

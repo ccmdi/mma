@@ -276,7 +276,7 @@ fn map_with_records() -> Store {
     };
     let records = HashMap::from([record(9, "japan"), record(3, "Coastal")]);
     store
-        .value_meta
+        .records
         .insert("tags".into(), crate::store::engine::Tracked::new(records));
     let mut row = crate::test_util::loc(1, 0.0, 0.0);
     row.tags = tag_ids([9]);
@@ -299,7 +299,7 @@ fn saved_membership_follows_visible_names_without_rewriting_the_rule() {
     let before = serde_json::to_value(&saved).unwrap();
     assert_eq!(saved.resolved(&mut store), Selector::tag(9));
     store
-        .value_meta
+        .records
         .get_mut("tags")
         .unwrap()
         .edit()

@@ -1480,7 +1480,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         order: Some(4),
         ..Default::default()
     };
-    store.value_meta.insert(
+    store.records.insert(
         "tags".into(),
         Tracked::new([(Id::new(5), old_tag)].into_iter().collect()),
     );
@@ -1542,7 +1542,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     );
 
     let created = store.get_loc_by_id(Id::new(3)).expect("create landed");
-    let meta = &store.value_meta["tags"];
+    let meta = &store.records["tags"];
     let (new_id, new_rec) = meta
         .iter()
         .find(|(_, rec)| rec.name.as_deref() == Some("New"))
@@ -1585,7 +1585,7 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
         )
     });
     store
-        .value_meta
+        .records
         .insert("tags".into(), Tracked::new(records.into_iter().collect()));
     let mut tagged = crate::test_util::loc(1, 0.0, 0.0);
     tagged.tags = crate::test_util::tag_ids([7]);

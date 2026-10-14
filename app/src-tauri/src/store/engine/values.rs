@@ -205,12 +205,12 @@ impl<'a> FieldValues<'a> {
 
 impl Store {
     pub(crate) fn value_record(&self, field: &str, id: Id<ValueRecord>) -> Option<&ValueRecord> {
-        self.value_meta.get(field)?.get(&id)
+        self.records.get(field)?.get(&id)
     }
 
     /// `field`'s records as they stand.
     pub(crate) fn records(&self, field: &str) -> HashMap<Id<ValueRecord>, ValueRecord> {
-        self.value_meta
+        self.records
             .get(field)
             .map(|m| (**m).clone())
             .unwrap_or_default()
@@ -259,13 +259,14 @@ impl Store {
         after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
         let patches = self.plan_value_merges(field, &applied.redirects)?;
         let keys: Vec<Id<ValueRecord>> = before.keys().chain(after.keys()).copied().collect();
-        let delta = PileDelta::at(&before, &after, keys);
-        let piles = Piles::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
+        let delta = RecordDelta::at(&before, &after, keys);
+        let records =
+            RecordDeltas::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
         let mutation = self.write(
             patches.into_iter().map(Op::Put),
             &mut None,
             Entry {
-                piles,
+                records,
                 ..Default::default()
             },
         );

@@ -422,7 +422,7 @@ pub(super) fn bulk_tag_ids(
     let Some(p) = store.pending.get_mut(key) else {
         return Vec::new();
     };
-    let piles = p.incoming.entry("tags".to_string()).or_default();
+    let records = p.incoming.entry("tags".to_string()).or_default();
     let seeds = names.iter().filter_map(|name| {
         engine::named(Op::Add(ValueRecord {
             name: Some(name.clone()),
@@ -430,7 +430,7 @@ pub(super) fn bulk_tag_ids(
         }))
         .ok()
     });
-    let landed = mma_algebra::apply(piles, seeds, Id::default());
+    let landed = mma_algebra::apply(records, seeds, Id::default());
     let mut ids = Vec::new();
     for id in landed.keys {
         if !ids.contains(&id) {

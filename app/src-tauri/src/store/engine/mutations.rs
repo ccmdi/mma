@@ -263,12 +263,12 @@ impl Store {
         {
             return self.held(Vec::new());
         }
-        let (layer, piles) = self.reconcile_incoming(name);
+        let (layer, records) = self.reconcile_incoming(name);
         let result = self.write(
             layer.into_edits(),
             join,
             Entry {
-                piles,
+                records,
                 ..Default::default()
             },
         );
@@ -281,11 +281,11 @@ impl Store {
 
     /// Take `name`'s staged rows for landing, with incoming value records matched to the map's
     /// by name and the rows' references remapped to them.
-    fn reconcile_incoming(&mut self, name: &str) -> (Layer<Location>, Piles) {
+    fn reconcile_incoming(&mut self, name: &str) -> (Layer<Location>, RecordDeltas) {
         let pending = self.pending.entry(name.to_string()).or_default();
         let mut layer = mem::take(&mut pending.layer);
         let incoming = mem::take(&mut pending.incoming);
-        let mut piles = Piles::new();
+        let mut records = RecordDeltas::new();
         for (field, incoming) in incoming {
             if incoming.is_empty() {
                 continue;
@@ -299,9 +299,9 @@ impl Store {
                 .assign(&field)
                 .expect("declared interned fields are writable");
             layer = layer.map_edits(|edit| remap_written(edit, &to, &remap), &mut self.next_id);
-            piles.insert(field, PileDelta::at(&before, &after, remap.into_values()));
+            records.insert(field, RecordDelta::at(&before, &after, remap.into_values()));
         }
-        (layer, piles)
+        (layer, records)
     }
 
     /// Remove closed layers nothing still writes to, then announce which layers are being
@@ -362,12 +362,12 @@ impl Store {
         if !entry.selections.is_empty() {
             self.selections.apply(&entry.selections);
         }
-        if !entry.meta.is_empty() || !entry.piles.is_empty() || !entry.defs.is_empty() {
+        if !entry.meta.is_empty() || !entry.records.is_empty() || !entry.defs.is_empty() {
             self.meta.edit().updated_at = crate::util::now_iso();
         }
         self.put(&entry.locations);
-        for (field, delta) in entry.piles.iter().filter(|(_, d)| !d.is_empty()) {
-            delta.apply_to(self.value_meta.entry(field.clone()).or_default().edit());
+        for (field, delta) in entry.records.iter().filter(|(_, d)| !d.is_empty()) {
+            delta.apply_to(self.records.entry(field.clone()).or_default().edit());
         }
         if !entry.defs.is_empty() {
             entry.defs.apply_to(self.field_defs.edit());

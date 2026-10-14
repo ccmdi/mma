@@ -371,7 +371,7 @@ impl Store {
                 FieldValues::new(
                     field,
                     &self.field_indexes[field],
-                    self.value_meta.get(field).map(|records| &**records),
+                    self.records.get(field).map(|records| &**records),
                 )
             })
             .collect()

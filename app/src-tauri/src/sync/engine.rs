@@ -777,7 +777,7 @@ pub async fn sync_reconcile(
             t.elapsed().as_secs_f64()
         );
         let names: HashMap<Id<ValueRecord>, String> = store
-            .value_meta
+            .records
             .get("tags")
             .map(|meta| {
                 meta.iter()
@@ -875,19 +875,19 @@ fn apply_pull(
         .iter()
         .map(|t| (t.name.as_str(), t))
         .collect();
-    let mut piles: HashMap<Id<ValueRecord>, ValueRecord> = HashMap::new();
+    let mut records: HashMap<Id<ValueRecord>, ValueRecord> = HashMap::new();
     let mut pile_of: HashMap<String, Id<ValueRecord>> = HashMap::new();
     let mut tag_of = |name: &str| -> Id<ValueRecord> {
         if let Some(&id) = pile_of.get(name) {
             return id;
         }
-        let id = Id::new(piles.len() as u32 + 1);
+        let id = Id::new(records.len() as u32 + 1);
         let tag = needed.get(name);
         let extra = tag
             .and_then(|t| t.color.as_deref())
             .map(|color| serde_json::Map::from_iter([("color".to_string(), color.into())]))
             .unwrap_or_default();
-        piles.insert(
+        records.insert(
             id,
             ValueRecord {
                 id,
@@ -917,7 +917,7 @@ fn apply_pull(
 
     store.edit(&target, Vec::new(), &mut None);
     if let Some(p) = store.pending.get_mut(&layer) {
-        p.incoming.insert("tags".to_string(), piles);
+        p.incoming.insert("tags".to_string(), records);
     }
     let staged = store.edit(&target, edits, &mut None);
     let result = crate::store::engine::Mutation {

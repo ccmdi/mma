@@ -1021,7 +1021,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
         id: Id::new("test".into()),
         ..Default::default()
     });
-    store.value_meta.insert(
+    store.records.insert(
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
     );
@@ -1047,7 +1047,7 @@ fn copied_locations_reconcile_tags_and_report_counts() {
 
     // "Shared" reconciled to the target's existing id 5 (no duplicate created);
     // "Unique" got a fresh id, not the source's.
-    let meta = &store.value_meta["tags"];
+    let meta = &store.records["tags"];
     let (unique_id, _) = meta
         .iter()
         .find(|(_, rec)| rec.name.as_deref() == Some("Unique"))
@@ -1085,7 +1085,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
         id: Id::new("test".into()),
         ..Default::default()
     });
-    store.value_meta.insert(
+    store.records.insert(
         "tags".into(),
         engine::Tracked::new(meta_with(&[tag(5, "Shared")])),
     );
@@ -1115,7 +1115,7 @@ fn bulk_tags_apply_every_name_to_every_import() {
     store.edit(&target, edits, &mut None);
     store.land(&key, &mut None);
 
-    let meta = &store.value_meta["tags"];
+    let meta = &store.records["tags"];
     let (france, _) = meta
         .iter()
         .find(|(_, rec)| rec.name.as_deref() == Some("France"))

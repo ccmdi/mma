@@ -749,6 +749,16 @@ export type ExportProgress = {
 export type ExprError = { kind: "invalidNumber"; position: number } | { kind: "unterminatedString" } | { kind: "unexpectedCharacter"; character: string; position: number } | { kind: "expectedSymbol"; symbol: string } | { kind: "chainedComparison" } | { kind: "unexpectedEnd" } | { kind: "missingLeftOperand" } | { kind: "hasTakesFieldName" } | { kind: "unknownFunction"; name: string } | { kind: "wrongArgCount"; name: string; expected: number } | { kind: "unexpectedToken"; token: string } | { kind: "trailingToken"; token: string };
 
 /**
+ *  One member of an enumerable field's value space: the stored value plus its display
+ *  name. The value is the identity, so a rename is a label change and membership is
+ *  untouched.
+ */
+export type FieldChoice = {
+	value: string,
+	label: string | null,
+};
+
+/**
  *  Field presence count for the editor import preview dialog, letting
  *  the user see which optional fields exist and decide which to keep/drop.
  */
@@ -767,23 +777,13 @@ export type FieldDef = {
 	type: FieldType,
 	label: string | null,
 	/**  The declared value space, in display order. */
-	values: FieldValue[] | null,
+	values: FieldChoice[] | null,
 	/**  How this field is compared during disambiguation. `null` infers it from the field type. */
 	comparison: ComparisonType | null,
 	/**  The field's values are ids the map allocates, each wearing its own display record. */
 	interned?: boolean,
 };
 
-
-/**
- *  One member of an enumerable field's value space: the stored value plus its display
- *  name. The value is the identity, so a rename is a label change and membership is
- *  untouched.
- */
-export type FieldValue = {
-	value: string,
-	label: string | null,
-};
 
 /**  A map file as the link picker shows it. */
 export type FileSource = {

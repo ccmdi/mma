@@ -3127,7 +3127,7 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
 fn edit_values_appends_new_records_to_the_order() {
     let mut store = setup_store_with(&[]);
     let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
-    let meta = store.value_meta.get("tags").unwrap();
+    let meta = store.records.get("tags").unwrap();
     assert_eq!(meta[&ids[0]].order, Some(1));
     assert_eq!(meta[&ids[1]].order, Some(2));
 }
@@ -3164,7 +3164,7 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
     assert_eq!(first.order, Some(1));
 
     undo_and_finish(&mut store);
-    let meta = store.value_meta.get("tags").unwrap();
+    let meta = store.records.get("tags").unwrap();
     assert_eq!(meta[&ids[0]].name.as_deref(), Some("A"));
     assert_eq!(meta[&ids[0]].order, Some(1));
     assert_eq!(
@@ -3188,7 +3188,7 @@ fn edit_values_null_deletes_a_metadata_key_but_never_the_name() {
             })],
         )
         .unwrap();
-    let meta = store.value_meta.get("tags").unwrap();
+    let meta = store.records.get("tags").unwrap();
     assert_eq!(meta[&id].color(), None, "null deletes the key");
     assert_eq!(
         meta[&id].name.as_deref(),
@@ -3218,7 +3218,7 @@ fn edit_values_patching_a_value_rows_hold_creates_its_missing_record() {
             })],
         )
         .unwrap();
-    let meta = store.value_meta.get("tags").unwrap();
+    let meta = store.records.get("tags").unwrap();
     assert_eq!(meta[&Id::new(7)].name.as_deref(), Some("Seven"));
     assert!(
         !meta.contains_key(&Id::new(99)),
@@ -3252,7 +3252,7 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![b]);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![b]);
     assert_eq!(
-        store.value_meta.get("tags").unwrap()[&a].name.as_deref(),
+        store.records.get("tags").unwrap()[&a].name.as_deref(),
         Some("A"),
         "the emptied record keeps its name, dark"
     );
@@ -7524,7 +7524,7 @@ fn an_answers_keys_computed_from_a_moved_input_are_dropped_at_delivery() {
 
 fn tag_records(store: &Store) -> HashMap<Id<ValueRecord>, ValueRecord> {
     store
-        .value_meta
+        .records
         .get("tags")
         .map(|m| (**m).clone())
         .unwrap_or_default()
@@ -7642,7 +7642,7 @@ fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
         .iter()
         .map(|(_, e)| (e.seq, (**e.entry.as_ref().unwrap()).clone()))
         .collect();
-    assert!(held.iter().any(|(_, e)| !e.piles.is_empty()));
+    assert!(held.iter().any(|(_, e)| !e.records.is_empty()));
     with_history_db(|conn| {
         save_edit_history(conn, &Id::new("m".into()), &store.steps[Timeline::Edits]).unwrap();
         for (seq, entry) in &held {
@@ -9283,4 +9283,29 @@ fn each_timeline_has_its_own_stacks_and_reports_its_history() {
     assert_eq!(history.len(), Timeline::ALL.len());
     assert!(history[&Timeline::Edits].undo);
     assert!(!history[&Timeline::Selections].undo);
+}
+
+#[test]
+fn an_entrys_record_changes_are_written_as_records_and_read_from_their_old_name() {
+    let record = ValueRecord {
+        id: Id::new(1),
+        name: Some("a".into()),
+        ..Default::default()
+    };
+    let entry = Entry {
+        records: RecordDeltas::from([(
+            "tags".to_string(),
+            RecordDelta::from_sides(vec![(record.id, record)], vec![]),
+        )]),
+        ..Default::default()
+    };
+    let mut stored = serde_json::to_value(&entry).unwrap();
+    assert!(stored.get("piles").is_none());
+    assert_eq!(
+        serde_json::from_value::<Entry>(stored.clone()).unwrap(),
+        entry
+    );
+    let records = stored.as_object_mut().unwrap().remove("records").unwrap();
+    stored["piles"] = records;
+    assert_eq!(serde_json::from_value::<Entry>(stored).unwrap(), entry);
 }

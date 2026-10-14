@@ -1071,3 +1071,28 @@ fn resolve_within_refuses_escapes() {
     let absolute = root.parent().unwrap().join("elsewhere.txt");
     assert!(resolve_within(&root, &absolute).is_err());
 }
+
+#[test]
+fn v28_keeps_a_stored_undo_step_readable_under_its_renamed_column() {
+    let conn = Connection::open_in_memory().unwrap();
+    configure_connection(&conn).unwrap();
+    let before = MIGRATIONS.iter().position(|(v, _)| *v == 28).unwrap();
+    apply_prefix(&conn, before);
+    insert_map(&conn, "m", "n");
+    let blob = arrow::arrow_ipc_bytes(&arrow::delta_to_batch(&[], &[])).unwrap();
+    let parts = serde_json::json!({
+        "piles": { "tags": { "added": [[1, { "id": 1, "name": "a" }]], "removed": [], "updated": [] } },
+        "defs": { "added": [], "removed": [], "updated": [] },
+    });
+    conn.execute(
+        "INSERT INTO edit_entries (map_id, seq, stack, max_id, entry, piles) VALUES ('m', 0, 0, 0, ?1, ?2)",
+        rusqlite::params![blob, parts.to_string()],
+    )
+    .unwrap();
+
+    run_migrations_on(&conn).unwrap();
+    let entry = crate::store::engine::load_edit(&conn, &Id::new("m".into()), 0).unwrap();
+    let tags = &entry.records["tags"];
+    assert_eq!(tags.added.len(), 1);
+    assert_eq!(tags.added[0].1.name.as_deref(), Some("a"));
+}

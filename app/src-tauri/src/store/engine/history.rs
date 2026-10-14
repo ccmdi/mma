@@ -7,10 +7,10 @@ use mma_fields::Delta;
 use std::sync::Arc;
 
 /// What one write did to an interned field's records.
-pub(crate) type PileDelta = Change<(Id<ValueRecord>, ValueRecord)>;
+pub(crate) type RecordDelta = Change<(Id<ValueRecord>, ValueRecord)>;
 
 /// What one write did to every interned field's records, by field.
-pub(crate) type Piles = HashMap<String, PileDelta>;
+pub(crate) type RecordDeltas = HashMap<String, RecordDelta>;
 
 /// What one write did to the map's extra-field definitions.
 pub(crate) type DefsDelta = Change<(String, maps::FieldDef)>;
@@ -22,7 +22,8 @@ pub struct Entry {
     #[serde(skip)]
     pub locations: Change<Location>,
     /// The edit's changes to the records of interned values such as tags, by field.
-    pub piles: Piles,
+    #[serde(alias = "piles")]
+    pub records: RecordDeltas,
     /// The edit's changes to the map's field definitions.
     pub defs: DefsDelta,
     /// The edit's changes to the map's details and settings, which are not undone.
@@ -65,7 +66,7 @@ impl EntryKey {
     /// The timeline an edit holding this part records into, or `None` for a part never undone.
     pub(crate) fn timeline(self) -> Option<Timeline> {
         match self {
-            EntryKey::Locations | EntryKey::Piles | EntryKey::Defs => Some(Timeline::Edits),
+            EntryKey::Locations | EntryKey::Records | EntryKey::Defs => Some(Timeline::Edits),
             EntryKey::Selections => Some(Timeline::Selections),
             EntryKey::Meta => None,
         }

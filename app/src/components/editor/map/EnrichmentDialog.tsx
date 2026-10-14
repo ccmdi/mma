@@ -24,7 +24,7 @@ import { openManual } from "@/store/router";
 import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useMapSetting } from "@/store/useMapSetting";
-import type { FieldDef, FieldValue } from "@/bindings.gen";
+import type { FieldDef, FieldChoice } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
 import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
 import { msg, t } from "@/lib/i18n";
@@ -86,7 +86,7 @@ interface FieldRow {
 	label: string;
 	type: FieldDef["type"];
 	comparison: FieldDef["comparison"];
-	values: FieldValue[] | null;
+	values: FieldChoice[] | null;
 }
 
 /** Fields that exist on this map: the only ones with a schema to edit. */
@@ -584,7 +584,7 @@ function EnumValues({
 	onCommit,
 }: {
 	row: FieldRow;
-	onCommit: (values: FieldValue[] | null) => void;
+	onCommit: (values: FieldChoice[] | null) => void;
 }) {
 	const [draft, setDraft] = useState(() =>
 		(row.values ?? []).map((v) => ({ value: v.value, label: v.label ?? "" })),
@@ -603,7 +603,7 @@ function EnumValues({
 	}, [row.key, row.values]);
 
 	const commit = (next: { value: string; label: string }[]) => {
-		const values: FieldValue[] = [];
+		const values: FieldChoice[] = [];
 		for (const r of next) {
 			const v = r.value.trim();
 			if (!v || values.some((x) => x.value === v)) continue;

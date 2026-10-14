@@ -112,7 +112,7 @@ impl Overlay {
 }
 
 pub struct Store {
-    /// The open map's metadata. Tag records live in `value_meta`, field definitions in
+    /// The open map's metadata. Tag records live in `records`, field definitions in
     /// `field_defs`, and `meta` keeps neither.
     pub(crate) meta: Tracked<MapMeta>,
     /// The map's extra-field definitions.
@@ -132,7 +132,7 @@ pub struct Store {
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     /// Per-field value records. `tags` is currently the only interned field.
-    pub(crate) value_meta: HashMap<String, Tracked<HashMap<Id<ValueRecord>, ValueRecord>>>,
+    pub(crate) records: HashMap<String, Tracked<HashMap<Id<ValueRecord>, ValueRecord>>>,
     /// Lazy per-field indexes of live rows, maintained on mutation.
     /// Per-value counts come from index membership.
     field_indexes: selections::FieldIndexes,
@@ -193,7 +193,7 @@ impl Store {
                 marker_color: DEFAULT_MARKER_COLOR,
             },
             selections: SelectionState::default(),
-            value_meta: HashMap::new(),
+            records: HashMap::new(),
             field_indexes: selections::FieldIndexes::default(),
             steps: Timelines::default(),
             bounds: Ensured::default(),
@@ -221,7 +221,7 @@ impl Store {
     pub(crate) fn map(&self) -> MapMeta {
         MapMeta {
             tags: self
-                .value_meta
+                .records
                 .get("tags")
                 .map(|records| (**records).clone())
                 .unwrap_or_default(),
@@ -321,13 +321,13 @@ impl Store {
             Finished::Entry(entry) => (entry, !entry.selections.is_empty()),
             Finished::Base => (&empty, true),
         };
-        let (changes, piles) = (&entry.locations, &entry.piles);
+        let (changes, records) = (&entry.locations, &entry.records);
         let before = self.version;
         self.bump();
         self.update_bounds(changes, before);
 
         let mut moved = self.reindex(changes);
-        for (field, delta) in piles {
+        for (field, delta) in records {
             moved
                 .entry(field.clone())
                 .or_default()
@@ -384,7 +384,7 @@ impl Store {
             field_values: (!field_values.is_empty()).then_some(field_values),
             selection_counts: (has_selections || resolve_all)
                 .then(|| self.selections.node_counts.clone()),
-            selection_list: (resolve_all || piles.values().any(|delta| !delta.is_empty()))
+            selection_list: (resolve_all || records.values().any(|delta| !delta.is_empty()))
                 .then(|| self.selections.list()),
             ..self.shipped()
         };

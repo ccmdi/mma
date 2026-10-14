@@ -92,7 +92,7 @@ impl Store {
     pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
         let pruned = self.pruned_selections(entry);
         let changed: HashMap<(&str, Id<ValueRecord>), Rgb> = entry
-            .piles
+            .records
             .iter()
             .flat_map(|(field, pile)| {
                 pile.after()
@@ -128,7 +128,7 @@ impl Store {
     fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
         let gone = self.emptied_values(&entry.locations, |field| {
             entry
-                .piles
+                .records
                 .get(field)
                 .into_iter()
                 .flat_map(|pile| pile.keys_iter())

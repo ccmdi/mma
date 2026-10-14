@@ -156,7 +156,7 @@ async fn open_claimed_map(
     let mut mgr = state.lock()?;
     let mut meta = maps::read_map_meta(&conn, &map_id)?;
     store
-        .value_meta
+        .records
         .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
     store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = Tracked::new(meta);
@@ -343,7 +343,7 @@ fn copy_to_map(
             .iter()
             .flat_map(|l| l.tags.iter().copied())
             .collect();
-        src.value_meta
+        src.records
             .get("tags")
             .map(|meta| {
                 meta.iter()
