@@ -789,12 +789,9 @@ pub(crate) fn run_all(
 
 pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let ids: Vec<Id<Location>> = ctx.with_store(|store| {
-        Ok(store
-            .at(&ctx.target)
-            .rows(&decl.select)
-            .into_iter()
-            .map(|row| row.id)
-            .collect())
+        Ok(store.at(&ctx.target).scope(&decl.select, None, |scope| {
+            scope.rows().map(|row| row.id()).collect()
+        }))
     })?;
     let total = ids.len() as u32;
     let started = Instant::now();
