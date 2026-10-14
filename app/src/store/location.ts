@@ -78,7 +78,7 @@ export const Location = {
 			{ kind: "locations" },
 		);
 		if (!loc) return null;
-		const clone: Location = { ...loc };
+		const clone: Location = { ...loc, createdAt: 0 };
 		await Location.add([clone]);
 		return clone.id;
 	},

@@ -3,6 +3,7 @@ import { Location } from "@/store/location";
 import { createLocation } from "@/types";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+const source = vi.hoisted(() => ({}) as Record<string, unknown>);
 const calls = vi.hoisted(() => ({
 	held: false,
 	reads: [] as unknown[][],
@@ -21,6 +22,8 @@ vi.mock("@/lib/commands", async () => {
 		storeOpenMap: async () => openMapResult(),
 		storeRead: async (...args: unknown[]) => {
 			calls.reads.push(args);
+			if ((args[2] as { kind: string }).kind === "locations")
+				return { kind: "locations", rows: { kind: "inline", locations: [source] } };
 			return { kind: "held", held: [calls.held] };
 		},
 		storeEdit: async (...args: unknown[]) => {
@@ -33,6 +36,7 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 const drop = createLocation({ lat: 1, lng: 2, panoId: "PANO", tags: [1] });
 const records = { tags: { 1: { id: 1, name: "New" } } };
+Object.assign(source, { ...drop, id: 7, createdAt: 1_600_000_000, modifiedAt: 1_700_000_000 });
 
 beforeEach(async () => {
 	calls.reads.length = 0;
@@ -52,5 +56,13 @@ describe("Location.addTo", () => {
 		calls.held = true;
 		expect(await Location.addTo("m2", drop, records)).toBe(false);
 		expect(calls.edits).toEqual([]);
+	});
+});
+
+describe("Location.duplicate", () => {
+	it("leaves the creation time for the map to stamp now", async () => {
+		await Location.duplicate(7);
+		const [[, [{ add }]]] = calls.edits as [unknown, [{ add: Record<string, unknown> }]][];
+		expect(add).toMatchObject({ lat: 1, lng: 2, panoId: "PANO", createdAt: 0 });
 	});
 });
