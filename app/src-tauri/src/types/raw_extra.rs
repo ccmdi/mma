@@ -14,10 +14,9 @@ use std::sync::Arc;
 
 /// `Location.extra` stored as its raw JSON bytes instead of a parsed map.
 ///
-/// Over IPC/JSON and into the Arrow `extra` string column it emits transparently, so
-/// those formats are unchanged. The binary (rmp) encoding of legacy msgpack delta sidecars
-/// carries a plain string, or a map from older builds, and reading accepts
-/// both (see [`BinRawExtraVisitor`]). Parsing happens only
+/// Over IPC/JSON and into the Arrow `extra` string column it emits transparently. The binary
+/// (rmp) encoding of legacy msgpack delta sidecars carries a plain string or a map, and reading
+/// accepts both (see [`BinRawExtraVisitor`]). Parsing happens only
 /// when a consumer needs keyed access, via [`RawExtra::to_map`] (deep) or
 /// [`RawExtra::get`]/[`RawExtra::for_each_field`] (zero-alloc byte scan).
 /// It is never an empty object: every constructor maps that to no extra.

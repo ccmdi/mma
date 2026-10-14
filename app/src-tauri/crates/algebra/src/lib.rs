@@ -691,7 +691,7 @@ impl<_T> Default for IdRange<_T> {
 }
 
 impl<_T> IdRange<_T> {
-    /// The `i`th id of the run, or `None` past its end.
+    /// The `i`th id of the run, or nothing past its end.
     pub fn nth(&self, i: u32) -> Option<Id<_T>> {
         (i < self.len).then(|| Id::new(self.first.0 + i))
     }

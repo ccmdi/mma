@@ -811,11 +811,7 @@ declare const commands$1: {
      *  @unstable
      */
     storeCopyLocationsToMap: (targetMapId: string, selector: Selector$1<SelectionInput>) => Promise<CopyToMapResult>;
-    /**
-     *  Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
-     *  one change.
-     *  @unstable
-     */
+    /**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. @unstable */
     storeEditUploaded: (target: Target, session: string) => Promise<MutationResult<Location>>;
     /**  Set the default marker color for new render updates. @unstable */
     storeSetMarkerColor: (color: RGB) => Promise<null>;
@@ -3147,7 +3143,7 @@ export type EngineState = {
 } & {
     version: number;
 };
-/** The open map's own details. Its tag records, field definitions, and counts live in their
+/** The open map's own details. Its value records, field definitions, and counts live in their
  *  own slices. */
 export type MapDetails = NonNullable<Derived["meta"]>;
 export interface UiState {

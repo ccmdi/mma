@@ -6,7 +6,7 @@ type EngineState = {
 	[K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
 } & { version: number };
 
-/** The open map's own details. Its tag records, field definitions, and counts live in their
+/** The open map's own details. Its value records, field definitions, and counts live in their
  *  own slices. */
 export type MapDetails = NonNullable<Derived["meta"]>;
 

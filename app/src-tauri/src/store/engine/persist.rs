@@ -236,8 +236,8 @@ pub(crate) fn save_value_records(
     Ok(())
 }
 
-/// Records stored as an object keyed by id. Each takes its id from its key and drops
-/// `visible`, which records written by older versions still hold.
+/// Records stored as an object keyed by id. Each takes its id from its key and drops the
+/// legacy `visible` key.
 fn decode_records(text: &str) -> HashMap<Id<ValueRecord>, ValueRecord> {
     let Ok(serde_json::Value::Object(stored)) = serde_json::from_str(text) else {
         return HashMap::new();

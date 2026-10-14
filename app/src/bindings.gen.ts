@@ -175,10 +175,7 @@ export const commands = {
 	 *  Extra fields carry over, and interned values such as tags are matched to the target's by name.
 	 */
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
-	/**
-	 *  Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
-	 *  one change.
-	 */
+	/**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. */
 	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<MutationResult>("store_edit_uploaded", { target, session }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),

@@ -76,8 +76,6 @@ impl SelectionState {
 }
 
 /// A selection as the sidebar lists it, plus whether it is ghosted.
-// Ghosting means nothing for a nested child, which is why the flag lives here and not on
-// `Selection`.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ListedSelection {

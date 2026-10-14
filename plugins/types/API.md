@@ -6589,8 +6589,7 @@ cmd.storeEditUploaded(
 ): Promise<MutationResult<Location>>
 ```
 
-Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
-one change.
+Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change.
 
 #### cmd.storeEditValues
 

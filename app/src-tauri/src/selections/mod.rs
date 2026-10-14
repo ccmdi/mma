@@ -1265,6 +1265,8 @@ impl<'v, 'a> Scope<'v, 'a> {
         out
     }
 
+    /// This scope's ids sorted by `score` in `order`, unscored rows last and ties in scope order,
+    /// cut to the first `take`.
     pub fn rank_by(
         &self,
         score: impl Fn(&RowRef) -> Option<f64>,

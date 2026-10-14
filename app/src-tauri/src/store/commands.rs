@@ -108,8 +108,7 @@ pub fn store_close_layer(
     Ok(())
 }
 
-/// Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
-/// one change.
+/// Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_edit_uploaded(

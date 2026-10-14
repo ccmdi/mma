@@ -16,11 +16,7 @@ export interface SelCellEntry {
 	sels: SelEntry[];
 }
 
-/**
- * Decode a frame's selection section, as the store's `assemble_selection_bitmask` writes it.
- * Sole reader of that wire format - all format knowledge lives here
- * and in `restateSelections`, which consumes the decoded entries.
- */
+/** Decode a frame's selection section. */
 export function decodeSelectionBitmask(bytes: Uint8Array): {
 	selColors: RGB[];
 	cellEntries: SelCellEntry[];
