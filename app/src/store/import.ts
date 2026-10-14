@@ -5,8 +5,7 @@ import { Autosave } from "@/store/autosave";
 import { Commit } from "@/store/commit";
 import { Edit } from "./edit";
 import { bboxTupleToBounds } from "@/types";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import type { EditorImportPreview, Target } from "@/bindings.gen";
+import type { EditorImportPreview } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { mmaBufUrl } from "@/lib/util/util";
@@ -47,10 +46,6 @@ export const Import = {
 	/** The current staged import, or null if none. */
 	staging: () => {
 		return importState.staging;
-	},
-	/** The pending layer holding this window's staged import locations. */
-	target: (): Target => {
-		return { kind: "pending", name: `import:${getCurrentWebviewWindow().label}` };
 	},
 	/** Discard the staged import and its pending layer. */
 	reset: () => {

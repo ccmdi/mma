@@ -8675,16 +8675,6 @@ Import.staging(): ImportStaging | null
 
 The current staged import, or null if none.
 
-#### Import.target
-
-`unstable` · unreleased
-
-```ts
-Import.target(): Target
-```
-
-The pending layer holding this window's staged import locations.
-
 ## SavedSelection
 
 ### SavedSelection

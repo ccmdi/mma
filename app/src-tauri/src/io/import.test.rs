@@ -947,7 +947,8 @@ fn two_windows_previewing_at_once_keep_their_own_import() {
         let json = format!(r#"{{"customCoordinates":[{{"lat":{lat},"lng":1}}]}}"#);
         let mut buf = json.into_bytes();
         let parsed = parse_single_json_mut(&mut buf);
-        build_preview(&parsed, window).unwrap();
+        let preview = build_preview(&parsed, window).unwrap();
+        assert!(preview.target == import_target(window));
         stage_parsed(store, window, parsed).unwrap()
     };
     let a = stage(&mut store, "preview-a", 11.0);

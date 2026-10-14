@@ -223,13 +223,14 @@ export const Editor = {
 	},
 	/** Preview a copy of a staged-import location. The import row stays staged until Confirm. @unstable */
 	openImport: (index: number): Promise<void> => {
-		const first = Import.staging()?.preview.firstId;
-		if (first == null) return Promise.resolve();
+		const preview = Import.staging()?.preview;
+		const first = preview?.firstId;
+		if (preview == null || first == null) return Promise.resolve();
 		return openings.replace(async () => {
 			const [loc] = await Query.read(
 				{ type: "Locations", locations: [first + index], name: null },
 				{ kind: "locations" },
-				Import.target(),
+				preview.target,
 			);
 			return loc ? openPreview(loc, "import") : null;
 		});

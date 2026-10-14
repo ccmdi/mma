@@ -43,6 +43,8 @@ pub struct EditorImportPreview {
     pub bounds: Option<[f64; 4]>,
     /// True when this import is too large to undo and will be committed automatically.
     pub will_auto_commit: bool,
+    /// The pending layer the staged locations are read through until the import lands.
+    pub target: engine::Target,
     /// The id the first staged location was given; the rest follow it in order.
     pub first_id: Option<Id<Location>>,
     /// Map settings carried by the import (`extra.settings`).
@@ -166,6 +168,7 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
             Some([west, south, east, north])
         },
         will_auto_commit: n > engine::MAX_UNDO_LOCATIONS,
+        target: import_target(window),
         first_id: None,
         settings: parsed.settings.clone(),
     };

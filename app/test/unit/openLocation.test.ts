@@ -11,13 +11,15 @@ const h = vi.hoisted(() => ({
 	panoId: "A",
 	editError: null as Error | null,
 	runs: [] as { target: unknown; signal: AbortSignal }[],
+	readTargets: [] as unknown[],
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 vi.mock("@/store/import", () => ({
 	Import: {
-		staging: () => ({ preview: { firstId: 100 } }),
-		target: () => ({ kind: "pending", name: "import:test" }),
+		staging: () => ({
+			preview: { firstId: 100, target: { kind: "pending", name: "staged-by-rust" } },
+		}),
 	},
 }));
 
@@ -31,7 +33,8 @@ vi.mock("@/lib/commands", () => ({
 		storeCloseLayer: async (name: string) => {
 			h.dropped.push(name);
 		},
-		storeRead: async (_target: unknown, selector: { type: string; locations?: number[] }) => {
+		storeRead: async (target: unknown, selector: { type: string; locations?: number[] }) => {
+			h.readTargets.push(target);
 			if (selector.type === "Nearby") {
 				return { kind: "locations", locations: { kind: "inline", locations: h.nearby } };
 			}
@@ -74,6 +77,7 @@ beforeEach(() => {
 	h.editError = null;
 	h.panoId = "A";
 	h.runs = [];
+	h.readTargets = [];
 	Store.patch({ mapId: "test-map", map: null });
 });
 
@@ -184,6 +188,14 @@ describe("open location", () => {
 
 		expect(Editor.get().open).toBeNull();
 		expect(Editor.get().workArea).toBe("overview");
+	});
+
+	it("reads a staged import location through the layer the preview names", async () => {
+		await Editor.openImport(0);
+
+		expect(h.reads).toContain(100);
+		expect(h.readTargets).toContainEqual({ kind: "pending", name: "staged-by-rust" });
+		Editor.setArea("overview");
 	});
 
 	it("a slow import read cannot open a preview after a newer location opens", async () => {

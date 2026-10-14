@@ -721,6 +721,8 @@ export type EditorImportPreview = {
 	bounds: [number, number, number, number] | null,
 	/**  True when this import is too large to undo and will be committed automatically. */
 	willAutoCommit: boolean,
+	/**  The pending layer the staged locations are read through until the import lands. */
+	target: Target,
 	/**  The id the first staged location was given; the rest follow it in order. */
 	firstId: number | null,
 	/**  Map settings carried by the import (`extra.settings`). */

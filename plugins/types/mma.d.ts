@@ -1555,6 +1555,8 @@ type EditorImportPreview = {
     bounds: [number, number, number, number] | null;
     /**  True when this import is too large to undo and will be committed automatically. */
     willAutoCommit: boolean;
+    /**  The pending layer the staged locations are read through until the import lands. */
+    target: Target;
     /**  The id the first staged location was given; the rest follow it in order. */
     firstId: number | null;
     /**  Map settings carried by the import (`extra.settings`). */
@@ -4155,8 +4157,6 @@ declare const Import: {
     previewPositions: () => Float32Array<ArrayBufferLike>;
     /** The current staged import, or null if none. @unstable */
     staging: () => ImportStaging | null;
-    /** The pending layer holding this window's staged import locations. @unstable */
-    target: () => Target;
     /** Discard the staged import and its pending layer. @unstable */
     reset: () => void;
     /** Import from a file path. @unstable */
