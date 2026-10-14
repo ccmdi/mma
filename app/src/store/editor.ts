@@ -326,8 +326,10 @@ export const Editor = {
 	},
 };
 
-subscribe("store:change", ({ removed }) => {
+subscribe("store:change", ({ added, updated, removed, derived }) => {
 	const open = state.open;
-	if (open?.origin === "map" && removed.includes(open.id)) Editor.close();
-	else void Editor.refresh();
+	if (!open) return;
+	if (open.origin === "map" && removed.includes(open.id)) Editor.close();
+	else if (derived.writingLayers || added.includes(open.id) || updated.includes(open.id))
+		void Editor.refresh();
 });

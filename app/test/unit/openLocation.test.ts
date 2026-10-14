@@ -150,6 +150,31 @@ describe("open location", () => {
 		expect(Editor.get().workArea).toBe("overview");
 	});
 
+	it("rereads the open location only for a change naming it or a writing-layer flip", async () => {
+		await Editor.open(7);
+		const change = {
+			version: 1,
+			derived: {} as ChangeEvent["derived"],
+			added: [],
+			updated: [],
+			removed: [],
+		} satisfies ChangeEvent;
+		const reads = () => h.reads.filter((id) => id === 7).length;
+		const before = reads();
+		emit("store:change", { ...change, updated: [8] });
+		emit("store:change", change);
+		await Promise.resolve();
+		expect(reads()).toBe(before);
+		emit("store:change", { ...change, updated: [7] });
+		await vi.waitUntil(() => reads() === before + 1);
+		emit("store:change", {
+			...change,
+			derived: { writingLayers: [] } as unknown as ChangeEvent["derived"],
+		});
+		await vi.waitUntil(() => reads() === before + 2);
+		Editor.close();
+	});
+
 	it("a draft edit shows in the open location with no change from the map", async () => {
 		await Editor.open(7);
 		h.panoId = "B";
