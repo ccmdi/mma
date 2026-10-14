@@ -127,3 +127,19 @@ fn restoring_after_a_delete_and_an_add_never_hands_out_a_restored_id() {
     assert!(first < second && third > Id::new(9));
     assert_eq!(store.get_loc_by_id(first).unwrap().lat, 1.0);
 }
+
+#[test]
+fn restoring_a_version_announces_the_pending_counts_it_leaves() {
+    let mut store = Store::new();
+    store.batch = Some(arrow::locations_to_batch(&[loc(1, 1.0, 1.0)]));
+    let feed = engine::tests::FeedCapture::attach(&mut store);
+    restore_rows(&mut store, vec![loc(1, 1.0, 1.0), loc(9, 9.0, 9.0)]);
+    assert_eq!(
+        feed.last().derived.pending,
+        Some(Counts {
+            added: 1,
+            removed: 0,
+            updated: 0,
+        })
+    );
+}

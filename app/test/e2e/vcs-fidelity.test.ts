@@ -48,7 +48,7 @@ async function listCommits(mapId: string): Promise<any[]> {
 }
 
 async function commitDiff(): Promise<{ added: number; removed: number; updated: number }> {
-	return withApi(async (api) => api.cmd.storeCommitDiff());
+	return withApi(async (api) => api.Store.get().pending);
 }
 
 describe("VCS data fidelity — exact restoration through checkout", () => {

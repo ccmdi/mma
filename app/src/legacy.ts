@@ -16,7 +16,6 @@ import { MapHost } from "@/lib/map/host";
 import { Scene } from "@/lib/render/scene";
 import { addSelection, removeSelection, tagSelector, selection } from "@/store/selections";
 import { emit, subscribe } from "@/lib/events";
-import { cmd } from "@/lib/commands";
 import type { CountBy, KeySpec, PartitionBucket, Target } from "@/bindings.gen";
 import type { EnrichFieldOption } from "@/lib/data/fieldDefs";
 import { Provider } from "@/lib/data/provider";
@@ -78,11 +77,6 @@ export function getGhostedSelections() {
 /** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @unstable */
 export function getSelections() {
 	return SelectionList.active();
-}
-
-/** @deprecated v0.8.2. Ask `MMA.Query.read` for the summary and take `dirtyCount`. @unstable */
-export async function getDirtyCount(): Promise<number> {
-	return (await cmd.storeSummary()).dirtyCount;
 }
 
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
@@ -286,9 +280,6 @@ export const getMapState: typeof Store.get = Store.get;
 
 /** @deprecated v0.12.1. Use `MMA.Store.use`. */
 export const useMapState: typeof Store.use = Store.use;
-
-/** @deprecated v0.12.1. Use `MMA.Store.setMeta`. @unstable */
-export const setMap: typeof Store.setMeta = Store.setMeta;
 
 /** @deprecated v0.12.1. Use `MMA.Tag.counts`. */
 export const getTagCounts: typeof Tag.counts = Tag.counts;

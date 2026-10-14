@@ -8908,3 +8908,55 @@ fn a_change_to_the_maps_details_records_no_undo_step() {
         ])
     );
 }
+
+thread_local! {
+    pub(crate) static RESOLVES: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
+}
+
+fn step_and_finish(store: &mut Store, stack: Stack) {
+    let entry = store
+        .step(stack, Timeline::Edits, fetch_stored)
+        .unwrap()
+        .unwrap();
+    store.finish_entry(&entry);
+}
+
+#[test]
+fn pending_counts_ride_the_change_feed_after_edit_undo_redo_and_commit() {
+    let mut store = setup_store_with(&[]);
+    let feed = FeedCapture::attach(&mut store);
+    store.write([Op::Add(loc(0, 1.0, 1.0))], &mut None, Entry::default());
+    assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
+    step_and_finish(&mut store, Stack::Undo);
+    assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
+    step_and_finish(&mut store, Stack::Redo);
+    assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
+    store.finish_selection_change();
+    assert_eq!(
+        feed.last().derived.pending,
+        None,
+        "unchanged counts stay off the feed"
+    );
+    store.bake_overlay();
+    store.finish_selection_change();
+    assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
+    assert_eq!(store.open_status().derived.pending, Some(net(0, 0, 0)));
+}
+
+#[test]
+fn a_commits_finish_resolves_selections_once_and_leaves_them_right_after_the_bake() {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    store.write([Op::Add(loc(0, 1.0, 1.0))], &mut None, Entry::default());
+    store.edit_selections(&SelectionOp::Add {
+        selections: vec![SelectionInput {
+            selector: Selector::Everything,
+            color: None,
+        }],
+    });
+    store.bake_overlay();
+    RESOLVES.with(|n| n.set(0));
+    store.finish_selection_change();
+    assert_eq!(RESOLVES.with(std::cell::Cell::get), 1);
+    assert_eq!(store.selections.ids.len(), 2);
+}

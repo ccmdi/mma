@@ -769,9 +769,7 @@ macro_rules! command_table {
             "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
                 Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
-            "Return the uncommitted location change counts." store_commit_diff() -> mma_algebra::Counts => |store| {
-                Ok(store.overlay_diff_counts())
-            };
+
             "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
                 Ok(store.edit_selections(&op))
             };

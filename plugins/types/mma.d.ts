@@ -596,8 +596,6 @@ declare const commands$1: {
     storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
     storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult<ValueRecord>>;
-    /** Return the uncommitted location change counts. @unstable */
-    storeCommitDiff: () => Promise<Counts>;
     /** Edit the selection tree. @unstable */
     storeEditSelections: (op: SelectionOp) => Promise<MutationResult<Location>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
@@ -1453,6 +1451,8 @@ type DbStats = {
 /**  Map state a change affected. Each field is `null` when it did not change. @unstable */
 type Derived_Deserialize = {
     locationCount: number | null;
+    /**  Location changes since the last commit. */
+    pending: Counts | null;
     meta: MapMeta_Deserialize | null;
     history: Partial<{
         [key in Timeline]: History;
@@ -1479,6 +1479,8 @@ type Derived_Deserialize = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 type Derived = {
     locationCount: number | null;
+    /**  Location changes since the last commit. */
+    pending: Counts | null;
     meta: MapMeta | null;
     history: Partial<{
         [key in Timeline]: History;
@@ -3135,8 +3137,6 @@ declare const Store: {
     use: <T>(selector: (s: MapState) => T) => T;
     /** Imperative snapshot of the map state. */
     get: () => Readonly<MapState>;
-    /** Replace the open map's row in state; persisting it is the caller's. @unstable */
-    setMeta: (map: MapMeta) => void;
     /** Clear derived state when the map closes. @unstable */
     resetDerived: () => void;
 };
@@ -3201,8 +3201,6 @@ declare const EVENT_DEFS: {
     "import-markers:changed": void;
     /** @unstable */
     "diff-markers:changed": void;
-    /** @unstable */
-    "commit-diff:changed": void;
 };
 export type EditorEventMap = typeof EVENT_DEFS;
 export type EditorEvent = keyof EditorEventMap;
@@ -4103,9 +4101,7 @@ export interface CommitDiffPreview {
 declare const CommitDiff: {
     /** Whether there are uncommitted changes (adds, removes, or updates). @unstable */
     has: () => boolean;
-    /** Reset the uncommitted-change counts to zero. @unstable */
-    resetCounts: () => void;
-    /** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. @unstable */
+    /** React hook: the uncommitted add/remove/modify counts. @unstable */
     use: () => Counts;
     /** The current commit-diff preview, or null when not previewing. @unstable */
     preview: () => CommitDiffPreview | null;
@@ -7275,8 +7271,6 @@ declare function getAllSelections(): Selection[];
 declare function getGhostedSelections(): Set<string>;
 /** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @unstable */
 declare function getSelections(): Selection[];
-/** @deprecated v0.8.2. Ask `MMA.Query.read` for the summary and take `dirtyCount`. @unstable */
-declare function getDirtyCount(): Promise<number>;
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: [id], name: null }, { kind: "locations" })`. @unstable */
 declare function fetchLocation(id: number): Promise<Location>;
 /** @deprecated v0.8.4. Use `MMA.Query.read({ type: "Locations", locations: ids, name: null }, { kind: "locations" })`. @unstable */
@@ -7363,8 +7357,6 @@ declare function setActiveLocation(target: MaybeLocation | null, checkDuplicates
 declare const getMapState: typeof Store.get;
 /** @deprecated v0.12.1. Use `MMA.Store.use`. */
 declare const useMapState: typeof Store.use;
-/** @deprecated v0.12.1. Use `MMA.Store.setMeta`. @unstable */
-declare const setMap: typeof Store.setMeta;
 /** @deprecated v0.12.1. Use `MMA.Tag.counts`. */
 declare const getTagCounts: typeof Tag.counts;
 /** @deprecated v0.12.1. Use `MMA.Tag.all`. */
@@ -7547,8 +7539,6 @@ declare const legacy_getCurrentMap: typeof getCurrentMap;
 /** @unstable */
 declare const legacy_getCurrentMapId: typeof getCurrentMapId;
 /** @unstable */
-declare const legacy_getDirtyCount: typeof getDirtyCount;
-/** @unstable */
 declare const legacy_getGhostedSelections: typeof getGhostedSelections;
 /** @unstable */
 declare const legacy_getGoogleMap: typeof getGoogleMap;
@@ -7618,7 +7608,6 @@ declare const legacy_sampleFrom: typeof sampleFrom;
 declare const legacy_select: typeof select;
 /** @unstable */
 declare const legacy_setActiveLocation: typeof setActiveLocation;
-declare const legacy_setMap: typeof setMap;
 declare const legacy_setPluginMode: typeof setPluginMode;
 /** @unstable */
 declare const legacy_setUserFieldDefs: typeof setUserFieldDefs;
@@ -7673,7 +7662,6 @@ declare namespace legacy {
     legacy_getAllSelections as getAllSelections,
     legacy_getCurrentMap as getCurrentMap,
     legacy_getCurrentMapId as getCurrentMapId,
-    legacy_getDirtyCount as getDirtyCount,
     legacy_getGhostedSelections as getGhostedSelections,
     legacy_getGoogleMap as getGoogleMap,
     legacy_getMapBadgeSources as getMapBadgeSources,
@@ -7727,7 +7715,6 @@ declare namespace legacy {
     legacy_sampleFrom as sampleFrom,
     legacy_select as select,
     legacy_setActiveLocation as setActiveLocation,
-    legacy_setMap as setMap,
     legacy_setPluginMode as setPluginMode,
     legacy_setUserFieldDefs as setUserFieldDefs,
     legacy_setWorkArea as setWorkArea,

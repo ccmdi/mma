@@ -1940,16 +1940,6 @@ getCurrentMapId(): string | null
 
 **Deprecated in v0.8.2.** Read `MMA.Store.get().mapId`.
 
-### getDirtyCount
-
-`unstable` · `deprecated` · since v0.4.0
-
-```ts
-getDirtyCount(): Promise<number>
-```
-
-**Deprecated in v0.8.2.** Ask `MMA.Query.read` for the summary and take `dirtyCount`.
-
 ### getGhostedSelections
 
 `unstable` · `deprecated` · since v0.7.4
@@ -2619,18 +2609,6 @@ setActiveLocation(
 ```
 
 **Deprecated in v0.12.0.** Use `MMA.Editor.open(target)`, or `MMA.Editor.close()` in place of null.
-
-### setMap
-
-`unstable` · `deprecated` · since v0.12.0
-
-```ts
-setMap(map: MapMeta): void
-```
-
-**Deprecated in v0.12.1.** Use `MMA.Store.setMeta`.
-
-Replace the open map's row in state; persisting it is the caller's.
 
 ### setPluginMode
 
@@ -4198,16 +4176,6 @@ Store.get(): Readonly<MapState>
 ```
 
 Imperative snapshot of the map state.
-
-#### Store.setMeta
-
-`unstable` · unreleased
-
-```ts
-Store.setMeta(map: MapMeta): void
-```
-
-Replace the open map's row in state; persisting it is the caller's.
 
 #### Store.use
 
@@ -6452,16 +6420,6 @@ cmd.storeCommit(mapId: string, message: string | null): Promise<CommitResult>
 
 Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/redo.
 
-#### cmd.storeCommitDiff
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeCommitDiff(): Promise<Counts>
-```
-
-Return the uncommitted location change counts.
-
 #### cmd.storeCopyLocationsToMap
 
 `unstable` · since v0.6.0
@@ -8578,16 +8536,6 @@ CommitDiff.reset(): void
 
 Clear commit-diff preview state.
 
-#### CommitDiff.resetCounts
-
-`unstable` · unreleased
-
-```ts
-CommitDiff.resetCounts(): void
-```
-
-Reset the uncommitted-change counts to zero.
-
 #### CommitDiff.use
 
 `unstable` · unreleased
@@ -8596,7 +8544,7 @@ Reset the uncommitted-change counts to zero.
 CommitDiff.use(): Counts
 ```
 
-React hook: the uncommitted add/remove/modify counts, kept in sync with the store.
+React hook: the uncommitted add/remove/modify counts.
 
 ## Import
 

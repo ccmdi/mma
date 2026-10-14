@@ -48,6 +48,7 @@ const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): Chan
 	derived: {
 		writingLayers: null,
 		locationCount: null,
+		pending: null,
 		meta: null,
 		history: null,
 		fieldValues: null,

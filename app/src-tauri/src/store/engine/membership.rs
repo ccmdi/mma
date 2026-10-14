@@ -146,6 +146,8 @@ impl Store {
 
     /// Recompute selection membership and per-node counts. Render bitmasks are built separately.
     pub(crate) fn resolve_selection_membership(&mut self) {
+        #[cfg(test)]
+        tests::RESOLVES.with(|n| n.set(n.get() + 1));
         let sels: Vec<Selection> = self
             .selections
             .resolved

@@ -9,7 +9,7 @@ use crate::selections::{FieldRegistry, FieldWriter};
 use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use mma_algebra::{
-    number_value, same_field_value, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch, Patchable,
+    number_value, same_field_value, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
@@ -34,6 +34,8 @@ pub struct EditOpts {
 #[serde(rename_all = "camelCase")]
 pub struct Derived {
     pub location_count: Option<usize>,
+    /// Location changes since the last commit.
+    pub pending: Option<Counts>,
     pub meta: Option<maps::MapMeta>,
     pub history: Option<HashMap<Timeline, History>>,
     /// Changed values, keyed by field and value. Null removes a value with no record or locations.
@@ -52,6 +54,7 @@ impl Derived {
     /// Nothing moved.
     pub(crate) fn is_empty(&self) -> bool {
         self.location_count.is_none()
+            && self.pending.is_none()
             && self.meta.is_none()
             && self.history.is_none()
             && self.field_values.is_none()

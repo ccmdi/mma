@@ -125,6 +125,8 @@ pub struct Store {
     pub(crate) alive_count: Tracked<usize>,
 
     pub(crate) overlay: Tracked<Overlay>,
+    /// Net row changes since the last commit, recounted whenever the overlay moves.
+    pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
     /// Per-field value records. `tags` is currently the only interned field.
@@ -170,6 +172,7 @@ impl Store {
             version: 0,
             alive_count: Tracked::default(),
             overlay: Tracked::default(),
+            pending_counts: Tracked::default(),
             render: RenderState {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
@@ -217,6 +220,8 @@ impl Store {
 
     /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
+        self.count_pending();
+        self.pending_counts.ship();
         self.alive_count.ship();
         self.edits.ship();
         self.selection_edits.ship();
@@ -236,6 +241,7 @@ impl Store {
             version: self.version,
             derived: Derived {
                 location_count: Some(*self.alive_count),
+                pending: Some(*self.pending_counts),
                 meta: None,
                 history: Some(self.history()),
                 field_values: Some(field_values),
@@ -264,28 +270,26 @@ impl Store {
 
     /// Finish a change to rows, value records, or field definitions.
     pub(crate) fn finish_entry(&mut self, entry: &Entry) -> Mutation {
-        let meta = !entry.meta.is_empty();
-        self.finish(
-            &entry.locations,
-            &entry.piles,
-            !entry.selections.is_empty(),
-            meta,
-        )
+        self.finish(&entry.locations, &entry.piles, !entry.selections.is_empty())
     }
 
     /// Finish a change to the selection list itself: no row moves, and the frame restates
     /// every row's selection.
     pub(crate) fn finish_selection_change(&mut self) -> Mutation {
-        self.finish(&Change::default(), &Piles::new(), true, false)
+        self.finish(&Change::default(), &Piles::new(), true)
     }
 
-    fn finish(
-        &mut self,
-        changes: &Change,
-        piles: &Piles,
-        selections_replaced: bool,
-        meta: bool,
-    ) -> Mutation {
+    /// Recount the pending changes if the overlay moved since they were last counted.
+    fn count_pending(&mut self) {
+        if self.overlay.ship() {
+            let counts = self.overlay_diff_counts();
+            if counts != *self.pending_counts {
+                self.pending_counts.replace(counts);
+            }
+        }
+    }
+
+    fn finish(&mut self, changes: &Change, piles: &Piles, selections_replaced: bool) -> Mutation {
         let before = self.version;
         self.bump();
         self.update_bounds(changes, before);
@@ -345,10 +349,13 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
+        let meta = self.meta.ship();
+        self.count_pending();
         let mut derived = Derived {
             meta: meta.then(|| self.map()),
+            pending: self.pending_counts.ship().then(|| *self.pending_counts),
             field_values: (!field_values.is_empty()).then_some(field_values),
-            field_defs: self.meta.ship().then(|| self.meta.extra.fields.clone()),
+            field_defs: meta.then(|| self.meta.extra.fields.clone()),
             selection_counts: (has_selections || selections_replaced)
                 .then(|| self.selections.node_counts.clone()),
             selection_list: (selections_replaced || piles.values().any(|delta| !delta.is_empty()))

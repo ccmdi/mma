@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { Store } from "@/store/store";
 import { Editor } from "@/store/editor";
 import type { LatLng } from "@/types";
@@ -6,27 +5,10 @@ import type { CommitInfo, Counts } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { MapHost } from "@/lib/map/host";
 import { boundsOfCoords } from "@/lib/geo/geo";
-import { emit as emitEvent, subscribe, useEventValue } from "@/lib/events";
+import { emit as emitEvent } from "@/lib/events";
 
-const ZERO_DIFF: Counts = { added: 0, removed: 0, updated: 0 };
-let cachedCommitDiff = ZERO_DIFF;
-
-function publishCommitDiff(next: Counts) {
-	if (
-		next.added === cachedCommitDiff.added &&
-		next.removed === cachedCommitDiff.removed &&
-		next.updated === cachedCommitDiff.updated
-	) {
-		return;
-	}
-	cachedCommitDiff = next;
-	emitEvent("commit-diff:changed");
-}
-
-async function refreshCommitDiff() {
-	if (!Store.get().map) return;
-	publishCommitDiff(await cmd.storeCommitDiff());
-}
+const changed = (pending: Counts) =>
+	pending.added > 0 || pending.removed > 0 || pending.updated > 0;
 
 /** Commit-diff preview state shown while `workArea === "diff"`. Position arrays are
  *  interleaved `[lng, lat]` Float32Arrays. */
@@ -42,22 +24,11 @@ let commitDiffPreview: CommitDiffPreview | null = null;
 export const CommitDiff = {
 	/** Whether there are uncommitted changes (adds, removes, or updates). */
 	has: (): boolean => {
-		return (
-			cachedCommitDiff.added > 0 || cachedCommitDiff.removed > 0 || cachedCommitDiff.updated > 0
-		);
+		return changed(Store.get().pending);
 	},
-	/** Reset the uncommitted-change counts to zero. */
-	resetCounts: () => {
-		publishCommitDiff(ZERO_DIFF);
-	},
-	/** React hook: the uncommitted add/remove/modify counts, kept in sync with the store. */
-	use: () => {
-		const diff = useEventValue("commit-diff:changed", () => cachedCommitDiff);
-		useEffect(() => {
-			void refreshCommitDiff();
-			return subscribe("snapshot:changed", () => void refreshCommitDiff());
-		}, []);
-		return diff;
+	/** React hook: the uncommitted add/remove/modify counts. */
+	use: (): Counts => {
+		return Store.use((s) => s.pending);
 	},
 	/** The current commit-diff preview, or null when not previewing. */
 	preview: () => {

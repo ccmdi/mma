@@ -69,7 +69,6 @@ const EVENT_DEFS = {
 	/** @unstable */
 	"diff-markers:changed": event<void>(),
 	/** @unstable */
-	"commit-diff:changed": event<void>(),
 };
 
 export type EditorEventMap = typeof EVENT_DEFS;

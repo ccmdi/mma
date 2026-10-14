@@ -12,8 +12,6 @@ export const commands = {
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
 	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
-	/** Return the uncommitted location change counts. */
-	storeCommitDiff: () => __TAURI_INVOKE<Counts>("store_commit_diff"),
 	/** Edit the selection tree. */
 	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
@@ -668,6 +666,8 @@ export type DbStats = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 export type Derived_Deserialize = {
 	locationCount: number | null,
+	/**  Location changes since the last commit. */
+	pending: Counts | null,
 	meta: MapMeta_Deserialize | null,
 	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
@@ -685,6 +685,8 @@ export type Derived_Deserialize = {
 /**  Map state a change affected. Each field is `null` when it did not change. */
 export type Derived = {
 	locationCount: number | null,
+	/**  Location changes since the last commit. */
+	pending: Counts | null,
 	meta: MapMeta | null,
 	history: Partial<{ [key in Timeline]: History }> | null,
 	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */

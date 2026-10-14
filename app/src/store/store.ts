@@ -17,6 +17,7 @@ export type MapState = UiState & EngineState;
 const ENGINE_INITIAL: EngineState = {
 	writingLayers: [],
 	locationCount: 0,
+	pending: { added: 0, removed: 0, updated: 0 },
 	history: {},
 	fieldValues: {},
 	fieldDefs: {},
@@ -66,10 +67,6 @@ export const Store = {
 	/** Imperative snapshot of the map state. */
 	get: (): Readonly<MapState> => {
 		return state;
-	},
-	/** Replace the open map's row in state; persisting it is the caller's. @unstable */
-	setMeta: (map: MapMeta) => {
-		Store.patch({ map });
 	},
 	/** Clear derived state when the map closes. @unstable */
 	resetDerived: () => {

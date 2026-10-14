@@ -6,7 +6,6 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { Scene } from "@/lib/render/scene";
-import { CommitDiff } from "./commitDiff";
 import { Editor } from "./editor";
 
 export const Commit = {
@@ -18,17 +17,13 @@ export const Commit = {
 		const r = await Autosave.exclusive(() => cmd.storeCommit(Store.get().mapId!, message ?? null));
 		t.step("commit");
 		t.end();
-		CommitDiff.resetCounts();
 		void Maps.invalidate();
 		return r.id;
 	},
 	/** Commit `mapId` in the background once pending saves finish. @unstable */
 	background: (mapId: string, message: string) => {
 		void Autosave.exclusive(() => cmd.storeCommit(mapId, message))
-			.then(() => {
-				CommitDiff.resetCounts();
-				void Maps.invalidate();
-			})
+			.then(() => void Maps.invalidate())
 			.catch((e: unknown) => log.error("[commit] background commit failed:", e));
 	},
 	/** Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo. @unstable */
@@ -41,8 +36,6 @@ export const Commit = {
 		await Autosave.exclusive(() =>
 			cmd.storeCommit(Store.get().mapId!, `Revert to ${commitId.slice(0, 7)}`),
 		);
-		const map = await cmd.storeGetMap(Store.get().mapId!);
-		if (map) Store.setMeta(map);
 		if (Editor.get().open) Editor.close();
 
 		void Scene.load();

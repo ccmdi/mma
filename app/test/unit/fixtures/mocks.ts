@@ -165,7 +165,7 @@ export async function selectionsHeld(value: unknown) {
 	};
 	const state = Store.get();
 	Object.assign(state, { selectionList: apply(op, state.selectionList) });
-	if (state.map) Store.setMeta(state.map);
+	if (state.map) Store.patch({ map: state.map });
 	return { mutation: { version: 0, keys: [] } };
 }
 
@@ -207,7 +207,7 @@ export async function metadataWritten(patch: unknown) {
 			}
 			settings.pluginData = pluginData;
 		}
-		Store.setMeta({ ...state.map, ...change, settings } as import("@/bindings.gen").MapMeta);
+		Store.patch({ map: { ...state.map, ...change, settings } as import("@/bindings.gen").MapMeta });
 	}
 	return { mutation: { version: 0, keys: [] } };
 }

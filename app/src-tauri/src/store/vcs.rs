@@ -111,7 +111,6 @@ pub async fn store_commit(
             Vec::new()
         };
 
-        store.resolve_selection_membership();
         let status = store.finish_selection_change();
         (pre_bake, current_fallback, location_count, status)
     };
