@@ -15,11 +15,11 @@ export const commands = {
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
 	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Edit the selection tree. */
-	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult>("store_edit_selections", { op }),
+	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/** Apply a saved rule with its value names resolved against the open map. */
-	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult>("store_apply_saved_selection", { id }),
+	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_apply_saved_selection", { id }),
 	/** Return the open store's location count, version and dirty count. */
 	storeSummary: () => __TAURI_INVOKE<Summary>("store_summary"),
 	/**  Milliseconds from app launch until the window was ready. */

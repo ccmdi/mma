@@ -773,13 +773,13 @@ macro_rules! command_table {
                 Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
 
-            "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult => |store| {
+            "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult<ListedSelection> => |store| {
                 Ok(store.edit_selections(&op))
             };
             "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) -> Answer => |store| {
                 store.read(&target, &selector.map_children(SelectionInput::compile), &ask)
             };
-            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult => |store| {
+            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {
                 selections::saved::apply_saved_selection(store, &id)
             };
             "Return the open store's location count, version and dirty count." store_summary() -> Summary => |store| {

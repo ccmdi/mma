@@ -398,7 +398,7 @@ impl Store {
     pub(crate) fn edit_selections(
         &mut self,
         op: &crate::selections::tree::SelectionOp,
-    ) -> MutationResult {
+    ) -> MutationResult<ListedSelection> {
         let rows = op.apply(&self.selections.list());
         self.replace_selections(rows)
     }
@@ -432,17 +432,24 @@ impl Store {
             .collect()
     }
 
-    fn replace_selections(&mut self, rows: Vec<ListedSelection>) -> MutationResult {
+    fn replace_selections(
+        &mut self,
+        rows: Vec<ListedSelection>,
+    ) -> MutationResult<ListedSelection> {
         let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
+        let written = self.write(
+            [],
+            &mut None,
+            Entry {
+                selections,
+                ..Default::default()
+            },
+        );
         MutationResult {
-            mutation: self.write(
-                [],
-                &mut None,
-                Entry {
-                    selections,
-                    ..Default::default()
-                },
-            ),
+            mutation: Mutation {
+                version: written.version,
+                keys: Vec::new(),
+            },
         }
     }
 }

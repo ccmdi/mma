@@ -6410,7 +6410,7 @@ Add locations from an upload session (see `storeUploadBegin`) as one undoable ch
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeApplySavedSelection(id: string): Promise<MutationResult<Location>>
+cmd.storeApplySavedSelection(id: string): Promise<MutationResult<ListedSelection>>
 ```
 
 Apply a saved rule with its value names resolved against the open map.
@@ -6565,7 +6565,7 @@ Edit locations where target says; an open pending layer holds edits until it lan
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<Location>>
+cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<ListedSelection>>
 ```
 
 Edit the selection tree.

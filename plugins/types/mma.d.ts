@@ -634,11 +634,11 @@ declare const commands$1: {
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
     storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult<ValueRecord>>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<Location>>;
+    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<ListedSelection>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /** Apply a saved rule with its value names resolved against the open map. @unstable */
-    storeApplySavedSelection: (id: string) => Promise<MutationResult<Location>>;
+    storeApplySavedSelection: (id: string) => Promise<MutationResult<ListedSelection>>;
     /** Return the open store's location count, version and dirty count. @unstable */
     storeSummary: () => Promise<Summary>;
     /**  Milliseconds from app launch until the window was ready. @unstable */

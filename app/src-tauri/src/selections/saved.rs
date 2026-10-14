@@ -5,7 +5,9 @@
 //! tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::{Selection, Selector};
-use crate::store::engine::{MutationResult, Store, StoreState, ValueRecord, WindowLabel};
+use crate::store::engine::{
+    ListedSelection, MutationResult, Store, StoreState, ValueRecord, WindowLabel,
+};
 use crate::store::storage;
 use crate::types::AppResult;
 use crate::util::{now_iso, Rgb};
@@ -348,7 +350,7 @@ fn remap(selector: &Selector, field: &str, resolve: &impl Fn(u32) -> Option<u32>
 pub(crate) fn apply_saved_selection(
     store: &mut Store,
     id: &Id<SavedSelection, String>,
-) -> AppResult<MutationResult> {
+) -> AppResult<MutationResult<ListedSelection>> {
     let conn = storage::open_db()?;
     let saved = get(&conn, from_ref(id))?
         .into_iter()
