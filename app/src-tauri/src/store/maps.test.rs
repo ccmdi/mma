@@ -1296,3 +1296,18 @@ fn patching_a_closed_map_stamps_its_updated_time() {
     assert_eq!(saved.name, "Renamed");
     assert_ne!(saved.updated_at, "2020-01-01");
 }
+
+#[test]
+fn opening_a_saved_map_leaves_it_saved_and_an_unsaved_one_unsaved() {
+    let mut store = engine::Store::new();
+    store.opened_at("2026-10-14T00:00:00Z".into());
+    assert!(!store.is_unsaved());
+    assert_eq!(
+        store.meta.last_opened_at.as_deref(),
+        Some("2026-10-14T00:00:00Z")
+    );
+
+    store.meta.edit().name = "renamed".into();
+    store.opened_at("2026-10-14T00:00:01Z".into());
+    assert!(store.is_unsaved());
+}

@@ -6,7 +6,7 @@
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
-use crate::store::engine::{IncomingRecords, StoreManager, StoreState};
+use crate::store::engine::{IncomingRecords, Store, StoreManager, StoreState};
 use crate::store::storage::Stamped;
 use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
@@ -953,9 +953,20 @@ pub fn store_touch_map_opened(
         params![now, map_id.raw()],
     )?;
     if let Some(store) = mgr.stores.get_mut(&map_id) {
-        store.meta.edit().last_opened_at = Some(now);
+        store.opened_at(now);
     }
     Ok(())
+}
+
+impl Store {
+    /// Hold the opened time disk was just given, so a map saved before stays saved.
+    pub(crate) fn opened_at(&mut self, now: String) {
+        let saved = !self.meta.is_unsaved();
+        self.meta.edit().last_opened_at = Some(now);
+        if saved {
+            self.meta.mark_saved();
+        }
+    }
 }
 
 /// Rename a folder across all maps that reference it.
