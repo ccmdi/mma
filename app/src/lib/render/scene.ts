@@ -9,6 +9,7 @@ import { mapOpen } from "@/lib/util/debug";
 import { emit as emitEvent, subscribe as subscribeEvent, useEventValue } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
 import { watermark } from "@/lib/util/watermark";
+import { serial } from "@/lib/util/concurrent";
 
 // Owns marker/scene data for every map surface. The editor map drives the engine (the
 // frame subscription and its lifecycle); both it and the minimap render from the same
@@ -69,6 +70,7 @@ function onFrame(channel: Channel<ArrayBuffer>, buf: ArrayBuffer): FrameSummary 
 	return s;
 }
 
+const loads = serial();
 let sceneSettled: Promise<void> = Promise.resolve();
 let loadRequested = 0;
 
@@ -140,12 +142,9 @@ export const Scene = {
 	/** Load the whole scene again and follow every change to it from there. */
 	load: (markerStyle: MarkerStyle = lastMarkerStyle, mc?: RGB): Promise<void> => {
 		const seq = ++loadRequested;
-		return (sceneSettled = sceneSettled
-			.catch(() => {})
-			.then(() => {
-				if (seq !== loadRequested) return;
-				return doLoadScene(markerStyle, mc);
-			}));
+		return (sceneSettled = loads(() =>
+			seq === loadRequested ? doLoadScene(markerStyle, mc) : undefined,
+		));
 	},
 	/** Clear all marker data from the scene and stop following the map. */
 	clear: () => {
