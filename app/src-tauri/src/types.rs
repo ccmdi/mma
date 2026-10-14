@@ -23,8 +23,8 @@ pub use raw_extra::*;
 
 /// A single Street View location on a map.
 ///
-/// This is the atomic unit of data in the system. Locations are stored columnar
-/// in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
+/// This is the atomic unit of data in the system. Locations are stored in columns
+/// on disk and addressed by `id` everywhere. The `id` is unique
 /// within a map and assigned by the store's monotonic allocator.
 #[derive(Clone, Debug, serde::Serialize, specta::Type, mma_fields::Fields, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
@@ -400,7 +400,7 @@ macro_rules! wire_bitflags {
 }
 
 wire_bitflags! {
-    /// Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
+    /// Per-location bitfield, sent and stored as a plain `u32`.
     LocationFlags: u32 {
         /// When the location has a stored pano, it opens exactly that pano instead of the nearest coverage.
         const LOAD_AS_PANO_ID = 1;

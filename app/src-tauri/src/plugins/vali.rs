@@ -166,7 +166,7 @@ pub async fn vali_generate(
     result
 }
 
-/// Download Vali coverage data. `country` = code/continent alias/None for all.
+/// Download Vali coverage data for a country code or continent alias, or for every country when `country` is null.
 #[tauri::command]
 #[specta::specta]
 pub async fn vali_download(

@@ -104,7 +104,7 @@ export function registerEnrichmentProvider(provider: Provider): void {
 	void Provider.register(provider);
 }
 
-/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+/** @deprecated v0.10.5. The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
  *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
  *  for plugin-owned defs. @unstable */
 export function setUserFieldDefs(fields: Record<string, FieldDef>) {

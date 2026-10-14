@@ -199,7 +199,7 @@ export const SyncTrigger = {
 } as const;
 export type SyncTrigger = (typeof SyncTrigger)[keyof typeof SyncTrigger];
 
-/** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
+/** Per-location bitfield, sent and stored as a plain `u32`. */
 export const LocationFlag = {
 	/** No flags set. */
 	None: 0,

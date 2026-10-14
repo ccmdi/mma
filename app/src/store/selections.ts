@@ -76,8 +76,8 @@ export const unpannedSelector = (): Selector => ({
 	test: { op: "eq", value: 0 },
 });
 
-/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
- *  `Selector::pano_ids`), or the locations not pinned. */
+/** Locations pinned to one exact pano (the flag plus a pano id), or the locations not
+ *  pinned. */
 export function panoIdSelector(on: boolean): Selector {
 	const pinned: Selector = {
 		type: "Intersection",
@@ -291,7 +291,7 @@ export function withChildren<S>(selector: SelectorTree<S>, children: S[]): Selec
 	return selector;
 }
 
-/** An unaddressed selection input; Rust supplies its key and default color. */
+/** An unaddressed selection input; the store supplies its key and default color. */
 export function selection(selector: Selector, color?: RGB): SelectionInput {
 	if (color === undefined && selector.type === "Polygon") {
 		const settings = getSettings();

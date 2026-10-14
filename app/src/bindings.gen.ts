@@ -413,7 +413,7 @@ export const commands = {
 	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
 	 */
 	valiGenerate: (definition: string) => __TAURI_INVOKE<ValiLocation[]>("vali_generate", { definition }).then((v) => (v.map(i=>i) as typeof v)),
-	/**  Download Vali coverage data. `country` = code/continent alias/None for all. */
+	/**  Download Vali coverage data for a country code or continent alias, or for every country when `country` is null. */
 	valiDownload: (country: string | null, full: boolean, updates: boolean) => __TAURI_INVOKE<null>("vali_download", { country, full, updates }),
 	/**  Cancel an in-flight vali generate or download. */
 	valiCancel: () => __TAURI_INVOKE<void>("vali_cancel"),
@@ -484,7 +484,31 @@ export type AnonIssueRef = {
 };
 
 /**  The answer to a question about the selected locations. */
-export type Answer = { kind: "ids"; ids: number[] } | { kind: "spacing"; ids: number[]; spacingM: number } | { kind: "count"; count: number } | { kind: "locations"; locations: LocationList } | { kind: "columns"; columns: unknown[][] } | { kind: "values"; values: string[] } | { kind: "groupBy"; groups: PartitionBucket[] } | { kind: "countBy"; counts: CountBy[] } | { kind: "coverage"; coverage: ([string, number])[] } | { kind: "bounds"; bounds: [number, number, number, number] | null } | { kind: "duplicateGroups"; groups: number[][] } | { kind: "nearAny"; values: boolean[] };
+export type Answer = 
+/**  The matched ids. */
+{ kind: "ids"; ids: number[] } | 
+/**  The ids a spaced pick kept, and the spacing in metres it settled on. */
+{ kind: "spacing"; ids: number[]; spacingM: number } | 
+/**  How many locations matched. */
+{ kind: "count"; count: number } | 
+/**  The matched locations in full. */
+{ kind: "locations"; locations: LocationList } | 
+/**  One column per asked field. */
+{ kind: "columns"; columns: unknown[][] } | 
+/**  The field's distinct values, sorted. */
+{ kind: "values"; values: string[] } | 
+/**  The groups, each with its key and ids. */
+{ kind: "groupBy"; groups: PartitionBucket[] } | 
+/**  The counts, one result per asked field. */
+{ kind: "countBy"; counts: CountBy[] } | 
+/**  Each field and how many locations hold a value for it. */
+{ kind: "coverage"; coverage: ([string, number])[] } | 
+/**  The bounding box, or null when nothing matched. */
+{ kind: "bounds"; bounds: [number, number, number, number] | null } | 
+/**  The ids of each group of nearby locations. */
+{ kind: "duplicateGroups"; groups: number[][] } | 
+/**  Per input coordinate, whether a matched location lies near it. */
+{ kind: "nearAny"; values: boolean[] };
 
 /**  A question about the selected locations. */
 export type Ask = 
@@ -554,7 +578,7 @@ export type Change<T> = {
 	updated: ([T, T])[],
 };
 
-/**  A map change broadcast to subscribers, with affected ids and derived state. */
+/**  A map change broadcast to subscribers, with the keys it changed and derived state. */
 export type ChangeEvent = {
 	/**  The map version this change brought the map to. */
 	version: number,
@@ -734,17 +758,14 @@ export type ExportOpts = {
 	extraFieldsJson: string | null,
 };
 
-/**
- *  Progress event emitted per-map during bulk export, consumed by the frontend
- *  to drive a progress indicator.
- */
+/**  Progress of a bulk export, emitted once per map. */
 export type ExportProgress = {
 	current: number,
 	total: number,
 	mapName: string,
 };
 
-/**  Why an expression failed to parse. The sentence is TS's to write. */
+/**  Why an expression failed to parse. */
 export type ExprError = { kind: "invalidNumber"; position: number } | { kind: "unterminatedString" } | { kind: "unexpectedCharacter"; character: string; position: number } | { kind: "expectedSymbol"; symbol: string } | { kind: "chainedComparison" } | { kind: "unexpectedEnd" } | { kind: "missingLeftOperand" } | { kind: "hasTakesFieldName" } | { kind: "unknownFunction"; name: string } | { kind: "wrongArgCount"; name: string; expected: number } | { kind: "unexpectedToken"; token: string } | { kind: "trailingToken"; token: string };
 
 /**
@@ -792,8 +813,7 @@ export type FileSource = {
 };
 
 /**
- *  A filter's predicate: the operator with its operands. Single source of truth: specta
- *  renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+ *  A filter's predicate: the operator with its operands.
  *  The range operators can read a date in the location's own timezone (`tzLocal`); the
  *  `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
  */
@@ -872,10 +892,7 @@ export type ImportPreviewEntry = {
 	warnings: string[],
 };
 
-/**
- *  Progress event emitted per-map during bulk import, consumed by the frontend
- *  to drive a progress indicator.
- */
+/**  Progress of a bulk import, emitted once per map. */
 export type ImportProgress = {
 	current: number,
 	total: number,
@@ -945,8 +962,8 @@ export type ListedSelection = {
 /**
  *  A single Street View location on a map.
  * 
- *  This is the atomic unit of data in the system. Locations are stored columnar
- *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
+ *  This is the atomic unit of data in the system. Locations are stored in columns
+ *  on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
  */
 export type Location = {
@@ -978,7 +995,11 @@ export type Location = {
 };
 
 /**  Matched locations: returned inline, or as a file path to read them from. */
-export type LocationList = { kind: "inline"; locations: Location[] } | { kind: "file"; path: string };
+export type LocationList = 
+/**  The locations themselves. */
+{ kind: "inline"; locations: Location[] } | 
+/**  A file holding the locations as a JSON array. */
+{ kind: "file"; path: string };
 
 /**  Operations computed independently for each selected location. */
 export type LocationOp = 
@@ -1138,6 +1159,7 @@ export type Mutation<_T = Location> = {
 	keys: number[],
 };
 
+/**  What an edit did to the map. */
 export type MutationResult<T = Location> = {
 	mutation: Mutation<T>,
 };
@@ -1184,14 +1206,14 @@ export type Pano = {
 	lat: number,
 	lng: number,
 	altitude: number,
-	/**  The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
+	/**  The camera's orientation. Google Maps builds its whole tile frame out of this. */
 	pov: Pov | null,
 	worldSize: ImageSize,
 	tileSize: ImageSize,
 	copyright: string,
 	/**  `description.description[].text`, joined with ", ". */
 	description: string,
-	/**  The first of those parts alone, which is what the Maps JS API calls the short description. */
+	/**  The first of those parts alone, which is what Google Maps calls the short description. */
 	shortDescription: string,
 	uploaderName: string | null,
 	countryCode: string | null,
@@ -1259,7 +1281,7 @@ export type ParsedLocation = {
 
 /**
  *  One partition group: a stable key, the ids it holds, and (numeric bins only) the
- *  `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
+ *  `[lo, hi]` bounds, so a live Filter can be rebuilt for whole-map gradients.
  */
 export type PartitionBucket = {
 	key: string,
@@ -1472,7 +1494,7 @@ export type ProviderActivity = {
 };
 
 /**
- *  One provider as declared by the frontend. `fields` are the extra keys it produces
+ *  One provider as the app declares it. `fields` are the extra keys it produces
  *  and `requires` the keys it consumes; together they gate who waits for whom.
  */
 export type ProviderDecl = {
@@ -1630,8 +1652,8 @@ export type SavedSelectionInfo = {
 export type ScoreBounds = string | [number, number, number, number];
 
 /**
- *  The full SingleImageSearch request surface. Every optional field defaults to what the
- *  Maps JS API sends for `getPanorama({location, radius})`.
+ *  The full SingleImageSearch request surface. Every optional field defaults to what
+ *  Google Maps sends for `getPanorama({location, radius})`.
  */
 export type SearchQuery = {
 	lat: number,
@@ -1751,7 +1773,12 @@ selection: S | null; lat: number; lng: number; radiusM: number } |
 selection: S | null; lat: number; lng: number };
 
 /**  Operations computed over the selected locations as a group. */
-export type SetOp = { kind: "merge"; groups: number[][]; score: string | null } | 
+export type SetOp = 
+/**
+ *  Merge each group into its best-scored location, which keeps its id and takes in the
+ *  others' list values and extra fields.
+ */
+{ kind: "merge"; groups: number[][]; score: string | null } | 
 /**
  *  Remove duplicates within `distance` metres of each other, keeping the best-scored
  *  survivor per cluster.
@@ -1793,7 +1820,7 @@ export type StoreStatus = {
 	derived: Derived,
 };
 
-/**  What the store has to warn the user about. The sentence is TS's to write. */
+/**  What the store has to warn the user about. */
 export type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 { kind: "deltaSetAside" };

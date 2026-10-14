@@ -17,8 +17,8 @@ export interface SelCellEntry {
 }
 
 /**
- * Decode a frame's selection section, written by Rust's `assemble_selection_bitmask`
- * (engine/render.rs). Sole reader of that wire format - all format knowledge lives here
+ * Decode a frame's selection section, as the store's `assemble_selection_bitmask` writes it.
+ * Sole reader of that wire format - all format knowledge lives here
  * and in `restateSelections`, which consumes the decoded entries.
  */
 export function decodeSelectionBitmask(bytes: Uint8Array): {
@@ -379,7 +379,7 @@ export class CellBuffer {
 		this.colorVersion++;
 	}
 
-	/** O(1) removal by swapping with the last element. Mirrors Rust's cell_remove_render. */
+	/** O(1) removal by swapping with the last element. */
 	swapRemove(index: number) {
 		const last = this.count - 1;
 		if (last < 0) return;

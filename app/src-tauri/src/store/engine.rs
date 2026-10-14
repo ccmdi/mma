@@ -39,14 +39,9 @@ use tauri::ipc::{CommandArg, CommandItem, InvokeError};
 // Store
 // ---------------------------------------------------------------------------
 
-/// Central state for one open map. Holds the immutable Arrow base batch plus an in-memory
-/// overlay that accumulates mutations (added, updated, removed). `bake_overlay` merges the
-/// overlay back into the batch. The sorted ID invariant on `batch` + `overlay.added` enables
-/// O(log n) lookups via binary search. Render cells, the windows watching them, undo/redo
-/// stacks, and tag metadata all live here.
-///
-/// The `.delta` sidecar is this overlay written as an uncommitted commit delta
-/// ([`Overlay::to_delta`]), and reopening reads it back ([`Overlay::from_delta`]).
+/// Uncommitted changes over the base batch: added rows sorted by id, removed ids, and
+/// updated rows whole, by id. The `.delta` sidecar is this overlay written as an uncommitted
+/// commit delta ([`Overlay::to_delta`]), and reopening reads it back ([`Overlay::from_delta`]).
 #[derive(Default, Debug, PartialEq)]
 pub(crate) struct Overlay {
     pub added: Vec<Location>,
@@ -111,6 +106,10 @@ impl Overlay {
     }
 }
 
+/// Central state for one open map: the immutable Arrow base batch, the overlay of uncommitted
+/// changes on it, render cells and the windows watching them, undo stacks, and value records.
+/// [`Store::bake_overlay`] merges the overlay into the batch. Rows are sorted by id in both
+/// `batch` and `overlay.added`, so a lookup by id is a binary search.
 pub struct Store {
     /// The open map's metadata. Tag records live in `records`, field definitions in
     /// `field_defs`, and `meta` keeps neither.
@@ -413,8 +412,9 @@ impl Store {
         Some(cols.location(cols.row_of(id)?))
     }
 
-    /// Net row changes since the last commit, counted without cloning rows.
-    /// Rows added and then removed contribute nothing.
+    /// Net row changes since the last commit, counted off the overlay without cloning rows,
+    /// since undo history is capped and drops oversized steps. Rows added and then removed
+    /// contribute nothing.
     pub(crate) fn overlay_diff_counts(&self) -> Counts {
         let in_base = |id: Id<Location>| {
             self.batch

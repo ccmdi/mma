@@ -27,7 +27,7 @@ interface DatePickerProps {
 	onYearSelect?: (year: number) => void;
 	/** Treat the value as a wall-clock instant encoded as a UTC epoch (the picked
 	 *  numbers survive unshifted by the viewer's timezone). Used by location-time
-	 *  date filtering, where Rust re-interprets the wall-clock in each pano's zone. */
+	 *  date filtering, which re-interprets the wall-clock in each pano's zone. */
 	wallClock?: boolean;
 }
 

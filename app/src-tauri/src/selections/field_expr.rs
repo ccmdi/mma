@@ -15,7 +15,7 @@ use super::{as_f64, compare_filter, FilterOp};
 
 use crate::types::AppError;
 
-/// Why an expression failed to parse. The sentence is TS's to write.
+/// Why an expression failed to parse.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, specta::Type)]
 #[serde(
     tag = "kind",

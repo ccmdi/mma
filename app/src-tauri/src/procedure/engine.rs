@@ -71,7 +71,7 @@ wire_str_enum! {
     }
 }
 
-/// One provider as declared by the frontend. `fields` are the extra keys it produces
+/// One provider as the app declares it. `fields` are the extra keys it produces
 /// and `requires` the keys it consumes; together they gate who waits for whom.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

@@ -173,8 +173,7 @@ pub enum Thinning {
     Metres { m: f64 },
 }
 
-/// A filter's predicate: the operator with its operands. Single source of truth: specta
-/// renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+/// A filter's predicate: the operator with its operands.
 /// The range operators can read a date in the location's own timezone (`tzLocal`); the
 /// `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, specta::Type)]

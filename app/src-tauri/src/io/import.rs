@@ -176,8 +176,7 @@ pub async fn bulk_import_preview(path: String) -> AppResult<Vec<ImportPreviewEnt
     .await?
 }
 
-/// Progress event emitted per-map during bulk import, consumed by the frontend
-/// to drive a progress indicator.
+/// Progress of a bulk import, emitted once per map.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "bulk-import-progress")]

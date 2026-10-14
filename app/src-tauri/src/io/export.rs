@@ -467,8 +467,7 @@ pub fn store_upload_abort(session_dir: String) -> AppResult<()> {
     Ok(())
 }
 
-/// Progress event emitted per-map during bulk export, consumed by the frontend
-/// to drive a progress indicator.
+/// Progress of a bulk export, emitted once per map.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "bulk-export-progress")]

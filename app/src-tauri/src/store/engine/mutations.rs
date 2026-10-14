@@ -78,12 +78,13 @@ pub struct Mutation<_T = Location> {
     pub keys: Vec<Id<_T>>,
 }
 
+/// What an edit did to the map.
 #[derive(serde::Serialize, specta::Type)]
 pub struct MutationResult<T = Location> {
     pub mutation: Mutation<T>,
 }
 
-/// A map change broadcast to subscribers, with affected ids and derived state.
+/// A map change broadcast to subscribers, with the keys it changed and derived state.
 #[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeEvent {
@@ -160,7 +161,7 @@ impl Stage {
     }
 }
 
-/// What the store has to warn the user about. The sentence is TS's to write.
+/// What the store has to warn the user about.
 #[derive(serde::Serialize, Clone, specta::Type, tauri_specta::Event)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 #[tauri_specta(event_name = "store-warning")]
@@ -529,6 +530,8 @@ enum Prepared<'o> {
 #[derive(serde::Deserialize, specta::Type)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SetOp {
+    /// Merge each group into its best-scored location, which keeps its id and takes in the
+    /// others' list values and extra fields.
     Merge {
         groups: Vec<Vec<Id<Location>>>,
         score: Option<String>,
@@ -549,8 +552,8 @@ fn contains_value(haystack: &[serde_json::Value], needle: &serde_json::Value) ->
         .any(|v| same_field_value(Some(v), Some(needle)))
 }
 
-/// What a field op planned: the patches for the rows it changes, the removed keys that
-/// no longer exist on any row, and the rows an expression could not evaluate.
+/// What a field op planned: the edits for the rows it changes, and the rows an expression
+/// could not evaluate.
 #[derive(Default)]
 pub(super) struct WorkPlan {
     pub(super) edits: Vec<Edit<Location>>,

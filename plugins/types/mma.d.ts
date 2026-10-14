@@ -197,7 +197,7 @@ declare const SyncTrigger: {
 };
 /** @unstable */
 type SyncTrigger = (typeof SyncTrigger)[keyof typeof SyncTrigger];
-/** Per-location bitfield, serialized as a plain `u32` over IPC and Arrow. */
+/** Per-location bitfield, sent and stored as a plain `u32`. */
 declare const LocationFlag: {
     /** No flags set. */
     readonly None: 0;
@@ -1077,7 +1077,7 @@ declare const commands$1: {
      *  @unstable
      */
     valiGenerate: (definition: string) => Promise<ValiLocation[]>;
-    /**  Download Vali coverage data. `country` = code/continent alias/None for all. @unstable */
+    /**  Download Vali coverage data for a country code or continent alias, or for every country when `country` is null. @unstable */
     valiDownload: (country: string | null, full: boolean, updates: boolean) => Promise<null>;
     /**  Cancel an in-flight vali generate or download. @unstable */
     valiCancel: () => Promise<void>;
@@ -1238,41 +1238,65 @@ type AnonIssueRef = {
     token: string;
 };
 /**  The answer to a question about the selected locations. */
-type Answer = {
+type Answer = 
+/**  The matched ids. */
+{
     kind: "ids";
     ids: number[];
-} | {
+} | 
+/**  The ids a spaced pick kept, and the spacing in metres it settled on. */
+{
     kind: "spacing";
     ids: number[];
     spacingM: number;
-} | {
+} | 
+/**  How many locations matched. */
+{
     kind: "count";
     count: number;
-} | {
+} | 
+/**  The matched locations in full. */
+{
     kind: "locations";
     locations: LocationList;
-} | {
+} | 
+/**  One column per asked field. */
+{
     kind: "columns";
     columns: unknown[][];
-} | {
+} | 
+/**  The field's distinct values, sorted. */
+{
     kind: "values";
     values: string[];
-} | {
+} | 
+/**  The groups, each with its key and ids. */
+{
     kind: "groupBy";
     groups: PartitionBucket[];
-} | {
+} | 
+/**  The counts, one result per asked field. */
+{
     kind: "countBy";
     counts: CountBy[];
-} | {
+} | 
+/**  Each field and how many locations hold a value for it. */
+{
     kind: "coverage";
     coverage: ([string, number])[];
-} | {
+} | 
+/**  The bounding box, or null when nothing matched. */
+{
     kind: "bounds";
     bounds: [number, number, number, number] | null;
-} | {
+} | 
+/**  The ids of each group of nearby locations. */
+{
     kind: "duplicateGroups";
     groups: number[][];
-} | {
+} | 
+/**  Per input coordinate, whether a matched location lies near it. */
+{
     kind: "nearAny";
     values: boolean[];
 };
@@ -1380,7 +1404,7 @@ type Change<T> = {
     /**  Updated rows as before/after pairs. */
     updated: ([T, T])[];
 };
-/**  A map change broadcast to subscribers, with affected ids and derived state. */
+/**  A map change broadcast to subscribers, with the keys it changed and derived state. */
 type ChangeEvent = {
     /**  The map version this change brought the map to. */
     version: number;
@@ -1569,17 +1593,13 @@ type ExportOpts = {
     tagsJson: string;
     extraFieldsJson: string | null;
 };
-/**
- *  Progress event emitted per-map during bulk export, consumed by the frontend
- *  to drive a progress indicator.
- *  @unstable
- */
+/**  Progress of a bulk export, emitted once per map. @unstable */
 type ExportProgress = {
     current: number;
     total: number;
     mapName: string;
 };
-/**  Why an expression failed to parse. The sentence is TS's to write. @unstable */
+/**  Why an expression failed to parse. @unstable */
 type ExprError = {
     kind: "invalidNumber";
     position: number;
@@ -1655,8 +1675,7 @@ type FileSource = {
     locationCount: number;
 };
 /**
- *  A filter's predicate: the operator with its operands. Single source of truth: specta
- *  renders the tagged union, so the TS `FilterOp` type and `OP_LABELS` derive from it.
+ *  A filter's predicate: the operator with its operands.
  *  The range operators can read a date in the location's own timezone (`tzLocal`); the
  *  `between_*` shapes bucket a timestamp by month-day or time-of-day before comparing.
  */
@@ -1776,11 +1795,7 @@ type ImportPreviewEntry = {
     tagCount: number;
     warnings: string[];
 };
-/**
- *  Progress event emitted per-map during bulk import, consumed by the frontend
- *  to drive a progress indicator.
- *  @unstable
- */
+/**  Progress of a bulk import, emitted once per map. @unstable */
 type ImportProgress = {
     current: number;
     total: number;
@@ -1854,8 +1869,8 @@ type ListedSelection = {
 /**
  *  A single Street View location on a map.
  *
- *  This is the atomic unit of data in the system. Locations are stored columnar
- *  in Arrow IPC on disk and addressed by `id` everywhere. The `id` is unique
+ *  This is the atomic unit of data in the system. Locations are stored in columns
+ *  on disk and addressed by `id` everywhere. The `id` is unique
  *  within a map and assigned by the store's monotonic allocator.
  */
 type Location = {
@@ -1888,10 +1903,14 @@ type Location = {
     modifiedAt: number | null;
 };
 /**  Matched locations: returned inline, or as a file path to read them from. */
-type LocationList = {
+type LocationList = 
+/**  The locations themselves. */
+{
     kind: "inline";
     locations: Location[];
-} | {
+} | 
+/**  A file holding the locations as a JSON array. */
+{
     kind: "file";
     path: string;
 };
@@ -2080,6 +2099,7 @@ type Mutation<_T = Location> = {
     /**  The key the store gave each keyless set, in the order they were written. */
     keys: number[];
 };
+/**  What an edit did to the map. */
 type MutationResult<T = Location> = {
     mutation: Mutation<T>;
 };
@@ -2155,14 +2175,14 @@ type Pano = {
     lat: number;
     lng: number;
     altitude: number;
-    /**  The camera's orientation. The Maps JS API builds its whole tile frame out of this. */
+    /**  The camera's orientation. Google Maps builds its whole tile frame out of this. */
     pov: Pov | null;
     worldSize: ImageSize;
     tileSize: ImageSize;
     copyright: string;
     /**  `description.description[].text`, joined with ", ". */
     description: string;
-    /**  The first of those parts alone, which is what the Maps JS API calls the short description. */
+    /**  The first of those parts alone, which is what Google Maps calls the short description. */
     shortDescription: string;
     uploaderName: string | null;
     countryCode: string | null;
@@ -2233,7 +2253,7 @@ type ParsedLocation = {
 };
 /**
  *  One partition group: a stable key, the ids it holds, and (numeric bins only) the
- *  `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
+ *  `[lo, hi]` bounds, so a live Filter can be rebuilt for whole-map gradients.
  */
 type PartitionBucket = {
     key: string;
@@ -2430,7 +2450,7 @@ type ProviderActivity = {
     retries: number;
 };
 /**
- *  One provider as declared by the frontend. `fields` are the extra keys it produces
+ *  One provider as the app declares it. `fields` are the extra keys it produces
  *  and `requires` the keys it consumes; together they gate who waits for whom.
  *  @unstable
  */
@@ -2582,8 +2602,8 @@ type SavedSelectionInfo = {
  */
 type ScoreBounds = string | [number, number, number, number];
 /**
- *  The full SingleImageSearch request surface. Every optional field defaults to what the
- *  Maps JS API sends for `getPanorama({location, radius})`.
+ *  The full SingleImageSearch request surface. Every optional field defaults to what
+ *  Google Maps sends for `getPanorama({location, radius})`.
  *  @unstable
  */
 type SearchQuery = {
@@ -2841,7 +2861,12 @@ type Selector$1<S = Selection> = {
     lng: number;
 };
 /**  Operations computed over the selected locations as a group. @unstable */
-type SetOp = {
+type SetOp = 
+/**
+ *  Merge each group into its best-scored location, which keeps its id and takes in the
+ *  others' list values and extra fields.
+ */
+{
     kind: "merge";
     groups: number[][];
     score: string | null;
@@ -2887,7 +2912,7 @@ type StoreStatus = {
     version: number;
     derived: Derived;
 };
-/**  What the store has to warn the user about. The sentence is TS's to write. @unstable */
+/**  What the store has to warn the user about. @unstable */
 type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 {
@@ -3661,7 +3686,7 @@ declare class CellBuffer {
     /** Append a marker, growing the buffer if needed. Visibility is set by the caller once
      *  the overlay knows about the row. */
     append(id: number, lng: number, lat: number, angle: number): void;
-    /** O(1) removal by swapping with the last element. Mirrors Rust's cell_remove_render. */
+    /** O(1) removal by swapping with the last element. */
     swapRemove(index: number): void;
     patchPosition(index: number, lng: number, lat: number, angle: number): void;
     /** Show (255) or hide (0) one marker in the base layer. */
@@ -5719,8 +5744,8 @@ declare const tagSelector: (tagId: number) => Selector;
 declare const untaggedSelector: () => Selector;
 /** Locations whose heading was never set. @unstable */
 declare const unpannedSelector: () => Selector;
-/** Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
- *  `Selector::pano_ids`), or the locations not pinned. @unstable */
+/** Locations pinned to one exact pano (the flag plus a pano id), or the locations not
+ *  pinned. @unstable */
 declare function panoIdSelector(on: boolean): Selector;
 /** Locations holding a value for `field`. @unstable */
 declare const has: (field: string) => Selector;
@@ -5747,7 +5772,7 @@ declare const SELECTIONS: {
 declare function childSelections<S>(selector: Selector$1<S>): S[];
 /** `selector` with its children replaced, keeping the shape it wraps them in. @unstable */
 declare function withChildren<S>(selector: Selector$1<S>, children: S[]): Selector$1<S>;
-/** An unaddressed selection input; Rust supplies its key and default color. @unstable */
+/** An unaddressed selection input; the store supplies its key and default color. @unstable */
 declare function selection(selector: Selector, color?: RGB): SelectionInput;
 /** @unstable */
 declare function buildSelection(selector: Selector): Promise<Selection>;
@@ -6128,7 +6153,7 @@ export interface MapPluginStorage {
 /** Persistent key-value storage namespaced to a plugin. Survives restarts. */
 declare function storage(id: string): PluginStorage;
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key; Rust applies these patches to the current map settings. */
+ *  Each write changes only one key, patched onto the current map settings. */
 declare function mapStorage(id: string): MapPluginStorage;
 /** Re-read a plugin's store after another window wrote it. @unstable */
 declare function reloadStorage(id: string): void;
@@ -6332,7 +6357,7 @@ export interface DatePickerProps {
     onYearSelect?: (year: number) => void;
     /** Treat the value as a wall-clock instant encoded as a UTC epoch (the picked
      *  numbers survive unshifted by the viewer's timezone). Used by location-time
-     *  date filtering, where Rust re-interprets the wall-clock in each pano's zone. */
+     *  date filtering, which re-interprets the wall-clock in each pano's zone. */
     wallClock?: boolean;
 }
 /** @unstable */
@@ -7279,7 +7304,7 @@ declare function fetchAllLocations(): Promise<Location[]>;
 declare function fieldCoverage(selector: Selector): Promise<[string, number][]>;
 /** @deprecated v0.10.2. Use `MMA.Provider.register()`. @unstable */
 declare function registerEnrichmentProvider(provider: Provider): void;
-/** @deprecated v0.10.5. The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+/** @deprecated v0.10.5. The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
  *  use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
  *  for plugin-owned defs. @unstable */
 declare function setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>;

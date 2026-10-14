@@ -491,7 +491,7 @@ LocationFlag: {
 }
 ```
 
-Per-location bitfield, serialized as a plain `u32` over IPC and Arrow.
+Per-location bitfield, sent and stored as a plain `u32`.
 
 ### MapShape
 
@@ -852,7 +852,7 @@ mapStorage(id: string): MapPluginStorage
 ```
 
 Persistent key-value storage a plugin keeps with the open map, so every map has its own.
-Each write changes only one key; Rust applies these patches to the current map settings.
+Each write changes only one key, patched onto the current map settings.
 
 ### reloadStorage
 
@@ -2690,7 +2690,7 @@ no map (version 0) settles at once.
 setUserFieldDefs(fields: Record<string, FieldDef>): Promise<void>
 ```
 
-**Deprecated in v0.10.5.** The user layer is Rust-owned state (`MMA.Store.get().fieldDefs`);
+**Deprecated in v0.10.5.** The user layer is store-owned state (`MMA.Store.get().fieldDefs`);
 use `MMA.Edit.meta({ extra: { fields } })` to change it, or `MMA.registerPluginFieldDefs()`
 for plugin-owned defs.
 
@@ -4711,8 +4711,8 @@ operators are marked for translation.
 panoIdSelector(on: boolean): Selector
 ```
 
-Locations pinned to one exact pano (the flag plus a pano id, mirroring Rust's
-`Selector::pano_ids`), or the locations not pinned.
+Locations pinned to one exact pano (the flag plus a pano id), or the locations not
+pinned.
 
 ### removeSelection
 
@@ -4746,7 +4746,7 @@ replaceSelection(path: SelectionPath, selector: Selector): SelectionOp
 selection(selector: Selector, color?: RGB): SelectionInput
 ```
 
-An unaddressed selection input; Rust supplies its key and default color.
+An unaddressed selection input; the store supplies its key and default color.
 
 ### selectionAt
 
@@ -7269,7 +7269,7 @@ cmd.valiDownload(
 ): Promise<null>
 ```
 
-Download Vali coverage data. `country` = code/continent alias/None for all.
+Download Vali coverage data for a country code or continent alias, or for every country when `country` is null.
 
 #### cmd.valiDownloadStale
 

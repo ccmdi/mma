@@ -99,7 +99,7 @@ pub const PROJECTIONS: &[Projection] = {
 };
 
 /// One partition group: a stable key, the ids it holds, and (numeric bins only) the
-/// `[lo, hi]` bounds so JS can rebuild a live Filter for whole-map gradients.
+/// `[lo, hi]` bounds, so a live Filter can be rebuilt for whole-map gradients.
 #[derive(Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct PartitionBucket {

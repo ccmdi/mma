@@ -1,6 +1,8 @@
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_json::Value;
 
+/// Value records stored as an object keyed by id. Each record takes its id from its key and
+/// drops `visible`, which the legacy tag format stored and records no longer hold.
 pub(crate) fn decode<'de, T: DeserializeOwned, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<T, D::Error> {

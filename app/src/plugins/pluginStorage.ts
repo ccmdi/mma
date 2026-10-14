@@ -79,7 +79,7 @@ function writeMapPluginKey(id: string, key: string, change: KeyChange): Promise<
 }
 
 /** Persistent key-value storage a plugin keeps with the open map, so every map has its own.
- *  Each write changes only one key; Rust applies these patches to the current map settings. */
+ *  Each write changes only one key, patched onto the current map settings. */
 export function mapStorage(id: string): MapPluginStorage {
 	return keyValue(
 		() => readMapPluginStore(id),

@@ -462,7 +462,9 @@ impl Store {
     rename_all_fields = "camelCase"
 )]
 pub enum LocationList {
+    /// The locations themselves.
     Inline { locations: Vec<Location> },
+    /// A file holding the locations as a JSON array.
     File { path: String },
 }
 
@@ -567,44 +569,38 @@ impl Ask {
     rename_all_fields = "camelCase"
 )]
 pub enum Answer {
-    Ids {
-        ids: Vec<Id<Location>>,
-    },
+    /// The matched ids.
+    Ids { ids: Vec<Id<Location>> },
+    /// The ids a spaced pick kept, and the spacing in metres it settled on.
     Spacing {
         ids: Vec<Id<Location>>,
         spacing_m: i32,
     },
-    Count {
-        count: u32,
-    },
-    Locations {
-        locations: LocationList,
-    },
+    /// How many locations matched.
+    Count { count: u32 },
+    /// The matched locations in full.
+    Locations { locations: LocationList },
+    /// One column per asked field.
     Columns {
         #[specta(type = Vec<Vec<specta_typescript::Unknown>>)]
         columns: Vec<Vec<serde_json::Value>>,
     },
-    Values {
-        values: Vec<String>,
-    },
+    /// The field's distinct values, sorted.
+    Values { values: Vec<String> },
+    /// The groups, each with its key and ids.
     GroupBy {
         groups: Vec<selections::PartitionBucket>,
     },
-    CountBy {
-        counts: Vec<selections::CountBy>,
-    },
-    Coverage {
-        coverage: Vec<(String, u32)>,
-    },
-    Bounds {
-        bounds: Option<[f64; 4]>,
-    },
-    DuplicateGroups {
-        groups: Vec<Vec<Id<Location>>>,
-    },
-    NearAny {
-        values: Vec<bool>,
-    },
+    /// The counts, one result per asked field.
+    CountBy { counts: Vec<selections::CountBy> },
+    /// Each field and how many locations hold a value for it.
+    Coverage { coverage: Vec<(String, u32)> },
+    /// The bounding box, or null when nothing matched.
+    Bounds { bounds: Option<[f64; 4]> },
+    /// The ids of each group of nearby locations.
+    DuplicateGroups { groups: Vec<Vec<Id<Location>>> },
+    /// Per input coordinate, whether a matched location lies near it.
+    NearAny { values: Vec<bool> },
 }
 
 impl Store {

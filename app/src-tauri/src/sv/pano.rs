@@ -53,14 +53,14 @@ pub struct Pano {
     pub lat: f64,
     pub lng: f64,
     pub altitude: f64,
-    /// The camera's orientation. The Maps JS API builds its whole tile frame out of this.
+    /// The camera's orientation. Google Maps builds its whole tile frame out of this.
     pub pov: Option<Pov>,
     pub world_size: ImageSize,
     pub tile_size: ImageSize,
     pub copyright: String,
     /// `description.description[].text`, joined with ", ".
     pub description: String,
-    /// The first of those parts alone, which is what the Maps JS API calls the short description.
+    /// The first of those parts alone, which is what Google Maps calls the short description.
     pub short_description: String,
     pub uploader_name: Option<String>,
     pub country_code: Option<String>,
@@ -401,8 +401,8 @@ pub static SINGLE_IMAGE_SEARCH: Endpoint = Endpoint {
 /// Half the Earth's circumference: the radius clamp the Maps JS API applies.
 const MAX_RADIUS: f64 = 6378137.0 * PI;
 
-/// The full SingleImageSearch request surface. Every optional field defaults to what the
-/// Maps JS API sends for `getPanorama({location, radius})`.
+/// The full SingleImageSearch request surface. Every optional field defaults to what
+/// Google Maps sends for `getPanorama({location, radius})`.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SearchQuery {
@@ -468,7 +468,7 @@ fn slots(fields: Vec<(u32, Value)>) -> Value {
     Value::Array(out)
 }
 
-/// The array-JSON request body, byte-identical to what the Maps JS API sends.
+/// The array-JSON request body, byte-identical to what Google Maps sends.
 pub fn encode_search(q: &SearchQuery) -> String {
     let radius = q.radius.clamp(0.0, MAX_RADIUS);
     let frontends: Vec<Value> = q
