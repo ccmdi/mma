@@ -452,7 +452,7 @@ fn raw_extra_derived_merge_is_recursive_and_replacement_preserves_null() {
 }
 
 #[test]
-fn merge_policy_supports_generic_wrappers_and_redundant_field_declarations() {
+fn merge_policy_supports_generic_wrappers_and_optional_members() {
     #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, mma_fields::Patch)]
     #[patch(merge)]
     struct Wrapper<T>(T);
@@ -464,7 +464,6 @@ fn merge_policy_supports_generic_wrappers_and_redundant_field_declarations() {
     #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, mma_fields::Patch)]
     #[patch(merge)]
     struct Document {
-        #[patch(merge)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         value: Option<serde_json::Value>,
     }

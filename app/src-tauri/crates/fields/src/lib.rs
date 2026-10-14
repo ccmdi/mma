@@ -252,12 +252,41 @@ fn expand(input: &DeriveInput) -> syn::Result<TokenStream2> {
 /// `stamp` fields can be written but are ignored when comparing values.
 /// A `unique` field's value names at most one row; `sequence` fields are numbered on insert.
 /// Other fields are optional; `column` overrides their storage column name.
+/// `merge` or `replace` on the struct patches it as one JSON value under that policy, and the
+/// other one on a field overrides it there.
 #[proc_macro_derive(Patch, attributes(patch, row, field))]
 pub fn derive_patch(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     match expand_patch(&input) {
         Ok(ts) => ts.into(),
         Err(e) => e.to_compile_error().into(),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Policy {
+    Merge,
+    Replace,
+}
+
+impl Policy {
+    fn parse(path: &syn::Path) -> Option<Self> {
+        if path.is_ident("merge") {
+            Some(Policy::Merge)
+        } else if path.is_ident("replace") {
+            Some(Policy::Replace)
+        } else {
+            None
+        }
+    }
+}
+
+impl quote::ToTokens for Policy {
+    fn to_tokens(&self, tokens: &mut TokenStream2) {
+        tokens.extend(match self {
+            Policy::Merge => quote!(::mma_algebra::Policy::Merge),
+            Policy::Replace => quote!(::mma_algebra::Policy::Replace),
+        });
     }
 }
 
@@ -269,17 +298,14 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
         .filter(|attr| attr.path().is_ident("patch"))
     {
         attr.parse_nested_meta(|meta| {
-            if meta.path.is_ident("merge") {
-                policy = Some(true);
-            } else if meta.path.is_ident("replace") {
-                policy = Some(false);
-            } else {
-                return Err(meta.error("expected merge or replace patch policy"));
-            }
+            policy = Some(
+                Policy::parse(&meta.path)
+                    .ok_or_else(|| meta.error("expected merge or replace patch policy"))?,
+            );
             Ok(())
         })?;
     }
-    if let Some(merge) = policy {
+    if let Some(policy) = policy {
         let Data::Struct(data) = &input.data else {
             return Err(syn::Error::new_spanned(input, "Patch derives on a struct"));
         };
@@ -289,15 +315,20 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             let mut child = None;
             for attr in field.attrs.iter().filter(|a| a.path().is_ident("patch")) {
                 attr.parse_nested_meta(|meta| {
-                    if meta.path.is_ident("merge") { child = Some(true); }
-                    else if meta.path.is_ident("replace") { child = Some(false); }
-                    else { return Err(meta.error("whole-value patch policy accepts only merge or replace field overrides")); }
+                    child = Some(Policy::parse(&meta.path).ok_or_else(|| {
+                        meta.error(
+                            "a whole-value patch policy accepts only merge or replace on a field",
+                        )
+                    })?);
                     Ok(())
                 })?;
             }
             if let Some(child) = child {
-                if child == merge {
-                    continue;
+                if child == policy {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "a field override restates the struct's own patch policy",
+                    ));
                 }
                 if field.ident.is_none() || serde_flatten(field) {
                     return Err(syn::Error::new_spanned(
@@ -309,6 +340,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 overrides.push(quote!((#name, #child)));
             }
         }
+        let merges = policy == Policy::Merge;
         let mut generics = input.generics.clone();
         generics
             .make_where_clause()
@@ -319,13 +351,13 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
             impl #implementation ::mma_algebra::Patchable for #ident #types #bounds {
                 type Patch = ::mma_algebra::JsonWrite;
                 fn patched(&self, patch: &Self::Patch) -> Self {
-                    ::mma_algebra::json_patched(self, patch, #merge, &[#(#overrides),*])
+                    ::mma_algebra::json_patched(self, patch, #policy, &[#(#overrides),*])
                 }
                 fn between(old: &Self, new: &Self) -> Self::Patch {
-                    ::mma_algebra::json_between(old, new, #merge, &[#(#overrides),*])
+                    ::mma_algebra::json_between(old, new, #policy, &[#(#overrides),*])
                 }
                 fn to_patch(&self) -> Self::Patch { ::mma_algebra::JsonWrite::Merge(serde_json::to_value(self).expect("patch target serializes")) }
-                fn is_absent(&self) -> bool { #merge && ::mma_algebra::json_is_absent(self) }
+                fn is_absent(&self) -> bool { #merges && ::mma_algebra::json_is_absent(self) }
             }
         });
     }
@@ -360,7 +392,7 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 } else if meta.path.is_ident("merge") {
                     merge = true;
                 } else if meta.path.is_ident("replace") {
-                    merge = false;
+                    return Err(meta.error("a field is replaced unless it declares merge"));
                 } else if meta.path.is_ident("stamp") {
                     stamp = true;
                 } else if meta.path.is_ident("unique") {
@@ -1129,3 +1161,7 @@ fn expand_children(input: &DeriveInput) -> syn::Result<TokenStream2> {
         }
     })
 }
+
+#[cfg(test)]
+#[path = "lib.test.rs"]
+mod tests;
