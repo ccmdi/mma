@@ -77,12 +77,13 @@ fn tag_color_meta(
 ) -> serde_json::Map<String, serde_json::Value> {
     let mut converted = serde_json::Map::new();
     for v in tag_defs.values() {
-        if let (Some(name), Some(color)) = (
-            v.get("name").and_then(|n| n.as_str()),
-            v.get("color").and_then(|c| c.as_str()),
-        ) {
+        if let Some(name) = v.get("name").and_then(|n| n.as_str()) {
             let mut entry = serde_json::Map::new();
-            if let Ok(rgb) = color.parse::<Rgb>() {
+            if let Some(Ok(rgb)) = v
+                .get("color")
+                .and_then(|c| c.as_str())
+                .map(str::parse::<Rgb>)
+            {
                 entry.insert("color".into(), serde_json::json!(rgb));
             }
             if let Some(order) = v.get("order").and_then(serde_json::Value::as_u64) {

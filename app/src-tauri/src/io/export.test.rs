@@ -117,6 +117,18 @@ fn tag_meta_roundtrips_doclinks() {
 }
 
 #[test]
+fn tag_meta_keeps_a_tag_without_a_color() {
+    let (tag_defs, _) = parse_tag_defs(
+        r##"{"1": {"name": "plain", "order": 2, "doclinks": ["https://example.com/doc"]}}"##,
+    );
+    let meta = tag_color_meta(&tag_defs, MapShape::Local);
+    assert_eq!(
+        meta["plain"],
+        serde_json::json!({"order": 2, "doclinks": ["https://example.com/doc"]})
+    );
+}
+
+#[test]
 fn upload_session_dir_rejects_outside_paths() {
     assert!(upload_session_dir("C:/somewhere/mma_upload_1_1").is_err());
     let not_pano = env::temp_dir().join("other_dir");
