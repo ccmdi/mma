@@ -214,7 +214,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 
 	const onDropToMap = useEffectEvent(async (mapId: string) => {
 		const drop = await buildDrop();
-		return drop && cmd.storeAddLocationsToMap(mapId, [drop]);
+		return drop && cmd.storeCopyLocationsToMap(mapId, { kind: "given", locations: [drop] });
 	});
 
 	const hasLocation = location != null;

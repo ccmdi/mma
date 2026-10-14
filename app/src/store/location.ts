@@ -17,7 +17,7 @@ const MAP: Target = { kind: "map" };
 /** Upload chunk size, targeting roughly 1 MB of JSON per request. */
 const ADD_CHUNK = 5000;
 
-/** Stage `locs` as chunked JSON in an upload session, then commit them in one mutation.
+/** Stage `locs` as chunked JSON adds in an upload session, then commit them in one mutation.
  *  Only one chunk is serialized at a time, so peak memory is O(chunk), not O(batch). */
 async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 	const session = await cmd.storeUploadBegin();
@@ -25,7 +25,7 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 		for (let i = 0, n = 0; i < locs.length; i += ADD_CHUNK, n++) {
 			const res = await fetch(mmaBufUrl(`${session}/${n}.json`), {
 				method: "POST",
-				body: JSON.stringify(locs.slice(i, i + ADD_CHUNK)),
+				body: JSON.stringify(locs.slice(i, i + ADD_CHUNK).map((add) => ({ add }))),
 			});
 			if (!res.ok) throw new Error(`staged add: chunk ${n} upload failed (${res.status})`);
 		}
@@ -33,7 +33,7 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 		await cmd.storeUploadAbort(session).catch(() => {});
 		throw e;
 	}
-	return cmd.storeAddLocationsUploaded(session);
+	return cmd.storeEditUploaded(MAP, session);
 }
 
 export const Location = {

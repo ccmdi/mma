@@ -6381,30 +6381,6 @@ cmd.sidecarStopAll(): Promise<null>
 
 Stop all sidecar processes across every plugin.
 
-#### cmd.storeAddLocationsToMap
-
-`unstable` · since v0.10.2
-
-```ts
-cmd.storeAddLocationsToMap(
-  targetMapId: string,
-  locations: Location[],
-): Promise<CopyToMapResult>
-```
-
-Add caller-supplied locations to another map. Tags are matched by name against this
-map's tag table.
-
-#### cmd.storeAddLocationsUploaded
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.storeAddLocationsUploaded(sessionDir: string): Promise<MutationResult<Location>>
-```
-
-Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
-
 #### cmd.storeApplySavedSelection
 
 `unstable` · since v0.12.0
@@ -6466,11 +6442,12 @@ Commit the map's uncommitted changes. Returns the new commit ID. Clears undo/red
 ```ts
 cmd.storeCopyLocationsToMap(
   targetMapId: string,
-  selector: Selector$1<SelectionInput>,
+  source: CopySource,
 ): Promise<CopyToMapResult>
 ```
 
-Copy locations already stored in this map into another map.
+Copy locations into another map, skipping ones the target already has. Tags and extra
+fields carry over, tags matched to the target's by name.
 
 #### cmd.storeCountryDistribution
 
@@ -6569,6 +6546,20 @@ cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<ListedSelection
 ```
 
 Edit the selection tree.
+
+#### cmd.storeEditUploaded
+
+`unstable` · unreleased
+
+```ts
+cmd.storeEditUploaded(
+  target: Target,
+  session: string,
+): Promise<MutationResult<Location>>
+```
+
+Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
+one change.
 
 #### cmd.storeEditValues
 

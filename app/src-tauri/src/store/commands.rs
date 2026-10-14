@@ -11,13 +11,11 @@ use crate::store::arrow::schema;
 use crate::store::engine::*;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, maps, storage};
-use crate::types::{AppError, AppResult, Location, RawExtra};
-use crate::util;
+use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
 use arrow_array::{RecordBatch, UInt32Array};
 use arrow_select::take;
-use mma_algebra::{Edit, Id, Op, Patch};
-use std::collections::{HashMap, HashSet};
+use mma_algebra::{Edit, Id, Op};
 use std::mem;
 use std::sync::Arc;
 use std::time::Instant;
@@ -56,83 +54,88 @@ async fn open_claimed_map(
     map_id: Id<MapMeta, String>,
 ) -> AppResult<StoreStatus> {
     let map_id2 = map_id.clone();
+    let mut store = task::spawn_blocking(move || load_store(&map_id2)).await??;
+    let mut mgr = state.lock()?;
+    let status = store.open_status();
+    store.dependents = mgr.providers.dependents();
+    mgr.window_map.insert(label.clone(), map_id.clone());
+    if let Some(replaced) = mgr.stores.remove(&map_id) {
+        store.adopt_watchers(replaced);
+    }
+    mgr.stores.insert(map_id, store);
+    Ok(status)
+}
 
-    let result = task::spawn_blocking(move || {
-        use std::time::Instant;
-        let t_total = Instant::now();
+/// A store holding what disk holds for `map_id`: its last commit, uncommitted changes, edit
+/// history, and metadata.
+fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
+    let t_total = Instant::now();
 
-        let (batch, mmap_handle, delta) = {
-            let t0 = Instant::now();
-            let path = storage::arrow_path(&map_id2)?;
-            let delta_path = storage::arrow_delta_path(&map_id2)?;
+    let (batch, mmap_handle, delta) = {
+        let t0 = Instant::now();
+        let path = storage::arrow_path(map_id)?;
+        let delta_path = storage::arrow_delta_path(map_id)?;
 
-            // The base file holds the last committed state -- it may not exist at all for a
-            // map with no commits, whose data then lives entirely in the delta sidecar. Mmap
-            // the base zero-copy and leave it untouched; load the delta into the overlay
-            // regardless of whether a base file exists (never folded into the base).
-            let (batch, handle) = if path.exists() {
-                let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
-                log::debug!(
-                    "[store_open] mmap_read={}ms rows={}",
-                    t0.elapsed().as_millis(),
-                    b.num_rows()
-                );
-                (b, Some(h))
-            } else {
-                log::debug!("[store_open] no base file, empty batch");
-                (RecordBatch::new_empty(schema()), None)
-            };
-            delta_legacy::convert_msgpack_delta(&delta_path, &path)?;
-            let delta = load_delta(&delta_path);
-            (batch, handle, delta)
+        // The base file holds the last committed state -- it may not exist at all for a
+        // map with no commits, whose data then lives entirely in the delta sidecar. Mmap
+        // the base zero-copy and leave it untouched; load the delta into the overlay
+        // regardless of whether a base file exists (never folded into the base).
+        let (batch, handle) = if path.exists() {
+            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
+            log::debug!(
+                "[store_open] mmap_read={}ms rows={}",
+                t0.elapsed().as_millis(),
+                b.num_rows()
+            );
+            (b, Some(h))
+        } else {
+            log::debug!("[store_open] no base file, empty batch");
+            (RecordBatch::new_empty(schema()), None)
         };
+        delta_legacy::convert_msgpack_delta(&delta_path, &path)?;
+        let delta = load_delta(&delta_path);
+        (batch, handle, delta)
+    };
 
-        // Legacy files may be unsorted; enforce the sorted ID invariant once.
-        let (batch, mmap_handle) = {
-            let ids = arrow::Columns::id(&batch);
-            let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
-            if sorted || batch.num_rows() == 0 {
-                (batch, mmap_handle)
-            } else {
-                log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
-                let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
-                order.sort_by_key(|&i| ids.value(i as usize));
-                let sort_idx = UInt32Array::from(order);
-                let sorted_batch = RecordBatch::try_new(
-                    batch.schema(),
-                    batch
-                        .columns()
-                        .iter()
-                        .map(|col| take::take(col.as_ref(), &sort_idx, None).unwrap())
-                        .collect(),
-                )
-                .unwrap();
-                drop(batch);
-                drop(mmap_handle);
-                let path = storage::arrow_path(&map_id2)?;
-                arrow::write_arrow_ipc(&path, &sorted_batch)?;
-                drop(sorted_batch);
-                let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
-                log::info!("[store_open] migration complete, re-mmap'd sorted file");
-                (b, Some(h))
-            }
-        };
+    // Legacy files may be unsorted; enforce the sorted ID invariant once.
+    let (batch, mmap_handle) = {
+        let ids = arrow::Columns::id(&batch);
+        let sorted = (1..batch.num_rows()).all(|i| ids.value(i - 1) < ids.value(i));
+        if sorted || batch.num_rows() == 0 {
+            (batch, mmap_handle)
+        } else {
+            log::info!("[store_open] migrating unsorted Arrow file to sorted ID order");
+            let mut order: Vec<u32> = (0..batch.num_rows() as u32).collect();
+            order.sort_by_key(|&i| ids.value(i as usize));
+            let sort_idx = UInt32Array::from(order);
+            let sorted_batch = RecordBatch::try_new(
+                batch.schema(),
+                batch
+                    .columns()
+                    .iter()
+                    .map(|col| take::take(col.as_ref(), &sort_idx, None).unwrap())
+                    .collect(),
+            )
+            .unwrap();
+            drop(batch);
+            drop(mmap_handle);
+            let path = storage::arrow_path(map_id)?;
+            arrow::write_arrow_ipc(&path, &sorted_batch)?;
+            drop(sorted_batch);
+            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
+            log::info!("[store_open] migration complete, re-mmap'd sorted file");
+            (b, Some(h))
+        }
+    };
 
-        let n = batch.num_rows();
-        let max_id = n
-            .checked_sub(1)
-            .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
+    let n = batch.num_rows();
+    let max_id = n
+        .checked_sub(1)
+        .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
 
-        let conn = storage::open_db()?;
-        let edits = load_edit_history(&conn, &map_id2)?;
-        let history_max = stored_history_max_id(&conn, &map_id2)?;
-
-        log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());
-        Ok::<_, AppError>((batch, mmap_handle, max_id, edits, history_max, delta))
-    })
-    .await??;
-
-    let (batch, mmap_handle, max_id, edits, history_max, delta) = result;
+    let conn = storage::open_db()?;
+    let edits = load_edit_history(&conn, map_id)?;
+    let history_max = stored_history_max_id(&conn, map_id)?;
 
     let mut store = Store::new();
     store.bump();
@@ -149,25 +152,17 @@ async fn open_claimed_map(
     let LocationAggregates { alive, bounds } = store.scan_locations();
     store.alive_count = Tracked::new(alive);
     store.bounds.seed(At::new(store.version, bounds));
-    let conn = storage::open_db()?;
-    storage::set_map_counts(&conn, &map_id, alive, store.overlay_diff_counts())?;
+    storage::set_map_counts(&conn, map_id, alive, store.overlay_diff_counts())?;
     store.steps[Timeline::Edits] = Tracked::new(edits);
 
-    let mut mgr = state.lock()?;
-    let mut meta = maps::read_map_meta(&conn, &map_id)?;
+    let mut meta = maps::read_map_meta(&conn, map_id)?;
     store
         .records
         .insert("tags".into(), Tracked::new(mem::take(&mut meta.tags)));
     store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = Tracked::new(meta);
-    let status = store.open_status();
-    store.dependents = mgr.providers.dependents();
-    mgr.window_map.insert(label.clone(), map_id.clone());
-    if let Some(replaced) = mgr.stores.remove(&map_id) {
-        store.adopt_watchers(replaced);
-    }
-    mgr.stores.insert(map_id, store);
-    Ok(status)
+    log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());
+    Ok(store)
 }
 
 /// Close the open map, saving unsaved changes first.
@@ -221,32 +216,27 @@ pub fn store_close_layer(
     Ok(())
 }
 
-/// Add locations from an upload session (see `storeUploadBegin`) as one undoable change.
+/// Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
+/// one change.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_add_locations_uploaded(
+pub async fn store_edit_uploaded(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    session_dir: String,
+    target: Target,
+    session: String,
 ) -> AppResult<MutationResult> {
-    let _t = Instant::now();
-    // Parse before taking the store lock: a malformed chunk must leave the store untouched.
-    let locations =
-        task::spawn_blocking(move || export::read_uploaded_chunks::<Location>(&session_dir))
-            .await??;
-    let _read = _t.elapsed().as_millis();
-    with_store!(label, state, |store| {
-        let n = locations.len();
-        let edits = locations.into_iter().map(Op::Add).collect();
-        let result = store.edit(&Target::Map, edits, IncomingRecords::new(), &mut None);
-        log::debug!(
-            "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
-            n,
-            _read,
-            _t.elapsed().as_millis()
-        );
-        Ok(MutationResult { mutation: result })
-    })
+    let started = Instant::now();
+    // Read before taking the store lock: a malformed chunk must leave the store untouched.
+    let edits = task::spawn_blocking(move || export::read_uploaded_chunks(&session)).await??;
+    let mutation = with_store!(label, state, |store| {
+        Ok::<_, AppError>(store.edit(&target, edits, IncomingRecords::new(), &mut None))
+    })?;
+    log::debug!(
+        "[cmd] store_edit_uploaded total={}ms",
+        started.elapsed().as_millis()
+    );
+    Ok(MutationResult { mutation })
 }
 
 /// Set the default marker color for new render updates.
@@ -284,74 +274,47 @@ pub async fn store_country_distribution(
     borders::tally_countries(&level, &coords?)
 }
 
-/// Copy locations already stored in this map into another map.
+/// The locations a copy to another map takes.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum CopySource {
+    /// The open map's locations that the selector matches.
+    Selected { selector: Selector<SelectionInput> },
+    /// Locations given with the call, whose interned values are this map's.
+    Given { locations: Vec<Location> },
+}
+
+/// Copy locations into another map, skipping ones the target already has. Tags and extra
+/// fields carry over, tags matched to the target's by name.
+// An open target's windows receive the change feed and schedule autosave; a closed target is
+// loaded, edited the same way, and saved.
 #[tauri::command]
 #[specta::specta]
 pub fn store_copy_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target_map_id: Id<MapMeta, String>,
-    selector: Selector<SelectionInput>,
-) -> AppResult<CopyToMapResult> {
-    copy_to_map(label, state, target_map_id, |src| {
-        src.collect(
-            &Target::Map,
-            &selector.map_children(SelectionInput::compile),
-        )
-    })
-}
-
-/// Add caller-supplied locations to another map. Tags are matched by name against this
-/// map's tag table.
-#[tauri::command]
-#[specta::specta]
-pub fn store_add_locations_to_map(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    target_map_id: Id<MapMeta, String>,
-    locations: Vec<Location>,
-) -> AppResult<CopyToMapResult> {
-    copy_to_map(label, state, target_map_id, |_| locations)
-}
-
-/// Insert `collect`'s locations into another map, skipping ones the target already has.
-/// Tags and extra fields carry over.
-// If the target is open in any window its live store is mutated and `store-external-mutation`
-// tells its windows to resync; either way the result is persisted immediately.
-fn copy_to_map(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    target_map_id: Id<MapMeta, String>,
-    collect: impl FnOnce(&mut Store) -> Vec<Location>,
+    source: CopySource,
 ) -> AppResult<CopyToMapResult> {
     let _t = Instant::now();
-    let conn = storage::open_db()?;
-
-    // The manager lock is held for both paths: it serializes the closed-path
-    // delta-file rewrite against a concurrent store_open_map of the same map.
+    // The manager lock is held throughout: it serializes a closed target's load and save
+    // against a concurrent store_open_map of the same map.
     let mut mgr = state.lock()?;
     let source_map_id = mgr.map_id_for_window(&label)?;
     if source_map_id == target_map_id {
         return Err(AppError("cannot copy a location into its own map".into()));
     }
 
-    let mut sources: Vec<Location> = Vec::new();
-    let source_tags: HashMap<Id<ValueRecord>, ValueRecord> = {
+    let (sources, source_records) = {
         let src = mgr.store_for_map(&source_map_id)?;
-        sources.extend(collect(src));
-        let used: HashSet<Id<ValueRecord>> = sources
-            .iter()
-            .flat_map(|l| l.tags.iter().copied())
-            .collect();
-        src.records
-            .get("tags")
-            .map(|meta| {
-                meta.iter()
-                    .filter(|(id, _)| used.contains(id))
-                    .map(|(&id, t)| (id, t.clone()))
-                    .collect()
-            })
-            .unwrap_or_default()
+        let rows = match source {
+            CopySource::Selected { selector } => src.collect(
+                &Target::Map,
+                &selector.map_children(SelectionInput::compile),
+            ),
+            CopySource::Given { locations } => locations,
+        };
+        (rows, src.held_value_records())
     };
     if sources.is_empty() {
         return Ok(CopyToMapResult {
@@ -360,119 +323,48 @@ fn copy_to_map(
         });
     }
 
-    let used_tags = |fresh: &[Location]| -> Vec<ValueRecord> {
-        let used: HashSet<Id<ValueRecord>> =
-            fresh.iter().flat_map(|l| l.tags.iter().copied()).collect();
-        used.iter()
-            .filter_map(|&id| source_tags.get(&id).cloned())
-            .collect()
+    let open = mgr.stores.contains_key(&target_map_id);
+    let mut loaded;
+    let target = if open {
+        mgr.store_for_map(&target_map_id)?
+    } else {
+        loaded = load_store(&target_map_id)?;
+        loaded.dependents = mgr.providers.dependents();
+        &mut loaded
     };
-
-    if mgr.stores.contains_key(&target_map_id) {
-        // An open target's windows receive the change feed and schedule autosave.
-        let target = mgr.store_for_map(&target_map_id)?;
-        let t_scan = Instant::now();
-        let existing = target.collect(&Target::Map, &Selector::Everything);
-        let (fresh, skipped) = split_new_locations(sources, &existing);
-        let scan_ms = t_scan.elapsed().as_millis();
-        let copied = fresh.len() as u32;
-        if copied > 0 {
-            let records = IncomingRecords::from([(
-                "tags".to_string(),
-                used_tags(&fresh).into_iter().map(|t| (t.id, t)).collect(),
-            )]);
-            let t_add = Instant::now();
-            let adds = fresh.into_iter().map(Op::Add).collect();
-            target.edit(&Target::Map, adds, records, &mut None);
-            log::debug!(
-                "[cmd] copy_to_map open-target scan={}ms add={}ms total={}ms",
-                scan_ms,
-                t_add.elapsed().as_millis(),
-                _t.elapsed().as_millis()
-            );
+    let copied = copy_into(target, sources, &source_records);
+    if !open {
+        if let Some(unsaved) = target.unsaved()? {
+            unsaved.write(
+                &storage::open_db()?,
+                &target_map_id,
+                &storage::arrow_delta_path(&target_map_id)?,
+            )?;
         }
-        return Ok(CopyToMapResult { copied, skipped });
     }
+    log::debug!(
+        "[cmd] copy_to_map open={open} copied={} total={}ms",
+        copied.copied,
+        _t.elapsed().as_millis()
+    );
+    Ok(copied)
+}
 
-    // Target closed: append to the uncommitted delta sidecar (what autosave writes).
-    let t_read = Instant::now();
-    let existing = read_full_state_from_disk(&target_map_id)?;
-    let read_ms = t_read.elapsed().as_millis();
-    let (mut fresh, skipped) = split_new_locations(sources, &existing);
+/// Add the `sources` that `target` lacks, with the records they reference among `records`.
+fn copy_into(
+    target: &mut Store,
+    sources: Vec<Location>,
+    records: &IncomingRecords,
+) -> CopyToMapResult {
+    let existing = target.collect(&Target::Map, &Selector::Everything);
+    let (fresh, skipped) = split_new_locations(sources, &existing);
     let copied = fresh.len() as u32;
     if copied > 0 {
-        let target_meta = maps::read_map_meta(&conn, &target_map_id)?;
-        let mut target_tags = target_meta.tags;
-        let data_max = existing
-            .iter()
-            .flat_map(|l| l.tags.iter().map(|t| t.get()))
-            .max()
-            .unwrap_or(0);
-        let remap = reconcile_values_by_name(&used_tags(&fresh), &mut target_tags, data_max);
-        for loc in &mut fresh {
-            loc.tags = loc
-                .tags
-                .iter()
-                .filter_map(|t| remap.get(t).copied())
-                .collect();
-        }
-
-        let mut fields = target_meta.extra.fields;
-        let extras: Vec<&RawExtra> = fresh.iter().filter_map(|l| l.extra.as_ref()).collect();
-        if let Some(defs) = maps::infer_field_defs(|k| fields.contains_key(k), &extras) {
-            fields.extend(defs);
-        }
-
-        let t_hist = Instant::now();
-        let history_max = stored_history_max_id(&conn, &target_map_id)?;
-        let hist_ms = t_hist.elapsed().as_millis();
-        let mut ids = seed_next_id(existing.iter().map(|l| l.id).max(), &[], history_max);
-        let now = util::now_unix();
-        let fresh: Vec<Location> = fresh
-            .into_iter()
-            .map(|loc| Location {
-                id: ids.take(),
-                ..loc.created(now)
-            })
-            .collect();
-        let t_save = Instant::now();
-        let delta_path = storage::arrow_delta_path(&target_map_id)?;
-        let (mut created, removed) = if delta_path.exists() {
-            arrow::batch_to_delta(&arrow::read_arrow_ipc(&delta_path)?)
-        } else {
-            Default::default()
-        };
-        created.extend(fresh);
-        arrow::write_arrow_ipc(&delta_path, &arrow::delta_to_batch(&created, &removed))?;
-        let mut pending = storage::map_pending(&conn, &target_map_id)?;
-        pending.added += copied;
-        storage::set_map_counts(
-            &conn,
-            &target_map_id,
-            existing.len() + copied as usize,
-            pending,
-        )?;
-        storage::patch_row(
-            &conn,
-            "maps",
-            target_map_id.raw(),
-            &maps::read_map_meta(&conn, &target_map_id)?,
-            &Patch::<maps::MapMeta> {
-                id: target_map_id.clone(),
-                tags: Some(target_tags),
-                extra: Some(maps::MapExtra { fields }),
-                ..Default::default()
-            },
-        )?;
-        log::debug!(
-            "[cmd] copy_to_map closed-target read={}ms history={}ms save={}ms total={}ms",
-            read_ms,
-            hist_ms,
-            t_save.elapsed().as_millis(),
-            _t.elapsed().as_millis()
-        );
+        let records = referenced_records(records, &fresh);
+        let adds = fresh.into_iter().map(Op::Add).collect();
+        target.edit(&Target::Map, adds, records, &mut None);
     }
-    Ok(CopyToMapResult { copied, skipped })
+    CopyToMapResult { copied, skipped }
 }
 
 /// Save uncommitted changes to disk. No-op when nothing has changed.

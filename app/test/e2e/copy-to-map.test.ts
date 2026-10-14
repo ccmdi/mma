@@ -2,20 +2,16 @@
 /**
  * Cross-map / cross-window location copy (store_copy_locations_to_map).
  *
- * Two branches, decided by whether the target's store is resident:
- *  - closed target -> Rust appends to the target's delta sidecar + tags JSON and
- *    persists immediately. Fully verifiable here: copy, reopen, assert.
- *  - open target   -> Rust mutates the live target store and emits
- *    `store-external-mutation` carrying the full MutationResult; the *receiving
- *    window* owns the save via mutate(). The producer no longer persists.
+ * Both branches edit the target store the same way; they differ in whose store it is:
+ *  - closed target -> Rust loads the target from disk, edits it, and saves it at once.
+ *    Fully verifiable here: copy, reopen, assert.
+ *  - open target   -> Rust edits the live target store; its windows receive the change
+ *    feed and schedule the save.
  *
  * Only the closed-target branch is exercised here. The open-target branch fires
  * when the target's store is resident, which in this app means a *second window*
- * has it open — and a single webview can't host one (switching the window to the
- * source closes the prior map). Its two halves are covered elsewhere: the consumer
- * mutate(payload) is the same path import uses (store.mutate(Promise.resolve(r)),
- * covered by the import specs), and the producer's add_copied_to_store result is
- * covered by a Rust unit test in import.test.rs.
+ * has it open, and a single webview can't host one (switching the window to the
+ * source closes the prior map). The shared edit is covered by Rust unit tests.
  */
 import {
 	waitForReady,
@@ -35,7 +31,10 @@ import {
 const copy = (targetMapId: string, ids: number[]) =>
 	withApi(
 		(api, t, i) =>
-			api.cmd.storeCopyLocationsToMap(t, { type: "Locations", locations: i, name: null }),
+			api.cmd.storeCopyLocationsToMap(t, {
+				kind: "selected",
+				selector: { type: "Locations", locations: i, name: null },
+			}),
 		targetMapId,
 		ids,
 	);
@@ -203,9 +202,8 @@ describe("Copy to a closed map", () => {
 			const selfId = api.Store.get().mapId!;
 			try {
 				await api.cmd.storeCopyLocationsToMap(selfId, {
-					type: "Locations",
-					locations: i,
-					name: null,
+					kind: "selected",
+					selector: { type: "Locations", locations: i, name: null },
 				});
 				return null;
 			} catch (e) {

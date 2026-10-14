@@ -5,7 +5,7 @@
 
 use super::*;
 use crate::selections;
-use crate::types::{AppError, AppResult};
+use crate::types::{AppError, AppResult, Location};
 use crate::util::Rgb;
 use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op, Patch};
 use std::collections::HashMap;
@@ -72,6 +72,32 @@ pub(crate) fn reconcile_values_by_name<'a>(
     });
     let applied = mma_algebra::apply(target, adds, Id::new(floor));
     named.iter().map(|r| r.id).zip(applied.keys).collect()
+}
+
+/// The records among `records` that `rows` reference, by field.
+pub(crate) fn referenced_records(records: &IncomingRecords, rows: &[Location]) -> IncomingRecords {
+    records
+        .iter()
+        .map(|(field, held)| {
+            let used: HashSet<Id<ValueRecord>> = rows
+                .iter()
+                .filter_map(
+                    |row| match selections::RowRef::from_loc(row).resolve_field(field) {
+                        Some(serde_json::Value::Array(ids)) => Some(ids),
+                        _ => None,
+                    },
+                )
+                .flatten()
+                .filter_map(|id| Some(Id::new(u32::try_from(id.as_u64()?).ok()?)))
+                .collect();
+            let referenced = held
+                .iter()
+                .filter(|(id, _)| used.contains(id))
+                .map(|(&id, record)| (id, record.clone()))
+                .collect();
+            (field.clone(), referenced)
+        })
+        .collect()
 }
 
 /// The edit with its name trimmed. A record's name is never cleared, a new record needs one,
@@ -204,6 +230,14 @@ impl<'a> FieldValues<'a> {
 }
 
 impl Store {
+    /// Every interned field's records as they stand.
+    pub(crate) fn held_value_records(&self) -> IncomingRecords {
+        self.records
+            .iter()
+            .map(|(field, records)| (field.clone(), (**records).clone()))
+            .collect()
+    }
+
     pub(crate) fn value_record(&self, field: &str, id: Id<ValueRecord>) -> Option<&ValueRecord> {
         self.records.get(field)?.get(&id)
     }

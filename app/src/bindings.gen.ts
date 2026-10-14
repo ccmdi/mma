@@ -172,15 +172,16 @@ export const commands = {
 	storeCloseLayer: (name: string, mapId: string | null) => __TAURI_INVOKE<null>("store_close_layer", { name, mapId }),
 	/**  Save uncommitted changes to disk. No-op when nothing has changed. */
 	storeSaveDirty: () => __TAURI_INVOKE<null>("store_save_dirty"),
-	/**  Copy locations already stored in this map into another map. */
-	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**
-	 *  Add caller-supplied locations to another map. Tags are matched by name against this
-	 *  map's tag table.
+	 *  Copy locations into another map, skipping ones the target already has. Tags and extra
+	 *  fields carry over, tags matched to the target's by name.
 	 */
-	storeAddLocationsToMap: (targetMapId: string, locations: Location[]) => __TAURI_INVOKE<CopyToMapResult>("store_add_locations_to_map", { targetMapId, locations: locations.map(i=>i) }),
-	/**  Add locations from an upload session (see `storeUploadBegin`) as one undoable change. */
-	storeAddLocationsUploaded: (sessionDir: string) => __TAURI_INVOKE<MutationResult>("store_add_locations_uploaded", { sessionDir }),
+	storeCopyLocationsToMap: (targetMapId: string, source: CopySource) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, source }),
+	/**
+	 *  Edit locations where target says with edits uploaded first (see `storeUploadBegin`), as
+	 *  one change.
+	 */
+	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<MutationResult>("store_edit_uploaded", { target, session }),
 	/**  Set the default marker color for new render updates. */
 	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
@@ -625,6 +626,13 @@ export type ConflictKind =
 "delete-update" | 
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
+
+/**  The locations a copy to another map takes. */
+export type CopySource = 
+/**  The open map's locations that the selector matches. */
+{ kind: "selected"; selector: Selector<SelectionInput> } | 
+/**  Locations given with the call, whose interned values are this map's. */
+{ kind: "given"; locations: Location[] };
 
 /**  Result of copying locations to another map. */
 export type CopyToMapResult = {

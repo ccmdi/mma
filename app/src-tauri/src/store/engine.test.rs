@@ -6951,7 +6951,7 @@ fn concurrent_rows_file_queries_get_distinct_paths() {
 // -----------------------------------------------------------------------
 
 /// Stage `chunks` into a fresh upload session the way the frontend POSTs them.
-fn stage_chunks(chunks: &[Vec<Location>]) -> String {
+fn stage_chunks<T: serde::Serialize>(chunks: &[Vec<T>]) -> String {
     let session = export::store_upload_begin().unwrap();
     for (i, chunk) in chunks.iter().enumerate() {
         let path = Path::new(&session).join(format!("{i}.json"));
@@ -6980,16 +6980,28 @@ fn uploaded_add_reads_chunks_in_index_order() {
     );
 }
 
+fn uploaded(chunks: &[Vec<Location>]) -> Vec<Edit<Location>> {
+    let chunks: Vec<Vec<serde_json::Value>> = chunks
+        .iter()
+        .map(|chunk| {
+            chunk
+                .iter()
+                .map(|l| serde_json::json!({ "add": l }))
+                .collect()
+        })
+        .collect();
+    export::read_uploaded_chunks(&stage_chunks(&chunks)).unwrap()
+}
+
 #[test]
 fn uploaded_add_echoes_ids_in_staged_order() {
     let mut store = setup_store_with(&[]);
-    let session = stage_chunks(&[
+    let edits = uploaded(&[
         vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)],
         vec![loc(0, 3.0, 3.0)],
     ]);
-    let uploaded = export::read_uploaded_chunks::<Location>(&session).unwrap();
     let frames = watch(&mut store);
-    add_rows(&mut store, uploaded);
+    store.edit(&Target::Map, edits, Default::default(), &mut None);
 
     let ids = added_ids(&frames);
     assert_eq!(ids.len(), 3);
@@ -7007,10 +7019,11 @@ fn uploaded_add_matches_direct_add() {
     let direct = add_rows(&mut direct_store, locs.clone());
 
     let mut uploaded_store = setup_store_with(&[]);
-    let session = stage_chunks(&[locs[..2].to_vec(), locs[2..].to_vec()]);
-    let uploaded = add_rows(
-        &mut uploaded_store,
-        export::read_uploaded_chunks::<Location>(&session).unwrap(),
+    let uploaded = uploaded_store.edit(
+        &Target::Map,
+        uploaded(&[locs[..2].to_vec(), locs[2..].to_vec()]),
+        Default::default(),
+        &mut None,
     );
 
     assert_eq!(
@@ -7070,7 +7083,7 @@ fn uploaded_add_removes_session_dir() {
     export::read_uploaded_chunks::<Location>(&ok).unwrap();
     assert!(!Path::new(&ok).exists());
 
-    let bad = stage_chunks(&[]);
+    let bad = stage_chunks::<Location>(&[]);
     fs::write(Path::new(&bad).join("junk.json"), b"[]").unwrap();
     assert!(export::read_uploaded_chunks::<Location>(&bad).is_err());
     assert!(!Path::new(&bad).exists());
