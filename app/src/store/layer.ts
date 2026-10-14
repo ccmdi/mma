@@ -6,6 +6,7 @@ import { Store } from "./store";
 import { Query, type AnswerOf, type ReadResult } from "./query";
 import { cmd } from "@/lib/commands";
 import { serial } from "@/lib/util/concurrent";
+import { log } from "@/lib/util/log";
 
 type LocationEdits = Parameters<typeof Edit.locations>[1];
 type LayerRead = <A extends Ask>(
@@ -65,9 +66,16 @@ export class Layer {
 		});
 	}
 
-	/** Land the layer's edits as one undo step; later writes to the layer join that step. A layer lands once. */
+	/** Land the layer's edits as one undo step, resolving once the map accepts them; later writes to the layer join that step. A layer lands once. */
 	land() {
-		return this.enqueue(() => Mutation.run(() => cmd.storeLandLayer(this.target.name)));
+		return this.enqueue(async () => {
+			if (!Store.get().map) return Mutation.none();
+			const result = await cmd.storeLandLayer(this.target.name);
+			void Mutation.settle(result.mutation).catch((error) =>
+				log.error("[layer] land failed to settle:", error),
+			);
+			return result;
+		});
 	}
 
 	/** Close after queued operations finish. Edits not yet landed are discarded. */

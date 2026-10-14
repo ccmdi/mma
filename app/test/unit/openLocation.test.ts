@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
 		onPartial?: (rows: Record<string, unknown>[]) => void;
 	}[],
 	readTargets: [] as unknown[],
+	lands: 0,
+	autosaving: Promise.resolve() as Promise<void>,
 }));
 
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -30,8 +32,16 @@ vi.mock("@/store/import", () => ({
 	},
 }));
 
+vi.mock("@/store/autosave", async (original) => {
+	const { Autosave } = await original<typeof import("@/store/autosave")>();
+	return { Autosave: { ...Autosave, waitForInflight: () => h.autosaving } };
+});
 vi.mock("@/lib/commands", () => ({
 	cmd: {
+		storeLandLayer: async () => {
+			h.lands++;
+			return { mutation: { version: 5, keys: [] } };
+		},
 		storeEdit: async () => {
 			h.edits++;
 			if (h.editError) throw h.editError;
@@ -92,6 +102,8 @@ beforeEach(() => {
 	h.panoId = "A";
 	h.runs = [];
 	h.readTargets = [];
+	h.lands = 0;
+	h.autosaving = Promise.resolve();
 	Store.patch({ mapId: "test-map", map: null });
 });
 
@@ -429,6 +441,17 @@ describe("editor-owned enrichment", () => {
 		expect(h.runs).toHaveLength(3);
 		expect(h.runs[1].signal.aborted).toBe(false);
 		expect(h.dropped.length).toBeGreaterThan(0);
+	});
+	it("a save resolves once the map accepts it, before an autosave in flight finishes", async () => {
+		settings(false);
+		await Editor.open(7);
+		h.autosaving = new Promise(() => {});
+		const edits = h.edits;
+		const saving = Editor.draft().save({ heading: 30 });
+		const later = new Promise((resolve) => setTimeout(() => resolve("pending"), 100));
+		expect(await Promise.race([saving, later])).toBe(7);
+		expect(h.edits - edits).toBe(1);
+		expect(h.lands).toBe(1);
 	});
 	it("logs edit and save failures and resolves null", async () => {
 		const { log } = await import("@/lib/util/log");

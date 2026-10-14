@@ -3873,8 +3873,8 @@ declare class Layer {
     }>>>;
     /** Stage location edits using the shared mutation path. */
     edit(edits: LocationEdits | ((read: LayerRead) => Promise<LocationEdits>)): Promise<MutationResult<Location>>;
-    /** Land the layer's edits as one undo step; later writes to the layer join that step. A layer lands once. */
-    land(): Promise<MutationResult<Location>>;
+    /** Land the layer's edits as one undo step, resolving once the map accepts them; later writes to the layer join that step. A layer lands once. */
+    land(): Promise<MutationResult>;
     /** Close after queued operations finish. Edits not yet landed are discarded. */
     close(): Promise<void>;
 }

@@ -216,12 +216,14 @@ export function LocationPreview() {
 		// and its undo step when it finishes.
 		const saved = await save({
 			...pano.captureView(),
-			tags: (
-				await Edit.values(
-					"tags",
-					pendingTags.map((name) => ({ add: { id: 0, name } })),
-				)
-			).mutation.keys,
+			tags: pendingTags.length
+				? (
+						await Edit.values(
+							"tags",
+							pendingTags.map((name) => ({ add: { id: 0, name } })),
+						)
+					).mutation.keys
+				: [],
 		});
 		if (saved == null) return;
 

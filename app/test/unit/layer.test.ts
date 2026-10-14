@@ -16,7 +16,7 @@ const h = vi.hoisted(() => ({
 	failNextEdit: false,
 }));
 
-vi.mock("@/store/store", () => ({ Store: { get: () => ({ mapId: h.mapId }) } }));
+vi.mock("@/store/store", () => ({ Store: { get: () => ({ mapId: h.mapId, map: {} }) } }));
 vi.mock("@/store/edit", () => ({
 	Edit: {
 		locations: async (target: { name: string }, edits: unknown[]) => {
@@ -38,7 +38,11 @@ vi.mock("@/store/edit", () => ({
 	},
 }));
 vi.mock("@/store/mutation", () => ({
-	Mutation: { run: (write: () => Promise<unknown>) => write() },
+	Mutation: {
+		run: (write: () => Promise<unknown>) => write(),
+		none: () => ({ mutation: { version: 0, keys: [] } }),
+		settle: () => new Promise(() => {}),
+	},
 }));
 vi.mock("@/store/query", () => ({
 	Query: {
