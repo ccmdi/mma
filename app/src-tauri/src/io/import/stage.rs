@@ -336,14 +336,14 @@ pub(super) fn confirm_staged(
     let rows = store.at(&target).rows(&Selector::Everything);
 
     let mut records = engine::IncomingRecords::new();
-    let mut bulk = Vec::new();
-    if drop_set.contains("tags") {
-        records.insert("tags".to_string(), HashMap::new());
-    } else if !tag_names.is_empty() {
-        let mut tags = store.held_records(&key, "tags");
-        bulk = bulk_tag_ids(&mut tags, tag_names);
-        records.insert("tags".to_string(), tags);
-    }
+    let drop_tags = drop_set.contains("tags");
+    let mut tags = if drop_tags {
+        HashMap::new()
+    } else {
+        store.held_records(&key, "tags")
+    };
+    let bulk = bulk_tag_ids(&mut tags, tag_names);
+    records.insert("tags".to_string(), tags);
     let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
     for loc in &rows {
         let mut patch = Patch::<Location>::default();
@@ -363,21 +363,19 @@ pub(super) fn confirm_staged(
             flags.remove(LocationFlags::LOAD_AS_PANO_ID);
             patch.flags = Some(flags);
         }
-        let mut tags = if drop_set.contains("tags") {
-            Some(Vec::new())
-        } else {
-            None
-        };
-        if !bulk.is_empty() {
-            let mut next = loc.tags.clone();
+        if drop_tags || !bulk.is_empty() {
+            let mut next = if drop_tags {
+                Vec::new()
+            } else {
+                loc.tags.clone()
+            };
             for b in bulk.iter().copied() {
                 if !next.contains(&b) {
                     next.push(b);
                 }
             }
-            tags = Some(next);
+            patch.tags = Some(next);
         }
-        patch.tags = tags;
         if !drop_set.is_empty() {
             if let Some(extra) = &loc.extra {
                 let dropped: serde_json::Map<String, Value> = extra

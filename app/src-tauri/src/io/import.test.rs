@@ -1220,6 +1220,33 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
 }
 
 #[test]
+fn dropping_the_files_tags_still_applies_the_named_tags() {
+    let mut store = store_tagged(&[tag(5, "Shared")]);
+    let parsed = ParsedMap {
+        locations: vec![loc_with_tags(0, vec![1]), loc_with_tags(0, vec![])],
+        tags: vec![tag(1, "Unwanted")],
+        ..Default::default()
+    };
+    let names = ["shared", "France"].map(String::from);
+    stage_parsed(&mut store, "drop-bulk-win", parsed);
+    confirm_staged(&mut store, "drop-bulk-win", &["tags".to_string()], &names).unwrap();
+
+    let meta = &store.records["tags"];
+    let france = meta
+        .iter()
+        .find_map(|(&id, rec)| (rec.name.as_deref() == Some("France")).then_some(id))
+        .expect("France created");
+    assert_eq!(meta.len(), 2);
+    let stored = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
+    assert_eq!(stored.len(), 2);
+    for l in &stored {
+        assert_eq!(l.tags, vec![Id::new(5), france]);
+    }
+}
+
+#[test]
 fn header_keys_are_read_as_fields_not_substrings() {
     // A name that quotes the array key, and an escaped quote inside it, must not fool the
     // header scan: the array is the `customCoordinates` field, not the first matching bytes.
