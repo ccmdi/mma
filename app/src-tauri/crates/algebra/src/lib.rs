@@ -554,9 +554,6 @@ impl<T, Raw: Copy> Id<T, Raw> {
 }
 
 impl<T> Id<T> {
-    /// The key of a row the store has not numbered yet.
-    pub const UNSET: Self = Id::new(0);
-
     /// The raw numbers behind `ids`, without copying.
     pub fn raw_slice(ids: &[Self]) -> &[u32] {
         // SAFETY: `Id<T>` is `#[repr(transparent)]` over `u32`, so the slices share a layout.
@@ -633,6 +630,7 @@ impl<T, Raw: specta::Type> specta::Type for Id<T, Raw> {
 pub trait Keyed {
     type Key: Clone + Eq + Hash + Ord;
     fn key(&self) -> Self::Key;
+    fn set_key(&mut self, key: Self::Key);
 }
 
 /// A table row: a value at its key.
@@ -641,12 +639,116 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
     fn key(&self) -> K {
         self.0.clone()
     }
+    fn set_key(&mut self, key: K) {
+        self.0 = key;
+    }
 }
 
-/// An edit to one keyed row: replace it, patch it, or remove it.
+/// A key a table numbers in order: each new row takes the one after the highest in use.
+pub trait Sequential: Clone + Ord + Default {
+    fn after(&self) -> Self;
+}
+
+impl Sequential for u32 {
+    fn after(&self) -> u32 {
+        self + 1
+    }
+}
+
+impl<T> Sequential for Id<T> {
+    fn after(&self) -> Self {
+        Id::new(self.0 + 1)
+    }
+}
+
+/// Hands out keys above every key it has seen, so it never hands out one twice.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Ids<K> {
+    next: K,
+}
+
+impl<K: Sequential> Default for Ids<K> {
+    fn default() -> Self {
+        Self {
+            next: K::default().after(),
+        }
+    }
+}
+
+impl<K: Sequential> Ids<K> {
+    /// Keys from `next` up.
+    pub fn starting_at(next: K) -> Self {
+        Self { next }
+    }
+
+    /// Keys above every one in `seen`.
+    pub fn above(seen: impl IntoIterator<Item = K>) -> Self {
+        let mut ids = Self::default();
+        for key in seen {
+            ids.saw(&key);
+        }
+        ids
+    }
+
+    /// The key the next new row takes.
+    pub fn next(&self) -> &K {
+        &self.next
+    }
+
+    /// Hand out a key no row holds.
+    pub fn take(&mut self) -> K {
+        let key = self.next.clone();
+        self.next = key.after();
+        key
+    }
+
+    /// `key` is in use, so later keys go above it.
+    pub fn saw(&mut self, key: &K) {
+        if *key >= self.next {
+            self.next = key.after();
+        }
+    }
+
+    /// The key `edit` names, and the edit as written there: an added row takes a fresh key
+    /// and is set at it, and a row set at a key keeps later keys above it.
+    pub fn key<T, P>(&mut self, edit: Op<T, P, K>) -> (K, Op<T, P, K>)
+    where
+        T: Keyed<Key = K>,
+        P: Keyed<Key = K>,
+    {
+        match edit {
+            Op::Add(mut row) => {
+                let key = self.take();
+                row.set_key(key.clone());
+                (key, Op::Set(row))
+            }
+            Op::Set(row) => {
+                let key = row.key();
+                self.saw(&key);
+                (key, Op::Set(row))
+            }
+            Op::Put(patch) => (patch.key(), Op::Put(patch)),
+            Op::Remove(key) => (key.clone(), Op::Remove(key)),
+        }
+    }
+}
+
+/// A unique name as rows compare it: trimmed, case folded, and absent when blank.
+pub fn unique_name(name: &str) -> Option<String> {
+    trimmed_name(name).map(str::to_lowercase)
+}
+
+/// A name as rows store it: trimmed, and absent when blank.
+pub fn trimmed_name(name: &str) -> Option<&str> {
+    Some(name.trim()).filter(|name| !name.is_empty())
+}
+
+/// An edit to one keyed row: add it, replace it, patch it, or remove it.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub enum Op<T, P, K> {
+    /// A new row, given the next free key in place of the one it carries.
+    Add(T),
     /// The row exactly as given.
     Set(T),
     /// A patch written over the row it names.
@@ -658,24 +760,11 @@ pub enum Op<T, P, K> {
 /// An edit to a keyed, patchable row.
 pub type Edit<T> = Op<T, Patch<T>, <T as Keyed>::Key>;
 
-impl<T: Patchable + Keyed> Edit<T>
-where
-    Patch<T>: Keyed<Key = T::Key>,
-{
-    pub fn key(&self) -> T::Key {
-        match self {
-            Op::Set(row) => row.key(),
-            Op::Put(patch) => patch.key(),
-            Op::Remove(key) => key.clone(),
-        }
-    }
-}
-
 impl<T: Clone, P, K> Op<T, P, K> {
     /// Apply this edit to the underlying row. Patching a missing row has no effect.
     pub fn applied(&self, below: Option<T>, apply: impl Fn(&T, &P) -> T) -> Option<T> {
         match self {
-            Op::Set(row) => Some(row.clone()),
+            Op::Add(row) | Op::Set(row) => Some(row.clone()),
             Op::Remove(_) => None,
             Op::Put(patch) => below.map(|row| apply(&row, patch)),
         }
@@ -693,7 +782,6 @@ pub trait Constrained: Keyed + Sized {
         Self: 'a;
     /// This row with the fields it leaves empty taken from `from`.
     fn filled(&self, from: &Self) -> Self;
-    fn set_key(&mut self, key: Self::Key);
 }
 
 /// What edits to a constrained table did beyond the rows they wrote.
@@ -706,20 +794,21 @@ pub struct Applied<K> {
 }
 
 /// Apply edits to a table under its constraints.
-/// A keyless set lands on the row holding its unique value, filling what that row leaves
-/// empty, or takes a key from `next`; either way its empty sequence fields are numbered.
-/// A write that takes a unique value another row holds leaves its row unchanged and is
-/// reported in `redirects`.
+/// An added row lands on the row holding its unique value, filling what that row leaves
+/// empty, or takes a key above `floor` and every key in the table; either way its empty
+/// sequence fields are numbered. A write that takes a unique value another row holds leaves
+/// its row unchanged and is reported in `redirects`.
 pub fn apply<T>(
     table: &mut HashMap<T::Key, T>,
     edits: impl IntoIterator<Item = Edit<T>>,
-    mut next: impl FnMut() -> T::Key,
+    floor: T::Key,
 ) -> Applied<T::Key>
 where
     T: Constrained + Patchable + Clone,
-    T::Key: Default,
+    T::Key: Sequential,
     Patch<T>: Keyed<Key = T::Key>,
 {
+    let mut ids = Ids::above(table.keys().cloned().chain([floor]));
     let mut holders: HashMap<String, T::Key> = table
         .iter()
         .filter_map(|(k, row)| Some((row.unique()?, k.clone())))
@@ -738,11 +827,11 @@ where
                 }
                 continue;
             }
-            Op::Set(row) if row.key() == T::Key::default() => {
+            Op::Add(row) => {
                 let (key, mut row) = match row.unique().and_then(|u| holders.get(&u)) {
                     Some(held) => (held.clone(), table[held].filled(&row)),
                     None => {
-                        let key = next();
+                        let key = ids.take();
                         let mut row = row;
                         row.set_key(key.clone());
                         (key, row)
@@ -756,7 +845,10 @@ where
                 table.insert(key, row);
                 continue;
             }
-            Op::Set(row) => (row.key(), row),
+            Op::Set(row) => {
+                ids.saw(&row.key());
+                (row.key(), row)
+            }
             Op::Put(patch) => match table.get(&patch.key()) {
                 Some(old) => (patch.key(), old.patched(&patch)),
                 None => continue,
@@ -799,29 +891,38 @@ impl<T: Patchable + Keyed> Default for Layer<T> {
     }
 }
 
-/// Append edits by key. Replacing or removing a row discards its earlier edits.
-impl<T: Patchable + Keyed> Extend<Edit<T>> for Layer<T>
+impl<T: Patchable + Keyed> Layer<T>
 where
     Patch<T>: Keyed<Key = T::Key>,
+    T::Key: Sequential,
 {
-    fn extend<I: IntoIterator<Item = Edit<T>>>(&mut self, ops: I) {
-        for op in ops {
-            let held = self.ops.entry(op.key()).or_default();
-            if !matches!(op, Op::Put(_)) {
+    /// Append edits by key, giving each added row a key from `ids`. Replacing or removing a
+    /// row discards its earlier edits. Returns the keys the added rows took, in order.
+    pub fn write(
+        &mut self,
+        edits: impl IntoIterator<Item = Edit<T>>,
+        ids: &mut Ids<T::Key>,
+    ) -> Vec<T::Key> {
+        let mut added = Vec::new();
+        for edit in edits {
+            let new = matches!(edit, Op::Add(_));
+            let (key, edit) = ids.key(edit);
+            if new {
+                added.push(key.clone());
+            }
+            let held = self.ops.entry(key).or_default();
+            if !matches!(edit, Op::Put(_)) {
                 held.clear();
             }
-            held.push(op);
+            held.push(edit);
         }
+        added
     }
-}
 
-impl<T: Patchable + Keyed> FromIterator<Edit<T>> for Layer<T>
-where
-    Patch<T>: Keyed<Key = T::Key>,
-{
-    fn from_iter<I: IntoIterator<Item = Edit<T>>>(ops: I) -> Self {
+    /// Rewrite every pending edit, keeping each row's edits in order.
+    pub fn map_edits(self, mut f: impl FnMut(Edit<T>) -> Edit<T>, ids: &mut Ids<T::Key>) -> Self {
         let mut layer = Self::default();
-        layer.extend(ops);
+        layer.write(self.into_edits().map(&mut f), ids);
         layer
     }
 }
@@ -833,11 +934,6 @@ where
     /// Every pending edit, each row's in the order it was made.
     pub fn into_edits(self) -> impl Iterator<Item = Edit<T>> {
         self.ops.into_values().flatten()
-    }
-
-    /// Rewrite every pending edit, keeping each row's edits in order.
-    pub fn map_edits(self, f: impl FnMut(Edit<T>) -> Edit<T>) -> Self {
-        self.into_edits().map(f).collect()
     }
 }
 

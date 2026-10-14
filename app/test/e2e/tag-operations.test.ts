@@ -260,7 +260,7 @@ describe("Rename tags within a selection", () => {
 	it("splits a tag, moving only the selected locations to a new name", async () => {
 		const created = await withApi(
 			async (api, a, ids) => {
-				const [into] = (await api.Edit.values("tags", [{ set: { id: 0, name: "Split" } }])).mutation
+				const [into] = (await api.Edit.values("tags", [{ add: { id: 0, name: "Split" } }])).mutation
 					.keys;
 				const scope = { type: "Locations" as const, locations: ids, name: null };
 				await api.Edit.work(api.all(api.tagSelector(a), scope), {
@@ -282,7 +282,7 @@ describe("Rename tags within a selection", () => {
 	it("merges the selected locations into a tag that already exists", async () => {
 		await withApi(
 			async (api, a, ids) => {
-				const [into] = (await api.Edit.values("tags", [{ set: { id: 0, name: "Into" } }])).mutation
+				const [into] = (await api.Edit.values("tags", [{ add: { id: 0, name: "Into" } }])).mutation
 					.keys;
 				const scope = { type: "Locations" as const, locations: ids, name: null };
 				await api.Edit.work(api.all(api.tagSelector(a), scope), {
@@ -300,7 +300,7 @@ describe("Rename tags within a selection", () => {
 
 	it("merges every location of the tag when no selector narrows it", async () => {
 		await withApi(async (api, a) => {
-			const [into] = (await api.Edit.values("tags", [{ set: { id: 0, name: "Into" } }])).mutation
+			const [into] = (await api.Edit.values("tags", [{ add: { id: 0, name: "Into" } }])).mutation
 				.keys;
 			await api.Edit.work(api.tagSelector(a), {
 				kind: "listSet",

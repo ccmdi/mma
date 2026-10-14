@@ -209,7 +209,8 @@ pub async fn store_list_commits(map_id: Id<MapMeta, String>) -> AppResult<Vec<Co
     .await
 }
 
-/// Restore a map to a previous commit. An open map changes through its normal write path.
+/// Restore a map to a previous commit. An open map changes through its normal write path;
+/// a closed one is rewritten on disk and returns null.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
@@ -218,7 +219,7 @@ pub fn store_checkout_commit(
     state: State<'_, StoreState>,
     map_id: Id<MapMeta, String>,
     commit_id: Id<CommitInfo, String>,
-) -> AppResult<engine::MutationResult> {
+) -> AppResult<Option<engine::MutationResult>> {
     let conn = storage::open_db()?;
     let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
     // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
@@ -236,7 +237,7 @@ pub fn store_checkout_commit(
         ));
     }
     if let Some(store) = mgr.stores.get_mut(&map_id) {
-        return Ok(restore_rows(store, locs));
+        return Ok(Some(restore_rows(store, locs)));
     }
     write_checkout(
         &mgr,
@@ -252,23 +253,11 @@ pub fn store_checkout_commit(
         map_id,
         locs.len()
     );
-    Ok(engine::MutationResult {
-        mutation: engine::Mutation {
-            version: 0,
-            keys: vec![],
-        },
-    })
+    Ok(None)
 }
 
 fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
     let current = store.collect(&engine::Target::Map, &Selector::Everything);
-    store.next_id = store.next_id.max(Id::new(
-        locs.iter()
-            .map(|row| row.id.get())
-            .max()
-            .unwrap_or(0)
-            .saturating_add(1),
-    ));
     let before = store.selections.table();
     let selections = Change::at(&before, &Default::default(), before.keys().cloned());
     store.pending.clear();

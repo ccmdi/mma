@@ -151,7 +151,8 @@ pub enum StoreWarning {
 }
 
 impl Store {
-    /// Apply a complete edit, update derived state, and record it for undo.
+    /// Apply a complete edit, update derived state, and record it for undo. Every added row
+    /// takes its key here.
     /// `join` tracks the newest undo step for grouping later batches.
     pub(crate) fn write(
         &mut self,
@@ -159,7 +160,8 @@ impl Store {
         join: &mut Option<u64>,
         entry: Entry,
     ) -> Mutation {
-        let layer: Layer<Location> = edits.into_iter().collect();
+        let mut layer = Layer::default();
+        let keys = layer.write(edits, &mut self.next_id);
         let locations = layer
             .resolve(
                 |id| self.get_loc_by_id(id),
@@ -192,7 +194,10 @@ impl Store {
         let entry = Arc::new(entry);
         self.put_entry(&entry);
         self.record(&entry, join);
-        self.finish_entry(&entry)
+        Mutation {
+            keys,
+            ..self.finish_entry(&entry)
+        }
     }
 
     /// Add, patch, or remove rows at `target`. Pending edits stay staged until `land`.
@@ -200,75 +205,67 @@ impl Store {
     pub(crate) fn edit(
         &mut self,
         target: &Target,
-        mut edits: Vec<Edit<Location>>,
+        edits: Vec<Edit<Location>>,
         land: bool,
         join: &mut Option<u64>,
     ) -> Mutation {
-        let mut added = Vec::new();
-        for edit in &mut edits {
-            if let Op::Set(row) = edit {
-                if row.id == Id::UNSET {
-                    row.id = self.alloc_id();
-                    added.push(row.id);
-                } else {
-                    self.next_id = self.next_id.max(Id::new(row.id.get().saturating_add(1)));
-                }
+        let Target::Pending { name } = target else {
+            return self.write(edits, join, Entry::default());
+        };
+        let pending = self.pending.entry(name.clone()).or_default();
+        let result = if let Some(seq) = pending.landed {
+            join.get_or_insert(seq);
+            self.write(edits, join, Entry::default())
+        } else {
+            let keys = pending.layer.write(edits, &mut self.next_id);
+            if !land {
+                let result = self.held(keys);
+                self.settle_layers();
+                return result;
             }
-        }
-        let (edits, update_landed, piles) = match target {
-            Target::Map => (edits, None, Piles::new()),
-            Target::Pending { name } => {
-                let pending = self.pending.entry(name.clone()).or_default();
-                if let Some(seq) = pending.landed {
-                    join.get_or_insert(seq);
-                    (edits, Some(name.clone()), Piles::new())
-                } else {
-                    pending.layer.extend(edits);
-                    if !land {
-                        let result = self.held(added);
-                        self.settle_layers();
-                        return result;
-                    }
-                    let mut layer = std::mem::take(&mut pending.layer);
-                    let incoming = std::mem::take(&mut pending.incoming);
-                    let mut piles = Piles::new();
-                    for (field, incoming) in incoming {
-                        if incoming.is_empty() {
-                            continue;
-                        }
-                        let floor = self.intern_floor(&field);
-                        let before = self.records(&field);
-                        let mut after = before.clone();
-                        let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
-                        let to = self
-                            .registry()
-                            .assign(&field)
-                            .expect("declared interned fields are writable");
-                        layer = layer.map_edits(|edit| remap_written(edit, &to, &remap));
-                        piles.insert(field, PileDelta::at(&before, &after, remap.into_values()));
-                    }
-                    (layer.into_edits().collect(), Some(name.clone()), piles)
-                }
+            let (layer, piles) = self.reconcile_incoming(name);
+            Mutation {
+                keys,
+                ..self.write(
+                    layer.into_edits(),
+                    join,
+                    Entry {
+                        piles,
+                        ..Default::default()
+                    },
+                )
             }
         };
-        let result = Mutation {
-            keys: added,
-            ..self.write(
-                edits,
-                join,
-                Entry {
-                    piles,
-                    ..Default::default()
-                },
-            )
-        };
-        if let Some(name) = update_landed {
-            if let Some(pending) = self.pending.get_mut(&name) {
-                pending.landed = *join;
-            }
-            self.settle_layers();
+        if let Some(pending) = self.pending.get_mut(name) {
+            pending.landed = *join;
         }
+        self.settle_layers();
         result
+    }
+
+    /// Take `name`'s staged rows for landing, with incoming value records matched to the map's
+    /// by name and the rows' references remapped to them.
+    fn reconcile_incoming(&mut self, name: &str) -> (Layer<Location>, Piles) {
+        let pending = self.pending.entry(name.to_string()).or_default();
+        let mut layer = mem::take(&mut pending.layer);
+        let incoming = mem::take(&mut pending.incoming);
+        let mut piles = Piles::new();
+        for (field, incoming) in incoming {
+            if incoming.is_empty() {
+                continue;
+            }
+            let floor = self.intern_floor(&field);
+            let before = self.records(&field);
+            let mut after = before.clone();
+            let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
+            let registry = FieldRegistry::new(&self.meta.extra.fields);
+            let to = registry
+                .assign(&field)
+                .expect("declared interned fields are writable");
+            layer = layer.map_edits(|edit| remap_written(edit, &to, &remap), &mut self.next_id);
+            piles.insert(field, PileDelta::at(&before, &after, remap.into_values()));
+        }
+        (layer, piles)
     }
 
     /// Remove closed layers nothing still writes to, then announce which layers are being written.

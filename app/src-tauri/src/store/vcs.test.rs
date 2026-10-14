@@ -87,7 +87,7 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     assert_eq!(store.get_loc_by_id(Id::new(7)).unwrap().lat, 7.0);
     assert!(store.selections.ids.is_empty());
     assert!(store.pending.is_empty());
-    assert_eq!(store.alloc_id(), Id::new(8));
+    assert_eq!(store.next_id.take(), Id::new(8));
     let entry = store
         .step(engine::Stack::Undo, |_| panic!("in-memory edit"))
         .unwrap()
@@ -96,4 +96,32 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     assert!(store.get_loc_by_id(Id::new(7)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
     assert!(store.selections.ids.contains(Id::new(1)));
+}
+
+#[test]
+fn restoring_after_a_delete_and_an_add_never_hands_out_a_restored_id() {
+    let mut store = Store::new();
+    let add = |store: &mut Store, lat: f64| {
+        store
+            .write(
+                [mma_algebra::Op::Add(loc(0, lat, lat))],
+                &mut None,
+                Default::default(),
+            )
+            .keys[0]
+    };
+    let first = add(&mut store, 1.0);
+    store.write(
+        [mma_algebra::Op::Remove(first)],
+        &mut None,
+        Default::default(),
+    );
+    let second = add(&mut store, 2.0);
+    restore_rows(
+        &mut store,
+        vec![loc(first.get(), 1.0, 1.0), loc(9, 9.0, 9.0)],
+    );
+    let third = add(&mut store, 3.0);
+    assert!(first < second && third > Id::new(9));
+    assert_eq!(store.get_loc_by_id(first).unwrap().lat, 1.0);
 }

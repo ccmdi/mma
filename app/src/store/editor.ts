@@ -163,7 +163,7 @@ async function opening(
 async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opened | null> {
 	const layer = await Layer.open();
 	try {
-		const result = await layer.edit([{ set: { ...loc, id: 0 } }]);
+		const result = await layer.edit([{ add: loc }]);
 		const [id] = result.mutation.keys;
 		const [location] =
 			id == null

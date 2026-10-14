@@ -1491,7 +1491,7 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
         ],
         ..Default::default()
     });
-    store.next_id = Id::new(3);
+    store.next_id = mma_algebra::Ids::starting_at(Id::new(3));
 
     let out = ReconcileOutcome {
         pushed: SideCounts::default(),
@@ -1590,7 +1590,7 @@ fn a_pulled_update_that_leaves_tags_alone_keeps_the_rows_own_tags() {
         added: vec![tagged],
         ..Default::default()
     });
-    store.next_id = Id::new(2);
+    store.next_id = mma_algebra::Ids::starting_at(Id::new(2));
 
     let out = ReconcileOutcome {
         pushed: SideCounts::default(),

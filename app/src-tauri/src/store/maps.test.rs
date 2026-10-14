@@ -1098,7 +1098,7 @@ fn an_interned_map_field_is_refused_whether_the_map_is_open_or_not() {
         }),
         ..Default::default()
     };
-    let refused = |result: AppResult<engine::MutationResult>| {
+    let refused = |result: AppResult<Option<engine::MutationResult>>| {
         assert!(result
             .err()
             .unwrap()

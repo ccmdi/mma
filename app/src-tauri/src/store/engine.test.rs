@@ -15,7 +15,7 @@ use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
@@ -45,13 +45,7 @@ fn entry(locations: Change) -> Entry {
 }
 
 fn add_rows(store: &mut Store, locs: Vec<Location>) -> Mutation {
-    let edits = locs
-        .into_iter()
-        .map(|mut l| {
-            l.id = Id::UNSET;
-            Op::Set(l)
-        })
-        .collect();
+    let edits = locs.into_iter().map(Op::Add).collect();
     store.edit(&Target::Map, edits, false, &mut None)
 }
 
@@ -136,6 +130,7 @@ fn setup_store_with(locs: &[Location]) -> Store {
         let ci = render_cell_idx(l.lat, l.lng);
         store.cell_add_render(ci, l.id);
     }
+    store.next_id = seed_next_id(None, &store.overlay.adds, None);
     store
 }
 
@@ -660,7 +655,7 @@ fn a_change_too_big_to_undo_records_nothing_and_drops_all_history() {
     assert_eq!(store.edits.len(Stack::Redo), 1);
 
     let big: Vec<Edit<Location>> = (0..=MAX_UNDO_LOCATIONS as u32)
-        .map(|_| Op::Set(loc(0, 0.0, 0.0)))
+        .map(|_| Op::Add(loc(0, 0.0, 0.0)))
         .collect();
     store.edit(&Target::Map, big, false, &mut None);
 
@@ -1166,8 +1161,8 @@ fn cell_remove_nonexistent_returns_none() {
 #[test]
 fn alloc_id_increments() {
     let mut store = Store::new();
-    let a = store.alloc_id();
-    let b = store.alloc_id();
+    let a = store.next_id.take();
+    let b = store.next_id.take();
     assert_eq!(b.get(), a.get() + 1);
 }
 
@@ -1807,7 +1802,7 @@ fn ids_are_never_reused() {
     let mut store = Store::new();
     let mut seen = HashSet::new();
     for _ in 0..1000 {
-        let id = store.alloc_id();
+        let id = store.next_id.take();
         assert!(!seen.contains(&id), "ID {id} was reused");
         seen.insert(id);
     }
@@ -2448,7 +2443,7 @@ fn replayed_frames_rebuild_the_render_cell_order() {
         }
         for _ in 0..next(5) {
             let (lat, lng) = spot(next(1_000));
-            create.push(loc(store.alloc_id().get(), lat, lng));
+            create.push(loc(store.next_id.take().get(), lat, lng));
         }
         let changes = apply_edit(&mut store, remove, create);
         store.finish_mutation(&changes);
@@ -2523,7 +2518,7 @@ fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_on
 #[test]
 fn an_add_reports_the_id_its_first_location_was_given() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     let added = add_rows(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
     let ids: Vec<u32> = store
         .collect(&crate::store::engine::Target::Map, &Selector::Everything)
@@ -3069,8 +3064,8 @@ fn named(name: &str) -> ValueRecord {
     }
 }
 
-fn sets(names: &[&str]) -> Vec<Edit<ValueRecord>> {
-    names.iter().map(|n| Op::Set(named(n))).collect()
+fn adds(names: &[&str]) -> Vec<Edit<ValueRecord>> {
+    names.iter().map(|n| Op::Add(named(n))).collect()
 }
 
 fn value_put(id: u32) -> Patch<ValueRecord> {
@@ -3096,12 +3091,12 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
     // Rows already carry tag id 7 with no metadata (foreign import); a fresh name must
     // allocate above it, and an existing name must be reused case-insensitively.
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    let urban = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
+    let urban = store.edit_values("tags", adds(&["Urban"])).unwrap().keys[0];
     assert!(urban > Id::new(7), "fresh id lands above the data's max");
 
     let feed = FeedCapture::attach(&mut store);
     let r = store
-        .edit_values("tags", sets(&["URBAN", "Rural"]))
+        .edit_values("tags", adds(&["URBAN", "Rural"]))
         .unwrap();
     assert_eq!(r.keys[0], urban, "case-insensitive reuse");
     assert!(r.keys[1] > urban);
@@ -3114,7 +3109,7 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
 #[test]
 fn edit_values_appends_new_records_to_the_order() {
     let mut store = setup_store_with(&[]);
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
     let meta = store.value_meta.get("tags").unwrap();
     assert_eq!(meta[&ids[0]].order, Some(1));
     assert_eq!(meta[&ids[1]].order, Some(2));
@@ -3123,7 +3118,7 @@ fn edit_values_appends_new_records_to_the_order() {
 #[test]
 fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
     let mut store = setup_store_with(&[]);
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
 
     let feed = FeedCapture::attach(&mut store);
     store
@@ -3165,7 +3160,7 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
 #[test]
 fn edit_values_null_deletes_a_metadata_key_but_never_the_name() {
     let mut store = setup_store_with(&[]);
-    let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
+    let id = store.edit_values("tags", adds(&["A"])).unwrap().keys[0];
     store
         .edit_values(
             "tags",
@@ -3222,7 +3217,7 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
         loc_with_tags(1, 0.0, 0.0, vec![]),
         loc_with_tags(2, 1.0, 1.0, vec![]),
     ]);
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a.get(), &[1, 2]);
     tag_onto(&mut store, b.get(), &[2]);
@@ -3253,10 +3248,10 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
 #[test]
 fn edit_values_that_change_nothing_record_no_undo_step() {
     let mut store = setup_store_with(&[]);
-    store.edit_values("tags", sets(&["A"])).unwrap();
+    store.edit_values("tags", adds(&["A"])).unwrap();
     let steps = store.edits.len(Stack::Undo);
     store.edit_values("tags", Vec::new()).unwrap();
-    store.edit_values("tags", sets(&["a"])).unwrap();
+    store.edit_values("tags", adds(&["a"])).unwrap();
     assert_eq!(store.edits.len(Stack::Undo), steps);
 }
 
@@ -3270,9 +3265,9 @@ fn edit_values_rejects_a_field_that_does_not_intern() {
 fn edit_values_rejects_a_nameless_new_record_and_any_removal() {
     let mut store = setup_store_with(&[]);
     assert!(store
-        .edit_values("tags", vec![Op::Set(named("  "))])
+        .edit_values("tags", vec![Op::Add(named("  "))])
         .is_err());
-    let id = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
+    let id = store.edit_values("tags", adds(&["A"])).unwrap().keys[0];
     assert!(store
         .edit_values("tags", vec![Op::Remove(Id::new(id.get()))])
         .is_err());
@@ -3630,7 +3625,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
         loc_with_extra(3, r#"{"other":1}"#),
     ]);
     store.bake_overlay();
-    store.next_id = Id::new(10);
+    store.next_id = Ids::starting_at(Id::new(10));
     assert_existence_matches_scan(&mut store, "k", &[1, 2]);
 
     add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
@@ -4568,12 +4563,12 @@ fn stored_history_max_id_spans_both_sides_of_every_edit() {
     with_history_db(|conn| {
         assert_eq!(
             stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
-            Id::UNSET
+            None
         );
         save_edit_history(conn, &Id::new("m".into()), &store.edits).unwrap();
         assert_eq!(
             stored_history_max_id(conn, &Id::new("m".into())).unwrap(),
-            Id::new(112)
+            Some(Id::new(112))
         );
     });
 }
@@ -4622,7 +4617,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
     reopened.meta = Tracked::new((*store.meta).clone());
     reopened.batch = Some(empty_batch());
     reopened.overlay = Tracked::unsaved(delta);
-    reopened.next_id = seed_next_id(Id::UNSET, &reopened.overlay.adds, history_max);
+    reopened.next_id = seed_next_id(None, &reopened.overlay.adds, history_max);
     reopened.alive_count = Tracked::new(reopened.overlay.adds.len());
     reopened.edits = Tracked::new(edits);
     reopened
@@ -4630,7 +4625,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
 
 // Allocate an id and add a row through the store write path.
 fn click_add(store: &mut Store, lat: f64, lng: f64) -> u32 {
-    let id = store.alloc_id();
+    let id = store.next_id.take();
     let l = loc(id.get(), lat, lng);
     store
         .edits
@@ -4780,7 +4775,7 @@ fn history_survives_repeated_close_and_reopen_in_stack_order() {
     );
     assert_eq!(
         with_history_db(|conn| stored_history_max_id(conn, &Id::new("m".into())).unwrap()),
-        Id::new(5)
+        Some(Id::new(5))
     );
 }
 
@@ -5076,7 +5071,7 @@ fn undo_of_delete_after_reopen_does_not_collide() {
     let mut store = close_and_reopen(&store);
     assert_eq!(
         store.next_id,
-        Id::new(id + 1),
+        Ids::starting_at(Id::new(id + 1)),
         "freed id must stay reserved for history replay"
     );
 
@@ -5845,7 +5840,7 @@ fn store_with_full_overlay_base() -> Store {
     });
     store.batch = Some(arrow::locations_to_batch(&base));
     store.alive_count = Tracked::new(base.len());
-    store.next_id = Id::new(10);
+    store.next_id = Ids::starting_at(Id::new(10));
     store
 }
 
@@ -5860,7 +5855,7 @@ fn store_with_full_overlay() -> Store {
     let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
     store.overlay_remove(slice::from_ref(&l2).iter());
 
-    let new_id = store.alloc_id();
+    let new_id = store.next_id.take();
     store.overlay_add(vec![loc(new_id.get(), 9.0, 9.0)]);
 
     store
@@ -6157,7 +6152,7 @@ fn apply_model_op(
 ) {
     match op {
         ModelOp::Add { lat, lng } => {
-            let id = store.alloc_id();
+            let id = store.next_id.take();
             let l = loc(id.get(), *lat, *lng);
             store
                 .edits
@@ -6246,7 +6241,7 @@ proptest::proptest! {
     ) {
         let mut store = setup_store_with(&initial);
         let max_initial = initial.iter().map(|l| l.id).max().unwrap_or(Id::new(0));
-        store.next_id = Id::new(max_initial.get() + 1);
+        store.next_id = Ids::starting_at(Id::new(max_initial.get() + 1));
 
         let mut model: BTreeMap<Id<Location>, Location> =
             initial.iter().map(|l| (l.id, l.clone())).collect();
@@ -7080,7 +7075,7 @@ fn heading(id: u32, heading: f64) -> Patch<Location> {
 #[test]
 fn a_pending_edit_is_held_and_read_through_until_it_lands() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     assert_eq!(
         store
@@ -7118,7 +7113,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
 #[test]
 fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.write(
         [Op::Put(Patch::<Location> {
@@ -7147,7 +7142,7 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
 #[test]
 fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    store.next_id = Id::new(3);
+    store.next_id = Ids::starting_at(Id::new(3));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.edit(&viewer(), vec![Op::Remove(Id::new(2))], false, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 0);
@@ -7213,7 +7208,7 @@ fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
 #[test]
 fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], true, &mut None);
     assert_eq!(store.edits.len(Stack::Undo), 1);
 
@@ -7259,7 +7254,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
 #[test]
 fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    store.next_id = Id::new(3);
+    store.next_id = Ids::starting_at(Id::new(3));
     let target = viewer();
     store.edit(&target, vec![Op::Put(heading(1, 90.0))], true, &mut None);
     store.edit(
@@ -7305,7 +7300,7 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
 #[test]
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     store.edit(&viewer(), vec![Op::Put(heading(1, 90.0))], false, &mut None);
     store.close_layer("viewer");
     assert_eq!(
@@ -7328,8 +7323,8 @@ fn dropping_a_pending_layer_discards_what_it_held() {
 #[test]
 fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
-    let r = store.edit(&viewer(), vec![Op::Set(loc(0, 2.0, 2.0))], false, &mut None);
+    store.next_id = Ids::starting_at(Id::new(2));
+    let r = store.edit(&viewer(), vec![Op::Add(loc(0, 2.0, 2.0))], false, &mut None);
     assert_eq!(r.keys, loc_ids([2]));
     assert!(store
         .collect(
@@ -7379,7 +7374,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
 #[test]
 fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     let got = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
     let sink = {
         let got = got.clone();
@@ -7501,7 +7496,7 @@ fn reorder(ids: &[u32]) -> Vec<Edit<ValueRecord>> {
 fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
     let mut store = setup_store_with(&[]);
     let mut states = vec![tag_records(&store)];
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
     states.push(tag_records(&store));
     for edits in [
         vec![rename(ids[0].get(), "Alpha")],
@@ -7524,7 +7519,7 @@ fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
 #[test]
 fn undoing_a_rename_collision_restores_records_and_rows_together() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a.get(), &[1, 2]);
     tag_onto(&mut store, b.get(), &[2]);
@@ -7574,7 +7569,7 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
 #[test]
 fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    let ids = store.edit_values("tags", sets(&["A"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A"])).unwrap().keys;
     tag_onto(&mut store, ids[0].get(), &[1]);
     store
         .edit_values("tags", vec![recolor(ids[0].get(), "#010203")])
@@ -7596,7 +7591,7 @@ fn an_entry_round_trips_through_stored_history_with_its_record_changes() {
 #[test]
 fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    let ids = store.edit_values("tags", sets(&["A", "B"])).unwrap().keys;
+    let ids = store.edit_values("tags", adds(&["A", "B"])).unwrap().keys;
     let (a, b) = (ids[0], ids[1]);
     tag_onto(&mut store, a.get(), &[1]);
     tag_onto(&mut store, b.get(), &[1, 2]);
@@ -7613,7 +7608,7 @@ fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
         "a lingers dark"
     );
 
-    let c = store.edit_values("tags", sets(&["C"])).unwrap().keys[0];
+    let c = store.edit_values("tags", adds(&["C"])).unwrap().keys[0];
     assert!(shipped_record(&feed.last().derived, "tags", c.get()).is_some());
     undo_and_finish(&mut store);
     let gone = feed.last().derived.field_values.unwrap()["tags"][&c.to_string()].is_none();
@@ -7808,7 +7803,7 @@ fn the_spacing_ask_answers_only_a_spaced_pick() {
 #[test]
 fn the_open_picture_ships_recordless_counts_and_dark_records_together() {
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
-    let dark = store.edit_values("tags", sets(&["Dark"])).unwrap().keys[0];
+    let dark = store.edit_values("tags", adds(&["Dark"])).unwrap().keys[0];
     let status = store.open_status();
     let values = status.derived.field_values.unwrap();
     let tags = &values["tags"];
@@ -7849,7 +7844,7 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
 #[test]
 fn a_selection_testing_an_interned_value_paints_in_its_records_color() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    let t = store.edit_values("tags", sets(&["A"])).unwrap().keys[0];
+    let t = store.edit_values("tags", adds(&["A"])).unwrap().keys[0];
     tag_onto(&mut store, t.get(), &[1]);
     add_tag_selection(&mut store, t.get(), Rgb([9, 9, 9]));
     store.resolve_selection_membership();
@@ -8191,7 +8186,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
 #[test]
 fn selections_and_meta_only_edits_stay_out_of_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Id::new(2);
+    store.next_id = Ids::starting_at(Id::new(2));
     click_add(&mut store, 1.0, 1.0);
     press_undo(&mut store);
     assert_eq!(store.edits.len(Stack::Redo), 1);
@@ -8463,7 +8458,7 @@ fn persisted_history_reports_the_same_keys_without_loading_row_payloads() {
 }
 
 fn black_tag_selected(store: &mut Store) -> u32 {
-    let tag = store.edit_values("tags", sets(&["2023"])).unwrap().keys[0];
+    let tag = store.edit_values("tags", adds(&["2023"])).unwrap().keys[0];
     store
         .edit_values("tags", vec![recolor(tag.get(), "#000000")])
         .unwrap();
@@ -8527,7 +8522,7 @@ fn recolouring_a_selected_tag_repaints_its_markers() {
 #[test]
 fn a_created_tag_stores_no_colour_and_shows_its_names() {
     let mut store = setup_store_with(&[]);
-    let id = store.edit_values("tags", sets(&["Urban"])).unwrap().keys[0];
+    let id = store.edit_values("tags", adds(&["Urban"])).unwrap().keys[0];
     let rec = &tag_records(&store)[&id];
     assert_eq!(rec.color(), None);
     assert_eq!(rec.shown_color(), Some(Rgb::for_name("Urban")));
@@ -8542,7 +8537,7 @@ fn a_chosen_colour_outranks_the_names() {
 #[test]
 fn renaming_an_uncoloured_selected_tag_repaints_it_in_the_new_names_colour() {
     let mut store = setup_store_with(&[]);
-    let tag = store.edit_values("tags", sets(&["Rural"])).unwrap().keys[0];
+    let tag = store.edit_values("tags", adds(&["Rural"])).unwrap().keys[0];
     select_tag(&mut store, tag);
     assert_eq!(
         store.selections.list()[0].selection.color,
@@ -8626,6 +8621,37 @@ fn mixed_writes_keep_their_state_and_history_across_reopen_undo_redo_and_bake() 
 #[path = "engine/operation_sequences.test.rs"]
 mod operation_sequences;
 
+fn fresh(seen: &mut BTreeSet<Id<Location>>, keys: &[Id<Location>]) {
+    assert!(!keys.is_empty());
+    for key in keys {
+        assert!(seen.insert(*key), "{key} was handed out twice");
+    }
+}
+
+#[test]
+fn every_location_write_path_hands_out_ids_no_row_has_held() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)]);
+    let mut seen = BTreeSet::from([Id::new(1), Id::new(2)]);
+    let add = || vec![Op::Add(loc(0, 1.0, 1.0))];
+    let written = store.write(add(), &mut None, Entry::default());
+    fresh(&mut seen, &written.keys);
+    let edited = store.edit(&Target::Map, add(), false, &mut None);
+    fresh(&mut seen, &edited.keys);
+    let pending = Target::Pending { name: "p".into() };
+    let staged = store.edit(&pending, add(), false, &mut None);
+    fresh(&mut seen, &staged.keys);
+    let landed = store.edit(&pending, add(), true, &mut None);
+    fresh(&mut seen, &landed.keys);
+    let copied =
+        crate::io::import::add_copied_to_store(&mut store, vec![loc(0, 5.0, 5.0)], vec![]).unwrap();
+    fresh(&mut seen, &copied.keys);
+    let newest = *seen.last().unwrap();
+    store.write([Op::Remove(newest)], &mut None, Entry::default());
+    let after_delete = store.write(add(), &mut None, Entry::default());
+    fresh(&mut seen, &after_delete.keys);
+    assert!(store.get_loc_by_id(*staged.keys.first().unwrap()).is_some());
+}
+
 #[test]
 fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
     let mut store = setup_store_with(&[]);
@@ -8637,7 +8663,7 @@ fn a_location_added_with_its_own_id_is_never_handed_that_id_again() {
     );
     let fresh = store.edit(
         &Target::Map,
-        vec![Op::Set(loc(0, 1.0, 1.0)), Op::Set(loc(0, 2.0, 2.0))],
+        vec![Op::Add(loc(0, 1.0, 1.0)), Op::Add(loc(0, 2.0, 2.0))],
         false,
         &mut None,
     );

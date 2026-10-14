@@ -180,10 +180,12 @@ fn the_history_entry_limit_discards_oldest_undo_rows_only() {
 #[test]
 fn next_id_reserves_the_highest_id_reachable_from_any_durable_layer() {
     let adds = [loc(31, 0.0, 0.0), loc(19, 0.0, 0.0)];
-    assert_eq!(seed_next_id(Id::new(8), &adds, Id::new(22)), Id::new(32));
-    assert_eq!(seed_next_id(Id::new(40), &adds, Id::new(22)), Id::new(41));
-    assert_eq!(seed_next_id(Id::new(8), &[], Id::new(50)), Id::new(51));
-    assert_eq!(seed_next_id(Id::new(0), &[], Id::new(0)), Id::new(1));
+    let next = |base, adds, history| *seed_next_id(base, adds, history).next();
+    let id = |raw| Some(Id::new(raw));
+    assert_eq!(next(id(8), &adds, id(22)), Id::new(32));
+    assert_eq!(next(id(40), &adds, id(22)), Id::new(41));
+    assert_eq!(next(id(8), &[], id(50)), Id::new(51));
+    assert_eq!(next(None, &[], None), Id::new(1));
 }
 
 #[test]

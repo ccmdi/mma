@@ -188,12 +188,16 @@ impl EditStacks {
 /// (replay resurrects locations with their original ids; re-allocating one would
 /// create a duplicate and break the strictly-sorted bake invariant).
 pub(crate) fn seed_next_id(
-    base_max: Id<Location>,
+    base_max: Option<Id<Location>>,
     adds: &[Location],
-    history_max: Id<Location>,
-) -> Id<Location> {
-    let max_add = adds.iter().map(|l| l.id).max().unwrap_or(Id::UNSET);
-    Id::new(base_max.max(max_add).max(history_max).get() + 1)
+    history_max: Option<Id<Location>>,
+) -> Ids<Id<Location>> {
+    Ids::above(
+        base_max
+            .into_iter()
+            .chain(adds.iter().map(|l| l.id))
+            .chain(history_max),
+    )
 }
 
 impl EditStacks {

@@ -177,6 +177,9 @@ impl Keyed for ListedSelection {
     fn key(&self) -> String {
         self.selection.key.clone()
     }
+    fn set_key(&mut self, key: String) {
+        self.selection.key = key;
+    }
 }
 
 pub(crate) type SelectionDelta = Change<(String, (u32, ListedSelection))>;

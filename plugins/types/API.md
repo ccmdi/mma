@@ -1403,8 +1403,8 @@ addLocations(locs: Location[]): Promise<void>
 
 **Deprecated in v0.12.1.** Use `MMA.Location.add`.
 
-Add locations to the map. Real ids are assigned and written back into the passed
-objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+Add locations to the map. Each gets a fresh id, written back into the passed object,
+so read `loc.id` after. Undoable.
 
 ### addSelections
 
@@ -3585,8 +3585,8 @@ Add, update, remove, and inspect map locations.
 Location.add(locs: Location[]): Promise<void>
 ```
 
-Add locations to the map. Real ids are assigned and written back into the passed
-objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable.
+Add locations to the map. Each gets a fresh id, written back into the passed object,
+so read `loc.id` after. Undoable.
 
 #### Location.duplicate
 
@@ -6464,10 +6464,11 @@ Apply a saved rule with its value names resolved against the open map.
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<MutationResult<Location>>
+): Promise<MutationResult<Location> | null>
 ```
 
-Restore a map to a previous commit. An open map changes through its normal write path.
+Restore a map to a previous commit. An open map changes through its normal write path;
+a closed one is rewritten on disk and returns null.
 
 #### cmd.storeCloseLayer
 
@@ -7132,12 +7133,12 @@ cmd.storeUpdateMapMeta(
           };
         };
     },
-): Promise<MutationResult<Location>>
+): Promise<MutationResult<Location> | null>
 ```
 
 Patch map metadata, leaving omitted fields unchanged.
 Open maps save through their store; tag records are edited separately.
-A closed map writes straight to disk and reaches no version.
+A closed map writes straight to disk and returns null.
 
 #### cmd.storeUploadAbort
 

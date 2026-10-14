@@ -119,11 +119,9 @@ async fn open_claimed_map(
         };
 
         let n = batch.num_rows();
-        let max_id = if n > 0 {
-            Id::new(arrow::Columns::id(&batch).value(n - 1))
-        } else {
-            Id::UNSET
-        };
+        let max_id = n
+            .checked_sub(1)
+            .map(|last| Id::new(arrow::Columns::id(&batch).value(last)));
 
         let conn = storage::open_db()?;
         let edits = load_edit_history(&conn, &map_id2)?;
@@ -238,13 +236,7 @@ pub async fn store_add_locations_uploaded(
     let _read = _t.elapsed().as_millis();
     with_store!(label, state, |store| {
         let n = locations.len();
-        let edits = locations
-            .into_iter()
-            .map(|mut l| {
-                l.id = Id::UNSET;
-                Op::Set(l)
-            })
-            .collect();
+        let edits = locations.into_iter().map(Op::Add).collect();
         let result = store.edit(&Target::Map, edits, false, &mut None);
         log::debug!(
             "[cmd] store_add_locations_uploaded n={} read={}ms total={}ms",
@@ -435,10 +427,9 @@ fn copy_to_map(
         let t_hist = Instant::now();
         let history_max = stored_history_max_id(&conn, &target_map_id)?;
         let hist_ms = t_hist.elapsed().as_millis();
-        let base_max = existing.iter().map(|l| l.id).max().unwrap_or(Id::UNSET);
-        let next = seed_next_id(base_max, &[], history_max);
-        for (loc, id) in fresh.iter_mut().zip(next.get()..) {
-            loc.id = Id::new(id);
+        let mut ids = seed_next_id(existing.iter().map(|l| l.id).max(), &[], history_max);
+        for loc in &mut fresh {
+            loc.id = ids.take();
         }
         let t_save = Instant::now();
         let delta_path = storage::arrow_delta_path(&target_map_id)?;

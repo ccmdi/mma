@@ -20,7 +20,7 @@ describe("Tag CRUD", () => {
 		const result = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Red Tag"].map((name) => ({ set: { id: 0, name } })),
+				["Red Tag"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const tagInfo = resolved[0];
 			return {
@@ -39,7 +39,7 @@ describe("Tag CRUD", () => {
 		const result = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Blue Tag", "Green Tag"].map((name) => ({ set: { id: 0, name } })),
+				["Blue Tag", "Green Tag"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return {
 				count: Object.keys(api.Tag.all()).length,
@@ -92,7 +92,7 @@ describe("Tag operations on locations", () => {
 		const tagResult = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Bulk", "Other"].map((name) => ({ set: { id: 0, name } })),
+				["Bulk", "Other"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { bulkId: resolved[0].id, otherId: resolved[1].id };
 		});
@@ -191,7 +191,7 @@ describe("Tag persistence", () => {
 		const result = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Persist Tag", "Persist Tag 2"].map((name) => ({ set: { id: 0, name } })),
+				["Persist Tag", "Persist Tag 2"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: resolved[0].id, color: "#112233" } }]);
 			await api.Edit.values("tags", [{ put: { id: resolved[1].id, color: "#445566" } }]);
@@ -264,7 +264,7 @@ describe("Tag merge on rename collision", () => {
 		const tagResult = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Alpha", "Beta"].map((name) => ({ set: { id: 0, name } })),
+				["Alpha", "Beta"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { aId: resolved[0].id, bId: resolved[1].id };
 		});
@@ -362,7 +362,7 @@ describe("Tag merge persists across save/load", () => {
 		const tagResult = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Xray", "Yankee"].map((name) => ({ set: { id: 0, name } })),
+				["Xray", "Yankee"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { xId: resolved[0].id, yId: resolved[1].id };
 		});
@@ -412,11 +412,11 @@ describe("Tag name dedup on creation", () => {
 		const result = await withApi(async (api) => {
 			const first = await api.Edit.values(
 				"tags",
-				["Duplicate"].map((name) => ({ set: { id: 0, name } })),
+				["Duplicate"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const second = await api.Edit.values(
 				"tags",
-				["Duplicate"].map((name) => ({ set: { id: 0, name } })),
+				["Duplicate"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { id1: first[0].id, id2: second[0].id };
 		});
@@ -427,15 +427,15 @@ describe("Tag name dedup on creation", () => {
 		const result = await withApi(async (api) => {
 			const upper = await api.Edit.values(
 				"tags",
-				["CaseTest"].map((name) => ({ set: { id: 0, name } })),
+				["CaseTest"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const lower = await api.Edit.values(
 				"tags",
-				["casetest"].map((name) => ({ set: { id: 0, name } })),
+				["casetest"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const mixed = await api.Edit.values(
 				"tags",
-				["CASETEST"].map((name) => ({ set: { id: 0, name } })),
+				["CASETEST"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { a: upper[0].id, b: lower[0].id, c: mixed[0].id };
 		});
@@ -447,13 +447,13 @@ describe("Tag name dedup on creation", () => {
 		const result = await withApi(async (api) => {
 			const [created] = await api.Edit.values(
 				"tags",
-				["Revive"].map((name) => ({ set: { id: 0, name } })),
+				["Revive"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Tag.remove([created.id]);
 			const hiddenAfterDelete = api.Tag.all()[created.id]?.visible;
 			const [resolved] = await api.Edit.values(
 				"tags",
-				["Revive"].map((name) => ({ set: { id: 0, name } })),
+				["Revive"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const stillDarkWhileEmpty = api.Tag.all()[created.id]?.visible;
 			const loc = api.createLocation({ lat: 12, lng: 12, tags: [resolved.id] });
@@ -481,7 +481,7 @@ describe("Tag visibility lifecycle", () => {
 		const tagId = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["Phoenix"].map((name) => ({ set: { id: 0, name } })),
+				["Phoenix"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Tag.remove([tag.id]);
 			return tag.id;
@@ -495,7 +495,7 @@ describe("Tag visibility lifecycle", () => {
 			const before = api.Tag.all()[id]?.visible;
 			const [revived] = await api.Edit.values(
 				"tags",
-				["Phoenix"].map((name) => ({ set: { id: 0, name } })),
+				["Phoenix"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const loc = api.createLocation({ lat: 13, lng: 13, tags: [revived.id] });
 			await api.Location.add([loc]);
@@ -511,7 +511,7 @@ describe("Tag visibility lifecycle", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["StripMe"].map((name) => ({ set: { id: 0, name } })),
+				["StripMe"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const locs = [
 				api.createLocation({ lat: 50, lng: 50, tags: [tag.id] }),
@@ -532,14 +532,14 @@ describe("Tag visibility lifecycle", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["Zombie"].map((name) => ({ set: { id: 0, name } })),
+				["Zombie"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Tag.remove([tag.id]);
 			const hiddenInJs = api.Tag.all()[tag.id]?.visible;
 			// Re-resolve and stage onto a location, as the tag input flow does.
 			const [revived] = await api.Edit.values(
 				"tags",
-				["Zombie"].map((name) => ({ set: { id: 0, name } })),
+				["Zombie"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			const loc = api.createLocation({ lat: 14, lng: 14, tags: [revived.id] });
 			await api.Location.add([loc]);
@@ -554,7 +554,7 @@ describe("Tag visibility lifecycle", () => {
 		const tagId = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["ColorPersist"].map((name) => ({ set: { id: 0, name } })),
+				["ColorPersist"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, color: "#abcdef" } }]);
 			return tag.id;
@@ -574,7 +574,7 @@ describe("Tag visibility lifecycle", () => {
 		const tagId = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["OldName"].map((name) => ({ set: { id: 0, name } })),
+				["OldName"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, name: "NewName" } }]);
 			return tag.id;
@@ -598,7 +598,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["SameName"].map((name) => ({ set: { id: 0, name } })),
+				["SameName"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, name: "SameName" } }]);
 			const tags = api.Tag.all();
@@ -613,7 +613,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["lowercase"].map((name) => ({ set: { id: 0, name } })),
+				["lowercase"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, name: "Lowercase" } }]);
 			const updated = api.Tag.all()[tag.id];
@@ -626,7 +626,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["DoubleDelete"].map((name) => ({ set: { id: 0, name } })),
+				["DoubleDelete"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Tag.remove([tag.id]);
 			await api.Tag.remove([tag.id]);
@@ -641,7 +641,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["KeepMyName"].map((name) => ({ set: { id: 0, name } })),
+				["KeepMyName"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, name: "" } }]);
 			return api.Tag.all()[tag.id]?.name;
@@ -654,7 +654,7 @@ describe("Tag edge cases", () => {
 		const result = await withApi(async (api) => {
 			const [tag] = await api.Edit.values(
 				"tags",
-				["KeepMe"].map((name) => ({ set: { id: 0, name } })),
+				["KeepMe"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Edit.values("tags", [{ put: { id: tag.id, name: "   " } }]);
 			return api.Tag.all()[tag.id]?.name;
@@ -673,7 +673,7 @@ describe("Tag merge advanced", () => {
 		const tags = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["MrgA", "MrgB", "MrgC"].map((name) => ({ set: { id: 0, name } })),
+				["MrgA", "MrgB", "MrgC"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			return { a: resolved[0].id, b: resolved[1].id, c: resolved[2].id };
 		});
@@ -779,7 +779,7 @@ describe("Tag import dedup", () => {
 		const tags = await withApi(async (api) => {
 			const resolved = await api.Edit.values(
 				"tags",
-				["Existing", "WasHidden"].map((name) => ({ set: { id: 0, name } })),
+				["Existing", "WasHidden"].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 			await api.Tag.remove([resolved[1].id]);
 			return { existingId: resolved[0].id, hiddenId: resolved[1].id };

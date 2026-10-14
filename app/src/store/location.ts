@@ -37,8 +37,8 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 }
 
 export const Location = {
-	/** Add locations to the map. Real ids are assigned and written back into the passed
-	 *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
+	/** Add locations to the map. Each gets a fresh id, written back into the passed object,
+	 *  so read `loc.id` after. Undoable. */
 	add: async (locs: Location[]) => {
 		if (locs.length === 0) return;
 		const t = trace("add");
@@ -47,7 +47,7 @@ export const Location = {
 				? await Mutation.run(() => addViaUpload(locs))
 				: await Edit.locations(
 						MAP,
-						locs.map((l) => ({ set: l })),
+						locs.map((l) => ({ add: l })),
 						null,
 					);
 		t.end({ added: locs.length });

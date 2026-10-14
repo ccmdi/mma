@@ -144,7 +144,7 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
             LocationFlags::empty()
         };
         Some(Location {
-            id: Id::UNSET,
+            id: Id::default(),
             lat,
             lng,
             heading,
@@ -760,7 +760,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
                 };
 
                 locs.push(Location {
-                    id: Id::UNSET,
+                    id: Id::default(),
                     lat,
                     lng,
                     heading: raw.heading,

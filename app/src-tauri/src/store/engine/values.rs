@@ -7,7 +7,7 @@ use super::*;
 use crate::selections;
 use crate::types::{AppError, AppResult};
 use crate::util::Rgb;
-use mma_algebra::{Constrained, Edit, Field, Id, Op, Patch};
+use mma_algebra::{trimmed_name, unique_name, Constrained, Edit, Field, Id, Op, Patch};
 use std::collections::HashMap;
 
 /// Metadata for one interned value.
@@ -64,37 +64,32 @@ pub(crate) fn reconcile_values_by_name<'a>(
             .cmp(&b.order.unwrap_or(u32::MAX))
             .then_with(|| a.name.cmp(&b.name))
     });
-    let mut next = target.keys().max().map_or(0, |id| id.get()).max(floor);
-    let sets = named.iter().map(|r| {
-        Op::Set(ValueRecord {
-            id: Id::UNSET,
+    let adds = named.iter().map(|r| {
+        Op::Add(ValueRecord {
             order: None,
             ..(*r).clone()
         })
     });
-    let applied = mma_algebra::apply(target, sets, || {
-        next += 1;
-        Id::new(next)
-    });
+    let applied = mma_algebra::apply(target, adds, Id::new(floor));
     named.iter().map(|r| r.id).zip(applied.keys).collect()
 }
 
 /// The edit with its name trimmed. A record's name is never cleared, a new record needs one,
 /// and records are never removed.
-fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
-    let trimmed = |name: &str| {
-        Some(name.trim())
-            .filter(|n| !n.is_empty())
-            .map(str::to_string)
-    };
+pub(crate) fn named(edit: Edit<ValueRecord>) -> AppResult<Edit<ValueRecord>> {
+    let trimmed = |name: &str| trimmed_name(name).map(str::to_string);
     match edit {
         Op::Remove(_) => Err(AppError("a value record outlives its rows".into())),
+        Op::Add(mut rec) => {
+            rec.name = rec.name.as_deref().and_then(trimmed);
+            match rec.name {
+                None => Err(AppError("an interned value needs a name".into())),
+                Some(_) => Ok(Op::Add(rec)),
+            }
+        }
         Op::Set(mut rec) => {
             rec.name = rec.name.as_deref().and_then(trimmed);
-            match rec.id == Id::UNSET && rec.name.is_none() {
-                true => Err(AppError("an interned value needs a name".into())),
-                false => Ok(Op::Set(rec)),
-            }
+            Ok(Op::Set(rec))
         }
         Op::Put(mut patch) => {
             patch.name = match &patch.name {
@@ -198,7 +193,7 @@ impl<'a> FieldValues<'a> {
     }
 
     pub(crate) fn named(&self, name: &str, visible: bool) -> Option<Id<ValueRecord>> {
-        let name = name.trim().to_lowercase();
+        let name = unique_name(name)?;
         self.records?.iter().find_map(|(&id, record)| {
             ((!visible || self.count(&id.to_string()) > 0)
                 && record.unique().is_some_and(|current| current == name))
@@ -259,11 +254,7 @@ impl Store {
         for id in held {
             after.entry(id).or_insert_with(|| bare(id));
         }
-        let mut next = floor;
-        let applied = mma_algebra::apply(&mut after, edits, || {
-            next += 1;
-            Id::new(next)
-        });
+        let applied = mma_algebra::apply(&mut after, edits, Id::new(floor));
         after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
         let patches = self.plan_value_merges(field, &applied.redirects)?;
         let keys: Vec<Id<ValueRecord>> = before.keys().chain(after.keys()).copied().collect();

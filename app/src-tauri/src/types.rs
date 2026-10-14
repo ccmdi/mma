@@ -33,7 +33,7 @@ pub use raw_extra::*;
     flag(key = "loadAsPanoId", label = "Load as pano ID", of = flags, bit = LOAD_AS_PANO_ID)
 )]
 pub struct Location {
-    /// Monotonically increasing within a map. Zero until the store assigns one.
+    /// Unique within a map, and given by the map when the location is added.
     #[field(label = "ID", kind = identity)]
     #[patch(key)]
     pub id: Id<Location>,
@@ -112,7 +112,7 @@ impl<'de, T: crate::store::arrow::Column + serde::Deserialize<'de>> serde::Deser
 impl Default for Location {
     fn default() -> Self {
         Location {
-            id: Id::UNSET,
+            id: Id::default(),
             lat: 0.0,
             lng: 0.0,
             heading: 0.0,

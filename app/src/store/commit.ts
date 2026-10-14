@@ -36,7 +36,8 @@ export const Commit = {
 		const state = Store.get();
 		if (!state.mapId) return;
 		await Autosave.flush();
-		await Mutation.run(() => cmd.storeCheckoutCommit(Store.get().mapId!, commitId));
+		const restored = await cmd.storeCheckoutCommit(Store.get().mapId!, commitId);
+		if (restored) await Mutation.settle(restored.mutation);
 		await Autosave.exclusive(() =>
 			cmd.storeCommit(Store.get().mapId!, `Revert to ${commitId.slice(0, 7)}`),
 		);

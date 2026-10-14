@@ -291,11 +291,11 @@ pub(crate) fn load_edit(
 pub(crate) fn stored_history_max_id(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,
-) -> AppResult<Id<Location>> {
+) -> AppResult<Option<Id<Location>>> {
     Ok(conn.query_row(
-        "SELECT COALESCE(MAX(max_id), 0) FROM edit_entries WHERE map_id = ?1",
+        "SELECT MAX(max_id) FROM edit_entries WHERE map_id = ?1",
         [map_id.raw()],
-        |r| r.get(0).map(Id::new),
+        |r| r.get::<_, Option<u32>>(0).map(|max| max.map(Id::new)),
     )?)
 }
 

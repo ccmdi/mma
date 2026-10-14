@@ -245,9 +245,9 @@ export const commands = {
 	/**
 	 *  Patch map metadata, leaving omitted fields unchanged.
 	 *  Open maps save through their store; tag records are edited separately.
-	 *  A closed map writes straight to disk and reaches no version.
+	 *  A closed map writes straight to disk and returns null.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
 	/**  Mark a map as opened now, for sorting the map list by recency. */
 	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
@@ -330,8 +330,11 @@ export const commands = {
 	storeCommit: (mapId: string, message: string | null) => __TAURI_INVOKE<CommitResult>("store_commit", { mapId, message }),
 	/**  List all commits for a map, newest first. */
 	storeListCommits: (mapId: string) => __TAURI_INVOKE<CommitInfo[]>("store_list_commits", { mapId }),
-	/**  Restore a map to a previous commit. An open map changes through its normal write path. */
-	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<MutationResult>("store_checkout_commit", { mapId, commitId }),
+	/**
+	 *  Restore a map to a previous commit. An open map changes through its normal write path;
+	 *  a closed one is rewritten on disk and returns null.
+	 */
+	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<MutationResult | null>("store_checkout_commit", { mapId, commitId }),
 	/**  Read a single commit's change: the locations it added, removed and updated. */
 	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<Change<Location>>("store_get_commit_delta", { mapId, commitId }),
 	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
@@ -991,7 +994,7 @@ export type ListedSelection = {
  *  within a map and assigned by the store's monotonic allocator.
  */
 export type Location = {
-	/**  Monotonically increasing within a map. Zero until the store assigns one. */
+	/**  Unique within a map, and given by the map when the location is added. */
 	id: number,
 	lat: number,
 	lng: number,
@@ -1205,14 +1208,16 @@ export type NormalizedSyncLocation = {
 /**  Equal-width bin sizing. `count` derives the width from the data range; `width` fixes it. */
 export type NumericBinning = { by: "count"; n: number } | { by: "width"; w: number };
 
-/**  An edit to one keyed row: replace it, patch it, or remove it. */
+/**  An edit to one keyed row: add it, replace it, patch it, or remove it. */
 export type Op<T, P, K> = 
+/**  A new row, given the next free key in place of the one it carries. */
+({ add: T }) & { put?: never; remove?: never; set?: never } | 
 /**  The row exactly as given. */
-({ set: T }) & { put?: never; remove?: never } | 
+({ set: T }) & { add?: never; put?: never; remove?: never } | 
 /**  A patch written over the row it names. */
-({ put: P }) & { remove?: never; set?: never } | 
+({ put: P }) & { add?: never; remove?: never; set?: never } | 
 /**  The row at this key removed. */
-({ remove: K }) & { put?: never; set?: never };
+({ remove: K }) & { add?: never; put?: never; set?: never };
 
 /**  A decoded Street View panorama: flat data with no live objects. */
 export type Pano = {

@@ -25,7 +25,7 @@ async function resolveTagNames(names: string[]): Promise<number[]> {
 	return (
 		await Edit.values(
 			"tags",
-			names.map((name) => ({ set: { id: 0, name } })),
+			names.map((name) => ({ add: { id: 0, name } })),
 		)
 	).mutation.keys;
 }

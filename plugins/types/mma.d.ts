@@ -842,14 +842,14 @@ declare const commands$1: {
     /**
      *  Patch map metadata, leaving omitted fields unchanged.
      *  Open maps save through their store; tag records are edited separately.
-     *  A closed map writes straight to disk and reaches no version.
+     *  A closed map writes straight to disk and returns null.
      *  @unstable
      */
     storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & {
         settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & {
             pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
         };
-    }) => Promise<MutationResult<Location>>;
+    }) => Promise<MutationResult<Location> | null>;
     /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
     storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
@@ -943,8 +943,12 @@ declare const commands$1: {
     storeCommit: (mapId: string, message: string | null) => Promise<CommitResult>;
     /**  List all commits for a map, newest first. @unstable */
     storeListCommits: (mapId: string) => Promise<CommitInfo[]>;
-    /**  Restore a map to a previous commit. An open map changes through its normal write path. @unstable */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location>>;
+    /**
+     *  Restore a map to a previous commit. An open map changes through its normal write path;
+     *  a closed one is rewritten on disk and returns null.
+     *  @unstable
+     */
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location> | null>;
     /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
     storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
@@ -1858,7 +1862,7 @@ type ListedSelection = {
  *  within a map and assigned by the store's monotonic allocator.
  */
 type Location = {
-    /**  Monotonically increasing within a map. Zero until the store assigns one. */
+    /**  Unique within a map, and given by the map when the location is added. */
     id: number;
     lat: number;
     lng: number;
@@ -2111,12 +2115,21 @@ type NumericBinning = {
     by: "width";
     w: number;
 };
-/**  An edit to one keyed row: replace it, patch it, or remove it. @unstable */
+/**  An edit to one keyed row: add it, replace it, patch it, or remove it. @unstable */
 type Op<T, P, K> = 
-/**  The row exactly as given. */
+/**  A new row, given the next free key in place of the one it carries. */
 (({
+    add: T;
+}) & {
+    put?: never;
+    remove?: never;
+    set?: never;
+}) | (
+/**  The row exactly as given. */
+({
     set: T;
 }) & {
+    add?: never;
     put?: never;
     remove?: never;
 }) | (
@@ -2124,6 +2137,7 @@ type Op<T, P, K> =
 ({
     put: P;
 }) & {
+    add?: never;
     remove?: never;
     set?: never;
 }) | (
@@ -2131,6 +2145,7 @@ type Op<T, P, K> =
 ({
     remove: K;
 }) & {
+    add?: never;
     put?: never;
     set?: never;
 });
@@ -3726,8 +3741,8 @@ declare class CellManager {
 }
 
 declare const Location: {
-    /** Add locations to the map. Real ids are assigned and written back into the passed
-     *  objects - build with `createLocation` (id 0) and read `loc.id` after. Undoable. */
+    /** Add locations to the map. Each gets a fresh id, written back into the passed object,
+     *  so read `loc.id` after. Undoable. */
     add: (locs: Location[]) => Promise<void>;
     /** Clone a location in place and return the new id, or null if it doesn't exist. Undoable. */
     duplicate: (id: number) => Promise<number | null>;

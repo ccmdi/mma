@@ -464,7 +464,7 @@ describe("Unicode in all fields", () => {
 					"東京タワー", // CJK
 					"café crème", // diacritics
 					"Москва", // Cyrillic
-				].map((name) => ({ set: { id: 0, name } })),
+				].map((name) => ({ add: { id: 0, name } })),
 			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
 
 			const loc = api.createLocation({

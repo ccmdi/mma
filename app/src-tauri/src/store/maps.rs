@@ -844,14 +844,14 @@ pub fn store_delete_map(
 
 /// Patch map metadata, leaving omitted fields unchanged.
 /// Open maps save through their store; tag records are edited separately.
-/// A closed map writes straight to disk and reaches no version.
+/// A closed map writes straight to disk and returns null.
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
 pub fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     patch: Patch<MapMeta>,
-) -> AppResult<engine::MutationResult> {
+) -> AppResult<Option<engine::MutationResult>> {
     update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)
 }
 
@@ -859,19 +859,14 @@ fn update_map_meta(
     mgr: &mut StoreManager,
     conn: &Connection,
     patch: Patch<MapMeta>,
-) -> AppResult<engine::MutationResult> {
+) -> AppResult<Option<engine::MutationResult>> {
     if let Some(extra) = &patch.extra {
         extra.check()?;
     }
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         let next = read_map_meta(conn, &patch.id)?.patched(&patch);
         storage::update_row::<MapMeta>(conn, "maps", patch.id.raw(), &next)?;
-        return Ok(engine::MutationResult {
-            mutation: engine::Mutation {
-                version: 0,
-                keys: Vec::new(),
-            },
-        });
+        return Ok(None);
     };
     if patch.tags.is_some() {
         return Err(AppError(
@@ -883,7 +878,7 @@ fn update_map_meta(
         Some((*store.meta).clone()),
         Some(next),
     )]);
-    Ok(engine::MutationResult {
+    Ok(Some(engine::MutationResult {
         mutation: store.write(
             [],
             &mut None,
@@ -892,7 +887,7 @@ fn update_map_meta(
                 ..Default::default()
             },
         ),
-    })
+    }))
 }
 
 /// Mark a map as opened now, for sorting the map list by recency.

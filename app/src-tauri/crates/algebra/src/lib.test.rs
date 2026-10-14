@@ -14,6 +14,9 @@ impl Keyed for Row {
     fn key(&self) -> u32 {
         self.id
     }
+    fn set_key(&mut self, key: u32) {
+        self.id = key;
+    }
 }
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Deserialize)]
@@ -27,6 +30,9 @@ impl Keyed for RowPatch {
     type Key = u32;
     fn key(&self) -> u32 {
         self.id
+    }
+    fn set_key(&mut self, key: u32) {
+        self.id = key;
     }
 }
 
@@ -231,7 +237,7 @@ fn apply(r: &Row, p: &RowPatch) -> Row {
 #[test]
 fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.extend([Op::Put(rename(1, "mine"))]);
+    layer.write([Op::Put(rename(1, "mine"))], &mut Ids::default());
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "mine"))
@@ -257,29 +263,29 @@ fn a_layer_reads_its_intents_over_the_row_below_as_it_is_now() {
 #[test]
 fn intents_land_in_order_and_a_set_or_remove_replaces_what_came_before() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.extend([Op::Put(rename(1, "first"))]);
-    layer.extend([Op::Put(rename(1, "second"))]);
+    layer.write([Op::Put(rename(1, "first"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "second"))], &mut Ids::default());
     assert_eq!(
         layer.get(1, Some(row(1, "below")), apply),
         Some(row(1, "second"))
     );
 
-    layer.extend([Op::Remove(1)]);
+    layer.write([Op::Remove(1)], &mut Ids::default());
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
-    layer.extend([Op::Put(rename(1, "after remove"))]);
+    layer.write([Op::Put(rename(1, "after remove"))], &mut Ids::default());
     assert_eq!(layer.get(1, Some(row(1, "below")), apply), None);
 
-    layer.extend([Op::Set(row(1, "set"))]);
-    layer.extend([Op::Put(rename(1, "edited"))]);
+    layer.write([Op::Set(row(1, "set"))], &mut Ids::default());
+    layer.write([Op::Put(rename(1, "edited"))], &mut Ids::default());
     assert_eq!(layer.get(1, None, apply), Some(row(1, "edited")));
 }
 
 #[test]
 fn resolving_a_layer_pairs_each_key_with_its_row_before_and_after() {
     let mut layer: Layer<Row> = Layer::default();
-    layer.extend([Op::Put(rename(1, "new"))]);
-    layer.extend([Op::Remove(2)]);
-    layer.extend([Op::Set(row(3, "added"))]);
+    layer.write([Op::Put(rename(1, "new"))], &mut Ids::default());
+    layer.write([Op::Remove(2)], &mut Ids::default());
+    layer.write([Op::Set(row(3, "added"))], &mut Ids::default());
     let below = |key: u32| (key < 3).then(|| row(key, "old"));
     let resolved: Vec<_> = layer.resolve(below, apply).collect();
     assert_eq!(
@@ -631,12 +637,18 @@ impl Keyed for Named {
     fn key(&self) -> u32 {
         self.id
     }
+    fn set_key(&mut self, key: u32) {
+        self.id = key;
+    }
 }
 
 impl Keyed for NamedPatch {
     type Key = u32;
     fn key(&self) -> u32 {
         self.id
+    }
+    fn set_key(&mut self, key: u32) {
+        self.id = key;
     }
 }
 
@@ -670,11 +682,7 @@ impl Patchable for Named {
 
 impl Constrained for Named {
     fn unique(&self) -> Option<String> {
-        self.name
-            .as_deref()
-            .map(str::trim)
-            .filter(|s| !s.is_empty())
-            .map(str::to_lowercase)
+        self.name.as_deref().and_then(unique_name)
     }
 
     fn sequence<'a>(&mut self, rows: impl Iterator<Item = &'a Self> + Clone) {
@@ -691,10 +699,6 @@ impl Constrained for Named {
             note: self.note.clone().or_else(|| from.note.clone()),
         }
     }
-
-    fn set_key(&mut self, key: u32) {
-        self.id = key;
-    }
 }
 
 fn named(id: u32, name: &str, order: Option<u32>) -> Named {
@@ -710,21 +714,13 @@ fn named_table(rows: &[Named]) -> HashMap<u32, Named> {
     rows.iter().map(|v| (v.id, v.clone())).collect()
 }
 
-fn counter(from: u32) -> impl FnMut() -> u32 {
-    let mut next = from;
-    move || {
-        next += 1;
-        next
-    }
-}
-
 #[test]
-fn a_keyless_set_takes_a_fresh_key_and_the_next_place_in_sequence() {
+fn an_added_row_takes_a_fresh_key_and_the_next_place_in_sequence() {
     let mut table = named_table(&[named(1, "a", Some(4))]);
     let applied = crate::apply(
         &mut table,
-        [Op::Set(named(0, "b", None)), Op::Set(named(0, "c", None))],
-        counter(9),
+        [Op::Add(named(0, "b", None)), Op::Add(named(0, "c", None))],
+        9,
     );
     assert_eq!(applied.keys, vec![10, 11]);
     assert_eq!(table[&10], named(10, "b", Some(5)));
@@ -732,13 +728,13 @@ fn a_keyless_set_takes_a_fresh_key_and_the_next_place_in_sequence() {
 }
 
 #[test]
-fn a_keyless_set_lands_on_the_row_holding_its_unique_value_and_fills_its_gaps() {
+fn an_added_row_lands_on_the_row_holding_its_unique_value_and_fills_its_gaps() {
     let mut held = named(1, "Urban", None);
     held.note = Some("kept".into());
     let mut table = named_table(&[held, named(2, "rural", Some(3))]);
     let mut incoming = named(0, " URBAN ", Some(9));
     incoming.note = Some("ignored".into());
-    let applied = crate::apply(&mut table, [Op::Set(incoming)], counter(5));
+    let applied = crate::apply(&mut table, [Op::Add(incoming)], 5);
     assert_eq!(applied.keys, vec![1], "no key is spent on a landing");
     assert_eq!(table.len(), 2);
     assert_eq!(table[&1].name.as_deref(), Some("Urban"));
@@ -753,7 +749,7 @@ fn a_keyless_set_lands_on_the_row_holding_its_unique_value_and_fills_its_gaps() 
 #[test]
 fn a_landing_numbers_a_held_row_that_has_no_place_yet() {
     let mut table = named_table(&[named(1, "a", None), named(2, "b", Some(7))]);
-    crate::apply(&mut table, [Op::Set(named(0, "A", None))], counter(5));
+    crate::apply(&mut table, [Op::Add(named(0, "A", None))], 5);
     assert_eq!(table[&1].order, Some(8));
 }
 
@@ -769,7 +765,7 @@ fn a_write_that_takes_another_rows_unique_value_is_redirected_and_leaves_its_row
             note: Field::Set("dropped".into()),
             ..Default::default()
         })],
-        counter(5),
+        5,
     );
     assert_eq!(applied.redirects, HashMap::from([(1, 2)]));
     assert_eq!(table, before);
@@ -785,7 +781,7 @@ fn a_write_that_keeps_its_unique_value_is_never_redirected_even_beside_a_duplica
             order: Field::Set(0),
             ..Default::default()
         })],
-        counter(5),
+        5,
     );
     assert!(applied.redirects.is_empty());
     assert_eq!(table[&2].order, Some(0));
@@ -802,9 +798,9 @@ fn a_renamed_row_frees_its_old_value_for_a_later_set_in_the_same_batch() {
                 name: Field::Set("z".into()),
                 ..Default::default()
             }),
-            Op::Set(named(0, "a", None)),
+            Op::Add(named(0, "a", None)),
         ],
-        counter(5),
+        5,
     );
     assert_eq!(applied.keys, vec![6]);
     assert_eq!(table[&1].name.as_deref(), Some("z"));
@@ -822,7 +818,7 @@ fn a_patch_to_a_missing_row_does_nothing() {
             name: Field::Set("x".into()),
             ..Default::default()
         })],
-        counter(5),
+        5,
     );
     assert_eq!(table, before);
 }
@@ -841,7 +837,6 @@ fn ids_order_and_hash_by_their_raw_value() {
     let (a, b): (Id<Named>, Id<Named>) = (Id::new(1), Id::new(2));
     assert!(a < b);
     assert_eq!(HashMap::from([(a, "a")])[&Id::new(1)], "a");
-    assert_eq!(Id::<Named>::default(), Id::UNSET);
 }
 
 #[test]
@@ -1037,4 +1032,51 @@ fn a_json_write_is_read_as_a_merge_and_cannot_be_written() {
         serde_json::from_value::<JsonWrite>(json!({ "a": { "b": null } })).unwrap(),
         JsonWrite::Merge(json!({ "a": { "b": null } }))
     );
+}
+
+#[test]
+fn ids_hand_out_keys_above_every_key_they_have_seen() {
+    let mut ids: Ids<u32> = Ids::above([3, 9, 1]);
+    assert_eq!(ids.take(), 10);
+    ids.saw(&4);
+    assert_eq!(ids.take(), 11);
+    ids.saw(&20);
+    assert_eq!(ids.take(), 21);
+    assert_eq!(Ids::<u32>::default().take(), 1);
+}
+
+#[test]
+fn a_layer_keys_each_added_row_and_keeps_later_keys_above_a_set_one() {
+    let mut ids: Ids<u32> = Ids::above([2]);
+    let mut layer: Layer<Row> = Layer::default();
+    let added = layer.write(
+        [
+            Op::Add(row(0, "a")),
+            Op::Set(row(7, "b")),
+            Op::Add(row(0, "c")),
+        ],
+        &mut ids,
+    );
+    assert_eq!(added, [3, 8]);
+    assert_eq!(layer.keys().collect::<Vec<_>>(), [3, 7, 8]);
+    assert_eq!(layer.get(8, None, apply), Some(row(8, "c")));
+}
+
+#[test]
+fn an_added_row_never_takes_a_key_set_earlier_in_the_same_batch() {
+    let mut table = named_table(&[named(1, "a", Some(1))]);
+    let applied = crate::apply(
+        &mut table,
+        [Op::Set(named(4, "d", None)), Op::Add(named(0, "e", None))],
+        0,
+    );
+    assert_eq!(applied.keys, vec![5]);
+    assert_eq!(table[&4].name.as_deref(), Some("d"));
+}
+
+#[test]
+fn a_unique_name_is_trimmed_case_folded_and_absent_when_blank() {
+    assert_eq!(unique_name("  Urban "), Some("urban".into()));
+    assert_eq!(unique_name("   "), None);
+    assert_eq!(trimmed_name(" Urban "), Some("Urban"));
 }

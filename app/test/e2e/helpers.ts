@@ -243,7 +243,7 @@ export async function createTag(
 			(
 				await api.Edit.values(
 					"tags",
-					[n].map((name) => ({ set: { id: 0, name } })),
+					[n].map((name) => ({ add: { id: 0, name } })),
 				).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!))
 			)[0],
 		name,

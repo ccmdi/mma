@@ -31,8 +31,8 @@ describe("tag record edits", () => {
 		vi.mocked(Edit.values).mockResolvedValue({ mutation: { version: 3, keys: [8, 12] } });
 		expect(await Tag.create([{ name: "a" }, { name: "b", color: "#abc" }])).toEqual([8, 12]);
 		expect(Edit.values).toHaveBeenCalledExactlyOnceWith("tags", [
-			{ set: { id: 0, name: "a" } },
-			{ set: { id: 0, name: "b", color: "#abc" } },
+			{ add: { id: 0, name: "a" } },
+			{ add: { id: 0, name: "b", color: "#abc" } },
 		]);
 	});
 	it("sets a contiguous display order without replacing other metadata", async () => {

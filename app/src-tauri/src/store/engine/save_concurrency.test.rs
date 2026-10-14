@@ -17,7 +17,7 @@ fn database() -> Connection {
 fn add(store: &mut Store, lat: f64) {
     store.edit(
         &Target::Map,
-        vec![Op::Set(loc(0, lat, 0.0))],
+        vec![Op::Add(loc(0, lat, 0.0))],
         false,
         &mut None,
     );

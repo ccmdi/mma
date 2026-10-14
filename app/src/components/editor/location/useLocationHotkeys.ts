@@ -129,7 +129,7 @@ export function useLocationHotkeys(deps: LocationHotkeyDeps) {
 		const { keys: tags } = (
 			await Edit.values(
 				"tags",
-				pendingTags.map((name) => ({ set: { id: 0, name } })),
+				pendingTags.map((name) => ({ add: { id: 0, name } })),
 			)
 		).mutation;
 		return dropLocation(location, live, live.panoId ?? location.panoId, tags);

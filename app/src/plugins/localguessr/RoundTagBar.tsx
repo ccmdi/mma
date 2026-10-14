@@ -38,7 +38,7 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 				const { keys: tags } = (
 					await Edit.values(
 						"tags",
-						next.map((name) => ({ set: { id: 0, name } })),
+						next.map((name) => ({ add: { id: 0, name } })),
 					)
 				).mutation;
 				await Location.update([{ id: locationId, tags }]);

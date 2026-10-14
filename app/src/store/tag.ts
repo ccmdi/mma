@@ -72,7 +72,7 @@ export const Tag = {
 	create: async (records: TagCreate[]): Promise<number[]> => {
 		const result = await Edit.values(
 			"tags",
-			records.map((record) => ({ set: { ...record, id: 0 } })),
+			records.map((record) => ({ add: { ...record, id: 0 } })),
 		);
 		return result.mutation.keys;
 	},

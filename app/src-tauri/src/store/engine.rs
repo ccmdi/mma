@@ -4,7 +4,7 @@
 
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Counts, Delta, Id};
+use mma_algebra::{Counts, Delta, Id, Ids};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -118,7 +118,7 @@ pub struct Store {
     // batch is declared before mmap_handle so it drops first (columns reference the mmap).
     pub(crate) batch: Option<RecordBatch>,
     pub(crate) mmap_handle: Option<arrow::MmapHandle>,
-    pub(crate) next_id: Id<Location>,
+    pub(crate) next_id: Ids<Id<Location>>,
     /// Held across every write to the map's files, so a save and a commit never interleave.
     pub(crate) files: Arc<tokio::sync::Mutex<()>>,
     pub(crate) version: u64,
@@ -165,7 +165,7 @@ impl Store {
             meta: Tracked::default(),
             batch: None,
             mmap_handle: None,
-            next_id: Id::new(1),
+            next_id: Ids::default(),
             files: Arc::default(),
             version: 0,
             alive_count: Tracked::default(),
@@ -383,13 +383,6 @@ impl Store {
             derived,
         });
         result
-    }
-
-    /// Allocate the next monotonically increasing location ID.
-    pub(crate) fn alloc_id(&mut self) -> Id<Location> {
-        let id = self.next_id;
-        self.next_id = Id::new(id.get() + 1);
-        id
     }
 
     /// Look up a location by ID across patches, overlay_adds (binary search), and batch.

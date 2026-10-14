@@ -97,8 +97,8 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         (rng() % 340) as f64 - 170.0,
                     );
                     let before = (model.clone(), selection_active);
-                    assert_eq!(store.alloc_id(), Id::new(id), "id allocation: {context}");
-                    store.write([Op::Set(row.clone())], &mut None, Entry::default());
+                    let written = store.write([Op::Add(row.clone())], &mut None, Entry::default());
+                    assert_eq!(written.keys, [Id::new(id)], "id allocation: {context}");
                     model.insert(row.id, row);
                     undo.push(before);
                     redo.clear();

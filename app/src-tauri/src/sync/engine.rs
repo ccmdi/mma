@@ -902,7 +902,7 @@ fn apply_pull(
 
     let mut edits: Vec<Edit<Location>> = Vec::new();
     for c in &out.pull_creates {
-        edits.push(Op::Set(pulled_location(&c.fields, &mut tag_of)));
+        edits.push(Op::Add(pulled_location(&c.fields, &mut tag_of)));
     }
     for u in &out.pull_updates {
         edits.push(Op::Put(pulled_patch(u, &mut tag_of)));
@@ -939,7 +939,7 @@ fn pulled_location(
     tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
 ) -> Location {
     Location {
-        id: Id::UNSET,
+        id: Id::default(),
         lat: n.lat,
         lng: n.lng,
         heading: n.heading,

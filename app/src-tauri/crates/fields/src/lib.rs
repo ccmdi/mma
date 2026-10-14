@@ -537,6 +537,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 fn key(&self) -> #ty {
                     self.#name.clone()
                 }
+                fn set_key(&mut self, key: #ty) {
+                    self.#name = key;
+                }
             }
 
             impl ::mma_algebra::Keyed for #patch {
@@ -544,16 +547,19 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 fn key(&self) -> #ty {
                     self.#name.clone()
                 }
+                fn set_key(&mut self, key: #ty) {
+                    self.#name = key;
+                }
             }
         },
         _ => quote!(),
     };
     let constrained = match (&unique_field, key_fields.as_slice()) {
         (None, _) if sequences.is_empty() => quote!(),
-        (_, [(key, key_ty)]) => {
+        (_, [_]) => {
             let unique = match unique_field {
                 Some(field) => quote! {
-                    self.#field.as_deref().map(str::trim).filter(|s| !s.is_empty()).map(str::to_lowercase)
+                    self.#field.as_deref().and_then(::mma_algebra::unique_name)
                 },
                 None => quote!(None),
             };
@@ -580,10 +586,6 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                         let mut out = self.clone();
                         #(#fills)*
                         out
-                    }
-
-                    fn set_key(&mut self, key: #key_ty) {
-                        self.#key = key;
                     }
                 }
             }

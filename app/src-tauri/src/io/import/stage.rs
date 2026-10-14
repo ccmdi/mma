@@ -70,14 +70,7 @@ pub(super) fn stage_parsed(
 ) -> Option<Id<Location>> {
     let key = import_layer(window);
     store.close_layer(&key);
-    let edits = parsed
-        .locations
-        .into_iter()
-        .map(|mut loc| {
-            loc.id = Id::UNSET;
-            Op::Set(loc)
-        })
-        .collect();
+    let edits = parsed.locations.into_iter().map(Op::Add).collect();
     let result = store.edit(&import_target(window), edits, false, &mut None);
     if let Some(p) = store.pending.get_mut(&key) {
         p.incoming.insert(
@@ -305,13 +298,7 @@ pub(crate) fn add_copied_to_store(
             "tags".to_string(),
             tags.into_iter().map(|t| (t.id, t)).collect(),
         );
-    let edits = locations
-        .into_iter()
-        .map(|mut loc| {
-            loc.id = Id::UNSET;
-            Op::Set(loc)
-        })
-        .collect();
+    let edits = locations.into_iter().map(Op::Add).collect();
     let target = engine::Target::Pending {
         name: LAYER.to_string(),
     };
@@ -431,21 +418,14 @@ pub(super) fn bulk_tag_ids(
         return Vec::new();
     };
     let piles = p.incoming.entry("tags".to_string()).or_default();
-    let mut next = piles.keys().max().map_or(0, |id| id.get());
-    let seeds = names
-        .iter()
-        .map(|name| name.trim())
-        .filter(|name| !name.is_empty())
-        .map(|name| {
-            Op::Set(ValueRecord {
-                name: Some(name.into()),
-                ..Default::default()
-            })
-        });
-    let landed = mma_algebra::apply(piles, seeds, || {
-        next += 1;
-        Id::new(next)
+    let seeds = names.iter().filter_map(|name| {
+        engine::named(Op::Add(ValueRecord {
+            name: Some(name.clone()),
+            ..Default::default()
+        }))
+        .ok()
     });
+    let landed = mma_algebra::apply(piles, seeds, Id::default());
     let mut ids = Vec::new();
     for id in landed.keys {
         if !ids.contains(&id) {
