@@ -31,12 +31,6 @@ function loc(overrides: Partial<Location> = {}): Location {
 
 const readLocation = getLocOrNull as (id: number) => Promise<any>;
 
-async function getMapMeta(): Promise<any> {
-	return withApi(async (api) => {
-		return api.Store.get().map ?? null;
-	});
-}
-
 async function waitForEnrichment(locId: number, field = "countryCode") {
 	await browser.waitUntil(
 		async () => {
@@ -350,8 +344,7 @@ describe("Enrichment — auto-registers field defs on map meta", () => {
 		await saveLocation();
 		await waitForEnrichment(defsAutoId);
 
-		const meta = await getMapMeta();
-		const fields = meta?.extra?.fields ?? {};
+		const fields = await withApi(async (api) => api.Store.get().fieldDefs);
 		// Should still be the user's custom type, not overwritten to "string"
 		expect(fields.countryCode.type).toBe("enum");
 		expect(fields.countryCode.label).toBe("My Custom Country");
