@@ -40,7 +40,7 @@ function statsRows(d: Diagnostics): [string, string | number][] {
 		["Locations (saved)", fmt.format(d.db.savedLocations)],
 		["Tags", d.db.tags],
 		["Commits", d.db.commits],
-		["Pending saves", d.map?.dirtyCount ?? 0],
+		["Unsaved", d.map?.unsaved ? "yes" : "no"],
 		["DB size", formatBytes(d.db.sizeBytes)],
 		["Location data", formatBytes(d.db.locationSizeBytes)],
 		["Journal mode", d.db.journalMode],

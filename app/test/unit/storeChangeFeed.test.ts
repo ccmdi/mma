@@ -47,6 +47,7 @@ const event = (derived: Partial<ChangeEvent["derived"]> = {}, version = 0): Chan
 	updated: [],
 	derived: {
 		writingLayers: null,
+		unsaved: null,
 		locationCount: null,
 		pending: null,
 		meta: null,
@@ -244,11 +245,20 @@ describe("store announcements", () => {
 	it("merging derived state announces the snapshot change the way a patch does", () => {
 		const heard = vi.fn();
 		const off = subscribe("snapshot:changed", heard);
-		Store.merge(event({ locationCount: 9 }).derived);
+		Store.merge(event({ locationCount: 9 }).derived, 1);
 		expect(heard).toHaveBeenCalledOnce();
 		Store.patch({});
 		expect(heard).toHaveBeenCalledTimes(2);
 		off();
+	});
+
+	it("the snapshot keeps the version and unsaved state the feed last delivered", () => {
+		arrive(event({ unsaved: true }, 5));
+		expect(Store.get()).toMatchObject({ version: 5, unsaved: true });
+		arrive(event({}, 6));
+		expect(Store.get()).toMatchObject({ version: 6, unsaved: true });
+		arrive(event({ unsaved: false }, 6));
+		expect(Store.get().unsaved).toBe(false);
 	});
 
 	it("a feed event announces the snapshot change exactly once", () => {

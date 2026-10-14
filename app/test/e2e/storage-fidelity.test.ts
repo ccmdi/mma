@@ -426,31 +426,19 @@ describe("Dirty tracking accuracy", () => {
 		dt1Id = result.id;
 
 		const afterMutation = await withApi(async (api) => {
-			return (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).dirtyCount;
+			return api.Store.get().unsaved;
 		});
-		expect(afterMutation).toBeGreaterThan(0);
+		expect(afterMutation).toBe(true);
 
 		await closeMap();
 		await openMap(map.id);
 
 		const afterReopen = await withApi(async (api) => {
-			return (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).dirtyCount;
+			return api.Store.get().unsaved;
 		});
 		// Uncommitted edits persist in the delta sidecar and restore on reopen, so the map
 		// reopens dirty (a pending commit) rather than being silently baked into the base.
-		expect(afterReopen).toBeGreaterThan(0);
+		expect(afterReopen).toBe(true);
 	});
 
 	it("mutation after reopen marks dirty again", async () => {
@@ -461,15 +449,9 @@ describe("Dirty tracking accuracy", () => {
 		}, loc);
 
 		const dirty = await withApi(async (api) => {
-			return (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).dirtyCount;
+			return api.Store.get().unsaved;
 		});
-		expect(dirty).toBeGreaterThan(0);
+		expect(dirty).toBe(true);
 	});
 
 	it("remove marks dirty", async () => {
@@ -479,15 +461,9 @@ describe("Dirty tracking accuracy", () => {
 		}, dt1Id);
 
 		const dirty = await withApi(async (api) => {
-			return (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).dirtyCount;
+			return api.Store.get().unsaved;
 		});
-		expect(dirty).toBeGreaterThan(0);
+		expect(dirty).toBe(true);
 	});
 });
 

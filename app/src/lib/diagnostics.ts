@@ -101,8 +101,8 @@ export function engineRows(activity: ProcedureActivity | null): EngineRows {
 export interface MapDiagnostics {
 	locationCount: number;
 	tagCount: number;
-	/** Unsaved locations at the time of reporting. */
-	dirtyCount: number;
+	/** Whether the map had changes not yet saved at the time of reporting. */
+	unsaved: boolean;
 	/** Per-map settings are undefined until set, so presence alone marks them as changed. */
 	changedSettings: Record<string, unknown>;
 }
@@ -173,17 +173,11 @@ async function pluginList(): Promise<string[]> {
 async function mapDiagnostics(): Promise<MapDiagnostics | null> {
 	const state = Store.get();
 	if (!state.map) return null;
-	let dirtyCount = 0;
-	try {
-		dirtyCount = (await cmd.storeSummary()).dirtyCount;
-	} catch {
-		// A report about a broken map must still send.
-	}
 	const settings = state.map.settings ?? {};
 	return {
 		locationCount: state.locationCount,
 		tagCount: Object.keys(Tag.all()).length,
-		dirtyCount,
+		unsaved: state.unsaved,
 		changedSettings: Object.fromEntries(
 			Object.entries(settings)
 				.filter(([, v]) => v !== undefined && v !== null)

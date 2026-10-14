@@ -97,7 +97,7 @@ describe("map metadata writes", () => {
 		openMap("a", { searchRadius: 50 });
 		const before = Store.get().map!;
 		const next = { ...before, settings: { exportZoom: true } } as MapDetails;
-		Store.merge({ meta: next } as unknown as Derived);
+		Store.merge({ meta: next } as unknown as Derived, 1);
 		expect(Store.get().map).toBe(next);
 		expect(Store.get().map?.settings).toEqual({ exportZoom: true });
 	});

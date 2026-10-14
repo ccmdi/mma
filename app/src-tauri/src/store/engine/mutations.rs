@@ -38,6 +38,8 @@ pub struct Derived {
     pub selection_list: Option<Vec<ListedSelection>>,
     /// Pending layers that procedure work is currently writing to.
     pub writing_layers: Option<BTreeSet<String>>,
+    /// Whether the map has changes not yet saved to disk.
+    pub unsaved: Option<bool>,
 }
 
 impl Derived {
@@ -375,6 +377,11 @@ impl Store {
         if writing != *self.writing_layers {
             self.writing_layers.replace(writing);
         }
+        self.announce();
+    }
+
+    /// Send subscribers the derived state that moved since it last shipped.
+    pub(crate) fn announce(&mut self) {
         let derived = self.shipped();
         if !derived.is_empty() {
             self.changes.send(ChangeEvent {

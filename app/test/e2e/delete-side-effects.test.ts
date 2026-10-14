@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Delete side-effects: verify that removing locations propagates state correctly
- * beyond just "the location is gone." Covers dirty count, metadata, open location,
+ * beyond just "the location is gone." Covers unsaved state, metadata, open location,
  * selection sync, and tag counts.
  */
 import {
@@ -23,7 +23,7 @@ import {
 import type { Location } from "@/bindings.gen";
 
 // ============================================================================
-// 1. Delete updates dirty count
+// 1. Delete marks the map unsaved
 // ============================================================================
 
 describe("Delete marks store dirty", () => {
@@ -40,8 +40,8 @@ describe("Delete marks store dirty", () => {
 		}, locIds[0]);
 
 		// A deletion after saving marks the map unsaved again.
-		const dirty = await getSummary().then((s) => s.dirtyCount);
-		expect(dirty).toBe(1);
+		const unsaved = await getSummary().then((s) => s.unsaved);
+		expect(unsaved).toBe(true);
 	});
 });
 

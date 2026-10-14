@@ -65,7 +65,7 @@ const diagnostics: Diagnostics = {
 	map: {
 		locationCount: 500,
 		tagCount: 4,
-		dirtyCount: 2,
+		unsaved: true,
 		changedSettings: { movementMode: "nmpz" },
 	},
 };

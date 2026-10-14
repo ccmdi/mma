@@ -20,8 +20,6 @@ export const commands = {
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/** Apply a saved rule with its value names resolved against the open map. */
 	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_apply_saved_selection", { id }),
-	/** Return the open store's location count, version and dirty count. */
-	storeSummary: () => __TAURI_INVOKE<Summary>("store_summary"),
 	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
@@ -702,6 +700,8 @@ export type Derived = {
 	selectionList: ListedSelection[] | null,
 	/**  Pending layers that procedure work is currently writing to. */
 	writingLayers: string[] | null,
+	/**  Whether the map has changes not yet saved to disk. */
+	unsaved: boolean | null,
 };
 
 /**  What the user needs in order to authorize: the code to type and where to type it. */
@@ -1842,12 +1842,6 @@ export type StoreStatus = {
 export type StoreWarning = 
 /**  The uncommitted delta was unreadable; the map opened from its last commit. */
 { kind: "deltaSetAside" };
-
-export type Summary = {
-	locationCount: number,
-	version: number,
-	dirtyCount: number,
-};
 
 /**  One settled sync pass. */
 export type SyncLogEntry = {

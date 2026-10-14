@@ -677,9 +677,6 @@ macro_rules! command_table {
             "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {
                 selections::saved::apply_saved_selection(store, &id)
             };
-            "Return the open store's location count, version and dirty count." store_summary() -> Summary => |store| {
-                Ok(store.summary())
-            };
  }
     };
 }

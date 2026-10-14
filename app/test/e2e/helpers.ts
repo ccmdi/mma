@@ -175,20 +175,23 @@ export async function getAllLocs(): Promise<Location[]> {
 	return withApi(async (api) => api.fetchAllLocations());
 }
 
-/** The map's summary: location count, store version, unsaved-change count. */
+/** The map's location count, the version its snapshot reflects, and whether it has unsaved changes. */
 export async function getSummary(): Promise<{
 	locationCount: number;
 	version: number;
-	dirtyCount: number;
+	unsaved: boolean;
 }> {
-	return withApi(
-		async (api) =>
-			(await api.cmd.storeSummary()) as {
-				locationCount: number;
-				version: number;
-				dirtyCount: number;
-			},
-	);
+	return withApi(async (api) => {
+		const { locationCount, version, unsaved } = api.Store.get();
+		return { locationCount, version, unsaved };
+	});
+}
+
+/** Wait until the open map has no unsaved changes, as its snapshot reports. */
+export async function waitUntilSaved() {
+	await browser.waitUntil(() => getSummary().then((s) => !s.unsaved), {
+		timeoutMsg: "the map never reported its changes saved",
+	});
 }
 
 export async function getLocCount(): Promise<number> {

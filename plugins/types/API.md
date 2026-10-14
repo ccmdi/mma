@@ -7033,16 +7033,6 @@ cmd.storeSubscribeFrames(
 
 Draw the open map's markers: `frames` receives the whole scene, then every change to it.
 
-#### cmd.storeSummary
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeSummary(): Promise<Summary>
-```
-
-Return the open store's location count, version and dirty count.
-
 #### cmd.storeTouchMapOpened
 
 `unstable` · since v0.4.0

@@ -907,13 +907,7 @@ describe("Slot reuse correctness", () => {
 				await api.Location.remove(new Set(batch.slice(0, 3).map((l) => l.id)));
 			}
 
-			const totalLocs = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const totalLocs = api.Store.get().locationCount;
 			return totalLocs;
 		});
 		const ids = await refreshSelections();

@@ -141,13 +141,7 @@ describe("Review mode - delete", () => {
 		const nextId = locIds[1];
 		const result = await withApi(async (api, did) => {
 			await api.Review.deleteCurrent();
-			const count = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const count = api.Store.get().locationCount;
 			const deleted = await api.fetchLocation(did).catch(() => null);
 			return {
 				activeId: api.Editor.get().open?.location?.id ?? null,

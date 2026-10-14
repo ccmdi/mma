@@ -755,13 +755,7 @@ describe("Rapid fire-and-forget mutations", () => {
 				);
 			}
 			await Promise.all(promises);
-			const count = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const count = api.Store.get().locationCount;
 			return { count };
 		});
 		expect(result.count).toBe(20);
@@ -790,13 +784,7 @@ describe("Rapid fire-and-forget mutations", () => {
 			const addPromise = api.Location.add([api.createLocation({ lat: 99, lng: 99, zoom: 1 })]);
 			await Promise.all([removePromise, addPromise]);
 
-			const count = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const count = api.Store.get().locationCount;
 			// 10 - 5 + 1 = 6, plus the 20 from previous test
 			return { count };
 		});
@@ -861,13 +849,7 @@ describe("Autosave racing with mutations", () => {
 			// One more save to capture the post-save location
 			await api.Autosave.flush();
 
-			const count = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const count = api.Store.get().locationCount;
 			return { count };
 		});
 		expect(result.count).toBe(51);
@@ -924,13 +906,7 @@ describe("Undo while save in-flight", () => {
 			const undoPromise = api.History.step("undo", "edits");
 			await Promise.all([savePromise, undoPromise]);
 
-			const count = (
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).locationCount;
+			const count = api.Store.get().locationCount;
 			return { count };
 		});
 		// After undo of batch 2, should have 20

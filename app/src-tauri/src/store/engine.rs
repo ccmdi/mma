@@ -151,6 +151,8 @@ pub struct Store {
     pub(crate) changes: Sinks<ChangeEvent>,
     /// Pending layers that procedure work is currently writing to.
     pub(crate) writing_layers: Tracked<BTreeSet<String>>,
+    /// Whether disk lacks some of this state, as last derived.
+    pub(crate) has_unsaved: Tracked<bool>,
     /// Field dependencies declared by providers.
     pub(crate) dependents: std::sync::Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
@@ -200,6 +202,7 @@ impl Store {
             frames: Sinks::default(),
             changes: Sinks::default(),
             writing_layers: Tracked::default(),
+            has_unsaved: Tracked::default(),
             dependents: Default::default(),
             pending: HashMap::new(),
         }
@@ -237,6 +240,10 @@ impl Store {
     /// held in a tracked slice, such as field values, join it per change.
     fn shipped(&mut self) -> Derived {
         self.count_pending();
+        let unsaved = self.is_unsaved();
+        if unsaved != *self.has_unsaved {
+            self.has_unsaved.replace(unsaved);
+        }
         Derived {
             location_count: self.alive_count.ship().then(|| *self.alive_count),
             pending: self.pending_counts.ship().then(|| *self.pending_counts),
@@ -253,6 +260,7 @@ impl Store {
                 .writing_layers
                 .ship()
                 .then(|| (*self.writing_layers).clone()),
+            unsaved: self.has_unsaved.ship().then(|| *self.has_unsaved),
         }
     }
 
@@ -284,6 +292,7 @@ impl Store {
                 selection_counts: Some(self.selections.node_counts.clone()),
                 selection_list: Some(self.selections.list()),
                 writing_layers: Some((*self.writing_layers).clone()),
+                unsaved: Some(*self.has_unsaved),
             },
         }
     }

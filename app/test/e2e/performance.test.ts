@@ -234,16 +234,7 @@ async function settleBaseline(message: string): Promise<void> {
 	await withApi(async (api, msg) => {
 		api.Autosave.cancel();
 		await api.Autosave.waitForInflight();
-		if (
-			(
-				(await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				}
-			).dirtyCount > 0
-		)
-			await api.Commit.create(msg);
+		if (api.Store.get().unsaved) await api.Commit.create(msg);
 	}, message);
 }
 
@@ -655,13 +646,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (
-					(await api.cmd.storeSummary()) as {
-						locationCount: number;
-						version: number;
-						dirtyCount: number;
-					}
-				).locationCount;
+				const count = api.Store.get().locationCount;
 				if (location.id <= 0 || count !== target + 1) {
 					throw new Error(`add gave id=${location.id} count=${count}, expected ${target + 1}`);
 				}
@@ -684,13 +669,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
-					const total = (
-						(await api.cmd.storeSummary()) as {
-							locationCount: number;
-							version: number;
-							dirtyCount: number;
-						}
-					).locationCount;
+					const total = api.Store.get().locationCount;
 					if (total !== target + count)
 						throw new Error(`bulk add left ${total}, expected ${target + count}`);
 					return { durationMs: performance.now() - start, operationMs };
@@ -750,13 +729,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 					);
-					const count = (
-						(await api.cmd.storeSummary()) as {
-							locationCount: number;
-							version: number;
-							dirtyCount: number;
-						}
-					).locationCount;
+					const count = api.Store.get().locationCount;
 					if (count !== target - 1) throw new Error(`remove left ${count}, expected ${target - 1}`);
 					return { durationMs: performance.now() - start, operationMs };
 				},
@@ -787,13 +760,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (
-					(await api.cmd.storeSummary()) as {
-						locationCount: number;
-						version: number;
-						dirtyCount: number;
-					}
-				).locationCount;
+				const count = api.Store.get().locationCount;
 				if (count !== target - removed) {
 					throw new Error(`delete left ${count}, expected ${target - removed}`);
 				}
@@ -813,13 +780,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (
-					(await api.cmd.storeSummary()) as {
-						locationCount: number;
-						version: number;
-						dirtyCount: number;
-					}
-				).locationCount;
+				const count = api.Store.get().locationCount;
 				if (count !== 0) throw new Error(`remove-all left ${count} locations`);
 				return { durationMs: performance.now() - start, operationMs, metrics: { rows: ids.size } };
 			}),
@@ -848,13 +809,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (
-					(await api.cmd.storeSummary()) as {
-						locationCount: number;
-						version: number;
-						dirtyCount: number;
-					}
-				).locationCount;
+				const count = api.Store.get().locationCount;
 				if (count !== target) throw new Error(`undo restored ${count}, expected ${target}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, baseline),
@@ -882,13 +837,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
-				const count = (
-					(await api.cmd.storeSummary()) as {
-						locationCount: number;
-						version: number;
-						dirtyCount: number;
-					}
-				).locationCount;
+				const count = api.Store.get().locationCount;
 				if (count >= target) throw new Error(`redo left ${count} of ${target}`);
 				return { durationMs: performance.now() - start, operationMs };
 			}, baseline),
@@ -924,16 +873,7 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			await withApi(async (api, id) => {
 				api.Autosave.cancel();
 				await api.Autosave.waitForInflight();
-				if (
-					(
-						(await api.cmd.storeSummary()) as {
-							locationCount: number;
-							version: number;
-							dirtyCount: number;
-						}
-					).dirtyCount > 0
-				)
-					await api.Commit.create("Bench setup");
+				if (api.Store.get().unsaved) await api.Commit.create("Bench setup");
 				const [loc] = await api.fetchLocations({ type: "Locations", locations: [id], name: null });
 				if (!loc) throw new Error(`commit helper ${id} is missing`);
 				await api.Location.update([{ id, pitch: (loc.pitch ?? 0) + 0.25 }]);
@@ -945,13 +885,9 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				const start = performance.now();
 				const commitId = await api.Commit.create("Bench one-row update");
 				const durationMs = performance.now() - start;
-				const summary = (await api.cmd.storeSummary()) as {
-					locationCount: number;
-					version: number;
-					dirtyCount: number;
-				};
-				if (!commitId || summary.dirtyCount !== 0) {
-					throw new Error(`commit failed: id=${commitId} dirty=${summary.dirtyCount}`);
+				const summary = api.Store.get();
+				if (!commitId || summary.unsaved) {
+					throw new Error(`commit failed: id=${commitId} unsaved=${summary.unsaved}`);
 				}
 				return { durationMs, operationMs: durationMs };
 			}),

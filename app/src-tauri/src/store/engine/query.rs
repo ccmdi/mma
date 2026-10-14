@@ -707,22 +707,6 @@ impl Store {
             })
         })
     }
-
-    pub(crate) fn summary(&self) -> Summary {
-        Summary {
-            location_count: *self.alive_count,
-            version: self.version,
-            dirty_count: usize::from(self.overlay.is_unsaved()),
-        }
-    }
-}
-
-#[derive(serde::Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct Summary {
-    pub location_count: usize,
-    pub version: u64,
-    pub dirty_count: usize,
 }
 
 /// Evenly spaced subset of `candidates`: a count thins to that many ids maximizing

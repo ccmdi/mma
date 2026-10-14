@@ -7104,6 +7104,32 @@ fn a_save_stamped_with_an_older_rev_leaves_the_value_unsaved() {
     assert!(!tracked.is_unsaved());
 }
 
+#[test]
+fn unsaved_is_announced_when_an_edit_makes_it_true_and_a_save_makes_it_false() {
+    let mut store = setup_store_with(&[]);
+    store.open_status();
+    let feed = FeedCapture::attach(&mut store);
+    store.edit(
+        &Target::Map,
+        vec![Op::Add(loc(0, 1.0, 1.0))],
+        Default::default(),
+        &mut None,
+    );
+    assert_eq!(feed.last().derived.unsaved, Some(true));
+    store.edit(
+        &Target::Map,
+        vec![Op::Add(loc(0, 2.0, 2.0))],
+        Default::default(),
+        &mut None,
+    );
+    assert_eq!(feed.last().derived.unsaved, None);
+
+    let written = store.unsaved().unwrap().expect("the edits are unsaved");
+    store.saved(&written);
+    assert_eq!(feed.last().derived.unsaved, Some(false));
+    assert!(store.unsaved().unwrap().is_none());
+}
+
 // ---------------------------------------------------------------------------
 // Pending layers: stage edits before applying them to the map
 // ---------------------------------------------------------------------------

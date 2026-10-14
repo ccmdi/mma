@@ -71,7 +71,7 @@ function diagnosticsTable(d: Diagnostics): string {
 	if (d.map) {
 		rows.push([
 			"Open map",
-			`${d.map.locationCount} locations, ${d.map.tagCount} tags, ${d.map.dirtyCount} unsaved`,
+			`${d.map.locationCount} locations, ${d.map.tagCount} tags, unsaved: ${d.map.unsaved ? "yes" : "no"}`,
 		]);
 	}
 	return table(rows);

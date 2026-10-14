@@ -122,12 +122,23 @@ impl Unsaved {
 }
 
 impl Store {
+    fn meta_unsaved(&self) -> bool {
+        self.meta.is_unsaved()
+            || self.field_defs.is_unsaved()
+            || self.records.values().any(Tracked::is_unsaved)
+    }
+
+    /// Whether disk lacks some of the map's current state.
+    pub(crate) fn is_unsaved(&self) -> bool {
+        self.overlay.is_unsaved() || self.steps[Timeline::Edits].is_unsaved() || self.meta_unsaved()
+    }
+
     /// The state disk lacks, or `None` when disk is current.
     pub(crate) fn unsaved(&self) -> AppResult<Option<Unsaved>> {
-        let meta = (self.meta.is_unsaved()
-            || self.field_defs.is_unsaved()
-            || self.records.values().any(Tracked::is_unsaved))
-        .then(|| MetaRow {
+        if !self.is_unsaved() {
+            return Ok(None);
+        }
+        let meta = self.meta_unsaved().then(|| MetaRow {
             row: self.map(),
             meta: self.meta.rev(),
             defs: self.field_defs.rev(),
@@ -137,10 +148,6 @@ impl Store {
                 .map(|(field, v)| (field.clone(), v.rev()))
                 .collect(),
         });
-        if !self.overlay.is_unsaved() && !self.steps[Timeline::Edits].is_unsaved() && meta.is_none()
-        {
-            return Ok(None);
-        }
         Ok(Some(Unsaved {
             delta: self.overlay.is_unsaved().then(|| {
                 self.overlay
@@ -156,7 +163,7 @@ impl Store {
         }))
     }
 
-    /// Disk now holds `written`.
+    /// Disk now holds `written`. Subscribers hear when that leaves nothing unsaved.
     pub(crate) fn saved(&mut self, written: &Unsaved) {
         if let Some(delta) = &written.delta {
             self.overlay.saved_at(delta.rev());
@@ -173,6 +180,7 @@ impl Store {
         if let Some(steps) = &written.steps {
             self.steps[Timeline::Edits].saved_at(steps.rev());
         }
+        self.announce();
     }
 }
 

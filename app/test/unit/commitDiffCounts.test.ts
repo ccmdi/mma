@@ -18,6 +18,7 @@ const { CommitDiff } = await import("@/store/commitDiff");
 
 const derived = (pending: Derived["pending"]): Derived => ({
 	writingLayers: null,
+	unsaved: null,
 	locationCount: null,
 	pending,
 	meta: null,
@@ -31,12 +32,12 @@ const derived = (pending: Derived["pending"]): Derived => ({
 describe("pending counts", () => {
 	it("follow the store's announcements without asking for them", () => {
 		expect(CommitDiff.has()).toBe(false);
-		Store.merge(derived({ added: 1, removed: 0, updated: 2 }));
+		Store.merge(derived({ added: 1, removed: 0, updated: 2 }), 1);
 		expect(CommitDiff.has()).toBe(true);
 		expect(Store.get().pending).toEqual({ added: 1, removed: 0, updated: 2 });
-		Store.merge(derived(null));
+		Store.merge(derived(null), 2);
 		expect(CommitDiff.has()).toBe(true);
-		Store.merge(derived({ added: 0, removed: 0, updated: 0 }));
+		Store.merge(derived({ added: 0, removed: 0, updated: 0 }), 3);
 		expect(CommitDiff.has()).toBe(false);
 	});
 });

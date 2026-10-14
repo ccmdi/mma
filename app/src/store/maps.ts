@@ -79,7 +79,7 @@ function clearEditState() {
 function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 	Feed.seed(status.version);
 	Store.patch({ map: meta });
-	Store.merge(status.derived);
+	Store.merge(status.derived, status.version);
 }
 
 /** Tear down all in-memory state for the open map. */

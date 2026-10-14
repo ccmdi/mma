@@ -1,10 +1,10 @@
 import type { Derived } from "@/bindings.gen";
 import { emit as emitEvent, useEventValue } from "@/lib/events";
 
-/** The full local mirror of the store's derived state. */
+/** The full local mirror of the store's derived state, as of the map version it reflects. */
 type EngineState = {
 	[K in Exclude<keyof Derived, "meta">]: NonNullable<Derived[K]>;
-};
+} & { version: number };
 
 /** The open map's own details. Its tag records, field definitions, and counts live in their
  *  own slices. */
@@ -27,6 +27,8 @@ const ENGINE_INITIAL: EngineState = {
 	fieldDefs: {},
 	selectionCounts: {},
 	selectionList: [],
+	unsaved: false,
+	version: 0,
 };
 
 const INITIAL_STATE: MapState = {
@@ -43,11 +45,15 @@ export const Store = {
 		state = { ...state, ...patch };
 		emitEvent("snapshot:changed");
 	},
-	/** Apply complete derived state and remove null field values. @unstable */
-	merge: (v: Derived) => {
+	/** Apply derived state as of `version` and remove null field values. @unstable */
+	merge: (v: Derived, version: number) => {
 		const { fieldValues, meta, ...rest } = v;
 		if (meta && state.map) state = { ...state, map: meta };
-		state = { ...state, ...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)) };
+		state = {
+			...state,
+			...Object.fromEntries(Object.entries(rest).filter(([, x]) => x != null)),
+			version,
+		};
 		if (fieldValues) {
 			const merged = { ...state.fieldValues };
 			for (const [field, values] of Object.entries(fieldValues)) {
