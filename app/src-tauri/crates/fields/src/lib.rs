@@ -576,7 +576,9 @@ fn expand_patch(input: &DeriveInput) -> syn::Result<TokenStream2> {
                         #(
                             if self.#sequences.is_none() {
                                 self.#sequences = Some(
-                                    rows.clone().filter_map(|row| row.#sequences).max().map_or(1, |max| max + 1),
+                                    ::mma_algebra::Sequential::after(
+                                        &rows.clone().filter_map(|row| row.#sequences).max().unwrap_or_default(),
+                                    ),
                                 );
                             }
                         )*

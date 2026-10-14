@@ -9198,3 +9198,22 @@ fn an_edit_history_row_in_the_positioned_shape_reads_and_undoes() {
         [tag_row(1).selection.key, tag_row(2).selection.key]
     );
 }
+
+#[test]
+fn a_record_without_a_place_takes_the_one_after_the_highest() {
+    use mma_algebra::Constrained;
+    let placed = |order| ValueRecord {
+        order,
+        ..Default::default()
+    };
+    let mut first = placed(None);
+    first.sequence(std::iter::empty());
+    assert_eq!(first.order, Some(1));
+    let held = [placed(Some(4)), placed(None), placed(Some(2))];
+    let mut next = placed(None);
+    next.sequence(held.iter());
+    assert_eq!(next.order, Some(5));
+    let mut kept = placed(Some(9));
+    kept.sequence(held.iter());
+    assert_eq!(kept.order, Some(9));
+}

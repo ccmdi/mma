@@ -687,7 +687,12 @@ impl Constrained for Named {
 
     fn sequence<'a>(&mut self, rows: impl Iterator<Item = &'a Self> + Clone) {
         if self.order.is_none() {
-            self.order = Some(rows.filter_map(|r| r.order).max().map_or(1, |m| m + 1));
+            self.order = Some(
+                rows.filter_map(|r| r.order)
+                    .max()
+                    .unwrap_or_default()
+                    .after(),
+            );
         }
     }
 
