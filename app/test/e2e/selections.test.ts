@@ -226,7 +226,7 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30 (flags=1)
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50 (indices 0-49)
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
-			await api.SelectionList.update(api.onActive(api.intersectSelections()));
+			await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
 			const sels = api.SelectionList.active();
 			return { count: api.Scene.selected().size, selCount: sels.length };
 		}, tagAId);
@@ -238,7 +238,7 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
-			await api.SelectionList.update(api.onActive(api.unionSelections()));
+			await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
 			return api.Scene.selected().size;
 		}, tagAId);
 		expect(result).toBe(50);
@@ -247,7 +247,7 @@ describe("Selection operations", () => {
 	it("invert selection", async () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
-			await api.SelectionList.update(api.onActive(api.invertSelections())); // 100 - 30 = 70
+			await api.SelectionList.update(api.onActive(api.complementSelections())); // 100 - 30 = 70
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(70);

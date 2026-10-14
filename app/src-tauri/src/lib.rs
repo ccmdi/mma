@@ -315,17 +315,20 @@ pub fn export_bindings() -> Result<(), String> {
     export_consts()
 }
 
-fn wire_string_enums() -> [(&'static str, TsConst); 14] {
+fn wire_string_enums() -> [(&'static str, TsConst); 17] {
     [
         ("CameraType", store::maps::CameraType::ts_const()),
         ("CapturePick", store::maps::CapturePick::ts_const()),
         ("DatePart", selections::DatePart::ts_const()),
         ("FieldType", store::maps::FieldType::ts_const()),
+        ("Group", selections::tree::Group::ts_const()),
         ("FirstSyncMode", sync::FirstSyncMode::ts_const().unstable()),
         ("IssueState", net::github::IssueState::ts_const().unstable()),
         ("MapShape", types::shape::MapShape::ts_const()),
         ("MergeWinner", store::engine::MergeWinner::ts_const()),
+        ("Place", selections::tree::Place::ts_const()),
         ("RateCost", net::fetch::RateCost::ts_const()),
+        ("ReviewMode", selections::ReviewMode::ts_const()),
         (
             "ResolutionSide",
             sync::engine::ResolutionSide::ts_const().unstable(),

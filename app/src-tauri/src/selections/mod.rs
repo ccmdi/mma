@@ -12,10 +12,10 @@ use crate::store::arrow::{Column, Columns};
 use crate::store::engine::{pick_even, pick_spaced, SpacedPickResult, ValueRecord, SPATIAL_CELL_M};
 use crate::store::maps::IndexShape;
 use crate::types;
-use crate::types::{Location, LocationFlags, RawExtra};
+use crate::types::{wire_str_enum, Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use arrow_array::RecordBatch;
-use mma_algebra::{rank_by, Change, Id, Keyed};
+use mma_algebra::{Change, Id, Keyed};
 use mma_fields::Children;
 
 mod duplicates;
@@ -40,6 +40,26 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
+
+wire_str_enum! {
+    /// Which locations of a review session a selection holds.
+    derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
+    pub enum ReviewMode {
+        /// The locations already reviewed.
+        Reviewed = "reviewed",
+        /// The locations still to review.
+        Unreviewed = "unreviewed",
+    }
+}
+
+/// Which end of a ranking comes first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Order {
+    /// Lowest score first.
+    Ascending,
+    /// Highest score first.
+    Descending,
+}
 
 /// Selection predicates and composites, serialized with a `type` discriminator.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, specta::Type, Children)]
@@ -71,7 +91,7 @@ pub enum Selector<S = Selection> {
     Reviewed {
         locations: Vec<Id<Location>>,
         session_id: String,
-        mode: String,
+        mode: ReviewMode,
     },
     Intersection {
         #[children]
@@ -308,7 +328,7 @@ impl Selection {
         if children.is_empty() {
             return None;
         }
-        crate::selections::tree::rebuilt(
+        crate::selections::tree::regrouped(
             &Selection {
                 selector,
                 ..self.clone()
@@ -397,10 +417,9 @@ impl Selector {
         }
     }
 
-    /// Rows pinned to one exact pano - the flag plus a pano id, per [`RowRef::is_pinned`] -
-    /// or the rows not pinned.
-    pub fn pano_ids(on: bool) -> Selector {
-        let pinned = Selector::all([
+    /// Rows pinned to one exact pano: they load by pano id and hold one.
+    pub fn pinned() -> Selector {
+        Selector::all([
             Selector::Filter {
                 field: "loadAsPanoId".into(),
                 test: FilterOp::Eq {
@@ -408,12 +427,7 @@ impl Selector {
                 },
             },
             Selector::has("panoId"),
-        ]);
-        if on {
-            pinned
-        } else {
-            pinned.not()
-        }
+        ])
     }
 
     pub fn walk(&self, visit: &mut impl FnMut(&Selector)) {
@@ -1258,19 +1272,38 @@ impl<'v, 'a> Scope<'v, 'a> {
         &self,
         score: impl Fn(&RowRef) -> Option<f64>,
         take: Option<usize>,
-        ascending: bool,
+        order: Order,
     ) -> Vec<Id<Location>> {
-        rank_by(self.rows(), take, score, |a, b| {
-            let order = a.total_cmp(b);
-            if ascending {
-                order
-            } else {
-                order.reverse()
+        use std::cmp::Ordering;
+        let mut scored: Vec<_> = self
+            .rows()
+            .enumerate()
+            .map(|(place, row)| (row.id(), score(&row), place))
+            .collect();
+        let better = |a: &(Id<Location>, Option<f64>, usize),
+                      b: &(Id<Location>, Option<f64>, usize)| {
+            let by_score = match (a.1, b.1) {
+                (Some(a), Some(b)) => match order {
+                    Order::Ascending => a.total_cmp(&b),
+                    Order::Descending => b.total_cmp(&a),
+                },
+                (Some(_), None) => Ordering::Less,
+                (None, Some(_)) => Ordering::Greater,
+                (None, None) => Ordering::Equal,
+            };
+            by_score.then_with(|| a.2.cmp(&b.2))
+        };
+        if let Some(take) = take {
+            if take == 0 {
+                return Vec::new();
             }
-        })
-        .into_iter()
-        .map(|row| row.id())
-        .collect()
+            if take < scored.len() {
+                scored.select_nth_unstable_by(take - 1, better);
+                scored.truncate(take);
+            }
+        }
+        scored.sort_by(better);
+        scored.into_iter().map(|(id, _, _)| id).collect()
     }
 
     pub fn ranked(&self, expr: &str, take: Option<usize>, ascending: bool) -> Vec<Id<Location>> {
@@ -1281,7 +1314,11 @@ impl<'v, 'a> Scope<'v, 'a> {
                     .and_then(|expr| field_expr::eval(expr, &|name| row.resolve_field(name)))
             },
             take,
-            ascending,
+            if ascending {
+                Order::Ascending
+            } else {
+                Order::Descending
+            },
         )
     }
 

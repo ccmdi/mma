@@ -4438,7 +4438,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4491,7 +4491,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4522,7 +4522,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4598,7 +4598,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "union", "keys": null },
+			"op": { "kind": "combine", "group": "Union", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4651,7 +4651,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "union", "keys": null },
+			"op": { "kind": "combine", "group": "Union", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4727,7 +4727,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "invert", "keys": null },
+			"op": { "kind": "complement", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -4767,7 +4767,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "invert", "keys": null },
+			"op": { "kind": "complement", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -5035,7 +5035,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "invert", "keys": ["filter:tags:contains:9"] },
+			"op": { "kind": "complement", "keys": ["filter:tags:contains:9"] },
 			"before": [
 				{
 					"selection": {
@@ -6110,7 +6110,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0], "to": [1], "after": true },
+			"op": { "kind": "move", "from": [0], "to": [1], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -6250,7 +6250,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [0], "drop": [1], "mode": "union" },
+			"op": { "kind": "compose", "drag": [0], "drop": [1], "group": "Union" },
 			"before": [
 				{
 					"selection": {
@@ -7006,7 +7006,7 @@
 			"after": []
 		},
 		{
-			"op": { "kind": "move", "from": [2], "to": [0], "after": false },
+			"op": { "kind": "move", "from": [2], "to": [0], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -7085,7 +7085,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0], "to": [2], "after": true },
+			"op": { "kind": "move", "from": [0], "to": [2], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7164,7 +7164,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 1], "to": [1], "after": false },
+			"op": { "kind": "move", "from": [0, 1], "to": [1], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -7276,7 +7276,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [1], "to": [0, 0], "after": true },
+			"op": { "kind": "move", "from": [1], "to": [0, 0], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7364,7 +7364,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 1], "to": [1, 0], "after": false },
+			"op": { "kind": "move", "from": [0, 1], "to": [1, 0], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -7482,7 +7482,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 0], "to": [0], "after": true },
+			"op": { "kind": "move", "from": [0, 0], "to": [0], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7543,7 +7543,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 1], "to": [0], "after": false },
+			"op": { "kind": "move", "from": [0, 1], "to": [0], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -7604,7 +7604,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 0], "to": [0], "after": true },
+			"op": { "kind": "move", "from": [0, 0], "to": [0], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7701,7 +7701,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 0], "to": [0], "after": true },
+			"op": { "kind": "move", "from": [0, 0], "to": [0], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7777,7 +7777,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0, 0], "to": [1], "after": true },
+			"op": { "kind": "move", "from": [0, 0], "to": [1], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7850,7 +7850,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0], "to": [0, 1], "after": true },
+			"op": { "kind": "move", "from": [0], "to": [0, 1], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -7941,7 +7941,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [1], "to": [0, 0], "after": true },
+			"op": { "kind": "move", "from": [1], "to": [0, 0], "place": "after" },
 			"before": [
 				{
 					"selection": {
@@ -8367,7 +8367,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -8439,7 +8439,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "union", "keys": null },
+			"op": { "kind": "combine", "group": "Union", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -8520,7 +8520,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "invert", "keys": null },
+			"op": { "kind": "complement", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -8588,7 +8588,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [5], "to": [1], "after": false },
+			"op": { "kind": "move", "from": [5], "to": [1], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -8635,7 +8635,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0], "to": [5], "after": false },
+			"op": { "kind": "move", "from": [0], "to": [5], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -8682,7 +8682,7 @@
 			]
 		},
 		{
-			"op": { "kind": "move", "from": [0], "to": [0], "after": false },
+			"op": { "kind": "move", "from": [0], "to": [0], "place": "before" },
 			"before": [
 				{
 					"selection": {
@@ -8729,7 +8729,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [1], "drop": [0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [1], "drop": [0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -8782,7 +8782,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [1], "drop": [0], "mode": "union" },
+			"op": { "kind": "compose", "drag": [1], "drop": [0], "group": "Union" },
 			"before": [
 				{
 					"selection": {
@@ -8835,7 +8835,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [1], "drop": [0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [1], "drop": [0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -8911,7 +8911,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [0], "drop": [0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [0], "drop": [0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -8942,7 +8942,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [5], "drop": [0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [5], "drop": [0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -8973,66 +8973,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [0], "drop": [0, 1], "mode": "intersection" },
-			"before": [
-				{
-					"selection": {
-						"key": "(filter:tags:contains:9)|(filter:tags:nothas:null)",
-						"color": [191, 134, 64],
-						"selector": {
-							"type": "Union",
-							"selections": [
-								{
-									"key": "filter:tags:contains:9",
-									"color": [64, 76, 191],
-									"selector": {
-										"type": "Filter",
-										"field": "tags",
-										"test": { "op": "contains", "value": 9 }
-									}
-								},
-								{
-									"key": "filter:tags:nothas:null",
-									"color": [191, 64, 94],
-									"selector": { "type": "Filter", "field": "tags", "test": { "op": "nothas" } }
-								}
-							]
-						}
-					},
-					"ghosted": false
-				}
-			],
-			"after": [
-				{
-					"selection": {
-						"key": "(filter:tags:contains:9)|(filter:tags:nothas:null)",
-						"color": [191, 134, 64],
-						"selector": {
-							"type": "Union",
-							"selections": [
-								{
-									"key": "filter:tags:contains:9",
-									"color": [64, 76, 191],
-									"selector": {
-										"type": "Filter",
-										"field": "tags",
-										"test": { "op": "contains", "value": 9 }
-									}
-								},
-								{
-									"key": "filter:tags:nothas:null",
-									"color": [191, 64, 94],
-									"selector": { "type": "Filter", "field": "tags", "test": { "op": "nothas" } }
-								}
-							]
-						}
-					},
-					"ghosted": false
-				}
-			]
-		},
-		{
-			"op": { "kind": "compose", "drag": [0, 1], "drop": [0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [0], "drop": [0, 1], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -9091,7 +9032,66 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [0, 0], "drop": [1, 0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [0, 1], "drop": [0], "group": "Intersection" },
+			"before": [
+				{
+					"selection": {
+						"key": "(filter:tags:contains:9)|(filter:tags:nothas:null)",
+						"color": [191, 134, 64],
+						"selector": {
+							"type": "Union",
+							"selections": [
+								{
+									"key": "filter:tags:contains:9",
+									"color": [64, 76, 191],
+									"selector": {
+										"type": "Filter",
+										"field": "tags",
+										"test": { "op": "contains", "value": 9 }
+									}
+								},
+								{
+									"key": "filter:tags:nothas:null",
+									"color": [191, 64, 94],
+									"selector": { "type": "Filter", "field": "tags", "test": { "op": "nothas" } }
+								}
+							]
+						}
+					},
+					"ghosted": false
+				}
+			],
+			"after": [
+				{
+					"selection": {
+						"key": "(filter:tags:contains:9)|(filter:tags:nothas:null)",
+						"color": [191, 134, 64],
+						"selector": {
+							"type": "Union",
+							"selections": [
+								{
+									"key": "filter:tags:contains:9",
+									"color": [64, 76, 191],
+									"selector": {
+										"type": "Filter",
+										"field": "tags",
+										"test": { "op": "contains", "value": 9 }
+									}
+								},
+								{
+									"key": "filter:tags:nothas:null",
+									"color": [191, 64, 94],
+									"selector": { "type": "Filter", "field": "tags", "test": { "op": "nothas" } }
+								}
+							]
+						}
+					},
+					"ghosted": false
+				}
+			]
+		},
+		{
+			"op": { "kind": "compose", "drag": [0, 0], "drop": [1, 0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -9218,7 +9218,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [0, 0, 0], "drop": [0, 0, 1], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [0, 0, 0], "drop": [0, 0, 1], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -9330,7 +9330,7 @@
 			]
 		},
 		{
-			"op": { "kind": "compose", "drag": [1], "drop": [0, 0, 0], "mode": "intersection" },
+			"op": { "kind": "compose", "drag": [1], "drop": [0, 0, 0], "group": "Intersection" },
 			"before": [
 				{
 					"selection": {
@@ -10100,7 +10100,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -10420,7 +10420,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "union", "keys": null },
+			"op": { "kind": "combine", "group": "Union", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -10542,7 +10542,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {
@@ -10603,7 +10603,7 @@
 			]
 		},
 		{
-			"op": { "kind": "combine", "mode": "intersection", "keys": null },
+			"op": { "kind": "combine", "group": "Intersection", "keys": null },
 			"before": [
 				{
 					"selection": {

@@ -55,11 +55,10 @@ import {
 import { registerCommand, type CommandDef } from "./commands";
 import {
 	addSelection,
-	intersectSelections,
-	invertSelections,
+	combineSelections,
+	complementSelections,
 	onActive,
 	toggleGhostAll,
-	unionSelections,
 } from "./selections";
 import { CommitDiff } from "./commitDiff";
 import { MAP_EMBED_PREFS, MAP_TYPES } from "./mapEmbedPrefs";
@@ -248,19 +247,19 @@ const COMMANDS = {
 		label: msg("Invert selection"),
 		icon: mdiSelectInverse,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(onActive(invertSelections())),
+		execute: () => SelectionList.update(onActive(complementSelections())),
 	},
 	"intersect-selections": {
 		label: msg("Intersect (AND) selections"),
 		icon: mdiSetCenter,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(onActive(intersectSelections())),
+		execute: () => SelectionList.update(onActive(combineSelections("Intersection"))),
 	},
 	"union-selections": {
 		label: msg("Union (OR) selections"),
 		icon: mdiSetAll,
 		group: msg("Selections"),
-		execute: () => SelectionList.update(onActive(unionSelections())),
+		execute: () => SelectionList.update(onActive(combineSelections("Union"))),
 	},
 	"load-geojson": {
 		label: msg("Load shapes from GeoJSON as selection"),

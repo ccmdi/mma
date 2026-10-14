@@ -15,6 +15,7 @@ import { shortDateFmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
 import type { ReviewSession } from "@/bindings.gen";
+import type { ReviewMode } from "@/bindings.consts";
 import { IconButton } from "@/components/primitives/IconButton";
 import { addSelection } from "@/store/selections";
 
@@ -54,7 +55,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 		await Review.removeSession(id);
 	};
 
-	const handleSelect = (s: ReviewSession, mode: "reviewed" | "unreviewed") => {
+	const handleSelect = (s: ReviewSession, mode: ReviewMode) => {
 		void SelectionList.update(addSelection(Review.selector(s, mode)));
 		onOpenChange(false);
 	};

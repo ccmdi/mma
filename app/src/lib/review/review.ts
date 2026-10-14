@@ -12,6 +12,7 @@ import { emit, useEventValue, subscribe as onEvent } from "@/lib/events";
 import { addSelection, selection, removeSelection, selectionDisplayName } from "@/store/selections";
 import type { Selector } from "@/types";
 import type { ReviewSession, Selection } from "@/bindings.gen";
+import { ReviewMode } from "@/bindings.consts";
 import { t } from "@/lib/i18n";
 
 export interface PruneResult {
@@ -23,9 +24,7 @@ export interface PruneResult {
 // new array, so a map can never index an order it no longer describes.
 const worklistIndexes = new WeakMap<number[], Map<number, number>>();
 
-export type ReviewMode = "reviewed" | "unreviewed";
-
-const REVIEW_MODES: ReviewMode[] = ["reviewed", "unreviewed"];
+const REVIEW_MODES = Object.values(ReviewMode);
 
 function reviewSelector(sessionId: string, mode: ReviewMode, locations: number[] = []): Selector {
 	return { type: "Reviewed", locations, sessionId, mode };

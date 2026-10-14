@@ -11,6 +11,7 @@ import type {
 	Selector as SelectorTree,
 } from "@/bindings.gen";
 import type { Selector } from "@/types";
+import type { Group, Place } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
@@ -325,19 +326,13 @@ export const toggleSelection = (...selectors: Selector[]): SelectionOp => ({
 });
 export const toggleManualSelection = (id: number): SelectionOp => ({ kind: "manual", id });
 export const onActive = (op: SelectionOp): SelectionOp => ({ kind: "active", op });
-export const intersectSelections = (keys: string[] | null = null): SelectionOp => ({
+export const combineSelections = (group: Group, keys: string[] | null = null): SelectionOp => ({
 	kind: "combine",
-	mode: "intersection",
+	group,
 	keys,
 });
-export const unionSelections = (keys: string[] | null = null): SelectionOp => ({
-	kind: "combine",
-	mode: "union",
-	keys,
-});
-export const invertSelections = (keys: string[] | null = null): SelectionOp => ({
-	kind: "combine",
-	mode: "invert",
+export const complementSelections = (keys: string[] | null = null): SelectionOp => ({
+	kind: "complement",
 	keys,
 });
 export const toggleGhost = (index: number): SelectionOp => ({ kind: "ghost", index });
@@ -350,18 +345,13 @@ export const toggleInvert = (path: SelectionPath): SelectionOp => ({
 export const composeSelections = (
 	drag: SelectionPath,
 	drop: SelectionPath,
-	mode: GroupType,
-): SelectionOp => ({
-	kind: "compose",
-	drag: [...drag],
-	drop: [...drop],
-	mode: mode === "Union" ? "union" : "intersection",
-});
+	group: Group,
+): SelectionOp => ({ kind: "compose", drag: [...drag], drop: [...drop], group });
 export const moveSelection = (
 	from: SelectionPath,
 	to: SelectionPath,
-	position: "before" | "after",
-): SelectionOp => ({ kind: "move", from: [...from], to: [...to], after: position === "after" });
+	place: Place,
+): SelectionOp => ({ kind: "move", from: [...from], to: [...to], place });
 export const removeSelectionAt = (path: SelectionPath): SelectionOp => ({
 	kind: "removeAt",
 	path: [...path],

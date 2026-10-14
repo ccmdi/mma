@@ -115,3 +115,109 @@ fn tree_path_lookup_accepts_only_existing_child_indices() {
     assert_eq!(at(&rows, &[1]), None);
     assert_eq!(at(&rows, &[0, 1]), None);
 }
+
+fn listed(selectors: impl IntoIterator<Item = Selector>) -> Vec<ListedSelection> {
+    selectors
+        .into_iter()
+        .map(|selector| ListedSelection {
+            selection: Selection::of(selector),
+            ghosted: false,
+        })
+        .collect()
+}
+
+fn tagged(id: u32) -> Selector {
+    Selector::tag(id)
+}
+
+#[test]
+fn compose_groups_the_dragged_row_into_the_target_by_the_group_it_names() {
+    let rows = listed([tagged(1), tagged(2)]);
+    for (group, expected) in [
+        (
+            Group::Union,
+            Selector::Union {
+                selections: vec![Selection::of(tagged(2)), Selection::of(tagged(1))],
+            },
+        ),
+        (
+            Group::Intersection,
+            Selector::Intersection {
+                selections: vec![Selection::of(tagged(2)), Selection::of(tagged(1))],
+            },
+        ),
+    ] {
+        let out = SelectionOp::Compose {
+            drag: vec![0],
+            drop: vec![1],
+            group,
+        }
+        .apply(&rows);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].selection.selector, expected);
+    }
+    let inverted = serde_json::from_value::<SelectionOp>(serde_json::json!({
+        "kind": "compose", "drag": [0], "drop": [1], "group": "Invert"
+    }));
+    assert!(inverted.is_err(), "an inverted compose is unwritable");
+}
+
+#[test]
+fn complement_replaces_the_rows_with_what_none_of_them_selects() {
+    let rows = listed([tagged(1), tagged(2)]);
+    let out = SelectionOp::Complement { keys: None }.apply(&rows);
+    assert_eq!(out.len(), 1);
+    assert_eq!(
+        out[0].selection.selector,
+        Selector::Invert {
+            selections: vec![Selection::of(Selector::Union {
+                selections: vec![Selection::of(tagged(1)), Selection::of(tagged(2))],
+            })],
+        }
+    );
+    let back = SelectionOp::Complement { keys: None }.apply(&out);
+    assert_eq!(
+        back[0].selection.selector,
+        Selector::Union {
+            selections: vec![Selection::of(tagged(1)), Selection::of(tagged(2))],
+        }
+    );
+}
+
+#[test]
+fn move_places_the_row_before_or_after_its_target() {
+    let rows = listed([tagged(1), tagged(2), tagged(3)]);
+    let keys = |out: Vec<ListedSelection>| -> Vec<String> {
+        out.into_iter().map(|r| r.selection.key).collect()
+    };
+    let key_of = |id| Selection::of(tagged(id)).key;
+    let before = SelectionOp::Move {
+        from: vec![2],
+        to: vec![0],
+        place: Place::Before,
+    }
+    .apply(&rows);
+    assert_eq!(keys(before), [key_of(3), key_of(1), key_of(2)]);
+    let after = SelectionOp::Move {
+        from: vec![0],
+        to: vec![1],
+        place: Place::After,
+    }
+    .apply(&rows);
+    assert_eq!(keys(after), [key_of(2), key_of(1), key_of(3)]);
+}
+
+#[test]
+fn a_stored_review_mode_string_reads_as_its_mode_and_keeps_its_key() {
+    for (stored, mode) in [
+        ("reviewed", ReviewMode::Reviewed),
+        ("unreviewed", ReviewMode::Unreviewed),
+    ] {
+        let selector: Selector = serde_json::from_value(crate::selections::saved::modernize(
+            serde_json::json!({"type": "Reviewed", "locations": [1], "sessionId": "s", "mode": stored}),
+        ))
+        .unwrap();
+        assert!(matches!(selector, Selector::Reviewed { mode: m, .. } if m == mode));
+        assert_eq!(key(&selector), format!("review:s:{stored}"));
+    }
+}

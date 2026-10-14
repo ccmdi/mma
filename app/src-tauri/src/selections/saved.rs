@@ -135,8 +135,8 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
                 .map(|id| Selector::tag(id as u32)),
             "Untagged" => Some(Selector::untagged()),
             "Unpanned" => Some(Selector::unpanned()),
-            "PanoIds" => Some(Selector::pano_ids(true)),
-            "NotPanoIds" => Some(Selector::pano_ids(false)),
+            "PanoIds" => Some(Selector::pinned()),
+            "NotPanoIds" => Some(Selector::pinned().not()),
             _ => None,
         };
         if let Some(f) = folded {

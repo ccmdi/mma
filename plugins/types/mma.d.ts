@@ -70,6 +70,14 @@ declare const FieldType: {
     readonly Array: "array";
 };
 type FieldType = (typeof FieldType)[keyof typeof FieldType];
+/** How a group of selections joins its members. */
+declare const Group: {
+    /** The locations any member selects. */
+    readonly Union: "Union";
+    /** The locations every member selects. */
+    readonly Intersection: "Intersection";
+};
+type Group = (typeof Group)[keyof typeof Group];
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
@@ -112,6 +120,14 @@ declare const MergeWinner: {
     readonly To: "to";
 };
 type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
+/** Where a moved selection lands beside its target. */
+declare const Place: {
+    /** In front of the target. */
+    readonly Before: "before";
+    /** Behind the target. */
+    readonly After: "after";
+};
+type Place = (typeof Place)[keyof typeof Place];
 /**
  * What one attempt charges the bucket: the call itself, or one per row in its batch
  * (for APIs that bill multi-row requests per row).
@@ -123,6 +139,14 @@ declare const RateCost: {
     readonly Row: "row";
 };
 type RateCost = (typeof RateCost)[keyof typeof RateCost];
+/** Which locations of a review session a selection holds. */
+declare const ReviewMode: {
+    /** The locations already reviewed. */
+    readonly Reviewed: "reviewed";
+    /** The locations still to review. */
+    readonly Unreviewed: "unreviewed";
+};
+type ReviewMode = (typeof ReviewMode)[keyof typeof ReviewMode];
 /** Which side won a resolved conflict. @unstable */
 declare const ResolutionSide: {
     /** This map's version won the conflict. @unstable */
@@ -529,6 +553,9 @@ export type consts_FirstSyncMode = FirstSyncMode;
 declare const consts_FrameKind: typeof FrameKind;
 /** @unstable */
 export type consts_FrameKind = FrameKind;
+declare const consts_Group: typeof Group;
+/** @unstable */
+export type consts_Group = Group;
 /** @unstable */
 declare const consts_IssueState: typeof IssueState;
 /** @unstable */
@@ -550,6 +577,9 @@ declare const consts_PROJECTIONS: typeof PROJECTIONS;
 declare const consts_PanoType: typeof PanoType;
 /** @unstable */
 export type consts_PanoType = PanoType;
+declare const consts_Place: typeof Place;
+/** @unstable */
+export type consts_Place = Place;
 declare const consts_RankingStrategy: typeof RankingStrategy;
 /** @unstable */
 export type consts_RankingStrategy = RankingStrategy;
@@ -560,6 +590,9 @@ export type consts_RateCost = RateCost;
 declare const consts_ResolutionSide: typeof ResolutionSide;
 /** @unstable */
 export type consts_ResolutionSide = ResolutionSide;
+declare const consts_ReviewMode: typeof ReviewMode;
+/** @unstable */
+export type consts_ReviewMode = ReviewMode;
 declare const consts_SCRATCH_MAP_ID: typeof SCRATCH_MAP_ID;
 /** @unstable */
 declare const consts_SYNC_PROVIDERS: typeof SYNC_PROVIDERS;
@@ -585,7 +618,7 @@ declare const consts_ValidationFlag: typeof ValidationFlag;
 export type consts_ValidationFlag = ValidationFlag;
 declare namespace consts {
   export { consts_BUILTIN_FIELDS as BUILTIN_FIELDS, consts_DEFAULT_DUPLICATE_SCORE as DEFAULT_DUPLICATE_SCORE, consts_EFFECT_CALLS as EFFECT_CALLS, consts_ERROR_CODES as ERROR_CODES, consts_KNOWN_FIELDS as KNOWN_FIELDS, consts_NO_SEL as NO_SEL, consts_OFFICIAL_ID_PATTERN as OFFICIAL_ID_PATTERN, consts_PLAIN_CALLS as PLAIN_CALLS, consts_PROJECTIONS as PROJECTIONS, consts_SCRATCH_MAP_ID as SCRATCH_MAP_ID, consts_SYNC_PROVIDERS as SYNC_PROVIDERS };
-  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_Timeline as Timeline, consts_ValidationFlag as ValidationFlag };
+  export { consts_CameraType as CameraType, consts_CapturePick as CapturePick, consts_DatePart as DatePart, consts_FieldType as FieldType, consts_FirstSyncMode as FirstSyncMode, consts_FrameKind as FrameKind, consts_Group as Group, consts_IssueState as IssueState, consts_LocationFlag as LocationFlag, consts_MapShape as MapShape, consts_MergeWinner as MergeWinner, consts_PanoType as PanoType, consts_Place as Place, consts_RankingStrategy as RankingStrategy, consts_RateCost as RateCost, consts_ResolutionSide as ResolutionSide, consts_ReviewMode as ReviewMode, consts_Sink as Sink, consts_Stack as Stack, consts_SyncDirection as SyncDirection, consts_SyncTrigger as SyncTrigger, consts_Timeline as Timeline, consts_ValidationFlag as ValidationFlag };
 }
 
 /** Commands @unstable */
@@ -1381,8 +1414,6 @@ type ComparisonType = {
 } | {
     type: "categorical";
 };
-/** @unstable */
-type Composition = "intersection" | "union" | "invert";
 /** @unstable */
 type Conflict = {
     key: string;
@@ -2650,10 +2681,21 @@ type SelectionOp = {
     /** @unstable */
     kind: "active";
     op: SelectionOp;
-} | {
+} | 
+/**  Join the listed selections named by `keys`, or every one when null, into one group. */
+{
     /** @unstable */
     kind: "combine";
-    mode: Composition;
+    group: Group;
+    keys: string[] | null;
+} | 
+/**
+ *  Replace the listed selections named by `keys`, or every one when null, with the
+ *  locations none of them selects.
+ */
+{
+    /** @unstable */
+    kind: "complement";
     keys: string[] | null;
 } | {
     /** @unstable */
@@ -2675,13 +2717,13 @@ type SelectionOp = {
     kind: "compose";
     drag: number[];
     drop: number[];
-    mode: Composition;
+    group: Group;
 } | {
     /** @unstable */
     kind: "move";
     from: number[];
     to: number[];
-    after: boolean;
+    place: Place;
 } | {
     /** @unstable */
     kind: "removeAt";
@@ -2732,7 +2774,7 @@ type Selector$1<S = Selection> = {
     type: "Reviewed";
     locations: number[];
     sessionId: string;
-    mode: string;
+    mode: ReviewMode;
 } | {
     type: "Intersection";
     selections: S[];
@@ -5379,8 +5421,6 @@ export interface PruneResult {
     cursorMoved: boolean;
 }
 /** @unstable */
-export type ReviewMode = "reviewed" | "unreviewed";
-/** @unstable */
 declare const Review: {
     /** Position of `id` in the session's worklist, or -1. O(1) per step. @unstable */
     positionOf: (s: ReviewSession, id: number) => number;
@@ -5727,11 +5767,9 @@ declare const toggleManualSelection: (id: number) => SelectionOp;
 /** @unstable */
 declare const onActive: (op: SelectionOp) => SelectionOp;
 /** @unstable */
-declare const intersectSelections: (keys?: string[] | null) => SelectionOp;
+declare const combineSelections: (group: Group, keys?: string[] | null) => SelectionOp;
 /** @unstable */
-declare const unionSelections: (keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const invertSelections: (keys?: string[] | null) => SelectionOp;
+declare const complementSelections: (keys?: string[] | null) => SelectionOp;
 /** @unstable */
 declare const toggleGhost: (index: number) => SelectionOp;
 /** @unstable */
@@ -5741,9 +5779,9 @@ declare const toggleGhostAll: SelectionOp;
 /** @unstable */
 declare const toggleInvert: (path: SelectionPath) => SelectionOp;
 /** @unstable */
-declare const composeSelections: (drag: SelectionPath, drop: SelectionPath, mode: GroupType) => SelectionOp;
+declare const composeSelections: (drag: SelectionPath, drop: SelectionPath, group: Group) => SelectionOp;
 /** @unstable */
-declare const moveSelection: (from: SelectionPath, to: SelectionPath, position: "before" | "after") => SelectionOp;
+declare const moveSelection: (from: SelectionPath, to: SelectionPath, place: Place) => SelectionOp;
 /** @unstable */
 declare const removeSelectionAt: (path: SelectionPath) => SelectionOp;
 /** @unstable */
@@ -5783,15 +5821,15 @@ declare const selectionOps_buildSelection: typeof buildSelection;
 /** @unstable */
 declare const selectionOps_childSelections: typeof childSelections;
 /** @unstable */
+declare const selectionOps_combineSelections: typeof combineSelections;
+/** @unstable */
+declare const selectionOps_complementSelections: typeof complementSelections;
+/** @unstable */
 declare const selectionOps_composeSelections: typeof composeSelections;
 /** @unstable */
 declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
 /** @unstable */
 declare const selectionOps_has: typeof has;
-/** @unstable */
-declare const selectionOps_intersectSelections: typeof intersectSelections;
-/** @unstable */
-declare const selectionOps_invertSelections: typeof invertSelections;
 /** @unstable */
 declare const selectionOps_isolateGhost: typeof isolateGhost;
 /** @unstable */
@@ -5837,15 +5875,13 @@ declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 /** @unstable */
 declare const selectionOps_toggleSelection: typeof toggleSelection;
 /** @unstable */
-declare const selectionOps_unionSelections: typeof unionSelections;
-/** @unstable */
 declare const selectionOps_unpannedSelector: typeof unpannedSelector;
 /** @unstable */
 declare const selectionOps_untaggedSelector: typeof untaggedSelector;
 /** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_intersectSelections as intersectSelections, selectionOps_invertSelections as invertSelections, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unionSelections as unionSelections, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_combineSelections as combineSelections, selectionOps_complementSelections as complementSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
 }
 
@@ -7975,5 +8011,5 @@ declare global {
     const MMA: MMA;
 }
 
-export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, RankingStrategy, RateCost, ResolutionSide, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Composition, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
+export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldCount, FieldDef, FieldValue, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapMeta_Deserialize, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, Summary, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

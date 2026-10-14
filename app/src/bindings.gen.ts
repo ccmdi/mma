@@ -2,7 +2,7 @@
 
 import { invoke as __TAURI_INVOKE, Channel } from "@tauri-apps/api/core";
 import * as __TAURI_EVENT from "@tauri-apps/api/event";
-import type { CameraType, CapturePick, DatePart, FieldType, FirstSyncMode, IssueState, MapShape, MergeWinner, RateCost, ResolutionSide, Sink, Stack, Timeline, SyncTrigger } from "./bindings.consts";
+import type { CameraType, CapturePick, DatePart, FieldType, Group, FirstSyncMode, IssueState, MapShape, MergeWinner, Place, RateCost, ReviewMode, ResolutionSide, Sink, Stack, Timeline, SyncTrigger } from "./bindings.consts";
 
 /** Commands */
 export const commands = {
@@ -587,8 +587,6 @@ export type CommitResult = {
  */
 export type ComparisonType = { type: "linear" } | { type: "circular"; period: number } | { type: "categorical" };
 
-export type Composition = "intersection" | "union" | "invert";
-
 export type Conflict = {
 	key: string,
 	kind: ConflictKind,
@@ -824,6 +822,7 @@ export type GhUser = {
 	login: string,
 	avatarUrl: string | null,
 };
+
 
 /**  One value of a field as the map holds it. */
 export type HeldValue = {
@@ -1270,6 +1269,7 @@ export type PartitionBucket = {
 };
 
 
+
 /**  A published build of a plugin. */
 export type PluginBuild_Deserialize = {
 	version: string,
@@ -1575,6 +1575,7 @@ export type ReviewCreate = {
 	order: number[],
 };
 
+
 /**  A review session: a frozen worklist of locations with progress tracking. */
 export type ReviewSession = {
 	id: string,
@@ -1709,12 +1710,19 @@ export type SelectionInput = {
 	color?: RGB | null,
 };
 
-export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | { kind: "combine"; mode: Composition; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; mode: Composition } | { kind: "move"; from: number[]; to: number[]; after: boolean } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: RGB } | { kind: "polygonName"; path: number[]; name: string };
+export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | 
+/**  Join the listed selections named by `keys`, or every one when null, into one group. */
+{ kind: "combine"; group: Group; keys: string[] | null } | 
+/**
+ *  Replace the listed selections named by `keys`, or every one when null, with the
+ *  locations none of them selects.
+ */
+{ kind: "complement"; keys: string[] | null } | { kind: "ghost"; index: number } | { kind: "isolate"; index: number } | { kind: "ghostAll" } | { kind: "invert"; path: number[] } | { kind: "compose"; drag: number[]; drop: number[]; group: Group } | { kind: "move"; from: number[]; to: number[]; place: Place } | { kind: "removeAt"; path: number[] } | { kind: "replace"; path: number[]; selection: SelectionInput } | { kind: "color"; path: number[]; color: RGB } | { kind: "polygonName"; path: number[]; name: string };
 
 /**  Selection predicates and composites, serialized with a `type` discriminator. */
 export type Selector<S = Selection> = { type: "Locations"; locations: number[]; name: string | null } | { type: "Everything" } | 
 /**  The locations currently selected in the editor. */
-{ type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: string } | { type: "Intersection"; selections: S[] } | { type: "Union"; selections: S[] } | { type: "Invert"; selections: S[] } | { type: "Filter"; field: string; test: FilterOp } | 
+{ type: "Selected" } | { type: "Polygon"; polygon: PolygonGeometry } | { type: "Uncommitted" } | { type: "Manual"; locations: number[] } | { type: "Duplicates"; distance: number } | { type: "Validation"; locations: number[]; category: string } | { type: "Reviewed"; locations: number[]; sessionId: string; mode: ReviewMode } | { type: "Intersection"; selections: S[] } | { type: "Union"; selections: S[] } | { type: "Invert"; selections: S[] } | { type: "Filter"; field: string; test: FilterOp } | 
 /**
  *  Rank by a field expression, optionally keeping only the first `k`.
  *  Unscorable locations rank last; without `k`, all child locations are kept.

@@ -600,10 +600,10 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				withApi(async (api, op) => {
 					const start = performance.now();
 					if (op === "intersection")
-						await api.SelectionList.update(api.onActive(api.intersectSelections()));
+						await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
 					else if (op === "union")
-						await api.SelectionList.update(api.onActive(api.unionSelections()));
-					else await api.SelectionList.update(api.onActive(api.invertSelections()));
+						await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
+					else await api.SelectionList.update(api.onActive(api.complementSelections()));
 					const operationMs = performance.now() - start;
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),

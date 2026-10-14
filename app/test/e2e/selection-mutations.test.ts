@@ -520,7 +520,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number, loc) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagAId)));
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagBId)));
-				await api.SelectionList.update(api.onActive(api.intersectSelections()));
+				await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
 				const before = api.Scene.selected().size;
 
 				await api.Location.update([{ id: loc.id, tags: [tagAId, tagBId] }]);
@@ -543,7 +543,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number, loc) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagAId)));
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagBId)));
-				await api.SelectionList.update(api.onActive(api.intersectSelections()));
+				await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
 				const before = api.Scene.selected().size;
 
 				await api.Location.update([{ id: loc.id, tags: [tagAId] }]);
@@ -563,7 +563,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagAId)));
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagBId)));
-				await api.SelectionList.update(api.onActive(api.unionSelections()));
+				await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
 				const before = api.Scene.selected().size;
 
 				await api.Location.add([api.createLocation({ lat: 99, lng: 99, tags: [tagAId] })]);
@@ -581,7 +581,7 @@ describe("Composite selection correctness after mutations", () => {
 			async (api, tagAId: number, tagBId: number) => {
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagAId)));
 				await api.SelectionList.update(api.addSelection(api.tagSelector(tagBId)));
-				await api.SelectionList.update(api.onActive(api.unionSelections()));
+				await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
 				const before = api.Scene.selected().size;
 
 				await api.Location.add([api.createLocation({ lat: 98, lng: 98 })]);

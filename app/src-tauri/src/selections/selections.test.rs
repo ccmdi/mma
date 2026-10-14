@@ -1020,7 +1020,7 @@ fn resolve_reviewed_is_an_id_set_leaf_over_batch() {
         &Selector::Reviewed {
             locations: loc_ids([2, 4]),
             session_id: "abc".into(),
-            mode: "reviewed".into(),
+            mode: ReviewMode::Reviewed,
         },
     );
     assert_eq!(ids, vec![2, 4]);
@@ -1036,7 +1036,7 @@ fn resolve_reviewed_on_adds() {
         &Selector::Reviewed {
             locations: loc_ids([1, 3]),
             session_id: "s".into(),
-            mode: "unreviewed".into(),
+            mode: ReviewMode::Unreviewed,
         },
     );
     assert_eq!(ids, vec![1, 3]);
@@ -1259,8 +1259,8 @@ fn resolve_panoids() {
         Fx::base(&[pinned, flag_only, id_only, bare]),
     ] {
         let view = fx.view();
-        assert_eq!(ids_of(&view, &Selector::pano_ids(true)), vec![1]);
-        assert_eq!(ids_of(&view, &Selector::pano_ids(false)), vec![2, 3, 4]);
+        assert_eq!(ids_of(&view, &Selector::pinned()), vec![1]);
+        assert_eq!(ids_of(&view, &Selector::pinned().not()), vec![2, 3, 4]);
     }
 }
 
@@ -1331,7 +1331,7 @@ fn resolve_intersection() {
             Selection {
                 key: "b".into(),
                 color: Rgb([0, 0, 0]),
-                selector: Selector::pano_ids(true),
+                selector: Selector::pinned(),
             },
         ],
     };
@@ -1360,7 +1360,7 @@ fn resolve_union() {
             Selection {
                 key: "b".into(),
                 color: Rgb([0, 0, 0]),
-                selector: Selector::pano_ids(true),
+                selector: Selector::pinned(),
             },
         ],
     };
@@ -1384,7 +1384,7 @@ fn resolve_invert() {
         selections: vec![Selection {
             key: "a".into(),
             color: Rgb([0, 0, 0]),
-            selector: Selector::pano_ids(true),
+            selector: Selector::pinned(),
         }],
     };
     let ids = ids_of(&view, &selector);
@@ -2871,8 +2871,8 @@ fn within_selector(t: &WithinTree) -> Selector {
         WithinTree::Manual(locations) => Selector::Manual {
             locations: loc_ids(locations.clone()),
         },
-        WithinTree::PanoIds => Selector::pano_ids(true),
-        WithinTree::NotPanoIds => Selector::pano_ids(false),
+        WithinTree::PanoIds => Selector::pinned(),
+        WithinTree::NotPanoIds => Selector::pinned().not(),
         WithinTree::Untagged => Selector::untagged(),
         WithinTree::Unpanned => Selector::unpanned(),
         WithinTree::CellBox(a, b) => {
@@ -3460,7 +3460,7 @@ fn pano_id_filter_intersected_with_pano_ids_is_the_pinned_count() {
     let fx = pano_fx();
     let view = fx.view();
     let _none = IdSet::<Location>::new();
-    let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::pano_ids(true)]);
+    let pinned = intersect(vec![pano_filter(FilterOp::Has), Selector::pinned()]);
 
     // 1 and 5 carry a pano ID and the flag; 3 has the flag but no pano ID.
     assert_eq!(count_selector(&view, pinned.clone()), 2);
@@ -3488,7 +3488,7 @@ fn pinned_requires_the_flag_and_a_non_empty_pano_id() {
     let pinned_ids = |fx: &Fx| -> Vec<u32> {
         fx.view()
             .all()
-            .resolve(&Selector::pano_ids(true))
+            .resolve(&Selector::pinned())
             .iter()
             .map(Id::get)
             .collect()
@@ -3675,7 +3675,7 @@ fn pinned_needs_the_pano_id_as_well_as_the_flag() {
         pinned(4, Some("d"), false),
     ]);
     let view = fx.view();
-    let pinned_sel = intersect(vec![pano_filter(FilterOp::Has), Selector::pano_ids(true)]);
+    let pinned_sel = intersect(vec![pano_filter(FilterOp::Has), Selector::pinned()]);
 
     assert_eq!(ids_of(&view, &pinned_sel), vec![1]);
 

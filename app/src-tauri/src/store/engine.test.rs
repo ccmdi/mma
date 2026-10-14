@@ -8336,7 +8336,7 @@ fn reselect_drops_deleted_tag_leaves_and_preserves_other_selections() {
         ],
     });
     store.edit_selections(&SelectionOp::Combine {
-        mode: crate::selections::tree::Composition::Union,
+        group: crate::selections::tree::Group::Union,
         keys: None,
     });
     store.edit_selections(&SelectionOp::Set { selections: vec![] });

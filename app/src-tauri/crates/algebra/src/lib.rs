@@ -1393,45 +1393,6 @@ impl<K: Clone + Eq + Hash> Dependents<K> {
     }
 }
 
-/// The first `take` of `rows` best first by `score` under `compare`, with unscored rows last
-/// and ties in input order.
-pub fn rank_by<T, S>(
-    rows: impl IntoIterator<Item = T>,
-    take: Option<usize>,
-    score: impl Fn(&T) -> Option<S>,
-    compare: impl Fn(&S, &S) -> std::cmp::Ordering,
-) -> Vec<T> {
-    let mut scored: Vec<_> = rows
-        .into_iter()
-        .enumerate()
-        .map(|(order, row)| {
-            let value = score(&row);
-            (row, value, order)
-        })
-        .collect();
-    let better = |a: &(T, Option<S>, usize), b: &(T, Option<S>, usize)| {
-        use std::cmp::Ordering;
-        let order = match (&a.1, &b.1) {
-            (Some(a), Some(b)) => compare(a, b),
-            (Some(_), None) => Ordering::Less,
-            (None, Some(_)) => Ordering::Greater,
-            (None, None) => Ordering::Equal,
-        };
-        order.then_with(|| a.2.cmp(&b.2))
-    };
-    if let Some(take) = take {
-        if take == 0 {
-            return Vec::new();
-        }
-        if take < scored.len() {
-            scored.select_nth_unstable_by(take - 1, &better);
-            scored.truncate(take);
-        }
-    }
-    scored.sort_by(better);
-    scored.into_iter().map(|(row, _, _)| row).collect()
-}
-
 #[cfg(test)]
 #[path = "lib.test.rs"]
 mod tests;

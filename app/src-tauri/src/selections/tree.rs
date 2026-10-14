@@ -1,6 +1,6 @@
-use super::{FilterOp, Selection, Selector, Thinning};
+use super::{FilterOp, ReviewMode, Selection, Selector, Thinning};
 use crate::store::engine::ListedSelection;
-use crate::types::Location;
+use crate::types::{wire_str_enum, Location};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use serde::{Deserialize, Serialize};
@@ -19,9 +19,14 @@ impl SelectionInput {
         let selector = self.selector.map_children(Self::compile);
         let mut selection = Selection::of(selector);
         selection.color = self.color.unwrap_or_else(|| match &selection.selector {
-            Selector::Reviewed { mode, .. } => {
-                Rgb::hsl(if mode == "unreviewed" { 280.0 } else { 145.0 }, 0.6, 0.5)
-            }
+            Selector::Reviewed { mode, .. } => Rgb::hsl(
+                match mode {
+                    ReviewMode::Reviewed => 145.0,
+                    ReviewMode::Unreviewed => 280.0,
+                },
+                0.6,
+                0.5,
+            ),
             _ => selection.color,
         });
         selection
@@ -199,12 +204,45 @@ pub fn color(key: &str) -> Rgb {
     Rgb::hsl((i64::from(hash).abs() % 360) as f64, 0.5, 0.5)
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum Composition {
-    Intersection,
-    Union,
-    Invert,
+wire_str_enum! {
+    /// How a group of selections joins its members.
+    derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
+    pub enum Group {
+        /// The locations any member selects.
+        Union = "Union",
+        /// The locations every member selects.
+        Intersection = "Intersection",
+    }
+}
+
+impl Group {
+    /// The group selector over `selections`.
+    pub fn of(self, selections: Vec<Selection>) -> Selector {
+        match self {
+            Group::Union => Selector::Union { selections },
+            Group::Intersection => Selector::Intersection { selections },
+        }
+    }
+
+    /// The members of `selector` when it is this kind of group.
+    pub fn members(self, selector: &Selector) -> Option<&Vec<Selection>> {
+        match (self, selector) {
+            (Group::Union, Selector::Union { selections })
+            | (Group::Intersection, Selector::Intersection { selections }) => Some(selections),
+            _ => None,
+        }
+    }
+}
+
+wire_str_enum! {
+    /// Where a moved selection lands beside its target.
+    derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, specta::Type)
+    pub enum Place {
+        /// In front of the target.
+        Before = "before",
+        /// Behind the target.
+        After = "after",
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, specta::Type)]
@@ -232,8 +270,14 @@ pub enum SelectionOp {
     Active {
         op: Box<SelectionOp>,
     },
+    /// Join the listed selections named by `keys`, or every one when null, into one group.
     Combine {
-        mode: Composition,
+        group: Group,
+        keys: Option<Vec<String>>,
+    },
+    /// Replace the listed selections named by `keys`, or every one when null, with the
+    /// locations none of them selects.
+    Complement {
         keys: Option<Vec<String>>,
     },
     Ghost {
@@ -249,12 +293,12 @@ pub enum SelectionOp {
     Compose {
         drag: Vec<usize>,
         drop: Vec<usize>,
-        mode: Composition,
+        group: Group,
     },
     Move {
         from: Vec<usize>,
         to: Vec<usize>,
-        after: bool,
+        place: Place,
     },
     RemoveAt {
         path: Vec<usize>,
@@ -293,32 +337,59 @@ fn invert(selection: Selection) -> Selection {
     }
 }
 
-fn combine(mode: Composition, rows: Vec<Selection>) -> Selection {
-    if mode == Composition::Invert {
-        return invert(combine(Composition::Union, rows));
-    }
+fn combine(group: Group, rows: Vec<Selection>) -> Selection {
     let rows = dedupe(
         rows.into_iter()
-            .flat_map(|s| match (mode, &s.selector) {
-                (Composition::Union, Selector::Union { selections })
-                | (Composition::Intersection, Selector::Intersection { selections }) => {
-                    selections.clone()
+            .flat_map(|s| {
+                if let Some(members) = group.members(&s.selector) {
+                    return members.clone();
                 }
-                (Composition::Intersection, Selector::Everything) => vec![],
-                _ => vec![s],
+                match (group, &s.selector) {
+                    (Group::Intersection, Selector::Everything) => vec![],
+                    _ => vec![s],
+                }
             })
             .collect(),
     );
     if rows.len() == 1 {
         return rows.into_iter().next().unwrap();
     }
-    if rows.is_empty() && mode == Composition::Intersection {
+    if rows.is_empty() && group == Group::Intersection {
         return Selection::of(Selector::Everything);
     }
-    Selection::of(match mode {
-        Composition::Union => Selector::Union { selections: rows },
-        _ => Selector::Intersection { selections: rows },
-    })
+    Selection::of(group.of(rows))
+}
+
+/// `rows` with the listed selections named by `keys` (every one when null) replaced, at the
+/// first one's place, by `join` of them.
+fn joined(
+    rows: &[ListedSelection],
+    keys: Option<&Vec<String>>,
+    join: impl FnOnce(Vec<Selection>) -> Selection,
+) -> Vec<ListedSelection> {
+    let targets: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| keys.is_none_or(|keys| keys.contains(&r.selection.key)))
+        .collect();
+    let Some(&(first, _)) = targets.first() else {
+        return rows.to_vec();
+    };
+    let selection = join(targets.iter().map(|(_, r)| r.selection.clone()).collect());
+    let mut out: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| !targets.iter().any(|(j, _)| i == j))
+        .map(|(_, r)| r.clone())
+        .collect();
+    out.insert(
+        first,
+        ListedSelection {
+            selection,
+            ghosted: rows[first].ghosted,
+        },
+    );
+    out
 }
 
 pub fn at<'a>(rows: &'a [ListedSelection], path: &[usize]) -> Option<&'a Selection> {
@@ -329,7 +400,9 @@ pub fn at<'a>(rows: &'a [ListedSelection], path: &[usize]) -> Option<&'a Selecti
     Some(node)
 }
 
-pub(super) fn rebuilt(node: &Selection, children: Vec<Selection>) -> Vec<Selection> {
+/// `node` over `children`, or the children themselves when a group of fewer than two or an
+/// invert of none is left.
+pub(super) fn regrouped(node: &Selection, children: Vec<Selection>) -> Vec<Selection> {
     if matches!(
         node.selector,
         Selector::Intersection { .. } | Selector::Union { .. }
@@ -380,7 +453,7 @@ fn splice<T: Clone>(
             if next == children {
                 vec![node.clone()]
             } else {
-                rebuilt(node, next)
+                regrouped(node, next)
             }
         };
         let kept: HashSet<String> = out
@@ -529,38 +602,12 @@ impl SelectionOp {
                 out.extend(fresh);
                 out
             }
-            Self::Combine { mode, keys } => {
-                let targets: Vec<_> = rows
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, r)| {
-                        keys.as_ref()
-                            .is_none_or(|keys| keys.contains(&r.selection.key))
-                    })
-                    .collect();
-                if targets.is_empty() {
-                    return rows.to_vec();
-                }
-                let selection = combine(
-                    *mode,
-                    targets.iter().map(|(_, r)| r.selection.clone()).collect(),
-                );
-                let first = targets[0].0;
-                let mut out: Vec<_> = rows
-                    .iter()
-                    .enumerate()
-                    .filter(|(i, _)| !targets.iter().any(|(j, _)| i == j))
-                    .map(|(_, r)| r.clone())
-                    .collect();
-                out.insert(
-                    first,
-                    ListedSelection {
-                        selection,
-                        ghosted: rows[first].ghosted,
-                    },
-                );
-                out
+            Self::Combine { group, keys } => {
+                joined(rows, keys.as_ref(), |targets| combine(*group, targets))
             }
+            Self::Complement { keys } => joined(rows, keys.as_ref(), |targets| {
+                invert(combine(Group::Union, targets))
+            }),
             Self::Ghost { index } => rows
                 .iter()
                 .enumerate()
@@ -617,29 +664,19 @@ impl SelectionOp {
                     splice_rows(rows, &[(path.clone(), vec![s])])
                 },
             ),
-            Self::Compose { drag, drop, mode } => {
+            Self::Compose { drag, drop, group } => {
                 if drag.starts_with(drop) || drop.starts_with(drag) {
                     return rows.to_vec();
                 }
                 let (Some(source), Some(target)) = (at(rows, drag), at(rows, drop)) else {
                     return rows.to_vec();
                 };
-                let mut children = match (&target.selector, mode) {
-                    (Selector::Union { selections }, Composition::Union)
-                    | (Selector::Intersection { selections }, Composition::Intersection) => {
-                        selections.clone()
-                    }
-                    _ => vec![target.clone()],
-                };
+                let mut children = group
+                    .members(&target.selector)
+                    .cloned()
+                    .unwrap_or_else(|| vec![target.clone()]);
                 children.push(source.clone());
-                let selector = match mode {
-                    Composition::Union => Selector::Union {
-                        selections: dedupe(children),
-                    },
-                    _ => Selector::Intersection {
-                        selections: dedupe(children),
-                    },
-                };
+                let selector = group.of(dedupe(children));
                 splice_rows(
                     rows,
                     &[
@@ -648,7 +685,7 @@ impl SelectionOp {
                     ],
                 )
             }
-            Self::Move { from, to, after } => {
+            Self::Move { from, to, place } => {
                 if to.starts_with(from) {
                     return rows.to_vec();
                 }
@@ -671,7 +708,11 @@ impl SelectionOp {
                 } else {
                     vec![target.clone()]
                 };
-                rest.insert(if *after { rest.len() } else { 0 }, source.clone());
+                let at = match place {
+                    Place::Before => 0,
+                    Place::After => rest.len(),
+                };
+                rest.insert(at, source.clone());
                 let edits = if from.starts_with(to) {
                     vec![(to.clone(), rest)]
                 } else {

@@ -329,6 +329,11 @@ macro_rules! wire_str_enum {
         $vis enum $name {
             $(#[doc = $vdoc] $(#[$vattr])* #[serde(rename = $value)] $variant),*
         }
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                f.write_str(match self { $(Self::$variant => $value),* })
+            }
+        }
         impl $name {
             pub fn ts_const() -> $crate::types::TsConst {
                 $crate::types::TsConst::strings([$((stringify!($variant), $value, $vdoc)),*]).with_doc(&[$($doc),*])

@@ -331,6 +331,19 @@ FrameKind: { readonly Replace: 0; readonly Patch: 1 }
 
 What a render frame does to the scene.
 
+### Group
+
+`stable` · unreleased
+
+```ts
+Group: {
+  readonly Union: "Union";
+  readonly Intersection: "Intersection";
+}
+```
+
+How a group of selections joins its members.
+
 ### IssueState
 
 `unstable` · since v0.11.0
@@ -526,6 +539,16 @@ PanoType: {
 
 Which imagery collection a pano id belongs to.
 
+### Place
+
+`stable` · unreleased
+
+```ts
+Place: { readonly Before: "before"; readonly After: "after" }
+```
+
+Where a moved selection lands beside its target.
+
 ### PLAIN_CALLS
 
 `unstable` · since v0.10.7
@@ -614,6 +637,19 @@ ResolutionSide: { readonly Local: "local"; readonly Remote: "remote" }
 ```
 
 Which side won a resolved conflict.
+
+### ReviewMode
+
+`stable` · unreleased
+
+```ts
+ReviewMode: {
+  readonly Reviewed: "reviewed";
+  readonly Unreviewed: "unreviewed";
+}
+```
+
+Which locations of a review session a selection holds.
 
 ### SCRATCH_MAP_ID
 
@@ -4537,6 +4573,22 @@ childSelections<S>(selector: Selector$1<S>): S[]
 
 Every child selection a selector wraps, whatever shape it wraps them in.
 
+### combineSelections
+
+`unstable` · unreleased
+
+```ts
+combineSelections(group: Group, keys?: string[] | null): SelectionOp
+```
+
+### complementSelections
+
+`unstable` · unreleased
+
+```ts
+complementSelections(keys?: string[] | null): SelectionOp
+```
+
 ### composeSelections
 
 `unstable` · since v0.4.0
@@ -4545,7 +4597,7 @@ Every child selection a selector wraps, whatever shape it wraps them in.
 composeSelections(
   drag: SelectionPath,
   drop: SelectionPath,
-  mode: GroupType,
+  group: Group,
 ): SelectionOp
 ```
 
@@ -4568,22 +4620,6 @@ has(field: string): Selector
 ```
 
 Locations holding a value for `field`.
-
-### intersectSelections
-
-`unstable` · since v0.10.3
-
-```ts
-intersectSelections(keys?: string[] | null): SelectionOp
-```
-
-### invertSelections
-
-`unstable` · since v0.10.3
-
-```ts
-invertSelections(keys?: string[] | null): SelectionOp
-```
 
 ### isolateGhost
 
@@ -4611,7 +4647,7 @@ Locations holding no value for `field`.
 moveSelection(
   from: SelectionPath,
   to: SelectionPath,
-  position: "before" | "after",
+  place: Place,
 ): SelectionOp
 ```
 
@@ -4851,14 +4887,6 @@ toggleSelection(...selectors: Selector[]): SelectionOp
 
 ```ts
 UNARY_TYPES: readonly ["Invert"]
-```
-
-### unionSelections
-
-`unstable` · since v0.10.3
-
-```ts
-unionSelections(keys?: string[] | null): SelectionOp
 ```
 
 ### unpannedSelector

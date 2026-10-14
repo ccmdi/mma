@@ -90,7 +90,11 @@ impl DistanceTo {
             let candidates = self.within(scope, radius);
             if let Some(id) = scope
                 .within(&candidates)
-                .rank_by(|row| Some(self.score(row)), Some(1), true)
+                .rank_by(
+                    |row| Some(self.score(row)),
+                    Some(1),
+                    super::Order::Ascending,
+                )
                 .first()
             {
                 return Some(*id);

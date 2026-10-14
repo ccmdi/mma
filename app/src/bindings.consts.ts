@@ -63,6 +63,15 @@ export const FieldType = {
 } as const;
 export type FieldType = (typeof FieldType)[keyof typeof FieldType];
 
+/** How a group of selections joins its members. */
+export const Group = {
+	/** The locations any member selects. */
+	Union: "Union",
+	/** The locations every member selects. */
+	Intersection: "Intersection",
+} as const;
+export type Group = (typeof Group)[keyof typeof Group];
+
 /**
  * First-sync seeding when both sides already have pins. Only meaningful on the first sync
  * (empty mapping); afterwards it's plain three-way. `Merge` never deletes.
@@ -107,6 +116,15 @@ export const MergeWinner = {
 } as const;
 export type MergeWinner = (typeof MergeWinner)[keyof typeof MergeWinner];
 
+/** Where a moved selection lands beside its target. */
+export const Place = {
+	/** In front of the target. */
+	Before: "before",
+	/** Behind the target. */
+	After: "after",
+} as const;
+export type Place = (typeof Place)[keyof typeof Place];
+
 /**
  * What one attempt charges the bucket: the call itself, or one per row in its batch
  * (for APIs that bill multi-row requests per row).
@@ -118,6 +136,15 @@ export const RateCost = {
 	Row: "row",
 } as const;
 export type RateCost = (typeof RateCost)[keyof typeof RateCost];
+
+/** Which locations of a review session a selection holds. */
+export const ReviewMode = {
+	/** The locations already reviewed. */
+	Reviewed: "reviewed",
+	/** The locations still to review. */
+	Unreviewed: "unreviewed",
+} as const;
+export type ReviewMode = (typeof ReviewMode)[keyof typeof ReviewMode];
 
 /** Which side won a resolved conflict. @unstable */
 export const ResolutionSide = {
