@@ -7,6 +7,7 @@ import { Location } from "@/store/location";
 import { Editor } from "@/store/editor";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
+import { debounce } from "@/lib/util/concurrent";
 import { emit, useEventValue, subscribe as onEvent } from "@/lib/events";
 import { addSelection, selection, removeSelection, selectionDisplayName } from "@/store/selections";
 import type { Selector } from "@/types";
@@ -33,8 +34,13 @@ function reviewSelector(sessionId: string, mode: ReviewMode, locations: number[]
 let session: ReviewSession | null = null;
 
 function setSession(next: ReviewSession | null): void {
+	if (session && session.id !== next?.id) saves.flush();
 	session = next;
 	emit("review:changed");
+	if (next) {
+		saves.schedule(next);
+		projections.schedule();
+	} else projections.cancel();
 }
 
 /** Deactivate the session, clear its overlay selections, and leave review. */
@@ -45,7 +51,11 @@ function closeSession(): void {
 	Editor.close();
 }
 
-let saveTimer: ReturnType<typeof setTimeout> | null = null;
+/** Forget a session's progress; a save still pending for it is dropped. */
+async function deleteSession(id: string): Promise<void> {
+	if (session?.id === id) saves.cancel();
+	await cmd.storeReviewDelete(id).catch((e) => log.error("[review] session delete failed:", e));
+}
 
 function persist(s: ReviewSession) {
 	cmd
@@ -59,23 +69,7 @@ function persist(s: ReviewSession) {
 		.catch((e) => log.error("[review] persist failed:", e));
 }
 
-function scheduleSave() {
-	if (!session) return;
-	const s = session;
-	if (saveTimer) clearTimeout(saveTimer);
-	saveTimer = setTimeout(() => {
-		saveTimer = null;
-		persist(s);
-	}, 400);
-}
-
-function flushSave() {
-	if (saveTimer) {
-		clearTimeout(saveTimer);
-		saveTimer = null;
-	}
-	if (session) persist(session);
-}
+const saves = debounce(persist, 400);
 
 /** Navigate to the cursor location. */
 async function gotoCursor(s: ReviewSession): Promise<void> {
@@ -105,31 +99,15 @@ const HISTORY_SESSION_ID = "history";
 // pair), so refreshing just updates the membership. Debounced so mashing next doesn't
 // re-resolve the whole selection list on every step.
 
-let projectTimer: ReturnType<typeof setTimeout> | null = null;
-
-function clearProjectTimer() {
-	if (projectTimer) {
-		clearTimeout(projectTimer);
-		projectTimer = null;
-	}
-}
-
 function refreshProjection(): void {
 	const s = session;
 	if (!s) return;
 	void SelectionList.update(addSelection(...REVIEW_MODES.map((mode) => Review.selector(s, mode))));
 }
 
-function scheduleProjection(): void {
-	clearProjectTimer();
-	projectTimer = setTimeout(() => {
-		projectTimer = null;
-		refreshProjection();
-	}, 40);
-}
+const projections = debounce(refreshProjection, 40);
 
 function clearProjection(id: string): void {
-	clearProjectTimer();
 	const keys = Store.get()
 		.selectionList.filter(
 			({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id,
@@ -150,12 +128,10 @@ async function adopt(s: ReviewSession): Promise<void> {
 		log.error("[review] validate failed:", e);
 	}
 	if (!v) {
-		await cmd.storeReviewDelete(s.id).catch(() => {});
+		await deleteSession(s.id);
 		return;
 	}
 	setSession(v);
-	if (v !== s) persist(v);
-	refreshProjection();
 	await gotoCursor(v);
 }
 
@@ -165,13 +141,11 @@ function reconcile(removed: number[]): void {
 	const { session: next, cursorMoved } = Review.prune(prev, new Set(removed));
 	if (next === prev) return; // nothing overlapped
 	if (!next) {
-		cmd.storeReviewDelete(prev.id).catch(() => {});
+		void deleteSession(prev.id);
 		closeSession();
 		return;
 	}
 	setSession(next);
-	scheduleSave();
-	scheduleProjection();
 	if (cursorMoved && Editor.get().open?.location?.id !== next.cursorId) {
 		void gotoCursor(next);
 	}
@@ -183,7 +157,6 @@ function onOpenChange(id: number | null): void {
 	if (!session || id == null || id === session.cursorId) return;
 	if (Review.positionOf(session, id) < 0) return; // off-queue peek: leave the cursor parked
 	setSession({ ...session, cursorId: id });
-	scheduleSave();
 }
 
 onEvent("open:change", (id) => onOpenChange(id));
@@ -191,12 +164,9 @@ onEvent("store:change", (e) => {
 	if (e.removed.length) reconcile(e.removed);
 });
 onEvent("map:close", () => {
-	clearProjectTimer();
-	flushSave();
 	setSession(null);
 });
 onEvent("map:open", () => {
-	clearProjectTimer();
 	setSession(null);
 });
 
@@ -305,7 +275,6 @@ export const Review = {
 		try {
 			const created = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
 			setSession(created);
-			refreshProjection();
 			await gotoCursor(created);
 		} catch (e) {
 			log.error("[review] create failed:", e);
@@ -328,12 +297,9 @@ export const Review = {
 		const { session: next, done } = Review.advance(session);
 		setSession(next);
 		if (done) {
-			flushSave();
 			closeSession();
 			return;
 		}
-		scheduleSave();
-		scheduleProjection();
 		await gotoCursor(next);
 	},
 	/** Step back to the previous location in the session. */
@@ -342,7 +308,6 @@ export const Review = {
 		const prev = Review.retreat(session);
 		if (!prev) return;
 		setSession(prev);
-		scheduleSave();
 		await gotoCursor(prev);
 	},
 	/** Delete the current location and advance to the next one. Exits the pass if it
@@ -355,11 +320,9 @@ export const Review = {
 		if (next && !Review.isAtEnd(s)) {
 			setSession(next);
 			await gotoCursor(next);
-			flushSave();
-			scheduleProjection();
 		} else {
-			if (next) persist({ ...next, status: "done" }); // survivors remain, resumable as done
-			else cmd.storeReviewDelete(s.id).catch(() => {});
+			if (next) setSession({ ...next, status: "done" });
+			else void deleteSession(s.id);
 			closeSession();
 		}
 		await Location.remove(new Set([deleted]));
@@ -367,7 +330,6 @@ export const Review = {
 	/** Exit the review UI but keep the session resumable (persisted as active). */
 	cancel: (): void => {
 		if (!session) return;
-		flushSave();
 		closeSession();
 	},
 	/** Rename a review session. */
@@ -389,11 +351,7 @@ export const Review = {
 	},
 	/** Delete a review session (its progress, not the locations). */
 	removeSession: async (id: string): Promise<void> => {
-		try {
-			await cmd.storeReviewDelete(id);
-		} catch (e) {
-			log.error("[review] session delete failed:", e);
-		}
+		await deleteSession(id);
 		if (session?.id === id) Review.cancel();
 	},
 	/** Review sessions for the open map, optionally filtered by status. */

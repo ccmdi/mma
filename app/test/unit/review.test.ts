@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 
 // review.ts pulls in the store graph for its side-effectful API; stub it so the
 // module loads in isolation.
@@ -60,6 +60,7 @@ vi.mock("@/store/selections", () => ({
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { Review } from "@/lib/review/review";
 import { cmd } from "@/lib/commands";
+import { SelectionList } from "@/store/selectionList";
 import type { ReviewSession } from "@/bindings.gen";
 
 function mk(order: number[], cursorId: number, reviewed: number[] = []): ReviewSession {
@@ -247,5 +248,53 @@ describe("Review.beginSelected", () => {
 		store.mapState = mapState;
 		store.selected = new Set();
 		store.active = [];
+	});
+});
+
+describe("session persistence", () => {
+	afterEach(() => {
+		Review.cancel();
+		vi.useRealTimers();
+	});
+	const saved = () => vi.mocked(cmd.storeReviewUpdate).mock.calls.map(([u]) => u.cursorId);
+
+	it("every session change schedules a save and a projection", async () => {
+		store.liveIds = [1, 2, 3];
+		await Review.resume(mk([1, 2, 3], 2));
+		vi.useFakeTimers();
+		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		vi.mocked(SelectionList.update).mockClear();
+		await Review.prev();
+		await vi.advanceTimersByTimeAsync(400);
+		expect(saved()).toEqual([1]);
+		expect(SelectionList.update).toHaveBeenCalledTimes(1);
+		await Review.next();
+		await vi.advanceTimersByTimeAsync(400);
+		expect(saved()).toEqual([1, 2]);
+		expect(SelectionList.update).toHaveBeenCalledTimes(2);
+	});
+
+	it("closing a session lands its pending save at once", async () => {
+		store.liveIds = [1, 2, 3];
+		await Review.resume(mk([1, 2, 3], 1));
+		vi.useFakeTimers();
+		await Review.next();
+		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		Review.cancel();
+		expect(saved()).toEqual([2]);
+		await vi.advanceTimersByTimeAsync(400);
+		expect(saved()).toEqual([2]);
+	});
+
+	it("a deleted session's pending save is dropped", async () => {
+		store.liveIds = [1, 2, 3];
+		await Review.resume(mk([1, 2, 3], 1));
+		vi.useFakeTimers();
+		await Review.next();
+		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		await Review.removeSession("s");
+		await vi.advanceTimersByTimeAsync(400);
+		expect(saved()).toEqual([]);
+		expect(Review.session()).toBeNull();
 	});
 });

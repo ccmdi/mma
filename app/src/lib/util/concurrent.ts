@@ -42,3 +42,28 @@ export function serial(): <T>(task: () => T | Promise<T>) => Promise<T> {
 		return run;
 	};
 }
+
+/** Run `run` once `ms` pass without another `schedule`, with the last call's arguments.
+ *  `flush` runs a pending call now and `cancel` drops it. */
+export function debounce<A extends unknown[]>(run: (...args: A) => void, ms: number) {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let pending: A | null = null;
+	const cancel = () => {
+		clearTimeout(timer);
+		pending = null;
+	};
+	const flush = () => {
+		const args = pending;
+		cancel();
+		if (args) run(...args);
+	};
+	return {
+		schedule: (...args: A) => {
+			clearTimeout(timer);
+			pending = args;
+			timer = setTimeout(flush, ms);
+		},
+		flush,
+		cancel,
+	};
+}
