@@ -22,6 +22,7 @@ use specta::datatype::DataType;
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use tokio::task;
 
 // ---------------------------------------------------------------------------
 // Typed sub-structs for MapMeta
@@ -811,39 +812,41 @@ fn duplicate_map_row(
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_duplicate_map(
+pub async fn store_duplicate_map(
     state: tauri::State<'_, StoreState>,
     id: Id<MapMeta, String>,
     name: String,
 ) -> AppResult<MapMeta> {
-    // Held throughout, so the source can neither change nor open while it is read.
-    let mgr = state.lock()?;
-    let (batch, live) = match mgr.stores.get(&id) {
-        Some(store) => (
-            store
-                .current_batch()
-                .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
-            Some((store.map(), store.held_value_records())),
-        ),
-        None => {
-            let mut locations = engine::read_full_state_from_disk(&id)?;
-            locations.sort_unstable_by_key(|l| l.id);
-            (arrow::locations_to_batch(&locations), None)
-        }
-    };
-    let copy_id = Id::new(uuid::Uuid::new_v4().to_string());
-    let conn = storage::open_db()?;
-    let copy = duplicate_map_row(
-        &conn,
-        &id,
-        live,
-        &copy_id,
-        &name,
-        &batch,
-        &storage::arrow_path(&copy_id)?,
-    );
-    drop(mgr);
-    copy
+    task::block_in_place(|| {
+        // Held throughout, so the source can neither change nor open while it is read.
+        let mgr = state.lock()?;
+        let (batch, live) = match mgr.stores.get(&id) {
+            Some(store) => (
+                store
+                    .current_batch()
+                    .unwrap_or_else(|| RecordBatch::new_empty(arrow::schema())),
+                Some((store.map(), store.held_value_records())),
+            ),
+            None => {
+                let mut locations = engine::read_full_state_from_disk(&id)?;
+                locations.sort_unstable_by_key(|l| l.id);
+                (arrow::locations_to_batch(&locations), None)
+            }
+        };
+        let copy_id = Id::new(uuid::Uuid::new_v4().to_string());
+        let conn = storage::open_db()?;
+        let copy = duplicate_map_row(
+            &conn,
+            &id,
+            live,
+            &copy_id,
+            &name,
+            &batch,
+            &storage::arrow_path(&copy_id)?,
+        );
+        drop(mgr);
+        copy
+    })
 }
 
 /// Drop a map's rows and its files on disk. Returns whether the map was there at all.
@@ -876,17 +879,19 @@ fn delete_map_data(conn: &Connection, id: &Id<MapMeta, String>) -> AppResult<boo
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_delete_map(
+pub async fn store_delete_map(
     state: tauri::State<'_, StoreState>,
     id: Id<MapMeta, String>,
 ) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    mgr.stores.remove(&id);
-    mgr.window_map.retain(|_, v| v != &id);
+    task::block_in_place(|| {
+        let mut mgr = state.lock()?;
+        mgr.stores.remove(&id);
+        mgr.window_map.retain(|_, v| v != &id);
 
-    let conn = storage::open_db()?;
-    delete_map_data(&conn, &id)?;
-    Ok(())
+        let conn = storage::open_db()?;
+        delete_map_data(&conn, &id)?;
+        Ok(())
+    })
 }
 
 /// Patch map metadata, leaving omitted fields unchanged.
@@ -941,21 +946,23 @@ fn update_map_meta(
 /// Mark a map as opened now, for sorting the map list by recency.
 #[tauri::command]
 #[specta::specta]
-pub fn store_touch_map_opened(
+pub async fn store_touch_map_opened(
     state: tauri::State<'_, StoreState>,
     map_id: Id<MapMeta, String>,
 ) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    let conn = storage::open_db()?;
-    let now = now_iso();
-    conn.execute(
-        "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
-        params![now, map_id.raw()],
-    )?;
-    if let Some(store) = mgr.stores.get_mut(&map_id) {
-        store.opened_at(now);
-    }
-    Ok(())
+    task::block_in_place(|| {
+        let mut mgr = state.lock()?;
+        let conn = storage::open_db()?;
+        let now = now_iso();
+        conn.execute(
+            "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
+            params![now, map_id.raw()],
+        )?;
+        if let Some(store) = mgr.stores.get_mut(&map_id) {
+            store.opened_at(now);
+        }
+        Ok(())
+    })
 }
 
 impl Store {

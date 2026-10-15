@@ -270,30 +270,32 @@ pub(crate) fn geojson_document(locs: &[Location], tags_json: &str) -> serde_json
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_export_json(
+pub async fn store_export_json(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     opts: ExportOpts,
 ) -> AppResult<String> {
-    with_store!(label, state, |store| {
-        let locs = store
-            .at(&engine::Target::Map { id: None })
-            .rows(&opts.selector);
-        let co = CoordOpts {
-            export_zoom: opts.export_zoom,
-            export_unpanned: opts.export_unpanned,
-            shape: opts.shape,
-        };
-        let fields = opts
-            .extra_fields_json
-            .as_deref()
-            .and_then(|f| serde_json::from_str(f).ok());
-        let doc = export_document(&opts.map_name, &locs, &opts.tags_json, fields, &co);
-        let json = serde_json::to_string(&doc)?;
+    task::block_in_place(|| {
+        with_store!(label, state, |store| {
+            let locs = store
+                .at(&engine::Target::Map { id: None })
+                .rows(&opts.selector);
+            let co = CoordOpts {
+                export_zoom: opts.export_zoom,
+                export_unpanned: opts.export_unpanned,
+                shape: opts.shape,
+            };
+            let fields = opts
+                .extra_fields_json
+                .as_deref()
+                .and_then(|f| serde_json::from_str(f).ok());
+            let doc = export_document(&opts.map_name, &locs, &opts.tags_json, fields, &co);
+            let json = serde_json::to_string(&doc)?;
 
-        let path = export_temp_path("mma_export", "json");
-        fs::write(&path, &json)?;
-        Ok(path.to_string_lossy().into_owned())
+            let path = export_temp_path("mma_export", "json");
+            fs::write(&path, &json)?;
+            Ok(path.to_string_lossy().into_owned())
+        })
     })
 }
 
@@ -301,20 +303,22 @@ pub fn store_export_json(
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_export_csv(
+pub async fn store_export_csv(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     selector: Selector<SelectionInput>,
 ) -> AppResult<String> {
-    with_store!(label, state, |store| {
-        let buf = csv_document(
-            &store
-                .at(&engine::Target::Map { id: None })
-                .rows(&selector.map_children(SelectionInput::compile)),
-        );
-        let path = export_temp_path("mma_export", "csv");
-        fs::write(&path, &buf)?;
-        Ok(path.to_string_lossy().into_owned())
+    task::block_in_place(|| {
+        with_store!(label, state, |store| {
+            let buf = csv_document(
+                &store
+                    .at(&engine::Target::Map { id: None })
+                    .rows(&selector.map_children(SelectionInput::compile)),
+            );
+            let path = export_temp_path("mma_export", "csv");
+            fs::write(&path, &buf)?;
+            Ok(path.to_string_lossy().into_owned())
+        })
     })
 }
 
@@ -323,23 +327,25 @@ pub fn store_export_csv(
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_export_geojson(
+pub async fn store_export_geojson(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     selector: Selector<SelectionInput>,
     tags_json: String,
 ) -> AppResult<String> {
-    with_store!(label, state, |store| {
-        let json = serde_json::to_string(&geojson_document(
-            &store
-                .at(&engine::Target::Map { id: None })
-                .rows(&selector.map_children(SelectionInput::compile)),
-            &tags_json,
-        ))?;
+    task::block_in_place(|| {
+        with_store!(label, state, |store| {
+            let json = serde_json::to_string(&geojson_document(
+                &store
+                    .at(&engine::Target::Map { id: None })
+                    .rows(&selector.map_children(SelectionInput::compile)),
+                &tags_json,
+            ))?;
 
-        let path = export_temp_path("mma_export", "geojson");
-        fs::write(&path, &json)?;
-        Ok(path.to_string_lossy().into_owned())
+            let path = export_temp_path("mma_export", "geojson");
+            fs::write(&path, &json)?;
+            Ok(path.to_string_lossy().into_owned())
+        })
     })
 }
 

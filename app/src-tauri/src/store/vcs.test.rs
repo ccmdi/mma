@@ -3,7 +3,9 @@ use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::store::engine::{Finished, Store, WindowLabel};
 use crate::test_util::loc;
 use mma_algebra::Id;
+use std::future::Future;
 use std::path::PathBuf;
+use tauri::async_runtime;
 
 fn staged(dir: &Path) -> (PathBuf, PathBuf) {
     let base = dir.join("m.arrow");
@@ -144,5 +146,39 @@ fn restoring_a_version_announces_the_pending_counts_it_leaves() {
             removed: 0,
             updated: 0,
         })
+    );
+}
+
+#[test]
+fn restoring_and_reading_a_version_are_spawned_off_the_main_thread() {
+    fn checkout(
+        state: State<'_, StoreState>,
+        map_id: Id<MapMeta, String>,
+        commit_id: Id<CommitInfo, String>,
+    ) -> impl Future<Output = AppResult<Option<engine::MutationResult>>> + '_ {
+        store_checkout_commit(WindowLabel("w".into()), state, map_id, commit_id)
+    }
+    let _ = checkout;
+
+    let map = storage::tests::map_on_disk("spawned-delta");
+    let commit = Id::<CommitInfo, String>::new("c1".into());
+    let rows = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    arrow::write_arrow_ipc(
+        &storage::commit_delta_path(&map, &commit).unwrap(),
+        &arrow::locations_to_batch(&rows),
+    )
+    .unwrap();
+
+    let spawned = async_runtime::block_on(async_runtime::spawn(store_get_commit_delta(
+        map.clone(),
+        commit.clone(),
+    )))
+    .unwrap()
+    .unwrap();
+    let (created, removed) = read_commit_delta(&map, &commit).unwrap();
+    assert_eq!(created.len(), 2);
+    assert_eq!(
+        serde_json::to_value(spawned).unwrap(),
+        serde_json::to_value(engine::Change::from_sides(created, removed)).unwrap()
     );
 }

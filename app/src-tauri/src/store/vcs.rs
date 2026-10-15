@@ -21,6 +21,7 @@ use mma_algebra::{Change, Counts, Id};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
+use tokio::task;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -218,46 +219,48 @@ pub async fn store_list_commits(map_id: Id<MapMeta, String>) -> AppResult<Vec<Co
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_checkout_commit(
+pub async fn store_checkout_commit(
     label: engine::WindowLabel,
     state: State<'_, StoreState>,
     map_id: Id<MapMeta, String>,
     commit_id: Id<CommitInfo, String>,
 ) -> AppResult<Option<engine::MutationResult>> {
-    let conn = storage::open_db()?;
-    let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
-    // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
-    // base batch requires.
-    let locs: Vec<Location> = materialized.into_values().collect();
+    task::block_in_place(|| {
+        let conn = storage::open_db()?;
+        let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
+        // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
+        // base batch requires.
+        let locs: Vec<Location> = materialized.into_values().collect();
 
-    let mut mgr = state.lock()?;
-    if mgr
-        .window_map
-        .iter()
-        .any(|(window, map)| map == &map_id && window != &label)
-    {
-        return Err(AppError(
-            "close this map in every other window before restoring a version".into(),
-        ));
-    }
-    if let Some(store) = mgr.stores.get_mut(&map_id) {
-        return Ok(Some(restore_rows(store, locs)));
-    }
-    write_checkout(
-        &mgr,
-        &map_id,
-        &locs,
-        &storage::arrow_path(&map_id)?,
-        &storage::arrow_delta_path(&map_id)?,
-    )?;
+        let mut mgr = state.lock()?;
+        if mgr
+            .window_map
+            .iter()
+            .any(|(window, map)| map == &map_id && window != &label)
+        {
+            return Err(AppError(
+                "close this map in every other window before restoring a version".into(),
+            ));
+        }
+        if let Some(store) = mgr.stores.get_mut(&map_id) {
+            return Ok(Some(restore_rows(store, locs)));
+        }
+        write_checkout(
+            &mgr,
+            &map_id,
+            &locs,
+            &storage::arrow_path(&map_id)?,
+            &storage::arrow_delta_path(&map_id)?,
+        )?;
 
-    log::info!(
-        "[vcs] checkout {} on map {} ({} locs)",
-        &commit_id.raw()[..7.min(commit_id.raw().len())],
-        map_id,
-        locs.len()
-    );
-    Ok(None)
+        log::info!(
+            "[vcs] checkout {} on map {} ({} locs)",
+            &commit_id.raw()[..7.min(commit_id.raw().len())],
+            map_id,
+            locs.len()
+        );
+        Ok(None)
+    })
 }
 
 fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
@@ -314,12 +317,14 @@ pub(crate) fn read_commit_delta(
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub fn store_get_commit_delta(
+pub async fn store_get_commit_delta(
     map_id: Id<MapMeta, String>,
     commit_id: Id<CommitInfo, String>,
 ) -> AppResult<engine::Change> {
-    let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
-    Ok(engine::Change::from_sides(created, removed))
+    task::block_in_place(|| {
+        let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
+        Ok(engine::Change::from_sides(created, removed))
+    })
 }
 
 #[cfg(test)]

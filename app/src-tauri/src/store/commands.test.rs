@@ -260,6 +260,18 @@ fn whole_map_reads_and_landing_a_layer_are_spawned_off_the_main_thread() {
 }
 
 #[test]
+fn copying_to_another_map_is_spawned_off_the_main_thread() {
+    fn spawned(
+        state: tauri::State<'_, StoreState>,
+        target_map_id: Id<MapMeta, String>,
+        selector: Selector<SelectionInput>,
+    ) -> impl Future<Output = AppResult<CopyToMapResult>> + '_ {
+        store_copy_locations_to_map(WindowLabel("w".into()), state, target_map_id, selector)
+    }
+    let _ = spawned;
+}
+
+#[test]
 fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
     let window = WindowLabel("w".into());
     let map = Id::<MapMeta, String>::new("spawned".into());

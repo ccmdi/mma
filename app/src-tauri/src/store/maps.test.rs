@@ -4,6 +4,7 @@ use crate::test_util::{loc_ids, tag_ids, TempDir};
 use crate::types::Location;
 use mma_algebra::Id;
 use std::collections::HashSet;
+use std::future::Future;
 use std::time::Duration;
 use std::{mem, thread};
 
@@ -1310,4 +1311,28 @@ fn opening_a_saved_map_leaves_it_saved_and_an_unsaved_one_unsaved() {
     store.meta.edit().name = "renamed".into();
     store.opened_at("2026-10-14T00:00:01Z".into());
     assert!(store.is_unsaved());
+}
+
+#[test]
+fn duplicating_deleting_and_touching_a_map_are_spawned_off_the_main_thread() {
+    fn duplicate(
+        state: tauri::State<'_, StoreState>,
+        id: Id<MapMeta, String>,
+        name: String,
+    ) -> impl Future<Output = AppResult<MapMeta>> + '_ {
+        store_duplicate_map(state, id, name)
+    }
+    fn delete(
+        state: tauri::State<'_, StoreState>,
+        id: Id<MapMeta, String>,
+    ) -> impl Future<Output = AppResult<()>> + '_ {
+        store_delete_map(state, id)
+    }
+    fn touch(
+        state: tauri::State<'_, StoreState>,
+        id: Id<MapMeta, String>,
+    ) -> impl Future<Output = AppResult<()>> + '_ {
+        store_touch_map_opened(state, id)
+    }
+    let _ = (duplicate, delete, touch);
 }

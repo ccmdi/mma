@@ -168,14 +168,15 @@ pub async fn store_country_distribution(
 /// Extra fields carry over, and interned values such as tags are matched to the target's by name.
 #[tauri::command]
 #[specta::specta]
-pub fn store_copy_locations_to_map(
+pub async fn store_copy_locations_to_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     target_map_id: Id<MapMeta, String>,
     selector: Selector<SelectionInput>,
 ) -> AppResult<CopyToMapResult> {
     let started = Instant::now();
-    let copied = copy_locations_to_map(&state, &label, target_map_id, selector)?;
+    let copied =
+        task::block_in_place(|| copy_locations_to_map(&state, &label, target_map_id, selector))?;
     log::debug!(
         "[cmd] copy_to_map copied={} skipped={} total={}ms",
         copied.copied,
