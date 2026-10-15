@@ -141,7 +141,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 plugins::sidecar::sidecar_installed_version,
                 plugins::sidecar::sidecar_request,
                 plugins::sidecar::sidecar_stop,
-                plugins::sidecar::sidecar_stop_all,
                 plugins::sidecar::sidecar_cancel,
                 plugins::borders::check_border_file,
                 plugins::borders::download_border_file,

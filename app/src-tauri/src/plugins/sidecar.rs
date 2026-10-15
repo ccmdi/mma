@@ -877,20 +877,16 @@ pub(crate) fn sidecar_call_stream(
     Ok(Box::new(rx.into_iter()))
 }
 
-/// Stop all sidecar processes for a plugin.
+/// Stop all sidecar processes for a plugin, or for every plugin when the id is null.
 #[tauri::command]
 #[specta::specta]
-pub async fn sidecar_stop(plugin_id: String) -> AppResult<()> {
+pub async fn sidecar_stop(plugin_id: Option<String>) -> AppResult<()> {
+    let Some(plugin_id) = plugin_id else {
+        task::spawn_blocking(kill_all_sidecars).await?;
+        return Ok(());
+    };
     validate_plugin_id(&plugin_id)?;
     task::spawn_blocking(move || kill_plugin(&plugin_id)).await?;
-    Ok(())
-}
-
-/// Stop all sidecar processes across every plugin.
-#[tauri::command]
-#[specta::specta]
-pub async fn sidecar_stop_all() -> AppResult<()> {
-    task::spawn_blocking(kill_all_sidecars).await?;
     Ok(())
 }
 

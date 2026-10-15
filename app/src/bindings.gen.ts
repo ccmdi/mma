@@ -60,10 +60,8 @@ export const commands = {
 	 *  then exactly one `sidecar-done`, all keyed by the returned request id.
 	 */
 	sidecarRequest: (pluginId: string, command: string, payload: string | null) => __TAURI_INVOKE<number>("sidecar_request", { pluginId, command, payload }),
-	/**  Stop all sidecar processes for a plugin. */
-	sidecarStop: (pluginId: string) => __TAURI_INVOKE<null>("sidecar_stop", { pluginId }),
-	/**  Stop all sidecar processes across every plugin. */
-	sidecarStopAll: () => __TAURI_INVOKE<null>("sidecar_stop_all"),
+	/**  Stop all sidecar processes for a plugin, or for every plugin when the id is null. */
+	sidecarStop: (pluginId: string | null) => __TAURI_INVOKE<null>("sidecar_stop", { pluginId }),
 	/**  Cancel a running sidecar request. No-op if the request already finished. */
 	sidecarCancel: (reqId: number) => __TAURI_INVOKE<null>("sidecar_cancel", { reqId }),
 	/**  Whether the border dataset for `level` is available on disk. */

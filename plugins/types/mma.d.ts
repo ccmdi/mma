@@ -683,10 +683,8 @@ declare const commands$1: {
      *  @unstable
      */
     sidecarRequest: (pluginId: string, command: string, payload: string | null) => Promise<number>;
-    /**  Stop all sidecar processes for a plugin. @unstable */
-    sidecarStop: (pluginId: string) => Promise<null>;
-    /**  Stop all sidecar processes across every plugin. @unstable */
-    sidecarStopAll: () => Promise<null>;
+    /**  Stop all sidecar processes for a plugin, or for every plugin when the id is null. @unstable */
+    sidecarStop: (pluginId: string | null) => Promise<null>;
     /**  Cancel a running sidecar request. No-op if the request already finished. @unstable */
     sidecarCancel: (reqId: number) => Promise<null>;
     /**  Whether the border dataset for `level` is available on disk. @unstable */

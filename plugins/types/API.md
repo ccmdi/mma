@@ -6301,20 +6301,10 @@ then exactly one `sidecar-done`, all keyed by the returned request id.
 `unstable` · since v0.9.0
 
 ```ts
-cmd.sidecarStop(pluginId: string): Promise<null>
+cmd.sidecarStop(pluginId: string | null): Promise<null>
 ```
 
-Stop all sidecar processes for a plugin.
-
-#### cmd.sidecarStopAll
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.sidecarStopAll(): Promise<null>
-```
-
-Stop all sidecar processes across every plugin.
+Stop all sidecar processes for a plugin, or for every plugin when the id is null.
 
 #### cmd.startupCheck
 

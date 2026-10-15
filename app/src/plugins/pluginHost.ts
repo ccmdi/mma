@@ -43,7 +43,7 @@ export function deactivatePlugins() {
 	for (const id of new Set([...getPlugins().map((p) => p.id), ...cleanups.keys()])) teardown(id);
 	// Nothing is active any more, so nothing should still be running. Covers plugins
 	// that registered no cleanup of their own.
-	cmd.sidecarStopAll().catch(() => {});
+	cmd.sidecarStop(null).catch(() => {});
 }
 
 /** Activate a single plugin by id. */
