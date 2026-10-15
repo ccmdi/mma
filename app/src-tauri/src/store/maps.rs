@@ -564,33 +564,27 @@ pub struct MapMeta {
     #[patch(key)]
     #[field(codec = "storage::id_col")]
     pub id: Id<MapMeta, String>,
-    #[field(default = "''")]
     pub name: String,
-    #[field(default = "''")]
     pub description: String,
     pub folder: Option<String>,
-    #[field(json, default = "'{}'")]
+    #[field(json)]
     #[patch(merge)]
     pub settings: MapSettings,
-    #[field(json, default = "'\"auto\"'")]
+    #[field(json)]
     pub score_bounds: ScoreBounds,
-    #[field(json, decode = "MapExtra::from_json", default = "'{}'")]
+    #[field(json, decode = "MapExtra::from_json")]
     pub extra: MapExtra,
-    #[field(json, default = "'[]'")]
+    #[field(json)]
     pub labels: Vec<String>,
     #[patch(skip)]
-    #[field(default = "0")]
     pub location_count: i64,
     /// Location changes since the last commit.
     #[patch(skip)]
-    #[field(
-        flatten(
-            added = "pending_added",
-            removed = "pending_removed",
-            updated = "pending_modified"
-        ),
-        default = "0"
-    )]
+    #[field(flatten(
+        added = "pending_added",
+        removed = "pending_removed",
+        updated = "pending_modified"
+    ))]
     pub pending: Counts,
     #[patch(skip)]
     pub created_at: String,

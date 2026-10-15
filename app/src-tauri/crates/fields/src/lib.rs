@@ -760,12 +760,11 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
         unreachable!()
     };
     let mut reads = Vec::new();
-    let mut columns = Vec::new();
     let mut names = Vec::new();
     for field in &data.fields {
         let name = field.ident.as_ref().expect("named row fields");
         let ty = &field.ty;
-        let (mut json, mut codec, mut decode, mut default) = (false, None, None, None);
+        let (mut json, mut codec, mut decode) = (false, None, None);
         let mut flattened: Vec<(Ident, LitStr)> = Vec::new();
         for attr in field
             .attrs
@@ -779,8 +778,6 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
                     codec = Some(meta.value()?.parse::<LitStr>()?.parse::<syn::Path>()?);
                 } else if meta.path.is_ident("decode") {
                     decode = Some(meta.value()?.parse::<LitStr>()?.parse::<syn::Path>()?);
-                } else if meta.path.is_ident("default") {
-                    default = Some(meta.value()?.parse::<LitStr>()?);
                 } else if meta.path.is_ident("flatten") {
                     meta.parse_nested_meta(|part| {
                         let name = part
@@ -797,8 +794,6 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
                 Ok(())
             })?;
         }
-        let default = default.map_or_else(|| quote!(None), |value| quote!(Some(#value)));
-        let mut key = false;
         let mut column = name.to_string();
         for attr in field
             .attrs
@@ -806,9 +801,7 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
             .filter(|attr| attr.path().is_ident("patch"))
         {
             attr.parse_nested_meta(|meta| {
-                if meta.path.is_ident("key") {
-                    key = true;
-                } else if meta.path.is_ident("column") {
+                if meta.path.is_ident("column") {
                     column = meta.value()?.parse::<LitStr>()?.value();
                 }
                 Ok(())
@@ -819,7 +812,6 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
             for (member, column) in flattened {
                 names.push(column.value());
                 members.push(quote!(#member: row.get(#column)?));
-                columns.push(quote!(crate::store::storage::sql_column(#column, |value: &Self| &value.#name.#member, false, #default)));
             }
             reads.push(quote!(#name: #ty { #(#members,)* }));
             continue;
@@ -835,17 +827,11 @@ fn expand_row(input: &DeriveInput) -> syn::Result<TokenStream2> {
             quote!(row.get(#column)?)
         };
         reads.push(quote!(#name: #read));
-        columns.push(if json {
-            quote!(crate::store::storage::Column { name: #column, sql_type: "TEXT", nullable: false, primary_key: #key, default: #default })
-        } else {
-            quote!(crate::store::storage::sql_column(#column, |value: &Self| &value.#name, #key, #default))
-        });
     }
     let select = names.join(", ");
     Ok(quote! {
         impl #ident {
             pub(crate) const TABLE: &'static str = #table;
-            pub(crate) const COLUMNS: &'static [crate::store::storage::Column] = &[#(#columns,)*];
             pub(crate) const SELECT: &'static str = #select;
             pub(crate) fn read(row: &rusqlite::Row<'_>) -> rusqlite::Result<Self> {
                 Ok(Self { #(#reads,)* })

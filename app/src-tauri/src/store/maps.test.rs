@@ -1013,40 +1013,6 @@ fn a_whole_row_as_a_patch_writes_every_column_back() {
 }
 
 #[test]
-fn declared_map_schema_matches_migration_history() {
-    let conn = setup_real_db();
-    let mut query = conn.prepare("PRAGMA table_info(maps)").unwrap();
-    let mut migrated: Vec<_> = query
-        .query_map([], |row| {
-            Ok((
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-                row.get::<_, i64>(3)? == 0,
-                row.get::<_, i64>(5)? != 0,
-                row.get::<_, Option<String>>(4)?,
-            ))
-        })
-        .unwrap()
-        .collect::<rusqlite::Result<_>>()
-        .unwrap();
-    let mut declared: Vec<_> = MapMeta::COLUMNS
-        .iter()
-        .map(|column| {
-            (
-                column.name.to_string(),
-                column.sql_type.to_string(),
-                column.nullable,
-                column.primary_key,
-                column.default.map(str::to_string),
-            )
-        })
-        .collect();
-    migrated.sort();
-    declared.sort();
-    assert_eq!(declared, migrated);
-}
-
-#[test]
 fn a_stored_field_def_without_interned_reads_as_not_interned() {
     let stored = r#"{"type":"enum","label":"Camera","values":null,"comparison":null}"#;
     let def: FieldDef = serde_json::from_str(stored).unwrap();

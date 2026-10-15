@@ -14,50 +14,8 @@ use std::fs;
 use std::time::Duration;
 use tokio::task;
 
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Column {
-    pub name: &'static str,
-    pub sql_type: &'static str,
-    pub nullable: bool,
-    pub primary_key: bool,
-    pub default: Option<&'static str>,
-}
-
-pub(crate) trait SqlType {
-    const SQL_TYPE: &'static str;
-    const NULLABLE: bool = false;
-}
-
-impl<T, Raw: SqlType> SqlType for Id<T, Raw> {
-    const SQL_TYPE: &'static str = Raw::SQL_TYPE;
-}
-
 pub(crate) fn id_col<T, Raw: FromSql>(row: &Row, col: &str) -> rusqlite::Result<Id<T, Raw>> {
     row.get(col).map(Id::new)
-}
-
-macro_rules! sql_types {
-    ($($ty:ty => $sql:literal),* $(,)?) => { $(impl SqlType for $ty { const SQL_TYPE: &'static str = $sql; })* };
-}
-sql_types!(String => "TEXT", u32 => "INTEGER", i64 => "INTEGER", bool => "INTEGER", f64 => "REAL");
-impl<T: SqlType> SqlType for Option<T> {
-    const SQL_TYPE: &'static str = T::SQL_TYPE;
-    const NULLABLE: bool = true;
-}
-
-pub(crate) const fn sql_column<R, T: SqlType>(
-    name: &'static str,
-    _: fn(&R) -> &T,
-    primary_key: bool,
-    default: Option<&'static str>,
-) -> Column {
-    Column {
-        name,
-        sql_type: T::SQL_TYPE,
-        nullable: T::NULLABLE,
-        primary_key,
-        default,
-    }
 }
 
 /// Deserialize a JSON text column from a SQLite row, falling back to `T::default()`
