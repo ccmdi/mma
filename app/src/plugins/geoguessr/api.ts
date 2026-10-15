@@ -18,10 +18,6 @@ export class GeoGuessrApiError extends Error {
 	}
 }
 
-/** No session, or the session was rejected. The caller should prompt for a fresh sign-in. */
-export const isUnauthorized = (e: unknown): boolean =>
-	e instanceof GeoGuessrApiError && e.status === 401;
-
 async function requestRaw(path: string, init: RequestInit = {}): Promise<Response> {
 	const res = await fetch(new URL(path.replace(/^\//, ""), base()), init);
 	if (!res.ok) {
