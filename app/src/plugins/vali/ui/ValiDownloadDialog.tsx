@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { events } from "@/bindings.gen";
+import { VALI_COUNTRIES } from "@/bindings.consts";
 import type { ValiCountryStatus, ValiProgress } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import {
@@ -103,8 +104,6 @@ export function ValiDownloadDialog({
 	stale: ValiCountryStatus[] | null;
 	onDownloaded: () => void;
 }) {
-	const [countries, setCountries] = useState<string[]>([]);
-	const [ready, setReady] = useState(false);
 	const [query, setQuery] = useState("");
 	const [target, setTarget] = useState<Target | null>(null);
 	const [full, setFull] = useState(false);
@@ -120,19 +119,14 @@ export function ValiDownloadDialog({
 		setProgress(null);
 		setResult(null);
 		setError(null);
-		cmd
-			.valiCountries()
-			.then(setCountries)
-			.catch((e) => setError(String(e)))
-			.finally(() => setReady(true));
 	}, [open]);
 
 	const targets = useMemo<Target[]>(
 		() => [
 			...ALIASES.map((a) => ({ code: a.code, name: t(a.label) })),
-			...countries.map((code) => ({ code, name: countryName(code) })),
+			...VALI_COUNTRIES.map((code) => ({ code, name: countryName(code) })),
 		],
-		[countries],
+		[],
 	);
 
 	const suggestions = useMemo(
@@ -180,7 +174,7 @@ export function ValiDownloadDialog({
 	};
 
 	return (
-		<Dialog open={open && ready} onOpenChange={running ? () => {} : onOpenChange}>
+		<Dialog open={open} onOpenChange={running ? () => {} : onOpenChange}>
 			<DialogContent title={t("Download coverage data")} className="vali-download">
 				{stale && stale.length > 0 && (
 					<div className="vali-download__stale">

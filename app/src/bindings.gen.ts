@@ -346,8 +346,6 @@ export const commands = {
 	valiDownload: (country: string | null, full: boolean, updates: boolean) => __TAURI_INVOKE<null>("vali_download", { country, full, updates }),
 	/**  Cancel an in-flight vali generate or download. */
 	valiCancel: () => __TAURI_INVOKE<void>("vali_cancel"),
-	/**  Country codes Vali has coverage data for. */
-	valiCountries: () => __TAURI_INVOKE<string[]>("vali_countries"),
 	/**
 	 *  Countries whose downloaded coverage data is older than the published copy. Fails while
 	 *  offline; treat that as unknown, not up to date.

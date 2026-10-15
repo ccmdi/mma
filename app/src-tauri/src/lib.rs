@@ -9,6 +9,7 @@ use std::sync::OnceLock;
 use std::time::Instant;
 use std::{error, fs, panic, thread};
 use tauri::plugin::TauriPlugin;
+use vali_generate::names;
 
 mod types;
 
@@ -238,7 +239,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 plugins::vali::vali_generate,
                 plugins::vali::vali_download,
                 plugins::vali::vali_cancel,
-                plugins::vali::vali_countries,
                 plugins::vali::vali_data_status,
                 plugins::vali::vali_download_stale,
                 procedure::engine::procedure_run,
@@ -450,6 +450,17 @@ fn export_consts() -> Result<(), String> {
                     .map(|c| c.wire())
                     .collect::<Vec<_>>(),
             )
+            .unstable(),
+        ),
+        (
+            "VALI_COUNTRIES",
+            TsConst::value(
+                names::country_names()
+                    .iter()
+                    .map(|(code, _)| *code)
+                    .collect::<Vec<_>>(),
+            )
+            .with_doc(&["Country codes Vali has coverage data for."])
             .unstable(),
         ),
     ]) {

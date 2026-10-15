@@ -12,7 +12,6 @@ use std::time::Duration;
 use tokio::task;
 use vali_data::paths;
 use vali_generate::download;
-use vali_generate::names;
 use vali_generate::{generate_output, prepare, CancelToken, GeoMapLocation, ProgressEvent};
 
 pub struct ValiState {
@@ -262,16 +261,6 @@ pub async fn vali_data_status() -> AppResult<Vec<ValiCountryStatus>> {
     })
     .await
     .map_err(|e| AppError(format!("vali status task failed: {e}")))?
-}
-
-/// Country codes Vali has coverage data for.
-#[tauri::command]
-#[specta::specta]
-pub fn vali_countries() -> Vec<String> {
-    names::country_names()
-        .iter()
-        .map(|(code, _)| code.to_string())
-        .collect()
 }
 
 #[cfg(test)]
