@@ -5,7 +5,7 @@
 //! time; the tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::tree::SelectionOp;
-use crate::selections::{Selection, Selector};
+use crate::selections::{FilterOp, Selection, Selector};
 use crate::store::engine::{Store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
@@ -336,28 +336,6 @@ fn capture_names(selector: &Selector, store: &Store) -> ValueNames {
     names
 }
 
-/// `selector` with each membership test `resolve` answers moved to the id it gives, or to no
-/// rows where it gives none.
-fn remap(selector: &Selector, resolve: &impl Fn(&str, u32) -> Option<Option<u32>>) -> Selector {
-    let edit = |selector: Selector| {
-        let Some((field, id)) = selector.member_test() else {
-            return selector;
-        };
-        match resolve(field, id) {
-            None => selector,
-            Some(None) => Selector::Locations {
-                locations: vec![],
-                name: None,
-            },
-            Some(Some(id)) => Selector::Filter {
-                field: field.to_string(),
-                test: super::FilterOp::Contains { value: id.into() },
-            },
-        }
-    };
-    edit(selector.map_children_ref(|child| child.mapped(&edit)))
-}
-
 /// The one kind of edit that names a saved selection.
 #[derive(Clone, Copy, Debug, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -415,16 +393,34 @@ impl SavedSelection {
             }
         });
         let fields = store.fields(interned.iter().map(String::as_str));
-        remap(&self.selector, &|field, raw| {
-            let values = fields.iter().find(|values| values.field() == field)?;
+        let edit = |selector: Selector| {
+            let Some((field, raw)) = selector.member_test() else {
+                return selector;
+            };
+            let Some(values) = fields.iter().find(|values| values.field() == field) else {
+                return selector;
+            };
             let id = Id::new(raw);
-            Some(
-                match self.value_names.get(field).and_then(|names| names.get(&id)) {
-                    None => values.record(id).map(|_| raw),
-                    Some(name) => values.named(name).map(Id::get),
+            let moved = match self.value_names.get(field).and_then(|names| names.get(&id)) {
+                None => values.record(id).map(|_| raw),
+                Some(name) => values.named(name).map(Id::get),
+            };
+            match moved {
+                None => Selector::Locations {
+                    locations: vec![],
+                    name: None,
                 },
-            )
-        })
+                Some(id) => Selector::Filter {
+                    field: field.to_string(),
+                    test: FilterOp::Contains { value: id.into() },
+                },
+            }
+        };
+        edit(self.selector.map_children_ref(|child| {
+            child.fold(&mut |node, children| {
+                node.rebuilt(edit(node.selector.with_children_ref(children)))
+            })
+        }))
     }
 }
 

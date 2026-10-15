@@ -300,12 +300,6 @@ impl Selection {
         combine(self, children)
     }
 
-    pub fn mapped(&self, edit: &impl Fn(Selector) -> Selector) -> Self {
-        self.fold(&mut |node, children| {
-            node.rebuilt(edit(node.selector.with_children_ref(children)))
-        })
-    }
-
     pub fn filter_map(&self, edit: &impl Fn(&Selector) -> Option<Selector>) -> Option<Self> {
         let selector = edit(&self.selector)?;
         let children = selector.children();
