@@ -2671,22 +2671,18 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
 
     let first = next_run_id();
     let second = next_run_id();
-    register_store_run(&state, &label, first, target.clone()).unwrap();
-    register_store_run(&state, &label, second, target.clone()).unwrap();
+    let (_, first_cancel) = register_store_run(&state, &label, first, target.clone()).unwrap();
+    let (_, second_cancel) = register_store_run(&state, &label, second, target.clone()).unwrap();
     {
         let mut manager = state.lock().unwrap();
         manager.store_for_map(&map_id).unwrap().close_layer("draft");
     }
-    assert!(runs().lock().unwrap()[&first]
-        .cancel
-        .load(Ordering::Relaxed));
-    assert!(runs().lock().unwrap()[&second]
-        .cancel
-        .load(Ordering::Relaxed));
+    assert!(first_cancel.load(Ordering::Relaxed));
+    assert!(second_cancel.load(Ordering::Relaxed));
 
     let late = next_run_id();
     assert!(register_store_run(&state, &label, late, target.clone()).is_err());
-    assert!(!runs().lock().unwrap().contains_key(&late));
+    assert!(unregister_run(late).is_none());
 
     {
         let mut manager = state.lock().unwrap();
@@ -2739,14 +2735,12 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
     }
 
     let run_id = next_run_id();
-    register_store_run(&state, &label, run_id, target).unwrap();
+    let (_, cancel) = register_store_run(&state, &label, run_id, target).unwrap();
     {
         let mut manager = state.lock().unwrap();
         manager.store_for_map(&map_id).unwrap().close_layer("draft");
     }
-    assert!(!runs().lock().unwrap()[&run_id]
-        .cancel
-        .load(Ordering::Relaxed));
+    assert!(!cancel.load(Ordering::Relaxed));
     assert!(state
         .lock()
         .unwrap()

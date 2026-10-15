@@ -2,8 +2,8 @@
 //! Commits merge the overlay into the batch. Rows stay sorted by id for fast lookup;
 //! render frames and selection membership are updated from the same row changes.
 
-use crate::procedure::engine;
 use crate::procedure::registry::Providers;
+use crate::runs;
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
 use mma_algebra::{Counts, Delta, Id, Ids};
@@ -263,7 +263,7 @@ impl Store {
     /// Initial derived state for a newly opened window, marking all included values as delivered.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.writing_layers
-            .replace(engine::pending_writers(&self.meta.id));
+            .replace(runs::pending_writers(&self.meta.id));
         self.shipped();
         let fields: Vec<_> = self
             .registry()

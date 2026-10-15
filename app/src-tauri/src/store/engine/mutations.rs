@@ -1,7 +1,7 @@
 //! Location mutations as the engine applies them: adds, patches, field-wide ops, and the `Mutation` they report.
 
 use super::*;
-use crate::procedure::engine;
+use crate::runs;
 use crate::selections::field_expr;
 use crate::selections::field_expr::Expr;
 use crate::selections::neighborhood::coord_key;
@@ -351,7 +351,7 @@ impl Store {
     /// Remove closed layers nothing still writes to, then announce which layers are being
     /// written if that moved.
     pub(crate) fn settle_layers(&mut self) {
-        let writing = engine::pending_writers(&self.meta.id);
+        let writing = runs::pending_writers(&self.meta.id);
         self.pending
             .retain(|name, pending| !pending.stage.closed() || writing.contains(name));
         if writing != *self.writing_layers {
@@ -377,7 +377,7 @@ impl Store {
         if let Some(pending) = self.pending.get_mut(name) {
             pending.stage = match pending.stage {
                 Stage::Open => {
-                    engine::cancel_pending_writers(&self.meta.id, name);
+                    runs::cancel_pending_writers(&self.meta.id, name);
                     Stage::Discarded
                 }
                 Stage::Landed(joins) => Stage::Closing(joins),

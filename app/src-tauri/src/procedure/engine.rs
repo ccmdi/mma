@@ -6,6 +6,7 @@ use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
+use crate::runs::{cancel_run, next_run_id, register_run, unregister_run};
 use crate::selections::tree::SelectionInput;
 use crate::selections::{neighborhood, RowRef, Selector};
 use crate::store::engine::{Store, StoreState, Target, WindowLabel};
@@ -14,7 +15,7 @@ use crate::sv::pano::{self, PanoAnswer, PanoQuery};
 use crate::types::{wire_str_enum, AppError, AppResult, Location};
 use mma_algebra::{Id, Op, Patch, Patchable};
 use serde_json::value::RawValue;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
@@ -281,72 +282,6 @@ fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
         .resource_dir()
         .map_err(|e| AppError(format!("procedure: resource dir unavailable: {e}")))?;
     Ok(dir.join(rel))
-}
-
-// ---------------------------------------------------------------------------
-// Run registry
-// ---------------------------------------------------------------------------
-
-#[derive(Clone)]
-struct RunEntry {
-    cancel: Arc<AtomicBool>,
-    /// The map and target the run writes to, when it writes to a store.
-    writer: Option<(Id<MapMeta, String>, Target)>,
-}
-
-fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
-    static R: OnceLock<Mutex<HashMap<u32, RunEntry>>> = OnceLock::new();
-    R.get_or_init(|| Mutex::new(HashMap::new()))
-}
-
-fn next_run_id() -> u32 {
-    static NEXT: AtomicU32 = AtomicU32::new(1);
-    NEXT.fetch_add(1, Ordering::Relaxed)
-}
-
-fn register_run(
-    run_id: u32,
-    writer: Option<(Id<MapMeta, String>, Target)>,
-) -> AppResult<Arc<AtomicBool>> {
-    let cancel = Arc::new(AtomicBool::new(false));
-    runs().lock()?.insert(
-        run_id,
-        RunEntry {
-            cancel: cancel.clone(),
-            writer,
-        },
-    );
-    Ok(cancel)
-}
-
-fn unregister_run(run_id: u32) -> Option<RunEntry> {
-    runs().lock().ok()?.remove(&run_id)
-}
-
-pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> {
-    runs()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .values()
-        .filter_map(|run| match &run.writer {
-            Some((id, Target::Pending { name })) if id == map_id => Some(name.clone()),
-            _ => None,
-        })
-        .collect()
-}
-
-/// Cancel only active procedures that still target this unlanded pending layer.
-pub(crate) fn cancel_pending_writers(map_id: &Id<MapMeta, String>, name: &str) {
-    for run in runs()
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .values()
-    {
-        if matches!(&run.writer, Some((id, Target::Pending { name: target })) if id == map_id && target == name)
-        {
-            run.cancel.store(true, Ordering::Relaxed);
-        }
-    }
 }
 
 fn finish_writer_run(state: &StoreState, run_id: u32) {
@@ -1629,10 +1564,7 @@ pub async fn procedure_run(
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
-    if let Some(run) = runs().lock()?.get(&run_id) {
-        run.cancel.store(true, Ordering::Relaxed);
-    }
-    Ok(())
+    cancel_run(run_id)
 }
 
 /// Reserve a run id up front, for a query or location run that answers only when it is over:

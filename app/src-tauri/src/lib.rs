@@ -18,6 +18,7 @@ mod io;
 mod net;
 mod plugins;
 mod procedure;
+mod runs;
 mod selections;
 #[cfg(all(debug_assertions, windows))]
 mod stall_reporter;
