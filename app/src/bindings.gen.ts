@@ -229,10 +229,8 @@ export const commands = {
 	 *  A closed map writes straight to disk and returns null.
 	 */
 	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
-	/**  Rename a folder across all maps that reference it. */
-	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
-	/**  Delete a folder, moving its maps to the root level. */
-	storeDeleteFolder: (name: string) => __TAURI_INVOKE<null>("store_delete_folder", { name }),
+	/**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. */
+	storeMoveFolder: (from: string, to: string | null) => __TAURI_INVOKE<null>("store_move_folder", { from, to }),
 	/**  Return aggregate database statistics: counts, file size, and configuration. */
 	storeDbStats: () => __TAURI_INVOKE<DbStats>("store_db_stats"),
 	/**  The preferences new maps start from, or `null` when they start from the factory defaults. */

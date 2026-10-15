@@ -875,10 +875,8 @@ declare const commands$1: {
             pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
         };
     }) => Promise<MutationResult<Location> | null>;
-    /**  Rename a folder across all maps that reference it. @unstable */
-    storeRenameFolder: (from: string, to: string) => Promise<null>;
-    /**  Delete a folder, moving its maps to the root level. @unstable */
-    storeDeleteFolder: (name: string) => Promise<null>;
+    /**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. @unstable */
+    storeMoveFolder: (from: string, to: string | null) => Promise<null>;
     /**  Return aggregate database statistics: counts, file size, and configuration. @unstable */
     storeDbStats: () => Promise<DbStats>;
     /**  The preferences new maps start from, or `null` when they start from the factory defaults. @unstable */

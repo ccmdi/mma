@@ -191,7 +191,7 @@ export const Maps = {
 	renameFolder: async (from: string, to: string) => {
 		cachedMapList = cachedMapList.map((m) => (m.folder === from ? { ...m, folder: to } : m));
 		emitEvent("map-list:changed");
-		await cmd.storeRenameFolder(from, to);
+		await cmd.storeMoveFolder(from, to);
 		await Maps.invalidate();
 	},
 	/** Move a map into a folder, or to the root when `folder` is null. */
@@ -205,7 +205,7 @@ export const Maps = {
 	},
 	/** Delete a folder. Maps in it become unfoldered. */
 	removeFolder: async (name: string) => {
-		await cmd.storeDeleteFolder(name);
+		await cmd.storeMoveFolder(name, null);
 		await Maps.invalidate();
 	},
 	/** Add a source of map-row badges. @unstable */

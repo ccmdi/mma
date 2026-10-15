@@ -6495,16 +6495,6 @@ cmd.storeDbStats(): Promise<DbStats>
 
 Return aggregate database statistics: counts, file size, and configuration.
 
-#### cmd.storeDeleteFolder
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeDeleteFolder(name: string): Promise<null>
-```
-
-Delete a folder, moving its maps to the root level.
-
 #### cmd.storeDeleteMap
 
 `unstable` · since v0.4.0
@@ -6756,6 +6746,16 @@ cmd.storeListSavedSelections(): Promise<SavedSelectionInfo[]>
 
 List every saved selection rule (name, color, date), without their selector trees.
 
+#### cmd.storeMoveFolder
+
+`unstable` · unreleased
+
+```ts
+cmd.storeMoveFolder(from: string, to: string | null): Promise<null>
+```
+
+Move every map in folder `from` to folder `to`, or to the root when `to` is null.
+
 #### cmd.storeOpenMap
 
 `unstable` · since v0.4.0
@@ -6784,16 +6784,6 @@ cmd.storeRead(
 ```
 
 Answer one question about the target's locations matched by selector.
-
-#### cmd.storeRenameFolder
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeRenameFolder(from: string, to: string): Promise<null>
-```
-
-Rename a folder across all maps that reference it.
 
 #### cmd.storeResolvePick
 

@@ -918,50 +918,19 @@ fn update_map_meta(
     }))
 }
 
-/// Rename a folder across all maps that reference it.
+/// Move every map in folder `from` to folder `to`, or to the root when `to` is null.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_rename_folder(
+pub async fn store_move_folder(
     state: tauri::State<'_, StoreState>,
     from: String,
-    to: String,
+    to: Option<String>,
 ) -> AppResult<()> {
-    refolder(&state, &from, Some(&to))?;
-    storage::with_db(move |conn| {
-        conn.execute(
-            "UPDATE maps SET folder = ?1 WHERE folder = ?2",
-            params![to, from],
-        )?;
-        Ok(())
-    })
-    .await
-}
-
-/// Delete a folder, moving its maps to the root level.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_delete_folder(
-    state: tauri::State<'_, StoreState>,
-    name: String,
-) -> AppResult<()> {
-    refolder(&state, &name, None)?;
-    storage::with_db(move |conn| {
-        conn.execute(
-            "UPDATE maps SET folder = NULL WHERE folder = ?1",
-            params![name],
-        )?;
-        Ok(())
-    })
-    .await
-}
-
-/// Move every open map in folder `from` to `to`, as the folder commands do on disk.
-fn refolder(state: &StoreState, from: &str, to: Option<&str>) -> AppResult<()> {
     for store in state.lock()?.stores.values_mut() {
-        if store.meta.folder.as_deref() == Some(from) {
+        if store.meta.folder.as_deref() == Some(from.as_str()) {
             let before = (*store.meta).clone();
             let mut after = before.clone();
-            after.folder = to.map(str::to_string);
+            after.folder = to.clone();
             let meta = mma_algebra::Change::from_iter([mma_algebra::Transition::new(
                 Some(before),
                 Some(after),
@@ -976,7 +945,14 @@ fn refolder(state: &StoreState, from: &str, to: Option<&str>) -> AppResult<()> {
             );
         }
     }
-    Ok(())
+    storage::with_db(move |conn| {
+        conn.execute(
+            "UPDATE maps SET folder = ?1 WHERE folder = ?2",
+            params![to, from],
+        )?;
+        Ok(())
+    })
+    .await
 }
 
 // ---------------------------------------------------------------------------
