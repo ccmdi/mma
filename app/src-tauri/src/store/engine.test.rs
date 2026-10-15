@@ -2599,7 +2599,6 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     let bounds = store.cached_bounds();
     let frames = watch(&mut store);
     push_resolved(&mut store, "a", Rgb([255, 0, 0]), &[2]);
-    store.selections.ids = store.selections.live_ids();
 
     let feed = FeedCapture::attach(&mut store);
     let result = store.finish(Finished::Base);

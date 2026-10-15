@@ -44,11 +44,6 @@ impl SelectionState {
         self.resolved.iter().filter(|r| !r.ghosted)
     }
 
-    /// Every id some live selection holds: the selected set.
-    pub(crate) fn live_ids(&self) -> IdSet<Location> {
-        self.live().fold(IdSet::new(), |acc, r| acc | &r.set)
-    }
-
     /// The live selection painting a selected id: the last one containing it, by its
     /// index in `live` order. `None` if unselected.
     pub(super) fn paint_for(&self, id: Id<Location>) -> Option<PaletteIdx> {
@@ -89,7 +84,24 @@ impl Store {
     /// values it empties are pruned, and a selection naming a value paints in that value's
     /// record colour, when the selection is new to the list or the entry changes the record.
     pub(super) fn selection_consequences(&mut self, entry: &Entry) -> SelectionDelta {
-        let pruned = self.pruned_selections(entry);
+        let gone = self.emptied_values(&entry.locations, |field| {
+            entry
+                .records
+                .get(field)
+                .into_iter()
+                .flat_map(Change::keys_iter)
+                .map(|id| id.to_string())
+                .collect()
+        });
+        let pruned = if gone.is_empty() {
+            entry.selections.clone()
+        } else {
+            self.selections.change(&entry.selections, |rows| {
+                rows.into_iter()
+                    .filter(|row| !names_emptied(&gone, row))
+                    .collect()
+            })
+        };
         let changed: HashMap<(&str, Id<ValueRecord>), Rgb> = entry
             .records
             .iter()
@@ -119,27 +131,6 @@ impl Store {
                         ..row
                     }
                 })
-                .collect()
-        })
-    }
-
-    /// Remove the listed rows that are exactly a test for a value this write emptied.
-    fn pruned_selections(&mut self, entry: &Entry) -> SelectionDelta {
-        let gone = self.emptied_values(&entry.locations, |field| {
-            entry
-                .records
-                .get(field)
-                .into_iter()
-                .flat_map(Change::keys_iter)
-                .map(|id| id.to_string())
-                .collect()
-        });
-        if gone.is_empty() {
-            return entry.selections.clone();
-        }
-        self.selections.change(&entry.selections, |rows| {
-            rows.into_iter()
-                .filter(|row| !names_emptied(&gone, row))
                 .collect()
         })
     }
@@ -230,14 +221,6 @@ pub(crate) fn listed_rows(table: HashMap<String, Listing>) -> Vec<ListedSelectio
         .collect()
 }
 
-/// `rows` keyed by their keys, each placed at its position.
-fn numbered(rows: Vec<ListedSelection>) -> HashMap<String, Listing> {
-    rows.into_iter()
-        .zip(0..)
-        .map(|(row, order)| (row.selection.key.clone(), Listing { order, row }))
-        .collect()
-}
-
 impl SelectionState {
     pub(crate) fn list(&self) -> Vec<ListedSelection> {
         self.resolved
@@ -257,13 +240,10 @@ impl SelectionState {
     pub(crate) fn table(&self) -> HashMap<String, Listing> {
         self.resolved
             .iter()
-            .map(|root| {
-                let row = ListedSelection {
-                    selection: root.sel.clone(),
-                    ghosted: root.ghosted,
-                };
+            .zip(self.list())
+            .map(|(root, row)| {
                 (
-                    root.sel.key.clone(),
+                    row.selection.key.clone(),
                     Listing {
                         order: root.order,
                         row,
@@ -281,7 +261,11 @@ impl SelectionState {
         let before = self.table();
         let mut held = before.clone();
         pending.apply_to(&mut held);
-        let after = numbered(edit(listed_rows(held)));
+        let after: HashMap<String, Listing> = edit(listed_rows(held))
+            .into_iter()
+            .zip(0..)
+            .map(|(row, order)| (row.selection.key.clone(), Listing { order, row }))
+            .collect();
         Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
     }
 
@@ -308,7 +292,7 @@ impl SelectionState {
         for (root, set) in self.resolved.iter_mut().zip(sets) {
             root.set = set;
         }
-        self.ids = self.live_ids();
+        self.ids = self.live().fold(IdSet::new(), |acc, r| acc | &r.set);
     }
 
     /// Update membership for changed rows and return ids whose selection colour changed.
@@ -379,7 +363,22 @@ impl SelectionState {
 impl Store {
     pub(crate) fn edit_selections(&mut self, op: &SelectionOp) -> MutationResult<ListedSelection> {
         let rows = op.apply(&self.selections.list());
-        self.replace_selections(rows)
+        let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
+        let written = self.write(
+            [],
+            &mut None,
+            Entry {
+                selections,
+                ..Default::default()
+            },
+        );
+        MutationResult {
+            mutation: Mutation {
+                version: written.version,
+                keys: Vec::new(),
+                history_cleared: written.history_cleared,
+            },
+        }
     }
 
     /// `table` without the rows that are exactly a test for a value no row holds any more.
@@ -400,27 +399,5 @@ impl Store {
             .into_iter()
             .filter(|(_, listing)| !names_emptied(&gone, &listing.row))
             .collect()
-    }
-
-    fn replace_selections(
-        &mut self,
-        rows: Vec<ListedSelection>,
-    ) -> MutationResult<ListedSelection> {
-        let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
-        let written = self.write(
-            [],
-            &mut None,
-            Entry {
-                selections,
-                ..Default::default()
-            },
-        );
-        MutationResult {
-            mutation: Mutation {
-                version: written.version,
-                keys: Vec::new(),
-                history_cleared: written.history_cleared,
-            },
-        }
     }
 }
