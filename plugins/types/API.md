@@ -6108,33 +6108,18 @@ cmd.polygonFill(polygon: PolygonGeometry): Promise<[number, number][][][]>
 
 The area a polygon selects, as polygons whose edges never cross, for drawing its fill.
 
-#### cmd.polygonPoissonPoints
+#### cmd.polygonPoints
 
-`unstable` · since v0.11.0
+`unstable` · unreleased
 
 ```ts
-cmd.polygonPoissonPoints(
+cmd.polygonPoints(
   polygon: PolygonGeometry,
-  spacingM: number,
+  sampling: PointSampling,
 ): Promise<[number, number][]>
 ```
 
-Points covering the polygon with no two closer than `spacingM` metres and no gap
-wider than about twice that, in random order.
-
-#### cmd.polygonRandomPoints
-
-`unstable` · since v0.11.0
-
-```ts
-cmd.polygonRandomPoints(
-  polygon: PolygonGeometry,
-  count: number,
-): Promise<[number, number][]>
-```
-
-Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
-pairs. Fewer come back when the polygon fills little of its bounding box.
+Points inside the polygon as `[lng, lat]` pairs, drawn as `sampling` says.
 
 #### cmd.procedureActivity
 

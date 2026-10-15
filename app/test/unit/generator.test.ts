@@ -66,7 +66,7 @@ vi.mock("@/lib/commands", () => ({
 				),
 			);
 		},
-		polygonRandomPoints: (polygon: MockPolygon, count: number) => {
+		polygonPoints: (polygon: MockPolygon, { count }: { count: number }) => {
 			const r = rectOf(polygon);
 			const pts: [number, number][] = Array.from({ length: count }, (_, i) => {
 				const fraction = (i + 1) / (count + 1);

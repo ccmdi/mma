@@ -176,16 +176,8 @@ export const commands = {
 	 *  one entry per row of points.
 	 */
 	honeycombPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<HoneycombRun[]>("honeycomb_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i) as typeof v)),
-	/**
-	 *  Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
-	 *  pairs. Fewer come back when the polygon fills little of its bounding box.
-	 */
-	polygonRandomPoints: (polygon: PolygonGeometry, count: number) => __TAURI_INVOKE<([number, number])[]>("polygon_random_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), count }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
-	/**
-	 *  Points covering the polygon with no two closer than `spacingM` metres and no gap
-	 *  wider than about twice that, in random order.
-	 */
-	polygonPoissonPoints: (polygon: PolygonGeometry, spacingM: number) => __TAURI_INVOKE<([number, number])[]>("polygon_poisson_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), spacingM }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
+	/**  Points inside the polygon as `[lng, lat]` pairs, drawn as `sampling` says. */
+	polygonPoints: (polygon: PolygonGeometry, sampling: PointSampling) => __TAURI_INVOKE<([number, number])[]>("polygon_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), sampling }).then((v) => (v.map(i=>i.map(i=>i)) as typeof v)),
 	/**  Whether each of the points sits inside the polygon. */
 	polygonContainsPoints: (polygon: PolygonGeometry, lats: number[], lngs: number[]) => __TAURI_INVOKE<boolean[]>("polygon_contains_points", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}), lats: lats.map(i=>i), lngs: lngs.map(i=>i) }),
 	/**
@@ -1332,6 +1324,13 @@ export type PluginSidecar = {
 	/**  Expected SHA-256 hex digest of the platform-specific zip archive. */
 	sha256?: string | null,
 };
+
+/**  How points are drawn inside a polygon. */
+export type PointSampling = 
+/**  Up to `count` points uniformly at random, fewer when the polygon fills little of its bounding box. */
+{ kind: "random"; count: number } | 
+/**  Points no two closer than `spacingM` metres and no gap wider than about twice that, in random order. */
+{ kind: "poisson"; spacingM: number };
 
 /**  How hard one caller may push an endpoint. */
 export type Policy = {

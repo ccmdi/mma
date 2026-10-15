@@ -422,35 +422,46 @@ pub async fn honeycomb_points(
     Ok(runs)
 }
 
-/// Up to `count` points drawn uniformly at random inside the polygon, as `[lng, lat]`
-/// pairs. Fewer come back when the polygon fills little of its bounding box.
-#[tauri::command]
-#[specta::specta]
-pub async fn polygon_random_points(
-    polygon: selections::PolygonGeometry,
-    count: u32,
-) -> Vec<[f64; 2]> {
-    mma_geo::random_points(&polygon.prepared(), count as usize, fastrand::f64)
+/// How points are drawn inside a polygon.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum PointSampling {
+    /// Up to `count` points uniformly at random, fewer when the polygon fills little of its bounding box.
+    Random { count: u32 },
+    /// Points no two closer than `spacingM` metres and no gap wider than about twice that, in random order.
+    Poisson { spacing_m: f64 },
 }
 
-/// Points covering the polygon with no two closer than `spacingM` metres and no gap
-/// wider than about twice that, in random order.
+/// Points inside the polygon as `[lng, lat]` pairs, drawn as `sampling` says.
 #[tauri::command]
 #[specta::specta]
-pub async fn polygon_poisson_points(
+pub async fn polygon_points(
     polygon: selections::PolygonGeometry,
-    spacing_m: f64,
+    sampling: PointSampling,
 ) -> AppResult<Vec<[f64; 2]>> {
-    if !(spacing_m.is_finite() && spacing_m >= 1.0) {
-        return Err(AppError::from(
-            "polygon_poisson_points: spacing_m must be at least 1 metre",
-        ));
+    match sampling {
+        PointSampling::Random { count } => Ok(mma_geo::random_points(
+            &polygon.prepared(),
+            count as usize,
+            fastrand::f64,
+        )),
+        PointSampling::Poisson { spacing_m } => {
+            if !(spacing_m.is_finite() && spacing_m >= 1.0) {
+                return Err(AppError::from(
+                    "polygon_points: spacing_m must be at least 1 metre",
+                ));
+            }
+            Ok(mma_geo::poisson_points(
+                &polygon.prepared(),
+                spacing_m,
+                fastrand::f64,
+            ))
+        }
     }
-    Ok(mma_geo::poisson_points(
-        &polygon.prepared(),
-        spacing_m,
-        fastrand::f64,
-    ))
 }
 
 /// Whether each of the points sits inside the polygon.

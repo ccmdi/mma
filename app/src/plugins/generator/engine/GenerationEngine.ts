@@ -389,7 +389,10 @@ export class GenerationEngine {
 					});
 		}
 		if (sampling.mode === "poisson") {
-			const pairs = await cmd.polygonPoissonPoints(region.polygon, 2 * this.settings.radius);
+			const pairs = await cmd.polygonPoints(region.polygon, {
+				kind: "poisson",
+				spacingM: 2 * this.settings.radius,
+			});
 			const points = pairs.map(([lng, lat]) => ({ lat, lng }));
 			log.info(`[generator] Poisson disk: ${points.length} probes for ${region.name}`);
 			return pointsInOrder(points);
@@ -526,7 +529,9 @@ export class GenerationEngine {
 		while (await this.proceed(region)) {
 			region.isProcessing = true;
 			const n = Math.min(region.target * 100, ROUND_SIZE);
-			let randomCoords = (await cmd.polygonRandomPoints(region.polygon, n)).map(([lng, lat]) => ({
+			let randomCoords = (
+				await cmd.polygonPoints(region.polygon, { kind: "random", count: n })
+			).map(([lng, lat]) => ({
 				lat,
 				lng,
 			}));

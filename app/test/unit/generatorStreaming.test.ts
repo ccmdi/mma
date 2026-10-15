@@ -60,7 +60,7 @@ vi.mock("@/lib/commands", () => {
 				return Promise.resolve([r.west, r.south, r.east, r.north]);
 			},
 			polygonContainsPoints: (_p: unknown, lats: number[]) => Promise.resolve(lats.map(() => true)),
-			polygonRandomPoints: (_p: unknown, count: number) => {
+			polygonPoints: (_p: unknown, { count }: { count: number }) => {
 				const r = rect();
 				const pts: [number, number][] = Array.from({ length: count }, (_, i) => {
 					const fraction = (i + 1) / (count + 1);
