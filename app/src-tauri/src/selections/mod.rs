@@ -15,7 +15,7 @@ use crate::types;
 use crate::types::{wire_str_enum, Location, LocationFlags, RawExtra};
 use crate::util::Rgb;
 use arrow_array::RecordBatch;
-use mma_algebra::{Change, Id, Keyed};
+use mma_algebra::{Change, Id};
 use mma_fields::Children;
 
 mod duplicates;
@@ -38,7 +38,7 @@ pub use partition::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::borrow::Cow;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
 wire_str_enum! {
     /// Which locations of a review session a selection holds.
@@ -556,12 +556,16 @@ impl FieldIndex {
         self.mark(id, &keys, true);
     }
 
-    pub fn project<T: Keyed<Key = Id<Location>>>(
+    /// `change` as the keys each moved row files under `field` here.
+    pub fn project(
         &self,
-        change: &Change<T>,
-        value: impl Fn(&T) -> Option<serde_json::Value>,
+        field: &str,
+        change: &Change<Location>,
     ) -> Change<(Id<Location>, Option<Vec<String>>)> {
-        change.project(|row| (row.key(), self.contribution(value(row).as_ref())))
+        change.project(|row| {
+            let value = RowRef::from_loc(row).resolve_field(field);
+            (row.id, self.contribution(value.as_ref()))
+        })
     }
 
     pub fn apply(
@@ -579,25 +583,6 @@ impl FieldIndex {
             }
         }
         moved
-    }
-
-    pub fn absent_after(
-        &self,
-        change: &Change<(Id<Location>, Option<Vec<String>>)>,
-        touched: impl IntoIterator<Item = String>,
-    ) -> HashSet<String> {
-        let mut counts =
-            change.count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
-        for key in touched {
-            counts.entry(key).or_default();
-        }
-        counts
-            .into_iter()
-            .filter_map(|(key, delta)| {
-                let count = self.by_value.get(&key).map_or(0, |ids| ids.len() as i64);
-                (count + delta <= 0).then_some(key)
-            })
-            .collect()
     }
 }
 

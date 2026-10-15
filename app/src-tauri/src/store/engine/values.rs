@@ -155,12 +155,16 @@ impl<'a> FieldValues<'a> {
         rows: &Change,
         touched: impl IntoIterator<Item = String>,
     ) -> BTreeSet<String> {
-        let delta = self.index.project(rows, |row| {
-            selections::RowRef::from_loc(row).resolve_field(self.field)
-        });
-        self.index
-            .absent_after(&delta, touched)
+        let mut counts = self
+            .index
+            .project(self.field, rows)
+            .count_by(|(_, keys)| keys.iter().flatten().cloned().collect::<Vec<_>>());
+        for key in touched {
+            counts.entry(key).or_default();
+        }
+        counts
             .into_iter()
+            .filter_map(|(key, delta)| (self.count(&key) as i64 + delta <= 0).then_some(key))
             .collect()
     }
 

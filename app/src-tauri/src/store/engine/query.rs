@@ -317,10 +317,7 @@ impl Store {
         self.field_indexes
             .iter_mut()
             .filter_map(|(field, index)| {
-                let delta = index.project(change, |row| {
-                    selections::RowRef::from_loc(row).resolve_field(field)
-                });
-                let moved = index.apply(&delta);
+                let moved = index.apply(&index.project(field, change));
                 (!moved.is_empty()).then_some((field.clone(), moved))
             })
             .collect()
