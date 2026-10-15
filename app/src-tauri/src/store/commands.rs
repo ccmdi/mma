@@ -11,7 +11,6 @@ use crate::store::engine::*;
 use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
-use crate::util::Rgb;
 use mma_algebra::{Edit, Id, Op};
 use std::time::Instant;
 use tauri::async_runtime;
@@ -127,20 +126,6 @@ pub async fn store_edit_uploaded(
         started.elapsed().as_millis()
     );
     Ok(result)
-}
-
-/// Set the default marker color for new render updates.
-#[tauri::command]
-#[specta::specta]
-pub fn store_set_marker_color(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    color: Rgb,
-) -> AppResult<()> {
-    with_store!(label, state, |store| {
-        store.render.marker_color = color;
-        Ok(())
-    })
 }
 
 /// Count locations by country using offline point-in-polygon. Returns (ISO-A2, count) pairs.

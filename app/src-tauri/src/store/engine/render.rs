@@ -189,7 +189,6 @@ pub(crate) struct RenderState {
     pub cells: [Option<CellRender>; 32],
     pub id_to_cell_idx: Vec<u8>,
     pub arrow_style: bool,
-    pub marker_color: Rgb,
 }
 
 impl RenderState {
@@ -205,17 +204,10 @@ impl RenderState {
 
 /// Parameters for a full marker rebuild. `markerStyle` ("arrow" or "pin") decides whether
 /// headings are drawn.
-// The bounding box fields are unused: there is no viewport culling.
 #[derive(Default, serde::Deserialize, specta::Type)]
 #[serde(default, rename_all = "camelCase")]
 pub struct RenderRequest {
-    pub west: f64,
-    pub south: f64,
-    pub east: f64,
-    pub north: f64,
-    pub selected_ids: Option<Vec<Id<Location>>>,
     pub marker_style: String,
-    pub marker_color: Option<Rgb>,
 }
 
 impl Store {
@@ -237,9 +229,6 @@ impl Store {
         req: &RenderRequest,
     ) {
         self.render.arrow_style = req.marker_style == "arrow";
-        if let Some(mc) = req.marker_color {
-            self.render.marker_color = mc;
-        }
         self.frames.insert(label, sink);
         let frame = self.scene_frame();
         self.frames.send(FrameBytes(frame.encode()));
@@ -248,7 +237,6 @@ impl Store {
     /// Take over the windows `replaced` was drawing for, sending them this store's scene.
     pub(crate) fn adopt_watchers(&mut self, replaced: Store) {
         self.render.arrow_style = replaced.render.arrow_style;
-        self.render.marker_color = replaced.render.marker_color;
         self.frames = replaced.frames;
         self.changes = replaced.changes;
         let frame = self.scene_frame();

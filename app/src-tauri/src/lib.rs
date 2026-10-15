@@ -164,7 +164,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 store::commands::store_save_dirty,
                 store::commands::store_copy_locations_to_map,
                 store::commands::store_edit_uploaded,
-                store::commands::store_set_marker_color,
                 store::commands::honeycomb_points,
                 store::commands::polygon_random_points,
                 store::commands::polygon_poisson_points,

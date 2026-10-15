@@ -215,13 +215,7 @@ impl Fixture {
 /// The default render request: pin markers, whole world, no explicit selection.
 pub fn render_request() -> RenderRequest {
     RenderRequest {
-        west: -180.0,
-        south: -90.0,
-        east: 180.0,
-        north: 90.0,
-        selected_ids: None,
         marker_style: "pin".into(),
-        marker_color: None,
     }
 }
 

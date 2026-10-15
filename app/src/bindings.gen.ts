@@ -177,8 +177,6 @@ export const commands = {
 	storeCopyLocationsToMap: (targetMapId: string, selector: Selector<SelectionInput>) => __TAURI_INVOKE<CopyToMapResult>("store_copy_locations_to_map", { targetMapId, selector }),
 	/**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. */
 	storeEditUploaded: (target: Target, session: string) => __TAURI_INVOKE<EditResult>("store_edit_uploaded", { target, session }),
-	/**  Set the default marker color for new render updates. */
-	storeSetMarkerColor: (color: RGB) => __TAURI_INVOKE<null>("store_set_marker_color", { color }),
 	/**
 	 *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
 	 *  one entry per row of points.
@@ -1559,13 +1557,7 @@ export type RateSpec = {
  *  headings are drawn.
  */
 export type RenderRequest = {
-	west?: number,
-	south?: number,
-	east?: number,
-	north?: number,
-	selectedIds?: number[] | null,
 	markerStyle?: string,
-	markerColor?: RGB | null,
 };
 
 

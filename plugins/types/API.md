@@ -7014,16 +7014,6 @@ cmd.storeSetMapDefaults(preferences: MapPreferences | null): Promise<null>
 Set the preferences new maps start from; `null` restores the factory defaults. Maps
 that already exist keep their own.
 
-#### cmd.storeSetMarkerColor
-
-`unstable` · since v0.7.1
-
-```ts
-cmd.storeSetMarkerColor(color: RGB): Promise<null>
-```
-
-Set the default marker color for new render updates.
-
 #### cmd.storeStep
 
 `unstable` · since v0.12.0

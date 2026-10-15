@@ -192,7 +192,6 @@ impl Store {
                 cells: [const { None }; 32],
                 id_to_cell_idx: Vec::new(),
                 arrow_style: false,
-                marker_color: DEFAULT_MARKER_COLOR,
             },
             selections: SelectionState::default(),
             records: HashMap::new(),

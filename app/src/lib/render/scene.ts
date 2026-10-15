@@ -87,14 +87,7 @@ async function doLoadScene(markerStyle: MarkerStyle, mc?: RGB): Promise<void> {
 	});
 	follow(channel);
 	try {
-		await cmd.storeSubscribeFrames(channel, {
-			west: -180,
-			south: -90,
-			east: 180,
-			north: 90,
-			markerStyle,
-			markerColor: mc,
-		});
+		await cmd.storeSubscribeFrames(channel, { markerStyle });
 		t.step("subscribe");
 		await loaded;
 		t.step("apply");
@@ -119,7 +112,6 @@ export const Scene = {
 	recolor: (mc: RGB) => {
 		if (markerDefault.every((c, i) => c === mc[i])) return;
 		Scene.setDefaultColor(...mc);
-		void cmd.storeSetMarkerColor(mc);
 		scene.version++;
 		emitEvent("scene:changed");
 	},

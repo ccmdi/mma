@@ -874,7 +874,6 @@ fn a_moved_location_leaves_its_old_cell_and_joins_the_new_one() {
 #[test]
 fn an_unselected_add_is_drawn_by_the_base_layer() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
-    store.render.marker_color = Rgb([10, 20, 30]);
 
     let entry = Change::from_sides(vec![loc(2, 30.0, 40.0)], vec![]);
     let changes = forward(&mut store, &entry);
@@ -4929,7 +4928,6 @@ fn selection_cell_segment_adapts_format() {
         cells,
         id_to_cell_idx: vec![0u8; n],
         arrow_style: false,
-        marker_color: DEFAULT_MARKER_COLOR,
     };
     let cr = render.cells[0].as_ref().unwrap();
     // header = 1 base32 byte + 4-byte loc count; per selection a format byte follows.

@@ -813,8 +813,6 @@ declare const commands$1: {
     storeCopyLocationsToMap: (targetMapId: string, selector: Selector$1<SelectionInput>) => Promise<CopyToMapResult>;
     /**  Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as one change. @unstable */
     storeEditUploaded: (target: Target, session: string) => Promise<EditResult>;
-    /**  Set the default marker color for new render updates. @unstable */
-    storeSetMarkerColor: (color: RGB) => Promise<null>;
     /**
      *  The points of a honeycomb about `spacingM` metres apart that fall inside the polygon,
      *  one entry per row of points.
@@ -2513,13 +2511,7 @@ type RateSpec = {
  *  @unstable
  */
 type RenderRequest = {
-    west?: number;
-    south?: number;
-    east?: number;
-    north?: number;
-    selectedIds?: number[] | null;
     markerStyle?: string;
-    markerColor?: RGB | null;
 };
 /**  One location's answer from a procedure, as the JSON its module emitted. @unstable */
 type ResultEntry = {
