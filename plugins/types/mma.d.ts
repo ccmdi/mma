@@ -637,7 +637,7 @@ declare const commands$1: {
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
     storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult<ValueRecord>>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionOp) => Promise<MutationResult<ListedSelection>>;
+    storeEditSelections: (op: SelectionEdit) => Promise<MutationResult<ListedSelection>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /**  Reports the window ready and returns the app's startup time and uptime. @unstable */
@@ -1134,6 +1134,10 @@ declare const events: {
         emit: (payload: ValiProgress) => Promise<void>;
     };
 };
+/**  The one kind of edit that names a saved selection. @unstable */
+type AddSavedKind = 
+/**  Add a saved selection's parts. */
+"addSaved";
 /**  The answer to a question about the selected locations. */
 type Answer = 
 /**  The matched ids. */
@@ -2622,6 +2626,15 @@ type Selection = {
     color: RGB;
     selector: Selector$1;
 };
+/**  An edit of the selection tree as asked for: a plain edit, or a saved selection to add. @unstable */
+type SelectionEdit = 
+/**  Add a saved selection's parts, with its value names resolved against the open map. */
+{
+    kind: AddSavedKind;
+    id: string;
+} | 
+/**  Any other edit of the selection tree. */
+SelectionOp;
 /** @unstable */
 type SelectionInput = {
     selector: Selector$1<SelectionInput>;
@@ -2632,12 +2645,6 @@ type SelectionOp = {
     /** @unstable */
     kind: "add";
     selections: SelectionInput[];
-} | 
-/**  Add a saved selection's parts, with its value names resolved against the open map. */
-{
-    /** @unstable */
-    kind: "addSaved";
-    id: string;
 } | {
     /** @unstable */
     kind: "set";
@@ -8008,4 +8015,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

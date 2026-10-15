@@ -15,7 +15,7 @@ export const commands = {
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
 	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Edit the selection tree. */
-	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
+	storeEditSelections: (op: SelectionEdit) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/**  Reports the window ready and returns the app's startup time and uptime. */
@@ -387,6 +387,11 @@ export const events = {
 };
 
 /* Types */
+/**  The one kind of edit that names a saved selection. */
+export type AddSavedKind = 
+/**  Add a saved selection's parts. */
+"addSaved";
+
 /**  The answer to a question about the selected locations. */
 export type Answer = 
 /**  The matched ids. */
@@ -1660,14 +1665,19 @@ export type Selection = {
 	selector: Selector,
 };
 
+/**  An edit of the selection tree as asked for: a plain edit, or a saved selection to add. */
+export type SelectionEdit = 
+/**  Add a saved selection's parts, with its value names resolved against the open map. */
+{ kind: AddSavedKind; id: string } | 
+/**  Any other edit of the selection tree. */
+SelectionOp;
+
 export type SelectionInput = {
 	selector: Selector<SelectionInput>,
 	color?: RGB | null,
 };
 
-export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | 
-/**  Add a saved selection's parts, with its value names resolved against the open map. */
-{ kind: "addSaved"; id: string } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | 
+export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | 
 /**  Join the listed selections named by `keys`, or every one when null, into one group. */
 { kind: "combine"; group: Group; keys: string[] | null } | 
 /**

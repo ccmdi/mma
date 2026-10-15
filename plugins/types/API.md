@@ -6669,7 +6669,7 @@ Edit locations where target says; an open pending layer holds edits until it lan
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionOp): Promise<MutationResult<ListedSelection>>
+cmd.storeEditSelections(op: SelectionEdit): Promise<MutationResult<ListedSelection>>
 ```
 
 Edit the selection tree.

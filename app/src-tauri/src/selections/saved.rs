@@ -4,6 +4,7 @@
 //! carried at save time. Value ids are map-local, so they resolve through the names at apply
 //! time; the tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
+use crate::selections::tree::SelectionOp;
 use crate::selections::{Selection, Selector};
 use crate::store::engine::{Store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
@@ -358,30 +359,47 @@ fn remap(selector: &Selector, resolve: &impl Fn(&str, u32) -> Option<Option<u32>
     edit(selector.map_children_ref(|child| child.mapped(&edit)))
 }
 
-impl super::tree::SelectionOp {
-    /// This op with every saved selection it adds read and resolved against `store`.
-    pub(crate) fn resolved(self, store: &mut Store) -> AppResult<Self> {
-        Ok(match self {
-            Self::AddSaved { id } => {
-                let conn = storage::open_db()?;
-                let saved = get(&conn, from_ref(&id))?
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| AppError("saved selection not found".into()))?;
-                let selections = match saved.resolved(store) {
-                    Selector::Union { selections } => selections.into_iter().map(input).collect(),
-                    selector => vec![super::tree::SelectionInput {
-                        selector: selector.map_children(input),
-                        color: Some(saved.info.color),
-                    }],
-                };
-                Self::Add { selections }
-            }
-            Self::Active { op } => Self::Active {
-                op: Box::new(op.resolved(store)?),
-            },
-            op => op,
-        })
+/// The one kind of edit that names a saved selection.
+#[derive(Clone, Copy, Debug, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum AddSavedKind {
+    /// Add a saved selection's parts.
+    AddSaved,
+}
+
+/// An edit of the selection tree as asked for: a plain edit, or a saved selection to add.
+#[derive(Clone, Debug, serde::Deserialize, specta::Type)]
+#[serde(untagged)]
+pub enum SelectionEdit {
+    /// Add a saved selection's parts, with its value names resolved against the open map.
+    Saved {
+        kind: AddSavedKind,
+        id: Id<SavedSelection, String>,
+    },
+    /// Any other edit of the selection tree.
+    Op(SelectionOp),
+}
+
+impl SelectionEdit {
+    /// The tree edit this asks for, reading a named saved selection from disk.
+    pub(crate) fn resolved(self, store: &mut Store) -> AppResult<SelectionOp> {
+        let id = match self {
+            Self::Op(op) => return Ok(op),
+            Self::Saved { id, .. } => id,
+        };
+        let conn = storage::open_db()?;
+        let saved = get(&conn, from_ref(&id))?
+            .into_iter()
+            .next()
+            .ok_or_else(|| AppError("saved selection not found".into()))?;
+        let selections = match saved.resolved(store) {
+            Selector::Union { selections } => selections.into_iter().map(input).collect(),
+            selector => vec![super::tree::SelectionInput {
+                selector: selector.map_children(input),
+                color: Some(saved.info.color),
+            }],
+        };
+        Ok(SelectionOp::Add { selections })
     }
 }
 

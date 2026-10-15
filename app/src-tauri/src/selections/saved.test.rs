@@ -495,8 +495,8 @@ fn a_rule_over_any_interned_field_carries_its_values_to_another_map_by_name() {
 }
 
 #[test]
-fn a_saved_selection_added_to_the_active_selections_is_read_and_added() {
-    storage::tests::map_on_disk("add-saved-active");
+fn adding_a_saved_selection_reads_it_and_adds_its_parts() {
+    storage::tests::map_on_disk("add-saved");
     let saved = create(
         &storage::open_db().unwrap(),
         "everything".into(),
@@ -505,17 +505,22 @@ fn a_saved_selection_added_to_the_active_selections_is_read_and_added() {
         Rgb([1, 2, 3]),
     )
     .unwrap();
+    let edit: SelectionEdit =
+        serde_json::from_value(serde_json::json!({ "kind": "addSaved", "id": saved.info.id }))
+            .unwrap();
     let mut store = Store::new();
-    let op = SelectionOp::Active {
-        op: Box::new(SelectionOp::AddSaved {
-            id: saved.info.id.clone(),
-        }),
-    }
-    .resolved(&mut store)
-    .unwrap();
+    let op = edit.resolved(&mut store).unwrap();
     store.edit_selections(&op);
     let listed = store.selections.list();
     assert_eq!(listed.len(), 1);
     assert_eq!(listed[0].selection.selector, Selector::Everything);
     assert_eq!(listed[0].selection.color, Rgb([1, 2, 3]));
+}
+
+#[test]
+fn any_other_selection_edit_passes_through_as_it_was_asked() {
+    let edit: SelectionEdit =
+        serde_json::from_value(serde_json::json!({ "kind": "remove", "keys": ["a"] })).unwrap();
+    let op = edit.resolved(&mut Store::new()).unwrap();
+    assert!(matches!(op, SelectionOp::Remove { keys } if keys == ["a"]));
 }

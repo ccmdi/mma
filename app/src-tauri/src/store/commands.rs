@@ -4,7 +4,8 @@
 
 use crate::io::export;
 use crate::plugins::borders;
-use crate::selections::tree::{SelectionInput, SelectionOp};
+use crate::selections::saved::SelectionEdit;
+use crate::selections::tree::SelectionInput;
 use crate::selections::{self, Selector};
 use crate::store::engine::*;
 use crate::store::maps::{scratch_map_row, MapMeta, SCRATCH_MAP_ID};
@@ -563,7 +564,7 @@ macro_rules! command_table {
                 Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
             };
 
-            "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult<ListedSelection> => |store| {
+            "Edit the selection tree." store_edit_selections(op: SelectionEdit) -> MutationResult<ListedSelection> => |store| {
                 let op = op.resolved(store)?;
                 Ok(store.edit_selections(&op))
             };
