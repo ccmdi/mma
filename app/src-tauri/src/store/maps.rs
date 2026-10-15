@@ -721,22 +721,21 @@ pub fn purge_scratch_map() -> AppResult<bool> {
     delete_map_data(&conn, &Id::new(SCRATCH_MAP_ID.into()))
 }
 
-fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppResult<MapMeta> {
-    let id = Id::new(uuid::Uuid::new_v4().to_string());
-    let now = now_iso();
-    let settings = serde_json::to_string(&map_defaults::new_map_settings(conn)?)?;
-    conn.execute(
-        "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-        params![id.raw(), name, folder, settings, now, now],
-    )?;
-    Ok(read_map_meta(conn, &id)?)
-}
-
 /// Create a new empty map with the preferences new maps start from. Returns the full metadata.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_create_map(name: String, folder: Option<String>) -> AppResult<MapMeta> {
-    storage::with_db(move |conn| create_map_row(conn, &name, folder.as_deref())).await
+    storage::with_db(move |conn| {
+        let id = Id::new(uuid::Uuid::new_v4().to_string());
+        let now = now_iso();
+        let settings = serde_json::to_string(&map_defaults::new_map_settings(conn)?)?;
+        conn.execute(
+            "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![id.raw(), name, folder, settings, now, now],
+        )?;
+        Ok(read_map_meta(conn, &id)?)
+    })
+    .await
 }
 
 /// Add `copy_id` as a copy of `source`'s row holding `batch`. The row lands only once the

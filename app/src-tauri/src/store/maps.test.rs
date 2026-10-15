@@ -7,6 +7,7 @@ use std::collections::HashSet;
 use std::future::Future;
 use std::time::Duration;
 use std::{mem, thread};
+use tauri::async_runtime;
 
 #[test]
 fn map_settings_never_serializes_absent_keys() {
@@ -630,7 +631,7 @@ fn location_data_is_sized_down_through_the_commit_folders() {
 }
 
 #[test]
-fn new_maps_start_from_the_saved_defaults_and_existing_maps_keep_theirs() {
+fn the_scratch_map_starts_from_the_saved_defaults_and_existing_maps_keep_theirs() {
     let conn = setup_real_db();
     conn.execute(
         "INSERT INTO map_defaults (id, preferences) VALUES (1, ?1)",
@@ -638,15 +639,27 @@ fn new_maps_start_from_the_saved_defaults_and_existing_maps_keep_theirs() {
     )
     .unwrap();
 
-    let created = create_map_row(&conn, "New", None).unwrap();
     let scratch = scratch_map_row(&conn).unwrap();
     let existing = conn
         .query_row("SELECT * FROM maps WHERE id = 'm1'", [], MapMeta::read)
         .unwrap();
 
-    assert!(!created.settings.preferences.point_along_road);
     assert!(!scratch.settings.preferences.point_along_road);
     assert!(existing.settings.preferences.point_along_road);
+}
+
+#[test]
+fn a_created_map_starts_from_the_saved_defaults() {
+    storage::tests::map_on_disk("created-from-defaults");
+    let defaults = serde_json::from_str(r#"{"pointAlongRoad":false}"#).unwrap();
+    async_runtime::block_on(map_defaults::store_set_map_defaults(Some(defaults))).unwrap();
+    let created = async_runtime::block_on(store_create_map("New".into(), Some("Folder".into())));
+    async_runtime::block_on(map_defaults::store_set_map_defaults(None)).unwrap();
+
+    let created = created.unwrap();
+    assert_eq!(created.name, "New");
+    assert_eq!(created.folder.as_deref(), Some("Folder"));
+    assert!(!created.settings.preferences.point_along_road);
 }
 
 #[test]
