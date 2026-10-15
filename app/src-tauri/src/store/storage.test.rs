@@ -102,37 +102,32 @@ fn location_data_id_defaults_to_zero() {
 // The bundled sqlite happens to compile with SQLITE_DEFAULT_FOREIGN_KEYS=1, but the
 // invariant must not depend on a dependency's build flag (system sqlite defaults OFF).
 #[test]
-fn configure_connection_enables_foreign_keys() {
-    let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+fn an_opened_database_enforces_foreign_keys() {
+    let map = map_on_disk("fk-cascade");
+    let conn = open_db().unwrap();
     let fk: i32 = conn
         .pragma_query_value(None, "foreign_keys", |r| r.get(0))
         .unwrap();
     assert_eq!(fk, 1);
-}
 
-#[test]
-fn configured_connection_cascades_on_map_delete() {
-    let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
-    conn.execute_batch(
-        "CREATE TABLE maps (id TEXT PRIMARY KEY NOT NULL);
-         CREATE TABLE review_sessions (
-           id TEXT PRIMARY KEY NOT NULL,
-           map_id TEXT NOT NULL REFERENCES maps(id) ON DELETE CASCADE
-         );
-         INSERT INTO maps VALUES ('m1');
-         INSERT INTO review_sessions VALUES ('r1', 'm1');",
+    conn.execute(
+        "INSERT INTO review_sessions (id, map_id, source_key, ordering, cursor_id, created_at, updated_at)
+         VALUES ('fk-cascade-session', ?1, 'k', '[1]', 1, '', '')",
+        [map.raw()],
     )
     .unwrap();
-    conn.execute("DELETE FROM maps WHERE id = 'm1'", [])
+    conn.execute("DELETE FROM maps WHERE id = ?1", [map.raw()])
         .unwrap();
     let orphans: i64 = conn
-        .query_row("SELECT COUNT(*) FROM review_sessions", [], |r| r.get(0))
+        .query_row(
+            "SELECT COUNT(*) FROM review_sessions WHERE map_id = ?1",
+            [map.raw()],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(
         orphans, 0,
-        "ON DELETE CASCADE must fire on configured connections"
+        "ON DELETE CASCADE must fire on opened connections"
     );
 }
 
@@ -790,7 +785,7 @@ fn file_that_is_not_a_database_is_unreadable() {
 #[test]
 fn fresh_full_chain_succeeds() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     let result = run_migrations_on(&conn);
     assert!(result.is_ok(), "fresh chain must apply cleanly: {result:?}");
 
@@ -822,7 +817,7 @@ fn fresh_full_chain_succeeds() {
 #[test]
 fn map_counts_carry_pending_changes_and_reset_to_clean() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     run_migrations_on(&conn).unwrap();
     conn.execute(
         "INSERT INTO maps (id, name, folder, settings, created_at, updated_at) VALUES ('m', 'm', NULL, '{}', '', '')",
@@ -861,7 +856,7 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
 #[test]
 fn seen_dropdown_queries_use_covering_indexes() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     run_migrations_on(&conn).unwrap();
 
     for (query, index) in [
@@ -892,13 +887,13 @@ fn seen_dropdown_queries_use_covering_indexes() {
 #[test]
 fn every_prefix_upgrades_to_head() {
     let reference = Connection::open_in_memory().unwrap();
-    configure_connection(&reference).unwrap();
+    reference.pragma_update(None, "foreign_keys", true).unwrap();
     run_migrations_on(&reference).unwrap();
     let reference_signature = schema_signature(&reference);
 
     for k in 1..=MIGRATIONS.len() {
         let conn = Connection::open_in_memory().unwrap();
-        configure_connection(&conn).unwrap();
+        conn.pragma_update(None, "foreign_keys", true).unwrap();
         apply_prefix(&conn, k);
 
         insert_map(&conn, "map1", "Test Map");
@@ -1005,7 +1000,7 @@ fn every_prefix_upgrades_to_head() {
 #[test]
 fn v26_clears_every_stored_undo_entry() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     let before = MIGRATIONS.iter().position(|(v, _)| *v == 26).unwrap();
     apply_prefix(&conn, before);
     insert_map(&conn, "m1", "n");
@@ -1025,7 +1020,7 @@ fn v26_clears_every_stored_undo_entry() {
 #[test]
 fn run_migrations_on_is_idempotent() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     let first = run_migrations_on(&conn).unwrap();
     assert!(first, "v16 should be newly applied on the first run");
 
@@ -1053,7 +1048,7 @@ fn run_migrations_on_is_idempotent() {
 #[test]
 fn populated_v10_rebuild_preserves_rows() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     apply_prefix(&conn, 9);
 
     insert_map(&conn, "map1", "m");
@@ -1134,7 +1129,7 @@ fn resolve_within_refuses_escapes() {
 #[test]
 fn v28_keeps_a_stored_undo_step_readable_under_its_renamed_column() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     let before = MIGRATIONS.iter().position(|(v, _)| *v == 28).unwrap();
     apply_prefix(&conn, before);
     insert_map(&conn, "m", "n");
@@ -1159,7 +1154,7 @@ fn v28_keeps_a_stored_undo_step_readable_under_its_renamed_column() {
 #[test]
 fn v29_drops_the_commit_tree_hash_and_keeps_every_commit() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     let before = MIGRATIONS.iter().position(|(v, _)| *v == 29).unwrap();
     apply_prefix(&conn, before);
     insert_map(&conn, "map1", "m");
@@ -1191,7 +1186,7 @@ fn v29_drops_the_commit_tree_hash_and_keeps_every_commit() {
 #[test]
 fn tag_records_held_on_the_map_row_move_to_the_records_table() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     apply_prefix(
         &conn,
         MIGRATIONS.iter().position(|(v, _)| *v == 30).unwrap(),
@@ -1229,7 +1224,7 @@ fn tag_records_held_on_the_map_row_move_to_the_records_table() {
 #[test]
 fn a_saved_rules_tag_names_become_its_names_for_the_tags_field() {
     let conn = Connection::open_in_memory().unwrap();
-    configure_connection(&conn).unwrap();
+    conn.pragma_update(None, "foreign_keys", true).unwrap();
     apply_prefix(
         &conn,
         MIGRATIONS.iter().position(|(v, _)| *v == 31).unwrap(),

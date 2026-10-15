@@ -144,18 +144,12 @@ pub(crate) fn open_db() -> AppResult<Connection> {
         })?;
     }
     let conn = Connection::open(path)?;
-    configure_connection(&conn)?;
-    Ok(conn)
-}
-
-/// Per-connection setup applied to every open. FK enforcement is per-connection and
-/// defaults OFF in SQLite; without it every ON DELETE CASCADE in the schema is dead.
-pub(super) fn configure_connection(conn: &Connection) -> AppResult<()> {
     // Default busy timeout is 0: any write-lock contention (second window, lingering
     // process) fails instantly with "database is locked" instead of waiting.
     conn.busy_timeout(Duration::from_secs(5))?;
+    // FK enforcement is per-connection and defaults OFF; without it no ON DELETE CASCADE fires.
     conn.pragma_update(None, "foreign_keys", true)?;
-    Ok(())
+    Ok(conn)
 }
 
 /// A map's changes since the last commit, as last recorded by [`set_map_counts`].
