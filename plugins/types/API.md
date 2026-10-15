@@ -6517,6 +6517,19 @@ cmd.storeEditValues(
 
 Edit an interned field's value records; membership uses ordinary location edits.
 
+#### cmd.storeExport
+
+`unstable` · unreleased
+
+```ts
+cmd.storeExport(
+  selector: Selector$1<SelectionInput>,
+  format: ExportFormat,
+): Promise<string>
+```
+
+Write the selected locations to a temporary file in `format` and return its path.
+
 #### cmd.storeExportBulkZip
 
 `unstable` · since v0.4.0
@@ -6527,40 +6540,6 @@ cmd.storeExportBulkZip(): Promise<string>
 
 Export every map as a ZIP of JSON files. Duplicate map names get a numeric suffix.
 Emits `bulk-export-progress` per map.
-
-#### cmd.storeExportCsv
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeExportCsv(selector: Selector$1<SelectionInput>): Promise<string>
-```
-
-Export locations as a minimal lat/lng CSV file.
-
-#### cmd.storeExportGeojson
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeExportGeojson(
-  selector: Selector$1<SelectionInput>,
-  tagsJson: string,
-): Promise<string>
-```
-
-Export locations as a GeoJSON FeatureCollection of Point features.
-Each feature carries its tag names in `properties.tags`.
-
-#### cmd.storeExportJson
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeExportJson(opts: ExportOpts): Promise<string>
-```
-
-Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs.
 
 #### cmd.storeGetCommitDelta
 

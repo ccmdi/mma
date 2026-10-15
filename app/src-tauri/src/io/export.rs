@@ -18,23 +18,33 @@ use std::{env, fs, process};
 use tokio::task;
 use zip::write::SimpleFileOptions;
 
-/// Configuration for JSON export. Controls which fields are included and
-/// whether the export covers all locations or a specific selection.
+/// The kind of file an export writes, with what that kind needs.
 #[derive(serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ExportOpts {
-    pub export_zoom: bool,
-    pub export_unpanned: bool,
-    /// How much of the map the file keeps.
-    pub shape: MapShape,
-    /// Which locations to export.
-    #[specta(type = Selector<SelectionInput>)]
-    pub selector: Selector,
-    pub map_name: String,
-    /// Serialized `{id: {name, color}}` tag definitions from the store, used to
-    /// convert numeric tag IDs back to human-readable names in the output.
-    pub tags_json: String,
-    pub extra_fields_json: Option<String>,
+#[serde(
+    tag = "format",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+pub enum ExportFormat {
+    /// A `{name, customCoordinates}` map file with its tags and field definitions.
+    Json {
+        export_zoom: bool,
+        export_unpanned: bool,
+        /// How much of the map the file keeps.
+        shape: MapShape,
+        map_name: String,
+        /// Serialized `{id: {name, color}}` tag definitions from the store, used to
+        /// convert numeric tag IDs back to human-readable names in the output.
+        tags_json: String,
+        extra_fields_json: Option<String>,
+    },
+    /// A minimal lat/lng CSV file.
+    Csv,
+    /// A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`.
+    Geojson {
+        /// Serialized `{id: {name, color}}` tag definitions from the store.
+        tags_json: String,
+    },
 }
 
 #[cfg(test)]
@@ -265,85 +275,50 @@ pub(crate) fn geojson_document(locs: &[Location], tags_json: &str) -> serde_json
     serde_json::json!({ "type": "FeatureCollection", "features": features })
 }
 
-/// Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs.
+/// Write the selected locations to a temporary file in `format` and return its path.
 // Heading of exactly 0 is written as 0.001 when `export_unpanned` is set ("no heading" convention).
 #[allow(clippy::needless_pass_by_value)]
 #[tauri::command]
 #[specta::specta]
-pub async fn store_export_json(
+pub async fn store_export(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
-    opts: ExportOpts,
+    selector: Selector<SelectionInput>,
+    format: ExportFormat,
 ) -> AppResult<String> {
     task::block_in_place(|| {
         with_store!(label, state, |store| {
             let locs = store
                 .at(&engine::Target::Map { id: None })
-                .rows(&opts.selector);
-            let co = CoordOpts {
-                export_zoom: opts.export_zoom,
-                export_unpanned: opts.export_unpanned,
-                shape: opts.shape,
+                .rows(&selector.map_children(SelectionInput::compile));
+            let (ext, body) = match format {
+                ExportFormat::Json {
+                    export_zoom,
+                    export_unpanned,
+                    shape,
+                    map_name,
+                    tags_json,
+                    extra_fields_json,
+                } => {
+                    let co = CoordOpts {
+                        export_zoom,
+                        export_unpanned,
+                        shape,
+                    };
+                    let fields = extra_fields_json
+                        .as_deref()
+                        .and_then(|f| serde_json::from_str(f).ok());
+                    let doc = export_document(&map_name, &locs, &tags_json, fields, &co);
+                    ("json", serde_json::to_string(&doc)?)
+                }
+                ExportFormat::Csv => ("csv", csv_document(&locs)),
+                ExportFormat::Geojson { tags_json } => (
+                    "geojson",
+                    serde_json::to_string(&geojson_document(&locs, &tags_json))?,
+                ),
             };
-            let fields = opts
-                .extra_fields_json
-                .as_deref()
-                .and_then(|f| serde_json::from_str(f).ok());
-            let doc = export_document(&opts.map_name, &locs, &opts.tags_json, fields, &co);
-            let json = serde_json::to_string(&doc)?;
-
-            let path = export_temp_path("mma_export", "json");
-            fs::write(&path, &json)?;
-            Ok(path.to_string_lossy().into_owned())
-        })
-    })
-}
-
-/// Export locations as a minimal lat/lng CSV file.
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub async fn store_export_csv(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector<SelectionInput>,
-) -> AppResult<String> {
-    task::block_in_place(|| {
-        with_store!(label, state, |store| {
-            let buf = csv_document(
-                &store
-                    .at(&engine::Target::Map { id: None })
-                    .rows(&selector.map_children(SelectionInput::compile)),
-            );
-            let path = export_temp_path("mma_export", "csv");
-            fs::write(&path, &buf)?;
-            Ok(path.to_string_lossy().into_owned())
-        })
-    })
-}
-
-/// Export locations as a GeoJSON FeatureCollection of Point features.
-/// Each feature carries its tag names in `properties.tags`.
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub async fn store_export_geojson(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    selector: Selector<SelectionInput>,
-    tags_json: String,
-) -> AppResult<String> {
-    task::block_in_place(|| {
-        with_store!(label, state, |store| {
-            let json = serde_json::to_string(&geojson_document(
-                &store
-                    .at(&engine::Target::Map { id: None })
-                    .rows(&selector.map_children(SelectionInput::compile)),
-                &tags_json,
-            ))?;
-
-            let path = export_temp_path("mma_export", "geojson");
-            fs::write(&path, &json)?;
+            let path = export_temp_path("mma_export", ext);
+            fs::write(&path, &body)?;
             Ok(path.to_string_lossy().into_owned())
         })
     })

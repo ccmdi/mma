@@ -388,15 +388,18 @@ describe("Import — export/reimport tag round-trip", () => {
 
 		const exported = await withApi(async (api) => {
 			const map = api.Store.get().map!;
-			const path = await api.cmd.storeExportJson({
-				exportZoom: true,
-				exportUnpanned: true,
-				shape: "local",
-				selector: { type: "Everything" },
-				mapName: map.name,
-				tagsJson: JSON.stringify(api.Tag.all()),
-				extraFieldsJson: null,
-			});
+			const path = await api.cmd.storeExport(
+				{ type: "Everything" },
+				{
+					format: "json",
+					exportZoom: true,
+					exportUnpanned: true,
+					shape: "local",
+					mapName: map.name,
+					tagsJson: JSON.stringify(api.Tag.all()),
+					extraFieldsJson: null,
+				},
+			);
 			const res = await fetch(api.mmaBufUrl(path));
 			return res.text();
 		});

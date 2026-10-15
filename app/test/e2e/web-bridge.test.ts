@@ -59,7 +59,7 @@ describe("Web bridge", () => {
 	describe("scheme relay (/__scheme/)", () => {
 		it("serves a real file", async () => {
 			const res = await withApi(async (api) => {
-				const path = await api.cmd.storeExportCsv({ type: "Everything" });
+				const path = await api.cmd.storeExport({ type: "Everything" }, { format: "csv" });
 				const r = await fetch(api.mmaBufUrl(path));
 				return { status: r.status, type: r.headers.get("content-type"), body: await r.text() };
 			});

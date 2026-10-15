@@ -201,24 +201,12 @@ fn upload_session_abort_removes_dir() {
 
 #[test]
 fn exports_are_spawned_off_the_main_thread() {
-    fn json(
-        state: tauri::State<'_, StoreState>,
-        opts: ExportOpts,
-    ) -> impl Future<Output = AppResult<String>> + '_ {
-        store_export_json(WindowLabel("w".into()), state, opts)
-    }
-    fn csv(
+    fn export(
         state: tauri::State<'_, StoreState>,
         selector: Selector<SelectionInput>,
+        format: ExportFormat,
     ) -> impl Future<Output = AppResult<String>> + '_ {
-        store_export_csv(WindowLabel("w".into()), state, selector)
+        store_export(WindowLabel("w".into()), state, selector, format)
     }
-    fn geojson(
-        state: tauri::State<'_, StoreState>,
-        selector: Selector<SelectionInput>,
-        tags_json: String,
-    ) -> impl Future<Output = AppResult<String>> + '_ {
-        store_export_geojson(WindowLabel("w".into()), state, selector, tags_json)
-    }
-    let _ = (json, csv, geojson);
+    let _ = export;
 }

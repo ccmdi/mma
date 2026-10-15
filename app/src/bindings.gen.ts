@@ -256,15 +256,8 @@ export const commands = {
 	storeImportCancel: () => __TAURI_INVOKE<null>("store_import_cancel"),
 	/**  The location a pasted Maps URL names, short links resolved. */
 	parseMapsUrl: (input: string) => __TAURI_INVOKE<ParsedLocation | null>("parse_maps_url", { input }),
-	/**  Export locations as a `{name, customCoordinates}` JSON file, including tags and field defs. */
-	storeExportJson: (opts: ExportOpts) => __TAURI_INVOKE<string>("store_export_json", { opts }),
-	/**  Export locations as a minimal lat/lng CSV file. */
-	storeExportCsv: (selector: Selector<SelectionInput>) => __TAURI_INVOKE<string>("store_export_csv", { selector }),
-	/**
-	 *  Export locations as a GeoJSON FeatureCollection of Point features.
-	 *  Each feature carries its tag names in `properties.tags`.
-	 */
-	storeExportGeojson: (selector: Selector<SelectionInput>, tagsJson: string) => __TAURI_INVOKE<string>("store_export_geojson", { selector, tagsJson }),
+	/**  Write the selected locations to a temporary file in `format` and return its path. */
+	storeExport: (selector: Selector<SelectionInput>, format: ExportFormat) => __TAURI_INVOKE<string>("store_export", { selector, format }),
 	/**  Move a temp export file to `destPath` and remove the temp source. */
 	storeSaveExportFile: (srcPath: string, destPath: string) => __TAURI_INVOKE<null>("store_save_export_file", { srcPath, destPath }),
 	/**
@@ -714,25 +707,23 @@ export type EditorImportResult = {
 	autoCommit: boolean,
 };
 
+/**  The kind of file an export writes, with what that kind needs. */
+export type ExportFormat = 
+/**  A `{name, customCoordinates}` map file with its tags and field definitions. */
+{ format: "json"; exportZoom: boolean; exportUnpanned: boolean; 
+/**  How much of the map the file keeps. */
+shape: MapShape; mapName: string; 
 /**
- *  Configuration for JSON export. Controls which fields are included and
- *  whether the export covers all locations or a specific selection.
+ *  Serialized `{id: {name, color}}` tag definitions from the store, used to
+ *  convert numeric tag IDs back to human-readable names in the output.
  */
-export type ExportOpts = {
-	exportZoom: boolean,
-	exportUnpanned: boolean,
-	/**  How much of the map the file keeps. */
-	shape: MapShape,
-	/**  Which locations to export. */
-	selector: Selector<SelectionInput>,
-	mapName: string,
-	/**
-	 *  Serialized `{id: {name, color}}` tag definitions from the store, used to
-	 *  convert numeric tag IDs back to human-readable names in the output.
-	 */
-	tagsJson: string,
-	extraFieldsJson: string | null,
-};
+tagsJson: string; extraFieldsJson: string | null } | 
+/**  A minimal lat/lng CSV file. */
+{ format: "csv" } | 
+/**  A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`. */
+{ format: "geojson"; 
+/**  Serialized `{id: {name, color}}` tag definitions from the store. */
+tagsJson: string };
 
 /**  Progress of a bulk export, emitted once per map. */
 export type ExportProgress = {

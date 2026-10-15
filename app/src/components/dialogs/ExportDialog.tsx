@@ -55,17 +55,17 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 	const tagsJson = () => JSON.stringify(Object.fromEntries(Tag.visible().map((t) => [t.id, t])));
 
 	const jsonPath = () =>
-		cmd.storeExportJson({
+		cmd.storeExport(selector, {
+			format: "json",
 			exportZoom: saveZoom,
 			exportUnpanned: bypassUnpanned,
 			shape,
-			selector: selector,
 			mapName: map.name,
 			tagsJson: tagsJson(),
 			extraFieldsJson: JSON.stringify(getAllFieldDefs()),
 		});
-	const csvPath = () => cmd.storeExportCsv(selector);
-	const geojsonPath = () => cmd.storeExportGeojson(selector, tagsJson());
+	const csvPath = () => cmd.storeExport(selector, { format: "csv" });
+	const geojsonPath = () => cmd.storeExport(selector, { format: "geojson", tagsJson: tagsJson() });
 
 	const guard = (run: () => Promise<void>) => async () => {
 		try {

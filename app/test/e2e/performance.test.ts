@@ -16,7 +16,7 @@
 // A/B between builds (both sides pay the tax), never as absolute latency
 // claims; measure absolutes with a native run of the same routes.
 
-import type { ExportOpts } from "@/bindings.gen";
+import type { ExportFormat } from "@/bindings.gen";
 import {
 	collectEnvironment,
 	runBenchmark,
@@ -903,17 +903,17 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			withApi(async (api) => {
 				const map = api.Store.get().map;
 				if (!map) throw new Error("no map open for export");
-				const options: ExportOpts = {
+				const format: ExportFormat = {
+					format: "json",
 					exportZoom: true,
 					exportUnpanned: true,
 					shape: "local",
-					selector: { type: "Everything" },
 					mapName: map.name,
 					tagsJson: JSON.stringify(api.Tag.all()),
 					extraFieldsJson: JSON.stringify(api.Store.get().fieldDefs),
 				};
 				const start = performance.now();
-				const path = await api.cmd.storeExportJson(options);
+				const path = await api.cmd.storeExport({ type: "Everything" }, format);
 				const durationMs = performance.now() - start;
 				if (!path) throw new Error("export returned no path");
 				return { durationMs, operationMs: durationMs, cleanupPath: path };

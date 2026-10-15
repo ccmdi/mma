@@ -575,15 +575,18 @@ describe("Export with scope", () => {
 		// Export with scope = selectedIds
 		const result = await withApi(async (api, ids) => {
 			const map = api.Store.get().map!;
-			const path = await api.cmd.storeExportJson({
-				exportZoom: true,
-				exportUnpanned: true,
-				shape: "local",
-				selector: { type: "Locations", locations: ids, name: null },
-				mapName: map.name,
-				tagsJson: JSON.stringify(api.Tag.all()),
-				extraFieldsJson: null,
-			});
+			const path = await api.cmd.storeExport(
+				{ type: "Locations", locations: ids, name: null },
+				{
+					format: "json",
+					exportZoom: true,
+					exportUnpanned: true,
+					shape: "local",
+					mapName: map.name,
+					tagsJson: JSON.stringify(api.Tag.all()),
+					extraFieldsJson: null,
+				},
+			);
 			const res = await fetch(api.mmaBufUrl(path));
 			const json = await res.text();
 			const parsed = JSON.parse(json);
