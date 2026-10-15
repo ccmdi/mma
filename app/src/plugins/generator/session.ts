@@ -38,12 +38,6 @@ function generatedToLocation({ imageDate, ...pano }: GeneratedLocation, tagId: n
 	});
 }
 
-async function resolveTagByName(name: string): Promise<number | null> {
-	if (!name) return null;
-	const [id] = await Tag.create([{ name }]);
-	return id;
-}
-
 // Finds arrive one pano at a time; the region list and the tray hear about them once a frame.
 function progressFrame(): void {
 	if (frameQueued) return;
@@ -106,9 +100,9 @@ export function startGeneration(
 	job.setHidden(sidebarOpen);
 	run = { engine, job };
 	emitPluginEvent(GENERATOR_CHANGED);
-	void resolveTagByName(tagName)
-		.then((id) => {
-			tagId = id;
+	void (tagName ? Tag.create([{ name: tagName }]) : Promise.resolve([]))
+		.then(([id]) => {
+			tagId = id ?? null;
 			return engine.start();
 		})
 		.catch((e: unknown) => {
