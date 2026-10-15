@@ -277,14 +277,6 @@ const tcDef = pb(tileConfigS, TileConfig);
 const RenderStrategy = pb(renderStrategyS).C;
 const SvlConfig = svlDef.C;
 
-export function encodeCoverageStrategies(cs: CoverageStrategies): string {
-	return pbSerialize(csDef.ser, cs.toArray());
-}
-
-export function encodeSvlConfig(cfg: PbMsg): string {
-	return pbSerialize(svlDef.ser, cfg.toArray());
-}
-
 export function serializeTileUrl(cfg: TileConfig): string {
 	return pbSerialize(tcDef.ser, cfg.toArray());
 }
@@ -467,8 +459,8 @@ export function buildSvCoverageConfig(opts: {
 		useDetailedLines: opts.useDetailedLines ?? true,
 	});
 	return {
-		cc: encodeCoverageStrategies(cs),
-		svl: encodeSvlConfig(svl),
+		cc: pbSerialize(csDef.ser, cs.toArray()),
+		svl: pbSerialize(svlDef.ser, svl.toArray()),
 		mapStyles: buildMapStyles("roadmap", opts.styles ?? []),
 	};
 }
