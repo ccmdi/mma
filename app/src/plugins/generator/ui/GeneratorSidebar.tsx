@@ -204,7 +204,7 @@ function summarizeSettings(s: GeneratorSettings): string {
 		const facing = t("facing {ref}", { ref });
 		parts.push(s.headingDeviation > 0 ? `${facing} ±${s.headingDeviation}°` : facing);
 	}
-	if (s.adjustPitch) parts.push(t("pitch ±{deviation}°", { deviation: s.pitchDeviation }));
+	if (s.adjustPitch) parts.push(t("pitch {pitch}°", { pitch: s.pitchDeviation }));
 	if (s.adjustZoom) parts.push(t("zoom {level}", { level: s.zoomLevel }));
 
 	// Radius

@@ -13,6 +13,9 @@ import { NumberInput } from "@/components/primitives/NumberInput";
 import { distanceUnit } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
 
+const FIRST_IMAGERY_YEAR = 2007;
+const CURRENT_YEAR = new Date().getFullYear();
+
 function NumberField({
 	label,
 	value,
@@ -275,7 +278,7 @@ export function SettingsPanel({
 									value={settings.headingDeviation}
 									onChange={(v) => set("headingDeviation", v)}
 									min={0}
-									max={360}
+									max={180}
 									indent
 								/>
 							</>
@@ -288,7 +291,7 @@ export function SettingsPanel({
 						</Checkbox>
 						{settings.adjustPitch && (
 							<NumberField
-								label={t("Pitch deviation")}
+								label={t("Pitch")}
 								value={settings.pitchDeviation}
 								onChange={(v) => set("pitchDeviation", v)}
 								min={-90}
@@ -426,36 +429,44 @@ export function SettingsPanel({
 								<div className="generator-settings__date-range">
 									<label className="generator-settings__date-label">
 										{t("From month")}{" "}
-										<TextInput
+										<NumberInput
 											style={{ width: "3rem" }}
-											value={settings.fromMonth}
-											onChange={(e) => set("fromMonth", e.target.value)}
+											min={1}
+											max={12}
+											value={parseInt(settings.fromMonth, 10)}
+											onChange={(v) => set("fromMonth", String(v).padStart(2, "0"))}
 										/>
 									</label>
 									<label className="generator-settings__date-label">
 										{t("to")}{" "}
-										<TextInput
+										<NumberInput
 											style={{ width: "3rem" }}
-											value={settings.toMonth}
-											onChange={(e) => set("toMonth", e.target.value)}
+											min={1}
+											max={12}
+											value={parseInt(settings.toMonth, 10)}
+											onChange={(v) => set("toMonth", String(v).padStart(2, "0"))}
 										/>
 									</label>
 								</div>
 								<div className="generator-settings__date-range">
 									<label className="generator-settings__date-label">
 										{t("Between years")}{" "}
-										<TextInput
+										<NumberInput
 											style={{ width: "4rem" }}
-											value={settings.fromYear}
-											onChange={(e) => set("fromYear", e.target.value)}
+											min={FIRST_IMAGERY_YEAR}
+											max={parseInt(settings.toYear, 10)}
+											value={parseInt(settings.fromYear, 10)}
+											onChange={(v) => set("fromYear", String(v))}
 										/>
 									</label>
 									<label className="generator-settings__date-label">
 										{t("and")}{" "}
-										<TextInput
+										<NumberInput
 											style={{ width: "4rem" }}
-											value={settings.toYear}
-											onChange={(e) => set("toYear", e.target.value)}
+											min={parseInt(settings.fromYear, 10)}
+											max={CURRENT_YEAR}
+											value={parseInt(settings.toYear, 10)}
+											onChange={(v) => set("toYear", String(v))}
 										/>
 									</label>
 								</div>
@@ -557,13 +568,13 @@ export function SettingsPanel({
 							value={settings.minLinks}
 							onChange={(v) => set("minLinks", v)}
 							min={0}
-							max={10}
+							max={settings.maxLinks}
 						/>
 						<NumberField
 							label={t("Max")}
 							value={settings.maxLinks}
 							onChange={(v) => set("maxLinks", v)}
-							min={0}
+							min={settings.minLinks}
 							max={10}
 						/>
 					</div>
