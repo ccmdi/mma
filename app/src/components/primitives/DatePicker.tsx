@@ -5,8 +5,7 @@ import { Popover } from "@base-ui-components/react/popover";
 import { Icon } from "@/components/primitives/Icon";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { mdiClose } from "@mdi/js";
-import { dateParts, partsToEpoch } from "@/lib/util/date";
-import { MONTHS, parseTypedDate } from "@/lib/util/date";
+import { dateParts, MONTHS, pad2, parseTypedDate, partsToEpoch } from "@/lib/util/date";
 import { dateFmt, dayMonthFmt, shortDateFmt, monthShort } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 
@@ -44,10 +43,6 @@ export type DateFlagProps = Pick<
 	| "showTzLocal"
 	| "onYearSelect"
 >;
-
-function pad2(n: number): string {
-	return n < 10 ? `0${n}` : String(n);
-}
 
 function parseToDate(value: string, wallClock?: boolean): Date | null {
 	if (!value) return null;

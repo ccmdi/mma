@@ -32,7 +32,7 @@ function monthToken(tok: string): number | null {
 	return idx === -1 ? null : idx + 1;
 }
 
-const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
+export const pad2 = (n: number) => (n < 10 ? `0${n}` : String(n));
 
 export function ymParse(s: string): { y: number; m: number } | null {
 	const m = /^(\d{4})-(\d{2})$/.exec(s);
