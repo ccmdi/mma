@@ -3,6 +3,16 @@ use crate::test_util::loc_ids;
 use mma_algebra::{Id, Patchable};
 use rusqlite::Connection;
 
+fn resumable(
+    conn: &Connection,
+    map_id: &Id<MapMeta, String>,
+    source_key: &str,
+) -> AppResult<Option<ReviewSession>> {
+    Ok(list(conn, map_id, Some("active"), Some(source_key))?
+        .into_iter()
+        .next())
+}
+
 /// In-memory DB with the v17 `review_sessions` schema (and a `maps` stub for the FK).
 fn setup() -> Connection {
     let conn = Connection::open_in_memory().unwrap();
@@ -53,10 +63,10 @@ fn create_rejects_empty_worklist() {
 }
 
 #[test]
-fn get_returns_active_session_by_source_key() {
+fn the_active_session_for_a_source_key_is_resumable() {
     let conn = setup();
     let created = create(&conn, mk("m1", "tag:1", vec![1, 2, 3])).unwrap();
-    let got = get(&conn, &Id::new("m1".into()), "tag:1")
+    let got = resumable(&conn, &Id::new("m1".into()), "tag:1")
         .unwrap()
         .expect("session present");
     assert_eq!(got.id, created.id);
@@ -67,13 +77,13 @@ fn get_returns_active_session_by_source_key() {
 }
 
 #[test]
-fn get_is_none_for_unknown_or_wrong_map() {
+fn nothing_resumes_for_an_unknown_key_or_another_map() {
     let conn = setup();
     create(&conn, mk("m1", "tag:1", vec![1])).unwrap();
-    assert!(get(&conn, &Id::new("m1".into()), "tag:2")
+    assert!(resumable(&conn, &Id::new("m1".into()), "tag:2")
         .unwrap()
         .is_none());
-    assert!(get(&conn, &Id::new("m2".into()), "tag:1")
+    assert!(resumable(&conn, &Id::new("m2".into()), "tag:1")
         .unwrap()
         .is_none());
 }
@@ -96,7 +106,9 @@ fn update_persists_cursor_reviewed_and_ordering() {
         }),
     )
     .unwrap();
-    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    let got = resumable(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
     assert_eq!(got.reviewed, loc_ids([1, 2]));
     assert_eq!(got.order, loc_ids([1, 2, 3, 4]));
@@ -122,7 +134,9 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
         }),
     )
     .unwrap();
-    let s = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    let s = resumable(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .unwrap();
     // Locations 2 and 4 deleted: prune them from ordering + reviewed, cursor stays 3.
     storage::update_row::<ReviewSession>(
         &conn,
@@ -138,7 +152,9 @@ fn pruning_ordering_and_reviewed_does_not_disturb_cursor() {
         }),
     )
     .unwrap();
-    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    let got = resumable(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .unwrap();
     assert_eq!(got.cursor_id, Id::new(3));
     assert_eq!(got.order, loc_ids([1, 3, 5]));
     assert_eq!(got.reviewed, loc_ids([1]));
@@ -162,17 +178,17 @@ fn done_sessions_are_excluded_from_get_but_listable() {
         }),
     )
     .unwrap();
-    assert!(get(&conn, &Id::new("m1".into()), "tag:1")
+    assert!(resumable(&conn, &Id::new("m1".into()), "tag:1")
         .unwrap()
         .is_none());
     assert_eq!(
-        list(&conn, &Id::new("m1".into()), Some("done"))
+        list(&conn, &Id::new("m1".into()), Some("done"), None)
             .unwrap()
             .len(),
         1
     );
     assert_eq!(
-        list(&conn, &Id::new("m1".into()), Some("active"))
+        list(&conn, &Id::new("m1".into()), Some("active"), None)
             .unwrap()
             .len(),
         0
@@ -185,8 +201,18 @@ fn list_scopes_to_map_and_filters_status() {
     create(&conn, mk("m1", "tag:1", vec![1])).unwrap();
     create(&conn, mk("m1", "tag:2", vec![2])).unwrap();
     create(&conn, mk("m2", "tag:1", vec![3])).unwrap();
-    assert_eq!(list(&conn, &Id::new("m1".into()), None).unwrap().len(), 2);
-    assert_eq!(list(&conn, &Id::new("m2".into()), None).unwrap().len(), 1);
+    assert_eq!(
+        list(&conn, &Id::new("m1".into()), None, None)
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(
+        list(&conn, &Id::new("m2".into()), None, None)
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -194,10 +220,15 @@ fn delete_removes_the_session() {
     let conn = setup();
     let s = create(&conn, mk("m1", "tag:1", vec![1, 2])).unwrap();
     delete(&conn, &s.id).unwrap();
-    assert!(get(&conn, &Id::new("m1".into()), "tag:1")
+    assert!(resumable(&conn, &Id::new("m1".into()), "tag:1")
         .unwrap()
         .is_none());
-    assert_eq!(list(&conn, &Id::new("m1".into()), None).unwrap().len(), 0);
+    assert_eq!(
+        list(&conn, &Id::new("m1".into()), None, None)
+            .unwrap()
+            .len(),
+        0
+    );
 }
 
 #[test]
@@ -206,7 +237,9 @@ fn a_stored_row_saves_its_own_updated_time_and_a_patch_stamps_a_new_one() {
     let mut s = create(&conn, mk("m1", "tag:1", vec![1, 2])).unwrap();
     s.updated_at = "2000-01-01".into();
     storage::update_row::<ReviewSession>(&conn, "review_sessions", &s.id, &s).unwrap();
-    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    let got = resumable(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .unwrap();
     assert_eq!(got.updated_at, "2000-01-01");
     let patched = storage::patch_row(
         &conn,
@@ -223,7 +256,9 @@ fn a_stored_row_saves_its_own_updated_time_and_a_patch_stamps_a_new_one() {
         },
     )
     .unwrap();
-    let got = get(&conn, &Id::new("m1".into()), "tag:1").unwrap().unwrap();
+    let got = resumable(&conn, &Id::new("m1".into()), "tag:1")
+        .unwrap()
+        .unwrap();
     assert_ne!(got.updated_at, "2000-01-01");
     assert_eq!(got.updated_at, patched.updated_at);
 }

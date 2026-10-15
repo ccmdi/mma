@@ -118,39 +118,22 @@ pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<Revi
     })
 }
 
-/// Resume lookup: the most recent active session for `map_id` matching `source_key`, if any.
-pub(crate) fn get(
-    conn: &Connection,
-    map_id: &Id<MapMeta, String>,
-    source_key: &str,
-) -> AppResult<Option<ReviewSession>> {
-    let sql = format!(
-        "SELECT {COLS} FROM review_sessions WHERE map_id = ? AND source_key = ? AND status = 'active' ORDER BY updated_at DESC LIMIT 1"
-    );
-    let mut stmt = conn.prepare(&sql)?;
-    let mut rows = stmt.query_map(rusqlite::params![map_id.raw(), source_key], row_to_session)?;
-    match rows.next() {
-        Some(r) => Ok(Some(r?)),
-        None => Ok(None),
-    }
-}
-
-/// Lists a map's sessions, newest-first. Optional `status` filter (e.g. "active" / "done").
+/// Lists a map's sessions, newest-first, optionally only those with `status` and `source_key`.
 pub(crate) fn list(
     conn: &Connection,
     map_id: &Id<MapMeta, String>,
     status: Option<&str>,
+    source_key: Option<&str>,
 ) -> AppResult<Vec<ReviewSession>> {
-    let (sql, params): (String, Vec<Box<dyn ToSql>>) = match status {
-        Some(s) => (
-            format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? AND status = ? ORDER BY updated_at DESC"),
-            vec![Box::new(map_id.raw().clone()), Box::new(s.to_string())],
-        ),
-        None => (
-            format!("SELECT {COLS} FROM review_sessions WHERE map_id = ? ORDER BY updated_at DESC"),
-            vec![Box::new(map_id.raw().clone())],
-        ),
-    };
+    let mut sql = format!("SELECT {COLS} FROM review_sessions WHERE map_id = ?");
+    let mut params: Vec<Box<dyn ToSql>> = vec![Box::new(map_id.raw().clone())];
+    for (column, value) in [("status", status), ("source_key", source_key)] {
+        if let Some(value) = value {
+            sql.push_str(&format!(" AND {column} = ?"));
+            params.push(Box::new(value.to_string()));
+        }
+    }
+    sql.push_str(" ORDER BY updated_at DESC");
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map(
         rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
@@ -180,24 +163,16 @@ pub async fn store_review_create(session: ReviewCreate) -> AppResult<ReviewSessi
     storage::with_db(move |conn| create(conn, session)).await
 }
 
-/// Look up the most recent active review session for a map and source key.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_review_get(
-    map_id: Id<MapMeta, String>,
-    source_key: String,
-) -> AppResult<Option<ReviewSession>> {
-    storage::with_db(move |conn| get(conn, &map_id, &source_key)).await
-}
-
-/// List review sessions for a map, newest first. Optionally filter by `status`.
+/// List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_review_list(
     map_id: Id<MapMeta, String>,
     status: Option<String>,
+    source_key: Option<String>,
 ) -> AppResult<Vec<ReviewSession>> {
-    storage::with_db(move |conn| list(conn, &map_id, status.as_deref())).await
+    storage::with_db(move |conn| list(conn, &map_id, status.as_deref(), source_key.as_deref()))
+        .await
 }
 
 /// Apply a partial update to a review session.

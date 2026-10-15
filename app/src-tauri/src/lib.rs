@@ -218,7 +218,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 store::seen::store_seen_maps,
                 store::seen::store_seen_clear,
                 store::review::store_review_create,
-                store::review::store_review_get,
                 store::review::store_review_list,
                 store::review::store_review_update,
                 store::review::store_review_delete,

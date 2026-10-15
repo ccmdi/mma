@@ -984,10 +984,8 @@ declare const commands$1: {
     storeSeenClear: () => Promise<null>;
     /**  Create a new review session from a frozen worklist of location IDs. @unstable */
     storeReviewCreate: (session: ReviewCreate) => Promise<ReviewSession>;
-    /**  Look up the most recent active review session for a map and source key. @unstable */
-    storeReviewGet: (mapId: string, sourceKey: string) => Promise<ReviewSession | null>;
-    /**  List review sessions for a map, newest first. Optionally filter by `status`. @unstable */
-    storeReviewList: (mapId: string, status: string | null) => Promise<ReviewSession[]>;
+    /**  List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`. @unstable */
+    storeReviewList: (mapId: string, status: string | null, sourceKey: string | null) => Promise<ReviewSession[]>;
     /**  Apply a partial update to a review session. @unstable */
     storeReviewUpdate: (update: Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">) => Promise<null>;
     /**  Delete a review session. @unstable */

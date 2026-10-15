@@ -47,7 +47,7 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeReviewUpdate: vi.fn(async () => {}),
 		storeReviewDelete: vi.fn(async () => {}),
-		storeReviewGet: vi.fn(async () => null),
+		storeReviewList: vi.fn(async () => []),
 	},
 }));
 vi.mock("@/lib/events", () => ({ subscribe: () => () => {}, emit: vi.fn() }));
@@ -244,7 +244,7 @@ describe("Review.beginSelected", () => {
 
 		await Review.beginSelected();
 
-		expect(cmd.storeReviewGet).toHaveBeenCalledWith("m", "tag:1");
+		expect(cmd.storeReviewList).toHaveBeenCalledWith("m", "active", "tag:1");
 		store.mapState = mapState;
 		store.selected = new Set();
 		store.active = [];

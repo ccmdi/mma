@@ -6815,19 +6815,6 @@ cmd.storeReviewDelete(id: string): Promise<null>
 
 Delete a review session.
 
-#### cmd.storeReviewGet
-
-`unstable` · since v0.5.2
-
-```ts
-cmd.storeReviewGet(
-  mapId: string,
-  sourceKey: string,
-): Promise<ReviewSession | null>
-```
-
-Look up the most recent active review session for a map and source key.
-
 #### cmd.storeReviewList
 
 `unstable` · since v0.5.2
@@ -6836,10 +6823,11 @@ Look up the most recent active review session for a map and source key.
 cmd.storeReviewList(
   mapId: string,
   status: string | null,
+  sourceKey: string | null,
 ): Promise<ReviewSession[]>
 ```
 
-List review sessions for a map, newest first. Optionally filter by `status`.
+List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`.
 
 #### cmd.storeReviewUpdate
 

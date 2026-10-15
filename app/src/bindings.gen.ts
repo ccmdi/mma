@@ -326,10 +326,8 @@ export const commands = {
 	storeSeenClear: () => __TAURI_INVOKE<null>("store_seen_clear"),
 	/**  Create a new review session from a frozen worklist of location IDs. */
 	storeReviewCreate: (session: ReviewCreate) => __TAURI_INVOKE<ReviewSession>("store_review_create", { session }),
-	/**  Look up the most recent active review session for a map and source key. */
-	storeReviewGet: (mapId: string, sourceKey: string) => __TAURI_INVOKE<ReviewSession | null>("store_review_get", { mapId, sourceKey }),
-	/**  List review sessions for a map, newest first. Optionally filter by `status`. */
-	storeReviewList: (mapId: string, status: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status }),
+	/**  List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`. */
+	storeReviewList: (mapId: string, status: string | null, sourceKey: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status, sourceKey }),
 	/**  Apply a partial update to a review session. */
 	storeReviewUpdate: (update: Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">) => __TAURI_INVOKE<null>("store_review_update", { update }),
 	/**  Delete a review session. */

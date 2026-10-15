@@ -252,7 +252,7 @@ export const Review = {
 		const sourceKey = source?.key ?? "manual";
 		if (source && source.selector.type !== "Manual") {
 			try {
-				const existing = await cmd.storeReviewGet(mapId, sourceKey);
+				const [existing] = await cmd.storeReviewList(mapId, "active", sourceKey);
 				if (existing) {
 					await adopt(existing);
 					return;
@@ -357,7 +357,7 @@ export const Review = {
 	sessions: (status?: "active" | "done"): Promise<ReviewSession[]> => {
 		const mapId = Store.get().mapId;
 		if (!mapId) return Promise.resolve([]);
-		return cmd.storeReviewList(mapId, status ?? null);
+		return cmd.storeReviewList(mapId, status ?? null, null);
 	},
 	/** Select every location marked reviewed across all sessions on this map. */
 	selectReviewed: async (): Promise<void> => {
