@@ -4,7 +4,7 @@ use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, engine};
 use crate::test_util::{tag_ids, TempDir};
-use crate::types::{AppError, Location, LocationFlags};
+use crate::types::{AppError, ErrCode, Location, LocationFlags};
 use crate::util;
 use crate::util::sha256_hex;
 use mma_algebra::{Counts, Id};
@@ -735,7 +735,10 @@ fn failed_migration_record_rolls_back_schema_and_can_retry() {
         .unwrap();
     let versions_before = migration_versions(&conn);
 
-    assert!(run_migrations_on(&conn).is_err());
+    assert_eq!(
+        run_migrations_on(&conn).unwrap_err().0,
+        ErrCode::MigrationFailed.with(version).0
+    );
     assert_eq!(
         conn.query_row(
             "SELECT sql FROM sqlite_master WHERE name = 'edit_entries'",
@@ -750,6 +753,38 @@ fn failed_migration_record_rolls_back_schema_and_can_retry() {
     conn.execute_batch("DROP TRIGGER reject_migration").unwrap();
     run_migrations_on(&conn).unwrap();
     assert_eq!(migration_versions(&conn), all_versions());
+}
+
+#[test]
+fn database_from_a_newer_build_is_refused_untouched() {
+    let conn = Connection::open_in_memory().unwrap();
+    run_migrations_on(&conn).unwrap();
+    let newer = MIGRATIONS.last().unwrap().0 + 1;
+    conn.execute(
+        "INSERT INTO _mma_migrations (version, applied_at) VALUES (?1, datetime('now'))",
+        [newer],
+    )
+    .unwrap();
+    let before = schema_signature(&conn);
+
+    assert_eq!(
+        run_migrations_on(&conn).unwrap_err().0,
+        ErrCode::DatabaseNewer.wire()
+    );
+    assert_eq!(schema_signature(&conn), before);
+}
+
+#[test]
+fn file_that_is_not_a_database_is_unreadable() {
+    let dir = TempDir::new("mma_unreadable_db");
+    let path = dir.join("mma.db");
+    fs::write(&path, b"this is not a sqlite database, just some bytes").unwrap();
+    let conn = Connection::open(&path).unwrap();
+
+    assert_eq!(
+        run_migrations_on(&conn).unwrap_err().0,
+        ErrCode::DatabaseUnreadable.wire()
+    );
 }
 
 #[test]

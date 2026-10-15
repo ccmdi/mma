@@ -1,7 +1,7 @@
 //! Application entry point: module tree, the IPC command surface (tauri-specta),
 //! Tauri plugin setup, and the event loop. No business logic lives here.
 
-use crate::types::TsConst;
+use crate::types::{AppError, AppResult, TsConst};
 use specta_typescript::semantic::Configuration;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -43,6 +43,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 static APP_HANDLE: OnceLock<tauri::AppHandle> = OnceLock::new();
 static START_INSTANT: OnceLock<Instant> = OnceLock::new();
 static STARTUP_MS: OnceLock<u32> = OnceLock::new();
+static STARTUP_ERROR: OnceLock<AppError> = OnceLock::new();
 
 /// The app handle, available once `setup()` has run.
 pub(crate) fn app_handle() -> Option<&'static tauri::AppHandle> {
@@ -89,6 +90,13 @@ fn app_uptime() -> u32 {
         .map_or(0, |t| t.elapsed().as_secs() as u32)
 }
 
+/// Fails with the reason the app could not start, and succeeds when it started normally.
+#[tauri::command]
+#[specta::specta]
+fn startup_check() -> AppResult<()> {
+    STARTUP_ERROR.get().cloned().map_or(Ok(()), Err)
+}
+
 macro_rules! register_commands {
     ([$($extra:tt)*]; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => $( $mode:ident )? |$store:ident $(, $window:ident)?| $body:block; )*) => {
         tauri_specta::collect_commands![ $(crate::store::commands::$name,)* $($extra)* ]
@@ -114,6 +122,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             [
                 app_ready,
                 app_uptime,
+                startup_check,
                 store::storage::write_temp_file,
                 store::storage::read_file,
                 store::storage::get_app_data_dir,
@@ -511,17 +520,21 @@ fn focus_existing(app: &tauri::AppHandle) {
 
 fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
     let t = Instant::now();
-    init_backend(app.handle())?;
-    let swept = store::storage::sweep_orphaned_tmp();
-    if swept > 0 {
-        log::info!("[startup] swept {swept} orphaned .tmp files");
+    if let Err(e) = init_backend(app.handle()) {
+        log::error!("[startup] backend failed to start: {e}");
+        let _ = STARTUP_ERROR.set(e);
+    } else {
+        let swept = store::storage::sweep_orphaned_tmp();
+        if swept > 0 {
+            log::info!("[startup] swept {swept} orphaned .tmp files");
+        }
+        match store::maps::purge_scratch_map() {
+            Ok(true) => log::info!("[startup] dropped last session's scratch map"),
+            Ok(false) => {}
+            Err(e) => log::warn!("[startup] scratch map purge failed: {e}"),
+        }
+        log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
     }
-    match store::maps::purge_scratch_map() {
-        Ok(true) => log::info!("[startup] dropped last session's scratch map"),
-        Ok(false) => {}
-        Err(e) => log::warn!("[startup] scratch map purge failed: {e}"),
-    }
-    log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
 
     #[cfg(feature = "e2e")]
     e2e::seed_gg_session();
@@ -570,7 +583,7 @@ pub(crate) fn manage_command_state(
 }
 
 /// Startup shared by every entry point that serves commands.
-pub(crate) fn init_backend(app: &tauri::AppHandle) -> Result<(), Box<dyn error::Error>> {
+pub(crate) fn init_backend(app: &tauri::AppHandle) -> AppResult<()> {
     // GTK adopts the user's LC_NUMERIC, and QuickJS parses numbers with strtod.
     #[cfg(target_os = "linux")]
     unsafe {

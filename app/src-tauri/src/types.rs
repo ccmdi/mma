@@ -479,6 +479,10 @@ err_codes! {
     IssueRejected => "issue-rejected",
     GeoguessrPolygonal => "geoguessr-polygonal",
     GeoguessrDraftTooLarge => "geoguessr-draft-too-large",
+    DataFolderUnavailable => "data-folder-unavailable",
+    DatabaseUnreadable => "database-unreadable",
+    DatabaseNewer => "database-newer",
+    MigrationFailed => "migration-failed",
 }
 
 impl ErrCode {

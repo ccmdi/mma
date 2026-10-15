@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::store::maps::MapMeta;
-use crate::types::AppResult;
+use crate::types::{AppResult, ErrCode};
 use crate::util::now_iso;
 use mma_algebra::{Counts, Id, Patchable};
 use rusqlite::types::FromSql;
@@ -138,7 +138,10 @@ pub(crate) async fn with_db<T: Send + 'static>(
 pub(crate) fn open_db() -> AppResult<Connection> {
     let path = db_path()?;
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| format!("failed to create app data dir: {e}"))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            log::error!("[storage] data folder {parent:?} unavailable: {e}");
+            ErrCode::DataFolderUnavailable.with(parent.display())
+        })?;
     }
     let conn = Connection::open(path)?;
     configure_connection(&conn)?;
@@ -207,24 +210,16 @@ pub(crate) fn run_migrations() -> AppResult<()> {
 /// Run the migration chain against an arbitrary connection. Returns whether v16
 /// was newly applied (the caller owns the retired blob-store cleanup).
 pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
-    conn.execute_batch(
-        "
-        PRAGMA foreign_keys = ON;
-        PRAGMA journal_mode = WAL;
-        PRAGMA synchronous = NORMAL;
-    ",
-    )?;
+    let applied = applied_migrations(conn).map_err(|e| {
+        log::error!("[migrations] database unreadable: {e}");
+        ErrCode::DatabaseUnreadable.err()
+    })?;
 
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS _mma_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)",
-        [],
-    )?;
-
-    let applied: HashSet<u32> = conn
-        .prepare("SELECT version FROM _mma_migrations")?
-        .query_map([], |row| row.get(0))?
-        .filter_map(Result::ok)
-        .collect();
+    let known = MIGRATIONS.last().map_or(0, |(v, _)| *v);
+    if let Some(newest) = applied.iter().copied().max().filter(|&v| v > known) {
+        log::error!("[migrations] database is at v{newest}, this build knows up to v{known}");
+        return Err(ErrCode::DatabaseNewer.err());
+    }
 
     let mut wiped_blobs = false;
     for (version, sql) in MIGRATIONS {
@@ -232,14 +227,10 @@ pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
             continue;
         }
         log::info!("[migrations] applying v{version}");
-        let tx = conn.unchecked_transaction()?;
-        tx.execute_batch(sql)
-            .map_err(|e| format!("migration v{version} failed: {e}"))?;
-        tx.execute(
-            "INSERT INTO _mma_migrations (version, applied_at) VALUES (?1, datetime('now'))",
-            rusqlite::params![version],
-        )?;
-        tx.commit()?;
+        apply_migration(conn, *version, sql).map_err(|e| {
+            log::error!("[migrations] v{version} failed: {e}");
+            ErrCode::MigrationFailed.with(version)
+        })?;
         if *version == 16 {
             wiped_blobs = true;
         }
@@ -254,6 +245,35 @@ pub(crate) fn run_migrations_on(conn: &Connection) -> AppResult<bool> {
     }
 
     Ok(wiped_blobs)
+}
+
+fn applied_migrations(conn: &Connection) -> rusqlite::Result<HashSet<u32>> {
+    conn.execute_batch(
+        "
+        PRAGMA foreign_keys = ON;
+        PRAGMA journal_mode = WAL;
+        PRAGMA synchronous = NORMAL;
+    ",
+    )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS _mma_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)",
+        [],
+    )?;
+    Ok(conn
+        .prepare("SELECT version FROM _mma_migrations")?
+        .query_map([], |row| row.get(0))?
+        .filter_map(Result::ok)
+        .collect())
+}
+
+fn apply_migration(conn: &Connection, version: u32, sql: &str) -> rusqlite::Result<()> {
+    let tx = conn.unchecked_transaction()?;
+    tx.execute_batch(sql)?;
+    tx.execute(
+        "INSERT INTO _mma_migrations (version, applied_at) VALUES (?1, datetime('now'))",
+        rusqlite::params![version],
+    )?;
+    tx.commit()
 }
 
 pub(super) const MIGRATIONS: &[(u32, &str)] = &[

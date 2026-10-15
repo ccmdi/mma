@@ -528,7 +528,7 @@ declare const SYNC_PROVIDERS: {
 /** @unstable */
 declare const SCRATCH_MAP_ID: "scratch";
 /** @unstable */
-declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large"];
+declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed"];
 
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CameraType: typeof CameraType;
@@ -647,6 +647,8 @@ declare const commands$1: {
      *  @unstable
      */
     appUptime: () => Promise<number>;
+    /**  Fails with the reason the app could not start, and succeeds when it started normally. @unstable */
+    startupCheck: () => Promise<null>;
     /**
      *  Write text to a temp file and return its path. `name` is a leaf filename
      *  (cannot contain path separators).

@@ -6,6 +6,9 @@ import "@/lib/render/webglContexts";
 import "@/lib/sv/shaderPatch";
 import {} from "react";
 import { createRoot } from "react-dom/client";
+import { mdiAlertCircleOutline } from "@mdi/js";
+import { EmptyState } from "@/components/primitives/EmptyState";
+import { errText } from "@/lib/util/format";
 import { appWindow, hasWindowHost, revealWindow, saveWindowState } from "@/lib/window";
 import "@/styles.css";
 import App from "@/App.tsx";
@@ -24,6 +27,13 @@ import { refreshStoredReports } from "@/lib/feedback/submit";
 import { blockBrowserAccelerators } from "@/lib/hooks/useHotkey";
 import "@/api";
 import "@/store/commandDefs";
+
+const root = createRoot(document.getElementById("root")!);
+
+function showWindow() {
+	if (hasWindowHost && !isWeb()) void revealWindow();
+	else void appWindow.show();
+}
 
 async function boot() {
 	// react-scan must load before the React root renders. Dev-only and flag-gated, so the
@@ -45,6 +55,7 @@ async function boot() {
 	mark("initLogging");
 	await initLocale(getSettings().language);
 	mark("initLocale");
+	await cmd.startupCheck();
 	await Promise.all(BUILTIN_PROVIDERS.map(Provider.register));
 	await Maps.init();
 	mark("initStore");
@@ -87,19 +98,14 @@ async function boot() {
 	});
 	blockBrowserAccelerators();
 
-	createRoot(document.getElementById("root")!).render(<App />);
+	root.render(<App />);
 	mark("render");
 
 	// Shown as soon as the shell has rendered: the webview surface exists by now, so the
 	// appear is a single native show (with DWM's pop-in), the maximize lands while the
 	// window is still a blank shell, and content streams into a visible window.
-	if (hasWindowHost && !isWeb()) {
-		void revealWindow();
-		mark("show");
-	} else {
-		void appWindow.show();
-		mark("show");
-	}
+	showWindow();
+	mark("show");
 	const jsTotal = performance.now();
 
 	if (appWindow.type === "list" && getSettings().restoreSession) restoreSession();
@@ -130,4 +136,12 @@ function restoreSession() {
 	}
 }
 
-void boot();
+boot().catch((e: unknown) => {
+	log.error("[boot] failed:", e);
+	root.render(
+		<div className="boot-error">
+			<EmptyState icon={mdiAlertCircleOutline}>{errText(e)}</EmptyState>
+		</div>,
+	);
+	showWindow();
+});

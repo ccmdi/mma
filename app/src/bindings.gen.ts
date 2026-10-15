@@ -27,6 +27,8 @@ export const commands = {
 	 *  window last loaded its page.
 	 */
 	appUptime: () => __TAURI_INVOKE<number>("app_uptime"),
+	/**  Fails with the reason the app could not start, and succeeds when it started normally. */
+	startupCheck: () => __TAURI_INVOKE<null>("startup_check"),
 	/**
 	 *  Write text to a temp file and return its path. `name` is a leaf filename
 	 *  (cannot contain path separators).

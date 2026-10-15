@@ -285,6 +285,10 @@ ERROR_CODES: readonly [
   "issue-rejected",
   "geoguessr-polygonal",
   "geoguessr-draft-too-large",
+  "data-folder-unavailable",
+  "database-unreadable",
+  "database-newer",
+  "migration-failed",
 ]
 ```
 
@@ -6410,6 +6414,16 @@ cmd.sidecarStopAll(): Promise<null>
 ```
 
 Stop all sidecar processes across every plugin.
+
+#### cmd.startupCheck
+
+`unstable` · unreleased
+
+```ts
+cmd.startupCheck(): Promise<null>
+```
+
+Fails with the reason the app could not start, and succeeds when it started normally.
 
 #### cmd.storeApplySavedSelection
 
