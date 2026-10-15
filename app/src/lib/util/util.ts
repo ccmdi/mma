@@ -7,7 +7,9 @@ export function schemeBase(scheme: string): string {
 
 /** URL that serves a local file over the `mma-buf://` protocol. */
 export function mmaBufUrl(path: string): string {
-	return schemeBase("mma-buf") + path.replace(/\\/g, "/");
+	return (
+		schemeBase("mma-buf") + path.replace(/\\/g, "/").split("/").map(encodeURIComponent).join("/")
+	);
 }
 
 /** Copy of `set` with `value` toggled, or forced on/off by `on`. */

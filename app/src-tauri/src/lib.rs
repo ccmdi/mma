@@ -129,7 +129,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 app_ready,
                 startup_check,
                 store::storage::write_temp_file,
-                store::storage::read_file,
                 store::storage::get_data_location,
                 store::storage::set_data_location,
                 store::storage::open_data_folder,

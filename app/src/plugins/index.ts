@@ -12,6 +12,7 @@ import type { PluginManifest } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { setPluginBaseDir } from "./scope";
 import { log } from "@/lib/util/log";
+import { mmaBufUrl } from "@/lib/util/util";
 
 // Re-export the API type for plugin consumers
 export type { MMA as MMAApi } from "@/api";
@@ -34,7 +35,9 @@ export async function loadUserPlugin(m: PluginManifest) {
 	setPluginBaseDir(m.id, dir);
 	try {
 		const filePath = `${dir}/${m.main}`;
-		const code = await cmd.readFile(filePath);
+		const res = await fetch(mmaBufUrl(filePath));
+		if (!res.ok) throw new Error(await res.text());
+		const code = await res.text();
 		const blob = new Blob([code], { type: "application/javascript" });
 		await import(/* @vite-ignore */ URL.createObjectURL(blob));
 	} finally {

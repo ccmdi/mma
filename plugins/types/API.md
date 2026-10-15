@@ -6183,16 +6183,6 @@ cmd.providerUnregister(id: string): Promise<null>
 
 Remove a registered provider.
 
-#### cmd.readFile
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.readFile(path: string): Promise<string>
-```
-
-Read a file as UTF-8 text (temp files, plugin sources).
-
 #### cmd.remoteApiRespond
 
 `unstable` · since v0.8.0

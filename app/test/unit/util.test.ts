@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import type { Tag } from "@/types";
-import { compareNatural, phaseRate, type PhaseRate } from "@/lib/util/util";
+import { compareNatural, mmaBufUrl, phaseRate, type PhaseRate } from "@/lib/util/util";
 import { sortTagsByMode, tagColorFor, appendTagName } from "@/lib/data/tags";
 import { ERROR_CODES } from "@/bindings.consts";
 import { initLocale } from "@/lib/i18n";
@@ -269,5 +269,13 @@ describe("errText", () => {
 	it("passes an uncoded message through untouched", () => {
 		expect(errText(new Error("boom: everything is on fire"))).toBe("boom: everything is on fire");
 		expect(errText("plain string")).toBe("plain string");
+	});
+});
+
+describe("mmaBufUrl", () => {
+	it("serves any local path, whatever characters its folders and name hold", () => {
+		const url = new URL(mmaBufUrl("C:\\maps #1\\50% done?.json"));
+		expect(decodeURIComponent(url.pathname)).toBe("/C:/maps #1/50% done?.json");
+		expect(url.search + url.hash).toBe("");
 	});
 });

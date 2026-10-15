@@ -18,14 +18,6 @@ pub fn write_temp_file(name: String, content: String) -> AppResult<String> {
     Ok(path.to_string_lossy().to_string())
 }
 
-/// Read a file as UTF-8 text (temp files, plugin sources).
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub fn read_file(path: String) -> AppResult<String> {
-    Ok(fs::read_to_string(&path)?)
-}
-
 /// The active and default data-folder paths, plus whether a custom override is in effect.
 #[derive(serde::Serialize, specta::Type)]
 pub struct DataLocation {

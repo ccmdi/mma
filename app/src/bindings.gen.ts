@@ -27,8 +27,6 @@ export const commands = {
 	 *  (cannot contain path separators).
 	 */
 	writeTempFile: (name: string, content: string) => __TAURI_INVOKE<string>("write_temp_file", { name, content }),
-	/**  Read a file as UTF-8 text (temp files, plugin sources). */
-	readFile: (path: string) => __TAURI_INVOKE<string>("read_file", { path }),
 	/**  Return the current and default data-folder paths, and whether a custom override is active. */
 	getDataLocation: () => __TAURI_INVOKE<DataLocation>("get_data_location"),
 	/**

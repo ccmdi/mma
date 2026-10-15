@@ -492,7 +492,7 @@ async function applyFolderFiles(paths: string[], maps: MapMeta[]) {
 	for (const path of paths) {
 		let mapping: Record<string, string>;
 		try {
-			mapping = JSON.parse(await cmd.readFile(path));
+			mapping = JSON.parse(await (await fetch(mmaBufUrl(path))).text());
 		} catch (e) {
 			log.error("[folder import] failed to read", path, e);
 			continue;
