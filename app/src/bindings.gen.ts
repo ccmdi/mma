@@ -237,15 +237,10 @@ export const commands = {
 	 */
 	bulkImportCancel: () => __TAURI_INVOKE<null>("bulk_import_cancel"),
 	/**
-	 *  Parse a file and return field-level statistics and preview positions for the
-	 *  editor import dialog. Call `storeImportFile` to commit the import.
+	 *  Parse a file or pasted text, stage it, and return field-level statistics and preview
+	 *  positions for the editor import dialog. Call `storeImportFile` to commit the import.
 	 */
-	storeImportPreview: (path: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_preview", { path }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
-	/**
-	 *  Parse pasted text (JSON or CSV) and stage it for preview. Works like
-	 *  `storeImportPreview` but reads from a string instead of a file.
-	 */
-	storeImportPastePreview: (text: string) => __TAURI_INVOKE<EditorImportPreview>("store_import_paste_preview", { text }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
+	storeImportPreview: (source: ImportSource) => __TAURI_INVOKE<EditorImportPreview>("store_import_preview", { source }).then((v) => (({...v,bounds:v.bounds==null?v.bounds:v.bounds.map(i=>i)}) as typeof v)),
 	/**
 	 *  Commit a previously previewed editor import into the open map, optionally
 	 *  dropping fields in `droppedFields` (e.g. `"heading"`, `"extra.countryCode"`)
@@ -873,6 +868,13 @@ export type ImportProgress = {
 	total: number,
 	mapName: string,
 };
+
+/**  Where an editor import reads its locations from. */
+export type ImportSource = 
+/**  A JSON or CSV file at this path. */
+({ path: string }) & { text?: never } | 
+/**  Pasted JSON or CSV text, refused when it holds no locations. */
+({ text: string }) & { path?: never };
 
 /**  Result returned per map after a successful bulk import. */
 export type ImportedMapInfo = {

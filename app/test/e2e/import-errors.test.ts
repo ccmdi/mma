@@ -38,7 +38,7 @@ describe("Malformed JSON import", () => {
 	it("completely invalid JSON previews as empty with a parser warning", async () => {
 		const preview = await withApi(async (api) => {
 			const path = await api.cmd.writeTempFile("bad.json", "this is not json at all {{{");
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.warnings).toContain("CSV missing lat/lng columns");
@@ -48,7 +48,7 @@ describe("Malformed JSON import", () => {
 	it("an object without a coordinate array previews empty with a warning", async () => {
 		const preview = await withApi(async (api) => {
 			const path = await api.cmd.writeTempFile("empty.json", "{}");
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.warnings).toContain("No recognized coordinate array found");
@@ -59,7 +59,7 @@ describe("Malformed JSON import", () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [] });
 			const path = await api.cmd.writeTempFile("empty-coords.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			return preview.locationCount;
 		});
 		expect(result).toBe(0);
@@ -71,7 +71,7 @@ describe("Malformed JSON import", () => {
 				"strings.json",
 				JSON.stringify(["foo", "bar", "baz"]),
 			);
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.bounds).toBeNull();
@@ -82,7 +82,7 @@ describe("Malformed JSON import", () => {
 		const preview = await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [{ lat: "not-a-number", lng: 20 }] });
 			const path = await api.cmd.writeTempFile("nan.json", json);
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.bounds).toBeNull();
@@ -153,7 +153,7 @@ describe("CSV import edge cases", () => {
 	it("CSV with headers only previews no locations", async () => {
 		const preview = await withApi(async (api) => {
 			const path = await api.cmd.writeTempFile("headers-only.csv", "lat,lng,heading,pitch,zoom\n");
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.bounds).toBeNull();
@@ -166,7 +166,7 @@ describe("CSV import edge cases", () => {
 				"swapped.csv",
 				"lng,lat,heading\n-0.1278,51.5074,0\n",
 			);
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(1);
 		expect(preview.bounds).toEqual([-0.1278, 51.5074, -0.1278, 51.5074]);
@@ -176,7 +176,7 @@ describe("CSV import edge cases", () => {
 	it("empty CSV reports an empty input and previews no locations", async () => {
 		const preview = await withApi(async (api) => {
 			const path = await api.cmd.writeTempFile("empty.csv", "");
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.bounds).toBeNull();
@@ -204,7 +204,7 @@ describe("Import does not corrupt existing data", () => {
 	it("a malformed import preview leaves existing locations intact", async () => {
 		const preview = await withApi(async (api) => {
 			const path = await api.cmd.writeTempFile("garbage.json", "not json!!!!");
-			return api.cmd.storeImportPreview(path);
+			return api.cmd.storeImportPreview({ path });
 		});
 		expect(preview.locationCount).toBe(0);
 		expect(preview.warnings).toContain("CSV missing lat/lng columns");

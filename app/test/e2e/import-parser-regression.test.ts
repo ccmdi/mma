@@ -35,7 +35,7 @@ describe("Import — escaped quotes in extra fields", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("escaped_quotes.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => l.panoId === "pano_esc");
@@ -65,7 +65,7 @@ describe("Import — escaped quotes in extra fields", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("bs_quotes.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => l.panoId === "pano_bs");
@@ -91,7 +91,7 @@ describe("Import — panoId with special characters", () => {
 				customCoordinates: [{ lat: 10, lng: 20, panoId: "CAoSLEFGMVFpcE5éabc" }],
 			});
 			const path = await api.cmd.writeTempFile("pano_unicode.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			return { panoId: locs[0]?.panoId, flags: locs[0]?.flags };
@@ -109,7 +109,7 @@ describe("Import — panoId with special characters", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("pano_both.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => Math.abs(l.lat - 30) < 0.01);
@@ -126,7 +126,7 @@ describe("Import — panoId with special characters", () => {
 				customCoordinates: [{ lat: 50, lng: 60, extra: { panoId: "FALLBACK_PANO" } }],
 			});
 			const path = await api.cmd.writeTempFile("pano_fallback.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => Math.abs(l.lat - 50) < 0.01);
@@ -143,7 +143,7 @@ describe("Import — panoId with special characters", () => {
 				customCoordinates: [{ latitude: 70, longitude: 80, pano: "ALIAS_PANO" }],
 			});
 			const path = await api.cmd.writeTempFile("pano_alias.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => Math.abs(l.lat - 70) < 0.01);
@@ -179,7 +179,7 @@ describe("Import — countryCode/stateCode at top level", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("cc_root.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			return {
@@ -210,7 +210,7 @@ describe("Import — countryCode/stateCode at top level", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("cc_both.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const loc = locs.find((l: any) => Math.abs(l.lat - 51.5) < 0.01);
@@ -249,7 +249,7 @@ describe("Import — nested objects in extra", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("nested_extra.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const meta = locs[0]?.extra?.meta as
@@ -301,7 +301,7 @@ describe("Import — nested objects in extra", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("varied_depth.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const flat = locs.find((l: any) => Math.abs(l.lat - 1) < 0.01);
@@ -334,7 +334,7 @@ describe("Import — empty customCoordinates", () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [] });
 			const path = await api.cmd.writeTempFile("empty_coords.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			return {
 				locationCount: preview.locationCount,
 				tagCount: preview.tags.length,
@@ -352,7 +352,7 @@ describe("Import — empty customCoordinates", () => {
 		await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [] });
 			const path = await api.cmd.writeTempFile("empty_noop.json", json);
-			await api.cmd.storeImportPreview(path);
+			await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 		});
 
@@ -411,7 +411,7 @@ describe("Import — export/reimport tag round-trip", () => {
 
 		const result = await withApi(async (api, jsonStr) => {
 			const path = await api.cmd.writeTempFile("tag_rt.json", jsonStr);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const tagNames = Object.values(api.Tag.all())

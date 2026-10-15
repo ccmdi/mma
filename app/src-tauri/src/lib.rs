@@ -198,7 +198,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 io::import::bulk_import_confirm,
                 io::import::bulk_import_cancel,
                 io::import::store_import_preview,
-                io::import::store_import_paste_preview,
                 io::import::store_import_file,
                 io::import::store_import_cancel,
                 io::maps_url::parse_maps_url,

@@ -6607,27 +6607,16 @@ cmd.storeImportLegacySavedSelections(json: string): Promise<number>
 Import saved selections kept in local storage by older versions. No-op when
 rules already exist. Returns the number of rules imported.
 
-#### cmd.storeImportPastePreview
-
-`unstable` · since v0.5.1
-
-```ts
-cmd.storeImportPastePreview(text: string): Promise<EditorImportPreview>
-```
-
-Parse pasted text (JSON or CSV) and stage it for preview. Works like
-`storeImportPreview` but reads from a string instead of a file.
-
 #### cmd.storeImportPreview
 
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeImportPreview(path: string): Promise<EditorImportPreview>
+cmd.storeImportPreview(source: ImportSource): Promise<EditorImportPreview>
 ```
 
-Parse a file and return field-level statistics and preview positions for the
-editor import dialog. Call `storeImportFile` to commit the import.
+Parse a file or pasted text, stage it, and return field-level statistics and preview
+positions for the editor import dialog. Call `storeImportFile` to commit the import.
 
 #### cmd.storeLandLayer
 

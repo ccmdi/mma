@@ -42,7 +42,7 @@ export function deleteMap(id: string) {
 
 /** Import locations from pasted text and commit them to the map. */
 export async function importPaste(text: string) {
-	await cmd.storeImportPastePreview(text);
+	await cmd.storeImportPreview({ text });
 	const r = await cmd.storeImportFile([], []);
 	await Mutation.settle(r.mutation);
 	return [r];

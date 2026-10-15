@@ -219,23 +219,40 @@ pub fn store_import_cancel(
     })
 }
 
-/// Parse a file and return field-level statistics and preview positions for the
-/// editor import dialog. Call `storeImportFile` to commit the import.
+/// Where an editor import reads its locations from.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub enum ImportSource {
+    /// A JSON or CSV file at this path.
+    Path(String),
+    /// Pasted JSON or CSV text, refused when it holds no locations.
+    Text(String),
+}
+
+/// Parse a file or pasted text, stage it, and return field-level statistics and preview
+/// positions for the editor import dialog. Call `storeImportFile` to commit the import.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_import_preview(
     label: WindowLabel,
     state: tauri::State<'_, engine::StoreState>,
-    path: String,
+    source: ImportSource,
 ) -> AppResult<EditorImportPreview> {
     // CPU-bound parse runs on a blocking thread so it never stalls the main/event-loop
     // thread (which the webview shares - a sync command here freezes the window).
     let window = label.0.clone();
     let (parsed, mut preview) = task::spawn_blocking(move || {
         let t0 = Instant::now();
-        let mut buf = read_sequential(&path)?;
+        let pasted = matches!(source, ImportSource::Text(_));
+        let mut buf = match source {
+            ImportSource::Path(path) => read_sequential(&path)?,
+            ImportSource::Text(text) => text.into_bytes(),
+        };
         let t_read = t0.elapsed();
         let parsed = parse_file(&mut buf);
+        if pasted && parsed.locations.is_empty() {
+            return Err("no locations found".into());
+        }
         let t_parse = t0.elapsed();
         let preview = build_preview(&parsed, &window)?;
         log::debug!(
@@ -245,38 +262,6 @@ pub async fn store_import_preview(
             (t0.elapsed() - t_parse).as_millis(),
             preview.location_count
         );
-        Ok::<_, AppError>((parsed, preview))
-    })
-    .await??;
-    with_store!(label, state, |store| {
-        preview.keys = stage_parsed(store, &label.0, parsed);
-        Ok(preview)
-    })
-}
-
-/// Parse pasted text (JSON or CSV) and stage it for preview. Works like
-/// `storeImportPreview` but reads from a string instead of a file.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_import_paste_preview(
-    label: WindowLabel,
-    state: tauri::State<'_, engine::StoreState>,
-    text: String,
-) -> AppResult<EditorImportPreview> {
-    let window = label.0.clone();
-    let (parsed, mut preview) = task::spawn_blocking(move || {
-        let t0 = Instant::now();
-        let mut buf = text.into_bytes();
-        let parsed = parse_file(&mut buf);
-        if parsed.locations.is_empty() {
-            return Err("no locations found".into());
-        }
-        log::debug!(
-            "[paste-preview] parse={:.0}ms locs={}",
-            t0.elapsed().as_millis(),
-            parsed.locations.len()
-        );
-        let preview = build_preview(&parsed, &window)?;
         Ok::<_, AppError>((parsed, preview))
     })
     .await??;

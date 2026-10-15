@@ -293,7 +293,7 @@ describe("JSON import edge cases", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("test_import.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			await api._test.importFile([]);
 			const locs = await api.fetchAllLocations();
 			const imported = locs.find((l) => l.extra?.altitude === 500);
@@ -318,7 +318,7 @@ describe("JSON import edge cases", () => {
 				name: "Test Map",
 			});
 			const path = await api.cmd.writeTempFile("test_mma_fmt.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			return { count: preview.locationCount };
 		});
 		expect(result.count).toBe(2);
@@ -340,7 +340,7 @@ describe("JSON import edge cases", () => {
 				],
 			});
 			const path = await api.cmd.writeTempFile("test_tags_import.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			return {
 				count: preview.locationCount,
 				tagCount: preview.tags.length,
@@ -356,7 +356,7 @@ describe("JSON import edge cases", () => {
 		const result = await withApi(async (api) => {
 			const json = JSON.stringify({ customCoordinates: [] });
 			const path = await api.cmd.writeTempFile("test_empty.json", json);
-			const preview = await api.cmd.storeImportPreview(path);
+			const preview = await api.cmd.storeImportPreview({ path });
 			return preview.locationCount;
 		});
 		expect(result).toBe(0);

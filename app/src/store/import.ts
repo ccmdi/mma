@@ -54,11 +54,11 @@ export const Import = {
 	},
 	/** Import from a file path. */
 	fromPath: async (path: string) => {
-		await setImportStaging(await cmd.storeImportPreview(path));
+		await setImportStaging(await cmd.storeImportPreview({ path }));
 	},
 	/** Stage pasted text for preview. Throws if no locations are found. */
 	paste: async (text: string) => {
-		await setImportStaging(await cmd.storeImportPastePreview(text));
+		await setImportStaging(await cmd.storeImportPreview({ text }));
 	},
 	/** Commit the staged import, optionally dropping fields and applying bulk tags. */
 	confirm: async (droppedFields: string[], tagNames: string[] = []) => {
