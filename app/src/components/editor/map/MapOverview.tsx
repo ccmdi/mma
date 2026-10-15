@@ -22,6 +22,7 @@ import { ToolBlock } from "@/components/primitives/ToolBlock";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { TextInput } from "@/components/primitives/TextInput";
+import { NumberInput } from "@/components/primitives/NumberInput";
 import { PluginToolbar } from "@/plugins/PluginPanels";
 import { fmt, distanceUnit, formatDistance } from "@/lib/util/format";
 import { useDialog, useDialogState, openDialog } from "@/store/dialogBus";
@@ -239,13 +240,7 @@ function RankedPanel({
 				<option value="top">{t("Top")}</option>
 				<option value="bottom">{t("Bottom")}</option>
 			</NSelect>
-			<TextInput
-				type="number"
-				min={1}
-				style={{ width: "5rem" }}
-				value={count}
-				onChange={(e) => setCount(Math.max(1, Number(e.target.value)))}
-			/>
+			<NumberInput min={1} style={{ width: "5rem" }} value={count} onChange={setCount} />
 			<Button type="submit" disabled={!field}>
 				{t("Select")}
 			</Button>
@@ -403,12 +398,11 @@ export function MapOverview({ hidden }: { hidden?: boolean }) {
 								>
 									<label>
 										{t("Distance ({unit}):", { unit: dupUnit.label })}{" "}
-										<TextInput
-											type="number"
-											min="0"
+										<NumberInput
+											min={0}
 											style={{ width: "5rem" }}
 											value={dupUnit.toDisplay(dupDistance)}
-											onChange={(e) => setDupDistance(dupUnit.fromDisplay(Number(e.target.value)))}
+											onChange={(v) => setDupDistance(dupUnit.fromDisplay(v))}
 										/>
 									</label>
 									<Button type="submit">{t("Find")}</Button>

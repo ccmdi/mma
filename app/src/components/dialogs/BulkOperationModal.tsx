@@ -16,6 +16,7 @@ import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import { Radio } from "@/components/primitives/Radio";
 import { TextInput } from "@/components/primitives/TextInput";
+import { NumberInput } from "@/components/primitives/NumberInput";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { Bar } from "@/components/primitives/Bar";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
@@ -692,23 +693,21 @@ function DownloadPanoramasSetup({ picker, info, onReady }: SetupProps) {
 				<>
 					<label className="bulk-operation__option">
 						{t("Tile X")}
-						<TextInput
-							type="number"
+						<NumberInput
 							min={0}
 							step={1}
 							value={tileX}
-							onChange={(e) => setTileX(Math.max(0, Number(e.target.value) || 0))}
+							onChange={setTileX}
 							style={{ width: 100 }}
 						/>
 					</label>
 					<label className="bulk-operation__option">
 						{t("Tile Y")}
-						<TextInput
-							type="number"
+						<NumberInput
 							min={0}
 							step={1}
 							value={tileY}
-							onChange={(e) => setTileY(Math.max(0, Number(e.target.value) || 0))}
+							onChange={setTileY}
 							style={{ width: 100 }}
 						/>
 					</label>

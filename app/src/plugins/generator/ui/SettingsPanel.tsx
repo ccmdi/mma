@@ -9,10 +9,11 @@ import { Section, SegmentedControl } from "@/components/primitives/Sidebar";
 import { t } from "@/lib/i18n";
 import { fieldValueLabel, getFieldDef } from "@/lib/data/fieldDefRegistry";
 import { TextInput } from "@/components/primitives/TextInput";
+import { NumberInput } from "@/components/primitives/NumberInput";
 import { distanceUnit } from "@/lib/util/format";
 import { useSetting } from "@/store/settings";
 
-function NumberInput({
+function NumberField({
 	label,
 	value,
 	onChange,
@@ -34,10 +35,9 @@ function NumberInput({
 	return (
 		<label className={`generator-settings__number ${indent ? "generator-settings__indent" : ""}`}>
 			{label}
-			<TextInput
-				type="number"
+			<NumberInput
 				value={value}
-				onChange={(e) => onChange(Number(e.target.value))}
+				onChange={onChange}
 				min={min}
 				max={max}
 				step={step}
@@ -71,7 +71,7 @@ function DistanceInput({
 	useSetting("units");
 	const unit = distanceUnit(base);
 	return (
-		<NumberInput
+		<NumberField
 			label={label ? `${label} (${unit.label})` : unit.label}
 			value={unit.toDisplay(value)}
 			onChange={(v) => onChange(unit.fromDisplay(v))}
@@ -213,7 +213,7 @@ export function SettingsPanel({
 							{t("Check linked panos")}
 						</Checkbox>
 						{settings.checkLinks && (
-							<NumberInput
+							<NumberField
 								label={t("Depth")}
 								value={settings.linksDepth}
 								onChange={(v) => set("linksDepth", v)}
@@ -242,7 +242,7 @@ export function SettingsPanel({
 							{t("Find curve locations")}
 						</Checkbox>
 						{settings.pinpointSearch && (
-							<NumberInput
+							<NumberField
 								label={t("Pinpointable angle")}
 								value={settings.pinpointAngle}
 								onChange={(v) => set("pinpointAngle", v)}
@@ -270,7 +270,7 @@ export function SettingsPanel({
 										{ value: "backward", label: t("To back of car") },
 									]}
 								/>
-								<NumberInput
+								<NumberField
 									label={t("Deviation")}
 									value={settings.headingDeviation}
 									onChange={(v) => set("headingDeviation", v)}
@@ -287,7 +287,7 @@ export function SettingsPanel({
 							{t("Adjust pitch")}
 						</Checkbox>
 						{settings.adjustPitch && (
-							<NumberInput
+							<NumberField
 								label={t("Pitch deviation")}
 								value={settings.pitchDeviation}
 								onChange={(v) => set("pitchDeviation", v)}
@@ -303,7 +303,7 @@ export function SettingsPanel({
 							{t("Adjust zoom")}
 						</Checkbox>
 						{settings.adjustZoom && (
-							<NumberInput
+							<NumberField
 								label={t("Zoom level")}
 								value={settings.zoomLevel}
 								onChange={(v) => set("zoomLevel", v)}
@@ -552,14 +552,14 @@ export function SettingsPanel({
 				</Checkbox>
 				{settings.filterByLinks && (
 					<div className="generator-settings__indent generator-settings__date-range">
-						<NumberInput
+						<NumberField
 							label={t("Min")}
 							value={settings.minLinks}
 							onChange={(v) => set("minLinks", v)}
 							min={0}
 							max={10}
 						/>
-						<NumberInput
+						<NumberField
 							label={t("Max")}
 							value={settings.maxLinks}
 							onChange={(v) => set("maxLinks", v)}
@@ -575,7 +575,7 @@ export function SettingsPanel({
 					{t("Find curves")}
 				</Checkbox>
 				{settings.findCurves && (
-					<NumberInput
+					<NumberField
 						label={t("Min curve angle")}
 						value={settings.minCurveAngle}
 						onChange={(v) => set("minCurveAngle", v)}

@@ -4,6 +4,7 @@ import { SelectionList } from "@/store/selectionList";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
 import { Button } from "@/components/primitives/Button";
 import { TextInput } from "@/components/primitives/TextInput";
+import { NumberInput } from "@/components/primitives/NumberInput";
 import { Flag } from "@/components/primitives/Flag";
 import { Hint } from "@/components/primitives/Hint";
 import { Spinner } from "@/components/primitives/Spinner";
@@ -69,11 +70,10 @@ function RegionRow({
 				{objective === "count" && (
 					<>
 						{" /"}
-						<TextInput
-							type="number"
+						<NumberInput
 							min={found || 1}
 							value={target}
-							onChange={(e) => onTargetChange(Number(e.target.value) || 1)}
+							onChange={onTargetChange}
 							style={{ width: "5rem", fontSize: "inherit" }}
 						/>
 					</>
@@ -176,11 +176,10 @@ export function RegionSelector({
 				<div className="generator-regions__controls">
 					<label className="generator-regions__target-label">
 						{t("Locations per region:")}
-						<TextInput
-							type="number"
+						<NumberInput
 							min={1}
 							value={defaultTarget}
-							onChange={(e) => onDefaultTargetChange(Number(e.target.value) || 10)}
+							onChange={onDefaultTargetChange}
 							style={{ width: "5.5rem" }}
 						/>
 					</label>
