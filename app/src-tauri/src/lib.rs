@@ -137,7 +137,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 plugins::user::list_user_plugins,
                 plugins::user::install_plugin,
                 plugins::user::uninstall_plugin,
-                plugins::sidecar::sidecar_install,
                 plugins::sidecar::sidecar_installed_version,
                 plugins::sidecar::sidecar_request,
                 plugins::sidecar::sidecar_stop,

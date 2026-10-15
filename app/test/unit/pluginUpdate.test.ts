@@ -2,12 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { PluginManifest } from "@/bindings.gen";
 
 const installPlugin = vi.fn();
-const sidecarInstall = vi.fn();
 const sidecarInstalledVersion = vi.fn();
 vi.mock("@/lib/commands", () => ({
 	cmd: {
 		installPlugin: (...a: unknown[]) => installPlugin(...a),
-		sidecarInstall: (...a: unknown[]) => sidecarInstall(...a),
 		sidecarInstalledVersion: (...a: unknown[]) => sidecarInstalledVersion(...a),
 	},
 }));
@@ -202,7 +200,7 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		expect(installPlugin).toHaveBeenCalledWith("p", REF);
 	});
 
-	it("installs a pinned build's sidecar from the manifest it downloads", async () => {
+	it("reinstalls a pinned build whose sidecar drifted", async () => {
 		sidecarInstalledVersion.mockResolvedValue("0.9.0");
 		installPlugin.mockResolvedValue(manifest({ sidecar: { name: "mma-x", version: "0.1.0" } }));
 		const latest = manifest({
@@ -213,7 +211,6 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		});
 		await autoUpdatePlugin(manifest(), latest, "1.0.0");
 		expect(installPlugin).toHaveBeenCalledWith("p", REF);
-		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.1.0");
 	});
 
 	it("repairs a pinned build's broken sidecar at the same version", async () => {
@@ -228,7 +225,6 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		});
 		await autoUpdatePlugin(manifest({ version: "1.5.0", sidecar }), latest, "1.0.0");
 		expect(installPlugin).toHaveBeenCalledWith("p", REF);
-		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.1.0");
 	});
 
 	it("leaves the install alone when it already is the newest compatible build", async () => {
@@ -254,11 +250,10 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 		const got = await autoUpdatePlugin(manifest(), manifest({ version: "2.0.0" }), "1.0.0");
 		expect(got).toBe(fresh);
 		expect(installPlugin).toHaveBeenCalledWith("p", null);
-		expect(sidecarInstall).not.toHaveBeenCalled();
 		expect(toast).toHaveBeenCalled();
 	});
 
-	it("updates on sidecar drift alone and installs the sidecar", async () => {
+	it("updates on sidecar drift alone", async () => {
 		const sidecar = { name: "mma-x", version: "0.2.0" };
 		sidecarInstalledVersion.mockResolvedValue("0.1.0");
 		installPlugin.mockResolvedValue(manifest({ sidecar }));
@@ -268,7 +263,6 @@ describe("autoUpdatePlugin (startup silent refresh)", () => {
 			"1.0.0",
 		);
 		expect(installPlugin).toHaveBeenCalledWith("p", null);
-		expect(sidecarInstall).toHaveBeenCalledWith("p", "mma-x", "0.2.0");
 	});
 
 	it("falls back to the on-disk manifest when the download fails", async () => {

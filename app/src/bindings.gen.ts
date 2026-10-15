@@ -43,14 +43,12 @@ export const commands = {
 	/**  Manifests of every installed plugin. */
 	listUserPlugins: () => __TAURI_INVOKE<PluginManifest[]>("list_user_plugins"),
 	/**
-	 *  Install a plugin from the marketplace: its manifest, main script, and procedure module.
+	 *  Install a plugin from the marketplace: its manifest, main script, procedure module and sidecar.
 	 *  `gitRef` pins an older build; `null` installs the latest.
 	 */
 	installPlugin: (id: string, gitRef: string | null) => __TAURI_INVOKE<PluginManifest>("install_plugin", { id, gitRef }),
 	/**  Delete a plugin's directory. */
 	uninstallPlugin: (id: string) => __TAURI_INVOKE<null>("uninstall_plugin", { id }),
-	/**  Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`. */
-	sidecarInstall: (pluginId: string, name: string, version: string) => __TAURI_INVOKE<null>("sidecar_install", { pluginId, name, version }),
 	/**  Installed sidecar version for a plugin, or `null` if not installed. */
 	sidecarInstalledVersion: (pluginId: string) => __TAURI_INVOKE<string | null>("sidecar_installed_version", { pluginId }),
 	/**

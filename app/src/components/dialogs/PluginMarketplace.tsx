@@ -25,22 +25,22 @@ import { appVersion } from "@/lib/version";
 import { log } from "@/lib/util/log";
 import { toast } from "@/lib/util/toast";
 
-// Download a plugin's sidecar (if declared), reporting progress via onProgress. Shared by
-// install + update so both paths fetch the binary the same way.
-async function installSidecar(
-	manifest: PluginManifest,
-	onProgress: (pct: number) => void,
-): Promise<void> {
-	if (!manifest.sidecar) return;
+// Install a plugin, reporting its sidecar download progress via onProgress, then null when done.
+async function installWithProgress(
+	id: string,
+	ref: string | null,
+	onProgress: (pct: number | null) => void,
+): Promise<PluginManifest> {
 	const unlisten = await events.sidecarInstallProgress.listen((ev) => {
-		if (ev.payload.pluginId === manifest.id && ev.payload.total > 0) {
+		if (ev.payload.pluginId === id && ev.payload.total > 0) {
 			onProgress(Math.round((ev.payload.downloaded / ev.payload.total) * 100));
 		}
 	});
 	try {
-		await cmd.sidecarInstall(manifest.id, manifest.sidecar.name, manifest.sidecar.version);
+		return await cmd.installPlugin(id, ref);
 	} finally {
 		unlisten();
+		onProgress(null);
 	}
 }
 
@@ -314,12 +314,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 	const handleInstall = useCallback(
 		async (id: string, ref: string | null) => {
 			try {
-				const manifest = await cmd.installPlugin(id, ref);
-				try {
-					await installSidecar(manifest, (pct) => setProgress(id, pct));
-				} finally {
-					setProgress(id, null);
-				}
+				const manifest = await installWithProgress(id, ref, (pct) => setProgress(id, pct));
 				await loadAndActivatePlugin(manifest);
 				setPluginEnabled(id, true);
 				await refreshInstalled();
@@ -366,12 +361,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 			// Download before tearing down, so a failed fetch leaves the plugin running.
 			let manifest: PluginManifest;
 			try {
-				manifest = await cmd.installPlugin(id, ref);
-				try {
-					await installSidecar(manifest, (pct) => setProgress(id, pct));
-				} finally {
-					setProgress(id, null);
-				}
+				manifest = await installWithProgress(id, ref, (pct) => setProgress(id, pct));
 			} catch (e) {
 				log.error(`[marketplace] update download failed for "${id}":`, e);
 				toast(t("Update failed: {error}", { error: String(e) }));

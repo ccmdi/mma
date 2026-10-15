@@ -231,7 +231,7 @@ fn install_files(manifest: &PluginManifest) -> AppResult<Vec<&str>> {
     .collect()
 }
 
-/// Install a plugin from the marketplace: its manifest, main script, and procedure module.
+/// Install a plugin from the marketplace: its manifest, main script, procedure module and sidecar.
 /// `gitRef` pins an older build; `null` installs the latest.
 #[tauri::command]
 #[specta::specta]
@@ -255,6 +255,10 @@ fn install(id: String, git_ref: Option<&str>) -> AppResult<PluginManifest> {
 
     for file in install_files(&manifest)? {
         fs::write(dir.join(file), fetch(&format!("{base}/{id}/{file}"), file)?)?;
+    }
+    if let Some(sc) = &manifest.sidecar {
+        validate_sidecar_name(&sc.name)?;
+        sidecar::install_blocking(&id, &sc.name, &sc.version)?;
     }
 
     let mut manifest = manifest.with_fallback(&id);

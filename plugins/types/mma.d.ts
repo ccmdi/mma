@@ -664,15 +664,13 @@ declare const commands$1: {
     /**  Manifests of every installed plugin. @unstable */
     listUserPlugins: () => Promise<PluginManifest[]>;
     /**
-     *  Install a plugin from the marketplace: its manifest, main script, and procedure module.
+     *  Install a plugin from the marketplace: its manifest, main script, procedure module and sidecar.
      *  `gitRef` pins an older build; `null` installs the latest.
      *  @unstable
      */
     installPlugin: (id: string, gitRef: string | null) => Promise<PluginManifest>;
     /**  Delete a plugin's directory. @unstable */
     uninstallPlugin: (id: string) => Promise<null>;
-    /**  Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`. @unstable */
-    sidecarInstall: (pluginId: string, name: string, version: string) => Promise<null>;
     /**  Installed sidecar version for a plugin, or `null` if not installed. @unstable */
     sidecarInstalledVersion: (pluginId: string) => Promise<string | null>;
     /**

@@ -151,7 +151,7 @@ fn install_gate(plugin_id: &str) -> Arc<Mutex<()>> {
         .clone()
 }
 
-fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()> {
+pub(crate) fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()> {
     let gate = install_gate(plugin_id);
     let _installing = lock(&gate);
     // The sibling that held the gate may have just installed this exact version;
@@ -281,17 +281,6 @@ fn install_blocking(plugin_id: &str, name: &str, version: &str) -> AppResult<()>
     })?;
     log::info!("[sidecar] installed {name} v{version} for {plugin_id}");
     Ok(())
-}
-
-/// Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`.
-#[tauri::command]
-#[specta::specta]
-pub async fn sidecar_install(plugin_id: String, name: String, version: String) -> AppResult<()> {
-    validate_plugin_id(&plugin_id)?;
-    validate_sidecar_name(&name)?;
-    task::spawn_blocking(move || install_blocking(&plugin_id, &name, &version))
-        .await
-        .map_err(|e| AppError(format!("sidecar install task failed: {e}")))?
 }
 
 /// Installed sidecar version for a plugin, or `null` if not installed.

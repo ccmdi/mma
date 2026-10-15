@@ -112,9 +112,6 @@ export async function autoUpdatePlugin(
 	if (!needsBuildUpdate(m.version, target, sidecarVersion)) return m;
 	try {
 		const fresh = await cmd.installPlugin(m.id, target.ref);
-		if (fresh.sidecar) {
-			await cmd.sidecarInstall(fresh.id, fresh.sidecar.name, fresh.sidecar.version);
-		}
 		toast(t("{name} updated to v{version}", { name: fresh.name, version: fresh.version }));
 		return fresh;
 	} catch (e) {

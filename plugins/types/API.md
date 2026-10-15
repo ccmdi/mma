@@ -5937,7 +5937,7 @@ one entry per row of points.
 cmd.installPlugin(id: string, gitRef: string | null): Promise<PluginManifest>
 ```
 
-Install a plugin from the marketplace: its manifest, main script, and procedure module.
+Install a plugin from the marketplace: its manifest, main script, procedure module and sidecar.
 `gitRef` pins an older build; `null` installs the latest.
 
 #### cmd.listUserPlugins
@@ -6254,20 +6254,6 @@ cmd.sidecarCancel(reqId: number): Promise<null>
 ```
 
 Cancel a running sidecar request. No-op if the request already finished.
-
-#### cmd.sidecarInstall
-
-`unstable` · since v0.7.0
-
-```ts
-cmd.sidecarInstall(
-  pluginId: string,
-  name: string,
-  version: string,
-): Promise<null>
-```
-
-Download and install a plugin's sidecar bundle. Emits `sidecar-install-progress`.
 
 #### cmd.sidecarInstalledVersion
 
