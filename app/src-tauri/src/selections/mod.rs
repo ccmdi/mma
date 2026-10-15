@@ -341,23 +341,21 @@ impl Selection {
         next
     }
 
-    fn named_value_color(&self, color: &impl Fn(&str, u32) -> Option<Rgb>) -> Rgb {
-        let inner = match &self.selector {
-            Selector::Invert { selections } => selections.first().unwrap_or(self),
-            _ => self,
-        };
-        inner
-            .selector
-            .member_test()
-            .and_then(|(field, id)| color(field, id))
-            .unwrap_or(self.color)
-    }
-
     /// Use the named value's colour for membership nodes when available.
     pub fn recolored(&self, color: &impl Fn(&str, u32) -> Option<Rgb>) -> Self {
-        self.fold(&mut |node, children| Self {
-            color: node.named_value_color(color),
-            ..node.rebuilt(node.selector.with_children_ref(children))
+        self.fold(&mut |node, children| {
+            let tested = match &node.selector {
+                Selector::Invert { selections } => selections.first().unwrap_or(node),
+                _ => node,
+            };
+            Self {
+                color: tested
+                    .selector
+                    .member_test()
+                    .and_then(|(field, id)| color(field, id))
+                    .unwrap_or(node.color),
+                ..node.rebuilt(node.selector.with_children_ref(children))
+            }
         })
     }
 }

@@ -213,9 +213,13 @@ fn tokenize(src: &str) -> ExprResult<Vec<Token>> {
                 }
             }
             tokens.push(Token::Str(text));
-        } else if let Some((op, width)) = cmp_at(&chars, i) {
+        } else if let Some(&(symbol, op)) = CMPS.iter().find(|(symbol, _)| {
+            symbol
+                .chars()
+                .eq(chars[i..].iter().take(symbol.len()).copied())
+        }) {
             tokens.push(Token::Cmp(op));
-            i += width;
+            i += symbol.len();
         } else if "+-*/%(),".contains(c) {
             tokens.push(Token::Op(c));
             i += 1;
@@ -266,32 +270,16 @@ impl Cmp {
     }
 }
 
-/// How a comparison operator spells itself, for error text.
-fn cmp_symbol(op: Cmp) -> &'static str {
-    match op {
-        Cmp::Eq => "==",
-        Cmp::Neq => "!=",
-        Cmp::Gt => ">",
-        Cmp::Lt => "<",
-        Cmp::Gte => ">=",
-        Cmp::Lte => "<=",
-    }
-}
-
-/// The comparison operator starting at `i`, with its width. Two-character forms are
-/// tried first so `>=` never tokenizes as `>` followed by a stray `=`.
-fn cmp_at(chars: &[char], i: usize) -> Option<(Cmp, usize)> {
-    let pair = (chars.get(i)?, chars.get(i + 1));
-    match pair {
-        ('=', Some('=')) => Some((Cmp::Eq, 2)),
-        ('!', Some('=')) => Some((Cmp::Neq, 2)),
-        ('>', Some('=')) => Some((Cmp::Gte, 2)),
-        ('<', Some('=')) => Some((Cmp::Lte, 2)),
-        ('>', _) => Some((Cmp::Gt, 1)),
-        ('<', _) => Some((Cmp::Lt, 1)),
-        _ => None,
-    }
-}
+/// Every comparison operator by its spelling. Two-character forms come first so `>=`
+/// never tokenizes as `>` followed by a stray `=`.
+const CMPS: [(&str, Cmp); 6] = [
+    ("==", Cmp::Eq),
+    ("!=", Cmp::Neq),
+    (">=", Cmp::Gte),
+    ("<=", Cmp::Lte),
+    (">", Cmp::Gt),
+    ("<", Cmp::Lt),
+];
 
 struct Parser {
     tokens: Vec<Token>,
@@ -467,7 +455,10 @@ pub fn parse(src: &str) -> ExprResult<Expr> {
         let text = match tok {
             Token::Num(v) => v.to_string(),
             Token::Str(s) | Token::Ident(s) => s.clone(),
-            Token::Cmp(op) => cmp_symbol(*op).to_string(),
+            Token::Cmp(op) => CMPS
+                .iter()
+                .find(|(_, cmp)| cmp == op)
+                .map_or_else(String::new, |(symbol, _)| symbol.to_string()),
             Token::Op(c) => c.to_string(),
         };
         return Err(ExprError::TrailingToken { token: text });

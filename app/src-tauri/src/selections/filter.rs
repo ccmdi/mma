@@ -258,7 +258,7 @@ macro_rules! field_value {
         Some(serde_json::json!($r.$c().len()))
     };
     (flag, $t:ty, $r:ident, $c:ident, $f:ident) => {
-        Some(flag_value($r.$c(), LocationFlags::$f))
+        Some(serde_json::Value::Bool($r.$c().contains(LocationFlags::$f)))
     };
 }
 
@@ -419,11 +419,6 @@ impl Serialize for FieldRegistry<'_> {
             )
         }))
     }
-}
-
-/// A flag bit as the boolean its field holds.
-fn flag_value(flags: LocationFlags, bit: LocationFlags) -> serde_json::Value {
-    serde_json::Value::Bool(flags.contains(bit))
 }
 
 /// Core comparison dispatch. An array field answers `contains`/`has` itself and is
