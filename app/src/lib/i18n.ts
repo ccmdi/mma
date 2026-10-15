@@ -43,14 +43,10 @@ export function msg<const T extends string>(s: T): T {
 	return s;
 }
 
-function catalogKey(src: MessageSource): string {
-	return typeof src === "string" ? src : src.other;
-}
-
 /** The message text for `src` in the active locale, before interpolation. Falls back to the
  *  source string, so an untranslated key renders correct English rather than a key name. */
 function lookup(src: MessageSource, params?: MessageParams): string {
-	const entry = catalog[catalogKey(src)];
+	const entry = catalog[typeof src === "string" ? src : src.other];
 	if (typeof src !== "string") {
 		const category = pluralRules.select(typeof params?.n === "number" ? params.n : 0);
 		if (entry && typeof entry === "object") return entry[category] ?? entry.other ?? src.other;
