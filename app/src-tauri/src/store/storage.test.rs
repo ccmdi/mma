@@ -1,6 +1,7 @@
 use super::*;
 use crate::selections::saved;
 use crate::store::arrow::{read_arrow_ipc, read_arrow_ipc_mmap, write_arrow_ipc};
+use crate::store::maps;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, engine};
 use crate::test_util::{tag_ids, TempDir};
@@ -825,7 +826,9 @@ fn map_counts_carry_pending_changes_and_reset_to_clean() {
     )
     .unwrap();
     let pending = |conn: &Connection| {
-        let p = map_pending(conn, &Id::new("m".into())).unwrap();
+        let p = maps::read_map_meta(conn, &Id::new("m".into()))
+            .unwrap()
+            .pending;
         (p.added, p.removed, p.updated)
     };
     assert_eq!(pending(&conn), (0, 0, 0), "a map starts clean");

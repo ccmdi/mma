@@ -152,21 +152,6 @@ pub(crate) fn open_db() -> AppResult<Connection> {
     Ok(conn)
 }
 
-/// A map's changes since the last commit, as last recorded by [`set_map_counts`].
-pub(crate) fn map_pending(conn: &Connection, map_id: &Id<MapMeta, String>) -> AppResult<Counts> {
-    Ok(conn.query_row(
-        "SELECT pending_added, pending_removed, pending_modified FROM maps WHERE id = ?1",
-        [map_id.raw()],
-        |row| {
-            Ok(Counts {
-                added: row.get(0)?,
-                removed: row.get(1)?,
-                updated: row.get(2)?,
-            })
-        },
-    )?)
-}
-
 /// Record a map's live location count and its changes since the last commit, together,
 /// so the map list never shows one without the other.
 pub(crate) fn set_map_counts(
