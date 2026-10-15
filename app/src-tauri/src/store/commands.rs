@@ -11,6 +11,7 @@ use crate::store::engine::*;
 use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
+use crate::util::now_iso;
 use mma_algebra::{Edit, Id, Op};
 use std::time::Instant;
 use tauri::async_runtime;
@@ -51,7 +52,20 @@ async fn open_claimed_map(
     let files = state.lock()?.files(&map_id);
     let _writing = files.lock().await;
     let map_id2 = map_id.clone();
-    let mut store = task::spawn_blocking(move || open_store(&map_id2)).await??;
+    let mut store = task::spawn_blocking(move || {
+        let mut store = load_store(&map_id2)?;
+        let now = now_iso();
+        storage::open_db()?.execute(
+            "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
+            rusqlite::params![now, map_id2.raw()],
+        )?;
+        store.meta = Tracked::new(MapMeta {
+            last_opened_at: Some(now),
+            ..(*store.meta).clone()
+        });
+        AppResult::Ok(store)
+    })
+    .await??;
     let mut mgr = state.lock()?;
     let status = store.open_status();
     store.dependents = mgr.providers.dependents();

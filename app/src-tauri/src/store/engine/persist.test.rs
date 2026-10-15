@@ -287,31 +287,6 @@ fn records_stored_by_older_versions_load_with_ids_from_their_keys_and_no_visibil
     );
 }
 
-fn opened_on_disk(map: &Id<MapMeta, String>) -> Option<String> {
-    maps::read_map_meta(&storage::open_db().unwrap(), map)
-        .unwrap()
-        .last_opened_at
-}
-
-#[test]
-fn opening_a_map_stamps_its_opened_time_and_leaves_it_saved() {
-    let map = storage::tests::map_on_disk("open-stamps");
-    let store = open_store(&map).unwrap();
-    assert!(store.meta.last_opened_at.is_some());
-    assert_eq!(opened_on_disk(&map), store.meta.last_opened_at);
-    assert!(!store.is_unsaved());
-}
-
-#[test]
-fn a_map_that_fails_to_open_is_not_stamped() {
-    let map = storage::tests::map_on_disk("open-fails");
-    let base = storage::arrow_path(&map).unwrap();
-    fs::create_dir_all(base.parent().unwrap()).unwrap();
-    fs::write(&base, b"not arrow").unwrap();
-    assert!(open_store(&map).is_err());
-    assert_eq!(opened_on_disk(&map), None);
-}
-
 #[test]
 fn opening_a_deleted_map_is_map_missing() {
     let map = storage::tests::map_on_disk("deleted-map");

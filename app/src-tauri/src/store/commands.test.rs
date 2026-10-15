@@ -455,3 +455,44 @@ fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
     let here = edit(&mut store, &Target::Map { id: None }, 3.0);
     assert_eq!(here.mutation.version, store.version);
 }
+
+fn opened_on_disk(map: &Id<MapMeta, String>) -> Option<String> {
+    crate::store::maps::read_map_meta(&storage::open_db().unwrap(), map)
+        .unwrap()
+        .last_opened_at
+}
+
+#[test]
+fn opening_a_map_stamps_its_opened_time_and_leaves_it_saved() {
+    let map = storage::tests::map_on_disk("open-stamps");
+    let state = StoreState::new(StoreManager::new());
+    async_runtime::block_on(open_claimed_map(
+        &WindowLabel("w".into()),
+        &state,
+        map.clone(),
+    ))
+    .unwrap();
+
+    let mgr = state.lock().unwrap();
+    let store = &mgr.stores[&map];
+    assert!(store.meta.last_opened_at.is_some());
+    assert_eq!(opened_on_disk(&map), store.meta.last_opened_at);
+    assert!(!store.is_unsaved());
+}
+
+#[test]
+fn a_map_that_fails_to_open_is_not_stamped() {
+    let map = storage::tests::map_on_disk("open-fails");
+    let base = storage::arrow_path(&map).unwrap();
+    std::fs::create_dir_all(base.parent().unwrap()).unwrap();
+    std::fs::write(&base, b"not arrow").unwrap();
+    let state = StoreState::new(StoreManager::new());
+
+    let opened = async_runtime::block_on(open_claimed_map(
+        &WindowLabel("w".into()),
+        &state,
+        map.clone(),
+    ));
+    assert!(opened.is_err());
+    assert_eq!(opened_on_disk(&map), None);
+}
