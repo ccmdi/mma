@@ -3,7 +3,7 @@
 
 use super::{
     arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_points, classify_scan,
-    convert_dataset, git_blob_sha1, parse_border_shas, refresh_stale_archive, ArchDataset,
+    convert_dataset, git_blob_sha1, parse_border_shas, upstream_replacement, ArchDataset,
     ArchFeature, BorderFeature,
 };
 use crate::selections::{self, PolygonGeometry};
@@ -210,10 +210,10 @@ fn parse_border_shas_reads_contents_listing() {
     assert!(parse_border_shas(&serde_json::json!({ "message": "rate limited" })).is_empty());
 }
 
-/// The startup refresh downloads only for an installed archive whose blob id differs from
-/// upstream's; a missing file, a missing remote id, or a matching id all leave it alone.
+/// Upstream's archive is fetched only for an installed archive whose blob id differs from
+/// upstream's; a missing file, a missing remote id, or a matching id fetch nothing.
 #[test]
-fn refresh_stale_archive_downloads_only_on_a_changed_blob() {
+fn upstream_replacement_fetches_only_on_a_changed_blob() {
     let dir = TempDir::new("borders-refresh");
     let path = dir.join("borders-medium.rkyv");
     let fetched = || Ok(b"new".to_vec());
@@ -221,15 +221,26 @@ fn refresh_stale_archive_downloads_only_on_a_changed_blob() {
     let same = git_blob_sha1(b"old");
     let other = git_blob_sha1(b"new");
 
-    assert!(!refresh_stale_archive(&path, Some(&other), never).unwrap());
+    assert_eq!(
+        upstream_replacement(&path, Some(&other), never).unwrap(),
+        None
+    );
 
     fs::write(&path, b"old").unwrap();
-    assert!(!refresh_stale_archive(&path, None, never).unwrap());
-    assert!(!refresh_stale_archive(&path, Some(&same), never).unwrap());
-    assert_eq!(fs::read(&path).unwrap(), b"old");
-
-    assert!(refresh_stale_archive(&path, Some(&other), fetched).unwrap());
-    assert_eq!(fs::read(&path).unwrap(), b"new");
+    assert_eq!(upstream_replacement(&path, None, never).unwrap(), None);
+    assert_eq!(
+        upstream_replacement(&path, Some(&same), never).unwrap(),
+        None
+    );
+    assert_eq!(
+        upstream_replacement(&path, Some(&other), fetched).unwrap(),
+        Some(b"new".to_vec())
+    );
+    assert_eq!(
+        fs::read(&path).unwrap(),
+        b"old",
+        "the caller writes, not the check"
+    );
 }
 
 /// `classify_points` is the in-process entry the `mma.classify` host import reaches.

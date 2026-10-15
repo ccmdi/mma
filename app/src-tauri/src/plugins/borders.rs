@@ -709,37 +709,36 @@ fn fetch_border_shas() -> AppResult<HashMap<String, String>> {
 
 fn update_border_file(level: &str, shas: &HashMap<String, String>) -> AppResult<bool> {
     let remote = shas.get(&format!("borders-{level}.rkyv"));
-    let updated = refresh_stale_archive(&border_path(level)?, remote, || {
+    let Some(bytes) = upstream_replacement(&border_path(level)?, remote, || {
         Ok(border_client()?
             .get(border_url(level))
             .send()?
             .error_for_status()?
             .bytes()?
             .to_vec())
-    })?;
-    if updated {
-        cache().lock().unwrap().remove(level);
-    }
-    Ok(updated)
+    })?
+    else {
+        return Ok(false);
+    };
+    write_border_file(level, &bytes)?;
+    Ok(true)
 }
 
-/// Replace the archive at `path` with `fetch()` only when it is installed and its blob id
-/// differs from `remote`. Not installed means the settings download flow owns first
-/// install; no remote id means nothing to compare against.
-fn refresh_stale_archive(
+/// Upstream's archive for `path`, fetched only when the installed one's blob id differs from
+/// `remote`. Not installed means the settings download flow owns first install; no remote
+/// id means nothing to compare against.
+fn upstream_replacement(
     path: &Path,
     remote: Option<&String>,
     fetch: impl FnOnce() -> AppResult<Vec<u8>>,
-) -> AppResult<bool> {
+) -> AppResult<Option<Vec<u8>>> {
     let Ok(bytes) = fs::read(path) else {
-        return Ok(false);
+        return Ok(None);
     };
     match remote {
-        Some(remote) if *remote != git_blob_sha1(&bytes) => {}
-        _ => return Ok(false),
+        Some(remote) if *remote != git_blob_sha1(&bytes) => fetch().map(Some),
+        _ => Ok(None),
     }
-    fs::write(path, fetch()?)?;
-    Ok(true)
 }
 
 /// Silently refresh installed border files that changed upstream. Runs on a background
