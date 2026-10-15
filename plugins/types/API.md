@@ -6761,11 +6761,15 @@ List every saved selection rule (name, color, date), without their selector tree
 `unstable` · since v0.4.0
 
 ```ts
-cmd.storeOpenMap(mapId: string): Promise<StoreStatus>
+cmd.storeOpenMap(
+  mapId: string,
+  changes: Channel<ChangeEvent>,
+): Promise<StoreStatus>
 ```
 
-Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
-Must be called before any other store commands.
+Open a map, deliver its later changes on `changes`, and return its initial state
+(per-value counts, metadata, undo/redo availability). Must be called before any other
+store commands.
 
 #### cmd.storeRead
 
@@ -6998,16 +7002,6 @@ cmd.storeStep(
 ```
 
 Undo the newest edit, or redo the newest undone one.
-
-#### cmd.storeSubscribeChanges
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeSubscribeChanges(changes: Channel<ChangeEvent>): Promise<null>
-```
-
-Subscribe to map changes, including the ids of added, removed, and updated rows.
 
 #### cmd.storeSubscribeFrames
 

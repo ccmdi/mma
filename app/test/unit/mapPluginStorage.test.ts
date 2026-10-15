@@ -3,7 +3,7 @@ import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
 import { Feed } from "@/store/feed";
-import type { Derived, MapMeta } from "@/bindings.gen";
+import type { ChangeEvent, Derived, MapMeta } from "@/bindings.gen";
 import type { MapDetails } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { mapStorage } from "@/plugins/pluginStorage";
@@ -25,9 +25,6 @@ vi.mock("@/lib/commands", () => ({
 			(await import("./fixtures/mocks")).metadataWritten(patch),
 		),
 		storeSaveDirty: vi.fn(async () => null),
-		storeSubscribeChanges: vi.fn(async (channel: { onmessage: (e: unknown) => void }) => {
-			feed.deliver = (e) => channel.onmessage(e);
-		}),
 	},
 }));
 
@@ -103,8 +100,9 @@ describe("map metadata writes", () => {
 	});
 
 	it("on the open map settle as a mutation, scheduling the save that persists them", async () => {
+		const channel = Feed.channel();
+		feed.deliver = (e) => channel.onmessage(e as ChangeEvent);
 		Feed.seed(0);
-		await Feed.start();
 		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(async (patch) => {
 			await metadataWritten(patch);
 			feed.deliver({ version: 1, added: [], removed: [], updated: [], derived: {} });

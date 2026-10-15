@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const feed = vi.hoisted(() => ({
 	onmessage: null as ((e: unknown) => void) | null,
+	duringOpen: null as unknown,
 }));
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -24,12 +25,12 @@ vi.mock("@tauri-apps/api/core", () => ({
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	return cmdProxy({
-		storeOpenMap: async () =>
-			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
-		storeEdit: async () => ({ mutation: { version: 0, keys: [5] } }),
-		storeSubscribeChanges: async (...args: unknown[]) => {
-			feed.onmessage = (args[0] as { onmessage: (e: unknown) => void }).onmessage;
+		storeOpenMap: async (...args: unknown[]) => {
+			feed.onmessage = (args[1] as { onmessage: (e: unknown) => void }).onmessage;
+			if (feed.duringOpen) feed.onmessage(feed.duringOpen);
+			return openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } });
 		},
+		storeEdit: async () => ({ mutation: { version: 0, keys: [5] } }),
 	});
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
@@ -224,6 +225,22 @@ describe("change feed merge semantics", () => {
 
 	it("a write the open already covers settles without waiting for the feed", async () => {
 		await expect(Mutation.settle({ version: 1, keys: [] })).resolves.toBeUndefined();
+	});
+});
+
+describe("changes during the open", () => {
+	it("a change that arrives before the open returns lands once the open applies", async () => {
+		feed.duringOpen = event({ locationCount: 9 }, 2);
+		await Maps.open("m1");
+		feed.duringOpen = null;
+		expect(Store.get()).toMatchObject({ locationCount: 9, version: 2 });
+	});
+
+	it("a change on the channel of an earlier open is dropped", async () => {
+		const earlier = feed.onmessage!;
+		await Maps.open("m1");
+		earlier(event({ locationCount: 7 }, 3));
+		expect(Store.get().locationCount).not.toBe(7);
 	});
 });
 

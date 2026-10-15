@@ -18,14 +18,16 @@ use tauri::async_runtime;
 use tauri::ipc::Channel;
 use tokio::task;
 
-/// Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
-/// Must be called before any other store commands.
+/// Open a map, deliver its later changes on `changes`, and return its initial state
+/// (per-value counts, metadata, undo/redo availability). Must be called before any other
+/// store commands.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_open_map(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     map_id: Id<MapMeta, String>,
+    changes: Channel<ChangeEvent>,
 ) -> AppResult<StoreStatus> {
     // Claim the window binding before the unlocked read, so a concurrent checkout's
     // open-elsewhere guard sees this open from its first moment.
@@ -33,7 +35,7 @@ pub async fn store_open_map(
         .lock()?
         .window_map
         .insert(label.clone(), map_id.clone());
-    let opened = open_claimed_map(&label, &state, map_id.clone()).await;
+    let opened = open_claimed_map(&label, &state, map_id.clone(), changes).await;
     if opened.is_err() {
         if let Ok(mut mgr) = state.lock() {
             if mgr.window_map.get(&label) == Some(&map_id) {
@@ -48,6 +50,7 @@ async fn open_claimed_map(
     label: &WindowLabel,
     state: &StoreState,
     map_id: Id<MapMeta, String>,
+    changes: Channel<ChangeEvent>,
 ) -> AppResult<StoreStatus> {
     let files = state.lock()?.files(&map_id);
     let _writing = files.lock().await;
@@ -70,9 +73,13 @@ async fn open_claimed_map(
     let status = store.open_status();
     store.dependents = mgr.providers.dependents();
     mgr.window_map.insert(label.clone(), map_id.clone());
+    for other in mgr.stores.values_mut() {
+        other.changes.remove(label);
+    }
     if let Some(replaced) = mgr.stores.remove(&map_id) {
         store.adopt_watchers(replaced);
     }
+    store.changes.insert(label.clone(), changes);
     mgr.stores.insert(map_id, store);
     Ok(status)
 }
@@ -301,25 +308,6 @@ pub async fn store_subscribe_frames(
     }
     mgr.store_for_map(&map_id)?
         .subscribe_frames(label, frames, &req);
-    Ok(())
-}
-
-/// Subscribe to map changes, including the ids of added, removed, and updated rows.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_subscribe_changes(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    changes: Channel<ChangeEvent>,
-) -> AppResult<()> {
-    let mut mgr = state.lock()?;
-    let map_id = mgr.map_id_for_window(&label)?;
-    for (id, store) in &mut mgr.stores {
-        if *id != map_id {
-            store.changes.remove(&label);
-        }
-    }
-    mgr.store_for_map(&map_id)?.changes.insert(label, changes);
     Ok(())
 }
 

@@ -10,6 +10,11 @@ const h = vi.hoisted(() => ({
 	evenSelectors: [] as unknown[],
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+	Channel: class {
+		onmessage: (e: unknown) => void = () => {};
+	},
+}));
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, openMapResult, selectionsHeld } = await import("./fixtures/mocks");
 	// Tag 1 and tag 2 overlap on ids 4 and 5; tag 3 is disjoint from both.

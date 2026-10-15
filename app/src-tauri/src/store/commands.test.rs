@@ -3,10 +3,11 @@ use crate::selections::PolygonGeometry;
 use crate::test_util;
 use crate::util::now_unix;
 use std::future::Future;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 use tauri::async_runtime;
+use tauri::ipc::InvokeResponseBody;
 
 fn square(w: f64, s: f64, e: f64, n: f64) -> Vec<[f64; 2]> {
     vec![[w, s], [e, s], [e, n], [w, n], [w, s]]
@@ -323,8 +324,13 @@ fn opening_a_map_waits_while_its_files_are_being_written() {
     let opening = thread::spawn({
         let (state, map) = (state.clone(), map.clone());
         move || {
-            async_runtime::block_on(open_claimed_map(&WindowLabel("w".into()), &state, map))
-                .unwrap();
+            async_runtime::block_on(open_claimed_map(
+                &WindowLabel("w".into()),
+                &state,
+                map,
+                Channel::new(|_| Ok(())),
+            ))
+            .unwrap();
         }
     });
     thread::sleep(Duration::from_millis(100));
@@ -470,6 +476,7 @@ fn opening_a_map_stamps_its_opened_time_and_leaves_it_saved() {
         &WindowLabel("w".into()),
         &state,
         map.clone(),
+        Channel::new(|_| Ok(())),
     ))
     .unwrap();
 
@@ -492,7 +499,84 @@ fn a_map_that_fails_to_open_is_not_stamped() {
         &WindowLabel("w".into()),
         &state,
         map.clone(),
+        Channel::new(|_| Ok(())),
     ));
     assert!(opened.is_err());
     assert_eq!(opened_on_disk(&map), None);
+}
+
+fn change_versions() -> (Channel<ChangeEvent>, Arc<Mutex<Vec<u64>>>) {
+    let got = Arc::new(Mutex::new(Vec::new()));
+    let sink = got.clone();
+    let channel = Channel::new(move |body| {
+        let InvokeResponseBody::Json(s) = body else {
+            panic!("change events travel as json");
+        };
+        let event: ChangeEvent = serde_json::from_str(&s).unwrap();
+        sink.lock().unwrap().push(event.version);
+        Ok(())
+    });
+    (channel, got)
+}
+
+fn add_one(state: &StoreState, map: &Id<MapMeta, String>) -> u64 {
+    let mut mgr = state.lock().unwrap();
+    let store = mgr.store_for_map(map).unwrap();
+    store.at(&Target::Map { id: None }).edit(
+        vec![Op::Add(test_util::loc(0, 1.0, 2.0))],
+        IncomingRecords::new(),
+        &mut None,
+    );
+    store.version
+}
+
+#[test]
+fn opening_a_map_delivers_every_later_change_to_the_window() {
+    let map = storage::tests::map_on_disk("open-feeds");
+    let state = StoreState::new(StoreManager::new());
+    let (changes, got) = change_versions();
+    let status = async_runtime::block_on(open_claimed_map(
+        &WindowLabel("w".into()),
+        &state,
+        map.clone(),
+        changes,
+    ))
+    .unwrap();
+    assert!(got.lock().unwrap().is_empty());
+
+    let version = add_one(&state, &map);
+    assert!(version > status.version);
+    assert_eq!(*got.lock().unwrap(), [version]);
+}
+
+#[test]
+fn opening_another_map_stops_the_first_ones_changes_reaching_the_window() {
+    let (first, second) = (
+        storage::tests::map_on_disk("open-first"),
+        storage::tests::map_on_disk("open-second"),
+    );
+    let state = StoreState::new(StoreManager::new());
+    let window = WindowLabel("w".into());
+    let (first_changes, from_first) = change_versions();
+    async_runtime::block_on(open_claimed_map(
+        &window,
+        &state,
+        first.clone(),
+        first_changes,
+    ))
+    .unwrap();
+    let (second_changes, from_second) = change_versions();
+    async_runtime::block_on(open_claimed_map(
+        &window,
+        &state,
+        second.clone(),
+        second_changes,
+    ))
+    .unwrap();
+
+    add_one(&state, &first);
+    assert!(from_first.lock().unwrap().is_empty());
+    assert!(from_second.lock().unwrap().is_empty());
+    let version = add_one(&state, &second);
+    assert_eq!(*from_second.lock().unwrap(), [version]);
 }

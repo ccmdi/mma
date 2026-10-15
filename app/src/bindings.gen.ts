@@ -155,10 +155,11 @@ export const commands = {
 	/**  Deliver the result for remote API request `id`. `payload` is JSON text. */
 	remoteApiRespond: (id: number, ok: boolean, payload: string) => __TAURI_INVOKE<void>("remote_api_respond", { id, ok, payload }),
 	/**
-	 *  Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
-	 *  Must be called before any other store commands.
+	 *  Open a map, deliver its later changes on `changes`, and return its initial state
+	 *  (per-value counts, metadata, undo/redo availability). Must be called before any other
+	 *  store commands.
 	 */
-	storeOpenMap: (mapId: string) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId }),
+	storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId, changes }),
 	/**  Close the open map, saving unsaved changes first. */
 	storeCloseMap: () => __TAURI_INVOKE<null>("store_close_map"),
 	/**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. */
@@ -209,8 +210,6 @@ export const commands = {
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
-	/**  Subscribe to map changes, including the ids of added, removed, and updated rows. */
-	storeSubscribeChanges: (changes: Channel<ChangeEvent>) => __TAURI_INVOKE<null>("store_subscribe_changes", { changes }),
 	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */

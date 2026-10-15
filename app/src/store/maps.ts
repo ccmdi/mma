@@ -77,9 +77,9 @@ function clearEditState() {
 
 /** Initialize map metadata and derived state on each open. */
 function applyOpenedMap(status: StoreStatus) {
-	Feed.seed(status.version);
 	Store.patch({ map: status.derived.meta });
 	Store.merge(status.derived, status.version);
+	Feed.seed(status.version);
 }
 
 /** Tear down all in-memory state for the open map. */
@@ -113,13 +113,10 @@ export const Maps = {
 		Store.patch({ mapId: id, map: null, openError: null });
 
 		try {
-			const openResult = await cmd.storeOpenMap(id);
+			const openResult = await cmd.storeOpenMap(id, Feed.channel());
 			t.step("store_open_map");
 			mapOpen.mark("data");
 			applyOpenedMap(openResult);
-			void Feed.start().catch((e: unknown) =>
-				log.error("[openMap] change feed subscription failed:", e),
-			);
 		} catch (e) {
 			log.error("[openMap] store_open_map failed:", e);
 			Store.patch({ mapId: null, map: null, openError: errText(e) });

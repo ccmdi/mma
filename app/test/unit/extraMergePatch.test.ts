@@ -10,6 +10,11 @@ const wire = vi.hoisted(() => ({
 	active: null as unknown,
 }));
 
+vi.mock("@tauri-apps/api/core", () => ({
+	Channel: class {
+		onmessage: (e: unknown) => void = () => {};
+	},
+}));
 vi.mock("@/lib/commands", async () => {
 	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	const mutationResult = () => ({ mutation: { version: 0, keys: [] } });

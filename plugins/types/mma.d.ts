@@ -788,11 +788,12 @@ declare const commands$1: {
     /**  Deliver the result for remote API request `id`. `payload` is JSON text. @unstable */
     remoteApiRespond: (id: number, ok: boolean, payload: string) => Promise<void>;
     /**
-     *  Open a map and return its initial state (per-value counts, metadata, undo/redo availability).
-     *  Must be called before any other store commands.
+     *  Open a map, deliver its later changes on `changes`, and return its initial state
+     *  (per-value counts, metadata, undo/redo availability). Must be called before any other
+     *  store commands.
      *  @unstable
      */
-    storeOpenMap: (mapId: string) => Promise<StoreStatus>;
+    storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => Promise<StoreStatus>;
     /**  Close the open map, saving unsaved changes first. @unstable */
     storeCloseMap: () => Promise<null>;
     /**  Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first. @unstable */
@@ -849,8 +850,6 @@ declare const commands$1: {
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
-    /**  Subscribe to map changes, including the ids of added, removed, and updated rows. @unstable */
-    storeSubscribeChanges: (changes: Channel<ChangeEvent>) => Promise<null>;
     /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
