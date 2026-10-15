@@ -289,6 +289,8 @@ ERROR_CODES: readonly [
   "database-unreadable",
   "database-newer",
   "migration-failed",
+  "map-missing",
+  "map-unreadable",
 ]
 ```
 

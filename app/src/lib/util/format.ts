@@ -252,6 +252,9 @@ const CODE_MESSAGES: Record<ErrorCode, (detail: string) => string> = {
 		t("This data was saved by a newer version of Map Making App. Update the app to open it."),
 	"migration-failed": (d) =>
 		t("The database could not be updated for this version (step {version}).", { version: d }),
+	"map-missing": () => t("This map no longer exists."),
+	"map-unreadable": () =>
+		t("This map's saved locations could not be read. The file may be damaged or incomplete."),
 };
 
 /** Displayable message for a thrown value, resolving Rust's `<code>[: detail]` form. */

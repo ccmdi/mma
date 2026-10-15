@@ -528,7 +528,7 @@ declare const SYNC_PROVIDERS: {
 /** @unstable */
 declare const SCRATCH_MAP_ID: "scratch";
 /** @unstable */
-declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed"];
+declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed", "map-missing", "map-unreadable"];
 
 declare const consts_BUILTIN_FIELDS: typeof BUILTIN_FIELDS;
 declare const consts_CameraType: typeof CameraType;
@@ -3149,6 +3149,8 @@ export interface UiState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
     map: MapDetails | null;
+    /** Why the map in `mapId` could not be opened, or null. */
+    openError: string | null;
 }
 export type MapState = UiState & EngineState;
 declare const Store: {

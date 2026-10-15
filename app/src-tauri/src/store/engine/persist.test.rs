@@ -1,6 +1,7 @@
 use super::*;
 use crate::store::arrow;
 use crate::test_util::{loc, TempDir};
+use crate::types::ErrCode;
 use mma_algebra::Op;
 use rusqlite::Connection;
 use std::fs;
@@ -309,4 +310,32 @@ fn a_map_that_fails_to_open_is_not_stamped() {
     fs::write(&base, b"not arrow").unwrap();
     assert!(open_store(&map).is_err());
     assert_eq!(opened_on_disk(&map), None);
+}
+
+#[test]
+fn opening_a_deleted_map_is_map_missing() {
+    let map = storage::tests::map_on_disk("deleted-map");
+    storage::open_db()
+        .unwrap()
+        .execute("DELETE FROM maps WHERE id = ?1", [map.raw()])
+        .unwrap();
+
+    let Err(err) = load_store(&map) else {
+        panic!("a deleted map opened");
+    };
+    assert_eq!(err.0, ErrCode::MapMissing.wire());
+}
+
+#[test]
+fn opening_a_map_whose_base_file_is_damaged_is_map_unreadable() {
+    let map = storage::tests::map_on_disk("damaged-base");
+    let path = storage::arrow_path(&map).unwrap();
+    fs::create_dir_all(path.parent().unwrap()).unwrap();
+    fs::write(&path, b"not an arrow file, just some damaged bytes").unwrap();
+
+    let Err(err) = load_store(&map) else {
+        panic!("a damaged base file opened");
+    };
+    fs::remove_file(&path).unwrap();
+    assert_eq!(err.0, ErrCode::MapUnreadable.wire());
 }

@@ -7,7 +7,7 @@ import type { StoreStatus, StoreWarning } from "@/bindings.gen";
 import { listen } from "@tauri-apps/api/event";
 import { log } from "@/lib/util/log";
 import { toast } from "@/lib/util/toast";
-import { storeWarningText } from "@/lib/util/format";
+import { errText, storeWarningText } from "@/lib/util/format";
 import { mapOpen, trace } from "@/lib/util/debug";
 import { Scene } from "@/lib/render/scene";
 import { Import } from "./import";
@@ -85,7 +85,7 @@ function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
 /** Tear down all in-memory state for the open map. */
 function resetMapState() {
 	emitEvent("map:close");
-	Store.patch({ mapId: null, map: null });
+	Store.patch({ mapId: null, map: null, openError: null });
 
 	clearEditState();
 
@@ -110,24 +110,22 @@ export const Maps = {
 		await Autosave.waitForInflight();
 
 		const t = trace("openMap");
-		Store.patch({ mapId: id, map: null });
+		Store.patch({ mapId: id, map: null, openError: null });
 		const meta = await cmd.storeGetMap(id);
 		t.step("getMap");
 
-		if (meta) {
-			try {
-				const openResult = await cmd.storeOpenMap(id);
-				t.step("store_open_map");
-				mapOpen.mark("data");
-				applyOpenedMap(meta, openResult);
-				void Feed.start().catch((e: unknown) =>
-					log.error("[openMap] change feed subscription failed:", e),
-				);
-			} catch (e) {
-				log.error("[openMap] store_open_map failed:", e);
-				Store.patch({ mapId: null, map: null });
-				return;
-			}
+		try {
+			const openResult = await cmd.storeOpenMap(id);
+			t.step("store_open_map");
+			mapOpen.mark("data");
+			applyOpenedMap(meta, openResult);
+			void Feed.start().catch((e: unknown) =>
+				log.error("[openMap] change feed subscription failed:", e),
+			);
+		} catch (e) {
+			log.error("[openMap] store_open_map failed:", e);
+			Store.patch({ mapId: null, map: null, openError: errText(e) });
+			return;
 		}
 
 		clearEditState();

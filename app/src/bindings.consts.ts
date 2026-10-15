@@ -305,4 +305,4 @@ export const SYNC_PROVIDERS = {"file":{"direction":"pullOnly","shape":"local"},"
 export const SCRATCH_MAP_ID = "scratch" as const;
 
 /** @unstable */
-export const ERROR_CODES = ["auth","attachment-not-staged","attachment-too-large","attachment-not-image","upload-rejected","report-rejected","report-unreadable","sign-in-timed-out","sign-in-token-rejected","issue-rejected","geoguessr-polygonal","geoguessr-draft-too-large","data-folder-unavailable","database-unreadable","database-newer","migration-failed"] as const;
+export const ERROR_CODES = ["auth","attachment-not-staged","attachment-too-large","attachment-not-image","upload-rejected","report-rejected","report-unreadable","sign-in-timed-out","sign-in-token-rejected","issue-rejected","geoguessr-polygonal","geoguessr-draft-too-large","data-folder-unavailable","database-unreadable","database-newer","migration-failed","map-missing","map-unreadable"] as const;

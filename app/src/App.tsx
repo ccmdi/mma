@@ -28,6 +28,7 @@ import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutli
 import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
 import { TooltipProvider } from "@/components/primitives/Tooltip";
+import { ErrorScreen } from "@/components/primitives/ErrorScreen";
 import { useUpdateState, dismissUpdate, describeUpdate } from "@/lib/util/updateCheck";
 import { PrereleasePill } from "@/components/primitives/PrereleasePill";
 import { APP_NAME } from "@/lib/util/format";
@@ -93,10 +94,12 @@ export default function App() {
  *  placeholder while either is still resolving. */
 function EditorRoot() {
 	const map = Store.use((s) => s.map);
+	const openError = Store.use((s) => s.openError);
 	const [MapEditor, setMapEditor] = useState<ComponentType | null>(null);
 	useEffect(() => {
 		void mapEditorModule.then((m) => setMapEditor(() => m.MapEditor));
 	}, []);
+	if (openError) return <ErrorScreen message={openError} onBack={() => void leaveToList()} />;
 	if (!map || !MapEditor) return <Blank />;
 	return <MapEditor />;
 }

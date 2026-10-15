@@ -6,8 +6,7 @@ import "@/lib/render/webglContexts";
 import "@/lib/sv/shaderPatch";
 import {} from "react";
 import { createRoot } from "react-dom/client";
-import { mdiAlertCircleOutline } from "@mdi/js";
-import { EmptyState } from "@/components/primitives/EmptyState";
+import { ErrorScreen } from "@/components/primitives/ErrorScreen";
 import { errText } from "@/lib/util/format";
 import { appWindow, hasWindowHost, revealWindow, saveWindowState } from "@/lib/window";
 import "@/styles.css";
@@ -138,10 +137,6 @@ function restoreSession() {
 
 boot().catch((e: unknown) => {
 	log.error("[boot] failed:", e);
-	root.render(
-		<div className="boot-error">
-			<EmptyState icon={mdiAlertCircleOutline}>{errText(e)}</EmptyState>
-		</div>,
-	);
+	root.render(<ErrorScreen message={errText(e)} />);
 	showWindow();
 });

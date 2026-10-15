@@ -483,6 +483,8 @@ err_codes! {
     DatabaseUnreadable => "database-unreadable",
     DatabaseNewer => "database-newer",
     MigrationFailed => "migration-failed",
+    MapMissing => "map-missing",
+    MapUnreadable => "map-unreadable",
 }
 
 impl ErrCode {

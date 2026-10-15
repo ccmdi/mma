@@ -3,7 +3,7 @@
 use super::*;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
-use crate::types::{AppError, AppResult, Location};
+use crate::types::{AppError, AppResult, ErrCode, Location};
 use crate::util::now_iso;
 use arrow_array::{RecordBatch, UInt32Array};
 use mma_algebra::{Counts, Id};
@@ -93,7 +93,10 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
         // the base zero-copy and leave it untouched; load the delta into the overlay
         // regardless of whether a base file exists (never folded into the base).
         let (batch, handle) = if path.exists() {
-            let (b, h) = arrow::read_arrow_ipc_mmap(&path)?;
+            let (b, h) = arrow::read_arrow_ipc_mmap(&path).map_err(|e| {
+                log::error!("[store_open] {path:?} unreadable: {e}");
+                ErrCode::MapUnreadable.err()
+            })?;
             log::debug!(
                 "[store_open] mmap_read={}ms rows={}",
                 t0.elapsed().as_millis(),
@@ -168,7 +171,10 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     storage::set_map_counts(&conn, map_id, alive, *store.pending_counts)?;
     store.steps[Timeline::Edits] = Tracked::new(edits);
 
-    let mut meta = maps::read_map_meta(&conn, map_id)?;
+    let mut meta = maps::read_map_meta(&conn, map_id).map_err(|e| match e {
+        rusqlite::Error::QueryReturnedNoRows => ErrCode::MapMissing.err(),
+        e => AppError::from(e),
+    })?;
     store.records = load_value_records(&conn, map_id)?
         .into_iter()
         .map(|(field, records)| (field, Tracked::new(records)))

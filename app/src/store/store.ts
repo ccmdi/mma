@@ -14,6 +14,8 @@ export interface UiState {
 	mapId: string | null;
 	/** Persisted identity slice (metadata + settings). Changes rarely. */
 	map: MapDetails | null;
+	/** Why the map in `mapId` could not be opened, or null. */
+	openError: string | null;
 }
 
 export type MapState = UiState & EngineState;
@@ -35,6 +37,7 @@ const INITIAL_STATE: MapState = {
 	...ENGINE_INITIAL,
 	mapId: null,
 	map: null,
+	openError: null,
 };
 
 let state: MapState = INITIAL_STATE;
