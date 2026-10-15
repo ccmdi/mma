@@ -755,8 +755,6 @@ declare const commands$1: {
     githubIssueThread: (number: number) => Promise<IssueThread>;
     /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. @unstable */
     feedbackLogTail: () => Promise<string>;
-    /**  Whether the anonymous tier is available in this build. @unstable */
-    feedbackAnonymousAvailable: () => Promise<boolean>;
     /**
      *  File a bug report anonymously (no account required). Returns a reference the
      *  caller can use to check for replies via `feedbackAnonymousThread`.

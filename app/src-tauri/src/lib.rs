@@ -157,7 +157,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 net::github::github_create_issue,
                 net::github::github_issue_thread,
                 net::feedback::feedback_log_tail,
-                net::feedback::feedback_anonymous_available,
                 net::feedback::feedback_submit_anonymous,
                 net::feedback::feedback_upload_attachment,
                 net::feedback::feedback_request_label,

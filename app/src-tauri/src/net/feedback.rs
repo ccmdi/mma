@@ -14,7 +14,6 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
-/// Empty disables the anonymous tier rather than failing it.
 const WORKER_URL: &str = "https://feedback.ccmdi.com";
 
 /// Leading zero bits demanded of the proof-of-work hash. ~1M hashes to solve (well under a
@@ -165,13 +164,6 @@ pub async fn feedback_log_tail(app: tauri::AppHandle) -> AppResult<String> {
     .await?
 }
 
-/// Whether the anonymous tier is available in this build.
-#[tauri::command]
-#[specta::specta]
-pub async fn feedback_anonymous_available() -> AppResult<bool> {
-    Ok(!WORKER_URL.is_empty())
-}
-
 /// File a bug report anonymously (no account required). Returns a reference the
 /// caller can use to check for replies via `feedbackAnonymousThread`.
 #[tauri::command]
@@ -181,9 +173,6 @@ pub async fn feedback_submit_anonymous(
     body: String,
     install_id: String,
 ) -> AppResult<AnonIssueRef> {
-    if WORKER_URL.is_empty() {
-        return Err("anonymous reporting is not configured in this build".into());
-    }
     blocking(move || {
         let title = scrub(&title);
         let body = scrub(&body);
@@ -246,9 +235,6 @@ pub(crate) fn is_staged_upload(path: &Path) -> bool {
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult<AttachmentRef> {
-    if WORKER_URL.is_empty() {
-        return Err("attachments are not configured in this build".into());
-    }
     blocking(move || {
         if !is_staged_upload(Path::new(&path)) {
             return Err(ErrCode::AttachmentNotStaged.err());
@@ -291,9 +277,6 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_request_label(number: u32) -> AppResult<()> {
-    if WORKER_URL.is_empty() {
-        return Ok(());
-    }
     blocking(move || {
         let request = || -> AppResult<()> {
             let challenge = fetch_challenge()?;
@@ -320,9 +303,6 @@ pub async fn feedback_request_label(number: u32) -> AppResult<()> {
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<IssueThread> {
-    if WORKER_URL.is_empty() {
-        return Err("anonymous reporting is unavailable in this build".into());
-    }
     blocking(move || {
         // In a header rather than the URL, which lands in request logs along the way.
         let resp = proxy::proxy_client()

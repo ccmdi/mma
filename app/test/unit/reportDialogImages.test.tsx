@@ -17,7 +17,6 @@ const stageImage = vi.hoisted(() =>
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		feedbackAnonymousAvailable: vi.fn().mockResolvedValue(true),
 		feedbackLogTail: vi.fn().mockResolvedValue(""),
 		storeUploadBegin: vi.fn().mockResolvedValue("session"),
 		storeUploadAbort: vi.fn().mockResolvedValue(undefined),

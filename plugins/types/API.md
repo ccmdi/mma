@@ -5757,16 +5757,6 @@ cmd.downloadBorderFile(level: string): Promise<null>
 
 Download the border dataset for `level` from the repository.
 
-#### cmd.feedbackAnonymousAvailable
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.feedbackAnonymousAvailable(): Promise<boolean>
-```
-
-Whether the anonymous tier is available in this build.
-
 #### cmd.feedbackAnonymousThread
 
 `unstable` · since v0.9.0

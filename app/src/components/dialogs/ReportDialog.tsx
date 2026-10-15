@@ -62,7 +62,6 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const fileInput = useRef<HTMLInputElement>(null);
 
 	const [signedIn, setSignedIn] = useState(false);
-	const [anonAvailable, setAnonAvailable] = useState(true);
 	const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
 	const [logTail, setLogTail] = useState("");
 	const [ready, setReady] = useState(false);
@@ -72,9 +71,8 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 
 	useEffect(() => {
 		void (async () => {
-			const [who, anon, diag, tail] = await Promise.all([
+			const [who, diag, tail] = await Promise.all([
 				isSignedIn(),
-				cmd.feedbackAnonymousAvailable().catch(() => false),
 				collectDiagnostics().catch((e) => {
 					log.warn(`[feedback] diagnostics failed: ${e}`);
 					return null;
@@ -85,7 +83,6 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 				}),
 			]);
 			setSignedIn(who);
-			setAnonAvailable(anon);
 			setDiagnostics(diag);
 			setLogTail(tail);
 			setReady(true);
@@ -147,7 +144,6 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	);
 
 	const blocked = !title.trim() || !description.trim() || !diagnostics;
-	const cannotSend = anonymous && !anonAvailable;
 	const withheld = kind === "bug" && ATTACHMENTS.some(({ key }) => !attach[key]);
 
 	const send = async () => {
@@ -332,11 +328,9 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 						) : (
 							<>
 								<span className="report-dialog__muted">
-									{anonAvailable
-										? t(
-												"Filing anonymously. Replies come back here in the app; sign in to get them on GitHub too.",
-											)
-										: t("Anonymous reporting is unavailable in this build. Sign in to send.")}
+									{t(
+										"Filing anonymously. Replies come back here in the app; sign in to get them on GitHub too.",
+									)}
 								</span>
 								<Button small onClick={() => void signIn()}>
 									<Icon path={mdiGithub} size={14} /> {t("Sign in with GitHub")}
@@ -361,7 +355,7 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 					cancel
 					primary={{
 						label: sending ? t("Sending...") : t("Send"),
-						disabled: blocked || sending || cannotSend,
+						disabled: blocked || sending,
 						onClick: () => void send(),
 					}}
 				/>

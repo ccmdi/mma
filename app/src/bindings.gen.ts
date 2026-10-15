@@ -126,8 +126,6 @@ export const commands = {
 	githubIssueThread: (number: number) => __TAURI_INVOKE<IssueThread>("github_issue_thread", { number }),
 	/**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
 	feedbackLogTail: () => __TAURI_INVOKE<string>("feedback_log_tail"),
-	/**  Whether the anonymous tier is available in this build. */
-	feedbackAnonymousAvailable: () => __TAURI_INVOKE<boolean>("feedback_anonymous_available"),
 	/**
 	 *  File a bug report anonymously (no account required). Returns a reference the
 	 *  caller can use to check for replies via `feedbackAnonymousThread`.
