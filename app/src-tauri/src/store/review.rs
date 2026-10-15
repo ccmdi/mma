@@ -97,34 +97,6 @@ fn write_session(conn: &Connection, session: &ReviewSession) -> AppResult<()> {
     Ok(())
 }
 
-/// Lists a map's sessions, newest-first, optionally only those with `status` and `source_key`.
-pub(crate) fn list(
-    conn: &Connection,
-    map_id: &Id<MapMeta, String>,
-    status: Option<&str>,
-    source_key: Option<&str>,
-) -> AppResult<Vec<ReviewSession>> {
-    let mut sql = format!("SELECT {COLS} FROM review_sessions WHERE map_id = ?");
-    let mut params: Vec<Box<dyn ToSql>> = vec![Box::new(map_id.raw().clone())];
-    for (column, value) in [("status", status), ("source_key", source_key)] {
-        if let Some(value) = value {
-            sql.push_str(&format!(" AND {column} = ?"));
-            params.push(Box::new(value.to_string()));
-        }
-    }
-    sql.push_str(" ORDER BY updated_at DESC");
-    let mut stmt = conn.prepare(&sql)?;
-    let rows = stmt.query_map(
-        rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
-        row_to_session,
-    )?;
-    let mut out = Vec::new();
-    for row in rows {
-        out.push(row?);
-    }
-    Ok(out)
-}
-
 /// List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`.
 #[tauri::command]
 #[specta::specta]
@@ -133,8 +105,24 @@ pub async fn store_review_list(
     status: Option<String>,
     source_key: Option<String>,
 ) -> AppResult<Vec<ReviewSession>> {
-    storage::with_db(move |conn| list(conn, &map_id, status.as_deref(), source_key.as_deref()))
-        .await
+    storage::with_db(move |conn| {
+        let mut sql = format!("SELECT {COLS} FROM review_sessions WHERE map_id = ?");
+        let mut params: Vec<Box<dyn ToSql>> = vec![Box::new(map_id.raw().clone())];
+        for (column, value) in [("status", status), ("source_key", source_key)] {
+            if let Some(value) = value {
+                sql.push_str(&format!(" AND {column} = ?"));
+                params.push(Box::new(value));
+            }
+        }
+        sql.push_str(" ORDER BY updated_at DESC");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(
+            rusqlite::params_from_iter(params.iter().map(AsRef::as_ref)),
+            row_to_session,
+        )?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    })
+    .await
 }
 
 /// Add, replace, patch or remove review sessions together. Returns each added session as
