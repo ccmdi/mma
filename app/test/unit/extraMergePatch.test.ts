@@ -11,10 +11,9 @@ const wire = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	const mutationResult = () => ({ mutation: { version: 0, keys: [] } });
 	return cmdProxy({
-		storeGetMap: async () => testMap({ locationCount: 0 }),
 		storeOpenMap: async () => openMapResult(),
 		storeEdit: (_target: unknown, edits: unknown) => {
 			const puts = (edits as { put: Record<string, unknown> }[]).map((e) => e.put);
@@ -49,7 +48,7 @@ beforeEach(async () => {
 describe("extra merge-patch writes via updateLocations", () => {
 	it("ships only the patched keys", async () => {
 		const loc = makeLoc({ existing: 1 });
-		Editor.openDuplicate(loc);
+		void Editor.openDuplicate(loc);
 
 		await patchExtra(loc, { datetime: 111 });
 

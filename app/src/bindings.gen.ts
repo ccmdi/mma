@@ -215,8 +215,6 @@ export const commands = {
 	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps"),
-	/**  Fetch a single map's metadata by ID. Returns `null` if not found. */
-	storeGetMap: (id: string) => __TAURI_INVOKE<MapMeta | null>("store_get_map", { id }),
 	/**  Create a new empty map with the preferences new maps start from. Returns the full metadata. */
 	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapMeta>("store_create_map", { name, folder }),
 	/**

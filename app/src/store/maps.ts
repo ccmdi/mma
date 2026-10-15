@@ -76,9 +76,9 @@ function clearEditState() {
 }
 
 /** Initialize map metadata and derived state on each open. */
-function applyOpenedMap(meta: MapMeta | null, status: StoreStatus) {
+function applyOpenedMap(status: StoreStatus) {
 	Feed.seed(status.version);
-	Store.patch({ map: meta });
+	Store.patch({ map: status.derived.meta });
 	Store.merge(status.derived, status.version);
 }
 
@@ -111,14 +111,12 @@ export const Maps = {
 
 		const t = trace("openMap");
 		Store.patch({ mapId: id, map: null, openError: null });
-		const meta = await cmd.storeGetMap(id);
-		t.step("getMap");
 
 		try {
 			const openResult = await cmd.storeOpenMap(id);
 			t.step("store_open_map");
 			mapOpen.mark("data");
-			applyOpenedMap(meta, openResult);
+			applyOpenedMap(openResult);
 			void Feed.start().catch((e: unknown) =>
 				log.error("[openMap] change feed subscription failed:", e),
 			);

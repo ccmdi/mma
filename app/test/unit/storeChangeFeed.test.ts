@@ -22,13 +22,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 	},
 }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	return cmdProxy({
-		storeGetMap: async () =>
-			testMap({
-				locationCount: 2,
-				extra: { fields: { alt: createFieldDef("number") } },
-			}),
 		storeOpenMap: async () =>
 			openMapResult({ tagCounts: { 1: 2 }, fieldDefs: { alt: createFieldDef("number") } }),
 		storeEdit: async () => ({ mutation: { version: 0, keys: [5] } }),

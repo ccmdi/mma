@@ -6638,16 +6638,6 @@ cmd.storeGetCommitDelta(mapId: string, commitId: string): Promise<Change<Locatio
 
 Read a single commit's change: the locations it added, removed and updated.
 
-#### cmd.storeGetMap
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeGetMap(id: string): Promise<MapMeta | null>
-```
-
-Fetch a single map's metadata by ID. Returns `null` if not found.
-
 #### cmd.storeGetMapDefaults
 
 `unstable` · since v0.11.4

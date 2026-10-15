@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult, selectionsHeld } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult, selectionsHeld } = await import("./fixtures/mocks");
 	// Tag 1 and tag 2 overlap on ids 4 and 5; tag 3 is disjoint from both.
 	const byTag: Record<number, number[]> = {
 		1: [1, 2, 3, 4, 5],
@@ -41,7 +41,6 @@ vi.mock("@/lib/commands", async () => {
 		return [...new Set(active.flatMap((s) => poolOf(s.selector)))];
 	};
 	const handlers: Record<string, (...args: never[]) => unknown> = {
-		storeGetMap: async () => testMap({ locationCount: 20 }),
 		storeOpenMap: async () => openMapResult({ tagCounts: { 1: 5, 2: 5 } }),
 		storeEditSelections: async (rows: unknown[]) => selectionsHeld(rows),
 		storeRead: async (

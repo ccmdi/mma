@@ -855,8 +855,6 @@ declare const commands$1: {
     storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
     storeListMaps: () => Promise<MapMeta[]>;
-    /**  Fetch a single map's metadata by ID. Returns `null` if not found. @unstable */
-    storeGetMap: (id: string) => Promise<MapMeta | null>;
     /**  Create a new empty map with the preferences new maps start from. Returns the full metadata. @unstable */
     storeCreateMap: (name: string, folder: string | null) => Promise<MapMeta>;
     /**

@@ -87,27 +87,22 @@ export function stackedMapTypeMock() {
 
 type Handlers = Record<string, (...args: unknown[]) => unknown>;
 
-export function testMap(over: { locationCount?: number; extra?: unknown } = {}) {
-	return {
-		id: "m1",
-		name: "test",
-		description: "",
-		folder: null,
-		locationCount: over.locationCount ?? 1,
-		settings: {},
-		scoreBounds: null,
-		createdAt: "",
-		updatedAt: "",
-		extra: over.extra ?? null,
-	};
-}
-
 export function openMapResult(
 	over: { tagCounts?: Record<string, number>; fieldDefs?: Record<string, unknown> } = {},
 ) {
 	return {
 		version: 1,
 		derived: {
+			meta: {
+				id: "m1",
+				name: "test",
+				description: "",
+				folder: null,
+				settings: {},
+				scoreBounds: null,
+				createdAt: "",
+				updatedAt: "",
+			},
 			writingLayers: [],
 			locationCount: 0,
 			history: {},

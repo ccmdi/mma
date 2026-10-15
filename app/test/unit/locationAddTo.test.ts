@@ -16,9 +16,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 	},
 }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	return cmdProxy({
-		storeGetMap: async () => testMap({ locationCount: 0 }),
 		storeOpenMap: async () => openMapResult(),
 		storeRead: async (...args: unknown[]) => {
 			calls.reads.push(args);

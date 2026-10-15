@@ -10,9 +10,8 @@ vi.mock("@tauri-apps/api/core", () => ({
 	},
 }));
 vi.mock("@/lib/commands", async () => {
-	const { cmdProxy, testMap, openMapResult } = await import("./fixtures/mocks");
+	const { cmdProxy, openMapResult } = await import("./fixtures/mocks");
 	return cmdProxy({
-		storeGetMap: async () => (open.fails ? null : testMap()),
 		storeOpenMap: async () => {
 			if (open.fails) throw "map-missing";
 			return openMapResult({});

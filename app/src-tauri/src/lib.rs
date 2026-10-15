@@ -185,7 +185,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 store::commands::store_subscribe_changes,
                 store::commands::store_resolve_pick,
                 store::maps::store_list_maps,
-                store::maps::store_get_map,
                 store::maps::store_create_map,
                 store::maps::store_scratch_map,
                 store::maps::store_delete_map,

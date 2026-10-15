@@ -729,23 +729,6 @@ pub fn purge_scratch_map() -> AppResult<bool> {
     delete_map_data(&conn, &Id::new(SCRATCH_MAP_ID.into()))
 }
 
-/// Fetch a single map's metadata by ID. Returns `null` if not found.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_get_map(
-    state: tauri::State<'_, StoreState>,
-    id: Id<MapMeta, String>,
-) -> AppResult<Option<MapMeta>> {
-    let row = storage::with_db(move |conn| match read_map_meta(conn, &id) {
-        Ok(meta) => Ok(Some(meta)),
-        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-        Err(e) => Err(e.into()),
-    })
-    .await?;
-    let mgr = state.lock()?;
-    Ok(row.map(|row| mgr.stores.get(&row.id).map_or(row, engine::Store::map)))
-}
-
 fn create_map_row(conn: &Connection, name: &str, folder: Option<&str>) -> AppResult<MapMeta> {
     let id = Id::new(uuid::Uuid::new_v4().to_string());
     let now = now_iso();

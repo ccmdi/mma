@@ -19,7 +19,6 @@ vi.mock("@/lib/commands", () => ({
 		storeSaveDirty: vi.fn(async () => {}),
 		storeCheckoutCommit: vi.fn(async () => null),
 		storeCommit: vi.fn(async () => ({ id: "rev" })),
-		storeGetMap: vi.fn(async () => ({ id: "test" })),
 	},
 }));
 

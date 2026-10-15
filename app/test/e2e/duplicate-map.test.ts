@@ -53,7 +53,7 @@ describe("Duplicate map", () => {
 		expect(await getLocCount()).toBe(3);
 		await flushAndWait();
 		const pending = await withApi(
-			async (api, id) => (await api.cmd.storeGetMap(id))?.pending,
+			async (api, id) => (await api.cmd.storeListMaps()).find((m) => m.id === id)?.pending,
 			source,
 		);
 		expect(pending?.added).toBe(1);
@@ -75,7 +75,7 @@ describe("Duplicate map", () => {
 			tag: "kept",
 		});
 		const pending = await withApi(
-			async (api, id) => (await api.cmd.storeGetMap(id))?.pending,
+			async (api, id) => (await api.cmd.storeListMaps()).find((m) => m.id === id)?.pending,
 			source,
 		);
 		expect(pending?.added).toBe(1);
