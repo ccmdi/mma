@@ -2539,6 +2539,18 @@ fn bound_label_matches_js_fmt() {
     assert_eq!(bound_label(0.0, 50.0), "0–50");
     assert_eq!(bound_label(42.567, 43.0), "42.57–43");
     assert_eq!(bound_label(-500.0, 0.0), "-500–0");
+    assert_eq!(bound_label(1e21, 2e21), "1e+21–2e+21");
+}
+
+#[test]
+fn value_keys_print_numbers_the_way_javascript_does() {
+    let key = |v: serde_json::Value| value_key(&v);
+    assert_eq!(key(serde_json::json!(3)), Some("3".into()));
+    assert_eq!(key(serde_json::json!(3.0)), Some("3".into()));
+    assert_eq!(key(serde_json::json!(-0.0)), Some("0".into()));
+    assert_eq!(key(serde_json::json!(1e21)), Some("1e+21".into()));
+    assert_eq!(key(serde_json::json!(1e-7)), Some("1e-7".into()));
+    assert_eq!(key(serde_json::json!("")), None);
 }
 
 // Property-based selection tests against a simple HashSet oracle.

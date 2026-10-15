@@ -24,11 +24,11 @@ impl SelectionInput {
     }
 }
 
-fn number(n: f64) -> String {
+pub(super) fn number(n: f64) -> String {
     if n == 0.0 {
         return "0".into();
     }
-    if (1e-6..1e21).contains(&n.abs()) {
+    if !n.is_finite() || (1e-6..1e21).contains(&n.abs()) {
         return n.to_string();
     }
     let n = format!("{n:e}");

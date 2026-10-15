@@ -272,12 +272,7 @@ pub(super) fn value_key(v: &serde_json::Value) -> Option<String> {
                 Some(s.clone())
             }
         }
-        serde_json::Value::Number(n) => Some(
-            n.as_i64()
-                .map(|i| i.to_string())
-                .or_else(|| n.as_f64().map(js_number_string))
-                .unwrap_or_else(|| n.to_string()),
-        ),
+        serde_json::Value::Number(n) => n.as_f64().map(tree::number),
         serde_json::Value::Bool(b) => Some(b.to_string()),
         _ => None,
     }
@@ -335,15 +330,6 @@ pub(super) fn parse_year_month(s: &str) -> Option<(i32, u32)> {
 pub(super) fn utc_parts(ts: f64) -> (i32, u32, u32, u32) {
     let dt = DateTime::<Utc>::from_timestamp(ts as i64, 0).unwrap_or_default();
     (dt.year(), dt.month(), dt.day(), dt.hour())
-}
-
-/// A number printed the way JS `String()` does: integer-valued floats lose the decimal.
-pub(super) fn js_number_string(f: f64) -> String {
-    if f.is_finite() && f.fract() == 0.0 {
-        format!("{}", f as i64)
-    } else {
-        format!("{f}")
-    }
 }
 
 /// Equal-width numeric bins.
@@ -452,15 +438,14 @@ pub(super) fn bin_numeric(values: &[f64], binning: &NumericBinning) -> Option<Nu
     }
 }
 
-/// Numeric bin label: "lo–hi", integers without decimals.
+/// Numeric bin label: "lo–hi", each bound rounded to two decimals.
 pub(super) fn bound_label(lo: f64, hi: f64) -> String {
-    format!("{}–{}", fmt_bound(lo), fmt_bound(hi))
-}
-
-pub(super) fn fmt_bound(n: f64) -> String {
-    if n.fract() == 0.0 {
-        format!("{}", n as i64)
-    } else {
-        format!("{}", (n * 100.0).round() / 100.0)
-    }
+    let bound = |n: f64| {
+        tree::number(if n.fract() == 0.0 {
+            n
+        } else {
+            (n * 100.0).round() / 100.0
+        })
+    };
+    format!("{}–{}", bound(lo), bound(hi))
 }

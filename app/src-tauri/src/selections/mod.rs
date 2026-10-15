@@ -1310,10 +1310,8 @@ impl<'v, 'a> Scope<'v, 'a> {
     pub fn distinct_values(&self, field: &str) -> Vec<String> {
         let mut seen = BTreeSet::new();
         for row in self.rows() {
-            if let Some(key) = row.resolve_field(field).as_ref().and_then(index_key) {
-                if !key.is_empty() {
-                    seen.insert(key);
-                }
+            if let Some(key) = row.resolve_field(field).as_ref().and_then(value_key) {
+                seen.insert(key);
             }
         }
         seen.into_iter().collect()
