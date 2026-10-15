@@ -1299,22 +1299,7 @@ fn patching_a_closed_map_stamps_its_updated_time() {
 }
 
 #[test]
-fn opening_a_saved_map_leaves_it_saved_and_an_unsaved_one_unsaved() {
-    let mut store = engine::Store::new();
-    store.opened_at("2026-10-14T00:00:00Z".into());
-    assert!(!store.is_unsaved());
-    assert_eq!(
-        store.meta.last_opened_at.as_deref(),
-        Some("2026-10-14T00:00:00Z")
-    );
-
-    store.meta.edit().name = "renamed".into();
-    store.opened_at("2026-10-14T00:00:01Z".into());
-    assert!(store.is_unsaved());
-}
-
-#[test]
-fn duplicating_deleting_and_touching_a_map_are_spawned_off_the_main_thread() {
+fn duplicating_and_deleting_a_map_are_spawned_off_the_main_thread() {
     fn duplicate(
         state: tauri::State<'_, StoreState>,
         id: Id<MapMeta, String>,
@@ -1328,11 +1313,5 @@ fn duplicating_deleting_and_touching_a_map_are_spawned_off_the_main_thread() {
     ) -> impl Future<Output = AppResult<()>> + '_ {
         store_delete_map(state, id)
     }
-    fn touch(
-        state: tauri::State<'_, StoreState>,
-        id: Id<MapMeta, String>,
-    ) -> impl Future<Output = AppResult<()>> + '_ {
-        store_touch_map_opened(state, id)
-    }
-    let _ = (duplicate, delete, touch);
+    let _ = (duplicate, delete);
 }

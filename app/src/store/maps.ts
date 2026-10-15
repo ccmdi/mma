@@ -128,7 +128,6 @@ export const Maps = {
 				Store.patch({ mapId: null, map: null });
 				return;
 			}
-			void cmd.storeTouchMapOpened(id);
 		}
 
 		clearEditState();

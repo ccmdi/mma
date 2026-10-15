@@ -6,7 +6,7 @@
 //! `Location.extra` fields and persists their type definitions.
 
 use crate::selections::{Address, Builtin, BuiltinFieldKind};
-use crate::store::engine::{IncomingRecords, Store, StoreManager, StoreState};
+use crate::store::engine::{IncomingRecords, StoreManager, StoreState};
 use crate::store::storage::Stamped;
 use crate::store::{arrow, engine, map_defaults, storage};
 use crate::sv::schema::PanoType;
@@ -941,39 +941,6 @@ fn update_map_meta(
             },
         ),
     }))
-}
-
-/// Mark a map as opened now, for sorting the map list by recency.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_touch_map_opened(
-    state: tauri::State<'_, StoreState>,
-    map_id: Id<MapMeta, String>,
-) -> AppResult<()> {
-    task::block_in_place(|| {
-        let mut mgr = state.lock()?;
-        let conn = storage::open_db()?;
-        let now = now_iso();
-        conn.execute(
-            "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
-            params![now, map_id.raw()],
-        )?;
-        if let Some(store) = mgr.stores.get_mut(&map_id) {
-            store.opened_at(now);
-        }
-        Ok(())
-    })
-}
-
-impl Store {
-    /// Hold the opened time disk was just given, so a map saved before stays saved.
-    pub(crate) fn opened_at(&mut self, now: String) {
-        let saved = !self.meta.is_unsaved();
-        self.meta.edit().last_opened_at = Some(now);
-        if saved {
-            self.meta.mark_saved();
-        }
-    }
 }
 
 /// Rename a folder across all maps that reference it.

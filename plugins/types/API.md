@@ -253,7 +253,7 @@ DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)
 
 ### DEFAULT_MARKER_COLOR
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 DEFAULT_MARKER_COLOR: readonly [42, 42, 42]
@@ -341,7 +341,7 @@ What a render frame does to the scene.
 
 ### Group
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Group: {
@@ -549,7 +549,7 @@ Which imagery collection a pano id belongs to.
 
 ### Place
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Place: { readonly Before: "before"; readonly After: "after" }
@@ -648,7 +648,7 @@ Which side won a resolved conflict.
 
 ### ReviewMode
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 ReviewMode: {
@@ -743,7 +743,7 @@ What started a sync pass.
 
 ### Timeline
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Timeline: { readonly Edits: "edits"; readonly Selections: "selections" }
@@ -1516,7 +1516,7 @@ Cancel any pending autosave timer.
 
 #### autosave.exclusive
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
@@ -1591,7 +1591,7 @@ Close the duplicate-resolution panel and return to the overview.
 
 ### closeLocation
 
-`stable` · `deprecated` · unreleased
+`stable` · `deprecated` · since v0.12.0
 
 ```ts
 closeLocation(): void
@@ -1797,7 +1797,7 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 
 #### edit.locations
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 edit.locations(
@@ -2243,7 +2243,7 @@ Whether `id` belongs to an app fixture rather than a user-created map.
 
 ### locationsOf
 
-`stable` · `deprecated` · unreleased
+`stable` · `deprecated` · since v0.12.0
 
 ```ts
 locationsOf(list: LocationList): Promise<Location[]>
@@ -2292,7 +2292,7 @@ Open one location from the duplicate-resolution panel in the editor.
 
 ### openLocation
 
-`stable` · `deprecated` · unreleased
+`stable` · `deprecated` · since v0.12.0
 
 ```ts
 openLocation(
@@ -3444,13 +3444,13 @@ ui.useCloseDialog(): () => void
 
 ### Autosave
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Debounced persistence of the open map: schedule, hold, cancel, or flush it.
 
 #### Autosave.cancel
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.cancel(): void
@@ -3460,7 +3460,7 @@ Cancel any pending autosave timer.
 
 #### Autosave.exclusive
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.exclusive<T>(write: () => Promise<T>): Promise<T>
@@ -3471,7 +3471,7 @@ Writes to the map's files that must not interleave with a save go through here.
 
 #### Autosave.flush
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.flush(): Promise<void>
@@ -3481,7 +3481,7 @@ Save any unsaved changes now instead of waiting for the timer.
 
 #### Autosave.hold
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.hold(): () => void
@@ -3491,7 +3491,7 @@ Defer autosave until the returned release function runs. Useful for batches that
 
 #### Autosave.schedule
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.schedule(): void
@@ -3501,7 +3501,7 @@ Schedule a debounced autosave. Mutations call this automatically.
 
 #### Autosave.waitForInflight
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Autosave.waitForInflight(): Promise<void>
@@ -3513,13 +3513,13 @@ Wait until every save and background commit started so far has finished.
 
 ### Edit
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Edit map locations, metadata, value records, and selections.
 
 #### Edit.locations
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Edit.locations(
@@ -3535,7 +3535,7 @@ map.
 
 #### Edit.meta
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Edit.meta(
@@ -3550,7 +3550,7 @@ Settings merge key by key, so send only the keys that change.
 
 #### Edit.values
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Edit.values(
@@ -3562,7 +3562,7 @@ Edit an interned field's value records in one undoable step.
 
 #### Edit.work
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Edit.work(selector: Selector, op: Work): Promise<WorkResult>
@@ -3574,13 +3574,13 @@ Run `op` across every location `selector` matches, in one undoable step.
 
 ### Location
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Add, update, remove, and inspect map locations.
 
 #### Location.add
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Location.add(locs: Location[]): Promise<void>
@@ -3591,7 +3591,7 @@ so read `loc.id` after. Undoable.
 
 #### Location.addTo
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Location.addTo(
@@ -3606,7 +3606,7 @@ named by `records`. Resolves to whether it was added. Undoable in that map.
 
 #### Location.duplicate
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Location.duplicate(id: number): Promise<number | null>
@@ -3616,7 +3616,7 @@ Clone a location in place and return the new id, or null if it doesn't exist. Un
 
 #### Location.duplicateGroups
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Location.duplicateGroups(distance: number): Promise<number[][]>
@@ -3626,7 +3626,7 @@ Read-only preview of transitive duplicate groups (size >= 2) within `distance` m
 
 #### Location.remove
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Location.remove(ids: ReadonlyIdSet): Promise<void>
@@ -3636,7 +3636,7 @@ Remove locations by id. Undoable.
 
 #### Location.update
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Location.update(updates: Patch<Location>[]): Promise<void>
@@ -3649,13 +3649,13 @@ per-key (null deletes a key). Undoable by default.
 
 ### Tag
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Manage tag records and their assignment to locations.
 
 #### Tag.all
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.all(): Record<number, Tag>
@@ -3665,7 +3665,7 @@ Tag records, including unreferenced records and generated display defaults.
 
 #### Tag.assign
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.assign(
@@ -3678,7 +3678,7 @@ Get or create tag records and assign them to matching locations.
 
 #### Tag.counts
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.counts(): Record<number, number>
@@ -3688,7 +3688,7 @@ Per-tag location counts, keyed by numeric id.
 
 #### Tag.create
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.create(records: TagCreate[]): Promise<number[]>
@@ -3698,7 +3698,7 @@ Get or create tag records by name and return their ids.
 
 #### Tag.get
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.get(id: number): Tag | undefined
@@ -3708,7 +3708,7 @@ Look up a tag record, including unreferenced tags.
 
 #### Tag.names
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.names(ids: number[]): string[]
@@ -3718,7 +3718,7 @@ Tag names for the given ids, skipping any that no longer resolve.
 
 #### Tag.remove
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.remove(tagIds: number[]): Promise<WorkResult>
@@ -3729,7 +3729,7 @@ Unreferenced tags are hidden; undo restores them.
 
 #### Tag.rename
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.rename(
@@ -3743,7 +3743,7 @@ Move matching locations to a tag with the given name, optionally within a select
 
 #### Tag.reorder
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.reorder(ids: number[]): Promise<MutationResult<ValueRecord>>
@@ -3753,7 +3753,7 @@ Set tag display order from an ordered list of ids.
 
 #### Tag.update
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.update(updates: Patch<Tag>[]): Promise<MutationResult<ValueRecord>>
@@ -3763,7 +3763,7 @@ Update tag display records in one undoable edit.
 
 #### Tag.visible
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Tag.visible(): Tag[]
@@ -3775,13 +3775,13 @@ Tag records referenced by at least one location.
 
 ### Editor
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Open locations and change the editor pane.
 
 #### Editor.close
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.close(): void
@@ -3791,7 +3791,7 @@ Close the open location and return to the pane it was opened from.
 
 #### Editor.closeDuplicates
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.closeDuplicates(): void
@@ -3801,7 +3801,7 @@ Close the duplicate-resolution panel and return to the overview.
 
 #### Editor.closePlugin
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.closePlugin(): void
@@ -3811,7 +3811,7 @@ Close the plugin sidebar and return to the overview.
 
 #### Editor.draft
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.draft(): Draft
@@ -3821,7 +3821,7 @@ The open draft's edit and save, the same pair for as long as this opening lasts.
 
 #### Editor.get
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.get(): Readonly<EditorState>
@@ -3831,7 +3831,7 @@ Imperative snapshot of the editor state.
 
 #### Editor.open
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.open(
@@ -3846,7 +3846,7 @@ supersedes one still loading.
 
 #### Editor.openDuplicate
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.openDuplicate(loc: Location): Promise<void>
@@ -3856,7 +3856,7 @@ Open one location from the duplicate-resolution panel in the editor.
 
 #### Editor.openImport
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.openImport(index: number): Promise<void>
@@ -3866,7 +3866,7 @@ Preview a copy of a staged-import location. The import row stays staged until Co
 
 #### Editor.openPlugin
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.openPlugin(pluginId: string): void
@@ -3876,7 +3876,7 @@ Open a plugin's sidebar (switches the editor pane to "plugin").
 
 #### Editor.preview
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.preview(loc: Location): void
@@ -3887,7 +3887,7 @@ adding anything to the map. The caller sets LoadAsPanoId so the exact pano resol
 
 #### Editor.refresh
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.refresh(): Promise<void>
@@ -3897,7 +3897,7 @@ Reread the current draft. Superseded reads and errors cannot update the next ope
 
 #### Editor.removeDuplicate
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.removeDuplicate(id: number): void
@@ -3907,7 +3907,7 @@ Drop a location from the duplicate-resolution panel (does not delete it).
 
 #### Editor.resolve
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.resolve(m: MaybeLocation): Promise<Location | null>
@@ -3917,7 +3917,7 @@ Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not 
 
 #### Editor.setArea
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.setArea(area: WorkArea): void
@@ -3928,7 +3928,7 @@ leaving "location" closes the open location, leaving "plugin" clears the plugin 
 
 #### Editor.use
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Editor.use<T>(selector: (s: EditorState) => T): T
@@ -3938,7 +3938,7 @@ Reactive slice of the editor state. Select fields or memoized values, as with `S
 
 #### Editor.usePosition
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.usePosition(): LatLng
@@ -3948,7 +3948,7 @@ Where the open location stands, or 0,0 while nothing is open.
 
 #### Editor.useWriting
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Editor.useWriting(): boolean
@@ -3960,13 +3960,13 @@ Whether procedure work is still writing to the open draft.
 
 ### Procedure
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Procedure modules: ask one a question, or run one over locations.
 
 #### Procedure.decl
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.decl(spec: ProcedureSpec, config?: unknown): ProcedureDecl
@@ -3977,7 +3977,7 @@ JSON text the wire carries.
 
 #### Procedure.drive
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.drive(
@@ -3990,7 +3990,7 @@ Drive scheduled items through the engine as one run and gather what comes back.
 
 #### Procedure.entry
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.entry(name: string): string
@@ -4000,7 +4000,7 @@ Entry point of a procedure this app bundles. Plugins ship their own paths.
 
 #### Procedure.name
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.name(entry: string): string
@@ -4010,7 +4010,7 @@ The readable name behind an entry point, for surfaces that show one.
 
 #### Procedure.noWork
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.noWork(): BatchOutcome
@@ -4020,7 +4020,7 @@ An outcome for work that never ran.
 
 #### Procedure.query
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.query<T = unknown, P = unknown>(
@@ -4045,7 +4045,7 @@ the emitting side chose for it.
 
 #### Procedure.run
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Procedure.run<T, C>(
@@ -4064,13 +4064,13 @@ Run a single procedure over `selector` and return its typed results.
 
 ### Provider
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Registered field producers: register one, list them, or run them over locations.
 
 #### Provider.forField
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Provider.forField(field: string): Provider | undefined
@@ -4080,7 +4080,7 @@ The provider that produces a given extra field, if any.
 
 #### Provider.labels
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Provider.labels(
@@ -4096,7 +4096,7 @@ procedure has no `label` query or returns a non-matching array.
 
 #### Provider.list
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Provider.list(): Provider[]
@@ -4106,7 +4106,7 @@ All registered providers.
 
 #### Provider.register
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Provider.register(provider: Provider): Promise<void>
@@ -4117,7 +4117,7 @@ deactivates. Resolves once the provider can run.
 
 #### Provider.run
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Provider.run<C extends readonly unknown[]>(
@@ -4134,13 +4134,13 @@ back. Resolves once every provider finishes, or on abort.
 
 ### History
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Navigate undo and redo history.
 
 #### History.available
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 History.available(
@@ -4154,7 +4154,7 @@ Whether `timeline` can step back (undo) or forward (redo).
 
 #### History.step
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 History.step(stack: Stack, timeline: Timeline): Promise<void>
@@ -4166,13 +4166,13 @@ Undo the newest edit on `timeline`, or redo the newest undone one.
 
 ### Commit
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Save and restore map versions.
 
 #### Commit.background
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Commit.background(mapId: string, message: string): void
@@ -4182,7 +4182,7 @@ Commit `mapId` in the background once pending saves finish.
 
 #### Commit.checkout
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Commit.checkout(commitId: string): Promise<void>
@@ -4192,7 +4192,7 @@ Restore a previous commit as a new revert commit and refresh the view. Clears un
 
 #### Commit.create
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Commit.create(message?: string): Promise<string>
@@ -4204,13 +4204,13 @@ Commit all pending changes to the map's version history. Clears the undo stack.
 
 ### Field
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Rename or remove metadata fields across the map.
 
 #### Field.remove
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Field.remove(key: string): Promise<void>
@@ -4221,7 +4221,7 @@ in one undoable step.
 
 #### Field.rename
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Field.rename(
@@ -4239,7 +4239,7 @@ which value survives. Saved selections are map-independent rules and keep their 
 
 ### Store
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Read the open map state and update its selection and metadata.
 
@@ -4269,13 +4269,13 @@ memoized values, not a new value per call.
 
 ### Maps
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Create, list, open, close, and organize maps.
 
 #### Maps.badges
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.badges(): Map<string, MapBadge[]>
@@ -4285,7 +4285,7 @@ Badges per map id, from every registered source.
 
 #### Maps.badgeSources
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.badgeSources(): readonly BadgeSource[]
@@ -4295,7 +4295,7 @@ Every registered badge source, in registration order.
 
 #### Maps.close
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.close(): Promise<void>
@@ -4305,7 +4305,7 @@ Close the open map, saving unsaved changes first.
 
 #### Maps.copyName
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.copyName(name: string): string
@@ -4315,7 +4315,7 @@ The name a copy of the map named `name` starts with.
 
 #### Maps.create
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.create(name: string, folder?: string | null): Promise<MapMeta>
@@ -4325,7 +4325,7 @@ Create a new empty map and return its metadata.
 
 #### Maps.discard
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.discard(): void
@@ -4335,7 +4335,7 @@ Drop the open map without persisting anything
 
 #### Maps.duplicate
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.duplicate(id: string, name: string): Promise<MapMeta>
@@ -4345,7 +4345,7 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 
 #### Maps.init
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.init(): Promise<void>
@@ -4355,7 +4355,7 @@ One-time store startup. The app calls this; plugins never need to.
 
 #### Maps.invalidate
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.invalidate(): Promise<void>
@@ -4365,7 +4365,7 @@ Refresh the map list and notify other windows of the change.
 
 #### Maps.isReserved
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.isReserved(id: string | null): boolean
@@ -4375,7 +4375,7 @@ Whether `id` belongs to an app fixture rather than a user-created map.
 
 #### Maps.list
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.list(): MapMeta[]
@@ -4385,7 +4385,7 @@ The list of all maps (metadata only).
 
 #### Maps.moveToFolder
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.moveToFolder(mapId: string, folder: string | null): Promise<void>
@@ -4395,7 +4395,7 @@ Move a map into a folder, or to the root when `folder` is null.
 
 #### Maps.open
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.open(id: string): Promise<void>
@@ -4405,7 +4405,7 @@ Open a map in this window, closing any currently open map first.
 
 #### Maps.openScratch
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.openScratch(): Promise<void>
@@ -4415,7 +4415,7 @@ Open the scratch map, creating it on first use.
 
 #### Maps.registerBadges
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.registerBadges(source: BadgeSource): void
@@ -4425,7 +4425,7 @@ Add a source of map-row badges.
 
 #### Maps.reload
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.reload(): Promise<void>
@@ -4435,7 +4435,7 @@ Refresh the map list from disk.
 
 #### Maps.remove
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.remove(id: string): Promise<void>
@@ -4445,7 +4445,7 @@ Permanently delete a map and all its data. Not undoable.
 
 #### Maps.removeFolder
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.removeFolder(name: string): Promise<void>
@@ -4455,7 +4455,7 @@ Delete a folder. Maps in it become unfoldered.
 
 #### Maps.renameFolder
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.renameFolder(from: string, to: string): Promise<void>
@@ -4465,7 +4465,7 @@ Rename a folder, moving all its maps to the new name.
 
 #### Maps.useBadges
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Maps.useBadges(): Map<string, MapBadge[]>
@@ -4475,7 +4475,7 @@ Reactive Maps.badges.
 
 #### Maps.useList
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Maps.useList(): MapMeta[]
@@ -4487,13 +4487,13 @@ Reactive list of all maps (metadata only).
 
 ### Query
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Read locations and summaries for a selector.
 
 #### Query.locationsOf
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Query.locationsOf(list: LocationList): Promise<Location[]>
@@ -4503,7 +4503,7 @@ The locations an answer carries, fetched from its temp file when it was too larg
 
 #### Query.read
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Query.read<A extends Ask>(
@@ -4520,13 +4520,13 @@ backing file automatically; ask for ids or columns when full locations are unnec
 
 ### Mutation
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 Run mutations and wait for their state and display updates.
 
 #### Mutation.none
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Mutation.none(): MutationResult
@@ -4536,7 +4536,7 @@ The result of a mutation that reached no map.
 
 #### Mutation.run
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Mutation.run<R extends MutationResult = MutationResult>(
@@ -4547,7 +4547,7 @@ Mutation.run<R extends MutationResult = MutationResult>(
 
 #### Mutation.settle
 
-`stable` · unreleased
+`stable` · since v0.12.0
 
 ```ts
 Mutation.settle(m: Mutation): Promise<void>
@@ -4612,7 +4612,7 @@ Every child selection a selector wraps, whatever shape it wraps them in.
 
 ### combineSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 combineSelections(group: Group, keys?: string[] | null): SelectionOp
@@ -4620,7 +4620,7 @@ combineSelections(group: Group, keys?: string[] | null): SelectionOp
 
 ### complementSelections
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 complementSelections(keys?: string[] | null): SelectionOp
@@ -6229,7 +6229,7 @@ another. Returns immediately with the run id. Emits `procedure-progress` and
 
 #### cmd.providerRegister
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.providerRegister(provider: ProviderDef): Promise<null>
@@ -6239,7 +6239,7 @@ Register a provider, replacing one with the same id.
 
 #### cmd.providerUnregister
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.providerUnregister(id: string): Promise<null>
@@ -6437,7 +6437,7 @@ a closed one is rewritten on disk and returns null.
 
 #### cmd.storeCloseLayer
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeCloseLayer(name: string, mapId: string | null): Promise<null>
@@ -6580,7 +6580,7 @@ Edit the selection tree.
 
 #### cmd.storeEditUploaded
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeEditUploaded(target: Target, session: string): Promise<EditResult>
@@ -6590,7 +6590,7 @@ Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as o
 
 #### cmd.storeEditValues
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeEditValues(
@@ -6746,7 +6746,7 @@ editor import dialog. Call `storeImportFile` to commit the import.
 
 #### cmd.storeLandLayer
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeLandLayer(name: string): Promise<MutationResult<Location>>
@@ -7059,16 +7059,6 @@ cmd.storeSubscribeFrames(
 ```
 
 Draw the open map's markers: `frames` receives the whole scene, then every change to it.
-
-#### cmd.storeTouchMapOpened
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeTouchMapOpened(mapId: string): Promise<null>
-```
-
-Mark a map as opened now, for sorting the map list by recency.
 
 #### cmd.storeUpdateMapMeta
 
@@ -7700,7 +7690,7 @@ The providers the app registers for enrichment.
 
 ### BUILTIN_PROVIDERS
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 BUILTIN_PROVIDERS: readonly Provider<unknown, unknown>[]
@@ -7749,7 +7739,7 @@ A named procedure with dependency-graph placement. Providers that declare
 
 ### headingRoadProvider
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 headingRoadProvider: {
@@ -8430,13 +8420,13 @@ Copy of `set` with `value` toggled, or forced on/off by `on`.
 
 ### Layer
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Pending layers: staged edits that land on the map as one undo step.
 
 #### Layer.open
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Layer.open(edits?: LocationEdits): Promise<Layer>
@@ -8448,13 +8438,13 @@ Create a layer and stage its first edits.
 
 ### SelectionList
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Change the listed selections and inspect their active members.
 
 #### SelectionList.active
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.active(): Selection[]
@@ -8464,7 +8454,7 @@ Listed selections that are not ghosted.
 
 #### SelectionList.run
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.run(write: () => Promise<MutationResult>): Promise<void>
@@ -8475,7 +8465,7 @@ and announce the change.
 
 #### SelectionList.select
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.select<
@@ -8495,7 +8485,7 @@ SelectionList.select<
 
 #### SelectionList.tagIds
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.tagIds(): ReadonlySet<number>
@@ -8505,7 +8495,7 @@ Tag ids with a top-level listed tag selection, including ghosted selections.
 
 #### SelectionList.tagIdsDeep
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.tagIdsDeep(): readonly number[]
@@ -8515,7 +8505,7 @@ Tag ids from active selection leaves, including repeated ids and composite child
 
 #### SelectionList.update
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SelectionList.update(op: SelectionOp): Promise<void>
@@ -8527,13 +8517,13 @@ Update and resolve the listed selections. Use `onActive` to affect only active s
 
 ### CommitDiff
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Uncommitted changes and their preview on the map.
 
 #### CommitDiff.begin
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.begin(commit: CommitInfo): Promise<void>
@@ -8544,7 +8534,7 @@ temporarily replacing the regular markers.
 
 #### CommitDiff.end
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.end(): void
@@ -8554,7 +8544,7 @@ Leave commit-diff preview and restore the regular markers.
 
 #### CommitDiff.has
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.has(): boolean
@@ -8564,7 +8554,7 @@ Whether there are uncommitted changes (adds, removes, or updates).
 
 #### CommitDiff.positions
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.positions(locs: LatLng[]): Float32Array
@@ -8574,7 +8564,7 @@ Pack `[lng, lat]` pairs into an interleaved Float32Array.
 
 #### CommitDiff.preview
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.preview(): CommitDiffPreview | null
@@ -8584,7 +8574,7 @@ The current commit-diff preview, or null when not previewing.
 
 #### CommitDiff.reset
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.reset(): void
@@ -8594,7 +8584,7 @@ Clear commit-diff preview state.
 
 #### CommitDiff.use
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 CommitDiff.use(): Counts
@@ -8606,13 +8596,13 @@ React hook: the uncommitted add/remove/modify counts.
 
 ### Import
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Stage, preview, and confirm an import into the open map.
 
 #### Import.cancel
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.cancel(): void
@@ -8622,7 +8612,7 @@ Discard the staged import without committing.
 
 #### Import.confirm
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.confirm(
@@ -8635,7 +8625,7 @@ Commit the staged import, optionally dropping fields and applying bulk tags.
 
 #### Import.fromPath
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.fromPath(path: string): Promise<void>
@@ -8645,7 +8635,7 @@ Import from a file path.
 
 #### Import.paste
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.paste(text: string): Promise<void>
@@ -8655,7 +8645,7 @@ Stage pasted text for preview. Throws if no locations are found.
 
 #### Import.previewPositions
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.previewPositions(): Float32Array<ArrayBufferLike>
@@ -8665,7 +8655,7 @@ The preview marker positions for the staged import.
 
 #### Import.reset
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.reset(): void
@@ -8675,7 +8665,7 @@ Discard the staged import and its pending layer.
 
 #### Import.staging
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Import.staging(): ImportStaging | null
@@ -8687,13 +8677,13 @@ The current staged import, or null if none.
 
 ### SavedSelection
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Saved selection rules.
 
 #### SavedSelection.apply
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.apply(saved: SavedSelection): number
@@ -8704,7 +8694,7 @@ were added.
 
 #### SavedSelection.index
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.index(): SavedSelectionInfo[]
@@ -8715,7 +8705,7 @@ call starts the read and `saved-selections:changed` announces it.
 
 #### SavedSelection.isSaveable
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.isSaveable(selector: Selector): boolean
@@ -8725,7 +8715,7 @@ Whether the selector tree contains only portable types (no map-local leaves).
 
 #### SavedSelection.load
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.load(ids: string[]): Promise<SavedSelection[]>
@@ -8735,7 +8725,7 @@ Load the full rule bodies for the given `ids`.
 
 #### SavedSelection.loadAll
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.loadAll(): Promise<SavedSelection[]>
@@ -8745,7 +8735,7 @@ Every rule with its body.
 
 #### SavedSelection.MAP_LOCAL_TYPES
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.MAP_LOCAL_TYPES: readonly [
@@ -8761,7 +8751,7 @@ Selection types that cannot be saved as rules because they are bound to the open
 
 #### SavedSelection.parts
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.parts(saved: SavedSelection): SavedPart[]
@@ -8772,7 +8762,7 @@ a single part.
 
 #### SavedSelection.remove
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.remove(id: string): Promise<void>
@@ -8782,7 +8772,7 @@ Permanently delete a saved selection rule.
 
 #### SavedSelection.save
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 SavedSelection.save(name: string, selections: Selection[]): Promise<boolean>
@@ -8794,13 +8784,13 @@ Persists the saveable selections as one rule. False when none of them are saveab
 
 ### Scene
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 The marker scene the map surfaces render from, and its load lifecycle.
 
 #### Scene.clear
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.clear(): void
@@ -8810,7 +8800,7 @@ Clear all marker data from the scene and stop following the map.
 
 #### Scene.defaultColor
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.defaultColor(): RGBA
@@ -8820,7 +8810,7 @@ Current default marker color as RGBA.
 
 #### Scene.get
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.get(): CellManager
@@ -8830,7 +8820,7 @@ The shared scene that all map surfaces render from.
 
 #### Scene.load
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.load(markerStyle?: MarkerStyle, mc?: RGB): Promise<void>
@@ -8840,7 +8830,7 @@ Load the whole scene again and follow every change to it from there.
 
 #### Scene.reached
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.reached(version: number): Promise<FrameSummary>
@@ -8851,7 +8841,7 @@ frame did. Resolves at once, with nothing applied, when the scene follows no map
 
 #### Scene.recolor
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.recolor(mc: RGB): void
@@ -8861,7 +8851,7 @@ Change the default marker color and repaint.
 
 #### Scene.selected
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.selected(): SelectedIds
@@ -8871,7 +8861,7 @@ The ids of the locations the listed selections select.
 
 #### Scene.setDefaultColor
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.setDefaultColor(r: number, g: number, b: number): void
@@ -8881,7 +8871,7 @@ Set the default marker color (RGB bytes).
 
 #### Scene.settled
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.settled(): Promise<void>
@@ -8891,7 +8881,7 @@ Resolves when the most recently started full scene load has finished (or immedia
 
 #### Scene.useSelected
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Scene.useSelected(): SelectedIds
@@ -8903,13 +8893,13 @@ Reactive Scene.selected.
 
 ### MapHost
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 The embedded map host, its preferences, and click interceptors.
 
 #### MapHost.addClickInterceptor
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.addClickInterceptor(fn: ClickInterceptor): () => void
@@ -8920,7 +8910,7 @@ added interceptor that returns true consumes the click.
 
 #### MapHost.create
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.create(
@@ -8933,7 +8923,7 @@ MapHost.create(
 
 #### MapHost.fitToBounds
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.fitToBounds(
@@ -8947,7 +8937,7 @@ Fit the editor map's viewport to `bounds`. A `minExtent` prevents over-zoom on t
 
 #### MapHost.get
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.get(): MapHost | null
@@ -8957,7 +8947,7 @@ Return the main editor map host, or null if not mounted.
 
 #### MapHost.instance
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.instance<K extends MapHostKind>(
@@ -8970,7 +8960,7 @@ The raw engine instance if `host` is of the given kind, else null.
 
 #### MapHost.kindForMapType
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.kindForMapType(mapType: MapTypeKey): MapHostKind
@@ -8978,7 +8968,7 @@ MapHost.kindForMapType(mapType: MapTypeKey): MapHostKind
 
 #### MapHost.set
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.set(host: MapHost | null): void
@@ -8988,7 +8978,7 @@ Set or clear the main editor map host.
 
 #### MapHost.setDrawInterceptor
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.setDrawInterceptor(fn: DrawInterceptor | null): void
@@ -8998,7 +8988,7 @@ Set the callback for completed polygon draws. Null clears it.
 
 #### MapHost.tryInterceptClick
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.tryInterceptClick(lat: number, lng: number, shiftKey?: boolean): boolean
@@ -9008,7 +8998,7 @@ Run registered click interceptors (newest first). True if one consumed the click
 
 #### MapHost.tryInterceptDraw
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.tryInterceptDraw(rings: number[][][]): boolean
@@ -9018,7 +9008,7 @@ Pass completed polygon rings to the draw interceptor. True if it consumed them.
 
 #### MapHost.wait
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 MapHost.wait(): Promise<MapHost>
@@ -9030,13 +9020,13 @@ Wait for the main editor map to be ready.
 
 ### Review
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 Review sessions and their history.
 
 #### Review.advance
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.advance(s: ReviewSession): {
@@ -9050,7 +9040,7 @@ session has no remaining items.
 
 #### Review.begin
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.begin(ids: number[], source?: Selection): Promise<void>
@@ -9061,7 +9051,7 @@ that selection resumes any in-progress session for it.
 
 #### Review.beginSelected
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.beginSelected(): Promise<void>
@@ -9072,7 +9062,7 @@ resumes with it.
 
 #### Review.cancel
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.cancel(): void
@@ -9082,7 +9072,7 @@ Exit the review UI but keep the session resumable (persisted as active).
 
 #### Review.deleteCurrent
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.deleteCurrent(): Promise<void>
@@ -9093,7 +9083,7 @@ was the last item.
 
 #### Review.ids
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.ids(s: ReviewSession, mode: ReviewMode): number[]
@@ -9103,7 +9093,7 @@ The session's locations in `mode`: those reviewed, or those still to review.
 
 #### Review.index
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.index(s: ReviewSession): number
@@ -9113,7 +9103,7 @@ Position of the session cursor within its review order.
 
 #### Review.isAtEnd
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.isAtEnd(s: ReviewSession): boolean
@@ -9123,7 +9113,7 @@ True when the cursor is on the session's last location.
 
 #### Review.isAtStart
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.isAtStart(s: ReviewSession): boolean
@@ -9133,7 +9123,7 @@ True when the cursor is on the session's first location.
 
 #### Review.isCurrentReviewed
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.isCurrentReviewed(s: ReviewSession): boolean
@@ -9143,7 +9133,7 @@ Current cursor location is in the reviewed set.
 
 #### Review.next
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.next(): Promise<void>
@@ -9153,7 +9143,7 @@ Mark the current location reviewed and step to the next one.
 
 #### Review.positionOf
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.positionOf(s: ReviewSession, id: number): number
@@ -9163,7 +9153,7 @@ Position of `id` in the session's worklist, or -1. O(1) per step.
 
 #### Review.prev
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.prev(): Promise<void>
@@ -9173,7 +9163,7 @@ Step back to the previous location in the session.
 
 #### Review.prune
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.prune(s: ReviewSession, removed: Set<number>): PruneResult
@@ -9184,7 +9174,7 @@ cursor when the cursor id itself was removed.
 
 #### Review.removeSession
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.removeSession(id: string): Promise<void>
@@ -9194,7 +9184,7 @@ Delete a review session (its progress, not the locations).
 
 #### Review.rename
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.rename(id: string, name: string): Promise<void>
@@ -9204,7 +9194,7 @@ Rename a review session.
 
 #### Review.resume
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.resume(s: ReviewSession): Promise<void>
@@ -9214,7 +9204,7 @@ Resume a session picked from the resume modal.
 
 #### Review.retreat
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.retreat(s: ReviewSession): ReviewSession | null
@@ -9224,7 +9214,7 @@ Step backward without marking anything reviewed. Null when already at the start.
 
 #### Review.reviewedIds
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.reviewedIds(sessions: ReviewSession[]): number[]
@@ -9234,7 +9224,7 @@ Union of reviewed ids across sessions, de-duplicated.
 
 #### Review.selector
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.selector(s: ReviewSession, mode: ReviewMode): Selector
@@ -9244,7 +9234,7 @@ The locations of review session `s` that are reviewed, or still to review.
 
 #### Review.selectReviewed
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.selectReviewed(): Promise<void>
@@ -9254,7 +9244,7 @@ Select every location marked reviewed across all sessions on this map.
 
 #### Review.session
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.session(): ReviewSession | null
@@ -9264,7 +9254,7 @@ The active review session, or null.
 
 #### Review.sessions
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.sessions(status?: "active" | "done"): Promise<ReviewSession[]>
@@ -9274,7 +9264,7 @@ Review sessions for the open map, optionally filtered by status.
 
 #### Review.useSession
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Review.useSession(): ReviewSession | null
@@ -9286,13 +9276,13 @@ Reactive active review session, or null.
 
 ### Seen
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 The seen-location history and how panorama visits are recorded into it.
 
 #### Seen.clear
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.clear(): Promise<void>
@@ -9302,7 +9292,7 @@ Delete the entire seen history. Not undoable.
 
 #### Seen.count
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.count(filter?: SeenFilter): Promise<number>
@@ -9312,7 +9302,7 @@ Number of seen entries matching the filter (all when omitted).
 
 #### Seen.countries
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.countries(): Promise<string[]>
@@ -9322,7 +9312,7 @@ Distinct country codes that appear in the seen history.
 
 #### Seen.entries
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.entries(
@@ -9337,7 +9327,7 @@ Fetch a page of the seen (visited-panorama) history.
 
 #### Seen.flush
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.flush(viewer: PanoViewer): void
@@ -9347,7 +9337,7 @@ Write the pending seen entry to disk, if any.
 
 #### Seen.loadPano
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.loadPano(entry: SeenPano, viewer: PanoViewer): Promise<void>
@@ -9357,7 +9347,7 @@ Open a seen entry's panorama in the Street View viewer.
 
 #### Seen.maps
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.maps(): Promise<SeenMapInfo[]>
@@ -9367,7 +9357,7 @@ Maps that have seen-history entries.
 
 #### Seen.onMap
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.onMap(
@@ -9379,7 +9369,7 @@ The map location each entry was seen at, while it still shows the entry's pano; 
 
 #### Seen.panoChanged
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.panoChanged(
@@ -9393,7 +9383,7 @@ Record a panorama change for the seen history. Flushes the previous entry and st
 
 #### Seen.record
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.record(
@@ -9406,7 +9396,7 @@ Record a pano visit now at its starting view, with a thumbnail if that view is s
 
 #### Seen.skipNext
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.skipNext(panoId: string): void
@@ -9416,7 +9406,7 @@ Suppress the next seen-history entry for `panoId`.
 
 #### Seen.updateGeo
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.updateGeo(geo: GeoDisplay): void
@@ -9428,13 +9418,13 @@ Update the pending seen entry's geocode info (country, address).
 
 ### Pano
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 The shared panorama viewer.
 
 #### Pano.canvas
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.canvas(): HTMLCanvasElement | null
@@ -9444,7 +9434,7 @@ The live WebGL scene canvas, or null before the first render.
 
 #### Pano.capture
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.capture(): PanoCapture | null
@@ -9454,7 +9444,7 @@ The viewer read back into Location fields, or null until it has a position.
 
 #### Pano.captureImage
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.captureImage(width: number, height: number): HTMLCanvasElement | null
@@ -9464,7 +9454,7 @@ Cover-crop the live frame into an exact image, or null until real imagery render
 
 #### Pano.captureView
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.captureView(): LocationPOV
@@ -9474,7 +9464,7 @@ The camera in the stored zoom domain, zeroed without a viewer.
 
 #### Pano.configure
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.configure(options: google.maps.StreetViewPanoramaOptions): void
@@ -9484,7 +9474,7 @@ Apply display options to the viewer.
 
 #### Pano.dispose
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.dispose(): void
@@ -9494,7 +9484,7 @@ Release the viewer, its container and every listener; the instance is unusable a
 
 #### Pano.exists
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.exists(): boolean
@@ -9504,7 +9494,7 @@ Whether the viewer has been created.
 
 #### Pano.faceRoad
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.faceRoad(): void
@@ -9514,7 +9504,7 @@ Face the linked road nearest the camera heading.
 
 #### Pano.hide
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.hide(): void
@@ -9524,7 +9514,7 @@ Hide the viewer.
 
 #### Pano.isLoaded
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.isLoaded(): boolean
@@ -9534,7 +9524,7 @@ Whether the viewer has finished loading its current pano.
 
 #### Pano.jump
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.jump(to: PanoDestination, frame?: PanoFrame): void
@@ -9544,7 +9534,7 @@ Move to a pano id or position now, optionally setting the camera, overtaking pen
 
 #### Pano.jumpAhead
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.jumpAhead(headingOffset: number): Promise<boolean>
@@ -9554,7 +9544,7 @@ Jump to the nearest official pano ahead of the camera, turned by `headingOffset`
 
 #### Pano.links
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.links(): google.maps.StreetViewLink[]
@@ -9564,7 +9554,7 @@ The current pano's navigable links.
 
 #### Pano.look
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.look(frame: PanoFrame): void
@@ -9574,7 +9564,7 @@ Point the camera now.
 
 #### Pano.mount
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.mount(target: HTMLElement): () => void
@@ -9584,7 +9574,7 @@ Parent the viewer into a container; the newest mount wins until released.
 
 #### Pano.nudge
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.nudge(dHeading: number, dPitch: number): void
@@ -9594,7 +9584,7 @@ Nudge heading and pitch by a delta, keeping pitch in range.
 
 #### Pano.on
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.on(event: PanoEvent, fn: () => void): () => void
@@ -9604,7 +9594,7 @@ Listen to a viewer event, across viewer rebuilds; returns an unsubscribe.
 
 #### Pano.panoId
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.panoId(): string | null
@@ -9614,7 +9604,7 @@ The current pano id, or null before one loads.
 
 #### Pano.pointNorth
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.pointNorth(): void
@@ -9624,7 +9614,7 @@ Face north keeping the pitch, or look straight down zoomed out when already with
 
 #### Pano.position
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.position(): google.maps.LatLngLiteral | null
@@ -9634,7 +9624,7 @@ The current pano's position, or null before one loads.
 
 #### Pano.pov
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.pov(): CameraFrame
@@ -9644,7 +9634,7 @@ The camera heading and pitch.
 
 #### Pano.preload
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.preload(loc: Location): Promise<void>
@@ -9654,7 +9644,7 @@ Stage a location's pano while nothing newer is pending, so a later show is insta
 
 #### Pano.reload
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.reload(fallback: google.maps.LatLngLiteral): void
@@ -9664,7 +9654,7 @@ Rebuild a stuck viewer in place, keeping its pano and camera.
 
 #### Pano.reserveLook
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.reserveLook(): (frame: PanoFrame) => boolean
@@ -9674,7 +9664,7 @@ Reserve a camera move across an async wait; it lands only if nothing moved the p
 
 #### Pano.resetZoom
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.resetZoom(): void
@@ -9684,7 +9674,7 @@ Zoom fully out.
 
 #### Pano.show
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.show(
@@ -9699,7 +9689,7 @@ Resolve and show a location's pano, optionally hidden until it loads; "supersede
 
 #### Pano.showCrosshair
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.showCrosshair(): () => void
@@ -9709,7 +9699,7 @@ Draw the crosshair over the viewer; returns a remove.
 
 #### Pano.snapshot
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.snapshot(): PanoView
@@ -9719,7 +9709,7 @@ Freeze the live camera for an offscreen render; throws until a pano is ready.
 
 #### Pano.step
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.step(direction: "forward" | "backward"): boolean
@@ -9729,7 +9719,7 @@ Step to the linked pano nearest the camera heading, or its reverse.
 
 #### Pano.toast
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.toast(message: string, durationMs: number): void
@@ -9739,7 +9729,7 @@ Show a toast anchored over the viewer.
 
 #### Pano.turnAround
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.turnAround(): void
@@ -9749,7 +9739,7 @@ Turn to face the opposite direction.
 
 #### Pano.turnTo
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.turnTo(target: CameraFrame): void
@@ -9759,7 +9749,7 @@ Animate the camera to a frame, replacing any turn in progress.
 
 #### Pano.turnToNextLink
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.turnToNextLink(): void
@@ -9769,7 +9759,7 @@ Turn to the next linked road clockwise from the camera.
 
 #### Pano.zoom
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.zoom(): number
@@ -9779,7 +9769,7 @@ The viewer's display zoom.
 
 #### Pano.zoomIn
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.zoomIn(): void
@@ -9789,7 +9779,7 @@ Step the zoom in.
 
 #### Pano.zoomOut
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Pano.zoomOut(): void

@@ -4,9 +4,10 @@ use super::*;
 use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, Location};
+use crate::util::now_iso;
 use arrow_array::{RecordBatch, UInt32Array};
 use mma_algebra::{Counts, Id};
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
@@ -175,6 +176,21 @@ pub(crate) fn load_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
     store.field_defs = Tracked::new(mem::take(&mut meta.extra.fields));
     store.meta = Tracked::new(meta);
     log::debug!("[store_open] TOTAL={}ms", t_total.elapsed().as_millis());
+    Ok(store)
+}
+
+/// Load a map for a window to open, recording on disk that it was opened now.
+pub(crate) fn open_store(map_id: &Id<MapMeta, String>) -> AppResult<Store> {
+    let mut store = load_store(map_id)?;
+    let now = now_iso();
+    storage::open_db()?.execute(
+        "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
+        params![now, map_id.raw()],
+    )?;
+    store.meta = Tracked::new(MapMeta {
+        last_opened_at: Some(now),
+        ..(*store.meta).clone()
+    });
     Ok(store)
 }
 

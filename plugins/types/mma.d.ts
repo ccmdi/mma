@@ -892,8 +892,6 @@ declare const commands$1: {
             pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
         };
     }) => Promise<MutationResult<Location> | null>;
-    /**  Mark a map as opened now, for sorting the map list by recency. @unstable */
-    storeTouchMapOpened: (mapId: string) => Promise<null>;
     /**  Rename a folder across all maps that reference it. @unstable */
     storeRenameFolder: (from: string, to: string) => Promise<null>;
     /**  Delete a folder, moving its maps to the root level. @unstable */

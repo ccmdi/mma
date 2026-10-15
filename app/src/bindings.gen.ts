@@ -244,8 +244,6 @@ export const commands = {
 	 *  A closed map writes straight to disk and returns null.
 	 */
 	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
-	/**  Mark a map as opened now, for sorting the map list by recency. */
-	storeTouchMapOpened: (mapId: string) => __TAURI_INVOKE<null>("store_touch_map_opened", { mapId }),
 	/**  Rename a folder across all maps that reference it. */
 	storeRenameFolder: (from: string, to: string) => __TAURI_INVOKE<null>("store_rename_folder", { from, to }),
 	/**  Delete a folder, moving its maps to the root level. */

@@ -52,7 +52,7 @@ async fn open_claimed_map(
     let files = state.lock()?.files(&map_id);
     let _writing = files.lock().await;
     let map_id2 = map_id.clone();
-    let mut store = task::spawn_blocking(move || load_store(&map_id2)).await??;
+    let mut store = task::spawn_blocking(move || open_store(&map_id2)).await??;
     let mut mgr = state.lock()?;
     let status = store.open_status();
     store.dependents = mgr.providers.dependents();
