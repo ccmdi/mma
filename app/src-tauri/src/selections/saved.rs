@@ -213,7 +213,6 @@ pub(crate) fn modernize(mut selector: serde_json::Value) -> serde_json::Value {
             obj.insert(
                 "selection".into(),
                 serde_json::json!({
-                    "key": format!("filter:{field}:has:null"),
                     "color": NO_COLOR,
                     "selector": { "type": "Filter", "field": field, "test": { "op": "has" } },
                 }),

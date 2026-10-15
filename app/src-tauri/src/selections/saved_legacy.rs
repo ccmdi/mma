@@ -57,12 +57,11 @@ fn convert(value: &mut serde_json::Value, names: &mut HashMap<Id<ValueRecord>, S
         *value = serde_json::json!({ "type": "Tag", "tagId": id });
         return;
     }
-    // Legacy composites nest bare props; a `Selector` nests `Selection`s. The key is left
-    // empty because JS rebuilds every composite's keys when it resolves the rule.
+    // Legacy composites nest bare props; a `Selector` nests `Selection`s.
     if let Some(children) = value.get_mut("selections").and_then(|s| s.as_array_mut()) {
         for child in children.iter_mut() {
             convert(child, names);
-            *child = serde_json::json!({ "key": "", "color": NO_COLOR, "selector": child });
+            *child = serde_json::json!({ "color": NO_COLOR, "selector": child });
         }
     }
 }
@@ -91,9 +90,8 @@ fn legacy_to_saved(rule: LegacyRule) -> Option<SavedSelection> {
         .iter()
         .filter_map(|item| {
             Some(Selection {
-                key: String::new(),
                 color: item.color.unwrap_or(NO_COLOR),
-                selector: props_to_selector(&item.props, &mut tag_names)?,
+                ..Selection::of(props_to_selector(&item.props, &mut tag_names)?)
             })
         })
         .collect();
