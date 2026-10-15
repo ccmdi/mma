@@ -728,16 +728,14 @@ declare const commands$1: {
     githubLogout: () => Promise<null>;
     /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     githubHasSession: () => Promise<boolean>;
-    /**  Fetch a report's current state and comments as the signed-in GitHub user. @unstable */
-    githubIssueThread: (number: number) => Promise<IssueThread>;
     /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. @unstable */
     feedbackLogTail: () => Promise<string>;
     /**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. @unstable */
     feedbackSubmit: (title: string, body: string, installId: string | null) => Promise<ReportRef>;
     /**  Upload an image attachment for a bug report and return its URL. @unstable */
     feedbackUploadAttachment: (path: string, name: string) => Promise<AttachmentRef>;
-    /**  Fetch the current state and replies for an anonymous report. @unstable */
-    feedbackAnonymousThread: (number: number, token: string) => Promise<IssueThread>;
+    /**  Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. @unstable */
+    feedbackThread: (number: number, token: string | null) => Promise<IssueThread>;
     /**
      *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
      *  when the announced version is not newer than the running one.

@@ -396,10 +396,15 @@ fn fetch_me() -> AppResult<Option<GhUser>> {
     }
 }
 
-/// Comments on an issue, oldest first. Bot chatter is included: a signed-in user can read the
-/// whole thread on github.com anyway, so filtering here would only hide it from our own UI.
-pub(crate) fn parse_comments(v: &serde_json::Value) -> Vec<IssueComment> {
-    v.as_array()
+/// The issue's state and its replies, oldest first: every comment except the reporter's own.
+/// Bot chatter is included, since the reporter can read the whole thread on github.com anyway.
+pub(crate) fn parse_thread(issue: &serde_json::Value, comments: &serde_json::Value) -> IssueThread {
+    let reporter = issue
+        .get("user")
+        .and_then(|u| u.get("login"))
+        .and_then(|l| l.as_str());
+    let comments = comments
+        .as_array()
         .map(|items| {
             items
                 .iter()
@@ -421,9 +426,21 @@ pub(crate) fn parse_comments(v: &serde_json::Value) -> Vec<IssueComment> {
                         .unwrap_or_default()
                         .to_string(),
                 })
+                .filter(|c| Some(c.author.as_str()) != reporter)
                 .collect()
         })
-        .unwrap_or_default()
+        .unwrap_or_default();
+    IssueThread {
+        state: match issue.get("state").and_then(|s| s.as_str()) {
+            Some("closed") => IssueState::Closed,
+            _ => IssueState::Open,
+        },
+        state_reason: issue
+            .get("state_reason")
+            .and_then(|s| s.as_str())
+            .map(str::to_string),
+        comments,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -537,28 +554,13 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
     })
 }
 
-/// Fetch a report's current state and comments as the signed-in GitHub user.
-#[tauri::command]
-#[specta::specta]
-pub async fn github_issue_thread(number: u32) -> AppResult<IssueThread> {
-    blocking(move || {
-        let issue = get(&format!("{API}/repos/{REPO}/issues/{number}"))?;
-        let comments = get(&format!(
-            "{API}/repos/{REPO}/issues/{number}/comments?per_page=100"
-        ))?;
-        Ok(IssueThread {
-            state: match issue.get("state").and_then(|s| s.as_str()) {
-                Some("closed") => IssueState::Closed,
-                _ => IssueState::Open,
-            },
-            state_reason: issue
-                .get("state_reason")
-                .and_then(|s| s.as_str())
-                .map(str::to_string),
-            comments: parse_comments(&comments),
-        })
-    })
-    .await?
+/// The state and replies of an issue the signed-in user filed.
+pub(crate) fn issue_thread(number: u32) -> AppResult<IssueThread> {
+    let issue = get(&format!("{API}/repos/{REPO}/issues/{number}"))?;
+    let comments = get(&format!(
+        "{API}/repos/{REPO}/issues/{number}/comments?per_page=100"
+    ))?;
+    Ok(parse_thread(&issue, &comments))
 }
 
 #[cfg(test)]

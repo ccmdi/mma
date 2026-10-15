@@ -297,11 +297,14 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
     .await?
 }
 
-/// Fetch the current state and replies for an anonymous report.
+/// Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user.
 #[tauri::command]
 #[specta::specta]
-pub async fn feedback_anonymous_thread(number: u32, token: String) -> AppResult<IssueThread> {
+pub async fn feedback_thread(number: u32, token: Option<String>) -> AppResult<IssueThread> {
     blocking(move || {
+        let Some(token) = token else {
+            return github::issue_thread(number);
+        };
         // In a header rather than the URL, which lands in request logs along the way.
         let resp = proxy::proxy_client()
             .get(format!("{WORKER_URL}/reports/{number}"))

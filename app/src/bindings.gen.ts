@@ -98,16 +98,14 @@ export const commands = {
 	githubLogout: () => __TAURI_INVOKE<null>("github_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	githubHasSession: () => __TAURI_INVOKE<boolean>("github_has_session"),
-	/**  Fetch a report's current state and comments as the signed-in GitHub user. */
-	githubIssueThread: (number: number) => __TAURI_INVOKE<IssueThread>("github_issue_thread", { number }),
 	/**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
 	feedbackLogTail: () => __TAURI_INVOKE<string>("feedback_log_tail"),
 	/**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. */
 	feedbackSubmit: (title: string, body: string, installId: string | null) => __TAURI_INVOKE<ReportRef>("feedback_submit", { title, body, installId }),
 	/**  Upload an image attachment for a bug report and return its URL. */
 	feedbackUploadAttachment: (path: string, name: string) => __TAURI_INVOKE<AttachmentRef>("feedback_upload_attachment", { path, name }),
-	/**  Fetch the current state and replies for an anonymous report. */
-	feedbackAnonymousThread: (number: number, token: string) => __TAURI_INVOKE<IssueThread>("feedback_anonymous_thread", { number, token }),
+	/**  Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. */
+	feedbackThread: (number: number, token: string | null) => __TAURI_INVOKE<IssueThread>("feedback_thread", { number, token }),
 	/**
 	 *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
 	 *  when the announced version is not newer than the running one.

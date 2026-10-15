@@ -5983,16 +5983,6 @@ cmd.downloadBorderFile(level: string): Promise<null>
 
 Download the border dataset for `level` from the repository.
 
-#### cmd.feedbackAnonymousThread
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.feedbackAnonymousThread(number: number, token: string): Promise<IssueThread>
-```
-
-Fetch the current state and replies for an anonymous report.
-
 #### cmd.feedbackLogTail
 
 `unstable` · since v0.9.0
@@ -6016,6 +6006,16 @@ cmd.feedbackSubmit(
 ```
 
 File a report anonymously under this install id, or as the signed-in GitHub user when it is null.
+
+#### cmd.feedbackThread
+
+`unstable` · unreleased
+
+```ts
+cmd.feedbackThread(number: number, token: string | null): Promise<IssueThread>
+```
+
+Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user.
 
 #### cmd.feedbackUploadAttachment
 
@@ -6097,16 +6097,6 @@ cmd.githubHasSession(): Promise<boolean>
 ```
 
 Local-only check: is a token stored? Says nothing about its validity.
-
-#### cmd.githubIssueThread
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.githubIssueThread(number: number): Promise<IssueThread>
-```
-
-Fetch a report's current state and comments as the signed-in GitHub user.
 
 #### cmd.githubLogout
 

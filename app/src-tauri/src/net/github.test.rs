@@ -100,10 +100,14 @@ fn terminal_errors_stop_the_flow() {
 
 #[test]
 fn comments_parse_with_missing_fields() {
-    let got = parse_comments(&serde_json::json!([
-        { "user": { "login": "ccmdi" }, "body": "hi", "created_at": "2026-08-14T00:00:00Z" },
-        {},
-    ]));
+    let got = parse_thread(
+        &serde_json::json!({}),
+        &serde_json::json!([
+            { "user": { "login": "ccmdi" }, "body": "hi", "created_at": "2026-08-14T00:00:00Z" },
+            {},
+        ]),
+    )
+    .comments;
     assert_eq!(got.len(), 2);
     assert_eq!(got[0].author, "ccmdi");
     assert_eq!(got[0].body, "hi");
@@ -144,5 +148,25 @@ fn error_detail_handles_a_bare_message() {
 
 #[test]
 fn comments_parse_tolerates_a_non_array() {
-    assert!(parse_comments(&serde_json::json!({ "message": "Not Found" })).is_empty());
+    assert!(parse_thread(
+        &serde_json::json!({}),
+        &serde_json::json!({ "message": "Not Found" })
+    )
+    .comments
+    .is_empty());
+}
+
+#[test]
+fn the_reporters_own_comments_are_not_replies() {
+    let thread = parse_thread(
+        &serde_json::json!({ "user": { "login": "reporter" }, "state": "closed", "state_reason": "completed" }),
+        &serde_json::json!([
+            { "user": { "login": "reporter" }, "body": "more detail" },
+            { "user": { "login": "maintainer" }, "body": "fixed" },
+        ]),
+    );
+    assert_eq!(thread.comments.len(), 1);
+    assert_eq!(thread.comments[0].author, "maintainer");
+    assert_eq!(thread.state, IssueState::Closed);
+    assert_eq!(thread.state_reason.as_deref(), Some("completed"));
 }

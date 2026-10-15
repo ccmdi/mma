@@ -28,7 +28,7 @@ vi.mock("@/lib/commands", () => ({
 		githubMe: vi.fn().mockResolvedValue(null),
 		// Unreachable on purpose: a report keeps the state it was last told, rather than losing
 		// its status the moment a refresh fails.
-		githubIssueThread: vi.fn().mockRejectedValue(new Error("offline")),
+		feedbackThread: vi.fn().mockRejectedValue(new Error("offline")),
 		storeGetMapDefaults: vi.fn().mockResolvedValue(null),
 		storeSetMapDefaults: vi.fn().mockResolvedValue(null),
 	},

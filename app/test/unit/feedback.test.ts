@@ -25,8 +25,7 @@ vi.mock("@/lib/commands", async (orig) => ({
 	...(await orig()),
 	cmd: {
 		feedbackSubmit: vi.fn(async () => ({ number: 7, url: "https://x/7", token: null })),
-		githubMe: vi.fn(async () => ({ login: "me", avatarUrl: null })),
-		githubIssueThread: vi.fn(async () => ({
+		feedbackThread: vi.fn(async () => ({
 			state: "open" as const,
 			stateReason: null,
 			comments: [{ author: "maintainer", body: "b", createdAt: "2026-08-14T00:00:00Z" }],
@@ -371,13 +370,11 @@ describe("refreshing filed reports", () => {
 		vi.clearAllMocks();
 	});
 
-	it("asks who the user is once, not once per report", async () => {
-		// The login is what filters the reporter's own comments out of the reply count; resolving
-		// it inside the per-report fetch made a refresh N identical round trips.
+	it("reads each report's thread once", async () => {
 		setLocal("feedbackReports", [stored(1), stored(2), stored(3)]);
 		await refreshStoredReports();
-		expect(vi.mocked(cmd.githubMe)).toHaveBeenCalledTimes(1);
-		expect(vi.mocked(cmd.githubIssueThread)).toHaveBeenCalledTimes(3);
+		expect(vi.mocked(cmd.feedbackThread)).toHaveBeenCalledTimes(3);
+		expect(vi.mocked(cmd.feedbackThread)).toHaveBeenCalledWith(1, null);
 	});
 
 	it("records what it finds as unread", async () => {
@@ -389,7 +386,7 @@ describe("refreshing filed reports", () => {
 	it("touches the network only when something has been filed", async () => {
 		setLocal("feedbackReports", []);
 		await refreshStoredReports();
-		expect(vi.mocked(cmd.githubMe)).not.toHaveBeenCalled();
+		expect(vi.mocked(cmd.feedbackThread)).not.toHaveBeenCalled();
 	});
 });
 
