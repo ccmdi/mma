@@ -609,14 +609,14 @@ struct WorkBatch {
     rows: Vec<Location>,
     /// Representative id -> every location id that shares its key.
     fanout: Option<HashMap<Id<Location>, Vec<Id<Location>>>>,
-    /// Every location id this batch accounts for, sharers included.
-    ids: Vec<Id<Location>>,
+    /// Under `DedupeBy`, every other location sharing a representative's key, as read.
+    sharers: Vec<Location>,
 }
 
 impl WorkBatch {
     /// How many locations this batch accounts for in progress and failure counts.
     fn units(&self) -> u32 {
-        self.ids.len() as u32
+        (self.rows.len() + self.sharers.len()) as u32
     }
 }
 
@@ -1117,8 +1117,8 @@ fn split_batches(
         BatchMode::PerRow => Ok(rows
             .into_iter()
             .map(|r| WorkBatch {
-                ids: vec![r.id],
                 rows: vec![r],
+                sharers: Vec::new(),
                 fanout: None,
             })
             .collect()),
@@ -1127,8 +1127,8 @@ fn split_batches(
             Ok(rows
                 .chunks(size)
                 .map(|c| WorkBatch {
-                    ids: c.iter().map(|r| r.id).collect(),
                     rows: c.to_vec(),
+                    sharers: Vec::new(),
                     fanout: None,
                 })
                 .collect())
@@ -1140,7 +1140,7 @@ fn split_batches(
                 )));
             }
             let mut order: Vec<String> = Vec::new();
-            let mut groups: HashMap<String, Vec<Id<Location>>> = HashMap::new();
+            let mut groups: HashMap<String, Vec<Location>> = HashMap::new();
             let mut reps: Vec<Location> = Vec::new();
             for row in rows {
                 // A row missing the key can't dedupe against anything, so it stands alone.
@@ -1149,15 +1149,15 @@ fn split_batches(
                     _ => format!("\u{0}{}", row.id),
                 };
                 match groups.get_mut(&k) {
-                    Some(members) => members.push(row.id),
+                    Some(others) => others.push(row),
                     None => {
-                        groups.insert(k.clone(), vec![row.id]);
+                        groups.insert(k.clone(), Vec::new());
                         order.push(k);
                         reps.push(row);
                     }
                 }
             }
-            let mut members: HashMap<Id<Location>, Vec<Id<Location>>> = reps
+            let mut members: HashMap<Id<Location>, Vec<Location>> = reps
                 .iter()
                 .zip(order)
                 .map(|(rep, k)| (rep.id, groups.remove(&k).unwrap()))
@@ -1169,18 +1169,18 @@ fn split_batches(
                 if rows.is_empty() {
                     break;
                 }
-                let fanout: HashMap<Id<Location>, Vec<Id<Location>>> = rows
-                    .iter()
-                    .map(|r| (r.id, members.remove(&r.id).unwrap()))
-                    .collect();
-                let ids = rows
-                    .iter()
-                    .flat_map(|r| fanout[&r.id].iter().copied())
-                    .collect();
+                let mut fanout = HashMap::new();
+                let mut sharers = Vec::new();
+                for rep in &rows {
+                    let others = members.remove(&rep.id).unwrap();
+                    let ids = std::iter::once(rep.id).chain(others.iter().map(|o| o.id));
+                    fanout.insert(rep.id, ids.collect());
+                    sharers.extend(others);
+                }
                 batches.push(WorkBatch {
                     rows,
                     fanout: Some(fanout),
-                    ids,
+                    sharers,
                 });
             }
             Ok(batches)
@@ -1256,8 +1256,12 @@ fn run_instance(
                 // Only the patch sink parses: a collected answer is the module's
                 // contract with its caller, not a Patch<Location>.
                 Sink::Patch => to_patches(&entries).map(|patches| {
-                    let read: HashMap<Id<Location>, &Location> =
-                        batch.rows.iter().map(|r| (r.id, r)).collect();
+                    let read: HashMap<Id<Location>, &Location> = batch
+                        .rows
+                        .iter()
+                        .chain(&batch.sharers)
+                        .map(|r| (r.id, r))
+                        .collect();
                     BatchProduct::Patches(
                         patches
                             .into_iter()
@@ -1279,7 +1283,15 @@ fn run_instance(
                     log::warn!("[procedure] provider '{}' batch failed: {e}", decl.id);
                 }
                 prog.add_failed(units);
-                (None, batch.ids)
+                (
+                    None,
+                    batch
+                        .rows
+                        .iter()
+                        .chain(&batch.sharers)
+                        .map(|r| r.id)
+                        .collect(),
+                )
             }
         };
         let _ = out.send(Produced::Batch {

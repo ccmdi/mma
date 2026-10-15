@@ -655,6 +655,32 @@ fn dedupe_by_pano_fans_the_patch_out_to_every_sharer() {
 }
 
 #[test]
+fn a_deduped_batch_holds_each_sharers_own_row_for_the_stale_output_guard() {
+    let row = |id: u32, pano: &str, lat: f64| Location {
+        pano_id: Some(pano.into()),
+        ..loc(id, lat, 0.0)
+    };
+    let rows = vec![row(1, "A", 1.0), row(2, "A", 2.0), row(3, "B", 3.0)];
+    let batches = split_batches(
+        &BatchMode::DedupeBy {
+            key: "panoId".into(),
+        },
+        rows.clone(),
+        10,
+    )
+    .unwrap();
+
+    assert_eq!(batches.len(), 1);
+    let batch = &batches[0];
+    assert_eq!(
+        batch.rows.iter().map(|r| r.id).collect::<Vec<_>>(),
+        [Id::new(1), Id::new(3)]
+    );
+    let sharers: Vec<(Id<Location>, f64)> = batch.sharers.iter().map(|r| (r.id, r.lat)).collect();
+    assert_eq!(sharers, [(Id::new(2), 2.0)]);
+}
+
+#[test]
 fn dedupe_by_spreads_representatives_over_every_instance() {
     let mut locs: Vec<Location> = (1..=5_001u32)
         .map(|i| Location {
