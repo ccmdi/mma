@@ -156,8 +156,8 @@ export const commands = {
 	remoteApiRespond: (id: number, ok: boolean, payload: string) => __TAURI_INVOKE<void>("remote_api_respond", { id, ok, payload }),
 	/**
 	 *  Open a map, deliver its later changes on `changes`, and return its initial state
-	 *  (per-value counts, metadata, undo/redo availability). Must be called before any other
-	 *  store commands.
+	 *  (per-value counts, metadata, undo/redo availability). The scratch map is created on its
+	 *  first open. Must be called before any other store commands.
 	 */
 	storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => __TAURI_INVOKE<StoreStatus>("store_open_map", { mapId, changes }),
 	/**  Close the open map, saving unsaved changes first. */
@@ -216,11 +216,6 @@ export const commands = {
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps"),
 	/**  Create a new empty map with the preferences new maps start from. Returns the full metadata. */
 	storeCreateMap: (name: string, folder: string | null) => __TAURI_INVOKE<MapMeta>("store_create_map", { name, folder }),
-	/**
-	 *  Open the scratch map, creating it if this is its first use. Ordinary in every way
-	 *  except that `storeListMaps` leaves it out and it is emptied on every launch.
-	 */
-	storeScratchMap: () => __TAURI_INVOKE<MapMeta>("store_scratch_map"),
 	/**  Delete a map and all its data permanently. */
 	storeDeleteMap: (id: string) => __TAURI_INVOKE<null>("store_delete_map", { id }),
 	/**

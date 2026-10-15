@@ -8,7 +8,7 @@ use crate::selections::saved::SavedSelection;
 use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::selections::{self, Selector};
 use crate::store::engine::*;
-use crate::store::maps::MapMeta;
+use crate::store::maps::{scratch_map_row, MapMeta, SCRATCH_MAP_ID};
 use crate::store::storage;
 use crate::types::{AppError, AppResult, Location};
 use crate::util::now_iso;
@@ -19,8 +19,8 @@ use tauri::ipc::Channel;
 use tokio::task;
 
 /// Open a map, deliver its later changes on `changes`, and return its initial state
-/// (per-value counts, metadata, undo/redo availability). Must be called before any other
-/// store commands.
+/// (per-value counts, metadata, undo/redo availability). The scratch map is created on its
+/// first open. Must be called before any other store commands.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_open_map(
@@ -56,9 +56,13 @@ async fn open_claimed_map(
     let _writing = files.lock().await;
     let map_id2 = map_id.clone();
     let mut store = task::spawn_blocking(move || {
+        let db = storage::open_db()?;
+        if map_id2.raw() == SCRATCH_MAP_ID {
+            scratch_map_row(&db)?;
+        }
         let mut store = load_store(&map_id2)?;
         let now = now_iso();
-        storage::open_db()?.execute(
+        db.execute(
             "UPDATE maps SET last_opened_at = ?1 WHERE id = ?2",
             rusqlite::params![now, map_id2.raw()],
         )?;

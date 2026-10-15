@@ -580,3 +580,20 @@ fn opening_another_map_stops_the_first_ones_changes_reaching_the_window() {
     let version = add_one(&state, &second);
     assert_eq!(*from_second.lock().unwrap(), [version]);
 }
+
+#[test]
+fn opening_the_scratch_map_creates_it() {
+    storage::tests::map_on_disk("scratch-neighbour");
+    let scratch = Id::<MapMeta, String>::new(SCRATCH_MAP_ID.into());
+    let state = StoreState::new(StoreManager::new());
+    let status = async_runtime::block_on(open_claimed_map(
+        &WindowLabel("w".into()),
+        &state,
+        scratch.clone(),
+        Channel::new(|_| Ok(())),
+    ))
+    .unwrap();
+
+    assert_eq!(status.derived.meta.unwrap().0.id, scratch);
+    assert!(opened_on_disk(&scratch).is_some());
+}

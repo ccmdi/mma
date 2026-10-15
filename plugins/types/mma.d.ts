@@ -789,8 +789,8 @@ declare const commands$1: {
     remoteApiRespond: (id: number, ok: boolean, payload: string) => Promise<void>;
     /**
      *  Open a map, deliver its later changes on `changes`, and return its initial state
-     *  (per-value counts, metadata, undo/redo availability). Must be called before any other
-     *  store commands.
+     *  (per-value counts, metadata, undo/redo availability). The scratch map is created on its
+     *  first open. Must be called before any other store commands.
      *  @unstable
      */
     storeOpenMap: (mapId: string, changes: Channel<ChangeEvent>) => Promise<StoreStatus>;
@@ -856,12 +856,6 @@ declare const commands$1: {
     storeListMaps: () => Promise<MapMeta[]>;
     /**  Create a new empty map with the preferences new maps start from. Returns the full metadata. @unstable */
     storeCreateMap: (name: string, folder: string | null) => Promise<MapMeta>;
-    /**
-     *  Open the scratch map, creating it if this is its first use. Ordinary in every way
-     *  except that `storeListMaps` leaves it out and it is emptied on every launch.
-     *  @unstable
-     */
-    storeScratchMap: () => Promise<MapMeta>;
     /**  Delete a map and all its data permanently. @unstable */
     storeDeleteMap: (id: string) => Promise<null>;
     /**

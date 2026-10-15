@@ -6768,8 +6768,8 @@ cmd.storeOpenMap(
 ```
 
 Open a map, deliver its later changes on `changes`, and return its initial state
-(per-value counts, metadata, undo/redo availability). Must be called before any other
-store commands.
+(per-value counts, metadata, undo/redo availability). The scratch map is created on its
+first open. Must be called before any other store commands.
 
 #### cmd.storeRead
 
@@ -6902,17 +6902,6 @@ cmd.storeSaveSelection(
 ```
 
 Save a new selection rule.
-
-#### cmd.storeScratchMap
-
-`unstable` · since v0.10.1
-
-```ts
-cmd.storeScratchMap(): Promise<MapMeta>
-```
-
-Open the scratch map, creating it if this is its first use. Ordinary in every way
-except that `storeListMaps` leaves it out and it is emptied on every launch.
 
 #### cmd.storeSeenClear
 

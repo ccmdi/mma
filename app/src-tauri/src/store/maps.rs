@@ -703,7 +703,7 @@ fn list_map_rows(conn: &Connection) -> rusqlite::Result<Vec<MapMeta>> {
 /// row, so re-entering the map during a session keeps whatever is in it. It is created
 /// nameless: a reserved map is not the user's to name, and every surface that renders a
 /// map name already degrades when there isn't one.
-fn scratch_map_row(conn: &Connection) -> AppResult<MapMeta> {
+pub(crate) fn scratch_map_row(conn: &Connection) -> AppResult<MapMeta> {
     let now = now_iso();
     let settings = serde_json::to_string(&map_defaults::new_map_settings(conn)?)?;
     conn.execute(
@@ -712,14 +712,6 @@ fn scratch_map_row(conn: &Connection) -> AppResult<MapMeta> {
         params![SCRATCH_MAP_ID, settings, now],
     )?;
     Ok(read_map_meta(conn, &Id::new(SCRATCH_MAP_ID.into()))?)
-}
-
-/// Open the scratch map, creating it if this is its first use. Ordinary in every way
-/// except that `storeListMaps` leaves it out and it is emptied on every launch.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_scratch_map() -> AppResult<MapMeta> {
-    storage::with_db(move |conn| scratch_map_row(conn)).await
 }
 
 /// Drop last session's scratch map. Startup-only: nothing is open yet, so there is no

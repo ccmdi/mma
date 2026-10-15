@@ -177,8 +177,7 @@ export const Maps = {
 	},
 	/** Open the scratch map, creating it on first use. */
 	openScratch: async () => {
-		const meta = await cmd.storeScratchMap();
-		await openWindow({ type: "editor", mapId: meta.id }, meta.name);
+		await openWindow({ type: "editor", mapId: SCRATCH_MAP_ID });
 	},
 	/** Whether `id` belongs to an app fixture rather than a user-created map. @unstable */
 	isReserved: (id: string | null): boolean => {
