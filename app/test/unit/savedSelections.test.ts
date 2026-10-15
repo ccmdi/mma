@@ -45,8 +45,8 @@ vi.mock("@/lib/commands", () => ({
 			h.calls.push(`get:${ids.join(",")}`);
 			return structuredClone(h.rows.filter((r) => ids.includes(r.id)));
 		},
-		storeApplySavedSelection: async (id: string) => {
-			h.added.push(id);
+		storeEditSelections: async (op: { kind: string; id: string }) => {
+			h.added.push(op.id);
 			return { mutation: { version: 0, keys: [] } };
 		},
 		storeSaveSelection: async (

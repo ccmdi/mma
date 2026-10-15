@@ -637,8 +637,6 @@ declare const commands$1: {
     storeEditSelections: (op: SelectionOp) => Promise<MutationResult<ListedSelection>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
-    /** Apply a saved rule with its value names resolved against the open map. @unstable */
-    storeApplySavedSelection: (id: string) => Promise<MutationResult<ListedSelection>>;
     /**  Milliseconds from app launch until the window was ready. @unstable */
     appReady: () => Promise<number>;
     /**
@@ -2658,6 +2656,12 @@ type SelectionOp = {
     /** @unstable */
     kind: "add";
     selections: SelectionInput[];
+} | 
+/**  Add a saved selection's parts, with its value names resolved against the open map. */
+{
+    /** @unstable */
+    kind: "addSaved";
+    id: string;
 } | {
     /** @unstable */
     kind: "set";

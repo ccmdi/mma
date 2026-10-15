@@ -1,3 +1,4 @@
+use super::saved::SavedSelection;
 use super::{FilterOp, ReviewMode, Selection, Selector, Thinning};
 use crate::store::engine::ListedSelection;
 use crate::types::{wire_str_enum, Location};
@@ -254,6 +255,10 @@ wire_str_enum! {
 pub enum SelectionOp {
     Add {
         selections: Vec<SelectionInput>,
+    },
+    /// Add a saved selection's parts, with its value names resolved against the open map.
+    AddSaved {
+        id: Id<SavedSelection, String>,
     },
     Set {
         selections: Vec<SelectionInput>,
@@ -608,6 +613,7 @@ impl SelectionOp {
             Self::Complement { keys } => joined(rows, keys.as_ref(), |targets| {
                 invert(combine(Group::Union, targets))
             }),
+            Self::AddSaved { .. } => rows.to_vec(),
             Self::Ghost { index } => rows
                 .iter()
                 .enumerate()

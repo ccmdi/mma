@@ -4,7 +4,6 @@
 
 use crate::io::export;
 use crate::plugins::borders;
-use crate::selections::saved::SavedSelection;
 use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::selections::{self, Selector};
 use crate::store::engine::*;
@@ -554,13 +553,11 @@ macro_rules! command_table {
             };
 
             "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult<ListedSelection> => |store| {
+                let op = op.resolved(store)?;
                 Ok(store.edit_selections(&op))
             };
             "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => async |store| {
                 store.at(&target).read(&selector.map_children(SelectionInput::compile), &ask)
-            };
-            "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {
-                selections::saved::apply_saved_selection(store, &id)
             };
  }
     };

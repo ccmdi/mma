@@ -18,8 +18,6 @@ export const commands = {
 	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
-	/** Apply a saved rule with its value names resolved against the open map. */
-	storeApplySavedSelection: (id: string) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_apply_saved_selection", { id }),
 	/**  Milliseconds from app launch until the window was ready. */
 	appReady: () => __TAURI_INVOKE<number>("app_ready"),
 	/**
@@ -1706,7 +1704,9 @@ export type SelectionInput = {
 	color?: RGB | null,
 };
 
-export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | 
+export type SelectionOp = { kind: "add"; selections: SelectionInput[] } | 
+/**  Add a saved selection's parts, with its value names resolved against the open map. */
+{ kind: "addSaved"; id: string } | { kind: "set"; selections: SelectionInput[] } | { kind: "remove"; keys: string[] } | { kind: "toggle"; selections: SelectionInput[] } | { kind: "manual"; id: number } | { kind: "active"; op: SelectionOp } | 
 /**  Join the listed selections named by `keys`, or every one when null, into one group. */
 { kind: "combine"; group: Group; keys: string[] | null } | 
 /**

@@ -132,7 +132,7 @@ export const SavedSelection = {
 	 *  were added. */
 	apply: (saved: SavedSelection): number => {
 		const count = saved.selector.type === "Union" ? saved.selector.selections.length : 1;
-		void Mutation.run(() => cmd.storeApplySavedSelection(saved.id));
+		void Mutation.run(() => cmd.storeEditSelections({ kind: "addSaved", id: saved.id }));
 		return count;
 	},
 };

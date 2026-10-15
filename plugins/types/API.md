@@ -6393,16 +6393,6 @@ cmd.startupCheck(): Promise<null>
 
 Fails with the reason the app could not start, and succeeds when it started normally.
 
-#### cmd.storeApplySavedSelection
-
-`unstable` · since v0.12.0
-
-```ts
-cmd.storeApplySavedSelection(id: string): Promise<MutationResult<ListedSelection>>
-```
-
-Apply a saved rule with its value names resolved against the open map.
-
 #### cmd.storeCheckoutCommit
 
 `unstable` · since v0.4.0

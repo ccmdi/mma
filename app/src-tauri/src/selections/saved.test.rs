@@ -1,4 +1,5 @@
 use super::*;
+use crate::selections::tree::SelectionOp;
 use crate::selections::{FilterOp, PolygonGeometry, Selection, Selector};
 use crate::store::engine::{Tracked, ValueRecord};
 use crate::store::maps::{FieldDef, FieldType};
@@ -491,4 +492,30 @@ fn a_rule_over_any_interned_field_carries_its_values_to_another_map_by_name() {
         contains("codes", 4),
         "a list field that interns nothing keeps its literal test"
     );
+}
+
+#[test]
+fn a_saved_selection_added_to_the_active_selections_is_read_and_added() {
+    storage::tests::map_on_disk("add-saved-active");
+    let saved = create(
+        &storage::open_db().unwrap(),
+        "everything".into(),
+        Selector::Everything,
+        ValueNames::new(),
+        Rgb([1, 2, 3]),
+    )
+    .unwrap();
+    let mut store = Store::new();
+    let op = SelectionOp::Active {
+        op: Box::new(SelectionOp::AddSaved {
+            id: saved.info.id.clone(),
+        }),
+    }
+    .resolved(&mut store)
+    .unwrap();
+    store.edit_selections(&op);
+    let listed = store.selections.list();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].selection.selector, Selector::Everything);
+    assert_eq!(listed[0].selection.color, Rgb([1, 2, 3]));
 }

@@ -5,9 +5,7 @@
 //! time; the tree itself is stored verbatim. Rules are global rather than per-map -- no `map_id`.
 
 use crate::selections::{Selection, Selector};
-use crate::store::engine::{
-    ListedSelection, MutationResult, Store, StoreState, ValueRecord, WindowLabel,
-};
+use crate::store::engine::{Store, StoreState, ValueRecord, WindowLabel};
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use crate::util::{now_iso, Rgb};
@@ -360,30 +358,31 @@ fn remap(selector: &Selector, resolve: &impl Fn(&str, u32) -> Option<Option<u32>
     edit(selector.map_children_ref(|child| child.mapped(&edit)))
 }
 
-pub(crate) fn apply_saved_selection(
-    store: &mut Store,
-    id: &Id<SavedSelection, String>,
-) -> AppResult<MutationResult<ListedSelection>> {
-    let conn = storage::open_db()?;
-    let saved = get(&conn, from_ref(id))?
-        .into_iter()
-        .next()
-        .ok_or_else(|| AppError("saved selection not found".into()))?;
-    let selector = saved.resolved(store);
-    let selections = match selector {
-        Selector::Union { selections } => selections
-            .into_iter()
-            .map(|selection| super::tree::SelectionInput {
-                selector: selection.selector.map_children(input),
-                color: Some(selection.color),
-            })
-            .collect(),
-        selector => vec![super::tree::SelectionInput {
-            selector: selector.map_children(input),
-            color: Some(saved.info.color),
-        }],
-    };
-    Ok(store.edit_selections(&super::tree::SelectionOp::Add { selections }))
+impl super::tree::SelectionOp {
+    /// This op with every saved selection it adds read and resolved against `store`.
+    pub(crate) fn resolved(self, store: &mut Store) -> AppResult<Self> {
+        Ok(match self {
+            Self::AddSaved { id } => {
+                let conn = storage::open_db()?;
+                let saved = get(&conn, from_ref(&id))?
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| AppError("saved selection not found".into()))?;
+                let selections = match saved.resolved(store) {
+                    Selector::Union { selections } => selections.into_iter().map(input).collect(),
+                    selector => vec![super::tree::SelectionInput {
+                        selector: selector.map_children(input),
+                        color: Some(saved.info.color),
+                    }],
+                };
+                Self::Add { selections }
+            }
+            Self::Active { op } => Self::Active {
+                op: Box::new(op.resolved(store)?),
+            },
+            op => op,
+        })
+    }
 }
 
 impl SavedSelection {
