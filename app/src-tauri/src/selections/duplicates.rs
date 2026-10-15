@@ -9,81 +9,41 @@ use mma_algebra::Id;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-/// Grid-accelerated spatial duplicate detection: `mask[global_idx] = true` for every
-/// location with at least one other location within `distance_m`. A per-point
-/// predicate rather than a pair sweep: the grid is read-only after build, so points
-/// are tested in parallel, and each test early-exits on its first neighbour - a
-/// dense cluster costs O(1) per member instead of O(members) pair callbacks.
-pub(super) fn find_duplicates_bitmask(view: &LocView, distance_m: f64, mask: &mut [bool]) {
+/// Every alive row within `distance_m` metres of another, over the whole map. A per-point
+/// predicate rather than a pair sweep: the grid is read-only after build, so points are
+/// tested in parallel, and each test early-exits on its first neighbour - a dense cluster
+/// costs O(1) per member instead of O(members) pair callbacks.
+pub(super) fn duplicates(view: &LocView, distance_m: f64) -> IdSet<Location> {
     use rayon::prelude::*;
-    struct Pt {
-        lat: f64,
-        lng: f64,
-        global_idx: usize,
+    let (ids, pts): (Vec<Id<Location>>, Vec<(f64, f64)>) = view
+        .alive()
+        .map(|row| (row.id(), (row.lat(), row.lng())))
+        .unzip();
+    if ids.len() < 2 {
+        return IdSet::new();
     }
-    let mut points = Vec::new();
-
-    for i in 0..view.batch_rows() {
-        if !view.is_alive(i) {
-            continue;
-        }
-        if let Some(p) = view.patch_at(i) {
-            points.push(Pt {
-                lat: p.lat,
-                lng: p.lng,
-                global_idx: i,
-            });
-        } else {
-            points.push(Pt {
-                lat: view.cols.unwrap().lat.value(i),
-                lng: view.cols.unwrap().lng.value(i),
-                global_idx: i,
-            });
-        }
-    }
-    for (j, loc) in view.adds.iter().enumerate() {
-        points.push(Pt {
-            lat: loc.lat,
-            lng: loc.lng,
-            global_idx: view.batch_rows() + j,
-        });
-    }
-
-    let n = points.len();
-    if n < 2 {
-        return;
-    }
-
-    let pts: Vec<(f64, f64)> = points.iter().map(|p| (p.lat, p.lng)).collect();
-    // Degenerate radius: every member of an exact-coordinate group of >= 2 is a dup.
     let Some(grid) = Grid::build(&pts, distance_m) else {
-        for idxs in exact_coord_groups(&pts).values() {
-            if idxs.len() >= 2 {
-                for &i in idxs {
-                    mask[points[i].global_idx] = true;
-                }
-            }
-        }
-        return;
+        return exact_coord_groups(&pts)
+            .into_values()
+            .filter(|group| group.len() >= 2)
+            .flatten()
+            .map(|i| ids[i])
+            .collect();
     };
-
-    let marks: Vec<bool> = (0..n)
+    let near: Vec<Id<Location>> = (0..ids.len())
         .into_par_iter()
         .with_min_len(4096)
-        .map(|pi| grid.for_each_neighbor(pi, 0, |_| true))
+        .filter(|&pi| grid.for_each_neighbor(pi, 0, |_| true))
+        .map(|pi| ids[pi])
         .collect();
-    for (i, p) in points.iter().enumerate() {
-        if marks[i] {
-            mask[p.global_idx] = true;
-        }
-    }
+    near.into_iter().collect()
 }
 
 impl Scope<'_, '_> {
     /// Transitive (connected-component) spatial grouping. Two locations are linked when within
     /// `distance_m` metres; each returned group is a connected component of size >= 2. Same
-    /// grid broad-phase as `find_duplicates_bitmask`, but union-find preserves the partition
-    /// instead of flattening to a membership mask. Chains collapse: A~B, B~C => {A,B,C} even
+    /// grid broad-phase as `duplicates`, but union-find preserves the partition
+    /// instead of flattening to a membership set. Chains collapse: A~B, B~C => {A,B,C} even
     /// if A and C are out of range. Output is deterministic: ids ascending within each group,
     /// groups ordered by first id.
     pub fn duplicate_groups(&self, distance_m: f64) -> Vec<Vec<Id<Location>>> {

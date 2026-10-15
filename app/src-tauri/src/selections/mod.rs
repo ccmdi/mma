@@ -1339,22 +1339,6 @@ impl<'v, 'a> Scope<'v, 'a> {
     }
 }
 
-/// Every alive row within `distance` metres of another, over the whole map.
-fn duplicates(view: &LocView, distance: f64) -> IdSet<Location> {
-    let mut mask = vec![false; view.batch_rows() + view.adds.len()];
-    find_duplicates_bitmask(view, distance, &mut mask);
-    let base = (0..view.batch_rows())
-        .filter(|&i| mask[i] && view.is_alive(i))
-        .map(|i| view.batch_id(i));
-    let adds = view
-        .adds
-        .iter()
-        .enumerate()
-        .filter(|(j, _)| mask[view.batch_rows() + j])
-        .map(|(_, l)| l.id);
-    base.chain(adds).collect()
-}
-
 #[cfg(test)]
 #[path = "selections.test.rs"]
 mod tests;
