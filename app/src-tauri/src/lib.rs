@@ -90,7 +90,7 @@ fn app_uptime() -> u32 {
 }
 
 macro_rules! register_commands {
-    ([$($extra:tt)*]; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => |$store:ident $(, $window:ident)?| $body:block; )*) => {
+    ([$($extra:tt)*]; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => $( $mode:ident )? |$store:ident $(, $window:ident)?| $body:block; )*) => {
         tauri_specta::collect_commands![ $(crate::store::commands::$name,)* $($extra)* ]
     };
 }

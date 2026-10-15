@@ -530,6 +530,15 @@ fn receipt(
     edited
 }
 
+macro_rules! run_as {
+    (; $run:expr) => {
+        $run
+    };
+    (async; $run:expr) => {
+        task::block_in_place(|| $run)
+    };
+}
+
 #[cfg(test)]
 #[path = "commands.test.rs"]
 mod tests;
@@ -545,7 +554,7 @@ macro_rules! command_table {
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })
             };
-            "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => |store| {
+            "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => async |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)
             };
             "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
@@ -576,17 +585,17 @@ macro_rules! table_target {
 }
 
 macro_rules! define_commands {
-    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => |$store:ident $(, $window:ident)?| $body:block; )*) => {
+    ($extra:tt; $( $doc:literal $name:ident( $( $arg:ident: $ty:ty ),* ) $( at $at:ident )? -> $ret:ty => $( $mode:ident )? |$store:ident $(, $window:ident)?| $body:block; )*) => {
         $(
             #[doc = $doc]
             #[tauri::command]
             #[specta::specta]
-            pub fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
+            pub $( $mode )? fn $name(label: WindowLabel, state: tauri::State<'_, StoreState>, $( $arg: $ty ),*) -> AppResult<$ret> {
                 let started = Instant::now();
-                let result = with_target(&state, &label, table_target!($( $at )?), |$store| {
+                let result = run_as!($( $mode )?; with_target(&state, &label, table_target!($( $at )?), |$store| {
                     $( let $window = &label; )?
                     $body
-                });
+                }));
                 log::debug!("[cmd] {} total={}ms", stringify!($name), started.elapsed().as_millis());
                 result
             }

@@ -2,6 +2,7 @@ use super::*;
 use crate::selections::PolygonGeometry;
 use crate::test_util;
 use crate::util::now_unix;
+use std::future::Future;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
@@ -225,6 +226,60 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
         Vec<Edit<Location>>,
         IncomingRecords,
     ) -> AppResult<EditResult> = store_edit;
+}
+
+#[test]
+fn store_work_is_spawned_so_whole_map_work_leaves_the_main_thread_free() {
+    fn spawned(
+        state: tauri::State<'_, StoreState>,
+        selector: Selector<SelectionInput>,
+        work: Work,
+    ) -> impl Future<Output = AppResult<WorkResult>> + '_ {
+        store_work(WindowLabel("w".into()), state, selector, work)
+    }
+    let _ = spawned;
+}
+
+#[test]
+fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
+    let window = WindowLabel("w".into());
+    let map = Id::<MapMeta, String>::new("spawned".into());
+    let mut mgr = StoreManager::new();
+    let rows = [
+        test_util::loc(1, 0.0, 0.0),
+        test_util::loc(2, 1.0, 1.0),
+        test_util::loc(3, 2.0, 2.0),
+    ];
+    mgr.stores.insert(map.clone(), with_rows("spawned", &rows));
+    mgr.window_map.insert(window.clone(), map.clone());
+    let state = Arc::new(StoreState::new(mgr));
+
+    let work = Work::Locations(LocationOp::Set {
+        key: "pitch".into(),
+        value: serde_json::json!(10.0),
+    });
+    let worked = async_runtime::block_on(async_runtime::spawn({
+        let state = state.clone();
+        async move {
+            run_as!(async; with_target(&state, &window, &Target::Map { id: None }, |store| {
+                apply_work(store, &Selector::Everything, &work)
+            }))
+        }
+    }))
+    .unwrap()
+    .unwrap();
+
+    assert_eq!(worked.changed, 3);
+    let mut mgr = state.lock().unwrap();
+    let pitches: Vec<f64> = mgr
+        .store_for_map(&map)
+        .unwrap()
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
+        .iter()
+        .map(|row| row.pitch)
+        .collect();
+    assert_eq!(pitches, [10.0, 10.0, 10.0]);
 }
 
 #[test]
