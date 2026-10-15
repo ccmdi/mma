@@ -551,7 +551,7 @@ macro_rules! command_table {
                 let edited = store.at(&target).edit(edits, records, &mut None);
                 Ok(receipt(store, window, &target, edited))
             };
-            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => |store| {
+            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => async |store| {
                 Ok(MutationResult { mutation: store.land(&name, &mut None) })
             };
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => async |store| {
@@ -564,7 +564,7 @@ macro_rules! command_table {
             "Edit the selection tree." store_edit_selections(op: SelectionOp) -> MutationResult<ListedSelection> => |store| {
                 Ok(store.edit_selections(&op))
             };
-            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => |store| {
+            "Answer one question about the target's locations matched by selector." store_read(target: Target, selector: Selector<SelectionInput>, ask: Ask) at target -> Answer => async |store| {
                 store.at(&target).read(&selector.map_children(SelectionInput::compile), &ask)
             };
             "Apply a saved rule with its value names resolved against the open map." store_apply_saved_selection(id: Id<SavedSelection, String>) -> MutationResult<ListedSelection> => |store| {

@@ -241,6 +241,25 @@ fn store_work_is_spawned_so_whole_map_work_leaves_the_main_thread_free() {
 }
 
 #[test]
+fn whole_map_reads_and_landing_a_layer_are_spawned_off_the_main_thread() {
+    fn read(
+        state: tauri::State<'_, StoreState>,
+        target: Target,
+        selector: Selector<SelectionInput>,
+        ask: Ask,
+    ) -> impl Future<Output = AppResult<Answer>> + '_ {
+        store_read(WindowLabel("w".into()), state, target, selector, ask)
+    }
+    fn land(
+        state: tauri::State<'_, StoreState>,
+        name: String,
+    ) -> impl Future<Output = AppResult<MutationResult>> + '_ {
+        store_land_layer(WindowLabel("w".into()), state, name)
+    }
+    let _ = (read, land);
+}
+
+#[test]
 fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
     let window = WindowLabel("w".into());
     let map = Id::<MapMeta, String>::new("spawned".into());
