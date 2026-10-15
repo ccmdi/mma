@@ -111,7 +111,7 @@ async function boot() {
 
 	cmd
 		.appReady()
-		.then((rustTotal) =>
+		.then(({ startupMs: rustTotal }) =>
 			log.info(
 				`[boot] js-load(nav->boot)=${t0.toFixed(0)}ms js-total=${jsTotal.toFixed(0)}ms rust-total=${rustTotal}ms pre-js(webview+bundle)=${(rustTotal - jsTotal).toFixed(0)}ms`,
 			),

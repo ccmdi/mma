@@ -187,10 +187,9 @@ async function mapDiagnostics(): Promise<MapDiagnostics | null> {
 }
 
 export async function collectDiagnostics(): Promise<Diagnostics> {
-	const [db, startupMs, uptimeSecs, plugins, map] = await Promise.all([
+	const [db, { startupMs, uptimeSecs }, plugins, map] = await Promise.all([
 		cmd.storeDbStats(),
 		cmd.appReady(),
-		cmd.appUptime(),
 		pluginList(),
 		mapDiagnostics(),
 	]);

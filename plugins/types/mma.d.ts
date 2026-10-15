@@ -637,14 +637,8 @@ declare const commands$1: {
     storeEditSelections: (op: SelectionOp) => Promise<MutationResult<ListedSelection>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
-    /**  Milliseconds from app launch until the window was ready. @unstable */
-    appReady: () => Promise<number>;
-    /**
-     *  Seconds the app has been running, counted from launch rather than from whenever a
-     *  window last loaded its page.
-     *  @unstable
-     */
-    appUptime: () => Promise<number>;
+    /**  Reports the window ready and returns the app's startup time and uptime. @unstable */
+    appReady: () => Promise<AppReady>;
     /**  Fails with the reason the app could not start, and succeeds when it started normally. @unstable */
     startupCheck: () => Promise<null>;
     /**
@@ -1260,6 +1254,13 @@ type Answer =
 {
     kind: "held";
     held: boolean[];
+};
+/**  How long the app took to start and how long it has been running. @unstable */
+type AppReady = {
+    /**  Milliseconds from app launch until the first window was ready. */
+    startupMs: number;
+    /**  Seconds since app launch rather than since a window last loaded its page. */
+    uptimeSecs: number;
 };
 /**  A question about the selected locations. */
 type Ask = 
@@ -8034,4 +8035,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AnonIssueRef, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportOpts, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

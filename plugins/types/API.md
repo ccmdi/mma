@@ -5626,21 +5626,10 @@ Every backend command, typed. Any of them can change in a release.
 `unstable` · since v0.5.2
 
 ```ts
-cmd.appReady(): Promise<number>
+cmd.appReady(): Promise<AppReady>
 ```
 
-Milliseconds from app launch until the window was ready.
-
-#### cmd.appUptime
-
-`unstable` · since v0.11.0
-
-```ts
-cmd.appUptime(): Promise<number>
-```
-
-Seconds the app has been running, counted from launch rather than from whenever a
-window last loaded its page.
+Reports the window ready and returns the app's startup time and uptime.
 
 #### cmd.borderLookup
 

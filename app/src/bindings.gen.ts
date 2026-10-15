@@ -18,13 +18,8 @@ export const commands = {
 	storeEditSelections: (op: SelectionOp) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
-	/**  Milliseconds from app launch until the window was ready. */
-	appReady: () => __TAURI_INVOKE<number>("app_ready"),
-	/**
-	 *  Seconds the app has been running, counted from launch rather than from whenever a
-	 *  window last loaded its page.
-	 */
-	appUptime: () => __TAURI_INVOKE<number>("app_uptime"),
+	/**  Reports the window ready and returns the app's startup time and uptime. */
+	appReady: () => __TAURI_INVOKE<AppReady>("app_ready"),
 	/**  Fails with the reason the app could not start, and succeeds when it started normally. */
 	startupCheck: () => __TAURI_INVOKE<null>("startup_check"),
 	/**
@@ -471,6 +466,14 @@ export type Answer =
 { kind: "nearAny"; values: boolean[] } | 
 /**  Per given location, whether the map already holds it. */
 { kind: "held"; held: boolean[] };
+
+/**  How long the app took to start and how long it has been running. */
+export type AppReady = {
+	/**  Milliseconds from app launch until the first window was ready. */
+	startupMs: number,
+	/**  Seconds since app launch rather than since a window last loaded its page. */
+	uptimeSecs: number,
+};
 
 /**  A question about the selected locations. */
 export type Ask = 

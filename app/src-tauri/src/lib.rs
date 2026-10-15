@@ -65,11 +65,21 @@ pub(crate) fn emit_event<E: tauri_specta::Event + serde::Serialize + Clone>(payl
     }
 }
 
-/// Milliseconds from app launch until the window was ready.
+/// How long the app took to start and how long it has been running.
+#[derive(serde::Serialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+struct AppReady {
+    /// Milliseconds from app launch until the first window was ready.
+    startup_ms: u32,
+    /// Seconds since app launch rather than since a window last loaded its page.
+    uptime_secs: u32,
+}
+
+/// Reports the window ready and returns the app's startup time and uptime.
 #[tauri::command]
 #[specta::specta]
-fn app_ready() -> u32 {
-    *STARTUP_MS.get_or_init(|| {
+fn app_ready() -> AppReady {
+    let startup_ms = *STARTUP_MS.get_or_init(|| {
         let ms = START_INSTANT
             .get()
             .map(|t| t.elapsed().as_millis() as u32)
@@ -77,17 +87,13 @@ fn app_ready() -> u32 {
         log::info!("[startup] app ready in {ms}ms");
         store::engine::delta_legacy::warn_of_set_aside_deltas();
         ms
-    })
-}
-
-/// Seconds the app has been running, counted from launch rather than from whenever a
-/// window last loaded its page.
-#[tauri::command]
-#[specta::specta]
-fn app_uptime() -> u32 {
-    START_INSTANT
-        .get()
-        .map_or(0, |t| t.elapsed().as_secs() as u32)
+    });
+    AppReady {
+        startup_ms,
+        uptime_secs: START_INSTANT
+            .get()
+            .map_or(0, |t| t.elapsed().as_secs() as u32),
+    }
 }
 
 /// Fails with the reason the app could not start, and succeeds when it started normally.
@@ -121,7 +127,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
             register_commands,
             [
                 app_ready,
-                app_uptime,
                 startup_check,
                 store::storage::write_temp_file,
                 store::storage::read_file,
