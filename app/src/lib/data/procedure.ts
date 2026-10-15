@@ -13,6 +13,7 @@ import type {
 import { events } from "@/bindings.gen";
 import type { Sink } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
+import { cancellable } from "@/lib/runs";
 import { log } from "@/lib/util/log";
 
 /** The declared form of a wire struct: every field optional, absent where the wire says null. */
@@ -96,31 +97,6 @@ interface RunSettings {
 	sink?: Sink;
 	/** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
 	force?: boolean;
-}
-
-/** An engine call that answers only when it is over, so when it streams or can be
- *  aborted it reserves its run id up front: the id tells its streamed results apart and
- *  cancels it when `signal` aborts, and the call rejects with the signal's reason. */
-async function cancellable<T>(
-	signal: AbortSignal | undefined,
-	streams: boolean,
-	call: (runId: number | null) => Promise<T>,
-): Promise<T> {
-	signal?.throwIfAborted();
-	if (!signal && !streams) return call(null);
-	const runId = await cmd.procedureReserveRun();
-	const onAbort = () => {
-		void cmd.procedureCancel(runId);
-	};
-	signal?.addEventListener("abort", onAbort);
-	try {
-		signal?.throwIfAborted();
-		const out = await call(runId);
-		signal?.throwIfAborted();
-		return out;
-	} finally {
-		signal?.removeEventListener("abort", onAbort);
-	}
 }
 
 /** A collected answer is the module's own JSON; a module that emits something else

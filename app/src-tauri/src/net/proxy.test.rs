@@ -297,6 +297,15 @@ fn web_and_desktop_calls_match_with_headers_and_body() {
 }
 
 #[test]
+fn a_call_names_its_run_only_through_a_numeric_run_parameter() {
+    let run = |uri: &str| desktop_call(uri, Method::GET, &[], b"").run();
+    assert_eq!(run("http://pano.localhost/abc/3?run=7"), Some(7));
+    assert_eq!(run("http://pano.localhost/abc/3?x=1&run=7"), Some(7));
+    assert_eq!(run("http://pano.localhost/abc/3"), None);
+    assert_eq!(run("http://pano.localhost/abc/3?run=x"), None);
+}
+
+#[test]
 fn scheme_names_are_unique() {
     let mut names: Vec<_> = SCHEMES.iter().map(|s| s.name).collect();
     names.sort_unstable();

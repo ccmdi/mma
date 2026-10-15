@@ -1,6 +1,6 @@
 use super::*;
 use crate::net::fetch::SendFn;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::time::Duration;
 
 fn world(width: i32, height: i32) -> ImageSize {
@@ -142,8 +142,30 @@ fn a_transient_failure_is_retried_before_the_panorama_gives_up() {
 }
 
 #[test]
+fn a_cancelled_run_stops_its_panorama_short_of_the_remaining_tiles() {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let calls = Arc::new(AtomicU32::new(0));
+    let (cancelling, counted) = (cancel.clone(), calls.clone());
+    let shared = tile_server(move |_, _| {
+        counted.fetch_add(1, Ordering::SeqCst);
+        cancelling.store(true, Ordering::SeqCst);
+        200
+    });
+
+    assert!(stitch(&shared.cancelled_by(cancel), "abc", &world(16384, 8192), 3).is_err());
+    assert_eq!(calls.load(Ordering::SeqCst), 1, "of 32 tiles");
+    assert!(stitch(&shared, "abc", &world(16384, 8192), 1).is_ok());
+}
+
+#[test]
 fn a_path_that_names_neither_a_panorama_nor_a_tile_is_refused() {
     for path in ["", "abc", "abc/x", "abc/1/2", "abc/1/2/3/4"] {
-        assert!(fetch_path(path).is_err(), "{path}");
+        assert!(fetch_path(path, None).is_err(), "{path}");
+        let run_id = runs::next_run_id();
+        assert!(fetch_path(path, Some(run_id)).is_err(), "{path}");
+        assert!(
+            runs::unregister_run(run_id).is_none(),
+            "{path} left its run registered"
+        );
     }
 }

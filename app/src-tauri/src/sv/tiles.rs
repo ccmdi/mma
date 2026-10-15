@@ -8,6 +8,7 @@ use image::codecs::jpeg::JpegEncoder;
 use image::{imageops, ImageFormat, RgbImage};
 
 use crate::net::fetch::{Endpoint, HttpRequestSpec, HttpResponse, Policy, Session, Transport};
+use crate::runs;
 use crate::sv::pano::fetch_metadata;
 use crate::sv::schema::owned::ImageSize;
 use crate::types::{AppError, AppResult};
@@ -141,15 +142,25 @@ fn fetch_pano(session: &Session, pano_id: &str, zoom: u32) -> AppResult<Vec<u8>>
 }
 
 /// A JPEG by path: `{pano}/{zoom}` is the whole panorama, stitched and cropped to its
-/// imagery, and `{pano}/{zoom}/{x}/{y}` is one tile.
-pub(crate) fn fetch_path(path: &str) -> AppResult<Vec<u8>> {
+/// imagery, and `{pano}/{zoom}/{x}/{y}` is one tile. Under a run, cancelling it stops the fetch.
+pub(crate) fn fetch_path(path: &str, run: Option<u32>) -> AppResult<Vec<u8>> {
+    let Some(run_id) = run else {
+        return fetch_from(session(), path);
+    };
+    let run_session = session().cancelled_by(runs::register_run(run_id, None)?);
+    let out = fetch_from(&run_session, path);
+    drop(runs::unregister_run(run_id));
+    out
+}
+
+fn fetch_from(session: &Session, path: &str) -> AppResult<Vec<u8>> {
     let parts: Vec<&str> = path.trim_matches('/').split('/').collect();
     let num = |s: &str| {
         s.parse::<u32>()
             .map_err(|_| AppError(format!("bad panorama path '{path}'")))
     };
     match parts.as_slice() {
-        [pano_id, zoom] => fetch_pano(session(), pano_id, num(zoom)?),
+        [pano_id, zoom] => fetch_pano(session, pano_id, num(zoom)?),
         [pano_id, zoom, x, y] => {
             let tile = Tile {
                 pano_id,
@@ -157,7 +168,7 @@ pub(crate) fn fetch_path(path: &str) -> AppResult<Vec<u8>> {
                 x: num(x)?,
                 y: num(y)?,
             };
-            fetch_tiles(session(), &[tile])
+            fetch_tiles(session, &[tile])
                 .pop()
                 .expect("one tile answers once")
         }

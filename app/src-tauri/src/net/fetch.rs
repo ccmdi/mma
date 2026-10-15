@@ -334,7 +334,7 @@ impl Lane {
 pub struct Session {
     transport: Arc<Transport>,
     cancel: Arc<AtomicBool>,
-    lanes: Mutex<Vec<Arc<Lane>>>,
+    lanes: Arc<Mutex<Vec<Arc<Lane>>>>,
 }
 
 /// What a session is passing at one instant, across every lane it has opened.
@@ -351,7 +351,16 @@ impl Session {
         Session {
             transport,
             cancel,
-            lanes: Mutex::new(Vec::new()),
+            lanes: Arc::default(),
+        }
+    }
+
+    /// This session's transport and lanes under another cancel.
+    pub fn cancelled_by(&self, cancel: Arc<AtomicBool>) -> Self {
+        Session {
+            transport: self.transport.clone(),
+            cancel,
+            lanes: self.lanes.clone(),
         }
     }
 

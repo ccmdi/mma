@@ -146,6 +146,15 @@ impl SchemeCall {
     fn id(&self) -> &str {
         self.path.trim_start_matches('/')
     }
+
+    fn run(&self) -> Option<u32> {
+        self.query
+            .as_deref()?
+            .split('&')
+            .find_map(|kv| kv.strip_prefix("run="))?
+            .parse()
+            .ok()
+    }
 }
 
 /// Run a blocking scheme-handler body off the webview thread, on Tauri's bounded
@@ -346,7 +355,7 @@ pub(crate) const SCHEMES: &[Scheme] = &[
         name: "pano",
         preflight: None,
         sidecars: true,
-        handle: |c| match tiles::fetch_path(&c.decoded_path()) {
+        handle: |c| match tiles::fetch_path(&c.decoded_path(), c.run()) {
             Ok(jpeg) => cors()
                 .header("Content-Type", "image/jpeg")
                 .body(jpeg)

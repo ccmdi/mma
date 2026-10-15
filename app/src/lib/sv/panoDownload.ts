@@ -5,6 +5,7 @@ import { svMetadata } from "@/lib/sv/query";
 import type { Pano } from "@/bindings.gen";
 import { panoResolveProvider } from "@/lib/sv/providers";
 import { Procedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedure";
+import { cancellable } from "@/lib/runs";
 import { runConcurrent } from "@/lib/util/concurrent";
 import { fileTimestamp } from "@/lib/util/format";
 import { toast } from "@/lib/util/toast";
@@ -171,6 +172,13 @@ async function fetchImage(url: string, signal?: AbortSignal): Promise<Blob | nul
 	}
 }
 
+/** A `pano:` image under a run of its own, so an abort stops its tile fetches too. */
+function fetchPanoImage(url: string, signal?: AbortSignal): Promise<Blob | null> {
+	return cancellable(signal, false, (runId) =>
+		fetchImage(runId === null ? url : `${url}?run=${runId}`, signal),
+	).catch(() => null);
+}
+
 /** Render one location's image per the configured mode. Null on failure. */
 async function renderLocationImage(
 	loc: Location,
@@ -189,7 +197,7 @@ async function renderLocationImage(
 	}
 
 	if (config.mode === "tile") {
-		const blob = await fetchImage(
+		const blob = await fetchPanoImage(
 			panoTileUrl(panoId, config.zoom, config.tileX, config.tileY),
 			signal,
 		);
@@ -198,7 +206,7 @@ async function renderLocationImage(
 			: null;
 	}
 
-	const pano = await fetchImage(panoUrl(panoId, config.zoom), signal);
+	const pano = await fetchPanoImage(panoUrl(panoId, config.zoom), signal);
 	if (!pano) return null;
 	if (config.mode === "equirectangular") return { blob: pano, fileName: `${name}.jpg` };
 

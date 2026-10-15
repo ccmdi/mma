@@ -292,6 +292,25 @@ fn a_cancelled_session_declines_every_request() {
 }
 
 #[test]
+fn a_session_under_another_cancel_shares_its_lanes_but_not_its_cancel() {
+    let base = session(ok_send());
+    let cancel = Arc::new(AtomicBool::new(false));
+    let view = base.cancelled_by(cancel.clone());
+    let e = endpoint("e", wide(3));
+
+    assert!(view.fetch(&e, 1, &gets(2)).iter().all(Result::is_ok));
+    assert_eq!(
+        base.usage().inflight_limit,
+        3,
+        "the view opened the base's lane"
+    );
+
+    cancel.store(true, Ordering::Relaxed);
+    assert!(view.fetch(&e, 1, &gets(1)).iter().all(Result::is_err));
+    assert!(base.fetch(&e, 1, &gets(1)).iter().all(Result::is_ok));
+}
+
+#[test]
 fn fetch_stream_hands_answers_over_in_completion_order() {
     let s = session(Box::new(|req| {
         Box::pin(async move {
