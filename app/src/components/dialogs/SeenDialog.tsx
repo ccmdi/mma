@@ -90,10 +90,10 @@ export function SeenDialog({
 			search: search || undefined,
 		};
 		const used = filter.country || filter.mapId || filter.search ? filter : undefined;
-		return Promise.all([Seen.entries(PAGE_SIZE, page * PAGE_SIZE, used), Seen.count(used)]);
+		return Seen.list(PAGE_SIZE, page * PAGE_SIZE, used);
 	}, [open, page, filterCountry, filterMap, search, cleared]);
 	const shown = useSticky(listing);
-	const [entries, total] = shown ?? [[], 0];
+	const { entries, total } = shown ?? { entries: [], total: 0 };
 	const [countries, maps] = options ?? [[], []];
 	const loading = listing.loading;
 	const ready = shown !== null && options !== null;

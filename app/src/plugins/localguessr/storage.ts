@@ -108,7 +108,8 @@ export async function startingThumbnails(
 		since: Math.min(...rounds.map((r) => r.startedAt)),
 		locationIds: [...new Set(rounds.map((r) => r.locationId))],
 	};
-	const newestFirst = await Seen.entries(await Seen.count(filter), 0, filter);
+	const { total } = await Seen.list(0, 0, filter);
+	const { entries: newestFirst } = await Seen.list(total, 0, filter);
 	const byLocation = Map.groupBy(
 		newestFirst.toReversed().filter((e) => e.locationId != null),
 		(e) => e.locationId,

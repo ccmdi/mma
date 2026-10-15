@@ -10,9 +10,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/seen/seen", () => ({
 	Seen: {
-		entries: (_limit: number, offset: number, filter?: SeenFilter) =>
-			new Promise<SeenEntry[]>((resolve) => h.loads.push({ offset, filter, resolve })),
-		count: async () => 30,
+		list: (_limit: number, offset: number, filter?: SeenFilter) =>
+			new Promise((resolve) =>
+				h.loads.push({ offset, filter, resolve: (entries) => resolve({ entries, total: 30 }) }),
+			),
 		countries: async () => ["fr"],
 		maps: async () => [],
 		clear: async () => {},

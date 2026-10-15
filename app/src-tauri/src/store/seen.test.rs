@@ -66,7 +66,7 @@ fn write_then_read_back() {
     };
     write(&conn, entry).unwrap();
 
-    let entries = list(&conn, 10, 0, None, true).unwrap();
+    let entries = list(&conn, 10, 0, None, true).unwrap().entries;
     assert_eq!(entries.len(), 1);
     let e = &entries[0];
     assert_eq!(e.pano_id, "abc123");
@@ -82,7 +82,7 @@ fn write_then_read_back() {
     assert_eq!(e.address.as_deref(), Some("London, UK"));
     assert_eq!(e.thumbnail.as_deref(), Some("data:image/png;base64,abc"));
 
-    let no_thumb = list(&conn, 10, 0, None, false).unwrap();
+    let no_thumb = list(&conn, 10, 0, None, false).unwrap().entries;
     assert!(no_thumb[0].thumbnail.is_none());
 }
 
@@ -97,10 +97,12 @@ fn eviction_caps_at_max_seen() {
         .unwrap();
     assert_eq!(total, MAX_SEEN);
 
-    let newest = list(&conn, 1, 0, None, false).unwrap();
+    let newest = list(&conn, 1, 0, None, false).unwrap().entries;
     assert_eq!(newest[0].pano_id, format!("pano_{MAX_SEEN}"));
 
-    let oldest = list(&conn, 1, (MAX_SEEN - 1) as u32, None, false).unwrap();
+    let oldest = list(&conn, 1, (MAX_SEEN - 1) as u32, None, false)
+        .unwrap()
+        .entries;
     assert_eq!(oldest[0].entered_at, 1);
 }
 
@@ -111,17 +113,17 @@ fn pagination_limit_and_offset() {
         write(&conn, mk(&format!("p{i}"), i)).unwrap();
     }
 
-    let page1 = list(&conn, 10, 0, None, false).unwrap();
+    let page1 = list(&conn, 10, 0, None, false).unwrap().entries;
     assert_eq!(page1.len(), 10);
     assert_eq!(page1[0].entered_at, 24);
     assert_eq!(page1[9].entered_at, 15);
 
-    let page2 = list(&conn, 10, 10, None, false).unwrap();
+    let page2 = list(&conn, 10, 10, None, false).unwrap().entries;
     assert_eq!(page2.len(), 10);
     assert_eq!(page2[0].entered_at, 14);
     assert_eq!(page2[9].entered_at, 5);
 
-    let page3 = list(&conn, 10, 20, None, false).unwrap();
+    let page3 = list(&conn, 10, 20, None, false).unwrap().entries;
     assert_eq!(page3.len(), 5);
     assert_eq!(page3[0].entered_at, 4);
     assert_eq!(page3[4].entered_at, 0);
@@ -145,7 +147,7 @@ fn filter_by_map_id() {
         map_id: Some(Id::new("mapA".into())),
         ..Default::default()
     };
-    let results = list(&conn, 100, 0, Some(filter), false).unwrap();
+    let results = list(&conn, 100, 0, Some(filter), false).unwrap().entries;
     assert_eq!(results.len(), 5);
     assert!(results
         .iter()
@@ -171,7 +173,7 @@ fn search_matches_address_substring() {
         search: Some("London".into()),
         ..Default::default()
     };
-    let results = list(&conn, 100, 0, Some(filter), false).unwrap();
+    let results = list(&conn, 100, 0, Some(filter), false).unwrap().entries;
     assert_eq!(results.len(), 2);
     assert!(results
         .iter()
@@ -195,7 +197,7 @@ fn search_does_not_escape_sql_wildcards() {
         search: Some("%".into()),
         ..Default::default()
     };
-    let results = list(&conn, 100, 0, Some(filter), false).unwrap();
+    let results = list(&conn, 100, 0, Some(filter), false).unwrap().entries;
     assert_eq!(results.len(), 2);
 
     let mut e3 = mk("p3", 3);
@@ -211,12 +213,12 @@ fn search_does_not_escape_sql_wildcards() {
         search: Some("a_b".into()),
         ..Default::default()
     };
-    let results2 = list(&conn, 100, 0, Some(filter2), false).unwrap();
+    let results2 = list(&conn, 100, 0, Some(filter2), false).unwrap().entries;
     assert_eq!(results2.len(), 2);
 }
 
 #[test]
-fn count_with_and_without_filter() {
+fn total_counts_every_match_whatever_the_page() {
     let conn = setup();
     for i in 0..5i64 {
         let mut e = mk(&format!("p{i}"), i);
@@ -229,19 +231,22 @@ fn count_with_and_without_filter() {
         write(&conn, e).unwrap();
     }
 
-    assert_eq!(count(&conn, None).unwrap(), 8);
+    assert_eq!(list(&conn, 0, 0, None, false).unwrap().total, 8);
+    let page = list(&conn, 2, 7, None, false).unwrap();
+    assert_eq!((page.entries.len(), page.total), (1, 8));
+    assert!(list(&conn, 0, 0, None, false).unwrap().entries.is_empty());
 
     let f_a = SeenFilter {
         map_id: Some(Id::new("mapA".into())),
         ..Default::default()
     };
-    assert_eq!(count(&conn, Some(f_a)).unwrap(), 5);
+    assert_eq!(list(&conn, 0, 0, Some(f_a), false).unwrap().total, 5);
 
     let f_b = SeenFilter {
         map_id: Some(Id::new("mapB".into())),
         ..Default::default()
     };
-    assert_eq!(count(&conn, Some(f_b)).unwrap(), 3);
+    assert_eq!(list(&conn, 0, 0, Some(f_b), false).unwrap().total, 3);
 }
 
 #[test]
@@ -287,6 +292,7 @@ fn filter_by_location_ids_since() {
     };
     let panos: Vec<String> = list(&conn, 100, 0, Some(filter), false)
         .unwrap()
+        .entries
         .into_iter()
         .map(|e| e.pano_id)
         .collect();
@@ -296,5 +302,5 @@ fn filter_by_location_ids_since() {
         location_ids: Some(vec![]),
         ..Default::default()
     };
-    assert_eq!(count(&conn, Some(none)).unwrap(), 0);
+    assert_eq!(list(&conn, 0, 0, Some(none), false).unwrap().total, 0);
 }

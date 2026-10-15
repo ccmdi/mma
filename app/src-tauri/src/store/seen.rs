@@ -64,6 +64,13 @@ pub struct SeenFilter {
     pub since: Option<i64>,
 }
 
+/// A page of seen entries, newest first, and how many entries match the filter in all.
+#[derive(serde::Serialize, specta::Type)]
+pub struct SeenPage {
+    pub entries: Vec<SeenEntry>,
+    pub total: u32,
+}
+
 /// Map ID and display name for seen-history filtering.
 #[derive(serde::Serialize, specta::Type)]
 pub struct SeenMapInfo {
@@ -171,8 +178,14 @@ pub(crate) fn list(
     offset: u32,
     filter: Option<SeenFilter>,
     thumbnails: bool,
-) -> AppResult<Vec<SeenEntry>> {
+) -> AppResult<SeenPage> {
     let (where_clause, mut params) = build_where_clause(&filter);
+
+    let total: u32 = conn.query_row(
+        &format!("SELECT COUNT(*) FROM seen{where_clause}"),
+        params_from_iter(params.iter().map(AsRef::as_ref)),
+        |row| row.get(0),
+    )?;
 
     let thumb_col = if thumbnails { "thumbnail" } else { "NULL" };
     let sql = format!(
@@ -192,20 +205,7 @@ pub(crate) fn list(
     for row in rows {
         entries.push(row?);
     }
-    Ok(entries)
-}
-
-pub(crate) fn count(conn: &Connection, filter: Option<SeenFilter>) -> AppResult<u32> {
-    let (where_clause, params) = build_where_clause(&filter);
-
-    let sql = format!("SELECT COUNT(*) FROM seen{where_clause}");
-
-    let mut stmt = conn.prepare(&sql)?;
-    let count: u32 = stmt.query_row(params_from_iter(params.iter().map(AsRef::as_ref)), |row| {
-        row.get(0)
-    })?;
-
-    Ok(count)
+    Ok(SeenPage { entries, total })
 }
 
 pub(crate) fn countries(conn: &Connection) -> AppResult<Vec<String>> {
@@ -257,7 +257,7 @@ pub async fn store_seen_write(entry: SeenWriteEntry) -> AppResult<()> {
     storage::with_db(move |conn| write(conn, entry)).await
 }
 
-/// Returns a page of seen entries, newest first, with optional filtering.
+/// Returns a page of seen entries, newest first, and the number of entries matching the filter.
 #[tauri::command]
 #[specta::specta]
 pub async fn store_seen_list(
@@ -265,15 +265,8 @@ pub async fn store_seen_list(
     offset: u32,
     filter: Option<SeenFilter>,
     thumbnails: bool,
-) -> AppResult<Vec<SeenEntry>> {
+) -> AppResult<SeenPage> {
     storage::with_db(move |conn| list(conn, limit, offset, filter, thumbnails)).await
-}
-
-/// Returns the total number of seen entries matching the filter (for pagination).
-#[tauri::command]
-#[specta::specta]
-pub async fn store_seen_count(filter: Option<SeenFilter>) -> AppResult<u32> {
-    storage::with_db(move |conn| count(conn, filter)).await
 }
 
 /// Return all distinct country codes in the seen history, sorted alphabetically.

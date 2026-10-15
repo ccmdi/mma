@@ -3,13 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SeenEntry, SeenFilter } from "@/bindings.gen";
 
 const seen: SeenEntry[] = [];
-const getSeenEntries = vi.fn(async (_limit: number, _offset: number, _filter: SeenFilter) => seen);
-const getSeenCount = vi.fn(async (_filter: SeenFilter) => seen.length);
+const listSeen = vi.fn(async (limit: number, offset: number, _filter: SeenFilter) => ({
+	entries: seen.slice(offset, offset + limit),
+	total: seen.length,
+}));
 
 vi.mock("@/lib/seen/seen", () => ({
 	Seen: {
-		entries: (...a: [number, number, SeenFilter]) => getSeenEntries(...a),
-		count: (...a: [SeenFilter]) => getSeenCount(...a),
+		list: (...a: [number, number, SeenFilter]) => listSeen(...a),
 	},
 }));
 
@@ -40,12 +41,11 @@ function newestFirst(...entries: SeenEntry[]) {
 }
 
 beforeEach(() => {
-	getSeenEntries.mockClear();
-	getSeenCount.mockClear();
+	listSeen.mockClear();
 });
 
 describe("starting thumbnails", () => {
-	it("asks once, from the earliest start, for every distinct location", async () => {
+	it("asks from the earliest start, for every distinct location", async () => {
 		newestFirst();
 		await startingThumbnails("m", [
 			{ locationId: 5, startedAt: 300 },
@@ -53,15 +53,15 @@ describe("starting thumbnails", () => {
 			{ locationId: 5, startedAt: 200 },
 		]);
 		const filter = { mapId: "m", since: 100, locationIds: [5, 9] };
-		expect(getSeenCount).toHaveBeenCalledOnce();
-		expect(getSeenCount).toHaveBeenCalledWith(filter);
-		expect(getSeenEntries).toHaveBeenCalledOnce();
-		expect(getSeenEntries).toHaveBeenCalledWith(0, 0, filter);
+		expect(listSeen.mock.calls).toEqual([
+			[0, 0, filter],
+			[0, 0, filter],
+		]);
 	});
 
 	it("does not ask at all without rounds", async () => {
 		expect(await startingThumbnails("m", [])).toEqual([]);
-		expect(getSeenEntries).not.toHaveBeenCalled();
+		expect(listSeen).not.toHaveBeenCalled();
 	});
 
 	it("gives each round the first entry at or after its own start", async () => {

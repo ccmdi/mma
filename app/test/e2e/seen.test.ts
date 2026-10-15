@@ -24,7 +24,7 @@ const TREKKER_COORDS = { lat: 55.510656, lng: 157.636627 };
 
 async function getSeenEntries(limit = 100) {
 	return withApi(async (api, lim) => {
-		return await api.Seen.entries(lim);
+		return (await api.Seen.list(lim)).entries;
 	}, limit);
 }
 
@@ -37,7 +37,7 @@ async function waitForSeenPano(panoId: string) {
 
 async function getSeenCount(): Promise<number> {
 	return withApi(async (api) => {
-		return await api.Seen.count();
+		return (await api.Seen.list(0)).total;
 	});
 }
 

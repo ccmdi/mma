@@ -8,8 +8,10 @@ vi.mock("@/store/query", () => ({ Query: { read: async () => [] } }));
 vi.mock("@/store/editor", () => ({ Editor: {} }));
 vi.mock("@/lib/seen/seen", () => ({
 	Seen: {
-		count: async () => 1,
-		entries: () => new Promise<SeenEntry[]>((resolve) => (h.release = resolve)),
+		list: (limit: number) =>
+			limit === 0
+				? Promise.resolve({ entries: [], total: 1 })
+				: new Promise((resolve) => (h.release = (entries) => resolve({ entries, total: 1 }))),
 		onMap: async (list: unknown[]) => list.map(() => null),
 	},
 }));

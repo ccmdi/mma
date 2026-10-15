@@ -10,7 +10,7 @@ import { wrapDeg } from "@/lib/geo/geo";
 import { createLocation, type LocationPOV } from "@/types";
 import type { Nullable, Rename, RequireNonNull } from "@/types/util";
 import type { GeoDisplay } from "@/lib/geo/reverseGeocode";
-import type { SeenEntry, SeenFilter, SeenMapInfo } from "@/bindings.gen";
+import type { SeenEntry, SeenFilter, SeenMapInfo, SeenPage } from "@/bindings.gen";
 
 type PendingEntryLocation = RequireNonNull<Pick<Location, "lat" | "lng" | "panoId">> &
 	Nullable<Rename<Pick<Location, "id">, { id: "locationId" }>>;
@@ -106,18 +106,14 @@ export const Seen = {
 			return row && row.panoId === e.panoId ? row : null;
 		});
 	},
-	/** Fetch a page of the seen (visited-panorama) history. */
-	entries: async (
+	/** A page of the seen (visited-panorama) history and how many entries match the filter. */
+	list: async (
 		limit = 100,
 		offset = 0,
 		filter?: SeenFilter,
 		thumbnails = true,
-	): Promise<SeenEntry[]> => {
+	): Promise<SeenPage> => {
 		return cmd.storeSeenList(limit, offset, filter ?? null, thumbnails);
-	},
-	/** Number of seen entries matching the filter (all when omitted). */
-	count: async (filter?: SeenFilter): Promise<number> => {
-		return cmd.storeSeenCount(filter ?? null);
 	},
 	/** Distinct country codes that appear in the seen history. */
 	countries: async (): Promise<string[]> => {

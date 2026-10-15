@@ -67,8 +67,8 @@ export function toggleSeenOverlay(): void {
 	emitEvent("seen:changed");
 	if (active)
 		void loads.replace(async () => {
-			const count = await Seen.count();
-			const loaded = count > 0 ? await Seen.entries(count, 0, undefined, false) : [];
+			const { total } = await Seen.list(0);
+			const loaded = total > 0 ? (await Seen.list(total, 0, undefined, false)).entries : [];
 			return { entries: loaded, onMapIds: await computeOnMap(loaded) };
 		});
 }

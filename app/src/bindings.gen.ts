@@ -316,10 +316,8 @@ export const commands = {
 	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<Change<Location>>("store_get_commit_delta", { mapId, commitId }),
 	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
 	storeSeenWrite: (entry: SeenWriteEntry) => __TAURI_INVOKE<null>("store_seen_write", { entry }),
-	/**  Returns a page of seen entries, newest first, with optional filtering. */
-	storeSeenList: (limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean) => __TAURI_INVOKE<SeenEntry[]>("store_seen_list", { limit, offset, filter, thumbnails }).then((v) => (v.map(i=>i) as typeof v)),
-	/**  Returns the total number of seen entries matching the filter (for pagination). */
-	storeSeenCount: (filter: SeenFilter | null) => __TAURI_INVOKE<number>("store_seen_count", { filter }),
+	/**  Returns a page of seen entries, newest first, and the number of entries matching the filter. */
+	storeSeenList: (limit: number, offset: number, filter: SeenFilter | null, thumbnails: boolean) => __TAURI_INVOKE<SeenPage>("store_seen_list", { limit, offset, filter, thumbnails }).then((v) => (({...v,entries:v.entries.map(i=>i)}) as typeof v)),
 	/**  Return all distinct country codes in the seen history, sorted alphabetically. */
 	storeSeenCountries: () => __TAURI_INVOKE<string[]>("store_seen_countries"),
 	/**  Returns all distinct maps that have seen entries, with resolved display names. */
@@ -1675,6 +1673,12 @@ export type SeenFilter = {
 export type SeenMapInfo = {
 	id: string,
 	name: string,
+};
+
+/**  A page of seen entries, newest first, and how many entries match the filter in all. */
+export type SeenPage = {
+	entries: SeenEntry[],
+	total: number,
 };
 
 /**  Parameters for recording a panorama visit. */

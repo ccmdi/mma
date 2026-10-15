@@ -214,7 +214,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 store::vcs::store_get_commit_delta,
                 store::seen::store_seen_write,
                 store::seen::store_seen_list,
-                store::seen::store_seen_count,
                 store::seen::store_seen_countries,
                 store::seen::store_seen_maps,
                 store::seen::store_seen_clear,

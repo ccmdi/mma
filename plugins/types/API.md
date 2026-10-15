@@ -6903,16 +6903,6 @@ cmd.storeSeenClear(): Promise<null>
 
 Deletes all seen history entries.
 
-#### cmd.storeSeenCount
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeSeenCount(filter: SeenFilter | null): Promise<number>
-```
-
-Returns the total number of seen entries matching the filter (for pagination).
-
 #### cmd.storeSeenCountries
 
 `unstable` · since v0.4.0
@@ -6933,10 +6923,10 @@ cmd.storeSeenList(
   offset: number,
   filter: SeenFilter | null,
   thumbnails: boolean,
-): Promise<SeenEntry[]>
+): Promise<SeenPage>
 ```
 
-Returns a page of seen entries, newest first, with optional filtering.
+Returns a page of seen entries, newest first, and the number of entries matching the filter.
 
 #### cmd.storeSeenMaps
 
@@ -9215,16 +9205,6 @@ Seen.clear(): Promise<void>
 
 Delete the entire seen history. Not undoable.
 
-#### Seen.count
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.count(filter?: SeenFilter): Promise<number>
-```
-
-Number of seen entries matching the filter (all when omitted).
-
 #### Seen.countries
 
 `unstable` · since v0.12.0
@@ -9235,21 +9215,6 @@ Seen.countries(): Promise<string[]>
 
 Distinct country codes that appear in the seen history.
 
-#### Seen.entries
-
-`unstable` · since v0.12.0
-
-```ts
-Seen.entries(
-  limit?: number,
-  offset?: number,
-  filter?: SeenFilter,
-  thumbnails?: boolean,
-): Promise<SeenEntry[]>
-```
-
-Fetch a page of the seen (visited-panorama) history.
-
 #### Seen.flush
 
 `unstable` · since v0.12.0
@@ -9259,6 +9224,21 @@ Seen.flush(viewer: PanoViewer): void
 ```
 
 Write the pending seen entry to disk, if any.
+
+#### Seen.list
+
+`unstable` · unreleased
+
+```ts
+Seen.list(
+  limit?: number,
+  offset?: number,
+  filter?: SeenFilter,
+  thumbnails?: boolean,
+): Promise<SeenPage>
+```
+
+A page of the seen (visited-panorama) history and how many entries match the filter.
 
 #### Seen.loadPano
 
