@@ -5,6 +5,7 @@
 //! the GitHub App installation key and files the issue on their behalf.
 
 use crate::io::export;
+use crate::net::github;
 use crate::net::github::IssueThread;
 use crate::net::proxy;
 use crate::types::{AppResult, ErrCode};
@@ -13,6 +14,7 @@ use crate::util::{blocking, sha256};
 use std::fs;
 use std::fs::File;
 use std::path::Path;
+use std::thread;
 
 const WORKER_URL: &str = "https://feedback.ccmdi.com";
 
@@ -28,12 +30,12 @@ const MAX_LOG_TAIL: u64 = 16 * 1024;
 
 #[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct AnonIssueRef {
+pub struct ReportRef {
     pub number: u32,
     pub url: String,
-    /// Grants read access to this one issue's relayed comments. Not a credential for anything
-    /// else, which is why it is safe to keep in local storage.
-    pub token: String,
+    /// Grants read access to an anonymous report's relayed comments. Not a credential for anything
+    /// else, which is why it is safe to keep in local storage. Null for a signed-in report.
+    pub token: Option<String>,
 }
 
 // ---------------------------------------------------------------------------
@@ -164,18 +166,41 @@ pub async fn feedback_log_tail(app: tauri::AppHandle) -> AppResult<String> {
     .await?
 }
 
-/// File a bug report anonymously (no account required). Returns a reference the
-/// caller can use to check for replies via `feedbackAnonymousThread`.
+/// File a report anonymously under this install id, or as the signed-in GitHub user when it is null.
 #[tauri::command]
 #[specta::specta]
-pub async fn feedback_submit_anonymous(
+pub async fn feedback_submit(
     title: String,
     body: String,
-    install_id: String,
-) -> AppResult<AnonIssueRef> {
+    install_id: Option<String>,
+) -> AppResult<ReportRef> {
     blocking(move || {
         let title = scrub(&title);
         let body = scrub(&body);
+        let Some(install_id) = install_id else {
+            let filed = github::create_issue(&title, &body)?;
+            let number = filed.number;
+            // GitHub drops labels sent without push access, so the worker applies them. Best-effort.
+            thread::spawn(move || {
+                let request = || -> AppResult<()> {
+                    let challenge = fetch_challenge()?;
+                    let nonce = solve_pow(&format!("{challenge}:label:{number}"), POW_BITS);
+                    let resp = proxy::proxy_client()
+                        .post(format!(
+                            "{WORKER_URL}/reports/{number}/label?challenge={challenge}&nonce={nonce}"
+                        ))
+                        .send()?;
+                    if !resp.status().is_success() {
+                        return Err(format!("label request returned {}", resp.status()).into());
+                    }
+                    Ok(())
+                };
+                if let Err(e) = request() {
+                    log::debug!("[feedback] label request failed: {e}");
+                }
+            });
+            return Ok(filed);
+        };
         let challenge = fetch_challenge()?;
         let content = util::sha256_hex(format!("{title}\0{body}").as_bytes());
         let nonce = solve_pow(&format!("{challenge}:{content}"), POW_BITS);
@@ -194,7 +219,7 @@ pub async fn feedback_submit_anonymous(
             let detail = resp.text().unwrap_or_default();
             return Err(ErrCode::ReportRejected.with(format!("{status}: {detail}")));
         }
-        Ok(resp.json::<AnonIssueRef>()?)
+        Ok(resp.json::<ReportRef>()?)
     })
     .await?
 }
@@ -268,33 +293,6 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
         // The staged copy has served its purpose; leaving it would keep a screenshot in temp.
         let _ = fs::remove_file(&path);
         Ok(uploaded)
-    })
-    .await?
-}
-
-/// Request that standard labels be applied to a report the user filed. Best-effort:
-/// a failure here does not affect the report itself.
-#[tauri::command]
-#[specta::specta]
-pub async fn feedback_request_label(number: u32) -> AppResult<()> {
-    blocking(move || {
-        let request = || -> AppResult<()> {
-            let challenge = fetch_challenge()?;
-            let nonce = solve_pow(&format!("{challenge}:label:{number}"), POW_BITS);
-            let resp = proxy::proxy_client()
-                .post(format!(
-                    "{WORKER_URL}/reports/{number}/label?challenge={challenge}&nonce={nonce}"
-                ))
-                .send()?;
-            if !resp.status().is_success() {
-                return Err(format!("label request returned {}", resp.status()).into());
-            }
-            Ok(())
-        };
-        if let Err(e) = request() {
-            log::debug!("[feedback] label request failed: {e}");
-        }
-        Ok(())
     })
     .await?
 }

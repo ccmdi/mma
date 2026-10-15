@@ -6003,31 +6003,19 @@ cmd.feedbackLogTail(): Promise<string>
 
 The tail of `mma.log`, scrubbed. Empty string when there is no log yet.
 
-#### cmd.feedbackRequestLabel
+#### cmd.feedbackSubmit
 
-`unstable` · since v0.9.0
-
-```ts
-cmd.feedbackRequestLabel(number: number): Promise<null>
-```
-
-Request that standard labels be applied to a report the user filed. Best-effort:
-a failure here does not affect the report itself.
-
-#### cmd.feedbackSubmitAnonymous
-
-`unstable` · since v0.9.0
+`unstable` · unreleased
 
 ```ts
-cmd.feedbackSubmitAnonymous(
+cmd.feedbackSubmit(
   title: string,
   body: string,
-  installId: string,
-): Promise<AnonIssueRef>
+  installId: string | null,
+): Promise<ReportRef>
 ```
 
-File a bug report anonymously (no account required). Returns a reference the
-caller can use to check for replies via `feedbackAnonymousThread`.
+File a report anonymously under this install id, or as the signed-in GitHub user when it is null.
 
 #### cmd.feedbackUploadAttachment
 
@@ -6099,20 +6087,6 @@ cmd.getDataLocation(): Promise<DataLocation>
 ```
 
 Return the current and default data-folder paths, and whether a custom override is active.
-
-#### cmd.githubCreateIssue
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.githubCreateIssue(
-  title: string,
-  body: string,
-  labels: string[],
-): Promise<IssueRef>
-```
-
-File a bug report as the signed-in GitHub user.
 
 #### cmd.githubHasSession
 

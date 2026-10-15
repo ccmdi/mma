@@ -98,24 +98,14 @@ export const commands = {
 	githubLogout: () => __TAURI_INVOKE<null>("github_logout"),
 	/**  Local-only check: is a token stored? Says nothing about its validity. */
 	githubHasSession: () => __TAURI_INVOKE<boolean>("github_has_session"),
-	/**  File a bug report as the signed-in GitHub user. */
-	githubCreateIssue: (title: string, body: string, labels: string[]) => __TAURI_INVOKE<IssueRef>("github_create_issue", { title, body, labels }),
 	/**  Fetch a report's current state and comments as the signed-in GitHub user. */
 	githubIssueThread: (number: number) => __TAURI_INVOKE<IssueThread>("github_issue_thread", { number }),
 	/**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. */
 	feedbackLogTail: () => __TAURI_INVOKE<string>("feedback_log_tail"),
-	/**
-	 *  File a bug report anonymously (no account required). Returns a reference the
-	 *  caller can use to check for replies via `feedbackAnonymousThread`.
-	 */
-	feedbackSubmitAnonymous: (title: string, body: string, installId: string) => __TAURI_INVOKE<AnonIssueRef>("feedback_submit_anonymous", { title, body, installId }),
+	/**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. */
+	feedbackSubmit: (title: string, body: string, installId: string | null) => __TAURI_INVOKE<ReportRef>("feedback_submit", { title, body, installId }),
 	/**  Upload an image attachment for a bug report and return its URL. */
 	feedbackUploadAttachment: (path: string, name: string) => __TAURI_INVOKE<AttachmentRef>("feedback_upload_attachment", { path, name }),
-	/**
-	 *  Request that standard labels be applied to a report the user filed. Best-effort:
-	 *  a failure here does not affect the report itself.
-	 */
-	feedbackRequestLabel: (number: number) => __TAURI_INVOKE<null>("feedback_request_label", { number }),
 	/**  Fetch the current state and replies for an anonymous report. */
 	feedbackAnonymousThread: (number: number, token: string) => __TAURI_INVOKE<IssueThread>("feedback_anonymous_thread", { number, token }),
 	/**
@@ -399,16 +389,6 @@ export const events = {
 };
 
 /* Types */
-export type AnonIssueRef = {
-	number: number,
-	url: string,
-	/**
-	 *  Grants read access to this one issue's relayed comments. Not a credential for anything
-	 *  else, which is why it is safe to keep in local storage.
-	 */
-	token: string,
-};
-
 /**  The answer to a question about the selected locations. */
 export type Answer = 
 /**  The matched ids. */
@@ -876,11 +856,6 @@ export type IssueComment = {
 	body: string,
 	/**  ISO-8601, as GitHub returns it. */
 	createdAt: string,
-};
-
-export type IssueRef = {
-	number: number,
-	url: string,
 };
 
 /**
@@ -1511,6 +1486,16 @@ export type RateSpec = {
  */
 export type RenderRequest = {
 	markerStyle?: string,
+};
+
+export type ReportRef = {
+	number: number,
+	url: string,
+	/**
+	 *  Grants read access to an anonymous report's relayed comments. Not a credential for anything
+	 *  else, which is why it is safe to keep in local storage. Null for a signed-in report.
+	 */
+	token: string | null,
 };
 
 

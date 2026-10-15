@@ -14,7 +14,7 @@ use crate::types::wire_str_enum;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use crate::net::feedback;
+use crate::net::feedback::ReportRef;
 use crate::net::proxy;
 use crate::store::storage;
 use crate::types::AppError;
@@ -162,13 +162,6 @@ pub struct DeviceCodeInfo {
 pub struct GhUser {
     pub login: String,
     pub avatar_url: Option<String>,
-}
-
-#[derive(serde::Serialize, specta::Type, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct IssueRef {
-    pub number: u32,
-    pub url: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, specta::Type, Clone, Debug)]
@@ -515,45 +508,33 @@ pub async fn github_has_session() -> AppResult<bool> {
     blocking(|| Ok(load_session()?.is_some())).await?
 }
 
-/// File a bug report as the signed-in GitHub user.
-#[tauri::command]
-#[specta::specta]
-pub async fn github_create_issue(
-    title: String,
-    body: String,
-    labels: Vec<String>,
-) -> AppResult<IssueRef> {
-    blocking(move || {
-        // Scrubbed on this transport too: the log tail is pre-scrubbed, but diagnostics
-        // values can carry home-directory paths.
-        let title = feedback::scrub(&title);
-        let body = feedback::scrub(&body);
-        let payload = serde_json::json!({ "title": title, "body": body, "labels": labels });
-        let resp = authed(|token| {
-            proxy::proxy_client()
-                .post(format!("{API}/repos/{REPO}/issues"))
-                .header("Accept", "application/vnd.github+json")
-                .header("Authorization", format!("Bearer {token}"))
-                .header("User-Agent", user_agent())
-                .json(&payload)
-        })?;
-        if !resp.status().is_success() {
-            return Err(ErrCode::IssueRejected.with(error_detail(resp)));
-        }
-        let v: serde_json::Value = resp.json()?;
-        Ok(IssueRef {
-            number: v
-                .get("number")
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0) as u32,
-            url: v
-                .get("html_url")
-                .and_then(|u| u.as_str())
-                .unwrap_or_default()
-                .to_string(),
-        })
+/// File an issue as the signed-in user.
+pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
+    let payload = serde_json::json!({ "title": title, "body": body });
+    let resp = authed(|token| {
+        proxy::proxy_client()
+            .post(format!("{API}/repos/{REPO}/issues"))
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("User-Agent", user_agent())
+            .json(&payload)
+    })?;
+    if !resp.status().is_success() {
+        return Err(ErrCode::IssueRejected.with(error_detail(resp)));
+    }
+    let v: serde_json::Value = resp.json()?;
+    Ok(ReportRef {
+        number: v
+            .get("number")
+            .and_then(serde_json::Value::as_u64)
+            .unwrap_or(0) as u32,
+        url: v
+            .get("html_url")
+            .and_then(|u| u.as_str())
+            .unwrap_or_default()
+            .to_string(),
+        token: None,
     })
-    .await?
 }
 
 /// Fetch a report's current state and comments as the signed-in GitHub user.

@@ -728,26 +728,14 @@ declare const commands$1: {
     githubLogout: () => Promise<null>;
     /**  Local-only check: is a token stored? Says nothing about its validity. @unstable */
     githubHasSession: () => Promise<boolean>;
-    /**  File a bug report as the signed-in GitHub user. @unstable */
-    githubCreateIssue: (title: string, body: string, labels: string[]) => Promise<IssueRef>;
     /**  Fetch a report's current state and comments as the signed-in GitHub user. @unstable */
     githubIssueThread: (number: number) => Promise<IssueThread>;
     /**  The tail of `mma.log`, scrubbed. Empty string when there is no log yet. @unstable */
     feedbackLogTail: () => Promise<string>;
-    /**
-     *  File a bug report anonymously (no account required). Returns a reference the
-     *  caller can use to check for replies via `feedbackAnonymousThread`.
-     *  @unstable
-     */
-    feedbackSubmitAnonymous: (title: string, body: string, installId: string) => Promise<AnonIssueRef>;
+    /**  File a report anonymously under this install id, or as the signed-in GitHub user when it is null. @unstable */
+    feedbackSubmit: (title: string, body: string, installId: string | null) => Promise<ReportRef>;
     /**  Upload an image attachment for a bug report and return its URL. @unstable */
     feedbackUploadAttachment: (path: string, name: string) => Promise<AttachmentRef>;
-    /**
-     *  Request that standard labels be applied to a report the user filed. Best-effort:
-     *  a failure here does not affect the report itself.
-     *  @unstable
-     */
-    feedbackRequestLabel: (number: number) => Promise<null>;
     /**  Fetch the current state and replies for an anonymous report. @unstable */
     feedbackAnonymousThread: (number: number, token: string) => Promise<IssueThread>;
     /**
@@ -1147,16 +1135,6 @@ declare const events: {
         once: (cb: __TAURI_EVENT.EventCallback<ValiProgress>) => Promise<__TAURI_EVENT.UnlistenFn>;
         emit: (payload: ValiProgress) => Promise<void>;
     };
-};
-/** @unstable */
-type AnonIssueRef = {
-    number: number;
-    url: string;
-    /**
-     *  Grants read access to this one issue's relayed comments. Not a credential for anything
-     *  else, which is why it is safe to keep in local storage.
-     */
-    token: string;
 };
 /**  The answer to a question about the selected locations. */
 type Answer = 
@@ -1792,11 +1770,6 @@ type IssueComment = {
     body: string;
     /**  ISO-8601, as GitHub returns it. */
     createdAt: string;
-};
-/** @unstable */
-type IssueRef = {
-    number: number;
-    url: string;
 };
 /**
  *  What became of a report, and what has been said on it. One shape for both transports so a
@@ -2480,6 +2453,16 @@ type RateSpec = {
  */
 type RenderRequest = {
     markerStyle?: string;
+};
+/** @unstable */
+type ReportRef = {
+    number: number;
+    url: string;
+    /**
+     *  Grants read access to an anonymous report's relayed comments. Not a credential for anything
+     *  else, which is why it is safe to keep in local storage. Null for a signed-in report.
+     */
+    token: string | null;
 };
 /**  One location's answer from a procedure, as the JSON its module emitted. @unstable */
 type ResultEntry = {
@@ -8027,4 +8010,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { AnonIssueRef, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueRef, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewCreate, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
