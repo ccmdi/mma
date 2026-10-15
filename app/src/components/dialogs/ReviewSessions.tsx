@@ -19,11 +19,6 @@ import type { ReviewMode } from "@/bindings.consts";
 import { IconButton } from "@/components/primitives/IconButton";
 import { addSelection } from "@/store/selections";
 
-function formatDate(iso: string): string {
-	const d = new Date(iso);
-	return shortDateFmt.format(d);
-}
-
 export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	const [filter, setFilter] = useState<"active" | "done">("active");
 	const [sessions, setSessions] = useState<ReviewSession[]>([]);
@@ -189,7 +184,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 											})}
 										</span>
 										<span title={dateTimeFmt.format(new Date(s.createdAt))}>
-											{t("Started")} {formatDate(s.createdAt)}
+											{t("Started")} {shortDateFmt.format(new Date(s.createdAt))}
 										</span>
 										<span title={dateTimeFmt.format(new Date(s.updatedAt))}>
 											{t("Updated")} {relativeTime(s.updatedAt)}
