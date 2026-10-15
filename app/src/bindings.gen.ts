@@ -84,10 +84,8 @@ export const commands = {
 	timezoneAt: (lat: number, lng: number) => __TAURI_INVOKE<string | null>("timezone_at", { lat, lng }),
 	/**  Show the window with the system open animation, maximized if `maximized` is set. */
 	revealWindow: (maximized: boolean) => __TAURI_INVOKE<void>("reveal_window", { maximized }),
-	/**  Set the Discord Rich Presence activity. No-op when Discord is not running. */
-	discordPresenceSet: (activity: PresenceActivity) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
-	/**  Clear the Discord Rich Presence activity. No-op when Discord is not running. */
-	discordPresenceClear: () => __TAURI_INVOKE<null>("discord_presence_clear"),
+	/**  Set the Discord Rich Presence activity, or clear it when null. No-op when Discord is not running. */
+	discordPresenceSet: (activity: PresenceActivity | null) => __TAURI_INVOKE<null>("discord_presence_set", { activity }),
 	/**
 	 *  Begin device-flow sign-in. Returns the code to show the user; call
 	 *  `githubPollLogin` afterwards to wait for them to finish authorizing.

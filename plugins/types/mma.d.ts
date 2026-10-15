@@ -709,10 +709,8 @@ declare const commands$1: {
     timezoneAt: (lat: number, lng: number) => Promise<string | null>;
     /**  Show the window with the system open animation, maximized if `maximized` is set. @unstable */
     revealWindow: (maximized: boolean) => Promise<void>;
-    /**  Set the Discord Rich Presence activity. No-op when Discord is not running. @unstable */
-    discordPresenceSet: (activity: PresenceActivity) => Promise<null>;
-    /**  Clear the Discord Rich Presence activity. No-op when Discord is not running. @unstable */
-    discordPresenceClear: () => Promise<null>;
+    /**  Set the Discord Rich Presence activity, or clear it when null. No-op when Discord is not running. @unstable */
+    discordPresenceSet: (activity: PresenceActivity | null) => Promise<null>;
     /**
      *  Begin device-flow sign-in. Returns the code to show the user; call
      *  `githubPollLogin` afterwards to wait for them to finish authorizing.

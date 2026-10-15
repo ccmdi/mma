@@ -5702,25 +5702,15 @@ cmd.claimPluginUpdatePass(): Promise<boolean>
 
 True for the first caller per app run, which runs the background plugin update check.
 
-#### cmd.discordPresenceClear
-
-`unstable` · since v0.7.6
-
-```ts
-cmd.discordPresenceClear(): Promise<null>
-```
-
-Clear the Discord Rich Presence activity. No-op when Discord is not running.
-
 #### cmd.discordPresenceSet
 
 `unstable` · since v0.7.6
 
 ```ts
-cmd.discordPresenceSet(activity: PresenceActivity): Promise<null>
+cmd.discordPresenceSet(activity: PresenceActivity | null): Promise<null>
 ```
 
-Set the Discord Rich Presence activity. No-op when Discord is not running.
+Set the Discord Rich Presence activity, or clear it when null. No-op when Discord is not running.
 
 #### cmd.downloadBorderFile
 

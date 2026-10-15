@@ -7,7 +7,7 @@ import type { ChangeEvent } from "@/bindings.gen";
 const pushes = vi.hoisted(() => ({ set: vi.fn() }));
 
 vi.mock("@/lib/commands", () => ({
-	cmd: { discordPresenceSet: pushes.set, discordPresenceClear: vi.fn() },
+	cmd: { discordPresenceSet: pushes.set },
 }));
 vi.mock("@/lib/window", () => ({
 	appWindow: {

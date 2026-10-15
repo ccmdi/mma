@@ -150,7 +150,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 util::timezone_at,
                 util::reveal_window,
                 net::presence::discord_presence_set,
-                net::presence::discord_presence_clear,
                 net::github::github_start_login,
                 net::github::github_poll_login,
                 net::github::github_me,

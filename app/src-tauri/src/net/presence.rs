@@ -85,10 +85,14 @@ pub struct PresenceActivity {
     pub start: Option<i64>,
 }
 
-/// Set the Discord Rich Presence activity. No-op when Discord is not running.
+/// Set the Discord Rich Presence activity, or clear it when null. No-op when Discord is not running.
 #[tauri::command]
 #[specta::specta]
-pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
+pub fn discord_presence_set(activity: Option<PresenceActivity>) -> AppResult<()> {
+    let Some(activity) = activity else {
+        worker().submit(Reach::IfConnected, DiscordIpc::clear_activity);
+        return Ok(());
+    };
     worker().submit(Reach::Connect, move |client| {
         let mut act = Activity::new();
         if let Some(d) = activity.details.as_deref() {
@@ -116,14 +120,6 @@ pub fn discord_presence_set(activity: PresenceActivity) -> AppResult<()> {
         }
         client.set_activity(act)
     });
-    Ok(())
-}
-
-/// Clear the Discord Rich Presence activity. No-op when Discord is not running.
-#[tauri::command]
-#[specta::specta]
-pub fn discord_presence_clear() -> AppResult<()> {
-    worker().submit(Reach::IfConnected, DiscordIpc::clear_activity);
     Ok(())
 }
 
