@@ -54,7 +54,7 @@ fn array_json_response_matches_the_binary_one() {
         .as_array()
         .unwrap()
         .iter()
-        .map(decode_image_json)
+        .map(|v| decode_image(&ImageMetadata(Node::json(v))))
         .collect();
     let decoded = serde_json::to_value(images).unwrap();
     assert_eq!(numbers(&decoded), golden());
@@ -87,7 +87,7 @@ fn every_captured_pano_decodes_to_the_id_it_was_asked_for() {
 #[test]
 fn the_ungated_array_decode_reads_a_search_answer() {
     let root: Value = serde_json::from_str(SEARCH_JSON).unwrap();
-    let pano = decode_image_json_unchecked(&root[1]).expect("search answer decodes");
+    let pano = project(&ImageMetadata(Node::json(&root[1]))).expect("search answer decodes");
     assert!(!pano.id.is_empty());
     assert!(pano.lat != 0.0 && pano.lng != 0.0);
 }
@@ -858,7 +858,7 @@ fn capture() {
         .as_array()
         .unwrap()
         .iter()
-        .map(decode_image_json)
+        .map(|v| decode_image(&ImageMetadata(Node::json(v))))
         .collect();
     assert_eq!(
         from_binary,

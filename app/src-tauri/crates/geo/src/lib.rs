@@ -51,19 +51,6 @@ pub fn equirect_m2(lat1: f64, lng1: f64, lat2: f64, lng2: f64, cos_lat: f64) -> 
     (x * x + y * y) * EARTH_R_M * EARTH_R_M
 }
 
-/// Are the two points within `threshold_m2` (metres², i.e. `radius * radius`) of each
-/// other? `equirect_m2` about the mean latitude, with a latitude-only early-out that
-/// rejects most pairs before the wrap and the cosine.
-#[inline]
-pub fn within_m2(lat1: f64, lng1: f64, lat2: f64, lng2: f64, threshold_m2: f64) -> bool {
-    let dlat = lat2 - lat1;
-    if dlat * dlat * M_PER_DEG * M_PER_DEG > threshold_m2 {
-        return false;
-    }
-    let cos_lat = ((lat1 + lat2) * 0.5).to_radians().cos();
-    equirect_m2(lat1, lng1, lat2, lng2, cos_lat) < threshold_m2
-}
-
 /// Grid cells covering the `radius_m` disc around a point, for a grid keyed by
 /// `(floor(lng/cell_deg), floor(lat/cell_deg))`. Row range plus up to two column
 /// ranges: the longitude span widens by 1/cos(lat) and splits in two when it

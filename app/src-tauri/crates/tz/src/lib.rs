@@ -117,11 +117,6 @@ impl<'a> Tz<'a> {
         let at = self.trans_at + lo * ENTRY;
         i32::from_le_bytes(self.data[at + 8..at + 12].try_into().unwrap())
     }
-
-    /// [`Self::zone_index`] + [`Self::offset_at`]; `None` for an unknown zone name.
-    pub fn offset_seconds(&self, name: &str, ts: i64) -> Option<i32> {
-        Some(self.offset_at(self.zone_index(name)?, ts))
-    }
 }
 
 #[cfg(test)]

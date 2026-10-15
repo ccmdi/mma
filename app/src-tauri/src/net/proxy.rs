@@ -230,13 +230,6 @@ fn read_local(clean: &str) -> Reply {
     }
 }
 
-fn svtile_url(path: &str, query: &str) -> String {
-    format!(
-        "https://lh3.ggpht.com/jsapi2/a/b/c/{}{query}",
-        path.trim_start_matches('/')
-    )
-}
-
 /// svtile: StreetView photosphere tiles via lh3.ggpht.com.
 pub(crate) fn fetch_svtile(url: &str) -> Reply {
     match proxy_client().get(url).send() {
@@ -249,10 +242,6 @@ pub(crate) fn fetch_svtile(url: &str) -> Reply {
         }
         Err(e) => proxy_error(format!("svtile fetch error: {e}")),
     }
-}
-
-fn gmaps_url(path: &str, query: &str) -> String {
-    format!("https://www.google.com{path}{query}")
 }
 
 /// gmaps: forward a request (POST batchexecute etc.) to www.google.com.
@@ -279,15 +268,11 @@ pub(crate) fn proxy_gmaps(
 pub(crate) const GOOGL_LINKS: &str = "https://goo.gl/maps/";
 pub(crate) const MAPS_APP_LINKS: &str = "https://maps.app.goo.gl/";
 
-fn googl_url(id: &str, links: &str) -> String {
-    format!("{links}{id}")
-}
-
 /// The URL a goo.gl / maps.app.goo.gl short link redirects to, from its `Location`
 /// header; `None` for a link that answers without one.
 pub(crate) fn short_link_target(id: &str, links: &str) -> AppResult<Option<String>> {
     let resp = resolve_client()
-        .get(googl_url(id, links))
+        .get(format!("{links}{id}"))
         .send()
         .map_err(|e| format!("googl fetch error: {e}"))?;
     Ok(resp
@@ -349,7 +334,13 @@ pub(crate) const SCHEMES: &[Scheme] = &[
         name: "svtile",
         preflight: None,
         sidecars: false,
-        handle: |c| fetch_svtile(&svtile_url(&c.path, &c.query_suffix())),
+        handle: |c| {
+            fetch_svtile(&format!(
+                "https://lh3.ggpht.com/jsapi2/a/b/c/{}{}",
+                c.path.trim_start_matches('/'),
+                c.query_suffix()
+            ))
+        },
     },
     Scheme {
         name: "pano",
@@ -368,7 +359,7 @@ pub(crate) const SCHEMES: &[Scheme] = &[
         preflight: None,
         sidecars: false,
         handle: |c| {
-            let url = gmaps_url(&c.path, &c.query_suffix());
+            let url = format!("https://www.google.com{}{}", c.path, c.query_suffix());
             let content_type = c
                 .content_type
                 .unwrap_or_else(|| "application/x-www-form-urlencoded".to_string());

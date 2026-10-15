@@ -45,27 +45,6 @@ fn equirect_wraps_antimeridian() {
 }
 
 #[test]
-fn within_m2_across_antimeridian() {
-    // ~222m apart across the seam; unwrapped dlng would read as ~360 degrees.
-    assert!(within_m2(0.0, 179.999, 0.0, -179.999, 300.0 * 300.0));
-    assert!(!within_m2(0.0, 179.999, 0.0, -179.999, 150.0 * 150.0));
-}
-
-#[test]
-fn within_m2_plain_pair_thresholds() {
-    // ~157m apart at 45N.
-    assert!(within_m2(45.0, 10.0, 45.0, 10.002, 200.0 * 200.0));
-    assert!(!within_m2(45.0, 10.0, 45.0, 10.002, 100.0 * 100.0));
-}
-
-#[test]
-fn within_m2_latitude_early_out_keeps_borderline_pairs() {
-    let d = 100.0 / M_PER_DEG;
-    assert!(within_m2(0.0, 0.0, d, 0.0, 100.0 * 100.0 + 1.0));
-    assert!(!within_m2(0.0, 0.0, d, 0.0, 99.0 * 99.0));
-}
-
-#[test]
 fn cover_mid_latitude_is_compact() {
     let cell = 100.0 / M_PER_DEG * 1.5;
     let c = covering_cells(45.0, 10.0, 100.0, cell);

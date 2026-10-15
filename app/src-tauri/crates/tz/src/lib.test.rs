@@ -74,17 +74,12 @@ fn agrees_with_chrono_tz_at_every_stored_transition() {
 #[test]
 fn known_offsets() {
     let t = table();
+    let at = |name: &str, ts: i64| Some(t.offset_at(t.zone_index(name)?, ts));
     let winter = 1_705_276_800; // 2024-01-15
     let summer = 1_721_088_000; // 2024-07-16
-    assert_eq!(t.offset_seconds("Asia/Tokyo", winter), Some(9 * 3600));
-    assert_eq!(
-        t.offset_seconds("America/New_York", winter),
-        Some(-5 * 3600)
-    );
-    assert_eq!(
-        t.offset_seconds("America/New_York", summer),
-        Some(-4 * 3600)
-    );
+    assert_eq!(at("Asia/Tokyo", winter), Some(9 * 3600));
+    assert_eq!(at("America/New_York", winter), Some(-5 * 3600));
+    assert_eq!(at("America/New_York", summer), Some(-4 * 3600));
 }
 
 /// Rebuild `data/tz.bin` from chrono-tz: walk every zone in 6-hour steps across the u32

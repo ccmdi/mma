@@ -150,24 +150,6 @@ pub fn decode_response(body: &[u8]) -> Vec<Option<Pano>> {
     }
 }
 
-/// A `Pano` from array-JSON, gated on the image's own status.
-#[allow(
-    dead_code,
-    reason = "the gate has no caller: a search answer reports its own status codes"
-)]
-pub fn decode_image_json(value: &Value) -> Option<Pano> {
-    decode_image(&ImageMetadata(Node::json(value)))
-}
-
-/// As above, for a caller that checked the status itself.
-#[allow(
-    dead_code,
-    reason = "the tests decode captured search answers through it"
-)]
-pub fn decode_image_json_unchecked(value: &Value) -> Option<Pano> {
-    project(&ImageMetadata(Node::json(value)))
-}
-
 fn decode_image(m: &ImageMetadata) -> Option<Pano> {
     (m.status().code() == 1).then(|| project(m)).flatten()
 }
