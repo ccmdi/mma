@@ -26,13 +26,6 @@ pub fn read_file(path: String) -> AppResult<String> {
     Ok(fs::read_to_string(&path)?)
 }
 
-/// Return the app's data directory path.
-#[tauri::command]
-#[specta::specta]
-pub fn get_app_data_dir() -> AppResult<String> {
-    app_data_dir().map(|p| p.to_string_lossy().into_owned())
-}
-
 /// The active and default data-folder paths, plus whether a custom override is in effect.
 #[derive(serde::Serialize, specta::Type)]
 pub struct DataLocation {

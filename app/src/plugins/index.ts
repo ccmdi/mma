@@ -28,7 +28,7 @@ export async function loadUserPlugin(m: PluginManifest) {
 	// Lazy externals (deck.gl/luma.gl) must be resolved before the plugin's
 	// synchronous __mma_require calls run at import time. Idempotent.
 	await preloadModules(getAvailableExternals());
-	const appDataDir = await cmd.getAppDataDir();
+	const { path: appDataDir } = await cmd.getDataLocation();
 	setPendingManifest(m);
 	const dir = `${appDataDir}/plugins/${m.id}`;
 	setPluginBaseDir(m.id, dir);

@@ -5839,16 +5839,6 @@ cmd.geoguessrMe(): Promise<GgUser | null>
 
 The signed-in user, or `null` when there is no session (or it was rejected).
 
-#### cmd.getAppDataDir
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.getAppDataDir(): Promise<string>
-```
-
-Return the app's data directory path.
-
 #### cmd.getDataLocation
 
 `unstable` · since v0.6.8

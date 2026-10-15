@@ -649,8 +649,6 @@ declare const commands$1: {
     writeTempFile: (name: string, content: string) => Promise<string>;
     /**  Read a file as UTF-8 text (temp files, plugin sources). @unstable */
     readFile: (path: string) => Promise<string>;
-    /**  Return the app's data directory path. @unstable */
-    getAppDataDir: () => Promise<string>;
     /**  Return the current and default data-folder paths, and whether a custom override is active. @unstable */
     getDataLocation: () => Promise<DataLocation>;
     /**
