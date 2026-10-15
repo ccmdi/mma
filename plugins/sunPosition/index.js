@@ -167,7 +167,6 @@ async function load(host) {
   rays = daylightRays(lats, lngs, azimuths, altitudes);
   draw(host);
 }
-var DATA_EVENTS = ["store:change"];
 function start(host) {
   overlay = host.createDeckOverlay();
   void load(host);
@@ -177,7 +176,12 @@ function start(host) {
     reloadTimer = setTimeout(() => void load(host), 100);
   };
   redraw = () => draw(host);
-  const unsubs = [...DATA_EVENTS.map((event) => on(event, reload)), host.on("zoom", redraw)];
+  const unsubs = [
+    on("store:change", (e) => {
+      if (e.added.length + e.updated.length + e.removed.length > 0) reload();
+    }),
+    host.on("zoom", redraw)
+  ];
   return () => {
     for (const unsub of unsubs) unsub();
     clearTimeout(reloadTimer);

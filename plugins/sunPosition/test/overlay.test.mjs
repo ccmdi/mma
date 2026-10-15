@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 const counts = { overlays: 0, finalized: 0, fetches: 0, subs: 0, unsubs: 0 };
 
-const subscribe = () => {
+const handlers = {};
+const subscribe = (event, handler) => {
 	counts.subs++;
+	handlers[event] = handler;
 	return () => counts.unsubs++;
 };
 
@@ -84,4 +86,19 @@ test("the stored preference decides what activation starts", async () => {
 	await settle();
 	assert.equal(counts.overlays, counts.finalized);
 	assert.equal(counts.subs, counts.unsubs);
+});
+
+test("the rays reload for a change that moved locations, and for no other change", async () => {
+	showRays(true);
+	await settle();
+	const before = counts.fetches;
+	const wait = () => new Promise((resolve) => setTimeout(resolve, 150));
+	handlers["store:change"]({ added: [], updated: [], removed: [] });
+	await wait();
+	assert.equal(counts.fetches, before);
+	handlers["store:change"]({ added: [], updated: [7], removed: [] });
+	await wait();
+	assert.equal(counts.fetches, before + 1);
+	showRays(false);
+	await settle();
 });
