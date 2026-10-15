@@ -41,10 +41,6 @@ export function ymParse(s: string): { y: number; m: number } | null {
 	return mo >= 1 && mo <= 12 ? { y: Number(m[1]), m: mo } : null;
 }
 
-export function ymFormat(y: number, m: number): string {
-	return `${String(y).padStart(4, "0")}-${pad2(m)}`;
-}
-
 /** First of the month, local frame. */
 export function ymToDate(s: string): Date | null {
 	const p = ymParse(s);

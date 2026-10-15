@@ -1,7 +1,7 @@
 import { mirrorCases } from "./fixtures/mirrorCases";
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { parseTypedDate, MONTHS, ymParse, ymFormat, ymToDate, ymOrdinal } from "@/lib/util/date";
+import { parseTypedDate, MONTHS, ymParse, ymToDate, ymOrdinal } from "@/lib/util/date";
 import {
 	partsToEpoch,
 	dateParts,
@@ -117,7 +117,9 @@ describe("dateParts / partsToEpoch (property-based)", () => {
 });
 
 describe("YYYY-MM codec", () => {
-	it("round-trips parse and format", () => {
+	const ymFormat = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
+
+	it("parses every well-formed month", () => {
 		fc.assert(
 			fc.property(fc.integer({ min: 1000, max: 9999 }), fc.integer({ min: 1, max: 12 }), (y, m) => {
 				const s = ymFormat(y, m);
