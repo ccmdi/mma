@@ -348,16 +348,16 @@ impl SelectionState {
         for root in &self.resolved {
             root.sel.fold(&mut |node, _| {
                 if visited.insert(node.key.clone()) {
-                    let before = changes
-                        .before()
-                        .filter(|row| selections::RowRef::from_loc(row).matches(&node.selector))
-                        .count() as i64;
-                    let after = changes
-                        .after()
-                        .filter(|row| selections::RowRef::from_loc(row).matches(&node.selector))
-                        .count() as i64;
+                    let delta = changes
+                        .count_by(|row| {
+                            selections::RowRef::from_loc(row)
+                                .matches(&node.selector)
+                                .then_some(())
+                        })
+                        .remove(&())
+                        .unwrap_or(0);
                     let count = self.node_counts.entry(node.key.clone()).or_default();
-                    *count = (*count as i64 + after - before).max(0) as u32;
+                    *count = (*count as i64 + delta).max(0) as u32;
                 }
             });
         }
