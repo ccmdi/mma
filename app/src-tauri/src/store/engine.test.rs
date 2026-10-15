@@ -7393,7 +7393,12 @@ fn uploaded_add_echoes_ids_in_staged_order() {
 
 #[test]
 fn uploaded_add_matches_direct_add() {
-    let locs = vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0), loc(0, 3.0, 3.0)];
+    let created = |l: Location| Location { created_at: 7, ..l };
+    let locs = vec![
+        created(loc(0, 1.0, 1.0)),
+        created(loc(0, 2.0, 2.0)),
+        created(loc(0, 3.0, 3.0)),
+    ];
 
     let mut direct_store = setup_store_with(&[]);
     let direct = add_rows(&mut direct_store, locs.clone());
