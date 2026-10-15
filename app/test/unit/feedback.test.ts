@@ -2,9 +2,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
 	buildIssueBody,
-	parseReportBody,
 	type Attachments,
 	type ReportInput,
+	type ReportMeta,
 } from "@/lib/feedback/body";
 import { changedFrom, type Diagnostics } from "@/lib/diagnostics";
 import { refreshStoredReports, submitReport } from "@/lib/feedback/submit";
@@ -78,6 +78,20 @@ const input: ReportInput = {
 	description: "They disappear when I zoom in.",
 	steps: "1. open a map\n2. zoom to 16",
 };
+
+function parseReportBody(body: string): ReportMeta | null {
+	const open = "<!-- mma-report ";
+	const start = body.indexOf(open);
+	if (start === -1) return null;
+	const from = start + open.length;
+	const end = body.indexOf(" -->", from);
+	if (end === -1) return null;
+	try {
+		return JSON.parse(body.slice(from, end)) as ReportMeta;
+	} catch {
+		return null;
+	}
+}
 
 describe("issue body", () => {
 	it("round-trips the machine-readable block", () => {

@@ -84,22 +84,6 @@ function machineBlock(meta: ReportMeta): string {
 	return `<!-- ${MARKER} ${encoded} -->`;
 }
 
-/** Recover the structured payload from an issue body. The counterpart to
- *  {@link machineBlock}; what any automation over these issues should use rather than
- *  scraping the prose. */
-export function parseReportBody(body: string): ReportMeta | null {
-	const start = body.indexOf(`<!-- ${MARKER} `);
-	if (start === -1) return null;
-	const from = start + `<!-- ${MARKER} `.length;
-	const end = body.indexOf(" -->", from);
-	if (end === -1) return null;
-	try {
-		return JSON.parse(body.slice(from, end)) as ReportMeta;
-	} catch {
-		return null;
-	}
-}
-
 export interface Attachments {
 	diagnostics: boolean;
 	settings: boolean;
