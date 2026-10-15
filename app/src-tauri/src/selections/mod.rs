@@ -741,12 +741,56 @@ impl<'a, 'v> RowRef<'a, 'v> {
         }
     }
     pub fn matches(&self, selector: &Selector) -> bool {
-        test_row(self, selector)
-    }
-    /// Whether this row lives in the overlay (an add or a patch) rather than the
-    /// committed base batch -- i.e. it has uncommitted changes since the last commit.
-    pub fn is_uncommitted(&self) -> bool {
-        matches!(self.inner, RowInner::Loc(_))
+        match selector {
+            Selector::Everything => true,
+            Selector::Locations { locations, .. }
+            | Selector::Manual { locations }
+            | Selector::Validation { locations, .. }
+            | Selector::Reviewed { locations, .. } => locations.contains(&self.id()),
+            Selector::Uncommitted => matches!(self.inner, RowInner::Loc(_)),
+            Selector::Polygon { polygon } => point_in_geometry(self.lng(), self.lat(), polygon),
+            Selector::Filter { field, test } => {
+                if test.tz_local() {
+                    return compare_filter_local_tz(self, field, test);
+                }
+                match self.resolve_field(field) {
+                    Some(ref v) => compare_filter(v, test),
+                    None => matches!(test, FilterOp::Nothas),
+                }
+            }
+            Selector::Intersection { selections } => {
+                !selections.is_empty()
+                    && selections.iter().all(|child| self.matches(&child.selector))
+            }
+            Selector::Union { selections } => {
+                selections.iter().any(|child| self.matches(&child.selector))
+            }
+            Selector::Invert { selections } => selections
+                .first()
+                .is_none_or(|child| !self.matches(&child.selector)),
+            Selector::Ranked {
+                selection, k: None, ..
+            } => selection
+                .as_ref()
+                .is_none_or(|child| self.matches(&child.selector)),
+            Selector::Nearby {
+                selection,
+                lat,
+                lng,
+                radius_m,
+            } => {
+                selection
+                    .as_ref()
+                    .is_none_or(|child| self.matches(&child.selector))
+                    && (DistanceTo {
+                        lat: *lat,
+                        lng: *lng,
+                    })
+                    .score(self)
+                        <= *radius_m
+            }
+            _ => false,
+        }
     }
 }
 
@@ -901,58 +945,6 @@ impl<'a> LocView<'a> {
 // ---------------------------------------------------------------------------
 // Bitmask resolve
 // ---------------------------------------------------------------------------
-
-fn test_row(r: &RowRef, selector: &Selector) -> bool {
-    match selector {
-        Selector::Everything => true,
-        Selector::Locations { locations, .. }
-        | Selector::Manual { locations }
-        | Selector::Validation { locations, .. }
-        | Selector::Reviewed { locations, .. } => locations.contains(&r.id()),
-        Selector::Uncommitted => r.is_uncommitted(),
-        Selector::Polygon { polygon } => point_in_geometry(r.lng(), r.lat(), polygon),
-        Selector::Filter { field, test } => {
-            if test.tz_local() {
-                return compare_filter_local_tz(r, field, test);
-            }
-            match r.resolve_field(field) {
-                Some(ref v) => compare_filter(v, test),
-                None => matches!(test, FilterOp::Nothas),
-            }
-        }
-        Selector::Intersection { selections } => {
-            !selections.is_empty() && selections.iter().all(|child| test_row(r, &child.selector))
-        }
-        Selector::Union { selections } => {
-            selections.iter().any(|child| test_row(r, &child.selector))
-        }
-        Selector::Invert { selections } => selections
-            .first()
-            .is_none_or(|child| !test_row(r, &child.selector)),
-        Selector::Ranked {
-            selection, k: None, ..
-        } => selection
-            .as_ref()
-            .is_none_or(|child| test_row(r, &child.selector)),
-        Selector::Nearby {
-            selection,
-            lat,
-            lng,
-            radius_m,
-        } => {
-            selection
-                .as_ref()
-                .is_none_or(|child| test_row(r, &child.selector))
-                && (DistanceTo {
-                    lat: *lat,
-                    lng: *lng,
-                })
-                .score(r)
-                    <= *radius_m
-        }
-        _ => false,
-    }
-}
 
 /// A spaced pick's ids, or none when its thinning is out of range.
 fn picked(r: types::AppResult<SpacedPickResult>) -> IdSet<Location> {
@@ -1156,7 +1148,7 @@ impl<'v, 'a> Scope<'v, 'a> {
             }
             Selector::Filter { field, test } => self
                 .indexed(field, test)
-                .unwrap_or_else(|| self.keep(|r| test_row(r, selector))),
+                .unwrap_or_else(|| self.keep(|r| r.matches(selector))),
             Selector::Polygon { polygon } => match geometry_bbox(polygon) {
                 None => IdSet::new(),
                 Some(bb) => {
@@ -1220,7 +1212,7 @@ impl<'v, 'a> Scope<'v, 'a> {
                 .into_iter()
                 .collect(),
             ),
-            _ => self.keep(|r| test_row(r, selector)),
+            _ => self.keep(|r| r.matches(selector)),
         }
     }
 

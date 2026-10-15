@@ -4053,8 +4053,8 @@ fn resolve_fields_reports_each_requested_field_by_position() {
     let view = fx.view();
     let all = view.all();
     let rows: Vec<RowRef> = all.rows().collect();
-    assert!(!rows[0].is_uncommitted());
-    assert!(rows[1].is_uncommitted());
+    assert!(!rows[0].matches(&Selector::Uncommitted));
+    assert!(rows[1].matches(&Selector::Uncommitted));
 
     let fields = [
         "b", "heading", "n", "missing", "timezone", "panoId", "timezone", "a",
