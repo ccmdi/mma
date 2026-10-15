@@ -24,10 +24,6 @@ import { Trans } from "@/components/primitives/Trans";
 const FIELD_PREFS_KEY = "import-field-prefs";
 const AUTOCOMMIT_ACK_KEY = "import-autocommit-ack";
 
-function autoCommitAcked(): boolean {
-	return localStorage.getItem(AUTOCOMMIT_ACK_KEY) === "1";
-}
-
 function loadDroppedFields(): Set<string> {
 	return new Set(getLocal<string[]>(FIELD_PREFS_KEY, []));
 }
@@ -65,7 +61,7 @@ export function ImportSidebar() {
 
 	// Large imports autocommit (not undoable) -- warn first unless the user opted out.
 	const requestImport = () => {
-		if (preview.willAutoCommit && !autoCommitAcked()) {
+		if (preview.willAutoCommit && localStorage.getItem(AUTOCOMMIT_ACK_KEY) !== "1") {
 			setConfirmAutoCommit(true);
 			return;
 		}
