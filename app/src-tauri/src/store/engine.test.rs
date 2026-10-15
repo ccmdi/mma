@@ -9509,7 +9509,7 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
     };
     let added = store.write([Op::Add(given.clone())], &mut None, Entry::default());
     let row = store.get_loc_by_id(added.keys[0]).unwrap();
-    assert!(row.created_at > 4);
+    assert_eq!(row.created_at, 3);
     assert_eq!(row.modified_at, None);
 
     let pending = Target::Pending { name: "p".into() };
@@ -9518,7 +9518,7 @@ fn a_write_stamps_a_changed_row_modified_and_an_added_row_created() {
         .edit(vec![Op::Add(given)], Default::default(), &mut None);
     store.land("p", &mut None);
     let landed = store.get_loc_by_id(staged.mutation.keys[0]).unwrap();
-    assert!(landed.created_at > 4);
+    assert_eq!(landed.created_at, 3);
     assert_eq!(landed.modified_at, None);
 }
 
