@@ -1,6 +1,7 @@
 //! Polygon containment and bounding boxes for polygon selections.
 
 use super::*;
+use mma_geo::{anchor_bbox, extend_bbox_with_ring, haversine_m, polygon_contains};
 use std::iter;
 
 impl PolygonGeometry {
@@ -17,23 +18,10 @@ impl PolygonGeometry {
     }
 }
 
-pub(super) fn point_in_polygon(lng: f64, lat: f64, coords: &[Vec<[f64; 2]>]) -> bool {
-    polygon_contains(lng, lat, coords.iter().map(Vec::as_slice))
-}
-
 /// Test against the full geometry (primary polygon + extra_polygons). Any hit = true.
 pub(crate) fn point_in_geometry(lng: f64, lat: f64, geom: &PolygonGeometry) -> bool {
-    if point_in_polygon(lng, lat, &geom.coordinates) {
-        return true;
-    }
-    if let Some(extras) = &geom.extra_polygons {
-        for poly in extras {
-            if point_in_polygon(lng, lat, poly) {
-                return true;
-            }
-        }
-    }
-    false
+    geom.parts()
+        .any(|polygon| polygon_contains(lng, lat, polygon.iter().map(Vec::as_slice)))
 }
 
 /// Axis-aligned bounding box `[min_lng, min_lat, max_lng, max_lat]` over every ring of
@@ -44,15 +32,8 @@ pub(crate) fn point_in_geometry(lng: f64, lat: f64, geom: &PolygonGeometry) -> b
 pub(crate) fn geometry_bbox(geom: &PolygonGeometry) -> Option<[f64; 4]> {
     let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     let mut any = false;
-    for ring in &geom.coordinates {
+    for ring in geom.parts().flatten() {
         extend_bbox_with_ring(&mut bb, &mut any, ring);
-    }
-    if let Some(extras) = &geom.extra_polygons {
-        for poly in extras {
-            for ring in poly {
-                extend_bbox_with_ring(&mut bb, &mut any, ring);
-            }
-        }
     }
     if any {
         anchor_bbox(&mut bb);

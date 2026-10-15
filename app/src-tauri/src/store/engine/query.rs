@@ -163,7 +163,7 @@ fn even_picks(
     let mut nearest: HashMap<(i64, i64), (f64, usize)> = HashMap::new();
     for (i, &(id, lat, lng)) in candidates.iter().enumerate() {
         let node = grid.nearest(lat, lng);
-        let d = selections::haversine_m(lat, lng, node.lat, node.lng);
+        let d = mma_geo::haversine_m(lat, lng, node.lat, node.lng);
         nearest
             .entry((node.row, node.col))
             .and_modify(|best| {
@@ -186,7 +186,7 @@ fn even_picks(
         let (_, lat, lng) = candidates[i];
         let crowded = index.any_candidate(lat, lng, floor, |k| {
             let (_, klat, klng) = candidates[kept[k as usize]];
-            selections::haversine_m(lat, lng, klat, klng) < floor
+            mma_geo::haversine_m(lat, lng, klat, klng) < floor
         });
         if !crowded {
             index.insert(kept.len() as u32, lat, lng);

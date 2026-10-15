@@ -10,6 +10,7 @@ use crate::util::Rgb;
 use chrono::TimeZone;
 use chrono::Utc;
 use mma_algebra::Id;
+use mma_geo::{haversine_m, in_bbox, point_in_ring, polygon_contains, unwrap_ring};
 use std::collections::HashSet;
 use std::iter;
 use std::slice;
@@ -92,7 +93,7 @@ fn within_sparse_applies_overlay_and_preserves_view_order() {
 }
 
 // -----------------------------------------------------------------------
-// Geometry: point_in_ring / point_in_polygon
+// Geometry: point_in_ring / polygon_contains
 // -----------------------------------------------------------------------
 
 #[test]
@@ -120,7 +121,7 @@ fn point_outside_square() {
 }
 
 #[test]
-fn point_in_polygon_with_hole() {
+fn polygon_contains_respects_a_hole() {
     let outer = vec![
         [0.0, 0.0],
         [20.0, 0.0],
@@ -136,8 +137,9 @@ fn point_in_polygon_with_hole() {
         [5.0, 5.0],
     ];
     let coords = vec![outer, hole];
-    assert!(point_in_polygon(2.0, 2.0, &coords)); // outside hole, inside outer
-    assert!(!point_in_polygon(10.0, 10.0, &coords)); // inside hole
+    let contains = |lng, lat| polygon_contains(lng, lat, coords.iter().map(Vec::as_slice));
+    assert!(contains(2.0, 2.0)); // outside hole, inside outer
+    assert!(!contains(10.0, 10.0)); // inside hole
 }
 
 #[test]

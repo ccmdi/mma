@@ -5731,7 +5731,7 @@ fn brute_nearby(store: &mut Store, lat: f64, lng: f64, r: f64) -> Vec<u32> {
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything)
         .iter()
-        .filter(|l| selections::haversine_m(lat, lng, l.lat, l.lng) <= r)
+        .filter(|l| mma_geo::haversine_m(lat, lng, l.lat, l.lng) <= r)
         .map(|l| l.id)
         .map(Id::get)
         .collect();
@@ -5876,14 +5876,14 @@ fn find_nearest_agrees_with_brute_force() {
             .at(&Target::Map { id: None })
             .rows(&Selector::Everything)
             .iter()
-            .map(|l| selections::haversine_m(lat, lng, l.lat, l.lng))
+            .map(|l| mma_geo::haversine_m(lat, lng, l.lat, l.lng))
             .min_by(f64::total_cmp)
             .unwrap()
     };
     let check = |store: &mut Store, lat: f64, lng: f64| {
         let id = nearest(store, lat, lng).expect("nonempty map");
         let (la, ln) = store.coords_of(Id::new(id)).expect("alive id");
-        let d = selections::haversine_m(lat, lng, la, ln);
+        let d = mma_geo::haversine_m(lat, lng, la, ln);
         let want = brute_nearest(store, lat, lng);
         assert!((d - want).abs() < 1e-6, "({lat},{lng}): {d} != {want}");
     };
@@ -5945,7 +5945,7 @@ fn min_pairwise(ids: &[Id<Location>], coords: &HashMap<Id<Location>, (f64, f64)>
     for i in 0..ids.len() {
         for j in i + 1..ids.len() {
             let (a, b) = (coords[&ids[i]], coords[&ids[j]]);
-            min = min.min(selections::haversine_m(a.0, a.1, b.0, b.1));
+            min = min.min(mma_geo::haversine_m(a.0, a.1, b.0, b.1));
         }
     }
     min
@@ -6119,7 +6119,7 @@ fn scattered(n: usize) -> Vec<(f64, f64)> {
 
 fn nearest_to(lat: f64, lng: f64, others: impl Iterator<Item = (f64, f64)>) -> f64 {
     others
-        .map(|(olat, olng)| selections::haversine_m(lat, lng, olat, olng))
+        .map(|(olat, olng)| mma_geo::haversine_m(lat, lng, olat, olng))
         .fold(f64::INFINITY, f64::min)
 }
 

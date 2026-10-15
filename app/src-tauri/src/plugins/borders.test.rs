@@ -146,7 +146,7 @@ fn bbox_prefilter_does_not_change_lookup() {
                 .iter()
                 .position(|f| selections::point_in_geometry(lng, lat, &f.geometry));
             let filtered = features.iter().zip(&bboxes).position(|(f, bb)| {
-                matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb))
+                matches!(bb, Some(bb) if mma_geo::in_bbox(lng, lat, bb))
                     && selections::point_in_geometry(lng, lat, &f.geometry)
             });
             assert_eq!(plain, filtered, "divergence at ({lng}, {lat})");
@@ -343,7 +343,7 @@ fn light_names(feats: &[(BorderFeature, Option<[f64; 4]>)], lat: f64, lng: f64) 
     feats
         .iter()
         .filter(|(f, bb)| {
-            matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb))
+            matches!(bb, Some(bb) if mma_geo::in_bbox(lng, lat, bb))
                 && selections::point_in_geometry(lng, lat, &f.geometry)
         })
         .map(|(f, _)| f.name.as_str())
@@ -422,7 +422,7 @@ fn border_tiers_agree_with_light() {
             feats
                 .iter()
                 .filter(|(bb, f)| {
-                    matches!(bb, Some(bb) if selections::in_bbox(lng, lat, bb))
+                    matches!(bb, Some(bb) if mma_geo::in_bbox(lng, lat, bb))
                         && arch_point_in_feature(lng, lat, f)
                 })
                 .map(|(_, f)| f.name.as_str())

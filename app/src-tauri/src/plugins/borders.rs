@@ -555,12 +555,12 @@ fn arch_rings(poly: &ArchPoly) -> impl Iterator<Item = &[[f64; 2]]> {
 }
 
 fn arch_point_in_feature(lng: f64, lat: f64, f: &ArchivedArchFeature) -> bool {
-    if selections::polygon_contains(lng, lat, arch_rings(&f.rings)) {
+    if mma_geo::polygon_contains(lng, lat, arch_rings(&f.rings)) {
         return true;
     }
     f.extra
         .iter()
-        .any(|poly| selections::polygon_contains(lng, lat, arch_rings(poly)))
+        .any(|poly| mma_geo::polygon_contains(lng, lat, arch_rings(poly)))
 }
 
 fn arch_feature_bbox(f: &ArchivedArchFeature) -> Option<[f64; 4]> {
@@ -568,10 +568,10 @@ fn arch_feature_bbox(f: &ArchivedArchFeature) -> Option<[f64; 4]> {
     let mut bb = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
     let mut any = false;
     for r in all_rings() {
-        selections::extend_bbox_with_ring(&mut bb, &mut any, r.as_slice());
+        mma_geo::extend_bbox_with_ring(&mut bb, &mut any, r.as_slice());
     }
     if any {
-        selections::anchor_bbox(&mut bb);
+        mma_geo::anchor_bbox(&mut bb);
         Some(bb)
     } else {
         None
@@ -824,7 +824,7 @@ fn zip_bboxes<'a, T>(
 fn find_feature<'a, T: Feature>(feats: &[([f64; 4], &'a T)], lng: f64, lat: f64) -> Option<&'a T> {
     feats
         .iter()
-        .find(|(bb, f)| selections::in_bbox(lng, lat, bb) && f.contains(lng, lat))
+        .find(|(bb, f)| mma_geo::in_bbox(lng, lat, bb) && f.contains(lng, lat))
         .map(|(_, f)| *f)
 }
 

@@ -29,11 +29,6 @@ pub use duplicates::*;
 pub use filter::*;
 pub(crate) use geometry::*;
 use mma_geo::SpatialIndex;
-pub(crate) use mma_geo::{
-    anchor_bbox, extend_bbox_with_ring, haversine_m, in_bbox, polygon_contains,
-};
-#[cfg(test)]
-pub(crate) use mma_geo::{point_in_ring, unwrap_ring};
 pub use partition::*;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -1139,7 +1134,8 @@ impl<'v, 'a> Scope<'v, 'a> {
                 Some(bb) => {
                     let prepared = polygon.prepared();
                     self.keep(|r| {
-                        in_bbox(r.lng(), r.lat(), &bb) && prepared.contains(r.lng(), r.lat())
+                        mma_geo::in_bbox(r.lng(), r.lat(), &bb)
+                            && prepared.contains(r.lng(), r.lat())
                     })
                 }
             },
