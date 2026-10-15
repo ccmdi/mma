@@ -6887,25 +6887,28 @@ cmd.storeResolvePick(cell: string, cellIndex: number): Promise<number | null>
 
 Resolve a marker pick (cell key + index within cell) to a location ID.
 
-#### cmd.storeReviewCreate
+#### cmd.storeReviewEdit
 
-`unstable` · since v0.5.2
-
-```ts
-cmd.storeReviewCreate(session: ReviewCreate): Promise<ReviewSession>
-```
-
-Create a new review session from a frozen worklist of location IDs.
-
-#### cmd.storeReviewDelete
-
-`unstable` · since v0.5.2
+`unstable` · unreleased
 
 ```ts
-cmd.storeReviewDelete(id: string): Promise<null>
+cmd.storeReviewEdit(
+  edits: Op<
+    ReviewSession,
+    Partial<
+      Omit<
+        ReviewSession,
+        "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt"
+      >
+    > &
+      Pick<ReviewSession, "id">,
+    string
+  >[],
+): Promise<ReviewSession[]>
 ```
 
-Delete a review session.
+Add, replace, patch or remove review sessions together. Returns each added session as
+stored, in order.
 
 #### cmd.storeReviewList
 
@@ -6920,24 +6923,6 @@ cmd.storeReviewList(
 ```
 
 List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`.
-
-#### cmd.storeReviewUpdate
-
-`unstable` · since v0.5.2
-
-```ts
-cmd.storeReviewUpdate(
-  update: Partial<
-    Omit<
-      ReviewSession,
-      "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt"
-    >
-  > &
-    Pick<ReviewSession, "id">,
-): Promise<null>
-```
-
-Apply a partial update to a review session.
 
 #### cmd.storeSaveDirty
 

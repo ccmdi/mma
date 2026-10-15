@@ -4,20 +4,17 @@
 //! plus a per-session set of ids that have been reviewed and a content-addressed cursor.
 //! Stored in SQLite (`review_sessions`), scoped per map. Sessions survive map close, and
 //! the cursor is an id rather than a positional index, so worklist mutation cannot desync it.
-//!
-//! Command wrappers (`store_review_*`) open the DB and delegate to the `&Connection` core
-//! functions below, which carry all the behavior and are unit-tested directly.
 
 use crate::store::maps::MapMeta;
 use crate::store::storage;
 use crate::types::{AppResult, Location};
 use crate::util::now_iso;
-use mma_algebra::{Id, Patch};
+use mma_algebra::{Edit, Id, Op};
 use rusqlite::types::ToSql;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 
 /// A review session: a frozen worklist of locations with progress tracking.
-#[derive(Clone, serde::Serialize, specta::Type, mma_fields::Patch)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, specta::Type, mma_fields::Patch)]
 #[serde(rename_all = "camelCase")]
 pub struct ReviewSession {
     #[patch(key)]
@@ -50,19 +47,6 @@ impl storage::Stamped for ReviewSession {
     }
 }
 
-/// Parameters for creating a review session. `order` is the frozen worklist (must be
-/// non-empty); the cursor starts at its first id.
-#[derive(serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct ReviewCreate {
-    pub map_id: Id<MapMeta, String>,
-    pub name: String,
-    pub source_key: String,
-    #[specta(type = specta_typescript::Any)]
-    pub source_props: serde_json::Value,
-    pub order: Vec<Id<Location>>,
-}
-
 /// SELECT column list shared by all readers, matching `row_to_session` ordinals.
 const COLS: &str =
     "id, map_id, name, source_key, source_props, ordering, reviewed, cursor_id, status, created_at, updated_at";
@@ -84,38 +68,33 @@ fn row_to_session(row: &rusqlite::Row) -> rusqlite::Result<ReviewSession> {
     })
 }
 
-// --- Core (testable against any Connection) ---
-
-/// Creates a review session over `order` (frozen worklist). Cursor starts at the first id.
-pub(crate) fn create(conn: &Connection, session: ReviewCreate) -> AppResult<ReviewSession> {
+/// Store `session` whole, replacing any session with its id. Its worklist must be non-empty
+/// and hold its cursor.
+fn write_session(conn: &Connection, session: &ReviewSession) -> AppResult<()> {
     if session.order.is_empty() {
-        return Err("cannot create a review session with an empty worklist".into());
+        return Err("a review session needs a non-empty worklist".into());
     }
-    let id = uuid::Uuid::new_v4().to_string();
-    let now = now_iso();
-    let cursor_id = session.order[0];
-    let source_props = serde_json::to_string(&session.source_props)?;
-    let ordering = serde_json::to_string(&session.order)?;
-
+    if !session.order.contains(&session.cursor_id) {
+        return Err("a review session's cursor must be in its worklist".into());
+    }
     conn.execute(
-        "INSERT INTO review_sessions (id, map_id, name, source_key, source_props, ordering, reviewed, cursor_id, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, '[]', ?, 'active', ?, ?)",
-        rusqlite::params![id, session.map_id.raw(), session.name, session.source_key, source_props, ordering, cursor_id.get(), now, now],
+        "INSERT OR REPLACE INTO review_sessions (id, map_id, name, source_key, source_props, ordering, reviewed, cursor_id, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        rusqlite::params![
+            session.id,
+            session.map_id.raw(),
+            session.name,
+            session.source_key,
+            serde_json::to_string(&session.source_props)?,
+            serde_json::to_string(&session.order)?,
+            serde_json::to_string(&session.reviewed)?,
+            session.cursor_id.get(),
+            session.status,
+            session.created_at,
+            session.updated_at,
+        ],
     )?;
-
-    Ok(ReviewSession {
-        id,
-        map_id: session.map_id,
-        name: session.name,
-        source_key: session.source_key,
-        source_props: session.source_props,
-        order: session.order,
-        reviewed: Vec::new(),
-        cursor_id,
-        status: "active".into(),
-        created_at: now.clone(),
-        updated_at: now,
-    })
+    Ok(())
 }
 
 /// Lists a map's sessions, newest-first, optionally only those with `status` and `source_key`.
@@ -146,23 +125,6 @@ pub(crate) fn list(
     Ok(out)
 }
 
-pub(crate) fn delete(conn: &Connection, id: &str) -> AppResult<()> {
-    conn.execute(
-        "DELETE FROM review_sessions WHERE id = ?",
-        rusqlite::params![id],
-    )?;
-    Ok(())
-}
-
-// --- Command wrappers ---
-
-/// Create a new review session from a frozen worklist of location IDs.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_review_create(session: ReviewCreate) -> AppResult<ReviewSession> {
-    storage::with_db(move |conn| create(conn, session)).await
-}
-
 /// List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`.
 #[tauri::command]
 #[specta::specta]
@@ -175,35 +137,49 @@ pub async fn store_review_list(
         .await
 }
 
-/// Apply a partial update to a review session.
+/// Add, replace, patch or remove review sessions together. Returns each added session as
+/// stored, in order.
 #[tauri::command]
 #[specta::specta]
-pub async fn store_review_update(update: Patch<ReviewSession>) -> AppResult<()> {
+pub async fn store_review_edit(edits: Vec<Edit<ReviewSession>>) -> AppResult<Vec<ReviewSession>> {
     storage::with_db(move |conn| {
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
-        let row = tx.query_row(
-            &format!("SELECT {COLS} FROM review_sessions WHERE id = ?"),
-            [&update.id],
-            row_to_session,
-        );
-        match row {
-            Ok(row) => {
-                storage::patch_row(&tx, "review_sessions", &update.id, &row, &update).map(|_| ())
+        let mut added = Vec::new();
+        for edit in edits {
+            let now = now_iso();
+            match edit {
+                Op::Add(mut session) => {
+                    session.id = uuid::Uuid::new_v4().to_string();
+                    session.created_at = now.clone();
+                    session.updated_at = now;
+                    write_session(&tx, &session)?;
+                    added.push(session);
+                }
+                Op::Set(mut session) => {
+                    session.updated_at = now;
+                    write_session(&tx, &session)?;
+                }
+                Op::Put(patch) => {
+                    let row = tx
+                        .query_row(
+                            &format!("SELECT {COLS} FROM review_sessions WHERE id = ?"),
+                            [&patch.id],
+                            row_to_session,
+                        )
+                        .optional()?;
+                    if let Some(row) = row {
+                        storage::patch_row(&tx, "review_sessions", &patch.id, &row, &patch)?;
+                    }
+                }
+                Op::Remove(id) => {
+                    tx.execute("DELETE FROM review_sessions WHERE id = ?", [&id])?;
+                }
             }
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(()),
-            Err(error) => Err(error.into()),
-        }?;
+        }
         tx.commit()?;
-        Ok(())
+        Ok(added)
     })
     .await
-}
-
-/// Delete a review session.
-#[tauri::command]
-#[specta::specta]
-pub async fn store_review_delete(id: String) -> AppResult<()> {
-    storage::with_db(move |conn| delete(conn, &id)).await
 }
 
 #[cfg(test)]

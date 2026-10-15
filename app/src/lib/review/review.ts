@@ -53,18 +53,24 @@ function closeSession(): void {
 /** Forget a session's progress; a save still pending for it is dropped. */
 async function deleteSession(id: string): Promise<void> {
 	if (session?.id === id) saves.cancel();
-	await cmd.storeReviewDelete(id).catch((e) => log.error("[review] session delete failed:", e));
+	await cmd
+		.storeReviewEdit([{ remove: id }])
+		.catch((e) => log.error("[review] session delete failed:", e));
 }
 
 function persist(s: ReviewSession) {
 	cmd
-		.storeReviewUpdate({
-			id: s.id,
-			cursorId: s.cursorId,
-			reviewed: s.reviewed,
-			order: s.order,
-			status: s.status,
-		})
+		.storeReviewEdit([
+			{
+				put: {
+					id: s.id,
+					cursorId: s.cursorId,
+					reviewed: s.reviewed,
+					order: s.order,
+					status: s.status,
+				},
+			},
+		])
 		.catch((e) => log.error("[review] persist failed:", e));
 }
 
@@ -272,7 +278,23 @@ export const Review = {
 		const name = source ? selectionDisplayName(source) : t("Selected locations");
 		const sourceProps = source?.selector ?? { type: "Manual", locations: order };
 		try {
-			const created = await cmd.storeReviewCreate({ mapId, name, sourceKey, sourceProps, order });
+			const [created] = await cmd.storeReviewEdit([
+				{
+					add: {
+						id: "",
+						mapId,
+						name,
+						sourceKey,
+						sourceProps,
+						order,
+						reviewed: [],
+						cursorId: order[0],
+						status: "active",
+						createdAt: "",
+						updatedAt: "",
+					},
+				},
+			]);
 			setSession(created);
 			await gotoCursor(created);
 		} catch (e) {
@@ -336,10 +358,7 @@ export const Review = {
 		const trimmed = name.trim();
 		if (!trimmed) return;
 		try {
-			await cmd.storeReviewUpdate({
-				id,
-				name: trimmed,
-			});
+			await cmd.storeReviewEdit([{ put: { id, name: trimmed } }]);
 		} catch (e) {
 			log.error("[review] rename failed:", e);
 			return;

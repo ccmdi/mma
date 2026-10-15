@@ -270,14 +270,13 @@ export const commands = {
 	storeSeenMaps: () => __TAURI_INVOKE<SeenMapInfo[]>("store_seen_maps"),
 	/**  Deletes all seen history entries. */
 	storeSeenClear: () => __TAURI_INVOKE<null>("store_seen_clear"),
-	/**  Create a new review session from a frozen worklist of location IDs. */
-	storeReviewCreate: (session: ReviewCreate) => __TAURI_INVOKE<ReviewSession>("store_review_create", { session }),
 	/**  List review sessions for a map, newest first, optionally only those with `status` and `sourceKey`. */
 	storeReviewList: (mapId: string, status: string | null, sourceKey: string | null) => __TAURI_INVOKE<ReviewSession[]>("store_review_list", { mapId, status, sourceKey }),
-	/**  Apply a partial update to a review session. */
-	storeReviewUpdate: (update: Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">) => __TAURI_INVOKE<null>("store_review_update", { update }),
-	/**  Delete a review session. */
-	storeReviewDelete: (id: string) => __TAURI_INVOKE<null>("store_review_delete", { id }),
+	/**
+	 *  Add, replace, patch or remove review sessions together. Returns each added session as
+	 *  stored, in order.
+	 */
+	storeReviewEdit: (edits: (Op<ReviewSession, Partial<Omit<ReviewSession, "mapId" | "sourceKey" | "sourceProps" | "createdAt" | "updatedAt">> & Pick<ReviewSession, "id">, string>)[]) => __TAURI_INVOKE<ReviewSession[]>("store_review_edit", { edits }),
 	/**  List every saved selection rule (name, color, date), without their selector trees. */
 	storeListSavedSelections: () => __TAURI_INVOKE<SavedSelectionInfo[]>("store_list_saved_selections"),
 	/**  Fetch the full saved selection rules for the given `ids`, including their selector trees. */
@@ -1512,18 +1511,6 @@ export type ResultEntry = {
 export type RetrySpec = {
 	attempts: number,
 	on: number[],
-};
-
-/**
- *  Parameters for creating a review session. `order` is the frozen worklist (must be
- *  non-empty); the cursor starts at its first id.
- */
-export type ReviewCreate = {
-	mapId: string,
-	name: string,
-	sourceKey: string,
-	sourceProps: any,
-	order: number[],
 };
 
 

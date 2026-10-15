@@ -45,8 +45,7 @@ vi.mock("@/store/selectionList", () => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeReviewUpdate: vi.fn(async () => {}),
-		storeReviewDelete: vi.fn(async () => {}),
+		storeReviewEdit: vi.fn(async () => []),
 		storeReviewList: vi.fn(async () => []),
 	},
 }));
@@ -256,13 +255,16 @@ describe("session persistence", () => {
 		Review.cancel();
 		vi.useRealTimers();
 	});
-	const saved = () => vi.mocked(cmd.storeReviewUpdate).mock.calls.map(([u]) => u.cursorId);
+	const saved = () =>
+		vi
+			.mocked(cmd.storeReviewEdit)
+			.mock.calls.flatMap(([edits]) => edits.flatMap((e) => (e.put ? [e.put.cursorId] : [])));
 
 	it("every session change schedules a save and a projection", async () => {
 		store.liveIds = [1, 2, 3];
 		await Review.resume(mk([1, 2, 3], 2));
 		vi.useFakeTimers();
-		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		vi.mocked(cmd.storeReviewEdit).mockClear();
 		vi.mocked(SelectionList.update).mockClear();
 		await Review.prev();
 		await vi.advanceTimersByTimeAsync(400);
@@ -279,7 +281,7 @@ describe("session persistence", () => {
 		await Review.resume(mk([1, 2, 3], 1));
 		vi.useFakeTimers();
 		await Review.next();
-		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		vi.mocked(cmd.storeReviewEdit).mockClear();
 		Review.cancel();
 		expect(saved()).toEqual([2]);
 		await vi.advanceTimersByTimeAsync(400);
@@ -291,7 +293,7 @@ describe("session persistence", () => {
 		await Review.resume(mk([1, 2, 3], 1));
 		vi.useFakeTimers();
 		await Review.next();
-		vi.mocked(cmd.storeReviewUpdate).mockClear();
+		vi.mocked(cmd.storeReviewEdit).mockClear();
 		await Review.removeSession("s");
 		await vi.advanceTimersByTimeAsync(400);
 		expect(saved()).toEqual([]);
