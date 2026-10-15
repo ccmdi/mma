@@ -280,9 +280,7 @@ impl Store {
             &self.overlay.removed,
             &self.overlay.updated,
             &self.overlay.added,
-            None,
             Some(&self.selections.ids),
-            None,
         )
     }
 

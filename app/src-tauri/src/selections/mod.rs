@@ -824,18 +824,16 @@ impl<'a> LocView<'a> {
         dead: &'a IdSet<Location>,
         patches: &'a HashMap<Id<Location>, Location>,
         adds: &'a [Location],
-        field_indexes: Option<&'a FieldIndexes>,
         selected: Option<&'a IdSet<Location>>,
-        spatial: Option<&'a SpatialIndex>,
     ) -> Self {
         Self {
             dead,
             patches,
             adds,
             cols: batch.map(Columns::of),
-            field_indexes,
+            field_indexes: None,
             selected,
-            spatial,
+            spatial: None,
         }
     }
 

@@ -120,24 +120,18 @@ impl Fx {
     }
 
     pub(crate) fn view(&self) -> LocView<'_> {
-        self.view_with(None)
-    }
-
-    /// View backed by field indexes, the way the store hands them to `resolve`.
-    pub(crate) fn view_indexed<'a>(&'a self, indexes: &'a FieldIndexes) -> LocView<'a> {
-        self.view_with(Some(indexes))
-    }
-
-    fn view_with<'a>(&'a self, indexes: Option<&'a FieldIndexes>) -> LocView<'a> {
         LocView::new(
             self.batch.as_ref(),
             &self.dead,
             &self.patches,
             &self.adds,
-            indexes,
             self.selected.as_ref(),
-            None,
         )
+    }
+
+    /// View backed by field indexes, the way the store hands them to `resolve`.
+    pub(crate) fn view_indexed<'a>(&'a self, indexes: &'a FieldIndexes) -> LocView<'a> {
+        self.view().indexed(indexes, None)
     }
 }
 

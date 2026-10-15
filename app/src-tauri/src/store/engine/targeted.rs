@@ -102,9 +102,7 @@ impl Targeted<'_> {
             &dead,
             &patches,
             &rows,
-            None,
             Some(&self.store.selections.ids),
-            None,
         );
         read(view.select(selector))
     }
