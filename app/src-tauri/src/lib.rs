@@ -143,7 +143,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 plugins::borders::check_border_file,
                 plugins::borders::download_border_file,
                 plugins::borders::border_lookup,
-                plugins::borders::border_classify,
                 net::geocoder::reverse_geocode,
                 util::timezone_at,
                 util::reveal_window,

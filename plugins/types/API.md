@@ -5642,20 +5642,6 @@ cmd.appUptime(): Promise<number>
 Seconds the app has been running, counted from launch rather than from whenever a
 window last loaded its page.
 
-#### cmd.borderClassify
-
-`unstable` · since v0.8.1
-
-```ts
-cmd.borderClassify(
-  level: string,
-  points: [number, number][],
-): Promise<(string | null)[]>
-```
-
-Classify each `(lat, lng)` to the name of its containing border feature at
-`level` (subdivision names for "adm1"). `null` for points outside every feature.
-
 #### cmd.borderLookup
 
 `unstable` · since v0.5.1

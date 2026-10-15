@@ -712,12 +712,6 @@ declare const commands$1: {
      */
     borderLookup: (lat: number, lng: number, level: string) => Promise<PolygonGeometry | null>;
     /**
-     *  Classify each `(lat, lng)` to the name of its containing border feature at
-     *  `level` (subdivision names for "adm1"). `null` for points outside every feature.
-     *  @unstable
-     */
-    borderClassify: (level: string, points: ([number, number])[]) => Promise<(string | null)[]>;
-    /**
      *  Return the nearest city, administrative region, and country for a coordinate.
      *  Never `null`: every landmass is covered.
      *  @unstable

@@ -87,11 +87,6 @@ export const commands = {
 	 */
 	borderLookup: (lat: number, lng: number, level: string) => __TAURI_INVOKE<PolygonGeometry | null>("border_lookup", { lat, lng, level }).then((v) => (v==null?v:({...v,coordinates:v.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:v.extraPolygons==null?v.extraPolygons:v.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) as typeof v)),
 	/**
-	 *  Classify each `(lat, lng)` to the name of its containing border feature at
-	 *  `level` (subdivision names for "adm1"). `null` for points outside every feature.
-	 */
-	borderClassify: (level: string, points: ([number, number])[]) => __TAURI_INVOKE<(string | null)[]>("border_classify", { level, points: points.map(i=>i) }),
-	/**
 	 *  Return the nearest city, administrative region, and country for a coordinate.
 	 *  Never `null`: every landmass is covered.
 	 */

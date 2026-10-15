@@ -44,9 +44,6 @@ const cmdMock = vi.hoisted(() => ({
 	providerRegister: vi.fn(async () => null),
 	checkBorderFile: vi.fn(async () => true),
 	downloadBorderFile: vi.fn(async () => {}),
-	borderClassify: vi.fn(async (_level: string, pts: [number, number][]) =>
-		pts.map((): string | null => null),
-	),
 }));
 vi.mock("@/lib/commands", () => ({ cmd: cmdMock }));
 vi.mock("@/lib/util/toast", () => ({ toast: () => {} }));

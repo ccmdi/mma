@@ -796,16 +796,7 @@ pub fn border_lookup(lat: f64, lng: f64, level: String) -> AppResult<Option<Poly
 }
 
 /// Classify each `(lat, lng)` to the name of its containing border feature at
-/// `level` (subdivision names for "adm1"). `null` for points outside every feature.
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub fn border_classify(level: String, points: Vec<(f64, f64)>) -> AppResult<Vec<Option<String>>> {
-    classify_points(&level, &points)
-}
-
-/// In-process entry point for [`border_classify`], for callers that already hold
-/// borrowed points (the procedure engine's `classify` host import).
+/// `level` (subdivision names for "adm1"), `None` for points outside every feature.
 pub(crate) fn classify_points(
     level: &str,
     points: &[(f64, f64)],
