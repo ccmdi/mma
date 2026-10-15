@@ -12,7 +12,6 @@ use std::time::Duration;
 use tokio::task;
 use vali_data::paths;
 use vali_generate::download;
-use vali_generate::export;
 use vali_generate::names;
 use vali_generate::{generate_output, prepare, CancelToken, GeoMapLocation, ProgressEvent};
 
@@ -233,14 +232,6 @@ pub fn vali_cancel(state: tauri::State<'_, ValiState>) {
     if let Some(token) = state.cancel.lock().unwrap().as_ref() {
         token.cancel();
     }
-}
-
-/// Subdivision weights for a country (JSON text, same shape as `vali subdivisions`).
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub fn vali_subdivisions(country: String) -> AppResult<String> {
-    export::subdivisions_export(&country, false).map_err(AppError)
 }
 
 /// How far behind one country's downloaded coverage data is.

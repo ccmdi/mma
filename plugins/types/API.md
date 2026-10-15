@@ -7263,16 +7263,6 @@ cmd.valiGenerate(definition: string): Promise<ValiLocation[]>
 Generate locations from a Vali map definition (JSON text). Missing country
 data is auto-downloaded like the Vali CLI. Returns the generated locations.
 
-#### cmd.valiSubdivisions
-
-`unstable` · since v0.7.0
-
-```ts
-cmd.valiSubdivisions(country: string): Promise<string>
-```
-
-Subdivision weights for a country (JSON text, same shape as `vali subdivisions`).
-
 #### cmd.writeTempFile
 
 `unstable` · since v0.4.0

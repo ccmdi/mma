@@ -402,8 +402,6 @@ export const commands = {
 	valiDownload: (country: string | null, full: boolean, updates: boolean) => __TAURI_INVOKE<null>("vali_download", { country, full, updates }),
 	/**  Cancel an in-flight vali generate or download. */
 	valiCancel: () => __TAURI_INVOKE<void>("vali_cancel"),
-	/**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). */
-	valiSubdivisions: (country: string) => __TAURI_INVOKE<string>("vali_subdivisions", { country }),
 	/**  Country codes Vali has coverage data for. */
 	valiCountries: () => __TAURI_INVOKE<string[]>("vali_countries"),
 	/**

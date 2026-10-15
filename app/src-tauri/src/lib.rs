@@ -249,7 +249,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 plugins::vali::vali_generate,
                 plugins::vali::vali_download,
                 plugins::vali::vali_cancel,
-                plugins::vali::vali_subdivisions,
                 plugins::vali::vali_countries,
                 plugins::vali::vali_data_status,
                 plugins::vali::vali_download_stale,

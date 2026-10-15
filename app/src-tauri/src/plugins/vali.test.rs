@@ -53,9 +53,3 @@ fn vali_generate_rejects_bad_definition() {
         serde_json::from_str(r#"{ "countryCodes": ["XX"] }"#).unwrap();
     assert!(prepare(&def).is_err());
 }
-
-#[test]
-fn vali_subdivisions_exports_weights() {
-    let out = vali_subdivisions("NO".to_string()).unwrap();
-    assert!(out.contains("\"NO-03\""));
-}

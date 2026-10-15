@@ -1065,8 +1065,6 @@ declare const commands$1: {
     valiDownload: (country: string | null, full: boolean, updates: boolean) => Promise<null>;
     /**  Cancel an in-flight vali generate or download. @unstable */
     valiCancel: () => Promise<void>;
-    /**  Subdivision weights for a country (JSON text, same shape as `vali subdivisions`). @unstable */
-    valiSubdivisions: (country: string) => Promise<string>;
     /**  Country codes Vali has coverage data for. @unstable */
     valiCountries: () => Promise<string[]>;
     /**
