@@ -10,7 +10,6 @@ import {
 	setEnabled,
 	hasCoverage,
 	getCoverageImage,
-	getVersion,
 	subscribe,
 } from "@/plugins/generator/searchCoverage";
 
@@ -137,16 +136,14 @@ describe("searchCoverage session lifecycle", () => {
 		expect(hasCoverage()).toBe(false);
 	});
 
-	it("bumps the version and notifies subscribers when probes flush", () => {
+	it("notifies subscribers when probes flush", () => {
 		setEnabled(true);
 		beginSession({ west: 0, south: 0, east: 10, north: 10 }, 500);
-		const before = getVersion();
 		let hits = 0;
 		const unsub = subscribe(() => hits++);
 		probeCenter();
 		vi.advanceTimersByTime(200);
 		unsub();
-		expect(getVersion()).toBeGreaterThan(before);
 		expect(hits).toBeGreaterThan(0);
 	});
 });

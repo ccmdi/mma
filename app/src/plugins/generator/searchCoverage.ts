@@ -30,7 +30,6 @@ let buffer: Uint8ClampedArray | null = null;
 let images: [ImageData, ImageData] | null = null;
 let frontImage = 0;
 
-let version = 0;
 let dirty = false;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 const listeners = new Set<() => void>();
@@ -50,7 +49,6 @@ function scheduleFlush(): void {
 		flushTimer = null;
 		if (!dirty) return;
 		dirty = false;
-		version++;
 		notify();
 	}, FLUSH_MS);
 }
@@ -122,7 +120,6 @@ export function beginSession(b: Bounds, radiusMeters: number): void {
 		bounds = null;
 		buffer = null;
 		images = null;
-		version++;
 		notify();
 		return;
 	}
@@ -144,7 +141,6 @@ export function beginSession(b: Bounds, radiusMeters: number): void {
 	radiusPx = Math.max(radiusMeters / mpp, MIN_DISC_PX);
 	buffer = null; // allocated on first probe
 	images = null; // dimensions changed
-	version++;
 	notify();
 }
 
@@ -212,7 +208,6 @@ export function endSession(): void {
 	bounds = null;
 	buffer = null;
 	images = null;
-	version++;
 	notify();
 }
 
@@ -222,7 +217,6 @@ export function setEnabled(value: boolean): void {
 	if (!value) {
 		buffer = null;
 		images = null;
-		version++;
 		notify();
 	}
 }
@@ -246,10 +240,6 @@ export function getCoverageImage(): SearchCoverageImage | null {
 export function subscribe(listener: () => void): () => void {
 	listeners.add(listener);
 	return () => listeners.delete(listener);
-}
-
-export function getVersion(): number {
-	return version;
 }
 
 export const searchCoverage = {
