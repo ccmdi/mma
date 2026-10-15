@@ -5,9 +5,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::net::geoguessr::{proxy_headers, upstream_url};
+use crate::net::geoguessr::{proxy_headers, session, upstream_url};
 use crate::net::proxy;
-use crate::store::storage;
 use crate::sync::{
     has_pano, IdentityModel, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId,
     RemoteSnapshot, SyncDirection, SyncProvider,
@@ -154,10 +153,9 @@ impl GeoGuessrProvider {
         shape: MapShape::GeoGuessr,
     };
 
-    /// Build from the stored `_ncfa` session in the OS credential store.
+    /// Build from the signed-in GeoGuessr session.
     pub(crate) fn from_session() -> AppResult<Self> {
-        let ncfa = storage::secret::get("geoguessr")?
-            .ok_or_else(|| AppError("not signed in to GeoGuessr".into()))?;
+        let ncfa = session()?.ok_or_else(|| AppError("not signed in to GeoGuessr".into()))?;
         Ok(Self { ncfa })
     }
 }

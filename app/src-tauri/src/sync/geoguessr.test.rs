@@ -241,12 +241,12 @@ fn classifies_auth_and_version_conflict_errors() {
 
 #[test]
 fn from_session_reads_the_stored_ncfa() {
-    storage::secret::set("geoguessr", "cookie-value").unwrap();
+    crate::net::geoguessr::set_session(Some("cookie-value".into())).unwrap();
     assert_eq!(
         GeoGuessrProvider::from_session().unwrap().ncfa,
         "cookie-value"
     );
-    storage::secret::delete("geoguessr").unwrap();
+    crate::net::geoguessr::set_session(None).unwrap();
     assert!(GeoGuessrProvider::from_session().is_err());
 }
 

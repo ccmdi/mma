@@ -182,16 +182,10 @@ pub(crate) fn relay(resp: Response, default_ct: &str) -> Reply {
     }
 }
 
-/// mma-buf POST: write an uploaded file into its session dir. The target must
-/// sit directly inside a valid `mma_upload_*` session dir (see
-/// [`crate::io::export::upload_session_dir`]) -- anything else is rejected.
+/// mma-buf POST: write an uploaded file into its session dir; anything outside one is rejected.
 pub(crate) fn write_upload(path: &str, body: &[u8]) -> Reply {
     let target = Path::new(path);
-    let session_ok = target
-        .parent()
-        .and_then(|p| p.to_str())
-        .is_some_and(|p| export::upload_session_dir(p).is_ok());
-    if !session_ok {
+    if !export::is_upload_file(target) {
         return cors_resp(403, b"upload outside session dir".to_vec());
     }
     match fs::write(target, body) {

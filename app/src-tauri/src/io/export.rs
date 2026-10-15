@@ -51,13 +51,13 @@ pub enum ExportFormat {
 #[path = "export.test.rs"]
 mod tests;
 
-/// Unique temp path for an export file. A process-wide counter disambiguates
-/// concurrent exports (PID alone collides).
-fn export_temp_path(stem: &str, ext: &str) -> PathBuf {
+/// Unique temp path for an export file or upload session. A process-wide counter disambiguates
+/// concurrent ones (PID alone collides).
+fn unique_temp_path(stem: &str) -> PathBuf {
     use std::sync::atomic::{AtomicU64, Ordering};
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    env::temp_dir().join(format!("{stem}_{}_{n}.{ext}", process::id()))
+    env::temp_dir().join(format!("{stem}_{}_{n}", process::id()))
 }
 
 /// Parse `{id: {name, color}}` tag definitions JSON into the raw defs map plus an id -> name lookup.
@@ -317,7 +317,7 @@ pub async fn store_export(
                     serde_json::to_string(&geojson_document(&locs, &tags_json))?,
                 ),
             };
-            let path = export_temp_path("mma_export", ext);
+            let path = unique_temp_path("mma_export").with_extension(ext);
             fs::write(&path, &body)?;
             Ok(path.to_string_lossy().into_owned())
         })
@@ -349,15 +349,19 @@ pub(crate) fn upload_session_dir(path: &str) -> AppResult<PathBuf> {
     Ok(p)
 }
 
+/// Whether `path` is a file directly inside an upload session dir.
+pub(crate) fn is_upload_file(path: &Path) -> bool {
+    path.parent()
+        .and_then(|p| p.to_str())
+        .is_some_and(|p| upload_session_dir(p).is_ok())
+}
+
 /// Create a temp session directory for binary uploads. Files written into it are
 /// packaged by `storeUploadFinish`.
 #[tauri::command]
 #[specta::specta]
 pub fn store_upload_begin() -> AppResult<String> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let n = COUNTER.fetch_add(1, Ordering::Relaxed);
-    let dir = env::temp_dir().join(format!("mma_upload_{}_{n}", process::id()));
+    let dir = unique_temp_path("mma_upload");
     fs::create_dir_all(&dir)?;
     Ok(dir.to_string_lossy().into_owned())
 }
@@ -387,11 +391,11 @@ pub fn store_upload_finish(session_dir: String) -> AppResult<String> {
             .and_then(|e| e.to_str())
             .unwrap_or("bin")
             .to_string();
-        let out = export_temp_path("mma_upload_file", &ext);
+        let out = unique_temp_path("mma_upload_file").with_extension(&ext);
         fs::rename(single, &out)?;
         out
     } else {
-        let out = export_temp_path("mma_upload", "zip");
+        let out = unique_temp_path("mma_upload").with_extension("zip");
         let mut zip = zip::ZipWriter::new(BufWriter::new(File::create(&out)?));
         let options =
             SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
@@ -533,7 +537,7 @@ pub async fn store_export_bulk_zip() -> AppResult<String> {
             zip.finish()?;
         }
 
-        let path = export_temp_path("mma_backup", "zip");
+        let path = unique_temp_path("mma_backup").with_extension("zip");
         fs::write(&path, buf.into_inner())?;
         Ok::<_, AppError>(path.to_string_lossy().into_owned())
     })

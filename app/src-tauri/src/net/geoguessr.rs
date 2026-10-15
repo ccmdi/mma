@@ -55,7 +55,7 @@ pub struct GgUser {
 /// The `_ncfa` cookie, cached from the credential store.
 static SESSION: storage::SessionCell = storage::SessionCell::new(SECRET_NAME);
 
-fn session() -> AppResult<Option<String>> {
+pub(crate) fn session() -> AppResult<Option<String>> {
     SESSION.get()
 }
 

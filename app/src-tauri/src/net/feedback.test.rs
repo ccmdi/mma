@@ -1,6 +1,5 @@
 use super::*;
 use crate::util;
-use std::env;
 
 #[test]
 fn scrub_redacts_the_windows_home_directory() {
@@ -107,17 +106,4 @@ fn image_sniffing_ignores_what_the_file_is_called() {
     assert!(!is_image(b"RIFF\0\0\0\0WAVEfmt "));
     assert!(!is_image(b"<html>hi</html>"));
     assert!(!is_image(b""));
-}
-
-#[test]
-fn attachment_uploads_only_accept_staged_files() {
-    use std::path::Path;
-    assert!(!is_staged_upload(Path::new(
-        "C:/Users/x/Pictures/photo.png"
-    )));
-    assert!(!is_staged_upload(Path::new("/etc/passwd")));
-    let outside = env::temp_dir().join("not_a_session").join("a.png");
-    assert!(!is_staged_upload(&outside));
-    let staged = env::temp_dir().join("mma_upload_1_1").join("a.png");
-    assert!(is_staged_upload(&staged));
 }

@@ -163,17 +163,11 @@ impl SyncProvider for MapMakingProvider {
     }
 
     fn pull(&self, remote_map_id: &str) -> AppResult<RemoteSnapshot<MmLocation>> {
-        let url = format!("{BASE_URL}/api/maps/{remote_map_id}/locations");
-        let resp = proxy::sync_client()
-            .get(&url)
-            .header("authorization", format!("API {}", self.api_key))
-            .header("accept", "application/protobuf")
-            .send()?;
-        let status = resp.status().as_u16();
-        let body = resp.bytes()?;
-        if !(200..300).contains(&status) {
-            return Err(api_error(status, &body));
-        }
+        let body = send(
+            proxy::sync_client().get(format!("{BASE_URL}/api/maps/{remote_map_id}/locations")),
+            &self.api_key,
+            "application/protobuf",
+        )?;
         Ok(RemoteSnapshot {
             tags: vec![],
             locations: decode_response(&body).map_err(|e| AppError(format!("{e:#}")))?,
@@ -221,19 +215,15 @@ impl MapMakingProvider {
                 remove: part.remove.clone(),
             }],
         };
-        let resp = proxy::sync_client()
-            .post(&url)
-            .header("authorization", format!("API {}", self.api_key))
-            .header("accept", "application/json")
+        let req = proxy::sync_client()
+            .post(url)
             .header("content-type", "application/json")
-            .body(serde_json::to_vec(&req_body)?)
-            .send()?;
-        let status = resp.status().as_u16();
-        let body = resp.bytes()?;
-        if !(200..300).contains(&status) {
-            return Err(api_error(status, &body));
-        }
-        Ok(serde_json::from_slice(&body)?)
+            .body(serde_json::to_vec(&req_body)?);
+        Ok(serde_json::from_slice(&send(
+            req,
+            &self.api_key,
+            "application/json",
+        )?)?)
     }
 }
 
@@ -298,16 +288,18 @@ struct MapRow {
 }
 
 fn get_bytes(api_key: &str, path: &str) -> AppResult<Vec<u8>> {
-    send_json(
+    send(
         proxy::sync_client().get(format!("{BASE_URL}{path}")),
         api_key,
+        "application/json",
     )
 }
 
-fn send_json(req: RequestBuilder, api_key: &str) -> AppResult<Vec<u8>> {
+/// Send `req` authorized by `api_key`, failing on any non-2xx answer.
+fn send(req: RequestBuilder, api_key: &str, accept: &str) -> AppResult<Vec<u8>> {
     let resp = req
         .header("authorization", format!("API {api_key}"))
-        .header("accept", "application/json")
+        .header("accept", accept)
         .send()?;
     let status = resp.status().as_u16();
     let body = resp.bytes()?;
@@ -331,7 +323,7 @@ fn create_map(api_key: &str, name: &str) -> AppResult<MmMapSummary> {
         .post(format!("{BASE_URL}/api/maps"))
         .header("content-type", "application/json")
         .body(serde_json::to_vec(&body)?);
-    parse_created(&send_json(req, api_key)?)
+    parse_created(&send(req, api_key, "application/json")?)
 }
 
 fn parse_created(body: &[u8]) -> AppResult<MmMapSummary> {

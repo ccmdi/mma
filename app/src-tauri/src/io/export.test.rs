@@ -139,6 +139,18 @@ fn upload_session_dir_rejects_outside_paths() {
 }
 
 #[test]
+fn only_files_directly_inside_a_session_count_as_uploads() {
+    assert!(!is_upload_file(Path::new("C:/Users/x/Pictures/photo.png")));
+    assert!(!is_upload_file(Path::new("/etc/passwd")));
+    assert!(!is_upload_file(
+        &env::temp_dir().join("not_a_session").join("a.png")
+    ));
+    assert!(is_upload_file(
+        &env::temp_dir().join("mma_upload_1_1").join("a.png")
+    ));
+}
+
+#[test]
 fn upload_session_begin_finish_multiple_zips_stored() {
     let session = store_upload_begin().unwrap();
     let dir = PathBuf::from(&session);

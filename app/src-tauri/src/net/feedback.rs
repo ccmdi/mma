@@ -247,21 +247,12 @@ fn is_image(bytes: &[u8]) -> bool {
         || (bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP".as_slice()))
 }
 
-/// Whether `path` is a file the report dialog staged: a direct child of a valid upload
-/// session dir (see [`crate::io::export::upload_session_dir`]). The upload command is reachable
-/// from plugins, so an unconstrained path would read -- and then delete -- anything on disk.
-pub(crate) fn is_staged_upload(path: &Path) -> bool {
-    path.parent()
-        .and_then(|p| p.to_str())
-        .is_some_and(|p| export::upload_session_dir(p).is_ok())
-}
-
 /// Upload an image attachment for a bug report and return its URL.
 #[tauri::command]
 #[specta::specta]
 pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult<AttachmentRef> {
     blocking(move || {
-        if !is_staged_upload(Path::new(&path)) {
+        if !export::is_upload_file(Path::new(&path)) {
             return Err(ErrCode::AttachmentNotStaged.err());
         }
         let meta = fs::metadata(&path)?;
