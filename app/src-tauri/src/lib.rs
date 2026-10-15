@@ -247,7 +247,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 net::geoguessr::geoguessr_login,
                 net::geoguessr::geoguessr_me,
                 net::geoguessr::geoguessr_logout,
-                net::geoguessr::geoguessr_has_session,
                 plugins::vali::vali_generate,
                 plugins::vali::vali_download,
                 plugins::vali::vali_cancel,

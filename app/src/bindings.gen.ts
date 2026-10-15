@@ -398,8 +398,6 @@ export const commands = {
 	geoguessrMe: () => __TAURI_INVOKE<GgUser | null>("geoguessr_me"),
 	/**  Sign out of GeoGuessr and clear the stored session. */
 	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
-	/**  Local-only check: is a token stored? Says nothing about its validity. */
-	geoguessrHasSession: () => __TAURI_INVOKE<boolean>("geoguessr_has_session"),
 	/**
 	 *  Generate locations from a Vali map definition (JSON text). Missing country
 	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.

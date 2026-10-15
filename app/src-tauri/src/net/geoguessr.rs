@@ -342,13 +342,6 @@ fn clear_webview_cookies(app: &tauri::AppHandle) {
     }
 }
 
-/// Local-only check: is a token stored? Says nothing about its validity.
-#[tauri::command]
-#[specta::specta]
-pub async fn geoguessr_has_session() -> AppResult<bool> {
-    blocking(|| Ok(session()?.is_some())).await?
-}
-
 #[cfg(test)]
 #[path = "geoguessr.test.rs"]
 mod tests;

@@ -5833,16 +5833,6 @@ cmd.fileSourceProbe(address: string): Promise<FileSource>
 
 Read the map file at a path or http(s) URL, to link a map to it.
 
-#### cmd.geoguessrHasSession
-
-`unstable` · since v0.8.1
-
-```ts
-cmd.geoguessrHasSession(): Promise<boolean>
-```
-
-Local-only check: is a token stored? Says nothing about its validity.
-
 #### cmd.geoguessrLogin
 
 `unstable` · since v0.8.1

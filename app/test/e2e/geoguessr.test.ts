@@ -91,7 +91,7 @@ describe("ggapi proxy", function () {
 
 	it("answers 401 after a logout and never calls upstream", async () => {
 		await withApi(async (api) => api.cmd.geoguessrLogout());
-		expect(await withApi(async (api) => api.cmd.geoguessrHasSession())).toBe(false);
+		expect(await withApi(async (api) => api.cmd.geoguessrMe())).toBeNull();
 		await hits(true);
 		const res = await ggFetch("/api/v4/user-maps/drafts");
 		expect(res.status).toBe(401);
