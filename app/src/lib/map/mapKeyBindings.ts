@@ -107,39 +107,6 @@ export function mergedKeyBindings(
 	return applicable.length === 0 ? mapBindings : [...mapBindings, ...applicable];
 }
 
-export function matchMapKeyBinding(
-	e: KeyboardEvent,
-	bindings: MapKeyBinding[],
-): MapKeyBinding | undefined {
-	for (const b of bindings) {
-		if (!b.key) continue;
-		for (const alt of parseHotkey(b.key)) {
-			if (alt.length === 1 && matchesKey(e, alt[0])) return b;
-		}
-	}
-	return undefined;
-}
-
-/** Returns true if a registered handler consumed the action. */
-export function executeMapKeyAction(action: MapKeyAction): boolean {
-	const fn = handlers.get(action.type);
-	if (!fn) return false;
-	return fn(action) !== false;
-}
-
-/** Resolve a keydown against the current bindings; consume it if handled. */
-export function handleMapKeyEvent(e: KeyboardEvent, bindings: MapKeyBinding[]): boolean {
-	if (e.defaultPrevented || e.repeat) return false;
-	if (pluginOverlayOwnsInput()) return false;
-	if (isEditableElement(e.target)) return false;
-	if (bindings.length === 0) return false;
-	const binding = matchMapKeyBinding(e, bindings);
-	if (!binding) return false;
-	if (!executeMapKeyAction(binding.action)) return false;
-	e.preventDefault();
-	return true;
-}
-
 /**
  * Mounted once by the map editor. Listens on window in the capture phase so
  * per-map bindings win over the document-capture global hotkey handlers
@@ -148,7 +115,13 @@ export function handleMapKeyEvent(e: KeyboardEvent, bindings: MapKeyBinding[]): 
 export function useMapKeyBindings(getBindings: () => MapKeyBinding[]) {
 	useEffect(() => {
 		const handler = (e: KeyboardEvent) => {
-			handleMapKeyEvent(e, getBindings());
+			if (e.defaultPrevented || e.repeat) return;
+			if (pluginOverlayOwnsInput() || isEditableElement(e.target)) return;
+			const binding = getBindings().find(
+				(b) => b.key && parseHotkey(b.key).some((alt) => alt.length === 1 && matchesKey(e, alt[0])),
+			);
+			const run = binding && handlers.get(binding.action.type);
+			if (run && run(binding.action) !== false) e.preventDefault();
 		};
 		window.addEventListener("keydown", handler, true);
 		return () => window.removeEventListener("keydown", handler, true);

@@ -1,26 +1,51 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach } from "vitest";
+import { createElement } from "react";
+import { mount } from "./fixtures/harness";
 import {
-	matchMapKeyBinding,
-	executeMapKeyAction,
 	registerMapKeyActionHandler,
-	handleMapKeyEvent,
+	useMapKeyBindings,
 	getTagBindingKey,
 	withTagKeyBinding,
 	getMapCopyBindingKey,
 	withMapCopyBinding,
 	mergedKeyBindings,
 } from "@/lib/map/mapKeyBindings";
-import { isEditableElement } from "@/lib/hooks/useHotkey";
-import type { MapKeyBinding } from "@/bindings.gen";
-
-function keyEvent(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
-	return new KeyboardEvent("keydown", { key, cancelable: true, ...init });
-}
+import type { MapKeyAction, MapKeyBinding } from "@/bindings.gen";
 
 const applyTag = (tagId: number): MapKeyBinding["action"] => ({ type: "applyTag", tagId });
 
-describe("matchMapKeyBinding", () => {
+const cleanups: Array<() => void> = [];
+afterEach(() => {
+	while (cleanups.length) cleanups.pop()!();
+});
+
+function mountBindings(bindings: MapKeyBinding[]) {
+	function Probe() {
+		useMapKeyBindings(() => bindings);
+		return null;
+	}
+	mount(createElement(Probe));
+}
+
+function handleApplyTag(result: boolean | void = undefined): MapKeyAction[] {
+	const seen: MapKeyAction[] = [];
+	cleanups.push(
+		registerMapKeyActionHandler("applyTag", (a) => {
+			seen.push(a);
+			return result;
+		}),
+	);
+	return seen;
+}
+
+function press(key: string, init: KeyboardEventInit = {}, target: Element = document.body) {
+	const e = new KeyboardEvent("keydown", { key, cancelable: true, bubbles: true, ...init });
+	target.dispatchEvent(e);
+	return e;
+}
+
+describe("matching a key to a binding", () => {
 	const bindings: MapKeyBinding[] = [
 		{ key: "m", action: applyTag(1) },
 		{ key: "Mod+Shift+x", action: applyTag(2) },
@@ -28,57 +53,62 @@ describe("matchMapKeyBinding", () => {
 	];
 
 	it("matches a plain key", () => {
-		expect(matchMapKeyBinding(keyEvent("m"), bindings)?.action).toEqual(applyTag(1));
+		const seen = handleApplyTag();
+		mountBindings(bindings);
+		press("m");
+		expect(seen).toEqual([applyTag(1)]);
 	});
 
 	it("matches a modifier combo", () => {
-		const e = keyEvent("x", { ctrlKey: true, shiftKey: true });
-		expect(matchMapKeyBinding(e, bindings)?.action).toEqual(applyTag(2));
+		const seen = handleApplyTag();
+		mountBindings(bindings);
+		press("x", { ctrlKey: true, shiftKey: true });
+		expect(seen).toEqual([applyTag(2)]);
 	});
 
 	it("does not match when modifiers differ", () => {
-		expect(matchMapKeyBinding(keyEvent("m", { ctrlKey: true }), bindings)).toBeUndefined();
-		expect(matchMapKeyBinding(keyEvent("x"), bindings)).toBeUndefined();
+		const seen = handleApplyTag();
+		mountBindings(bindings);
+		press("m", { ctrlKey: true });
+		press("x");
+		expect(seen).toEqual([]);
 	});
 
 	it("ignores empty-key bindings", () => {
-		expect(matchMapKeyBinding(keyEvent(""), bindings)).toBeUndefined();
+		const seen = handleApplyTag();
+		mountBindings(bindings);
+		press("");
+		expect(seen).toEqual([]);
 	});
 });
 
 describe("action handler registry", () => {
-	const cleanups: Array<() => void> = [];
-	afterEach(() => {
-		while (cleanups.length) cleanups.pop()!();
+	const bindings: MapKeyBinding[] = [{ key: "m", action: applyTag(1) }];
+
+	it("runs the registered handler and consumes the key", () => {
+		const seen = handleApplyTag();
+		mountBindings([{ key: "m", action: applyTag(7) }]);
+		expect(press("m").defaultPrevented).toBe(true);
+		expect(seen).toEqual([applyTag(7)]);
 	});
 
-	it("executes a registered handler and reports consumption", () => {
-		const seen: number[] = [];
-		cleanups.push(
-			registerMapKeyActionHandler("applyTag", (a) => {
-				seen.push(a.tagId);
-			}),
-		);
-		expect(executeMapKeyAction(applyTag(7))).toBe(true);
-		expect(seen).toEqual([7]);
-	});
-
-	it("returns false when no handler is registered", () => {
-		expect(executeMapKeyAction(applyTag(7))).toBe(false);
+	it("falls through when no handler is registered", () => {
+		mountBindings(bindings);
+		expect(press("m").defaultPrevented).toBe(false);
 	});
 
 	it("unregister removes the handler", () => {
 		const unregister = registerMapKeyActionHandler("applyTag", () => {});
 		unregister();
-		expect(executeMapKeyAction(applyTag(1))).toBe(false);
+		mountBindings(bindings);
+		expect(press("m").defaultPrevented).toBe(false);
 	});
 
 	it("a handler returning false declines the action (key falls through)", () => {
-		cleanups.push(registerMapKeyActionHandler("applyTag", () => false));
-		expect(executeMapKeyAction(applyTag(1))).toBe(false);
-		const e = keyEvent("m");
-		expect(handleMapKeyEvent(e, [{ key: "m", action: applyTag(1) }])).toBe(false);
-		expect(e.defaultPrevented).toBe(false);
+		const seen = handleApplyTag(false);
+		mountBindings(bindings);
+		expect(press("m").defaultPrevented).toBe(false);
+		expect(seen).toEqual([applyTag(1)]);
 	});
 });
 
@@ -144,54 +174,45 @@ describe("map copy binding helpers", () => {
 	});
 });
 
-describe("handleMapKeyEvent", () => {
-	const cleanups: Array<() => void> = [];
-	afterEach(() => {
-		while (cleanups.length) cleanups.pop()!();
-	});
+describe("when the map layer stands aside", () => {
 	const bindings: MapKeyBinding[] = [{ key: "m", action: applyTag(1) }];
 
-	it("consumes the event when a handler exists", () => {
-		cleanups.push(registerMapKeyActionHandler("applyTag", () => {}));
-		const e = keyEvent("m");
-		expect(handleMapKeyEvent(e, bindings)).toBe(true);
-		expect(e.defaultPrevented).toBe(true);
-	});
-
-	it("falls through (no preventDefault) when no handler is registered", () => {
-		const e = keyEvent("m");
-		expect(handleMapKeyEvent(e, bindings)).toBe(false);
-		expect(e.defaultPrevented).toBe(false);
-	});
-
 	it("yields while a plugin overlay owns input", () => {
-		cleanups.push(registerMapKeyActionHandler("applyTag", () => {}));
+		const seen = handleApplyTag();
+		mountBindings(bindings);
 		const overlay = document.createElement("div");
 		overlay.setAttribute("data-plugin-overlay", "");
 		document.body.appendChild(overlay);
 		cleanups.push(() => overlay.remove());
-		const e = keyEvent("m");
-		expect(handleMapKeyEvent(e, bindings)).toBe(false);
-		expect(e.defaultPrevented).toBe(false);
+		expect(press("m").defaultPrevented).toBe(false);
+		expect(seen).toEqual([]);
 	});
 
-	it("ignores repeats and already-handled events", () => {
-		cleanups.push(registerMapKeyActionHandler("applyTag", () => {}));
-		expect(handleMapKeyEvent(keyEvent("m", { repeat: true }), bindings)).toBe(false);
-		const handled = keyEvent("m");
-		handled.preventDefault();
-		expect(handleMapKeyEvent(handled, bindings)).toBe(false);
+	it("ignores repeats", () => {
+		const seen = handleApplyTag();
+		mountBindings(bindings);
+		press("m", { repeat: true });
+		expect(seen).toEqual([]);
+	});
+
+	it("ignores already-handled events", () => {
+		const seen = handleApplyTag();
+		const preventFirst = (e: KeyboardEvent) => e.preventDefault();
+		window.addEventListener("keydown", preventFirst, true);
+		cleanups.push(() => window.removeEventListener("keydown", preventFirst, true));
+		mountBindings(bindings);
+		press("m");
+		expect(seen).toEqual([]);
 	});
 
 	it("ignores keys typed into editable elements", () => {
-		cleanups.push(registerMapKeyActionHandler("applyTag", () => {}));
+		const seen = handleApplyTag();
+		mountBindings(bindings);
 		const input = document.createElement("input");
 		document.body.appendChild(input);
-		expect(isEditableElement(input)).toBe(true);
-		const e = keyEvent("m");
-		Object.defineProperty(e, "target", { value: input });
-		expect(handleMapKeyEvent(e, bindings)).toBe(false);
-		input.remove();
+		cleanups.push(() => input.remove());
+		press("m", {}, input);
+		expect(seen).toEqual([]);
 	});
 });
 
@@ -208,21 +229,14 @@ describe("precedence over global hotkey layer", () => {
 		};
 		// Register the global (document, capture) handler FIRST to prove order independence.
 		document.addEventListener("keydown", globalHandler, true);
-		const unregister = registerMapKeyActionHandler("applyTag", () => {
-			order.push("map");
-		});
-		const mapHandler = (e: KeyboardEvent) => {
-			handleMapKeyEvent(e, [{ key: "m", action: applyTag(1) }]);
-		};
-		window.addEventListener("keydown", mapHandler, true);
-
-		document.body.dispatchEvent(
-			new KeyboardEvent("keydown", { key: "m", cancelable: true, bubbles: true }),
+		cleanups.push(() => document.removeEventListener("keydown", globalHandler, true));
+		cleanups.push(
+			registerMapKeyActionHandler("applyTag", () => {
+				order.push("map");
+			}),
 		);
-
-		document.removeEventListener("keydown", globalHandler, true);
-		window.removeEventListener("keydown", mapHandler, true);
-		unregister();
+		mountBindings([{ key: "m", action: applyTag(1) }]);
+		press("m");
 		expect(order).toEqual(["map"]);
 	});
 });
@@ -252,7 +266,10 @@ describe("mergedKeyBindings", () => {
 			[copyTo("w", "other")],
 			"current",
 		);
-		expect(matchMapKeyBinding(keyEvent("w"), merged)?.action).toEqual(applyTag(7));
+		const seen = handleApplyTag();
+		mountBindings(merged);
+		press("w");
+		expect(seen).toEqual([applyTag(7)]);
 	});
 
 	it("returns the map bindings untouched when no global applies", () => {

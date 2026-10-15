@@ -18,7 +18,8 @@ vi.mock("@/store/editor", () => ({
 		use: <T,>(select: (s: unknown) => T) => select({ open: h.open }),
 	},
 }));
-vi.mock("@/lib/hooks/useHotkey", () => ({
+vi.mock("@/lib/hooks/useHotkey", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@/lib/hooks/useHotkey")>()),
 	useHotkey: (key: string, run: () => void) => h.hotkeys.set(key, run),
 }));
 vi.mock("@/lib/util/hotkeys", () => ({ useBinding: (id: string) => id }));
@@ -43,9 +44,20 @@ vi.mock("@/lib/sv/lookup", () => ({ followLinkedPanos: async () => [] }));
 vi.mock("@/lib/sv/viewportLock", () => ({ toggleViewportLock: async () => {} }));
 
 import { useLocationHotkeys } from "@/components/editor/location/useLocationHotkeys";
-import { executeMapKeyAction } from "@/lib/map/mapKeyBindings";
+import { useMapKeyBindings } from "@/lib/map/mapKeyBindings";
 import "@/store/commandDefs";
 import { getCommand } from "@/store/commands";
+
+const mapKeys = [
+	{ key: "t", action: { type: "applyTag" as const, tagId: 1 } },
+	{ key: "c", action: { type: "copyToMap" as const, mapId: "other" } },
+];
+
+function pressConsumed(key: string): boolean {
+	const e = new KeyboardEvent("keydown", { key, cancelable: true, bubbles: true });
+	window.dispatchEvent(e);
+	return e.defaultPrevented;
+}
 
 function mount(origin: string) {
 	h.open = { id: 7, origin, location: { id: 7, lat: 0, lng: 0, tags: [], panoId: "A" } };
@@ -62,6 +74,7 @@ function mount(origin: string) {
 			handleReturnToSpawn: () => {},
 			handleDateChange: () => {},
 		});
+		useMapKeyBindings(() => mapKeys);
 		return null;
 	}
 	render(createElement(Probe), { attach: false });
@@ -81,8 +94,8 @@ describe("location hotkeys on a preview", () => {
 		async (origin) => {
 			const setPendingTags = mount(origin);
 			h.hotkeys.get("duplicateLocation")?.();
-			expect(executeMapKeyAction({ type: "applyTag", tagId: 1 })).toBe(false);
-			expect(executeMapKeyAction({ type: "copyToMap", mapId: "other" })).toBe(false);
+			expect(pressConsumed("t")).toBe(false);
+			expect(pressConsumed("c")).toBe(false);
 			void getCommand("quickCopyToMap")!.execute();
 			await Promise.resolve();
 			expect(getCommand("quickCopyToMap")!.enabled!()).toBe(false);
@@ -96,8 +109,8 @@ describe("location hotkeys on a preview", () => {
 	it("a map location is duplicated, copied and tagged", async () => {
 		const setPendingTags = mount("map");
 		h.hotkeys.get("duplicateLocation")?.();
-		expect(executeMapKeyAction({ type: "applyTag", tagId: 1 })).toBe(true);
-		expect(executeMapKeyAction({ type: "copyToMap", mapId: "other" })).toBe(true);
+		expect(pressConsumed("t")).toBe(true);
+		expect(pressConsumed("c")).toBe(true);
 		void getCommand("quickCopyToMap")!.execute();
 		await vi.waitUntil(() => h.addTo.mock.calls.length > 0);
 		expect(getCommand("quickCopyToMap")!.enabled!()).toBe(true);
