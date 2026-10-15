@@ -88,28 +88,3 @@ fn a_neighbor_serializes_its_fields_beside_its_coordinates() {
     assert_eq!(json["quality"], 3);
     assert!(json["distM"].as_f64().unwrap() > 0.0);
 }
-
-#[test]
-fn the_grid_walk_from_a_bare_coordinate_agrees_with_the_walk_from_a_point() {
-    let pts: Vec<(f64, f64)> = (0..40)
-        .map(|i| (f64::from(i) * 3.0 * DEG_PER_M, f64::from(i % 7) * DEG_PER_M))
-        .collect();
-    let grid = Grid::build(&pts, 25.0).expect("a positive radius builds");
-    for (pi, &(lat, lng)) in pts.iter().enumerate() {
-        let mut from_point = Vec::new();
-        grid.for_each_neighbor(pi, 0, |pj| {
-            from_point.push(pj);
-            false
-        });
-        let mut from_coord = Vec::new();
-        grid.for_each_near(lat, lng, |pj| {
-            if pj != pi {
-                from_coord.push(pj);
-            }
-            false
-        });
-        from_point.sort_unstable();
-        from_coord.sort_unstable();
-        assert_eq!(from_point, from_coord, "point {pi}");
-    }
-}

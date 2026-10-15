@@ -3,7 +3,7 @@
 
 use super::*;
 use crate::selections::field_expr::{self, Expr};
-use crate::selections::neighborhood::{exact_coord_groups, for_pairs_within, Grid};
+use crate::selections::neighborhood::{for_pairs_within, Lookup};
 use crate::types::{AppResult, Location};
 use mma_algebra::Id;
 use std::cmp::Ordering;
@@ -22,18 +22,14 @@ pub(super) fn duplicates(view: &LocView, distance_m: f64) -> IdSet<Location> {
     if ids.len() < 2 {
         return IdSet::new();
     }
-    let Some(grid) = Grid::build(&pts, distance_m) else {
-        return exact_coord_groups(&pts)
-            .into_values()
-            .filter(|group| group.len() >= 2)
-            .flatten()
-            .map(|i| ids[i])
-            .collect();
-    };
+    let lookup = Lookup::build(&pts, distance_m);
     let near: Vec<Id<Location>> = (0..ids.len())
         .into_par_iter()
         .with_min_len(4096)
-        .filter(|&pi| grid.for_each_neighbor(pi, 0, |_| true))
+        .filter(|&pi| {
+            let (lat, lng) = pts[pi];
+            lookup.for_each_near(lat, lng, |pj| pj != pi)
+        })
         .map(|pi| ids[pi])
         .collect();
     near.into_iter().collect()

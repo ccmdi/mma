@@ -67,7 +67,7 @@ impl SpatialHash {
 
 /// Group exact coordinates for zero-radius queries, avoiding a degenerate grid.
 /// Non-finite coordinates never match. (#69)
-pub(super) fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<usize>> {
+fn exact_coord_groups(pts: &[(f64, f64)]) -> HashMap<(u64, u64), Vec<usize>> {
     let mut groups: HashMap<(u64, u64), Vec<usize>> = HashMap::new();
     for (i, &(lat, lng)) in pts.iter().enumerate() {
         if !lat.is_finite() || !lng.is_finite() {
@@ -93,9 +93,8 @@ pub(super) struct Grid {
 }
 
 impl Grid {
-    /// `None` for a degenerate radius (distance == 0, or a non-finite cell size) -
-    /// callers fall back to `exact_coord_groups`.
-    pub(super) fn build(pts: &[(f64, f64)], distance_m: f64) -> Option<Grid> {
+    /// `None` for a degenerate radius (distance == 0, or a non-finite cell size).
+    fn build(pts: &[(f64, f64)], distance_m: f64) -> Option<Grid> {
         let cell_deg = distance_m / mma_geo::M_PER_DEG * 1.5;
         if cell_deg.is_nan() || cell_deg <= 0.0 {
             return None;
@@ -124,12 +123,7 @@ impl Grid {
     /// Visit every point within the grid's radius of a coordinate. The coordinate need
     /// not be one of the grid's own points. Stops early when `visit` returns true;
     /// returns whether it stopped.
-    pub(super) fn for_each_near(
-        &self,
-        lat: f64,
-        lng: f64,
-        mut visit: impl FnMut(usize) -> bool,
-    ) -> bool {
+    fn for_each_near(&self, lat: f64, lng: f64, mut visit: impl FnMut(usize) -> bool) -> bool {
         let cos_lat = lat.to_radians().cos();
         let cover = mma_geo::covering_cells(lat, lng, self.radius_m, self.cell_deg);
         for (nx, ny) in cover.cells() {
@@ -148,18 +142,6 @@ impl Grid {
         }
         false
     }
-
-    /// [`Grid::for_each_near`] from a point the grid holds, skipping indices below
-    /// `min_pj` (`pi + 1` gives the ordered pair sweep, `0` gives all neighbours).
-    pub(super) fn for_each_neighbor(
-        &self,
-        pi: usize,
-        min_pj: usize,
-        mut visit: impl FnMut(usize) -> bool,
-    ) -> bool {
-        let (lat, lng) = self.pts[pi];
-        self.for_each_near(lat, lng, |pj| pj != pi && pj >= min_pj && visit(pj))
-    }
 }
 
 /// Grid broad-phase pair sweep: calls `pair(state, pi, pj)` (pi < pj) for every index
@@ -176,19 +158,12 @@ pub(super) fn for_pairs_within<S>(
         return;
     }
     let pts: Vec<(f64, f64)> = (0..n).map(pos).collect();
-    let Some(grid) = Grid::build(&pts, distance_m) else {
-        for idxs in exact_coord_groups(&pts).values() {
-            for (a, &pi) in idxs.iter().enumerate() {
-                for &pj in &idxs[a + 1..] {
-                    pair(state, pi, pj);
-                }
+    let lookup = Lookup::build(&pts, distance_m);
+    for (pi, &(lat, lng)) in pts.iter().enumerate() {
+        lookup.for_each_near(lat, lng, |pj| {
+            if pj > pi {
+                pair(state, pi, pj);
             }
-        }
-        return;
-    };
-    for pi in 0..n {
-        grid.for_each_neighbor(pi, pi + 1, |pj| {
-            pair(state, pi, pj);
             false
         });
     }
@@ -206,11 +181,38 @@ pub struct Neighbor {
     pub fields: serde_json::Map<String, serde_json::Value>,
 }
 
-/// How an [`Index`] finds a coordinate's points: the grid at a positive radius, exact
-/// coordinates at a degenerate one.
-enum Lookup {
+/// How a coordinate's points are found: the grid at a positive radius, exact coordinates
+/// at a degenerate one.
+pub(super) enum Lookup {
     Grid(Grid),
     Exact(HashMap<(u64, u64), Vec<usize>>),
+}
+
+impl Lookup {
+    pub(super) fn build(pts: &[(f64, f64)], radius_m: f64) -> Lookup {
+        match Grid::build(pts, radius_m) {
+            Some(grid) => Lookup::Grid(grid),
+            None => Lookup::Exact(exact_coord_groups(pts)),
+        }
+    }
+
+    /// Visit every point within the radius of a coordinate, which need not be one of the
+    /// points. Stops early when `visit` returns true; returns whether it stopped.
+    pub(super) fn for_each_near(
+        &self,
+        lat: f64,
+        lng: f64,
+        mut visit: impl FnMut(usize) -> bool,
+    ) -> bool {
+        match self {
+            Lookup::Grid(grid) => grid.for_each_near(lat, lng, visit),
+            Lookup::Exact(groups) => groups
+                .get(&coord_key(lat, lng))
+                .into_iter()
+                .flatten()
+                .any(|&pi| visit(pi)),
+        }
+    }
 }
 
 /// A radius query answered without the store: coordinates and whichever fields the
@@ -247,12 +249,8 @@ impl Index {
             }
             fields.push(got);
         }
-        let lookup = match Grid::build(&pts, radius_m) {
-            Some(grid) => Lookup::Grid(grid),
-            None => Lookup::Exact(exact_coord_groups(&pts)),
-        };
         Index {
-            lookup,
+            lookup: Lookup::build(&pts, radius_m),
             ids,
             pts,
             fields,
@@ -275,21 +273,10 @@ impl Index {
                 fields: self.fields[pi].clone(),
             });
         };
-        match &self.lookup {
-            Lookup::Grid(grid) => {
-                grid.for_each_near(lat, lng, |pi| {
-                    hit(pi);
-                    false
-                });
-            }
-            Lookup::Exact(groups) => {
-                groups
-                    .get(&coord_key(lat, lng))
-                    .into_iter()
-                    .flatten()
-                    .for_each(|&pi| hit(pi));
-            }
-        }
+        self.lookup.for_each_near(lat, lng, |pi| {
+            hit(pi);
+            false
+        });
         out.sort_unstable_by(|a, b| a.dist_m.total_cmp(&b.dist_m).then_with(|| a.id.cmp(&b.id)));
         out
     }
