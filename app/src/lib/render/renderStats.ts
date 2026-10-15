@@ -7,7 +7,7 @@ import { Scene } from "@/lib/render/scene";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
 import { MARKER_STYLE } from "@/lib/render/markerLayer";
 import { MapHost } from "@/lib/map/host";
-import { MAP_EMBED_PREFS, type MapEmbedPrefs } from "@/store/mapEmbedPrefs";
+import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import type { Bounds, MarkerStyle } from "@/types";
 import {
 	startFrameMeter,
@@ -99,16 +99,12 @@ export interface RenderStats {
 	dpr: number;
 }
 
-function currentPrefs(): MapEmbedPrefs {
-	return getLocal(MAP_EMBED_PREFS);
-}
-
 export function computeRenderStats(): RenderStats | null {
 	const host = MapHost.get();
 	const bounds = host?.getBounds();
 	if (!host || !bounds) return null;
 	const scene = Scene.get();
-	const prefs = currentPrefs();
+	const prefs = getLocal(MAP_EMBED_PREFS);
 	const dpr = window.devicePixelRatio || 1;
 	const s = MARKER_STYLE[prefs.markerStyle];
 	const quad = markerQuadPx(s.radiusPixels, prefs.markerSize, dpr);
