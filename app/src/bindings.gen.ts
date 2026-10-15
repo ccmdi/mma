@@ -134,13 +134,8 @@ export const commands = {
 	 *  running app, so nothing after this is guaranteed to run. Save state first.
 	 */
 	updateInstall: () => __TAURI_INVOKE<null>("update_install"),
-	/**
-	 *  Start (or re-key) the remote API server. Idempotent: a running server just
-	 *  picks up the new key. Returns the base URL.
-	 */
-	remoteApiStart: (key: string) => __TAURI_INVOKE<string>("remote_api_start", { key }),
-	/**  Stop the remote API server. */
-	remoteApiStop: () => __TAURI_INVOKE<null>("remote_api_stop"),
+	/**  Start the remote API server with this key, re-keying it when already running, or stop it when the key is null. */
+	remoteApiSet: (key: string | null) => __TAURI_INVOKE<null>("remote_api_set", { key }),
 	/**  Deliver the result for remote API request `id`. `payload` is JSON text. */
 	remoteApiRespond: (id: number, ok: boolean, payload: string) => __TAURI_INVOKE<void>("remote_api_respond", { id, ok, payload }),
 	/**

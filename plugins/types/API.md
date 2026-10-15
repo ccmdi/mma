@@ -6193,26 +6193,15 @@ cmd.remoteApiRespond(id: number, ok: boolean, payload: string): Promise<void>
 
 Deliver the result for remote API request `id`. `payload` is JSON text.
 
-#### cmd.remoteApiStart
+#### cmd.remoteApiSet
 
-`unstable` · since v0.8.0
-
-```ts
-cmd.remoteApiStart(key: string): Promise<string>
-```
-
-Start (or re-key) the remote API server. Idempotent: a running server just
-picks up the new key. Returns the base URL.
-
-#### cmd.remoteApiStop
-
-`unstable` · since v0.8.0
+`unstable` · unreleased
 
 ```ts
-cmd.remoteApiStop(): Promise<null>
+cmd.remoteApiSet(key: string | null): Promise<null>
 ```
 
-Stop the remote API server.
+Start the remote API server with this key, re-keying it when already running, or stop it when the key is null.
 
 #### cmd.remoteMappingClear
 

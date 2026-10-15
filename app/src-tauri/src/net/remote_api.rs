@@ -51,15 +51,21 @@ fn addr() -> String {
     env::var("MMA_REMOTE_API_ADDR").unwrap_or_else(|_| DEFAULT_ADDR.to_string())
 }
 
-/// Start (or re-key) the remote API server. Idempotent: a running server just
-/// picks up the new key. Returns the base URL.
+/// Start the remote API server with this key, re-keying it when already running, or stop it when the key is null.
 #[tauri::command]
 #[specta::specta]
-pub async fn remote_api_start(key: String) -> AppResult<String> {
+pub async fn remote_api_set(key: Option<String>) -> AppResult<()> {
     task::spawn_blocking(move || {
         let s = state();
-        *s.key.lock().unwrap() = key;
         let mut server = s.server.lock().unwrap();
+        let Some(key) = key else {
+            if let Some(srv) = server.take() {
+                srv.unblock();
+                log::info!("[remote-api] stopped");
+            }
+            return Ok(());
+        };
+        *s.key.lock().unwrap() = key;
         if server.is_none() {
             let addr = addr();
             let srv = Arc::new(
@@ -70,20 +76,9 @@ pub async fn remote_api_start(key: String) -> AppResult<String> {
             thread::spawn(move || accept_loop(&srv));
             log::info!("[remote-api] listening on http://{addr}");
         }
-        Ok(format!("http://{}", addr()))
+        Ok(())
     })
     .await?
-}
-
-/// Stop the remote API server.
-#[tauri::command]
-#[specta::specta]
-pub fn remote_api_stop() -> AppResult<()> {
-    if let Some(srv) = state().server.lock().unwrap().take() {
-        srv.unblock();
-        log::info!("[remote-api] stopped");
-    }
-    Ok(())
 }
 
 /// Deliver the result for remote API request `id`. `payload` is JSON text.

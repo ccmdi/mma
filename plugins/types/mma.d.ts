@@ -765,14 +765,8 @@ declare const commands$1: {
      *  @unstable
      */
     updateInstall: () => Promise<null>;
-    /**
-     *  Start (or re-key) the remote API server. Idempotent: a running server just
-     *  picks up the new key. Returns the base URL.
-     *  @unstable
-     */
-    remoteApiStart: (key: string) => Promise<string>;
-    /**  Stop the remote API server. @unstable */
-    remoteApiStop: () => Promise<null>;
+    /**  Start the remote API server with this key, re-keying it when already running, or stop it when the key is null. @unstable */
+    remoteApiSet: (key: string | null) => Promise<null>;
     /**  Deliver the result for remote API request `id`. `payload` is JSON text. @unstable */
     remoteApiRespond: (id: number, ok: boolean, payload: string) => Promise<void>;
     /**

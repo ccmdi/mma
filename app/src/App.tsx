@@ -253,14 +253,13 @@ function useSelfDestruct(closing: boolean) {
 }
 
 /** Start/stop the local MMA REST transport with its setting, and host incoming
- *  calls in this window. Start is idempotent across windows (re-keys if running). */
+ *  calls in this window. Setting a key is idempotent across windows (re-keys if running). */
 function useRemoteApi() {
 	const enabled = useSetting("remoteApi");
 	const key = useSetting("remoteApiKey");
 	useEffect(() => initRemoteHost(), []);
 	useEffect(() => {
-		const call = enabled && key ? cmd.remoteApiStart(key) : cmd.remoteApiStop();
-		call.catch((e) => log.warn(`[remote-api] ${e}`));
+		cmd.remoteApiSet(enabled && key ? key : null).catch((e) => log.warn(`[remote-api] ${e}`));
 	}, [enabled, key]);
 }
 
