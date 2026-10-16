@@ -1,6 +1,6 @@
 //! Shared fixtures for the `*.test.rs` modules.
 
-use crate::selections::{FieldIndexes, LocView};
+use crate::selections::LocView;
 use crate::store::arrow;
 use crate::store::engine::ValueRecord;
 use crate::store::id_set::IdSet;
@@ -127,11 +127,6 @@ impl Fx {
             &self.adds,
             self.selected.as_ref(),
         )
-    }
-
-    /// View backed by field indexes, the way the store hands them to `resolve`.
-    pub(crate) fn view_indexed<'a>(&'a self, indexes: &'a FieldIndexes) -> LocView<'a> {
-        self.view().indexed(indexes, None)
     }
 }
 

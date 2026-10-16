@@ -1083,7 +1083,7 @@ fn tag_index_matches_scan_path() {
     let (batch, sets) = tagged_batch_and_index(&locs);
     let fx = Fx::batch(batch);
     let scan = fx.view();
-    let idx = fx.view_indexed(&sets);
+    let idx = fx.view().indexed(&sets, None);
 
     for tag_id in [10u32, 20, 99] {
         let s = ids_of(&scan, &Selector::tag(tag_id));
@@ -1136,7 +1136,7 @@ fn indexed_tag_filters_match_a_full_scan_after_mixed_overlay_changes() {
         .with_adds(vec![added]);
     let view = fx.view();
     let sets = live_tag_index(&view);
-    let indexed = fx.view_indexed(&sets);
+    let indexed = fx.view().indexed(&sets, None);
 
     for tag in 1..=50 {
         let selector = Selector::tag(tag);
@@ -1158,7 +1158,7 @@ fn tag_index_excludes_dead_includes_adds() {
     add.tags = tag_ids([10]); // overlay add carries the tag
     let fx = Fx::batch(batch).with_adds(vec![add]).with_dead([2]);
     let sets = live_tag_index(&fx.view());
-    let idx = fx.view_indexed(&sets);
+    let idx = fx.view().indexed(&sets, None);
     // 2 is dead -> excluded; 3 is an overlay add -> included; 1 stays.
     assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![1, 3]);
     assert_eq!(
@@ -1181,7 +1181,7 @@ fn tag_index_honors_patches() {
     p2.tags = tag_ids([10]);
     let fx = Fx::batch(batch).with_patch(1, p1).with_patch(2, p2);
     let sets = live_tag_index(&fx.view());
-    let idx = fx.view_indexed(&sets);
+    let idx = fx.view().indexed(&sets, None);
     assert_eq!(ids_of(&idx, &Selector::tag(10)), vec![2]);
     assert_eq!(
         ids_of(&idx, &Selector::tag(10)),
@@ -1199,7 +1199,7 @@ fn tag_index_in_composite() {
     c.tags = tag_ids([20]);
     let (batch, sets) = tagged_batch_and_index(&[a, b, c]);
     let fx = Fx::batch(batch);
-    let idx = fx.view_indexed(&sets);
+    let idx = fx.view().indexed(&sets, None);
 
     let t10 = Selection {
         key: "t10".into(),
@@ -2984,7 +2984,7 @@ proptest! {
         let (batch, sets) = tagged_batch_and_index(&locs);
         let plain = Fx::adds(locs);
         let indexed = Fx::batch(batch);
-        for view in [plain.view(), indexed.view_indexed(&sets)] {
+        for view in [plain.view(), indexed.view().indexed(&sets, None)] {
             let want = view.all().resolve(&selector) & &within;
             prop_assert_eq!(view.all().within(&within).resolve(&selector), want);
         }
@@ -4186,7 +4186,7 @@ fn a_scope_resolves_like_the_whole_map_clipped_to_its_rows() {
         .map(Id::new)
         .collect();
     let dense: IdSet<Location> = (1..=1_002).chain([9_999]).map(Id::new).collect();
-    for view in [fx.view(), fx.view_indexed(&indexes)] {
+    for view in [fx.view(), fx.view().indexed(&indexes, None)] {
         for set in [&sparse, &dense] {
             for (name, sel) in &selectors {
                 let clipped = view.all().resolve(sel) & set;
