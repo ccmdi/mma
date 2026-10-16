@@ -625,7 +625,7 @@ function MapBody() {
 				/>
 				<SettingRow
 					setting="followActiveInReview"
-					label={t("Center map on active location during review")}
+					label={t("Center map on open location during review")}
 				/>
 				<SettingRow
 					setting="enterOpensCenter"
@@ -642,11 +642,11 @@ function MapBody() {
 					control={<SettingColor setting="markerColor" ariaLabel={t("Default marker color")} />}
 				/>
 				<SettingRow
-					label={t("Active marker color")}
+					label={t("Open marker color")}
 					control={
 						<SettingColor
 							setting="activeLocationColor"
-							ariaLabel={t("Active location marker color")}
+							ariaLabel={t("Open location marker color")}
 						/>
 					}
 				/>
