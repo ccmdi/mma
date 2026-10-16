@@ -18,8 +18,6 @@ fn membership_and_set_operations_preserve_raw_ids() {
     assert!(a.remove(Id::new(7)));
     assert!(!a.contains(Id::new(7)));
     assert!(!a.remove(Id::new(7)));
-    a.clear();
-    assert!(a.is_empty());
 }
 
 #[test]

@@ -33,9 +33,6 @@ impl<T> IdSet<T> {
     pub(crate) fn contains(&self, id: Id<T>) -> bool {
         self.raw.contains(id.get())
     }
-    pub(crate) fn clear(&mut self) {
-        self.raw.clear();
-    }
     pub(crate) fn len(&self) -> u64 {
         self.raw.len()
     }

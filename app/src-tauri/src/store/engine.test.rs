@@ -2194,16 +2194,6 @@ fn undo_delete_multiple_then_readd_renders_correctly() {
 // (c2be3d6)
 // -----------------------------------------------------------------------
 
-#[test]
-fn selected_ids_cleared_properly() {
-    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 0.0, 0.0)]);
-    store.selections.ids.insert(Id::new(1));
-    store.selections.ids.insert(Id::new(2));
-
-    store.selections.ids.clear();
-    assert!(store.selections.ids.is_empty());
-}
-
 // -----------------------------------------------------------------------
 // Bug regression: tag counts after bulk operations + undo
 // (edd45ab)
