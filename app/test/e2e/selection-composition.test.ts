@@ -28,7 +28,12 @@ describe("Selection composition", () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30 (flags=1, indices 0-29)
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50 (indices 0-49)
-			await api.SelectionList.update(api.composeSelections([0], [1], "Intersection"));
+			await api.SelectionList.update({
+				kind: "compose",
+				drag: [0],
+				drop: [1],
+				group: "Intersection",
+			});
 			const after = api.SelectionList.active();
 			return {
 				selCount: after.length,
@@ -45,7 +50,7 @@ describe("Selection composition", () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 30 (indices 50-79)
-			await api.SelectionList.update(api.composeSelections([0], [1], "Union"));
+			await api.SelectionList.update({ kind: "compose", drag: [0], drop: [1], group: "Union" });
 			const after = api.SelectionList.active();
 			return {
 				selCount: after.length,
@@ -62,8 +67,8 @@ describe("Selection composition", () => {
 		const result = await withApi(async (api, tagId) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
-			await api.SelectionList.update(api.composeSelections([0], [1], "Union"));
-			await api.SelectionList.update(api.moveSelection([0, 0], [0], "after"));
+			await api.SelectionList.update({ kind: "compose", drag: [0], drop: [1], group: "Union" });
+			await api.SelectionList.update({ kind: "move", from: [0, 0], to: [0], place: "after" });
 			const after = api.SelectionList.active();
 			return {
 				selCount: after.length,
@@ -81,11 +86,11 @@ describe("Selection composition", () => {
 			await api.SelectionList.update(api.addSelection(api.untaggedSelector()));
 
 			// Compose first two, then the third into the union
-			await api.SelectionList.update(api.composeSelections([0], [1], "Union"));
-			await api.SelectionList.update(api.composeSelections([1], [0], "Union"));
+			await api.SelectionList.update({ kind: "compose", drag: [0], drop: [1], group: "Union" });
+			await api.SelectionList.update({ kind: "compose", drag: [1], drop: [0], group: "Union" });
 
 			// Remove one child from composite
-			await api.SelectionList.update(api.removeSelectionAt([0, 0]));
+			await api.SelectionList.update({ kind: "removeAt", path: [0, 0] });
 
 			return {
 				selCount: api.SelectionList.active().length,
@@ -121,7 +126,10 @@ describe("Selection composition edge cases", () => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true)));
 			// Untagged = indices 15-19
 			await api.SelectionList.update(api.addSelection(api.untaggedSelector()));
-			await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Intersection", keys: null },
+			});
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(0);
@@ -133,7 +141,10 @@ describe("Selection composition edge cases", () => {
 			const before = api.Scene.selected().size;
 			// Add another tag selection (same tag) -- won't duplicate since key is the same
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
-			await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Union", keys: null },
+			});
 			return { before, after: api.Scene.selected().size };
 		}, edgeTagId);
 		expect(result.after).toBe(result.before);
@@ -142,7 +153,7 @@ describe("Selection composition edge cases", () => {
 	it("invert of everything = empty", async () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection({ type: "Everything" }));
-			await api.SelectionList.update(api.onActive(api.complementSelections()));
+			await api.SelectionList.update({ kind: "active", op: { kind: "complement", keys: null } });
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(0);
@@ -152,7 +163,7 @@ describe("Selection composition edge cases", () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // just need a base selection
 			// Invert PanoIds (5 locations) = 15 non-panoId
-			await api.SelectionList.update(api.onActive(api.complementSelections()));
+			await api.SelectionList.update({ kind: "active", op: { kind: "complement", keys: null } });
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(15);

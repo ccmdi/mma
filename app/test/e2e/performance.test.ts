@@ -591,10 +591,20 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				withApi(async (api, op) => {
 					const start = performance.now();
 					if (op === "intersection")
-						await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
+						await api.SelectionList.update({
+							kind: "active",
+							op: { kind: "combine", group: "Intersection", keys: null },
+						});
 					else if (op === "union")
-						await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
-					else await api.SelectionList.update(api.onActive(api.complementSelections()));
+						await api.SelectionList.update({
+							kind: "active",
+							op: { kind: "combine", group: "Union", keys: null },
+						});
+					else
+						await api.SelectionList.update({
+							kind: "active",
+							op: { kind: "complement", keys: null },
+						});
 					const operationMs = performance.now() - start;
 					await new Promise<void>((resolve) =>
 						requestAnimationFrame(() => requestAnimationFrame(() => resolve())),

@@ -14,7 +14,7 @@ import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
 import { MapHost } from "@/lib/map/host";
 import { Scene } from "@/lib/render/scene";
-import { addSelection, removeSelection, tagSelector, selection } from "@/store/selections";
+import { addSelection, tagSelector, selection } from "@/store/selections";
 import { emit, subscribe } from "@/lib/events";
 import type { CountBy, KeySpec, PartitionBucket, Target } from "@/bindings.gen";
 import type { EnrichFieldOption } from "@/lib/data/fieldDefs";
@@ -216,9 +216,9 @@ export function addSelections(selectors: Selector[]) {
 	return SelectionList.update(addSelection(...selectors));
 }
 
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.removeSelection(...keys))`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @unstable */
 export function removeSelections(keys: string[]) {
-	return SelectionList.update(removeSelection(...keys));
+	return SelectionList.update({ kind: "remove", keys });
 }
 
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @unstable */

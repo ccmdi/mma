@@ -105,15 +105,15 @@ describe("Selections - basic types", () => {
 
 	// --- Manual selection ---
 
-	it("toggleManualSelection adds/removes individual locations", async () => {
+	it("a manual toggle adds/removes individual locations", async () => {
 		const id0 = locIds[0];
 		const id1 = locIds[1];
 		const id2 = locIds[2];
 		await withApi(
 			async (api, i0: number, i1: number, i2: number) => {
-				await api.SelectionList.update(api.toggleManualSelection(i0));
-				await api.SelectionList.update(api.toggleManualSelection(i1));
-				await api.SelectionList.update(api.toggleManualSelection(i2));
+				await api.SelectionList.update({ kind: "manual", id: i0 });
+				await api.SelectionList.update({ kind: "manual", id: i1 });
+				await api.SelectionList.update({ kind: "manual", id: i2 });
 			},
 			id0,
 			id1,
@@ -123,7 +123,7 @@ describe("Selections - basic types", () => {
 		expect(ids.length).toBe(3);
 
 		await withApi(async (api, i1: number) => {
-			await api.SelectionList.update(api.toggleManualSelection(i1)); // remove
+			await api.SelectionList.update({ kind: "manual", id: i1 }); // remove
 		}, id1);
 		ids = await refreshSelections();
 		expect(ids.length).toBe(2);
@@ -226,7 +226,10 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30 (flags=1)
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50 (indices 0-49)
 			// PanoIds (0-29) intersect Tag-a (0-49) = 30
-			await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Intersection", keys: null },
+			});
 			const sels = api.SelectionList.active();
 			return { count: api.Scene.selected().size, selCount: sels.length };
 		}, tagAId);
@@ -238,7 +241,10 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId))); // 50
 			// Union: 0-29 + 0-49 = 0-49 = 50
-			await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Union", keys: null },
+			});
 			return api.Scene.selected().size;
 		}, tagAId);
 		expect(result).toBe(50);
@@ -247,7 +253,7 @@ describe("Selection operations", () => {
 	it("invert selection", async () => {
 		const result = await withApi(async (api) => {
 			await api.SelectionList.update(api.addSelection(api.panoIdSelector(true))); // 30
-			await api.SelectionList.update(api.onActive(api.complementSelections())); // 100 - 30 = 70
+			await api.SelectionList.update({ kind: "active", op: { kind: "complement", keys: null } }); // 100 - 30 = 70
 			return api.Scene.selected().size;
 		});
 		expect(result).toBe(70);
@@ -259,7 +265,7 @@ describe("Selection operations", () => {
 			await api.SelectionList.update(api.addSelection(api.tagSelector(tagId)));
 			const before = api.SelectionList.active().length;
 			const key = api.SelectionList.active().find((s) => api.tagIdOf(s.selector) != null)!.key;
-			await api.SelectionList.update(api.removeSelection(key));
+			await api.SelectionList.update({ kind: "remove", keys: [key] });
 			const after = api.SelectionList.active().length;
 			return { before, after };
 		}, tagAId);

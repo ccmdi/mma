@@ -6,19 +6,11 @@ import { Query } from "@/store/query";
 import { Edit } from "@/store/edit";
 import { useItemDrag } from "@/lib/hooks/useItemDrag";
 import {
-	composeSelections,
 	filterIsLocalTime,
-	isolateGhost,
-	moveSelection,
-	removeSelectionAt,
 	replaceSelection,
 	selectionDisplayName,
 	type SelectionPath,
-	setPolygonName,
-	setSelectionColor,
 	tagIdOf,
-	toggleGhost,
-	toggleInvert,
 } from "@/store/selections";
 import { toast } from "@/lib/util/toast";
 import { downloadBlob } from "@/lib/util/util";
@@ -124,7 +116,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const colorBlockCss = rgbCss(currentSelection.color);
 	const count = Store.use((s) => s.selectionCounts[currentSelection.key] ?? 0);
 	const isTopLevel = depth === 0;
-	const onRemove = () => void SelectionList.update(removeSelectionAt(path));
+	const onRemove = () => void SelectionList.update({ kind: "removeAt", path });
 	const [view, setView] = useState<"contextmenu" | "color">("contextmenu");
 	const [dropZone, setDropZone] = useState<"before" | "on" | "after" | null>(null);
 	const [editingFilter, setEditingFilter] = useState(false);
@@ -137,7 +129,7 @@ export const SelectionRow = memo(function SelectionRow({
 	const isDragging = drag?.path.join() === path.join();
 	const isDropTarget = drag != null && !isDragging;
 	const handleColorChange = (color: RGB) =>
-		void SelectionList.update(setSelectionColor(path, color));
+		void SelectionList.update({ kind: "color", path, color });
 
 	const fieldEntries = useExtraFieldKeys();
 
@@ -189,7 +181,7 @@ export const SelectionRow = memo(function SelectionRow({
 	};
 
 	const submitRename = () => {
-		void SelectionList.update(setPolygonName(path, renameDraft));
+		void SelectionList.update({ kind: "polygonName", path, name: renameDraft });
 		setRenaming(false);
 	};
 
@@ -226,11 +218,14 @@ export const SelectionRow = memo(function SelectionRow({
 	const handleMouseUp = () => {
 		if (!isDropTarget || !drag || !dropZone) return;
 		if (dropZone === "on") {
-			void SelectionList.update(
-				composeSelections(drag.path, path, drag.altKey ? "Union" : "Intersection"),
-			);
+			void SelectionList.update({
+				kind: "compose",
+				drag: drag.path,
+				drop: path,
+				group: drag.altKey ? "Union" : "Intersection",
+			});
 		} else {
-			void SelectionList.update(moveSelection(drag.path, path, dropZone));
+			void SelectionList.update({ kind: "move", from: drag.path, to: path, place: dropZone });
 		}
 		setDropZone(null);
 	};
@@ -289,7 +284,7 @@ export const SelectionRow = memo(function SelectionRow({
 								</div>
 							) : (
 								<>
-									<MenuItem onClick={() => void SelectionList.update(toggleInvert(path))}>
+									<MenuItem onClick={() => void SelectionList.update({ kind: "invert", path })}>
 										{t("Invert selection")}
 									</MenuItem>
 									{currentSelection.selector.type === "Filter" && (
@@ -367,7 +362,7 @@ export const SelectionRow = memo(function SelectionRow({
 							label={ghosted ? t("Un-ghost selection") : t("Ghost selection")}
 							tooltip={t("Ghost selection (Alt-click to isolate)")}
 							onClick={(e) =>
-								void SelectionList.update(e.altKey ? isolateGhost(path[0]) : toggleGhost(path[0]))
+								void SelectionList.update({ kind: e.altKey ? "isolate" : "ghost", index: path[0] })
 							}
 						/>
 					)}

@@ -11,7 +11,6 @@ import type {
 	Selector as SelectorTree,
 } from "@/bindings.gen";
 import type { Selector } from "@/types";
-import type { Group, Place } from "@/bindings.consts";
 import { cmd } from "@/lib/commands";
 import { getFieldDef, fieldValueLabel } from "@/lib/data/fieldDefRegistry";
 import { formatDistance, localDateTime, utcDateTime } from "@/lib/util/format";
@@ -304,7 +303,7 @@ export async function buildSelection(selector: Selector): Promise<Selection> {
 	return (await cmd.selectionBuild([selection(selector)]))[0];
 }
 
-export type SelectionPath = readonly number[];
+export type SelectionPath = number[];
 export function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined {
 	let node: Selection | undefined = rows[path[0]]?.selection;
 	for (const i of path.slice(1)) node = node && childSelections(node.selector)[i];
@@ -315,61 +314,14 @@ export const addSelection = (...selectors: Selector[]): SelectionOp => ({
 	kind: "add",
 	selections: selectors.map((s) => selection(s)),
 });
-export const setSelections = (selections: SelectionInput[]): SelectionOp => ({
-	kind: "set",
-	selections,
-});
-export const removeSelection = (...keys: string[]): SelectionOp => ({ kind: "remove", keys });
 export const toggleSelection = (...selectors: Selector[]): SelectionOp => ({
 	kind: "toggle",
 	selections: selectors.map((s) => selection(s)),
 });
-export const toggleManualSelection = (id: number): SelectionOp => ({ kind: "manual", id });
-export const onActive = (op: SelectionOp): SelectionOp => ({ kind: "active", op });
-export const combineSelections = (group: Group, keys: string[] | null = null): SelectionOp => ({
-	kind: "combine",
-	group,
-	keys,
-});
-export const complementSelections = (keys: string[] | null = null): SelectionOp => ({
-	kind: "complement",
-	keys,
-});
-export const toggleGhost = (index: number): SelectionOp => ({ kind: "ghost", index });
-export const isolateGhost = (index: number): SelectionOp => ({ kind: "isolate", index });
-export const toggleGhostAll: SelectionOp = { kind: "ghostAll" };
-export const toggleInvert = (path: SelectionPath): SelectionOp => ({
-	kind: "invert",
-	path: [...path],
-});
-export const composeSelections = (
-	drag: SelectionPath,
-	drop: SelectionPath,
-	group: Group,
-): SelectionOp => ({ kind: "compose", drag: [...drag], drop: [...drop], group });
-export const moveSelection = (
-	from: SelectionPath,
-	to: SelectionPath,
-	place: Place,
-): SelectionOp => ({ kind: "move", from: [...from], to: [...to], place });
-export const removeSelectionAt = (path: SelectionPath): SelectionOp => ({
-	kind: "removeAt",
-	path: [...path],
-});
 export const replaceSelection = (path: SelectionPath, selector: Selector): SelectionOp => ({
 	kind: "replace",
-	path: [...path],
+	path,
 	selection: selection(selector),
-});
-export const setSelectionColor = (path: SelectionPath, color: RGB): SelectionOp => ({
-	kind: "color",
-	path: [...path],
-	color,
-});
-export const setPolygonName = (path: SelectionPath, name: string): SelectionOp => ({
-	kind: "polygonName",
-	path: [...path],
-	name,
 });
 
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name

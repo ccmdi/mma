@@ -2638,33 +2638,26 @@ type SelectionInput = {
 };
 /** @unstable */
 type SelectionOp = {
-    /** @unstable */
     kind: "add";
     selections: SelectionInput[];
 } | {
-    /** @unstable */
     kind: "set";
     selections: SelectionInput[];
 } | {
-    /** @unstable */
     kind: "remove";
     keys: string[];
 } | {
-    /** @unstable */
     kind: "toggle";
     selections: SelectionInput[];
 } | {
-    /** @unstable */
     kind: "manual";
     id: number;
 } | {
-    /** @unstable */
     kind: "active";
     op: SelectionOp;
 } | 
 /**  Join the listed selections named by `keys`, or every one when null, into one group. */
 {
-    /** @unstable */
     kind: "combine";
     group: Group;
     keys: string[] | null;
@@ -2674,52 +2667,41 @@ type SelectionOp = {
  *  locations none of them selects.
  */
 {
-    /** @unstable */
     kind: "complement";
     keys: string[] | null;
 } | {
-    /** @unstable */
     kind: "ghost";
     index: number;
 } | {
-    /** @unstable */
     kind: "isolate";
     index: number;
 } | {
-    /** @unstable */
     kind: "ghostAll";
 } | {
-    /** @unstable */
     kind: "invert";
     path: number[];
 } | {
-    /** @unstable */
     kind: "compose";
     drag: number[];
     drop: number[];
     group: Group;
 } | {
-    /** @unstable */
     kind: "move";
     from: number[];
     to: number[];
     place: Place;
 } | {
-    /** @unstable */
     kind: "removeAt";
     path: number[];
 } | {
-    /** @unstable */
     kind: "replace";
     path: number[];
     selection: SelectionInput;
 } | {
-    /** @unstable */
     kind: "color";
     path: number[];
     color: RGB;
 } | {
-    /** @unstable */
     kind: "polygonName";
     path: number[];
     name: string;
@@ -3356,7 +3338,7 @@ export type MaybeLocation = Location | number;
 /** Extract the id from a MaybeLocation. */
 declare function locId(m: MaybeLocation): number;
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
- *  overrides hold, until `addLocations` writes the real id back into the object. */
+ *  overrides hold; adding it to the map returns its real id. */
 declare function createLocation(partial: Partial<Location> & LatLng): Location;
 /** A new Location at the viewer's live camera, carrying `source`'s flags, tagged `tagNames`
  *  through `records`, which the map it lands in matches to its own tags by name. `extra`
@@ -3470,7 +3452,7 @@ declare const SelectionList: {
     tagIdsDeep: () => readonly number[];
     /** Listed selections that are not ghosted. @unstable */
     active: () => Selection[];
-    /** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
+    /** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
     update: (op: SelectionOp) => Promise<void>;
     /** Run a mutation that may change the listed selections; when it does, redraw their fills
      *  and announce the change. @unstable */
@@ -3732,9 +3714,8 @@ declare class CellManager {
 }
 
 declare const Location: {
-    /** Add locations to the map. Each gets a fresh id, written back into the passed object,
-     *  so read `loc.id` after. Undoable. */
-    add: (locs: Location[]) => Promise<void>;
+    /** Add locations to the map and return their new ids, in order. Undoable. */
+    add: (locs: Location[]) => Promise<number[]>;
     /** Add `location` to another map unless that map already holds it, its interned values
      *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
     addTo: (mapId: string, location: Location, records: Parameters<typeof Edit.locations>[2]) => Promise<boolean>;
@@ -5426,20 +5407,8 @@ declare const Review: {
     /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
      *  cursor when the cursor id itself was removed. @unstable */
     prune: (s: ReviewSession, removed: Set<number>) => PruneResult;
-    /** Mark the current cursor reviewed and step forward. `done` is true when the
-     *  session has no remaining items. @unstable */
-    advance: (s: ReviewSession) => {
-        session: ReviewSession;
-        done: boolean;
-    };
-    /** Step backward without marking anything reviewed. Null when already at the start. @unstable */
-    retreat: (s: ReviewSession) => ReviewSession | null;
     /** Position of the session cursor within its review order. @unstable */
     index: (s: ReviewSession) => number;
-    /** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
-    ids: (s: ReviewSession, mode: ReviewMode) => number[];
-    /** Union of reviewed ids across sessions, de-duplicated. @unstable */
-    reviewedIds: (sessions: ReviewSession[]) => number[];
     /** True when the cursor is on the session's first location. @unstable */
     isAtStart: (s: ReviewSession) => boolean;
     /** True when the cursor is on the session's last location. @unstable */
@@ -5456,7 +5425,7 @@ declare const Review: {
     /** Review the selected locations. With one active selection, the review belongs to it and
      *  resumes with it. @unstable */
     beginSelected: () => Promise<void>;
-    /** Resume a session picked from the resume modal. @unstable */
+    /** Make a saved session the active one, dropping locations that no longer exist. @unstable */
     resume: (s: ReviewSession) => Promise<void>;
     /** Mark the current location reviewed and step to the next one. @unstable */
     next: () => Promise<void>;
@@ -5735,7 +5704,7 @@ declare function tagIdOf(selector: Selector): number | null;
 export interface SelectionDescriptor<K extends Selector["type"]> {
     label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
 }
-/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. @unstable */
+/** The display label of each selector variant. @unstable */
 declare const SELECTIONS: {
     [K in Selector["type"]]: SelectionDescriptor<K>;
 };
@@ -5748,45 +5717,15 @@ declare function selection(selector: Selector, color?: RGB): SelectionInput;
 /** @unstable */
 declare function buildSelection(selector: Selector): Promise<Selection>;
 /** @unstable */
-export type SelectionPath = readonly number[];
+export type SelectionPath = number[];
 /** @unstable */
 declare function selectionAt(rows: ListedSelection[], path: SelectionPath): Selection | undefined;
 /** @unstable */
 declare const addSelection: (...selectors: Selector[]) => SelectionOp;
 /** @unstable */
-declare const setSelections: (selections: SelectionInput[]) => SelectionOp;
-/** @unstable */
-declare const removeSelection: (...keys: string[]) => SelectionOp;
-/** @unstable */
 declare const toggleSelection: (...selectors: Selector[]) => SelectionOp;
 /** @unstable */
-declare const toggleManualSelection: (id: number) => SelectionOp;
-/** @unstable */
-declare const onActive: (op: SelectionOp) => SelectionOp;
-/** @unstable */
-declare const combineSelections: (group: Group, keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const complementSelections: (keys?: string[] | null) => SelectionOp;
-/** @unstable */
-declare const toggleGhost: (index: number) => SelectionOp;
-/** @unstable */
-declare const isolateGhost: (index: number) => SelectionOp;
-/** @unstable */
-declare const toggleGhostAll: SelectionOp;
-/** @unstable */
-declare const toggleInvert: (path: SelectionPath) => SelectionOp;
-/** @unstable */
-declare const composeSelections: (drag: SelectionPath, drop: SelectionPath, group: Group) => SelectionOp;
-/** @unstable */
-declare const moveSelection: (from: SelectionPath, to: SelectionPath, place: Place) => SelectionOp;
-/** @unstable */
-declare const removeSelectionAt: (path: SelectionPath) => SelectionOp;
-/** @unstable */
 declare const replaceSelection: (path: SelectionPath, selector: Selector) => SelectionOp;
-/** @unstable */
-declare const setSelectionColor: (path: SelectionPath, color: RGB) => SelectionOp;
-/** @unstable */
-declare const setPolygonName: (path: SelectionPath, name: string) => SelectionOp;
 /** Human-readable label for a selection. Pass `tagNames` to resolve tags by saved name
  *  rather than the open map's tags. @unstable */
 declare function selectionDisplayName(sel: SelectionInput, tagNames?: Record<number, string>): string;
@@ -5818,31 +5757,15 @@ declare const selectionOps_buildSelection: typeof buildSelection;
 /** @unstable */
 declare const selectionOps_childSelections: typeof childSelections;
 /** @unstable */
-declare const selectionOps_combineSelections: typeof combineSelections;
-/** @unstable */
-declare const selectionOps_complementSelections: typeof complementSelections;
-/** @unstable */
-declare const selectionOps_composeSelections: typeof composeSelections;
-/** @unstable */
 declare const selectionOps_filterIsLocalTime: typeof filterIsLocalTime;
 /** @unstable */
 declare const selectionOps_has: typeof has;
 /** @unstable */
-declare const selectionOps_isolateGhost: typeof isolateGhost;
-/** @unstable */
 declare const selectionOps_lacks: typeof lacks;
-/** @unstable */
-declare const selectionOps_moveSelection: typeof moveSelection;
 /** @unstable */
 declare const selectionOps_not: typeof not;
 /** @unstable */
-declare const selectionOps_onActive: typeof onActive;
-/** @unstable */
 declare const selectionOps_panoIdSelector: typeof panoIdSelector;
-/** @unstable */
-declare const selectionOps_removeSelection: typeof removeSelection;
-/** @unstable */
-declare const selectionOps_removeSelectionAt: typeof removeSelectionAt;
 /** @unstable */
 declare const selectionOps_replaceSelection: typeof replaceSelection;
 /** @unstable */
@@ -5852,23 +5775,9 @@ declare const selectionOps_selectionAt: typeof selectionAt;
 /** @unstable */
 declare const selectionOps_selectionDisplayName: typeof selectionDisplayName;
 /** @unstable */
-declare const selectionOps_setPolygonName: typeof setPolygonName;
-/** @unstable */
-declare const selectionOps_setSelectionColor: typeof setSelectionColor;
-/** @unstable */
-declare const selectionOps_setSelections: typeof setSelections;
-/** @unstable */
 declare const selectionOps_tagIdOf: typeof tagIdOf;
 /** @unstable */
 declare const selectionOps_tagSelector: typeof tagSelector;
-/** @unstable */
-declare const selectionOps_toggleGhost: typeof toggleGhost;
-/** @unstable */
-declare const selectionOps_toggleGhostAll: typeof toggleGhostAll;
-/** @unstable */
-declare const selectionOps_toggleInvert: typeof toggleInvert;
-/** @unstable */
-declare const selectionOps_toggleManualSelection: typeof toggleManualSelection;
 /** @unstable */
 declare const selectionOps_toggleSelection: typeof toggleSelection;
 /** @unstable */
@@ -5878,7 +5787,7 @@ declare const selectionOps_untaggedSelector: typeof untaggedSelector;
 /** @unstable */
 declare const selectionOps_withChildren: typeof withChildren;
 declare namespace selectionOps {
-  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_combineSelections as combineSelections, selectionOps_complementSelections as complementSelections, selectionOps_composeSelections as composeSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_isolateGhost as isolateGhost, selectionOps_lacks as lacks, selectionOps_moveSelection as moveSelection, selectionOps_not as not, selectionOps_onActive as onActive, selectionOps_panoIdSelector as panoIdSelector, selectionOps_removeSelection as removeSelection, selectionOps_removeSelectionAt as removeSelectionAt, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_setPolygonName as setPolygonName, selectionOps_setSelectionColor as setSelectionColor, selectionOps_setSelections as setSelections, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleGhost as toggleGhost, selectionOps_toggleGhostAll as toggleGhostAll, selectionOps_toggleInvert as toggleInvert, selectionOps_toggleManualSelection as toggleManualSelection, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
+  export { selectionOps_OP_LABELS as OP_LABELS, selectionOps_SELECTIONS as SELECTIONS, selectionOps_UNARY_TYPES as UNARY_TYPES, selectionOps_addSelection as addSelection, selectionOps_all as all, selectionOps_any as any, selectionOps_buildSelection as buildSelection, selectionOps_childSelections as childSelections, selectionOps_filterIsLocalTime as filterIsLocalTime, selectionOps_has as has, selectionOps_lacks as lacks, selectionOps_not as not, selectionOps_panoIdSelector as panoIdSelector, selectionOps_replaceSelection as replaceSelection, selectionOps_selection as selection, selectionOps_selectionAt as selectionAt, selectionOps_selectionDisplayName as selectionDisplayName, selectionOps_tagIdOf as tagIdOf, selectionOps_tagSelector as tagSelector, selectionOps_toggleSelection as toggleSelection, selectionOps_unpannedSelector as unpannedSelector, selectionOps_untaggedSelector as untaggedSelector, selectionOps_withChildren as withChildren };
   export type { selectionOps_CompositeType as CompositeType, selectionOps_FilterOpKind as FilterOpKind, selectionOps_GroupType as GroupType, selectionOps_SelectionPath as SelectionPath, selectionOps_UnaryType as UnaryType };
 }
 
@@ -5901,36 +5810,20 @@ export interface SelectorPickController {
 /** Convert a picker choice into the corresponding `Selector`. @unstable */
 declare function selectorForPick(choice: SelectorPick): Selector;
 /** React hook: selector state with live counts. Defaults to the current selection when one
- *  exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector. @unstable */
+ *  exists, else all locations. @unstable */
 declare function useSelectorPick(initial?: SelectorPick): SelectorPickController;
-/** A standalone selector store that can be read from both React and non-React code.
- *  Each `createSelectorPick` call returns an isolated instance. @unstable */
-export interface SelectorPickHandle {
-    get(): Selector;
-    getChoice(): SelectorPick;
-    set(choice: SelectorPick): void;
-    subscribe(listener: () => void): () => void;
-    /** React view of this handle: re-renders on change, with live counts. */
-    use(): SelectorPickController;
-}
-/** A standalone "all locations vs current selection" switch, for features that operate on a subset. @unstable */
-declare function createSelectorPick(initial?: SelectorPick): SelectorPickHandle;
 
 /** @unstable */
 export type picker_SelectorPick = SelectorPick;
 /** @unstable */
 export type picker_SelectorPickController = SelectorPickController;
 /** @unstable */
-export type picker_SelectorPickHandle = SelectorPickHandle;
-/** @unstable */
-declare const picker_createSelectorPick: typeof createSelectorPick;
-/** @unstable */
 declare const picker_selectorForPick: typeof selectorForPick;
 /** @unstable */
 declare const picker_useSelectorPick: typeof useSelectorPick;
 declare namespace picker {
-  export { picker_createSelectorPick as createSelectorPick, picker_selectorForPick as selectorForPick, picker_useSelectorPick as useSelectorPick };
-  export type { picker_SelectorPick as SelectorPick, picker_SelectorPickController as SelectorPickController, picker_SelectorPickHandle as SelectorPickHandle };
+  export { picker_selectorForPick as selectorForPick, picker_useSelectorPick as useSelectorPick };
+  export type { picker_SelectorPick as SelectorPick, picker_SelectorPickController as SelectorPickController };
 }
 
 /** Low-level command, shell, and file dialog access. @unstable */
@@ -7157,15 +7050,6 @@ declare function getJobs(): JobEntry[];
 /** Register a long-running operation with the global job tray. The caller owns the
  *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
 declare function registerJob(label: string, opts?: JobOpts): JobHandle;
-/** @unstable */
-export interface JobRunContext {
-    signal: AbortSignal;
-    report: (fraction: number, detail?: string) => void;
-}
-/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
- *  through the handle, and ends the job however `fn` settles. Cancelling resolves null;
- *  a real failure toasts and rethrows. @unstable */
-declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<R | null>;
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
 declare function cancelJobs(scope: JobScope): void;
@@ -7189,8 +7073,6 @@ export type jobs_JobHandle = JobHandle;
 /** @unstable */
 export type jobs_JobOpts = JobOpts;
 /** @unstable */
-export type jobs_JobRunContext = JobRunContext;
-/** @unstable */
 export type jobs_JobScope = JobScope;
 /** @unstable */
 export type jobs_MapExitKind = MapExitKind;
@@ -7206,11 +7088,9 @@ declare const jobs_getJobs: typeof getJobs;
 declare const jobs_registerJob: typeof registerJob;
 /** @unstable */
 declare const jobs_resolveMapExit: typeof resolveMapExit;
-/** @unstable */
-declare const jobs_runJob: typeof runJob;
 declare namespace jobs {
-  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit, jobs_runJob as runJob };
-  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
+  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit };
+  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
 }
 
 /** Context passed to the job function. */
@@ -7316,7 +7196,7 @@ declare function fetchLocations(selector: Selector): Promise<Location[]>;
 declare function registerEnrichFields(_fields: EnrichFieldOption[]): void;
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.addSelection(...selectors))`. @unstable */
 declare function addSelections(selectors: Selector[]): Promise<void>;
-/** @deprecated v0.11.3. Use `MMA.SelectionList.update(MMA.removeSelection(...keys))`. @unstable */
+/** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "remove", keys })`. @unstable */
 declare function removeSelections(keys: string[]): Promise<void>;
 /** @deprecated v0.11.3. Use `MMA.SelectionList.update({ kind: "set", selections: [] })`. @unstable */
 declare function resetSelections(): Promise<void>;

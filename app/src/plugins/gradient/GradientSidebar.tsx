@@ -22,7 +22,6 @@ import { useSetting } from "@/store/settings";
 import "./gradient.css";
 import { t, msg } from "@/lib/i18n";
 import { Button } from "@/components/primitives/Button";
-import { onActive } from "@/store/selections";
 
 interface GradientPreset {
 	name: string;
@@ -183,7 +182,7 @@ export function GradientSidebar({ onClose }: { onClose: () => void }) {
 			});
 			if (sels.length === 0) return;
 
-			await SelectionList.update(onActive({ kind: "set", selections: sels }));
+			await SelectionList.update({ kind: "active", op: { kind: "set", selections: sels } });
 		} finally {
 			setApplying(false);
 		}

@@ -225,7 +225,10 @@ describe("Selection filters — core field operations", () => {
 					test: { op: "lt", value: 200 },
 				}),
 			);
-			await api.SelectionList.update(api.onActive(api.combineSelections("Intersection")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Intersection", keys: null },
+			});
 		});
 		const ids = await refreshSelections();
 		// heading > 100 AND heading < 200: i*12 > 100 AND i*12 < 200
@@ -249,7 +252,10 @@ describe("Selection filters — core field operations", () => {
 					test: { op: "gt", value: 336 },
 				}),
 			);
-			await api.SelectionList.update(api.onActive(api.combineSelections("Union")));
+			await api.SelectionList.update({
+				kind: "active",
+				op: { kind: "combine", group: "Union", keys: null },
+			});
 		});
 		const ids = await refreshSelections();
 		// heading < 36: i*12 < 36 → i < 3, indices 0-2 = 3

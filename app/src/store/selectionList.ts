@@ -5,7 +5,7 @@ import type { Selection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { refreshPolygonFills } from "@/lib/render/polygonFills";
 import { emit as emitEvent } from "@/lib/events";
-import { selection, onActive, setSelections } from "./selections";
+import { selection } from "./selections";
 import type { Selector } from "@/types";
 import type { MutationResult } from "@/bindings.gen";
 import { tagIdOf } from "@/store/selections";
@@ -50,7 +50,7 @@ export const SelectionList = {
 		() => [Store.get().selectionList] as const,
 		(rows) => rows.filter((r) => !r.ghosted).map((r) => r.selection),
 	),
-	/** Update and resolve the listed selections. Use `onActive` to affect only active selections. @unstable */
+	/** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
 	update: async (op: import("@/bindings.gen").SelectionOp) => {
 		await SelectionList.run(() => cmd.storeEditSelections(op));
 	},
@@ -74,9 +74,10 @@ export const SelectionList = {
 		const results = await Promise.all(buckets.map(pick));
 		const ids = [...new Set(results.flatMap((r) => (Array.isArray(r) ? r : r.ids)))];
 		if (ids.length)
-			await SelectionList.update(
-				onActive(setSelections([selection({ type: "Manual", locations: ids })])),
-			);
+			await SelectionList.update({
+				kind: "active",
+				op: { kind: "set", selections: [selection({ type: "Manual", locations: ids })] },
+			});
 		return { picked: ids.length, results };
 	},
 };

@@ -159,9 +159,8 @@ describe("random pick, per selection", () => {
 
 	it("ignores ghosted selections", async () => {
 		await SelectionList.update(addSelection(tagSelector(1), tagSelector(2)));
-		const { toggleGhost } = await import("@/store/selections");
 		const ghostKey = selectionFixture(tagSelector(2)).key;
-		await SelectionList.update(toggleGhost(1));
+		await SelectionList.update({ kind: "ghost", index: 1 });
 
 		await sample(2, true);
 

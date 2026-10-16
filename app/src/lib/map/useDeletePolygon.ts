@@ -3,7 +3,6 @@ import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { cmd } from "@/lib/commands";
 import { useHeldHotkeyClick } from "@/lib/map/useHeldHotkeyClick";
-import { removeSelection } from "@/store/selections";
 
 /** Keys of the polygon selections covering a point. */
 export async function polygonsAt(lat: number, lng: number): Promise<string[]> {
@@ -20,7 +19,7 @@ export async function polygonsAt(lat: number, lng: number): Promise<string[]> {
  *  map context menu. */
 export async function deletePolygonsAt(lat: number, lng: number): Promise<void> {
 	const keys = await polygonsAt(lat, lng);
-	if (keys.length) void SelectionList.update(removeSelection(...keys));
+	if (keys.length) void SelectionList.update({ kind: "remove", keys });
 }
 
 export function useDeletePolygon() {

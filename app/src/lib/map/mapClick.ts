@@ -20,7 +20,6 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { openSeenEntry } from "@/lib/seen/seenOverlay";
 import { openContextMenuLatLng, openContextMenuLocation } from "@/lib/map/contextMenu";
 import { trace } from "@/lib/util/debug";
-import { toggleManualSelection } from "@/store/selections";
 import { locId, createLocation } from "@/types";
 import type { MaybeLocation, Bounds } from "@/types";
 
@@ -211,7 +210,7 @@ export async function handleMapClick(
 			const open = Editor.get().open;
 			if (open && open.origin !== "map" && locId(picked) === open.id) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void SelectionList.update(toggleManualSelection(locId(picked)));
+				void SelectionList.update({ kind: "manual", id: locId(picked) });
 			else void Editor.open(picked);
 			return;
 		}
@@ -238,7 +237,7 @@ export async function handleMapClick(
 				)[0] ?? null;
 			if (!nearest) return;
 			if (domEvent instanceof MouseEvent && domEvent.ctrlKey)
-				void SelectionList.update(toggleManualSelection(nearest.id));
+				void SelectionList.update({ kind: "manual", id: nearest.id });
 			else void Editor.open(nearest);
 			return;
 		}

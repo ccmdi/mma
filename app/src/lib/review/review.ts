@@ -9,7 +9,7 @@ import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import { debounce } from "@/lib/util/concurrent";
 import { emit, useEventValue, subscribe as onEvent } from "@/lib/events";
-import { addSelection, selection, removeSelection, selectionDisplayName } from "@/store/selections";
+import { addSelection, selection, selectionDisplayName } from "@/store/selections";
 import type { Selector } from "@/types";
 import type { ReviewSession, Selection } from "@/bindings.gen";
 import { ReviewMode } from "@/bindings.consts";
@@ -118,7 +118,7 @@ function clearProjection(id: string): void {
 			({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id,
 		)
 		.map(({ selection: s }) => s.key);
-	void SelectionList.update(removeSelection(...keys));
+	void SelectionList.update({ kind: "remove", keys });
 }
 
 function reconcile(removed: number[]): void {

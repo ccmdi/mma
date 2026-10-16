@@ -1591,7 +1591,7 @@ createLocation(partial: Partial<Location> & LatLng): Location
 ```
 
 Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
-overrides hold, until `addLocations` writes the real id back into the object.
+overrides hold; adding it to the map returns its real id.
 
 ### dropLocation
 
@@ -1725,13 +1725,12 @@ Compatibility bindings for flat plugin calls.
 `stable` · `deprecated` · since v0.3.1
 
 ```ts
-addLocations(locs: Location[]): Promise<void>
+addLocations(locs: Location[]): Promise<number[]>
 ```
 
 **Deprecated in v0.12.1.** Use `MMA.Location.add`.
 
-Add locations to the map. Each gets a fresh id, written back into the passed object,
-so read `loc.id` after. Undoable.
+Add locations to the map and return their new ids, in order. Undoable.
 
 ### addSelections
 
@@ -1763,7 +1762,7 @@ applySelectionUpdate(op: SelectionOp): Promise<void>
 
 **Deprecated in v0.12.1.** Use `MMA.SelectionList.update`.
 
-Update and resolve the listed selections. Use `onActive` to affect only active selections.
+Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
 
 ### autosave
 
@@ -2790,7 +2789,7 @@ Remove locations by id. Undoable.
 removeSelections(keys: string[]): Promise<void>
 ```
 
-**Deprecated in v0.11.3.** Use `MMA.SelectionList.update(MMA.removeSelection(...keys))`.
+**Deprecated in v0.11.3.** Use `MMA.SelectionList.update({ kind: "remove", keys })`.
 
 ### removeTagFromAllLocations
 
@@ -3850,11 +3849,10 @@ Add, update, remove, and inspect map locations.
 `stable` · since v0.12.0
 
 ```ts
-Location.add(locs: Location[]): Promise<void>
+Location.add(locs: Location[]): Promise<number[]>
 ```
 
-Add locations to the map. Each gets a fresh id, written back into the passed object,
-so read `loc.id` after. Undoable.
+Add locations to the map and return their new ids, in order. Undoable.
 
 #### Location.addTo
 
@@ -4877,34 +4875,6 @@ childSelections<S>(selector: Selector$1<S>): S[]
 
 Every child selection a selector wraps, whatever shape it wraps them in.
 
-### combineSelections
-
-`unstable` · since v0.12.0
-
-```ts
-combineSelections(group: Group, keys?: string[] | null): SelectionOp
-```
-
-### complementSelections
-
-`unstable` · since v0.12.0
-
-```ts
-complementSelections(keys?: string[] | null): SelectionOp
-```
-
-### composeSelections
-
-`unstable` · since v0.4.0
-
-```ts
-composeSelections(
-  drag: SelectionPath,
-  drop: SelectionPath,
-  group: Group,
-): SelectionOp
-```
-
 ### filterIsLocalTime
 
 `unstable` · since v0.10.3
@@ -4925,14 +4895,6 @@ has(field: string): Selector
 
 Locations holding a value for `field`.
 
-### isolateGhost
-
-`unstable` · since v0.10.3
-
-```ts
-isolateGhost(index: number): SelectionOp
-```
-
 ### lacks
 
 `unstable` · since v0.11.0
@@ -4943,18 +4905,6 @@ lacks(field: string): Selector
 
 Locations holding no value for `field`.
 
-### moveSelection
-
-`unstable` · since v0.11.3
-
-```ts
-moveSelection(
-  from: SelectionPath,
-  to: SelectionPath,
-  place: Place,
-): SelectionOp
-```
-
 ### not
 
 `unstable` · since v0.11.0
@@ -4964,14 +4914,6 @@ not(selector: Selector): Selector
 ```
 
 Locations not matching `selector`.
-
-### onActive
-
-`unstable` · since v0.11.3
-
-```ts
-onActive(op: SelectionOp): SelectionOp
-```
 
 ### OP_LABELS
 
@@ -5009,22 +4951,6 @@ panoIdSelector(on: boolean): Selector
 
 Locations pinned to one exact pano (the flag plus a pano id), or the locations not
 pinned.
-
-### removeSelection
-
-`unstable` · since v0.4.0
-
-```ts
-removeSelection(...keys: string[]): SelectionOp
-```
-
-### removeSelectionAt
-
-`unstable` · since v0.11.3
-
-```ts
-removeSelectionAt(path: SelectionPath): SelectionOp
-```
 
 ### replaceSelection
 
@@ -5097,31 +5023,7 @@ SELECTIONS: {
 }
 ```
 
-Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides.
-
-### setPolygonName
-
-`unstable` · since v0.4.0
-
-```ts
-setPolygonName(path: SelectionPath, name: string): SelectionOp
-```
-
-### setSelectionColor
-
-`unstable` · since v0.4.0
-
-```ts
-setSelectionColor(path: SelectionPath, color: RGB): SelectionOp
-```
-
-### setSelections
-
-`unstable` · since v0.12.0
-
-```ts
-setSelections(selections: SelectionInput[]): SelectionOp
-```
+The display label of each selector variant.
 
 ### tagIdOf
 
@@ -5144,38 +5046,6 @@ tagSelector(tagId: number): Selector
 
 Locations carrying `tagId`. A tag is membership in the `tags` list field and nothing
 else, so there is no tag selector to build.
-
-### toggleGhost
-
-`unstable` · since v0.10.3
-
-```ts
-toggleGhost(index: number): SelectionOp
-```
-
-### toggleGhostAll
-
-`unstable` · since v0.10.3
-
-```ts
-toggleGhostAll: SelectionOp
-```
-
-### toggleInvert
-
-`unstable` · since v0.11.3
-
-```ts
-toggleInvert(path: SelectionPath): SelectionOp
-```
-
-### toggleManualSelection
-
-`unstable` · since v0.4.0
-
-```ts
-toggleManualSelection(id: number): SelectionOp
-```
 
 ### toggleSelection
 
@@ -5841,16 +5711,6 @@ React hook: all settings, re-rendering on any change.
 
 The selector picker the pick dialogs share; its choices move with the UI.
 
-### createSelectorPick
-
-`unstable` · since v0.10.0
-
-```ts
-createSelectorPick(initial?: SelectorPick): SelectorPickHandle
-```
-
-A standalone "all locations vs current selection" switch, for features that operate on a subset.
-
 ### selectorForPick
 
 `unstable` · since v0.10.0
@@ -5870,7 +5730,7 @@ useSelectorPick(initial?: SelectorPick): SelectorPickController
 ```
 
 React hook: selector state with live counts. Defaults to the current selection when one
-exists, else all locations. Use `createSelectorPick` when non-React code also reads the selector.
+exists, else all locations.
 
 ## Commands
 
@@ -8099,22 +7959,6 @@ resolveMapExit(ok: boolean): void
 
 Answer the pending map-exit confirmation.
 
-### runJob
-
-`unstable` · since v0.10.7
-
-```ts
-runJob<R>(
-  label: string,
-  fn: (ctx: JobRunContext) => Promise<R>,
-  opts?: Omit<JobOpts, "cancel">,
-): Promise<R | null>
-```
-
-Sugar for promise-shaped work: registers a job wired to an AbortController, reports
-through the handle, and ends the job however `fn` settles. Cancelling resolves null;
-a real failure toasts and rethrows.
-
 ## Test
 
 ### _test
@@ -8481,7 +8325,7 @@ Tag ids from active selection leaves, including repeated ids and composite child
 SelectionList.update(op: SelectionOp): Promise<void>
 ```
 
-Update and resolve the listed selections. Use `onActive` to affect only active selections.
+Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
 
 ## CommitDiff
 
@@ -8994,20 +8838,6 @@ Wait for the main editor map to be ready.
 
 Review sessions and their history.
 
-#### Review.advance
-
-`unstable` · since v0.12.0
-
-```ts
-Review.advance(s: ReviewSession): {
-  session: ReviewSession;
-  done: boolean;
-}
-```
-
-Mark the current cursor reviewed and step forward. `done` is true when the
-session has no remaining items.
-
 #### Review.begin
 
 `unstable` · since v0.12.0
@@ -9050,16 +8880,6 @@ Review.deleteCurrent(): Promise<void>
 
 Delete the current location and advance to the next one. Exits the pass if it
 was the last item.
-
-#### Review.ids
-
-`unstable` · since v0.12.0
-
-```ts
-Review.ids(s: ReviewSession, mode: ReviewMode): number[]
-```
-
-The session's locations in `mode`: those reviewed, or those still to review.
 
 #### Review.index
 
@@ -9170,27 +8990,7 @@ Rename a review session.
 Review.resume(s: ReviewSession): Promise<void>
 ```
 
-Resume a session picked from the resume modal.
-
-#### Review.retreat
-
-`unstable` · since v0.12.0
-
-```ts
-Review.retreat(s: ReviewSession): ReviewSession | null
-```
-
-Step backward without marking anything reviewed. Null when already at the start.
-
-#### Review.reviewedIds
-
-`unstable` · since v0.12.0
-
-```ts
-Review.reviewedIds(sessions: ReviewSession[]): number[]
-```
-
-Union of reviewed ids across sessions, de-duplicated.
+Make a saved session the active one, dropping locations that no longer exist.
 
 #### Review.selector
 
