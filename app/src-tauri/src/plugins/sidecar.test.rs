@@ -142,14 +142,14 @@ fn exited(child: &Arc<Mutex<Child>>) -> bool {
 }
 
 #[test]
-fn kill_plugin_scopes_to_the_named_plugin() {
+fn stopping_a_plugin_scopes_to_the_named_plugin() {
     let a = track("test-scope-a", 9001);
     let b = track("test-scope-b", 9002);
-    kill_plugin("test-scope-a");
+    with_plugin_stopped("test-scope-a", || Ok(())).unwrap();
     assert!(exited(&a));
     assert!(!exited(&b));
     assert!(lock(&plugin_slot("test-scope-a")).children.is_empty());
-    kill_plugin("test-scope-b");
+    with_plugin_stopped("test-scope-b", || Ok(())).unwrap();
     assert!(exited(&b));
 }
 
@@ -175,7 +175,7 @@ fn restart_skips_a_resident_someone_else_already_replaced() {
     assert!(resident_port(id, &s, Some(8)).is_err());
     assert!(exited(&child));
     assert!(lock(&plugin_slot(id)).resident.is_none());
-    kill_plugin(id);
+    with_plugin_stopped(id, || Ok(())).unwrap();
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn cancel_kills_a_tracked_child_by_req_id() {
     kill_child(&target);
 
     assert!(exited(&child));
-    kill_plugin("test-cancel");
+    with_plugin_stopped("test-cancel", || Ok(())).unwrap();
 }
 
 #[test]

@@ -76,7 +76,7 @@ pub(crate) struct SidecarDone {
 }
 
 /// GitHub release asset platform tag for the running target.
-pub(crate) fn platform_tag() -> AppResult<&'static str> {
+fn platform_tag() -> AppResult<&'static str> {
     Ok(match (OS, ARCH) {
         ("windows", "x86_64") => "windows-x64",
         ("macos", "aarch64") => "macos-arm64",
@@ -469,12 +469,6 @@ pub fn with_plugin_stopped<R>(plugin_id: &str, f: impl FnOnce() -> AppResult<R>)
     f()
 }
 
-/// Stop everything a plugin is running. Called on uninstall, on deactivate, and
-/// before the install directory swap.
-pub fn kill_plugin(plugin_id: &str) {
-    let _ = with_plugin_stopped(plugin_id, || Ok(()));
-}
-
 /// Kill every tracked sidecar process. Called on map close and app exit.
 pub fn kill_all_sidecars() {
     // Snapshot, then lock slots one at a time: a plugin mid-spawn holds its slot for
@@ -780,6 +774,41 @@ fn run_oneshot_inner(
 
 // --- Commands ---
 
+/// Start `command` under `req_id` on its own thread, handing each output line to `on_line`
+/// as it arrives and the outcome to `on_done` once the run is over.
+fn start(
+    plugin_id: &str,
+    command: &str,
+    payload: Option<String>,
+    req_id: u32,
+    mut on_line: impl FnMut(String) + Send + 'static,
+    on_done: impl FnOnce(AppResult<()>) + Send + 'static,
+) -> AppResult<()> {
+    validate_plugin_id(plugin_id)?;
+    validate_sidecar_command(command)?;
+    // The app starts residents itself; a requested `serve` would sit as a
+    // never-finishing one-shot.
+    if command == SERVE_COMMAND {
+        return Err(AppError(
+            "serve is app-managed and cannot be requested".into(),
+        ));
+    }
+    let spec = read_spec(plugin_id)?;
+    let (plugin_id, command) = (plugin_id.to_string(), command.to_string());
+    thread::spawn(move || {
+        let result = run_command(
+            &plugin_id,
+            &spec,
+            &command,
+            payload.as_deref(),
+            req_id,
+            &mut on_line,
+        );
+        on_done(result);
+    });
+    Ok(())
+}
+
 /// Run one unit of work on a plugin's sidecar. Commands the manifest lists under
 /// `serve` go to the plugin's resident process; the rest get a one-shot child.
 /// Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
@@ -791,34 +820,21 @@ pub fn sidecar_request(
     command: String,
     payload: Option<String>,
 ) -> AppResult<u32> {
-    validate_plugin_id(&plugin_id)?;
-    validate_sidecar_command(&command)?;
-    // The app starts residents itself; a requested `serve` would sit as a
-    // never-finishing one-shot.
-    if command == SERVE_COMMAND {
-        return Err(AppError(
-            "serve is app-managed and cannot be requested".into(),
-        ));
-    }
-    let spec = read_spec(&plugin_id)?;
     let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
-
-    thread::spawn(move || {
-        let result = run_command(
-            &plugin_id,
-            &spec,
-            &command,
-            payload.as_deref(),
-            req_id,
-            &mut |line| emit_event(SidecarLine { req_id, line }),
-        );
-        let error = result.err().map(|e| e.0);
-        if let Some(ref message) = error {
-            log::error!("[sidecar] req_id={req_id} failed: {message}");
-        }
-        emit_event(SidecarDone { req_id, error });
-    });
-
+    start(
+        &plugin_id,
+        &command,
+        payload,
+        req_id,
+        move |line| emit_event(SidecarLine { req_id, line }),
+        move |result| {
+            let error = result.err().map(|e| e.0);
+            if let Some(ref message) = error {
+                log::error!("[sidecar] req_id={req_id} failed: {message}");
+            }
+            emit_event(SidecarDone { req_id, error });
+        },
+    )?;
     Ok(req_id)
 }
 
@@ -833,36 +849,22 @@ pub(crate) fn sidecar_call_stream(
     command: &str,
     payload: &str,
 ) -> AppResult<SidecarStream> {
-    validate_plugin_id(plugin_id)?;
-    validate_sidecar_command(command)?;
-    if command == SERVE_COMMAND {
-        return Err(AppError(
-            "serve is app-managed and cannot be requested".into(),
-        ));
-    }
-    let spec = read_spec(plugin_id)?;
     let (tx, rx) = mpsc::channel::<AppResult<String>>();
-    let (plugin_id, command, payload) = (
-        plugin_id.to_string(),
-        command.to_string(),
-        payload.to_string(),
-    );
-    thread::spawn(move || {
-        let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
-        let result = run_command(
-            &plugin_id,
-            &spec,
-            &command,
-            Some(&payload),
-            req_id,
-            &mut |l| {
-                let _ = tx.send(Ok(l));
-            },
-        );
-        if let Err(e) = result {
-            let _ = tx.send(Err(e));
-        }
-    });
+    let failed = tx.clone();
+    start(
+        plugin_id,
+        command,
+        Some(payload.to_string()),
+        REQ_COUNTER.fetch_add(1, Ordering::SeqCst),
+        move |line| {
+            let _ = tx.send(Ok(line));
+        },
+        move |result| {
+            if let Err(e) = result {
+                let _ = failed.send(Err(e));
+            }
+        },
+    )?;
     Ok(Box::new(rx.into_iter()))
 }
 
@@ -875,8 +877,7 @@ pub async fn sidecar_stop(plugin_id: Option<String>) -> AppResult<()> {
         return Ok(());
     };
     validate_plugin_id(&plugin_id)?;
-    task::spawn_blocking(move || kill_plugin(&plugin_id)).await?;
-    Ok(())
+    task::spawn_blocking(move || with_plugin_stopped(&plugin_id, || Ok(()))).await?
 }
 
 /// Cancel a running sidecar request. No-op if the request already finished.

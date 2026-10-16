@@ -7,7 +7,6 @@ use crate::plugins::sidecar;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use reqwest::blocking;
-use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -30,39 +29,10 @@ fn validate_git_ref(git_ref: &str) -> AppResult<()> {
 }
 
 /// A plugin's declared sidecar binary (downloaded from GitHub Releases on install).
-#[derive(serde::Serialize, Clone, specta::Type)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, specta::Type)]
 pub struct PluginSidecar {
     name: String,
     version: String,
-    /// Expected SHA-256 hex digest of the platform-specific zip archive.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    sha256: Option<String>,
-}
-
-/// Manifest form of a sidecar: the digest is keyed per platform (`sha256-{platform_tag}`).
-#[derive(serde::Deserialize)]
-struct RawSidecar {
-    name: String,
-    version: String,
-    #[serde(flatten)]
-    digests: HashMap<String, serde_json::Value>,
-}
-
-impl<'de> serde::Deserialize<'de> for PluginSidecar {
-    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let raw = RawSidecar::deserialize(d)?;
-        let sha256 = sidecar::platform_tag().ok().and_then(|p| {
-            raw.digests
-                .get(&format!("sha256-{p}"))?
-                .as_str()
-                .map(str::to_string)
-        });
-        Ok(PluginSidecar {
-            name: raw.name,
-            version: raw.version,
-            sha256,
-        })
-    }
 }
 
 /// Metadata for a user-installed plugin, read from `plugins/{id}/manifest.json`.
