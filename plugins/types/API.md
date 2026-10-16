@@ -1281,7 +1281,7 @@ object (null if it emitted none). `payload` is sent as JSON.
 
 ### enabledEnrichKeys
 
-`unstable` · unreleased
+`unstable` · since v0.12.1
 
 ```ts
 enabledEnrichKeys(enrichFields?: string[] | null): string[]
@@ -1292,7 +1292,7 @@ ones and every field they read, so no field runs without its inputs.
 
 ### enrichInputs
 
-`unstable` · unreleased
+`unstable` · since v0.12.1
 
 ```ts
 enrichInputs(key: string): string[]
@@ -5903,7 +5903,7 @@ The tail of `mma.log`, scrubbed. Empty string when there is no log yet.
 
 #### cmd.feedbackReply
 
-`unstable` · unreleased
+`unstable` · since v0.12.1
 
 ```ts
 cmd.feedbackReply(
@@ -8314,7 +8314,7 @@ Listed selections that are not ghosted.
 
 #### SelectionList.listed
 
-`unstable` · unreleased
+`unstable` · since v0.12.1
 
 ```ts
 SelectionList.listed(): ListedSelection[]
