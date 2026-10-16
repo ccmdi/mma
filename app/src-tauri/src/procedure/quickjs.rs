@@ -22,8 +22,6 @@ use rquickjs::{
     Runtime, TypedArray, Value,
 };
 use serde::Serialize;
-#[cfg(test)]
-use std::cell::Cell;
 use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
@@ -48,13 +46,6 @@ const ABORT_POLL: Duration = Duration::from_millis(25);
 /// Where the module namespace is parked between calls, so entry points are looked up
 /// without re-evaluating the module.
 const EXPORTS: &str = "__mma_exports";
-
-// Modules this thread has loaded, so the pool tests can count them without seeing
-// loads from tests running beside them.
-#[cfg(test)]
-thread_local! {
-    pub(crate) static LOADS: Cell<u32> = const { Cell::new(0) };
-}
 
 /// Globals bare QuickJS does not provide but bundled procedure code expects.
 const PRELUDE: &str = r#"
@@ -836,8 +827,6 @@ impl JsProcedure {
     }
 
     pub fn load_source(src: &str, origin: &str) -> AppResult<JsProcedure> {
-        #[cfg(test)]
-        LOADS.with(|c| c.set(c.get() + 1));
         let err = |e: rquickjs::Error| AppError(format!("{origin}: {e}"));
         let runtime = Runtime::new().map_err(err)?;
         runtime.set_memory_limit(MEMORY_LIMIT);

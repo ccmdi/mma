@@ -922,22 +922,25 @@ fn console_output_does_not_fault_at_module_scope() {
 // Module cache
 // -----------------------------------------------------------------------
 
-/// Loads counted around a body, so a test reads the pool's effect directly.
-fn loads(body: impl FnOnce()) -> u32 {
-    let before = LOADS.with(Cell::get);
-    body();
-    LOADS.with(Cell::get) - before
-}
-
 /// Distinguishable module bodies: same exports, different sizes, so a rewrite
-/// changes both halves of the stamp.
-const SMALL: &str = "export function map(rows) { return []; }";
+/// changes both halves of the stamp. Each counts its own calls, so a warm copy answers
+/// with a higher count than a freshly loaded one.
+const SMALL: &str = "
+  let calls = 0;
+  export function map(rows) { calls++; return [{ id: rows[0].id, extra: calls }]; }";
 const LARGE: &str = "
   const padding = 'padding that makes the file a different length';
-  export function map(rows) { return padding.length ? [] : []; }";
+  let calls = padding.length ? 0 : 0;
+  export function map(rows) { calls++; return [{ id: rows[0].id, extra: calls }]; }";
 
 fn write_module(path: &Path, src: &str) {
     fs::write(path, src).expect("write module");
+}
+
+/// How many batches this copy of the module has answered, this one included.
+fn calls(proc: &mut PooledProcedure) -> Json {
+    let mut host = MockProcHost::default();
+    extra(&proc.batch(&rows(), &mut host, NULL_CONFIG).expect("map"))
 }
 
 #[test]
@@ -946,9 +949,9 @@ fn a_warm_path_is_loaded_once() {
     let path = dir.path().join("warm.js");
     write_module(&path, SMALL);
 
-    assert_eq!(loads(|| drop(checkout(&path).expect("first"))), 1);
-    assert_eq!(loads(|| drop(checkout(&path).expect("second"))), 0);
-    assert_eq!(loads(|| drop(checkout(&path).expect("third"))), 0);
+    for n in 1..=3 {
+        assert_eq!(calls(&mut checkout(&path).expect("checkout")), n);
+    }
 }
 
 #[test]
@@ -956,12 +959,12 @@ fn a_rewritten_module_is_reloaded() {
     let dir = tempfile::tempdir().expect("temp dir");
     let path = dir.path().join("rebuilt.js");
     write_module(&path, SMALL);
-    drop(checkout(&path).expect("first"));
+    assert_eq!(calls(&mut checkout(&path).expect("first")), 1);
 
     write_module(&path, LARGE);
-    assert_eq!(loads(|| drop(checkout(&path).expect("after rebuild"))), 1);
+    assert_eq!(calls(&mut checkout(&path).expect("after rebuild")), 1);
     // The rebuilt module is now the warm one; the stale copy is not handed back out.
-    assert_eq!(loads(|| drop(checkout(&path).expect("warm again"))), 0);
+    assert_eq!(calls(&mut checkout(&path).expect("warm again")), 2);
 }
 
 #[test]
@@ -970,10 +973,11 @@ fn a_module_rewritten_while_on_loan_is_not_pooled() {
     let path = dir.path().join("swapped.js");
     write_module(&path, SMALL);
 
-    let borrowed = checkout(&path).expect("first");
+    let mut borrowed = checkout(&path).expect("first");
+    assert_eq!(calls(&mut borrowed), 1);
     write_module(&path, LARGE);
     drop(borrowed);
-    assert_eq!(loads(|| drop(checkout(&path).expect("after rebuild"))), 1);
+    assert_eq!(calls(&mut checkout(&path).expect("after rebuild")), 1);
 }
 
 #[test]
@@ -982,12 +986,14 @@ fn a_second_live_checkout_gets_its_own_procedure() {
     let path = dir.path().join("concurrent.js");
     write_module(&path, SMALL);
 
-    let first = checkout(&path).expect("first");
-    assert_eq!(loads(|| drop(checkout(&path).expect("second"))), 1);
+    let mut first = checkout(&path).expect("first");
+    assert_eq!(calls(&mut first), 1);
+    assert_eq!(calls(&mut checkout(&path).expect("second")), 1);
     drop(first);
-    let a = checkout(&path).expect("third");
-    assert_eq!(loads(|| drop(checkout(&path).expect("fourth"))), 0);
-    drop(a);
+    let mut third = checkout(&path).expect("third");
+    let mut fourth = checkout(&path).expect("fourth");
+    assert_eq!(calls(&mut third), 2);
+    assert_eq!(calls(&mut fourth), 2);
 }
 
 #[test]
@@ -1019,7 +1025,7 @@ fn a_missing_module_is_an_error_and_is_not_pooled() {
     let path = dir.path().join("absent.js");
     assert!(checkout(&path).is_err());
     write_module(&path, SMALL);
-    assert_eq!(loads(|| drop(checkout(&path).expect("present now"))), 1);
+    assert_eq!(calls(&mut checkout(&path).expect("present now")), 1);
 }
 
 #[test]
