@@ -117,9 +117,8 @@ export function useMapSurface(
 	// Latest rebuild, so overlay creation paints the first frame with current values.
 	const rebuildLatest = useEffectEvent(() => rebuild());
 
-	// Repaint on every visual signal WITHOUT rendering the host component — these buses
-	// used to be render subscriptions serving purely as effect triggers. Same-tick bursts
-	// coalesce into one rebuild (React's batching did this implicitly before).
+	// Repaint on every visual signal without rendering the host component; same-tick bursts
+	// coalesce into one rebuild.
 	const rebuildQueued = useRef(0);
 	const scheduleRebuild = useEffectEvent(() => {
 		if (rebuildQueued.current) return;

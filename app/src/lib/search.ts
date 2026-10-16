@@ -2,11 +2,11 @@
  *  is identical everywhere: case- and accent-folded, whitespace-tokenized (every
  *  token must land), ranked exact > prefix > word start > substring > subsequence.
  *
- *  Three surfaces over one scorer:
- *  - `matches` — predicate for lists that filter in place and keep their own order
- *  - `search`  — ranked results for pickers and suggestion lists
- *  - `score`   — the raw scorer, for hosts that rank per item themselves (cmdk)
- *  - `snippet` — an excerpt of a matched body, for results that show context
+ *  Four surfaces over one scorer:
+ *  - `matches`: predicate for lists that filter in place and keep their own order
+ *  - `search`: ranked results for pickers and suggestion lists
+ *  - `score`: the raw scorer, for hosts that rank per item themselves (cmdk)
+ *  - `snippet`: an excerpt of a matched body, for results that show context
  */
 
 export type SearchTexts = readonly (string | null | undefined)[];

@@ -123,8 +123,8 @@ function initCompositeMapType() {
 			return canvas;
 		}
 
-		/** Drops the fetches and the decoded bitmaps. A tile scrolled away mid-load used to
-		 *  stay pinned by its pending load listener for the life of the page. */
+		/** Drops the fetches and the decoded bitmaps, so a tile scrolled away mid-load is not
+		 *  pinned by its pending load listener for the life of the page. */
 		releaseTile(canvas: HTMLCanvasElement) {
 			const state = this.tiles.get(canvas);
 			if (!state) return;
