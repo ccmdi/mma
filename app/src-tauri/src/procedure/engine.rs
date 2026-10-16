@@ -157,6 +157,21 @@ pub struct ProcedureProgress {
     pub finished: bool,
 }
 
+impl ProcedureProgress {
+    /// The terminal event of a provider that did no work, so its listener is not left waiting.
+    fn abandoned(run_id: u32, provider_id: &str) -> Self {
+        ProcedureProgress {
+            run_id,
+            provider_id: provider_id.to_string(),
+            done: 0,
+            total: 0,
+            failed: 0,
+            skipped: 0,
+            finished: true,
+        }
+    }
+}
+
 /// What one page hands back to the caller: a `Collect` provider's answers, delivered
 /// instead of being written, and for every sink the locations that failed. Emitted only when
 /// there is something in it.
@@ -284,21 +299,6 @@ fn resolve_entry(spec: &str) -> AppResult<PathBuf> {
     Ok(dir.join(rel))
 }
 
-fn finish_writer_run(state: &StoreState, run_id: u32) {
-    let Ok(mut manager) = state.lock() else {
-        drop(unregister_run(run_id));
-        return;
-    };
-    let Some(run) = unregister_run(run_id) else {
-        return;
-    };
-    if let Some((map_id, _)) = run.writer {
-        if let Ok(store) = manager.store_for_map(&map_id) {
-            store.settle_layers();
-        }
-    }
-}
-
 struct RunGuard<'a> {
     state: &'a StoreState,
     run_id: u32,
@@ -306,7 +306,18 @@ struct RunGuard<'a> {
 
 impl Drop for RunGuard<'_> {
     fn drop(&mut self) {
-        finish_writer_run(self.state, self.run_id);
+        let Ok(mut manager) = self.state.lock() else {
+            drop(unregister_run(self.run_id));
+            return;
+        };
+        let Some(run) = unregister_run(self.run_id) else {
+            return;
+        };
+        if let Some((map_id, _)) = run.writer {
+            if let Ok(store) = manager.store_for_map(&map_id) {
+                store.settle_layers();
+            }
+        }
     }
 }
 
@@ -531,7 +542,7 @@ struct QueryRun {
 /// call names a different radius or field set, so a procedure that varies either pays
 /// a whole-map rescan; asking with the same arguments every row is the intended use.
 #[derive(Default)]
-pub(crate) struct NeighborCache {
+struct NeighborCache {
     built: Mutex<Option<BuiltIndex>>,
 }
 
@@ -553,7 +564,6 @@ pub(crate) struct RunCtx<'a> {
     pub deps: &'a EngineDeps,
     pub progress: Arc<ProgressSink>,
     pub results: Arc<ResultSink>,
-    pub neighbors: Arc<NeighborCache>,
     /// The undo entry every provider's pages share, so the whole run undoes as one step.
     pub undo_group: Arc<Mutex<Option<u64>>>,
 }
@@ -567,28 +577,27 @@ impl RunCtx<'_> {
     fn aborted(&self) -> bool {
         self.cancel.load(Ordering::Relaxed)
     }
+}
 
+impl NeighborCache {
     /// The index for this radius and field set, built over the run's rows the first
     /// time it is asked for and answered from memory after.
-    fn neighbor_index(
+    fn index(
         &self,
+        ctx: &RunCtx,
         radius_m: f64,
         fields: &[String],
     ) -> AppResult<Arc<neighborhood::Index>> {
-        let mut held = self
-            .neighbors
-            .built
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
+        let mut held = self.built.lock().unwrap_or_else(PoisonError::into_inner);
         if let Some(b) = held.as_ref() {
             if b.radius_m == radius_m && b.fields == fields {
                 return Ok(b.index.clone());
             }
         }
         log::debug!("[procedure] building neighbor index r={radius_m}m fields={fields:?}");
-        let index = self.with_store(|store| {
+        let index = ctx.with_store(|store| {
             let index = store
-                .at(&self.target)
+                .at(&ctx.target)
                 .scope(&Selector::Everything, None, |scope| {
                     neighborhood::Index::build(scope.rows(), radius_m, fields)
                 });
@@ -623,23 +632,12 @@ impl WorkBatch {
 /// Run every provider concurrently, each starting the moment the providers that write
 /// its required fields have finished. Blocking throughout: callers put this on a
 /// blocking thread.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn run_all(
-    state: &StoreState,
-    map_id: &Id<MapMeta, String>,
-    target: &Target,
-    providers: &[ProviderDecl],
-    force: bool,
-    run_id: u32,
-    cancel: &Arc<AtomicBool>,
-    deps: &EngineDeps,
-    progress: &Arc<ProgressSink>,
-    results: &Arc<ResultSink>,
-) {
-    let _registration = RunGuard { state, run_id };
+pub(crate) fn run_all(ctx: &RunCtx, providers: &[ProviderDecl]) {
+    let _registration = RunGuard {
+        state: ctx.state,
+        run_id: ctx.run_id,
+    };
     let gates = producers(providers);
-    let undo_group = Arc::new(Mutex::new(None));
     let (tx, rx) = mpsc::channel::<usize>();
     let mut pending: Vec<usize> = (0..providers.len()).collect();
     let mut done: Vec<bool> = vec![false; providers.len()];
@@ -647,40 +645,18 @@ pub(crate) fn run_all(
     thread::scope(|s| {
         let start = |idx: usize, running: &mut usize| {
             let decl = &providers[idx];
-            let ctx = RunCtx {
-                state,
-                map_id: map_id.clone(),
-                target: target.clone(),
-                run_id,
-                force,
-                cancel: cancel.clone(),
-                deps,
-                progress: progress.clone(),
-                results: results.clone(),
-                neighbors: Arc::default(),
-                undo_group: undo_group.clone(),
-            };
             let tx = tx.clone();
             *running += 1;
             s.spawn(move || {
-                if let Err(e) = run_provider(&ctx, decl) {
+                if let Err(e) = run_provider(ctx, decl) {
                     log::error!("[procedure] provider '{}' failed: {e}", decl.id);
-                    // A provider that never reports finished would hang its listener.
-                    (ctx.progress)(ProcedureProgress {
-                        run_id,
-                        provider_id: decl.id.clone(),
-                        done: 0,
-                        total: 0,
-                        failed: 0,
-                        skipped: 0,
-                        finished: true,
-                    });
+                    (ctx.progress)(ProcedureProgress::abandoned(ctx.run_id, &decl.id));
                 }
                 let _ = tx.send(idx);
             });
         };
         loop {
-            if !cancel.load(Ordering::Relaxed) {
+            if !ctx.aborted() {
                 let ready: Vec<usize> = pending
                     .iter()
                     .copied()
@@ -709,15 +685,7 @@ pub(crate) fn run_all(
     // emit their own terminal progress event when cancellation stops the scheduler.
     for (idx, decl) in providers.iter().enumerate() {
         if !done[idx] {
-            (progress)(ProcedureProgress {
-                run_id,
-                provider_id: decl.id.clone(),
-                done: 0,
-                total: 0,
-                failed: 0,
-                skipped: 0,
-                finished: true,
-            });
+            (ctx.progress)(ProcedureProgress::abandoned(ctx.run_id, &decl.id));
         }
     }
 }
@@ -756,6 +724,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         instances: AtomicU32::new(0),
     });
     let config = config_json(&decl.fields, force, decl.procedure.config.as_deref());
+    let neighbors = NeighborCache::default();
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
     let per_instance = rows_per_instance(decl);
@@ -790,10 +759,11 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
     let outcome = thread::scope(|s| {
         for mut proc in procs {
             let out_tx = out_tx.clone();
-            let (batch_rx, session, endpoint, prog, live, config) = (
+            let (batch_rx, session, endpoint, neighbors, prog, live, config) = (
                 &batch_rx,
                 &*session,
                 &endpoint,
+                &neighbors,
                 &prog,
                 &live,
                 config.as_str(),
@@ -801,7 +771,8 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
             s.spawn(move || {
                 let _alive = live.instance();
                 run_instance(
-                    ctx, decl, session, endpoint, prog, &mut *proc, batch_rx, &out_tx, config,
+                    ctx, decl, session, endpoint, neighbors, prog, &mut *proc, batch_rx, &out_tx,
+                    config,
                 );
             });
         }
@@ -1218,6 +1189,7 @@ fn run_instance(
     decl: &ProviderDecl,
     session: &Session,
     endpoint: &Endpoint,
+    neighbors: &NeighborCache,
     prog: &ProviderProgress,
     proc: &mut dyn Procedure,
     batches: &Mutex<mpsc::Receiver<Tagged>>,
@@ -1242,6 +1214,7 @@ fn run_instance(
             fanout: batch.fanout.as_ref(),
             session,
             endpoint,
+            neighbors,
             rate_cost: match decl.procedure.policy.rate.map(|r| r.cost) {
                 Some(RateCost::Row) => batch.rows.len() as u32,
                 _ => 1,
@@ -1366,6 +1339,8 @@ struct EngineHost<'a> {
     /// The provider's, not this instance's: every instance shares one session.
     session: &'a Session,
     endpoint: &'a Endpoint,
+    /// The provider's neighbor index, shared by every instance.
+    neighbors: &'a NeighborCache,
     /// Tokens one fetch attempt charges, per the declared `RateCost`.
     rate_cost: u32,
     prog: &'a ProviderProgress,
@@ -1391,7 +1366,7 @@ impl ProcHost for EngineHost<'_> {
         radius_m: f64,
         fields: &[String],
     ) -> AppResult<String> {
-        let index = self.ctx.neighbor_index(radius_m, fields)?;
+        let index = self.neighbors.index(self.ctx, radius_m, fields)?;
         serde_json::to_string(&index.within(lat, lng)).map_err(|e| AppError(e.to_string()))
     }
 
@@ -1541,21 +1516,19 @@ pub async fn procedure_run(
         };
         let state: tauri::State<'_, StoreState> = tauri::Manager::state(app);
         let deps = EngineDeps::production();
-        let progress: Arc<ProgressSink> =
-            Arc::new(Box::new(crate::emit_event::<ProcedureProgress>));
-        let results: Arc<ResultSink> = Arc::new(Box::new(crate::emit_event::<ProcedureResult>));
-        run_all(
-            state.inner(),
-            &map_id,
-            &target,
-            &providers,
-            force,
+        let ctx = RunCtx {
+            state: state.inner(),
+            map_id,
+            target,
             run_id,
-            &cancel,
-            &deps,
-            &progress,
-            &results,
-        );
+            force,
+            cancel,
+            deps: &deps,
+            progress: Arc::new(Box::new(crate::emit_event::<ProcedureProgress>)),
+            results: Arc::new(Box::new(crate::emit_event::<ProcedureResult>)),
+            undo_group: Arc::default(),
+        };
+        run_all(&ctx, &providers);
     });
     Ok(run_id)
 }

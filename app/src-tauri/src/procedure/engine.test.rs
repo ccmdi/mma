@@ -257,7 +257,6 @@ impl Harness {
                 let sink = self.delivered.clone();
                 Arc::new(Box::new(move |r| sink.lock().unwrap().push(r)))
             },
-            neighbors: Arc::default(),
             undo_group: Arc::default(),
         }
     }
@@ -418,16 +417,15 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     run_all(
-        &state,
-        &map_id,
-        &target,
+        &RunCtx {
+            target: target.clone(),
+            run_id: 97,
+            force: false,
+            progress,
+            results,
+            ..h.ctx(&state, &map_id)
+        },
         &[c, b, a],
-        false,
-        97,
-        &h.cancel,
-        &h.deps,
-        &progress,
-        &results,
     );
 
     let out = layer_rows(&state, &map_id, &target);
@@ -461,16 +459,15 @@ fn cancellation_finishes_providers_still_held_by_dependency_gates() {
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
 
     run_all(
-        &state,
-        &map_id,
-        &target,
+        &RunCtx {
+            target: target.clone(),
+            run_id: 95,
+            force: false,
+            progress,
+            results,
+            ..h.ctx(&state, &map_id)
+        },
         &[a, b],
-        false,
-        95,
-        &h.cancel,
-        &h.deps,
-        &progress,
-        &results,
     );
 
     let events = events.lock().unwrap();
@@ -516,16 +513,15 @@ fn a_dependency_cycle_still_runs_as_one_block() {
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     // Returning at all is the point: mutual gates must release, not deadlock.
     run_all(
-        &state,
-        &map_id,
-        &target,
+        &RunCtx {
+            target: target.clone(),
+            run_id: 96,
+            force: false,
+            progress,
+            results,
+            ..h.ctx(&state, &map_id)
+        },
         &[a, b],
-        false,
-        96,
-        &h.cancel,
-        &h.deps,
-        &progress,
-        &results,
     );
     let mut ids = finished.lock().unwrap().clone();
     ids.sort();
@@ -1235,7 +1231,6 @@ fn run_shape_reaches_the_host_fetch() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
-        neighbors: Arc::default(),
         undo_group: Arc::default(),
     };
     run_provider(&ctx, &d).unwrap();
@@ -1552,7 +1547,6 @@ fn every_procedure_call_receives_its_config() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
-        neighbors: Arc::default(),
         undo_group: Arc::default(),
     };
     run_provider(&ctx, &d).unwrap();
@@ -1646,7 +1640,6 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
-        neighbors: Arc::default(),
         undo_group: Arc::default(),
     };
     run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
@@ -1723,7 +1716,6 @@ fn neighbors_answers_a_procedure_from_the_maps_rows() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
-        neighbors: Arc::default(),
         undo_group: Arc::default(),
     };
     run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
@@ -1751,7 +1743,6 @@ fn neighbors_over_handed_in_rows_sees_only_those_rows() {
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
         results: Arc::new(Box::new(|_| {})),
-        neighbors: Arc::default(),
         undo_group: Arc::default(),
     };
     run_provider(&ctx, &decl("p", BatchMode::Chunk { size: 10 })).unwrap();
@@ -1883,7 +1874,6 @@ fn engine_throughput_probe() {
             deps: &deps,
             progress: Arc::new(Box::new(|_| {})),
             results: Arc::new(Box::new(|_| {})),
-            neighbors: Arc::default(),
             undo_group: Arc::default(),
         };
         let t = Instant::now();
@@ -2487,16 +2477,15 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
         }))
     };
     run_all(
-        &state,
-        &map_id,
-        &target,
+        &RunCtx {
+            target: target.clone(),
+            run_id: 99,
+            force: false,
+            progress,
+            results,
+            ..h.ctx(&state, &map_id)
+        },
         &[b, a],
-        false,
-        99,
-        &h.cancel,
-        &h.deps,
-        &progress,
-        &results,
     );
 
     let out = layer_rows(&state, &map_id, &target);
@@ -2530,16 +2519,15 @@ fn given_rows_do_not_write_to_the_open_map() {
     let progress: Arc<ProgressSink> = Arc::new(Box::new(|_| {}));
     let results: Arc<ResultSink> = Arc::new(Box::new(|_| {}));
     run_all(
-        &state,
-        &map_id,
-        &target,
+        &RunCtx {
+            target: target.clone(),
+            run_id: 50,
+            force: true,
+            progress,
+            results,
+            ..h.ctx(&state, &map_id)
+        },
         &[d],
-        true,
-        50,
-        &h.cancel,
-        &h.deps,
-        &progress,
-        &results,
     );
 
     let held = layer_rows(&state, &map_id, &target);
@@ -2738,7 +2726,10 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         );
     }
 
-    finish_writer_run(&state, first);
+    drop(RunGuard {
+        state: &state,
+        run_id: first,
+    });
     assert!(state
         .lock()
         .unwrap()
@@ -2747,7 +2738,10 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         .pending
         .contains_key("draft"));
 
-    finish_writer_run(&state, second);
+    drop(RunGuard {
+        state: &state,
+        run_id: second,
+    });
     assert!(!state
         .lock()
         .unwrap()
@@ -2794,7 +2788,10 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
         .stage
         .closed());
 
-    finish_writer_run(&state, run_id);
+    drop(RunGuard {
+        state: &state,
+        run_id: run_id,
+    });
     assert!(!state
         .lock()
         .unwrap()
