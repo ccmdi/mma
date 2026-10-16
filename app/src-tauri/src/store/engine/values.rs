@@ -74,6 +74,17 @@ pub(crate) fn reconcile_values_by_name<'a>(
     named.iter().map(|r| r.id).zip(applied.keys).collect()
 }
 
+/// The ids of `field`'s interned values that `row` holds.
+pub(crate) fn held_ids(row: &selections::RowRef<'_, '_>, field: &str) -> Vec<Id<ValueRecord>> {
+    match row.resolve_field(field) {
+        Some(serde_json::Value::Array(ids)) => ids
+            .iter()
+            .filter_map(|id| Some(Id::new(u32::try_from(id.as_u64()?).ok()?)))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
 /// The records among `records` that `rows` reference, by field.
 pub(crate) fn referenced_records(records: &IncomingRecords, rows: &[Location]) -> IncomingRecords {
     records
@@ -81,14 +92,7 @@ pub(crate) fn referenced_records(records: &IncomingRecords, rows: &[Location]) -
         .map(|(field, held)| {
             let used: HashSet<Id<ValueRecord>> = rows
                 .iter()
-                .filter_map(
-                    |row| match selections::RowRef::from_loc(row).resolve_field(field) {
-                        Some(serde_json::Value::Array(ids)) => Some(ids),
-                        _ => None,
-                    },
-                )
-                .flatten()
-                .filter_map(|id| Some(Id::new(u32::try_from(id.as_u64()?).ok()?)))
+                .flat_map(|row| held_ids(&selections::RowRef::from_loc(row), field))
                 .collect();
             let referenced = held
                 .iter()
@@ -351,13 +355,7 @@ impl Store {
         let mut err: Option<AppError> = None;
         {
             for row in self.all().rows() {
-                let Some(serde_json::Value::Array(list)) = row.resolve_field(field) else {
-                    continue;
-                };
-                let current: Vec<Id<ValueRecord>> = list
-                    .iter()
-                    .filter_map(|v| v.as_u64().map(|n| Id::new(n as u32)))
-                    .collect();
+                let current = held_ids(&row, field);
                 if !current.iter().any(|id| merges.contains_key(id)) {
                     continue;
                 }

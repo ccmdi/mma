@@ -633,16 +633,15 @@ fn remap_written(
     to: &FieldWriter<'_>,
     remap: &HashMap<Id<ValueRecord>, Id<ValueRecord>>,
 ) -> Edit<Location> {
-    let written = |row: &Location| match selections::RowRef::from_loc(row).resolve_field(to.key()) {
-        Some(serde_json::Value::Array(ids)) if !ids.is_empty() => Some(serde_json::Value::Array(
-            ids.into_iter()
-                .filter_map(|id| {
-                    let id = Id::new(u32::try_from(id.as_u64()?).ok()?);
-                    remap.get(&id).map(|id| id.get().into())
-                })
-                .collect(),
-        )),
-        _ => None,
+    let written = |row: &Location| {
+        let ids = held_ids(&selections::RowRef::from_loc(row), to.key());
+        (!ids.is_empty()).then(|| {
+            serde_json::Value::Array(
+                ids.iter()
+                    .filter_map(|id| remap.get(id).map(|id| id.get().into()))
+                    .collect(),
+            )
+        })
     };
     let write = |patch: &mut Patch<Location>, row: &Location, ids: &serde_json::Value| {
         to.write(patch, row.flags, ids)
