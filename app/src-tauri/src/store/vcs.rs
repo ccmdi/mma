@@ -90,9 +90,9 @@ pub async fn store_commit(
         let location_count = *store.alive_count as u32;
 
         // Read the changeset before the bake folds it in; a saved overlay still holds it.
-        let pre_bake = if !genesis && !store.overlay.is_empty() {
+        let pre_bake = if !genesis && !store.overlay().is_empty() {
             Some((
-                store.overlay.to_delta(store.batch.as_ref()),
+                store.overlay().to_delta(store.batch.as_ref()),
                 *store.pending_counts,
             ))
         } else {

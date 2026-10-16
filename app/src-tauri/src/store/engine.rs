@@ -127,7 +127,7 @@ pub struct Store {
     pub(crate) version: u64,
     pub(crate) alive_count: Tracked<usize>,
 
-    pub(crate) overlay: Tracked<Overlay>,
+    overlay: Tracked<Overlay>,
     /// Net row changes since the last commit, recounted whenever a moved overlay ships.
     pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
@@ -177,6 +177,11 @@ impl Default for Store {
 }
 
 impl Store {
+    /// The uncommitted rows over the base. Only the engine's write path changes it.
+    pub(crate) fn overlay(&self) -> &Overlay {
+        &self.overlay
+    }
+
     pub fn new() -> Self {
         Self {
             meta: Tracked::default(),
