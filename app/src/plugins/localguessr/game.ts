@@ -138,21 +138,6 @@ export function toRoundLocation({
 	return { id, lat, lng, heading, pitch, zoom, panoId };
 }
 
-/** Uniform sample of `n` distinct items in O(n). Partial Fisher-Yates over a sparse
- *  swap map, so drawing 5 rounds from a million locations touches 5 entries. */
-export function sampleN<T>(pool: readonly T[], n: number): T[] {
-	const take = Math.min(n, pool.length);
-	const swapped = new Map<number, T>();
-	const at = (i: number) => swapped.get(i) ?? pool[i];
-	const out: T[] = [];
-	for (let i = 0; i < take; i++) {
-		const j = i + Math.floor(Math.random() * (pool.length - i));
-		out.push(at(j));
-		swapped.set(j, at(i));
-	}
-	return out;
-}
-
 export async function locate({ lat, lng }: LatLng): Promise<Place | null> {
 	const geo = await cmd.reverseGeocode(lat, lng).catch(() => null);
 	return geo && { admin: geo.admin, country_code: geo.country_code };

@@ -9,7 +9,6 @@ import {
 	guessPreview,
 	isLastRound,
 	reduce,
-	sampleN,
 	scoreGuess,
 	streakBeforeLast,
 	streakHit,
@@ -72,39 +71,6 @@ function result(over: Partial<RoundResult> = {}): RoundResult {
 function place(country_code: string, admin = ""): Place {
 	return { admin, country_code };
 }
-
-describe("sampleN", () => {
-	it("returns exactly n distinct items", () => {
-		const pool = Array.from({ length: 100 }, (_, i) => i);
-		const drawn = sampleN(pool, 5);
-		expect(drawn).toHaveLength(5);
-		expect(new Set(drawn).size).toBe(5);
-		expect(drawn.every((v) => pool.includes(v))).toBe(true);
-	});
-
-	it("clamps to the pool size rather than repeating", () => {
-		const drawn = sampleN([1, 2, 3], 10);
-		expect(drawn).toHaveLength(3);
-		expect(new Set(drawn).size).toBe(3);
-	});
-
-	it("handles an empty pool", () => {
-		expect(sampleN([], 5)).toEqual([]);
-	});
-
-	it("never mutates the pool", () => {
-		const pool = [1, 2, 3, 4, 5];
-		sampleN(pool, 3);
-		expect(pool).toEqual([1, 2, 3, 4, 5]);
-	});
-
-	it("covers the whole pool over many draws", () => {
-		const pool = [0, 1, 2, 3, 4];
-		const seen = new Set<number>();
-		for (let i = 0; i < 200; i++) seen.add(sampleN(pool, 1)[0]);
-		expect(seen.size).toBe(pool.length);
-	});
-});
 
 describe("scoreGuess", () => {
 	it("scores a missing guess as zero with no distance", () => {
