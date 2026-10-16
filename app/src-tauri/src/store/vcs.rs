@@ -320,10 +320,10 @@ pub(crate) fn read_commit_delta(
 pub async fn store_get_commit_delta(
     map_id: Id<MapMeta, String>,
     commit_id: Id<CommitInfo, String>,
-) -> AppResult<engine::Change> {
+) -> AppResult<Change<Location>> {
     task::block_in_place(|| {
         let (created, removed) = read_commit_delta(&map_id, &commit_id)?;
-        Ok(engine::Change::from_sides(created, removed))
+        Ok(Change::from_sides(created, removed))
     })
 }
 

@@ -6,7 +6,7 @@ use crate::procedure::registry::Providers;
 use crate::runs;
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Counts, Delta, Id, Ids};
+use mma_algebra::{Change, Counts, Delta, Id, Ids};
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
@@ -297,7 +297,7 @@ impl Store {
 
     /// Finish a row change: update derived state, broadcast frames and changes, and return its result.
     #[cfg(test)]
-    pub(crate) fn finish_mutation(&mut self, changes: &Change) -> Mutation {
+    pub(crate) fn finish_mutation(&mut self, changes: &Change<Location>) -> Mutation {
         let mut entry = Entry {
             locations: changes.clone(),
             ..Default::default()

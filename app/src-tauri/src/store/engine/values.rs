@@ -152,7 +152,7 @@ impl<'a> FieldValues<'a> {
 
     pub(crate) fn absent_after(
         &self,
-        rows: &Change,
+        rows: &Change<Location>,
         touched: impl IntoIterator<Item = String>,
     ) -> BTreeSet<String> {
         let mut counts = self

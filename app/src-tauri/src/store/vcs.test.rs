@@ -179,6 +179,6 @@ fn restoring_and_reading_a_version_are_spawned_off_the_main_thread() {
     assert_eq!(created.len(), 2);
     assert_eq!(
         serde_json::to_value(spawned).unwrap(),
-        serde_json::to_value(engine::Change::from_sides(created, removed)).unwrap()
+        serde_json::to_value(Change::<Location>::from_sides(created, removed)).unwrap()
     );
 }

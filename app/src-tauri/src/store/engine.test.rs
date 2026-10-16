@@ -41,7 +41,7 @@ fn apply_updates(
     store.write(updates.iter().cloned().map(Op::Put), join, Entry::default())
 }
 
-fn entry(locations: Change) -> Entry {
+fn entry(locations: Change<Location>) -> Entry {
     Entry {
         locations,
         ..Default::default()
@@ -69,18 +69,18 @@ fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Locatio
     Some((old, store.get_loc_by_id(patch.id)?))
 }
 
-fn apply_edit(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> Change {
+fn apply_edit(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> Change<Location> {
     let change = Change::from_sides(create, remove);
     store.put(&change);
     change
 }
 
-fn forward(store: &mut Store, change: &Change) -> Change {
+fn forward(store: &mut Store, change: &Change<Location>) -> Change<Location> {
     store.put(change);
     change.clone()
 }
 
-fn reverse(store: &mut Store, change: &Change) -> Change {
+fn reverse(store: &mut Store, change: &Change<Location>) -> Change<Location> {
     let undo = change.inverse();
     store.put(&undo);
     undo
@@ -108,7 +108,7 @@ fn tag_count(store: &mut Store, id: u32) -> usize {
 }
 
 /// Replay a row change and update derived state, as undo and redo do.
-fn edit_and_finish(store: &mut Store, entry: &Change, forward: bool) {
+fn edit_and_finish(store: &mut Store, entry: &Change<Location>, forward: bool) {
     let changes = if forward {
         self::forward(store, entry)
     } else {
@@ -1765,7 +1765,7 @@ fn the_autosave_sidecar_and_the_commit_delta_are_one_derivation() {
 // Change (undo stack) stored-blob round-trip
 // -----------------------------------------------------------------------
 
-fn stored_round_trip(entries: &[Change]) -> Vec<Change> {
+fn stored_round_trip(entries: &[Change<Location>]) -> Vec<Change<Location>> {
     let mut store = setup_store_with(&[]);
     let seqs: Vec<u64> = entries
         .iter()
@@ -5144,7 +5144,7 @@ impl FeedCapture {
     }
 }
 
-fn newest_undo(store: &Store) -> Change {
+fn newest_undo(store: &Store) -> Change<Location> {
     let (_, edit) = store.steps[Timeline::Edits]
         .iter()
         .filter(|(s, _)| *s == Stack::Undo)

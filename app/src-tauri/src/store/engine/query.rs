@@ -212,7 +212,7 @@ impl Store {
 
     /// Update cached bounds if the change can only grow them.
     /// Removals or updates at an old edge invalidate the cache for the next read.
-    pub(super) fn update_bounds(&mut self, changes: &Change, before: u64) {
+    pub(super) fn update_bounds(&mut self, changes: &Change<Location>, before: u64) {
         let Some(at) = self.bounds.if_built_mut().filter(|b| b.current(before)) else {
             return;
         };
@@ -306,7 +306,10 @@ impl Store {
             .collect()
     }
 
-    pub(super) fn reindex(&mut self, change: &Change) -> HashMap<String, BTreeSet<String>> {
+    pub(super) fn reindex(
+        &mut self,
+        change: &Change<Location>,
+    ) -> HashMap<String, BTreeSet<String>> {
         let builtins: Vec<_> = self
             .registry()
             .iter()

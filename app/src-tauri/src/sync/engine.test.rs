@@ -1,6 +1,6 @@
 use super::*;
 use crate::store::arrow;
-use crate::store::engine::{Change, Stack, Timeline};
+use crate::store::engine::{Stack, Timeline};
 use crate::sync::{
     sync_hash, IdentityModel, NormalizedSyncLocation, ProviderSpec, RemoteSnapshot, SyncDirection,
 };
@@ -8,7 +8,7 @@ use crate::test_util;
 use crate::test_util::loc_ids;
 use crate::types::shape::MapShape;
 use crate::types::{Location, LocationFlags};
-use mma_algebra::Id;
+use mma_algebra::{Change, Id};
 use std::cell::{Cell, RefCell};
 use std::sync::atomic::{AtomicU32, Ordering};
 

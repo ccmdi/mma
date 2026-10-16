@@ -11,15 +11,13 @@ use crate::store::maps;
 use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use crate::util;
 use mma_algebra::{
-    number_value, same_field_value, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch, Patchable,
+    number_value, same_field_value, Change, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch,
+    Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::slice;
 use std::sync::Arc;
-
-/// A reversible row change shared by rendering, indexes, selections, and undo.
-pub type Change = mma_algebra::Change<Location>;
 
 /// Map state a change affected. Each field is `null` when it did not change.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, specta::Type)]
@@ -366,7 +364,7 @@ impl Store {
         if !derived.is_empty() {
             self.changes.send(ChangeEvent {
                 version: self.version,
-                keys: Change::default().keys(),
+                keys: Change::<Location>::default().keys(),
                 derived,
             });
         }
@@ -430,7 +428,7 @@ impl Store {
     }
 
     /// Apply row changes to the store.
-    pub(crate) fn put(&mut self, change: &Change) {
+    pub(crate) fn put(&mut self, change: &Change<Location>) {
         if change.is_empty() {
             return;
         }

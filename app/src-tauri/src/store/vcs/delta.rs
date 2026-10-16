@@ -8,12 +8,12 @@
 use crate::store::maps::MapMeta;
 use crate::store::vcs::CommitInfo;
 use crate::types::{AppResult, Location};
-use mma_algebra::{Id, Transition};
+use mma_algebra::{Change, Id, Transition};
 use std::collections::{BTreeMap, BTreeSet};
 
 use rusqlite::{params, Connection};
 
-use crate::store::{engine, vcs};
+use crate::store::vcs;
 
 /// Ordered chain of commit ids from genesis (first) to `commit_id` (last),
 /// walked via `parent_id` links.
@@ -74,7 +74,7 @@ pub(crate) fn materialize_commit(
 pub(crate) fn diff_states(
     parent: &BTreeMap<Id<Location>, Location>,
     current: &[Location],
-) -> engine::Change {
+) -> Change<Location> {
     let current: BTreeMap<Id<Location>, &Location> = current.iter().map(|l| (l.id, l)).collect();
     let ids: BTreeSet<Id<Location>> = parent.keys().chain(current.keys()).copied().collect();
     ids.into_iter()

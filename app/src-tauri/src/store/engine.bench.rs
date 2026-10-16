@@ -23,8 +23,9 @@ use tauri::test;
 use tauri::test::MockRuntime;
 
 pub use crate::selections::{Selection, Selector};
-pub use crate::store::engine::{Change, ListedSelection, Mutation, RenderRequest, Store};
+pub use crate::store::engine::{ListedSelection, Mutation, RenderRequest, Store};
 pub use crate::types::{Location, LocationFlags, Patch};
+pub use mma_algebra::Change;
 
 /// Row count for the scale-parameterized benches. `MMA_BENCH_SCALE=200000` for a
 /// full-size run; the default is a smoke-sized store.
@@ -408,7 +409,7 @@ pub fn base_loc_by_id(store: &Store, id: u32) -> Option<Location> {
 }
 
 /// Apply a row change to the store.
-pub fn put(store: &mut Store, change: &Change) {
+pub fn put(store: &mut Store, change: &Change<Location>) {
     store.put(change);
 }
 
