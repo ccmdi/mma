@@ -50,9 +50,9 @@ pub enum RunItem {
         /// Replaces the registered configuration, as JSON text.
         #[serde(default)]
         config: Option<String>,
-        /// Re-derive its fields even on a run that is not forced.
+        /// Recompute locations that already hold every field it writes.
         #[serde(default)]
-        force: Option<bool>,
+        force: bool,
     },
     /// A procedure declared in full by the caller.
     Procedure(ProviderDecl),

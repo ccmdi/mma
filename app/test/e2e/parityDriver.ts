@@ -237,9 +237,9 @@ export async function runCompute(
 						inflight: null,
 						instances: null,
 						config: null,
+						force: true,
 					},
 				],
-				true,
 				null,
 				await cmd.runReserve(),
 			);

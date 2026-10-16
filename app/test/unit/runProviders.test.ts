@@ -138,7 +138,6 @@ vi.mock("@/lib/commands", () => ({
 		// The engine expands a provider item from what the provider registered.
 		procedureRun: (
 			items: ({ kind: string; id: string } & Record<string, unknown>)[],
-			_force: boolean,
 			target: unknown,
 			runId: number,
 		) => {

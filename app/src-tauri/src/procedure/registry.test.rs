@@ -31,7 +31,7 @@ fn run(id: &str, fields: Option<&[&str]>) -> RunItem {
         fields: fields.map(|f| f.iter().map(ToString::to_string).collect()),
         select: Selector::Everything,
         config: None,
-        force: None,
+        force: false,
     }
 }
 
@@ -100,14 +100,14 @@ fn a_run_config_replaces_the_registered_one() {
             fields: None,
             select: Selector::Everything,
             config: Some("{\"sources\":[1]}".into()),
-            force: Some(true),
+            force: true,
         }])
         .unwrap();
     assert_eq!(
         decls[0].procedure.config.as_deref(),
         Some("{\"sources\":[1]}")
     );
-    assert_eq!(decls[0].force, Some(true));
+    assert!(decls[0].force);
 }
 
 #[test]

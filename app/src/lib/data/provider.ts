@@ -36,8 +36,8 @@ export interface ProviderRun<TConfig = unknown> {
 	provider: Provider<unknown, TConfig>;
 	/** Replaces the config the provider registered. */
 	config?: Partial<NoInfer<TConfig>>;
-	/** Re-derive this provider's fields even on an unforced run. For an operation whose
-	 *  point is to recompute one provider rather than fill in what is missing. */
+	/** Recompute locations that already hold this provider's fields. Omitted, it follows
+	 *  the run's `force`. */
 	force?: boolean;
 	/** The `fieldDefs` keys to produce; omitted, every key it declares. */
 	fields?: string[];
@@ -136,7 +136,7 @@ export const Provider = {
 					fields,
 					select: run.select ?? p.procedure.select ?? selector,
 					config: run.config === undefined ? null : JSON.stringify(run.config),
-					force: run.force ?? null,
+					force: run.force,
 				},
 			});
 		}

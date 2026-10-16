@@ -104,7 +104,7 @@ fn decl(id: &str, batch: BatchMode) -> ProviderDecl {
         select: Selector::Everything,
         batch,
         sink: Sink::Patch,
-        force: None,
+        force: true,
         instances: Some(1),
     }
 }
@@ -249,7 +249,6 @@ impl Harness {
             map_id: map_id.clone(),
             target: Target::Map { id: None },
             run_id: 1,
-            force: true,
             cancel: self.cancel.clone(),
             deps: &self.deps,
             progress: Arc::new(Box::new(|_| {})),
@@ -332,9 +331,8 @@ fn force_false_skips_rows_that_already_hold_a_core_column() {
     let mut d = decl("panoResolve", BatchMode::PerRow);
     d.fields = vec!["panoId".into()];
     let h = Harness::map_only(patch_all(r#"{"panoId":"NEW"}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = false;
-    run_provider(&ctx, &d).unwrap();
+    d.force = false;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     assert_eq!(*h.seen.lock().unwrap(), vec![vec![2]]);
     assert_eq!(read_loc(&state, &map_id, 1).pano_id.as_deref(), Some("ABC"));
@@ -349,9 +347,8 @@ fn an_empty_pano_id_does_not_count_as_present() {
     let mut d = decl("panoResolve", BatchMode::PerRow);
     d.fields = vec!["panoId".into()];
     let h = Harness::map_only(patch_all(r#"{"panoId":"NEW"}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = false;
-    run_provider(&ctx, &d).unwrap();
+    d.force = false;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     assert_eq!(*h.seen.lock().unwrap(), vec![vec![1]]);
 }
@@ -420,12 +417,11 @@ fn a_slow_provider_holds_up_only_its_own_dependents() {
         &RunCtx {
             target: target.clone(),
             run_id: 97,
-            force: false,
             progress,
             results,
             ..h.ctx(&state, &map_id)
         },
-        &[c, b, a],
+        &[c, b, a].map(|d| ProviderDecl { force: false, ..d }),
     );
 
     let out = layer_rows(&state, &map_id, &target);
@@ -462,12 +458,11 @@ fn cancellation_finishes_providers_still_held_by_dependency_gates() {
         &RunCtx {
             target: target.clone(),
             run_id: 95,
-            force: false,
             progress,
             results,
             ..h.ctx(&state, &map_id)
         },
-        &[a, b],
+        &[a, b].map(|d| ProviderDecl { force: false, ..d }),
     );
 
     let events = events.lock().unwrap();
@@ -516,12 +511,11 @@ fn a_dependency_cycle_still_runs_as_one_block() {
         &RunCtx {
             target: target.clone(),
             run_id: 96,
-            force: false,
             progress,
             results,
             ..h.ctx(&state, &map_id)
         },
-        &[a, b],
+        &[a, b].map(|d| ProviderDecl { force: false, ..d }),
     );
     let mut ids = finished.lock().unwrap().clone();
     ids.sort();
@@ -1126,9 +1120,8 @@ fn force_false_skips_rows_that_already_hold_every_field() {
     let mut d = decl("skipper", BatchMode::PerRow);
     d.fields = vec!["country".into()];
     let h = Harness::map_only(patch_extra_all(r#"{"country":"US"}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = false;
-    run_provider(&ctx, &d).unwrap();
+    d.force = false;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     assert_eq!(*h.seen.lock().unwrap(), vec![vec![2]]);
     assert_eq!(
@@ -1166,9 +1159,8 @@ fn a_changed_value_nulls_the_fields_derived_from_it_and_a_same_value_keeps_them(
         &["datetime", "timezone", "sunAzimuth"],
     );
     let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05"}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = true;
-    run_provider(&ctx, &d).unwrap();
+    d.force = true;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     let moved = read_extra(&state, &map_id, 1).unwrap();
     assert_eq!(moved["imageDate"], serde_json::json!("2021-05"));
@@ -1196,9 +1188,8 @@ fn a_patch_that_writes_a_dependent_itself_keeps_that_value() {
     d.fields = vec!["imageDate".into(), "datetime".into()];
     computed_from(&state, &map_id, "imageDate", &["datetime"]);
     let h = Harness::map_only(patch_extra_all(r#"{"imageDate":"2021-05","datetime":456}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = true;
-    run_provider(&ctx, &d).unwrap();
+    d.force = true;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     let extra = read_extra(&state, &map_id, 1).unwrap();
     assert_eq!(extra["datetime"], serde_json::json!(456));
@@ -1226,7 +1217,6 @@ fn run_shape_reaches_the_host_fetch() {
         map_id: map_id.clone(),
         target: Target::Map { id: None },
         run_id: 7,
-        force: true,
         cancel: Arc::new(AtomicBool::new(false)),
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
@@ -1420,9 +1410,8 @@ fn force_does_not_conjure_a_missing_requirement() {
     let mut d = decl("svMeta", BatchMode::PerRow);
     d.requires = vec!["panoId".into()];
     let h = Harness::map_only(patch_extra_all(r#"{"a":1}"#));
-    let mut ctx = h.ctx(&state, &map_id);
-    ctx.force = true;
-    run_provider(&ctx, &d).unwrap();
+    d.force = true;
+    run_provider(&h.ctx(&state, &map_id), &d).unwrap();
 
     assert!(h.seen.lock().unwrap().is_empty());
     let failed: Vec<u32> = delivered(&h)
@@ -1542,7 +1531,6 @@ fn every_procedure_call_receives_its_config() {
         map_id: map_id.clone(),
         target: Target::Map { id: None },
         run_id: 5,
-        force: true,
         cancel: Arc::new(AtomicBool::new(false)),
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
@@ -1635,7 +1623,6 @@ fn a_real_js_procedure_reads_the_batch_as_json_rows() {
         map_id: map_id.clone(),
         target: Target::Map { id: None },
         run_id: 1,
-        force: true,
         cancel: Arc::new(AtomicBool::new(false)),
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
@@ -1711,7 +1698,6 @@ fn neighbors_answers_a_procedure_from_the_maps_rows() {
         map_id: map_id.clone(),
         target: Target::Map { id: None },
         run_id: 1,
-        force: true,
         cancel: Arc::new(AtomicBool::new(false)),
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
@@ -1738,7 +1724,6 @@ fn neighbors_over_handed_in_rows_sees_only_those_rows() {
         map_id: map_id.clone(),
         target,
         run_id: 1,
-        force: true,
         cancel: Arc::new(AtomicBool::new(false)),
         deps: &deps,
         progress: Arc::new(Box::new(|_| {})),
@@ -1869,7 +1854,6 @@ fn engine_throughput_probe() {
             map_id: map_id.clone(),
             target: Target::Map { id: None },
             run_id: 1,
-            force: true,
             cancel: Arc::new(AtomicBool::new(false)),
             deps: &deps,
             progress: Arc::new(Box::new(|_| {})),
@@ -2480,12 +2464,11 @@ fn a_run_over_given_rows_chains_waves_in_its_own_store_and_leaves_the_map_alone(
         &RunCtx {
             target: target.clone(),
             run_id: 99,
-            force: false,
             progress,
             results,
             ..h.ctx(&state, &map_id)
         },
-        &[b, a],
+        &[b, a].map(|d| ProviderDecl { force: false, ..d }),
     );
 
     let out = layer_rows(&state, &map_id, &target);
@@ -2522,7 +2505,6 @@ fn given_rows_do_not_write_to_the_open_map() {
         &RunCtx {
             target: target.clone(),
             run_id: 50,
-            force: true,
             progress,
             results,
             ..h.ctx(&state, &map_id)

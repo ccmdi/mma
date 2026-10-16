@@ -95,7 +95,7 @@ interface RunSettings {
 	label?: string;
 	/** `collect` takes the answers instead of writing them. */
 	sink?: Sink;
-	/** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
+	/** Recompute locations that already hold what the procedure writes. */
 	force?: boolean;
 }
 
@@ -168,7 +168,7 @@ export const Procedure = {
 			select: spec.select ?? selector,
 			batch: spec.batch,
 			sink: sink ?? spec.sink ?? "patch",
-			force: force ?? null,
+			force: force ?? false,
 			instances: spec.instances ?? null,
 		};
 		const result = await Procedure.drive(
@@ -249,8 +249,8 @@ export const Procedure = {
 		const releaseAutosave = Autosave.hold();
 		try {
 			await cmd.procedureRun(
-				scheduled.map((s) => s.item),
-				force,
+				// An item that sets no force of its own takes the run's.
+				scheduled.map((s) => ({ ...s.item, force: s.item.force ?? force })),
 				target,
 				runId,
 			);

@@ -92,11 +92,9 @@ pub struct ProviderDecl {
     pub batch: BatchMode,
     #[serde(default)]
     pub sink: Sink,
-    /// Re-derive this provider's fields even on a run that is not forced. For an
-    /// operation whose whole point is to recompute one provider (pinning re-resolves the
-    /// panorama) rather than to fill in what is missing.
+    /// Recompute locations that already hold every field this provider writes.
     #[serde(default)]
-    pub force: Option<bool>,
+    pub force: bool,
     /// Instances this provider may run at once. Declared only when the procedure
     /// cannot run beside itself; throughput comes from `inflight`.
     #[serde(default)]
@@ -559,7 +557,6 @@ pub(crate) struct RunCtx<'a> {
     /// Where the run reads rows and writes results.
     pub target: Target,
     pub run_id: u32,
-    pub force: bool,
     pub cancel: Arc<AtomicBool>,
     pub deps: &'a EngineDeps,
     pub progress: Arc<ProgressSink>,
@@ -712,7 +709,6 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         ctx.progress.clone(),
     ));
     prog.start();
-    let force = decl.force.unwrap_or(ctx.force);
     let batch_mode = effective_batch_mode(ctx, decl)?;
     // One session for the provider, not one per page or per instance.
     let session = Arc::new(Session::new(ctx.deps.transport.clone(), ctx.cancel.clone()));
@@ -723,7 +719,7 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
         session: session.clone(),
         instances: AtomicU32::new(0),
     });
-    let config = config_json(&decl.fields, force, decl.procedure.config.as_deref());
+    let config = config_json(&decl.fields, decl.force, decl.procedure.config.as_deref());
     let neighbors = NeighborCache::default();
     // No more instances than the run can keep busy: a one-row run must not load a
     // procedure per core.
@@ -783,14 +779,13 @@ pub(crate) fn run_provider(ctx: &RunCtx, decl: &ProviderDecl) -> AppResult<()> {
             if ctx.aborted() {
                 break;
             }
-            let batches =
-                match page_batches(ctx, decl, chunk, force, &batch_mode, per_instance, &prog) {
-                    Ok(b) => b,
-                    Err(e) => {
-                        produced = Err(e);
-                        break;
-                    }
-                };
+            let batches = match page_batches(ctx, decl, chunk, &batch_mode, per_instance, &prog) {
+                Ok(b) => b,
+                Err(e) => {
+                    produced = Err(e);
+                    break;
+                }
+            };
             if batches.is_empty() {
                 continue;
             }
@@ -835,7 +830,6 @@ fn page_batches(
     ctx: &RunCtx,
     decl: &ProviderDecl,
     page: &[Id<Location>],
-    force: bool,
     batch_mode: &BatchMode,
     per_instance: usize,
     prog: &ProviderProgress,
@@ -847,7 +841,7 @@ fn page_batches(
     };
     // A provider with no outputs never skips a row, and `force` re-derives an output but
     // cannot supply a missing input, so only the skip gate lifts.
-    let todo = if force || decl.fields.is_empty() {
+    let todo = if decl.force || decl.fields.is_empty() {
         page_sel.clone()
     } else {
         Selector::all([page_sel.clone(), has_every(&decl.fields).not()])
@@ -888,8 +882,9 @@ fn page_batches(
                 locations: (page).to_vec(),
                 name: None,
             }) {
-                let todo =
-                    force || decl.fields.is_empty() || !decl.fields.iter().all(|f| has(&row, f));
+                let todo = decl.force
+                    || decl.fields.is_empty()
+                    || !decl.fields.iter().all(|f| has(&row, f));
                 if !todo {
                     skipped += 1;
                 } else if decl.requires.iter().all(|f| has(&row, f)) {
@@ -1501,7 +1496,6 @@ pub async fn procedure_run(
     label: WindowLabel,
     state: tauri::State<'_, StoreState>,
     items: Vec<super::registry::RunItem>,
-    force: bool,
     target: Option<Target>,
     run_id: u32,
 ) -> AppResult<()> {
@@ -1521,7 +1515,6 @@ pub async fn procedure_run(
             map_id,
             target,
             run_id,
-            force,
             cancel,
             deps: &deps,
             progress: Arc::new(Box::new(crate::emit_event::<ProcedureProgress>)),
