@@ -14,9 +14,8 @@
 //! `--config 'profile.bench.lto=false' --config 'profile.bench.codegen-units=16'`.
 
 use app_lib::bench_api as bench;
-use bench::{Change, ListedSelection, Location, Patch, Selection, Selector};
+use bench::{Change, Edit, Id, Location, Op, Patch, Selector};
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkId, Criterion, Throughput};
-use roaring::RoaringBitmap;
 use std::env;
 use std::fs;
 use std::hint::black_box;
@@ -24,6 +23,14 @@ use std::hint::black_box;
 /// Rows in the fixture population. `MMA_BENCH_SCALE` overrides.
 fn n() -> usize {
     bench::scale()
+}
+
+/// `count` fresh locations as add edits.
+fn adds(count: usize, seed: u64) -> Vec<Edit<Location>> {
+    bench::locations(count, seed)
+        .into_iter()
+        .map(Op::Add)
+        .collect()
 }
 
 fn add_locations(c: &mut Criterion) {
@@ -37,7 +44,7 @@ fn add_locations(c: &mut Criterion) {
     sizes.sort_unstable();
     sizes.dedup();
     for batch_size in sizes {
-        let incoming = bench::locations(batch_size, 0xADD5);
+        let incoming = adds(batch_size, 0xADD5);
         g.throughput(Throughput::Elements(batch_size as u64));
         g.bench_function(BenchmarkId::from_parameter(batch_size), |b| {
             b.iter_batched(
@@ -45,7 +52,7 @@ fn add_locations(c: &mut Criterion) {
                     app.set_store(fx.store());
                     incoming.clone()
                 },
-                |locs| black_box(app.add_locations(locs)),
+                |edits| black_box(app.edit(edits)),
                 BatchSize::PerIteration,
             );
         });
@@ -61,16 +68,13 @@ fn update_locations(c: &mut Criterion) {
     let mut g = c.benchmark_group("update_locations");
     g.sample_size(10);
     g.throughput(Throughput::Elements(n as u64));
-    for record_undo in [true, false] {
-        let id = format!("{n}/undo_{record_undo}");
-        g.bench_function(id, |b| {
-            b.iter_batched_ref(
-                || fx.store(),
-                |store| black_box(bench::update_locations(store, &updates, record_undo)),
-                BatchSize::PerIteration,
-            );
-        });
-    }
+    g.bench_function(n.to_string(), |b| {
+        b.iter_batched_ref(
+            || fx.store(),
+            |store| black_box(bench::write(store, &updates)),
+            BatchSize::PerIteration,
+        );
+    });
     g.finish();
 }
 
@@ -88,7 +92,7 @@ fn noop_updates(c: &mut Criterion) {
                 app.set_store(fx.rendered_store());
                 fx.noop_heading_updates(n)
             },
-            |updates| black_box(app.update_locations(updates, false)),
+            |updates| black_box(app.edit(updates)),
             BatchSize::PerIteration,
         );
     });
@@ -98,17 +102,10 @@ fn noop_updates(c: &mut Criterion) {
             b.iter_batched(
                 || {
                     app.set_store(fx.rendered_store());
-                    app.edit_selections(vec![ListedSelection {
-                        selection: Selection {
-                            key: "tag:3".into(),
-                            selector: Selector::tag(3),
-                            color: [255, 0, 0],
-                        },
-                        ghosted: false,
-                    }]);
+                    app.edit_selections(vec![Selector::tag(3)]);
                     fx.noop_heading_updates(count)
                 },
-                |updates| black_box(app.update_locations(updates, false)),
+                |updates| black_box(app.edit(updates)),
                 BatchSize::PerIteration,
             );
         });
@@ -135,12 +132,12 @@ fn row_ops(c: &mut Criterion) {
 
     // A store with row 1 living in the overlay patches instead of the base batch.
     let mut patched = fx.store();
-    let turn = Patch::<Location> {
-        id: 1,
+    let turn = Op::Put(Patch::<Location> {
+        id: Id::new(1),
         heading: Some(123.0),
         ..Default::default()
-    };
-    bench::update_locations(&mut patched, &[turn], false);
+    });
+    bench::write(&mut patched, &[turn]);
     g.bench_function("get_loc_by_id/patched", |b| {
         b.iter(|| black_box(bench::get_loc_by_id(&patched, 1)));
     });
@@ -156,7 +153,10 @@ fn row_ops(c: &mut Criterion) {
                 heading = (heading + 1.0) % 360.0;
                 let mut l = base_row.clone();
                 l.heading = heading;
-                Change::from_rows([(Some(base_row.clone()), Some(l))])
+                Change {
+                    updated: vec![(base_row.clone(), l)],
+                    ..Change::default()
+                }
             },
             |change| bench::put(&mut wstore, &change),
             BatchSize::SmallInput,
@@ -173,68 +173,45 @@ fn selections(c: &mut Criterion) {
     app.set_store(fx.rendered_store());
 
     let tag_leaf = Selector::tag(3);
-    // The app ensures indexes at the selector entry points; match it, so the resolve
-    // benches measure the postings path a live sync actually takes.
-    bench::ensure_indexes(&mut store, &tag_leaf);
-    let store = store;
-    let composite = Selector::Intersection {
-        selections: vec![
-            Selection {
-                key: "tag:1".into(),
-                color: [255, 0, 0],
-                selector: Selector::tag(1),
-            },
-            Selection {
-                key: "tag:2".into(),
-                color: [0, 255, 0],
-                selector: Selector::tag(2),
-            },
-        ],
-    };
+    let composite = Selector::all([Selector::tag(1), Selector::tag(2)]);
     // A page of ids narrowed by a field filter: the procedure engine's per-page gate.
     let page_and_has = Selector::all([
         Selector::Locations {
-            locations: (1..=1000).collect(),
+            locations: (1..=1000).map(Id::new).collect(),
             name: None,
         },
         Selector::has("panoId"),
     ]);
-    let input = |key: &str, selector: &Selector| ListedSelection {
-        selection: Selection {
-            key: key.into(),
-            selector: selector.clone(),
-            color: [255, 0, 0],
-        },
-        ghosted: false,
-    };
 
     let mut g = c.benchmark_group("selections");
     g.sample_size(20);
     g.throughput(Throughput::Elements(n as u64));
     g.bench_function(format!("{n}/resolve/tag"), |b| {
-        b.iter(|| black_box(bench::resolve_selection(&store, &tag_leaf)));
+        b.iter(|| black_box(bench::resolve_selection(&mut store, &tag_leaf)));
     });
     g.bench_function(format!("{n}/resolve/intersection"), |b| {
-        b.iter(|| black_box(bench::resolve_selection(&store, &composite)));
+        b.iter(|| black_box(bench::resolve_selection(&mut store, &composite)));
     });
     // The enrichment shape: a large uncommitted overlay must not tax an indexed resolve.
     let mut dirty = fx.rendered_store();
-    bench::ensure_indexes(&mut dirty, &tag_leaf);
-    bench::update_locations(&mut dirty, &fx.heading_updates(n / 2), false);
-    let dirty = dirty;
+    bench::resolve_selection(&mut dirty, &tag_leaf);
+    bench::write(&mut dirty, &fx.heading_updates(n / 2));
     g.bench_function(format!("{n}/resolve/tag_dirty_overlay"), |b| {
-        b.iter(|| black_box(bench::resolve_selection(&dirty, &tag_leaf)));
+        b.iter(|| black_box(bench::resolve_selection(&mut dirty, &tag_leaf)));
     });
     g.bench_function(format!("{n}/resolve/page_and_has"), |b| {
-        b.iter(|| black_box(bench::resolve_selection(&store, &page_and_has)));
+        b.iter(|| black_box(bench::resolve_selection(&mut store, &page_and_has)));
     });
 
-    g.bench_function(format!("{n}/sync/tag"), |b| {
-        b.iter(|| black_box(app.edit_selections(vec![input("tag:3", &tag_leaf)])));
-    });
-    g.bench_function(format!("{n}/sync/intersection"), |b| {
-        b.iter(|| black_box(app.edit_selections(vec![input("int:1+2", &composite)])));
-    });
+    for (name, selector) in [("tag", &tag_leaf), ("intersection", &composite)] {
+        g.bench_function(format!("{n}/sync/{name}"), |b| {
+            b.iter_batched(
+                || app.edit_selections(Vec::new()),
+                |_| black_box(app.edit_selections(vec![selector.clone()])),
+                BatchSize::PerIteration,
+            );
+        });
+    }
     g.finish();
 }
 
@@ -242,17 +219,18 @@ fn scope_traversal(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
     let store = fx.store();
-    let sparse: RoaringBitmap = (1..=100)
+    let sparse: Vec<u32> = (1..=100)
         .map(|i| ((i * n / 100).max(1).min(n)) as u32)
         .collect();
-    let dense: RoaringBitmap = (1..=n as u32).step_by(2).collect();
+    let dense: Vec<u32> = (1..=n as u32).step_by(2).collect();
 
     let mut g = c.benchmark_group("scope_traversal");
     g.sample_size(20);
-    for (name, set) in [("sparse_100", sparse), ("dense_50pct", dense)] {
-        g.throughput(Throughput::Elements(set.len()));
+    for (name, ids) in [("sparse_100", sparse), ("dense_50pct", dense)] {
+        g.throughput(Throughput::Elements(ids.len() as u64));
+        let walk = bench::scope_walk(&store, ids);
         g.bench_function(format!("{n}/{name}"), |b| {
-            b.iter(|| black_box(bench::traverse_scope(&store, &set)));
+            b.iter(|| black_box(walk()));
         });
     }
     g.finish();
@@ -321,12 +299,12 @@ fn autosave_serialize(c: &mut Criterion) {
     let fx = bench::Fixture::new(n);
     let patch_count = n / 10;
     let updates = fx.heading_updates(patch_count);
-    let adds = bench::locations(patch_count, 0x5A7E);
+    let added = adds(patch_count, 0x5A7E);
     let mut patched = fx.store();
-    bench::update_locations(&mut patched, &updates, false);
+    bench::write(&mut patched, &updates);
     let mut mixed = fx.store();
-    bench::update_locations(&mut mixed, &updates, false);
-    bench::seed_adds(&mut mixed, adds);
+    bench::write(&mut mixed, &updates);
+    bench::write(&mut mixed, &added);
 
     let mut g = c.benchmark_group("autosave_serialize");
     g.sample_size(10);
@@ -345,7 +323,9 @@ fn autosave_serialize(c: &mut Criterion) {
 fn removes(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
-    let tenth: Vec<u32> = (1..=(n as u32 / 10)).collect();
+    let tenth: Vec<Edit<Location>> = (1..=(n as u32 / 10))
+        .map(|id| Op::Remove(Id::new(id)))
+        .collect();
     let app = bench::BenchApp::new();
 
     let mut g = c.benchmark_group("remove_locations");
@@ -353,7 +333,7 @@ fn removes(c: &mut Criterion) {
     g.bench_function(format!("{n}/single"), |b| {
         b.iter_batched(
             || app.set_store(fx.store()),
-            |()| black_box(app.remove_locations(vec![n as u32 / 2])),
+            |()| black_box(app.edit(vec![Op::Remove(Id::new(n as u32 / 2))])),
             BatchSize::PerIteration,
         );
     });
@@ -361,7 +341,7 @@ fn removes(c: &mut Criterion) {
     g.bench_function(format!("{n}/bulk_10pct"), |b| {
         b.iter_batched(
             || app.set_store(fx.store()),
-            |()| black_box(app.remove_locations(tenth.clone())),
+            |()| black_box(app.edit(tenth.clone())),
             BatchSize::PerIteration,
         );
     });
@@ -376,7 +356,7 @@ fn removes(c: &mut Criterion) {
         b.iter_batched(
             || {
                 app.set_store(fx.store());
-                app.remove_locations(tenth.clone());
+                app.edit(tenth.clone());
             },
             |()| black_box(app.undo()),
             BatchSize::PerIteration,
@@ -386,7 +366,7 @@ fn removes(c: &mut Criterion) {
         b.iter_batched(
             || {
                 app.set_store(fx.store());
-                app.remove_locations(tenth.clone());
+                app.edit(tenth.clone());
                 app.undo();
             },
             |()| black_box(app.redo()),
@@ -411,7 +391,7 @@ fn undo_redo(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let mut store = fx.store();
-                bench::update_locations(&mut store, &updates, true);
+                bench::write(&mut store, &updates);
                 app.set_store(store);
             },
             |()| black_box(app.undo()),
@@ -422,7 +402,7 @@ fn undo_redo(c: &mut Criterion) {
         b.iter_batched(
             || {
                 let mut store = fx.store();
-                bench::update_locations(&mut store, &updates, true);
+                bench::write(&mut store, &updates);
                 app.set_store(store);
                 app.undo();
             },
@@ -437,7 +417,7 @@ fn bake(c: &mut Criterion) {
     let n = n();
     let fx = bench::Fixture::new(n);
     let updates = fx.heading_updates(n / 10);
-    let adds = bench::locations(n / 10, 0xBA6E);
+    let added = adds(n / 10, 0xBA6E);
 
     let mut g = c.benchmark_group("bake_overlay");
     g.sample_size(10);
@@ -446,8 +426,8 @@ fn bake(c: &mut Criterion) {
         b.iter_batched_ref(
             || {
                 let mut store = fx.store();
-                bench::update_locations(&mut store, &updates, false);
-                bench::seed_adds(&mut store, adds.clone());
+                bench::write(&mut store, &updates);
+                bench::write(&mut store, &added);
                 store
             },
             bench::bake_overlay,
@@ -475,7 +455,7 @@ fn render(c: &mut Criterion) {
     g.bench_function(format!("{n}/delta_100"), |b| {
         b.iter_batched_ref(
             || fx.rendered_store(),
-            |store| black_box(bench::update_locations(store, &delta_updates, false)),
+            |store| black_box(bench::write(store, &delta_updates)),
             BatchSize::PerIteration,
         );
     });
@@ -483,7 +463,7 @@ fn render(c: &mut Criterion) {
     g.bench_function(format!("{n}/delta_{n}"), |b| {
         b.iter_batched_ref(
             || fx.rendered_store(),
-            |store| black_box(bench::update_locations(store, &all_updates, false)),
+            |store| black_box(bench::write(store, &all_updates)),
             BatchSize::PerIteration,
         );
     });
@@ -501,21 +481,14 @@ fn map_open(c: &mut Criterion) {
     let mut g = c.benchmark_group("map_open");
     g.sample_size(10);
     g.throughput(Throughput::Elements(n as u64));
-    // Arrow mmap + the O(N) aggregate scan + tag membership index rebuild.
-    g.bench_function(format!("{n}/arrow_mmap_and_index"), |b| {
-        b.iter(|| black_box(bench::alive(&bench::open_from_arrow(&path, &fx.tags))));
+    // Arrow mmap + the O(N) aggregate scan.
+    g.bench_function(format!("{n}/arrow_mmap_and_scan"), |b| {
+        b.iter(|| black_box(bench::alive(&bench::open_from_arrow(&path, &fx))));
     });
     g.bench_function(format!("{n}/scan_aggregates"), |b| {
         b.iter_batched_ref(
             || fx.store(),
             |store| black_box(bench::scan(store)),
-            BatchSize::PerIteration,
-        );
-    });
-    g.bench_function(format!("{n}/derived_state"), |b| {
-        b.iter_batched_ref(
-            || fx.store(),
-            |store| black_box(bench::derived_state(store)),
             BatchSize::PerIteration,
         );
     });
