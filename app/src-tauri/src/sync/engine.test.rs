@@ -1559,6 +1559,8 @@ fn the_pull_half_lands_as_one_undo_step_with_its_tags_interned() {
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
 
     let created = store.get_loc_by_id(Id::new(3)).expect("create landed");
+    assert_eq!((created.lat, created.lng), (9.0, 9.0));
+    assert!(created.created_at > 0);
     let meta = &store.records["tags"];
     let (new_id, new_rec) = meta
         .iter()

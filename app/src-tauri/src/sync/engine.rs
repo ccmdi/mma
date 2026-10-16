@@ -3,7 +3,7 @@
 //! The command also applies pulls locally as one undoable edit.
 
 use crate::store::maps::MapMeta;
-use crate::types::{wire_str_enum, AppError, AppResult, LocationFlags, RawExtra};
+use crate::types::{wire_str_enum, AppError, AppResult};
 use std::collections::{HashMap, HashSet};
 
 use rusqlite::Connection;
@@ -18,12 +18,11 @@ use crate::sync::keying::{build_keyed_inputs, KeyedInputs};
 use crate::sync::map_making::MapMakingProvider;
 use crate::sync::remote_mapping::{self, RemoteMappingRow};
 use crate::sync::{
-    parse_local_key, sync_hash, Conflict, DesiredEntry, FirstSyncMode, IdentityKey, IdentityModel,
-    Location, NormalizedSyncLocation, ProviderSpec, PushBatch, PushedId, RemoteSnapshot, RemoteTag,
-    SideCounts, SyncDirection, SyncPlan, SyncProvider,
+    normalized_to_local, parse_local_key, sync_hash, Conflict, DesiredEntry, FirstSyncMode,
+    IdentityKey, IdentityModel, Location, NormalizedSyncLocation, ProviderSpec, PushBatch,
+    PushedId, RemoteSnapshot, RemoteTag, SideCounts, SyncDirection, SyncPlan, SyncProvider,
 };
 use crate::types::shape::MapPart;
-use crate::util;
 use mma_algebra::{Edit, Id, Op, Patch, Patchable};
 use std::mem;
 use std::time::Instant;
@@ -870,10 +869,15 @@ fn apply_pull(
 
     let mut edits: Vec<Edit<Location>> = Vec::new();
     for c in &out.pull_creates {
-        edits.push(Op::Add(pulled_location(&c.fields, &mut tag_of)));
+        let row = normalized_to_local(Id::default(), &c.fields.to_patch(), &mut tag_of);
+        edits.push(Op::Add(Location::default().patched(&row)));
     }
     for u in &out.pull_updates {
-        edits.push(Op::Put(pulled_patch(u, &mut tag_of)));
+        edits.push(Op::Put(normalized_to_local(
+            u.local_id,
+            &u.patch,
+            &mut tag_of,
+        )));
     }
     for &id in out
         .pull_delete_ids
@@ -902,54 +906,6 @@ fn apply_pull(
         })
         .collect();
     Ok((Some(result), rows))
-}
-
-/// A remote-created row as this map stores it, its tag names resolved through the layer.
-fn pulled_location(
-    n: &NormalizedSyncLocation,
-    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
-) -> Location {
-    Location {
-        id: Id::default(),
-        lat: n.lat,
-        lng: n.lng,
-        heading: n.heading,
-        pitch: n.pitch,
-        zoom: n.zoom,
-        pano_id: n.pano_id.as_deref().map(Into::into),
-        flags: LocationFlags::from_bits_truncate(n.flags),
-        tags: n.tags.iter().map(|t| tag_of(t)).collect(),
-        extra: n.extra.as_ref().and_then(RawExtra::from_map),
-        created_at: util::now_unix(),
-        modified_at: None,
-    }
-}
-
-/// A remote-originated patch as a local one, its tag names resolved through the layer.
-fn pulled_patch(
-    u: &PullUpdate,
-    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
-) -> Patch<Location> {
-    let p = &u.patch;
-    Patch::<Location> {
-        id: u.local_id,
-        lat: p.lat,
-        lng: p.lng,
-        heading: p.heading,
-        pitch: p.pitch,
-        zoom: p.zoom,
-        pano_id: p.pano_id.as_ref().map(|s| s.as_str().into()),
-        flags: p.flags.map(LocationFlags::from_bits_truncate),
-        tags: p
-            .tags
-            .as_ref()
-            .map(|names| names.iter().map(|t| tag_of(t)).collect()),
-        extra: p
-            .extra
-            .clone()
-            .map(|extra| extra.map(serde_json::Value::Object)),
-        ..Default::default()
-    }
 }
 
 #[cfg(test)]

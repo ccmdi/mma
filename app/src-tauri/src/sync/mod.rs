@@ -14,7 +14,7 @@ pub(crate) mod remote_mapping;
 use crate::store::engine::ValueRecord;
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{wire_str_enum, AppResult, Location, LocationFlags};
-use mma_algebra::{canonical, Id};
+use mma_algebra::{canonical, Id, Patch};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -216,6 +216,30 @@ pub fn local_to_normalized(
                 m
             })
             .filter(|m| !m.is_empty()),
+    }
+}
+
+/// A patch to the synced contract as a patch to local row `id`, resolving tag names to ids.
+pub fn normalized_to_local(
+    id: Id<Location>,
+    p: &Patch<NormalizedSyncLocation>,
+    tag_of: &mut impl FnMut(&str) -> Id<ValueRecord>,
+) -> Patch<Location> {
+    Patch::<Location> {
+        id,
+        lat: p.lat,
+        lng: p.lng,
+        heading: p.heading,
+        pitch: p.pitch,
+        zoom: p.zoom,
+        pano_id: p.pano_id.as_ref().map(|s| s.as_str().into()),
+        flags: p.flags.map(LocationFlags::from_bits_truncate),
+        tags: p
+            .tags
+            .as_ref()
+            .map(|names| names.iter().map(|t| tag_of(t)).collect()),
+        extra: p.extra.clone().map(|extra| extra.map(Value::Object)),
+        ..Default::default()
     }
 }
 
