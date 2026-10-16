@@ -1,21 +1,32 @@
-import type { ListedSelection, Selection } from "@/bindings.gen";
+import type { ListedSelection, RGB, Selection } from "@/bindings.gen";
 import type { Selector } from "@/types";
 
 type PolygonSelection = Selection & { selector: Extract<Selector, { type: "Polygon" }> };
 
-/** One polygon selection as deck.gl draws it, already triangulated: the area it selects,
- *  and its rings as drawn. Each is binary layer data, built once per polygon. */
-export interface PolygonMesh {
+/** One polygon as the store triangulated it: the area it selects, and its rings as drawn. */
+interface PolygonMesh {
+	fill: Float64Array;
+	triangles: Uint32Array;
+	rings: Float64Array;
+	/** Where each ring starts in `rings`, in vertices, then the end. */
+	ringStarts: Uint32Array;
+}
+
+/** Every drawn polygon as binary layer data for one fill layer and one ring layer, with the
+ *  color of each fill and each ring. */
+export interface PolygonLayerData {
 	fill: {
 		length: number;
 		startIndices: Uint32Array;
 		attributes: { getPolygon: { value: Float64Array; size: 2 }; indices: Uint32Array };
 	};
+	fillColors: RGB[];
 	rings: {
 		length: number;
 		startIndices: Uint32Array;
 		attributes: { getPath: { value: Float64Array; size: 2 } };
 	};
+	ringColors: RGB[];
 }
 
 function decode(buffer: ArrayBuffer): PolygonMesh {
@@ -33,18 +44,7 @@ function decode(buffer: ArrayBuffer): PolygonMesh {
 	};
 	const fill = f64(vertices * 2);
 	const ring = f64(ringVertices * 2);
-	return {
-		fill: {
-			length: vertices > 0 ? 1 : 0,
-			startIndices: Uint32Array.of(0, vertices),
-			attributes: { getPolygon: { value: fill, size: 2 }, indices: u32(indices) },
-		},
-		rings: {
-			length: rings,
-			startIndices: u32(rings + 1),
-			attributes: { getPath: { value: ring, size: 2 } },
-		},
-	};
+	return { fill, rings: ring, triangles: u32(indices), ringStarts: u32(rings + 1) };
 }
 
 const meshes = new Map<string, PolygonMesh>();
@@ -87,7 +87,64 @@ export function drawnPolygons(rows: ListedSelection[]): PolygonSelection[] {
 		.filter((s): s is PolygonSelection => s.selector.type === "Polygon");
 }
 
-/** How a drawn polygon is drawn; undefined until it arrives. */
-export function getPolygonMesh(key: string): PolygonMesh | undefined {
-	return meshes.get(key);
+function merge(drawn: { mesh: PolygonMesh; color: RGB }[]): PolygonLayerData {
+	const sum = (pick: (mesh: PolygonMesh) => number) =>
+		drawn.reduce((n, { mesh }) => n + pick(mesh), 0);
+	const filled = drawn.filter(({ mesh }) => mesh.fill.length > 0);
+	const fill = new Float64Array(sum((m) => m.fill.length));
+	const triangles = new Uint32Array(sum((m) => m.triangles.length));
+	const fillStarts = new Uint32Array(filled.length + 1);
+	const rings = new Float64Array(sum((m) => m.rings.length));
+	const ringStarts = new Uint32Array(sum((m) => m.ringStarts.length - 1) + 1);
+	const ringColors: RGB[] = [];
+	let [vertex, index, ringVertex, ring] = [0, 0, 0, 0];
+	filled.forEach(({ mesh }, i) => {
+		fill.set(mesh.fill, vertex * 2);
+		for (let t = 0; t < mesh.triangles.length; t++)
+			triangles[index + t] = mesh.triangles[t] + vertex;
+		index += mesh.triangles.length;
+		vertex += mesh.fill.length / 2;
+		fillStarts[i + 1] = vertex;
+	});
+	for (const { mesh, color } of drawn) {
+		rings.set(mesh.rings, ringVertex * 2);
+		for (let r = 1; r < mesh.ringStarts.length; r++) {
+			ringStarts[++ring] = ringVertex + mesh.ringStarts[r];
+			ringColors.push(color);
+		}
+		ringVertex += mesh.rings.length / 2;
+	}
+	return {
+		fill: {
+			length: filled.length,
+			startIndices: fillStarts,
+			attributes: { getPolygon: { value: fill, size: 2 }, indices: triangles },
+		},
+		fillColors: filled.map(({ color }) => color),
+		rings: {
+			length: ring,
+			startIndices: ringStarts,
+			attributes: { getPath: { value: rings, size: 2 } },
+		},
+		ringColors,
+	};
+}
+
+let merged: { drawn: { mesh: PolygonMesh; color: RGB }[]; data: PolygonLayerData } | null = null;
+
+/** The layer data for every polygon `rows` draw whose mesh has arrived. Rebuilt only when a
+ *  mesh or a color changes, so the layers keep their buffers otherwise. */
+export function polygonLayerData(rows: ListedSelection[]): PolygonLayerData {
+	const drawn = drawnPolygons(rows).flatMap(({ key, color }) => {
+		const mesh = meshes.get(key);
+		return mesh ? [{ mesh, color }] : [];
+	});
+	const same =
+		merged?.drawn.length === drawn.length &&
+		drawn.every(
+			({ mesh, color }, i) =>
+				merged!.drawn[i].mesh === mesh && merged!.drawn[i].color.every((c, k) => c === color[k]),
+		);
+	if (!merged || !same) merged = { drawn, data: merge(drawn) };
+	return merged.data;
 }

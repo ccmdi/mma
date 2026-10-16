@@ -27,7 +27,7 @@ import {
 	getSeenOnMapIds,
 	seenEntryColor,
 } from "@/lib/seen/seenOverlay";
-import { drawnPolygons, getPolygonMesh } from "@/lib/render/polygonMeshes";
+import { polygonLayerData } from "@/lib/render/polygonMeshes";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { getTrail } from "@/lib/sv/svTrail";
@@ -172,34 +172,39 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		return layers;
 	}
 
-	for (const sel of drawnPolygons(Store.get().selectionList)) {
-		const mesh = getPolygonMesh(sel.key);
-		if (!mesh) continue;
-		const fillColor: RGBA = [...sel.color, 26];
-		const strokeColor: RGBA = [...sel.color, 153];
+	const polygons = polygonLayerData(Store.get().selectionList);
+	if (polygons.fill.length > 0)
 		layers.push(
 			new SolidPolygonLayer({
-				id: `selectionPolygonFill:${sel.key}`,
-				data: mesh.fill,
+				id: "selectionPolygonFill",
+				data: polygons.fill,
 				_normalize: false,
 				positionFormat: "XY",
-				getFillColor: fillColor,
+				getFillColor: (_: unknown, { index }: { index: number }): RGBA => [
+					...polygons.fillColors[index],
+					26,
+				],
 				pickable: false,
 				opacity: 1,
 			}),
+		);
+	if (polygons.rings.length > 0)
+		layers.push(
 			new PathLayer({
 				...SCREEN_LINE,
-				id: `selectionPolygonStroke:${sel.key}`,
-				data: mesh.rings,
+				id: "selectionPolygonStroke",
+				data: polygons.rings,
 				_pathType: "open",
 				positionFormat: "XY",
 				capRounded: false,
-				getColor: strokeColor,
+				getColor: (_: unknown, { index }: { index: number }): RGBA => [
+					...polygons.ringColors[index],
+					153,
+				],
 				getWidth: 4,
 				opacity: 1,
 			}),
 		);
-	}
 
 	if (ctx.svPanoramas)
 		layers.push(
