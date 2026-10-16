@@ -1,3 +1,13 @@
+## v0.12.1 - 2026-10-16
+- Read and answer replies on your feedback inside the app - integrated issue thread client
+- Anonymous users can reply to a feedback thread anonymously
+- The map is more performant with a large quantity of polygon selections
+- Adding or removing polygons is several times faster
+- Loading large polygon sets (country borders, imported GeoJSON) is faster
+- Open the enrichment menu from the command palette
+- Enrichment fields show what they depend on
+- Sun position and timezone enrichment fetch Exact date automatically
+
 ## v0.12.0 - 2026-10-15
 - Undo and redo selection changes with Ctrl+Alt+D (add Shift to redo), separate from location edits
 - Renaming, recoloring and reordering tags can be undone
@@ -7,6 +17,8 @@
 - "Active location" is now called the "open location" in settings and the manual; your marker color and review settings carry over
 - "Rename selected tags" re-added, instead of requiring an external selection to scope renames
 - Point north keeps your camera pitch, and pressing it again near north looks straight down
+- Switch the tag list between tree and flat view from its header
+- Exporting, copying locations to another map, duplicating or deleting a map, and restoring a version no longer freeze the window
 - Fixed enrichment results being lost when a location was saved before they finished
 - Fixed Add to map not saving a location opened from the seen history
 - Fixed blurry text in dialogs
@@ -15,6 +27,9 @@
 - Fixed validation flagging a location as pinned away from its default when its stored coordinates resolved to a different panorama
 - Fixed cancelling a panorama download leaving it running in the background
 - Fixed saved pano ID filters using greater or less than matching nothing or everything
+- Fixed the map's right-click menu acting on the previous spot you right-clicked, including where a measurement starts
+- Fixed a field's values and counts not following a change to its type until the map was reopened
+- Fixed a rare case where an older autosave could overwrite newer changes
 
 ## v0.11.6 - 2026-10-06
 - Street View tiles and panorama info retry after a dropped connection, and canceling stops right away
