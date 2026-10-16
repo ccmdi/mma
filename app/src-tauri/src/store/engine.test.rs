@@ -3577,7 +3577,7 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
     assert_eq!(second.order, Some(0));
     assert_eq!(first.order, Some(1));
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     let meta = store.records.get("tags").unwrap();
     assert_eq!(meta[&ids[0]].name.as_deref(), Some("A"));
     assert_eq!(meta[&ids[0]].order, Some(1));
@@ -3671,7 +3671,7 @@ fn edit_values_rename_collision_merges_rows_in_one_undoable_edit() {
         "the emptied record keeps its name, dark"
     );
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![a]);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![a, b]);
 }
@@ -3862,7 +3862,7 @@ fn set_tags_undo_restores_membership() {
     set_tags(&mut store, &[], &[t], &[1]);
     assert!(store.get_loc_by_id(Id::new(1)).unwrap().tags.is_empty());
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
 
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([t]));
     assert_eq!(tag_count(&mut store, t), 1);
@@ -4075,7 +4075,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
     assert_existence_matches_scan(&mut store, "k", &[3, 10]);
 
     for holders in [&[2, 3, 10][..], &[2, 10], &[1, 2, 10], &[1, 2]] {
-        undo_and_finish(&mut store);
+        press_undo(&mut store);
         assert_existence_matches_scan(&mut store, "k", holders);
     }
 }
@@ -4123,7 +4123,7 @@ fn coverage_follows_the_rows_that_hold_each_field() {
     undoable(&mut store, vec![two], Vec::new());
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 2)]));
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(
         extra_coverage(&mut store, &all),
         counts(&[("a", 3), ("b", 1)])
@@ -5084,14 +5084,6 @@ fn press_redo(store: &mut Store) {
         .unwrap();
 }
 
-fn undo_and_finish(store: &mut Store) {
-    let changes = store
-        .step(Stack::Undo, Timeline::Edits, fetch_stored)
-        .unwrap()
-        .unwrap();
-    store.finish(Finished::Entry(&changes));
-}
-
 /// The count `derived` shipped for one value of `field`: `None` when it did not ship the
 /// value, `Some(0)` when the value is gone.
 pub(crate) fn shipped_count(d: &Derived, field: &str, key: &str) -> Option<usize> {
@@ -5315,7 +5307,7 @@ fn a_grouped_run_undoes_as_one_step() {
     page(&mut store, &mut group, 2, 180.0);
 
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
@@ -5328,7 +5320,7 @@ fn a_row_a_run_touches_twice_undoes_to_its_state_before_the_run() {
     page(&mut store, &mut group, 1, 180.0);
 
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 180.0);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     press_redo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 180.0);
@@ -5347,7 +5339,7 @@ fn a_later_change_joins_the_step_a_result_names_while_it_is_the_newest() {
     page(&mut store, &mut join, 1, 180.0);
 
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
@@ -5361,15 +5353,15 @@ fn an_edit_between_pages_splits_the_group() {
     page(&mut store, &mut group, 1, 180.0);
 
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 3);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(
         store.get_loc_by_id(Id::new(1)).unwrap().heading,
         90.0,
         "the page after the user edit undoes alone"
     );
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
@@ -5378,7 +5370,7 @@ fn an_undo_mid_run_leaves_later_pages_as_their_own_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let mut group = None;
     page(&mut store, &mut group, 1, 90.0);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     page(&mut store, &mut group, 1, 180.0);
 
     assert_eq!(
@@ -5389,7 +5381,7 @@ fn an_undo_mid_run_leaves_later_pages_as_their_own_step() {
         (1, 0),
         "the late page is a fresh entry and clears the undone one from redo"
     );
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
 }
 
@@ -5406,7 +5398,7 @@ fn a_run_an_autosave_lands_in_undoes_whole_after_reopen() {
 
     let mut store = reopen(&store, &fs::read(&delta).unwrap());
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 1);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
@@ -5418,7 +5410,7 @@ fn a_page_folded_into_the_run_clears_redo() {
     page(&mut store, &mut group, 1, 90.0);
     let user_edit = [patch!(2; heading: 45.0)];
     apply_updates(&mut store, &user_edit, &mut None);
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     page(&mut store, &mut group, 2, 180.0);
 
     assert_eq!(
@@ -5429,7 +5421,7 @@ fn a_page_folded_into_the_run_clears_redo() {
         (1, 0),
         "the page joins the run, and the undone user edit cannot be redone over it"
     );
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().heading, 0.0);
 }
@@ -7935,7 +7927,7 @@ fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
         Default::default(),
         &mut None,
     );
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
 
     let events: Vec<serde_json::Value> = got
         .lock()
@@ -8098,7 +8090,7 @@ fn every_tag_record_edit_is_one_undo_step_restoring_the_exact_prior_records() {
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 4);
 
     for expected in states.iter().rev().skip(1) {
-        undo_and_finish(&mut store);
+        press_undo(&mut store);
         assert_eq!(&tag_records(&store), expected);
     }
     press_redo(&mut store);
@@ -8123,7 +8115,7 @@ fn undoing_a_rename_collision_restores_records_and_rows_together() {
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![b]);
     assert_eq!(tag_records(&store)[&b].color(), "#abcdef".parse().ok());
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(tag_records(&store), records);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, vec![a]);
     assert_eq!(store.get_loc_by_id(Id::new(2)).unwrap().tags, vec![a, b]);
@@ -8152,7 +8144,7 @@ fn undoing_a_landing_removes_the_tags_it_interned() {
         .values()
         .any(|r| r.name.as_deref() == Some("Fresh")));
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(tag_records(&store), before);
     assert_eq!(*store.alive_count, 0);
 
@@ -8240,7 +8232,7 @@ fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
 
     let c = store.edit_values("tags", adds(&["C"])).unwrap().keys[0];
     assert!(shipped_record(&feed.last().derived, "tags", c.get()).is_some());
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     let gone = feed.last().derived.field_values.unwrap()["tags"][&c.to_string()].is_none();
     assert!(gone, "an undone create's value is gone");
 }
@@ -8270,7 +8262,7 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
     assert!(!store.field_defs.contains_key("a"));
     assert_eq!(store.field_defs["b"], labelled_def("a"));
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.field_defs["a"], labelled_def("a"));
     assert!(!store.field_defs.contains_key("b"));
     let row = store
@@ -8306,7 +8298,7 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
     )
     .unwrap();
     assert!(!store.field_defs.contains_key("a"));
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(store.field_defs["a"], labelled_def("a"));
 }
 
@@ -8637,18 +8629,16 @@ fn inferred_definitions_undo_and_redo_with_their_rows() {
         store.field_defs["height"].field_type,
         maps::FieldType::Number
     );
-    let entry = store
+    store
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&entry));
     assert!(!store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
-    let entry = store
+    store
         .step(Stack::Redo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&entry));
     assert!(store.field_defs.contains_key("height"));
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
 }
@@ -8672,11 +8662,10 @@ fn selection_pruning_is_part_of_the_row_edit_and_undo_restores_it() {
     store.write([Op::Set(row)], &mut None, Entry::default());
     assert!(store.selections.list().is_empty());
     assert!(store.selections.ids.is_empty());
-    let entry = store
+    store
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&entry));
     assert_eq!(store.selections.list(), before);
     assert!(store.selections.ids.contains(Id::new(1)));
 }
@@ -8814,14 +8803,13 @@ fn redo_reapplies_a_bulk_tag_removal() {
     .unwrap();
     assert_eq!(tag_count(&mut store, 10), 6);
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(tag_count(&mut store, 10), 12);
 
-    let changes = store
+    store
         .step(Stack::Redo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&changes));
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-applies the removal");
 }
 
@@ -8837,15 +8825,14 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
     store.write(removes, &mut None, Entry::default());
     assert_eq!(tag_count(&mut store, 10), 6);
 
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(tag_count(&mut store, 10), 12);
 
     let feed = FeedCapture::attach(&mut store);
-    let changes = store
+    store
         .step(Stack::Redo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&changes));
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-removes the rows");
     let shipped = feed.last().derived.field_values;
     let count = shipped
@@ -9035,12 +9022,9 @@ fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
 }
 
 fn step_selection(store: &mut Store, stack: Stack) {
-    if let Some(entry) = store
+    store
         .step(stack, Timeline::Selections, fetch_stored)
-        .unwrap()
-    {
-        store.finish(Finished::Entry(&entry));
-    }
+        .unwrap();
 }
 
 #[test]
@@ -9094,11 +9078,10 @@ fn field_scoped_data_undo_keeps_the_whole_entry_atomic() {
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.tags.clear();
     store.write([Op::Set(row)], &mut None, Entry::default());
-    let changes = store
+    store
         .step(Stack::Undo, Timeline::Edits, fetch_stored)
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&changes));
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags, tag_ids([7]));
     assert_eq!(store.selections.list(), before);
     assert!(store.history()[&Timeline::Edits].redo);
@@ -9406,11 +9389,10 @@ fn undoing_a_row_edit_leaves_a_selection_the_user_has_since_removed() {
     assert_eq!(store.selections.list().len(), 1, "the union lost one child");
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
 
-    let entry = store
+    store
         .step(Stack::Undo, Timeline::Edits, |_| panic!("in-memory edit"))
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&entry));
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().tags.len(), 2);
     assert!(store.selections.list().is_empty());
 }
@@ -9464,7 +9446,7 @@ fn deleting_the_last_extra_member_survives_undo_redo_and_stored_history() {
             assert_eq!(&restored, edit.entry.as_deref().unwrap());
         }
     });
-    undo_and_finish(&mut store);
+    press_undo(&mut store);
     assert_eq!(
         store.get_loc_by_id(Id::new(1)).unwrap().extra,
         original.extra
@@ -9599,23 +9581,15 @@ thread_local! {
     pub(crate) static RESOLVES: Cell<u32> = const { Cell::new(0) };
 }
 
-fn step_and_finish(store: &mut Store, stack: Stack) {
-    let entry = store
-        .step(stack, Timeline::Edits, fetch_stored)
-        .unwrap()
-        .unwrap();
-    store.finish(Finished::Entry(&entry));
-}
-
 #[test]
 fn pending_counts_ride_the_change_feed_after_edit_undo_redo_and_commit() {
     let mut store = setup_store_with(&[]);
     let feed = FeedCapture::attach(&mut store);
     store.write([Op::Add(loc(0, 1.0, 1.0))], &mut None, Entry::default());
     assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
-    step_and_finish(&mut store, Stack::Undo);
+    press_undo(&mut store);
     assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
-    step_and_finish(&mut store, Stack::Redo);
+    press_redo(&mut store);
     assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
     store.finish(Finished::Base);
     assert_eq!(

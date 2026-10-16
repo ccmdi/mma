@@ -298,7 +298,7 @@ impl Store {
         from: Stack,
         timeline: Timeline,
         fetch: impl FnOnce(u64) -> AppResult<Entry>,
-    ) -> AppResult<Option<Entry>> {
+    ) -> AppResult<Option<Mutation>> {
         let Some(mut changes) = self.steps[timeline].edit().step(from, fetch)? else {
             return Ok(None);
         };
@@ -315,7 +315,13 @@ impl Store {
             }
         };
         self.put_entry(&changes);
-        Ok(Some(changes))
+        log::debug!(
+            "[{from:?} {timeline:?}] +{} ~{} -{}",
+            changes.locations.added.len(),
+            changes.locations.updated.len(),
+            changes.locations.removed.len()
+        );
+        Ok(Some(self.finish(Finished::Entry(&changes))))
     }
 }
 

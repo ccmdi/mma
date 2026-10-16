@@ -1,6 +1,6 @@
 use super::*;
 use crate::selections::tree::{SelectionInput, SelectionOp};
-use crate::store::engine::{Finished, Store, WindowLabel};
+use crate::store::engine::{Store, WindowLabel};
 use crate::test_util::loc;
 use mma_algebra::Id;
 use std::future::Future;
@@ -93,13 +93,12 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
     assert!(store.selections.ids.is_empty());
     assert!(store.pending.is_empty());
     assert_eq!(store.next_id.take(), Id::new(8));
-    let entry = store
+    store
         .step(engine::Stack::Undo, engine::Timeline::Edits, |_| {
             panic!("in-memory edit")
         })
         .unwrap()
         .unwrap();
-    store.finish(Finished::Entry(&entry));
     assert!(store.get_loc_by_id(Id::new(7)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().lat, 1.0);
     assert!(store.selections.ids.contains(Id::new(1)));

@@ -344,22 +344,17 @@ pub async fn store_step(
     with_store!(label, state, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
-        let changes = store
+        let mutation = store
             .step(stack, timeline, |seq| {
                 load_edit(&storage::open_db()?, &map_id, seq)
             })?
             .ok_or("nothing to step through")?;
         log::debug!(
-            "[{stack:?} {timeline:?}] stack_depth={} apply_edit={}ms changes: +{} ~{} -{}",
+            "[{stack:?} {timeline:?}] stack_depth={} step={}ms",
             store.steps[timeline].len(stack),
-            _t.elapsed().as_millis(),
-            changes.locations.added.len(),
-            changes.locations.updated.len(),
-            changes.locations.removed.len()
+            _t.elapsed().as_millis()
         );
-        Ok(MutationResult {
-            mutation: store.finish(Finished::Entry(&changes)),
-        })
+        Ok(MutationResult { mutation })
     })
 }
 
