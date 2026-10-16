@@ -3,7 +3,7 @@
 //! triggers a native save dialog to move the file to its final destination.
 
 use crate::selections::{tree::SelectionInput, Selector};
-use crate::store::engine::{with_store, StoreState, ValueRecord, WindowLabel};
+use crate::store::engine::{StoreState, ValueRecord, WindowLabel};
 use crate::store::{engine, storage};
 use crate::types::shape::{MapPart, MapShape};
 use crate::types::{AppError, AppResult, Location, LocationFlags};
@@ -293,7 +293,7 @@ pub async fn store_export(
     format: ExportFormat,
 ) -> AppResult<String> {
     task::block_in_place(|| {
-        with_store!(label, state, |store| {
+        engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
             let locs = store
                 .at(&engine::Target::Map { id: None })
                 .rows(&selector.map_children(SelectionInput::compile));

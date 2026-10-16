@@ -3,7 +3,6 @@
 use super::*;
 use crate::selections::Selector;
 use crate::store::engine;
-use crate::store::engine::with_store;
 use crate::store::engine::ValueRecord;
 use crate::store::engine::WindowLabel;
 use crate::types::{AppError, AppResult, Location, LocationFlags};
@@ -230,7 +229,7 @@ pub fn store_import_cancel(
     state: tauri::State<'_, engine::StoreState>,
 ) -> AppResult<()> {
     let _ = fs::remove_file(preview_positions_path(&label.0));
-    with_store!(label, state, |store| {
+    engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
         store.close_layer(&import_layer(&label.0));
         Ok(())
     })
@@ -282,7 +281,7 @@ pub async fn store_import_preview(
         Ok::<_, AppError>((parsed, preview))
     })
     .await??;
-    with_store!(label, state, |store| {
+    engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
         preview.keys = stage_parsed(store, &label.0, parsed);
         Ok(preview)
     })
@@ -314,7 +313,7 @@ pub async fn store_import_file(
 ) -> AppResult<EditorImportResult> {
     let t0 = Instant::now();
     let _ = fs::remove_file(preview_positions_path(&label.0));
-    let result = with_store!(label, state, |store| {
+    let result = engine::with_target(&state, &label, &engine::Target::Map { id: None }, |store| {
         confirm_staged(store, &label.0, &dropped_fields, &tag_names)
     });
     log::debug!("[import] total={:.0}ms", t0.elapsed().as_millis());

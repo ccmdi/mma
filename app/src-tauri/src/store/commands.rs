@@ -164,13 +164,14 @@ pub async fn store_country_distribution(
     selector: Selector<SelectionInput>,
     level: String,
 ) -> AppResult<Vec<(String, u32)>> {
-    let coords: AppResult<Vec<(f64, f64)>> = with_store!(label, state, |store| {
-        Ok(store
-            .scope(&selector.map_children(SelectionInput::compile))
-            .rows()
-            .map(|row| (row.lat(), row.lng()))
-            .collect())
-    });
+    let coords: AppResult<Vec<(f64, f64)>> =
+        with_target(&state, &label, &Target::Map { id: None }, |store| {
+            Ok(store
+                .scope(&selector.map_children(SelectionInput::compile))
+                .rows()
+                .map(|row| (row.lat(), row.lng()))
+                .collect())
+        });
     borders::tally_countries(&level, &coords?)
 }
 
@@ -324,7 +325,7 @@ pub fn store_resolve_pick(
     cell: String,
     cell_index: u32,
 ) -> AppResult<Option<Id<Location>>> {
-    with_store!(label, state, |store| {
+    with_target(&state, &label, &Target::Map { id: None }, |store| {
         let ci = cell_idx_from_key(&cell).ok_or("invalid cell key")?;
         Ok(store.render.cells[ci as usize]
             .as_ref()
@@ -341,7 +342,7 @@ pub async fn store_step(
     stack: Stack,
     timeline: Timeline,
 ) -> AppResult<Mutation> {
-    with_store!(label, state, |store| {
+    with_target(&state, &label, &Target::Map { id: None }, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
         let mutation = store

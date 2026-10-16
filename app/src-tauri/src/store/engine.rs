@@ -708,15 +708,6 @@ pub(crate) fn with_target<R>(
     Ok(result)
 }
 
-macro_rules! with_store {
-    ($label:expr, $state:expr, |$store:ident| $body:block) => {{
-        let mut mgr = $state.lock()?;
-        let $store = mgr.store_for_window(&$label)?;
-        $body
-    }};
-}
-pub(crate) use with_store;
-
 /// The invoking window's label, extracted from the IPC call. Commands take this
 /// instead of a `Webview` so they stay runtime-agnostic and directly callable
 /// (benches, tests) with any label the `StoreManager` knows. Invisible to TS:
