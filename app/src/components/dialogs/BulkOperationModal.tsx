@@ -803,7 +803,7 @@ function DownloadDoneActions({
 	);
 }
 
-export function SelectFailedButton({
+function SelectFailedButton({
 	outcome,
 	style,
 }: {

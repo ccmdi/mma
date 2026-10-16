@@ -13,21 +13,32 @@ vi.mock("@/store/selectionList", async (orig) => ({
 	},
 }));
 
-import { SelectFailedButton } from "@/components/dialogs/BulkOperationModal";
+import { BulkProgress, startBulkRun } from "@/components/dialogs/BulkOperationModal";
+import type { BatchOutcome } from "@/lib/data/procedure";
 import { mount } from "./fixtures/harness";
 
 beforeEach(() => h.applySelectionUpdate.mockReset());
 
+async function finishedRun(outcome: BatchOutcome) {
+	startBulkRun("setField", async () => ({ outcome }), { type: "Everything" });
+	const m = mount(<BulkProgress operation="setField" onClose={() => {}} />);
+	await act(async () => {});
+	return m;
+}
+
+const selectFailed = (root: HTMLElement) =>
+	[...root.querySelectorAll("button")].find((b) => b.textContent === "Select failed");
+
 describe("the Select failed button", () => {
-	it("renders nothing when the outcome has no failures", () => {
-		const m = mount(<SelectFailedButton outcome={{ succeeded: 3, failed: [] }} />);
-		expect(m.container.querySelector("button")).toBeNull();
+	it("is absent when the outcome has no failures", async () => {
+		const m = await finishedRun({ succeeded: 3, failed: [] });
+		expect(selectFailed(m.container)).toBeUndefined();
 		m.unmount();
 	});
 
-	it("selects exactly the failed ids", () => {
-		const m = mount(<SelectFailedButton outcome={{ succeeded: 1, failed: [4, 9] }} />);
-		act(() => m.container.querySelector("button")!.click());
+	it("selects exactly the failed ids", async () => {
+		const m = await finishedRun({ succeeded: 1, failed: [4, 9] });
+		act(() => selectFailed(m.container)!.click());
 
 		expect(h.applySelectionUpdate.mock.calls[0][0]).toEqual({
 			kind: "add",
