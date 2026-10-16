@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 
 const COLOR_KEYS = [
 	"markerColor",
-	"activeLocationColor",
+	"openLocationColor",
 	"importPreviewColor",
 	"panoDotColor",
 	"polygonColor",
@@ -39,5 +39,11 @@ describe("settings color shape", () => {
 		const { getSettings } = await loadSettings({});
 		const s = getSettings();
 		for (const key of COLOR_KEYS) expect(s[key]).toHaveLength(3);
+	});
+
+	it("reads a color stored under activeLocationColor as openLocationColor", async () => {
+		const { getSettings } = await loadSettings({ activeLocationColor: { r: 1, g: 2, b: 3 } });
+		expect(getSettings().openLocationColor).toEqual([1, 2, 3]);
+		expect(getSettings()).not.toHaveProperty("activeLocationColor");
 	});
 });

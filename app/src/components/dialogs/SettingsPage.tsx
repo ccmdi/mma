@@ -644,10 +644,7 @@ function MapBody() {
 				<SettingRow
 					label={t("Open marker color")}
 					control={
-						<SettingColor
-							setting="activeLocationColor"
-							ariaLabel={t("Open location marker color")}
-						/>
+						<SettingColor setting="openLocationColor" ariaLabel={t("Open location marker color")} />
 					}
 				/>
 				<SettingRow

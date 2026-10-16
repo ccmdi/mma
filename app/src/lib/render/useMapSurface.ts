@@ -43,7 +43,7 @@ export function useMapSurface(
 ): { requestUpdate: () => void } {
 	const overlayRef = useRef<DeckOverlayHandle | null>(null);
 	const polygonGeomCache = useRef(new Map<string, PolyGeom>());
-	const activeLocationColor = useSetting("activeLocationColor");
+	const openLocationColor = useSetting("openLocationColor");
 	const importPreviewColor = useSetting("importPreviewColor");
 	const svTrail = useSetting("svTrail");
 	const svTrailColor = useSetting("svTrailColor");
@@ -78,7 +78,7 @@ export function useMapSurface(
 			svTrailPosition,
 			panoDotColor,
 			panoDotScaled,
-			activeLocationColor,
+			openLocationColor,
 			importPreviewColor,
 			polygonGeomCache: polygonGeomCache.current,
 			freehandPath: opts.freehandPathRef?.current ?? null,
@@ -93,7 +93,7 @@ export function useMapSurface(
 	}, [
 		host,
 		scoreMaxError,
-		activeLocationColor,
+		openLocationColor,
 		importPreviewColor,
 		opts.prefs.markerStyle,
 		markerOpacity,

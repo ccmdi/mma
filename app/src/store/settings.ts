@@ -194,7 +194,7 @@ export const DEFAULTS = {
 	pastePadding: 0.003 as number,
 	followActiveInReview: true,
 	markerColor: [...DEFAULT_MARKER_COLOR] as RGB,
-	activeLocationColor: [200, 0, 0] as RGB,
+	openLocationColor: [200, 0, 0] as RGB,
 	importPreviewColor: [217, 70, 239] as RGB,
 	svTrail: true,
 	svTrailColor: [255, 0, 0] as RGB,

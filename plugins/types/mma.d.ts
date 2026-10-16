@@ -4944,7 +4944,7 @@ declare const DEFAULTS: {
     /** @unstable */
     markerColor: RGB;
     /** @unstable */
-    activeLocationColor: RGB;
+    openLocationColor: RGB;
     /** @unstable */
     importPreviewColor: RGB;
     /** @unstable */
@@ -5070,7 +5070,7 @@ declare const APP_SETTINGS: PersistedStore<{
     pastePadding: number;
     followActiveInReview: boolean;
     markerColor: RGB;
-    activeLocationColor: RGB;
+    openLocationColor: RGB;
     importPreviewColor: RGB;
     svTrail: boolean;
     svTrailColor: RGB;

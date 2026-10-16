@@ -5184,7 +5184,7 @@ APP_SETTINGS: PersistedStore<{
   pastePadding: number;
   followActiveInReview: boolean;
   markerColor: RGB;
-  activeLocationColor: RGB;
+  openLocationColor: RGB;
   importPreviewColor: RGB;
   svTrail: boolean;
   svTrailColor: RGB;
@@ -5334,7 +5334,7 @@ DEFAULTS: {
   pastePadding: number;
   followActiveInReview: boolean;
   markerColor: RGB;
-  activeLocationColor: RGB;
+  openLocationColor: RGB;
   importPreviewColor: RGB;
   svTrail: boolean;
   svTrailColor: RGB;
@@ -5539,7 +5539,6 @@ PREVIEW_ASPECT_RATIOS: {
 
 ```ts
 PRIVATE_SETTINGS: ReadonlySet<
-  | "activeLocationColor"
   | "animateTagReorder"
   | "borderDetail"
   | "clickToGo"
@@ -5568,6 +5567,7 @@ PRIVATE_SETTINGS: ReadonlySet<
   | "markerColor"
   | "nominatimApiKey"
   | "opacityToggleMode"
+  | "openLocationColor"
   | "panToImported"
   | "panoDotColor"
   | "panoDotScaled"

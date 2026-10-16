@@ -132,7 +132,7 @@ interface SceneContext {
 	svTrailPosition: boolean;
 	panoDotColor: RGB;
 	panoDotScaled: boolean;
-	activeLocationColor: RGB;
+	openLocationColor: RGB;
 	importPreviewColor: RGB;
 	// Per-view tessellation cache for selection polygons (keyed by selection key).
 	polygonGeomCache: Map<string, PolyGeom>;
@@ -295,7 +295,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	// on an empty map still show — and it draws on top of the preview dots, which is the highlight.
 	const openLoc = Editor.get().open?.location;
 	if (openLoc) {
-		const openColor: RGBA = [...ctx.activeLocationColor, 255];
+		const openColor: RGBA = [...ctx.openLocationColor, 255];
 		const s = MARKER_STYLE[ctx.markerStyle];
 		layers.push(
 			new SDFMarkerLayer<Location>({

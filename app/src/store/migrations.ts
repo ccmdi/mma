@@ -95,6 +95,18 @@ export const MIGRATIONS: StoredMigration[] = [
 			delete stored.selectOnly;
 		},
 	},
+	{
+		since: "0.12.1",
+		key: "appSettings",
+		describe: "activeLocationColor -> openLocationColor",
+		apply: (stored) => {
+			for (const [from, to] of [["activeLocationColor", "openLocationColor"]]) {
+				if (!(from in stored)) continue;
+				stored[to] ??= stored[from];
+				delete stored[from];
+			}
+		},
+	},
 ];
 
 export function migrationsFor(key: string): Migration[] {

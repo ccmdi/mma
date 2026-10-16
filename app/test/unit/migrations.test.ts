@@ -114,3 +114,25 @@ describe("selectOnly -> clickMode migration", () => {
 		expect(stored).toEqual({ clickMode: "nearest" });
 	});
 });
+
+describe("activeLocationColor -> openLocationColor migration", () => {
+	const apply = (stored: Record<string, unknown>) => {
+		for (const migrate of migrationsFor("appSettings")) migrate(stored);
+	};
+
+	it("moves the color to the new key and drops the old one", () => {
+		const stored: Record<string, unknown> = { activeLocationColor: [1, 2, 3] };
+		apply(stored);
+		expect(stored).toEqual({ openLocationColor: [1, 2, 3] });
+	});
+
+	it("never overwrites an already-set openLocationColor and is idempotent", () => {
+		const stored: Record<string, unknown> = {
+			activeLocationColor: [1, 2, 3],
+			openLocationColor: [4, 5, 6],
+		};
+		apply(stored);
+		apply(stored);
+		expect(stored).toEqual({ openLocationColor: [4, 5, 6] });
+	});
+});
