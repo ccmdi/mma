@@ -1,6 +1,11 @@
 import { createFieldDef } from "@/types";
 import type { CapturePick, PanoType } from "@/bindings.consts";
-import { getAllEnrichKeys, getDefaultEnrichKeys, knownFieldDefs } from "@/lib/data/fieldDefs";
+import {
+	enabledEnrichKeys,
+	getAllEnrichKeys,
+	getDefaultEnrichKeys,
+	knownFieldDefs,
+} from "@/lib/data/fieldDefs";
 import { Procedure } from "@/lib/data/procedure";
 import { Provider, type ProviderRun } from "@/lib/data/provider";
 import { SVMETA_FIELDS, SV_SEARCH_RADIUS } from "@/lib/sv/constants";
@@ -8,19 +13,23 @@ import { cmd } from "@/lib/commands";
 import { toast } from "@/lib/util/toast";
 import { msg, t } from "@/lib/i18n";
 
-/** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
- *  offered in the enrichment settings are always included. */
+/** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+ *  read. Fields not offered in the enrichment settings are always included. */
 export function enrichRuns(enrichFields: string[] | null, exclude: string[] = []): ProviderRun[] {
 	const selectable = new Set(getAllEnrichKeys());
-	const active = new Set(enrichFields ?? getDefaultEnrichKeys());
+	const chosen = new Set(enrichFields ?? getDefaultEnrichKeys());
+	const active = new Set(enabledEnrichKeys(enrichFields));
 	return Provider.list()
 		.filter((p) => p.fieldDefs && !exclude.includes(p.id))
-		.map((provider) => ({
-			provider,
-			fields: Object.keys(provider.fieldDefs ?? {}).filter(
+		.map((provider) => {
+			const fields = Object.keys(provider.fieldDefs ?? {}).filter(
 				(k) => !selectable.has(k) || active.has(k),
-			),
-		}));
+			);
+			// A provider that runs only because a chosen field reads it fills gaps and never
+			// overwrites, even in a forced run.
+			const implied = fields.length > 0 && fields.every((k) => selectable.has(k) && !chosen.has(k));
+			return implied ? { provider, fields, force: false } : { provider, fields };
+		});
 }
 
 /** Where to search when resolving a pano from coordinates, and which capture of its

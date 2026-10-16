@@ -6721,11 +6721,20 @@ declare function getEnrichFieldOptions(): EnrichFieldOption[];
 declare function getAllEnrichKeys(): string[];
 /** Keys enriched when enrichFields is null (the default set: all options except defaultOff ones). @unstable */
 declare function getDefaultEnrichKeys(): string[];
-/** True when `key` is in the given enrichment set (or in the default set when null). @unstable */
+/** The enrichment fields `key`'s provider reads. @unstable */
+declare function enrichInputs(key: string): string[];
+/** The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
+ *  ones and every field they read, so no field runs without its inputs. @unstable */
+declare function enabledEnrichKeys(enrichFields?: string[] | null): string[];
+/** True when enrichment fetches `key` for the given enrichment set. @unstable */
 declare function isFieldEnabled(enrichFields: string[] | null, key: string): boolean;
 
 /** @unstable */
 export type fieldDefs_EnrichFieldOption = EnrichFieldOption;
+/** @unstable */
+declare const fieldDefs_enabledEnrichKeys: typeof enabledEnrichKeys;
+/** @unstable */
+declare const fieldDefs_enrichInputs: typeof enrichInputs;
 /** @unstable */
 declare const fieldDefs_getAllEnrichKeys: typeof getAllEnrichKeys;
 /** @unstable */
@@ -6736,7 +6745,7 @@ declare const fieldDefs_getEnrichFieldOptions: typeof getEnrichFieldOptions;
 declare const fieldDefs_isFieldEnabled: typeof isFieldEnabled;
 declare const fieldDefs_knownFieldDefs: typeof knownFieldDefs;
 declare namespace fieldDefs {
-  export { fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs };
+  export { fieldDefs_enabledEnrichKeys as enabledEnrichKeys, fieldDefs_enrichInputs as enrichInputs, fieldDefs_getAllEnrichKeys as getAllEnrichKeys, fieldDefs_getDefaultEnrichKeys as getDefaultEnrichKeys, fieldDefs_getEnrichFieldOptions as getEnrichFieldOptions, fieldDefs_isFieldEnabled as isFieldEnabled, fieldDefs_knownFieldDefs as knownFieldDefs };
   export type { fieldDefs_EnrichFieldOption as EnrichFieldOption };
 }
 
@@ -6851,8 +6860,8 @@ declare namespace enrich$1 {
   };
 }
 
-/** Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
- *  offered in the enrichment settings are always included. @unstable */
+/** Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+ *  read. Fields not offered in the enrichment settings are always included. @unstable */
 declare function enrichRuns(enrichFields: string[] | null, exclude?: string[]): ProviderRun[];
 /** Where to search when resolving a pano from coordinates, and which capture of its
  *  timeline to settle on. @unstable */

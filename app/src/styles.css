@@ -2912,7 +2912,14 @@ input[type="range"]:disabled {
 	background: var(--surface-1);
 }
 .enrich-field__name {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
 	margin-right: auto;
+}
+.enrich-field__relation {
+	display: inline-flex;
+	color: var(--text-3);
 }
 
 .coverage-bar {

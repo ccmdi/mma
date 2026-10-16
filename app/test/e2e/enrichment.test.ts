@@ -551,8 +551,8 @@ describe("Enrichment — multiple providers merge without clobbering", () => {
 	});
 
 	it("bulk enrich merges every provider into the pre-existing extra", async () => {
-		// Only offline fields are selected, so the network-bound core providers (svMeta,
-		// exactDate) sit the run out and every write below comes from an offline module.
+		// Only sun position and timezone are chosen. The exact date they read runs unforced,
+		// so it keeps the dates these locations already hold even though the run is forced.
 		await updateMapSettings({ enrichFields: ["timezone", "sunAzimuth", "sunAltitude"] });
 		await withApi(async (api) => {
 			await api.enrich({ type: "Everything" }, { force: true });

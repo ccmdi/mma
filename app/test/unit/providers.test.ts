@@ -6,11 +6,14 @@ vi.mock("@/lib/util/log", () => ({
 }));
 
 import {
+	enabledEnrichKeys,
+	enrichInputs,
 	getEnrichFieldOptions,
 	getAllEnrichKeys,
 	getDefaultEnrichKeys,
 	isFieldEnabled,
 } from "@/lib/data/fieldDefs";
+import { enrichRuns } from "@/lib/sv/providers";
 import { getFieldDef } from "@/lib/data/fieldDefRegistry";
 import type { ProcedureSpec } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
@@ -122,5 +125,58 @@ describe("isFieldEnabled", () => {
 	it("respects an explicit enrichFields list", () => {
 		expect(isFieldEnabled(["datetime"], "datetime")).toBe(true);
 		expect(isFieldEnabled(["altitude"], "datetime")).toBe(false);
+	});
+});
+
+describe("enrichment dependencies", () => {
+	const field = (name: string) => name + "_" + Math.random().toString(36).slice(2);
+	const provide = (key: string, requires: string[]) =>
+		void Provider.register({
+			id: "deps-" + key,
+			label: "Deps " + key,
+			procedure: { ...procedure },
+			fieldDefs: { [key]: createFieldDef("number", { label: key }) },
+			defaultOff: true,
+			requires,
+		});
+
+	it("enables every field a chosen field reads, however deep", () => {
+		const [sun, date, month] = [field("sun"), field("date"), field("month")];
+		provide(month, ["panoId"]);
+		provide(date, [month]);
+		provide(sun, [date, "lat"]);
+		expect(enrichInputs(sun)).toEqual([date]);
+		expect(enabledEnrichKeys([sun]).sort()).toEqual([sun, date, month].sort());
+		expect(isFieldEnabled([sun], month)).toBe(true);
+		expect(isFieldEnabled([date], sun)).toBe(false);
+	});
+
+	it("stops at a cycle", () => {
+		const [a, b] = [field("a"), field("b")];
+		provide(a, [b]);
+		provide(b, [a]);
+		expect(enabledEnrichKeys([a]).sort()).toEqual([a, b].sort());
+	});
+
+	it("runs the providers of the fields a chosen field reads", () => {
+		const [sun, date] = [field("sun"), field("date")];
+		provide(date, []);
+		provide(sun, [date]);
+		const fieldsOf = (id: string) =>
+			enrichRuns([sun]).find((run) => run.provider.id === "deps-" + id)?.fields;
+		expect(fieldsOf(sun)).toEqual([sun]);
+		expect(fieldsOf(date)).toEqual([date]);
+	});
+
+	it("never forces a field that runs only because a chosen field reads it", () => {
+		const [sun, date] = [field("sun"), field("date")];
+		provide(date, []);
+		provide(sun, [date]);
+		const runOf = (id: string) => enrichRuns([sun]).find((run) => run.provider.id === "deps-" + id);
+		expect(runOf(sun)?.force).toBeUndefined();
+		expect(runOf(date)?.force).toBe(false);
+		expect(
+			enrichRuns([sun, date]).find((run) => run.provider.id === "deps-" + date)?.force,
+		).toBeUndefined();
 	});
 });

@@ -45,7 +45,7 @@ import {
 import { enrich } from "@/lib/sv/enrich";
 import type { ProcedureOutcomes } from "@/lib/data/procedure";
 import { Provider } from "@/lib/data/provider";
-import { getEnrichFieldOptions, getDefaultEnrichKeys, isFieldEnabled } from "@/lib/data/fieldDefs";
+import { enabledEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { bulkPinToPano } from "@/lib/sv/pinPano";
 import { bulkPanHeading } from "@/lib/sv/headingRoad";
 import type { RoadDirection } from "@/lib/sv/providers";
@@ -191,9 +191,8 @@ function EnrichSetup({ picker, info, onReady }: SetupProps) {
 	const map = Store.get().map;
 	if (!map) return null;
 
-	const enrichFields = map.settings.enrichFields ?? getDefaultEnrichKeys();
-	const allOptions = getEnrichFieldOptions();
-	const enabledFields = allOptions.filter((f) => isFieldEnabled(enrichFields, f.key));
+	const enabled = enabledEnrichKeys(map.settings.enrichFields);
+	const enabledFields = getEnrichFieldOptions().filter((f) => enabled.includes(f.key));
 	const total = info.total;
 	const coverage = enabledFields.map((f) => ({
 		key: f.key,

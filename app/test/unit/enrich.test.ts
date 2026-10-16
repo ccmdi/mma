@@ -80,15 +80,15 @@ describe("enrich", () => {
 		expect(h.targets).toEqual([{ kind: "pending", name: "viewer" }]);
 	});
 
-	it("narrows each provider to the map's enabled fields", async () => {
+	it("narrows each provider to the map's enabled fields and the fields they read", async () => {
 		h.enrichFields = ["altitude", "timezone"];
 		await enrich(
 			{ type: "Everything" },
 			{ on: { kind: "pending", name: "viewer" }, resolve: false },
 		);
 		expect(h.ran).toEqual([
-			["svMeta", ["altitude"]],
-			["exactDate", []],
+			["svMeta", ["altitude", "imageDate"]],
+			["exactDate", ["datetime"]],
 			["timezone", ["timezone"]],
 			["subdivision", []],
 		]);

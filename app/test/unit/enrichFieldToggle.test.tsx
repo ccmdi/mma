@@ -18,6 +18,8 @@ vi.mock("@/store/store", () => ({
 
 import { EnrichTab } from "@/components/editor/map/EnrichmentDialog";
 import { getDefaultEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
+import { Provider } from "@/lib/data/provider";
+import { createFieldDef } from "@/types";
 import { mount } from "./fixtures/harness";
 
 function renderTab(enrichFields: string[] | null, enrichMetadata = true) {
@@ -109,6 +111,44 @@ describe("the Enrich tab writes enrichFields", () => {
 		const written = setEnrichFields.mock.calls[0][0] as string[] | null;
 		expect(written).not.toBeNull();
 		expect(written).toContain(getEnrichFieldOptions()[off].key);
+		m.unmount();
+	});
+});
+
+describe("the Enrich tab shows what a field reads", () => {
+	const provide = (key: string, requires: string[]) =>
+		void Provider.register({
+			id: "tab-" + key,
+			label: key,
+			procedure: { entry: "res://procedures/test.js", batch: { mode: "perRow" } },
+			fieldDefs: { [key]: createFieldDef("number", { label: key }) },
+			defaultOff: true,
+			requires,
+		});
+	provide("tabDate", []);
+	provide("tabSun", ["tabDate"]);
+	const index = (key: string) => getEnrichFieldOptions().findIndex((f) => f.key === key);
+	const relation = (row: HTMLElement) =>
+		row.querySelector(".enrich-field__relation")?.getAttribute("data-tooltip");
+
+	it("holds a field on while a chosen field reads it, and the reader says what it uses", async () => {
+		const { rows, boxes, setEnrichFields, m } = renderTab(["tabSun"]);
+		const date = rows[index("tabDate")];
+		expect(boxes[index("tabDate")].getAttribute("aria-checked")).toBe("true");
+		expect(date.getAttribute("aria-disabled")).toBe("true");
+		expect(relation(date)).toBeUndefined();
+		expect(relation(rows[index("tabSun")])).toBe("Uses tabDate");
+
+		await click(date);
+		expect(setEnrichFields).not.toHaveBeenCalled();
+		m.unmount();
+	});
+
+	it("releases the field once nothing chosen reads it", () => {
+		const { rows, boxes, m } = renderTab([]);
+		expect(boxes[index("tabDate")].getAttribute("aria-checked")).toBe("false");
+		expect(rows[index("tabDate")].getAttribute("aria-disabled")).toBeNull();
+		expect(relation(rows[index("tabDate")])).toBeUndefined();
 		m.unmount();
 	});
 });

@@ -21,12 +21,18 @@ import { Button } from "@/components/primitives/Button";
 import { CoverageBar } from "@/components/primitives/CoverageBar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { openManual } from "@/store/router";
-import { getEnrichFieldOptions, getDefaultEnrichKeys } from "@/lib/data/fieldDefs";
+import {
+	enabledEnrichKeys,
+	enrichInputs,
+	getDefaultEnrichKeys,
+	getEnrichFieldOptions,
+} from "@/lib/data/fieldDefs";
+import { Tooltip } from "@/components/primitives/Tooltip";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useMapSetting } from "@/store/useMapSetting";
 import type { FieldDef, FieldChoice } from "@/bindings.gen";
 import type { MergeWinner } from "@/bindings.consts";
-import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline } from "@mdi/js";
+import { mdiClose, mdiDatabasePlusOutline, mdiInformationOutline, mdiLinkVariant } from "@mdi/js";
 import { msg, t } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { Trans } from "@/components/primitives/Trans";
@@ -192,8 +198,12 @@ export function EnrichTab({
 	// Declaration order, not alphabetical: it already groups the default set first.
 	const options = getEnrichFieldOptions();
 
-	const isOn = (key: string) =>
-		enrichFields ? enrichFields.includes(key) : !options.find((f) => f.key === key)?.defaultOff;
+	const chosen = enrichFields ?? getDefaultEnrichKeys();
+	const labelOf = (key: string) => t(options.find((f) => f.key === key)?.label ?? key);
+	const list = (keys: string[]) => keys.map(labelOf).join(", ");
+	// The chosen fields that read `key`, directly or through another field: they hold it on.
+	const neededBy = (key: string) =>
+		chosen.filter((other) => other !== key && enabledEnrichKeys([other]).includes(key));
 
 	const toggle = (key: string, on: boolean) => {
 		const defaults = getDefaultEnrichKeys();
@@ -203,18 +213,33 @@ export function EnrichTab({
 		setEnrichFields(isDefault ? null : next);
 	};
 
-	const row = (key: string, label: string) => (
-		<SwitchRow
-			key={key}
-			className="enrich-field"
-			checked={isOn(key)}
-			onChange={(v) => toggle(key, v)}
-			label={label}
-		>
-			<span className="enrich-field__name">{label}</span>
-			<CoverageBar ratio={coverage.get(key) ?? 0} />
-		</SwitchRow>
-	);
+	const row = (key: string, label: string) => {
+		const holders = neededBy(key);
+		const inputs = enrichInputs(key);
+		const relation = inputs.length > 0 ? t("Uses {fields}", { fields: list(inputs) }) : null;
+		return (
+			<SwitchRow
+				key={key}
+				className="enrich-field"
+				checked={holders.length > 0 || chosen.includes(key)}
+				disabled={holders.length > 0}
+				onChange={(v) => toggle(key, v)}
+				label={label}
+			>
+				<span className="enrich-field__name">
+					{label}
+					{relation && (
+						<Tooltip content={relation}>
+							<span className="enrich-field__relation" aria-label={relation}>
+								<Icon path={mdiLinkVariant} size={14} />
+							</span>
+						</Tooltip>
+					)}
+				</span>
+				<CoverageBar ratio={coverage.get(key) ?? 0} />
+			</SwitchRow>
+		);
+	};
 
 	return (
 		<>
@@ -237,7 +262,7 @@ export function EnrichTab({
 				/>
 			</div>
 
-			<div className="enrich-fields">{options.map((f) => row(f.key, f.label))}</div>
+			<div className="enrich-fields">{options.map((f) => row(f.key, t(f.label)))}</div>
 		</>
 	);
 }

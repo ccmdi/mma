@@ -1279,6 +1279,27 @@ object (null if it emitted none). `payload` is sent as JSON.
 
 ## FieldDefs
 
+### enabledEnrichKeys
+
+`unstable` · unreleased
+
+```ts
+enabledEnrichKeys(enrichFields?: string[] | null): string[]
+```
+
+The fields enrichment fetches for `enrichFields` (the default set when null): the chosen
+ones and every field they read, so no field runs without its inputs.
+
+### enrichInputs
+
+`unstable` · unreleased
+
+```ts
+enrichInputs(key: string): string[]
+```
+
+The enrichment fields `key`'s provider reads.
+
 ### getAllEnrichKeys
 
 `unstable` · since v0.10.3
@@ -1317,7 +1338,7 @@ All enrichment field options: the core fields, then every registered provider's 
 isFieldEnabled(enrichFields: string[] | null, key: string): boolean
 ```
 
-True when `key` is in the given enrichment set (or in the default set when null).
+True when enrichment fetches `key` for the given enrichment set.
 
 ### knownFieldDefs
 
@@ -7548,8 +7569,8 @@ enrichRuns(
 ): ProviderRun[]
 ```
 
-Build the provider run list for enrichment, narrowed to `enrichFields`. Fields not
-offered in the enrichment settings are always included.
+Build the provider run list for enrichment, narrowed to `enrichFields` and the fields they
+read. Fields not offered in the enrichment settings are always included.
 
 ### exactDateProvider
 
