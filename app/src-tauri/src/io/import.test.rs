@@ -893,7 +893,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     let keys = stage_parsed(&mut store, "staged-fetch", parsed);
     let target = import_target("staged-fetch");
     let first = store.at(&target).rows(&Selector::Locations {
-        locations: vec![keys.nth(0).unwrap()],
+        locations: vec![keys.iter().nth(0).unwrap()],
         name: None,
     })[0]
         .clone();
@@ -901,7 +901,7 @@ fn staged_rows_take_real_sequential_ids_and_read_through_the_import_layer() {
     assert_eq!(first.heading, 90.0);
     assert_eq!(first.pano_id.as_deref(), Some("abcdefghijklmnopqrstuv"));
     let second = store.at(&target).rows(&Selector::Locations {
-        locations: vec![keys.nth(1).unwrap()],
+        locations: vec![keys.iter().nth(1).unwrap()],
         name: None,
     })[0]
         .clone();

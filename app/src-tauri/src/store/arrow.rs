@@ -438,8 +438,3 @@ mod tests;
 pub(crate) fn schema() -> SchemaRef {
     Arc::new(location_schema())
 }
-
-#[allow(dead_code, reason = "exercised by tests; no production caller")]
-pub(crate) fn empty_batch() -> RecordBatch {
-    RecordBatch::new_empty(schema())
-}

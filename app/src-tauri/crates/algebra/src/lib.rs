@@ -691,11 +691,6 @@ impl<_T> Default for IdRange<_T> {
 }
 
 impl<_T> IdRange<_T> {
-    /// The `i`th id of the run, or nothing past its end.
-    pub fn nth(&self, i: u32) -> Option<Id<_T>> {
-        (i < self.len).then(|| Id::new(self.first.0 + i))
-    }
-
     /// Whether `id` is one of the run's.
     pub fn contains(&self, id: Id<_T>) -> bool {
         id.0.checked_sub(self.first.0).is_some_and(|i| i < self.len)
@@ -767,11 +762,6 @@ impl<K: Sequential> Default for Ids<K> {
 }
 
 impl<K: Sequential> Ids<K> {
-    /// Keys from `next` up.
-    pub fn starting_at(next: K) -> Self {
-        Self { next }
-    }
-
     /// Keys above every one in `seen`.
     pub fn above(seen: impl IntoIterator<Item = K>) -> Self {
         let mut ids = Self::default();

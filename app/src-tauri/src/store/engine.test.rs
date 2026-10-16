@@ -4,7 +4,6 @@ use super::*;
 use crate::io::export;
 use crate::selections::field_expr::Expr;
 use crate::selections::{self, field_expr, Selection, Selector, Thinning};
-use crate::store::arrow::empty_batch;
 use crate::store::engine::query::locations_file_path;
 use crate::store::maps::IndexShape;
 use crate::store::storage;
@@ -132,7 +131,7 @@ fn setup_store_with(locs: &[Location]) -> Store {
         id: Id::new(format!("test-{}", SEQ.fetch_add(1, Ordering::Relaxed))),
         ..Default::default()
     });
-    store.batch = Some(empty_batch());
+    store.batch = Some(RecordBatch::new_empty(arrow::schema()));
     for l in locs {
         store.overlay_add(vec![l.clone()]);
         let ci = render_cell_idx(l.lat, l.lng);
@@ -1890,7 +1889,7 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
 #[test]
 fn overlay_consistency_add_new_id_goes_to_adds() {
     let mut store = setup_store_with(&[]);
-    store.batch = Some(empty_batch());
+    store.batch = Some(RecordBatch::new_empty(arrow::schema()));
     store.overlay_add(vec![loc(99, 10.0, 20.0)]);
     assert!(store.overlay.added.iter().any(|l| l.id == Id::new(99)));
     assert!(!store.overlay.updated.contains_key(&Id::new(99)));
@@ -1910,7 +1909,7 @@ fn overlay_consistency_update_batch_id_goes_to_patches() {
 #[test]
 fn overlay_consistency_update_add_id_stays_in_adds() {
     let mut store = setup_store_with(&[]);
-    store.batch = Some(empty_batch());
+    store.batch = Some(RecordBatch::new_empty(arrow::schema()));
     store.overlay_add(vec![loc(1, 10.0, 20.0)]);
     overlay_update(&mut store, &patch!(1; heading: 45.0));
     // Should still be in overlay.added, updated in place
@@ -2578,7 +2577,7 @@ fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_on
 #[test]
 fn an_add_reports_the_id_its_first_location_was_given() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     let added = add_rows(&mut store, vec![loc(0, 1.0, 1.0), loc(0, 2.0, 2.0)]);
     let ids: Vec<u32> = store
         .at(&Target::Map { id: None })
@@ -2873,7 +2872,7 @@ fn binary_search_returns_none_for_missing() {
 
 #[test]
 fn binary_search_on_empty_batch() {
-    let b = empty_batch();
+    let b = RecordBatch::new_empty(arrow::schema());
     assert_eq!(Columns::of(&b).row_of(Id::new(1)), None);
 }
 
@@ -4057,7 +4056,7 @@ fn an_indexed_existence_filter_agrees_with_the_scan_through_every_edit() {
         loc_with_extra(3, r#"{"other":1}"#),
     ]);
     store.bake_overlay();
-    store.next_id = Ids::starting_at(Id::new(10));
+    store.next_id = Ids::above([Id::new(9)]);
     assert_existence_matches_scan(&mut store, "k", &[1, 2]);
 
     add_rows(&mut store, vec![loc_with_extra(0, r#"{"k":3}"#)]);
@@ -5042,7 +5041,7 @@ fn reopen(store: &Store, delta_bytes: &[u8]) -> Store {
 
     let mut reopened = Store::new();
     reopened.meta = Tracked::new((*store.meta).clone());
-    reopened.batch = Some(empty_batch());
+    reopened.batch = Some(RecordBatch::new_empty(arrow::schema()));
     reopened.overlay = Tracked::new(delta);
     reopened.next_id = seed_next_id(None, &reopened.overlay.added, history_max);
     reopened.alive_count = Tracked::new(reopened.overlay.added.len());
@@ -5518,7 +5517,7 @@ fn undo_of_delete_after_reopen_does_not_collide() {
     let mut store = close_and_reopen(&store);
     assert_eq!(
         store.next_id,
-        Ids::starting_at(Id::new(id + 1)),
+        Ids::above([Id::new(id)]),
         "freed id must stay reserved for history replay"
     );
 
@@ -6253,7 +6252,7 @@ fn store_with_full_overlay_base() -> Store {
     });
     store.batch = Some(arrow::locations_to_batch(&base));
     store.alive_count = Tracked::new(base.len());
-    store.next_id = Ids::starting_at(Id::new(10));
+    store.next_id = Ids::above([Id::new(9)]);
     store
 }
 
@@ -6658,7 +6657,7 @@ proptest::proptest! {
     ) {
         let mut store = setup_store_with(&initial);
         let max_initial = initial.iter().map(|l| l.id).max().unwrap_or(Id::new(0));
-        store.next_id = Ids::starting_at(Id::new(max_initial.get() + 1));
+        store.next_id = Ids::above([max_initial]);
 
         let mut model: BTreeMap<Id<Location>, Location> =
             initial.iter().map(|l| (l.id, l.clone())).collect();
@@ -7533,7 +7532,7 @@ fn heading(id: u32, heading: f64) -> Patch<Location> {
 #[test]
 fn a_pending_edit_is_held_and_read_through_until_it_lands() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 90.0))],
         Default::default(),
@@ -7571,7 +7570,7 @@ fn a_pending_edit_is_held_and_read_through_until_it_lands() {
 #[test]
 fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 90.0))],
         Default::default(),
@@ -7602,7 +7601,7 @@ fn a_write_underneath_a_pending_layer_shows_through_its_reads() {
 #[test]
 fn landing_a_layer_folds_its_edits_into_one_undoable_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    store.next_id = Ids::starting_at(Id::new(3));
+    store.next_id = Ids::above([Id::new(2)]);
     store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 90.0))],
         Default::default(),
@@ -7721,7 +7720,7 @@ fn an_empty_landing_joins_no_step_and_the_next_edit_through_it_starts_one() {
 #[test]
 fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 90.0))],
         Default::default(),
@@ -7767,7 +7766,7 @@ fn an_edit_through_a_landed_layer_writes_through_and_joins_its_step() {
 #[test]
 fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 1.0, 1.0)]);
-    store.next_id = Ids::starting_at(Id::new(3));
+    store.next_id = Ids::above([Id::new(2)]);
     let target = viewer();
     store.at(&target).edit(
         vec![Op::Put(heading(1, 90.0))],
@@ -7815,7 +7814,7 @@ fn write_through_advances_the_landed_undo_group_after_an_intervening_edit() {
 #[test]
 fn dropping_a_pending_layer_discards_what_it_held() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     store.at(&viewer()).edit(
         vec![Op::Put(heading(1, 90.0))],
         Default::default(),
@@ -7868,7 +7867,7 @@ fn only_an_edit_held_in_an_unlanded_layer_reports_version_zero() {
 #[test]
 fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     let r = store.at(&viewer()).edit(
         vec![Op::Add(loc(0, 2.0, 2.0))],
         Default::default(),
@@ -7917,7 +7916,7 @@ fn adds_into_a_pending_layer_take_real_ids_and_land_on_save() {
 #[test]
 fn the_feed_distinguishes_landed_changes_from_pending_layer_status() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     let got = Arc::new(Mutex::new(Vec::<String>::new()));
     let sink = {
         let got = got.clone();
@@ -8860,7 +8859,7 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
 #[test]
 fn selections_and_meta_only_edits_stay_out_of_data_history() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
-    store.next_id = Ids::starting_at(Id::new(2));
+    store.next_id = Ids::above([Id::new(1)]);
     click_add(&mut store, 1.0, 1.0);
     press_undo(&mut store);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Redo), 1);

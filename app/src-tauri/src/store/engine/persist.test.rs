@@ -27,7 +27,7 @@ fn store_with_one_edit() -> Store {
         ..Default::default()
     });
     store.meta.edit().name = "after".into();
-    store.batch = Some(arrow::empty_batch());
+    store.batch = Some(RecordBatch::new_empty(arrow::schema()));
     store.write([Op::Set(loc(1, 11.0, 11.0))], &mut None, Entry::default());
     store
 }
