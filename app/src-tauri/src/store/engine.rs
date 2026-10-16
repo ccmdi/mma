@@ -97,17 +97,6 @@ impl Overlay {
         overlay.removed = dead;
         overlay
     }
-
-    /// Apply these changes onto a plain location list read off disk.
-    fn apply_to(self, locs: &mut Vec<Location>) {
-        locs.retain(|l| !self.removed.contains(l.id));
-        for l in locs.iter_mut() {
-            if let Some(p) = self.updated.get(&l.id) {
-                *l = p.clone();
-            }
-        }
-        locs.extend(self.added);
-    }
 }
 
 /// Central state for one open map: the immutable Arrow base batch, the overlay of uncommitted

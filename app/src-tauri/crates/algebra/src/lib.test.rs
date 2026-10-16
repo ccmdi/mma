@@ -1120,3 +1120,49 @@ fn a_run_of_ids_is_contiguous_and_later_ids_go_above_it() {
     assert!(!run.contains(Id::new(4)) && !run.contains(Id::new(8)));
     assert_eq!(ids.take(), Id::new(8));
 }
+
+#[test]
+fn the_change_between_two_tables_of_keyed_rows_turns_one_into_the_other_and_back() {
+    let before = by_key([row(3, "c"), row(1, "a"), row(2, "b")]);
+    let after = by_key([row(4, "d"), row(2, "B"), row(1, "a")]);
+    let change = Change::between(&before, &after);
+    assert_eq!(
+        change,
+        Change {
+            added: vec![row(4, "d")],
+            removed: vec![row(3, "c")],
+            updated: vec![(row(2, "b"), row(2, "B"))],
+        }
+    );
+    assert_eq!(change, Change::at(&before, &after, [4, 3, 2, 1]));
+
+    let mut table = before.clone();
+    change.apply_to(&mut table);
+    assert_eq!(table, after);
+    change.inverse().apply_to(&mut table);
+    assert_eq!(table, before);
+    assert!(Change::between(&after, &after).is_empty());
+}
+
+#[test]
+fn the_change_between_value_tables_covers_every_key_either_holds_in_key_order() {
+    let before: HashMap<u32, i16> = HashMap::from([(5, 1), (1, 1), (3, 3)]);
+    let after: HashMap<u32, i16> = HashMap::from([(3, 4), (2, 2), (4, 4)]);
+    let change = Change::between(&before, &after);
+    assert_eq!(change.added, [(2, 2), (4, 4)]);
+    assert_eq!(change.removed, [(1, 1), (5, 1)]);
+    assert_eq!(change.updated, [((3, 3), (3, 4))]);
+    assert_eq!(change, Change::at(&before, &after, [1, 2, 3, 4, 5]));
+}
+
+#[test]
+fn rows_written_on_both_sides_of_a_change_replace_the_row_under_their_key() {
+    let mut table = by_key([row(1, "a"), row(2, "b")]);
+    Change::from_sides(
+        vec![row(2, "B"), row(3, "c")],
+        vec![row(1, "a"), row(2, "b")],
+    )
+    .apply_to(&mut table);
+    assert_eq!(table, by_key([row(2, "B"), row(3, "c")]));
+    assert_eq!(table.keys().copied().collect::<Vec<_>>(), [2, 3]);
+}

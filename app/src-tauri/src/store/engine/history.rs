@@ -311,7 +311,7 @@ impl Store {
                 let mut rows = before.clone();
                 changes.selections.apply_to(&mut rows);
                 let after = self.valid_selections(rows);
-                Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
+                Change::between(&before, &after)
             }
         };
         self.put_entry(&changes);

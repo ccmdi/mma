@@ -234,11 +234,7 @@ impl Store {
         if let Some(inferred) = maps::infer_field_defs(|key| fields.contains_key(key), &extras) {
             fields.extend(inferred);
         }
-        entry.defs = DefsDelta::at(
-            &self.field_defs,
-            &fields,
-            self.field_defs.keys().chain(fields.keys()).cloned(),
-        );
+        entry.defs = DefsDelta::between(&*self.field_defs, &fields);
         entry.selections = self.selection_consequences(&entry);
         let entry = Arc::new(entry);
         self.put_entry(&entry);
@@ -1024,7 +1020,7 @@ fn plan_defs(store: &Store, op: &LocationOp, edits: &[Edit<Location>]) -> DefsDe
         }
     }
     let keys = vacated.iter().chain(into).cloned();
-    DefsDelta::at(&store.field_defs, &after, keys)
+    DefsDelta::at(before, &after, keys)
 }
 
 /// Result of copying locations to another map.

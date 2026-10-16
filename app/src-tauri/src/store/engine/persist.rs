@@ -5,9 +5,9 @@ use crate::store::maps::MapMeta;
 use crate::store::{arrow, storage};
 use crate::types::{AppError, AppResult, ErrCode, Location};
 use arrow_array::{RecordBatch, UInt32Array};
-use mma_algebra::{Counts, Id};
+use mma_algebra::{by_key, Change, Counts, Id};
 use rusqlite::Connection;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::time::Instant;
@@ -192,18 +192,19 @@ pub(crate) fn read_full_state_from_disk(map_id: &Id<MapMeta, String>) -> AppResu
     // The base file may not exist for a map with no commits -- its data then lives entirely
     // in the delta sidecar, so always apply the delta below regardless.
     let mut locs = if path.exists() {
-        arrow::batch_to_locations(&arrow::read_arrow_ipc(&path)?)
+        by_key(arrow::batch_to_locations(&arrow::read_arrow_ipc(&path)?))
     } else {
-        Vec::new()
+        BTreeMap::new()
     };
 
     let delta_path = storage::arrow_delta_path(map_id)?;
     if delta_path.exists() {
         if let Ok(batch) = arrow::read_arrow_ipc(&delta_path) {
-            Overlay::from_delta(&batch).apply_to(&mut locs);
+            let (created, removed) = arrow::batch_to_delta(&batch);
+            Change::from_sides(created, removed).apply_to(&mut locs);
         }
     }
-    Ok(locs)
+    Ok(locs.into_values().collect())
 }
 
 /// Every interned field's value records stored for `map_id`.

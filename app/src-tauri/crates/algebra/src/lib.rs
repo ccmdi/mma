@@ -735,6 +735,53 @@ impl<K: Clone + Eq + Hash + Ord, V> Keyed for (K, V) {
     }
 }
 
+/// Keyed rows, at most one under each key.
+pub trait Table<T: Keyed> {
+    /// The row under `key`.
+    fn row(&self, key: &T::Key) -> Option<T>;
+    /// The key of every row held.
+    fn row_keys(&self) -> impl Iterator<Item = T::Key> + '_;
+    fn remove_row(&mut self, key: &T::Key);
+    /// Hold `row` under its key, replacing the row there.
+    fn insert_row(&mut self, row: T);
+}
+
+/// A table of values by key, its rows the key and value paired.
+impl<K: Clone + Eq + Hash + Ord, V: Clone> Table<(K, V)> for HashMap<K, V> {
+    fn row(&self, key: &K) -> Option<(K, V)> {
+        self.get(key).map(|value| (key.clone(), value.clone()))
+    }
+    fn row_keys(&self) -> impl Iterator<Item = K> + '_ {
+        self.keys().cloned()
+    }
+    fn remove_row(&mut self, key: &K) {
+        self.remove(key);
+    }
+    fn insert_row(&mut self, (key, value): (K, V)) {
+        self.insert(key, value);
+    }
+}
+
+impl<T: Keyed + Clone> Table<T> for BTreeMap<T::Key, T> {
+    fn row(&self, key: &T::Key) -> Option<T> {
+        self.get(key).cloned()
+    }
+    fn row_keys(&self) -> impl Iterator<Item = T::Key> + '_ {
+        self.keys().cloned()
+    }
+    fn remove_row(&mut self, key: &T::Key) {
+        self.remove(key);
+    }
+    fn insert_row(&mut self, row: T) {
+        self.insert(row.key(), row);
+    }
+}
+
+/// `rows` held under their keys, in key order.
+pub fn by_key<T: Keyed>(rows: impl IntoIterator<Item = T>) -> BTreeMap<T::Key, T> {
+    rows.into_iter().map(|row| (row.key(), row)).collect()
+}
+
 /// A key a table numbers in order: each new row takes the one after the highest in use.
 pub trait Sequential: Clone + Ord + Default {
     fn after(&self) -> Self;
@@ -1285,20 +1332,36 @@ impl<T: Keyed + PartialEq> Change<T> {
     }
 }
 
-impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
-    /// Compare `before` and `after` at the given keys.
+impl<T: Keyed + PartialEq + Clone> Change<T> {
+    /// Compare `before` and `after` at the given keys, in key order.
     pub fn at(
-        before: &HashMap<K, V>,
-        after: &HashMap<K, V>,
-        keys: impl IntoIterator<Item = K>,
+        before: &impl Table<T>,
+        after: &impl Table<T>,
+        keys: impl IntoIterator<Item = T::Key>,
     ) -> Self {
-        let row = |table: &HashMap<K, V>, k: &K| table.get(k).map(|v| (k.clone(), v.clone()));
-        let keys: BTreeSet<K> = keys.into_iter().collect();
+        let keys: BTreeSet<T::Key> = keys.into_iter().collect();
         keys.iter()
-            .map(|k| Transition::new(row(before, k), row(after, k)))
+            .map(|k| Transition::new(before.row(k), after.row(k)))
             .collect()
     }
 
+    /// Compare `before` and `after` at every key either holds, in key order.
+    pub fn between(before: &impl Table<T>, after: &impl Table<T>) -> Self {
+        Self::at(before, after, before.row_keys().chain(after.row_keys()))
+    }
+
+    /// Apply this change to `table`.
+    pub fn apply_to(&self, table: &mut impl Table<T>) {
+        for row in self.before() {
+            table.remove_row(&row.key());
+        }
+        for row in self.after() {
+            table.insert_row(row.clone());
+        }
+    }
+}
+
+impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
     /// This change if `table` still holds every state it starts from; otherwise no change.
     pub fn if_standing(self, table: &HashMap<K, V>) -> Self {
         let stands = self.transitions().all(|t| {
@@ -1309,16 +1372,6 @@ impl<K: Clone + Eq + Hash + Ord, V: PartialEq + Clone> Change<(K, V)> {
             self
         } else {
             Self::default()
-        }
-    }
-
-    /// Apply this change to `table`.
-    pub fn apply_to(&self, table: &mut HashMap<K, V>) {
-        for (k, _) in self.before() {
-            table.remove(k);
-        }
-        for (k, v) in self.after() {
-            table.insert(k.clone(), v.clone());
         }
     }
 }

@@ -266,7 +266,7 @@ impl SelectionState {
             .zip(0..)
             .map(|(row, order)| (row.selection.key.clone(), Listing { order, row }))
             .collect();
-        Change::at(&before, &after, before.keys().chain(after.keys()).cloned())
+        Change::between(&before, &after)
     }
 
     pub(crate) fn apply(&mut self, change: &SelectionDelta) {

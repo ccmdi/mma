@@ -311,8 +311,7 @@ impl Store {
         let applied = mma_algebra::apply(&mut after, edits, Id::new(floor));
         after.retain(|&id, rec| before.contains_key(&id) || *rec != bare(id));
         let patches = self.plan_value_merges(field, &applied.redirects)?;
-        let keys: Vec<Id<ValueRecord>> = before.keys().chain(after.keys()).copied().collect();
-        let delta = RecordDelta::at(&before, &after, keys);
+        let delta = RecordDelta::between(&before, &after);
         let records =
             RecordDeltas::from_iter((!delta.is_empty()).then(|| (field.to_string(), delta)));
         let mutation = self.write(

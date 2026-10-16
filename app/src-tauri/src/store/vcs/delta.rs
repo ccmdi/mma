@@ -3,13 +3,13 @@
 //! Each commit's payload is a single Arrow delta file on disk
 //! (`arrow/commits/<map_id>/<commit_id>.arrow`); SQL only tracks the commit graph.
 //! A commit's full state is materialized by replaying its ancestor delta files
-//! from genesis forward. `diff_states` produces the delta between two states.
+//! from genesis forward.
 
 use crate::store::maps::MapMeta;
 use crate::store::vcs::CommitInfo;
 use crate::types::{AppResult, Location};
-use mma_algebra::{Change, Id, Transition};
-use std::collections::{BTreeMap, BTreeSet};
+use mma_algebra::{Change, Id};
+use std::collections::BTreeMap;
 
 use rusqlite::{params, Connection};
 
@@ -37,19 +37,13 @@ fn commit_chain(
 }
 
 /// Fold delta `(created, removed)` pairs in genesis-first order into a final state.
-/// `removed` ids are dropped, then `created` (which includes updated rows) inserted,
-/// so an in-place update (same id in both) resolves to the created value.
+/// An id on both sides of a delta is an in-place update to its created value.
 pub(crate) fn replay_deltas(
-    deltas: &[(Vec<Location>, Vec<Location>)],
+    deltas: impl IntoIterator<Item = (Vec<Location>, Vec<Location>)>,
 ) -> BTreeMap<Id<Location>, Location> {
-    let mut state: BTreeMap<Id<Location>, Location> = BTreeMap::new();
+    let mut state = BTreeMap::new();
     for (created, removed) in deltas {
-        for loc in removed {
-            state.remove(&loc.id);
-        }
-        for loc in created {
-            state.insert(loc.id, loc.clone());
-        }
+        Change::from_sides(created, removed).apply_to(&mut state);
     }
     state
 }
@@ -67,24 +61,7 @@ pub(crate) fn materialize_commit(
     for id in &chain {
         deltas.push(vcs::read_commit_delta(map_id, id)?);
     }
-    Ok(replay_deltas(&deltas))
-}
-
-/// The change from `parent` state to `current` state.
-pub(crate) fn diff_states(
-    parent: &BTreeMap<Id<Location>, Location>,
-    current: &[Location],
-) -> Change<Location> {
-    let current: BTreeMap<Id<Location>, &Location> = current.iter().map(|l| (l.id, l)).collect();
-    let ids: BTreeSet<Id<Location>> = parent.keys().chain(current.keys()).copied().collect();
-    ids.into_iter()
-        .map(|id| {
-            Transition::new(
-                parent.get(&id).cloned(),
-                current.get(&id).map(|l| (*l).clone()),
-            )
-        })
-        .collect()
+    Ok(replay_deltas(deltas))
 }
 
 #[cfg(test)]

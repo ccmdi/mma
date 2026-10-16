@@ -9545,7 +9545,7 @@ fn a_field_index_is_rebuilt_once_its_definition_changes() {
         [],
         &mut None,
         Entry {
-            defs: DefsDelta::at(&store.field_defs, &defs, ["n".to_string()]),
+            defs: DefsDelta::at(&*store.field_defs, &defs, ["n".to_string()]),
             ..Default::default()
         },
     );

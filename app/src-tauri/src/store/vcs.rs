@@ -17,7 +17,8 @@ use crate::selections::Selector;
 use crate::store::engine::{StoreManager, StoreState};
 use crate::store::{arrow, engine, storage};
 use crate::util::{now_iso, sha256_hex};
-use mma_algebra::{Change, Counts, Id};
+use mma_algebra::{by_key, Change, Counts, Id, Op};
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::time::Instant;
 use tokio::task;
@@ -109,11 +110,13 @@ pub async fn store_commit(
         // Clean overlay + existing parent (checkout/revert commit): capture the current
         // baked state to diff against the parent below.
         let current_fallback = if pre_bake.is_none() && !genesis {
-            store
-                .at(&engine::Target::Map { id: None })
-                .rows(&Selector::Everything)
+            by_key(
+                store
+                    .at(&engine::Target::Map { id: None })
+                    .rows(&Selector::Everything),
+            )
         } else {
-            Vec::new()
+            BTreeMap::new()
         };
 
         let status = store.finish(engine::Finished::Base);
@@ -154,7 +157,7 @@ pub async fn store_commit(
             // Clean overlay with a parent (revert/no-op commit): diff current vs parent.
             let parent_state =
                 delta::materialize_commit(&conn, &map_id, parent_id.as_ref().unwrap())?;
-            let change = delta::diff_states(&parent_state, &current_fallback);
+            let change = Change::between(&parent_state, &current_fallback);
             let (created, removed) = change.sides();
             arrow::write_arrow_ipc(&path, &arrow::delta_to_batch(&created, &removed))?;
             change.counts()
@@ -225,12 +228,9 @@ pub async fn store_checkout_commit(
 ) -> AppResult<Option<engine::Mutation>> {
     task::block_in_place(|| {
         let conn = storage::open_db()?;
-        let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
-        // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
-        // base batch requires.
-        let locs: Vec<Location> = materialized.into_values().collect();
-        let count = locs.len();
-        let restored = checkout(&mut *state.lock()?, &label, &map_id, locs)?;
+        let target = delta::materialize_commit(&conn, &map_id, &commit_id)?;
+        let count = target.len();
+        let restored = checkout(&mut *state.lock()?, &label, &map_id, target)?;
         log::info!(
             "[vcs] checkout {} on map {} ({count} locs)",
             &commit_id.raw()[..7.min(commit_id.raw().len())],
@@ -240,15 +240,15 @@ pub async fn store_checkout_commit(
     })
 }
 
-/// Restore `map_id` to `locs`. An open map changes through its write path, dropping its
-/// pending layers and selections; a closed one has its base rewritten and its uncommitted
-/// delta dropped. Refused while another window has the map open, or while an open of it is
+/// Restore `map_id` to the rows of `target`. An open map takes the change between its rows
+/// and `target` through its write path, dropping its pending layers and selections; a closed
+/// one has its base rewritten and its uncommitted delta dropped. Refused while another window has the map open, or while an open of it is
 /// still in flight.
 fn checkout(
     mgr: &mut StoreManager,
     label: &engine::WindowLabel,
     map_id: &Id<MapMeta, String>,
-    locs: Vec<Location>,
+    target: BTreeMap<Id<Location>, Location>,
 ) -> AppResult<Option<engine::Mutation>> {
     let loaded = mgr.stores.contains_key(map_id);
     if mgr
@@ -261,6 +261,7 @@ fn checkout(
         ));
     }
     let Some(store) = mgr.stores.get_mut(map_id) else {
+        let locs: Vec<Location> = target.into_values().collect();
         arrow::write_arrow_ipc(
             &storage::arrow_path(map_id)?,
             &arrow::locations_to_batch(&locs),
@@ -268,16 +269,24 @@ fn checkout(
         let _ = fs::remove_file(storage::arrow_delta_path(map_id)?);
         return Ok(None);
     };
-    let current = store
-        .at(&engine::Target::Map { id: None })
-        .rows(&Selector::Everything);
-    let before = store.selections.table();
-    let selections = Change::at(&before, &Default::default(), before.keys().cloned());
+    let current = by_key(
+        store
+            .at(&engine::Target::Map { id: None })
+            .rows(&Selector::Everything),
+    );
+    let Change {
+        added,
+        removed,
+        updated,
+    } = Change::between(&current, &target);
+    let selections = Change::between(&store.selections.table(), &HashMap::new());
     store.pending.clear();
-    let edits = current
-        .into_iter()
-        .map(|row| mma_algebra::Op::Remove(row.id))
-        .chain(locs.into_iter().map(mma_algebra::Op::Set));
+    let edits = removed.into_iter().map(|row| Op::Remove(row.id)).chain(
+        added
+            .into_iter()
+            .chain(updated.into_iter().map(|(_, row)| row))
+            .map(Op::Set),
+    );
     Ok(Some(store.write(
         edits,
         &mut None,

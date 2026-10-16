@@ -2,7 +2,7 @@ use super::*;
 use crate::selections::tree::{SelectionInput, SelectionOp};
 use crate::store::engine::{Store, WindowLabel};
 use crate::test_util::loc;
-use mma_algebra::Id;
+use mma_algebra::{by_key, Id};
 use std::future::Future;
 use std::path::PathBuf;
 use tauri::async_runtime;
@@ -25,9 +25,14 @@ fn open_in(window: &str, map: &Id<MapMeta, String>, store: Store) -> StoreManage
 }
 
 fn restore(mgr: &mut StoreManager, locs: Vec<Location>) -> engine::Mutation {
-    checkout(mgr, &WindowLabel("w".into()), &Id::new("m".into()), locs)
-        .unwrap()
-        .expect("an open map restores through its store")
+    checkout(
+        mgr,
+        &WindowLabel("w".into()),
+        &Id::new("m".into()),
+        by_key(locs),
+    )
+    .unwrap()
+    .expect("an open map restores through its store")
 }
 
 #[test]
@@ -36,7 +41,7 @@ fn checkout_refuses_a_map_another_window_has_open() {
     let before = fs::read(&base).unwrap();
     let mut mgr = open_in("web-b", &map, Store::new());
 
-    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    let restored = by_key([loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)]);
     assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
@@ -50,7 +55,7 @@ fn checkout_refuses_a_map_another_window_is_opening() {
     mgr.window_map
         .insert(WindowLabel("web-b".into()), map.clone());
 
-    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    let restored = by_key([loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)]);
     assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
@@ -63,7 +68,7 @@ fn checkout_refuses_a_map_this_window_is_still_opening() {
     let mut mgr = StoreManager::new();
     mgr.window_map.insert(WindowLabel("w".into()), map.clone());
 
-    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    let restored = by_key([loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)]);
     assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
@@ -74,7 +79,7 @@ fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
     let (map, base, delta) = staged("checkout-closed");
     let mut mgr = open_in("w", &Id::new("other".into()), Store::new());
 
-    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    let restored = by_key([loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)]);
     assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored)
         .unwrap()
         .is_none());
