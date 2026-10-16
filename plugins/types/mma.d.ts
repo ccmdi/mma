@@ -4940,7 +4940,7 @@ declare const DEFAULTS: {
     /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. @unstable */
     pastePadding: number;
     /** @unstable */
-    followActiveInReview: boolean;
+    followOpenInReview: boolean;
     /** @unstable */
     markerColor: RGB;
     /** @unstable */
@@ -5068,7 +5068,7 @@ declare const APP_SETTINGS: PersistedStore<{
     enterOpensCenter: boolean;
     /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
     pastePadding: number;
-    followActiveInReview: boolean;
+    followOpenInReview: boolean;
     markerColor: RGB;
     openLocationColor: RGB;
     importPreviewColor: RGB;

@@ -115,15 +115,18 @@ describe("selectOnly -> clickMode migration", () => {
 	});
 });
 
-describe("activeLocationColor -> openLocationColor migration", () => {
+describe("active -> open location settings migration", () => {
 	const apply = (stored: Record<string, unknown>) => {
 		for (const migrate of migrationsFor("appSettings")) migrate(stored);
 	};
 
-	it("moves the color to the new key and drops the old one", () => {
-		const stored: Record<string, unknown> = { activeLocationColor: [1, 2, 3] };
+	it("moves each setting to its new key and drops the old one", () => {
+		const stored: Record<string, unknown> = {
+			activeLocationColor: [1, 2, 3],
+			followActiveInReview: false,
+		};
 		apply(stored);
-		expect(stored).toEqual({ openLocationColor: [1, 2, 3] });
+		expect(stored).toEqual({ openLocationColor: [1, 2, 3], followOpenInReview: false });
 	});
 
 	it("never overwrites an already-set openLocationColor and is idempotent", () => {

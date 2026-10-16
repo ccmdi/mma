@@ -160,7 +160,7 @@ export function useMapSurface(
 	useEffect(() => {
 		if (!host || !opts.followOpen) return;
 		return subscribe("open:change", (id) => {
-			if (id == null || !Review.session() || !getSettings().followActiveInReview) return;
+			if (id == null || !Review.session() || !getSettings().followOpenInReview) return;
 			const loc = Editor.get().open?.location;
 			if (loc && loc.id === id) host.panTo({ lat: loc.lat, lng: loc.lng });
 		});

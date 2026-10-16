@@ -259,7 +259,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 	layers.push(...selectedMarkerLayers(cm, ctx.markerStyle, ctx.selectedOpacity, ctx.markerSize));
 
 	// Staged import preview markers; clicking one opens a read-only preview. Drawn *under* the
-	// active marker, which highlights whichever staged location is open — no per-index coloring.
+	// open marker, which highlights whichever staged location is open - no per-index coloring.
 	if (Editor.get().workArea === "import" || Editor.get().open?.origin === "import") {
 		const previewPos = Import.previewPositions();
 		if (previewPos.length > 0) {

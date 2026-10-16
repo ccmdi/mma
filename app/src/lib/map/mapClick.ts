@@ -94,7 +94,7 @@ export async function openHref(href: string) {
 // ---------------------------------------------------------------------------
 
 // Create a location from a map click: snap to nearest SV coverage under the active
-// map's settings, add it, make it active. Shared by the editor map and the minimap.
+// map's settings, add it, open it. Shared by the editor map and the minimap.
 // Work-area guards live here so neither call site has to repeat them.
 export async function createLocationAtLatLng(
 	lat: number,

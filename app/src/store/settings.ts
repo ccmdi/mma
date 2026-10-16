@@ -192,7 +192,7 @@ export const DEFAULTS = {
 	enterOpensCenter: true,
 	/** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
 	pastePadding: 0.003 as number,
-	followActiveInReview: true,
+	followOpenInReview: true,
 	markerColor: [...DEFAULT_MARKER_COLOR] as RGB,
 	openLocationColor: [200, 0, 0] as RGB,
 	importPreviewColor: [217, 70, 239] as RGB,

@@ -98,9 +98,12 @@ export const MIGRATIONS: StoredMigration[] = [
 	{
 		since: "0.12.1",
 		key: "appSettings",
-		describe: "activeLocationColor -> openLocationColor",
+		describe: "activeLocationColor/followActiveInReview -> openLocationColor/followOpenInReview",
 		apply: (stored) => {
-			for (const [from, to] of [["activeLocationColor", "openLocationColor"]]) {
+			for (const [from, to] of [
+				["activeLocationColor", "openLocationColor"],
+				["followActiveInReview", "followOpenInReview"],
+			]) {
 				if (!(from in stored)) continue;
 				stored[to] ??= stored[from];
 				delete stored[from];

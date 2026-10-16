@@ -5182,7 +5182,7 @@ APP_SETTINGS: PersistedStore<{
   panToImported: boolean;
   enterOpensCenter: boolean;
   pastePadding: number;
-  followActiveInReview: boolean;
+  followOpenInReview: boolean;
   markerColor: RGB;
   openLocationColor: RGB;
   importPreviewColor: RGB;
@@ -5332,7 +5332,7 @@ DEFAULTS: {
   enterOpensCenter: boolean;
   /** Smallest half-width, in degrees, the map frames around a single pasted or imported point. */
   pastePadding: number;
-  followActiveInReview: boolean;
+  followOpenInReview: boolean;
   markerColor: RGB;
   openLocationColor: RGB;
   importPreviewColor: RGB;
@@ -5550,7 +5550,7 @@ PRIVATE_SETTINGS: ReadonlySet<
   | "enableSeenThumbnails"
   | "enterOpensCenter"
   | "exactDateFormat"
-  | "followActiveInReview"
+  | "followOpenInReview"
   | "fullscreenMap"
   | "fullscreenMiniLocationScale"
   | "fullscreenMinimapCloseDelay"

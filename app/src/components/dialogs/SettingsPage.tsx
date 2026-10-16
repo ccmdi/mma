@@ -624,7 +624,7 @@ function MapBody() {
 					}
 				/>
 				<SettingRow
-					setting="followActiveInReview"
+					setting="followOpenInReview"
 					label={t("Center map on open location during review")}
 				/>
 				<SettingRow
