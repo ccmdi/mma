@@ -3392,7 +3392,7 @@ fn a_drop_at_another_map_creates_its_missing_tags_there_undoably_and_leaves_the_
         dropped(r#"{"tags":{"1":{"id":1,"name":"shared"},"2":{"id":2,"name":"New"}}}"#);
 
     with_target(&state, &WindowLabel("w1".into()), &target, |store| {
-        store.check_interned(&records)?;
+        store.check_interned(records.keys())?;
         Ok(store.at(&target).edit(edits, records, &mut None))
     })
     .unwrap();
@@ -3477,7 +3477,7 @@ fn a_drop_on_this_map_reuses_its_tags_by_name_and_leaves_other_rows_alone() {
         dropped(r#"{"tags":{"1":{"id":1,"name":"kept"},"2":{"id":2,"name":"Fresh"}}}"#);
 
     with_target(&state, &w1, &here, |store| {
-        store.check_interned(&records)?;
+        store.check_interned(records.keys())?;
         Ok(store.at(&here).edit(edits, records, &mut None))
     })
     .unwrap();
@@ -3495,11 +3495,9 @@ fn a_drop_on_this_map_reuses_its_tags_by_name_and_leaves_other_rows_alone() {
 fn records_for_a_field_the_map_does_not_intern_are_refused() {
     let store = Store::new();
     for field in ["lat", "nothing"] {
-        let records = IncomingRecords::from([(field.to_string(), HashMap::new())]);
-        assert!(store.check_interned(&records).is_err(), "{field}");
+        assert!(store.check_interned([field]).is_err(), "{field}");
     }
-    let tags = IncomingRecords::from([("tags".to_string(), HashMap::new())]);
-    assert!(store.check_interned(&tags).is_ok());
+    assert!(store.check_interned(["tags"]).is_ok());
 }
 
 #[test]

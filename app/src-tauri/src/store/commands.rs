@@ -545,7 +545,7 @@ macro_rules! command_table {
     ($callback:ident, $extra:tt) => {
         $callback! { $extra;
             "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> EditResult => |store, window| {
-                store.check_interned(&records)?;
+                store.check_interned(records.keys())?;
                 let edited = store.at(&target).edit(edits, records, &mut None);
                 Ok(receipt(store, window, &target, edited))
             };

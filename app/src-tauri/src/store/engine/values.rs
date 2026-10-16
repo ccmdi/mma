@@ -238,14 +238,20 @@ impl<'a> FieldValues<'a> {
 }
 
 impl Store {
-    /// Refuse records for a field this map does not intern.
-    pub(crate) fn check_interned(&self, records: &IncomingRecords) -> AppResult<()> {
+    /// Refuse any of `fields` this map does not intern.
+    pub(crate) fn check_interned(
+        &self,
+        fields: impl IntoIterator<Item = impl AsRef<str>>,
+    ) -> AppResult<()> {
         let registry = self.registry();
-        match records
-            .keys()
-            .find(|field| !registry.get(field).is_some_and(|def| def.interned))
+        match fields
+            .into_iter()
+            .find(|field| !registry.get(field.as_ref()).is_some_and(|def| def.interned))
         {
-            Some(field) => Err(AppError(format!("'{field}' does not intern its values"))),
+            Some(field) => Err(AppError(format!(
+                "'{}' does not intern its values",
+                field.as_ref()
+            ))),
             None => Ok(()),
         }
     }
@@ -270,11 +276,6 @@ impl Store {
             .unwrap_or_default()
     }
 
-    /// Highest id used by either metadata or rows, including rows with missing records.
-    pub(crate) fn intern_floor(&mut self, field: &str) -> u32 {
-        self.fields([field])[0].floor()
-    }
-
     /// Apply edits to `field`'s value records in one undoable edit.
     /// Renaming onto a name another record holds merges the two values and remaps their rows.
     pub(crate) fn edit_values(
@@ -282,9 +283,7 @@ impl Store {
         field: &str,
         edits: Vec<Edit<ValueRecord>>,
     ) -> AppResult<Mutation<ValueRecord>> {
-        if !self.registry().get(field).is_some_and(|def| def.interned) {
-            return Err(AppError(format!("'{field}' does not intern its values")));
-        }
+        self.check_interned([field])?;
         let edits = edits
             .into_iter()
             .map(named)

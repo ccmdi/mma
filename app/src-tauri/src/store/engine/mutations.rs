@@ -326,7 +326,7 @@ impl Store {
             if incoming.is_empty() {
                 continue;
             }
-            let floor = self.intern_floor(&field);
+            let floor = self.fields([field.as_str()])[0].floor();
             let before = self.records(&field);
             let mut after = before.clone();
             let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
