@@ -7,6 +7,7 @@ use i_overlay::core::fill_rule::FillRule;
 use i_overlay::core::overlay_rule::OverlayRule;
 use i_overlay::core::solver::Solver;
 use i_overlay::float::overlay::{FloatOverlay, OverlayOptions};
+use i_triangle::float::unchecked::UncheckedTriangulatable;
 
 /// Shortest signed longitude delta from `from` to `to`, in [-180, 180).
 #[inline]
@@ -295,6 +296,27 @@ pub fn untangle_polygon(rings: &[Vec<[f64; 2]>]) -> Vec<Vec<Vec<[f64; 2]>>> {
         }
     }
     shapes
+}
+
+/// The untangled polygon as triangles: what a renderer fills to shade exactly the points
+/// `polygon_contains` accepts, with no triangulation left to do.
+pub struct FillMesh {
+    /// In the outer ring's unwrapped frame, like `untangle_polygon`'s rings.
+    pub positions: Vec<[f64; 2]>,
+    /// Indices into `positions`, three per triangle.
+    pub triangles: Vec<u32>,
+}
+
+pub fn fill_mesh(rings: &[Vec<[f64; 2]>]) -> FillMesh {
+    let mut shapes = untangle_polygon(rings);
+    for contour in shapes.iter_mut().flatten() {
+        contour.pop();
+    }
+    let mesh = shapes.unchecked_triangulate().to_triangulation::<u32>();
+    FillMesh {
+        positions: mesh.points,
+        triangles: mesh.indices,
+    }
 }
 
 /// Vertices along a straight edge survive, so an edge split to stay under 180 degrees of

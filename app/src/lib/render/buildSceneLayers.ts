@@ -1,5 +1,11 @@
-import type { Layer, Position } from "@deck.gl/core";
-import { ScatterplotLayer, PolygonLayer, PathLayer, LineLayer, TextLayer } from "@deck.gl/layers";
+import type { Layer } from "@deck.gl/core";
+import {
+	ScatterplotLayer,
+	SolidPolygonLayer,
+	PathLayer,
+	LineLayer,
+	TextLayer,
+} from "@deck.gl/layers";
 import { Store } from "@/store/store";
 import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
 import {
@@ -21,7 +27,7 @@ import {
 	getSeenOnMapIds,
 	seenEntryColor,
 } from "@/lib/seen/seenOverlay";
-import { drawnPolygons, getPolygonFill } from "@/lib/render/polygonFills";
+import { drawnPolygons, getPolygonMesh } from "@/lib/render/polygonMeshes";
 import { CommitDiff } from "@/store/commitDiff";
 import { Import } from "@/store/import";
 import { getTrail } from "@/lib/sv/svTrail";
@@ -112,12 +118,6 @@ export const DIFF_COLORS: Record<"added" | "removed" | "updated", RGB> = {
 	removed: [239, 68, 68],
 	updated: [245, 158, 11],
 };
-export type PolyGeom = {
-	poly: object;
-	pieces: object | undefined;
-	fill: Position[][][];
-	stroke: Position[][];
-};
 
 interface SceneContext {
 	markerStyle: MarkerStyle;
@@ -134,8 +134,6 @@ interface SceneContext {
 	panoDotScaled: boolean;
 	openLocationColor: RGB;
 	importPreviewColor: RGB;
-	// Per-view tessellation cache for selection polygons (keyed by selection key).
-	polygonGeomCache: Map<string, PolyGeom>;
 	// In-progress freehand selection path; null for views without freehand drawing (the minimap).
 	freehandPath: number[][] | null;
 	// Placed vertices of an in-progress click-vertex polygon (excludes the live cursor point).
@@ -174,47 +172,33 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		return layers;
 	}
 
-	const livePolygonKeys = new Set<string>();
 	for (const sel of drawnPolygons(Store.get().selectionList)) {
-		const poly = sel.selector.polygon;
-		const pieces = getPolygonFill(sel.key);
-		livePolygonKeys.add(sel.key);
-		let geom = ctx.polygonGeomCache.get(sel.key);
-		if (!geom || geom.poly !== poly || geom.pieces !== pieces) {
-			geom = {
-				poly,
-				pieces,
-				fill: (pieces ?? []).map((rings) => rings.map(unwrapRing)),
-				stroke: [poly.coordinates, ...(poly.extraPolygons ?? [])].flat().map(unwrapRing),
-			};
-			ctx.polygonGeomCache.set(sel.key, geom);
-		}
+		const mesh = getPolygonMesh(sel.key);
+		if (!mesh) continue;
 		const fillColor: RGBA = [...sel.color, 26];
 		const strokeColor: RGBA = [...sel.color, 153];
 		layers.push(
-			new PolygonLayer<Position[][]>({
+			new SolidPolygonLayer({
 				id: `selectionPolygonFill:${sel.key}`,
-				data: geom.fill,
-				getPolygon: (d) => d,
+				data: mesh.fill,
+				_normalize: false,
+				positionFormat: "XY",
 				getFillColor: fillColor,
-				stroked: false,
 				pickable: false,
 				opacity: 1,
 			}),
-			new PathLayer<Position[]>({
+			new PathLayer({
 				...SCREEN_LINE,
 				id: `selectionPolygonStroke:${sel.key}`,
-				data: geom.stroke,
-				getPath: (d) => d,
+				data: mesh.rings,
+				_pathType: "open",
+				positionFormat: "XY",
 				capRounded: false,
 				getColor: strokeColor,
 				getWidth: 4,
 				opacity: 1,
 			}),
 		);
-	}
-	for (const k of ctx.polygonGeomCache.keys()) {
-		if (!livePolygonKeys.has(k)) ctx.polygonGeomCache.delete(k);
 	}
 
 	if (ctx.svPanoramas)

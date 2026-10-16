@@ -153,8 +153,6 @@ export const commands = {
 	 *  has no vertices. `west > east` means the box crosses the antimeridian.
 	 */
 	polygonBounds: (polygon: PolygonGeometry) => __TAURI_INVOKE<[number, number, number, number] | null>("polygon_bounds", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v==null?v:v.map(i=>i) as typeof v)),
-	/**  The area a polygon selects, as polygons whose edges never cross, for drawing its fill. */
-	polygonFill: (polygon: PolygonGeometry) => __TAURI_INVOKE<((([number, number])[])[])[]>("polygon_fill", { polygon: ({...polygon,coordinates:polygon.coordinates.map(i=>i.map(i=>i.map(i=>i))),extraPolygons:polygon.extraPolygons==null?polygon.extraPolygons:polygon.extraPolygons.map(i=>i.map(i=>i.map(i=>i.map(i=>i))))}) }).then((v) => (v.map(i=>i.map(i=>i.map(i=>i.map(i=>i)))) as typeof v)),
 	/**  The parse error for `src`, or `null` when it parses. */
 	fieldExprError: (src: string) => __TAURI_INVOKE<ExprError | null>("field_expr_error", { src }),
 	/**

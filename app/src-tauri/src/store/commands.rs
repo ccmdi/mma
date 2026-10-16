@@ -468,16 +468,6 @@ pub async fn polygon_bounds(polygon: selections::PolygonGeometry) -> Option<[f64
     ])
 }
 
-/// The area a polygon selects, as polygons whose edges never cross, for drawing its fill.
-#[tauri::command]
-#[specta::specta]
-pub async fn polygon_fill(polygon: selections::PolygonGeometry) -> Vec<Vec<Vec<[f64; 2]>>> {
-    polygon
-        .parts()
-        .flat_map(mma_geo::untangle_polygon)
-        .collect()
-}
-
 /// The receipt `window` waits on for `mutation` at `target`: version 0 when the change
 /// reached a map this window does not watch, so waiting returns at once.
 fn receipt(

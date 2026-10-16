@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useEffectEvent, useRef, type RefObject } from "react";
 import type { PickingInfo } from "@deck.gl/core";
-import { buildSceneLayers, type PolyGeom } from "@/lib/render/buildSceneLayers";
+import { buildSceneLayers } from "@/lib/render/buildSceneLayers";
 import { Scene } from "@/lib/render/scene";
 import type { MapHost, DeckOverlayHandle } from "@/lib/map/host";
 import { useSetting, getSettings } from "@/store/settings";
@@ -42,7 +42,6 @@ export function useMapSurface(
 	opts: MapSurfaceOpts,
 ): { requestUpdate: () => void } {
 	const overlayRef = useRef<DeckOverlayHandle | null>(null);
-	const polygonGeomCache = useRef(new Map<string, PolyGeom>());
 	const openLocationColor = useSetting("openLocationColor");
 	const importPreviewColor = useSetting("importPreviewColor");
 	const svTrail = useSetting("svTrail");
@@ -80,7 +79,6 @@ export function useMapSurface(
 			panoDotScaled,
 			openLocationColor,
 			importPreviewColor,
-			polygonGeomCache: polygonGeomCache.current,
 			freehandPath: opts.freehandPathRef?.current ?? null,
 			polygonVertices: opts.polygonVerticesRef?.current ?? null,
 		});

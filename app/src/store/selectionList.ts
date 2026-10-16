@@ -3,7 +3,6 @@ import { Mutation } from "./mutation";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
 import type { Selection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
-import { refreshPolygonFills } from "@/lib/render/polygonFills";
 import { emit as emitEvent } from "@/lib/events";
 import { selection } from "./selections";
 import type { Selector } from "@/types";
@@ -60,7 +59,6 @@ export const SelectionList = {
 		const before = Store.get().selectionList;
 		await Mutation.run(write);
 		if (Store.get().selectionList === before) return;
-		await refreshPolygonFills(Store.get().selectionList);
 		emitEvent("selection:change", SelectionList.active());
 	},
 	select: async <R extends number[] | { ids: number[] }>(

@@ -173,7 +173,6 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 store::commands::polygon_points,
                 store::commands::polygon_contains_points,
                 store::commands::polygon_bounds,
-                store::commands::polygon_fill,
                 selections::field_expr::field_expr_error,
                 store::commands::store_country_distribution,
                 store::commands::store_step,

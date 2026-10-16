@@ -299,6 +299,7 @@ impl Store {
             palette: self.selections.palette(),
             cells: Frame::cells_of(cells),
             selection: None,
+            polygons: self.selections.all_meshes(),
         };
         log::debug!(
             "[render] scene_frame total={}ms cells={} points={}",

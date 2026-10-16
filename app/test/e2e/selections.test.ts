@@ -153,7 +153,12 @@ describe("Selections - basic types", () => {
 		expect(result).toBeGreaterThan(0);
 	});
 
-	it("a bowtie's fill is two pieces that select exactly what the crossed ring does", async () => {
+	it("a bowtie selects what lies in either lobe and nothing at its waist", async () => {
+		const [left, right, waist] = await addLocs([
+			createLocation({ lat: 0, lng: -100 }),
+			createLocation({ lat: 0, lng: -70 }),
+			createLocation({ lat: 4, lng: -85 }),
+		]);
 		const bowtie: PolygonGeometry = {
 			coordinates: [
 				[
@@ -166,22 +171,14 @@ describe("Selections - basic types", () => {
 			],
 			extraPolygons: null,
 		};
-		const result = await withApi(async (api, crossed: PolygonGeometry) => {
-			const count = async (polygon: PolygonGeometry) => {
-				await api.SelectionList.update({ kind: "set", selections: [] });
-				await api.SelectionList.update(api.addSelection({ type: "Polygon", polygon }));
-				return api.Scene.selected().size;
-			};
-			const [first, ...rest] = await api.cmd.polygonFill(crossed);
-			return {
-				pieces: rest.length + 1,
-				crossed: await count(crossed),
-				filled: await count({ coordinates: first, extraPolygons: rest }),
-			};
+		const selected = await withApi(async (api, crossed: PolygonGeometry) => {
+			await api.SelectionList.update({ kind: "set", selections: [] });
+			await api.SelectionList.update(api.addSelection({ type: "Polygon", polygon: crossed }));
+			return [...api.Scene.selected()];
 		}, bowtie);
-		expect(result.pieces).toBe(2);
-		expect(result.crossed).toBeGreaterThan(0);
-		expect(result.filled).toBe(result.crossed);
+		expect(selected).toContain(left);
+		expect(selected).toContain(right);
+		expect(selected).not.toContain(waist);
 	});
 
 	// --- Duplicates ---

@@ -789,8 +789,6 @@ declare const commands$1: {
      *  @unstable
      */
     polygonBounds: (polygon: PolygonGeometry) => Promise<[number, number, number, number] | null>;
-    /**  The area a polygon selects, as polygons whose edges never cross, for drawing its fill. @unstable */
-    polygonFill: (polygon: PolygonGeometry) => Promise<[number, number][][][]>;
     /**  The parse error for `src`, or `null` when it parses. @unstable */
     fieldExprError: (src: string) => Promise<ExprError | null>;
     /**

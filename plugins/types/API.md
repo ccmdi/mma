@@ -6193,16 +6193,6 @@ cmd.polygonContainsPoints(
 
 Whether each of the points sits inside the polygon.
 
-#### cmd.polygonFill
-
-`unstable` · since v0.11.4
-
-```ts
-cmd.polygonFill(polygon: PolygonGeometry): Promise<[number, number][][][]>
-```
-
-The area a polygon selects, as polygons whose edges never cross, for drawing its fill.
-
 #### cmd.polygonPoints
 
 `unstable` · since v0.12.0

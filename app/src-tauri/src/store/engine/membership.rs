@@ -3,11 +3,14 @@
 use super::*;
 use crate::selections::tree::SelectionOp;
 use crate::selections::{self, Selection};
+use crate::selections::{PolygonGeometry, Selector};
+use crate::store::engine::frame::{polygon_mesh, PolygonFrame};
 use crate::store::id_set::IdSet;
 use crate::types::Location;
 use crate::util::Rgb;
 use mma_algebra::{Change, Id};
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 use std::time::Instant;
 
 /// A selection together with its resolved membership. One value rather than two parallel
@@ -31,6 +34,8 @@ pub(crate) struct SelectionState {
     /// Union of every member set. Answers "is this id selected".
     pub ids: IdSet<Location>,
     pub(crate) set_dependent: bool,
+    /// The mesh of every polygon in the list, listed or inside a listed composite, by key.
+    meshes: HashMap<String, Arc<Vec<u8>>>,
 }
 
 impl SelectionState {
@@ -222,6 +227,53 @@ pub(crate) fn listed_rows(table: HashMap<String, Listing>) -> Vec<ListedSelectio
 }
 
 impl SelectionState {
+    /// Bring the meshes in step with the list: mesh every polygon new to it, in parallel,
+    /// and forget the ones it lost. Returns what changed.
+    pub(crate) fn mesh_change(&mut self) -> PolygonFrame {
+        fn polygons<'a>(sel: &'a Selection, out: &mut HashMap<&'a str, &'a PolygonGeometry>) {
+            if let Selector::Polygon { polygon } = &sel.selector {
+                out.insert(&sel.key, polygon);
+            }
+            for child in sel.selector.children() {
+                polygons(child, out);
+            }
+        }
+        let mut listed = HashMap::new();
+        for root in &self.resolved {
+            polygons(&root.sel, &mut listed);
+        }
+        let removed: Vec<String> = self
+            .meshes
+            .keys()
+            .filter(|key| !listed.contains_key(key.as_str()))
+            .cloned()
+            .collect();
+        for key in &removed {
+            self.meshes.remove(key);
+        }
+        let added: Vec<(String, Arc<Vec<u8>>)> = listed
+            .into_iter()
+            .filter(|(key, _)| !self.meshes.contains_key(*key))
+            .collect::<Vec<_>>()
+            .into_par_iter()
+            .map(|(key, polygon)| (key.to_string(), Arc::new(polygon_mesh(polygon))))
+            .collect();
+        self.meshes.extend(added.iter().cloned());
+        PolygonFrame { added, removed }
+    }
+
+    /// Every mesh, for a frame that draws the scene from nothing.
+    pub(crate) fn all_meshes(&self) -> PolygonFrame {
+        PolygonFrame {
+            added: self
+                .meshes
+                .iter()
+                .map(|(k, m)| (k.clone(), m.clone()))
+                .collect(),
+            removed: Vec::new(),
+        }
+    }
+
     pub(crate) fn list(&self) -> Vec<ListedSelection> {
         self.resolved
             .iter()

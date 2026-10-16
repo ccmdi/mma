@@ -9943,6 +9943,80 @@ fn undo_and_redo_restore_the_selection_list_order_after_inserts_and_moves() {
     assert_eq!(listed_keys(&store), moved);
 }
 
+fn add_selection(selector: Selector) -> crate::selections::tree::SelectionOp {
+    use crate::selections::tree::{SelectionInput, SelectionOp};
+    fn input(sel: Selection) -> SelectionInput {
+        SelectionInput {
+            selector: sel.selector.map_children(input),
+            color: None,
+        }
+    }
+    SelectionOp::Add {
+        selections: vec![input(Selection::of(selector))],
+    }
+}
+
+fn listed_key(store: &Store, matches: impl Fn(&Selector) -> bool) -> String {
+    let rows = store.selections.list();
+    let row = rows.iter().find(|row| matches(&row.selection.selector));
+    row.expect("listed").selection.key.clone()
+}
+
+#[test]
+fn frames_carry_a_mesh_for_each_listed_polygon_once_and_drop_it_once_unlisted() {
+    use crate::selections::tree::SelectionOp;
+    use crate::selections::PolygonGeometry;
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let frames = watch(&mut store);
+    let square = |w: f64| {
+        Selection::of(Selector::Polygon {
+            polygon: PolygonGeometry {
+                coordinates: vec![vec![
+                    [w, 0.0],
+                    [w + 1.0, 0.0],
+                    [w + 1.0, 1.0],
+                    [w, 1.0],
+                    [w, 0.0],
+                ]],
+                extra_polygons: None,
+                properties: None,
+            },
+        })
+    };
+    let last = |frames: &Captured| frames.frames().pop().expect("a frame").polygons;
+    let added = |frames: &Captured| -> Vec<String> {
+        last(frames).added.into_iter().map(|(key, _)| key).collect()
+    };
+
+    store.edit_selections(&add_selection(square(10.0).selector));
+    let alone = listed_key(&store, |s| matches!(s, Selector::Polygon { .. }));
+    assert_eq!(added(&frames), vec![alone.clone()]);
+
+    store.edit_selections(&add_selection(Selector::Intersection {
+        selections: vec![square(20.0), Selection::of(Selector::has("panoId"))],
+    }));
+    let rows = store.selections.list();
+    let Some(Selector::Intersection { selections }) = rows
+        .iter()
+        .map(|row| &row.selection.selector)
+        .find(|s| matches!(s, Selector::Intersection { .. }))
+    else {
+        unreachable!()
+    };
+    assert_eq!(
+        added(&frames),
+        vec![selections[0].key.clone()],
+        "only the new polygon, the part of the intersection"
+    );
+
+    store.edit_selections(&SelectionOp::Remove {
+        keys: vec![alone.clone()],
+    });
+    let gone = last(&frames);
+    assert!(gone.added.is_empty());
+    assert_eq!(gone.removed, vec![alone]);
+}
+
 #[test]
 fn an_edit_history_row_in_the_positioned_shape_reads_and_undoes() {
     let mut store = setup_store_with(&[]);

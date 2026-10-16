@@ -1,4 +1,5 @@
 import { FrameKind, NO_SEL } from "@/bindings.consts";
+import { applyPolygonFrame } from "@/lib/render/polygonMeshes";
 import type { RGB } from "@/bindings.gen";
 
 /** Render cells are keyed by the first character of a location's geohash. */
@@ -568,6 +569,7 @@ export class CellManager {
 		}
 
 		const selectionLen = dv.getUint32(off, true);
+		const polygonsChanged = applyPolygonFrame(buf, (off + 4 + selectionLen + 3) & ~3, replace);
 		if (selectionLen > 0) {
 			this.restateSelections(decodeSelectionBitmask(new Uint8Array(buf, off + 4, selectionLen)));
 		} else if (this.overlay.version !== overlayBefore) {
@@ -577,7 +579,7 @@ export class CellManager {
 			this.overlay.order();
 		}
 
-		if (replace || cellCount > 0 || selectionLen > 0) this.version++;
+		if (replace || cellCount > 0 || selectionLen > 0 || polygonsChanged) this.version++;
 		return { version, replace, ...withoutMoves(added, removed) };
 	}
 

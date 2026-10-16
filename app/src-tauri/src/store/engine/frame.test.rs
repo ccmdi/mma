@@ -1,4 +1,5 @@
 use super::*;
+use crate::selections::PolygonGeometry;
 use crate::store::engine::WindowLabel;
 use crate::util::Rgb;
 use mma_algebra::Id;
@@ -29,8 +30,21 @@ pub(crate) fn decode(bytes: &[u8]) -> Frame {
         .collect();
     let len = read.u32s(1)[0] as usize;
     let selection = (len > 0).then(|| bytes[read.off..read.off + len].to_vec());
+    read.off = (read.off + len).next_multiple_of(4);
+    let counts = read.u32s(2);
+    let removed = (0..counts[1]).map(|_| read.key()).collect();
+    let added = (0..counts[0])
+        .map(|_| {
+            let key = read.key();
+            let len = read.u32s(1)[0] as usize;
+            read.off = read.off.next_multiple_of(8);
+            let mesh = bytes[read.off..read.off + len].to_vec();
+            read.off += len;
+            (key, Arc::new(mesh))
+        })
+        .collect();
     assert_eq!(
-        (read.off + len).next_multiple_of(4),
+        read.off,
         bytes.len(),
         "the frame ends where its last section does"
     );
@@ -40,6 +54,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Frame {
         palette,
         cells,
         selection,
+        polygons: PolygonFrame { added, removed },
     }
 }
 
@@ -49,6 +64,13 @@ struct Reader<'a> {
 }
 
 impl Reader<'_> {
+    fn key(&mut self) -> String {
+        let len = self.u32s(1)[0] as usize;
+        let key = String::from_utf8(self.bytes[self.off..self.off + len].to_vec()).unwrap();
+        self.off = (self.off + len).next_multiple_of(4);
+        key
+    }
+
     fn u32s(&mut self, n: usize) -> Vec<u32> {
         assert_eq!(
             self.off % 4,
@@ -147,7 +169,92 @@ fn sample_frame() -> Frame {
             },
         ],
         selection: Some(vec![1, 2, 3, 4, 5]),
+        polygons: PolygonFrame {
+            added: vec![
+                (
+                    "polygon:a".into(),
+                    Arc::new(polygon_mesh(&square_with_bowtie())),
+                ),
+                ("polygon:bc".into(), Arc::new(vec![1, 2, 3, 4])),
+            ],
+            removed: vec!["polygon:gone".into()],
+        },
     }
+}
+
+fn geometry(parts: Vec<Vec<Vec<[f64; 2]>>>) -> PolygonGeometry {
+    let mut parts = parts.into_iter();
+    PolygonGeometry {
+        coordinates: parts.next().unwrap(),
+        extra_polygons: Some(parts.collect()),
+        properties: None,
+    }
+}
+
+/// A bowtie, plus a square with a square hole: two fill pieces, a holed one, three rings.
+fn square_with_bowtie() -> PolygonGeometry {
+    let square = |w: f64, s: f64, e: f64, n: f64| vec![[w, s], [e, s], [e, n], [w, n], [w, s]];
+    geometry(vec![
+        vec![vec![
+            [0.0, 0.0],
+            [2.0, 2.0],
+            [2.0, 0.0],
+            [0.0, 2.0],
+            [0.0, 0.0],
+        ]],
+        vec![square(40.0, 0.0, 50.0, 10.0), square(44.0, 4.0, 46.0, 6.0)],
+    ])
+}
+
+fn polygon_mesh_fixture_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/unit/fixtures/polygon-mesh.bin")
+}
+
+/// Generator, not an assertion. `cargo test emit_polygon_mesh_fixture -- --ignored` rewrites
+/// `app/test/unit/fixtures/polygon-mesh.bin`, which `polygonMeshes.test.ts` decodes.
+#[test]
+#[ignore]
+fn emit_polygon_mesh_fixture() {
+    std::fs::write(
+        polygon_mesh_fixture_path(),
+        polygon_mesh(&square_with_bowtie()),
+    )
+    .unwrap();
+}
+
+#[test]
+fn the_polygon_mesh_fixture_matches_the_encoder() {
+    let on_disk = std::fs::read(polygon_mesh_fixture_path())
+        .expect("fixture; regenerate with `cargo test emit_polygon_mesh_fixture -- --ignored`");
+    assert_eq!(on_disk, polygon_mesh(&square_with_bowtie()));
+}
+
+#[test]
+fn a_polygon_mesh_counts_what_it_carries() {
+    let bytes = polygon_mesh(&square_with_bowtie());
+    let word = |i: usize| u32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap()) as usize;
+    let (vertices, indices, rings, ring_vertices) = (word(0), word(1), word(2), word(3));
+    assert_eq!(rings, 3);
+    assert_eq!(ring_vertices, 15);
+    assert_eq!(indices % 3, 0);
+    assert!(indices > 0);
+    assert_eq!(
+        bytes.len(),
+        16 + 16 * (vertices + ring_vertices) + 4 * (indices + rings + 1)
+    );
+}
+
+#[test]
+fn a_polygon_without_area_has_rings_but_no_fill() {
+    let flat = geometry(vec![vec![vec![
+        [0.0, 0.0],
+        [1.0, 1.0],
+        [2.0, 2.0],
+        [0.0, 0.0],
+    ]]]);
+    let bytes = polygon_mesh(&flat);
+    let word = |i: usize| u32::from_le_bytes(bytes[i * 4..i * 4 + 4].try_into().unwrap());
+    assert_eq!([word(0), word(1), word(2), word(3)], [0, 0, 1, 4]);
 }
 
 #[test]
@@ -169,10 +276,11 @@ fn every_array_in_a_frame_starts_4_byte_aligned() {
 fn a_frame_without_a_selection_section_says_so() {
     let frame = Frame {
         selection: None,
+        polygons: PolygonFrame::default(),
         ..sample_frame()
     };
     let bytes = frame.encode();
-    assert_eq!(&bytes[bytes.len() - 4..], &[0, 0, 0, 0]);
+    assert_eq!(&bytes[bytes.len() - 12..], &[0; 12]);
     assert_eq!(decode(&bytes).selection, None);
 }
 
@@ -204,4 +312,52 @@ fn a_sink_that_cannot_take_a_frame_is_dropped() {
 
     assert_eq!(live.bytes().len(), 2, "the live window keeps receiving");
     assert!(!sinks.0.contains_key(&WindowLabel("gone".into())));
+}
+
+/// The frame behind `app/test/unit/fixtures/polygon-frame.bin`: no marker changes, a
+/// polygon gone, and two new ones (the bowtie-and-square, and one without area).
+fn polygon_frame_fixture() -> Vec<u8> {
+    let flat = geometry(vec![vec![vec![
+        [0.0, 0.0],
+        [1.0, 1.0],
+        [2.0, 2.0],
+        [0.0, 0.0],
+    ]]]);
+    Frame {
+        kind: FrameKind::PATCH,
+        version: 3,
+        palette: vec![],
+        cells: vec![],
+        selection: None,
+        polygons: PolygonFrame {
+            added: vec![
+                (
+                    "polygon:a".into(),
+                    Arc::new(polygon_mesh(&square_with_bowtie())),
+                ),
+                ("polygon:flat".into(), Arc::new(polygon_mesh(&flat))),
+            ],
+            removed: vec!["polygon:gone".into()],
+        },
+    }
+    .encode()
+}
+
+fn polygon_frame_fixture_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../test/unit/fixtures/polygon-frame.bin")
+}
+
+/// Generator, not an assertion. `cargo test emit_polygon_frame_fixture -- --ignored` rewrites
+/// `app/test/unit/fixtures/polygon-frame.bin`, which `polygonMeshes.test.ts` applies.
+#[test]
+#[ignore]
+fn emit_polygon_frame_fixture() {
+    std::fs::write(polygon_frame_fixture_path(), polygon_frame_fixture()).unwrap();
+}
+
+#[test]
+fn the_polygon_frame_fixture_matches_the_encoder() {
+    let on_disk = std::fs::read(polygon_frame_fixture_path())
+        .expect("fixture; regenerate with `cargo test emit_polygon_frame_fixture -- --ignored`");
+    assert_eq!(on_disk, polygon_frame_fixture());
 }

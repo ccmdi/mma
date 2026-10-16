@@ -72,42 +72,6 @@ fn polygon_bounds_spans_the_extra_polygons_too() {
 }
 
 #[test]
-fn polygon_fill_covers_exactly_what_the_polygon_selects() {
-    let mut drawn = geom(vec![vec![
-        [0.0, 0.0],
-        [2.0, 2.0],
-        [2.0, 0.0],
-        [0.0, 2.0],
-        [0.0, 0.0],
-    ]]);
-    drawn.extra_polygons = Some(vec![vec![
-        square(40.0, 0.0, 50.0, 10.0),
-        square(44.0, 4.0, 46.0, 6.0),
-    ]]);
-    let pieces = async_runtime::block_on(polygon_fill(drawn.clone()));
-    assert_eq!(pieces.len(), 3);
-    let (first, rest) = pieces.split_first().unwrap();
-    let mut fill = geom(first.clone());
-    fill.extra_polygons = Some(rest.to_vec());
-    let (drawn, fill) = (drawn.prepared(), fill.prepared());
-    for lng in (0..=100).map(|i| f64::from(i) * 0.51 - 0.5) {
-        for lat in (0..=24).map(|i| f64::from(i) * 0.47 - 0.5) {
-            assert_eq!(
-                fill.contains(lng, lat),
-                drawn.contains(lng, lat),
-                "at ({lng}, {lat})"
-            );
-        }
-    }
-}
-
-#[test]
-fn polygon_fill_of_nothing_is_empty() {
-    let flat = geom(vec![vec![[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]]);
-    assert!(async_runtime::block_on(polygon_fill(flat)).is_empty());
-}
-
-#[test]
 fn seam_straddling_parts_merge_into_one_frame() {
     let mut g = geom(vec![square(170.0, -5.0, 180.0, 5.0)]);
     g.extra_polygons = Some(vec![vec![square(-180.0, -5.0, -170.0, 5.0)]]);

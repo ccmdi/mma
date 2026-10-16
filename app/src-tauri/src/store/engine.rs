@@ -355,6 +355,11 @@ impl Store {
             palette: self.selections.palette(),
             cells: Frame::cells_of(cells),
             selection: restated.then(|| self.selection_section()),
+            polygons: if resolve_all {
+                self.selections.mesh_change()
+            } else {
+                PolygonFrame::default()
+            },
         };
         if !self.frames.is_empty() {
             self.frames.send(FrameBytes(frame.encode()));

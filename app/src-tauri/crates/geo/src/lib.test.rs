@@ -326,3 +326,94 @@ fn untangle_of_a_ring_without_area_is_empty() {
     assert!(untangle_polygon(&flat).is_empty());
     assert!(untangle_polygon(&[]).is_empty());
 }
+
+/// Whether `[lng, lat]`, or the same point a whole turn away, falls inside a mesh triangle.
+fn in_mesh(mesh: &FillMesh, lng: f64, lat: f64) -> bool {
+    let side = |p: [f64; 2], q: [f64; 2], x: f64, y: f64| {
+        (q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0])
+    };
+    mesh.triangles.chunks(3).any(|t| {
+        let [a, b, c] = [0, 1, 2].map(|k| mesh.positions[t[k] as usize]);
+        [lng - 360.0, lng, lng + 360.0].iter().any(|&x| {
+            let (d1, d2, d3) = (side(a, b, x, lat), side(b, c, x, lat), side(c, a, x, lat));
+            (d1 >= 0.0 && d2 >= 0.0 && d3 >= 0.0) || (d1 <= 0.0 && d2 <= 0.0 && d3 <= 0.0)
+        })
+    })
+}
+
+/// The mesh of `rings` shades exactly what the rings contain, over an `n` x `n` grid of
+/// points spanning `bbox`.
+fn mesh_checked(rings: &[Vec<[f64; 2]>], bbox: [f64; 4], n: usize) -> FillMesh {
+    let mesh = fill_mesh(rings);
+    assert_eq!(mesh.triangles.len() % 3, 0);
+    assert!(mesh
+        .triangles
+        .iter()
+        .all(|&i| (i as usize) < mesh.positions.len()));
+    let [w, s, e, nth] = bbox;
+    for yi in 0..n {
+        for xi in 0..n {
+            let lng = wrap_dlng(w + (e - w) * (xi as f64 + 0.371) / n as f64);
+            let lat = s + (nth - s) * (yi as f64 + 0.529) / n as f64;
+            assert_eq!(
+                in_mesh(&mesh, lng, lat),
+                contains(rings, lng, lat),
+                "at ({lng}, {lat})"
+            );
+        }
+    }
+    mesh
+}
+
+#[test]
+fn a_mesh_shades_both_lobes_of_a_bowtie_and_nothing_between() {
+    let bowtie = vec![vec![
+        [0.0, 0.0],
+        [2.0, 2.0],
+        [2.0, 0.0],
+        [0.0, 2.0],
+        [0.0, 0.0],
+    ]];
+    mesh_checked(&bowtie, [-1.0, -1.0, 3.0, 3.0], 80);
+}
+
+#[test]
+fn a_mesh_leaves_the_center_of_a_star_and_its_holes_unshaded() {
+    let star: Vec<[f64; 2]> = (0..=5)
+        .map(|k| {
+            let a = std::f64::consts::FRAC_PI_2 + k as f64 * 4.0 * std::f64::consts::PI / 5.0;
+            [a.cos(), a.sin()]
+        })
+        .collect();
+    mesh_checked(&[star], [-1.2, -1.2, 1.2, 1.2], 80);
+    let square = |w: f64, s: f64, size: f64| {
+        vec![
+            [w, s],
+            [w + size, s],
+            [w + size, s + size],
+            [w, s + size],
+            [w, s],
+        ]
+    };
+    let rings = vec![
+        square(170.0, 0.0, 20.0),
+        square(-185.0, 5.0, 6.0),
+        square(174.0, 8.0, 6.0),
+    ];
+    mesh_checked(&rings, [168.0, -2.0, 192.0, 22.0], 120);
+}
+
+#[test]
+fn a_mesh_matches_containment_on_a_scribble_either_side_of_the_seam() {
+    for clng in [10.0, 179.0] {
+        let ring = scribble(40, clng, 30.0);
+        mesh_checked(&[ring], [clng - 5.0, 26.0, clng + 5.0, 34.0], 150);
+    }
+}
+
+#[test]
+fn a_ring_without_area_has_an_empty_mesh() {
+    let flat = vec![vec![[0.0, 0.0], [1.0, 1.0], [2.0, 2.0], [0.0, 0.0]]];
+    let mesh = fill_mesh(&flat);
+    assert!(mesh.positions.is_empty() && mesh.triangles.is_empty());
+}

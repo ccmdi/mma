@@ -98,6 +98,8 @@ export interface FrameSpec {
 	palette?: RGB[];
 	cells?: CellSpec[];
 	selection?: Uint8Array;
+	/** Polygons by key with their meshes as the store encodes them, and keys gone. */
+	polygons?: { added?: [string, Uint8Array][]; removed?: string[] };
 }
 
 /** Encode a render frame the way Rust's `Frame::encode` does. Cells go out in cell order. */
@@ -143,6 +145,23 @@ export function frame(spec: FrameSpec): ArrayBuffer {
 	if (spec.selection) {
 		out.push(...spec.selection);
 		pad();
+	}
+	const added = spec.polygons?.added ?? [];
+	const removed = spec.polygons?.removed ?? [];
+	u32(added.length);
+	u32(removed.length);
+	const key = (k: string) => {
+		const bytes = new TextEncoder().encode(k);
+		u32(bytes.length);
+		out.push(...bytes);
+		pad();
+	};
+	removed.forEach(key);
+	for (const [k, mesh] of added) {
+		key(k);
+		u32(mesh.length);
+		while (out.length % 8) out.push(0);
+		out.push(...mesh);
 	}
 	return new Uint8Array(out).buffer;
 }

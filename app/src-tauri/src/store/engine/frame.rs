@@ -1,11 +1,13 @@
 //! Render frames: the one binary message that carries every marker change to a window.
 
 use super::WindowLabel;
+use crate::selections::PolygonGeometry;
 use crate::types::{wire_enum, wire_names, Location, TsConst};
 use crate::util::Rgb;
 use mma_algebra::Id;
 use specta::datatype::DataType;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tauri::ipc::{Channel, InvokeResponseBody, IpcResponse};
 
 wire_enum! {
@@ -91,6 +93,56 @@ pub(crate) struct Frame {
     pub cells: Vec<CellFrame>,
     /// Every cell's selection membership restated, in `build_selection_buf`'s layout.
     pub selection: Option<Vec<u8>>,
+    pub polygons: PolygonFrame,
+}
+
+/// The polygons the map draws, as they changed: each new one's key and mesh, then the keys
+/// of the ones gone. A replace frame carries every polygon.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub(crate) struct PolygonFrame {
+    pub added: Vec<(String, Arc<Vec<u8>>)>,
+    pub removed: Vec<String>,
+}
+
+/// How the map draws a polygon: the area it selects as triangles over its vertices, then
+/// its rings as drawn. Little-endian: four `u32` counts (fill vertices, triangle indices,
+/// rings, ring vertices), the fill then ring vertices as `f64` pairs, the triangle indices,
+/// and each ring's first vertex plus the end as `u32`.
+pub(crate) fn polygon_mesh(polygon: &PolygonGeometry) -> Vec<u8> {
+    let mut positions = Vec::new();
+    let mut triangles = Vec::new();
+    for part in polygon.parts() {
+        let mesh = mma_geo::fill_mesh(part);
+        let base = positions.len() as u32;
+        triangles.extend(mesh.triangles.iter().map(|i| i + base));
+        positions.extend(mesh.positions);
+    }
+    let rings: Vec<_> = polygon
+        .parts()
+        .flatten()
+        .map(|r| mma_geo::unwrap_ring(r))
+        .collect();
+    let ring_vertices: usize = rings.iter().map(|r| r.len()).sum();
+    let mut buf = Vec::with_capacity(
+        16 + 16 * (positions.len() + ring_vertices) + 4 * (triangles.len() + rings.len() + 1),
+    );
+    for count in [positions.len(), triangles.len(), rings.len(), ring_vertices] {
+        buf.extend((count as u32).to_le_bytes());
+    }
+    for [lng, lat] in positions.iter().chain(rings.iter().flat_map(|r| r.iter())) {
+        buf.extend(lng.to_le_bytes());
+        buf.extend(lat.to_le_bytes());
+    }
+    for index in &triangles {
+        buf.extend(index.to_le_bytes());
+    }
+    let mut start = 0u32;
+    buf.extend(start.to_le_bytes());
+    for ring in &rings {
+        start += ring.len() as u32;
+        buf.extend(start.to_le_bytes());
+    }
+    buf
 }
 
 impl Frame {
@@ -109,7 +161,20 @@ impl Frame {
                 .iter()
                 .map(|c| 16 + c.remove.len() * 4 + c.add.len() * 20 + c.patch.len() * 20)
                 .sum::<usize>()
-            + self.selection.as_ref().map_or(0, |s| s.len() + 3);
+            + self.selection.as_ref().map_or(0, |s| s.len() + 3)
+            + 8
+            + self
+                .polygons
+                .added
+                .iter()
+                .map(|(key, mesh)| 16 + key.len() + mesh.len())
+                .sum::<usize>()
+            + self
+                .polygons
+                .removed
+                .iter()
+                .map(|key| 8 + key.len())
+                .sum::<usize>();
         let mut buf = Vec::with_capacity(cap);
         let put = |buf: &mut Vec<u8>, v: u32| buf.extend_from_slice(&v.to_le_bytes());
         put(&mut buf, self.kind);
@@ -137,6 +202,23 @@ impl Frame {
                 pad4(&mut buf);
             }
             None => put(&mut buf, 0),
+        }
+        put(&mut buf, self.polygons.added.len() as u32);
+        put(&mut buf, self.polygons.removed.len() as u32);
+        let key = |buf: &mut Vec<u8>, key: &str| {
+            put(buf, key.len() as u32);
+            buf.extend_from_slice(key.as_bytes());
+            pad4(buf);
+        };
+        for gone in &self.polygons.removed {
+            key(&mut buf, gone);
+        }
+        for (name, mesh) in &self.polygons.added {
+            key(&mut buf, name);
+            put(&mut buf, mesh.len() as u32);
+            // A mesh holds f64 arrays, which the page can only view 8-byte aligned.
+            buf.resize(buf.len().next_multiple_of(8), 0);
+            buf.extend_from_slice(mesh);
         }
         buf
     }
