@@ -25,10 +25,10 @@ fn outputs(dependents: &Dependents<String>, input: &str) -> Vec<String> {
     outputs
 }
 
-fn run(id: &str, fields: Option<&[&str]>) -> RunItem {
+fn run(id: &str, fields: &[&str]) -> RunItem {
     RunItem::Provider {
         id: id.into(),
-        fields: fields.map(|f| f.iter().map(ToString::to_string).collect()),
+        fields: fields.iter().map(ToString::to_string).collect(),
         select: Selector::Everything,
         config: None,
         force: false,
@@ -74,10 +74,7 @@ fn a_provider_run_takes_its_declaration_from_the_registry() {
         &["panoId"],
     ));
     let decls = providers
-        .resolve(vec![
-            run("panoResolve", None),
-            run("svMeta", Some(&["imageDate"])),
-        ])
+        .resolve(vec![run("panoResolve", &[]), run("svMeta", &["imageDate"])])
         .unwrap();
     assert_eq!(decls.len(), 2);
     assert_eq!(decls[0].fields, vec!["panoId".to_string()]);
@@ -97,7 +94,7 @@ fn a_run_config_replaces_the_registered_one() {
     let decls = providers
         .resolve(vec![RunItem::Provider {
             id: "panoResolve".into(),
-            fields: None,
+            fields: Vec::new(),
             select: Selector::Everything,
             config: Some("{\"sources\":[1]}".into()),
             force: true,
@@ -113,7 +110,7 @@ fn a_run_config_replaces_the_registered_one() {
 #[test]
 fn an_unregistered_provider_fails_the_run() {
     let providers = Providers::default();
-    assert!(providers.resolve(vec![run("missing", None)]).is_err());
+    assert!(providers.resolve(vec![run("missing", &[])]).is_err());
 }
 
 #[test]

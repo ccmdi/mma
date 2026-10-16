@@ -42,9 +42,8 @@ pub enum RunItem {
     #[serde(rename_all = "camelCase")]
     Provider {
         id: String,
-        /// Extra-field keys to produce. When absent, every key the provider declares.
-        #[serde(default)]
-        fields: Option<Vec<String>>,
+        /// The extra-field keys to produce, from those the provider declares.
+        fields: Vec<String>,
         #[specta(type = Selector<SelectionInput>)]
         select: Selector,
         /// Replaces the registered configuration, as JSON text.
@@ -99,7 +98,6 @@ impl Providers {
                         .defs
                         .get(&id)
                         .ok_or_else(|| AppError(format!("no provider '{id}' is registered")))?;
-                    let wanted = fields.unwrap_or_else(|| def.fields.clone());
                     let mut procedure = def.procedure.clone();
                     if config.is_some() {
                         procedure.config = config;
@@ -108,7 +106,7 @@ impl Providers {
                         id,
                         label: def.label.clone(),
                         procedure,
-                        fields: wanted.into_iter().chain(def.provides.clone()).collect(),
+                        fields: fields.into_iter().chain(def.provides.clone()).collect(),
                         requires: def.requires.clone(),
                         select,
                         batch: def.batch.clone(),

@@ -73,8 +73,8 @@ wire_str_enum! {
     }
 }
 
-/// One provider as the app declares it. `fields` are the extra keys it produces
-/// and `requires` the keys it consumes; together they gate who waits for whom.
+/// One provider as the app declares it. `fields` are the fields it writes and `requires`
+/// the fields it reads; together they gate who waits for whom.
 #[derive(Clone, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderDecl {
@@ -132,7 +132,8 @@ impl ProcedureDecl {
 #[derive(serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ProcedureConfig<T> {
-    /// The extra-field keys the run wants written. Empty means every key the procedure produces.
+    /// The fields the run wants written, extra-field keys and core columns alike. Empty means
+    /// every field the procedure produces.
     pub fields: Vec<String>,
     /// Recompute locations that already hold every wanted field.
     pub force: bool,
