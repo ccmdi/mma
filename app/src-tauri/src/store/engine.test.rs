@@ -69,12 +69,6 @@ fn overlay_update(store: &mut Store, patch: &Patch<Location>) -> Option<(Locatio
     Some((old, store.get_loc_by_id(patch.id)?))
 }
 
-fn apply_edit(store: &mut Store, remove: Vec<Location>, create: Vec<Location>) -> Change<Location> {
-    let change = Change::from_sides(create, remove);
-    store.put(&change);
-    change
-}
-
 fn forward(store: &mut Store, change: &Change<Location>) -> Change<Location> {
     store.put(change);
     change.clone()
@@ -107,14 +101,18 @@ fn tag_count(store: &mut Store, id: u32) -> usize {
     store.fields(["tags"])[0].count(&id.to_string())
 }
 
-/// Replay a row change and update derived state, as undo and redo do.
+/// Write a row change, or its inverse, through the store.
 fn edit_and_finish(store: &mut Store, entry: &Change<Location>, forward: bool) {
-    let changes = if forward {
-        self::forward(store, entry)
+    let change = if forward {
+        entry.clone()
     } else {
-        reverse(store, entry)
+        entry.inverse()
     };
-    store.finish_mutation(&changes);
+    let edits = change.into_transitions().map(|t| match t.after {
+        Some(row) => Op::Set(row),
+        None => Op::Remove(t.before.expect("a transition holds a row").id),
+    });
+    store.write(edits, &mut None, Entry::default());
 }
 
 fn loc_with_heading(id: u32, lat: f64, lng: f64, heading: f64) -> Location {
@@ -244,19 +242,25 @@ fn undo_of_a_page_keeps_the_overlay_sorted() {
 }
 
 #[test]
-fn overlay_remove_decrements_alive_count() {
+fn a_removed_row_leaves_the_alive_count() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
     assert_eq!(*store.alive_count, 1);
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 0);
 }
 
 #[test]
-fn overlay_remove_makes_get_return_none() {
+fn a_removed_row_reads_as_none() {
     let l = loc(1, 10.0, 20.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
 }
 
@@ -482,7 +486,10 @@ fn overlay_rev_bumps_on_every_mutation() {
     overlay_update(&mut store, &patch!(1; lat: 5.0));
     let r2 = store.overlay.rev();
     assert!(r2 > r1);
-    store.overlay_remove([store.get_loc_by_id(Id::new(1)).unwrap()].iter());
+    store.put(&Change {
+        removed: vec![store.get_loc_by_id(Id::new(1)).unwrap()],
+        ..Default::default()
+    });
     assert!(store.overlay.rev() > r2);
 }
 
@@ -534,7 +541,10 @@ fn commit_diff_counts_removed_base_row() {
     let l = loc(1, 0.0, 0.0);
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     assert_eq!(store.overlay_diff_counts(), net(0, 1, 0));
 }
 
@@ -542,7 +552,10 @@ fn commit_diff_counts_removed_base_row() {
 fn commit_diff_add_then_remove_is_noop() {
     let l = loc(1, 0.0, 0.0);
     let mut store = setup_store_with(slice::from_ref(&l));
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     assert_eq!(store.overlay_diff_counts(), net(0, 0, 0));
 }
 
@@ -569,11 +582,7 @@ fn tag_counts_after_remove() {
         2,
         "postings built before the edit"
     );
-    store.overlay_remove(slice::from_ref(&l1).iter());
-    store.finish_mutation(&Change {
-        removed: vec![l1],
-        ..Default::default()
-    });
+    store.write([Op::Remove(l1.id)], &mut None, Entry::default());
     assert_eq!(tag_count(&mut store, 10), 1);
     assert_eq!(tag_count(&mut store, 20), 0);
 }
@@ -582,7 +591,7 @@ fn tag_counts_after_remove() {
 fn removing_a_row_the_index_never_had_is_a_no_op() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[]);
-    store.finish_mutation(&Change {
+    store.reindex(&Change {
         removed: vec![l],
         ..Default::default()
     });
@@ -1007,7 +1016,7 @@ fn open_status_reflects_undo_redo() {
 }
 
 #[test]
-fn finish_mutation_reports_correct_state() {
+fn a_write_reports_its_derived_state() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[l]);
     store.steps[Timeline::Edits]
@@ -1018,7 +1027,7 @@ fn finish_mutation_reports_correct_state() {
         ))));
 
     let feed = FeedCapture::attach(&mut store);
-    let result = store.finish_mutation(&Change::default());
+    let result = store.write([], &mut None, Entry::default());
     let e = feed.last();
     assert_eq!(e.derived.location_count, Some(1));
     assert_eq!(
@@ -1032,7 +1041,7 @@ fn finish_mutation_reports_correct_state() {
 
     // Nothing moved since: the next finish still heartbeats its version, with
     // every derived slice absent, so a watcher can await any mutation on the feed.
-    let result = store.finish_mutation(&Change::default());
+    let result = store.write([], &mut None, Entry::default());
     assert_eq!(feed.len(), 2);
     let e = feed.last();
     assert_eq!(e.version, result.version);
@@ -1049,7 +1058,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
             vec![loc(2, 0.0, 0.0)],
             vec![],
         ))));
-    store.finish_mutation(&Change::default());
+    store.write([], &mut None, Entry::default());
     assert!(feed
         .last()
         .derived
@@ -1065,7 +1074,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
             vec![loc(2, 0.0, 0.0)],
             vec![],
         ))));
-    store.finish_mutation(&Change::default());
+    store.write([], &mut None, Entry::default());
     assert_eq!(
         feed.last().derived.history.map(|h| h
             .get(&Timeline::Edits)
@@ -1082,12 +1091,11 @@ fn field_values_shipped_only_when_postings_move() {
     let feed = FeedCapture::attach(&mut store);
 
     // A mutation that moves no rows ships no values.
-    store.finish_mutation(&Change::default());
+    store.write([], &mut None, Entry::default());
     assert!(feed.all().iter().all(|e| e.derived.field_values.is_none()));
 
     // A tag-touching edit ships the moved value: recordless and on no row, it is gone.
-    let changes = apply_edit(&mut store, vec![l.clone()], Vec::new());
-    store.finish_mutation(&changes);
+    undoable(&mut store, vec![l.clone()], Vec::new());
     let values = feed.last().derived.field_values.clone().unwrap();
     assert!(matches!(values["tags"].get("10"), Some(None)));
 }
@@ -1134,7 +1142,10 @@ fn cached_bounds_tracks_adds_and_invalidates_on_remove() {
     assert_eq!(store.cached_bounds(), Some([0.0, 0.0, 10.0, 10.0]));
 
     // Remove the extreme point -> invalidates, recompute shrinks the box.
-    store.overlay_remove([loc(2, 10.0, 10.0)].iter());
+    store.put(&Change {
+        removed: vec![loc(2, 10.0, 10.0)],
+        ..Default::default()
+    });
     let before = store.version;
     store.bump();
     store.update_bounds(
@@ -1254,7 +1265,10 @@ fn bake_overlay_removes_dead() {
     let mut store = setup_store_with(slice::from_ref(&l));
     store.bake_overlay();
     // now remove
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     store.bake_overlay();
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 0);
 }
@@ -1349,7 +1363,10 @@ fn readd_after_remove_via_overlay() {
     let mut store = setup_store_with(slice::from_ref(&l));
     assert_eq!(*store.alive_count, 1);
 
-    store.overlay_remove(slice::from_ref(&l).iter());
+    store.put(&Change {
+        removed: vec![l.clone()],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 0);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
 
@@ -1610,7 +1627,10 @@ fn collect_all_with_dead_patches_and_adds() {
     let mut store = setup_store_with(&[l1.clone(), l2.clone(), l3.clone()]);
     store.bake_overlay();
     // kill l1
-    store.overlay_remove([l1].iter());
+    store.put(&Change {
+        removed: vec![l1],
+        ..Default::default()
+    });
     // patch l2
     overlay_update(&mut store, &patch!(2; lat: 99.0));
     // add l4
@@ -1644,7 +1664,10 @@ fn bake_overlay_all_three_simultaneously() {
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
 
     // dead: remove l1
-    store.overlay_remove([l1].iter());
+    store.put(&Change {
+        removed: vec![l1],
+        ..Default::default()
+    });
     // patch: modify l2
     overlay_update(&mut store, &patch!(2; heading: 180.0));
     // add: new l3
@@ -1689,7 +1712,10 @@ fn sidecar_round_trips_every_overlay_kind_to_an_equal_overlay() {
     overlay_update(&mut store, &patch!(2; heading: 45.0));
     let l3 = store.get_loc_by_id(Id::new(3)).unwrap();
     let l11 = store.get_loc_by_id(Id::new(11)).unwrap();
-    store.overlay_remove([l3, l11].iter());
+    store.put(&Change {
+        removed: vec![l3, l11],
+        ..Default::default()
+    });
     assert!(
         store.overlay.removed.contains(Id::new(11)),
         "sanity: an added-then-removed id is dead"
@@ -1828,7 +1854,10 @@ fn alive_count_stays_correct_through_all_mutations() {
     assert_eq!(*store.alive_count, 3);
 
     // Remove 1
-    store.overlay_remove([locs[0].clone()].iter());
+    store.put(&Change {
+        removed: vec![locs[0].clone()],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 2);
 
     // Update (should not change count)
@@ -1846,7 +1875,10 @@ fn alive_count_stays_correct_through_all_mutations() {
     // Remove 2
     let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
     let l3 = store.get_loc_by_id(Id::new(3)).unwrap();
-    store.overlay_remove([l2, l3].iter());
+    store.put(&Change {
+        removed: vec![l2, l3],
+        ..Default::default()
+    });
     assert_eq!(*store.alive_count, 1);
 
     // Undo the remove (re-adds 2)
@@ -1873,7 +1905,10 @@ fn overlay_consistency_no_id_in_both_dead_and_adds() {
     store.bake_overlay();
 
     // Remove it
-    store.overlay_remove(slice::from_ref(&l).iter());
+    store.put(&Change {
+        removed: vec![l.clone()],
+        ..Default::default()
+    });
     assert!(store.overlay.removed.contains(Id::new(1)));
     assert!(!store.overlay.added.iter().any(|l| l.id == Id::new(1)));
 
@@ -1926,7 +1961,10 @@ fn overlay_consistency_remove_clears_patches() {
     overlay_update(&mut store, &patch!(1; heading: 45.0));
     assert!(store.overlay.updated.contains_key(&Id::new(1)));
 
-    store.overlay_remove([l].iter());
+    store.put(&Change {
+        removed: vec![l],
+        ..Default::default()
+    });
     assert!(
         !store.overlay.updated.contains_key(&Id::new(1)),
         "remove should clear patches for the ID"
@@ -1969,7 +2007,10 @@ fn the_scene_frame_order_is_the_render_cell_order() {
     let mut store = setup_store_with(&locs);
     store.bake_overlay();
     overlay_update(&mut store, &patch!(2; lat: 10.0, lng: 20.0));
-    store.overlay_remove([locs[3].clone()].iter());
+    store.put(&Change {
+        removed: vec![locs[3].clone()],
+        ..Default::default()
+    });
 
     let frame = store.scene_frame();
 
@@ -2232,7 +2273,10 @@ fn delta_overlay_round_trip_preserves_store_state() {
     // Add l3, remove l1, patch l2
     let l3 = loc(3, 50.0, 60.0);
     store.overlay_add(vec![l3.clone()]);
-    store.overlay_remove(slice::from_ref(&l1).iter());
+    store.put(&Change {
+        removed: vec![l1.clone()],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(2; heading: 180.0));
 
     let restored = through_sidecar(&store);
@@ -2364,7 +2408,7 @@ fn render_frame_fixture() -> Vec<u8> {
     };
     store.subscribe_frames(WindowLabel("fixture".into()), frames.sink(), &req);
 
-    let changes = apply_edit(
+    undoable(
         &mut store,
         vec![locs[0].clone(), locs[1].clone(), locs[3].clone()],
         vec![
@@ -2374,7 +2418,6 @@ fn render_frame_fixture() -> Vec<u8> {
             loc_with_heading(6, 40.6, -74.1, 20.0),
         ],
     );
-    store.finish_mutation(&changes);
 
     let mut out = Vec::new();
     for bytes in frames.bytes() {
@@ -2504,8 +2547,7 @@ fn replayed_frames_rebuild_the_render_cell_order() {
             let (lat, lng) = spot(next(1_000));
             create.push(loc(store.next_id.take().get(), lat, lng));
         }
-        let changes = apply_edit(&mut store, remove, create);
-        store.finish_mutation(&changes);
+        undoable(&mut store, remove, create);
         assert_eq!(
             replay(&frames.frames()),
             render_order(&store),
@@ -2519,10 +2561,9 @@ fn every_mutation_sends_one_frame_stamped_with_its_version() {
     let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
     let frames = watch(&mut store);
 
-    let changes = apply_edit(&mut store, Vec::new(), vec![loc(2, 30.0, 40.0)]);
-    let moved = store.finish_mutation(&changes);
+    let moved = undoable(&mut store, Vec::new(), vec![loc(2, 30.0, 40.0)]);
     // A change that moves no row still answers the page's wait for its version.
-    let quiet = store.finish_mutation(&Change::default());
+    let quiet = store.write([], &mut None, Entry::default());
 
     let sent = frames.frames();
     assert_eq!(sent.len(), 2);
@@ -2634,7 +2675,7 @@ fn unbinding_a_window_stops_its_frames() {
     mgr.unbind_window(&WindowLabel("win-1".into()));
     mgr.store_for_map(&Id::new("map-a".into()))
         .unwrap()
-        .finish_mutation(&Change::default());
+        .write([], &mut None, Entry::default());
 
     assert!(
         one.bytes().is_empty(),
@@ -2801,7 +2842,10 @@ fn bake_preserves_sorted_ids_after_remove_and_patch() {
         loc(4, 30.0, 30.0),
     ]);
     store.bake_overlay();
-    store.overlay_remove([loc(2, 10.0, 10.0)].iter());
+    store.put(&Change {
+        removed: vec![loc(2, 10.0, 10.0)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(3; heading: 45.0));
     store.bake_overlay();
     assert!(ids_sorted(&store));
@@ -2817,7 +2861,10 @@ fn bake_preserves_sorted_ids_after_mixed_ops() {
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 10.0, 10.0)]);
     store.bake_overlay();
     // Remove 1, patch 2, add 3
-    store.overlay_remove([loc(1, 0.0, 0.0)].iter());
+    store.put(&Change {
+        removed: vec![loc(1, 0.0, 0.0)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(2; lat: 99.0));
     let l3 = loc(3, 50.0, 50.0);
     store.overlay_add(vec![l3]);
@@ -2929,7 +2976,10 @@ fn full_lifecycle_add_bake_remove_bake_undo() {
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 3);
 
     // Remove loc 2, bake
-    store.overlay_remove([loc(2, 10.0, 10.0)].iter());
+    store.put(&Change {
+        removed: vec![loc(2, 10.0, 10.0)],
+        ..Default::default()
+    });
     store.bake_overlay();
     assert!(ids_sorted(&store));
     assert_eq!(store.batch.as_ref().unwrap().num_rows(), 2);
@@ -4154,7 +4204,10 @@ fn coverage_store(base: &[Location], adds: Vec<Location>, dead: &[u32], keys: &[
     store.alive_count = Tracked::new(base.len());
     for &id in dead {
         let l = store.get_loc_by_id(Id::new(id)).unwrap();
-        store.overlay_remove(slice::from_ref(&l).iter());
+        store.put(&Change {
+            removed: vec![l.clone()],
+            ..Default::default()
+        });
     }
     store.overlay_add(adds);
     for k in keys {
@@ -4318,10 +4371,7 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     let after = loc_with_tags(1, 10.0, 20.0, vec![1, 2]);
     let frames = watch(&mut store);
     let feed = FeedCapture::attach(&mut store);
-    let result = store.finish_mutation(&Change {
-        updated: vec![(l1, after)],
-        ..Default::default()
-    });
+    let result = store.write([Op::Set(after)], &mut None, Entry::default());
 
     let _ = result;
     let counts = feed
@@ -4423,10 +4473,11 @@ fn incremental_membership_change_ships_no_bitmask() {
     let frames = watch(&mut store);
     let feed = FeedCapture::attach(&mut store);
 
-    let result = store.finish_mutation(&Change {
-        updated: vec![(l1, loc_with_tags(1, 10.0, 20.0, vec![1]))],
-        ..Default::default()
-    });
+    let result = store.write(
+        [Op::Set(loc_with_tags(1, 10.0, 20.0, vec![1]))],
+        &mut None,
+        Entry::default(),
+    );
 
     let _ = result;
     assert!(
@@ -4464,13 +4515,12 @@ fn full_resolve_ships_a_bitmask_for_every_cell() {
     add_tag_selection(&mut store, 1, Rgb([255, 0, 0]));
 
     // More than 100 rows in one change forces the full-resolve branch, all of them in l1's cell.
-    let changes = apply_edit(
+    let frames = watch(&mut store);
+    undoable(
         &mut store,
         Vec::new(),
         (3..=103).map(|id| loc(id, 10.0, 20.0)).collect(),
     );
-    let frames = watch(&mut store);
-    store.finish_mutation(&changes);
 
     let buf = frames
         .last()
@@ -4492,10 +4542,7 @@ fn membership_delta_reports_gained_on_tag_add() {
     // Add tag 1 to location 1
     let with_tag = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        updated: vec![(l1, with_tag)],
-        ..Default::default()
-    });
+    store.write([Op::Set(with_tag)], &mut None, Entry::default());
 
     // The row gained a selection without moving, so it ships as a patch restating it.
     let frame = frames.last();
@@ -4526,10 +4573,7 @@ fn membership_delta_reports_lost_on_tag_remove() {
 
     let untagged = loc_with_tags(1, 10.0, 20.0, vec![]);
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        updated: vec![(tagged, untagged)],
-        ..Default::default()
-    });
+    store.write([Op::Set(untagged)], &mut None, Entry::default());
 
     assert!(
         !store.selections.ids.contains(Id::new(1)),
@@ -4568,10 +4612,7 @@ fn selected_leaf_tracks_the_selection_through_mutations() {
     );
 
     let untagged = loc_with_tags(1, 10.0, 20.0, vec![]);
-    store.finish_mutation(&Change {
-        updated: vec![(tagged, untagged)],
-        ..Default::default()
-    });
+    store.write([Op::Set(untagged)], &mut None, Entry::default());
     assert_eq!(
         store.scope(&Selector::Selected).ids(),
         store.selections.ids,
@@ -4592,10 +4633,7 @@ fn removed_selected_location_leaves_no_patch() {
     store.resolve_selection_membership();
 
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        removed: vec![loc_with_tags(1, 10.0, 20.0, vec![1])],
-        ..Default::default()
-    });
+    store.write([Op::Remove(Id::new(1))], &mut None, Entry::default());
 
     let frame = frames.last();
     assert!(
@@ -4631,10 +4669,7 @@ fn leaving_winning_selection_restates_survivors_paint() {
 
     let only_first = loc_with_tags(1, 10.0, 20.0, vec![1]);
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        updated: vec![(both, only_first)],
-        ..Default::default()
-    });
+    store.write([Op::Set(only_first)], &mut None, Entry::default());
 
     let frame = frames.last();
     let rows = patched(&frame.cells);
@@ -4670,10 +4705,7 @@ fn membership_delta_no_patch_when_nothing_changed() {
         ..l1.clone()
     };
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        updated: vec![(l1, updated)],
-        ..Default::default()
-    });
+    store.write([Op::Set(updated)], &mut None, Entry::default());
 
     // The heading moved, so a patch ships — but it restates the unchanged selection.
     let rows = patched(&frames.last().cells);
@@ -4707,10 +4739,7 @@ fn selected_row_moving_across_cells_keeps_its_selection() {
         "test requires a cross-cell move"
     );
     let frames = watch(&mut store);
-    store.finish_mutation(&Change {
-        updated: vec![(l1, moved)],
-        ..Default::default()
-    });
+    store.write([Op::Set(moved)], &mut None, Entry::default());
 
     let frame = frames.last();
     assert_eq!(
@@ -5066,7 +5095,10 @@ fn delete_loc(store: &mut Store, id: u32) {
     store.steps[Timeline::Edits]
         .edit()
         .record(Arc::new(entry(Change::from_sides(vec![], vec![l.clone()]))));
-    store.overlay_remove(slice::from_ref(&l).iter());
+    store.put(&Change {
+        removed: vec![l.clone()],
+        ..Default::default()
+    });
 }
 
 // Replay undo or redo through the store history.
@@ -5770,7 +5802,10 @@ fn spatial_matches_brute_force_across_mutations() {
     }
 
     // Mutate through every overlay path and re-verify: remove, coord patch, re-add.
-    store.overlay_remove([loc(2, base.0 + m, base.1)].iter());
+    store.put(&Change {
+        removed: vec![loc(2, base.0 + m, base.1)],
+        ..Default::default()
+    });
     overlay_update(&mut store, &patch!(3; lat: base.0, lng: base.1));
     store.overlay_add(vec![loc(6, base.0, base.1 + m)]);
     overlay_update(&mut store, &patch!(4; lat: 10.0)); // move far away
@@ -5895,7 +5930,10 @@ fn find_nearest_agrees_with_brute_force() {
     // Removing the nearest hands the answer to the runner-up.
     let gone = nearest(&mut store, 5.0, 179.9).unwrap();
     let gone_loc = store.get_loc_by_id(Id::new(gone)).unwrap();
-    store.overlay_remove([gone_loc].iter());
+    store.put(&Change {
+        removed: vec![gone_loc],
+        ..Default::default()
+    });
     check(&mut store, 5.0, 179.9);
 }
 
@@ -6257,7 +6295,10 @@ fn store_with_full_overlay() -> Store {
     overlay_update(&mut store, &patch!(1; heading: 99.0));
 
     let l2 = store.get_loc_by_id(Id::new(2)).unwrap();
-    store.overlay_remove(slice::from_ref(&l2).iter());
+    store.put(&Change {
+        removed: vec![l2.clone()],
+        ..Default::default()
+    });
 
     let new_id = store.next_id.take();
     store.overlay_add(vec![loc(new_id.get(), 9.0, 9.0)]);
@@ -6476,7 +6517,10 @@ fn location_aggregates_include_effective_tag_membership() {
     let mut store = setup_store_with(&base);
     store.bake_overlay();
     overlay_update(&mut store, &patch!(1; tags: tag_ids([2])));
-    store.overlay_remove([base[1].clone()].iter());
+    store.put(&Change {
+        removed: vec![base[1].clone()],
+        ..Default::default()
+    });
     store.overlay_add(vec![loc_with_tags(3, -5.0, -10.0, vec![1, 2])]);
 
     let LocationAggregates { alive, bounds } = store.scan_locations();
@@ -6560,11 +6604,7 @@ fn apply_model_op(
         ModelOp::Add { lat, lng } => {
             let id = store.next_id.take();
             let l = loc(id.get(), *lat, *lng);
-            store.steps[Timeline::Edits]
-                .edit()
-                .record(Arc::new(entry(Change::from_sides(vec![l.clone()], vec![]))));
-            store.overlay_add(vec![l.clone()]);
-            store.finish_mutation(&Change::from_sides(vec![l.clone()], vec![]));
+            store.write([Op::Set(l.clone())], &mut None, Entry::default());
             model.insert(id, l);
             let pos = alive_ids.partition_point(|&x| x < id.get());
             alive_ids.insert(pos, id.get());
@@ -6575,12 +6615,7 @@ fn apply_model_op(
             }
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
-            let l = store.get_loc_by_id(Id::new(id)).unwrap();
-            store.overlay_remove(slice::from_ref(&l).iter());
-            store.finish_mutation(&Change::from_sides(vec![], vec![l.clone()]));
-            store.steps[Timeline::Edits]
-                .edit()
-                .record(Arc::new(entry(Change::from_sides(vec![], vec![l]))));
+            store.write([Op::Remove(Id::new(id))], &mut None, Entry::default());
             model.remove(&Id::new(id));
             alive_ids.remove(idx);
         }
@@ -6594,22 +6629,14 @@ fn apply_model_op(
             }
             let idx = pick % alive_ids.len();
             let id = alive_ids[idx];
-            let old = store.get_loc_by_id(Id::new(id)).unwrap();
-            overlay_update(
-                store,
-                &patch!(id; heading: *heading, tags: tag_ids(tags.clone())),
+            store.write(
+                [Op::Put(
+                    patch!(id; heading: *heading, tags: tag_ids(tags.clone())),
+                )],
+                &mut None,
+                Entry::default(),
             );
             let new_loc = store.get_loc_by_id(Id::new(id)).unwrap();
-            let change = Change::from_iter([mma_algebra::Transition::new(
-                Some(old.clone()),
-                Some(new_loc.clone()),
-            )]);
-            store.finish_mutation(&change);
-            store.steps[Timeline::Edits]
-                .edit()
-                .record(Arc::new(entry(Change::from_iter([
-                    mma_algebra::Transition::new(Some(old), Some(new_loc.clone())),
-                ]))));
             model.insert(Id::new(id), new_loc);
         }
     }

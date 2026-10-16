@@ -295,21 +295,6 @@ impl Store {
         }
     }
 
-    /// Finish a row change: update derived state, broadcast frames and changes, and return its result.
-    #[cfg(test)]
-    pub(crate) fn finish_mutation(&mut self, changes: &Change<Location>) -> Mutation {
-        let mut entry = Entry {
-            locations: changes.clone(),
-            ..Default::default()
-        };
-        entry.selections = self.selection_consequences(&entry);
-        self.put_entry(&Entry {
-            selections: entry.selections.clone(),
-            ..Default::default()
-        });
-        self.finish(Finished::Entry(&entry))
-    }
-
     /// Recount the pending changes if the overlay moved since they were last counted.
     fn count_pending(&mut self) {
         if self.overlay.ship() {
