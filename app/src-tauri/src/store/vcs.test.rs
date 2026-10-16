@@ -7,52 +7,77 @@ use std::future::Future;
 use std::path::PathBuf;
 use tauri::async_runtime;
 
-fn staged(dir: &Path) -> (PathBuf, PathBuf) {
-    let base = dir.join("m.arrow");
-    let delta = dir.join("m_delta.arrow");
+fn staged(name: &str) -> (Id<MapMeta, String>, PathBuf, PathBuf) {
+    let map = storage::tests::map_on_disk(name);
+    let base = storage::arrow_path(&map).unwrap();
+    let delta = storage::arrow_delta_path(&map).unwrap();
     arrow::write_arrow_ipc(&base, &arrow::locations_to_batch(&[loc(1, 1.0, 1.0)])).unwrap();
     fs::write(&delta, b"uncommitted").unwrap();
-    (base, delta)
+    (map, base, delta)
+}
+
+fn open_in(window: &str, map: &Id<MapMeta, String>, store: Store) -> StoreManager {
+    let mut mgr = StoreManager::new();
+    mgr.stores.insert(map.clone(), store);
+    mgr.window_map
+        .insert(WindowLabel(window.into()), map.clone());
+    mgr
+}
+
+fn restore(mgr: &mut StoreManager, locs: Vec<Location>) -> engine::Mutation {
+    checkout(mgr, &WindowLabel("w".into()), &Id::new("m".into()), locs)
+        .unwrap()
+        .expect("an open map restores through its store")
 }
 
 #[test]
-fn checkout_refuses_a_map_with_a_live_store() {
-    let dir = tempfile::tempdir().unwrap();
-    let (base, delta) = staged(dir.path());
+fn checkout_refuses_a_map_another_window_has_open() {
+    let (map, base, delta) = staged("checkout-open-elsewhere");
     let before = fs::read(&base).unwrap();
-    let mut mgr = StoreManager::new();
-    mgr.stores.insert(Id::new("m".into()), Store::new());
+    let mut mgr = open_in("web-b", &map, Store::new());
 
-    let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    assert!(write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).is_err());
+    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
 }
 
 #[test]
 fn checkout_refuses_a_map_another_window_is_opening() {
-    let dir = tempfile::tempdir().unwrap();
-    let (base, delta) = staged(dir.path());
+    let (map, base, delta) = staged("checkout-opening-elsewhere");
     let before = fs::read(&base).unwrap();
     let mut mgr = StoreManager::new();
     mgr.window_map
-        .insert(WindowLabel("web-b".into()), Id::new("m".into()));
+        .insert(WindowLabel("web-b".into()), map.clone());
 
-    let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    assert!(write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).is_err());
+    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
+    assert_eq!(fs::read(&base).unwrap(), before);
+    assert!(delta.exists());
+}
+
+#[test]
+fn checkout_refuses_a_map_this_window_is_still_opening() {
+    let (map, base, delta) = staged("checkout-opening-here");
+    let before = fs::read(&base).unwrap();
+    let mut mgr = StoreManager::new();
+    mgr.window_map.insert(WindowLabel("w".into()), map.clone());
+
+    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored).is_err());
     assert_eq!(fs::read(&base).unwrap(), before);
     assert!(delta.exists());
 }
 
 #[test]
 fn checkout_of_a_closed_map_rewrites_the_base_and_drops_the_delta() {
-    let dir = tempfile::tempdir().unwrap();
-    let (base, delta) = staged(dir.path());
-    let mut mgr = StoreManager::new();
-    mgr.stores.insert(Id::new("other".into()), Store::new());
+    let (map, base, delta) = staged("checkout-closed");
+    let mut mgr = open_in("w", &Id::new("other".into()), Store::new());
 
-    let restored = [loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
-    write_checkout(&mgr, &Id::new("m".into()), &restored, &base, &delta).unwrap();
+    let restored = vec![loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)];
+    assert!(checkout(&mut mgr, &WindowLabel("w".into()), &map, restored)
+        .unwrap()
+        .is_none());
     let batch = arrow::read_arrow_ipc(&base).unwrap();
     let ids: Vec<u32> = arrow::batch_to_locations(&batch)
         .iter()
@@ -86,7 +111,9 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
             Default::default(),
             &mut None,
         );
-    let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
+    let mut mgr = open_in("w", &Id::new("m".into()), store);
+    let result = restore(&mut mgr, vec![loc(7, 7.0, 7.0)]);
+    let store = mgr.store_for_map(&Id::new("m".into())).unwrap();
     assert_eq!(result.version, store.version);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(7)).unwrap().lat, 7.0);
@@ -106,9 +133,9 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
 
 #[test]
 fn restoring_after_a_delete_and_an_add_never_hands_out_a_restored_id() {
-    let mut store = Store::new();
-    let add = |store: &mut Store, lat: f64| {
-        store
+    let add = |mgr: &mut StoreManager, lat: f64| {
+        mgr.store_for_map(&Id::new("m".into()))
+            .unwrap()
             .write(
                 [mma_algebra::Op::Add(loc(0, lat, lat))],
                 &mut None,
@@ -116,19 +143,18 @@ fn restoring_after_a_delete_and_an_add_never_hands_out_a_restored_id() {
             )
             .keys[0]
     };
-    let first = add(&mut store, 1.0);
-    store.write(
+    let mut mgr = open_in("w", &Id::new("m".into()), Store::new());
+    let first = add(&mut mgr, 1.0);
+    mgr.store_for_map(&Id::new("m".into())).unwrap().write(
         [mma_algebra::Op::Remove(first)],
         &mut None,
         Default::default(),
     );
-    let second = add(&mut store, 2.0);
-    restore_rows(
-        &mut store,
-        vec![loc(first.get(), 1.0, 1.0), loc(9, 9.0, 9.0)],
-    );
-    let third = add(&mut store, 3.0);
+    let second = add(&mut mgr, 2.0);
+    restore(&mut mgr, vec![loc(first.get(), 1.0, 1.0), loc(9, 9.0, 9.0)]);
+    let third = add(&mut mgr, 3.0);
     assert!(first < second && third > Id::new(9));
+    let store = mgr.store_for_map(&Id::new("m".into())).unwrap();
     assert_eq!(store.get_loc_by_id(first).unwrap().lat, 1.0);
 }
 
@@ -137,7 +163,8 @@ fn restoring_a_version_announces_the_pending_counts_it_leaves() {
     let mut store = Store::new();
     store.batch = Some(arrow::locations_to_batch(&[loc(1, 1.0, 1.0)]));
     let feed = engine::tests::FeedCapture::attach(&mut store);
-    restore_rows(&mut store, vec![loc(1, 1.0, 1.0), loc(9, 9.0, 9.0)]);
+    let mut mgr = open_in("w", &Id::new("m".into()), store);
+    restore(&mut mgr, vec![loc(1, 1.0, 1.0), loc(9, 9.0, 9.0)]);
     assert_eq!(
         feed.last().derived.pending,
         Some(Counts {

@@ -19,7 +19,6 @@ use crate::store::{arrow, engine, storage};
 use crate::util::{now_iso, sha256_hex};
 use mma_algebra::{Change, Counts, Id};
 use std::fs;
-use std::path::Path;
 use std::time::Instant;
 use tokio::task;
 
@@ -230,39 +229,45 @@ pub async fn store_checkout_commit(
         // BTreeMap yields ascending id order, satisfying the sorted-id invariant the
         // base batch requires.
         let locs: Vec<Location> = materialized.into_values().collect();
-
-        let mut mgr = state.lock()?;
-        if mgr
-            .window_map
-            .iter()
-            .any(|(window, map)| map == &map_id && window != &label)
-        {
-            return Err(AppError(
-                "close this map in every other window before restoring a version".into(),
-            ));
-        }
-        if let Some(store) = mgr.stores.get_mut(&map_id) {
-            return Ok(Some(restore_rows(store, locs)));
-        }
-        write_checkout(
-            &mgr,
-            &map_id,
-            &locs,
-            &storage::arrow_path(&map_id)?,
-            &storage::arrow_delta_path(&map_id)?,
-        )?;
-
+        let count = locs.len();
+        let restored = checkout(&mut *state.lock()?, &label, &map_id, locs)?;
         log::info!(
-            "[vcs] checkout {} on map {} ({} locs)",
+            "[vcs] checkout {} on map {} ({count} locs)",
             &commit_id.raw()[..7.min(commit_id.raw().len())],
-            map_id,
-            locs.len()
+            map_id
         );
-        Ok(None)
+        Ok(restored)
     })
 }
 
-fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutation {
+/// Restore `map_id` to `locs`. An open map changes through its write path, dropping its
+/// pending layers and selections; a closed one has its base rewritten and its uncommitted
+/// delta dropped. Refused while another window has the map open, or while an open of it is
+/// still in flight.
+fn checkout(
+    mgr: &mut StoreManager,
+    label: &engine::WindowLabel,
+    map_id: &Id<MapMeta, String>,
+    locs: Vec<Location>,
+) -> AppResult<Option<engine::Mutation>> {
+    let loaded = mgr.stores.contains_key(map_id);
+    if mgr
+        .window_map
+        .iter()
+        .any(|(window, map)| map == map_id && (window != label || !loaded))
+    {
+        return Err(AppError(
+            "close this map in every other window before restoring a version".into(),
+        ));
+    }
+    let Some(store) = mgr.stores.get_mut(map_id) else {
+        arrow::write_arrow_ipc(
+            &storage::arrow_path(map_id)?,
+            &arrow::locations_to_batch(&locs),
+        )?;
+        let _ = fs::remove_file(storage::arrow_delta_path(map_id)?);
+        return Ok(None);
+    };
     let current = store
         .at(&engine::Target::Map { id: None })
         .rows(&Selector::Everything);
@@ -273,33 +278,14 @@ fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutat
         .into_iter()
         .map(|row| mma_algebra::Op::Remove(row.id))
         .chain(locs.into_iter().map(mma_algebra::Op::Set));
-    store.write(
+    Ok(Some(store.write(
         edits,
         &mut None,
         engine::Entry {
             selections,
             ..Default::default()
         },
-    )
-}
-
-/// Replace a closed map's base with `locs` and drop its uncommitted delta.
-fn write_checkout(
-    mgr: &StoreManager,
-    map_id: &Id<MapMeta, String>,
-    locs: &[Location],
-    base: &Path,
-    delta: &Path,
-) -> AppResult<()> {
-    // window_map covers an open still in flight, whose store lands only when it finishes.
-    if mgr.stores.contains_key(map_id) || mgr.window_map.values().any(|v| v == map_id) {
-        return Err(AppError(
-            "close this map in every other window before restoring a version".into(),
-        ));
-    }
-    arrow::write_arrow_ipc(base, &arrow::locations_to_batch(locs))?;
-    let _ = fs::remove_file(delta);
-    Ok(())
+    )))
 }
 
 pub(crate) fn read_commit_delta(
