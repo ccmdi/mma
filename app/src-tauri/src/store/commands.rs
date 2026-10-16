@@ -301,23 +301,6 @@ pub async fn store_subscribe_frames(
     Ok(())
 }
 
-/// Resolve a marker pick (cell key + index within cell) to a location ID.
-#[tauri::command]
-#[specta::specta]
-pub fn store_resolve_pick(
-    label: WindowLabel,
-    state: tauri::State<'_, StoreState>,
-    cell: String,
-    cell_index: u32,
-) -> AppResult<Option<Id<Location>>> {
-    with_target(&state, &label, &Target::Map { id: None }, |store| {
-        let ci = cell_idx_from_key(&cell).ok_or("invalid cell key")?;
-        Ok(store.render.cells[ci as usize]
-            .as_ref()
-            .and_then(|cr| cr.id_order.get(cell_index as usize).copied()))
-    })
-}
-
 /// Undo the newest edit, or redo the newest undone one.
 #[tauri::command]
 #[specta::specta]

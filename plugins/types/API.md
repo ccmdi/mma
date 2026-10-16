@@ -6742,16 +6742,6 @@ cmd.storeRead(
 
 Answer one question about the target's locations matched by selector.
 
-#### cmd.storeResolvePick
-
-`unstable` · since v0.4.0
-
-```ts
-cmd.storeResolvePick(cell: string, cellIndex: number): Promise<number | null>
-```
-
-Resolve a marker pick (cell key + index within cell) to a location ID.
-
 #### cmd.storeReviewEdit
 
 `unstable` · unreleased

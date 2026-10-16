@@ -803,8 +803,6 @@ declare const commands$1: {
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
     storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => Promise<null>;
-    /**  Resolve a marker pick (cell key + index within cell) to a location ID. @unstable */
-    storeResolvePick: (cell: string, cellIndex: number) => Promise<number | null>;
     /**  Return metadata for every map in the database. @unstable */
     storeListMaps: () => Promise<MapMeta[]>;
     /**  Create a new empty map with the preferences new maps start from. Returns the full metadata. @unstable */

@@ -166,8 +166,6 @@ export const commands = {
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
 	storeSubscribeFrames: (frames: Channel<ArrayBuffer>, req: RenderRequest) => __TAURI_INVOKE<null>("store_subscribe_frames", { frames, req }),
-	/**  Resolve a marker pick (cell key + index within cell) to a location ID. */
-	storeResolvePick: (cell: string, cellIndex: number) => __TAURI_INVOKE<number | null>("store_resolve_pick", { cell, cellIndex }),
 	/**  Return metadata for every map in the database. */
 	storeListMaps: () => __TAURI_INVOKE<MapMeta[]>("store_list_maps"),
 	/**  Create a new empty map with the preferences new maps start from. Returns the full metadata. */

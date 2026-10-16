@@ -46,12 +46,6 @@ pub(crate) fn render_cell_idx(lat: f64, lng: f64) -> u8 {
     ch
 }
 
-/// Reverse lookup: parse a single-character cell key to its 0-31 index.
-pub(crate) fn cell_idx_from_key(key: &str) -> Option<u8> {
-    let b = *key.as_bytes().first()?;
-    BASE32.iter().position(|&c| c == b).map(|i| i as u8)
-}
-
 /// Assemble the selection-bitmask wire buffer shared by sync/delta/rebuild:
 /// `[numSels: u32 le][numSels * RGB][numCells: u8][segments...]`.
 /// The count is u32 so thousands of selections (e.g. shift-selecting many tags)

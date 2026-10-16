@@ -3,12 +3,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { PickingInfo } from "@deck.gl/core";
 import type { CellManager } from "@/lib/render/CellManager";
 
-const storeResolvePick = vi.fn();
 const storeFindNearby = vi.fn();
 const parseMapsUrl = vi.fn();
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		storeResolvePick: (...a: unknown[]) => storeResolvePick(...a),
 		storeRead: (...a: unknown[]) =>
 			(storeFindNearby(...a.slice(1)) as Promise<unknown[]>).then((locations) => ({
 				kind: "locations",
@@ -48,35 +46,30 @@ const fakeCm = (over: Partial<CellManager>): CellManager =>
 		...over,
 	}) as unknown as CellManager;
 
-beforeEach(() => storeResolvePick.mockReset());
-
 describe("resolvePickedId (shared pick resolution)", () => {
-	it("returns null for a non-pick (negative index)", async () => {
-		expect(await resolvePickedId(fakeCm({}), pick("cell:abc", -1))).toBeNull();
+	it("returns null for a non-pick (negative index)", () => {
+		expect(resolvePickedId(fakeCm({}), pick("cell:abc", -1))).toBeNull();
 	});
 
-	it("reads a selection-overlay pick from the overlay ids", async () => {
+	it("reads a selection-overlay pick from the overlay ids", () => {
 		const cm = fakeCm({
 			overlay: { ids: new Uint32Array([10, 20, 30]) } as CellManager["overlay"],
 		});
-		expect(await resolvePickedId(cm, pick("sel-overlay", 1))).toBe(20);
+		expect(resolvePickedId(cm, pick("sel-overlay", 1))).toBe(20);
 	});
 
-	it("resolves a cell pick locally without hitting Rust", async () => {
+	it("resolves a cell pick from the cell it was drawn from", () => {
 		const cm = fakeCm({ resolvePickFromCell: (key, i) => (key === "abc" && i === 2 ? 99 : null) });
-		expect(await resolvePickedId(cm, pick("cell:abc", 2))).toBe(99);
-		expect(storeResolvePick).not.toHaveBeenCalled();
+		expect(resolvePickedId(cm, pick("cell:abc", 2))).toBe(99);
 	});
 
-	it("falls back to Rust when the cell is not materialized in JS", async () => {
-		storeResolvePick.mockResolvedValue(777);
+	it("a pick past the end of a cell that has since shrunk resolves to nothing", () => {
 		const cm = fakeCm({ resolvePickFromCell: () => null });
-		expect(await resolvePickedId(cm, pick("cell:xyz", 5))).toBe(777);
-		expect(storeResolvePick).toHaveBeenCalledWith("xyz", 5);
+		expect(resolvePickedId(cm, pick("cell:abc", 5))).toBeNull();
 	});
 
-	it("returns null for an unrelated layer", async () => {
-		expect(await resolvePickedId(fakeCm({}), pick("import-preview", 0))).toBeNull();
+	it("returns null for an unrelated layer", () => {
+		expect(resolvePickedId(fakeCm({}), pick("import-preview", 0))).toBeNull();
 	});
 });
 

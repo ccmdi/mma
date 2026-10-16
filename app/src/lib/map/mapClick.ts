@@ -29,19 +29,12 @@ export const isLocationLayer = (id?: string) =>
 	id === "sel-overlay" ||
 	id === "import-preview";
 
-// Resolve a deck.gl pick to a location id from the shared cell/selection buffers.
-// Index-based (the SDF cell and selection-overlay layers carry no per-feature object);
-// falls back to Rust for cells the JS buffer hasn't materialized yet.
-export async function resolvePickedId(cm: CellManager, info: PickingInfo): Promise<number | null> {
+// Resolve a deck.gl pick to a location id from the cell and selection buffers it was drawn from.
+export function resolvePickedId(cm: CellManager, info: PickingInfo): number | null {
 	if (typeof info.index !== "number" || info.index < 0) return null;
 	const layerId = info.layer?.id ?? "";
 	if (layerId === "sel-overlay") return cm.overlay.ids[info.index] ?? null;
-	if (layerId.startsWith("cell:")) {
-		const cellKey = layerId.split(":")[1];
-		const local = cm.resolvePickFromCell(cellKey, info.index);
-		if (local != null) return local;
-		return await cmd.storeResolvePick(cellKey, info.index);
-	}
+	if (layerId.startsWith("cell:")) return cm.resolvePickFromCell(layerId.split(":")[1], info.index);
 	return null;
 }
 
@@ -169,7 +162,7 @@ export async function handleMapClick(
 
 	const resolvePicked = async (): Promise<MaybeLocation | null> => {
 		if (info.object) return info.object as Location;
-		return await resolvePickedId(ctx.cm, info);
+		return resolvePickedId(ctx.cm, info);
 	};
 
 	if (domEvent instanceof MouseEvent && domEvent.button === 2) {
