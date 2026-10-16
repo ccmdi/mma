@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
 import { Store } from "@/store/store";
 import { Query } from "@/store/query";
-import type { LatLng, Bounds } from "@/types";
+import type { Bounds } from "@/types";
 import type { ScoreBounds } from "@/bindings.gen";
 import { isWorldBounds, scoreTupleToBounds } from "@/types";
 import { changedLocations, subscribe } from "@/lib/events";
-import { boundsOfCoords, distMeters } from "@/lib/geo/geo";
+import { distMeters } from "@/lib/geo/geo";
 
 const SCORE_BASE = 0.99866017;
 const DEFAULT_MAX_ERROR = 185.34781;
@@ -18,8 +18,6 @@ export function computeScore(
 	const scale = maxErrorDistance * Math.log(SCORE_BASE) * -1e4;
 	return Math.round(5000 * SCORE_BASE ** (distanceMeters / scale));
 }
-
-// --- Score bounds resolution ---
 
 // World bounds constant (ACW): the resolved max-error for the whole world.
 export const WORLD_MAX_ERROR = DEFAULT_MAX_ERROR;
@@ -47,29 +45,8 @@ export function padBbox(bbox: Bbox): Bbox {
 	return out;
 }
 
-export function locationsBbox(locations: LatLng[]): Bbox {
-	const b = boundsOfCoords(locations);
-	const bbox: Bbox = b
-		? [b.west, b.south, b.east, b.north]
-		: [Infinity, Infinity, -Infinity, -Infinity];
-	return padBbox(bbox);
-}
-
-export function resolveScoreMaxError(bounds: "auto" | Bounds, locations: LatLng[]): number {
-	if (bounds === "auto") {
-		return locations.length > 1 ? bboxToMaxError(locationsBbox(locations)) : 25;
-	}
-	if (isWorldBounds(bounds)) return WORLD_MAX_ERROR;
-	return bboxToMaxError([bounds.west, bounds.south, bounds.east, bounds.north]);
-}
-
-export function resolveScoreMaxErrorFromBounds(
-	bounds: "auto" | Bounds,
-	autoLocationsBbox: Bbox | null,
-): number {
-	if (bounds === "auto") {
-		return autoLocationsBbox ? bboxToMaxError(padBbox(autoLocationsBbox)) : 25;
-	}
+export function resolveScoreMaxError(bounds: "auto" | Bounds, autoBbox: Bbox | null): number {
+	if (bounds === "auto") return autoBbox ? bboxToMaxError(padBbox(autoBbox)) : 25;
 	if (isWorldBounds(bounds)) return WORLD_MAX_ERROR;
 	return bboxToMaxError([bounds.west, bounds.south, bounds.east, bounds.north]);
 }
@@ -101,6 +78,5 @@ export function useScoreMaxError(override?: ScoreBounds): number {
 		});
 	}, [isAuto, refresh]);
 
-	if (isAuto) return resolveScoreMaxErrorFromBounds("auto", autoBbox);
-	return resolveScoreMaxErrorFromBounds(bounds, null);
+	return resolveScoreMaxError(bounds, autoBbox);
 }

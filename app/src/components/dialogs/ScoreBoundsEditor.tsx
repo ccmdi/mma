@@ -66,7 +66,7 @@ export function ScoreBoundsEditor({
 	// live shared value; inactive modes show what they would resolve to.
 	const autoError = mode === "auto" ? resolvedError : null;
 	const fixedError =
-		mode === "fixed" ? resolvedError : resolveScoreMaxError(lastFixedRef.current, []);
+		mode === "fixed" ? resolvedError : resolveScoreMaxError(lastFixedRef.current, null);
 
 	return (
 		<fieldset className="fieldset">
