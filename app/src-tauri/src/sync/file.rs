@@ -134,7 +134,7 @@ impl SyncProvider for FileProvider {
         _batch: &PushBatch<NormalizedSyncLocation>,
         _token: Option<i64>,
         _commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         Err(AppError("a file source is never written to".into()))
     }
 }

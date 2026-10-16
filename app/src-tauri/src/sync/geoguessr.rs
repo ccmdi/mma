@@ -241,7 +241,7 @@ impl SyncProvider for GeoGuessrProvider {
         batch: &PushBatch<GgCoordinate>,
         token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         let version = token.ok_or_else(|| AppError("missing draft version".into()))?;
 
         // A draft is replaced whole: there is no chunking. It either fits or it cannot be synced.
@@ -284,8 +284,7 @@ impl SyncProvider for GeoGuessrProvider {
             })
             .collect();
         // Atomic write: the whole set landed together.
-        commit(&pushed)?;
-        Ok(pushed)
+        commit(&pushed)
     }
 }
 

@@ -324,7 +324,7 @@ pub struct PushBatch<R> {
     pub desired: Vec<DesiredEntry<R>>,
 }
 
-/// What a push resolved each location to. A `Positional` provider must return an entry for
+/// What a push resolved each location to. A `Positional` provider must commit an entry for
 /// EVERY desired entry with a local id (rewriting the document reindexes everything).
 #[derive(Clone, Copy, Debug)]
 pub struct PushedId {
@@ -345,11 +345,6 @@ pub trait SyncProvider {
     /// Project a remote location onto the synced contract, already collapsed onto [`Self::shape`].
     fn normalize(&self, item: &Self::Raw) -> NormalizedSyncLocation;
 
-    /// Whether a local location participates in sync at all.
-    fn include_local(&self, _loc: &Location) -> bool {
-        true
-    }
-
     /// Build the provider's shape from the contract.
     fn materialize(&self, n: &NormalizedSyncLocation) -> Self::Raw;
 
@@ -357,15 +352,14 @@ pub trait SyncProvider {
     fn pull(&self, remote_map_id: &str) -> AppResult<RemoteSnapshot<Self::Raw>>;
 
     /// Blocking network write. `commit` persists confirmed ids as they land, so a provider
-    /// that writes in several requests makes a part-way failure resumable; providers that
-    /// write atomically just return their ids.
+    /// that writes in several requests makes a part-way failure resumable.
     fn push(
         &self,
         remote_map_id: &str,
         batch: &PushBatch<Self::Raw>,
         token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>>;
+    ) -> AppResult<()>;
 }
 
 #[cfg(test)]

@@ -37,21 +37,14 @@ const POSITIONAL_GEOGUESSR: ProviderSpec = ProviderSpec {
 
 struct Fake {
     spec: &'static ProviderSpec,
-    include_fn: Option<fn(&Location) -> bool>,
 }
 
 impl Fake {
     fn stable() -> Self {
-        Self {
-            spec: &STABLE,
-            include_fn: None,
-        }
+        Self { spec: &STABLE }
     }
     fn positional() -> Self {
-        Self {
-            spec: &POSITIONAL,
-            include_fn: None,
-        }
+        Self { spec: &POSITIONAL }
     }
 }
 
@@ -65,12 +58,6 @@ impl SyncProvider for Fake {
     }
     fn normalize(&self, item: &Raw) -> NormalizedSyncLocation {
         item.n.clone()
-    }
-    fn include_local(&self, loc: &Location) -> bool {
-        match self.include_fn {
-            Some(f) => f(loc),
-            None => true,
-        }
     }
     fn materialize(&self, n: &NormalizedSyncLocation) -> Raw {
         Raw {
@@ -88,7 +75,7 @@ impl SyncProvider for Fake {
         _batch: &PushBatch<Raw>,
         _token: Option<i64>,
         _commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         unimplemented!()
     }
 }
@@ -381,45 +368,6 @@ fn projection_erases_unrepresentable_fields() {
     assert_eq!(plan.push.update.len(), 0);
     assert_eq!(plan.pull.update.len(), 0);
     assert_eq!(k.local.get("L:10").unwrap().pano_id, None);
-}
-
-fn exclude_bit_two(l: &Location) -> bool {
-    (l.flags.bits() & 2) == 0
-}
-
-#[test]
-fn filtering_excludes_and_deletes_once_excluded() {
-    let kept = loc(10, |x| x.lat = 1.0);
-    let excluded = loc(11, |x| {
-        x.lat = 2.0;
-        x.flags = LocationFlags::from_bits_retain(2);
-    });
-    let mut p = Fake::stable();
-    p.include_fn = Some(exclude_bit_two);
-
-    let fresh = build_keyed_inputs(&p, &[kept.clone(), excluded.clone()], &[], &[], &tag_name);
-    assert_eq!(fresh.local.len(), 1);
-    let fresh_plan = compute_sync_plan(&fresh.base, &fresh.local, &fresh.remote);
-    assert_eq!(fresh_plan.push.create.len(), 1);
-
-    // Already synced, then marked excluded: it must be withdrawn from the remote.
-    let mapping = vec![RemoteMappingRow {
-        local_id: Id::new(11),
-        remote_id: 7,
-        hash: hash_of(&loc(11, |x| x.lat = 2.0)),
-    }];
-    let after = build_keyed_inputs(
-        &p,
-        &[kept, excluded],
-        &[raw(|r| {
-            r.n.lat = 2.0;
-            r.rid = Some(7);
-        })],
-        &mapping,
-        &tag_name,
-    );
-    let after_plan = compute_sync_plan(&after.base, &after.local, &after.remote);
-    assert_eq!(sorted(&after_plan.push.delete), vec!["L:11"]);
 }
 
 // --- mapMakingSync keying (stable identity) --------------------------------

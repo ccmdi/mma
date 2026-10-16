@@ -184,7 +184,7 @@ impl SyncProvider for Fake {
         batch: &PushBatch<Raw>,
         _token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         self.record(batch);
         let mut out = Vec::new();
         {
@@ -229,41 +229,71 @@ impl SyncProvider for Fake {
                 }
             }
         }
-        commit(&out)?;
-        Ok(out)
+        commit(&out)
     }
 }
 
-// --- in-memory sink ---------------------------------------------------------
+// --- in-memory mapping table ----------------------------------------------
 
+fn sink_map() -> Id<MapMeta, String> {
+    Id::new("m".into())
+}
+
+/// The mapping table of one linked map, in an in-memory database.
 struct MemSink {
-    rows: HashMap<u32, RemoteMappingRow>,
-    upsert_sizes: Vec<usize>,
-    delete_calls: usize,
+    conn: Connection,
+    seeded_changes: u64,
 }
 
 impl MemSink {
     fn new() -> Self {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE remote_mapping (
+                provider   TEXT    NOT NULL,
+                map_id     TEXT    NOT NULL,
+                local_id   INTEGER NOT NULL,
+                remote_id  INTEGER NOT NULL,
+                hash       TEXT    NOT NULL,
+                PRIMARY KEY (provider, map_id, local_id)
+             );",
+        )
+        .unwrap();
         Self {
-            rows: HashMap::new(),
-            upsert_sizes: Vec::new(),
-            delete_calls: 0,
+            conn,
+            seeded_changes: 0,
         }
     }
     fn seeded(rows: &[RemoteMappingRow]) -> Self {
         let mut s = Self::new();
-        for r in rows {
-            s.rows.insert(r.local_id.get(), r.clone());
-        }
+        s.upsert(rows).unwrap();
+        s.seeded_changes = s.conn.total_changes();
         s
     }
+    fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()> {
+        remote_mapping::upsert(&mut self.conn, STABLE.id, &sink_map(), rows)
+    }
+    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()> {
+        remote_mapping::delete(&mut self.conn, STABLE.id, &sink_map(), local_ids)
+    }
+    fn rows(&self) -> HashMap<u32, RemoteMappingRow> {
+        remote_mapping::get(&self.conn, STABLE.id, &sink_map())
+            .unwrap()
+            .into_iter()
+            .map(|r| (r.local_id.get(), r))
+            .collect()
+    }
+    /// Rows written or removed since seeding.
+    fn changes(&self) -> u64 {
+        self.conn.total_changes() - self.seeded_changes
+    }
     fn untouched(&self) -> bool {
-        self.upsert_sizes.is_empty() && self.delete_calls == 0
+        self.changes() == 0
     }
     /// Rows as `(local_id, remote_id, hash)`, sorted by local id.
     fn dump(&self) -> Vec<(u32, i64, String)> {
         let mut out: Vec<(u32, i64, String)> = self
-            .rows
+            .rows()
             .values()
             .map(|r| (r.local_id.get(), r.remote_id, r.hash.clone()))
             .collect();
@@ -271,7 +301,7 @@ impl MemSink {
         out
     }
     fn mapping(&self) -> Vec<RemoteMappingRow> {
-        let mut out: Vec<RemoteMappingRow> = self.rows.values().cloned().collect();
+        let mut out: Vec<RemoteMappingRow> = self.rows().into_values().collect();
         out.sort_by_key(|r| r.local_id);
         out
     }
@@ -284,23 +314,6 @@ impl MemSink {
             .collect();
         self.upsert(&rows).unwrap();
         self.delete(&out.pull_delete_ids).unwrap();
-    }
-}
-
-impl MappingSink for MemSink {
-    fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()> {
-        self.upsert_sizes.push(rows.len());
-        for r in rows {
-            self.rows.insert(r.local_id.get(), r.clone());
-        }
-        Ok(())
-    }
-    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()> {
-        self.delete_calls += 1;
-        for id in local_ids {
-            self.rows.remove(&id.get());
-        }
-        Ok(())
     }
 }
 
@@ -327,7 +340,7 @@ fn drive(
         resolutions,
     };
     let planned = plan(&input).unwrap();
-    execute(provider, "r", planned, token, sink).unwrap()
+    execute(provider, "r", &sink_map(), planned, token, &mut sink.conn).unwrap()
 }
 
 /// Plain reconcile: no first-sync mode, no resolutions.
@@ -419,7 +432,7 @@ fn pull_create_returns_instruction_with_hash_and_handle() {
     assert_eq!(c.remote_id, 7);
     assert_eq!(c.hash, nhash(|n| n.lat = 5.0));
     // The engine never writes a pull-create row; JS binds the fresh id and writes it.
-    assert!(sink.rows.is_empty());
+    assert!(sink.rows().is_empty());
 }
 
 #[test]
@@ -927,7 +940,7 @@ impl SyncProvider for ChunkedFake {
         batch: &PushBatch<Raw>,
         _token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         self.pushes.set(self.pushes.get() + 1);
         let all: Vec<PushedId> = batch
             .create
@@ -938,11 +951,10 @@ impl SyncProvider for ChunkedFake {
                 remote_id: 900 + i as i64,
             })
             .collect();
-        // Report in two instalments; the contract still returns the full list.
+        // Report in two instalments.
         let split = 2.min(all.len());
         commit(&all[..split])?;
-        commit(&all[split..])?;
-        Ok(all)
+        commit(&all[split..])
     }
 }
 
@@ -969,13 +981,13 @@ fn commits_each_chunk_as_it_lands_and_does_not_rewrite_them_at_the_end() {
         resolutions: &[],
     };
     let planned = plan(&input).unwrap();
-    let out = execute(&provider, "r", planned, None, &mut sink).unwrap();
+    let out = execute(&provider, "r", &sink_map(), planned, None, &mut sink.conn).unwrap();
 
     // Two chunk commits, and nothing after them: pushed keys are excluded from the final rows.
-    assert_eq!(sink.upsert_sizes, vec![2, 1]);
+    assert_eq!(sink.changes(), 3);
     assert_eq!(out.pushed, side(3, 0, 0));
-    assert_eq!(sink.rows.len(), 3);
-    let mut remotes: Vec<i64> = sink.rows.values().map(|r| r.remote_id).collect();
+    assert_eq!(sink.rows().len(), 3);
+    let mut remotes: Vec<i64> = sink.rows().values().map(|r| r.remote_id).collect();
     remotes.sort();
     assert_eq!(remotes, vec![900, 901, 902]);
 }
@@ -989,8 +1001,8 @@ fn atomic_provider_commits_once() {
     sync(&provider, &locs, &[], &no_tags(), &mut sink);
 
     // The single push commit is the only upsert; the final settled write is empty.
-    assert_eq!(sink.upsert_sizes, vec![2]);
-    assert_eq!(sink.rows.len(), 2);
+    assert_eq!(sink.changes(), 2);
+    assert_eq!(sink.rows().len(), 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,7 +1055,7 @@ impl SyncProvider for PartialPushFake {
         batch: &PushBatch<Raw>,
         _token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         let fail_after = self.fail_after.get();
         let mut items = self.items.borrow_mut();
         let mut accepted = Vec::new();
@@ -1069,7 +1081,7 @@ impl SyncProvider for PartialPushFake {
         if fail_after.is_some() {
             return Err(AppError("network failure on chunk 2".into()));
         }
-        Ok(accepted)
+        Ok(())
     }
 }
 
@@ -1095,10 +1107,10 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         resolutions: &[],
     };
     let planned = plan(&input).unwrap();
-    let result = execute(&provider, "r", planned, None, &mut sink);
+    let result = execute(&provider, "r", &sink_map(), planned, None, &mut sink.conn);
 
     assert!(result.is_err());
-    assert_eq!(sink.rows.len(), 2);
+    assert_eq!(sink.rows().len(), 2);
     assert_eq!(provider.items.borrow().len(), 2);
 
     // Retry with the committed mapping. The provider now holds items for the 2 that landed.
@@ -1118,12 +1130,20 @@ fn partial_push_failure_preserves_committed_mapping_and_retries_cleanly() {
         resolutions: &[],
     };
     let planned2 = plan(&input2).unwrap();
-    let out = execute(&provider, "r", planned2, token2, &mut sink2).unwrap();
+    let out = execute(
+        &provider,
+        "r",
+        &sink_map(),
+        planned2,
+        token2,
+        &mut sink2.conn,
+    )
+    .unwrap();
 
     assert_eq!(out.pushed, side(1, 0, 0));
     assert_eq!(out.pulled, side(0, 0, 0));
-    assert_eq!(sink2.rows.len(), 3);
-    let mut all_ids: Vec<u32> = sink2.rows.keys().copied().collect();
+    assert_eq!(sink2.rows().len(), 3);
+    let mut all_ids: Vec<u32> = sink2.rows().keys().copied().collect();
     all_ids.sort();
     assert_eq!(all_ids, vec![1, 2, 3]);
 }
@@ -1368,7 +1388,7 @@ fn pull_only_keeps_local_additions_and_never_pushes() {
     assert_eq!(provider.items(), vec![raw(|n| n.lat = 1.0, None)]);
     assert!(locs.iter().any(|l| l.id == Id::new(1) && l.lat == 9.0));
     assert!(
-        !sink.rows.contains_key(&1),
+        !sink.rows().contains_key(&1),
         "a local addition is never mapped"
     );
 }
@@ -1387,7 +1407,7 @@ fn pull_only_holds_a_local_edit_until_upstream_changes_that_location() {
         assert_eq!(out.pulled, side(0, 0, 0));
         assert_eq!(out.pushed, side(0, 0, 0));
         assert_eq!(locs[0].lat, 5.0);
-        assert_eq!(sink.rows[&id.get()].hash, nhash(|n| n.lat = 1.0));
+        assert_eq!(sink.rows()[&id.get()].hash, nhash(|n| n.lat = 1.0));
     }
 
     provider.items.borrow_mut()[0].n.lat = 2.0;
@@ -1411,14 +1431,14 @@ fn pull_only_keeps_a_local_delete_until_upstream_changes_that_location() {
         let out = pull_once(&provider, &mut locs, &mut sink);
         assert_eq!(out.pulled, side(0, 0, 0));
         assert!(locs.is_empty());
-        assert!(sink.rows.contains_key(&deleted.get()));
+        assert!(sink.rows().contains_key(&deleted.get()));
     }
 
     provider.items.borrow_mut()[0].n.lat = 2.0;
     let out = pull_once(&provider, &mut locs, &mut sink);
     assert!(out.conflicts.is_empty());
     assert_eq!(out.pulled, side(1, 0, 0));
-    assert!(!sink.rows.contains_key(&deleted.get()));
+    assert!(!sink.rows().contains_key(&deleted.get()));
     assert_eq!(locs.len(), 1);
 
     let settled = pull_once(&provider, &mut locs, &mut sink);

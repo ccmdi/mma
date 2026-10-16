@@ -54,7 +54,6 @@ const EMPTY_RESULT: SyncReconcileResult = {
 	adopted: 0,
 	conflicts: [],
 	mutation: null,
-	removedIds: [],
 };
 
 // --- fake window.MMA -------------------------------------------------------

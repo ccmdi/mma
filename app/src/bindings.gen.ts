@@ -1784,8 +1784,6 @@ export type SyncReconcileResult = {
 	conflicts: Conflict[],
 	/**  The change the pull half made locally, or `null` when nothing was pulled. */
 	mutation: Mutation | null,
-	/**  The locations the pull removed. */
-	removedIds: number[],
 };
 
 

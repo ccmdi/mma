@@ -38,7 +38,6 @@ const result: SyncReconcileResult = {
 	adopted: 1,
 	conflicts: [],
 	mutation: null,
-	removedIds: [],
 };
 
 function harness() {

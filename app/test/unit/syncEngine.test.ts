@@ -67,7 +67,6 @@ const RESULT = {
 	adopted: 2,
 	conflicts: [],
 	mutation: MUTATION,
-	removedIds: [3],
 } as unknown as SyncReconcileResult;
 
 function memKv(): KeyValueStore {
@@ -125,7 +124,7 @@ describe("sync reconcile apply step", () => {
 	});
 
 	it("an unchanged reconcile applies nothing and emits nothing", async () => {
-		h.result = { ...RESULT, mutation: null, removedIds: [] } as unknown as SyncReconcileResult;
+		h.result = { ...RESULT, mutation: null } as unknown as SyncReconcileResult;
 		const store = linkedStore();
 		await reconcile(provider, store);
 		expect(h.mutations).toEqual([]);

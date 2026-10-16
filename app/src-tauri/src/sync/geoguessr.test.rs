@@ -173,8 +173,6 @@ fn normalize_treats_empty_pano_as_no_pano() {
     assert_eq!(n.flags, 0);
 }
 
-// --- include_local ----------------------------------------------------------
-
 // --- push body shape (pure, no network) -------------------------------------
 
 #[test]
@@ -473,10 +471,8 @@ mod live {
             committed = ids.len();
             Ok(())
         };
-        let pushed = p
-            .push(&map, &batch, Some(version), &mut commit)
+        p.push(&map, &batch, Some(version), &mut commit)
             .expect("push 500");
-        assert_eq!(pushed.len(), 500);
         assert_eq!(committed, 500);
         assert_eq!(
             get_draft(&ncfa, &map)["coordinates"]

@@ -181,7 +181,7 @@ impl SyncProvider for MapMakingProvider {
         batch: &PushBatch<MmLocation>,
         _token: Option<i64>,
         commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
-    ) -> AppResult<Vec<PushedId>> {
+    ) -> AppResult<()> {
         let mut post = |part: &PushPart| self.post_edit(remote_map_id, part);
         push_apply(batch, PUSH_CHUNK, commit, &mut post)
     }
@@ -482,8 +482,7 @@ pub(crate) fn push_apply(
     chunk: usize,
     commit: &mut dyn FnMut(&[PushedId]) -> AppResult<()>,
     post: &mut dyn FnMut(&PushPart) -> AppResult<HashMap<String, i64>>,
-) -> AppResult<Vec<PushedId>> {
-    let mut all = Vec::new();
+) -> AppResult<()> {
     for part in push_chunks(batch, chunk) {
         let remap = post(&part)?;
         let mut pushed = Vec::new();
@@ -495,15 +494,12 @@ pub(crate) fn push_apply(
                 });
             }
         }
-        for p in &pushed {
-            all.push(*p);
-        }
         // Let the caller persist this chunk before the next one can fail.
         if !pushed.is_empty() {
             commit(&pushed)?;
         }
     }
-    Ok(all)
+    Ok(())
 }
 
 // --- protobuf decode (proto2) -----------------------------------------------

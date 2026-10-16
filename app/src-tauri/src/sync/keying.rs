@@ -220,9 +220,6 @@ pub(crate) fn build_keyed_inputs<P: SyncProvider>(
     let mut local_id_of: HashMap<IdentityKey, Id<Location>> = HashMap::new();
     let mut local_keyer = OccurrenceKeyer::new();
     for loc in local_locs {
-        if !provider.include_local(loc) {
-            continue;
-        }
         let norm = local_to_normalized(loc, tag_name).onto(provider.spec().shape);
         let key = if mapped_local.contains(&loc.id) {
             local_key(loc.id)

@@ -87,8 +87,6 @@ pub struct SyncReconcileResult {
     pub conflicts: Vec<Conflict>,
     /// The change the pull half made locally, or `null` when nothing was pulled.
     pub mutation: Option<Mutation>,
-    /// The locations the pull removed.
-    pub removed_ids: Vec<Id<Location>>,
 }
 
 // --- Layer 1: pure planning -------------------------------------------------
@@ -574,22 +572,17 @@ pub(crate) fn plan<P: SyncProvider>(
 
 // --- Layer 2: execution -----------------------------------------------------
 
-/// Where mapping rows land. Prod is a rusqlite connection scoped to `(provider, map_id)`; tests
-/// use an in-memory map.
-pub(crate) trait MappingSink {
-    fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()>;
-    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()>;
-}
-
-/// Drive the push and persist the mapping. The provider commits confirmed ids AS it writes them
-/// (resumable across chunks); we then write the plan's remaining rows and drop deleted ones.
+/// Drive the push and persist `map_id`'s mapping. The provider commits confirmed ids AS it writes
+/// them (resumable across chunks); we then write the plan's remaining rows and drop deleted ones.
 pub(crate) fn execute<P: SyncProvider>(
     provider: &P,
     remote_map_id: &str,
+    map_id: &Id<MapMeta, String>,
     planned: PlannedReconcile<P::Raw>,
     token: Option<i64>,
-    sink: &mut dyn MappingSink,
+    conn: &mut Connection,
 ) -> AppResult<ReconcileOutcome> {
+    let scope = provider.spec().id;
     if let Some(batch) = &planned.push_batch {
         let push_hashes = &planned.push_hashes;
         let mut commit = |pushed: &[PushedId]| -> AppResult<()> {
@@ -604,7 +597,7 @@ pub(crate) fn execute<P: SyncProvider>(
                 })
                 .collect();
             if !rows.is_empty() {
-                sink.upsert(&rows)?;
+                remote_mapping::upsert(conn, scope, map_id, &rows)?;
             }
             Ok(())
         };
@@ -614,10 +607,10 @@ pub(crate) fn execute<P: SyncProvider>(
     let mut final_rows = planned.rows;
     final_rows.extend(planned.held_rows);
     if !final_rows.is_empty() {
-        sink.upsert(&final_rows)?;
+        remote_mapping::upsert(conn, scope, map_id, &final_rows)?;
     }
     if !planned.mapping_delete_ids.is_empty() {
-        sink.delete(&planned.mapping_delete_ids)?;
+        remote_mapping::delete(conn, scope, map_id, &planned.mapping_delete_ids)?;
     }
 
     Ok(ReconcileOutcome {
@@ -639,22 +632,6 @@ pub(crate) fn execute<P: SyncProvider>(
         pull_delete_ids: planned.pull_delete_ids,
         mirror_local_delete_ids: planned.mirror_local_delete_ids,
     })
-}
-
-/// Prod sink: rows through [`remote_mapping`], scoped to one linked map.
-struct DbSink<'a> {
-    conn: &'a mut Connection,
-    provider: &'a str,
-    map_id: &'a Id<MapMeta, String>,
-}
-
-impl MappingSink for DbSink<'_> {
-    fn upsert(&mut self, rows: &[RemoteMappingRow]) -> AppResult<()> {
-        remote_mapping::upsert(self.conn, self.provider, self.map_id, rows)
-    }
-    fn delete(&mut self, local_ids: &[Id<Location>]) -> AppResult<()> {
-        remote_mapping::delete(self.conn, self.provider, self.map_id, local_ids)
-    }
 }
 
 // --- Layer 3: the command ---------------------------------------------------
@@ -710,13 +687,15 @@ fn reconcile_with<P: SyncProvider>(
         planned.rows.len(),
         t.elapsed().as_secs_f64()
     );
-    let mut sink = DbSink {
-        conn,
-        provider: provider.spec().id,
-        map_id: req.map_id,
-    };
     let t = Instant::now();
-    let result = execute(provider, req.remote_map_id, planned, token, &mut sink);
+    let result = execute(
+        provider,
+        req.remote_map_id,
+        req.map_id,
+        planned,
+        token,
+        conn,
+    );
     log::info!("[sync] execute: {:.1}s", t.elapsed().as_secs_f64());
     result
 }
@@ -836,15 +815,12 @@ pub async fn sync_reconcile(
         }
     }
 
-    let mut removed_ids = out.pull_delete_ids;
-    removed_ids.extend(&out.mirror_local_delete_ids);
     Ok(SyncReconcileResult {
         pushed: out.pushed,
         pulled: out.pulled,
         adopted: out.adopted,
         conflicts: out.conflicts,
         mutation,
-        removed_ids,
     })
 }
 

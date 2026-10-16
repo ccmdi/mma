@@ -225,9 +225,13 @@ fn creates_use_negative_placeholders_and_remap() {
     );
     assert!(parts[0].remove.is_empty());
 
-    let mut commit = |_: &[PushedId]| Ok(());
+    let mut pushed = Vec::new();
+    let mut commit = |p: &[PushedId]| {
+        pushed.extend_from_slice(p);
+        Ok(())
+    };
     let mut post = fake_post;
-    let pushed = push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
+    push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
     assert_eq!(ids(&pushed), vec![(11, 7000), (12, 7001)]);
 }
 
@@ -256,9 +260,13 @@ fn update_is_remove_old_plus_create_new() {
     assert_eq!(part.staged[0].local_id, Id::new(42));
     assert_eq!(part.staged[0].neg_id, -1);
 
-    let mut commit = |_: &[PushedId]| Ok(());
+    let mut pushed = Vec::new();
+    let mut commit = |p: &[PushedId]| {
+        pushed.extend_from_slice(p);
+        Ok(())
+    };
     let mut post = fake_post;
-    let pushed = push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
+    push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
     assert_eq!(ids(&pushed), vec![(42, 7000)]);
 }
 
@@ -271,9 +279,13 @@ fn deletes_remove_by_id_and_produce_no_pushed() {
     assert_eq!(parts[0].remove, vec![1234]);
     assert!(parts[0].create.is_empty());
 
-    let mut commit = |_: &[PushedId]| Ok(());
+    let mut pushed = Vec::new();
+    let mut commit = |p: &[PushedId]| {
+        pushed.extend_from_slice(p);
+        Ok(())
+    };
     let mut post = fake_post;
-    let pushed = push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
+    push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
     assert!(pushed.is_empty());
 }
 
@@ -294,8 +306,12 @@ fn one_edit_covers_create_update_delete() {
 
     let mut calls = 0;
     let mut sent: Vec<(Vec<i64>, Vec<i64>)> = Vec::new();
-    let mut commit = |_: &[PushedId]| Ok(());
-    let pushed = {
+    let mut pushed = Vec::new();
+    let mut commit = |p: &[PushedId]| {
+        pushed.extend_from_slice(p);
+        Ok(())
+    };
+    {
         let mut post = |part: &PushPart| {
             calls += 1;
             sent.push((
@@ -304,8 +320,8 @@ fn one_edit_covers_create_update_delete() {
             ));
             fake_post(part)
         };
-        push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap()
-    };
+        push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
+    }
 
     assert_eq!(calls, 1); // one editLocations call
     assert_eq!(sent[0].0, vec![-1, -2]); // create ids: create op then update op
@@ -317,14 +333,18 @@ fn one_edit_covers_create_update_delete() {
 fn empty_batch_never_posts() {
     let batch = empty_batch();
     let mut calls = 0;
-    let mut commit = |_: &[PushedId]| Ok(());
-    let pushed = {
+    let mut pushed = Vec::new();
+    let mut commit = |p: &[PushedId]| {
+        pushed.extend_from_slice(p);
+        Ok(())
+    };
+    {
         let mut post = |_: &PushPart| {
             calls += 1;
             Ok(HashMap::new())
         };
-        push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap()
-    };
+        push_apply(&batch, PUSH_CHUNK, &mut commit, &mut post).unwrap();
+    }
     assert!(pushed.is_empty());
     assert_eq!(calls, 0);
 }
@@ -757,8 +777,12 @@ fn live_push_remaps_and_round_trips() {
         }),
     ));
 
-    let mut commit = |_: &[PushedId]| Ok(());
-    let pushed = p.push(&map, &batch, None, &mut commit).unwrap();
+    let mut pushed = Vec::new();
+    let mut commit = |landed: &[PushedId]| {
+        pushed.extend_from_slice(landed);
+        Ok(())
+    };
+    p.push(&map, &batch, None, &mut commit).unwrap();
     assert_eq!(pushed.len(), 2);
     // The server assigns real (positive) ids to both placeholders.
     assert!(pushed.iter().all(|x| x.remote_id > 0));
