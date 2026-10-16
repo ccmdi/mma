@@ -410,13 +410,13 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 				api.createLocation({ lat: 84.75, lng: 179.75, heading: 10, panoId: null }),
 				api.createLocation({ lat: -84.75, lng: -179.75, heading: 20, panoId: null }),
 			];
-			await api.Location.add(helpers);
-			if (helpers.some((h) => h.id <= 0)) throw new Error("helper rows got no ids");
+			const helpersIds = await api.Location.add(helpers);
+			if (helpersIds.some((id) => id <= 0)) throw new Error("helper rows got no ids");
 			await api.Commit.create(`Bench fixture ${target}`);
 			await api.Autosave.waitForInflight();
 			const tag = Object.values(api.Tag.all()).find((t) => t.name === "benchmark-tag");
 			if (!tag) throw new Error("fixture is missing the benchmark-tag");
-			return { tagId: tag.id, helperIds: helpers.map((h) => h.id) };
+			return { tagId: tag.id, helperIds: helpersIds };
 		},
 		fixture,
 		scale,
@@ -650,15 +650,15 @@ async function runScale(scale: number, scaleMaps: Set<string>): Promise<void> {
 			withApi(async (api, target) => {
 				const location = api.createLocation({ lat: 83.5, lng: 178.5, heading: 30 });
 				const start = performance.now();
-				await api.Location.add([location]);
+				const [id] = await api.Location.add([location]);
 				const operationMs = performance.now() - start;
 				api.Autosave.cancel();
 				await new Promise<void>((resolve) =>
 					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
 				);
 				const count = api.Store.get().locationCount;
-				if (location.id <= 0 || count !== target + 1) {
-					throw new Error(`add gave id=${location.id} count=${count}, expected ${target + 1}`);
+				if (id <= 0 || count !== target + 1) {
+					throw new Error(`add gave id=${id} count=${count}, expected ${target + 1}`);
 				}
 				return { durationMs: performance.now() - start, operationMs };
 			}, baseline),

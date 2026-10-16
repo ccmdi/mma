@@ -84,7 +84,7 @@ export function locId(m: MaybeLocation): number {
 }
 
 /** Build a new Location from lat/lng plus overrides. Its `id` is 0, whatever the
- *  overrides hold, until `addLocations` writes the real id back into the object. */
+ *  overrides hold; adding it to the map returns its real id. */
 export function createLocation(partial: Partial<Location> & LatLng): Location {
 	return {
 		heading: 0,

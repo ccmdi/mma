@@ -203,8 +203,8 @@ export const Seen = {
 				panoId: entry.panoId,
 				extra: entry.countryCode ? { countryCode: entry.countryCode } : undefined,
 			});
-			await Location.add([loc]);
-			await Editor.open(loc.id, false);
+			const [id] = await Location.add([loc]);
+			await Editor.open(id, false);
 			return;
 		}
 

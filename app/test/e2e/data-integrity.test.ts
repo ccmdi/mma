@@ -286,10 +286,10 @@ describe("Data integrity - concurrent operations", () => {
 			for (let i = 0; i < 100; i++) {
 				locs.push(api.createLocation({ lat: i, lng: i, zoom: 1 }));
 			}
-			await api.Location.add(locs);
+			const locsIds = await api.Location.add(locs);
 
 			// Remove first 50
-			const toRemove = locs.slice(0, 50).map((l) => l.id);
+			const toRemove = locsIds.slice(0, 50);
 			await api.Location.remove(new Set(toRemove));
 
 			// Add 50 more
@@ -327,13 +327,11 @@ describe("Data integrity - concurrent operations", () => {
 		const result = await withApi(async (api) => {
 			// Trigger add
 			const triggerLocs = [api.createLocation({ lat: 0, lng: 0, zoom: 1 })];
-			await api.Location.add(triggerLocs);
-			const triggerId = triggerLocs[0].id;
+			const [triggerId] = await api.Location.add(triggerLocs);
 
 			// Add more while save may be in progress
 			const duringLocs = [api.createLocation({ lat: 1, lng: 1, zoom: 1 })];
-			await api.Location.add(duringLocs);
-			const duringId = duringLocs[0].id;
+			const [duringId] = await api.Location.add(duringLocs);
 
 			return { triggerId, duringId };
 		});

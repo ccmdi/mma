@@ -176,10 +176,10 @@ describe("Undo/Redo persistence", () => {
 	it("undo history survives save/load", async () => {
 		const result = await withApi(async (api) => {
 			const l1 = [api.createLocation({ lat: 10, lng: 10, zoom: 1 })];
-			await api.Location.add(l1);
+			const l1Ids = await api.Location.add(l1);
 			const l2 = [api.createLocation({ lat: 20, lng: 20, zoom: 1 })];
-			await api.Location.add(l2);
-			return { id1: l1[0].id, id2: l2[0].id };
+			const l2Ids = await api.Location.add(l2);
+			return { id1: l1Ids[0], id2: l2Ids[0] };
 		});
 		uh1Id = result.id1;
 

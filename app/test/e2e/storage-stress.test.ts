@@ -56,8 +56,7 @@ describe("Delta recovery", () => {
 					}),
 				);
 			}
-			await api.Location.add(locs);
-			return { ids: locs.map((l) => l.id) };
+			return { ids: await api.Location.add(locs) };
 		});
 		const originalIds: number[] = result.ids;
 
@@ -112,8 +111,7 @@ describe("Bake with mixed overlay", () => {
 					}),
 				);
 			}
-			await api.Location.add(locs);
-			const ids = locs.map((l) => l.id);
+			const ids = await api.Location.add(locs);
 
 			// Update 10 (indices 0-9): change heading and lat
 			for (let i = 0; i < 10; i++) {
@@ -420,8 +418,7 @@ describe("Null vs absent field round-trip", () => {
 				extra: {},
 			});
 			const batch = [loc1, loc2, loc3];
-			await api.Location.add(batch);
-			return { ids: batch.map((l) => l.id) };
+			return { ids: await api.Location.add(batch) };
 		});
 		id1 = result.ids[0];
 		id2 = result.ids[1];
@@ -481,9 +478,9 @@ describe("Unicode in all fields", () => {
 				},
 			});
 			const batch = [loc];
-			await api.Location.add(batch);
+			const batchIds = await api.Location.add(batch);
 			return {
-				locId: batch[0].id,
+				locId: batchIds[0],
 				tagIds: resolved.map((t) => t.id),
 				tagNames: resolved.map((t) => t.name),
 			};
@@ -777,8 +774,7 @@ describe("Rapid fire-and-forget mutations", () => {
 					}),
 				);
 			}
-			await api.Location.add(locs);
-			const ids = locs.map((l) => l.id);
+			const ids = await api.Location.add(locs);
 
 			// Fire remove + add simultaneously (no await between)
 			const removePromise = Promise.resolve().then(() =>

@@ -21,7 +21,7 @@ vi.mock("@tauri-apps/plugin-shell", () => ({ open: vi.fn() }));
 vi.mock("@/store/location", async (orig) => ({
 	Location: {
 		...(await orig<typeof import("@/store/location")>()).Location,
-		add: vi.fn(),
+		add: vi.fn(async () => [7]),
 	},
 }));
 vi.mock("@/store/editor", async (orig) => ({
@@ -143,6 +143,7 @@ describe("openHref (map-aware link opening)", () => {
 		expect(addLocs).toHaveBeenCalledWith([
 			expect.objectContaining({ lat: 10, lng: 20, panoId: "PANO_A" }),
 		]);
+		expect(open).toHaveBeenCalledWith(7);
 	});
 });
 

@@ -69,8 +69,8 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
 				.filter((id): id is number => id !== undefined),
 		}),
 	);
-	await Location.add(locs);
-	await Editor.open(locs[locs.length - 1].id);
+	const added = await Location.add(locs);
+	await Editor.open(added[added.length - 1]);
 	zoomToPasted(boundsOfCoords(locs));
 }
 
@@ -129,12 +129,13 @@ export async function createLocationAtLatLng(
 		return null;
 	}
 	tr.step("lookup");
-	await Location.add([loc]);
+	const [id] = await Location.add([loc]);
+	const added = { ...loc, id };
 	tr.step("addLocations");
-	await Editor.open(loc);
+	await Editor.open(added);
 	tr.step("openLocation");
 	tr.end();
-	return loc;
+	return added;
 }
 
 // Capabilities a map surface grants its click pipeline. Behavior only — UI lives in the

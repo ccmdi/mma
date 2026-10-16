@@ -37,10 +37,9 @@ async function addViaUpload(locs: Location[]): Promise<MutationResult> {
 }
 
 export const Location = {
-	/** Add locations to the map. Each gets a fresh id, written back into the passed object,
-	 *  so read `loc.id` after. Undoable. */
-	add: async (locs: Location[]) => {
-		if (locs.length === 0) return;
+	/** Add locations to the map and return their new ids, in order. Undoable. */
+	add: async (locs: Location[]): Promise<number[]> => {
+		if (locs.length === 0) return [];
 		const t = trace("add");
 		const r =
 			locs.length > ADD_CHUNK
@@ -50,7 +49,7 @@ export const Location = {
 						locs.map((l) => ({ add: l })),
 					);
 		t.end({ added: locs.length });
-		if (Store.get().map) locs.forEach((l, i) => (l.id = r.mutation.keys[i] ?? l.id));
+		return r.mutation.keys;
 	},
 	/** Add `location` to another map unless that map already holds it, its interned values
 	 *  named by `records`. Resolves to whether it was added. Undoable in that map. @unstable */
@@ -78,9 +77,8 @@ export const Location = {
 			{ kind: "locations" },
 		);
 		if (!loc) return null;
-		const clone: Location = { ...loc, createdAt: 0 };
-		await Location.add([clone]);
-		return clone.id;
+		const [cloneId] = await Location.add([{ ...loc, createdAt: 0 }]);
+		return cloneId ?? null;
 	},
 	/** Remove locations by id. Undoable. */
 	remove: async (ids: ReadonlyIdSet) => {

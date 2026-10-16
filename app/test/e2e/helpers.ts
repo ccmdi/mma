@@ -142,10 +142,7 @@ export function randomHeading(): { heading: number } {
 }
 
 export async function addLocs(locs: Location[]): Promise<number[]> {
-	return withApi(async (api, locations) => {
-		await api.Location.add(locations);
-		return locations.map((l) => l.id);
-	}, locs);
+	return withApi(async (api, locations) => api.Location.add(locations), locs);
 }
 
 type LocSpec = Partial<Location> & { lat: number; lng: number };

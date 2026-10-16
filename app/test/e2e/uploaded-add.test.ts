@@ -12,15 +12,14 @@ describe("Staged (chunked) location adds", () => {
 		tagId = (await createTag("staged")).id;
 	});
 
-	it("echoes real ids back onto the passed array, in order", async () => {
+	it("returns the real ids, in order", async () => {
 		const r = await withApi(
 			async (api, n: number, tag: number) => {
 				const before = api.Store.get().locationCount;
 				const locs = Array.from({ length: n }, (_, i) =>
 					api.createLocation({ lat: (i % 170) - 85, lng: (i % 350) - 175, tags: [tag] }),
 				);
-				await api.Location.add(locs);
-				const ids = locs.map((l) => l.id);
+				const ids = await api.Location.add(locs);
 				const stored = await api.fetchLocations({
 					type: "Locations",
 					locations: [ids[0], ids[n - 1]],
@@ -44,7 +43,7 @@ describe("Staged (chunked) location adds", () => {
 		expect(new Set(r.ids).size).toBe(CHUNKED);
 		// Ids are allocated in staged order, so they run contiguously.
 		expect(r.ids[CHUNKED - 1] - r.ids[0]).toBe(CHUNKED - 1);
-		// The id written back at each index must address the location built at that index.
+		// The id returned at each index must address the location built at that index.
 		expect(r.storedLats).toEqual([r.firstLat, r.lastLat]);
 	});
 
