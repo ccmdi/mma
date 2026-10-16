@@ -2,16 +2,20 @@
  *
  *  This is a front door, not a tracker. It files the issue on GitHub and forgets it: there is
  *  no database, no user record, and no copy of the report here. The reply token is an HMAC of
- *  the issue number, so reads are authorized arithmetically rather than by lookup.
+ *  the issue number, so reading the thread and replying on it are authorized arithmetically
+ *  rather than by lookup.
  *
- *  Signed-in users never touch this worker -- the app talks to GitHub directly as them. */
+ *  Signed-in users file, read and reply as themselves; they come here only for image hosting
+ *  and labels. */
 
 import {
 	addLabels,
+	createComment,
 	createIssue,
 	getIssue,
+	listComments,
 	referencedAttachments,
-	relayedComments,
+	type Comment,
 } from "./github";
 import { defuseMentions } from "./markdown";
 import {
@@ -235,19 +239,59 @@ async function handleLabel(number: number, url: URL, env: Env): Promise<Response
 	return json({ ok: true });
 }
 
-/** What became of the report, and the replies addressed to whoever filed it. The state is what
- *  lets the app show a closed report as closed without the reporter having a GitHub account. */
-async function handleReplies(number: number, token: string, env: Env): Promise<Response> {
-	if (!safeEqual(token, await replyToken(env, number))) return bad("invalid token", 403);
-	const [issue, comments] = await Promise.all([
-		getIssue(env, number),
-		relayedComments(env, number),
-	]);
+function relay(c: Comment) {
+	return {
+		author: c.user?.login ?? "unknown",
+		avatarUrl: c.user?.avatar_url ?? null,
+		body: c.body ?? "",
+		createdAt: c.created_at ?? "",
+	};
+}
+
+/** The report's thread as its reporter sees it. `author` is the App itself, and so is every
+ *  reply the reporter posts through this worker; other bots' comments are left out. */
+async function handleThread(number: number, env: Env): Promise<Response> {
+	const [issue, comments] = await Promise.all([getIssue(env, number), listComments(env, number)]);
+	const author = issue.user?.login ?? "";
 	return json({
 		state: issue.state ?? "open",
 		stateReason: issue.state_reason ?? null,
-		comments,
+		author,
+		locked: issue.locked ?? false,
+		body: issue.body ?? "",
+		comments: comments
+			.filter((c) => !c.user?.login?.endsWith("[bot]") || c.user.login === author)
+			.map(relay),
 	});
+}
+
+/** Post a follow-up as the App. Only the reporter holds the token, and the App posts nothing
+ *  else on an issue, so a comment by the App is always the reporter's. */
+async function handleReply(request: Request, number: number, env: Env): Promise<Response> {
+	const declared = Number(request.headers.get("Content-Length"));
+	if (!Number.isInteger(declared) || declared > 512 * 1024) return bad("reply too large", 413);
+
+	let payload: { body?: unknown; challenge?: unknown; nonce?: unknown };
+	try {
+		payload = (await request.json()) as typeof payload;
+	} catch {
+		return bad("malformed request");
+	}
+	const { body, challenge, nonce } = payload;
+	if (typeof body !== "string" || !body.trim()) return bad("empty reply");
+	if (body.length > MAX_BODY) return bad("reply too large", 413);
+	if (typeof challenge !== "string" || !(await validChallenge(env.WORKER_SECRET, challenge))) {
+		return bad("expired or invalid challenge", 429);
+	}
+	if (typeof nonce !== "number") return bad("missing proof of work");
+	const content = await sha256Hex(body);
+	if (!(await verifyPow(`${challenge}:reply:${number}:${content}`, nonce, POW_BITS))) {
+		return bad("insufficient proof of work", 429);
+	}
+
+	// The App can write past a lock, and a lock is the maintainers' call.
+	if ((await getIssue(env, number)).locked) return bad("conversation locked", 423);
+	return json(relay(await createComment(env, number, defuseMentions(body.trim()))));
 }
 
 /** An upload happens before the issue that quotes it exists, so anything this young may simply
@@ -306,14 +350,18 @@ export default {
 			return handleLabel(Number(label[1]), url, env).catch((e) => bad(String(e), 502));
 		}
 
-		const replies = url.pathname.match(/^\/reports\/(\d+)$/);
-		if (request.method === "GET" && replies) {
+		const thread = url.pathname.match(/^\/reports\/(\d+)(\/comments)?$/);
+		const replying = thread?.[2] !== undefined;
+		if (thread && request.method === (replying ? "POST" : "GET")) {
+			const number = Number(thread[1]);
 			// A header rather than a query parameter: URLs end up in request logs, and the
 			// token is a bearer credential for this issue's thread.
 			const auth = request.headers.get("Authorization") ?? "";
 			const token = auth.startsWith("Bearer ") ? auth.slice("Bearer ".length) : "";
 			if (!token) return bad("missing token", 403);
-			return handleReplies(Number(replies[1]), token, env).catch((e) => bad(String(e), 502));
+			if (!safeEqual(token, await replyToken(env, number))) return bad("invalid token", 403);
+			const handled = replying ? handleReply(request, number, env) : handleThread(number, env);
+			return handled.catch((e) => bad(String(e), 502));
 		}
 
 		return bad("not found", 404);

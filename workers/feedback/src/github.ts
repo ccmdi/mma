@@ -1,4 +1,4 @@
-/** Minting a GitHub App installation token and the two API calls the worker makes with it.
+/** Minting a GitHub App installation token and the API calls the worker makes with it.
  *
  *  An App installation token rather than a personal access token: it is scoped to the one
  *  repository the App is installed on, expires on its own, and never has to be rotated by
@@ -112,9 +112,11 @@ export async function createIssue(
 }
 
 export interface Issue {
+	user?: { login?: string };
 	body?: string;
 	state?: string;
 	state_reason?: string | null;
+	locked?: boolean;
 	/** Present when the "issue" is actually a pull request -- the issues API serves both. */
 	pull_request?: unknown;
 }
@@ -152,29 +154,24 @@ export async function referencedAttachments(env: Env): Promise<Set<string>> {
 	}
 }
 
-export interface RelayedComment {
-	author: string;
-	body: string;
-	createdAt: string;
+export interface Comment {
+	user?: { login?: string; avatar_url?: string };
+	body?: string;
+	created_at?: string;
 }
 
-/** Every comment on the issue reaches the reporter, minus the app's own. Anything said on a
- *  public issue is already readable by whoever filed it, so a marker would only have been a
- *  way to write to them without writing to the thread -- and it read as a mention of whoever
- *  holds that username. */
-export async function relayedComments(env: Env, number: number): Promise<RelayedComment[]> {
+export async function listComments(env: Env, number: number): Promise<Comment[]> {
 	const resp = await apiFetch(env, `/issues/${number}/comments?per_page=100`);
 	if (!resp.ok) throw new Error(`comment read failed (${resp.status})`);
-	const comments = (await resp.json()) as Array<{
-		user?: { login?: string };
-		body?: string;
-		created_at?: string;
-	}>;
-	return comments
-		.filter((c) => !c.user?.login?.endsWith("[bot]"))
-		.map((c) => ({
-			author: c.user?.login ?? "unknown",
-			body: c.body ?? "",
-			createdAt: c.created_at ?? "",
-		}));
+	return (await resp.json()) as Comment[];
+}
+
+export async function createComment(env: Env, number: number, body: string): Promise<Comment> {
+	const resp = await apiFetch(env, `/issues/${number}/comments`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({ body }),
+	});
+	if (!resp.ok) throw new Error(`comment failed (${resp.status})`);
+	return (await resp.json()) as Comment;
 }
