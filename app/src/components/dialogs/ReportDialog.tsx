@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { mdiClose, mdiGithub, mdiImagePlus, mdiOpenInNew } from "@mdi/js";
+import { useEffect, useMemo, useState } from "react";
+import { mdiGithub } from "@mdi/js";
 import { Button } from "@/components/primitives/Button";
 import { Checkbox } from "@/components/primitives/Checkbox";
 import {
@@ -18,21 +18,17 @@ import {
 	type ReportInput,
 	type ReportKind,
 } from "@/lib/feedback/body";
-import {
-	MAX_ATTACHMENTS,
-	stageImage,
-	uploadImages,
-	type StagedImage,
-} from "@/lib/feedback/attachments";
+import { uploadImages, useStagedImages } from "@/lib/feedback/attachments";
 import { collectDiagnostics, type Diagnostics } from "@/lib/diagnostics";
 import { isSignedIn, submitReport } from "@/lib/feedback/submit";
 import { msg, t } from "@/lib/i18n";
 import { log } from "@/lib/util/log";
 import { errText } from "@/lib/util/format";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import { ATTACHMENT_PREFS, type SubmittedReport } from "@/store/feedback";
+import { ATTACHMENT_LABELS, ATTACHMENT_PREFS } from "@/store/feedback";
+import { openDialog } from "@/store/dialogBus";
 import { useLocalStorage } from "@/lib/hooks/useLocalStorage";
-import { IconButton } from "@/components/primitives/IconButton";
+import { ReportImages } from "./ReportImages";
 
 const KINDS: Array<{ value: ReportKind; label: string }> = [
 	{ value: "bug", label: msg("Something is broken") },
@@ -42,11 +38,7 @@ const KINDS: Array<{ value: ReportKind; label: string }> = [
 /** Stands in for an image's URL in the preview: it has none until the report is sent. */
 const PENDING_URL = "uploaded when you send";
 
-const ATTACHMENTS: Array<{ key: keyof Attachments; label: string }> = [
-	{ key: "diagnostics", label: msg("App version, system and plugins") },
-	{ key: "settings", label: msg("Settings you've changed") },
-	{ key: "log", label: msg("Recent log") },
-];
+const ATTACHMENT_KEYS = Object.keys(ATTACHMENT_LABELS) as Array<keyof Attachments>;
 
 export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [kind, setKind] = useState<ReportKind>("bug");
@@ -56,10 +48,7 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [attachPrefs, setAttachPrefs] = useLocalStorage(ATTACHMENT_PREFS);
 	const attach = attachPrefs[kind];
 	const [showPreview, setShowPreview] = useState(false);
-	const [images, setImages] = useState<StagedImage[]>([]);
-	// One staging dir for the dialog's lifetime, created on the first attachment.
-	const session = useRef<string | null>(null);
-	const fileInput = useRef<HTMLInputElement>(null);
+	const { images, add, remove } = useStagedImages();
 
 	const [signedIn, setSignedIn] = useState(false);
 	const [diagnostics, setDiagnostics] = useState<Diagnostics | null>(null);
@@ -67,7 +56,6 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	const [ready, setReady] = useState(false);
 	const [sending, setSending] = useState(false);
 	const [error, setError] = useState<string | null>(null);
-	const [sent, setSent] = useState<SubmittedReport | null>(null);
 
 	useEffect(() => {
 		void (async () => {
@@ -89,38 +77,13 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 		})();
 	}, []);
 
-	// Staged copies and their object URLs are the dialog's to clean up -- on close, and only on
-	// close. Keyed on `images` this would discard the staging dir the moment a second image was
-	// added, and the next write would land in a directory that no longer exists.
-	const staged = useRef<StagedImage[]>([]);
-	staged.current = images;
-	useEffect(
-		() => () => {
-			staged.current.forEach((i) => URL.revokeObjectURL(i.preview));
-			if (session.current) void cmd.storeUploadAbort(session.current).catch(() => {});
-		},
-		[],
-	);
-
 	const addImages = async (files: FileList | null) => {
-		const picked = [...(files ?? [])].slice(0, MAX_ATTACHMENTS - images.length);
-		if (!picked.length) return;
 		setError(null);
 		try {
-			session.current ??= await cmd.storeUploadBegin();
-			const staged: StagedImage[] = [];
-			for (const [i, file] of picked.entries()) {
-				staged.push(await stageImage(session.current, file, images.length + i));
-			}
-			setImages((prev) => [...prev, ...staged]);
+			await add(files);
 		} catch (e) {
 			setError(errText(e));
 		}
-	};
-
-	const removeImage = (image: StagedImage) => {
-		URL.revokeObjectURL(image.preview);
-		setImages((prev) => prev.filter((i) => i.id !== image.id));
 	};
 
 	const anonymous = !signedIn;
@@ -144,7 +107,7 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	);
 
 	const blocked = !title.trim() || !description.trim() || !diagnostics;
-	const withheld = kind === "bug" && ATTACHMENTS.some(({ key }) => !attach[key]);
+	const withheld = kind === "bug" && ATTACHMENT_KEYS.some((key) => !attach[key]);
 
 	const send = async () => {
 		setSending(true);
@@ -156,7 +119,9 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 			const finalBody = diagnostics
 				? buildIssueBody(input, diagnostics, { anonymous, attach, logTail, images: uploaded })
 				: body;
-			setSent(await submitReport(input, finalBody, anonymous));
+			const report = await submitReport(input, finalBody, anonymous);
+			onOpenChange(false);
+			openDialog("report-thread", report.number);
 		} catch (e) {
 			setError(errText(e));
 		} finally {
@@ -183,28 +148,6 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 	};
 
 	if (!ready) return null;
-
-	if (sent) {
-		return (
-			<Dialog open={open} onOpenChange={onOpenChange}>
-				<DialogContent title={t("Report sent")} className="report-dialog">
-					<p className="report-dialog__sent">
-						{sent.anonymous
-							? t("Thanks. Replies show up in Settings, under Feedback. Check back there.")
-							: t("Thanks. This was filed on your GitHub account, so replies reach you there too.")}
-					</p>
-					<DialogActions
-						start={
-							<Button onClick={() => void openExternal(sent.url)}>
-								<Icon path={mdiOpenInNew} size={14} /> {t("View report")}
-							</Button>
-						}
-						primary={{ label: t("Done"), onClick: () => onOpenChange(false) }}
-					/>
-				</DialogContent>
-			</Dialog>
-		);
-	}
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -263,44 +206,12 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 				</div>
 
 				<div className="report-dialog__images">
-					{images.map((image) => (
-						<div key={image.id} className="report-dialog__image">
-							<img src={image.preview} alt={image.name} title={image.name} />
-							<IconButton
-								className="report-dialog__image-remove"
-								icon={mdiClose}
-								size={12}
-								label={t("Remove")}
-								onClick={() => removeImage(image)}
-							/>
-						</div>
-					))}
-					{images.length < MAX_ATTACHMENTS && (
-						<button
-							type="button"
-							className="report-dialog__image-add"
-							onClick={() => fileInput.current?.click()}
-							title={t("Attach an image, or paste one")}
-						>
-							<Icon path={mdiImagePlus} size={20} />
-						</button>
-					)}
-					<input
-						ref={fileInput}
-						type="file"
-						accept="image/png,image/jpeg,image/gif,image/webp"
-						multiple
-						hidden
-						onChange={(e) => {
-							void addImages(e.target.files);
-							e.target.value = "";
-						}}
-					/>
+					<ReportImages images={images} onAdd={(f) => void addImages(f)} onRemove={remove} />
 				</div>
 
 				<div className="report-dialog__meta">
 					<div className="report-dialog__attachments">
-						{ATTACHMENTS.map(({ key, label }) => (
+						{ATTACHMENT_KEYS.map((key) => (
 							<Checkbox
 								key={key}
 								checked={attach[key]}
@@ -311,7 +222,7 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 									}))
 								}
 							>
-								{t(label)}
+								{t(ATTACHMENT_LABELS[key])}
 							</Checkbox>
 						))}
 					</div>

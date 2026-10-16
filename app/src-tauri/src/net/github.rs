@@ -168,6 +168,8 @@ pub struct GhUser {
 #[serde(rename_all = "camelCase")]
 pub struct IssueComment {
     pub author: String,
+    #[serde(default)]
+    pub avatar_url: Option<String>,
     pub body: String,
     /// ISO-8601, as GitHub returns it.
     pub created_at: String,
@@ -192,6 +194,16 @@ pub struct IssueThread {
     /// `"completed"`, `"not_planned"` or `"reopened"`. Absent on an open issue, and on issues closed
     /// before GitHub recorded a reason.
     pub state_reason: Option<String>,
+    /// Who filed it. A comment by the same author is the reporter's own.
+    #[serde(default)]
+    pub author: String,
+    /// Whether maintainers have closed it to new comments.
+    #[serde(default)]
+    pub locked: bool,
+    /// The report as it was filed.
+    #[serde(default)]
+    pub body: String,
+    /// Oldest first.
     pub comments: Vec<IssueComment>,
 }
 
@@ -396,50 +408,42 @@ fn fetch_me() -> AppResult<Option<GhUser>> {
     }
 }
 
-/// The issue's state and its replies, oldest first: every comment except the reporter's own.
-/// Bot chatter is included, since the reporter can read the whole thread on github.com anyway.
+fn str_at<'a>(v: &'a serde_json::Value, path: &[&str]) -> Option<&'a str> {
+    path.iter()
+        .try_fold(v, |v, k| v.get(k))
+        .and_then(serde_json::Value::as_str)
+}
+
+pub(crate) fn parse_comment(c: &serde_json::Value) -> IssueComment {
+    IssueComment {
+        author: str_at(c, &["user", "login"])
+            .unwrap_or("unknown")
+            .to_string(),
+        avatar_url: str_at(c, &["user", "avatar_url"]).map(String::from),
+        body: str_at(c, &["body"]).unwrap_or_default().to_string(),
+        created_at: str_at(c, &["created_at"]).unwrap_or_default().to_string(),
+    }
+}
+
 pub(crate) fn parse_thread(issue: &serde_json::Value, comments: &serde_json::Value) -> IssueThread {
-    let reporter = issue
-        .get("user")
-        .and_then(|u| u.get("login"))
-        .and_then(|l| l.as_str());
-    let comments = comments
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .map(|c| IssueComment {
-                    author: c
-                        .get("user")
-                        .and_then(|u| u.get("login"))
-                        .and_then(|l| l.as_str())
-                        .unwrap_or("unknown")
-                        .to_string(),
-                    body: c
-                        .get("body")
-                        .and_then(|b| b.as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                    created_at: c
-                        .get("created_at")
-                        .and_then(|d| d.as_str())
-                        .unwrap_or_default()
-                        .to_string(),
-                })
-                .filter(|c| Some(c.author.as_str()) != reporter)
-                .collect()
-        })
-        .unwrap_or_default();
     IssueThread {
-        state: match issue.get("state").and_then(|s| s.as_str()) {
+        state: match str_at(issue, &["state"]) {
             Some("closed") => IssueState::Closed,
             _ => IssueState::Open,
         },
-        state_reason: issue
-            .get("state_reason")
-            .and_then(|s| s.as_str())
-            .map(str::to_string),
-        comments,
+        state_reason: str_at(issue, &["state_reason"]).map(String::from),
+        author: str_at(issue, &["user", "login"])
+            .unwrap_or_default()
+            .to_string(),
+        locked: issue
+            .get("locked")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(false),
+        body: str_at(issue, &["body"]).unwrap_or_default().to_string(),
+        comments: comments
+            .as_array()
+            .map(|items| items.iter().map(parse_comment).collect())
+            .unwrap_or_default(),
     }
 }
 
@@ -554,13 +558,30 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
     })
 }
 
-/// The state and replies of an issue the signed-in user filed.
+/// The thread of an issue the signed-in user filed.
 pub(crate) fn issue_thread(number: u32) -> AppResult<IssueThread> {
     let issue = get(&format!("{API}/repos/{REPO}/issues/{number}"))?;
     let comments = get(&format!(
         "{API}/repos/{REPO}/issues/{number}/comments?per_page=100"
     ))?;
     Ok(parse_thread(&issue, &comments))
+}
+
+/// Comment on an issue as the signed-in user.
+pub(crate) fn comment(number: u32, body: &str) -> AppResult<IssueComment> {
+    let payload = serde_json::json!({ "body": body });
+    let resp = authed(|token| {
+        proxy::proxy_client()
+            .post(format!("{API}/repos/{REPO}/issues/{number}/comments"))
+            .header("Accept", "application/vnd.github+json")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("User-Agent", user_agent())
+            .json(&payload)
+    })?;
+    if !resp.status().is_success() {
+        return Err(ErrCode::ReplyRejected.with(error_detail(resp)));
+    }
+    Ok(parse_comment(&resp.json()?))
 }
 
 #[cfg(test)]

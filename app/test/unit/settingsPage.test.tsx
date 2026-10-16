@@ -5,6 +5,7 @@ import { mountAsync } from "./fixtures/harness";
 import { initLocale } from "@/lib/i18n";
 import { setLocal } from "@/lib/hooks/useLocalStorage";
 import type { SubmittedReport } from "@/store/feedback";
+import { useDialog } from "@/store/dialogBus";
 import type { MapMeta, MapPreferences } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 
@@ -193,9 +194,39 @@ describe("feedback reports", () => {
 		]);
 		await mount();
 		search("feedback");
-		expect(qa(".feedback-reports__status--open").length).toBe(1);
-		expect(qa(".feedback-reports__status--dismissed").length).toBe(1);
-		expect(q(".feedback-reports__status--open svg")).not.toBeNull();
+		expect(qa(".report-status--open").length).toBe(1);
+		expect(qa(".report-status--dismissed").length).toBe(1);
+		expect(q(".report-status--open svg")).not.toBeNull();
+	});
+
+	it("opens a report's conversation", async () => {
+		setLocal("feedbackReports", [
+			{
+				number: 8,
+				url: "u",
+				title: "a report",
+				kind: "bug",
+				submittedAt: "2026-08-14T00:00:00Z",
+				anonymous: true,
+				token: "t",
+				seenReplies: 0,
+				replies: 0,
+			},
+		]);
+		const opened = vi.fn();
+		function Listener() {
+			useDialog("report-thread", opened);
+			return null;
+		}
+		await mount(
+			<>
+				<Listener />
+				<SettingsPage open onOpenChange={() => {}} />
+			</>,
+		);
+		search("feedback");
+		act(() => (q(".feedback-reports__item") as HTMLElement).click());
+		expect(opened).toHaveBeenCalledWith(8);
 	});
 });
 

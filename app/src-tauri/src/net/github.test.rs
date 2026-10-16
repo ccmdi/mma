@@ -157,16 +157,42 @@ fn comments_parse_tolerates_a_non_array() {
 }
 
 #[test]
-fn the_reporters_own_comments_are_not_replies() {
+fn a_thread_keeps_the_reporters_own_comments_and_says_who_filed_it() {
     let thread = parse_thread(
-        &serde_json::json!({ "user": { "login": "reporter" }, "state": "closed", "state_reason": "completed" }),
+        &serde_json::json!({
+            "user": { "login": "reporter" },
+            "state": "closed",
+            "state_reason": "completed",
+            "locked": true,
+            "body": "it broke",
+        }),
         &serde_json::json!([
             { "user": { "login": "reporter" }, "body": "more detail" },
-            { "user": { "login": "maintainer" }, "body": "fixed" },
+            { "user": { "login": "maintainer", "avatar_url": "https://a/1" }, "body": "fixed" },
         ]),
     );
-    assert_eq!(thread.comments.len(), 1);
-    assert_eq!(thread.comments[0].author, "maintainer");
+    assert_eq!(thread.author, "reporter");
+    let authors: Vec<_> = thread.comments.iter().map(|c| c.author.as_str()).collect();
+    assert_eq!(authors, ["reporter", "maintainer"]);
+    assert_eq!(
+        thread.comments[1].avatar_url.as_deref(),
+        Some("https://a/1")
+    );
+    assert!(thread.locked);
+    assert_eq!(thread.body, "it broke");
     assert_eq!(thread.state, IssueState::Closed);
     assert_eq!(thread.state_reason.as_deref(), Some("completed"));
+}
+
+#[test]
+fn a_thread_from_a_worker_without_the_newer_fields_still_reads() {
+    let thread: IssueThread = serde_json::from_value(serde_json::json!({
+        "state": "open",
+        "stateReason": null,
+        "comments": [{ "author": "ccmdi", "body": "hi", "createdAt": "2026-08-14T00:00:00Z" }],
+    }))
+    .unwrap();
+    assert_eq!(thread.author, "");
+    assert!(!thread.locked);
+    assert_eq!(thread.comments[0].avatar_url, None);
 }

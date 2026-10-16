@@ -20,6 +20,7 @@ type DialogPayloads = {
 	"doclink-assign": void;
 	"command-palette": void;
 	feedback: void;
+	"report-thread": number;
 	"bulk-op": string;
 	"plugin-modal": string;
 	"inline-panel": string;

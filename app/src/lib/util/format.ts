@@ -228,6 +228,7 @@ const CODE_MESSAGES: Record<ErrorCode, (detail: string) => string> = {
 	"upload-rejected": (d) => t("The upload was rejected ({detail}).", { detail: d }),
 	"report-rejected": (d) => t("The report was rejected ({detail}).", { detail: d }),
 	"report-unreadable": (d) => t("Could not read the report ({status}).", { status: d }),
+	"reply-rejected": (d) => t("The reply was rejected ({detail}).", { detail: d }),
 	"sign-in-timed-out": () => t("Timed out waiting for GitHub sign-in."),
 	"sign-in-token-rejected": () => t("Signed in, but GitHub rejected the token."),
 	"issue-rejected": (d) => t("GitHub rejected the report: {detail}", { detail: d }),

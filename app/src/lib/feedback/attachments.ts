@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import type { AttachmentRef } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { mmaBufUrl } from "@/lib/util/util";
@@ -48,7 +49,7 @@ async function normalize(file: Blob): Promise<Blob> {
 
 /** Copy an image into `session` and describe it. The staged file is what
  *  {@link uploadImages} later hands to Rust. */
-export async function stageImage(session: string, file: File, index: number): Promise<StagedImage> {
+async function stageImage(session: string, file: File, index: number): Promise<StagedImage> {
 	const blob = await normalize(file);
 	const extension = blob.type === "image/jpeg" ? "jpg" : blob.type.slice("image/".length);
 	const name = file.name || `pasted-${index + 1}.${extension}`;
@@ -77,4 +78,43 @@ export async function uploadImages(images: StagedImage[]): Promise<AttachmentRef
 		refs.push(await cmd.feedbackUploadAttachment(image.path, image.name));
 	}
 	return refs;
+}
+
+/** Images staged for one message. Staged copies and previews are released when the owner
+ *  unmounts, never as the list changes: that would discard the staging dir on the second add. */
+export function useStagedImages() {
+	const [images, setImages] = useState<StagedImage[]>([]);
+	const session = useRef<string | null>(null);
+	const current = useRef<StagedImage[]>([]);
+	current.current = images;
+	useEffect(
+		() => () => {
+			current.current.forEach((i) => URL.revokeObjectURL(i.preview));
+			if (session.current) void cmd.storeUploadAbort(session.current).catch(() => {});
+		},
+		[],
+	);
+
+	const add = async (files: FileList | File[] | null) => {
+		const picked = [...(files ?? [])].slice(0, MAX_ATTACHMENTS - current.current.length);
+		if (!picked.length) return;
+		session.current ??= await cmd.storeUploadBegin();
+		const staged: StagedImage[] = [];
+		for (const [i, file] of picked.entries()) {
+			staged.push(await stageImage(session.current, file, current.current.length + i));
+		}
+		setImages((prev) => [...prev, ...staged]);
+	};
+
+	const remove = (image: StagedImage) => {
+		URL.revokeObjectURL(image.preview);
+		setImages((prev) => prev.filter((i) => i.id !== image.id));
+	};
+
+	const clear = () => {
+		current.current.forEach((i) => URL.revokeObjectURL(i.preview));
+		setImages([]);
+	};
+
+	return { images, add, remove, clear };
 }

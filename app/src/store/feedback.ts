@@ -13,6 +13,13 @@ export const ATTACHMENT_PREFS = persisted<Record<ReportKind, Attachments>>("feed
 	idea: { diagnostics: false, settings: false, log: false },
 });
 
+/** What each attachment is called where the reporter chooses it. */
+export const ATTACHMENT_LABELS: Record<keyof Attachments, string> = {
+	diagnostics: msg("App version, system and plugins"),
+	settings: msg("Settings you've changed"),
+	log: msg("Recent log"),
+};
+
 /** A report this install has filed. Kept locally because an anonymous reporter has no account
  *  to look their own issues up under. */
 export interface SubmittedReport {
@@ -63,11 +70,6 @@ export function updateReport(number: number, patch: Partial<SubmittedReport>): v
 		REPORTS_KEY,
 		getReports().map((r) => (r.number === number ? { ...r, ...patch } : r)),
 	);
-}
-
-export function markRepliesSeen(number: number): void {
-	const report = getReports().find((r) => r.number === number);
-	if (report) updateReport(number, { seenReplies: report.replies });
 }
 
 export function unreadReplyCount(reports: SubmittedReport[]): number {

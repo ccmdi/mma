@@ -161,12 +161,15 @@ export function DialogContent({
 	className,
 	title,
 	size = "md",
+	aside,
 	initialFocus,
 	children,
 	...props
 }: ComponentProps<typeof BaseDialog.Popup> & {
 	title: string;
 	size?: DialogSize;
+	/** Shown in the header between the title and the close button, such as a status. */
+	aside?: ReactNode;
 }) {
 	const popupRef = useRef<HTMLDivElement>(null);
 	return (
@@ -190,6 +193,7 @@ export function DialogContent({
 					<div className={clsx("modal__dialog", `modal__dialog--${size}`, className)}>
 						<header className={clsx("modal__header", className ? `${className}__header` : null)}>
 							<BaseDialog.Title className="modal__title">{title}</BaseDialog.Title>
+							{aside && <div className="modal__aside">{aside}</div>}
 							<BaseDialog.Close render={<IconButton icon={mdiClose} label={t("Close")} />} />
 						</header>
 						<div className="modal__content">{children}</div>

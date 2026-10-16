@@ -1,3 +1,4 @@
+import type { IssueThread } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { log } from "@/lib/util/log";
 import {
@@ -45,28 +46,38 @@ export async function submitReport(
 	return report;
 }
 
-/** Refresh state and reply counts for every stored report. Failures are per-report: one dead
- *  thread must not stop the rest from updating. */
-export async function refreshReports(reports: SubmittedReport[]): Promise<void> {
+/** What proves an anonymous report is ours; null for one filed on the user's GitHub account. */
+export function replyToken(report: SubmittedReport): string | null {
+	if (!report.anonymous) return null;
+	if (!report.token) throw new Error("no reply token for this report");
+	return report.token;
+}
+
+/** Store what a fetched thread says about its report. `seen` marks every reply in it read. */
+export function recordThread(report: SubmittedReport, thread: IssueThread, seen = false): void {
+	const replies = thread.comments.filter((c) => c.author !== thread.author).length;
+	const patch = {
+		replies,
+		state: thread.state,
+		stateReason: thread.stateReason,
+		seenReplies: seen ? replies : report.seenReplies,
+	};
+	if ((Object.keys(patch) as Array<keyof typeof patch>).some((k) => patch[k] !== report[k])) {
+		updateReport(report.number, patch);
+	}
+}
+
+/** Refresh everything this install has filed. The unread-reply indicator sits outside the
+ *  Feedback section, so reply counts cannot wait for the user to open it. Failures are
+ *  per-report: one dead thread must not stop the rest from updating. */
+export async function refreshStoredReports(): Promise<void> {
 	await Promise.all(
-		reports.map(async (r) => {
+		getReports().map(async (r) => {
 			try {
-				const token = r.anonymous ? r.token : null;
-				if (token === undefined) throw new Error("no reply token for this report");
-				const { state, stateReason, comments } = await cmd.feedbackThread(r.number, token);
-				if (comments.length !== r.replies || state !== r.state || stateReason !== r.stateReason) {
-					updateReport(r.number, { replies: comments.length, state, stateReason });
-				}
+				recordThread(r, await cmd.feedbackThread(r.number, replyToken(r)));
 			} catch (e) {
 				log.debug(`[feedback] refresh failed for #${r.number}: ${e}`);
 			}
 		}),
 	);
-}
-
-/** Refresh everything this install has filed. The unread-reply indicator sits outside the
- *  Feedback section, so reply counts cannot wait for the user to open it. */
-export async function refreshStoredReports(): Promise<void> {
-	const reports = getReports();
-	if (reports.length) await refreshReports(reports);
 }

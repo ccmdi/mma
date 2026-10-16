@@ -6,7 +6,7 @@
 
 use crate::io::export;
 use crate::net::github;
-use crate::net::github::IssueThread;
+use crate::net::github::{IssueComment, IssueThread};
 use crate::net::proxy;
 use crate::types::{AppResult, ErrCode};
 use crate::util;
@@ -305,6 +305,37 @@ pub async fn feedback_thread(number: u32, token: Option<String>) -> AppResult<Is
             return Err(ErrCode::ReportUnreadable.with(resp.status()));
         }
         Ok(resp.json::<IssueThread>()?)
+    })
+    .await?
+}
+
+/// Reply on a report, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user.
+#[tauri::command]
+#[specta::specta]
+pub async fn feedback_reply(
+    number: u32,
+    token: Option<String>,
+    body: String,
+) -> AppResult<IssueComment> {
+    blocking(move || {
+        let body = scrub(&body);
+        let Some(token) = token else {
+            return github::comment(number, &body);
+        };
+        let challenge = fetch_challenge()?;
+        let content = util::sha256_hex(body.as_bytes());
+        let nonce = solve_pow(&format!("{challenge}:reply:{number}:{content}"), POW_BITS);
+        let resp = proxy::proxy_client()
+            .post(format!("{WORKER_URL}/reports/{number}/comments"))
+            .header("Authorization", format!("Bearer {token}"))
+            .json(&serde_json::json!({ "body": body, "challenge": challenge, "nonce": nonce }))
+            .send()?;
+        let status = resp.status();
+        if !status.is_success() {
+            let detail = resp.text().unwrap_or_default();
+            return Err(ErrCode::ReplyRejected.with(format!("{status}: {detail}")));
+        }
+        Ok(resp.json::<IssueComment>()?)
     })
     .await?
 }

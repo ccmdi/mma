@@ -104,6 +104,8 @@ export const commands = {
 	feedbackUploadAttachment: (path: string, name: string) => __TAURI_INVOKE<AttachmentRef>("feedback_upload_attachment", { path, name }),
 	/**  Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. */
 	feedbackThread: (number: number, token: string | null) => __TAURI_INVOKE<IssueThread>("feedback_thread", { number, token }),
+	/**  Reply on a report, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. */
+	feedbackReply: (number: number, token: string | null, body: string) => __TAURI_INVOKE<IssueComment>("feedback_reply", { number, token, body }),
 	/**
 	 *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
 	 *  when the announced version is not newer than the running one.
@@ -851,6 +853,7 @@ export type ImportedMapInfo = {
 
 export type IssueComment = {
 	author: string,
+	avatarUrl?: string | null,
 	body: string,
 	/**  ISO-8601, as GitHub returns it. */
 	createdAt: string,
@@ -867,6 +870,13 @@ export type IssueThread = {
 	 *  before GitHub recorded a reason.
 	 */
 	stateReason: string | null,
+	/**  Who filed it. A comment by the same author is the reporter's own. */
+	author?: string,
+	/**  Whether maintainers have closed it to new comments. */
+	locked?: boolean,
+	/**  The report as it was filed. */
+	body?: string,
+	/**  Oldest first. */
 	comments: IssueComment[],
 };
 

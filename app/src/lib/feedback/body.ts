@@ -39,6 +39,50 @@ function details(summary: string, inner: string): string {
 	return `<details>\n<summary>${summary}</summary>\n\n${inner}\n\n</details>`;
 }
 
+/** The collapsed sections a report can carry, by what they are titled in the issue. */
+export const SECTION_TITLES: Record<keyof Attachments, string> = {
+	diagnostics: "Diagnostics",
+	settings: "Non-default settings",
+	log: "Log",
+};
+
+function imageRefs(images: Array<{ url: string; name: string }>): string {
+	return images.map((i) => `![${i.name}](${i.url})`).join("\n\n");
+}
+
+/** Below 256 characters a log is a useless fragment, so it is left out instead. */
+function logSection(logTail: string | undefined, budget: number): string | null {
+	if (!logTail?.trim() || budget <= 256) return null;
+	return details(SECTION_TITLES.log, "```\n" + logTail.slice(-budget).trim() + "\n```");
+}
+
+/** A follow-up on a report, with whatever the reporter attached to it. */
+export function buildReplyBody(
+	text: string,
+	opts: { logTail?: string; images?: Array<{ url: string; name: string }> } = {},
+): string {
+	const parts = [text.trim()];
+	if (opts.images?.length) parts.push(imageRefs(opts.images));
+	const log = logSection(opts.logTail, MAX_BODY - parts.join("\n\n").length - 64);
+	if (log) parts.push(log);
+	return parts.join("\n\n").slice(0, MAX_BODY);
+}
+
+/** A report or reply split into what someone wrote and the titles of the collapsed sections
+ *  attached to it. */
+export function readBody(markdown: string): { text: string; sections: string[] } {
+	const sections: string[] = [];
+	const text = markdown
+		.replace(/<!--[\s\S]*?-->/g, "")
+		.replace(/<details>\s*<summary>([\s\S]*?)<\/summary>[\s\S]*?<\/details>/g, (_, summary) => {
+			sections.push(String(summary).trim());
+			return "";
+		})
+		.replace(/\n{3,}/g, "\n\n")
+		.trim();
+	return { text, sections };
+}
+
 function json(value: unknown): string {
 	return "```json\n" + JSON.stringify(value, null, 2) + "\n```";
 }
@@ -108,12 +152,10 @@ export function buildIssueBody(
 	}
 
 	// Above the diagnostics: a screenshot is the part a human reads first.
-	if (opts.images?.length) {
-		parts.push(opts.images.map((i) => `![${i.name}](${i.url})`).join("\n\n"));
-	}
+	if (opts.images?.length) parts.push(imageRefs(opts.images));
 
 	if (opts.attach.diagnostics) {
-		parts.push(details("Diagnostics", diagnosticsTable(diagnostics)));
+		parts.push(details(SECTION_TITLES.diagnostics, diagnosticsTable(diagnostics)));
 	}
 
 	const changed = opts.attach.settings
@@ -127,7 +169,7 @@ export function buildIssueBody(
 			}
 		: {};
 	if (Object.keys(changed).length) {
-		parts.push(details("Non-default settings", json(changed)));
+		parts.push(details(SECTION_TITLES.settings, json(changed)));
 	}
 
 	// The machine block is what automation reads, so it is the last thing trimmed -- but it is
@@ -153,14 +195,10 @@ export function buildIssueBody(
 
 	const room = MAX_BODY - meta.length - 2;
 
-	if (opts.attach.log && opts.logTail?.trim()) {
-		const budget = room - parts.join("\n\n").length - 64;
-		// Too little room left to be worth a section, so the log is dropped rather than
-		// squeezed down to a useless fragment.
-		if (budget > 256) {
-			parts.push(details("Log", "```\n" + opts.logTail.slice(-budget).trim() + "\n```"));
-		}
-	}
+	const log = opts.attach.log
+		? logSection(opts.logTail, room - parts.join("\n\n").length - 64)
+		: null;
+	if (log) parts.push(log);
 
 	let content = parts.join("\n\n");
 	if (content.length > room) {

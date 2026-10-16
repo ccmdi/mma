@@ -474,6 +474,7 @@ err_codes! {
     UploadRejected => "upload-rejected",
     ReportRejected => "report-rejected",
     ReportUnreadable => "report-unreadable",
+    ReplyRejected => "reply-rejected",
     SignInTimedOut => "sign-in-timed-out",
     SignInTokenRejected => "sign-in-token-rejected",
     IssueRejected => "issue-rejected",

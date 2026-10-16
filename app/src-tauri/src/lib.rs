@@ -157,6 +157,7 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 net::feedback::feedback_submit,
                 net::feedback::feedback_upload_attachment,
                 net::feedback::feedback_thread,
+                net::feedback::feedback_reply,
                 net::update::update_check,
                 net::update::update_install,
                 net::remote_api::remote_api_set,

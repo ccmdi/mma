@@ -280,6 +280,7 @@ ERROR_CODES: readonly [
   "upload-rejected",
   "report-rejected",
   "report-unreadable",
+  "reply-rejected",
   "sign-in-timed-out",
   "sign-in-token-rejected",
   "issue-rejected",
@@ -761,7 +762,7 @@ Which edit history to step through. Each part of the map that undoes on its own 
 
 ### VALI_COUNTRIES
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 VALI_COUNTRIES: readonly [
@@ -3252,6 +3253,8 @@ ui.DialogContent(
   props: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
     size?: DialogSize;
+    /** Shown in the header between the title and the close button, such as a status. */
+    aside?: ReactNode;
   },
 ): react.JSX.Element
 ```
@@ -5877,9 +5880,23 @@ cmd.feedbackLogTail(): Promise<string>
 
 The tail of `mma.log`, scrubbed. Empty string when there is no log yet.
 
-#### cmd.feedbackSubmit
+#### cmd.feedbackReply
 
 `unstable` · unreleased
+
+```ts
+cmd.feedbackReply(
+  number: number,
+  token: string | null,
+  body: string,
+): Promise<IssueComment>
+```
+
+Reply on a report, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user.
+
+#### cmd.feedbackSubmit
+
+`unstable` · since v0.12.0
 
 ```ts
 cmd.feedbackSubmit(
@@ -5893,7 +5910,7 @@ File a report anonymously under this install id, or as the signed-in GitHub user
 
 #### cmd.feedbackThread
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.feedbackThread(number: number, token: string | null): Promise<IssueThread>
@@ -6188,7 +6205,7 @@ The area a polygon selects, as polygons whose edges never cross, for drawing its
 
 #### cmd.polygonPoints
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.polygonPoints(
@@ -6273,7 +6290,7 @@ Deliver the result for remote API request `id`. `payload` is JSON text.
 
 #### cmd.remoteApiSet
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.remoteApiSet(key: string | null): Promise<null>
@@ -6314,7 +6331,7 @@ Never `null`: every landmass is covered.
 
 #### cmd.runCancel
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.runCancel(runId: number): Promise<null>
@@ -6324,7 +6341,7 @@ Stop a run. Work it already finished stays done, and a run that has ended ignore
 
 #### cmd.runReserve
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.runReserve(): Promise<number>
@@ -6394,7 +6411,7 @@ Stop all sidecar processes for a plugin, or for every plugin when the id is null
 
 #### cmd.startupCheck
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.startupCheck(): Promise<null>
@@ -6574,7 +6591,7 @@ Edit an interned field's value records; membership uses ordinary location edits.
 
 #### cmd.storeExport
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeExport(
@@ -6715,7 +6732,7 @@ List every saved selection rule (name, color, date), without their selector tree
 
 #### cmd.storeMoveFolder
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeMoveFolder(from: string, to: string | null): Promise<null>
@@ -6754,7 +6771,7 @@ Answer one question about the target's locations matched by selector.
 
 #### cmd.storeReviewEdit
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 cmd.storeReviewEdit(
@@ -9144,7 +9161,7 @@ Write the pending seen entry to disk, if any.
 
 #### Seen.list
 
-`unstable` · unreleased
+`unstable` · since v0.12.0
 
 ```ts
 Seen.list(

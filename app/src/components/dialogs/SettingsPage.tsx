@@ -52,7 +52,7 @@ import type { DeviceCodeInfo, GhUser, MapPreferences, RGB } from "@/bindings.gen
 import { collectDiagnostics } from "@/lib/diagnostics";
 import { appVersion } from "@/lib/version";
 import { refreshStoredReports } from "@/lib/feedback/submit";
-import { markRepliesSeen, reportStatus, unreadReplyCount, useReports } from "@/store/feedback";
+import { reportStatus, unreadReplyCount, useReports } from "@/store/feedback";
 import { openDialog as openAppDialog } from "@/store/dialogBus";
 import {
 	mdiAlertCircleOutline,
@@ -1434,31 +1434,29 @@ function FeedbackBody() {
 							{reports.map((r) => {
 								const status = reportStatus(r);
 								return (
-									<li key={r.number} className="feedback-reports__item">
-										{status && (
-											<span
-												className={`feedback-reports__status feedback-reports__status--${status.tone}`}
-												title={t(status.label)}
-											>
-												<Icon path={status.icon} size={16} />
-											</span>
-										)}
+									<li key={r.number}>
 										<button
 											type="button"
-											className="link-button"
-											onClick={() => {
-												markRepliesSeen(r.number);
-												void openExternal(r.url);
-											}}
+											className="feedback-reports__item"
+											onClick={() => openAppDialog("report-thread", r.number)}
 										>
-											{r.title}
+											{status ? (
+												<Tooltip content={t(status.label)}>
+													<span className={`report-status report-status--${status.tone}`}>
+														<Icon path={status.icon} size={16} />
+													</span>
+												</Tooltip>
+											) : (
+												<span className="report-status" />
+											)}
+											<span className="truncate">{r.title}</span>
+											{r.replies > r.seenReplies && (
+												<Pill tone="action" count={r.replies - r.seenReplies} />
+											)}
+											<span className="feedback-reports__date">
+												{new Date(r.submittedAt).toLocaleDateString()}
+											</span>
 										</button>
-										{r.replies > r.seenReplies && (
-											<span className="feedback-reports__badge">{r.replies - r.seenReplies}</span>
-										)}
-										<span className="text-muted">
-											{new Date(r.submittedAt).toLocaleDateString()}
-										</span>
 									</li>
 								);
 							})}

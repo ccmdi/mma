@@ -5,15 +5,11 @@ import { mountAsync } from "./fixtures/harness";
 
 vi.stubGlobal("__APP_VERSION__", "0.0.0-test");
 
-const stageImage = vi.hoisted(() =>
-	vi.fn(async (_session: string, file: File, index: number) => ({
-		id: `${index}`,
-		name: file.name,
-		path: `staged/${index}`,
-		preview: "",
-		size: file.size,
-	})),
-);
+// A GIF is staged as-is, so no canvas is needed to re-encode it.
+const staged = vi.fn(async () => new Response(null, { status: 200 }));
+vi.stubGlobal("fetch", staged);
+URL.createObjectURL = () => "blob:preview";
+URL.revokeObjectURL = () => {};
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
@@ -21,10 +17,6 @@ vi.mock("@/lib/commands", () => ({
 		storeUploadBegin: vi.fn().mockResolvedValue("session"),
 		storeUploadAbort: vi.fn().mockResolvedValue(undefined),
 	},
-}));
-vi.mock("@/lib/feedback/attachments", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@/lib/feedback/attachments")>()),
-	stageImage,
 }));
 vi.mock("@/lib/diagnostics", () => ({ collectDiagnostics: vi.fn().mockResolvedValue({}) }));
 vi.mock("@/lib/feedback/submit", () => ({
@@ -54,10 +46,29 @@ describe("ReportDialog images", () => {
 		expect(dialog).not.toBeNull();
 
 		await act(async () => {
-			pasteFiles(dialog, [new File(["x"], "shot.png", { type: "image/png" })]);
+			pasteFiles(dialog, [new File(["x"], "shot.gif", { type: "image/gif" })]);
 		});
 
-		expect(stageImage).toHaveBeenCalledTimes(1);
-		expect(document.querySelectorAll(".report-dialog__image")).toHaveLength(1);
+		expect(staged).toHaveBeenCalledTimes(1);
+		expect(document.querySelectorAll(".report-images__chip")).toHaveLength(1);
+	});
+
+	it("opens an attached image large, where it can be removed", async () => {
+		await mountAsync(<ReportDialog open onOpenChange={() => {}} />);
+		await act(async () => {});
+		await act(async () => {
+			pasteFiles(document.querySelector(".report-dialog")!, [
+				new File(["x"], "shot.gif", { type: "image/gif" }),
+			]);
+		});
+		await act(async () => {
+			(document.querySelector(".report-images__chip > button") as HTMLElement).click();
+		});
+		expect(document.querySelector(".lightbox__image")?.getAttribute("alt")).toBe("shot.gif");
+		await act(async () => {
+			(document.querySelector(".lightbox .button--destructive") as HTMLElement).click();
+		});
+		expect(document.querySelectorAll(".report-images__chip")).toHaveLength(0);
+		expect(document.querySelector(".lightbox__image")).toBeNull();
 	});
 });

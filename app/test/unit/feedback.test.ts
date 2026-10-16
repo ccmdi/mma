@@ -2,6 +2,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
 	buildIssueBody,
+	buildReplyBody,
+	readBody,
+	SECTION_TITLES,
 	type Attachments,
 	type ReportInput,
 	type ReportMeta,
@@ -29,7 +32,13 @@ vi.mock("@/lib/commands", async (orig) => ({
 		feedbackThread: vi.fn(async () => ({
 			state: "open" as const,
 			stateReason: null,
-			comments: [{ author: "maintainer", body: "b", createdAt: "2026-08-14T00:00:00Z" }],
+			author: "reporter",
+			locked: false,
+			body: "",
+			comments: [
+				{ author: "reporter", body: "a", createdAt: "2026-08-14T00:00:00Z" },
+				{ author: "maintainer", body: "b", createdAt: "2026-08-14T00:00:00Z" },
+			],
 		})),
 	},
 }));
@@ -236,6 +245,34 @@ describe("issue body", () => {
 	});
 });
 
+describe("reply body", () => {
+	it("carries the text, then images, then the log as a collapsed section", () => {
+		const body = buildReplyBody("  here it is  ", {
+			images: [{ name: "shot.png", url: "https://f/a.png" }],
+			logTail: "x".repeat(2000),
+		});
+		expect(body.startsWith("here it is\n\n![shot.png](https://f/a.png)")).toBe(true);
+		expect(readBody(body)).toEqual({
+			text: "here it is\n\n![shot.png](https://f/a.png)",
+			sections: [SECTION_TITLES.log],
+		});
+	});
+
+	it("stays under GitHub's body limit with a huge log", () => {
+		expect(buildReplyBody("hi", { logTail: "y".repeat(200_000) }).length).toBeLessThanOrEqual(
+			65000,
+		);
+	});
+
+	it("reads a filed report as its prose and the names of what it attached", () => {
+		const body = buildIssueBody(input, diagnostics, { anonymous: true, attach: ALL });
+		const { text, sections } = readBody(body);
+		expect(text).toContain(input.description);
+		expect(text).not.toContain("mma-report");
+		expect(sections).toEqual([SECTION_TITLES.diagnostics, SECTION_TITLES.settings]);
+	});
+});
+
 describe("private settings registry", () => {
 	it("covers every credential-shaped key in AppSettings", () => {
 		// A new secret added to DEFAULTS without registering it here would silently ship in
@@ -331,10 +368,17 @@ describe("refreshing filed reports", () => {
 		expect(vi.mocked(cmd.feedbackThread)).toHaveBeenCalledWith(1, null);
 	});
 
-	it("records what it finds as unread", async () => {
+	it("records what others said as unread, and nothing the reporter said", async () => {
 		setLocal("feedbackReports", [stored(1)]);
 		await refreshStoredReports();
+		expect(getReports()[0].replies).toBe(1);
 		expect(unreadReplyCount(getReports())).toBe(1);
+	});
+
+	it("reads an anonymous report with its token", async () => {
+		setLocal("feedbackReports", [{ ...stored(4), anonymous: true, token: "tok" }]);
+		await refreshStoredReports();
+		expect(vi.mocked(cmd.feedbackThread)).toHaveBeenCalledWith(4, "tok");
 	});
 
 	it("touches the network only when something has been filed", async () => {

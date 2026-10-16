@@ -40,7 +40,8 @@ import { log } from "@/lib/util/log";
 import "@/plugins";
 import { t } from "@/lib/i18n";
 import { ReportDialog } from "@/components/dialogs/ReportDialog";
-import { useDialogState } from "@/store/dialogBus";
+import { ReportThread } from "@/components/dialogs/ReportThread";
+import { useDialog, useDialogState } from "@/store/dialogBus";
 import { Button } from "@/components/primitives/Button";
 
 // Dynamic import (deck.gl/luma.gl out of the initial bundle) WITHOUT React.lazy/Suspense —
@@ -124,6 +125,8 @@ function AppChrome() {
 	}, [showStats, Stats]);
 	const [showSettings, setShowSettings] = useState(false);
 	const [feedbackOpen, setFeedbackOpen] = useDialogState("feedback");
+	const [reportThread, setReportThread] = useState<number | null>(null);
+	useDialog("report-thread", setReportThread);
 	const [showPlugins, setShowPlugins] = useState(false);
 	const [manualSearchOpen, setManualSearchOpen] = useState(false);
 
@@ -230,6 +233,14 @@ function AppChrome() {
 			{showStats && Stats && <Stats open onOpenChange={setShowStats} />}
 			<SettingsPage open={showSettings} onOpenChange={setShowSettings} />
 			{feedbackOpen && <ReportDialog open onOpenChange={setFeedbackOpen} />}
+			{reportThread !== null && (
+				<ReportThread
+					key={reportThread}
+					number={reportThread}
+					open
+					onOpenChange={(open) => !open && setReportThread(null)}
+				/>
+			)}
 			<PluginMarketplace open={showPlugins} onOpenChange={setShowPlugins} />
 			{manual && manualSearchOpen && (
 				<manual.Search open={manualSearchOpen} onOpenChange={setManualSearchOpen} />

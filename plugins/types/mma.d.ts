@@ -528,7 +528,7 @@ declare const SYNC_PROVIDERS: {
 /** @unstable */
 declare const SCRATCH_MAP_ID: "scratch";
 /** @unstable */
-declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed", "map-missing", "map-unreadable"];
+declare const ERROR_CODES: readonly ["auth", "attachment-not-staged", "attachment-too-large", "attachment-not-image", "upload-rejected", "report-rejected", "report-unreadable", "reply-rejected", "sign-in-timed-out", "sign-in-token-rejected", "issue-rejected", "geoguessr-polygonal", "geoguessr-draft-too-large", "data-folder-unavailable", "database-unreadable", "database-newer", "migration-failed", "map-missing", "map-unreadable"];
 /** Country codes Vali has coverage data for. @unstable */
 declare const VALI_COUNTRIES: readonly ["AE", "AF", "AL", "AM", "AR", "AT", "AU", "AZ", "BA", "BD", "BE", "BG", "BH", "BN", "BO", "BR", "BT", "BW", "BY", "BZ", "CA", "CD", "CH", "CI", "CL", "CM", "CN", "CO", "CR", "CU", "CZ", "DE", "DK", "DO", "DZ", "EC", "EE", "EG", "ER", "ES", "ET", "FI", "FO", "FR", "GB", "GE", "GL", "GR", "GT", "HK", "HN", "HR", "HT", "HU", "ID", "IE", "IL", "IN", "IQ", "IR", "IS", "IT", "JM", "JO", "JP", "KE", "KG", "KH", "KR", "KW", "KZ", "LA", "LB", "LI", "LK", "LT", "LU", "LV", "LY", "MA", "MC", "MD", "ME", "MK", "ML", "MM", "MN", "MO", "MT", "MV", "MX", "MY", "NG", "NI", "NL", "NO", "NP", "NZ", "OM", "PA", "PE", "PH", "PK", "PL", "PR", "PT", "PY", "QA", "RE", "RO", "RS", "RU", "RW", "SA", "SE", "SG", "SI", "SK", "SN", "SO", "SV", "SY", "TH", "TJ", "TM", "TN", "TR", "TT", "TW", "UA", "US", "UY", "UZ", "VE", "VN", "XK", "YE", "ZA", "ZW", "CW", "AD", "AG", "AI", "AO", "AQ", "AS", "AW", "AX", "BB", "BF", "BI", "BJ", "BL", "BM", "BQ", "BS", "BV", "CC", "CF", "CG", "CK", "CV", "CX", "CY", "DJ", "DM", "EH", "FJ", "FK", "FM", "GA", "GD", "GF", "GG", "GH", "GI", "GM", "GN", "GP", "GQ", "GS", "GU", "GW", "GY", "HM", "IM", "IO", "JE", "KI", "KM", "KN", "KP", "KY", "LC", "LR", "LS", "MF", "MG", "MH", "MP", "MQ", "MR", "MS", "MU", "MW", "MZ", "NA", "NC", "NE", "NF", "NR", "NU", "PF", "PG", "PM", "PN", "PS", "PW", "SB", "SC", "SD", "SH", "SJ", "SL", "SM", "SR", "SS", "ST", "SX", "SZ", "TC", "TD", "TF", "TG", "TK", "TL", "TO", "TV", "TZ", "UG", "UM", "VA", "VC", "VG", "VI", "VU", "WF", "WS", "YT", "ZM"];
 
@@ -734,6 +734,8 @@ declare const commands$1: {
     feedbackUploadAttachment: (path: string, name: string) => Promise<AttachmentRef>;
     /**  Fetch a report's state and replies, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. @unstable */
     feedbackThread: (number: number, token: string | null) => Promise<IssueThread>;
+    /**  Reply on a report, with its reply token when it was filed anonymously or null when filed as the signed-in GitHub user. @unstable */
+    feedbackReply: (number: number, token: string | null, body: string) => Promise<IssueComment>;
     /**
      *  Check for an update at `endpoint` (a release's `latest.json`). Returns `null`
      *  when the announced version is not newer than the running one.
@@ -1762,6 +1764,7 @@ type ImportedMapInfo = {
 /** @unstable */
 type IssueComment = {
     author: string;
+    avatarUrl?: string | null;
     body: string;
     /**  ISO-8601, as GitHub returns it. */
     createdAt: string;
@@ -1778,6 +1781,13 @@ type IssueThread = {
      *  before GitHub recorded a reason.
      */
     stateReason: string | null;
+    /**  Who filed it. A comment by the same author is the reporter's own. */
+    author?: string;
+    /**  Whether maintainers have closed it to new comments. */
+    locked?: boolean;
+    /**  The report as it was filed. */
+    body?: string;
+    /**  Oldest first. */
     comments: IssueComment[];
 };
 /**  A map-making JSON export: how its coordinates render, and the map they belong to. @unstable */
@@ -6239,9 +6249,11 @@ declare const DialogTrigger: Dialog$1.Trigger;
 /** A dialog's fixed width: small, medium, large or extra large. */
 export type DialogSize = "sm" | "md" | "lg" | "xl";
 /** @unstable */
-declare function DialogContent({ className, title, size, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
+declare function DialogContent({ className, title, size, aside, initialFocus, children, ...props }: ComponentProps<typeof Dialog$1.Popup> & {
     title: string;
     size?: DialogSize;
+    /** Shown in the header between the title and the close button, such as a status. */
+    aside?: ReactNode;
 }): react.JSX.Element;
 /** One button in a dialog footer. */
 export interface DialogAction {
