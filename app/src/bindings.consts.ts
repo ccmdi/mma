@@ -286,7 +286,7 @@ export const OFFICIAL_ID_PATTERN = "^[-_A-Za-z0-9]{21}[AQgw]$" as const;
 export const EFFECT_CALLS = ["fetch","panos","sidecar"] as const;
 
 /** @unstable */
-export const PLAIN_CALLS = ["classify","neighbors","progress","fail","emit","aborted"] as const;
+export const PLAIN_CALLS = ["log","tz","classify","neighbors","progress","fail","emit","aborted"] as const;
 
 /** @unstable */
 export const DEFAULT_DUPLICATE_SCORE = "tagCount + has(panoId) + loadAsPanoId + (heading != 0)" as const;

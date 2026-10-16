@@ -22,8 +22,7 @@ const surface = {
 
 describe("ProcedureHost", () => {
 	it("declares exactly the calls the QuickJS host installs", () => {
-		// `log` and `tz` are set directly rather than through either list.
-		const installed = [...EFFECT_CALLS, ...PLAIN_CALLS, "log", "tz"];
+		const installed = [...EFFECT_CALLS, ...PLAIN_CALLS];
 		expect(Object.keys(surface).sort()).toEqual([...installed].sort());
 	});
 });

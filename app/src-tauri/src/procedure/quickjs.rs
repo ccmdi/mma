@@ -536,10 +536,12 @@ fn install_mma<'js>(
     .map_err(jerr)?;
     match bridge {
         Some(b) => install_host_calls(ctx, &obj, b, allow_effects),
-        None => EFFECT_CALLS
-            .iter()
-            .chain(PLAIN_CALLS)
-            .try_for_each(|n| stub(ctx, &obj, n, "procedure has no host attached".into())),
+        None => EFFECT_CALLS.iter().chain(PLAIN_CALLS).try_for_each(|n| {
+            if obj.contains_key(*n)? {
+                return Ok(());
+            }
+            stub(ctx, &obj, n, "procedure has no host attached".into())
+        }),
     }
     .map_err(jerr)?;
     ctx.globals().set("mma", obj).map_err(jerr)
@@ -547,10 +549,11 @@ fn install_mma<'js>(
 
 /// The host calls only `run`-shaped procedures may use.
 pub(crate) const EFFECT_CALLS: &[&str] = &["fetch", "panos", "sidecar"];
-/// The host calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is
-/// the whole `mma` host surface; `mma_surface_is_identical_with_and_without_a_host`
-/// pins both lists to what [`install_host_calls`] actually sets.
+/// The calls every procedure shape gets. Together with [`EFFECT_CALLS`] this is the
+/// whole `mma` surface.
 pub(crate) const PLAIN_CALLS: &[&str] = &[
+    "log",
+    "tz",
     "classify",
     "neighbors",
     "progress",

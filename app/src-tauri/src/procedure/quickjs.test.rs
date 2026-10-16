@@ -1062,7 +1062,6 @@ fn mma_surface_is_identical_with_and_without_a_host() {
         .iter()
         .chain(PLAIN_CALLS)
         .map(ToString::to_string)
-        .chain(["log".to_string(), "tz".to_string()])
         .collect();
     expected.sort();
     assert_eq!(bridged, expected);
