@@ -25,6 +25,15 @@ use std::time::Duration;
 use std::{array, env, fs, iter, panic, slice, thread};
 use tauri::ipc::{Channel, InvokeResponseBody};
 
+impl Store {
+    /// Fold the overlay into the in-memory base, as a commit does, without touching disk.
+    fn bake_overlay(&mut self) {
+        if let Some(batch) = self.baked_batch() {
+            self.adopt_base(batch);
+        }
+    }
+}
+
 fn net(added: u32, removed: u32, updated: u32) -> Counts {
     Counts {
         added,
@@ -6351,7 +6360,7 @@ fn delta_bytes_roundtrip_exact() {
 }
 
 // -----------------------------------------------------------------------
-// Crash-window double-apply: write_baked_base renames the base file, then
+// Crash-window double-apply: the bake renames the base file, then
 // deletes the delta sidecar non-atomically. A crash between the two leaves a
 // stale delta whose `adds` duplicate what the (now up to date) base already
 // holds. store_open_map applies the parsed delta unconditionally -- mirror
@@ -6386,10 +6395,11 @@ fn load_delta_reads_valid_and_missing_files() {
 
 #[test]
 fn failed_base_write_keeps_the_overlay_and_the_delta() {
-    let dir = TempDir::new("mma_test_failed_base_write");
-    let base = dir.join("m1.arrow");
-    let delta = dir.join("m1_delta.arrow");
+    let map = tests::map_on_disk("failed-base-write");
+    let base = storage::arrow_path(&map).unwrap();
+    let delta = storage::arrow_delta_path(&map).unwrap();
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
+    store.meta.edit().id = map;
     store.bake_overlay();
     store.overlay_add(vec![loc(2, 2.0, 2.0)]);
     overlay_update(&mut store, &patch!(1; lat: 5.0));
@@ -6398,7 +6408,7 @@ fn failed_base_write_keeps_the_overlay_and_the_delta() {
 
     fs::create_dir(&base).unwrap();
     fs::write(base.join("obstacle"), b"x").unwrap();
-    assert!(write_baked_base(&mut store, &base, &delta).is_err());
+    assert!(store.bake().is_err());
 
     assert!(store.overlay.is_unsaved(), "edits still read as unsaved");
     assert_eq!(sidecar_bytes(&store), delta_bytes);
@@ -6414,7 +6424,7 @@ fn failed_base_write_keeps_the_overlay_and_the_delta() {
     );
 
     fs::remove_dir_all(&base).unwrap();
-    write_baked_base(&mut store, &base, &delta).unwrap();
+    store.bake().unwrap();
 
     assert!(store.overlay.is_empty() && !store.overlay.is_unsaved());
     assert!(!delta.exists(), "a written base supersedes the delta");
@@ -6428,15 +6438,18 @@ fn failed_base_write_keeps_the_overlay_and_the_delta() {
 
 #[test]
 fn patches_only_base_write_replaces_the_mapped_file_it_was_read_from() {
-    let dir = TempDir::new("mma_test_mapped_base_write");
-    let base = dir.join("m1.arrow");
-    let delta = dir.join("m1_delta.arrow");
+    let map = tests::map_on_disk("mapped-base-write");
+    let base = storage::arrow_path(&map).unwrap();
     arrow::write_arrow_ipc(
         &base,
         &arrow::locations_to_batch(&[loc(1, 1.0, 1.0), loc(2, 2.0, 2.0)]),
     )
     .unwrap();
     let mut store = Store::new();
+    store.meta = Tracked::new(MapMeta {
+        id: map,
+        ..Default::default()
+    });
     let (batch, handle) = arrow::read_arrow_ipc_mmap(&base).unwrap();
     store.batch = Some(batch);
     store.mmap_handle = Some(handle);
@@ -6449,11 +6462,11 @@ fn patches_only_base_write_replaces_the_mapped_file_it_was_read_from() {
     };
 
     overlay_update(&mut store, &patch!(1; lat: 5.0));
-    write_baked_base(&mut store, &base, &delta).unwrap();
+    store.bake().unwrap();
     assert_eq!(lats(&base), vec![5.0, 2.0]);
 
     overlay_update(&mut store, &patch!(2; lat: 7.0));
-    write_baked_base(&mut store, &base, &delta).unwrap();
+    store.bake().unwrap();
     assert_eq!(lats(&base), vec![5.0, 7.0]);
     assert!(store.overlay.is_empty() && !store.overlay.is_unsaved());
 }

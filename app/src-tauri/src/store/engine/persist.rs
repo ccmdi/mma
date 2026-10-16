@@ -487,41 +487,31 @@ pub(crate) fn stored_history_max_id(
     )?)
 }
 
-/// Bake the overlay into the base, write it to `path`, and only then adopt it, clear the
-/// overlay, drop the stale delta file, and re-mmap. A failed write leaves the store as it was.
-pub(crate) fn write_baked_base(store: &mut Store, path: &Path, delta_path: &Path) -> AppResult<()> {
-    let _t = Instant::now();
-    let Some(batch) = store.current_batch() else {
-        return Ok(());
-    };
-    let t_bake = _t.elapsed();
-    arrow::write_arrow_ipc(path, &batch)?;
-    let t_write = _t.elapsed();
-    store.adopt_base(batch);
-    let _ = fs::remove_file(delta_path);
-    let (batch, handle) = arrow::read_arrow_ipc_mmap(path)?;
-    store.batch = Some(batch);
-    store.mmap_handle = Some(handle);
-    log::debug!(
-        "[write_baked_base] bake={:.0}ms base-write={:.0}ms remmap={:.0}ms",
-        t_bake.as_millis(),
-        (t_write - t_bake).as_millis(),
-        (_t.elapsed() - t_write).as_millis()
-    );
-    Ok(())
-}
-
-/// Write the baked base for `store_commit` and flush the location count.
-pub(crate) fn bake_and_save(store: &mut Store, map_id: &Id<MapMeta, String>) -> AppResult<()> {
-    write_baked_base(
-        store,
-        &storage::arrow_path(map_id)?,
-        &storage::arrow_delta_path(map_id)?,
-    )?;
-    let count = store.batch.as_ref().map_or(0, RecordBatch::num_rows);
-    let conn = storage::open_db()?;
-    storage::set_map_counts(&conn, map_id, count, Counts::default())?;
-    Ok(())
+impl Store {
+    /// Bake the overlay into the map's base file, and only then adopt it, clear the overlay,
+    /// drop the stale delta file, and re-map the base. A failed write leaves the store as it was.
+    pub(crate) fn bake(&mut self) -> AppResult<()> {
+        let _t = Instant::now();
+        let Some(batch) = self.current_batch() else {
+            return Ok(());
+        };
+        let t_bake = _t.elapsed();
+        let path = storage::arrow_path(&self.meta.id)?;
+        arrow::write_arrow_ipc(&path, &batch)?;
+        let t_write = _t.elapsed();
+        self.adopt_base(batch);
+        let _ = fs::remove_file(storage::arrow_delta_path(&self.meta.id)?);
+        let (batch, handle) = arrow::read_arrow_ipc_mmap(&path)?;
+        self.batch = Some(batch);
+        self.mmap_handle = Some(handle);
+        log::debug!(
+            "[bake] bake={:.0}ms base-write={:.0}ms remmap={:.0}ms",
+            t_bake.as_millis(),
+            (t_write - t_bake).as_millis(),
+            (_t.elapsed() - t_write).as_millis()
+        );
+        Ok(())
+    }
 }
 
 #[cfg(test)]

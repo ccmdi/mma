@@ -100,8 +100,7 @@ pub async fn store_commit(
             None
         };
 
-        // Build the canonical full batch ONCE (bake), write the base, re-mmap, flush tags.
-        engine::bake_and_save(store, &map_id)?;
+        store.bake()?;
 
         let edits = &mut store.steps[engine::Timeline::Edits];
         edits.edit().clear();

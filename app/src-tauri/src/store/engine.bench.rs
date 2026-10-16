@@ -414,7 +414,9 @@ pub fn put(store: &mut Store, change: &Change<Location>) {
 }
 
 pub fn bake_overlay(store: &mut Store) {
-    store.bake_overlay();
+    if let Some(batch) = store.baked_batch() {
+        store.adopt_base(batch);
+    }
 }
 
 pub fn derived_state(store: &mut Store) -> usize {

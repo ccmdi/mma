@@ -112,7 +112,7 @@ impl Overlay {
 
 /// Central state for one open map: the immutable Arrow base batch, the overlay of uncommitted
 /// changes on it, render cells and the windows watching them, undo stacks, and value records.
-/// [`Store::bake_overlay`] merges the overlay into the batch. Rows are sorted by id in both
+/// [`Store::bake`] merges the overlay into the batch. Rows are sorted by id in both
 /// `batch` and `overlay.added`, so a lookup by id is a binary search.
 pub struct Store {
     /// The open map's metadata. Value records live in `records`, field definitions in
@@ -437,7 +437,7 @@ impl Store {
     }
 
     /// Insert or restore locations in the overlay. `added` stays sorted by id (the invariant
-    /// `bake_overlay` asserts): fresh ids sort above everything and are appended, O(k);
+    /// the bake asserts): fresh ids sort above everything and are appended, O(k);
     /// anything else (an undo re-adding old ids) is merged in one linear pass, O(n + k),
     /// where inserting each row into its slot would shift the rows above it, O(n * k).
     fn overlay_add(&mut self, locs: Vec<Location>) {
@@ -564,14 +564,6 @@ impl Store {
         self.overlay.mark_saved();
     }
 
-    /// Merge overlay (added, updated, removed) into the Arrow batch.
-    #[cfg(any(test, feature = "bench"))]
-    pub(crate) fn bake_overlay(&mut self) {
-        if let Some(batch) = self.baked_batch() {
-            self.adopt_base(batch);
-        }
-    }
-
     /// Make `batch` the base and clear the overlay it already holds.
     fn adopt_base(&mut self, batch: RecordBatch) {
         self.batch = Some(batch);
@@ -632,7 +624,7 @@ impl Store {
         }
 
         log::debug!(
-            "[bake_overlay] total={}ms rows={}",
+            "[baked_batch] total={}ms rows={}",
             _t.elapsed().as_millis(),
             batch.num_rows()
         );
