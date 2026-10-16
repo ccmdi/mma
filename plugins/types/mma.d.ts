@@ -1373,6 +1373,13 @@ type ConflictKind =
 "delete-update" | 
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
+/**  How a location renders into a map-making JSON coordinate object. @unstable */
+type CoordOpts = {
+    exportZoom: boolean;
+    exportUnpanned: boolean;
+    /**  How much of the map the file keeps. */
+    shape: MapShape;
+};
 /**  Result of copying locations to another map. @unstable */
 type CopyToMapResult = {
     copied: number;
@@ -1506,24 +1513,15 @@ type EditorImportResult = {
 /**  The kind of file an export writes, with what that kind needs. @unstable */
 type ExportFormat = 
 /**  A `{name, customCoordinates}` map file with its tags and field definitions. */
-{
+({
     format: "json";
-    exportZoom: boolean;
-    exportUnpanned: boolean;
-    /**  How much of the map the file keeps. */
-    shape: MapShape;
-    mapName: string;
-    /**
-     *  Serialized `{id: {name, color}}` tag definitions from the store, used to
-     *  convert numeric tag IDs back to human-readable names in the output.
-     */
-    tagsJson: string;
-    extraFieldsJson: string | null;
-} | 
+} & JsonExport) | (
 /**  A minimal lat/lng CSV file. */
-{
+({
     format: "csv";
-} | 
+}) & {
+    tagsJson?: never;
+}) | 
 /**  A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`. */
 {
     format: "geojson";
@@ -1787,6 +1785,16 @@ type IssueThread = {
     stateReason: string | null;
     comments: IssueComment[];
 };
+/**  A map-making JSON export: how its coordinates render, and the map they belong to. @unstable */
+type JsonExport = {
+    mapName: string;
+    /**
+     *  Serialized `{id: {name, color}}` tag definitions from the store, used to
+     *  convert numeric tag IDs back to human-readable names in the output.
+     */
+    tagsJson: string;
+    extraFieldsJson: string | null;
+} & CoordOpts;
 /**  How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`. */
 type KeySpec = 
 /**  String value of the field (enum/string/month "YYYY-MM"/number). */
@@ -8001,4 +8009,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

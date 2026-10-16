@@ -27,17 +27,7 @@ use zip::write::SimpleFileOptions;
 )]
 pub enum ExportFormat {
     /// A `{name, customCoordinates}` map file with its tags and field definitions.
-    Json {
-        export_zoom: bool,
-        export_unpanned: bool,
-        /// How much of the map the file keeps.
-        shape: MapShape,
-        map_name: String,
-        /// Serialized `{id: {name, color}}` tag definitions from the store, used to
-        /// convert numeric tag IDs back to human-readable names in the output.
-        tags_json: String,
-        extra_fields_json: Option<String>,
-    },
+    Json(JsonExport),
     /// A minimal lat/lng CSV file.
     Csv,
     /// A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`.
@@ -45,6 +35,19 @@ pub enum ExportFormat {
         /// Serialized `{id: {name, color}}` tag definitions from the store.
         tags_json: String,
     },
+}
+
+/// A map-making JSON export: how its coordinates render, and the map they belong to.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct JsonExport {
+    #[serde(flatten)]
+    pub coords: CoordOpts,
+    pub map_name: String,
+    /// Serialized `{id: {name, color}}` tag definitions from the store, used to
+    /// convert numeric tag IDs back to human-readable names in the output.
+    pub tags_json: String,
+    pub extra_fields_json: Option<String>,
 }
 
 #[cfg(test)]
@@ -110,11 +113,14 @@ fn tag_color_meta(
     converted
 }
 
-/// Toggles for rendering a `Location` into a map-making JSON coordinate object.
-pub(crate) struct CoordOpts {
-    pub(crate) export_zoom: bool,
-    pub(crate) export_unpanned: bool,
-    pub(crate) shape: MapShape,
+/// How a location renders into a map-making JSON coordinate object.
+#[derive(serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct CoordOpts {
+    pub export_zoom: bool,
+    pub export_unpanned: bool,
+    /// How much of the map the file keeps.
+    pub shape: MapShape,
 }
 
 /// Convert one location to a `{lat, lng, heading, ...}` coordinate object.
@@ -292,23 +298,18 @@ pub async fn store_export(
                 .at(&engine::Target::Map { id: None })
                 .rows(&selector.map_children(SelectionInput::compile));
             let (ext, body) = match format {
-                ExportFormat::Json {
-                    export_zoom,
-                    export_unpanned,
-                    shape,
-                    map_name,
-                    tags_json,
-                    extra_fields_json,
-                } => {
-                    let co = CoordOpts {
-                        export_zoom,
-                        export_unpanned,
-                        shape,
-                    };
-                    let fields = extra_fields_json
+                ExportFormat::Json(json) => {
+                    let fields = json
+                        .extra_fields_json
                         .as_deref()
                         .and_then(|f| serde_json::from_str(f).ok());
-                    let doc = export_document(&map_name, &locs, &tags_json, fields, &co);
+                    let doc = export_document(
+                        &json.map_name,
+                        &locs,
+                        &json.tags_json,
+                        fields,
+                        &json.coords,
+                    );
                     ("json", serde_json::to_string(&doc)?)
                 }
                 ExportFormat::Csv => ("csv", csv_document(&locs)),

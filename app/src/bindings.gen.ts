@@ -546,6 +546,14 @@ export type ConflictKind =
 /**  Both sides added the same identity with different content (hash collision only). */
 "add-add";
 
+/**  How a location renders into a map-making JSON coordinate object. */
+export type CoordOpts = {
+	exportZoom: boolean,
+	exportUnpanned: boolean,
+	/**  How much of the map the file keeps. */
+	shape: MapShape,
+};
+
 /**  Result of copying locations to another map. */
 export type CopyToMapResult = {
 	copied: number,
@@ -674,16 +682,11 @@ export type EditorImportResult = {
 /**  The kind of file an export writes, with what that kind needs. */
 export type ExportFormat = 
 /**  A `{name, customCoordinates}` map file with its tags and field definitions. */
-{ format: "json"; exportZoom: boolean; exportUnpanned: boolean; 
-/**  How much of the map the file keeps. */
-shape: MapShape; mapName: string; 
-/**
- *  Serialized `{id: {name, color}}` tag definitions from the store, used to
- *  convert numeric tag IDs back to human-readable names in the output.
- */
-tagsJson: string; extraFieldsJson: string | null } | 
+{
+	format: "json",
+} & JsonExport | 
 /**  A minimal lat/lng CSV file. */
-{ format: "csv" } | 
+({ format: "csv" }) & { tagsJson?: never } | 
 /**  A GeoJSON FeatureCollection of points, each carrying its tag names in `properties.tags`. */
 { format: "geojson"; 
 /**  Serialized `{id: {name, color}}` tag definitions from the store. */
@@ -873,6 +876,17 @@ export type IssueThread = {
 	stateReason: string | null,
 	comments: IssueComment[],
 };
+
+/**  A map-making JSON export: how its coordinates render, and the map they belong to. */
+export type JsonExport = {
+	mapName: string,
+	/**
+	 *  Serialized `{id: {name, color}}` tag definitions from the store, used to
+	 *  convert numeric tag IDs back to human-readable names in the output.
+	 */
+	tagsJson: string,
+	extraFieldsJson: string | null,
+} & CoordOpts;
 
 /**  How a field value becomes a group key, for `storeGroupBy` and `storeCountBy`. */
 export type KeySpec = 
