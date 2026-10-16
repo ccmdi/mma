@@ -65,9 +65,14 @@ const ROUTES: Record<string, string> = {
 	"render-pan-dense": "render",
 	"render-pan-wide": "render",
 	"render-zoom-sweep": "render",
+	"polygon-load": "render",
+	"polygon-pan": "render",
+	"polygon-add": "render",
+	"polygon-remove": "render",
 };
 
 const GPU_ROUTES = ["render-idle", "render-pan-dense", "render-pan-wide", "render-zoom-sweep"];
+const POLYGON_ROUTES = ["polygon-load", "polygon-pan", "polygon-add", "polygon-remove"];
 
 /** Marker configurations the GPU scenarios sweep; used as the `scale` half of the id. */
 const GPU_MATRIX: { style: "pin" | "circle"; size: number }[] = [
@@ -124,7 +129,7 @@ const ROUTE_FILTER = parseRouteFilter();
 const GPU_ENABLED = process.env.MMA_BENCH_GPU === "1";
 
 function enabled(route: string): boolean {
-	if (GPU_ROUTES.includes(route) && !GPU_ENABLED) return false;
+	if ([...GPU_ROUTES, ...POLYGON_ROUTES].includes(route) && !GPU_ENABLED) return false;
 	return ROUTE_FILTER === null || ROUTE_FILTER.has(route);
 }
 
@@ -1038,4 +1043,185 @@ async function runGpuScenarios(gpuMaps: Set<string>): Promise<void> {
 			});
 		}
 	}
+	await runPolygonScenarios();
+}
+
+/** Polygon sets as people load them: a few country outlines, a border file of regions, a
+ *  grid of hand-drawn shapes, and country outlines over the markers so each selects some.
+ *  `box` is `[west, south, east, north]`; the rings are laid out on a grid inside it. */
+const POLYGON_SCENARIOS = [
+	{ label: "6x40000", count: 6, vertices: 40_000, box: [-35, -30, -5, -5], selecting: false },
+	{ label: "100x5000", count: 100, vertices: 5_000, box: [-35, -30, -5, -5], selecting: false },
+	{ label: "300x500", count: 300, vertices: 500, box: [-35, -30, -5, -5], selecting: false },
+	{ label: "6x40000-selecting", count: 6, vertices: 40_000, box: [-2, 44, 6, 50], selecting: true },
+];
+
+async function runPolygonScenarios(): Promise<void> {
+	type Ring = [number, number][];
+	const set = (count: number | null) =>
+		withApi(async (api, n) => {
+			const rings = (window as unknown as { __benchRings: Ring[] }).__benchRings;
+			await api.SelectionList.update({
+				kind: "set",
+				selections: rings.slice(0, n ?? rings.length).map((ring) => ({
+					selector: {
+						type: "Polygon" as const,
+						polygon: { coordinates: [ring], extraPolygons: null },
+					},
+				})),
+			});
+		}, count);
+	const look = (center: { lat: number; lng: number }, zoom: number) =>
+		withApi(
+			async (_api, c, z) => {
+				window.__mmaPerf!.host()!.moveCamera({ center: c, zoom: z });
+				await new Promise((r) => setTimeout(r, 800));
+				for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+			},
+			center,
+			zoom,
+		);
+	// Runs `change` in the page and reports how long until the map has drawn it, with the
+	// worst frame and the long tasks on the way.
+	const timedChange = (change: string) =>
+		withApi(async (api, which) => {
+			const perf = window.__mmaPerf!;
+			const rings = (window as unknown as { __benchRings: Ring[] }).__benchRings;
+			const polygon = (ring: Ring) => ({
+				selector: {
+					type: "Polygon" as const,
+					polygon: { coordinates: [ring], extraPolygons: null },
+				},
+			});
+			perf.probe(true);
+			perf.start();
+			perf.reset();
+			const start = performance.now();
+			if (which === "load") {
+				await api.SelectionList.update({ kind: "set", selections: rings.map(polygon) });
+			} else if (which === "add") {
+				await api.SelectionList.update({ kind: "add", selections: [polygon(rings.at(-1)!)] });
+			} else {
+				const last = api.Store.get().selectionList.at(-1)!.selection.key;
+				await api.SelectionList.update({ kind: "remove", keys: [last] });
+			}
+			const operationMs = performance.now() - start;
+			// The change schedules a rebuild on the next frame and deck draws on the one after.
+			for (let i = 0; i < 3; i++) await new Promise((r) => requestAnimationFrame(r));
+			const durationMs = performance.now() - start;
+			const stats = perf.frames();
+			perf.probe(false);
+			perf.stop();
+			return {
+				durationMs,
+				operationMs,
+				metrics: { frameWorst: stats.worst, longTasks: stats.longTasks },
+			};
+		}, change);
+	const panFrames = (center: { lat: number; lng: number }, zoom: number) =>
+		withApi(
+			async (_api, c, z) => {
+				const perf = window.__mmaPerf!;
+				const host = perf.host()!;
+				const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+				perf.probe(true);
+				perf.start();
+				perf.reset();
+				const start = performance.now();
+				for (let i = 0; i < 100; i++) {
+					host.moveCamera({
+						center: { lat: c.lat + Math.sin(i / 12) * 2, lng: c.lng + (i - 50) * 0.15 },
+						zoom: z + Math.sin(i / 20),
+					});
+					await sleep(33);
+				}
+				const durationMs = performance.now() - start;
+				const stats = perf.frames();
+				perf.probe(false);
+				perf.stop();
+				if (stats.frames <= 0) throw new Error("polygon-pan metered no frames");
+				return {
+					durationMs,
+					metrics: {
+						fps: stats.fps,
+						frameP50: stats.p50,
+						frameP95: stats.p95,
+						frameWorst: stats.worst,
+						longTasks: stats.longTasks,
+					},
+				};
+			},
+			center,
+			zoom,
+		);
+
+	for (const scenario of POLYGON_SCENARIOS) {
+		const [w, s, e, n] = scenario.box;
+		const center = { lat: (s + n) / 2, lng: (w + e) / 2 };
+		const zoom = scenario.selecting ? 6 : 4;
+		// Built in the page: the rings are megabytes, past what the WebDriver bridge accepts.
+		// Star-shaped wobbly rings: the radius stays positive, so none crosses itself.
+		await withApi(
+			async (_api, count, vertices, box) => {
+				const [west, south, east, north] = box;
+				const cols = Math.ceil(Math.sqrt(count));
+				const rows = Math.ceil(count / cols);
+				const cellLng = (east - west) / cols;
+				const cellLat = (north - south) / rows;
+				const rings: Ring[] = [];
+				for (let k = 0; k < count; k++) {
+					const lng0 = west + cellLng * ((k % cols) + 0.5);
+					const lat0 = south + cellLat * (Math.floor(k / cols) + 0.5);
+					const radius = 0.3 * Math.min(cellLat, cellLng);
+					const ring: Ring = [];
+					for (let i = 0; i < vertices; i++) {
+						const t = (2 * Math.PI * i) / vertices;
+						const r =
+							radius *
+							(1 +
+								0.25 * Math.sin(3 * t + k) +
+								0.1 * Math.sin(17 * t + 2 * k) +
+								0.03 * Math.sin(173 * t));
+						ring.push([lng0 + r * Math.cos(t), lat0 + r * Math.sin(t)]);
+					}
+					ring.push(ring[0]);
+					rings.push(ring);
+				}
+				(window as unknown as { __benchRings: Ring[] }).__benchRings = rings;
+			},
+			scenario.count,
+			scenario.vertices,
+			scenario.box,
+		);
+
+		await bench("polygon-load", scenario.label, {
+			setup: async () => {
+				await set(0);
+				await look(center, zoom);
+			},
+			run: () => timedChange("load"),
+		});
+		await bench("polygon-add", scenario.label, {
+			setup: () => set(scenario.count - 1),
+			run: () => timedChange("add"),
+		});
+		await bench("polygon-remove", scenario.label, {
+			setup: () => set(null),
+			run: () => timedChange("remove"),
+		});
+		if (!scenario.selecting) {
+			await bench("polygon-pan", scenario.label, {
+				setup: async () => {
+					await set(null);
+					await look(center, zoom);
+				},
+				run: () => panFrames(center, zoom),
+			});
+		}
+	}
+	await set(0);
+	await bench("polygon-pan", "none", {
+		setup: () => look({ lat: -17.5, lng: -20 }, 4),
+		run: () => panFrames({ lat: -17.5, lng: -20 }, 4),
+	});
 }
