@@ -1,3 +1,21 @@
+## v0.12.0 - 2026-10-15
+- Undo and redo selection changes with Ctrl+Alt+D (add Shift to redo), separate from location edits
+- Renaming, recoloring and reordering tags can be undone
+- **Breaking change** - plugins that return location edits in the old format, that listen for location or tag events, or that read the ids `Location.add` used to write back into the locations passed to it (it now returns them), need an update, and undo history is cleared once on map open
+- A startup that fails now shows why in the window instead of never opening it
+- A map that fails to open says why, with a way back to the map list
+- "Active location" is now called the "open location" in settings and the manual; your marker color and review settings carry over
+- "Rename selected tags" re-added, instead of requiring an external selection to scope renames
+- Point north keeps your camera pitch, and pressing it again near north looks straight down
+- Fixed enrichment results being lost when a location was saved before they finished
+- Fixed Add to map not saving a location opened from the seen history
+- Fixed blurry text in dialogs
+- Fixed number fields snapping a half-typed value like "-" to 0
+- Fixed map generator ranges going past their bounds, and pitch is labelled as the fixed value it is
+- Fixed validation flagging a location as pinned away from its default when its stored coordinates resolved to a different panorama
+- Fixed cancelling a panorama download leaving it running in the background
+- Fixed saved pano ID filters using greater or less than matching nothing or everything
+
 ## v0.11.6 - 2026-10-06
 - Street View tiles and panorama info retry after a dropped connection, and canceling stops right away
 - Heatmap's Reset asks before clearing its layers and custom gradients
