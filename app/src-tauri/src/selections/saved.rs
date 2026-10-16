@@ -350,6 +350,7 @@ pub enum AddSavedKind {
 pub enum SelectionEdit {
     /// Add a saved selection's parts, with its value names resolved against the open map.
     Saved {
+        #[expect(dead_code, reason = "serde tells this variant apart by it")]
         kind: AddSavedKind,
         id: Id<SavedSelection, String>,
     },
