@@ -1166,3 +1166,25 @@ fn rows_written_on_both_sides_of_a_change_replace_the_row_under_their_key() {
     assert_eq!(table, by_key([row(2, "B"), row(3, "c")]));
     assert_eq!(table.keys().copied().collect::<Vec<_>>(), [2, 3]);
 }
+
+#[test]
+fn a_json_pointer_escapes_tilde_before_slash() {
+    assert_eq!(json_pointer(["a/b", "~1", "c"]), "/a~1b/~01/c");
+    assert_eq!(json_pointer([] as [&str; 0]), "");
+}
+
+#[test]
+fn patch_ops_travel_in_the_standard_shape() {
+    assert_eq!(
+        serde_json::to_value(PatchOp::add(["fieldValues", "tags"], json!({}))).unwrap(),
+        json!({ "op": "add", "path": "/fieldValues/tags", "value": {} })
+    );
+    assert_eq!(
+        serde_json::to_value(PatchOp::Move {
+            from: "/a".into(),
+            path: "/b".into()
+        })
+        .unwrap(),
+        json!({ "op": "move", "from": "/a", "path": "/b" })
+    );
+}

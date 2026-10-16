@@ -77,8 +77,7 @@ function clearEditState() {
 
 /** Initialize map metadata and derived state on each open. */
 function applyOpenedMap(status: StoreStatus) {
-	Store.patch({ map: status.derived.meta });
-	Store.merge(status.derived, status.version);
+	Store.patch({ ...status.derived, version: status.version });
 	Feed.seed(status.version);
 }
 

@@ -2246,7 +2246,7 @@ Listed selections that are not ghosted.
 getAllSelections(): Selection[]
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.Store.get().selectionList`.
+**Deprecated in v0.8.2.** Read `MMA.SelectionList.listed()`.
 
 ### getCurrentMap
 
@@ -2279,7 +2279,7 @@ getCurrentMapId(): string | null
 getGhostedSelections(): Set<string>
 ```
 
-**Deprecated in v0.8.2.** Read `MMA.Store.get().selectionList`.
+**Deprecated in v0.8.2.** Read `MMA.SelectionList.listed()`.
 
 ### getGoogleMap
 
@@ -8291,6 +8291,16 @@ SelectionList.active(): Selection[]
 
 Listed selections that are not ghosted.
 
+#### SelectionList.listed
+
+`unstable` · unreleased
+
+```ts
+SelectionList.listed(): ListedSelection[]
+```
+
+The listed selections, in list order.
+
 #### SelectionList.run
 
 `unstable` · since v0.12.0
@@ -8299,8 +8309,8 @@ Listed selections that are not ghosted.
 SelectionList.run(write: () => Promise<Mutation>): Promise<void>
 ```
 
-Run a mutation that may change the listed selections; when it does, redraw their fills
-and announce the change.
+Run a mutation that may change the listed selections, and announce the change when it
+does.
 
 #### SelectionList.select
 

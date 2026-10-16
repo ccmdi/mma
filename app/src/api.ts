@@ -176,7 +176,7 @@ export interface MMA
 	/** Rename or remove metadata fields across the map. */
 	Field: typeof Field;
 	/** Read the open map state and update its selection and metadata. */
-	Store: Omit<typeof Store, "patch" | "merge" | "resetDerived">;
+	Store: Omit<typeof Store, "patch" | "apply" | "resetDerived">;
 	/** Create, list, open, close, and organize maps. */
 	Maps: typeof Maps;
 	/** Read locations and summaries for a selector. */

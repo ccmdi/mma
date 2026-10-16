@@ -13,7 +13,7 @@ function applyChange(e: ChangeEvent) {
 	const moved = e.version > delivered.version();
 	delivered.pass(e.version);
 	if (!Store.get().map) return;
-	Store.merge(e.derived, e.version);
+	Store.apply(e.patch, e.version);
 	if (moved) Autosave.schedule();
 	emitEvent("store:change", e);
 }

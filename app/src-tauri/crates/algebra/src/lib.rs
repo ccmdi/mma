@@ -255,6 +255,73 @@ pub fn merge_patch_between(old: &Value, new: &Value) -> Option<Value> {
     (merge_patch(old, &patch) == *new).then_some(patch)
 }
 
+/// One operation of a JSON Patch (RFC 6902). Paths are JSON Pointers (RFC 6901).
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, specta::Type)]
+#[serde(tag = "op", rename_all = "lowercase")]
+pub enum PatchOp {
+    /// Put `value` at `path`, replacing a member already there or inserting into an array.
+    Add {
+        path: String,
+        #[specta(type = specta_typescript::Unknown)]
+        value: Value,
+    },
+    /// Remove the value at `path`.
+    Remove { path: String },
+    /// Replace the value at `path`, which must exist.
+    Replace {
+        path: String,
+        #[specta(type = specta_typescript::Unknown)]
+        value: Value,
+    },
+    /// Remove the value at `from` and add it at `path`.
+    Move { from: String, path: String },
+    /// Add a copy of the value at `from` at `path`.
+    Copy { from: String, path: String },
+    /// Fail the patch unless the value at `path` equals `value`.
+    Test {
+        path: String,
+        #[specta(type = specta_typescript::Unknown)]
+        value: Value,
+    },
+}
+
+impl PatchOp {
+    pub fn add<'a>(path: impl IntoIterator<Item = &'a str>, value: impl serde::Serialize) -> Self {
+        Self::Add {
+            path: json_pointer(path),
+            value: to_json(value),
+        }
+    }
+
+    pub fn remove<'a>(path: impl IntoIterator<Item = &'a str>) -> Self {
+        Self::Remove {
+            path: json_pointer(path),
+        }
+    }
+
+    pub fn replace<'a>(
+        path: impl IntoIterator<Item = &'a str>,
+        value: impl serde::Serialize,
+    ) -> Self {
+        Self::Replace {
+            path: json_pointer(path),
+            value: to_json(value),
+        }
+    }
+}
+
+fn to_json(value: impl serde::Serialize) -> Value {
+    serde_json::to_value(value).expect("a patch value serializes to JSON")
+}
+
+/// The JSON Pointer (RFC 6901) naming each of `segments` in turn; none names the whole document.
+pub fn json_pointer<'a>(segments: impl IntoIterator<Item = &'a str>) -> String {
+    segments
+        .into_iter()
+        .map(|segment| format!("/{}", segment.replace('~', "~0").replace('/', "~1")))
+        .collect()
+}
+
 /// A write to a JSON value: an RFC 7396 merge patch, or a whole replacement for a value merging
 /// cannot reach, such as one holding a nested null. Patches are read, never written, so the wire
 /// form is only ever a merge patch and a replacement needs none.

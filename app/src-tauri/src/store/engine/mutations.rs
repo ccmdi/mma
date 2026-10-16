@@ -12,52 +12,38 @@ use crate::types::{wire_str_enum, AppError, AppResult, Location, RawExtra};
 use crate::util;
 use mma_algebra::{
     number_value, same_field_value, Change, Counts, Delta, Edit, Id, Ids, Keys, Layer, Op, Patch,
-    Patchable,
+    PatchOp, Patchable,
 };
 use std::collections::BTreeSet;
 use std::collections::{HashMap, HashSet};
 use std::slice;
 use std::sync::Arc;
 
-/// The listed selections as of a change: every key in list order, and each listed selection
-/// that is new or different since the list was last sent.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, PartialEq, specta::Type)]
-pub struct ListChange {
-    /// The keys of the listed selections, in list order.
-    pub order: Vec<String>,
-    /// The listed selections that are new or changed.
-    pub rows: Vec<ListedSelection>,
-}
-
-/// Map state a change affected. Each field is `null` when it did not change.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, specta::Type)]
+/// The derived state a window holds: everything about the open map besides its rows. Opening a
+/// map sends it whole; every change after sends a JSON Patch over it.
+#[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Derived {
-    pub location_count: Option<usize>,
+    pub location_count: usize,
     /// Location changes since the last commit.
-    pub pending: Option<Counts>,
-    /// The map's own details, when they changed.
-    pub meta: Option<maps::MapDetails>,
-    pub history: Option<HashMap<Timeline, History>>,
-    /// Changed values, keyed by field and value. Null removes a value with no record or locations.
-    pub field_values: Option<HashMap<String, HashMap<String, Option<HeldValue>>>>,
-    /// The whole extra-field registry, when it changed.
-    pub field_defs: Option<HashMap<String, maps::FieldDef>>,
+    pub pending: Counts,
+    /// The map's own details.
+    pub map: maps::MapDetails,
+    pub history: HashMap<Timeline, History>,
+    /// Every held value, keyed by field and value.
+    pub field_values: HashMap<String, HashMap<String, HeldValue>>,
+    /// The extra-field registry.
+    pub field_defs: HashMap<String, maps::FieldDef>,
     /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).
-    pub selection_counts: Option<HashMap<String, u32>>,
-    /// The listed selections, when the list changed.
-    pub selection_list: Option<ListChange>,
+    pub selection_counts: HashMap<String, u32>,
+    /// The listed selections, keyed by `Selection.key`.
+    pub selection_rows: HashMap<String, ListedSelection>,
+    /// The keys of the listed selections, in list order.
+    pub selection_order: Vec<String>,
     /// Pending layers that procedure work is currently writing to.
-    pub writing_layers: Option<BTreeSet<String>>,
+    pub writing_layers: BTreeSet<String>,
     /// Whether the map has changes not yet saved to disk.
-    pub unsaved: Option<bool>,
-}
-
-impl Derived {
-    /// Nothing moved.
-    pub(crate) fn is_empty(&self) -> bool {
-        mma_algebra::is_default(self)
-    }
+    pub unsaved: bool,
 }
 
 /// Whether undo and redo are available.
@@ -111,8 +97,8 @@ pub struct ChangeEvent {
     /// The change itself, by key.
     #[serde(flatten)]
     pub keys: Keys<Id<Location>>,
-    /// Changed derived state. Null fields are unchanged.
-    pub derived: Derived,
+    /// How the derived state moved, as a JSON Patch over what the window holds.
+    pub patch: Vec<PatchOp>,
 }
 
 /// Read or edit map rows directly, or through a named pending layer.
@@ -355,12 +341,12 @@ impl Store {
 
     /// Send subscribers the derived state that moved since it last shipped.
     pub(crate) fn announce(&mut self) {
-        let derived = self.shipped();
-        if !derived.is_empty() {
+        let patch = self.shipped();
+        if !patch.is_empty() {
             self.changes.send(ChangeEvent {
                 version: self.version,
                 keys: Change::<Location>::default().keys(),
-                derived,
+                patch,
             });
         }
     }

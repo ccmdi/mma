@@ -1,7 +1,7 @@
 use super::*;
 use crate::selections::Selector;
 use crate::store::engine::frame::tests::Captured;
-use crate::store::engine::tests::{shipped_count, shipped_record, FeedCapture};
+use crate::store::engine::tests::{shipped, shipped_count, shipped_record, FeedCapture};
 use crate::store::engine::{Store, Target, ValueRecord, WindowLabel};
 use crate::store::maps::{MapPreferences, MapSettings, VirtualTag};
 use crate::store::{engine, maps};
@@ -1083,11 +1083,11 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     let event = feed
         .all()
         .into_iter()
-        .find(|event| event.derived.location_count.is_some())
+        .find(|event| shipped::<usize>(event, &["locationCount"]).is_some())
         .unwrap();
 
     // Both copies landed in the target store.
-    assert_eq!(event.derived.location_count, Some(2));
+    assert_eq!(shipped::<usize>(&event, &["locationCount"]), Some(2));
     let stored = store
         .at(&Target::Map { id: None })
         .rows(&Selector::Everything);
@@ -1115,14 +1115,14 @@ fn copied_locations_reconcile_tags_and_report_counts() {
     assert!(two_tag.tags.contains(&unique_id));
 
     // The change feed reports Shared on both copies and Unique on one.
-    assert_eq!(shipped_count(&event.derived, "tags", "5"), Some(2));
+    assert_eq!(shipped_count(&event, "tags", "5"), Some(2));
     assert_eq!(
-        shipped_count(&event.derived, "tags", &unique_id.to_string()),
+        shipped_count(&event, "tags", &unique_id.to_string()),
         Some(1)
     );
 
     // The same event includes the reconciled tag metadata.
-    assert!(shipped_record(&event.derived, "tags", unique_id.get()).is_some());
+    assert!(shipped_record(&event, "tags", unique_id.get()).is_some());
 }
 
 #[test]

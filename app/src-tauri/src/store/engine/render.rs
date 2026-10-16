@@ -228,13 +228,25 @@ impl Store {
         self.frames.send(FrameBytes(frame.encode()));
     }
 
-    /// Take over the windows `replaced` was drawing for, sending them this store's scene.
-    pub(crate) fn adopt_watchers(&mut self, replaced: Store) {
+    /// Take over the windows `replaced` was drawing for, sending them this store's scene and
+    /// replacing each part of the derived state they hold with `status`'s.
+    pub(crate) fn adopt_watchers(&mut self, replaced: Store, status: &StoreStatus) {
         self.render.arrow_style = replaced.render.arrow_style;
         self.frames = replaced.frames;
         self.changes = replaced.changes;
         let frame = self.scene_frame();
         self.frames.send(FrameBytes(frame.encode()));
+        self.changes.send(ChangeEvent {
+            version: status.version,
+            keys: Change::<Location>::default().keys(),
+            patch: match serde_json::to_value(&status.derived) {
+                Ok(serde_json::Value::Object(parts)) => parts
+                    .into_iter()
+                    .map(|(part, value)| PatchOp::replace([part.as_str()], value))
+                    .collect(),
+                _ => unreachable!("derived state serializes as an object"),
+            },
+        });
     }
 
     /// Rebuild the render cells from every alive location in one pass and return the frame

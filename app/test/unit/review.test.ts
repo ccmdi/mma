@@ -4,7 +4,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 // module loads in isolation.
 const store = vi.hoisted(() => ({
 	liveIds: [] as number[],
-	mapState: { mapId: null, map: null, open: null, selectionList: [] } as Record<string, unknown>,
+	mapState: { mapId: null, map: null, open: null } as Record<string, unknown>,
 	active: [] as { key: string; selector: { type: string } }[],
 	selected: new Set<number>(),
 }));
@@ -39,6 +39,7 @@ vi.mock("@/store/editor", () => ({
 vi.mock("@/store/selectionList", () => ({
 	SelectionList: {
 		active: () => store.active,
+		listed: () => [],
 		update: vi.fn(),
 	},
 }));

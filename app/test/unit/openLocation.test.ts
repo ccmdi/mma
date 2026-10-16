@@ -139,7 +139,7 @@ describe("open location", () => {
 		await Editor.open(7);
 		const change: Omit<ChangeEvent, "removed"> = {
 			version: 1,
-			derived: {} as ChangeEvent["derived"],
+			patch: [],
 			added: [],
 			updated: [],
 		};
@@ -154,7 +154,7 @@ describe("open location", () => {
 		await Editor.open(7);
 		const change = {
 			version: 1,
-			derived: {} as ChangeEvent["derived"],
+			patch: [],
 			added: [],
 			updated: [],
 			removed: [],
@@ -169,7 +169,7 @@ describe("open location", () => {
 		await vi.waitUntil(() => reads() === before + 1);
 		emit("store:change", {
 			...change,
-			derived: { writingLayers: [] } as unknown as ChangeEvent["derived"],
+			patch: [{ op: "replace", path: "/writingLayers", value: [] }],
 		});
 		await vi.waitUntil(() => reads() === before + 2);
 		Editor.close();

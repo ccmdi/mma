@@ -171,7 +171,7 @@ fn restoring_a_version_announces_the_pending_counts_it_leaves() {
     let mut mgr = open_in("w", &Id::new("m".into()), store);
     restore(&mut mgr, vec![loc(1, 1.0, 1.0), loc(9, 9.0, 9.0)]);
     assert_eq!(
-        feed.last().derived.pending,
+        engine::tests::shipped::<Counts>(&feed.last(), &["pending"]),
         Some(Counts {
             added: 1,
             removed: 0,

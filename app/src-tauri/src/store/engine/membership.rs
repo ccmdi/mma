@@ -34,8 +34,8 @@ pub(crate) struct SelectionState {
     /// Union of every member set. Answers "is this id selected".
     pub ids: IdSet<Location>,
     pub(crate) set_dependent: bool,
-    /// The list as the last change sent it, keyed by selection key.
-    sent: HashMap<String, ListedSelection>,
+    /// The list as every window holds it.
+    sent: Vec<ListedSelection>,
     /// Keys of listed selections whose members are not resolved yet.
     unresolved: HashSet<String>,
     /// The mesh of every polygon in the list, listed or inside a listed composite, by key.
@@ -292,29 +292,51 @@ impl SelectionState {
         }
     }
 
-    /// The whole list, for a window that starts from nothing.
-    pub(crate) fn full_list(&self) -> ListChange {
-        let rows = self.list();
-        ListChange {
-            order: rows.iter().map(|r| r.selection.key.clone()).collect(),
-            rows,
-        }
+    /// The whole list as rows by key and keys in order, which it now counts as sent.
+    pub(crate) fn ship_list(&mut self) -> (HashMap<String, ListedSelection>, Vec<String>) {
+        self.sent = self.list();
+        let rows = self
+            .sent
+            .iter()
+            .map(|row| (row.selection.key.clone(), row.clone()))
+            .collect();
+        let order = self
+            .sent
+            .iter()
+            .map(|row| row.selection.key.clone())
+            .collect();
+        (rows, order)
     }
 
-    /// The list as a change since it was last sent, which it now counts as sent.
-    pub(crate) fn list_change(&mut self) -> ListChange {
+    /// How the list moved since it was last sent, as patch operations, which it now counts
+    /// as sent.
+    pub(crate) fn list_patch(&mut self) -> Vec<PatchOp> {
         let list = self.list();
-        let order = list.iter().map(|r| r.selection.key.clone()).collect();
-        let rows = list
+        let key = |row: &ListedSelection| row.selection.key.clone();
+        let sent: HashMap<&str, &ListedSelection> = self
+            .sent
             .iter()
-            .filter(|r| self.sent.get(&r.selection.key) != Some(*r))
-            .cloned()
+            .map(|row| (row.selection.key.as_str(), row))
             .collect();
-        self.sent = list
-            .into_iter()
-            .map(|r| (r.selection.key.clone(), r))
+        let listed: HashSet<&str> = list.iter().map(|row| row.selection.key.as_str()).collect();
+        let mut patch: Vec<PatchOp> = list
+            .iter()
+            .filter(|row| sent.get(row.selection.key.as_str()) != Some(row))
+            .map(|row| PatchOp::add(["selectionRows", row.selection.key.as_str()], row))
+            .chain(
+                sent.keys()
+                    .filter(|gone| !listed.contains(*gone))
+                    .map(|gone| PatchOp::remove(["selectionRows", gone])),
+            )
             .collect();
-        ListChange { order, rows }
+        if !list.iter().map(key).eq(self.sent.iter().map(key)) {
+            patch.push(PatchOp::replace(
+                ["selectionOrder"],
+                list.iter().map(key).collect::<Vec<_>>(),
+            ));
+        }
+        self.sent = list;
+        patch
     }
 
     pub(crate) fn list(&self) -> Vec<ListedSelection> {

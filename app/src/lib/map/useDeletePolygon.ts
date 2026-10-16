@@ -1,12 +1,11 @@
 import { useCallback } from "react";
-import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { cmd } from "@/lib/commands";
 import { useHeldHotkeyClick } from "@/lib/map/useHeldHotkeyClick";
 
 /** Keys of the polygon selections covering a point. */
 export async function polygonsAt(lat: number, lng: number): Promise<string[]> {
-	const polygons = Store.get().selectionList.flatMap(({ selection: s }) =>
+	const polygons = SelectionList.listed().flatMap(({ selection: s }) =>
 		s.selector.type === "Polygon" ? [{ key: s.key, polygon: s.selector.polygon }] : [],
 	);
 	const hits = await Promise.all(

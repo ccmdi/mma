@@ -60,16 +60,16 @@ export function getWorkArea() {
 	return Editor.get().workArea;
 }
 
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
 export function getAllSelections() {
-	return Store.get().selectionList.map((r) => r.selection);
+	return SelectionList.listed().map((r) => r.selection);
 }
 
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
 export function getGhostedSelections() {
 	return new Set(
-		Store.get()
-			.selectionList.filter((r) => r.ghosted)
+		SelectionList.listed()
+			.filter((r) => r.ghosted)
 			.map((r) => r.selection.key),
 	);
 }

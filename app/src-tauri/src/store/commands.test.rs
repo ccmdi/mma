@@ -573,6 +573,6 @@ fn opening_the_scratch_map_creates_it() {
     ))
     .unwrap();
 
-    assert_eq!(status.derived.meta.unwrap().0.id, scratch);
+    assert_eq!(status.derived.map.0.id, scratch);
     assert!(opened_on_disk(&scratch).is_some());
 }

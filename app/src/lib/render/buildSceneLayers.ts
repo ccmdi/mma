@@ -7,6 +7,7 @@ import {
 	TextLayer,
 } from "@deck.gl/layers";
 import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
 import SDFMarkerLayer from "@/lib/render/sdf-marker-layer/SDFMarkerLayer";
 import {
 	baseMarkerLayers,
@@ -172,7 +173,7 @@ export function buildSceneLayers(cm: CellManager, ctx: SceneContext): Layer[] {
 		return layers;
 	}
 
-	const polygons = polygonLayerData(Store.get().selectionList);
+	const polygons = polygonLayerData(SelectionList.listed());
 	if (polygons.fill.length > 0)
 		layers.push(
 			new SolidPolygonLayer({

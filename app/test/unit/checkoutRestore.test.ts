@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
+import { listedState } from "./fixtures/patch";
 import { Commit } from "@/store/commit";
 import { Editor } from "@/store/editor";
 import type { ListedSelection } from "@/bindings.gen";
@@ -31,14 +33,14 @@ beforeEach(() => {
 	const s = Store.get() as Record<string, unknown>;
 	s.mapId = "test";
 	s.map = { id: "test" };
-	s.selectionList = [fakeRow("tag:1")];
+	Object.assign(s, listedState([fakeRow("tag:1")]));
 });
 
 afterEach(() => {
 	const s = Store.get() as Record<string, unknown>;
 	s.mapId = null;
 	s.map = null;
-	s.selectionList = [];
+	Object.assign(s, listedState([]));
 	vi.clearAllMocks();
 });
 
@@ -63,10 +65,10 @@ describe("checkoutCommit failure", () => {
 	it.each(["open elsewhere", "bad commit"])(
 		"leaves the selection projection alone on %s",
 		async (message) => {
-			const before = Store.get().selectionList;
+			const before = SelectionList.listed();
 			vi.mocked(cmd.storeCheckoutCommit).mockRejectedValueOnce(new Error(message));
 			await expect(Commit.checkout("abc1234")).rejects.toThrow(message);
-			expect(Store.get().selectionList).toBe(before);
+			expect(SelectionList.listed()).toBe(before);
 		},
 	);
 });

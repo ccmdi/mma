@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import type { ChangeEvent, Derived } from "@/bindings.gen";
 
 const reads = vi.hoisted(() => ({ query: vi.fn(), bounds: vi.fn() }));
 
@@ -47,7 +46,7 @@ vi.mock("@/plugins/pluginStorage", () => ({
 	},
 	storage: () => ({ keys: () => ["source"] }),
 }));
-vi.mock("@/store/selectionList", () => ({ SelectionList: { active: () => [] } }));
+vi.mock("@/store/selectionList", () => ({ SelectionList: { active: () => [], listed: () => [] } }));
 vi.mock("@/store/tag", () => ({ Tag: { all: () => ({}) } }));
 const EVERYTHING = vi.hoisted(() => ({ type: "Everything" }));
 vi.mock("@/store/selectorPick", () => ({
@@ -69,43 +68,22 @@ vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock
 
 import { emit } from "@/lib/events";
 import { Store } from "@/store/store";
+import type { ChangeEvent } from "@/bindings.gen";
+import { changeEvent, replace } from "./fixtures/patch";
 import { DistributionSidebar } from "@/plugins/distribution/DistributionSidebar";
 import { PivotSidebar } from "@/plugins/pivot/PivotSidebar";
 import { useScoreMaxError } from "@/lib/geo/scoring";
 
-const NO_DERIVED: Derived = {
-	locationCount: null,
-	pending: null,
-	meta: null,
-	history: null,
-	fieldValues: null,
-	fieldDefs: null,
-	selectionCounts: null,
-	selectionList: null,
-	writingLayers: null,
-	unsaved: null,
-};
-
-const change = (
-	patch: Partial<Omit<ChangeEvent, "derived">> & { derived?: Partial<Derived> } = {},
-): ChangeEvent => ({
-	version: 1,
-	added: [],
-	removed: [],
-	updated: [],
-	...patch,
-	derived: { ...NO_DERIVED, ...patch.derived },
-});
-
-const NON_LOCATION = change({
-	derived: {
-		selectionList: { order: [], rows: [] },
-		selectionCounts: {},
-		writingLayers: [],
-		unsaved: true,
-	},
-});
-const LOCATION = change({ updated: [3] });
+const NON_LOCATION = changeEvent(
+	[
+		replace("/selectionOrder", []),
+		replace("/selectionCounts", {}),
+		replace("/writingLayers", []),
+		replace("/unsaved", true),
+	],
+	1,
+);
+const LOCATION = changeEvent([], 1, { updated: [3] });
 
 function ScoreProbe() {
 	useScoreMaxError();

@@ -1321,8 +1321,8 @@ type Change<T> = {
 type ChangeEvent = {
     /**  The map version this change brought the map to. */
     version: number;
-    /**  Changed derived state. Null fields are unchanged. */
-    derived: Derived;
+    /**  How the derived state moved, as a JSON Patch over what the window holds. */
+    patch: PatchOp[];
 } & Keys<number>;
 /**  Metadata for a single commit. @unstable */
 type CommitInfo = {
@@ -1420,36 +1420,43 @@ type DbStats = {
     journalMode: string;
     foreignKeys: boolean;
 };
-/**  Map state a change affected. Each field is `null` when it did not change. */
+/**
+ *  The derived state a window holds: everything about the open map besides its rows. Opening a
+ *  map sends it whole; every change after sends a JSON Patch over it.
+ */
 type Derived = {
-    locationCount: number | null;
+    locationCount: number;
     /**  Location changes since the last commit. */
-    pending: Counts | null;
-    /**  The map's own details, when they changed. */
-    meta: Omit<MapMeta, "extra" | "locationCount" | "pending"> | null;
+    pending: Counts;
+    /**  The map's own details. */
+    map: Omit<MapMeta, "extra" | "locationCount" | "pending">;
     history: Partial<{
         [key in Timeline]: History;
-    }> | null;
-    /**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
+    }>;
+    /**  Every held value, keyed by field and value. */
     fieldValues: {
         [key in string]: {
-            [key in string]: HeldValue | null;
+            [key in string]: HeldValue;
         };
-    } | null;
-    /**  The whole extra-field registry, when it changed. */
+    };
+    /**  The extra-field registry. */
     fieldDefs: {
         [key in string]: FieldDef;
-    } | null;
+    };
     /**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
     selectionCounts: {
         [key in string]: number;
-    } | null;
-    /**  The listed selections, when the list changed. */
-    selectionList: ListChange | null;
+    };
+    /**  The listed selections, keyed by `Selection.key`. */
+    selectionRows: {
+        [key in string]: ListedSelection;
+    };
+    /**  The keys of the listed selections, in list order. */
+    selectionOrder: string[];
     /**  Pending layers that procedure work is currently writing to. */
-    writingLayers: string[] | null;
+    writingLayers: string[];
     /**  Whether the map has changes not yet saved to disk. */
-    unsaved: boolean | null;
+    unsaved: boolean;
 };
 /**  What the user needs in order to authorize: the code to type and where to type it. @unstable */
 type DeviceCodeInfo = {
@@ -1824,16 +1831,6 @@ type Keys<K> = {
     /**  The rows the change rewrote. */
     updated: K[];
 };
-/**
- *  The listed selections as of a change: every key in list order, and each listed selection
- *  that is new or different since the list was last sent.
- */
-type ListChange = {
-    /**  The keys of the listed selections, in list order. */
-    order: string[];
-    /**  The listed selections that are new or changed. */
-    rows: ListedSelection[];
-};
 /**  A selection as the sidebar lists it, plus whether it is ghosted. */
 type ListedSelection = {
     selection: Selection;
@@ -2204,6 +2201,43 @@ type PartitionBucket = {
     key: string;
     ids: number[];
     bin: [number, number] | null;
+};
+/**  One operation of a JSON Patch (RFC 6902). Paths are JSON Pointers (RFC 6901). */
+type PatchOp = 
+/**  Put `value` at `path`, replacing a member already there or inserting into an array. */
+{
+    op: "add";
+    path: string;
+    value: unknown;
+} | 
+/**  Remove the value at `path`. */
+{
+    op: "remove";
+    path: string;
+} | 
+/**  Replace the value at `path`, which must exist. */
+{
+    op: "replace";
+    path: string;
+    value: unknown;
+} | 
+/**  Remove the value at `from` and add it at `path`. */
+{
+    op: "move";
+    from: string;
+    path: string;
+} | 
+/**  Add a copy of the value at `from` at `path`. */
+{
+    op: "copy";
+    from: string;
+    path: string;
+} | 
+/**  Fail the patch unless the value at `path` equals `value`. */
+{
+    op: "test";
+    path: string;
+    value: unknown;
 };
 /**  A published build of a plugin. @unstable */
 type PluginBuild_Deserialize = {
@@ -3077,15 +3111,12 @@ declare global {
 }
 
 /** The full local mirror of the store's derived state, as of the map version it reflects. */
-export type EngineState = {
-    [K in Exclude<keyof Derived, "meta" | "selectionList">]: NonNullable<Derived[K]>;
-} & {
-    selectionList: ListedSelection[];
+export type EngineState = Omit<Derived, "map"> & {
     version: number;
 };
 /** The open map's own details. Its value records, field definitions, and counts live in their
  *  own slices. */
-export type MapDetails = NonNullable<Derived["meta"]>;
+export type MapDetails = Derived["map"];
 export interface UiState {
     mapId: string | null;
     /** Persisted identity slice (metadata + settings). Changes rarely. */
@@ -3097,8 +3128,8 @@ export type MapState = UiState & EngineState;
 declare const Store: {
     /** Replace state fields and notify subscribers. @unstable */
     patch: (patch: Partial<MapState>) => void;
-    /** Apply derived state as of `version` and remove null field values. @unstable */
-    merge: (v: Derived, version: number) => void;
+    /** Apply a change's JSON Patch over the derived state, as of `version`. @unstable */
+    apply: (patch: PatchOp[], version: number) => void;
     /** Reactive slice of the map state. Re-renders only when the selected value's
      *  reference changes (`Object.is`), so selectors must return state fields or
      *  memoized values, not a new value per call. */
@@ -3448,6 +3479,8 @@ declare const Mutation: {
 
 /** @unstable */
 declare const SelectionList: {
+    /** The listed selections, in list order. @unstable */
+    listed: () => ListedSelection[];
     /** Tag ids with a top-level listed tag selection, including ghosted selections. @unstable */
     tagIds: () => ReadonlySet<number>;
     /** Tag ids from active selection leaves, including repeated ids and composite children. @unstable */
@@ -3456,8 +3489,8 @@ declare const SelectionList: {
     active: () => Selection[];
     /** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
     update: (op: SelectionOp) => Promise<void>;
-    /** Run a mutation that may change the listed selections; when it does, redraw their fills
-     *  and announce the change. @unstable */
+    /** Run a mutation that may change the listed selections, and announce the change when it
+     *  does. @unstable */
     run: (write: () => Promise<Mutation>) => Promise<void>;
     /** @unstable */
     select: <R extends number[] | {
@@ -7169,9 +7202,9 @@ declare function getActiveLocation(): Location | null;
 declare function getSelectedLocationIds(): SelectedIds;
 /** @deprecated v0.8.2. Read `MMA.Editor.get().workArea`. @unstable */
 declare function getWorkArea(): WorkArea;
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
 declare function getAllSelections(): Selection[];
-/** @deprecated v0.8.2. Read `MMA.Store.get().selectionList`. @unstable */
+/** @deprecated v0.8.2. Read `MMA.SelectionList.listed()`. @unstable */
 declare function getGhostedSelections(): Set<string>;
 /** @deprecated v0.8.2. Use `MMA.SelectionList.active()`. @unstable */
 declare function getSelections(): Selection[];
@@ -7884,7 +7917,7 @@ interface MMA extends ConstsApi, SelectionOpsApi, SettingsApi, SelectorPickApi, 
     /** Rename or remove metadata fields across the map. */
     Field: typeof Field$1;
     /** Read the open map state and update its selection and metadata. */
-    Store: Omit<typeof Store, "patch" | "merge" | "resetDerived">;
+    Store: Omit<typeof Store, "patch" | "apply" | "resetDerived">;
     /** Create, list, open, close, and organize maps. */
     Maps: typeof Maps;
     /** Read locations and summaries for a selector. */
@@ -7919,4 +7952,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListChange, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PatchOp, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

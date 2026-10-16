@@ -93,7 +93,7 @@ export function openMapResult(
 	return {
 		version: 1,
 		derived: {
-			meta: {
+			map: {
 				id: "m1",
 				name: "test",
 				description: "",
@@ -113,7 +113,10 @@ export function openMapResult(
 			},
 			fieldDefs: over.fieldDefs ?? {},
 			selectionCounts: {},
-			selectionList: { order: [], rows: [] },
+			selectionRows: {},
+			selectionOrder: [],
+			pending: { added: 0, removed: 0, updated: 0 },
+			unsaved: false,
 		},
 	};
 }
@@ -155,8 +158,13 @@ export async function selectionsHeld(value: unknown) {
 				throw new Error(`Unsupported test operation: ${op.kind}`);
 		}
 	};
+	const { SelectionList } = await import("@/store/selectionList");
+	const listed = apply(op, SelectionList.listed());
 	const state = Store.get();
-	Object.assign(state, { selectionList: apply(op, state.selectionList) });
+	Object.assign(state, {
+		selectionRows: Object.fromEntries(listed.map((row) => [row.selection.key, row])),
+		selectionOrder: listed.map((row) => row.selection.key),
+	});
 	if (state.map) Store.patch({ map: state.map });
 	return { version: 0, keys: [] };
 }

@@ -78,7 +78,6 @@ vi.mock("@/lib/commands", async () => {
 });
 vi.mock("@/lib/util/log", async () => (await import("./fixtures/mocks")).logMock());
 import { Maps } from "@/store/maps";
-import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { Query } from "@/store/query";
 import { addSelection, tagSelector } from "@/store/selections";
@@ -169,7 +168,7 @@ describe("random pick, per selection", () => {
 		expect(h.sampledSelectors).toEqual([selectedLeaf]);
 		expect(pickedIds().every((id) => byTagIds(1).includes(id))).toBe(true);
 		// The pick replaces only what it picked from: the ghosted selection stays, still ghosted.
-		expect(Store.get().selectionList.map((r) => [r.selection.key, r.ghosted])).toEqual([
+		expect(SelectionList.listed().map((r) => [r.selection.key, r.ghosted])).toEqual([
 			[selectionFixture({ type: "Manual", locations: pickedIds() }).key, false],
 			[ghostKey, true],
 		]);

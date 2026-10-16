@@ -75,7 +75,7 @@ const nudge = (p: Px) => [move(p), down, move([p[0] + 12, p[1] + 6], 80), up];
 
 const polygonVertexCounts = () =>
 	withApi((api) =>
-		api.Store.get().selectionList.flatMap(({ selection: { selector } }) =>
+		api.SelectionList.listed().flatMap(({ selection: { selector } }) =>
 			selector.type === "Polygon" ? [selector.polygon.coordinates[0].length] : [],
 		),
 	);

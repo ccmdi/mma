@@ -9,6 +9,7 @@ import { subscribe, emit as emitEvent, useEventValue } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
 import { latest } from "@/lib/util/latest";
+import { touches } from "@/lib/util/jsonPatch";
 import { enrich } from "@/lib/sv/enrich";
 
 /** Where an open location came from: the map, the seen history, or a pending import. */
@@ -326,10 +327,10 @@ export const Editor = {
 	},
 };
 
-subscribe("store:change", ({ added, updated, removed, derived }) => {
+subscribe("store:change", ({ added, updated, removed, patch }) => {
 	const open = state.open;
 	if (!open) return;
 	if (open.origin === "map" && removed.includes(open.id)) Editor.close();
-	else if (derived.writingLayers || added.includes(open.id) || updated.includes(open.id))
+	else if (touches(patch, "/writingLayers") || added.includes(open.id) || updated.includes(open.id))
 		void Editor.refresh();
 });

@@ -1,6 +1,6 @@
 // Test-only API, mounted as `MMA._test`. Deterministic wrappers the e2e suite
 // drives; never called by app code.
-import { Store } from "@/store/store";
+import { SelectionList } from "@/store/selectionList";
 import { Maps } from "@/store/maps";
 import { Mutation } from "@/store/mutation";
 import { Query } from "@/store/query";
@@ -11,7 +11,7 @@ export { mapOpen } from "@/lib/util/debug";
 
 /** Force a full selection re-resolve and return the selected IDs. */
 export async function syncSelections(): Promise<{ ids: number[] }> {
-	const rows = Store.get().selectionList;
+	const rows = SelectionList.listed();
 	if (rows.length === 0) return { ids: [] };
 	await Mutation.settle(
 		await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }),

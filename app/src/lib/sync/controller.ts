@@ -10,6 +10,7 @@ import { SYNC_PROVIDERS, type SyncDirection, type SyncTrigger } from "@/bindings
 import { reconcile, type FirstSyncMode, type ReconcileOptions, type SyncOutcome } from "./engine";
 import { createMappingBackend } from "./mappingBackend";
 import { createScheduler, type Scheduler, type SyncStatus } from "./scheduler";
+import { touches } from "@/lib/util/jsonPatch";
 import type { RemoteMapSummary, SyncProvider } from "./provider";
 import {
 	createSyncStore,
@@ -306,7 +307,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 			);
 			unsubs = [
 				window.MMA.on("store:change", (e) => {
-					if (changedLocations(e) || e.derived.fieldValues?.tags) scheduler?.request();
+					if (changedLocations(e) || touches(e.patch, "/fieldValues/tags")) scheduler?.request();
 				}),
 			];
 			scheduler.start();

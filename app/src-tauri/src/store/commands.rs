@@ -80,7 +80,7 @@ async fn open_claimed_map(
         other.changes.remove(label);
     }
     if let Some(replaced) = mgr.stores.remove(&map_id) {
-        store.adopt_watchers(replaced);
+        store.adopt_watchers(replaced, &status);
     }
     store.changes.insert(label.clone(), changes);
     mgr.stores.insert(map_id, store);

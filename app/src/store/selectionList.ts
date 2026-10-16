@@ -1,7 +1,7 @@
 import { Store } from "./store";
 import { Mutation } from "./mutation";
 import { memoOnRefs } from "@/lib/util/memoOnRefs";
-import type { Selection } from "@/bindings.gen";
+import type { ListedSelection, Selection } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { emit as emitEvent } from "@/lib/events";
 import { selection } from "./selections";
@@ -9,11 +9,21 @@ import type { Selector } from "@/types";
 import { tagIdOf } from "@/store/selections";
 
 export const SelectionList = {
+	/** The listed selections, in list order. */
+	listed: memoOnRefs(
+		() => [Store.get().selectionRows, Store.get().selectionOrder] as const,
+		(rows, order): ListedSelection[] =>
+			order.map((key) => {
+				const row = rows[key];
+				if (!row) throw new Error(`the selection order names ${key}, which no row holds`);
+				return row;
+			}),
+	),
 	/** Tag ids with a top-level listed tag selection, including ghosted selections. */
 	tagIds: (() => {
 		let prev: Set<number> | null = null;
 		return memoOnRefs(
-			() => [Store.get().selectionList] as const,
+			(): [ListedSelection[]] => [SelectionList.listed()],
 			(rows): ReadonlySet<number> => {
 				const ids = new Set(
 					rows.flatMap((r) => {
@@ -45,20 +55,20 @@ export const SelectionList = {
 	),
 	/** Listed selections that are not ghosted. */
 	active: memoOnRefs(
-		() => [Store.get().selectionList] as const,
+		(): [ListedSelection[]] => [SelectionList.listed()],
 		(rows) => rows.filter((r) => !r.ghosted).map((r) => r.selection),
 	),
 	/** Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections. @unstable */
 	update: async (op: import("@/bindings.gen").SelectionOp) => {
 		await SelectionList.run(() => cmd.storeEditSelections(op));
 	},
-	/** Run a mutation that may change the listed selections; when it does, redraw their fills
-	 *  and announce the change. @unstable */
+	/** Run a mutation that may change the listed selections, and announce the change when it
+	 *  does. @unstable */
 	run: async (write: () => Promise<Mutation>) => {
 		if (!Store.get().map) return;
-		const before = Store.get().selectionList;
+		const before = SelectionList.listed();
 		await Mutation.run(write);
-		if (Store.get().selectionList === before) return;
+		if (SelectionList.listed() === before) return;
 		emitEvent("selection:change", SelectionList.active());
 	},
 	select: async <R extends number[] | { ids: number[] }>(

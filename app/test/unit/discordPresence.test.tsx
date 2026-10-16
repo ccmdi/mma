@@ -29,7 +29,7 @@ import { emit } from "@/lib/events";
 
 const change = {
 	version: 1,
-	derived: {} as ChangeEvent["derived"],
+	patch: [],
 	added: [],
 	updated: [],
 	removed: [],

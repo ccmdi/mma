@@ -1,19 +1,23 @@
 import { describe, it, expect, vi } from "vitest";
 import { tagSelector } from "@/store/selections";
-import type { PolygonGeometry } from "@/bindings.gen";
+import type { ListedSelection, PolygonGeometry } from "@/bindings.gen";
 import type { Selector } from "@/types";
 
 const h = vi.hoisted(() => ({
 	selections: [] as { key: string; selector: Selector }[],
 }));
 
-vi.mock("@/store/store", () => ({
-	Store: {
-		get: () => ({
-			selectionList: h.selections.map((selection) => ({ selection, ghosted: false })),
-		}),
-	},
-}));
+vi.mock("@/store/store", async () => {
+	const { listedState } = await import("./fixtures/patch");
+	return {
+		Store: {
+			get: () =>
+				listedState(
+					h.selections.map((selection) => ({ selection, ghosted: false })) as ListedSelection[],
+				),
+		},
+	};
+});
 
 // Rectangle containment stands in for the store's ray-casting answer.
 vi.mock("@/lib/commands", () => ({

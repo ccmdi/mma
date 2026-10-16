@@ -471,7 +471,7 @@ function PivotTable({
 		const selections = await cmd.selectionBuild(members.map((m) => selection(m.pick!)));
 		return new Map(members.map((m, i) => [m, selections[i].key]));
 	}, [data]);
-	const listedKeys = new Set(Store.get().selectionList.map((r) => r.selection.key));
+	const listedKeys = new Set(SelectionList.listed().map((r) => r.selection.key));
 	const isSelected = (m: PivotMember) => listedKeys.has(selectionKeys?.get(m) ?? "");
 
 	const handleSort = useCallback((key: SortKey) => {

@@ -16,6 +16,7 @@ use mma_algebra::{Delta, Edit, Field, Id, Op, Patch};
 use proptest::collection;
 use proptest::prelude::ProptestConfig;
 use proptest::strategy::Strategy;
+use serde_json::Value;
 use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -988,7 +989,7 @@ fn open_status_reflects_undo_redo() {
 
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| h
+        Some(&s.derived.history).map(|h| h
             .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((false, false))
@@ -1002,7 +1003,7 @@ fn open_status_reflects_undo_redo() {
         ))));
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| h
+        Some(&s.derived.history).map(|h| h
             .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
@@ -1017,7 +1018,7 @@ fn open_status_reflects_undo_redo() {
     press_undo(&mut store);
     let s = store.open_status();
     assert_eq!(
-        s.derived.history.map(|h| h
+        Some(&s.derived.history).map(|h| h
             .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, true))
@@ -1028,6 +1029,7 @@ fn open_status_reflects_undo_redo() {
 fn a_write_reports_its_derived_state() {
     let l = loc_with_tags(1, 0.0, 0.0, vec![10]);
     let mut store = setup_store_with(&[l]);
+    let feed = FeedCapture::attach(&mut store);
     store.steps[Timeline::Edits]
         .edit()
         .record(Arc::new(entry(Change::from_sides(
@@ -1035,12 +1037,15 @@ fn a_write_reports_its_derived_state() {
             vec![],
         ))));
 
-    let feed = FeedCapture::attach(&mut store);
     let result = store.write([], &mut None, Entry::default());
     let e = feed.last();
-    assert_eq!(e.derived.location_count, Some(1));
     assert_eq!(
-        e.derived.history.map(|h| h
+        shipped::<usize>(&e, &["locationCount"]),
+        None,
+        "what the window opened with and did not move stays out"
+    );
+    assert_eq!(
+        shipped::<HashMap<Timeline, History>>(&e, &["history"]).map(|h| h
             .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false)),
@@ -1054,7 +1059,7 @@ fn a_write_reports_its_derived_state() {
     assert_eq!(feed.len(), 2);
     let e = feed.last();
     assert_eq!(e.version, result.version);
-    assert!(e.derived.is_empty());
+    assert!(e.patch.is_empty());
 }
 
 #[test]
@@ -1068,11 +1073,10 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
             vec![],
         ))));
     store.write([], &mut None, Entry::default());
-    assert!(feed
-        .last()
-        .derived
-        .history
-        .is_some_and(|h| h.get(&Timeline::Edits).is_some_and(|h| h.undo)));
+    assert!(
+        shipped::<HashMap<Timeline, History>>(&feed.last(), &["history"])
+            .is_some_and(|h| h.get(&Timeline::Edits).is_some_and(|h| h.undo))
+    );
 
     // A clear outside any mutation result must still re-ship the flags next mutation.
     store.steps[Timeline::Edits].edit().clear();
@@ -1085,7 +1089,7 @@ fn undo_flags_ship_again_after_out_of_band_stack_clear() {
         ))));
     store.write([], &mut None, Entry::default());
     assert_eq!(
-        feed.last().derived.history.map(|h| h
+        shipped::<HashMap<Timeline, History>>(&feed.last(), &["history"]).map(|h| h
             .get(&Timeline::Edits)
             .map_or((false, false), |h| (h.undo, h.redo))),
         Some((true, false))
@@ -1101,12 +1105,11 @@ fn field_values_shipped_only_when_postings_move() {
 
     // A mutation that moves no rows ships no values.
     store.write([], &mut None, Entry::default());
-    assert!(feed.all().iter().all(|e| e.derived.field_values.is_none()));
+    assert!(feed.all().iter().all(|e| !touched(e, &["fieldValues"])));
 
     // A tag-touching edit ships the moved value: recordless and on no row, it is gone.
     undoable(&mut store, vec![l.clone()], Vec::new());
-    let values = feed.last().derived.field_values.clone().unwrap();
-    assert!(matches!(values["tags"].get("10"), Some(None)));
+    assert_eq!(shipped_count(&feed.last(), "tags", "10"), Some(0));
 }
 
 #[test]
@@ -1359,7 +1362,7 @@ fn noop_batch_is_removed_before_selection_and_render_work() {
     assert_eq!(store.overlay.rev(), rev);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), undo_len);
     assert!(frames.last().cells.is_empty());
-    assert!(feed.last().derived.selection_counts.is_none());
+    assert!(!touched(&feed.last(), &["selectionCounts"]));
 }
 
 // -----------------------------------------------------------------------
@@ -2600,9 +2603,21 @@ fn a_store_replacing_another_draws_its_scene_for_the_windows_watching_the_old_on
         watcher.sink(),
         &RenderRequest::default(),
     );
+    let feed = FeedCapture::attach(&mut old);
     let mut new = setup_store_with(&[loc(1, 10.0, 20.0), loc(2, -30.0, -40.0)]);
 
-    new.adopt_watchers(old);
+    let status = new.open_status();
+    new.adopt_watchers(old, &status);
+
+    let held = feed.last();
+    assert!(
+        held.patch.iter().all(
+            |op| matches!(op, PatchOp::Replace { path, .. } if path.matches('/').count() == 1)
+        ),
+        "each part of what the window held is replaced"
+    );
+    assert!(touched(&held, &["selectionOrder"]) && touched(&held, &["fieldValues"]));
+    assert_eq!(shipped::<usize>(&held, &["locationCount"]), Some(2));
 
     let frame = watcher.last();
     assert_eq!(frame.kind, FrameKind::REPLACE);
@@ -2651,7 +2666,7 @@ fn a_selection_change_restates_every_cell_and_keeps_the_bounds() {
     assert_eq!(frame.palette, [Rgb([255, 0, 0])]);
     let section = frame.selection.expect("every cell's membership restated");
     assert_eq!(section, store.selection_section());
-    assert!(feed.last().derived.selection_counts.is_some());
+    assert!(touched(&feed.last(), &["selectionCounts"]));
     assert_eq!(store.selections.ids.len(), 1);
     assert!(
         store.bounds.peek().unwrap().current(store.version),
@@ -3263,7 +3278,7 @@ fn a_reopened_map_announces_the_pending_changes_its_delta_holds() {
     with_target(&state, &w1, &target, add_one(&target)).unwrap();
 
     let mut reopened = load_store(&closed).unwrap();
-    let pending = reopened.open_status().derived.pending.unwrap();
+    let pending = reopened.open_status().derived.pending;
     assert_eq!(pending, reopened.overlay_diff_counts());
     assert_ne!(pending, Counts::default());
     assert_eq!(reopened.map().pending, pending);
@@ -3582,7 +3597,7 @@ fn edit_values_interns_names_with_server_side_ids_above_the_data_floor() {
     assert_eq!(r.keys[0], urban, "case-insensitive reuse");
     assert!(r.keys[1] > urban);
     assert!(
-        shipped_record(&feed.last().derived, "tags", r.keys[1].get()).is_some(),
+        shipped_record(&feed.last(), "tags", r.keys[1].get()).is_some(),
         "the reconciled records ship on the same result"
     );
 }
@@ -3619,9 +3634,9 @@ fn edit_values_reorders_and_renames_as_plain_patches_in_one_undo_step() {
             ],
         )
         .unwrap();
-    let derived = feed.last().derived;
-    let first = shipped_record(&derived, "tags", ids[0].get()).unwrap();
-    let second = shipped_record(&derived, "tags", ids[1].get()).unwrap();
+    let event = feed.last();
+    let first = shipped_record(&event, "tags", ids[0].get()).unwrap();
+    let second = shipped_record(&event, "tags", ids[1].get()).unwrap();
     assert_eq!(first.name.as_deref(), Some("Alpha"));
     assert_eq!(first.color(), "#123456".parse().ok());
     assert_eq!(second.order, Some(0));
@@ -3782,7 +3797,7 @@ fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
             .contains(&Id::new(7)));
     }
     assert_eq!(
-        shipped_count(&feed.last().derived, "tags", "7"),
+        shipped_count(&feed.last(), "tags", "7"),
         Some(2),
         "the same mutation reports the count to JS"
     );
@@ -3799,7 +3814,7 @@ fn stripping_the_last_member_reports_a_zero_count() {
     set_tags(&mut store, &[], &[7], &[1]);
 
     assert_eq!(tag_count(&mut store, 7), 0);
-    assert_eq!(shipped_count(&feed.last().derived, "tags", "7"), Some(0));
+    assert_eq!(shipped_count(&feed.last(), "tags", "7"), Some(0));
 }
 
 /// Membership write through the generic field op: `tags` is an ordinary list-valued
@@ -3836,7 +3851,7 @@ fn set_tags_strips_a_tag_and_drops_its_count() {
         1,
         "only the stripped row leaves the tag"
     );
-    assert_eq!(shipped_count(&feed.last().derived, "tags", "7"), Some(1));
+    assert_eq!(shipped_count(&feed.last(), "tags", "7"), Some(1));
 }
 
 #[test]
@@ -4381,11 +4396,8 @@ fn a_ghosted_selection_is_recounted_by_a_mutation_but_never_selected_or_drawn() 
     let result = store.write([Op::Set(after)], &mut None, Entry::default());
 
     let _ = result;
-    let counts = feed
-        .last()
-        .derived
-        .selection_counts
-        .expect("a mutation recounts");
+    let counts: HashMap<String, u32> =
+        shipped(&feed.last(), &["selectionCounts"]).expect("a mutation recounts");
     assert_eq!(counts["tag:1"], 1, "the ghosted selection is counted");
     assert_eq!(counts["tag:2"], 1);
     assert_eq!(
@@ -4488,7 +4500,7 @@ fn incremental_membership_change_ships_no_bitmask() {
 
     let _ = result;
     assert!(
-        feed.last().derived.selection_counts.is_some(),
+        touched(&feed.last(), &["selectionCounts"]),
         "counts still sync"
     );
     assert_eq!(store.selections.ids.len(), 1);
@@ -5123,17 +5135,72 @@ fn press_redo(store: &mut Store) {
         .unwrap();
 }
 
-/// The count `derived` shipped for one value of `field`: `None` when it did not ship the
-/// value, `Some(0)` when the value is gone.
-pub(crate) fn shipped_count(d: &Derived, field: &str, key: &str) -> Option<usize> {
-    let v = d.field_values.as_ref()?.get(field)?.get(key)?;
-    Some(v.as_ref().map_or(0, |v| v.count))
+fn op_path(op: &PatchOp) -> &str {
+    match op {
+        PatchOp::Add { path, .. }
+        | PatchOp::Remove { path }
+        | PatchOp::Replace { path, .. }
+        | PatchOp::Move { path, .. }
+        | PatchOp::Copy { path, .. }
+        | PatchOp::Test { path, .. } => path,
+    }
 }
 
-/// The record `derived` shipped for one interned value of `field`.
-pub(crate) fn shipped_record(d: &Derived, field: &str, id: u32) -> Option<ValueRecord> {
-    let v = d.field_values.as_ref()?.get(field)?.get(&id.to_string())?;
-    v.as_ref()?.record.clone()
+/// The value `event` put at `path`, directly or inside a value it put at a parent of it.
+pub(crate) fn shipped<T: serde::de::DeserializeOwned>(
+    event: &ChangeEvent,
+    path: &[&str],
+) -> Option<T> {
+    let pointer = mma_algebra::json_pointer(path.iter().copied());
+    event.patch.iter().rev().find_map(|op| {
+        let (PatchOp::Add { path: at, value } | PatchOp::Replace { path: at, value }) = op else {
+            return None;
+        };
+        let rest = pointer.strip_prefix(at.as_str())?;
+        let value = match rest {
+            "" => value,
+            _ if rest.starts_with('/') => value.pointer(rest)?,
+            _ => return None,
+        };
+        Some(serde_json::from_value(value.clone()).expect("a patch value reads as its type"))
+    })
+}
+
+/// Whether `event` removed `path`.
+pub(crate) fn removes(event: &ChangeEvent, path: &[&str]) -> bool {
+    let pointer = mma_algebra::json_pointer(path.iter().copied());
+    event
+        .patch
+        .iter()
+        .any(|op| matches!(op, PatchOp::Remove { path } if *path == pointer))
+}
+
+/// Whether `event` changed anything at, under, or above `path`.
+pub(crate) fn touched(event: &ChangeEvent, path: &[&str]) -> bool {
+    let pointer = mma_algebra::json_pointer(path.iter().copied());
+    event.patch.iter().map(op_path).any(|at| {
+        at == pointer
+            || at
+                .strip_prefix(pointer.as_str())
+                .is_some_and(|rest| rest.starts_with('/'))
+            || pointer
+                .strip_prefix(at)
+                .is_some_and(|rest| rest.starts_with('/'))
+    })
+}
+
+/// The count `event` shipped for one value of `field`: `None` when it did not ship the
+/// value, `Some(0)` when the value is gone.
+pub(crate) fn shipped_count(event: &ChangeEvent, field: &str, key: &str) -> Option<usize> {
+    if removes(event, &["fieldValues", field, key]) {
+        return Some(0);
+    }
+    shipped::<HeldValue>(event, &["fieldValues", field, key]).map(|v| v.count)
+}
+
+/// The record `event` shipped for one interned value of `field`.
+pub(crate) fn shipped_record(event: &ChangeEvent, field: &str, id: u32) -> Option<ValueRecord> {
+    shipped::<HeldValue>(event, &["fieldValues", field, &id.to_string()])?.record
 }
 
 /// The change events one window received, decoded.
@@ -5141,7 +5208,9 @@ pub(crate) fn shipped_record(d: &Derived, field: &str, id: u32) -> Option<ValueR
 pub(crate) struct FeedCapture(Arc<Mutex<Vec<ChangeEvent>>>);
 
 impl FeedCapture {
+    /// Open `store` as a window does: take the whole derived state, then the changes after it.
     pub(crate) fn attach(store: &mut Store) -> Self {
+        store.open_status();
         let cap = Self::default();
         let got = cap.0.clone();
         store.changes.insert(
@@ -7161,13 +7230,12 @@ fn new_extra_key_is_announced_in_the_same_result() {
     let feed = FeedCapture::attach(&mut store);
     add_rows(&mut store, vec![loc_with_extra(1, r#"{"zz":1}"#)]);
     assert!(store.field_defs.contains_key("zz"));
-    assert!(feed
-        .last()
-        .derived
-        .field_defs
-        .is_some_and(|d| d.contains_key("zz")));
+    assert!(
+        shipped::<HashMap<String, Value>>(&feed.last(), &["fieldDefs"])
+            .is_some_and(|d| d.contains_key("zz"))
+    );
     add_rows(&mut store, vec![loc_with_extra(2, r#"{"zz":2}"#)]);
-    assert!(feed.last().derived.field_defs.is_none());
+    assert!(!touched(&feed.last(), &["fieldDefs"]));
 
     let feed = FeedCapture::attach(&mut store);
     apply_updates(
@@ -7179,11 +7247,10 @@ fn new_extra_key_is_announced_in_the_same_result() {
         }],
         &mut None,
     );
-    assert!(feed
-        .last()
-        .derived
-        .field_defs
-        .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz")));
+    assert!(
+        shipped::<HashMap<String, Value>>(&feed.last(), &["fieldDefs"])
+            .is_some_and(|d| d.contains_key("yy") && d.contains_key("zz"))
+    );
 }
 
 // A def the map already holds is never overwritten when a new row carries the same key.
@@ -7526,17 +7593,17 @@ fn unsaved_is_announced_when_an_edit_makes_it_true_and_a_save_makes_it_false() {
         Default::default(),
         &mut None,
     );
-    assert_eq!(feed.last().derived.unsaved, Some(true));
+    assert_eq!(shipped::<bool>(&feed.last(), &["unsaved"]), Some(true));
     store.at(&Target::Map { id: None }).edit(
         vec![Op::Add(loc(0, 2.0, 2.0))],
         Default::default(),
         &mut None,
     );
-    assert_eq!(feed.last().derived.unsaved, None);
+    assert_eq!(shipped::<bool>(&feed.last(), &["unsaved"]), None);
 
     let written = store.unsaved().unwrap().expect("the edits are unsaved");
     store.saved(&written);
-    assert_eq!(feed.last().derived.unsaved, Some(false));
+    assert_eq!(shipped::<bool>(&feed.last(), &["unsaved"]), Some(false));
     assert!(store.unsaved().unwrap().is_none());
 }
 
@@ -8257,20 +8324,20 @@ fn a_value_ships_dark_when_it_empties_and_gone_when_its_record_goes() {
     let feed = FeedCapture::attach(&mut store);
 
     set_tags(&mut store, &[], &[b.get()], &[1]);
-    let count = |id: u32| shipped_count(&feed.last().derived, "tags", &id.to_string());
+    let count = |id: u32| shipped_count(&feed.last(), "tags", &id.to_string());
     assert_eq!(count(b.get()), Some(1), "b still holds row 2");
 
     set_tags(&mut store, &[], &[a.get()], &[1]);
     assert_eq!(count(a.get()), Some(0));
     assert!(
-        shipped_record(&feed.last().derived, "tags", a.get()).is_some(),
+        shipped_record(&feed.last(), "tags", a.get()).is_some(),
         "a lingers dark"
     );
 
     let c = store.edit_values("tags", adds(&["C"])).unwrap().keys[0];
-    assert!(shipped_record(&feed.last().derived, "tags", c.get()).is_some());
+    assert!(shipped_record(&feed.last(), "tags", c.get()).is_some());
     press_undo(&mut store);
-    let gone = feed.last().derived.field_values.unwrap()["tags"][&c.to_string()].is_none();
+    let gone = shipped_count(&feed.last(), "tags", &c.to_string()) == Some(0);
     assert!(gone, "an undone create's value is gone");
 }
 
@@ -8541,10 +8608,10 @@ fn the_open_picture_ships_recordless_counts_and_dark_records_together() {
     let mut store = setup_store_with(&[loc_with_tags(1, 0.0, 0.0, vec![7])]);
     let dark = store.edit_values("tags", adds(&["Dark"])).unwrap().keys[0];
     let status = store.open_status();
-    let values = status.derived.field_values.unwrap();
-    let tags = &values["tags"];
-    assert!(matches!(&tags["7"], Some(v) if v.record.is_none() && v.count == 1));
-    assert!(matches!(&tags[&dark.to_string()], Some(v) if v.record.is_some() && v.count == 0));
+    let tags = &status.derived.field_values["tags"];
+    assert!(tags["7"].record.is_none() && tags["7"].count == 1);
+    let dark = &tags[&dark.to_string()];
+    assert!(dark.record.is_some() && dark.count == 0);
 }
 
 #[test]
@@ -8566,11 +8633,12 @@ fn the_open_picture_ships_a_map_level_interned_fields_values() {
         ("codes".to_string(), list(false)),
     ]));
     let named = store.edit_values("plates", adds(&["AB-123"])).unwrap().keys[0];
-    let values = store.open_status().derived.field_values.unwrap();
+    let values = store.open_status().derived.field_values;
     assert!(!values.contains_key("codes"));
     let plates = &values["plates"];
-    assert!(matches!(&plates["3"], Some(v) if v.record.is_none() && v.count == 1));
-    assert!(matches!(&plates[&named.to_string()], Some(v) if v.record.is_some() && v.count == 0));
+    assert!(plates["3"].record.is_none() && plates["3"].count == 1);
+    let named = &plates[&named.to_string()];
+    assert!(named.record.is_some() && named.count == 0);
 }
 
 // -----------------------------------------------------------------------
@@ -8596,8 +8664,8 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
         .map(|r| r.selection.key)
         .collect();
     assert_eq!(keys, vec!["tag:8"]);
-    let shipped = feed.last().derived.selection_list.expect("the list ships");
-    assert_eq!(shipped.order.len(), 1);
+    let order: Vec<String> = shipped(&feed.last(), &["selectionOrder"]).expect("the list ships");
+    assert_eq!(order.len(), 1);
 
     set_tags(&mut store, &[], &[8], &[2]);
     assert!(store.selections.is_empty(), "a ghosted selection goes too");
@@ -8736,7 +8804,10 @@ fn metadata_edits_apply_and_ship_but_stay_out_of_history() {
         },
     );
     assert_eq!(store.meta.name, "Renamed");
-    assert_eq!(feed.last().derived.meta.unwrap().0.name, "Renamed");
+    assert_eq!(
+        shipped::<Value>(&feed.last(), &["map"]).unwrap()["name"],
+        "Renamed"
+    );
     assert_eq!(
         store.steps[Timeline::Edits].len(Stack::Undo),
         0,
@@ -8960,13 +9031,11 @@ fn redo_reapplies_a_row_removal_to_the_tag_counts() {
         .unwrap()
         .unwrap();
     assert_eq!(tag_count(&mut store, 10), 6, "redo re-removes the rows");
-    let shipped = feed.last().derived.field_values;
-    let count = shipped
-        .as_ref()
-        .and_then(|f| f.get("tags"))
-        .and_then(|v| v.get("10"))
-        .and_then(|h| h.as_ref().map(|h| h.count));
-    assert_eq!(count, Some(6), "the redo event ships the moved tag count");
+    assert_eq!(
+        shipped_count(&feed.last(), "tags", "10"),
+        Some(6),
+        "the redo event ships the moved tag count"
+    );
 }
 
 #[test]
@@ -9013,7 +9082,11 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     store.edit_selections(&SelectionOp::Ghost { index: 1 });
     let before = store.selections.list();
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
-    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].undo);
+    assert!(
+        shipped::<HashMap<Timeline, History>>(&feed.last(), &["history"]).unwrap()
+            [&Timeline::Selections]
+            .undo
+    );
     store.edit_selections(&SelectionOp::Set { selections: vec![] });
     let mut row = store.get_loc_by_id(Id::new(1)).unwrap();
     row.heading = 90.0;
@@ -9024,7 +9097,11 @@ fn reselect_restores_the_cleared_list_after_data_edits_without_touching_history(
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap(), row);
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), undo);
     assert_eq!(store.selections.ids, IdSet::from_iter(loc_ids([1, 2])));
-    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].redo);
+    assert!(
+        shipped::<HashMap<Timeline, History>>(&feed.last(), &["history"]).unwrap()
+            [&Timeline::Selections]
+            .redo
+    );
     press_undo(&mut store);
     assert_eq!(store.get_loc_by_id(Id::new(1)).unwrap().heading, 0.0);
     assert_eq!(store.selections.list(), before);
@@ -9144,7 +9221,11 @@ fn selection_undo_drops_a_cleared_list_whose_tags_have_all_disappeared() {
     store.write([Op::Set(row)], &mut None, Entry::default());
     step_selection(&mut store, Stack::Undo);
     assert!(store.selections.list().is_empty());
-    assert!(feed.last().derived.history.unwrap()[&Timeline::Selections].redo);
+    assert!(
+        shipped::<HashMap<Timeline, History>>(&feed.last(), &["history"]).unwrap()
+            [&Timeline::Selections]
+            .redo
+    );
 }
 
 fn step_selection(store: &mut Store, stack: Stack) {
@@ -9712,21 +9793,33 @@ fn pending_counts_ride_the_change_feed_after_edit_undo_redo_and_commit() {
     let mut store = setup_store_with(&[]);
     let feed = FeedCapture::attach(&mut store);
     store.write([Op::Add(loc(0, 1.0, 1.0))], &mut None, Entry::default());
-    assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
+    assert_eq!(
+        shipped::<Counts>(&feed.last(), &["pending"]),
+        Some(net(1, 0, 0))
+    );
     press_undo(&mut store);
-    assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
+    assert_eq!(
+        shipped::<Counts>(&feed.last(), &["pending"]),
+        Some(net(0, 0, 0))
+    );
     press_redo(&mut store);
-    assert_eq!(feed.last().derived.pending, Some(net(1, 0, 0)));
+    assert_eq!(
+        shipped::<Counts>(&feed.last(), &["pending"]),
+        Some(net(1, 0, 0))
+    );
     store.finish(Finished::Base);
     assert_eq!(
-        feed.last().derived.pending,
+        shipped::<Counts>(&feed.last(), &["pending"]),
         None,
         "unchanged counts stay off the feed"
     );
     store.bake_overlay();
     store.finish(Finished::Base);
-    assert_eq!(feed.last().derived.pending, Some(net(0, 0, 0)));
-    assert_eq!(store.open_status().derived.pending, Some(net(0, 0, 0)));
+    assert_eq!(
+        shipped::<Counts>(&feed.last(), &["pending"]),
+        Some(net(0, 0, 0))
+    );
+    assert_eq!(store.open_status().derived.pending, net(0, 0, 0));
 }
 
 #[test]
@@ -9786,9 +9879,10 @@ fn a_folder_rename_ships_the_maps_details_but_not_its_field_definitions() {
             ..Default::default()
         },
     );
-    let shipped = feed.last().derived;
-    assert_eq!(shipped.meta.unwrap().0.folder.as_deref(), Some("F"));
-    assert!(shipped.field_defs.is_none());
+    let event = feed.last();
+    let map: Value = shipped(&event, &["map"]).unwrap();
+    assert_eq!(map["folder"], "F");
+    assert!(!touched(&event, &["fieldDefs"]));
     assert!(store.field_defs.contains_key("a"));
 }
 
@@ -10014,44 +10108,99 @@ fn a_list_edit_resolves_only_what_it_added_and_lands_where_a_full_resolve_would(
 }
 
 #[test]
-fn a_selection_list_change_sends_every_key_but_only_the_rows_that_changed() {
+fn a_field_the_window_never_held_arrives_whole_then_moves_one_value_at_a_time() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let feed = FeedCapture::attach(&mut store);
+    store.field_defs = Tracked::new(HashMap::from([(
+        "plates".to_string(),
+        maps::FieldDef {
+            field_type: maps::FieldType::Array,
+            label: None,
+            values: None,
+            comparison: None,
+            interned: true,
+            builtin: None,
+        },
+    )]));
+    let first = store.edit_values("plates", adds(&["AB-123"])).unwrap().keys[0];
+    let arrived = feed.last();
+    assert!(
+        arrived
+            .patch
+            .iter()
+            .any(|op| matches!(op, PatchOp::Add { path, value } if path == "/fieldValues/plates" && value.is_object())),
+        "the field arrives as one map, since the window has nowhere to put a single value"
+    );
+    assert!(shipped_record(&arrived, "plates", first.get()).is_some());
+
+    let second = store.edit_values("plates", adds(&["CD-456"])).unwrap().keys[0];
+    let moved = feed.last();
+    assert!(shipped_record(&moved, "plates", second.get()).is_some());
+    assert!(
+        !moved
+            .patch
+            .iter()
+            .any(|op| op_path(op) == "/fieldValues/plates"),
+        "once held, the field moves one value at a time"
+    );
+}
+
+#[test]
+fn a_selection_list_change_patches_only_the_rows_and_order_that_moved() {
     use crate::selections::tree::{Place, SelectionOp};
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
     let feed = FeedCapture::attach(&mut store);
-    let sent = |feed: &FeedCapture| {
-        feed.last()
-            .derived
-            .selection_list
-            .expect("the list changed")
+    let rows = |event: &ChangeEvent| -> Vec<String> {
+        event
+            .patch
+            .iter()
+            .filter(|op| matches!(op, PatchOp::Add { .. }))
+            .filter_map(|op| op_path(op).strip_prefix("/selectionRows/"))
+            .map(str::to_string)
+            .collect()
     };
+    let order = |event: &ChangeEvent| shipped::<Vec<String>>(event, &["selectionOrder"]);
 
     store.edit_selections(&add_selection(Selector::has("panoId")));
     store.edit_selections(&add_selection(Selector::has("heading")));
-    let added = sent(&feed);
-    assert_eq!(added.order, listed_keys(&store));
-    assert_eq!(added.rows.len(), 1, "only the added row travels");
+    let added = feed.last();
+    assert_eq!(order(&added), Some(listed_keys(&store)));
+    assert_eq!(
+        rows(&added),
+        vec![listed_keys(&store)[1].clone()],
+        "only the added row travels"
+    );
 
     store.edit_selections(&SelectionOp::Move {
         from: vec![1],
         to: vec![0],
         place: Place::Before,
     });
-    let moved = sent(&feed);
-    assert_eq!(moved.order, listed_keys(&store));
-    assert!(moved.rows.is_empty(), "a move sends the order alone");
+    let moved = feed.last();
+    assert_eq!(order(&moved), Some(listed_keys(&store)));
+    assert!(rows(&moved).is_empty(), "a move sends the order alone");
 
     store.edit_selections(&SelectionOp::Ghost { index: 0 });
-    assert_eq!(sent(&feed).rows.len(), 1, "a ghosted row travels again");
+    let ghosted = feed.last();
+    assert_eq!(rows(&ghosted).len(), 1, "a ghosted row travels again");
+    assert_eq!(order(&ghosted), None, "the order did not move");
 
     let last = listed_keys(&store)[1].clone();
-    store.edit_selections(&SelectionOp::Remove { keys: vec![last] });
-    let removed = sent(&feed);
-    assert_eq!(removed.order, listed_keys(&store));
-    assert!(removed.rows.is_empty(), "a removal sends the order alone");
+    store.edit_selections(&SelectionOp::Remove {
+        keys: vec![last.clone()],
+    });
+    let gone = feed.last();
+    assert_eq!(order(&gone), Some(listed_keys(&store)));
+    assert!(rows(&gone).is_empty());
+    assert!(
+        removes(&gone, &["selectionRows", &last]),
+        "a removed row leaves"
+    );
 
-    let fresh = store.open_status().derived.selection_list.unwrap();
+    let fresh = store.open_status().derived;
+    assert_eq!(fresh.selection_order, listed_keys(&store));
     assert_eq!(
-        fresh.rows.len(),
+        fresh.selection_rows.len(),
         1,
         "a window starting fresh gets every row"
     );
@@ -10192,26 +10341,6 @@ fn a_record_without_a_place_takes_the_one_after_the_highest() {
     let mut kept = placed(Some(9));
     kept.sequence(held.iter());
     assert_eq!(kept.order, Some(9));
-}
-
-#[test]
-fn derived_state_is_empty_only_when_no_part_of_it_moved() {
-    assert!(Derived::default().is_empty());
-    let moved = [
-        Derived {
-            location_count: Some(0),
-            ..Default::default()
-        },
-        Derived {
-            selection_list: Some(ListChange::default()),
-            ..Default::default()
-        },
-        Derived {
-            writing_layers: Some(BTreeSet::new()),
-            ..Default::default()
-        },
-    ];
-    assert!(moved.iter().all(|derived| !derived.is_empty()));
 }
 
 #[test]

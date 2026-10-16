@@ -113,10 +113,8 @@ function refreshProjection(): void {
 const projections = debounce(refreshProjection, 40);
 
 function clearProjection(id: string): void {
-	const keys = Store.get()
-		.selectionList.filter(
-			({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id,
-		)
+	const keys = SelectionList.listed()
+		.filter(({ selection: s }) => s.selector.type === "Reviewed" && s.selector.sessionId === id)
 		.map(({ selection: s }) => s.key);
 	void SelectionList.update({ kind: "remove", keys });
 }

@@ -3,7 +3,7 @@ import { Store } from "@/store/store";
 import { Edit } from "@/store/edit";
 import { Autosave } from "@/store/autosave";
 import { Feed } from "@/store/feed";
-import type { ChangeEvent, Derived, MapMeta } from "@/bindings.gen";
+import type { ChangeEvent, MapMeta } from "@/bindings.gen";
 import type { MapDetails } from "@/store/store";
 import { cmd } from "@/lib/commands";
 import { mapStorage } from "@/plugins/pluginStorage";
@@ -94,7 +94,7 @@ describe("map metadata writes", () => {
 		openMap("a", { searchRadius: 50 });
 		const before = Store.get().map!;
 		const next = { ...before, settings: { exportZoom: true } } as MapDetails;
-		Store.merge({ meta: next } as unknown as Derived, 1);
+		Store.apply([{ op: "replace", path: "/map", value: next }], 1);
 		expect(Store.get().map).toBe(next);
 		expect(Store.get().map?.settings).toEqual({ exportZoom: true });
 	});
@@ -105,7 +105,7 @@ describe("map metadata writes", () => {
 		Feed.seed(0);
 		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(async (patch) => {
 			await metadataWritten(patch);
-			feed.deliver({ version: 1, added: [], removed: [], updated: [], derived: {} });
+			feed.deliver({ version: 1, added: [], removed: [], updated: [], patch: [] });
 			return { version: 1, keys: [] };
 		});
 		vi.useFakeTimers();

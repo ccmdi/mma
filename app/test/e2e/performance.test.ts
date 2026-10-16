@@ -1102,7 +1102,7 @@ async function runPolygonScenarios(): Promise<void> {
 			} else if (which === "add") {
 				await api.SelectionList.update({ kind: "add", selections: [polygon(rings.at(-1)!)] });
 			} else {
-				const last = api.Store.get().selectionList.at(-1)!.selection.key;
+				const last = api.SelectionList.listed().at(-1)!.selection.key;
 				await api.SelectionList.update({ kind: "remove", keys: [last] });
 			}
 			const operationMs = performance.now() - start;

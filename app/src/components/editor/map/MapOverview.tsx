@@ -258,7 +258,7 @@ function SelectedCount({ className }: { className?: string }) {
 }
 
 function ListedSelections() {
-	const rows = Store.use((s) => s.selectionList);
+	const rows = Store.use(() => SelectionList.listed());
 	if (rows.length === 0) return null;
 	return (
 		<div className="selection-manager__selections">

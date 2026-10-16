@@ -6,8 +6,8 @@ use crate::procedure::registry::Providers;
 use crate::runs;
 use crate::store::maps::MapMeta;
 use crate::types::{AppError, AppResult, Location};
-use mma_algebra::{Change, Counts, Delta, Id, Ids};
-use std::collections::{BTreeSet, HashMap, HashSet};
+use mma_algebra::{Change, Counts, Delta, Id, Ids, PatchOp};
+use std::collections::{hash_map, BTreeSet, HashMap, HashSet};
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 use std::{fmt, mem};
@@ -144,6 +144,8 @@ pub struct Store {
     pub(crate) writing_layers: Tracked<BTreeSet<String>>,
     /// Whether disk lacks some of this state, as last derived.
     pub(crate) has_unsaved: Tracked<bool>,
+    /// The values every window holds, by field: what a patch may add to or remove from.
+    held_values: HashMap<String, HashSet<String>>,
     /// Field dependencies declared by providers.
     pub(crate) dependents: Arc<mma_algebra::Dependents<String>>,
     /// Named layers of pending edits held over the map's rows.
@@ -197,6 +199,7 @@ impl Store {
             changes: Sinks::default(),
             writing_layers: Tracked::default(),
             has_unsaved: Tracked::default(),
+            held_values: HashMap::new(),
             dependents: Default::default(),
             pending: HashMap::new(),
         }
@@ -225,9 +228,9 @@ impl Store {
         }
     }
 
-    /// The derived state whose sources moved since they last shipped. Changes that are not
-    /// held in a tracked slice, such as field values, join it per change.
-    fn shipped(&mut self) -> Derived {
+    /// The derived state whose sources moved since they last shipped, as patch operations.
+    /// Changes that are not held in a tracked slice, such as field values, join it per change.
+    fn shipped(&mut self) -> Vec<PatchOp> {
         if self.overlay.ship() {
             let counts = self.overlay_diff_counts();
             if counts != *self.pending_counts {
@@ -238,27 +241,36 @@ impl Store {
         if unsaved != *self.has_unsaved {
             self.has_unsaved.replace(unsaved);
         }
-        Derived {
-            location_count: self.alive_count.ship().then(|| *self.alive_count),
-            pending: self.pending_counts.ship().then(|| *self.pending_counts),
-            meta: self
-                .meta
-                .ship()
-                .then(|| maps::MapDetails((*self.meta).clone())),
-            history: self.steps.ship().then(|| self.history()),
-            field_values: None,
-            field_defs: self.field_defs.ship().then(|| (*self.field_defs).clone()),
-            selection_counts: None,
-            selection_list: None,
-            writing_layers: self
-                .writing_layers
-                .ship()
-                .then(|| (*self.writing_layers).clone()),
-            unsaved: self.has_unsaved.ship().then(|| *self.has_unsaved),
+        let mut patch = Vec::new();
+        if self.alive_count.ship() {
+            patch.push(PatchOp::replace(["locationCount"], *self.alive_count));
         }
+        if self.pending_counts.ship() {
+            patch.push(PatchOp::replace(["pending"], *self.pending_counts));
+        }
+        if self.meta.ship() {
+            patch.push(PatchOp::replace(
+                ["map"],
+                maps::MapDetails((*self.meta).clone()),
+            ));
+        }
+        if self.steps.ship() {
+            patch.push(PatchOp::replace(["history"], self.history()));
+        }
+        if self.field_defs.ship() {
+            patch.push(PatchOp::replace(["fieldDefs"], &*self.field_defs));
+        }
+        if self.writing_layers.ship() {
+            patch.push(PatchOp::replace(["writingLayers"], &*self.writing_layers));
+        }
+        if self.has_unsaved.ship() {
+            patch.push(PatchOp::replace(["unsaved"], *self.has_unsaved));
+        }
+        patch
     }
 
-    /// Initial derived state for a newly opened window, marking all included values as delivered.
+    /// The whole derived state, for a window that starts from nothing. Every window holds
+    /// what this returns from here on, so it marks everything shipped.
     pub(crate) fn open_status(&mut self) -> StoreStatus {
         self.writing_layers
             .replace(runs::pending_writers(&self.meta.id));
@@ -272,24 +284,37 @@ impl Store {
             })
             .map(|(key, _)| key.to_string())
             .collect();
-        let field_values = self
+        let field_values: HashMap<String, HashMap<String, HeldValue>> = self
             .fields(fields.iter().map(String::as_str))
             .into_iter()
-            .map(|values| (values.field().to_string(), values.project(values.keys())))
+            .map(|values| {
+                let held = values
+                    .project(values.keys())
+                    .into_iter()
+                    .filter_map(|(key, value)| Some((key, value?)))
+                    .collect();
+                (values.field().to_string(), held)
+            })
             .collect();
+        self.held_values = field_values
+            .iter()
+            .map(|(field, values)| (field.clone(), values.keys().cloned().collect()))
+            .collect();
+        let (selection_rows, selection_order) = self.selections.ship_list();
         StoreStatus {
             version: self.version,
             derived: Derived {
-                location_count: Some(*self.alive_count),
-                pending: Some(*self.pending_counts),
-                meta: Some(maps::MapDetails((*self.meta).clone())),
-                history: Some(self.history()),
-                field_values: Some(field_values),
-                field_defs: Some((*self.field_defs).clone()),
-                selection_counts: Some(self.selections.node_counts.clone()),
-                selection_list: Some(self.selections.full_list()),
-                writing_layers: Some((*self.writing_layers).clone()),
-                unsaved: Some(*self.has_unsaved),
+                location_count: *self.alive_count,
+                pending: *self.pending_counts,
+                map: maps::MapDetails((*self.meta).clone()),
+                history: self.history(),
+                field_values,
+                field_defs: (*self.field_defs).clone(),
+                selection_counts: self.selections.node_counts.clone(),
+                selection_rows,
+                selection_order,
+                writing_layers: (*self.writing_layers).clone(),
+                unsaved: *self.has_unsaved,
             },
         }
     }
@@ -370,15 +395,46 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
-        let selection_list = (resolve_all || records.values().any(|delta| !delta.is_empty()))
-            .then(|| self.selections.list_change());
-        let derived = Derived {
-            field_values: (!field_values.is_empty()).then_some(field_values),
-            selection_counts: (has_selections || resolve_all)
-                .then(|| self.selections.node_counts.clone()),
-            selection_list,
-            ..self.shipped()
-        };
+        let mut patch = self.shipped();
+        for (field, values) in field_values {
+            match self.held_values.entry(field) {
+                hash_map::Entry::Vacant(slot) => {
+                    let held: HashMap<String, HeldValue> = values
+                        .into_iter()
+                        .filter_map(|(key, value)| Some((key, value?)))
+                        .collect();
+                    patch.push(PatchOp::add(["fieldValues", slot.key().as_str()], &held));
+                    slot.insert(held.into_keys().collect());
+                }
+                hash_map::Entry::Occupied(slot) => {
+                    let field = slot.key().clone();
+                    let held = slot.into_mut();
+                    for (key, value) in values {
+                        let path = ["fieldValues", field.as_str(), key.as_str()];
+                        match value {
+                            Some(value) => {
+                                patch.push(PatchOp::add(path, value));
+                                held.insert(key);
+                            }
+                            None => {
+                                if held.remove(&key) {
+                                    patch.push(PatchOp::remove(path));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if has_selections || resolve_all {
+            patch.push(PatchOp::replace(
+                ["selectionCounts"],
+                &self.selections.node_counts,
+            ));
+        }
+        if resolve_all || records.values().any(|delta| !delta.is_empty()) {
+            patch.extend(self.selections.list_patch());
+        }
         let result = Mutation {
             version: self.version,
             keys: Vec::new(),
@@ -388,7 +444,7 @@ impl Store {
         self.changes.send(ChangeEvent {
             version: self.version,
             keys: changes.keys(),
-            derived,
+            patch,
         });
         result
     }

@@ -40,7 +40,8 @@ vi.mock("@/store/mutation", () => ({
 import { createSyncController } from "@/lib/sync/controller";
 import { setPluginEnabled } from "@/plugins/pluginHost";
 import { subscribe } from "@/lib/events";
-import type { ChangeEvent, Derived } from "@/bindings.gen";
+import type { ChangeEvent } from "@/bindings.gen";
+import { add, changeEvent, replace } from "./fixtures/patch";
 import type { SyncProvider } from "@/lib/sync/provider";
 type RemoteMappingRow = { localId: number; remoteId: number; hash: string };
 
@@ -367,29 +368,6 @@ describe("sync history", () => {
 });
 
 describe("live sync triggers", () => {
-	const NO_DERIVED: Derived = {
-		locationCount: null,
-		pending: null,
-		meta: null,
-		history: null,
-		fieldValues: null,
-		fieldDefs: null,
-		selectionCounts: null,
-		selectionList: null,
-		writingLayers: null,
-		unsaved: null,
-	};
-	const change = (
-		patch: Partial<Omit<ChangeEvent, "derived">> & { derived?: Partial<Derived> } = {},
-	): ChangeEvent => ({
-		version: 1,
-		added: [],
-		removed: [],
-		updated: [],
-		...patch,
-		derived: { ...NO_DERIVED, ...patch.derived },
-	});
-
 	async function liveReconcilesAfter(e: ChangeEvent) {
 		vi.useFakeTimers();
 		try {
@@ -413,23 +391,27 @@ describe("live sync triggers", () => {
 	it("a selection, settings or review change does not start a reconcile", async () => {
 		expect(
 			await liveReconcilesAfter(
-				change({
-					derived: {
-						selectionList: { order: [], rows: [] },
-						selectionCounts: {},
-						meta: null,
-						unsaved: true,
-					},
-				}),
+				changeEvent(
+					[
+						replace("/selectionOrder", []),
+						replace("/selectionCounts", {}),
+						replace("/unsaved", true),
+					],
+					1,
+				),
 			),
 		).toBe(0);
 	});
 
 	it("a location change starts a reconcile", async () => {
-		expect(await liveReconcilesAfter(change({ updated: [4] }))).toBe(1);
+		expect(await liveReconcilesAfter(changeEvent([], 1, { updated: [4] }))).toBe(1);
 	});
 
 	it("a tag record change starts a reconcile", async () => {
-		expect(await liveReconcilesAfter(change({ derived: { fieldValues: { tags: {} } } }))).toBe(1);
+		expect(
+			await liveReconcilesAfter(
+				changeEvent([add("/fieldValues/tags/7", { record: null, count: 1 })], 1),
+			),
+		).toBe(1);
 	});
 });

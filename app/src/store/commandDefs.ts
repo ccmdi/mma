@@ -80,7 +80,7 @@ const openMapLocation = () => {
 	return open?.origin === "map" ? open.id : null;
 };
 const hasSelection = () => Scene.selected().size > 0;
-const hasAnySelections = () => Store.get().selectionList.length > 0;
+const hasAnySelections = () => SelectionList.listed().length > 0;
 const openBulkOp = (op: string) => () => openDialog("bulk-op", op);
 const openInlinePanel = (id: string) => () => openDialog("inline-panel", id);
 

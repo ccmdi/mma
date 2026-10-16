@@ -495,8 +495,8 @@ export type Change<T> = {
 export type ChangeEvent = {
 	/**  The map version this change brought the map to. */
 	version: number,
-	/**  Changed derived state. Null fields are unchanged. */
-	derived: Derived,
+	/**  How the derived state moved, as a JSON Patch over what the window holds. */
+	patch: PatchOp[],
 } & Keys<number>;
 
 /**  Metadata for a single commit. */
@@ -598,26 +598,31 @@ export type DbStats = {
 	foreignKeys: boolean,
 };
 
-/**  Map state a change affected. Each field is `null` when it did not change. */
+/**
+ *  The derived state a window holds: everything about the open map besides its rows. Opening a
+ *  map sends it whole; every change after sends a JSON Patch over it.
+ */
 export type Derived = {
-	locationCount: number | null,
+	locationCount: number,
 	/**  Location changes since the last commit. */
-	pending: Counts | null,
-	/**  The map's own details, when they changed. */
-	meta: Omit<MapMeta, "extra" | "locationCount" | "pending"> | null,
-	history: Partial<{ [key in Timeline]: History }> | null,
-	/**  Changed values, keyed by field and value. Null removes a value with no record or locations. */
-	fieldValues: { [key in string]: { [key in string]: HeldValue | null } } | null,
-	/**  The whole extra-field registry, when it changed. */
-	fieldDefs: { [key in string]: FieldDef } | null,
+	pending: Counts,
+	/**  The map's own details. */
+	map: Omit<MapMeta, "extra" | "locationCount" | "pending">,
+	history: Partial<{ [key in Timeline]: History }>,
+	/**  Every held value, keyed by field and value. */
+	fieldValues: { [key in string]: { [key in string]: HeldValue } },
+	/**  The extra-field registry. */
+	fieldDefs: { [key in string]: FieldDef },
 	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
-	selectionCounts: { [key in string]: number } | null,
-	/**  The listed selections, when the list changed. */
-	selectionList: ListChange | null,
+	selectionCounts: { [key in string]: number },
+	/**  The listed selections, keyed by `Selection.key`. */
+	selectionRows: { [key in string]: ListedSelection },
+	/**  The keys of the listed selections, in list order. */
+	selectionOrder: string[],
 	/**  Pending layers that procedure work is currently writing to. */
-	writingLayers: string[] | null,
+	writingLayers: string[],
 	/**  Whether the map has changes not yet saved to disk. */
-	unsaved: boolean | null,
+	unsaved: boolean,
 };
 
 /**  What the user needs in order to authorize: the code to type and where to type it. */
@@ -906,17 +911,6 @@ export type Keys<K> = {
 	removed: K[],
 	/**  The rows the change rewrote. */
 	updated: K[],
-};
-
-/**
- *  The listed selections as of a change: every key in list order, and each listed selection
- *  that is new or different since the list was last sent.
- */
-export type ListChange = {
-	/**  The keys of the listed selections, in list order. */
-	order: string[],
-	/**  The listed selections that are new or changed. */
-	rows: ListedSelection[],
 };
 
 /**  A selection as the sidebar lists it, plus whether it is ghosted. */
@@ -1227,6 +1221,21 @@ export type PartitionBucket = {
 	ids: number[],
 	bin: [number, number] | null,
 };
+
+/**  One operation of a JSON Patch (RFC 6902). Paths are JSON Pointers (RFC 6901). */
+export type PatchOp = 
+/**  Put `value` at `path`, replacing a member already there or inserting into an array. */
+{ op: "add"; path: string; value: unknown } | 
+/**  Remove the value at `path`. */
+{ op: "remove"; path: string } | 
+/**  Replace the value at `path`, which must exist. */
+{ op: "replace"; path: string; value: unknown } | 
+/**  Remove the value at `from` and add it at `path`. */
+{ op: "move"; from: string; path: string } | 
+/**  Add a copy of the value at `from` at `path`. */
+{ op: "copy"; from: string; path: string } | 
+/**  Fail the patch unless the value at `path` equals `value`. */
+{ op: "test"; path: string; value: unknown };
 
 
 
