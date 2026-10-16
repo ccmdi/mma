@@ -50,8 +50,7 @@ export async function reconcile(
 		if (signal?.aborted) throw new DOMException("sync aborted", "AbortError");
 		const current = store.getLink();
 		if (!current) throw new Error("map was unlinked during sync");
-		if (current.remoteMapId !== link.remoteMapId || current.linkedAt !== link.linkedAt)
-			throw new Error("map was relinked during sync");
+		if (current.id !== link.id) throw new Error("map was relinked during sync");
 		return current;
 	};
 	stillCurrent();

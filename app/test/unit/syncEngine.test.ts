@@ -86,6 +86,7 @@ const mapping: MappingBackend = {
 function linkedStore(): SyncStore {
 	const store = createSyncStore(memKv(), mapping, PROVIDER, MAP);
 	store.setLink({
+		id: "link-1",
 		localMapId: MAP,
 		remoteMapId: "r1",
 		remoteMapName: "Remote",
@@ -177,6 +178,7 @@ describe("sync reconcile apply step", () => {
 		const completion = reconcile(provider, store);
 		await Promise.resolve();
 		store.setLink({
+			id: "link-2",
 			localMapId: MAP,
 			remoteMapId: "replacement",
 			remoteMapName: "New remote",
@@ -188,6 +190,22 @@ describe("sync reconcile apply step", () => {
 
 		await expect(completion).rejects.toThrow("map was relinked during sync");
 		expect(store.getLink()?.remoteMapId).toBe("replacement");
+		expect(store.getLink()?.lastSyncedAt).toBeNull();
+	});
+
+	it("tells a relink to the same remote at the same instant from the link it replaced", async () => {
+		const store = linkedStore();
+		let release!: () => void;
+		h.settlement = new Promise<void>((resolve) => (release = resolve));
+
+		const completion = reconcile(provider, store);
+		await Promise.resolve();
+		const old = store.getLink();
+		if (!old) throw new Error("linked");
+		store.setLink({ ...old, id: "link-2" });
+		release();
+
+		await expect(completion).rejects.toThrow("map was relinked during sync");
 		expect(store.getLink()?.lastSyncedAt).toBeNull();
 	});
 	it("leaves the sync timestamp unchanged when waiting for the feed fails", async () => {

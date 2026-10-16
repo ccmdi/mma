@@ -28,6 +28,7 @@ function memMapping(): MappingBackend & { rows: Set<string> } {
 }
 
 const link = (over: Partial<SyncLink> = {}): SyncLink => ({
+	id: "link-a",
 	localMapId: "map-a",
 	remoteMapId: "449219",
 	remoteMapName: "test map",

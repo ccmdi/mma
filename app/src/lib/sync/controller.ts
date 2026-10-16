@@ -236,6 +236,7 @@ export function createSyncController(provider: SyncProvider, pluginId: string): 
 			// Drop any stale mapping rows a prior link left behind before seeding the new link.
 			await storeFor(id).clear();
 			storeFor(id).setLink({
+				id: crypto.randomUUID(),
 				localMapId: id,
 				remoteMapId: map.id,
 				remoteMapName: map.name,

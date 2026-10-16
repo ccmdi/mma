@@ -12,6 +12,8 @@ export type IdentityKey = string;
  */
 
 export interface SyncLink {
+	/** Fresh for every link, so relinking reads as a different link even to the same remote at the same instant. */
+	id: string;
 	localMapId: string;
 	/** String because providers differ: map-making.app uses an integer, GeoGuessr a hex slug. */
 	remoteMapId: string;
