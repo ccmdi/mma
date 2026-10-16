@@ -613,7 +613,7 @@ export type Derived = {
 	/**  Resolved count per selection node, keyed by `Selection.key` (top-level and nested). */
 	selectionCounts: { [key in string]: number } | null,
 	/**  The listed selections, when the list changed. */
-	selectionList: ListedSelection[] | null,
+	selectionList: ListChange | null,
 	/**  Pending layers that procedure work is currently writing to. */
 	writingLayers: string[] | null,
 	/**  Whether the map has changes not yet saved to disk. */
@@ -906,6 +906,17 @@ export type Keys<K> = {
 	removed: K[],
 	/**  The rows the change rewrote. */
 	updated: K[],
+};
+
+/**
+ *  The listed selections as of a change: every key in list order, and each listed selection
+ *  that is new or different since the list was last sent.
+ */
+export type ListChange = {
+	/**  The keys of the listed selections, in list order. */
+	order: string[],
+	/**  The listed selections that are new or changed. */
+	rows: ListedSelection[],
 };
 
 /**  A selection as the sidebar lists it, plus whether it is ghosted. */

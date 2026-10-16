@@ -34,6 +34,8 @@ pub(crate) struct SelectionState {
     /// Union of every member set. Answers "is this id selected".
     pub ids: IdSet<Location>,
     pub(crate) set_dependent: bool,
+    /// The list as the last change sent it, keyed by selection key.
+    sent: HashMap<String, ListedSelection>,
     /// The mesh of every polygon in the list, listed or inside a listed composite, by key.
     meshes: HashMap<String, Arc<Vec<u8>>>,
 }
@@ -272,6 +274,31 @@ impl SelectionState {
                 .collect(),
             removed: Vec::new(),
         }
+    }
+
+    /// The whole list, for a window that starts from nothing.
+    pub(crate) fn full_list(&self) -> ListChange {
+        let rows = self.list();
+        ListChange {
+            order: rows.iter().map(|r| r.selection.key.clone()).collect(),
+            rows,
+        }
+    }
+
+    /// The list as a change since it was last sent, which it now counts as sent.
+    pub(crate) fn list_change(&mut self) -> ListChange {
+        let list = self.list();
+        let order = list.iter().map(|r| r.selection.key.clone()).collect();
+        let rows = list
+            .iter()
+            .filter(|r| self.sent.get(&r.selection.key) != Some(*r))
+            .cloned()
+            .collect();
+        self.sent = list
+            .into_iter()
+            .map(|r| (r.selection.key.clone(), r))
+            .collect();
+        ListChange { order, rows }
     }
 
     pub(crate) fn list(&self) -> Vec<ListedSelection> {

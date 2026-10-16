@@ -179,7 +179,7 @@ describe("change feed merge semantics", () => {
 		expect(Store.get().selectionCounts).toEqual({ "tag:1": 7 });
 	});
 
-	it("the store's selection list replaces the listed selections when present", () => {
+	it("the store's selection list change replaces the listed selections when present", () => {
 		const row = {
 			selection: {
 				key: "tag:1",
@@ -192,7 +192,7 @@ describe("change feed merge semantics", () => {
 			},
 			ghosted: false,
 		};
-		arrive(event({ selectionList: [row] }));
+		arrive(event({ selectionList: { order: ["tag:1"], rows: [row] } }));
 		expect(Store.get().selectionList).toEqual([row]);
 		const held = Store.get().selectionList;
 		arrive(event());

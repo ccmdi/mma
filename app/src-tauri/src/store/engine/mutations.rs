@@ -19,6 +19,16 @@ use std::collections::{HashMap, HashSet};
 use std::slice;
 use std::sync::Arc;
 
+/// The listed selections as of a change: every key in list order, and each listed selection
+/// that is new or different since the list was last sent.
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, PartialEq, specta::Type)]
+pub struct ListChange {
+    /// The keys of the listed selections, in list order.
+    pub order: Vec<String>,
+    /// The listed selections that are new or changed.
+    pub rows: Vec<ListedSelection>,
+}
+
 /// Map state a change affected. Each field is `null` when it did not change.
 #[derive(serde::Serialize, serde::Deserialize, Clone, Default, PartialEq, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +46,7 @@ pub struct Derived {
     /// Resolved count per selection node, keyed by `Selection.key` (top-level and nested).
     pub selection_counts: Option<HashMap<String, u32>>,
     /// The listed selections, when the list changed.
-    pub selection_list: Option<Vec<ListedSelection>>,
+    pub selection_list: Option<ListChange>,
     /// Pending layers that procedure work is currently writing to.
     pub writing_layers: Option<BTreeSet<String>>,
     /// Whether the map has changes not yet saved to disk.

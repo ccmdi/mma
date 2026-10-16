@@ -8594,7 +8594,7 @@ fn a_value_left_on_no_row_drops_the_selections_testing_it_and_ships_the_list() {
         .collect();
     assert_eq!(keys, vec!["tag:8"]);
     let shipped = feed.last().derived.selection_list.expect("the list ships");
-    assert_eq!(shipped.len(), 1);
+    assert_eq!(shipped.order.len(), 1);
 
     set_tags(&mut store, &[], &[8], &[2]);
     assert!(store.selections.is_empty(), "a ghosted selection goes too");
@@ -9943,6 +9943,50 @@ fn undo_and_redo_restore_the_selection_list_order_after_inserts_and_moves() {
     assert_eq!(listed_keys(&store), moved);
 }
 
+#[test]
+fn a_selection_list_change_sends_every_key_but_only_the_rows_that_changed() {
+    use crate::selections::tree::{Place, SelectionOp};
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
+    let feed = FeedCapture::attach(&mut store);
+    let sent = |feed: &FeedCapture| {
+        feed.last()
+            .derived
+            .selection_list
+            .expect("the list changed")
+    };
+
+    store.edit_selections(&add_selection(Selector::has("panoId")));
+    store.edit_selections(&add_selection(Selector::has("heading")));
+    let added = sent(&feed);
+    assert_eq!(added.order, listed_keys(&store));
+    assert_eq!(added.rows.len(), 1, "only the added row travels");
+
+    store.edit_selections(&SelectionOp::Move {
+        from: vec![1],
+        to: vec![0],
+        place: Place::Before,
+    });
+    let moved = sent(&feed);
+    assert_eq!(moved.order, listed_keys(&store));
+    assert!(moved.rows.is_empty(), "a move sends the order alone");
+
+    store.edit_selections(&SelectionOp::Ghost { index: 0 });
+    assert_eq!(sent(&feed).rows.len(), 1, "a ghosted row travels again");
+
+    let last = listed_keys(&store)[1].clone();
+    store.edit_selections(&SelectionOp::Remove { keys: vec![last] });
+    let removed = sent(&feed);
+    assert_eq!(removed.order, listed_keys(&store));
+    assert!(removed.rows.is_empty(), "a removal sends the order alone");
+
+    let fresh = store.open_status().derived.selection_list.unwrap();
+    assert_eq!(
+        fresh.rows.len(),
+        1,
+        "a window starting fresh gets every row"
+    );
+}
+
 fn add_selection(selector: Selector) -> crate::selections::tree::SelectionOp {
     use crate::selections::tree::{SelectionInput, SelectionOp};
     fn input(sel: Selection) -> SelectionInput {
@@ -10071,7 +10115,7 @@ fn derived_state_is_empty_only_when_no_part_of_it_moved() {
             ..Default::default()
         },
         Derived {
-            selection_list: Some(Vec::new()),
+            selection_list: Some(ListChange::default()),
             ..Default::default()
         },
         Derived {

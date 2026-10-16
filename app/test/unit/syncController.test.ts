@@ -413,7 +413,14 @@ describe("live sync triggers", () => {
 	it("a selection, settings or review change does not start a reconcile", async () => {
 		expect(
 			await liveReconcilesAfter(
-				change({ derived: { selectionList: [], selectionCounts: {}, meta: null, unsaved: true } }),
+				change({
+					derived: {
+						selectionList: { order: [], rows: [] },
+						selectionCounts: {},
+						meta: null,
+						unsaved: true,
+					},
+				}),
 			),
 		).toBe(0);
 	});

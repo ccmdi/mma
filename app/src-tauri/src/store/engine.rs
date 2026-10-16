@@ -287,7 +287,7 @@ impl Store {
                 field_values: Some(field_values),
                 field_defs: Some((*self.field_defs).clone()),
                 selection_counts: Some(self.selections.node_counts.clone()),
-                selection_list: Some(self.selections.list()),
+                selection_list: Some(self.selections.full_list()),
                 writing_layers: Some((*self.writing_layers).clone()),
                 unsaved: Some(*self.has_unsaved),
             },
@@ -365,12 +365,13 @@ impl Store {
             self.frames.send(FrameBytes(frame.encode()));
         }
 
+        let selection_list = (resolve_all || records.values().any(|delta| !delta.is_empty()))
+            .then(|| self.selections.list_change());
         let derived = Derived {
             field_values: (!field_values.is_empty()).then_some(field_values),
             selection_counts: (has_selections || resolve_all)
                 .then(|| self.selections.node_counts.clone()),
-            selection_list: (resolve_all || records.values().any(|delta| !delta.is_empty()))
-                .then(|| self.selections.list()),
+            selection_list,
             ..self.shipped()
         };
         let result = Mutation {

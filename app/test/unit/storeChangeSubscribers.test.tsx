@@ -98,7 +98,12 @@ const change = (
 });
 
 const NON_LOCATION = change({
-	derived: { selectionList: [], selectionCounts: {}, writingLayers: [], unsaved: true },
+	derived: {
+		selectionList: { order: [], rows: [] },
+		selectionCounts: {},
+		writingLayers: [],
+		unsaved: true,
+	},
 });
 const LOCATION = change({ updated: [3] });
 

@@ -113,7 +113,7 @@ export function openMapResult(
 			},
 			fieldDefs: over.fieldDefs ?? {},
 			selectionCounts: {},
-			selectionList: [],
+			selectionList: { order: [], rows: [] },
 		},
 	};
 }
