@@ -13,6 +13,7 @@ import {
 	referencedAttachments,
 	relayedComments,
 } from "./github";
+import { defuseMentions } from "./markdown";
 import {
 	hmacHex,
 	imageType,
@@ -141,7 +142,7 @@ async function handleSubmit(request: Request, env: Env): Promise<Response> {
 	if (!kind) return bad("not an app report", 403);
 
 	const labels = ["via:app", "anonymous", KIND_LABELS[kind]];
-	const issue = await createIssue(env, title, body, labels);
+	const issue = await createIssue(env, title, defuseMentions(body), labels);
 	return json({ ...issue, token: await replyToken(env, issue.number) });
 }
 

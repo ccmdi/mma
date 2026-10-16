@@ -20,6 +20,7 @@ import {
 import { DEFAULTS as SETTINGS_DEFAULTS, PRIVATE_SETTINGS } from "@/store/settings";
 import { reportKind } from "../../../workers/feedback/src/index";
 import { leadingZeroBits } from "../../../workers/feedback/src/verify";
+import { defuseMentions } from "../../../workers/feedback/src/markdown";
 
 vi.mock("@/lib/commands", async (orig) => ({
 	...(await orig()),
@@ -375,5 +376,57 @@ describe("proof-of-work parity", () => {
 		d[1] = 0b0001_0000;
 		expect(leadingZeroBits(d)).toBe(11);
 		expect(leadingZeroBits(new Uint8Array(32))).toBe(256);
+	});
+});
+
+describe("mentions in text the worker publishes", () => {
+	const J = "\u2060";
+	const pinged = (md: string) =>
+		[...defuseMentions(md).matchAll(/(?<![A-Za-z0-9])@(?=[A-Za-z0-9])/g)].length;
+
+	it("defuses every mention GitHub would link in prose", () => {
+		const md = "hi @ccmdi, (@a) _@b_ **@c**\n> @d\n- @e/team\n[@f](https://example.com)";
+		expect(pinged(md)).toBe(0);
+		expect(defuseMentions("hi @ccmdi")).toBe(`hi @${J}ccmdi`);
+	});
+
+	it("leaves code, comments, URLs and email addresses byte-exact", () => {
+		const inert = [
+			"`@inline`",
+			"``a ` @double``",
+			"```\n@fenced\n```",
+			"~~~~ts\n@tilde\n```\n@still-fenced\n~~~~",
+			"  ```\n@indented-fence\n  ```",
+			'<!-- mma-report {"note":"@x"} -->',
+			"https://github.com/@ccmdi?u=@x",
+			"www.example.com/@x",
+			"mail a@ccmdi.com",
+		];
+		for (const md of inert) expect(defuseMentions(md)).toBe(md);
+	});
+
+	it("resumes defusing after a fence closes", () => {
+		expect(defuseMentions("```\n@a\n```\n@b")).toBe(`\`\`\`\n@a\n\`\`\`\n@${J}b`);
+	});
+
+	it("treats an unclosed fence as code to the end, as GitHub does", () => {
+		expect(defuseMentions("```\n@a\n@b")).toBe("```\n@a\n@b");
+	});
+
+	it("does not mistake a line with a closed code span for a fence", () => {
+		expect(defuseMentions("```x``` @a")).toBe(`\`\`\`x\`\`\` @${J}a`);
+	});
+
+	it("keeps an app-composed body parseable", () => {
+		const body = buildIssueBody({ ...input, description: "ping @someone about it" }, diagnostics, {
+			anonymous: true,
+			attach: ALL,
+			logTail: "user@host ran @job",
+		});
+		const defused = defuseMentions(body);
+		expect(reportKind(defused)).toBe("bug");
+		expect(parseReportBody(defused)).toEqual(parseReportBody(body));
+		expect(defused).toContain(`@${J}someone`);
+		expect(defused).toContain("user@host ran @job");
 	});
 });
