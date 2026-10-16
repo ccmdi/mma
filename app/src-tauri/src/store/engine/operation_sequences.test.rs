@@ -165,15 +165,16 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
                         },
                     });
                     let before = (model.clone(), selection_active);
-                    apply_work(
-                        &mut store,
-                        &Selector::Locations {
-                            locations: vec![id],
-                            name: None,
-                        },
-                        &op,
-                    )
-                    .unwrap();
+                    store
+                        .at(&Target::Map { id: None })
+                        .work(
+                            &Selector::Locations {
+                                locations: vec![id],
+                                name: None,
+                            },
+                            &op,
+                        )
+                        .unwrap();
                     let row = model.get_mut(&id).unwrap();
                     if has_tag {
                         row.tags.retain(|current| *current != Id::new(tag));

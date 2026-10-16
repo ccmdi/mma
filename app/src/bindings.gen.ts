@@ -10,8 +10,8 @@ export const commands = {
 	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<EditResult>("store_edit", { target, edits, records }),
 	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
 	storeLandLayer: (name: string) => __TAURI_INVOKE<Mutation>("store_land_layer", { name }),
-	/** Run work over every location matched by selector. */
-	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
+	/** Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands. */
+	storeWork: (target: Target, selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { target, selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
 	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<Mutation<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Edit the selection tree. */

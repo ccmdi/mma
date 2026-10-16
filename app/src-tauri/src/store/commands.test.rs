@@ -245,10 +245,11 @@ fn store_edit_is_a_blocking_command_so_edits_apply_in_call_order() {
 fn store_work_is_spawned_so_whole_map_work_leaves_the_main_thread_free() {
     fn spawned(
         state: tauri::State<'_, StoreState>,
+        target: Target,
         selector: Selector<SelectionInput>,
         work: Work,
     ) -> impl Future<Output = AppResult<WorkResult>> + '_ {
-        store_work(WindowLabel("w".into()), state, selector, work)
+        store_work(WindowLabel("w".into()), state, target, selector, work)
     }
     let _ = spawned;
 }
@@ -306,7 +307,9 @@ fn spawned_work_applies_on_a_runtime_worker_like_a_blocking_command() {
         let state = state.clone();
         async move {
             run_as!(async; with_target(&state, &window, &Target::Map { id: None }, |store| {
-                apply_work(store, &Selector::Everything, &work)
+                store
+                    .at(&Target::Map { id: None })
+                    .work(&Selector::Everything, &work)
             }))
         }
     }))
@@ -459,19 +462,19 @@ fn an_edit_at_a_map_this_window_does_not_watch_settles_at_once() {
         id: Some(Id::new("other".into())),
     };
     let edit = |store: &mut Store, target: &Target, lat: f64| {
-        let mutation = store.at(target).edit(
+        let edited = store.at(target).edit(
             vec![Op::Add(test_util::loc(0, lat, 2.0))],
             IncomingRecords::new(),
             &mut None,
         );
-        receipt(store, &window, target, mutation)
+        receipt(store, &window, target, edited.mutation)
     };
     let there = edit(&mut store, &at_other, 1.0);
-    assert_eq!(there.mutation.version, 0);
-    assert_eq!(there.mutation.keys.len(), 1);
+    assert_eq!(there.version, 0);
+    assert_eq!(there.keys.len(), 1);
 
     let here = edit(&mut store, &Target::Map { id: None }, 3.0);
-    assert_eq!(here.mutation.version, store.version);
+    assert_eq!(here.version, store.version);
 }
 
 fn opened_on_disk(map: &Id<MapMeta, String>) -> Option<String> {

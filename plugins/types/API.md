@@ -2111,10 +2111,15 @@ Edit an interned field's value records in one undoable step.
 `unstable` · since v0.12.0
 
 ```ts
-edit.work(selector: Selector, op: Work): Promise<WorkResult>
+edit.work(
+  selector: Selector,
+  op: Work,
+  target?: Target,
+): Promise<WorkResult>
 ```
 
-Run `op` across every location `selector` matches, in one undoable step.
+Run `op` across every location `selector` matches on a map or in a pending layer. Map
+changes are one undoable step.
 
 ### exitPluginMode
 
@@ -3839,10 +3844,15 @@ Edit an interned field's value records in one undoable step.
 `unstable` · since v0.12.0
 
 ```ts
-Edit.work(selector: Selector, op: Work): Promise<WorkResult>
+Edit.work(
+  selector: Selector,
+  op: Work,
+  target?: Target,
+): Promise<WorkResult>
 ```
 
-Run `op` across every location `selector` matches, in one undoable step.
+Run `op` across every location `selector` matches on a map or in a pending layer. Map
+changes are one undoable step.
 
 ## Location
 
@@ -6979,12 +6989,13 @@ directory. Returns a temp path for `storeSaveExportFile`.
 
 ```ts
 cmd.storeWork(
+  target: Target,
   selector: Selector$1<SelectionInput>,
   work: Work,
 ): Promise<WorkResult>
 ```
 
-Run work over every location matched by selector.
+Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands.
 
 #### cmd.syncLogAppend
 

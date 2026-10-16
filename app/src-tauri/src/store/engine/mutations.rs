@@ -255,12 +255,13 @@ impl Store {
         edits: Vec<Edit<Location>>,
         records: IncomingRecords,
         join: &mut Option<u64>,
+        entry: Entry,
     ) -> Mutation {
         let mut layer = Layer::default();
         let keys = layered(&mut layer, edits, &mut self.next_id);
         Mutation {
             keys,
-            ..self.land_incoming(layer, records, join)
+            ..self.land_incoming(layer, records, join, entry)
         }
     }
 
@@ -269,16 +270,10 @@ impl Store {
         layer: Layer<Location>,
         records: IncomingRecords,
         join: &mut Option<u64>,
+        entry: Entry,
     ) -> Mutation {
         let (layer, records) = self.reconcile_incoming(layer, records);
-        self.write_layer(
-            &layer,
-            join,
-            Entry {
-                records,
-                ..Default::default()
-            },
-        )
+        self.write_layer(&layer, join, Entry { records, ..entry })
     }
 
     /// The records an unlanded layer holds for `field`.
@@ -306,7 +301,7 @@ impl Store {
         };
         let layer = mem::take(&mut pending.layer);
         let records = mem::take(&mut pending.records);
-        let result = self.land_incoming(layer, records, join);
+        let result = self.land_incoming(layer, records, join, Entry::default());
         if let Some(pending) = self.pending.get_mut(name) {
             pending.stage = Stage::Landed(Joins::from(*join));
         }
@@ -711,10 +706,23 @@ impl Targeted<'_> {
         records: IncomingRecords,
         join: &mut Option<u64>,
     ) -> EditResult {
+        self.write(edits, records, join, |_, _| Entry::default())
+    }
+
+    /// Edit here as [`Self::edit`] does, with `consequences` naming what the edits do to the
+    /// map beyond its rows, asked only once they reach it.
+    fn write(
+        &mut self,
+        edits: Vec<Edit<Location>>,
+        records: IncomingRecords,
+        join: &mut Option<u64>,
+        consequences: impl FnOnce(&Store, &[Edit<Location>]) -> Entry,
+    ) -> EditResult {
         let store = &mut *self.store;
         let Some(name) = self.layer else {
+            let entry = consequences(&*store, &edits);
             return EditResult {
-                mutation: store.write_incoming(edits, records, join),
+                mutation: store.write_incoming(edits, records, join, entry),
                 invalidated: Vec::new(),
             };
         };
@@ -723,7 +731,8 @@ impl Targeted<'_> {
             if let Joins::Step(step) = joins {
                 join.get_or_insert(step);
             }
-            let result = store.write_incoming(edits, records, join);
+            let entry = consequences(&*store, &edits);
+            let result = store.write_incoming(edits, records, join, entry);
             if let Some(pending) = store.pending.get_mut(name) {
                 pending.stage = match pending.stage {
                     Stage::Closing(_) => Stage::Closing(Joins::from(*join)),
@@ -753,6 +762,64 @@ impl Targeted<'_> {
             mutation,
             invalidated: invalidated.into_iter().collect(),
         }
+    }
+
+    /// Compute and apply edits for `work` over the rows `selector` matches here. Field
+    /// definitions and listed selections follow the edits once they reach the map.
+    pub(crate) fn work(&mut self, selector: &Selector, work: &Work) -> AppResult<WorkResult> {
+        let plan = match work {
+            Work::Locations(op) => {
+                let defs = (*self.store.field_defs).clone();
+                self.scope(selector, None, |scope| {
+                    plan_fields(FieldRegistry::new(&defs), &scope, op)
+                })?
+            }
+            Work::Sets(op) => plan_sets(self, selector, op)?,
+        };
+        let changed = plan.edits.len() as u32;
+        let edited = self.write(
+            plan.edits,
+            IncomingRecords::new(),
+            &mut None,
+            |store, edits| {
+                let Work::Locations(op) = work else {
+                    return Entry::default();
+                };
+                let defs = plan_defs(store, op, edits);
+                let selections = store
+                    .selections
+                    .change(&SelectionDelta::default(), |mut rows| {
+                        for (field, _) in &defs.removed {
+                            let to = match op {
+                                LocationOp::Move { from, to, .. } if from == field => {
+                                    Some(to.as_str())
+                                }
+                                _ => None,
+                            };
+                            rows = rows
+                                .into_iter()
+                                .filter_map(|row| {
+                                    Some(ListedSelection {
+                                        selection: tree::rewrite(&row.selection, field, to)?,
+                                        ..row
+                                    })
+                                })
+                                .collect();
+                        }
+                        rows
+                    });
+                Entry {
+                    defs,
+                    selections,
+                    ..Default::default()
+                }
+            },
+        );
+        Ok(WorkResult {
+            changed,
+            failed: plan.failed,
+            mutation: edited.mutation,
+        })
     }
 }
 
@@ -876,12 +943,12 @@ pub(super) fn plan_fields(
     Ok(plan)
 }
 
-/// Plan set-level work over the selected rows as a whole.
-fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<WorkPlan> {
+/// Plan set-level work over the rows `selector` matches at `at`, as a whole.
+fn plan_sets(at: &mut Targeted<'_>, selector: &Selector, op: &SetOp) -> AppResult<WorkPlan> {
     Ok(match op {
         SetOp::Merge { groups, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let allowed = store.scope(selector).ids();
+            let allowed = at.scope(selector, None, |scope| scope.ids());
             let mut seen = HashSet::new();
             let mut plan = WorkPlan::default();
             for group in groups {
@@ -893,14 +960,11 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
                 if ids.iter().any(|id| !seen.insert(*id)) {
                     return Err(AppError::from("merge groups must be disjoint"));
                 }
-                let members: Vec<Location> = ids
-                    .into_iter()
-                    .filter_map(|id| store.get_loc_by_id(id))
-                    .collect();
+                let members: Vec<Location> = ids.into_iter().filter_map(|id| at.get(id)).collect();
                 if members.len() < 2 {
                     continue;
                 }
-                let survivor = merge_group(store.registry(), &members, &score);
+                let survivor = merge_group(at.store.registry(), &members, &score);
                 plan.edits.extend(
                     members
                         .iter()
@@ -913,7 +977,7 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
         }
         SetOp::PruneDuplicates { distance, score } => {
             let score = selections::parse_duplicate_score(score.as_deref())?;
-            let locs: Vec<Location> = store.at(&Target::Map { id: None }).rows(selector);
+            let locs: Vec<Location> = at.rows(selector);
             WorkPlan {
                 edits: selections::prune_duplicates(&locs, *distance, &score)
                     .into_iter()
@@ -922,60 +986,6 @@ fn plan_sets(store: &mut Store, selector: &Selector, op: &SetOp) -> AppResult<Wo
                 failed: Vec::new(),
             }
         }
-    })
-}
-
-/// Compute and apply edits for `work` over selected rows.
-pub(crate) fn apply_work(
-    store: &mut Store,
-    selector: &Selector,
-    work: &Work,
-) -> AppResult<WorkResult> {
-    let (plan, defs) = match work {
-        Work::Locations(op) => {
-            let defs = (*store.field_defs).clone();
-            let plan = plan_fields(FieldRegistry::new(&defs), &store.scope(selector), op)?;
-            let defs = plan_defs(store, op, &plan.edits);
-            (plan, defs)
-        }
-        Work::Sets(op) => (plan_sets(store, selector, op)?, DefsDelta::default()),
-    };
-    let selections = if let Work::Locations(op) = work {
-        store
-            .selections
-            .change(&SelectionDelta::default(), |mut rows| {
-                for (field, _) in &defs.removed {
-                    let to = match op {
-                        LocationOp::Move { from, to, .. } if from == field => Some(to.as_str()),
-                        _ => None,
-                    };
-                    rows = rows
-                        .into_iter()
-                        .filter_map(|row| {
-                            Some(ListedSelection {
-                                selection: tree::rewrite(&row.selection, field, to)?,
-                                ..row
-                            })
-                        })
-                        .collect();
-                }
-                rows
-            })
-    } else {
-        Default::default()
-    };
-    Ok(WorkResult {
-        changed: plan.edits.len() as u32,
-        failed: plan.failed,
-        mutation: store.write(
-            plan.edits,
-            &mut None,
-            Entry {
-                defs,
-                selections,
-                ..Default::default()
-            },
-        ),
     })
 }
 

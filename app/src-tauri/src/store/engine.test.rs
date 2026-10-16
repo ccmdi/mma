@@ -3811,7 +3811,11 @@ fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Muta
         locations: loc_ids(ids.to_vec()),
         name: None,
     };
-    apply_work(store, &selector, &op).unwrap().mutation
+    store
+        .at(&Target::Map { id: None })
+        .work(&selector, &op)
+        .unwrap()
+        .mutation
 }
 
 #[test]
@@ -4156,7 +4160,10 @@ fn coverage_follows_the_rows_that_hold_each_field() {
         counts(&[("a", 3), ("b", 1)])
     );
 
-    apply_work(&mut store, &all, &Work::Locations(del_op(&["b"]))).unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(&all, &Work::Locations(del_op(&["b"])))
+        .unwrap();
     assert_eq!(extra_coverage(&mut store, &all), counts(&[("a", 3)]));
 
     let gain_b = patch!(2; extra: Some(mma_algebra::JsonWrite::Merge(serde_json::from_str::<serde_json::Value>(r#"{"b":5}"#).unwrap())));
@@ -7196,12 +7203,10 @@ fn registering_fields_keeps_the_existing_def() {
 #[test]
 fn apply_field_op_clears_a_nullable_column() {
     let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
-    let out = apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Locations(del_op(&["panoId"])),
-    )
-    .unwrap();
+    let out = store
+        .at(&Target::Map { id: None })
+        .work(&Selector::Everything, &Work::Locations(del_op(&["panoId"])))
+        .unwrap();
     assert_eq!(out.changed, 1);
     assert!(out.failed.is_empty());
     assert!(store.get_loc_by_id(Id::new(1)).unwrap().pano_id.is_none());
@@ -7228,8 +7233,7 @@ fn a_patch_clears_only_the_nullable_columns_the_engine_does_not_stamp() {
 #[test]
 fn apply_field_op_refuses_to_clear_the_column_the_engine_stamps() {
     let mut store = setup_store_with(&[pinned_loc(1, "abc")]);
-    let Err(err) = apply_work(
-        &mut store,
+    let Err(err) = store.at(&Target::Map { id: None }).work(
         &Selector::Everything,
         &Work::Locations(del_op(&["modifiedAt"])),
     ) else {
@@ -7245,12 +7249,13 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
         loc_with_extra(2, r#"{"b":1}"#),
         loc_with_extra(3, r#"{"a":"ten"}"#),
     ]);
-    let out = apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Locations(expr_op("h", "a + 1")),
-    )
-    .unwrap();
+    let out = store
+        .at(&Target::Map { id: None })
+        .work(
+            &Selector::Everything,
+            &Work::Locations(expr_op("h", "a + 1")),
+        )
+        .unwrap();
     assert_eq!(out.changed, 1);
     assert_eq!(out.failed, loc_ids([2, 3]));
 }
@@ -7259,12 +7264,13 @@ fn apply_field_op_returns_the_ids_an_expression_could_not_evaluate() {
 fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
     for on in [true, false] {
-        let out = apply_work(
-            &mut store,
-            &Selector::Everything,
-            &Work::Locations(set_op("loadAsPanoId", serde_json::json!(on))),
-        )
-        .unwrap();
+        let out = store
+            .at(&Target::Map { id: None })
+            .work(
+                &Selector::Everything,
+                &Work::Locations(set_op("loadAsPanoId", serde_json::json!(on))),
+            )
+            .unwrap();
         assert_eq!(out.changed, 1);
         assert_eq!(
             store
@@ -7280,8 +7286,7 @@ fn apply_field_op_sets_and_clears_a_flag_bit_from_a_boolean() {
 #[test]
 fn apply_field_op_refuses_a_column_it_cannot_clear() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
-    let Err(err) = apply_work(
-        &mut store,
+    let Err(err) = store.at(&Target::Map { id: None }).work(
         &Selector::Everything,
         &Work::Locations(del_op(&["heading"])),
     ) else {
@@ -7293,12 +7298,13 @@ fn apply_field_op_refuses_a_column_it_cannot_clear() {
 #[test]
 fn apply_field_op_refuses_a_non_numeric_assignment() {
     let mut store = setup_store_with(&[loc(1, 1.0, 1.0)]);
-    assert!(apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Locations(set_op("heading", serde_json::json!("north"))),
-    )
-    .is_err());
+    assert!(store
+        .at(&Target::Map { id: None })
+        .work(
+            &Selector::Everything,
+            &Work::Locations(set_op("heading", serde_json::json!("north"))),
+        )
+        .is_err());
 }
 
 #[test]
@@ -8285,7 +8291,10 @@ fn renaming_a_field_moves_its_rows_and_definition_in_one_undoable_step() {
     let steps = store.steps[Timeline::Edits].len(Stack::Undo);
 
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
-    apply_work(&mut store, &Selector::Everything, &rename).unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(&Selector::Everything, &rename)
+        .unwrap();
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), steps + 1);
     assert!(!store.field_defs.contains_key("a"));
     assert_eq!(store.field_defs["b"], labelled_def("a"));
@@ -8316,18 +8325,97 @@ fn a_field_loses_its_definition_only_when_no_row_holds_it() {
         locations: loc_ids([1]),
         name: None,
     };
-    apply_work(&mut store, &one, &Work::Locations(del_op(&["a"]))).unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(&one, &Work::Locations(del_op(&["a"])))
+        .unwrap();
     assert_eq!(store.field_defs["a"], labelled_def("a"));
 
-    apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Locations(del_op(&["a"])),
-    )
-    .unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(&Selector::Everything, &Work::Locations(del_op(&["a"])))
+        .unwrap();
     assert!(!store.field_defs.contains_key("a"));
     press_undo(&mut store);
     assert_eq!(store.field_defs["a"], labelled_def("a"));
+}
+
+#[test]
+fn work_on_a_pending_layer_changes_only_its_view_until_it_lands() {
+    let mut store = setup_store_with(&[
+        loc_with_extra(1, r#"{"a":1}"#),
+        loc_with_extra(2, r#"{"a":2}"#),
+    ]);
+    store
+        .field_defs
+        .edit()
+        .insert("a".into(), labelled_def("a"));
+    let draft = Target::Pending {
+        name: "draft".into(),
+    };
+    store.at(&draft).edit(
+        vec![Op::Put(heading(1, 90.0))],
+        Default::default(),
+        &mut None,
+    );
+    let version = store.version;
+
+    let out = store
+        .at(&draft)
+        .work(&Selector::Everything, &Work::Locations(del_op(&["a"])))
+        .unwrap();
+    assert_eq!(out.changed, 1);
+    assert_eq!(out.mutation.version, 0);
+    assert_eq!(store.version, version);
+
+    let holds_a = |row: &Location| {
+        row.extra
+            .as_ref()
+            .is_some_and(|extra| extra.to_map().contains_key("a"))
+    };
+    let seen = store.at(&draft).rows(&Selector::Everything);
+    assert_eq!(seen.len(), 1);
+    assert!(!holds_a(&seen[0]));
+    assert!(holds_a(&store.get_loc_by_id(Id::new(1)).unwrap()));
+    assert_eq!(store.field_defs["a"], labelled_def("a"));
+    assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
+
+    store.land("draft", &mut None);
+    let landed: Vec<(u32, f64, bool)> = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything)
+        .iter()
+        .map(|row| (row.id.get(), row.heading, holds_a(row)))
+        .collect();
+    assert_eq!(landed, vec![(1, 90.0, false), (2, 0.0, true)]);
+}
+
+#[test]
+fn work_on_a_landed_layer_writes_through_and_moves_the_map_definition() {
+    let mut store = setup_store_with(&[loc_with_extra(1, r#"{"a":1}"#)]);
+    store
+        .field_defs
+        .edit()
+        .insert("a".into(), labelled_def("a"));
+    let draft = Target::Pending {
+        name: "draft".into(),
+    };
+    store.at(&draft).edit(
+        vec![Op::Put(heading(1, 90.0))],
+        Default::default(),
+        &mut None,
+    );
+    store.land("draft", &mut None);
+
+    let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
+    let one = Selector::Locations {
+        locations: loc_ids([1]),
+        name: None,
+    };
+    let out = store.at(&draft).work(&one, &rename).unwrap();
+    assert_eq!(out.mutation.version, store.version);
+    assert!(!store.field_defs.contains_key("a"));
+    assert_eq!(store.field_defs["b"], labelled_def("a"));
 }
 
 #[test]
@@ -8345,7 +8433,10 @@ fn a_stored_edit_keeps_its_definition_moves() {
         .edit()
         .insert("a".into(), labelled_def("a"));
     let rename = Work::Locations(move_op("a", "b", MergeWinner::From));
-    apply_work(&mut store, &Selector::Everything, &rename).unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(&Selector::Everything, &rename)
+        .unwrap();
     let (_, newest) = store.steps[Timeline::Edits].iter().last().unwrap();
     let held = (**newest.entry.as_ref().unwrap()).clone();
     assert!(!held.defs.is_empty());
@@ -8544,18 +8635,19 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         loc(4, 80.0, 80.0),
     ];
     let mut store = setup_store_with(&rows);
-    let out = apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Sets(SetOp::Merge {
-            groups: vec![
-                vec![Id::new(1), Id::new(2), Id::new(2)],
-                vec![Id::new(3), Id::new(4)],
-            ],
-            score: Some("-id".into()),
-        }),
-    )
-    .unwrap();
+    let out = store
+        .at(&Target::Map { id: None })
+        .work(
+            &Selector::Everything,
+            &Work::Sets(SetOp::Merge {
+                groups: vec![
+                    vec![Id::new(1), Id::new(2), Id::new(2)],
+                    vec![Id::new(3), Id::new(4)],
+                ],
+                score: Some("-id".into()),
+            }),
+        )
+        .unwrap();
     assert_eq!(out.changed, 4);
     assert_eq!(*store.alive_count, 2);
     assert_eq!(
@@ -8587,15 +8679,16 @@ fn merge_groups_respects_scope_and_ignores_missing_members() {
         locations: loc_ids([1, 2]),
         name: None,
     };
-    apply_work(
-        &mut store,
-        &selector,
-        &Work::Sets(SetOp::Merge {
-            groups: vec![vec![Id::new(1), Id::new(2), Id::new(3), Id::new(999)]],
-            score: Some("-id".into()),
-        }),
-    )
-    .unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(
+            &selector,
+            &Work::Sets(SetOp::Merge {
+                groups: vec![vec![Id::new(1), Id::new(2), Id::new(3), Id::new(999)]],
+                score: Some("-id".into()),
+            }),
+        )
+        .unwrap();
     assert!(store.get_loc_by_id(Id::new(1)).is_some());
     assert!(store.get_loc_by_id(Id::new(2)).is_none());
     assert!(store.get_loc_by_id(Id::new(3)).is_some());
@@ -8605,15 +8698,16 @@ fn merge_groups_respects_scope_and_ignores_missing_members() {
 fn overlapping_merge_groups_fail_before_any_write() {
     let rows = vec![loc(1, 0.0, 0.0), loc(2, 1.0, 1.0), loc(3, 2.0, 2.0)];
     let mut store = setup_store_with(&rows);
-    assert!(apply_work(
-        &mut store,
-        &Selector::Everything,
-        &Work::Sets(SetOp::Merge {
-            groups: vec![vec![Id::new(1), Id::new(2)], vec![Id::new(2), Id::new(3)]],
-            score: None
-        })
-    )
-    .is_err());
+    assert!(store
+        .at(&Target::Map { id: None })
+        .work(
+            &Selector::Everything,
+            &Work::Sets(SetOp::Merge {
+                groups: vec![vec![Id::new(1), Id::new(2)], vec![Id::new(2), Id::new(3)]],
+                score: None
+            })
+        )
+        .is_err());
     assert_eq!(store.steps[Timeline::Edits].len(Stack::Undo), 0);
     for row in rows {
         assert_eq!(store.get_loc_by_id(row.id).unwrap(), row);
@@ -8816,19 +8910,20 @@ fn redo_reapplies_a_bulk_tag_removal() {
     assert_eq!(tag_count(&mut store, 10), 12);
 
     let removed: Vec<u32> = (1..=6).collect();
-    apply_work(
-        &mut store,
-        &Selector::Locations {
-            locations: loc_ids(removed),
-            name: None,
-        },
-        &Work::Locations(LocationOp::ListSet {
-            key: "tags".into(),
-            add: vec![],
-            remove: vec![serde_json::json!(10)],
-        }),
-    )
-    .unwrap();
+    store
+        .at(&Target::Map { id: None })
+        .work(
+            &Selector::Locations {
+                locations: loc_ids(removed),
+                name: None,
+            },
+            &Work::Locations(LocationOp::ListSet {
+                key: "tags".into(),
+                add: vec![],
+                remove: vec![serde_json::json!(10)],
+            }),
+        )
+        .unwrap();
     assert_eq!(tag_count(&mut store, 10), 6);
 
     press_undo(&mut store);

@@ -478,18 +478,18 @@ pub async fn polygon_fill(polygon: selections::PolygonGeometry) -> Vec<Vec<Vec<[
         .collect()
 }
 
-/// The receipt `window` waits on for `edited` at `target`: version 0 when the edit reached
-/// a map this window does not watch, so waiting returns at once.
+/// The receipt `window` waits on for `mutation` at `target`: version 0 when the change
+/// reached a map this window does not watch, so waiting returns at once.
 fn receipt(
     store: &Store,
     window: &WindowLabel,
     target: &Target,
-    mut edited: EditResult,
-) -> EditResult {
+    mut mutation: Mutation,
+) -> Mutation {
     if matches!(target, Target::Map { id: Some(_) }) && !store.changes.has(window) {
-        edited.mutation.version = 0;
+        mutation.version = 0;
     }
-    edited
+    mutation
 }
 
 macro_rules! run_as {
@@ -510,14 +510,17 @@ macro_rules! command_table {
         $callback! { $extra;
             "Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing." store_edit(target: Target, edits: Vec<Edit<Location>>, records: IncomingRecords) at target -> EditResult => |store, window| {
                 store.check_interned(records.keys())?;
-                let edited = store.at(&target).edit(edits, records, &mut None);
-                Ok(receipt(store, window, &target, edited))
+                let mut edited = store.at(&target).edit(edits, records, &mut None);
+                edited.mutation = receipt(store, window, &target, edited.mutation);
+                Ok(edited)
             };
             "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> Mutation => async |store| {
                 Ok(store.land(&name, &mut None))
             };
-            "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => async |store| {
-                apply_work(store, &selector.map_children(SelectionInput::compile), &work)
+            "Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands." store_work(target: Target, selector: Selector<SelectionInput>, work: Work) at target -> WorkResult => async |store, window| {
+                let mut worked = store.at(&target).work(&selector.map_children(SelectionInput::compile), &work)?;
+                worked.mutation = receipt(store, window, &target, worked.mutation);
+                Ok(worked)
             };
             "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> Mutation<ValueRecord> => |store| {
                 store.edit_values(&field, edits)

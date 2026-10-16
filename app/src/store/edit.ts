@@ -35,9 +35,10 @@ export const Edit = {
 	values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => {
 		return Mutation.run(() => cmd.storeEditValues(field, edits));
 	},
-	/** Run `op` across every location `selector` matches, in one undoable step. @unstable */
-	work: (selector: Selector, op: Work): Promise<WorkResult> => {
-		return Mutation.run(() => cmd.storeWork(selector, op), {
+	/** Run `op` across every location `selector` matches on a map or in a pending layer. Map
+	 *  changes are one undoable step. @unstable */
+	work: (selector: Selector, op: Work, target: Target = { kind: "map" }): Promise<WorkResult> => {
+		return Mutation.run(() => cmd.storeWork(target, selector, op), {
 			mutation: Mutation.none(),
 			changed: 0,
 			failed: [],

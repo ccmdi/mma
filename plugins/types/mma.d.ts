@@ -632,8 +632,8 @@ declare const commands$1: {
     storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key_1 in number]: ValueRecord; }; }) => Promise<EditResult>;
     /** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. @unstable */
     storeLandLayer: (name: string) => Promise<Mutation<Location>>;
-    /** Run work over every location matched by selector. @unstable */
-    storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
+    /** Run work over the target's locations matched by selector; an open pending layer holds the edits until it lands. @unstable */
+    storeWork: (target: Target, selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
     storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<Mutation<ValueRecord>>;
     /** Edit the selection tree. @unstable */
@@ -3481,8 +3481,9 @@ declare const Edit: {
     }) => Promise<void>;
     /** Edit an interned field's value records in one undoable step. */
     values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => Promise<Mutation<ValueRecord>>;
-    /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
-    work: (selector: Selector, op: Work) => Promise<WorkResult>;
+    /** Run `op` across every location `selector` matches on a map or in a pending layer. Map
+     *  changes are one undoable step. @unstable */
+    work: (selector: Selector, op: Work, target?: Target) => Promise<WorkResult>;
 };
 
 export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "visible">>;
