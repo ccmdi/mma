@@ -1319,7 +1319,12 @@ fn to_patches(entries: &[ResultEntry]) -> AppResult<Vec<Patch<Location>>> {
             let mut map: serde_json::Map<String, serde_json::Value> =
                 serde_json::from_str(&e.json).map_err(|x| err(x.to_string()))?;
             if let Some(key) = map.keys().find(|k| !writable(k)) {
-                return Err(err(format!("unknown field `{key}`")));
+                return Err(err(if key == "patch" {
+                    "answered in the retired `{ id, patch }` shape; this plugin needs updating"
+                        .into()
+                } else {
+                    format!("unknown field `{key}`")
+                }));
             }
             map.insert("id".into(), e.id.get().into());
             serde_json::from_value(map.into()).map_err(|x| err(x.to_string()))

@@ -1034,6 +1034,17 @@ fn an_unknown_key_names_itself_in_the_error() {
 }
 
 #[test]
+fn a_retired_id_and_patch_answer_says_the_plugin_needs_updating() {
+    let Err(err) = to_patches(&[ResultEntry {
+        id: Id::new(1),
+        json: r#"{"patch":{"extra":{"a":1}}}"#.into(),
+    }]) else {
+        panic!("a retired answer shape must fail the batch");
+    };
+    assert!(err.0.contains("needs updating"), "{}", err.0);
+}
+
+#[test]
 fn a_patch_that_is_not_an_object_is_an_error() {
     for json in [r#"[{"lat":1}]"#, r#""lat""#, "7"] {
         assert!(
