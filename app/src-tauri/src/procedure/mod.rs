@@ -30,7 +30,7 @@ pub enum ProcShape {
     Run,
 }
 
-/// Host services exposed to a procedure. `map` and `run` both get one; only `run`
+/// Host services exposed to a procedure. Every shape gets one; only `run`
 /// may reach the effectful ones (`fetch`, `panos`, `sidecar`). Rate limiting and abort are
 /// enforced by the implementation, not the procedure.
 pub trait ProcHost {
@@ -83,23 +83,13 @@ pub trait ProcHost {
 pub trait Procedure: Send {
     fn shape(&self) -> ProcShape;
 
-    fn map(
+    /// Answers one batch of rows through the entry point its shape names.
+    fn batch(
         &mut self,
-        _batch: &[u8],
-        _host: &mut dyn ProcHost,
-        _config: &str,
-    ) -> AppResult<Vec<ResultEntry>> {
-        Err(AppError("procedure shape does not implement map".into()))
-    }
-
-    fn run(
-        &mut self,
-        _batch: &[u8],
-        _host: &mut dyn ProcHost,
-        _config: &str,
-    ) -> AppResult<Vec<ResultEntry>> {
-        Err(AppError("procedure shape does not implement run".into()))
-    }
+        batch: &[u8],
+        host: &mut dyn ProcHost,
+        config: &str,
+    ) -> AppResult<Vec<ResultEntry>>;
 
     fn query(
         &mut self,

@@ -1250,7 +1250,9 @@ fn run_instance(
             reported: 0,
             failed: Vec::new(),
         };
-        let result = run_batch(proc, &batch, &mut host, config)
+        let result = serde_json::to_vec(&batch.rows)
+            .map_err(|e| AppError(format!("batch could not be serialized: {e}")))
+            .and_then(|blob| proc.batch(&blob, &mut host, config))
             .map(|entries| fan_out(entries, batch.fanout.as_ref()))
             .and_then(|entries| match decl.sink {
                 // Only the patch sink parses: a collected answer is the module's
@@ -1307,20 +1309,6 @@ fn run_instance(
 enum BatchProduct {
     Patches(Vec<(Option<Location>, Patch<Location>)>),
     Entries(Vec<ResultEntry>),
-}
-
-fn run_batch(
-    proc: &mut dyn Procedure,
-    batch: &WorkBatch,
-    host: &mut EngineHost,
-    config: &str,
-) -> AppResult<Vec<ResultEntry>> {
-    let blob = serde_json::to_vec(&batch.rows)
-        .map_err(|e| AppError(format!("batch could not be serialized: {e}")))?;
-    match proc.shape() {
-        ProcShape::Map => proc.map(&blob, host, config),
-        ProcShape::Run => proc.run(&blob, host, config),
-    }
 }
 
 /// Whether a location patch can write `key`. A patch entry carrying anything else fails its

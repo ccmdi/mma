@@ -1005,36 +1005,20 @@ impl Procedure for JsProcedure {
         self.shape
     }
 
-    fn map(
+    fn batch(
         &mut self,
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
     ) -> AppResult<Vec<ResultEntry>> {
-        if self.shape != ProcShape::Map {
-            return Err(self.err("procedure shape does not implement map"));
-        }
-        self.call(host, false, |ctx| {
+        let (export, allow_effects) = match self.shape {
+            ProcShape::Map => ("map", false),
+            ProcShape::Run => ("run", true),
+        };
+        self.call(host, allow_effects, |ctx| {
             let rows = self.rows(&ctx, batch)?;
             let cfg = self.config_val(&ctx, config)?;
-            let out = self.invoke(&ctx, "map", vec![rows, cfg])?;
-            read_patches(&ctx, out).map_err(|e| self.err(e.0))
-        })
-    }
-
-    fn run(
-        &mut self,
-        batch: &[u8],
-        host: &mut dyn ProcHost,
-        config: &str,
-    ) -> AppResult<Vec<ResultEntry>> {
-        if self.shape != ProcShape::Run {
-            return Err(self.err("procedure shape does not implement run"));
-        }
-        self.call(host, true, |ctx| {
-            let rows = self.rows(&ctx, batch)?;
-            let cfg = self.config_val(&ctx, config)?;
-            let out = self.invoke(&ctx, "run", vec![rows, cfg])?;
+            let out = self.invoke(&ctx, export, vec![rows, cfg])?;
             read_patches(&ctx, out).map_err(|e| self.err(e.0))
         })
     }
@@ -1153,22 +1137,13 @@ impl Procedure for PooledProcedure {
         self.proc.as_ref().expect("held until drop").shape()
     }
 
-    fn map(
+    fn batch(
         &mut self,
         batch: &[u8],
         host: &mut dyn ProcHost,
         config: &str,
     ) -> AppResult<Vec<ResultEntry>> {
-        self.inner().map(batch, host, config)
-    }
-
-    fn run(
-        &mut self,
-        batch: &[u8],
-        host: &mut dyn ProcHost,
-        config: &str,
-    ) -> AppResult<Vec<ResultEntry>> {
-        self.inner().run(batch, host, config)
+        self.inner().batch(batch, host, config)
     }
 
     fn query(&mut self, input: &[u8], host: &mut dyn ProcHost, config: &str) -> AppResult<Vec<u8>> {

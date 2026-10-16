@@ -136,11 +136,11 @@ type MapFn = Arc<dyn Fn(&[Location]) -> AppResult<Vec<ResultEntry>> + Send + Syn
 
 struct MockProc {
     shape: ProcShape,
-    /// A `run` that issues one request before answering, as a fetching procedure does.
+    /// Issues one request before answering, as a fetching procedure does.
     fetches: bool,
     seen: Arc<Mutex<Vec<Vec<u32>>>>,
     on_map: MapFn,
-    /// Reported to the host from `map`, proving `map` reaches the real host.
+    /// Reported to the host from the batch, proving a `map` shape reaches the real host.
     fail_id: Option<u32>,
 }
 
@@ -159,7 +159,7 @@ impl Procedure for MockProc {
     fn shape(&self) -> ProcShape {
         self.shape
     }
-    fn map(
+    fn batch(
         &mut self,
         batch: &[u8],
         host: &mut dyn ProcHost,
@@ -168,14 +168,6 @@ impl Procedure for MockProc {
         if let Some(id) = self.fail_id {
             host.fail(Id::new(id));
         }
-        self.handle(batch)
-    }
-    fn run(
-        &mut self,
-        batch: &[u8],
-        host: &mut dyn ProcHost,
-        _config: &str,
-    ) -> AppResult<Vec<ResultEntry>> {
         if self.fetches {
             fetch_one(host, "https://example.invalid/")?;
         }
@@ -1263,7 +1255,7 @@ impl Procedure for RunProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
-    fn run(
+    fn batch(
         &mut self,
         batch: &[u8],
         host: &mut dyn ProcHost,
@@ -1526,7 +1518,7 @@ impl Procedure for CfgProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Map
     }
-    fn map(
+    fn batch(
         &mut self,
         _batch: &[u8],
         _host: &mut dyn ProcHost,
@@ -1922,6 +1914,14 @@ impl Procedure for QueryProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
+    fn batch(
+        &mut self,
+        _batch: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<ResultEntry>> {
+        unreachable!("a query answers no batch")
+    }
     fn query(&mut self, input: &[u8], host: &mut dyn ProcHost, config: &str) -> AppResult<Vec<u8>> {
         let fetched = fetch_one(host, "https://example.invalid/q")?;
         // Progress and failures are no-ops here; calling them proves they do not panic.
@@ -2041,6 +2041,14 @@ impl Procedure for WideQueryProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
     }
+    fn batch(
+        &mut self,
+        _batch: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<ResultEntry>> {
+        unreachable!("a query answers no batch")
+    }
     fn query(
         &mut self,
         _input: &[u8],
@@ -2138,6 +2146,14 @@ struct EmittingQueryProc {
 impl Procedure for EmittingQueryProc {
     fn shape(&self) -> ProcShape {
         ProcShape::Run
+    }
+    fn batch(
+        &mut self,
+        _batch: &[u8],
+        _host: &mut dyn ProcHost,
+        _config: &str,
+    ) -> AppResult<Vec<ResultEntry>> {
+        unreachable!("a query answers no batch")
     }
     fn query(
         &mut self,
