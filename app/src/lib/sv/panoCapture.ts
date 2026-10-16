@@ -207,19 +207,11 @@ async function waitForStableCanvas(host: HTMLElement): Promise<HTMLCanvasElement
 	throw new Error("OpenSV did not render offscreen imagery");
 }
 
-export function canvasToBlob(
-	canvas: HTMLCanvasElement,
-	type = "image/png",
-	quality?: number,
-): Promise<Blob> {
+export function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 	return new Promise((resolve, reject) => {
-		canvas.toBlob(
-			(blob) => {
-				if (blob) resolve(blob);
-				else reject(new Error("Canvas encoding failed"));
-			},
-			type,
-			quality,
-		);
+		canvas.toBlob((blob) => {
+			if (blob) resolve(blob);
+			else reject(new Error("Canvas encoding failed"));
+		}, "image/png");
 	});
 }

@@ -2,6 +2,7 @@ import type { Location } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { svThumbnailUrl } from "@/lib/sv/lookup";
 import { svMetadata } from "@/lib/sv/query";
+import { canvasToBlob } from "@/lib/sv/panoCapture";
 import type { Pano } from "@/bindings.gen";
 import { panoResolveProvider } from "@/lib/sv/providers";
 import { Procedure, type BatchOutcome, type BulkOpts } from "@/lib/data/procedure";
@@ -155,14 +156,6 @@ interface RenderedImage {
 	fileName: string;
 }
 
-function canvasToBlob(
-	canvas: HTMLCanvasElement,
-	type: string,
-	quality?: number,
-): Promise<Blob | null> {
-	return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
-}
-
 async function fetchImage(url: string, signal?: AbortSignal): Promise<Blob | null> {
 	try {
 		const resp = await fetch(url, { signal });
@@ -220,8 +213,8 @@ async function renderLocationImage(
 		1080,
 	);
 	bitmap.close();
-	const blob = await canvasToBlob(perspective, "image/png");
-	return blob ? { blob, fileName: `${name}.png` } : null;
+	const blob = await canvasToBlob(perspective).catch(() => null);
+	return blob && { blob, fileName: `${name}.png` };
 }
 
 // --- Bulk orchestration ---
