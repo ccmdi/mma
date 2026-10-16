@@ -2304,13 +2304,16 @@ fn push_resolved(store: &mut Store, key: &str, color: Rgb, members: &[u32]) {
             ghosted: false,
         });
     });
-    let sets = store
+    let sets: Vec<_> = store
         .selections
         .list()
-        .iter()
-        .map(|row| match &row.selection.selector {
-            Selector::Manual { locations } => locations.iter().copied().collect(),
-            _ => unreachable!(),
+        .into_iter()
+        .map(|row| {
+            let set = match &row.selection.selector {
+                Selector::Manual { locations } => locations.iter().copied().collect(),
+                _ => unreachable!(),
+            };
+            (row.selection, set)
         })
         .collect();
     store.selections.resolve(sets, HashMap::new());
@@ -9944,6 +9947,73 @@ fn undo_and_redo_restore_the_selection_list_order_after_inserts_and_moves() {
 }
 
 #[test]
+fn a_list_edit_resolves_only_what_it_added_and_lands_where_a_full_resolve_would() {
+    use crate::selections::tree::{Place, SelectionOp};
+    let mut cheap = loc(1, 0.0, 0.0);
+    cheap.pano_id = Some("a".into());
+    let mut store = setup_store_with(&[cheap, loc(2, 5.0, 5.0), loc(3, 10.0, 10.0)]);
+    let members = |store: &Store| -> Vec<(u32, u32)> {
+        let mut paint: Vec<(u32, u32)> = store
+            .selections
+            .paint_map()
+            .into_iter()
+            .map(|(id, paint)| (id.get(), paint.0))
+            .collect();
+        paint.sort();
+        paint
+    };
+    // What every list edit must leave: exactly what resolving the whole list from scratch gives.
+    let check = |store: &mut Store, step: &str| {
+        let (sets, counts, ids) = (
+            members(store),
+            store.selections.node_counts.clone(),
+            store.selections.ids.len(),
+        );
+        RESOLVES.with(|n| n.set(0));
+        store.resolve_selection_membership();
+        assert_eq!(members(store), sets, "members after {step}");
+        assert_eq!(store.selections.node_counts, counts, "counts after {step}");
+        assert_eq!(store.selections.ids.len(), ids, "selected after {step}");
+    };
+
+    RESOLVES.with(|n| n.set(0));
+    store.edit_selections(&add_selection(Selector::has("panoId")));
+    store.edit_selections(&add_selection(Selector::Everything));
+    store.edit_selections(&add_selection(Selector::Invert {
+        selections: vec![Selection::of(Selector::has("panoId"))],
+    }));
+    assert_eq!(
+        RESOLVES.with(Cell::get),
+        0,
+        "list edits resolve only what they add"
+    );
+    check(&mut store, "adds");
+
+    store.edit_selections(&SelectionOp::Manual { id: Id::new(2) });
+    store.edit_selections(&SelectionOp::Manual { id: Id::new(3) });
+    check(
+        &mut store,
+        "manual toggles, which keep their key as their locations change",
+    );
+
+    store.edit_selections(&SelectionOp::Move {
+        from: vec![2],
+        to: vec![0],
+        place: Place::Before,
+    });
+    check(&mut store, "a move");
+    store.edit_selections(&SelectionOp::Ghost { index: 1 });
+    check(&mut store, "a ghost");
+    let first = listed_keys(&store)[0].clone();
+    store.edit_selections(&SelectionOp::Remove { keys: vec![first] });
+    check(&mut store, "a removal");
+    step_selection(&mut store, Stack::Undo);
+    check(&mut store, "an undo");
+    step_selection(&mut store, Stack::Redo);
+    check(&mut store, "a redo");
+}
+
+#[test]
 fn a_selection_list_change_sends_every_key_but_only_the_rows_that_changed() {
     use crate::selections::tree::{Place, SelectionOp};
     let mut store = setup_store_with(&[loc(1, 0.0, 0.0)]);
@@ -10059,6 +10129,24 @@ fn frames_carry_a_mesh_for_each_listed_polygon_once_and_drop_it_once_unlisted() 
     let gone = last(&frames);
     assert!(gone.added.is_empty());
     assert_eq!(gone.removed, vec![alone]);
+}
+
+#[test]
+fn a_list_edit_resolves_again_a_listed_selection_that_reads_the_selection() {
+    let mut store = setup_store_with(&[loc(1, 0.0, 0.0), loc(2, 5.0, 5.0), loc(3, 10.0, 10.0)]);
+    let manual = |id: u32| Selector::Manual {
+        locations: vec![Id::new(id)],
+    };
+    store.edit_selections(&add_selection(manual(1)));
+    store.edit_selections(&add_selection(Selector::Selected));
+    let reads = listed_key(&store, |s| matches!(s, Selector::Selected));
+    let before = store.selections.node_counts[&reads];
+    store.edit_selections(&add_selection(manual(2)));
+    store.edit_selections(&add_selection(manual(3)));
+    assert!(
+        store.selections.node_counts[&reads] > before,
+        "it follows what the list selects"
+    );
 }
 
 #[test]

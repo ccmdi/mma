@@ -297,6 +297,8 @@ impl Store {
     /// Update derived state for what changed, broadcast frames and changes, and return its result.
     pub(crate) fn finish(&mut self, finished: Finished) -> Mutation {
         let empty = Entry::default();
+        let list_only = matches!(finished, Finished::Entry(entry)
+            if entry.locations.is_empty() && !entry.selections.is_empty());
         let (entry, resolve_all) = match finished {
             Finished::Entry(entry) => (entry, !entry.selections.is_empty()),
             Finished::Base => (&empty, true),
@@ -332,7 +334,10 @@ impl Store {
             has_selections && (resolve_all || changes.len() > 100 || self.selections.set_dependent);
 
         let membership_delta = if has_selections || resolve_all {
-            if full_resolve || resolve_all {
+            if list_only && !self.selections.set_dependent {
+                self.resolve_unresolved_selections();
+                None
+            } else if full_resolve || resolve_all {
                 self.resolve_selection_membership();
                 None
             } else {

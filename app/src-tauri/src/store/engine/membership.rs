@@ -36,6 +36,8 @@ pub(crate) struct SelectionState {
     pub(crate) set_dependent: bool,
     /// The list as the last change sent it, keyed by selection key.
     sent: HashMap<String, ListedSelection>,
+    /// Keys of listed selections whose members are not resolved yet.
+    unresolved: HashSet<String>,
     /// The mesh of every polygon in the list, listed or inside a listed composite, by key.
     meshes: HashMap<String, Arc<Vec<u8>>>,
 }
@@ -166,14 +168,28 @@ impl Store {
     pub(crate) fn resolve_selection_membership(&mut self) {
         #[cfg(test)]
         tests::RESOLVES.with(|n| n.set(n.get() + 1));
+        self.selections.unresolved = self
+            .selections
+            .resolved
+            .iter()
+            .map(|r| r.sel.key.clone())
+            .collect();
+        self.resolve_unresolved_selections();
+    }
+
+    /// Resolve only the listed selections a list edit added or changed. The rest keep their
+    /// members, which no list edit can move unless a listed selection reads the selection.
+    pub(crate) fn resolve_unresolved_selections(&mut self) {
         let sels: Vec<Selection> = self
             .selections
             .resolved
             .iter()
+            .filter(|r| self.selections.unresolved.contains(&r.sel.key))
             .map(|r| r.sel.clone())
             .collect();
         let (sets, node_counts) = self.resolve_forest(&sels);
-        self.selections.resolve(sets, node_counts);
+        self.selections
+            .resolve(sels.into_iter().zip(sets), node_counts);
     }
 
     /// Every cell's selection membership, the selection section of a frame.
@@ -348,6 +364,9 @@ impl SelectionState {
         Change::between(&before, &after)
     }
 
+    /// Apply a list edit. A selection still listed with the same selector keeps its members;
+    /// every other one waits to be resolved. A key alone does not name a selector: a manual
+    /// selection keeps its key while its locations change.
     pub(crate) fn apply(&mut self, change: &SelectionDelta) {
         let mut table = self.table();
         change.apply_to(&mut table);
@@ -355,22 +374,57 @@ impl SelectionState {
         self.set_dependent = rows
             .iter()
             .any(|listing| !listing.row.selection.selector.row_local());
+        let mut held: HashMap<String, (Selector, IdSet<Location>)> = self
+            .resolved
+            .drain(..)
+            .filter(|r| !self.unresolved.contains(&r.sel.key))
+            .map(|r| (r.sel.key, (r.sel.selector, r.set)))
+            .collect();
+        self.unresolved.clear();
         self.resolved = rows
             .into_iter()
-            .map(|Listing { order, row }| ResolvedSelection {
-                sel: row.selection,
-                order,
-                ghosted: row.ghosted,
-                set: IdSet::new(),
+            .map(|Listing { order, row }| {
+                let set = held
+                    .remove(&row.selection.key)
+                    .filter(|(selector, _)| *selector == row.selection.selector)
+                    .map(|(_, set)| set)
+                    .unwrap_or_else(|| {
+                        self.unresolved.insert(row.selection.key.clone());
+                        IdSet::new()
+                    });
+                ResolvedSelection {
+                    sel: row.selection,
+                    order,
+                    ghosted: row.ghosted,
+                    set,
+                }
             })
             .collect();
     }
 
-    pub(crate) fn resolve(&mut self, sets: Vec<IdSet<Location>>, counts: HashMap<String, u32>) {
-        self.node_counts = counts;
-        for (root, set) in self.resolved.iter_mut().zip(sets) {
-            root.set = set;
+    /// Take the members resolved for `sets`' selections and the counts of their nodes,
+    /// dropping the counts of nodes no longer listed.
+    pub(crate) fn resolve(
+        &mut self,
+        sets: impl IntoIterator<Item = (Selection, IdSet<Location>)>,
+        counts: HashMap<String, u32>,
+    ) {
+        let mut sets: HashMap<String, IdSet<Location>> =
+            sets.into_iter().map(|(sel, set)| (sel.key, set)).collect();
+        for root in &mut self.resolved {
+            if let Some(set) = sets.remove(&root.sel.key) {
+                root.set = set;
+            }
         }
+        let mut listed = HashSet::new();
+        for root in &self.resolved {
+            root.sel.fold(&mut |node, _: Vec<()>| {
+                listed.insert(node.key.clone());
+            });
+        }
+        self.node_counts.retain(|key, _| listed.contains(key));
+        self.node_counts.extend(counts);
+        self.unresolved.clear();
         self.ids = self.live().fold(IdSet::new(), |acc, r| acc | &r.set);
     }
 
