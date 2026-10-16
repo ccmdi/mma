@@ -168,6 +168,17 @@ describe("advance / retreat", () => {
 		expect(session.reviewed).toContain(1);
 	});
 
+	it("next on the last location marks it reviewed and ends the pass as done", async () => {
+		store.liveIds = [1, 2];
+		await Review.resume(mk([1, 2], 2, [1]));
+		vi.mocked(cmd.storeReviewEdit).mockClear();
+		await Review.next();
+		expect(Review.session()).toBeNull();
+		expect(cmd.storeReviewEdit).toHaveBeenCalledWith([
+			{ put: expect.objectContaining({ status: "done", reviewed: [1, 2] }) },
+		]);
+	});
+
 	it("advance on the last item marks reviewed and reports done", () => {
 		const { session, done } = Review.advance(mk([1, 2], 2, [1]));
 		expect(done).toBe(true);
