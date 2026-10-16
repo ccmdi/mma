@@ -275,194 +275,194 @@ export async function setActiveLocation(target: MaybeLocation | null, checkDupli
 
 subscribe("open:change", (id) => emit("active:change", id));
 
-/** @deprecated v0.12.1. Use `MMA.Store.get`. */
+/** @deprecated v0.12.0. Use `MMA.Store.get`. */
 export const getMapState: typeof Store.get = Store.get;
 
-/** @deprecated v0.12.1. Use `MMA.Store.use`. */
+/** @deprecated v0.12.0. Use `MMA.Store.use`. */
 export const useMapState: typeof Store.use = Store.use;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.counts`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.counts`. */
 export const getTagCounts: typeof Tag.counts = Tag.counts;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.all`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.all`. */
 export const getTags: typeof Tag.all = Tag.all;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.visible`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.visible`. */
 export const getVisibleTags: typeof Tag.visible = Tag.visible;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.get`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.get`. */
 export const getTag: typeof Tag.get = Tag.get;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.names`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.names`. */
 export const tagIdsToNames: typeof Tag.names = Tag.names;
 
-/** @deprecated v0.12.1. Use `MMA.Tag.remove`. */
+/** @deprecated v0.12.0. Use `MMA.Tag.remove`. */
 export const deleteTags: typeof Tag.remove = Tag.remove;
 
-/** @deprecated v0.12.1. Use `MMA.Mutation.run`. */
+/** @deprecated v0.12.0. Use `MMA.Mutation.run`. */
 export const mutate: typeof Mutation.run = Mutation.run;
 
-/** @deprecated v0.12.1. Use `MMA.Mutation.settle`. */
+/** @deprecated v0.12.0. Use `MMA.Mutation.settle`. */
 export const settled: typeof Mutation.settle = Mutation.settle;
 
-/** @deprecated v0.12.1. Use `MMA.Query.read`. */
+/** @deprecated v0.12.0. Use `MMA.Query.read`. */
 export const read: typeof Query.read = Query.read;
 
-/** @deprecated v0.12.1. Use `MMA.Query.locationsOf`. */
+/** @deprecated v0.12.0. Use `MMA.Query.locationsOf`. */
 export const locationsOf: typeof Query.locationsOf = Query.locationsOf;
 
-/** @deprecated v0.12.1. Use `MMA.Location.add`. */
+/** @deprecated v0.12.0. Use `MMA.Location.add`. */
 export const addLocations: typeof Location.add = Location.add;
 
-/** @deprecated v0.12.1. Use `MMA.Location.duplicate`. */
+/** @deprecated v0.12.0. Use `MMA.Location.duplicate`. */
 export const duplicateLocation: typeof Location.duplicate = Location.duplicate;
 
-/** @deprecated v0.12.1. Use `MMA.Location.remove`. */
+/** @deprecated v0.12.0. Use `MMA.Location.remove`. */
 export const removeLocations: typeof Location.remove = Location.remove;
 
-/** @deprecated v0.12.1. Use `MMA.Location.update`. */
+/** @deprecated v0.12.0. Use `MMA.Location.update`. */
 export const updateLocations: typeof Location.update = Location.update;
 
-/** @deprecated v0.12.1. Use `MMA.Location.duplicateGroups`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Location.duplicateGroups`. @unstable */
 export const previewDuplicateGroups: typeof Location.duplicateGroups = Location.duplicateGroups;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.openImport`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.openImport`. @unstable */
 export const openStagedLocation: typeof Editor.openImport = Editor.openImport;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.preview`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.preview`. @unstable */
 export const previewLocation: typeof Editor.preview = Editor.preview;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.resolve`. */
+/** @deprecated v0.12.0. Use `MMA.Editor.resolve`. */
 export const resolveLocation: typeof Editor.resolve = Editor.resolve;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.open`. */
+/** @deprecated v0.12.0. Use `MMA.Editor.open`. */
 export const openLocation: typeof Editor.open = Editor.open;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.close`. */
+/** @deprecated v0.12.0. Use `MMA.Editor.close`. */
 export const closeLocation: typeof Editor.close = Editor.close;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.openDuplicate`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.openDuplicate`. @unstable */
 export const openDuplicateLocation: typeof Editor.openDuplicate = Editor.openDuplicate;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.removeDuplicate`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.removeDuplicate`. @unstable */
 export const removeDuplicate: typeof Editor.removeDuplicate = Editor.removeDuplicate;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.closeDuplicates`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.closeDuplicates`. @unstable */
 export const closeDuplicates: typeof Editor.closeDuplicates = Editor.closeDuplicates;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.setArea`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Editor.setArea`. @unstable */
 export const setWorkArea: typeof Editor.setArea = Editor.setArea;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.openPlugin`. */
+/** @deprecated v0.12.0. Use `MMA.Editor.openPlugin`. */
 export const setPluginMode: typeof Editor.openPlugin = Editor.openPlugin;
 
-/** @deprecated v0.12.1. Use `MMA.Editor.closePlugin`. */
+/** @deprecated v0.12.0. Use `MMA.Editor.closePlugin`. */
 export const exitPluginMode: typeof Editor.closePlugin = Editor.closePlugin;
 
-/** @deprecated v0.12.1. Use `MMA.Field.rename`. */
+/** @deprecated v0.12.0. Use `MMA.Field.rename`. */
 export const renameField: typeof Field.rename = Field.rename;
 
-/** @deprecated v0.12.1. Use `MMA.Field.remove`. */
+/** @deprecated v0.12.0. Use `MMA.Field.remove`. */
 export const deleteField: typeof Field.remove = Field.remove;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.active`. */
+/** @deprecated v0.12.0. Use `MMA.SelectionList.active`. */
 export const getActiveSelections: typeof SelectionList.active = SelectionList.active;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.update`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.SelectionList.update`. @unstable */
 export const applySelectionUpdate: typeof SelectionList.update = SelectionList.update;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.select`. */
+/** @deprecated v0.12.0. Use `MMA.SelectionList.select`. */
 export const select: typeof SelectionList.select = SelectionList.select;
 
-/** @deprecated v0.12.1. Use `MMA.History.available`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.History.available`. @unstable */
 export const historyAvailable: typeof History.available = History.available;
 
-/** @deprecated v0.12.1. Use `MMA.Commit.create`. */
+/** @deprecated v0.12.0. Use `MMA.Commit.create`. */
 export const commitMap: typeof Commit.create = Commit.create;
 
-/** @deprecated v0.12.1. Use `MMA.Commit.checkout`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Commit.checkout`. @unstable */
 export const checkoutCommit: typeof Commit.checkout = Commit.checkout;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.init`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.init`. @unstable */
 export const initStore: typeof Maps.init = Maps.init;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.open`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.open`. */
 export const openMap: typeof Maps.open = Maps.open;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.close`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.close`. */
 export const closeMap: typeof Maps.close = Maps.close;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.discard`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.discard`. @unstable */
 export const discardOpenMap: typeof Maps.discard = Maps.discard;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.tagIds`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIds`. @unstable */
 export const getSelectedTagIds: typeof SelectionList.tagIds = SelectionList.tagIds;
 
-/** @deprecated v0.12.1. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.SelectionList.tagIdsDeep`. @unstable */
 export const getSelectedTagIdsDeep: typeof SelectionList.tagIdsDeep = SelectionList.tagIdsDeep;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.useList`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.useList`. */
 export const useMapList: typeof Maps.useList = Maps.useList;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.list`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.list`. */
 export const getMapList: typeof Maps.list = Maps.list;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.reload`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.reload`. @unstable */
 export const reloadMapList: typeof Maps.reload = Maps.reload;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.invalidate`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.invalidate`. @unstable */
 export const invalidateMapList: typeof Maps.invalidate = Maps.invalidate;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.create`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.create`. */
 export const createMap: typeof Maps.create = Maps.create;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.duplicate`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.duplicate`. */
 export const duplicateMap: typeof Maps.duplicate = Maps.duplicate;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.remove`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.remove`. */
 export const deleteMap: typeof Maps.remove = Maps.remove;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.openScratch`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.openScratch`. */
 export const openScratchMap: typeof Maps.openScratch = Maps.openScratch;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.isReserved`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.isReserved`. @unstable */
 export const isReservedMap: typeof Maps.isReserved = Maps.isReserved;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.copyName`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.copyName`. @unstable */
 export const copyName: typeof Maps.copyName = Maps.copyName;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.renameFolder`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.renameFolder`. */
 export const renameFolder: typeof Maps.renameFolder = Maps.renameFolder;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.moveToFolder`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.moveToFolder`. */
 export const moveMapToFolder: typeof Maps.moveToFolder = Maps.moveToFolder;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.removeFolder`. */
+/** @deprecated v0.12.0. Use `MMA.Maps.removeFolder`. */
 export const deleteFolder: typeof Maps.removeFolder = Maps.removeFolder;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.registerBadges`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.registerBadges`. @unstable */
 export const registerMapBadges: typeof Maps.registerBadges = Maps.registerBadges;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.badgeSources`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.badgeSources`. @unstable */
 export const getMapBadgeSources: typeof Maps.badgeSources = Maps.badgeSources;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.badges`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.badges`. @unstable */
 export const getMapBadges: typeof Maps.badges = Maps.badges;
 
-/** @deprecated v0.12.1. Use `MMA.Maps.useBadges`. @unstable */
+/** @deprecated v0.12.0. Use `MMA.Maps.useBadges`. @unstable */
 export const useMapBadges: typeof Maps.useBadges = Maps.useBadges;
 
-/** @deprecated v0.12.1. Use `MMA.Edit`. */
+/** @deprecated v0.12.0. Use `MMA.Edit`. */
 export const edit: typeof Edit = Edit;
 
-/** @deprecated v0.12.1. Use `MMA.Autosave`. */
+/** @deprecated v0.12.0. Use `MMA.Autosave`. */
 export const autosave: typeof Autosave = Autosave;
 
-/** @deprecated v0.12.1. Use `MMA.MapHost.get`. */
+/** @deprecated v0.12.0. Use `MMA.MapHost.get`. */
 export const getMapHost: typeof MapHost.get = MapHost.get;
 
-/** @deprecated v0.12.1. Use `MMA.MapHost.wait`. */
+/** @deprecated v0.12.0. Use `MMA.MapHost.wait`. */
 export const waitForMapHost: typeof MapHost.wait = MapHost.wait;
 
-/** @deprecated v0.12.1. Use `MMA.Provider.register`. */
+/** @deprecated v0.12.0. Use `MMA.Provider.register`. */
 export const registerProvider: typeof Provider.register = Provider.register;

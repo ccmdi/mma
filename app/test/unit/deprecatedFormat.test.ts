@@ -14,7 +14,7 @@ const at = (doc: string) => `${doc}\nexport const a = 1;`;
 
 tester.run("deprecated-format", rule as never, {
 	valid: [
-		at("/** @deprecated v0.12.1. Use `MMA.Store.get`. */"),
+		at("/** @deprecated v0.12.0. Use `MMA.Store.get`. */"),
 		at("/** @deprecated v0.8.2. Read `MMA.Store.get().map`. @unstable */"),
 		at(
 			"/** @deprecated v0.11.3. A provider's `fieldDefs` are offered\n *  as enrichment options. @unstable */",
@@ -30,7 +30,7 @@ tester.run("deprecated-format", rule as never, {
 	invalid: [
 		{ code: at("/** @deprecated Use `MMA.Store.get`. */"), errors: [{ messageId: "format" }] },
 		{
-			code: at("/** @deprecated 0.12.1. Use `MMA.Store.get`. */"),
+			code: at("/** @deprecated 0.12.0. Use `MMA.Store.get`. */"),
 			errors: [{ messageId: "format" }],
 		},
 		{
@@ -38,27 +38,27 @@ tester.run("deprecated-format", rule as never, {
 			errors: [{ messageId: "format" }],
 		},
 		{
-			code: at("/** @deprecated v0.12.1 Use `MMA.Store.get`. */"),
+			code: at("/** @deprecated v0.12.0 Use `MMA.Store.get`. */"),
 			errors: [{ messageId: "format" }],
 		},
-		{ code: at("/** @deprecated v0.12.1. */"), errors: [{ messageId: "format" }] },
+		{ code: at("/** @deprecated v0.12.0. */"), errors: [{ messageId: "format" }] },
 		{
-			code: at("/** Reads the map. @deprecated v0.12.1. Use `MMA.Store.get`. */"),
+			code: at("/** Reads the map. @deprecated v0.12.0. Use `MMA.Store.get`. */"),
 			errors: [{ messageId: "format" }],
 		},
 		{
-			code: at("/** @deprecated v0.12.1. Use `a`. @deprecated v0.12.1. Use `b`. */"),
+			code: at("/** @deprecated v0.12.0. Use `a`. @deprecated v0.12.0. Use `b`. */"),
 			errors: [{ messageId: "single" }],
 		},
 		{
-			code: at("/** @deprecated v0.12.1. @unstable Use `MMA.Store.get`. */"),
+			code: at("/** @deprecated v0.12.0. @unstable Use `MMA.Store.get`. */"),
 			errors: [{ messageId: "order" }],
 		},
 		{
 			code: [
-				"/** @deprecated v0.12.1. Use `a`. */\nexport const a = 1;",
+				"/** @deprecated v0.12.0. Use `a`. */\nexport const a = 1;",
 				"/** @deprecated v0.11.3. Use `b`. */\nexport const b = 1;",
-				"/** @deprecated v0.12.0. Use `c`. */\nexport const c = 1;",
+				"/** @deprecated v0.11.4. Use `c`. */\nexport const c = 1;",
 			].join("\n"),
 			errors: [{ messageId: "chronology" }, { messageId: "chronology" }],
 		},

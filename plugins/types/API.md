@@ -1730,7 +1730,7 @@ Compatibility bindings for flat plugin calls.
 addLocations(locs: Location[]): Promise<number[]>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Location.add`.
+**Deprecated in v0.12.0.** Use `MMA.Location.add`.
 
 Add locations to the map and return their new ids, in order. Undoable.
 
@@ -1762,7 +1762,7 @@ addTagToLocations(tagId: number, locationIds: number[]): Promise<WorkResult>
 applySelectionUpdate(op: SelectionOp): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.update`.
+**Deprecated in v0.12.0.** Use `MMA.SelectionList.update`.
 
 Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }` to affect only active selections.
 
@@ -1770,7 +1770,7 @@ Update and resolve the listed selections. Wrap an op in `{ kind: "active", op }`
 
 `stable` · `deprecated` · since v0.12.0
 
-**Deprecated in v0.12.1.** Use `MMA.Autosave`.
+**Deprecated in v0.12.0.** Use `MMA.Autosave`.
 
 #### autosave.cancel
 
@@ -1841,7 +1841,7 @@ Wait until every save and background commit started so far has finished.
 checkoutCommit(commitId: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Commit.checkout`.
+**Deprecated in v0.12.0.** Use `MMA.Commit.checkout`.
 
 Restore a previous commit as a new revert commit and refresh the view. Clears undo/redo.
 
@@ -1853,7 +1853,7 @@ Restore a previous commit as a new revert commit and refresh the view. Clears un
 closeDuplicates(): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.closeDuplicates`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.closeDuplicates`.
 
 Close the duplicate-resolution panel and return to the overview.
 
@@ -1865,7 +1865,7 @@ Close the duplicate-resolution panel and return to the overview.
 closeLocation(): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.close`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.close`.
 
 Close the open location and return to the pane it was opened from.
 
@@ -1877,7 +1877,7 @@ Close the open location and return to the pane it was opened from.
 closeMap(): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.close`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.close`.
 
 Close the open map, saving unsaved changes first.
 
@@ -1889,7 +1889,7 @@ Close the open map, saving unsaved changes first.
 commitMap(message?: string): Promise<string>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Commit.create`.
+**Deprecated in v0.12.0.** Use `MMA.Commit.create`.
 
 Commit all pending changes to the map's version history. Clears the undo stack.
 
@@ -1901,7 +1901,7 @@ Commit all pending changes to the map's version history. Clears the undo stack.
 copyName(name: string): string
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.copyName`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.copyName`.
 
 The name a copy of the map named `name` starts with.
 
@@ -1947,7 +1947,7 @@ coverage(selector: Selector): Promise<[string, number][]>
 createMap(name: string, folder?: string | null): Promise<MapMeta>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.create`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.create`.
 
 Create a new empty map and return its metadata.
 
@@ -1979,7 +1979,7 @@ currentSelection(): Selector
 deleteField(key: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Field.remove`.
+**Deprecated in v0.12.0.** Use `MMA.Field.remove`.
 
 Delete extra-field `key` from every location, its definition, and the listed selections,
 in one undoable step.
@@ -1992,7 +1992,7 @@ in one undoable step.
 deleteFolder(name: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.removeFolder`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.removeFolder`.
 
 Delete a folder. Maps in it become unfoldered.
 
@@ -2004,7 +2004,7 @@ Delete a folder. Maps in it become unfoldered.
 deleteMap(id: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.remove`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.remove`.
 
 Permanently delete a map and all its data. Not undoable.
 
@@ -2016,7 +2016,7 @@ Permanently delete a map and all its data. Not undoable.
 deleteTags(tagIds: number[]): Promise<WorkResult>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.remove`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.remove`.
 
 Remove tags from every location in one undoable step.
 Unreferenced tags are hidden; undo restores them.
@@ -2029,7 +2029,7 @@ Unreferenced tags are hidden; undo restores them.
 discardOpenMap(): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.discard`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.discard`.
 
 Drop the open map without persisting anything
 
@@ -2041,7 +2041,7 @@ Drop the open map without persisting anything
 duplicateLocation(id: number): Promise<number | null>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Location.duplicate`.
+**Deprecated in v0.12.0.** Use `MMA.Location.duplicate`.
 
 Clone a location in place and return the new id, or null if it doesn't exist. Undoable.
 
@@ -2053,7 +2053,7 @@ Clone a location in place and return the new id, or null if it doesn't exist. Un
 duplicateMap(id: string, name: string): Promise<MapMeta>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.duplicate`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.duplicate`.
 
 Copy a map, uncommitted edits included, into a new map named `name` and return its metadata.
 
@@ -2061,7 +2061,7 @@ Copy a map, uncommitted edits included, into a new map named `name` and return i
 
 `stable` · `deprecated` · since v0.12.0
 
-**Deprecated in v0.12.1.** Use `MMA.Edit`.
+**Deprecated in v0.12.0.** Use `MMA.Edit`.
 
 #### edit.locations
 
@@ -2129,7 +2129,7 @@ changes are one undoable step.
 exitPluginMode(): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.closePlugin`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.closePlugin`.
 
 Close the plugin sidebar and return to the overview.
 
@@ -2233,7 +2233,7 @@ getActiveLocation(): Location | null
 getActiveSelections(): Selection[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.active`.
+**Deprecated in v0.12.0.** Use `MMA.SelectionList.active`.
 
 Listed selections that are not ghosted.
 
@@ -2298,7 +2298,7 @@ getGoogleMap(): google.maps.Map | null
 getMapBadges(): Map<string, MapBadge[]>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.badges`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.badges`.
 
 Badges per map id, from every registered source.
 
@@ -2310,7 +2310,7 @@ Badges per map id, from every registered source.
 getMapBadgeSources(): readonly BadgeSource[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.badgeSources`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.badgeSources`.
 
 Every registered badge source, in registration order.
 
@@ -2322,7 +2322,7 @@ Every registered badge source, in registration order.
 getMapHost(): MapHost | null
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.MapHost.get`.
+**Deprecated in v0.12.0.** Use `MMA.MapHost.get`.
 
 Return the main editor map host, or null if not mounted.
 
@@ -2334,7 +2334,7 @@ Return the main editor map host, or null if not mounted.
 getMapList(): MapMeta[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.list`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.list`.
 
 The list of all maps (metadata only).
 
@@ -2346,7 +2346,7 @@ The list of all maps (metadata only).
 getMapState(): Readonly<MapState>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Store.get`.
+**Deprecated in v0.12.0.** Use `MMA.Store.get`.
 
 Imperative snapshot of the map state.
 
@@ -2368,7 +2368,7 @@ getSelectedLocationIds(): SelectedIds
 getSelectedTagIds(): ReadonlySet<number>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.tagIds`.
+**Deprecated in v0.12.0.** Use `MMA.SelectionList.tagIds`.
 
 Tag ids with a top-level listed tag selection, including ghosted selections.
 
@@ -2380,7 +2380,7 @@ Tag ids with a top-level listed tag selection, including ghosted selections.
 getSelectedTagIdsDeep(): readonly number[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.tagIdsDeep`.
+**Deprecated in v0.12.0.** Use `MMA.SelectionList.tagIdsDeep`.
 
 Tag ids from active selection leaves, including repeated ids and composite children.
 
@@ -2402,7 +2402,7 @@ getSelections(): Selection[]
 getTag(id: number): Tag | undefined
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.get`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.get`.
 
 Look up a tag record, including unreferenced tags.
 
@@ -2414,7 +2414,7 @@ Look up a tag record, including unreferenced tags.
 getTagCounts(): Record<number, number>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.counts`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.counts`.
 
 Per-tag location counts, keyed by numeric id.
 
@@ -2426,7 +2426,7 @@ Per-tag location counts, keyed by numeric id.
 getTags(): Record<number, Tag>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.all`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.all`.
 
 Tag records, including unreferenced records and generated display defaults.
 
@@ -2438,7 +2438,7 @@ Tag records, including unreferenced records and generated display defaults.
 getVisibleTags(): Tag[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.visible`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.visible`.
 
 Tag records referenced by at least one location.
 
@@ -2464,7 +2464,7 @@ historyAvailable(
 ): boolean
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.History.available`.
+**Deprecated in v0.12.0.** Use `MMA.History.available`.
 
 Whether `timeline` can step back (undo) or forward (redo).
 
@@ -2476,7 +2476,7 @@ Whether `timeline` can step back (undo) or forward (redo).
 initStore(): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.init`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.init`.
 
 One-time store startup. The app calls this; plugins never need to.
 
@@ -2498,7 +2498,7 @@ installedVersion(pluginId: string): Promise<string | null>
 invalidateMapList(): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.invalidate`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.invalidate`.
 
 Refresh the map list and notify other windows of the change.
 
@@ -2510,7 +2510,7 @@ Refresh the map list and notify other windows of the change.
 isReservedMap(id: string | null): boolean
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.isReserved`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.isReserved`.
 
 Whether `id` belongs to an app fixture rather than a user-created map.
 
@@ -2522,7 +2522,7 @@ Whether `id` belongs to an app fixture rather than a user-created map.
 locationsOf(list: LocationList): Promise<Location[]>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Query.locationsOf`.
+**Deprecated in v0.12.0.** Use `MMA.Query.locationsOf`.
 
 The locations an answer carries, fetched from its temp file when it was too large to send inline.
 
@@ -2534,7 +2534,7 @@ The locations an answer carries, fetched from its temp file when it was too larg
 moveMapToFolder(mapId: string, folder: string | null): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.moveToFolder`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.moveToFolder`.
 
 Move a map into a folder, or to the root when `folder` is null.
 
@@ -2555,7 +2555,7 @@ mutate<
 ): Promise<R>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Mutation.run`.
+**Deprecated in v0.12.0.** Use `MMA.Mutation.run`.
 
 ### openDuplicateLocation
 
@@ -2565,7 +2565,7 @@ mutate<
 openDuplicateLocation(loc: Location): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.openDuplicate`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.openDuplicate`.
 
 Open one location from the duplicate-resolution panel in the editor.
 
@@ -2580,7 +2580,7 @@ openLocation(
 ): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.open`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.open`.
 
 Open a location in the editor. With `checkDuplicates`, opening a spot with 2+ locations
 within 2m opens the duplicate-resolution panel instead. A later opening or closing
@@ -2594,7 +2594,7 @@ supersedes one still loading.
 openMap(id: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.open`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.open`.
 
 Open a map in this window, closing any currently open map first.
 
@@ -2606,7 +2606,7 @@ Open a map in this window, closing any currently open map first.
 openScratchMap(): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.openScratch`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.openScratch`.
 
 Open the scratch map, creating it on first use.
 
@@ -2618,7 +2618,7 @@ Open the scratch map, creating it on first use.
 openStagedLocation(index: number): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.openImport`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.openImport`.
 
 Preview a copy of a staged-import location. The import row stays staged until Confirm.
 
@@ -2644,7 +2644,7 @@ partition(
 previewDuplicateGroups(distance: number): Promise<number[][]>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Location.duplicateGroups`.
+**Deprecated in v0.12.0.** Use `MMA.Location.duplicateGroups`.
 
 Read-only preview of transitive duplicate groups (size >= 2) within `distance` metres.
 
@@ -2656,7 +2656,7 @@ Read-only preview of transitive duplicate groups (size >= 2) within `distance` m
 previewLocation(loc: Location): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.preview`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.preview`.
 
 Open an arbitrary location read-only as a seen-preview: loads its pano without
 adding anything to the map. The caller sets LoadAsPanoId so the exact pano resolves.
@@ -2707,7 +2707,7 @@ read<A extends Ask>(
 ): Promise<ReadResult<AnswerOf<A["kind"]>>>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Query.read`.
+**Deprecated in v0.12.0.** Use `MMA.Query.read`.
 
 Ask one question about the locations `selector` matches. A full-location answer loads any
 backing file automatically; ask for ids or columns when full locations are unnecessary.
@@ -2741,7 +2741,7 @@ registerEnrichmentProvider(provider: Provider): void
 registerMapBadges(source: BadgeSource): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.registerBadges`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.registerBadges`.
 
 Add a source of map-row badges.
 
@@ -2753,7 +2753,7 @@ Add a source of map-row badges.
 registerProvider(provider: Provider): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Provider.register`.
+**Deprecated in v0.12.0.** Use `MMA.Provider.register`.
 
 Register a provider (e.g. a plugin's sun position). Unregistered when the plugin
 deactivates. Resolves once the provider can run.
@@ -2766,7 +2766,7 @@ deactivates. Resolves once the provider can run.
 reloadMapList(): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.reload`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.reload`.
 
 Refresh the map list from disk.
 
@@ -2778,7 +2778,7 @@ Refresh the map list from disk.
 removeDuplicate(id: number): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.removeDuplicate`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.removeDuplicate`.
 
 Drop a location from the duplicate-resolution panel (does not delete it).
 
@@ -2790,7 +2790,7 @@ Drop a location from the duplicate-resolution panel (does not delete it).
 removeLocations(ids: ReadonlyIdSet): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Location.remove`.
+**Deprecated in v0.12.0.** Use `MMA.Location.remove`.
 
 Remove locations by id. Undoable.
 
@@ -2836,7 +2836,7 @@ renameField(
 ): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Field.rename`.
+**Deprecated in v0.12.0.** Use `MMA.Field.rename`.
 
 Rename extra-field `from` to `to` across all locations, its definition, and the listed
 selections, in one undoable step. When a location already holds `to`, `winner` decides
@@ -2850,7 +2850,7 @@ which value survives. Saved selections are map-independent rules and keep their 
 renameFolder(from: string, to: string): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.renameFolder`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.renameFolder`.
 
 Rename a folder, moving all its maps to the new name.
 
@@ -2897,7 +2897,7 @@ resolveIds(selector: Selector): Promise<number[]>
 resolveLocation(m: MaybeLocation): Promise<Location | null>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.resolve`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.resolve`.
 
 Resolve a `MaybeLocation` (id or object) into a full `Location`, or null if not found.
 
@@ -2931,7 +2931,7 @@ select<
 }>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.SelectionList.select`.
+**Deprecated in v0.12.0.** Use `MMA.SelectionList.select`.
 
 ### setActiveLocation
 
@@ -2954,7 +2954,7 @@ setActiveLocation(
 setPluginMode(pluginId: string): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.openPlugin`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.openPlugin`.
 
 Open a plugin's sidebar (switches the editor pane to "plugin").
 
@@ -2966,7 +2966,7 @@ Open a plugin's sidebar (switches the editor pane to "plugin").
 settled(m: Mutation): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Mutation.settle`.
+**Deprecated in v0.12.0.** Use `MMA.Mutation.settle`.
 
 Resolves once the open map's state and its markers both show `m`. A mutation that reached
 no map (version 0) settles at once.
@@ -2991,7 +2991,7 @@ for plugin-owned defs.
 setWorkArea(area: WorkArea): void
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Editor.setArea`.
+**Deprecated in v0.12.0.** Use `MMA.Editor.setArea`.
 
 Transition the editor pane, enforcing state invariants:
 leaving "location" closes the open location, leaving "plugin" clears the plugin id.
@@ -3004,7 +3004,7 @@ leaving "location" closes the open location, leaving "plugin" clears the plugin 
 tagIdsToNames(ids: number[]): string[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Tag.names`.
+**Deprecated in v0.12.0.** Use `MMA.Tag.names`.
 
 Tag names for the given ids, skipping any that no longer resolve.
 
@@ -3016,7 +3016,7 @@ Tag names for the given ids, skipping any that no longer resolve.
 updateLocations(updates: Patch<Location>[]): Promise<void>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Location.update`.
+**Deprecated in v0.12.0.** Use `MMA.Location.update`.
 
 Patch locations by id. Only include the fields you're changing; `extra` merges
 per-key (null deletes a key). Undoable by default.
@@ -3029,7 +3029,7 @@ per-key (null deletes a key). Undoable by default.
 useMapBadges(): Map<string, MapBadge[]>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.useBadges`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.useBadges`.
 
 Reactive Maps.badges.
 
@@ -3041,7 +3041,7 @@ Reactive Maps.badges.
 useMapList(): MapMeta[]
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Maps.useList`.
+**Deprecated in v0.12.0.** Use `MMA.Maps.useList`.
 
 Reactive list of all maps (metadata only).
 
@@ -3053,7 +3053,7 @@ Reactive list of all maps (metadata only).
 useMapState<T>(selector: (s: MapState) => T): T
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.Store.use`.
+**Deprecated in v0.12.0.** Use `MMA.Store.use`.
 
 Reactive slice of the map state. Re-renders only when the selected value's
 reference changes (`Object.is`), so selectors must return state fields or
@@ -3077,7 +3077,7 @@ waitForGoogleMap(): Promise<google.maps.Map | null>
 waitForMapHost(): Promise<MapHost>
 ```
 
-**Deprecated in v0.12.1.** Use `MMA.MapHost.wait`.
+**Deprecated in v0.12.0.** Use `MMA.MapHost.wait`.
 
 Wait for the main editor map to be ready.
 
