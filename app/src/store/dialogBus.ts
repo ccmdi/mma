@@ -4,6 +4,7 @@ import type { Selector } from "@/types";
 type DialogPayloads = {
 	commit: void;
 	export: void;
+	enrichment: void;
 	import: void;
 	history: void;
 	seen: void;

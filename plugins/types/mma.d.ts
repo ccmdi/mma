@@ -4398,6 +4398,14 @@ declare const COMMANDS: {
         execute: () => void;
         enabled: typeof requiresMap;
     };
+    "open-enrichment": {
+        label: "Open enrichment";
+        icon: string;
+        group: "Map";
+        aliases: string[];
+        execute: () => void;
+        enabled: typeof requiresMap;
+    };
     "toggle-seen-overlay": {
         label: "Toggle seen locations overlay";
         icon: string;

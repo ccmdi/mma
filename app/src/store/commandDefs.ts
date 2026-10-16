@@ -51,6 +51,7 @@ import {
 	mdiBookOpenOutline,
 	mdiDownloadBoxOutline,
 	mdiFileDocumentOutline,
+	mdiDatabasePlusOutline,
 } from "@mdi/js";
 import { registerCommand, type CommandDef } from "./commands";
 import { addSelection } from "./selections";
@@ -186,6 +187,14 @@ const COMMANDS = {
 		icon: mdiEye,
 		group: msg("Map"),
 		execute: () => openDialog("seen"),
+		enabled: requiresMap,
+	},
+	"open-enrichment": {
+		label: msg("Open enrichment"),
+		icon: mdiDatabasePlusOutline,
+		group: msg("Map"),
+		aliases: ["metadata", "fields", "enrich"],
+		execute: () => openDialog("enrichment"),
 		enabled: requiresMap,
 	},
 	"toggle-seen-overlay": {

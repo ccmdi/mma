@@ -848,6 +848,7 @@
 	"Open a map to play": "マップを開いてプレイ",
 	"Open command palette": "コマンドパレットを開く",
 	"Open data folder": "データフォルダーを開く",
+	"Open enrichment": "エンリッチメントを開く",
 	"Open in browser": "ブラウザーで開く",
 	"Open in maps": "マップで開く",
 	"Open in {provider}": "{provider} で開く",

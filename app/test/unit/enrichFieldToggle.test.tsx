@@ -16,7 +16,8 @@ vi.mock("@/store/store", () => ({
 	},
 }));
 
-import { EnrichTab } from "@/components/editor/map/EnrichmentDialog";
+import { EnrichTab, EnrichmentButton } from "@/components/editor/map/EnrichmentDialog";
+import { openDialog } from "@/store/dialogBus";
 import { getDefaultEnrichKeys, getEnrichFieldOptions } from "@/lib/data/fieldDefs";
 import { Provider } from "@/lib/data/provider";
 import { createFieldDef } from "@/types";
@@ -149,6 +150,16 @@ describe("the Enrich tab shows what a field reads", () => {
 		expect(boxes[index("tabDate")].getAttribute("aria-checked")).toBe("false");
 		expect(rows[index("tabDate")].getAttribute("aria-disabled")).toBeNull();
 		expect(relation(rows[index("tabDate")])).toBeUndefined();
+		m.unmount();
+	});
+});
+
+describe("the Enrichment modal", () => {
+	it("opens from anywhere that asks for it, as if its header button were clicked", async () => {
+		const m = mount(<EnrichmentButton />);
+		expect(document.querySelector(".enrichment-modal")).toBeNull();
+		await act(async () => openDialog("enrichment"));
+		expect(document.querySelector(".enrichment-modal")).not.toBeNull();
 		m.unmount();
 	});
 });

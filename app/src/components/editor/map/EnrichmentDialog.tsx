@@ -27,6 +27,7 @@ import {
 	getDefaultEnrichKeys,
 	getEnrichFieldOptions,
 } from "@/lib/data/fieldDefs";
+import { useDialogState } from "@/store/dialogBus";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { getFieldDef, fieldLabel, getKnownFieldKeys } from "@/lib/data/fieldDefRegistry";
 import { useMapSetting } from "@/store/useMapSetting";
@@ -141,7 +142,7 @@ const TABS = [
 /** Header-level home for enrichment and metadata fields. Two jobs, two tabs: which
  *  fields to enrich (the everyday one), and how each field on the map is defined. */
 export function EnrichmentButton() {
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useDialogState("enrichment");
 	const [tab, setTab] = useState<Tab>("enrich");
 	const [enrichMetadata, setEnrichMetadata] = useMapSetting("enrichMetadata");
 	const [enrichFields, setEnrichFields] = useMapSetting("enrichFields");

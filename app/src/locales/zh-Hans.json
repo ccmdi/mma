@@ -848,6 +848,7 @@
 	"Open a map to play": "打开地图开始游戏",
 	"Open command palette": "打开命令面板",
 	"Open data folder": "打开数据文件夹",
+	"Open enrichment": "打开元数据扩展",
 	"Open in browser": "在浏览器中打开",
 	"Open in maps": "在地图中打开",
 	"Open in {provider}": "在 {provider} 中打开",
