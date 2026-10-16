@@ -15,12 +15,10 @@ use serde_json::value::RawValue;
 use serde_json::Value;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::fs;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::io;
 use std::io::Read;
-use std::path::Path;
 use std::time::Instant;
 
 /// Read a file with sequential-scan hints for better OS prefetch on cold reads.
@@ -267,11 +265,6 @@ pub(crate) fn parse_file(buf: &mut [u8]) -> ParsedMap {
             parse_csv(&text)
         }
     }
-}
-
-pub(super) fn parse_single_json(text: &str) -> ParsedMap {
-    let mut buf = text.as_bytes().to_vec();
-    parse_single_json_mut(&mut buf)
 }
 
 /// Scan raw bytes for `{...}` object boundaries inside a JSON array.
@@ -872,7 +865,8 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
     }
 }
 
-pub(super) fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
+/// Every `.json` file in the zip at `path`, in name order.
+pub(super) fn read_zip_entries(path: &str) -> AppResult<Vec<Vec<u8>>> {
     let file = File::open(path).map_err(|e| format!("Failed to open file: {e}"))?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {e}"))?;
 
@@ -883,21 +877,12 @@ pub(super) fn read_zip_entries(path: &str) -> AppResult<Vec<(String, String)>> {
             continue;
         }
         let name = entry.name().to_string();
-        let mut text = String::new();
-        entry.read_to_string(&mut text)?;
-        entries.push((name, text));
+        let mut bytes = Vec::new();
+        entry.read_to_end(&mut bytes)?;
+        entries.push((name, bytes));
     }
     entries.sort_by(|a, b| a.0.cmp(&b.0));
-    Ok(entries)
-}
-
-pub(super) fn read_single_json(path: &str) -> AppResult<Vec<(String, String)>> {
-    let text = fs::read_to_string(path).map_err(|e| format!("Failed to read file: {e}"))?;
-    let filename = Path::new(path)
-        .file_name()
-        .map(|f| f.to_string_lossy().to_string())
-        .unwrap_or_default();
-    Ok(vec![(filename, text)])
+    Ok(entries.into_iter().map(|(_, bytes)| bytes).collect())
 }
 
 /// Sole place an import's settings become `MapSettings`. Overlays the import's

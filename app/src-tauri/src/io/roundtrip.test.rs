@@ -3,7 +3,7 @@
 //! exactly what they are declared to lose. A field or piece of metadata nobody carries
 //! across fails here rather than in a user's backup.
 
-use super::parse::{parse_csv, parse_single_json};
+use super::parse::{parse_csv, parse_file};
 use crate::io::export::{csv_document, export_document, geojson_document, CoordOpts};
 use crate::store::engine::ValueRecord;
 use crate::test_util::tag_ids;
@@ -300,7 +300,7 @@ fn assert_shape_round_trip(fx: &Fixture, shape: MapShape) {
         fx.fields.clone(),
         &co,
     );
-    let parsed = parse_single_json(&doc.to_string());
+    let parsed = parse_file(&mut doc.to_string().into_bytes());
     let name = format!("{} as {shape:?}", fx.name);
     let name = name.as_str();
 

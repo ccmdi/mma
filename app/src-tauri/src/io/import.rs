@@ -149,14 +149,14 @@ fn write_map_to_db(
 
 /// Read a file (JSON, or a ZIP of JSONs parsed in parallel) into its maps.
 fn read_and_parse_maps(path: &str) -> AppResult<Vec<ParsedMap>> {
-    let entries = if path.ends_with(".zip") {
+    let files = if path.ends_with(".zip") {
         read_zip_entries(path)?
     } else {
-        read_single_json(path)?
+        vec![read_sequential(path)?]
     };
-    Ok(entries
-        .par_iter()
-        .map(|(_, text)| parse_single_json(text))
+    Ok(files
+        .into_par_iter()
+        .map(|mut bytes| parse_file(&mut bytes))
         .collect())
 }
 
