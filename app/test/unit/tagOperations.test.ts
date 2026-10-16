@@ -10,7 +10,7 @@ vi.mock("@/store/edit", () => ({ Edit: { values: vi.fn(), work: vi.fn() } }));
 beforeEach(() => {
 	vi.mocked(Edit.values)
 		.mockReset()
-		.mockResolvedValue({ mutation: { version: 1, keys: [8] } });
+		.mockResolvedValue({ version: 1, keys: [8] });
 	vi.mocked(Edit.work)
 		.mockReset()
 		.mockResolvedValue({ mutation: { version: 2, keys: [] }, changed: 3, failed: [] });
@@ -28,7 +28,7 @@ describe("tag record edits", () => {
 		]);
 	});
 	it("creates records with engine-assigned ids and returns all assigned keys", async () => {
-		vi.mocked(Edit.values).mockResolvedValue({ mutation: { version: 3, keys: [8, 12] } });
+		vi.mocked(Edit.values).mockResolvedValue({ version: 3, keys: [8, 12] });
 		expect(await Tag.create([{ name: "a" }, { name: "b", color: "#abc" }])).toEqual([8, 12]);
 		expect(Edit.values).toHaveBeenCalledExactlyOnceWith("tags", [
 			{ add: { id: 0, name: "a" } },
@@ -80,7 +80,7 @@ describe("tag assignment workflows", () => {
 		const selector = { type: "Everything" as const };
 		const pending = Tag.assign(selector, [{ name: "a" }, { name: "b" }]);
 		expect(Edit.work).not.toHaveBeenCalled();
-		finish({ mutation: { version: 1, keys: [8, 12] } });
+		finish({ version: 1, keys: [8, 12] });
 		expect(await pending).toMatchObject({ changed: 3 });
 		expect(Edit.work).toHaveBeenCalledExactlyOnceWith(selector, {
 			kind: "listSet",

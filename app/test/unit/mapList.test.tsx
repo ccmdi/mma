@@ -16,7 +16,7 @@ vi.mock("@/lib/commands", async () =>
 			disk.maps = disk.maps.map((m) =>
 				(m as MapMeta).id === patch.id ? { ...(m as MapMeta), folder: patch.folder } : m,
 			);
-			return { mutation: { version: 0, keys: [] } };
+			return { version: 0, keys: [] };
 		},
 	}),
 );

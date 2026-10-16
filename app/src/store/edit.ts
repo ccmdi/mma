@@ -15,7 +15,7 @@ export const Edit = {
 		records: Parameters<typeof cmd.storeEdit>[2] = {},
 	) => {
 		return Mutation.run(() => cmd.storeEdit(target, edits, records), {
-			...Mutation.none(),
+			mutation: Mutation.none(),
 			invalidated: [],
 		});
 	},
@@ -28,7 +28,7 @@ export const Edit = {
 		const id = patch.id ?? mapId;
 		if (!id) return;
 		const result = await cmd.storeUpdateMapMeta({ ...patch, id });
-		if (result) await Mutation.settle(result.mutation);
+		if (result) await Mutation.settle(result);
 		await Maps.invalidate();
 	},
 	/** Edit an interned field's value records in one undoable step. */
@@ -38,7 +38,7 @@ export const Edit = {
 	/** Run `op` across every location `selector` matches, in one undoable step. @unstable */
 	work: (selector: Selector, op: Work): Promise<WorkResult> => {
 		return Mutation.run(() => cmd.storeWork(selector, op), {
-			...Mutation.none(),
+			mutation: Mutation.none(),
 			changed: 0,
 			failed: [],
 		});

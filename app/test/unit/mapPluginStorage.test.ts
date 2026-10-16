@@ -106,7 +106,7 @@ describe("map metadata writes", () => {
 		vi.mocked(cmd.storeUpdateMapMeta).mockImplementationOnce(async (patch) => {
 			await metadataWritten(patch);
 			feed.deliver({ version: 1, added: [], removed: [], updated: [], derived: {} });
-			return { mutation: { version: 1, keys: [] } };
+			return { version: 1, keys: [] };
 		});
 		vi.useFakeTimers();
 		await Edit.meta({ id: "a", name: "first" });

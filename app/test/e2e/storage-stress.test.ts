@@ -462,7 +462,7 @@ describe("Unicode in all fields", () => {
 					"café crème", // diacritics
 					"Москва", // Cyrillic
 				].map((name) => ({ add: { id: 0, name } })),
-			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
+			).then(({ keys: ids }) => ids.map((id) => api.Tag.get(id)!));
 
 			const loc = api.createLocation({
 				lat: 35.6762,

@@ -7,7 +7,6 @@ import { refreshPolygonFills } from "@/lib/render/polygonFills";
 import { emit as emitEvent } from "@/lib/events";
 import { selection } from "./selections";
 import type { Selector } from "@/types";
-import type { MutationResult } from "@/bindings.gen";
 import { tagIdOf } from "@/store/selections";
 
 export const SelectionList = {
@@ -56,7 +55,7 @@ export const SelectionList = {
 	},
 	/** Run a mutation that may change the listed selections; when it does, redraw their fills
 	 *  and announce the change. @unstable */
-	run: async (write: () => Promise<MutationResult>) => {
+	run: async (write: () => Promise<Mutation>) => {
 		if (!Store.get().map) return;
 		const before = Store.get().selectionList;
 		await Mutation.run(write);

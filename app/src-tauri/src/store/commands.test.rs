@@ -254,7 +254,7 @@ fn whole_map_reads_and_landing_a_layer_are_spawned_off_the_main_thread() {
     fn land(
         state: tauri::State<'_, StoreState>,
         name: String,
-    ) -> impl Future<Output = AppResult<MutationResult>> + '_ {
+    ) -> impl Future<Output = AppResult<Mutation>> + '_ {
         store_land_layer(WindowLabel("w".into()), state, name)
     }
     let _ = (read, land);

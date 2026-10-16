@@ -71,7 +71,7 @@ export class Layer {
 		return this.enqueue(async () => {
 			if (!Store.get().map) return Mutation.none();
 			const result = await cmd.storeLandLayer(this.target.name);
-			void Mutation.settle(result.mutation).catch((error) =>
+			void Mutation.settle(result).catch((error) =>
 				log.error("[layer] land failed to settle:", error),
 			);
 			return result;

@@ -270,7 +270,7 @@ describe("Location persistence", () => {
 			const resolved = await api.Edit.values(
 				"tags",
 				["tag-x", "tag-y"].map((name) => ({ add: { id: 0, name } })),
-			).then(({ mutation: { keys: ids } }) => ids.map((id) => api.Tag.get(id)!));
+			).then(({ keys: ids }) => ids.map((id) => api.Tag.get(id)!));
 			return resolved.map((t) => t.id);
 		});
 

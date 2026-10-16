@@ -87,7 +87,7 @@ fn restoring_an_open_map_uses_history_and_clears_pending_and_selected_rows() {
             &mut None,
         );
     let result = restore_rows(&mut store, vec![loc(7, 7.0, 7.0)]);
-    assert_eq!(result.mutation.version, store.version);
+    assert_eq!(result.version, store.version);
     assert!(store.get_loc_by_id(Id::new(1)).is_none());
     assert_eq!(store.get_loc_by_id(Id::new(7)).unwrap().lat, 7.0);
     assert!(store.selections.ids.is_empty());
@@ -154,7 +154,7 @@ fn restoring_and_reading_a_version_are_spawned_off_the_main_thread() {
         state: State<'_, StoreState>,
         map_id: Id<MapMeta, String>,
         commit_id: Id<CommitInfo, String>,
-    ) -> impl Future<Output = AppResult<Option<engine::MutationResult>>> + '_ {
+    ) -> impl Future<Output = AppResult<Option<engine::Mutation>>> + '_ {
         store_checkout_commit(WindowLabel("w".into()), state, map_id, commit_id)
     }
     let _ = checkout;

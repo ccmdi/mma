@@ -35,12 +35,10 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 		setNames(next);
 		void (async () => {
 			try {
-				const { keys: tags } = (
-					await Edit.values(
-						"tags",
-						next.map((name) => ({ add: { id: 0, name } })),
-					)
-				).mutation;
+				const { keys: tags } = await Edit.values(
+					"tags",
+					next.map((name) => ({ add: { id: 0, name } })),
+				);
 				await Location.update([{ id: locationId, tags }]);
 			} catch (e) {
 				toast(e instanceof Error ? e.message : t("Could not update tags"));

@@ -59,7 +59,7 @@ export async function addParsedLocations(parsed: ParsedLocation[]) {
 			"tags",
 			tagNames.map((name) => ({ add: { id: 0, name } })),
 		)
-	).mutation.keys;
+	).keys;
 	const tagIdByName = new Map(tagNames.map((name, i) => [name.toLowerCase(), ids[i]]));
 	const locs = parsed.map((p) =>
 		createLocation({

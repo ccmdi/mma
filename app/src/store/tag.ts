@@ -74,7 +74,7 @@ export const Tag = {
 			"tags",
 			records.map((record) => ({ add: { ...record, id: 0 } })),
 		);
-		return result.mutation.keys;
+		return result.keys;
 	},
 	/** Set tag display order from an ordered list of ids. */
 	reorder: (ids: number[]) => {

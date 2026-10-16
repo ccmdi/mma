@@ -41,7 +41,7 @@ vi.mock("@/lib/commands", () => ({
 	cmd: {
 		storeLandLayer: async () => {
 			h.lands++;
-			return { mutation: { version: 5, keys: [] } };
+			return { version: 5, keys: [] };
 		},
 		storeEdit: async () => {
 			h.edits++;

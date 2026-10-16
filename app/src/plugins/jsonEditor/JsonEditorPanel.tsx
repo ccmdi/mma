@@ -27,7 +27,7 @@ async function resolveTagNames(names: string[]): Promise<number[]> {
 			"tags",
 			names.map((name) => ({ add: { id: 0, name } })),
 		)
-	).mutation.keys;
+	).keys;
 }
 
 export function JsonEditorPanel() {

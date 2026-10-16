@@ -83,12 +83,6 @@ pub struct Mutation<_T = Location> {
     pub(crate) history_cleared: bool,
 }
 
-/// What an edit did to the map.
-#[derive(serde::Serialize, specta::Type)]
-pub struct MutationResult<T = Location> {
-    pub mutation: Mutation<T>,
-}
-
 /// What a location edit did.
 #[derive(serde::Serialize, specta::Type)]
 pub struct EditResult {

@@ -631,13 +631,13 @@ declare const commands$1: {
     /** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. @unstable */
     storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key_1 in number]: ValueRecord; }; }) => Promise<EditResult>;
     /** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. @unstable */
-    storeLandLayer: (name: string) => Promise<MutationResult<Location>>;
+    storeLandLayer: (name: string) => Promise<Mutation<Location>>;
     /** Run work over every location matched by selector. @unstable */
     storeWork: (selector: Selector$1<SelectionInput>, work: Work) => Promise<WorkResult>;
     /** Edit an interned field's value records; membership uses ordinary location edits. @unstable */
-    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<MutationResult<ValueRecord>>;
+    storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => Promise<Mutation<ValueRecord>>;
     /** Edit the selection tree. @unstable */
-    storeEditSelections: (op: SelectionEdit) => Promise<MutationResult<ListedSelection>>;
+    storeEditSelections: (op: SelectionEdit) => Promise<Mutation<ListedSelection>>;
     /** Answer one question about the target's locations matched by selector. @unstable */
     storeRead: (target: Target, selector: Selector$1<SelectionInput>, ask: Ask) => Promise<Answer>;
     /**  Reports the window ready and returns the app's startup time and uptime. @unstable */
@@ -800,7 +800,7 @@ declare const commands$1: {
      */
     storeCountryDistribution: (selector: Selector$1<SelectionInput>, level: string) => Promise<[string, number][]>;
     /**  Undo the newest edit, or redo the newest undone one. @unstable */
-    storeStep: (stack: Stack, timeline: Timeline) => Promise<MutationResult<Location>>;
+    storeStep: (stack: Stack, timeline: Timeline) => Promise<Mutation<Location>>;
     /**  Compile unaddressed selections into keyed store inputs. @unstable */
     selectionBuild: (selections: SelectionInput[]) => Promise<Selection[]>;
     /**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. @unstable */
@@ -829,7 +829,7 @@ declare const commands$1: {
         settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & {
             pluginData?: { [key in string]: Op<{ [key_1 in string]: unknown; }, { [key_1 in string]: Op<unknown, unknown, null>; }, null>; };
         };
-    }) => Promise<MutationResult<Location> | null>;
+    }) => Promise<Mutation<Location> | null>;
     /**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. @unstable */
     storeMoveFolder: (from: string, to: string | null) => Promise<null>;
     /**  Return aggregate database statistics: counts, file size, and configuration. @unstable */
@@ -910,7 +910,7 @@ declare const commands$1: {
      *  a closed one is rewritten on disk and returns null.
      *  @unstable
      */
-    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<MutationResult<Location> | null>;
+    storeCheckoutCommit: (mapId: string, commitId: string) => Promise<Mutation<Location> | null>;
     /**  Read a single commit's change: the locations it added, removed and updated. @unstable */
     storeGetCommitDelta: (mapId: string, commitId: string) => Promise<Change<Location>>;
     /**  Record a panorama visit. The history is capped; oldest entries are evicted when full. @unstable */
@@ -2034,10 +2034,6 @@ type Mutation<_T = Location> = {
     version: number;
     /**  The key the store gave each keyless set, in the order they were written. */
     keys: number[];
-};
-/**  What an edit did to the map. */
-type MutationResult<T = Location> = {
-    mutation: Mutation<T>;
 };
 /**
  *  The syncable contract: the only fields that participate in diffing. Everything else is
@@ -3437,11 +3433,13 @@ declare const Query: {
 
 declare const Mutation: {
     /** The result of a mutation that reached no map. */
-    none: () => MutationResult;
+    none: () => Mutation;
     /** Resolves once the open map's state and its markers both show `m`. A mutation that reached
      *  no map (version 0) settles at once. */
     settle: (m: Mutation) => Promise<void>;
-    run: <R extends MutationResult = MutationResult>(fn: () => Promise<R>, ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]) => Promise<R>;
+    run: <R extends Mutation | {
+        mutation: Mutation;
+    } = Mutation>(fn: () => Promise<R>, ...fallback: Mutation extends R ? [empty?: R] : [empty: R]) => Promise<R>;
 };
 
 /** @unstable */
@@ -3456,7 +3454,7 @@ declare const SelectionList: {
     update: (op: SelectionOp) => Promise<void>;
     /** Run a mutation that may change the listed selections; when it does, redraw their fills
      *  and announce the change. @unstable */
-    run: (write: () => Promise<MutationResult>) => Promise<void>;
+    run: (write: () => Promise<Mutation>) => Promise<void>;
     /** @unstable */
     select: <R extends number[] | {
         ids: number[];
@@ -3493,7 +3491,7 @@ declare const Edit: {
         id?: string;
     }) => Promise<void>;
     /** Edit an interned field's value records in one undoable step. */
-    values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => Promise<MutationResult<ValueRecord>>;
+    values: (...[field, edits]: Parameters<typeof cmd.storeEditValues>) => Promise<Mutation<ValueRecord>>;
     /** Run `op` across every location `selector` matches, in one undoable step. @unstable */
     work: (selector: Selector, op: Work) => Promise<WorkResult>;
 };
@@ -3514,11 +3512,11 @@ declare const Tag: {
      * Unreferenced tags are hidden; undo restores them. */
     remove: (tagIds: number[]) => Promise<WorkResult>;
     /** Update tag display records in one undoable edit. */
-    update: (updates: Patch<Tag>[]) => Promise<MutationResult<ValueRecord>>;
+    update: (updates: Patch<Tag>[]) => Promise<Mutation<ValueRecord>>;
     /** Get or create tag records by name and return their ids. */
     create: (records: TagCreate[]) => Promise<number[]>;
     /** Set tag display order from an ordered list of ids. */
-    reorder: (ids: number[]) => Promise<MutationResult<ValueRecord>>;
+    reorder: (ids: number[]) => Promise<Mutation<ValueRecord>>;
     /** Move matching locations to a tag with the given name, optionally within a selector. */
     rename: (ids: number[], name: string, scope?: Selector | null) => Promise<void>;
     /** Get or create tag records and assign them to matching locations. */
@@ -3815,7 +3813,7 @@ declare class Layer {
     /** Stage location edits using the shared mutation path. */
     edit(edits: LocationEdits | ((read: LayerRead) => Promise<LocationEdits>)): Promise<EditResult>;
     /** Land the layer's edits as one undo step, resolving once the map accepts them; later writes to the layer join that step. A layer lands once. */
-    land(): Promise<MutationResult>;
+    land(): Promise<Mutation<Location>>;
     /** Close after queued operations finish. Edits not yet landed are discarded. */
     close(): Promise<void>;
 }
@@ -7889,4 +7887,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, MutationResult, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

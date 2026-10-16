@@ -224,7 +224,7 @@ pub async fn store_checkout_commit(
     state: State<'_, StoreState>,
     map_id: Id<MapMeta, String>,
     commit_id: Id<CommitInfo, String>,
-) -> AppResult<Option<engine::MutationResult>> {
+) -> AppResult<Option<engine::Mutation>> {
     task::block_in_place(|| {
         let conn = storage::open_db()?;
         let materialized = delta::materialize_commit(&conn, &map_id, &commit_id)?;
@@ -263,7 +263,7 @@ pub async fn store_checkout_commit(
     })
 }
 
-fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::MutationResult {
+fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutation {
     let current = store
         .at(&engine::Target::Map { id: None })
         .rows(&Selector::Everything);
@@ -274,15 +274,14 @@ fn restore_rows(store: &mut engine::Store, locs: Vec<Location>) -> engine::Mutat
         .into_iter()
         .map(|row| mma_algebra::Op::Remove(row.id))
         .chain(locs.into_iter().map(mma_algebra::Op::Set));
-    let mutation = store.write(
+    store.write(
         edits,
         &mut None,
         engine::Entry {
             selections,
             ..Default::default()
         },
-    );
-    engine::MutationResult { mutation }
+    )
 }
 
 /// Replace a closed map's base with `locs` and drop its uncommitted delta.

@@ -871,7 +871,7 @@ pub async fn store_delete_map(
 pub fn store_update_map_meta(
     state: tauri::State<'_, StoreState>,
     patch: Patch<MapMeta>,
-) -> AppResult<Option<engine::MutationResult>> {
+) -> AppResult<Option<engine::Mutation>> {
     update_map_meta(&mut *state.lock()?, &storage::open_db()?, patch)
 }
 
@@ -879,7 +879,7 @@ fn update_map_meta(
     mgr: &mut StoreManager,
     conn: &Connection,
     patch: Patch<MapMeta>,
-) -> AppResult<Option<engine::MutationResult>> {
+) -> AppResult<Option<engine::Mutation>> {
     let Ok(store) = mgr.store_for_map(&patch.id) else {
         storage::patch_row(
             conn,
@@ -899,16 +899,14 @@ fn update_map_meta(
     let next = current.patched(&patch);
     let meta =
         mma_algebra::Change::from_iter([mma_algebra::Transition::new(Some(current), Some(next))]);
-    Ok(Some(engine::MutationResult {
-        mutation: store.write(
-            [],
-            &mut None,
-            engine::Entry {
-                meta,
-                ..Default::default()
-            },
-        ),
-    }))
+    Ok(Some(store.write(
+        [],
+        &mut None,
+        engine::Entry {
+            meta,
+            ..Default::default()
+        },
+    )))
 }
 
 /// Move every map in folder `from` to folder `to`, or to the root when `to` is null.

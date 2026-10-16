@@ -14,8 +14,7 @@ export async function syncSelections(): Promise<{ ids: number[] }> {
 	const rows = Store.get().selectionList;
 	if (rows.length === 0) return { ids: [] };
 	await Mutation.settle(
-		(await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }))
-			.mutation,
+		await cmd.storeEditSelections({ kind: "set", selections: rows.map((r) => r.selection) }),
 	);
 	return { ids: await Query.read({ type: "Selected" }, { kind: "ids" }) };
 }

@@ -3,14 +3,13 @@ import { Store } from "./store";
 import { Autosave } from "./autosave";
 import { Feed } from "./feed";
 import type { Location } from "@/bindings.gen";
-import type { MutationResult } from "@/bindings.gen";
 import { Scene } from "@/lib/render/scene";
 
 export type Mutation<T = Location> = bindings.Mutation<T>;
 
 export const Mutation = {
 	/** The result of a mutation that reached no map. */
-	none: (): MutationResult => ({ mutation: { version: 0, keys: [] } }),
+	none: (): Mutation => ({ version: 0, keys: [] }),
 	/** Resolves once the open map's state and its markers both show `m`. A mutation that reached
 	 *  no map (version 0) settles at once. */
 	settle: async (m: Mutation): Promise<void> => {
@@ -19,13 +18,13 @@ export const Mutation = {
 		await Autosave.waitForInflight();
 		await caughtUp;
 	},
-	run: async <R extends MutationResult = MutationResult>(
+	run: async <R extends Mutation | { mutation: Mutation } = Mutation>(
 		fn: () => Promise<R>,
-		...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+		...fallback: Mutation extends R ? [empty?: R] : [empty: R]
 	): Promise<R> => {
 		if (!Store.get().map) return (fallback[0] ?? Mutation.none()) as R;
 		const r = await fn();
-		await Mutation.settle(r.mutation);
+		await Mutation.settle("mutation" in r ? r.mutation : r);
 		return r;
 	},
 };

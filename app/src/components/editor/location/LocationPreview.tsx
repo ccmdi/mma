@@ -222,7 +222,7 @@ export function LocationPreview() {
 							"tags",
 							pendingTags.map((name) => ({ add: { id: 0, name } })),
 						)
-					).mutation.keys
+					).keys
 				: [],
 		});
 		if (saved == null) return;

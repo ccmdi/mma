@@ -340,7 +340,7 @@ pub async fn store_step(
     state: tauri::State<'_, StoreState>,
     stack: Stack,
     timeline: Timeline,
-) -> AppResult<MutationResult> {
+) -> AppResult<Mutation> {
     with_store!(label, state, |store| {
         let _t = Instant::now();
         let map_id = store.meta.id.clone();
@@ -354,7 +354,7 @@ pub async fn store_step(
             store.steps[timeline].len(stack),
             _t.elapsed().as_millis()
         );
-        Ok(MutationResult { mutation })
+        Ok(mutation)
     })
 }
 
@@ -549,17 +549,17 @@ macro_rules! command_table {
                 let edited = store.at(&target).edit(edits, records, &mut None);
                 Ok(receipt(store, window, &target, edited))
             };
-            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> MutationResult => async |store| {
-                Ok(MutationResult { mutation: store.land(&name, &mut None) })
+            "Land a pending layer's edits on the map as one undoable step; later edits to it join that step." store_land_layer(name: String) -> Mutation => async |store| {
+                Ok(store.land(&name, &mut None))
             };
             "Run work over every location matched by selector." store_work(selector: Selector<SelectionInput>, work: Work) -> WorkResult => async |store| {
                 apply_work(store, &selector.map_children(SelectionInput::compile), &work)
             };
-            "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> MutationResult<ValueRecord> => |store| {
-                Ok(MutationResult { mutation: store.edit_values(&field, edits)? })
+            "Edit an interned field's value records; membership uses ordinary location edits." store_edit_values(field: String, edits: Vec<Edit<ValueRecord>>) -> Mutation<ValueRecord> => |store| {
+                store.edit_values(&field, edits)
             };
 
-            "Edit the selection tree." store_edit_selections(op: SelectionEdit) -> MutationResult<ListedSelection> => |store| {
+            "Edit the selection tree." store_edit_selections(op: SelectionEdit) -> Mutation<ListedSelection> => |store| {
                 let op = op.resolved(store)?;
                 Ok(store.edit_selections(&op))
             };

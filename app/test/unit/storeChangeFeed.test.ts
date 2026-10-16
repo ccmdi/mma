@@ -256,7 +256,7 @@ describe("work on no map", () => {
 		Maps.discard();
 		const r = await Edit.work({ type: "Everything" }, { kind: "delete", keys: ["alt"] });
 		expect(r).toEqual({ mutation: { version: 0, keys: [] }, changed: 0, failed: [] });
-		expect(r.mutation).not.toBe(Mutation.none().mutation);
+		expect(r.mutation).not.toBe(Mutation.none());
 	});
 });
 

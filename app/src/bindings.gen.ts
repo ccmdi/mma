@@ -9,13 +9,13 @@ export const commands = {
 	/** Edit locations where target says; an open pending layer holds edits until it lands. Rows refer to interned values such as tags by their ids in `records`; each is matched to the map's value of the same name, created when missing. */
 	storeEdit: (target: Target, edits: (Op<Location, Partial<Location> & Pick<Location, "id">, number>)[], records: { [key in string]: { [key in number]: ValueRecord } }) => __TAURI_INVOKE<EditResult>("store_edit", { target, edits, records }),
 	/** Land a pending layer's edits on the map as one undoable step; later edits to it join that step. */
-	storeLandLayer: (name: string) => __TAURI_INVOKE<MutationResult>("store_land_layer", { name }),
+	storeLandLayer: (name: string) => __TAURI_INVOKE<Mutation>("store_land_layer", { name }),
 	/** Run work over every location matched by selector. */
 	storeWork: (selector: Selector<SelectionInput>, work: Work) => __TAURI_INVOKE<WorkResult>("store_work", { selector, work }),
 	/** Edit an interned field's value records; membership uses ordinary location edits. */
-	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<MutationResult<ValueRecord>>("store_edit_values", { field, edits }),
+	storeEditValues: (field: string, edits: (Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>)[]) => __TAURI_INVOKE<Mutation<ValueRecord>>("store_edit_values", { field, edits }),
 	/** Edit the selection tree. */
-	storeEditSelections: (op: SelectionEdit) => __TAURI_INVOKE<MutationResult<ListedSelection>>("store_edit_selections", { op }),
+	storeEditSelections: (op: SelectionEdit) => __TAURI_INVOKE<Mutation<ListedSelection>>("store_edit_selections", { op }),
 	/** Answer one question about the target's locations matched by selector. */
 	storeRead: (target: Target, selector: Selector<SelectionInput>, ask: Ask) => __TAURI_INVOKE<Answer>("store_read", { target, selector, ask }),
 	/**  Reports the window ready and returns the app's startup time and uptime. */
@@ -163,7 +163,7 @@ export const commands = {
 	 */
 	storeCountryDistribution: (selector: Selector<SelectionInput>, level: string) => __TAURI_INVOKE<([string, number])[]>("store_country_distribution", { selector, level }),
 	/**  Undo the newest edit, or redo the newest undone one. */
-	storeStep: (stack: Stack, timeline: Timeline) => __TAURI_INVOKE<MutationResult>("store_step", { stack, timeline }),
+	storeStep: (stack: Stack, timeline: Timeline) => __TAURI_INVOKE<Mutation>("store_step", { stack, timeline }),
 	/**  Compile unaddressed selections into keyed store inputs. */
 	selectionBuild: (selections: SelectionInput[]) => __TAURI_INVOKE<Selection[]>("selection_build", { selections }),
 	/**  Draw the open map's markers: `frames` receives the whole scene, then every change to it. */
@@ -186,7 +186,7 @@ export const commands = {
 	 *  Open maps save through their store; value records are edited separately.
 	 *  A closed map writes straight to disk and returns null.
 	 */
-	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<MutationResult | null>("store_update_map_meta", { patch }),
+	storeUpdateMapMeta: (patch: Partial<Omit<MapMeta, "locationCount" | "pending" | "createdAt" | "updatedAt" | "lastOpenedAt" | "settings">> & Pick<MapMeta, "id"> & { settings?: Partial<Omit<MapSettings, keyof MapPreferences | "pluginData">> & (Partial<MapPreferences>) & { pluginData?: { [key in string]: Op<{ [key in string]: unknown }, { [key in string]: Op<unknown, unknown, null> }, null> } } }) => __TAURI_INVOKE<Mutation | null>("store_update_map_meta", { patch }),
 	/**  Move every map in folder `from` to folder `to`, or to the root when `to` is null. */
 	storeMoveFolder: (from: string, to: string | null) => __TAURI_INVOKE<null>("store_move_folder", { from, to }),
 	/**  Return aggregate database statistics: counts, file size, and configuration. */
@@ -257,7 +257,7 @@ export const commands = {
 	 *  Restore a map to a previous commit. An open map changes through its normal write path;
 	 *  a closed one is rewritten on disk and returns null.
 	 */
-	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<MutationResult | null>("store_checkout_commit", { mapId, commitId }),
+	storeCheckoutCommit: (mapId: string, commitId: string) => __TAURI_INVOKE<Mutation | null>("store_checkout_commit", { mapId, commitId }),
 	/**  Read a single commit's change: the locations it added, removed and updated. */
 	storeGetCommitDelta: (mapId: string, commitId: string) => __TAURI_INVOKE<Change<Location>>("store_get_commit_delta", { mapId, commitId }),
 	/**  Record a panorama visit. The history is capped; oldest entries are evicted when full. */
@@ -1089,11 +1089,6 @@ export type Mutation<_T = Location> = {
 	version: number,
 	/**  The key the store gave each keyless set, in the order they were written. */
 	keys: number[],
-};
-
-/**  What an edit did to the map. */
-export type MutationResult<T = Location> = {
-	mutation: Mutation<T>,
 };
 
 /**

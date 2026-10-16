@@ -2099,7 +2099,7 @@ Settings merge key by key, so send only the keys that change.
 ```ts
 edit.values(
   ...props: Parameters<typeof cmd.storeEditValues>
-): Promise<MutationResult<ValueRecord>>
+): Promise<Mutation<ValueRecord>>
 ```
 
 Edit an interned field's value records in one undoable step.
@@ -2536,9 +2536,15 @@ Move a map into a folder, or to the root when `folder` is null.
 `stable` · `deprecated` · since v0.4.0
 
 ```ts
-mutate<R extends MutationResult = MutationResult>(
+mutate<
+  R extends
+    | Mutation
+    | {
+        mutation: Mutation;
+      } = Mutation,
+>(
   fn: () => Promise<R>,
-  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+  ...fallback: Mutation extends R ? [empty?: R] : [empty: R]
 ): Promise<R>
 ```
 
@@ -3821,7 +3827,7 @@ Settings merge key by key, so send only the keys that change.
 ```ts
 Edit.values(
   ...props: Parameters<typeof cmd.storeEditValues>
-): Promise<MutationResult<ValueRecord>>
+): Promise<Mutation<ValueRecord>>
 ```
 
 Edit an interned field's value records in one undoable step.
@@ -4011,7 +4017,7 @@ Move matching locations to a tag with the given name, optionally within a select
 `stable` · since v0.12.0
 
 ```ts
-Tag.reorder(ids: number[]): Promise<MutationResult<ValueRecord>>
+Tag.reorder(ids: number[]): Promise<Mutation<ValueRecord>>
 ```
 
 Set tag display order from an ordered list of ids.
@@ -4021,7 +4027,7 @@ Set tag display order from an ordered list of ids.
 `stable` · since v0.12.0
 
 ```ts
-Tag.update(updates: Patch<Tag>[]): Promise<MutationResult<ValueRecord>>
+Tag.update(updates: Patch<Tag>[]): Promise<Mutation<ValueRecord>>
 ```
 
 Update tag display records in one undoable edit.
@@ -4794,7 +4800,7 @@ Run mutations and wait for their state and display updates.
 `stable` · since v0.12.0
 
 ```ts
-Mutation.none(): MutationResult
+Mutation.none(): Mutation
 ```
 
 The result of a mutation that reached no map.
@@ -4804,9 +4810,15 @@ The result of a mutation that reached no map.
 `stable` · since v0.12.0
 
 ```ts
-Mutation.run<R extends MutationResult = MutationResult>(
+Mutation.run<
+  R extends
+    | Mutation
+    | {
+        mutation: Mutation;
+      } = Mutation,
+>(
   fn: () => Promise<R>,
-  ...fallback: MutationResult extends R ? [empty?: R] : [empty: R]
+  ...fallback: Mutation extends R ? [empty?: R] : [empty: R]
 ): Promise<R>
 ```
 
@@ -6395,7 +6407,7 @@ Fails with the reason the app could not start, and succeeds when it started norm
 cmd.storeCheckoutCommit(
   mapId: string,
   commitId: string,
-): Promise<MutationResult<Location> | null>
+): Promise<Mutation<Location> | null>
 ```
 
 Restore a map to a previous commit. An open map changes through its normal write path;
@@ -6529,7 +6541,7 @@ Edit locations where target says; an open pending layer holds edits until it lan
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeEditSelections(op: SelectionEdit): Promise<MutationResult<ListedSelection>>
+cmd.storeEditSelections(op: SelectionEdit): Promise<Mutation<ListedSelection>>
 ```
 
 Edit the selection tree.
@@ -6552,7 +6564,7 @@ Apply the edits uploaded in `session` (see `storeUploadBegin`) at `target`, as o
 cmd.storeEditValues(
   field: string,
   edits: Op<ValueRecord, Partial<ValueRecord> & Pick<ValueRecord, "id">, number>[],
-): Promise<MutationResult<ValueRecord>>
+): Promise<Mutation<ValueRecord>>
 ```
 
 Edit an interned field's value records; membership uses ordinary location edits.
@@ -6663,7 +6675,7 @@ positions for the editor import dialog. Call `storeImportFile` to commit the imp
 `unstable` · since v0.12.0
 
 ```ts
-cmd.storeLandLayer(name: string): Promise<MutationResult<Location>>
+cmd.storeLandLayer(name: string): Promise<Mutation<Location>>
 ```
 
 Land a pending layer's edits on the map as one undoable step; later edits to it join that step.
@@ -6892,7 +6904,7 @@ that already exist keep their own.
 cmd.storeStep(
   stack: Stack,
   timeline: Timeline,
-): Promise<MutationResult<Location>>
+): Promise<Mutation<Location>>
 ```
 
 Undo the newest edit, or redo the newest undone one.
@@ -6939,7 +6951,7 @@ cmd.storeUpdateMapMeta(
           };
         };
     },
-): Promise<MutationResult<Location> | null>
+): Promise<Mutation<Location> | null>
 ```
 
 Patch map metadata, leaving omitted fields unchanged.
@@ -8271,7 +8283,7 @@ Listed selections that are not ghosted.
 `unstable` · since v0.12.0
 
 ```ts
-SelectionList.run(write: () => Promise<MutationResult>): Promise<void>
+SelectionList.run(write: () => Promise<Mutation>): Promise<void>
 ```
 
 Run a mutation that may change the listed selections; when it does, redraw their fills

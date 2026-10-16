@@ -361,7 +361,7 @@ impl SelectionState {
 }
 
 impl Store {
-    pub(crate) fn edit_selections(&mut self, op: &SelectionOp) -> MutationResult<ListedSelection> {
+    pub(crate) fn edit_selections(&mut self, op: &SelectionOp) -> Mutation<ListedSelection> {
         let rows = op.apply(&self.selections.list());
         let selections = self.selections.change(&SelectionDelta::default(), |_| rows);
         let written = self.write(
@@ -372,12 +372,10 @@ impl Store {
                 ..Default::default()
             },
         );
-        MutationResult {
-            mutation: Mutation {
-                version: written.version,
-                keys: Vec::new(),
-                history_cleared: written.history_cleared,
-            },
+        Mutation {
+            version: written.version,
+            keys: Vec::new(),
+            history_cleared: written.history_cleared,
         }
     }
 

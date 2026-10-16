@@ -40,7 +40,7 @@ vi.mock("@/store/edit", () => ({
 vi.mock("@/store/mutation", () => ({
 	Mutation: {
 		run: (write: () => Promise<unknown>) => write(),
-		none: () => ({ mutation: { version: 0, keys: [] } }),
+		none: () => ({ version: 0, keys: [] }),
 		settle: () => new Promise(() => {}),
 	},
 }));
@@ -58,7 +58,7 @@ vi.mock("@/lib/commands", () => ({
 		storeLandLayer: async (name: string) => {
 			h.order.push("land");
 			h.lands.push(name);
-			return { mutation: { version: 0, keys: [] } };
+			return { version: 0, keys: [] };
 		},
 		storeCloseLayer: async (name: string, mapId?: string) => {
 			h.order.push("drop");

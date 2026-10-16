@@ -47,7 +47,7 @@ vi.mock("@/lib/commands", () => ({
 		},
 		storeEditSelections: async (op: { kind: string; id: string }) => {
 			h.added.push(op.id);
-			return { mutation: { version: 0, keys: [] } };
+			return { version: 0, keys: [] };
 		},
 		storeSaveSelection: async (
 			name: string,

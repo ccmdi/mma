@@ -158,7 +158,7 @@ export async function selectionsHeld(value: unknown) {
 	const state = Store.get();
 	Object.assign(state, { selectionList: apply(op, state.selectionList) });
 	if (state.map) Store.patch({ map: state.map });
-	return { mutation: { version: 0, keys: [] } };
+	return { version: 0, keys: [] };
 }
 
 export async function metadataWritten(patch: unknown) {
@@ -201,7 +201,7 @@ export async function metadataWritten(patch: unknown) {
 		}
 		Store.patch({ map: { ...state.map, ...change, settings } as import("@/bindings.gen").MapMeta });
 	}
-	return { mutation: { version: 0, keys: [] } };
+	return { version: 0, keys: [] };
 }
 
 export function cmdProxy(handlers: Handlers) {

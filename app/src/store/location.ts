@@ -3,7 +3,7 @@ import { Store } from "./store";
 import { Mutation } from "./mutation";
 import { Query } from "./query";
 import { Edit } from "./edit";
-import type { MutationResult, Target } from "@/bindings.gen";
+import type { EditResult, Target } from "@/bindings.gen";
 import type { Patch } from "@/types";
 import type { ReadonlyIdSet } from "@/lib/render/CellManager";
 import { cmd } from "@/lib/commands";
@@ -19,7 +19,7 @@ const ADD_CHUNK = 5000;
 
 /** Stage `locs` as chunked JSON adds in an upload session, then commit them in one mutation.
  *  Only one chunk is serialized at a time, so peak memory is O(chunk), not O(batch). */
-async function addViaUpload(locs: Location[]): Promise<MutationResult> {
+async function addViaUpload(locs: Location[]): Promise<EditResult> {
 	const session = await cmd.storeUploadBegin();
 	try {
 		for (let i = 0, n = 0; i < locs.length; i += ADD_CHUNK, n++) {
@@ -43,7 +43,10 @@ export const Location = {
 		const t = trace("add");
 		const r =
 			locs.length > ADD_CHUNK
-				? await Mutation.run(() => addViaUpload(locs))
+				? await Mutation.run(() => addViaUpload(locs), {
+						mutation: Mutation.none(),
+						invalidated: [],
+					})
 				: await Edit.locations(
 						MAP,
 						locs.map((l) => ({ add: l })),
