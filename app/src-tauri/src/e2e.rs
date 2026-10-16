@@ -45,16 +45,18 @@ fn rewrite_origin(url: &str, origin: &str) -> String {
     format!("{}{}", origin.trim_end_matches('/'), path)
 }
 
-/// There is no credential store and no interactive sign-in, so the harness hands over the
-/// session the proxy is expected to replay. Seeded once at startup, so a logout during a
-/// run clears it for good exactly as in production.
-pub(crate) fn seed_gg_session() {
+/// `builder` driven by the harness: reachable over webdriver, and signed in to GeoGuessr with
+/// the session the harness hands over, since there is no credential store and no interactive
+/// sign-in. Seeded once at startup, so a logout during a run clears it for good exactly as in
+/// production.
+pub(crate) fn install(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wry> {
     if let Some(ncfa) = std::env::var("MMA_E2E_GG_NCFA")
         .ok()
         .filter(|v| !v.is_empty())
     {
         let _ = geoguessr::set_session(Some(ncfa));
     }
+    builder.plugin(tauri_plugin_webdriver::init())
 }
 
 #[cfg(test)]

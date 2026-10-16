@@ -527,9 +527,6 @@ fn setup(app: &mut tauri::App) -> Result<(), Box<dyn error::Error>> {
         log::info!("[startup] migrations: {}ms", t.elapsed().as_millis());
     }
 
-    #[cfg(feature = "e2e")]
-    e2e::seed_gg_session();
-
     thread::spawn(|| {
         plugins::borders::update_border_files();
         plugins::borders::warm();
@@ -635,7 +632,7 @@ pub fn run() {
     let builder = manage_command_state(builder);
 
     #[cfg(feature = "e2e")]
-    let builder = builder.plugin(tauri_plugin_webdriver::init());
+    let builder = e2e::install(builder);
 
     builder
         .build(tauri::generate_context!())
