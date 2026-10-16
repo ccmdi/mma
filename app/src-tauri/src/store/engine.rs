@@ -128,7 +128,7 @@ pub struct Store {
     pub(crate) alive_count: Tracked<usize>,
 
     pub(crate) overlay: Tracked<Overlay>,
-    /// Net row changes since the last commit, recounted whenever the overlay moves.
+    /// Net row changes since the last commit, recounted whenever a moved overlay ships.
     pub(crate) pending_counts: Tracked<Counts>,
     pub(crate) render: RenderState,
     pub(crate) selections: SelectionState,
@@ -226,7 +226,7 @@ impl Store {
                 fields: (*self.field_defs).clone(),
             },
             location_count: *self.alive_count as i64,
-            pending: self.overlay_diff_counts(),
+            pending: *self.pending_counts,
             ..(*self.meta).clone()
         }
     }
@@ -234,7 +234,12 @@ impl Store {
     /// The derived state whose sources moved since they last shipped. Changes that are not
     /// held in a tracked slice, such as field values, join it per change.
     fn shipped(&mut self) -> Derived {
-        self.count_pending();
+        if self.overlay.ship() {
+            let counts = self.overlay_diff_counts();
+            if counts != *self.pending_counts {
+                self.pending_counts.replace(counts);
+            }
+        }
         let unsaved = self.is_unsaved();
         if unsaved != *self.has_unsaved {
             self.has_unsaved.replace(unsaved);
@@ -292,16 +297,6 @@ impl Store {
                 writing_layers: Some((*self.writing_layers).clone()),
                 unsaved: Some(*self.has_unsaved),
             },
-        }
-    }
-
-    /// Recount the pending changes if the overlay moved since they were last counted.
-    fn count_pending(&mut self) {
-        if self.overlay.ship() {
-            let counts = self.overlay_diff_counts();
-            if counts != *self.pending_counts {
-                self.pending_counts.replace(counts);
-            }
         }
     }
 

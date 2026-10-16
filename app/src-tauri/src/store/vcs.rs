@@ -94,7 +94,7 @@ pub async fn store_commit(
         let pre_bake = if !genesis && !store.overlay.is_empty() {
             Some((
                 store.overlay.to_delta(store.batch.as_ref()),
-                store.overlay_diff_counts(),
+                *store.pending_counts,
             ))
         } else {
             None

@@ -344,7 +344,7 @@ impl Store {
                 steps.is_unsaved().then(|| steps.stamp((**steps).clone()))
             },
             alive: *self.alive_count,
-            pending: self.overlay_diff_counts(),
+            pending: *self.pending_counts,
         }))
     }
 
