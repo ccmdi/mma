@@ -72,8 +72,6 @@ async function importLocations(valiLocs: ValiLocation[], tagName: string): Promi
 	return locations.length;
 }
 
-/** Vali serialises work behind a single cancel token, so a generate and a download must never
- *  overlap -- the second start would leave the first uncancellable. */
 export type ValiBusy = "generate" | "download" | null;
 
 export function valiMessageAction(
