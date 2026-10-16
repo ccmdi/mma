@@ -14,7 +14,6 @@ use crate::types::{AppError, AppResult, Location};
 use crate::util::now_iso;
 use mma_algebra::{Edit, Id, Op};
 use std::time::Instant;
-use tauri::async_runtime;
 use tauri::ipc::Channel;
 use tokio::task;
 
@@ -96,20 +95,6 @@ pub async fn store_close_map(
     state: tauri::State<'_, StoreState>,
 ) -> AppResult<()> {
     close_window(&state, &label).await
-}
-
-/// Close a window's map binding when its webview goes away without a proper close.
-pub fn release_window_binding(app: &tauri::AppHandle, label: &str) {
-    let Some(state) = tauri::Manager::try_state::<StoreState>(app) else {
-        return;
-    };
-    // The webserve release callback runs on a synchronous HTTP worker; wait here so its
-    // flush cannot be cancelled when the callback returns and destroys the client webview.
-    let closed =
-        async_runtime::block_on(close_window(state.inner(), &WindowLabel(label.to_string())));
-    if let Err(e) = closed {
-        log::error!("[close_map] flush for released window '{label}' failed: {e}");
-    }
 }
 
 /// Close a pending layer. Edits not yet landed are discarded; work still writing to a landed layer finishes first.
