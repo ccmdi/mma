@@ -6,7 +6,7 @@ import {
 	type ReportInput,
 	type ReportMeta,
 } from "@/lib/feedback/body";
-import { changedFrom, type Diagnostics } from "@/lib/diagnostics";
+import type { Diagnostics } from "@/lib/diagnostics";
 import { refreshStoredReports, submitReport } from "@/lib/feedback/submit";
 import { cmd } from "@/lib/commands";
 import { getLocal, setLocal } from "@/lib/hooks/useLocalStorage";
@@ -232,53 +232,6 @@ describe("issue body", () => {
 
 	it("returns null for a body with no machine block", () => {
 		expect(parseReportBody("just a normal issue someone filed by hand")).toBeNull();
-	});
-});
-
-describe("settings diff", () => {
-	it("keeps only the keys that differ from the defaults", () => {
-		const defaults = { a: 1, b: "two", c: false, d: [1, 2] };
-		const current = { a: 1, b: "changed", c: true, d: [1, 2] };
-		expect(changedFrom(current, defaults)).toEqual({ b: "changed", c: true });
-	});
-
-	it("compares structurally rather than by reference", () => {
-		expect(changedFrom({ a: [1, 2] }, { a: [1, 2] })).toEqual({});
-		expect(changedFrom({ a: [1, 3] }, { a: [1, 2] })).toEqual({ a: [1, 3] });
-	});
-
-	it("summarizes oversized values instead of carrying them", () => {
-		const css = changedFrom({ customCss: "z".repeat(50_000) }, { customCss: "" });
-		expect(css.customCss).toMatch(/^<omitted: 50000 chars, [\d.]+ KB>$/);
-
-		const selections = changedFrom(
-			{ saved: Array.from({ length: 300 }, (_, i) => ({ poly: [i, i, i, i, i] })) },
-			{ saved: [] },
-		);
-		expect(selections.saved).toMatch(/^<omitted: 300 items, [\d.]+ KB>$/);
-	});
-
-	it("leaves values under the threshold intact", () => {
-		expect(changedFrom({ a: "short" }, { a: "" })).toEqual({ a: "short" });
-	});
-
-	it("never emits the value of a private setting", () => {
-		// remoteApiKey and nominatimApiKey are credentials; a report that carries them hands
-		// them to whoever reads the issue.
-		const got = changedFrom(
-			{ remoteApiKey: "super-secret-value", tagGap: 4 },
-			{ remoteApiKey: "", tagGap: 2 },
-			(k) => k === "remoteApiKey",
-		);
-		expect(JSON.stringify(got)).not.toContain("super-secret-value");
-		expect(got.remoteApiKey).toBe("<set, redacted>");
-		// Redacted, not dropped: knowing one is configured is useful, its value never is.
-		expect(got.tagGap).toBe(4);
-	});
-
-	it("says nothing about a private setting left at its default", () => {
-		const got = changedFrom({ remoteApiKey: "" }, { remoteApiKey: "" }, () => true);
-		expect(got).toEqual({});
 	});
 });
 

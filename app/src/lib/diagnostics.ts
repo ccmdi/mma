@@ -140,22 +140,6 @@ function summarize(value: unknown): unknown {
 	return `<omitted: ${size}>`;
 }
 
-/** Keys of `current` whose value differs from `defaults`, with oversized values summarized and
- *  `private` keys reduced to a presence marker -- a report should say the user has an API key
- *  configured, never what it is. */
-export function changedFrom<T extends Record<string, unknown>>(
-	current: T,
-	defaults: T,
-	isPrivate: (key: string) => boolean = () => false,
-): Record<string, unknown> {
-	const out: Record<string, unknown> = {};
-	for (const [k, v] of Object.entries(current)) {
-		if (JSON.stringify(v) === JSON.stringify(defaults[k])) continue;
-		out[k] = isPrivate(k) ? "<set, redacted>" : summarize(v);
-	}
-	return out;
-}
-
 async function pluginList(): Promise<string[]> {
 	const enabled = getEnabledPlugins().map((p) => p.id);
 	let versions = new Map<string, string>();
@@ -220,8 +204,13 @@ export async function collectDiagnostics(): Promise<Diagnostics> {
 			foreignKeys: db.foreignKeys,
 		},
 		plugins,
-		changedSettings: changedFrom(getSettings(), DEFAULTS, (k) =>
-			PRIVATE_SETTINGS.has(k as keyof AppSettings),
+		changedSettings: Object.fromEntries(
+			Object.entries(getSettings())
+				.filter(([k, v]) => JSON.stringify(v) !== JSON.stringify(DEFAULTS[k as keyof AppSettings]))
+				.map(([k, v]) => [
+					k,
+					PRIVATE_SETTINGS.has(k as keyof AppSettings) ? "<set, redacted>" : summarize(v),
+				]),
 		),
 		map,
 	};
