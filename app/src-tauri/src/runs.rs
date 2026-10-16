@@ -20,7 +20,10 @@ fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-pub(crate) fn next_run_id() -> u32 {
+/// Reserve an id for a job before starting it, so the results it streams carry the id and `runCancel` can stop it.
+#[tauri::command]
+#[specta::specta]
+pub fn run_reserve() -> u32 {
     static NEXT: AtomicU32 = AtomicU32::new(1);
     NEXT.fetch_add(1, Ordering::Relaxed)
 }
@@ -44,7 +47,10 @@ pub(crate) fn unregister_run(run_id: u32) -> Option<RunEntry> {
     runs().lock().ok()?.remove(&run_id)
 }
 
-pub(crate) fn cancel_run(run_id: u32) -> AppResult<()> {
+/// Stop a run. Work it already finished stays done, and a run that has ended ignores this.
+#[tauri::command]
+#[specta::specta]
+pub async fn run_cancel(run_id: u32) -> AppResult<()> {
     if let Some(run) = runs().lock()?.get(&run_id) {
         run.cancel.store(true, Ordering::Relaxed);
     }

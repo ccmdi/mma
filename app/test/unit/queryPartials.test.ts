@@ -27,8 +27,8 @@ vi.mock("@/lib/commands", () => ({
 			h.token = token;
 			return new Promise<string>((resolve) => (h.resolveQuery = resolve));
 		},
-		procedureReserveRun: () => Promise.resolve(41),
-		procedureCancel: () => Promise.resolve(null),
+		runReserve: () => Promise.resolve(41),
+		runCancel: () => Promise.resolve(null),
 	},
 }));
 

@@ -1,13 +1,13 @@
 use super::*;
 use crate::net::fetch::{RateSpec, RetrySpec, SendFn, DEFAULT_INFLIGHT, TRANSIENT_STATUSES};
 use crate::procedure::quickjs::JsProcedure;
+use crate::runs::run_reserve;
 use crate::store::arrow;
 use crate::store::engine::{render_cell_idx, Stage, Store, StoreManager, Tracked};
 use crate::test_util::{loc, loc_ids, tag_ids};
 use crate::types::{LocationFlags, RawExtra};
 use mma_algebra::{Change, Id, Op, Patch, Patchable};
 use std::{env, thread};
-use tauri::async_runtime;
 use tokio::time;
 
 // -----------------------------------------------------------------------
@@ -2673,16 +2673,6 @@ fn a_cancelled_run_leaves_nothing_reported() {
 }
 
 #[test]
-fn a_reserved_run_id_is_never_handed_out_again_and_cancels_like_any_run() {
-    let reserved = async_runtime::block_on(procedure_reserve_run());
-    assert_ne!(next_run_id(), reserved);
-    let cancel = register_run(reserved, None).unwrap();
-    async_runtime::block_on(procedure_cancel(reserved)).unwrap();
-    assert!(cancel.load(Ordering::Relaxed));
-    drop(unregister_run(reserved));
-}
-
-#[test]
 fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     let (state, map_id) = setup(&[]);
     let label = WindowLabel("pending-layer-lifetime".into());
@@ -2699,8 +2689,8 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
         );
     }
 
-    let first = next_run_id();
-    let second = next_run_id();
+    let first = run_reserve();
+    let second = run_reserve();
     let (_, first_cancel) = register_store_run(&state, &label, first, target.clone()).unwrap();
     let (_, second_cancel) = register_store_run(&state, &label, second, target.clone()).unwrap();
     {
@@ -2710,7 +2700,7 @@ fn a_released_pending_layer_waits_for_its_last_registered_writer() {
     assert!(first_cancel.load(Ordering::Relaxed));
     assert!(second_cancel.load(Ordering::Relaxed));
 
-    let late = next_run_id();
+    let late = run_reserve();
     assert!(register_store_run(&state, &label, late, target.clone()).is_err());
     assert!(unregister_run(late).is_none());
 
@@ -2770,7 +2760,7 @@ fn dropping_a_landed_pending_layer_does_not_cancel_its_writer() {
         store.land("draft", &mut None);
     }
 
-    let run_id = next_run_id();
+    let run_id = run_reserve();
     let (_, cancel) = register_store_run(&state, &label, run_id, target).unwrap();
     {
         let mut manager = state.lock().unwrap();

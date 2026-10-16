@@ -240,6 +240,8 @@ export async function runCompute(
 					},
 				],
 				true,
+				null,
+				await cmd.runReserve(),
 			);
 			// Not every row can produce the field (a compute pass needs its input), so the
 			// run is done when the count stops moving, not when it reaches the row count.

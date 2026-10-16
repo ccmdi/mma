@@ -10,9 +10,9 @@ export async function cancellable<T>(
 ): Promise<T> {
 	signal?.throwIfAborted();
 	if (!signal && !streams) return call(null);
-	const runId = await cmd.procedureReserveRun();
+	const runId = await cmd.runReserve();
 	const onAbort = () => {
-		void cmd.procedureCancel(runId);
+		void cmd.runCancel(runId);
 	};
 	signal?.addEventListener("abort", onAbort);
 	try {

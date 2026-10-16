@@ -239,9 +239,9 @@ pub fn specta_builder() -> tauri_specta::Builder<tauri::Wry> {
                 procedure::engine::procedure_run,
                 procedure::registry::provider_register,
                 procedure::registry::provider_unregister,
-                procedure::engine::procedure_cancel,
                 procedure::engine::procedure_query,
-                procedure::engine::procedure_reserve_run,
+                runs::run_reserve,
+                runs::run_cancel,
                 procedure::engine::procedure_activity,
             ]
         ))

@@ -234,32 +234,26 @@ export const Procedure = {
 			}
 		};
 
-		// Listen before the run starts, buffering until the id it belongs to is known.
-		let runId: number | null = null;
-		const pending: ProcedureProgress[] = [];
-		const pendingResults: ProcedureResult[] = [];
+		const runId = await cmd.runReserve();
 		const unlisten = await events.procedureProgress.listen((e) => {
-			if (runId === null) pending.push(e.payload);
-			else if (e.payload.runId === runId) handle(e.payload);
+			if (e.payload.runId === runId) handle(e.payload);
 		});
 		const unlistenResults = await events.procedureResult.listen((e) => {
-			if (runId === null) pendingResults.push(e.payload);
-			else if (e.payload.runId === runId) gather(e.payload);
+			if (e.payload.runId === runId) gather(e.payload);
 		});
 
 		const onAbort = () => {
-			if (runId !== null) void cmd.procedureCancel(runId);
+			void cmd.runCancel(runId);
 			settle();
 		};
 		const releaseAutosave = Autosave.hold();
 		try {
-			runId = await cmd.procedureRun(
+			await cmd.procedureRun(
 				scheduled.map((s) => s.item),
 				force,
 				target,
+				runId,
 			);
-			for (const r of pendingResults) if (r.runId === runId) gather(r);
-			for (const p of pending) if (p.runId === runId) handle(p);
 			if (signal?.aborted) onAbort();
 			signal?.addEventListener("abort", onAbort);
 			await ended;

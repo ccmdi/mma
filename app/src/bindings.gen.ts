@@ -52,16 +52,14 @@ export const commands = {
 	/**  Installed sidecar version for a plugin, or `null` if not installed. */
 	sidecarInstalledVersion: (pluginId: string) => __TAURI_INVOKE<string | null>("sidecar_installed_version", { pluginId }),
 	/**
-	 *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
-	 *  `serve` go to the plugin's resident process; the rest get a one-shot child.
-	 *  Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
-	 *  then exactly one `sidecar-done`, all keyed by the returned request id.
+	 *  Run one unit of work on a plugin's sidecar under a `runId` from `runReserve`. Commands the
+	 *  manifest lists under `serve` go to the plugin's resident process; the rest get a one-shot
+	 *  child, which `runCancel` kills. Streams `sidecar-line` (one JSON object per unit) and
+	 *  `sidecar-log` (stderr), then exactly one `sidecar-done`, all keyed by the run id.
 	 */
-	sidecarRequest: (pluginId: string, command: string, payload: string | null) => __TAURI_INVOKE<number>("sidecar_request", { pluginId, command, payload }),
+	sidecarRequest: (pluginId: string, command: string, payload: string | null, runId: number) => __TAURI_INVOKE<null>("sidecar_request", { pluginId, command, payload, runId }),
 	/**  Stop all sidecar processes for a plugin, or for every plugin when the id is null. */
 	sidecarStop: (pluginId: string | null) => __TAURI_INVOKE<null>("sidecar_stop", { pluginId }),
-	/**  Cancel a running sidecar request. No-op if the request already finished. */
-	sidecarCancel: (reqId: number) => __TAURI_INVOKE<null>("sidecar_cancel", { reqId }),
 	/**  Whether the border dataset for `level` is available on disk. */
 	checkBorderFile: (level: string) => __TAURI_INVOKE<boolean>("check_border_file", { level }),
 	/**  Download the border dataset for `level` from the repository. */
@@ -325,14 +323,15 @@ export const commands = {
 	/**  Sign out of GeoGuessr and clear the stored session. */
 	geoguessrLogout: () => __TAURI_INVOKE<null>("geoguessr_logout"),
 	/**
-	 *  Generate locations from a Vali map definition (JSON text). Missing country
-	 *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
+	 *  Generate locations from a Vali map definition (JSON text). Missing country data is
+	 *  auto-downloaded like the Vali CLI. A `runId` from `runReserve` lets `runCancel` stop it.
 	 */
-	valiGenerate: (definition: string) => __TAURI_INVOKE<ValiLocation[]>("vali_generate", { definition }).then((v) => (v.map(i=>i) as typeof v)),
-	/**  Download Vali coverage data for a country code or continent alias, or for every country when `country` is null. */
-	valiDownload: (country: string | null, full: boolean, updates: boolean) => __TAURI_INVOKE<null>("vali_download", { country, full, updates }),
-	/**  Cancel an in-flight vali generate or download. */
-	valiCancel: () => __TAURI_INVOKE<void>("vali_cancel"),
+	valiGenerate: (definition: string, runId: number | null) => __TAURI_INVOKE<ValiLocation[]>("vali_generate", { definition, runId }).then((v) => (v.map(i=>i) as typeof v)),
+	/**
+	 *  Download Vali coverage data for a country code or continent alias, or for every country
+	 *  when `country` is null. A `runId` from `runReserve` lets `runCancel` stop it.
+	 */
+	valiDownload: (country: string | null, full: boolean, updates: boolean, runId: number | null) => __TAURI_INVOKE<null>("vali_download", { country, full, updates, runId }),
 	/**
 	 *  Countries whose downloaded coverage data is older than the published copy. Fails while
 	 *  offline; treat that as unknown, not up to date.
@@ -340,32 +339,33 @@ export const commands = {
 	valiDataStatus: () => __TAURI_INVOKE<ValiCountryStatus[]>("vali_data_status").then((v) => (v.map(i=>i) as typeof v)),
 	/**
 	 *  Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
-	 *  is stale, so the caller can fire it without checking first.
+	 *  is stale, so the caller can fire it without checking first. A `runId` from `runReserve`
+	 *  lets `runCancel` stop it.
 	 */
-	valiDownloadStale: () => __TAURI_INVOKE<null>("vali_download_stale"),
+	valiDownloadStale: (runId: number | null) => __TAURI_INVOKE<null>("vali_download_stale", { runId }),
 	/**
-	 *  Start a procedure run over an open map's locations, this window's unless the target names
-	 *  another. Returns immediately with the run id. Emits `procedure-progress` and
+	 *  Start a procedure run under a reserved id over an open map's locations, this window's unless
+	 *  the target names another. Returns at once, then emits `procedure-progress` and
 	 *  `procedure-result` as work completes.
 	 */
-	procedureRun: (items: RunItem[], force: boolean, target: Target | null) => __TAURI_INVOKE<number>("procedure_run", { items, force, target }),
+	procedureRun: (items: RunItem[], target: Target | null, runId: number) => __TAURI_INVOKE<null>("procedure_run", { items, target, runId }),
 	/**  Register a provider, replacing one with the same id. */
 	providerRegister: (provider: ProviderDef) => __TAURI_INVOKE<null>("provider_register", { provider }),
 	/**  Remove a registered provider. */
 	providerUnregister: (id: string) => __TAURI_INVOKE<null>("provider_unregister", { id }),
-	/**  Stop a run before its next batch. Already-applied patches stay applied. */
-	procedureCancel: (runId: number) => __TAURI_INVOKE<null>("procedure_cancel", { runId }),
 	/**
 	 *  Run a procedure's read-only `query` export. `input` and the result are defined
-	 *  by the procedure module. A `runId` from `procedureReserveRun` streams partial results
-	 *  under it and lets `procedureCancel` stop the query.
+	 *  by the procedure module. A `runId` from `runReserve` streams partial results
+	 *  under it and lets `runCancel` stop the query.
 	 */
 	procedureQuery: (procedure: ProcedureDecl, input: string, runId: number | null) => __TAURI_INVOKE<string>("procedure_query", { procedure, input, runId }),
 	/**
-	 *  Reserve a run id up front, for a query or location run that answers only when it is over:
-	 *  its streamed results carry the id, and `procedureCancel` stops it.
+	 *  Reserve an id for a job before starting it, so the results it streams carry the id and
+	 *  `runCancel` can stop it.
 	 */
-	procedureReserveRun: () => __TAURI_INVOKE<number>("procedure_reserve_run"),
+	runReserve: () => __TAURI_INVOKE<number>("run_reserve"),
+	/**  Stop a run. Work it already finished stays done, and a run that has ended ignores this. */
+	runCancel: (runId: number) => __TAURI_INVOKE<null>("run_cancel", { runId }),
 	/**  What the procedure engine is working on right now. */
 	procedureActivity: () => __TAURI_INVOKE<ProcedureActivity>("procedure_activity"),
 };
@@ -1224,7 +1224,7 @@ export type PluginBuild_Deserialize = {
 	ref: string,
 	minAppVersion: string | null,
 	/**  The sidecar this build ships, so a half-installed one can be repaired. */
-	sidecar?: PluginSidecar_Deserialize | null,
+	sidecar?: PluginSidecar | null,
 };
 
 /**  A published build of a plugin. */
@@ -1250,7 +1250,7 @@ export type PluginManifest_Deserialize = {
 	experimental?: boolean,
 	comingSoon?: boolean,
 	minAppVersion?: string | null,
-	sidecar?: PluginSidecar_Deserialize | null,
+	sidecar?: PluginSidecar | null,
 	/**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
 	builds?: PluginBuild_Deserialize[],
 };
@@ -1273,21 +1273,10 @@ export type PluginManifest = {
 	builds?: PluginBuild[],
 };
 
-
-/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
-export type PluginSidecar_Deserialize = {
-	name: string,
-	version: string,
-	/**  Expected SHA-256 hex digest of the platform-specific zip archive. */
-	sha256: string | null,
-};
-
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 export type PluginSidecar = {
 	name: string,
 	version: string,
-	/**  Expected SHA-256 hex digest of the platform-specific zip archive. */
-	sha256?: string | null,
 };
 
 /**  How points are drawn inside a polygon. */
@@ -1350,7 +1339,10 @@ export type ProcedureActivity = {
  *  the run and the procedure's own configuration.
  */
 export type ProcedureConfig<T> = {
-	/**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
+	/**
+	 *  The fields the run wants written, extra-field keys and core columns alike. Empty means
+	 *  every field the procedure produces.
+	 */
 	fields: string[],
 	/**  Recompute locations that already hold every wanted field. */
 	force: boolean,
@@ -1428,8 +1420,8 @@ export type ProviderActivity = {
 };
 
 /**
- *  One provider as the app declares it. `fields` are the extra keys it produces
- *  and `requires` the keys it consumes; together they gate who waits for whom.
+ *  One provider as the app declares it. `fields` are the fields it writes and `requires`
+ *  the fields it reads; together they gate who waits for whom.
  */
 export type ProviderDecl = {
 	id: string,
@@ -1439,12 +1431,8 @@ export type ProviderDecl = {
 	select: Selector<SelectionInput>,
 	batch: BatchMode,
 	sink?: Sink,
-	/**
-	 *  Re-derive this provider's fields even on a run that is not forced. For an
-	 *  operation whose whole point is to recompute one provider (pinning re-resolves the
-	 *  panorama) rather than to fill in what is missing.
-	 */
-	force?: boolean | null,
+	/**  Recompute locations that already hold every field this provider writes. */
+	force?: boolean,
 	/**
 	 *  Instances this provider may run at once. Declared only when the procedure
 	 *  cannot run beside itself; throughput comes from `inflight`.
@@ -1542,12 +1530,12 @@ export type ReviewSession = {
 export type RunItem = 
 /**  A registered provider, with what this run sets on it. */
 { kind: "provider"; id: string; 
-/**  Extra-field keys to produce. When absent, every key the provider declares. */
-fields?: string[] | null; select: Selector<SelectionInput>; 
+/**  The extra-field keys to produce, from those the provider declares. */
+fields: string[]; select: Selector<SelectionInput>; 
 /**  Replaces the registered configuration, as JSON text. */
 config?: string | null; 
-/**  Re-derive its fields even on a run that is not forced. */
-force?: boolean | null } | 
+/**  Recompute locations that already hold every field it writes. */
+force?: boolean } | 
 /**  A procedure declared in full by the caller. */
 {
 	kind: "procedure",
@@ -1734,18 +1722,18 @@ export type SideCounts = {
 };
 
 export type SidecarDone = {
-	reqId: number,
+	runId: number,
 	error: string | null,
 };
 
 export type SidecarLine = {
-	reqId: number,
+	runId: number,
 	line: string,
 };
 
 /**  A log line from a plugin's sidecar. */
 export type SidecarLog = {
-	reqId: number,
+	runId: number,
 	line: string,
 };
 

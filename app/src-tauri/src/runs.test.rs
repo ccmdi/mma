@@ -1,13 +1,20 @@
 use super::*;
+use tauri::async_runtime;
+
+#[test]
+fn a_reserved_run_id_is_never_handed_out_again() {
+    let reserved = run_reserve();
+    assert_ne!(run_reserve(), reserved);
+}
 
 #[test]
 fn a_cancel_reaches_only_the_run_it_names() {
-    let (a, b) = (next_run_id(), next_run_id());
+    let (a, b) = (run_reserve(), run_reserve());
     let (cancel_a, cancel_b) = (
         register_run(a, None).unwrap(),
         register_run(b, None).unwrap(),
     );
-    cancel_run(a).unwrap();
+    async_runtime::block_on(run_cancel(a)).unwrap();
     assert!(cancel_a.load(Ordering::Relaxed));
     assert!(!cancel_b.load(Ordering::Relaxed));
     drop(unregister_run(a));
@@ -16,10 +23,10 @@ fn a_cancel_reaches_only_the_run_it_names() {
 
 #[test]
 fn an_unregistered_run_ignores_a_cancel() {
-    let id = next_run_id();
+    let id = run_reserve();
     let cancel = register_run(id, None).unwrap();
     assert!(unregister_run(id).is_some());
-    cancel_run(id).unwrap();
+    async_runtime::block_on(run_cancel(id)).unwrap();
     assert!(!cancel.load(Ordering::Relaxed));
     assert!(unregister_run(id).is_none());
 }
@@ -35,7 +42,7 @@ fn only_writers_to_the_named_pending_layer_are_cancelled() {
             },
         ))
     };
-    let (draft, other) = (next_run_id(), next_run_id());
+    let (draft, other) = (run_reserve(), run_reserve());
     let draft_cancel = register_run(draft, pending("draft")).unwrap();
     let other_cancel = register_run(other, pending("other")).unwrap();
 

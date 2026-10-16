@@ -388,7 +388,7 @@ declare const OFFICIAL_ID_PATTERN: "^[-_A-Za-z0-9]{21}[AQgw]$";
 /** @unstable */
 declare const EFFECT_CALLS: readonly ["fetch", "panos", "sidecar"];
 /** @unstable */
-declare const PLAIN_CALLS: readonly ["classify", "neighbors", "progress", "fail", "emit", "aborted"];
+declare const PLAIN_CALLS: readonly ["log", "tz", "classify", "neighbors", "progress", "fail", "emit", "aborted"];
 /** @unstable */
 declare const DEFAULT_DUPLICATE_SCORE: "tagCount + has(panoId) + loadAsPanoId + (heading != 0)";
 declare const KNOWN_FIELDS: readonly [{
@@ -677,17 +677,15 @@ declare const commands$1: {
     /**  Installed sidecar version for a plugin, or `null` if not installed. @unstable */
     sidecarInstalledVersion: (pluginId: string) => Promise<string | null>;
     /**
-     *  Run one unit of work on a plugin's sidecar. Commands the manifest lists under
-     *  `serve` go to the plugin's resident process; the rest get a one-shot child.
-     *  Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
-     *  then exactly one `sidecar-done`, all keyed by the returned request id.
+     *  Run one unit of work on a plugin's sidecar under a `runId` from `runReserve`. Commands the
+     *  manifest lists under `serve` go to the plugin's resident process; the rest get a one-shot
+     *  child, which `runCancel` kills. Streams `sidecar-line` (one JSON object per unit) and
+     *  `sidecar-log` (stderr), then exactly one `sidecar-done`, all keyed by the run id.
      *  @unstable
      */
-    sidecarRequest: (pluginId: string, command: string, payload: string | null) => Promise<number>;
+    sidecarRequest: (pluginId: string, command: string, payload: string | null, runId: number) => Promise<null>;
     /**  Stop all sidecar processes for a plugin, or for every plugin when the id is null. @unstable */
     sidecarStop: (pluginId: string | null) => Promise<null>;
-    /**  Cancel a running sidecar request. No-op if the request already finished. @unstable */
-    sidecarCancel: (reqId: number) => Promise<null>;
     /**  Whether the border dataset for `level` is available on disk. @unstable */
     checkBorderFile: (level: string) => Promise<boolean>;
     /**  Download the border dataset for `level` from the repository. @unstable */
@@ -982,15 +980,17 @@ declare const commands$1: {
     /**  Sign out of GeoGuessr and clear the stored session. @unstable */
     geoguessrLogout: () => Promise<null>;
     /**
-     *  Generate locations from a Vali map definition (JSON text). Missing country
-     *  data is auto-downloaded like the Vali CLI. Returns the generated locations.
+     *  Generate locations from a Vali map definition (JSON text). Missing country data is
+     *  auto-downloaded like the Vali CLI. A `runId` from `runReserve` lets `runCancel` stop it.
      *  @unstable
      */
-    valiGenerate: (definition: string) => Promise<ValiLocation[]>;
-    /**  Download Vali coverage data for a country code or continent alias, or for every country when `country` is null. @unstable */
-    valiDownload: (country: string | null, full: boolean, updates: boolean) => Promise<null>;
-    /**  Cancel an in-flight vali generate or download. @unstable */
-    valiCancel: () => Promise<void>;
+    valiGenerate: (definition: string, runId: number | null) => Promise<ValiLocation[]>;
+    /**
+     *  Download Vali coverage data for a country code or continent alias, or for every country
+     *  when `country` is null. A `runId` from `runReserve` lets `runCancel` stop it.
+     *  @unstable
+     */
+    valiDownload: (country: string | null, full: boolean, updates: boolean, runId: number | null) => Promise<null>;
     /**
      *  Countries whose downloaded coverage data is older than the published copy. Fails while
      *  offline; treat that as unknown, not up to date.
@@ -999,36 +999,37 @@ declare const commands$1: {
     valiDataStatus: () => Promise<ValiCountryStatus[]>;
     /**
      *  Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
-     *  is stale, so the caller can fire it without checking first.
+     *  is stale, so the caller can fire it without checking first. A `runId` from `runReserve`
+     *  lets `runCancel` stop it.
      *  @unstable
      */
-    valiDownloadStale: () => Promise<null>;
+    valiDownloadStale: (runId: number | null) => Promise<null>;
     /**
-     *  Start a procedure run over an open map's locations, this window's unless the target names
-     *  another. Returns immediately with the run id. Emits `procedure-progress` and
+     *  Start a procedure run under a reserved id over an open map's locations, this window's unless
+     *  the target names another. Returns at once, then emits `procedure-progress` and
      *  `procedure-result` as work completes.
      *  @unstable
      */
-    procedureRun: (items: RunItem[], force: boolean, target: Target | null) => Promise<number>;
+    procedureRun: (items: RunItem[], target: Target | null, runId: number) => Promise<null>;
     /**  Register a provider, replacing one with the same id. @unstable */
     providerRegister: (provider: ProviderDef) => Promise<null>;
     /**  Remove a registered provider. @unstable */
     providerUnregister: (id: string) => Promise<null>;
-    /**  Stop a run before its next batch. Already-applied patches stay applied. @unstable */
-    procedureCancel: (runId: number) => Promise<null>;
     /**
      *  Run a procedure's read-only `query` export. `input` and the result are defined
-     *  by the procedure module. A `runId` from `procedureReserveRun` streams partial results
-     *  under it and lets `procedureCancel` stop the query.
+     *  by the procedure module. A `runId` from `runReserve` streams partial results
+     *  under it and lets `runCancel` stop the query.
      *  @unstable
      */
     procedureQuery: (procedure: ProcedureDecl, input: string, runId: number | null) => Promise<string>;
     /**
-     *  Reserve a run id up front, for a query or location run that answers only when it is over:
-     *  its streamed results carry the id, and `procedureCancel` stops it.
+     *  Reserve an id for a job before starting it, so the results it streams carry the id and
+     *  `runCancel` can stop it.
      *  @unstable
      */
-    procedureReserveRun: () => Promise<number>;
+    runReserve: () => Promise<number>;
+    /**  Stop a run. Work it already finished stays done, and a run that has ended ignores this. @unstable */
+    runCancel: (runId: number) => Promise<null>;
     /**  What the procedure engine is working on right now. @unstable */
     procedureActivity: () => Promise<ProcedureActivity>;
 };
@@ -2198,7 +2199,7 @@ type PluginBuild_Deserialize = {
     ref: string;
     minAppVersion: string | null;
     /**  The sidecar this build ships, so a half-installed one can be repaired. */
-    sidecar?: PluginSidecar_Deserialize | null;
+    sidecar?: PluginSidecar | null;
 };
 /**  A published build of a plugin. */
 type PluginBuild = {
@@ -2221,7 +2222,7 @@ type PluginManifest_Deserialize = {
     experimental?: boolean;
     comingSoon?: boolean;
     minAppVersion?: string | null;
-    sidecar?: PluginSidecar_Deserialize | null;
+    sidecar?: PluginSidecar | null;
     /**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
     builds?: PluginBuild_Deserialize[];
 };
@@ -2242,19 +2243,10 @@ type PluginManifest = {
     /**  Older builds, for apps below `minAppVersion`. Only present in the marketplace registry. */
     builds?: PluginBuild[];
 };
-/**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). @unstable */
-type PluginSidecar_Deserialize = {
-    name: string;
-    version: string;
-    /**  Expected SHA-256 hex digest of the platform-specific zip archive. */
-    sha256: string | null;
-};
 /**  A plugin's declared sidecar binary (downloaded from GitHub Releases on install). */
 type PluginSidecar = {
     name: string;
     version: string;
-    /**  Expected SHA-256 hex digest of the platform-specific zip archive. */
-    sha256?: string | null;
 };
 /**  How points are drawn inside a polygon. @unstable */
 type PointSampling = 
@@ -2318,7 +2310,10 @@ type ProcedureActivity = {
  *  @unstable
  */
 type ProcedureConfig<T> = {
-    /**  The extra-field keys the run wants written. Empty means every key the procedure produces. */
+    /**
+     *  The fields the run wants written, extra-field keys and core columns alike. Empty means
+     *  every field the procedure produces.
+     */
     fields: string[];
     /**  Recompute locations that already hold every wanted field. */
     force: boolean;
@@ -2394,8 +2389,8 @@ type ProviderActivity = {
     retries: number;
 };
 /**
- *  One provider as the app declares it. `fields` are the extra keys it produces
- *  and `requires` the keys it consumes; together they gate who waits for whom.
+ *  One provider as the app declares it. `fields` are the fields it writes and `requires`
+ *  the fields it reads; together they gate who waits for whom.
  *  @unstable
  */
 type ProviderDecl = {
@@ -2406,12 +2401,8 @@ type ProviderDecl = {
     select: Selector$1<SelectionInput>;
     batch: BatchMode;
     sink?: Sink;
-    /**
-     *  Re-derive this provider's fields even on a run that is not forced. For an
-     *  operation whose whole point is to recompute one provider (pinning re-resolves the
-     *  panorama) rather than to fill in what is missing.
-     */
-    force?: boolean | null;
+    /**  Recompute locations that already hold every field this provider writes. */
+    force?: boolean;
     /**
      *  Instances this provider may run at once. Declared only when the procedure
      *  cannot run beside itself; throughput comes from `inflight`.
@@ -2500,13 +2491,13 @@ type RunItem =
 {
     kind: "provider";
     id: string;
-    /**  Extra-field keys to produce. When absent, every key the provider declares. */
-    fields?: string[] | null;
+    /**  The extra-field keys to produce, from those the provider declares. */
+    fields: string[];
     select: Selector$1<SelectionInput>;
     /**  Replaces the registered configuration, as JSON text. */
     config?: string | null;
-    /**  Re-derive its fields even on a run that is not forced. */
-    force?: boolean | null;
+    /**  Recompute locations that already hold every field it writes. */
+    force?: boolean;
 } | (
 /**  A procedure declared in full by the caller. */
 {
@@ -2825,17 +2816,17 @@ type SideCounts = {
 };
 /** @unstable */
 type SidecarDone = {
-    reqId: number;
+    runId: number;
     error: string | null;
 };
 /** @unstable */
 type SidecarLine = {
-    reqId: number;
+    runId: number;
     line: string;
 };
 /**  A log line from a plugin's sidecar. @unstable */
 type SidecarLog = {
-    reqId: number;
+    runId: number;
     line: string;
 };
 /** @unstable */
@@ -3966,7 +3957,7 @@ export interface RunSettings {
     label?: string;
     /** `collect` takes the answers instead of writing them. */
     sink?: Sink;
-    /** Re-derive even on an unforced run: recompute rather than fill in what is missing. */
+    /** Recompute locations that already hold what the procedure writes. */
     force?: boolean;
 }
 declare const Procedure: {
@@ -4003,8 +3994,8 @@ export interface ProviderRun<TConfig = unknown> {
     provider: Provider<unknown, TConfig>;
     /** Replaces the config the provider registered. */
     config?: Partial<NoInfer<TConfig>>;
-    /** Re-derive this provider's fields even on an unforced run. For an operation whose
-     *  point is to recompute one provider rather than fill in what is missing. */
+    /** Recompute locations that already hold this provider's fields. Omitted, it follows
+     *  the run's `force`. */
     force?: boolean;
     /** The `fieldDefs` keys to produce; omitted, every key it declares. */
     fields?: string[];
@@ -7887,4 +7878,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PluginSidecar_Deserialize, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

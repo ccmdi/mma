@@ -161,7 +161,7 @@ fn a_cancelled_run_stops_its_panorama_short_of_the_remaining_tiles() {
 fn a_path_that_names_neither_a_panorama_nor_a_tile_is_refused() {
     for path in ["", "abc", "abc/x", "abc/1/2", "abc/1/2/3/4"] {
         assert!(fetch_path(path, None).is_err(), "{path}");
-        let run_id = runs::next_run_id();
+        let run_id = runs::run_reserve();
         assert!(fetch_path(path, Some(run_id)).is_err(), "{path}");
         assert!(
             runs::unregister_run(run_id).is_none(),

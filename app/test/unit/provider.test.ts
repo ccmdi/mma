@@ -23,6 +23,7 @@ vi.mock("@/lib/commands", () => ({
 		providerUnregister: async (id: string) => {
 			h.unregistered.push(id);
 		},
+		runReserve: async () => 1,
 		procedureRun: async (items: unknown[]) => {
 			h.runs.push(items);
 			throw new Error("stop after sending");

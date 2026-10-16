@@ -569,6 +569,8 @@ Where a moved selection lands beside its target.
 
 ```ts
 PLAIN_CALLS: readonly [
+  "log",
+  "tz",
   "classify",
   "neighbors",
   "progress",
@@ -6197,16 +6199,6 @@ cmd.procedureActivity(): Promise<ProcedureActivity>
 
 What the procedure engine is working on right now.
 
-#### cmd.procedureCancel
-
-`unstable` · since v0.10.0
-
-```ts
-cmd.procedureCancel(runId: number): Promise<null>
-```
-
-Stop a run before its next batch. Already-applied patches stay applied.
-
 #### cmd.procedureQuery
 
 `unstable` · since v0.10.0
@@ -6220,19 +6212,8 @@ cmd.procedureQuery(
 ```
 
 Run a procedure's read-only `query` export. `input` and the result are defined
-by the procedure module. A `runId` from `procedureReserveRun` streams partial results
-under it and lets `procedureCancel` stop the query.
-
-#### cmd.procedureReserveRun
-
-`unstable` · since v0.11.1
-
-```ts
-cmd.procedureReserveRun(): Promise<number>
-```
-
-Reserve a run id up front, for a query or location run that answers only when it is over:
-its streamed results carry the id, and `procedureCancel` stops it.
+by the procedure module. A `runId` from `runReserve` streams partial results
+under it and lets `runCancel` stop the query.
 
 #### cmd.procedureRun
 
@@ -6241,13 +6222,13 @@ its streamed results carry the id, and `procedureCancel` stops it.
 ```ts
 cmd.procedureRun(
   items: RunItem[],
-  force: boolean,
   target: Target | null,
-): Promise<number>
+  runId: number,
+): Promise<null>
 ```
 
-Start a procedure run over an open map's locations, this window's unless the target names
-another. Returns immediately with the run id. Emits `procedure-progress` and
+Start a procedure run under a reserved id over an open map's locations, this window's unless
+the target names another. Returns at once, then emits `procedure-progress` and
 `procedure-result` as work completes.
 
 #### cmd.providerRegister
@@ -6321,6 +6302,27 @@ cmd.reverseGeocode(lat: number, lng: number): Promise<GeoResult | null>
 Return the nearest city, administrative region, and country for a coordinate.
 Never `null`: every landmass is covered.
 
+#### cmd.runCancel
+
+`unstable` · unreleased
+
+```ts
+cmd.runCancel(runId: number): Promise<null>
+```
+
+Stop a run. Work it already finished stays done, and a run that has ended ignores this.
+
+#### cmd.runReserve
+
+`unstable` · unreleased
+
+```ts
+cmd.runReserve(): Promise<number>
+```
+
+Reserve an id for a job before starting it, so the results it streams carry the id and
+`runCancel` can stop it.
+
 #### cmd.selectionBuild
 
 `unstable` · since v0.12.0
@@ -6342,16 +6344,6 @@ cmd.setDataLocation(path: string | null): Promise<null>
 Set or clear the data-folder override. Takes effect after relaunch and does not
 move existing data.
 
-#### cmd.sidecarCancel
-
-`unstable` · since v0.9.0
-
-```ts
-cmd.sidecarCancel(reqId: number): Promise<null>
-```
-
-Cancel a running sidecar request. No-op if the request already finished.
-
 #### cmd.sidecarInstalledVersion
 
 `unstable` · since v0.7.0
@@ -6371,13 +6363,14 @@ cmd.sidecarRequest(
   pluginId: string,
   command: string,
   payload: string | null,
-): Promise<number>
+  runId: number,
+): Promise<null>
 ```
 
-Run one unit of work on a plugin's sidecar. Commands the manifest lists under
-`serve` go to the plugin's resident process; the rest get a one-shot child.
-Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
-then exactly one `sidecar-done`, all keyed by the returned request id.
+Run one unit of work on a plugin's sidecar under a `runId` from `runReserve`. Commands the
+manifest lists under `serve` go to the plugin's resident process; the rest get a one-shot
+child, which `runCancel` kills. Streams `sidecar-line` (one JSON object per unit) and
+`sidecar-log` (stderr), then exactly one `sidecar-done`, all keyed by the run id.
 
 #### cmd.sidecarStop
 
@@ -7086,16 +7079,6 @@ cmd.updateInstall(): Promise<null>
 Download and install whatever the last `updateCheck` found. The installer replaces the
 running app, so nothing after this is guaranteed to run. Save state first.
 
-#### cmd.valiCancel
-
-`unstable` · since v0.7.1
-
-```ts
-cmd.valiCancel(): Promise<void>
-```
-
-Cancel an in-flight vali generate or download.
-
 #### cmd.valiDataStatus
 
 `unstable` · since v0.9.0
@@ -7116,32 +7099,38 @@ cmd.valiDownload(
   country: string | null,
   full: boolean,
   updates: boolean,
+  runId: number | null,
 ): Promise<null>
 ```
 
-Download Vali coverage data for a country code or continent alias, or for every country when `country` is null.
+Download Vali coverage data for a country code or continent alias, or for every country
+when `country` is null. A `runId` from `runReserve` lets `runCancel` stop it.
 
 #### cmd.valiDownloadStale
 
 `unstable` · since v0.9.0
 
 ```ts
-cmd.valiDownloadStale(): Promise<null>
+cmd.valiDownloadStale(runId: number | null): Promise<null>
 ```
 
 Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
-is stale, so the caller can fire it without checking first.
+is stale, so the caller can fire it without checking first. A `runId` from `runReserve`
+lets `runCancel` stop it.
 
 #### cmd.valiGenerate
 
 `unstable` · since v0.7.0
 
 ```ts
-cmd.valiGenerate(definition: string): Promise<ValiLocation[]>
+cmd.valiGenerate(
+  definition: string,
+  runId: number | null,
+): Promise<ValiLocation[]>
 ```
 
-Generate locations from a Vali map definition (JSON text). Missing country
-data is auto-downloaded like the Vali CLI. Returns the generated locations.
+Generate locations from a Vali map definition (JSON text). Missing country data is
+auto-downloaded like the Vali CLI. A `runId` from `runReserve` lets `runCancel` stop it.
 
 #### cmd.writeTempFile
 

@@ -11,8 +11,8 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@/lib/commands", () => ({
 	cmd: {
-		procedureReserveRun: async () => ++h.nextRun,
-		procedureCancel: async (runId: number) => {
+		runReserve: async () => ++h.nextRun,
+		runCancel: async (runId: number) => {
 			h.cancelled.push(runId);
 			return null;
 		},

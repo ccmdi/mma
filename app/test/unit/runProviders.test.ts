@@ -140,6 +140,7 @@ vi.mock("@/lib/commands", () => ({
 			items: ({ kind: string; id: string } & Record<string, unknown>)[],
 			_force: boolean,
 			target: unknown,
+			runId: number,
 		) => {
 			const decls = items.map((item) => {
 				if (item.kind === "procedure") return item as unknown as (typeof h.decls)[number];
@@ -158,20 +159,20 @@ vi.mock("@/lib/commands", () => ({
 			h.decls.push(...decls);
 			h.targets.push(target ?? null);
 			queueMicrotask(() => {
-				h.runHook?.(7);
+				h.runHook?.(runId);
 				for (const d of decls) {
 					const entries = h.answers[d.id] ?? [];
 					const failed = h.failedIds[d.id] ?? [];
 					if (entries.length || failed.length)
-						h.onResult?.({ runId: 7, providerId: d.id, entries, failed });
+						h.onResult?.({ runId, providerId: d.id, entries, failed });
 				}
 				if (h.script.length > 0) {
-					for (const p of h.script) h.onProgress?.({ runId: 7, ...p });
+					for (const p of h.script) h.onProgress?.({ runId, ...p });
 					return;
 				}
 				for (const d of decls)
 					h.onProgress?.({
-						runId: 7,
+						runId,
 						providerId: d.id,
 						done: h.total,
 						total: h.total,
@@ -180,13 +181,13 @@ vi.mock("@/lib/commands", () => ({
 						finished: true,
 					});
 			});
-			return Promise.resolve(7);
+			return Promise.resolve(null);
 		},
-		procedureCancel: (runId: number) => {
+		runCancel: (runId: number) => {
 			h.cancelled.push(runId);
 			return Promise.resolve();
 		},
-		procedureReserveRun: () => {
+		runReserve: () => {
 			const runId = 100 + h.reservedRuns.length;
 			h.reservedRuns.push(runId);
 			return Promise.resolve(runId);
@@ -854,7 +855,7 @@ describe("aborting a run", () => {
 		await new Promise((r) => setTimeout(r));
 		ac.abort();
 		expect(await settled).toBeInstanceOf(Error);
-		expect(h.cancelled).toContain(7);
+		expect(h.cancelled).toContain(h.reservedRuns[0]);
 	});
 });
 

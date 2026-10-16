@@ -6,7 +6,7 @@ use super::{ProcHost, ProcShape, Procedure, ResultEntry};
 use crate::net::fetch::{
     self, Endpoint, HttpRequestSpec, HttpResponse, Policy, RateCost, Session, Transport,
 };
-use crate::runs::{cancel_run, next_run_id, register_run, unregister_run};
+use crate::runs::{register_run, unregister_run};
 use crate::selections::tree::SelectionInput;
 use crate::selections::{neighborhood, RowRef, Selector};
 use crate::store::engine::{Store, StoreState, Target, WindowLabel};
@@ -1492,8 +1492,8 @@ fn register_store_run(
     Ok((map_id, cancel))
 }
 
-/// Start a procedure run over an open map's locations, this window's unless the target names
-/// another. Returns immediately with the run id. Emits `procedure-progress` and
+/// Start a procedure run under a reserved id over an open map's locations, this window's unless
+/// the target names another. Returns at once, then emits `procedure-progress` and
 /// `procedure-result` as work completes.
 #[tauri::command]
 #[specta::specta]
@@ -1503,10 +1503,10 @@ pub async fn procedure_run(
     items: Vec<super::registry::RunItem>,
     force: bool,
     target: Option<Target>,
-) -> AppResult<u32> {
+    run_id: u32,
+) -> AppResult<()> {
     let providers = state.lock()?.providers.resolve(items)?;
     let target = target.unwrap_or(Target::Map { id: None });
-    let run_id = next_run_id();
     let (map_id, cancel) = register_store_run(state.inner(), &label, run_id, target.clone())?;
     task::spawn_blocking(move || {
         let Some(app) = crate::app_handle() else {
@@ -1530,22 +1530,7 @@ pub async fn procedure_run(
         };
         run_all(&ctx, &providers);
     });
-    Ok(run_id)
-}
-
-/// Stop a run before its next batch. Already-applied patches stay applied.
-#[tauri::command]
-#[specta::specta]
-pub async fn procedure_cancel(run_id: u32) -> AppResult<()> {
-    cancel_run(run_id)
-}
-
-/// Reserve a run id up front, for a query or location run that answers only when it is over:
-/// its streamed results carry the id, and `procedureCancel` stops it.
-#[tauri::command]
-#[specta::specta]
-pub async fn procedure_reserve_run() -> u32 {
-    next_run_id()
+    Ok(())
 }
 
 /// Partial pages leave through their own thread: a delivery that blocks must never
@@ -1569,8 +1554,8 @@ fn partial_emitter() -> &'static mpsc::Sender<ProcedureResult> {
 }
 
 /// Run a procedure's read-only `query` export. `input` and the result are defined
-/// by the procedure module. A `runId` from `procedureReserveRun` streams partial results
-/// under it and lets `procedureCancel` stop the query.
+/// by the procedure module. A `runId` from `runReserve` streams partial results
+/// under it and lets `runCancel` stop the query.
 #[tauri::command]
 #[specta::specta]
 pub async fn procedure_query(
