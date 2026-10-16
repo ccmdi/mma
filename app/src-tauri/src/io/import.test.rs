@@ -1222,6 +1222,40 @@ fn dropping_tags_on_confirm_creates_none_of_the_files_tags() {
 }
 
 #[test]
+fn every_field_the_preview_counts_drops_on_confirm() {
+    let mut store = store_tagged(&[]);
+    let carried = Location {
+        heading: 90.0,
+        pitch: -5.0,
+        pano_id: Some("PANO".into()),
+        flags: LocationFlags::LOAD_AS_PANO_ID,
+        ..loc_with_tags(0, vec![1])
+    };
+    let parsed = ParsedMap {
+        locations: vec![carried],
+        tags: vec![tag(1, "Unwanted")],
+        ..Default::default()
+    };
+    let counted: Vec<String> = build_preview(&parsed, "every-drop-win")
+        .unwrap()
+        .fields
+        .into_iter()
+        .map(|f| f.key)
+        .collect();
+    assert_eq!(counted, ["heading", "pitch", "zoom", "panoId", "tags"]);
+    stage_parsed(&mut store, "every-drop-win", parsed);
+    confirm_staged(&mut store, "every-drop-win", &counted, &[]).unwrap();
+    let stored = store
+        .at(&Target::Map { id: None })
+        .rows(&Selector::Everything);
+    let l = &stored[0];
+    assert_eq!((l.heading, l.pitch, l.zoom), (0.0, 0.0, 0.0));
+    assert_eq!(l.pano_id, None);
+    assert!(!l.flags.contains(LocationFlags::LOAD_AS_PANO_ID));
+    assert!(l.tags.is_empty());
+}
+
+#[test]
 fn dropping_the_files_tags_still_applies_the_named_tags() {
     let mut store = store_tagged(&[tag(5, "Shared")]);
     let parsed = ParsedMap {

@@ -96,29 +96,52 @@ pub(super) fn stage_parsed(
     run
 }
 
+/// A built-in field an import can carry and the preview can drop: its key, whether a row
+/// carries it, and the patch that drops it from a row.
+type DroppableField = (
+    &'static str,
+    fn(&Location) -> bool,
+    fn(&Location, &mut Patch<Location>),
+);
+
+const DROPPABLE_FIELDS: [DroppableField; 5] = [
+    (
+        "heading",
+        |l| l.heading != 0.0,
+        |_, p| p.heading = Some(0.0),
+    ),
+    ("pitch", |l| l.pitch != 0.0, |_, p| p.pitch = Some(0.0)),
+    ("zoom", |l| l.zoom != 0.0, |_, p| p.zoom = Some(0.0)),
+    (
+        "panoId",
+        |l| l.pano_id.is_some(),
+        |l, p| {
+            p.pano_id = mma_algebra::Field::Clear;
+            let mut flags = l.flags;
+            flags.remove(LocationFlags::LOAD_AS_PANO_ID);
+            p.flags = Some(flags);
+        },
+    ),
+    (
+        "tags",
+        |l| !l.tags.is_empty(),
+        |_, p| p.tags = Some(Vec::new()),
+    ),
+];
+
 /// Build preview field counts, bounds, and a temp file of interleaved LE f32 `[lng, lat]` positions.
 pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<EditorImportPreview> {
     let n = parsed.locations.len();
-    let (mut h, mut p, mut z, mut pano_c, mut tag_c) = (0u32, 0u32, 0u32, 0u32, 0u32);
+    let mut counts = [0u32; DROPPABLE_FIELDS.len()];
     let mut extra_counts: HashMap<String, u32> = HashMap::new();
     let mut pos_buf: Vec<u8> = Vec::with_capacity(n * 8);
     let (mut west, mut south, mut east, mut north) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
 
     for loc in &parsed.locations {
-        if loc.heading != 0.0 {
-            h += 1;
-        }
-        if loc.pitch != 0.0 {
-            p += 1;
-        }
-        if loc.zoom != 0.0 {
-            z += 1;
-        }
-        if loc.pano_id.is_some() {
-            pano_c += 1;
-        }
-        if !loc.tags.is_empty() {
-            tag_c += 1;
+        for (count, (_, carried, _)) in counts.iter_mut().zip(&DROPPABLE_FIELDS) {
+            if carried(loc) {
+                *count += 1;
+            }
         }
         if let Some(extra) = &loc.extra {
             // Byte key-scan (no per-loc map alloc); only allocate a String the first
@@ -147,17 +170,11 @@ pub(super) fn build_preview(parsed: &ParsedMap, window: &str) -> AppResult<Edito
         }
     }
 
-    let mut fields: Vec<FieldCount> = Vec::with_capacity(5 + extra_counts.len());
-    for (key, count) in [
-        ("heading", h),
-        ("pitch", p),
-        ("zoom", z),
-        ("panoId", pano_c),
-        ("tags", tag_c),
-    ] {
+    let mut fields: Vec<FieldCount> = Vec::with_capacity(counts.len() + extra_counts.len());
+    for ((key, ..), count) in DROPPABLE_FIELDS.iter().zip(counts) {
         if count > 0 {
             fields.push(FieldCount {
-                key: key.into(),
+                key: (*key).into(),
                 count,
             });
         }
@@ -329,30 +346,18 @@ pub(super) fn confirm_staged(
     };
     let bulk = bulk_tag_ids(&mut tags, tag_names);
     records.insert("tags".to_string(), tags);
+    let drops: Vec<&DroppableField> = DROPPABLE_FIELDS
+        .iter()
+        .filter(|(key, ..)| drop_set.contains(key))
+        .collect();
     let mut edits: Vec<mma_algebra::Edit<Location>> = Vec::new();
     for loc in &rows {
         let mut patch = Patch::<Location>::default();
-        if drop_set.contains("heading") {
-            patch.heading = Some(0.0);
+        for (_, _, drop_field) in &drops {
+            drop_field(loc, &mut patch);
         }
-        if drop_set.contains("pitch") {
-            patch.pitch = Some(0.0);
-        }
-        if drop_set.contains("zoom") {
-            patch.zoom = Some(0.0);
-        }
-        if drop_set.contains("panoId") {
-            patch.pano_id = mma_algebra::Field::Clear;
-            let mut flags = loc.flags;
-            flags.remove(LocationFlags::LOAD_AS_PANO_ID);
-            patch.flags = Some(flags);
-        }
-        if drop_tags || !bulk.is_empty() {
-            let mut next = if drop_tags {
-                Vec::new()
-            } else {
-                loc.tags.clone()
-            };
+        if !bulk.is_empty() {
+            let mut next = patch.tags.take().unwrap_or_else(|| loc.tags.clone());
             for b in bulk.iter().copied() {
                 if !next.contains(&b) {
                     next.push(b);
