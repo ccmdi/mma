@@ -472,7 +472,17 @@ pub async fn polygon_contains_points(
 #[tauri::command]
 #[specta::specta]
 pub async fn polygon_bounds(polygon: selections::PolygonGeometry) -> Option<[f64; 4]> {
-    Some(crossing_bounds(polygon.prepared().bbox()?))
+    let [w, s, e, n] = polygon.prepared().bbox()?;
+    // A full turn is the whole world: folding both edges would collapse it to zero width.
+    if e - w >= 360.0 {
+        return Some([-180.0, s, 180.0, n]);
+    }
+    Some([
+        mma_geo::fold_lng(w, -180.0),
+        s,
+        mma_geo::fold_lng(e, -180.0),
+        n,
+    ])
 }
 
 /// The area a polygon selects, as polygons whose edges never cross, for drawing its fill.
@@ -483,21 +493,6 @@ pub async fn polygon_fill(polygon: selections::PolygonGeometry) -> Vec<Vec<Vec<[
         .parts()
         .flat_map(mma_geo::untangle_polygon)
         .collect()
-}
-
-/// An anchored bbox in the crossing form: both edges in [-180, 180), `west > east` when
-/// the box spans the antimeridian, the whole world when the span reaches a full turn
-/// (folding both edges of that box would collapse it to zero width).
-fn crossing_bounds([w, s, e, n]: [f64; 4]) -> [f64; 4] {
-    if e - w >= 360.0 {
-        return [-180.0, s, 180.0, n];
-    }
-    [
-        mma_geo::fold_lng(w, -180.0),
-        s,
-        mma_geo::fold_lng(e, -180.0),
-        n,
-    ]
 }
 
 /// The receipt `window` waits on for `edited` at `target`: version 0 when the edit reached

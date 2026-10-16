@@ -21,31 +21,45 @@ fn geom(coordinates: Vec<Vec<[f64; 2]>>) -> PolygonGeometry {
     }
 }
 
+fn bounds(polygon: PolygonGeometry) -> Option<[f64; 4]> {
+    async_runtime::block_on(polygon_bounds(polygon))
+}
+
+/// A band from `west` eastward through `span` degrees, in steps short enough that no edge
+/// reads as a jump across the antimeridian.
+fn band(west: f64, span: f64, s: f64, n: f64) -> Vec<[f64; 2]> {
+    let edge: Vec<f64> = (0..=3).map(|i| west + span * f64::from(i) / 3.0).collect();
+    let mut ring: Vec<[f64; 2]> = edge.iter().map(|&lng| [lng, s]).collect();
+    ring.extend(edge.iter().rev().map(|&lng| [lng, n]));
+    ring.push([west, s]);
+    ring
+}
+
 #[test]
-fn crossing_bounds_keeps_a_plain_box() {
+fn polygon_bounds_keeps_a_plain_box() {
     assert_eq!(
-        crossing_bounds([10.0, 0.0, 20.0, 5.0]),
-        [10.0, 0.0, 20.0, 5.0]
+        bounds(geom(vec![square(10.0, 0.0, 20.0, 5.0)])),
+        Some([10.0, 0.0, 20.0, 5.0])
     );
 }
 
 #[test]
-fn crossing_bounds_folds_a_seam_box_to_west_past_east() {
+fn polygon_bounds_folds_a_seam_box_to_west_past_east() {
     assert_eq!(
-        crossing_bounds([170.0, -5.0, 190.0, 5.0]),
-        [170.0, -5.0, -170.0, 5.0]
+        bounds(geom(vec![square(170.0, -5.0, 190.0, 5.0)])),
+        Some([170.0, -5.0, -170.0, 5.0])
     );
 }
 
 #[test]
-fn crossing_bounds_spells_a_full_turn_as_the_whole_world() {
+fn polygon_bounds_spells_a_full_turn_as_the_whole_world() {
     assert_eq!(
-        crossing_bounds([-180.0, -85.0, 180.0, -60.0]),
-        [-180.0, -85.0, 180.0, -60.0]
+        bounds(geom(vec![band(-180.0, 360.0, -85.0, -60.0)])),
+        Some([-180.0, -85.0, 180.0, -60.0])
     );
     assert_eq!(
-        crossing_bounds([100.0, -85.0, 470.0, -60.0]),
-        [-180.0, -85.0, 180.0, -60.0]
+        bounds(geom(vec![band(100.0, 370.0, -85.0, -60.0)])),
+        Some([-180.0, -85.0, 180.0, -60.0])
     );
 }
 
@@ -53,9 +67,8 @@ fn crossing_bounds_spells_a_full_turn_as_the_whole_world() {
 fn polygon_bounds_spans_the_extra_polygons_too() {
     let mut g = geom(vec![square(0.0, 0.0, 10.0, 10.0)]);
     g.extra_polygons = Some(vec![vec![square(40.0, 0.0, 50.0, 10.0)]]);
-    let bb = crossing_bounds(g.prepared().bbox().unwrap());
-    assert_eq!(bb, [0.0, 0.0, 50.0, 10.0]);
-    assert!(geom(vec![]).prepared().bbox().is_none());
+    assert_eq!(bounds(g), Some([0.0, 0.0, 50.0, 10.0]));
+    assert!(bounds(geom(vec![])).is_none());
 }
 
 #[test]
@@ -98,8 +111,7 @@ fn polygon_fill_of_nothing_is_empty() {
 fn seam_straddling_parts_merge_into_one_frame() {
     let mut g = geom(vec![square(170.0, -5.0, 180.0, 5.0)]);
     g.extra_polygons = Some(vec![vec![square(-180.0, -5.0, -170.0, 5.0)]]);
-    let bb = crossing_bounds(g.prepared().bbox().unwrap());
-    assert_eq!(bb, [170.0, -5.0, -170.0, 5.0]);
+    assert_eq!(bounds(g), Some([170.0, -5.0, -170.0, 5.0]));
 }
 
 fn tagged_map(id: &str, tags: &[(u32, &str)]) -> Store {
