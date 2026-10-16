@@ -1,4 +1,4 @@
-//! The one place a long-running job gets an id and a cancel flag.
+//! The one place a long-running job gets an id and a way to be cancelled.
 
 use crate::store::engine::Target;
 use crate::store::maps::MapMeta;
@@ -10,9 +10,20 @@ use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 #[derive(Clone)]
 pub(crate) struct RunEntry {
-    cancel: Arc<AtomicBool>,
+    flag: Arc<AtomicBool>,
+    /// Halts work that does not watch the flag.
+    stop: Option<Arc<dyn Fn() + Send + Sync>>,
     /// The map and target the run writes to, when it writes to a store.
     pub(crate) writer: Option<(Id<MapMeta, String>, Target)>,
+}
+
+impl RunEntry {
+    fn cancel(&self) {
+        self.flag.store(true, Ordering::Relaxed);
+        if let Some(stop) = &self.stop {
+            stop();
+        }
+    }
 }
 
 fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
@@ -20,7 +31,8 @@ fn runs() -> &'static Mutex<HashMap<u32, RunEntry>> {
     R.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Reserve an id for a job before starting it, so the results it streams carry the id and `runCancel` can stop it.
+/// Reserve an id for a job before starting it, so the results it streams carry the id and
+/// `runCancel` can stop it.
 #[tauri::command]
 #[specta::specta]
 pub fn run_reserve() -> u32 {
@@ -32,15 +44,32 @@ pub(crate) fn register_run(
     run_id: u32,
     writer: Option<(Id<MapMeta, String>, Target)>,
 ) -> AppResult<Arc<AtomicBool>> {
-    let cancel = Arc::new(AtomicBool::new(false));
+    let flag = Arc::new(AtomicBool::new(false));
     runs().lock()?.insert(
         run_id,
         RunEntry {
-            cancel: cancel.clone(),
+            flag: flag.clone(),
+            stop: None,
             writer,
         },
     );
-    Ok(cancel)
+    Ok(flag)
+}
+
+/// Register a run whose work halts through `stop` rather than by watching a flag.
+pub(crate) fn register_stoppable(
+    run_id: u32,
+    stop: impl Fn() + Send + Sync + 'static,
+) -> AppResult<()> {
+    runs().lock()?.insert(
+        run_id,
+        RunEntry {
+            flag: Arc::default(),
+            stop: Some(Arc::new(stop)),
+            writer: None,
+        },
+    );
+    Ok(())
 }
 
 pub(crate) fn unregister_run(run_id: u32) -> Option<RunEntry> {
@@ -51,8 +80,9 @@ pub(crate) fn unregister_run(run_id: u32) -> Option<RunEntry> {
 #[tauri::command]
 #[specta::specta]
 pub async fn run_cancel(run_id: u32) -> AppResult<()> {
-    if let Some(run) = runs().lock()?.get(&run_id) {
-        run.cancel.store(true, Ordering::Relaxed);
+    let run = runs().lock()?.get(&run_id).cloned();
+    if let Some(run) = run {
+        run.cancel();
     }
     Ok(())
 }
@@ -71,15 +101,17 @@ pub(crate) fn pending_writers(map_id: &Id<MapMeta, String>) -> BTreeSet<String> 
 
 /// Cancel only active procedures that still target this unlanded pending layer.
 pub(crate) fn cancel_pending_writers(map_id: &Id<MapMeta, String>, name: &str) {
-    for run in runs()
+    let writers: Vec<RunEntry> = runs()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
         .values()
-    {
-        if matches!(&run.writer, Some((id, Target::Pending { name: target })) if id == map_id && target == name)
-        {
-            run.cancel.store(true, Ordering::Relaxed);
-        }
+        .filter(|run| {
+            matches!(&run.writer, Some((id, Target::Pending { name: target })) if id == map_id && target == name)
+        })
+        .cloned()
+        .collect();
+    for run in writers {
+        run.cancel();
     }
 }
 

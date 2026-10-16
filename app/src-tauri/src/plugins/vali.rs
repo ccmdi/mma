@@ -5,26 +5,14 @@
 //! ProgramData), so data is shared with a standalone Vali install. Progress is
 //! streamed to the frontend as `vali-progress` events.
 
+use crate::runs;
 use crate::types::{AppError, AppResult};
 use std::path::PathBuf;
-use std::sync::Mutex;
 use std::time::Duration;
 use tokio::task;
 use vali_data::paths;
 use vali_generate::download;
 use vali_generate::{generate_output, prepare, CancelToken, GeoMapLocation, ProgressEvent};
-
-pub struct ValiState {
-    cancel: Mutex<Option<CancelToken>>,
-}
-
-impl ValiState {
-    pub fn new() -> Self {
-        Self {
-            cancel: Mutex::new(None),
-        }
-    }
-}
 
 #[derive(serde::Serialize, Clone, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -134,17 +122,32 @@ fn data_root() -> AppResult<PathBuf> {
     paths::data_root().map_err(|e| AppError(format!("{e:#}")))
 }
 
-/// Generate locations from a Vali map definition (JSON text). Missing country
-/// data is auto-downloaded like the Vali CLI. Returns the generated locations.
+/// Runs Vali work on a blocking thread, registered under `run_id` so `runCancel` stops it.
+async fn cancellable<T: Send + 'static>(
+    run_id: Option<u32>,
+    work: impl FnOnce(&CancelToken) -> AppResult<T> + Send + 'static,
+) -> AppResult<T> {
+    let token = CancelToken::new();
+    if let Some(id) = run_id {
+        let stop = token.clone();
+        runs::register_stoppable(id, move || stop.cancel())?;
+    }
+    let result = task::spawn_blocking(move || work(&token)).await;
+    if let Some(id) = run_id {
+        drop(runs::unregister_run(id));
+    }
+    result.map_err(|e| AppError(format!("vali task failed: {e}")))?
+}
+
+/// Generate locations from a Vali map definition (JSON text). Missing country data is
+/// auto-downloaded like the Vali CLI. A `runId` from `runReserve` lets `runCancel` stop it.
 #[tauri::command]
 #[specta::specta]
 pub async fn vali_generate(
-    state: tauri::State<'_, ValiState>,
     definition: String,
+    run_id: Option<u32>,
 ) -> AppResult<Vec<ValiLocation>> {
-    let token = CancelToken::new();
-    *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = task::spawn_blocking(move || {
+    cancellable(run_id, move |token| {
         let def: vali_core::MapDefinition = serde_json::from_str(&definition)
             .map_err(|e| AppError(format!("The map definition is not valid JSON: {e}")))?;
         let prepared = prepare(&def).map_err(AppError)?;
@@ -153,55 +156,47 @@ pub async fn vali_generate(
             &data_root()?,
             false,
             Some(&emit_progress),
-            Some(&token),
+            Some(token),
         )
         .map_err(|e| AppError(format!("{e:#}")))?;
         Ok(output.records.into_iter().map(ValiLocation::from).collect())
     })
     .await
-    .map_err(|e| AppError(format!("vali generate task failed: {e}")))?;
-    *state.cancel.lock().unwrap() = None;
-    result
 }
 
-/// Download Vali coverage data for a country code or continent alias, or for every country when `country` is null.
+/// Download Vali coverage data for a country code or continent alias, or for every country
+/// when `country` is null. A `runId` from `runReserve` lets `runCancel` stop it.
 #[tauri::command]
 #[specta::specta]
 pub async fn vali_download(
-    state: tauri::State<'_, ValiState>,
     country: Option<String>,
     full: bool,
     updates: bool,
+    run_id: Option<u32>,
 ) -> AppResult<()> {
-    let token = CancelToken::new();
-    *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = task::spawn_blocking(move || {
+    cancellable(run_id, move |token| {
         download::download_files(
             &data_root()?,
             country.as_deref(),
             full,
             updates,
             Some(&emit_progress),
-            Some(&token),
+            Some(token),
         )
         .map_err(|e| AppError(format!("{e:#}")))
     })
     .await
-    .map_err(|e| AppError(format!("vali download task failed: {e}")))?;
-    *state.cancel.lock().unwrap() = None;
-    result
 }
 
 /// Download exactly the countries `valiDataStatus` reports as out of date. No-op when nothing
-/// is stale, so the caller can fire it without checking first.
+/// is stale, so the caller can fire it without checking first. A `runId` from `runReserve`
+/// lets `runCancel` stop it.
 #[tauri::command]
 #[specta::specta]
-pub async fn vali_download_stale(state: tauri::State<'_, ValiState>) -> AppResult<()> {
-    let token = CancelToken::new();
-    *state.cancel.lock().unwrap() = Some(token.clone());
-    let result = task::spawn_blocking(move || {
+pub async fn vali_download_stale(run_id: Option<u32>) -> AppResult<()> {
+    cancellable(run_id, move |token| {
         let root = data_root()?;
-        let stale = download::stale_countries(&root, Duration::from_secs(30), Some(&token))
+        let stale = download::stale_countries(&root, Duration::from_secs(30), Some(token))
             .map_err(|e| AppError(format!("{e:#}")))?;
         let codes: Vec<String> = stale.into_iter().map(|c| c.country_code).collect();
         if codes.is_empty() {
@@ -213,24 +208,11 @@ pub async fn vali_download_stale(state: tauri::State<'_, ValiState>) -> AppResul
             false,
             false,
             Some(&emit_progress),
-            Some(&token),
+            Some(token),
         )
         .map_err(|e| AppError(format!("{e:#}")))
     })
     .await
-    .map_err(|e| AppError(format!("vali download task failed: {e}")))?;
-    *state.cancel.lock().unwrap() = None;
-    result
-}
-
-/// Cancel an in-flight vali generate or download.
-#[allow(clippy::needless_pass_by_value)]
-#[tauri::command]
-#[specta::specta]
-pub fn vali_cancel(state: tauri::State<'_, ValiState>) {
-    if let Some(token) = state.cancel.lock().unwrap().as_ref() {
-        token.cancel();
-    }
 }
 
 /// How far behind one country's downloaded coverage data is.

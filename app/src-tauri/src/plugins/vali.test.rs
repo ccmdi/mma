@@ -1,4 +1,5 @@
 use super::*;
+use std::sync::Mutex;
 use vali_data::paths;
 
 fn have_vali_data() -> bool {

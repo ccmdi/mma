@@ -195,18 +195,6 @@ describe("Web bridge", () => {
 		expect(order).toEqual(["fast", "slow"]);
 	});
 
-	it("serves commands that read the generator's shared state", async () => {
-		const error = await withApi(async (api) => {
-			try {
-				await api.cmd.valiCancel();
-				return null;
-			} catch (e) {
-				return String(e);
-			}
-		});
-		expect(error).toBeNull();
-	});
-
 	describe("clients", () => {
 		it("keeps each tab's open map its own", async () => {
 			const first = await browser.getWindowHandle();

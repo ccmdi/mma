@@ -22,6 +22,17 @@ fn a_cancel_reaches_only_the_run_it_names() {
 }
 
 #[test]
+fn a_cancel_halts_a_stoppable_run() {
+    let id = run_reserve();
+    let stopped = Arc::new(AtomicBool::new(false));
+    let seen = stopped.clone();
+    register_stoppable(id, move || seen.store(true, Ordering::Relaxed)).unwrap();
+    async_runtime::block_on(run_cancel(id)).unwrap();
+    assert!(stopped.load(Ordering::Relaxed));
+    drop(unregister_run(id));
+}
+
+#[test]
 fn an_unregistered_run_ignores_a_cancel() {
     let id = run_reserve();
     let cancel = register_run(id, None).unwrap();

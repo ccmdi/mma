@@ -111,6 +111,7 @@ export function ValiDownloadDialog({
 	const [result, setResult] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const filesRef = useRef(0);
+	const runRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		if (!open) return;
@@ -134,7 +135,7 @@ export function ValiDownloadDialog({
 		[targets, query],
 	);
 
-	const run = async (download: () => Promise<unknown>) => {
+	const run = async (download: (runId: number) => Promise<unknown>) => {
 		if (running) return;
 		setProgress(null);
 		setResult(null);
@@ -149,7 +150,9 @@ export function ValiDownloadDialog({
 			}),
 		);
 		try {
-			await download();
+			const runId = await cmd.runReserve();
+			runRef.current = runId;
+			await download(runId);
 			// Nothing is emitted when every local timestamp already matches the remote one.
 			setResult(
 				filesRef.current === 0
@@ -168,6 +171,7 @@ export function ValiDownloadDialog({
 				setError(message);
 			}
 		} finally {
+			runRef.current = null;
 			unlisten();
 			onRunningChange(false);
 		}
@@ -183,7 +187,7 @@ export function ValiDownloadDialog({
 							variant="primary"
 							small
 							disabled={running}
-							onClick={() => void run(() => cmd.valiDownloadStale())}
+							onClick={() => void run((runId) => cmd.valiDownloadStale(runId))}
 						>
 							{t("Update these")}
 						</Button>
@@ -256,12 +260,20 @@ export function ValiDownloadDialog({
 				{error && <div className="vali-download__error">{error}</div>}
 
 				<DialogActions
-					cancel={running ? { onClick: () => void cmd.valiCancel() } : { label: t("Close") }}
+					cancel={
+						running
+							? {
+									onClick: () => {
+										if (runRef.current !== null) void cmd.runCancel(runRef.current);
+									},
+								}
+							: { label: t("Close") }
+					}
 					primary={{
 						label: running ? t("Downloading...") : t("Download"),
 						disabled: !target || running,
 						onClick: () => {
-							if (target) void run(() => cmd.valiDownload(target.code, full, false));
+							if (target) void run((runId) => cmd.valiDownload(target.code, full, false, runId));
 						},
 					}}
 				/>

@@ -93,6 +93,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 	const [stale, setStale] = useState<ValiCountryStatus[] | null>(null);
 	// The ref answers the message handler synchronously; the state only drives the button.
 	const busyRef = useRef<ValiBusy>(null);
+	const runRef = useRef<number | null>(null);
 	const [busy, setBusyState] = useState<ValiBusy>(null);
 	const setBusy = (b: ValiBusy) => {
 		busyRef.current = b;
@@ -115,7 +116,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 			const action = valiMessageAction(e.data?.type, busyRef.current);
 			if (action === "ignore") return;
 			if (action === "cancel") {
-				void cmd.valiCancel();
+				if (runRef.current !== null) void cmd.runCancel(runRef.current);
 				return;
 			}
 			if (action === "reject") {
@@ -127,13 +128,16 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 				post({ type: "vali:progress", progress: ev.payload }),
 			);
 			try {
-				const locations = await cmd.valiGenerate(JSON.stringify(e.data.data));
+				const runId = await cmd.runReserve();
+				runRef.current = runId;
+				const locations = await cmd.valiGenerate(JSON.stringify(e.data.data), runId);
 				const count = await importLocations(locations, String(e.data.tag ?? ""));
 				post({ type: "vali:done", count });
 			} catch (err) {
 				log.error("[vali] generate failed:", err);
 				post({ type: "vali:error", message: String(err) });
 			} finally {
+				runRef.current = null;
 				unlisten();
 				setBusy(null);
 			}
