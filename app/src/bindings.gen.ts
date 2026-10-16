@@ -384,11 +384,6 @@ export const events = {
 };
 
 /* Types */
-/**  The one kind of edit that names a saved selection. */
-export type AddSavedKind = 
-/**  Add a saved selection's parts. */
-"addSaved";
-
 /**  The answer to a question about the selected locations. */
 export type Answer = 
 /**  The matched ids. */
@@ -1647,10 +1642,10 @@ export type Selection = {
 	selector: Selector,
 };
 
-/**  An edit of the selection tree as asked for: a plain edit, or a saved selection to add. */
+/**  An edit of the selection tree as asked for: a saved selection to add, or a plain edit. */
 export type SelectionEdit = 
 /**  Add a saved selection's parts, with its value names resolved against the open map. */
-{ kind: AddSavedKind; id: string } | 
+{ kind: "addSaved"; id: string } | 
 /**  Any other edit of the selection tree. */
 SelectionOp;
 

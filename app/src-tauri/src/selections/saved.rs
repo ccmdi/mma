@@ -336,25 +336,14 @@ fn capture_names(selector: &Selector, store: &Store) -> ValueNames {
     names
 }
 
-/// The one kind of edit that names a saved selection.
-#[derive(Clone, Copy, Debug, serde::Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub enum AddSavedKind {
-    /// Add a saved selection's parts.
-    AddSaved,
-}
-
-/// An edit of the selection tree as asked for: a plain edit, or a saved selection to add.
+/// An edit of the selection tree as asked for: a saved selection to add, or a plain edit.
 #[derive(Clone, Debug, serde::Deserialize, specta::Type)]
-#[serde(untagged)]
+#[serde(tag = "kind", rename_all = "camelCase")]
 pub enum SelectionEdit {
     /// Add a saved selection's parts, with its value names resolved against the open map.
-    Saved {
-        #[expect(dead_code, reason = "serde tells this variant apart by it")]
-        kind: AddSavedKind,
-        id: Id<SavedSelection, String>,
-    },
+    AddSaved { id: Id<SavedSelection, String> },
     /// Any other edit of the selection tree.
+    #[serde(untagged)]
     Op(SelectionOp),
 }
 
@@ -363,7 +352,7 @@ impl SelectionEdit {
     pub(crate) fn resolved(self, store: &mut Store) -> AppResult<SelectionOp> {
         let id = match self {
             Self::Op(op) => return Ok(op),
-            Self::Saved { id, .. } => id,
+            Self::AddSaved { id } => id,
         };
         let conn = storage::open_db()?;
         let saved = get(&conn, from_ref(&id))?

@@ -1133,10 +1133,6 @@ declare const events: {
         emit: (payload: ValiProgress) => Promise<void>;
     };
 };
-/**  The one kind of edit that names a saved selection. @unstable */
-type AddSavedKind = 
-/**  Add a saved selection's parts. */
-"addSaved";
 /**  The answer to a question about the selected locations. */
 type Answer = 
 /**  The matched ids. */
@@ -2607,11 +2603,11 @@ type Selection = {
     color: RGB;
     selector: Selector$1;
 };
-/**  An edit of the selection tree as asked for: a plain edit, or a saved selection to add. @unstable */
+/**  An edit of the selection tree as asked for: a saved selection to add, or a plain edit. @unstable */
 type SelectionEdit = 
 /**  Add a saved selection's parts, with its value names resolved against the open map. */
 {
-    kind: AddSavedKind;
+    kind: "addSaved";
     id: string;
 } | 
 /**  Any other edit of the selection tree. */
@@ -5395,8 +5391,20 @@ declare const Review: {
     /** Remove `removed` ids from a session's worklist and reviewed set. Advances the
      *  cursor when the cursor id itself was removed. @unstable */
     prune: (s: ReviewSession, removed: Set<number>) => PruneResult;
+    /** Mark the current cursor reviewed and step forward. `done` is true when the
+     *  session has no remaining items. @unstable */
+    advance: (s: ReviewSession) => {
+        session: ReviewSession;
+        done: boolean;
+    };
+    /** Step backward without marking anything reviewed. Null when already at the start. @unstable */
+    retreat: (s: ReviewSession) => ReviewSession | null;
     /** Position of the session cursor within its review order. @unstable */
     index: (s: ReviewSession) => number;
+    /** The session's locations in `mode`: those reviewed, or those still to review. @unstable */
+    ids: (s: ReviewSession, mode: ReviewMode) => number[];
+    /** Union of reviewed ids across sessions, de-duplicated. @unstable */
+    reviewedIds: (sessions: ReviewSession[]) => number[];
     /** True when the cursor is on the session's first location. @unstable */
     isAtStart: (s: ReviewSession) => boolean;
     /** True when the cursor is on the session's last location. @unstable */
@@ -7038,6 +7046,15 @@ declare function getJobs(): JobEntry[];
 /** Register a long-running operation with the global job tray. The caller owns the
  *  work; the registry owns only its presentation and the cancel/reveal controls. @unstable */
 declare function registerJob(label: string, opts?: JobOpts): JobHandle;
+/** @unstable */
+export interface JobRunContext {
+    signal: AbortSignal;
+    report: (fraction: number, detail?: string) => void;
+}
+/** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+ *  through the handle, and ends the job however `fn` settles. Cancelling resolves null;
+ *  a real failure toasts and rethrows. @unstable */
+declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<R | null>;
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
 declare function cancelJobs(scope: JobScope): void;
@@ -7061,6 +7078,8 @@ export type jobs_JobHandle = JobHandle;
 /** @unstable */
 export type jobs_JobOpts = JobOpts;
 /** @unstable */
+export type jobs_JobRunContext = JobRunContext;
+/** @unstable */
 export type jobs_JobScope = JobScope;
 /** @unstable */
 export type jobs_MapExitKind = MapExitKind;
@@ -7076,9 +7095,11 @@ declare const jobs_getJobs: typeof getJobs;
 declare const jobs_registerJob: typeof registerJob;
 /** @unstable */
 declare const jobs_resolveMapExit: typeof resolveMapExit;
+/** @unstable */
+declare const jobs_runJob: typeof runJob;
 declare namespace jobs {
-  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit };
-  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
+  export { jobs_cancelJobs as cancelJobs, jobs_confirmMapExit as confirmMapExit, jobs_getExitRequest as getExitRequest, jobs_getJobs as getJobs, jobs_registerJob as registerJob, jobs_resolveMapExit as resolveMapExit, jobs_runJob as runJob };
+  export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
 }
 
 /** Context passed to the job function. */
@@ -7877,4 +7898,4 @@ declare global {
 }
 
 export type { BUILTIN_FIELDS, CameraType, CapturePick, DEFAULT_DUPLICATE_SCORE, DEFAULT_MARKER_COLOR, DatePart, EFFECT_CALLS, ERROR_CODES, FieldType, FirstSyncMode, FrameKind, Group, IssueState, KNOWN_FIELDS, LocationFlag, MMA, MMA as MMAApi, MapShape, MergeWinner, NO_SEL, OFFICIAL_ID_PATTERN, PLAIN_CALLS, PROJECTIONS, PanoType, Place, RankingStrategy, RateCost, ResolutionSide, ReviewMode, SCRATCH_MAP_ID, SYNC_PROVIDERS, Sink, Stack, SyncDirection, SyncTrigger, Timeline, VALI_COUNTRIES, ValidationFlag, commands$1 as commands, events };
-export type { AddSavedKind, Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };
+export type { Answer, AppReady, Ask, AttachmentRef, BatchMode, CameraFrame, Change, ChangeEvent, CommitInfo, CommitResult, ComparisonType, Conflict, ConflictKind, CoordOpts, CopyToMapResult, CountBy, Counts, DataLocation, DbStats, Derived, DeviceCodeInfo, EditResult, EditorImportPreview, EditorImportResult, ExportFormat, ExportProgress, ExprError, FieldChoice, FieldCount, FieldDef, FileSource, FilterOp, GeoResult, GgUser, GhUser, HeldValue, History as History, HoneycombRun, IdQuery, IdRange, ImageSize, ImportPreviewEntry, ImportProgress, ImportSource, ImportedMapInfo, IssueComment, IssueThread, JsonExport, KeySpec, Keys, ListedSelection, Location as Location, LocationList, LocationOp, MapExtra, MapKeyAction, MapKeyBinding, MapMeta, MapPreferences, MapSettings, MmMapSummary, MmUser, Mutation as Mutation, NormalizedSyncLocation, NumericBinning, Op, Pano as Pano, PanoAnswer, PanoDate, PanoLink, PanoQuery, PanoTime, ParsedLocation, PartitionBucket, PluginBuild, PluginBuild_Deserialize, PluginManifest, PluginManifest_Deserialize, PluginSidecar, PointSampling, Policy, PolygonGeometry, Pov, PresenceActivity, ProcedureActivity, ProcedureConfig, ProcedureDecl, ProcedureHost, ProcedureProgress, ProcedureRequest, ProcedureResponse, ProcedureResult, ProviderActivity, ProviderDecl, ProviderDef, QueryActivity, RGB, RateSpec, RenderRequest, ReportRef, ResultEntry, RetrySpec, ReviewSession, RunItem, SavedSelection as SavedSelection, SavedSelectionInfo, ScoreBounds, SearchQuery, SeenEntry, SeenFilter, SeenMapInfo, SeenPage, SeenWriteEntry, Selection, SelectionEdit, SelectionInput, SelectionOp, Selector$1 as Selector, SetOp, SideCounts, SidecarDone, SidecarLine, SidecarLog, SidecarProgress, StoreStatus, StoreWarning, SyncLogEntry, SyncLogResult, SyncReconcileResult, Target, Thinning, UpdateAvailable, UpdateProgress, ValiCountryStatus, ValiLocation, ValiLocation_Deserialize, ValiProgress, ValueRecord, VirtualTag, Work, WorkResult };

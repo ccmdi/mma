@@ -7961,6 +7961,22 @@ resolveMapExit(ok: boolean): void
 
 Answer the pending map-exit confirmation.
 
+### runJob
+
+`unstable` · since v0.10.7
+
+```ts
+runJob<R>(
+  label: string,
+  fn: (ctx: JobRunContext) => Promise<R>,
+  opts?: Omit<JobOpts, "cancel">,
+): Promise<R | null>
+```
+
+Sugar for promise-shaped work: registers a job wired to an AbortController, reports
+through the handle, and ends the job however `fn` settles. Cancelling resolves null;
+a real failure toasts and rethrows.
+
 ## Test
 
 ### _test
@@ -8840,6 +8856,20 @@ Wait for the main editor map to be ready.
 
 Review sessions and their history.
 
+#### Review.advance
+
+`unstable` · since v0.12.0
+
+```ts
+Review.advance(s: ReviewSession): {
+  session: ReviewSession;
+  done: boolean;
+}
+```
+
+Mark the current cursor reviewed and step forward. `done` is true when the
+session has no remaining items.
+
 #### Review.begin
 
 `unstable` · since v0.12.0
@@ -8882,6 +8912,16 @@ Review.deleteCurrent(): Promise<void>
 
 Delete the current location and advance to the next one. Exits the pass if it
 was the last item.
+
+#### Review.ids
+
+`unstable` · since v0.12.0
+
+```ts
+Review.ids(s: ReviewSession, mode: ReviewMode): number[]
+```
+
+The session's locations in `mode`: those reviewed, or those still to review.
 
 #### Review.index
 
@@ -8993,6 +9033,26 @@ Review.resume(s: ReviewSession): Promise<void>
 ```
 
 Make a saved session the active one, dropping locations that no longer exist.
+
+#### Review.retreat
+
+`unstable` · since v0.12.0
+
+```ts
+Review.retreat(s: ReviewSession): ReviewSession | null
+```
+
+Step backward without marking anything reviewed. Null when already at the start.
+
+#### Review.reviewedIds
+
+`unstable` · since v0.12.0
+
+```ts
+Review.reviewedIds(sessions: ReviewSession[]): number[]
+```
+
+Union of reviewed ids across sessions, de-duplicated.
 
 #### Review.selector
 
