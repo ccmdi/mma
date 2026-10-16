@@ -1,12 +1,9 @@
 // The plugin sidecar client: one set of Tauri event listeners for every request,
-// demultiplexed by request id. The app owns the processes; this is how the webview
+// demultiplexed by run id. The app owns the processes; this is how the webview
 // talks to them.
 
 import { events } from "@/bindings.gen";
 import { cmd as commands } from "@/lib/commands";
-
-// Events can land before `sidecarRequest` learns its id, so unclaimed events are
-// buffered until their caller arrives.
 
 type SidecarEvent =
 	| { kind: "line"; line: string }
@@ -14,30 +11,18 @@ type SidecarEvent =
 	| { kind: "done"; error: string | null };
 
 const sidecarHandlers = new Map<number, (ev: SidecarEvent) => void>();
-const sidecarPending = new Map<number, SidecarEvent[]>();
 let sidecarListeners: Promise<void> | null = null;
-
-function routeSidecarEvent(reqId: number, ev: SidecarEvent) {
-	const handler = sidecarHandlers.get(reqId);
-	if (handler) {
-		handler(ev);
-		return;
-	}
-	const buffered = sidecarPending.get(reqId);
-	if (buffered) buffered.push(ev);
-	else sidecarPending.set(reqId, [ev]);
-}
 
 function listenForSidecarEvents(): Promise<void> {
 	sidecarListeners ??= (async () => {
 		await events.sidecarLine.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "line", line: ev.payload.line }),
+			sidecarHandlers.get(ev.payload.runId)?.({ kind: "line", line: ev.payload.line }),
 		);
 		await events.sidecarLog.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "log", line: ev.payload.line }),
+			sidecarHandlers.get(ev.payload.runId)?.({ kind: "log", line: ev.payload.line }),
 		);
 		await events.sidecarDone.listen((ev) =>
-			routeSidecarEvent(ev.payload.reqId, { kind: "done", error: ev.payload.error }),
+			sidecarHandlers.get(ev.payload.runId)?.({ kind: "done", error: ev.payload.error }),
 		);
 	})();
 	return sidecarListeners;
@@ -59,22 +44,24 @@ async function request<T>(
 	payload?: unknown,
 	opts?: SidecarOptions<T>,
 ): Promise<T | null> {
+	const aborted = () => new DOMException(`Sidecar ${command} aborted`, "AbortError");
+	if (opts?.signal?.aborted) throw aborted();
 	await listenForSidecarEvents();
-	const reqId = await commands.sidecarRequest(
-		pluginId,
-		command,
-		payload === undefined ? null : JSON.stringify(payload),
-	);
+	const runId = await commands.runReserve();
 
 	return new Promise<T | null>((resolve, reject) => {
+		if (opts?.signal?.aborted) {
+			reject(aborted());
+			return;
+		}
 		let last: T | null = null;
 		// Abort kills the run but leaves the handler installed, so the `done` that
 		// follows still cleans up. Resident-served work has no process to kill.
 		const onAbort = () => {
-			commands.sidecarCancel(reqId).catch(() => {});
-			reject(new DOMException(`Sidecar ${command} aborted`, "AbortError"));
+			commands.runCancel(runId).catch(() => {});
+			reject(aborted());
 		};
-		sidecarHandlers.set(reqId, (ev) => {
+		sidecarHandlers.set(runId, (ev) => {
 			if (ev.kind === "line") {
 				let item: T;
 				try {
@@ -87,21 +74,26 @@ async function request<T>(
 			} else if (ev.kind === "log") {
 				opts?.onLog?.(ev.line);
 			} else {
-				sidecarHandlers.delete(reqId);
+				sidecarHandlers.delete(runId);
 				opts?.signal?.removeEventListener("abort", onAbort);
 				if (ev.error) reject(new Error(ev.error));
 				else resolve(last);
 			}
 		});
+		opts?.signal?.addEventListener("abort", onAbort);
 
-		const buffered = sidecarPending.get(reqId);
-		if (buffered) {
-			sidecarPending.delete(reqId);
-			for (const ev of buffered) sidecarHandlers.get(reqId)?.(ev);
-		}
-
-		if (opts?.signal?.aborted) onAbort();
-		else opts?.signal?.addEventListener("abort", onAbort);
+		commands
+			.sidecarRequest(
+				pluginId,
+				command,
+				payload === undefined ? null : JSON.stringify(payload),
+				runId,
+			)
+			.catch((e: unknown) => {
+				sidecarHandlers.delete(runId);
+				opts?.signal?.removeEventListener("abort", onAbort);
+				reject(e);
+			});
 	});
 }
 

@@ -105,7 +105,9 @@ fn only_serve_carries_the_idle_budget() {
 // one-shot holding a port.
 #[test]
 fn serve_cannot_be_requested() {
-    assert!(sidecar_request("vision".into(), "serve".into(), None).is_err());
+    let run_id = runs::run_reserve();
+    assert!(sidecar_request("vision".into(), "serve".into(), None, run_id).is_err());
+    assert!(runs::unregister_run(run_id).is_none());
 }
 
 // --- Registry ---
@@ -129,11 +131,11 @@ fn sleeper() -> Child {
         .expect("spawn sleeper")
 }
 
-fn track(plugin_id: &str, req_id: u32) -> Arc<Mutex<Child>> {
+fn track(plugin_id: &str, run_id: u32) -> Arc<Mutex<Child>> {
     let child = Arc::new(Mutex::new(sleeper()));
     lock(&plugin_slot(plugin_id))
         .children
-        .insert(req_id, child.clone());
+        .insert(run_id, child.clone());
     child
 }
 
@@ -212,19 +214,12 @@ fn concurrent_installs_for_one_plugin_serialize() {
 }
 
 #[test]
-fn cancel_kills_a_tracked_child_by_req_id() {
-    let req_id = 9500;
-    let child = track("test-cancel", req_id);
+fn cancel_kills_a_tracked_child_by_run_id() {
+    let run_id = 9500;
+    let child = track("test-cancel", run_id);
     assert!(!exited(&child));
 
-    let found = {
-        let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
-        slots
-            .iter()
-            .find_map(|slot| lock(slot).children.get(&req_id).cloned())
-    };
-    let target = found.expect("tracked child is in the registry");
-    kill_child(&target);
+    kill_run(run_id);
 
     assert!(exited(&child));
     with_plugin_stopped("test-cancel", || Ok(())).unwrap();

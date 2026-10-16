@@ -7,6 +7,7 @@ use mma_algebra::Id;
 use std::collections::{BTreeSet, HashMap};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
+use tokio::task;
 
 #[derive(Clone)]
 pub(crate) struct RunEntry {
@@ -82,7 +83,7 @@ pub(crate) fn unregister_run(run_id: u32) -> Option<RunEntry> {
 pub async fn run_cancel(run_id: u32) -> AppResult<()> {
     let run = runs().lock()?.get(&run_id).cloned();
     if let Some(run) = run {
-        run.cancel();
+        task::spawn_blocking(move || run.cancel()).await?;
     }
     Ok(())
 }

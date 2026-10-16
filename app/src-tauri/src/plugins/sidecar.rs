@@ -10,6 +10,7 @@
 use crate::emit_event;
 use crate::net::loopback;
 use crate::plugins::user::{validate_plugin_id, validate_sidecar_command, validate_sidecar_name};
+use crate::runs;
 use crate::store::storage;
 use crate::types::{AppError, AppResult};
 use reqwest::blocking::Client;
@@ -25,7 +26,6 @@ use std::io::BufWriter;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 use std::thread;
@@ -53,7 +53,7 @@ pub(crate) struct SidecarProgress {
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "sidecar-line")]
 pub(crate) struct SidecarLine {
-    req_id: u32,
+    run_id: u32,
     line: String,
 }
 
@@ -63,7 +63,7 @@ pub(crate) struct SidecarLine {
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "sidecar-log")]
 pub(crate) struct SidecarLog {
-    req_id: u32,
+    run_id: u32,
     line: String,
 }
 
@@ -71,7 +71,7 @@ pub(crate) struct SidecarLog {
 #[serde(rename_all = "camelCase")]
 #[tauri_specta(event_name = "sidecar-done")]
 pub(crate) struct SidecarDone {
-    req_id: u32,
+    run_id: u32,
     error: Option<String>,
 }
 
@@ -420,7 +420,7 @@ struct Resident {
 struct PluginProcs {
     resident: Option<Resident>,
     epoch: u64,
-    /// One-shot children, keyed by request id.
+    /// One-shot children, keyed by run id.
     children: HashMap<u32, Arc<Mutex<Child>>>,
 }
 
@@ -441,8 +441,6 @@ fn plugin_slot(plugin_id: &str) -> PluginSlot {
         .clone()
 }
 
-static REQ_COUNTER: AtomicU32 = AtomicU32::new(1);
-
 fn kill_child(child: &Arc<Mutex<Child>>) {
     let mut c = lock(child);
     let _ = c.kill();
@@ -454,9 +452,21 @@ fn kill_procs(plugin_id: &str, procs: &mut PluginProcs) {
         log::info!("[sidecar] stopping resident for {plugin_id}");
         kill_child(&r.child);
     }
-    for (req_id, child) in procs.children.drain() {
-        log::info!("[sidecar] killing {plugin_id} run {req_id}");
+    for (run_id, child) in procs.children.drain() {
+        log::info!("[sidecar] killing {plugin_id} run {run_id}");
         kill_child(&child);
+    }
+}
+
+/// Kill the one-shot child working `run_id`, whichever plugin it belongs to.
+fn kill_run(run_id: u32) {
+    let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
+    for slot in slots {
+        let child = lock(&slot).children.get(&run_id).cloned();
+        if let Some(child) = child {
+            kill_child(&child);
+            return;
+        }
     }
 }
 
@@ -667,20 +677,20 @@ fn run_command(
     spec: &SidecarSpec,
     command: &str,
     payload: Option<&str>,
-    req_id: u32,
+    run_id: u32,
     on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
     if spec.is_resident(command) {
         post_resident(plugin_id, spec, command, payload, on_line)
     } else {
-        run_oneshot(plugin_id, spec, command, payload, req_id, on_line)
+        run_oneshot(plugin_id, spec, command, payload, run_id, on_line)
     }
 }
 
 // --- One-shot transport ---
 
-fn write_input(req_id: u32, payload: &str) -> AppResult<PathBuf> {
-    let path = env::temp_dir().join(format!("mma_sidecar_{req_id}.json"));
+fn write_input(run_id: u32, payload: &str) -> AppResult<PathBuf> {
+    let path = env::temp_dir().join(format!("mma_sidecar_{run_id}.json"));
     fs::write(&path, payload)?;
     Ok(path)
 }
@@ -690,11 +700,11 @@ fn run_oneshot(
     spec: &SidecarSpec,
     command: &str,
     payload: Option<&str>,
-    req_id: u32,
+    run_id: u32,
     on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
-    let input = payload.map(|p| write_input(req_id, p)).transpose()?;
-    let result = run_oneshot_inner(plugin_id, spec, command, input.as_deref(), req_id, on_line);
+    let input = payload.map(|p| write_input(run_id, p)).transpose()?;
+    let result = run_oneshot_inner(plugin_id, spec, command, input.as_deref(), run_id, on_line);
     if let Some(path) = input {
         let _ = fs::remove_file(path);
     }
@@ -706,7 +716,7 @@ fn run_oneshot_inner(
     spec: &SidecarSpec,
     command: &str,
     input: Option<&Path>,
-    req_id: u32,
+    run_id: u32,
     on_line: &mut dyn FnMut(String),
 ) -> AppResult<()> {
     let slot = plugin_slot(plugin_id);
@@ -717,7 +727,7 @@ fn run_oneshot_inner(
         .spawn()
         .map_err(|e| AppError(format!("Failed to spawn {} {command}: {e}", spec.name)))?;
     log::info!(
-        "[sidecar] {} {command} for {plugin_id} (req_id={req_id})",
+        "[sidecar] {} {command} for {plugin_id} (run {run_id})",
         spec.name
     );
 
@@ -728,7 +738,7 @@ fn run_oneshot_inner(
     };
     let stderr = child.stderr.take();
     let child = Arc::new(Mutex::new(child));
-    guard.children.insert(req_id, child.clone());
+    guard.children.insert(run_id, child.clone());
     drop(guard);
 
     let errors = stderr.map(|stderr| {
@@ -736,12 +746,12 @@ fn run_oneshot_inner(
         thread::spawn(move || {
             for line in BufReader::new(stderr).lines().map_while(Result::ok) {
                 log::info!("[sidecar:{log_id}] {line}");
-                emit_event(SidecarLog { req_id, line });
+                emit_event(SidecarLog { run_id, line });
             }
         })
     });
 
-    // No lock held while streaming, so sidecar_cancel can reach the child mid-run.
+    // No lock held while streaming, so a cancel can reach the child mid-run.
     for line in BufReader::new(stdout).lines().map_while(Result::ok) {
         on_line(line);
     }
@@ -756,12 +766,12 @@ fn run_oneshot_inner(
             Ok(Some(status)) => break status,
             Ok(None) => thread::sleep(Duration::from_millis(5)),
             Err(e) => {
-                lock(&slot).children.remove(&req_id);
+                lock(&slot).children.remove(&run_id);
                 return Err(e.into());
             }
         }
     };
-    lock(&slot).children.remove(&req_id);
+    lock(&slot).children.remove(&run_id);
 
     if !status.success() {
         let code = status
@@ -774,13 +784,13 @@ fn run_oneshot_inner(
 
 // --- Commands ---
 
-/// Start `command` under `req_id` on its own thread, handing each output line to `on_line`
+/// Start `command` under `run_id` on its own thread, handing each output line to `on_line`
 /// as it arrives and the outcome to `on_done` once the run is over.
 fn start(
     plugin_id: &str,
     command: &str,
     payload: Option<String>,
-    req_id: u32,
+    run_id: u32,
     mut on_line: impl FnMut(String) + Send + 'static,
     on_done: impl FnOnce(AppResult<()>) + Send + 'static,
 ) -> AppResult<()> {
@@ -801,7 +811,7 @@ fn start(
             &spec,
             &command,
             payload.as_deref(),
-            req_id,
+            run_id,
             &mut on_line,
         );
         on_done(result);
@@ -809,33 +819,38 @@ fn start(
     Ok(())
 }
 
-/// Run one unit of work on a plugin's sidecar. Commands the manifest lists under
-/// `serve` go to the plugin's resident process; the rest get a one-shot child.
-/// Streams `sidecar-line` (one JSON object per unit) and `sidecar-log` (stderr),
-/// then exactly one `sidecar-done`, all keyed by the returned request id.
+/// Run one unit of work on a plugin's sidecar under a `runId` from `runReserve`. Commands the
+/// manifest lists under `serve` go to the plugin's resident process; the rest get a one-shot
+/// child, which `runCancel` kills. Streams `sidecar-line` (one JSON object per unit) and
+/// `sidecar-log` (stderr), then exactly one `sidecar-done`, all keyed by the run id.
 #[tauri::command]
 #[specta::specta]
 pub fn sidecar_request(
     plugin_id: String,
     command: String,
     payload: Option<String>,
-) -> AppResult<u32> {
-    let req_id = REQ_COUNTER.fetch_add(1, Ordering::SeqCst);
-    start(
+    run_id: u32,
+) -> AppResult<()> {
+    runs::register_stoppable(run_id, move || kill_run(run_id))?;
+    let started = start(
         &plugin_id,
         &command,
         payload,
-        req_id,
-        move |line| emit_event(SidecarLine { req_id, line }),
+        run_id,
+        move |line| emit_event(SidecarLine { run_id, line }),
         move |result| {
+            drop(runs::unregister_run(run_id));
             let error = result.err().map(|e| e.0);
             if let Some(ref message) = error {
-                log::error!("[sidecar] req_id={req_id} failed: {message}");
+                log::error!("[sidecar] run {run_id} failed: {message}");
             }
-            emit_event(SidecarDone { req_id, error });
+            emit_event(SidecarDone { run_id, error });
         },
-    )?;
-    Ok(req_id)
+    );
+    if started.is_err() {
+        drop(runs::unregister_run(run_id));
+    }
+    started
 }
 
 /// A sidecar command's output, one line at a time, blocking until the next arrives.
@@ -855,7 +870,7 @@ pub(crate) fn sidecar_call_stream(
         plugin_id,
         command,
         Some(payload.to_string()),
-        REQ_COUNTER.fetch_add(1, Ordering::SeqCst),
+        runs::run_reserve(),
         move |line| {
             let _ = tx.send(Ok(line));
         },
@@ -878,23 +893,6 @@ pub async fn sidecar_stop(plugin_id: Option<String>) -> AppResult<()> {
     };
     validate_plugin_id(&plugin_id)?;
     task::spawn_blocking(move || with_plugin_stopped(&plugin_id, || Ok(()))).await?
-}
-
-/// Cancel a running sidecar request. No-op if the request already finished.
-#[tauri::command]
-#[specta::specta]
-pub async fn sidecar_cancel(req_id: u32) -> AppResult<()> {
-    task::spawn_blocking(move || {
-        let slots: Vec<PluginSlot> = lock(registry()).values().cloned().collect();
-        for slot in slots {
-            if let Some(child) = lock(&slot).children.get(&req_id) {
-                let _ = lock(child).kill();
-                return;
-            }
-        }
-    })
-    .await?;
-    Ok(())
 }
 
 #[cfg(test)]
