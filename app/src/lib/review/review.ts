@@ -121,25 +121,6 @@ function clearProjection(id: string): void {
 	void SelectionList.update(removeSelection(...keys));
 }
 
-/** Adopt a persisted session as active, pruning locations that no longer exist. */
-async function adopt(s: ReviewSession): Promise<void> {
-	let v: ReviewSession | null = s;
-	try {
-		const liveIds = new Set(
-			await Query.read({ type: "Locations", locations: s.order, name: null }, { kind: "ids" }),
-		);
-		v = Review.prune(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
-	} catch (e) {
-		log.error("[review] validate failed:", e);
-	}
-	if (!v) {
-		await deleteSession(s.id);
-		return;
-	}
-	setSession(v);
-	await gotoCursor(v);
-}
-
 function reconcile(removed: number[]): void {
 	if (!session) return;
 	const prev = session;
@@ -260,7 +241,7 @@ export const Review = {
 			try {
 				const [existing] = await cmd.storeReviewList(mapId, "active", sourceKey);
 				if (existing) {
-					await adopt(existing);
+					await Review.resume(existing);
 					return;
 				}
 			} catch (e) {
@@ -308,9 +289,23 @@ export const Review = {
 		const ids = [...Scene.selected()];
 		return Review.begin(ids, active.length === 1 ? active[0] : undefined);
 	},
-	/** Resume a session picked from the resume modal. */
+	/** Make a saved session the active one, dropping locations that no longer exist. */
 	resume: async (s: ReviewSession): Promise<void> => {
-		await adopt(s);
+		let v: ReviewSession | null = s;
+		try {
+			const liveIds = new Set(
+				await Query.read({ type: "Locations", locations: s.order, name: null }, { kind: "ids" }),
+			);
+			v = Review.prune(s, new Set(s.order.filter((id) => !liveIds.has(id)))).session;
+		} catch (e) {
+			log.error("[review] validate failed:", e);
+		}
+		if (!v) {
+			await deleteSession(s.id);
+			return;
+		}
+		setSession(v);
+		await gotoCursor(v);
 	},
 	/** Mark the current location reviewed and step to the next one. */
 	next: async (): Promise<void> => {
