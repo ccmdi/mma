@@ -142,9 +142,9 @@ pub struct Store {
     /// mutation when the change can only grow the box; otherwise it is left behind and
     /// the next read rescans. Resolved to `[w,s,e,n]` on read.
     pub(crate) bounds: Ensured<At<Option<BoundsAcc>>>,
-    /// Lazy spatial index over alive locations, maintained incrementally by the overlay
-    /// mutation functions. Validity is a length match against `alive_count`, so any bulk
-    /// path that bypasses the overlay fns degrades to a rebuild, never wrong results.
+    /// Lazy spatial index over alive locations, maintained incrementally by [`Store::put`].
+    /// Validity is a length match against `alive_count`, so any bulk path that bypasses
+    /// `put` degrades to a rebuild, never wrong results.
     pub(crate) spatial: Ensured<SpatialIndex>,
     /// The windows drawing this store. A store opened afresh has none: each window
     /// subscribes when it loads its scene.
@@ -495,26 +495,6 @@ impl Store {
         }
     }
 
-    /// Rewrite live locations where they sit: an added row in its sorted slot, a base row as
-    /// its patch. O(log n) per row, and the spatial index moves only a row whose coordinates did.
-    fn overlay_update<'a>(&mut self, locs: impl Iterator<Item = &'a Location>) {
-        for loc in locs {
-            let at = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
-            if at != (loc.lat, loc.lng) {
-                if let Some(ix) = self.spatial.if_built_mut() {
-                    if !ix.remove(loc.id.get(), at.0, at.1) {
-                        log::warn!("[spatial] remove miss for id {}", loc.id);
-                    }
-                    ix.insert(loc.id.get(), loc.lat, loc.lng);
-                }
-            }
-            match self.overlay.added.binary_search_by_key(&loc.id, |l| l.id) {
-                Ok(ix) => self.overlay.edit().added[ix] = loc.clone(),
-                Err(_) => self.overlay_patch(loc.clone()),
-            }
-        }
-    }
-
     /// File a base row's new state as its patch, or drop the patch when it matches the base.
     fn overlay_patch(&mut self, loc: Location) {
         if self.base_loc_by_id(loc.id).as_ref() == Some(&loc) {
@@ -524,46 +504,12 @@ impl Store {
         }
     }
 
-    /// Mark locations as dead in the overlay. O(L) for L locations removed.
-    fn overlay_remove<'a>(&mut self, locs: impl Iterator<Item = &'a Location>) {
-        let mut remove_set: HashSet<Id<Location>> = HashSet::new();
-        for loc in locs {
-            remove_set.insert(loc.id);
-            *self.alive_count.edit() -= 1;
-            // Index under the CURRENT coords, not the caller's copy: a patched
-            // location's overlay coords are where the index filed it.
-            let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
-            if let Some(ix) = self.spatial.if_built_mut() {
-                if !ix.remove(loc.id.get(), lat, lng) {
-                    log::warn!("[spatial] remove miss for id {}", loc.id);
-                }
-            }
-            self.overlay.edit().updated.remove(&loc.id);
-        }
-        self.overlay
-            .edit()
-            .removed
-            .extend(remove_set.iter().copied());
-        self.overlay
-            .edit()
-            .added
-            .retain(|l| !remove_set.contains(&l.id));
-    }
-
-    /// Reset overlay state. Called after bake or on map close.
-    fn clear_overlay(&mut self) {
-        let overlay = self.overlay.edit();
-        overlay.added.clear();
-        overlay.removed.clear();
-        overlay.updated.clear();
-        self.overlay.mark_saved();
-    }
-
     /// Make `batch` the base and clear the overlay it already holds.
     fn adopt_base(&mut self, batch: RecordBatch) {
         self.batch = Some(batch);
         self.field_indexes.clear();
-        self.clear_overlay();
+        *self.overlay.edit() = Overlay::default();
+        self.overlay.mark_saved();
     }
 
     /// Every live location as one batch: the base with the overlay merged in, or `None` for a

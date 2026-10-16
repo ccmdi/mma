@@ -421,13 +421,45 @@ impl Store {
         }
     }
 
-    /// Apply row changes to the store.
+    /// Apply row changes to the store: removed rows die, updated rows are rewritten where they
+    /// sit (an added row in its sorted slot, a base row as its patch), and added rows join.
+    /// The spatial index moves only a row whose coordinates did.
     pub(crate) fn put(&mut self, change: &Change<Location>) {
         if change.is_empty() {
             return;
         }
-        self.overlay_remove(change.removed.iter());
-        self.overlay_update(change.updated.iter().map(|(_, new)| new));
+        let mut removed: HashSet<Id<Location>> = HashSet::new();
+        for loc in &change.removed {
+            removed.insert(loc.id);
+            *self.alive_count.edit() -= 1;
+            // Index under the current coords, not the caller's copy: a patched
+            // location's overlay coords are where the index filed it.
+            let (lat, lng) = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
+            if let Some(ix) = self.spatial.if_built_mut() {
+                if !ix.remove(loc.id.get(), lat, lng) {
+                    log::warn!("[spatial] remove miss for id {}", loc.id);
+                }
+            }
+            self.overlay.edit().updated.remove(&loc.id);
+        }
+        let overlay = self.overlay.edit();
+        overlay.removed.extend(removed.iter().copied());
+        overlay.added.retain(|l| !removed.contains(&l.id));
+        for (_, loc) in &change.updated {
+            let at = self.coords_of(loc.id).unwrap_or((loc.lat, loc.lng));
+            if at != (loc.lat, loc.lng) {
+                if let Some(ix) = self.spatial.if_built_mut() {
+                    if !ix.remove(loc.id.get(), at.0, at.1) {
+                        log::warn!("[spatial] remove miss for id {}", loc.id);
+                    }
+                    ix.insert(loc.id.get(), loc.lat, loc.lng);
+                }
+            }
+            match self.overlay.added.binary_search_by_key(&loc.id, |l| l.id) {
+                Ok(ix) => self.overlay.edit().added[ix] = loc.clone(),
+                Err(_) => self.overlay_patch(loc.clone()),
+            }
+        }
         self.overlay_add(change.added.clone());
     }
 
