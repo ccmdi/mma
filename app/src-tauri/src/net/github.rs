@@ -8,7 +8,7 @@
 //! authorizes in their own browser instead of typing credentials into our window.
 //!
 //! This is a GitHub *App*, not an OAuth App, so a user-to-server token is bounded by the
-//! app's installation on [`REPO`]. Signing in grants us nothing on the user's own repos.
+//! app's installation on [`repo`]. Signing in grants us nothing on the user's own repos.
 
 use crate::types::wire_str_enum;
 use std::sync::{Mutex, OnceLock};
@@ -26,7 +26,10 @@ use std::thread;
 
 pub(crate) const CLIENT_ID: &str = "Iv23liRIs8ykMt8IFai2";
 
-const REPO: &str = "ccmdi/mma";
+/// The repository reports are filed on, or the one `MMA_FEEDBACK_REPO` names.
+fn repo() -> String {
+    crate::env::var("MMA_FEEDBACK_REPO").unwrap_or_else(|| "ccmdi/mma".into())
+}
 const API: &str = "https://api.github.com";
 const SECRET_NAME: &str = "github";
 
@@ -534,7 +537,7 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
     let payload = serde_json::json!({ "title": title, "body": body });
     let resp = authed(|token| {
         proxy::proxy_client()
-            .post(format!("{API}/repos/{REPO}/issues"))
+            .post(format!("{API}/repos/{}/issues", repo()))
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
             .header("User-Agent", user_agent())
@@ -560,9 +563,10 @@ pub(crate) fn create_issue(title: &str, body: &str) -> AppResult<ReportRef> {
 
 /// The thread of an issue the signed-in user filed.
 pub(crate) fn issue_thread(number: u32) -> AppResult<IssueThread> {
-    let issue = get(&format!("{API}/repos/{REPO}/issues/{number}"))?;
+    let repo = repo();
+    let issue = get(&format!("{API}/repos/{repo}/issues/{number}"))?;
     let comments = get(&format!(
-        "{API}/repos/{REPO}/issues/{number}/comments?per_page=100"
+        "{API}/repos/{repo}/issues/{number}/comments?per_page=100"
     ))?;
     Ok(parse_thread(&issue, &comments))
 }
@@ -572,7 +576,7 @@ pub(crate) fn comment(number: u32, body: &str) -> AppResult<IssueComment> {
     let payload = serde_json::json!({ "body": body });
     let resp = authed(|token| {
         proxy::proxy_client()
-            .post(format!("{API}/repos/{REPO}/issues/{number}/comments"))
+            .post(format!("{API}/repos/{}/issues/{number}/comments", repo()))
             .header("Accept", "application/vnd.github+json")
             .header("Authorization", format!("Bearer {token}"))
             .header("User-Agent", user_agent())

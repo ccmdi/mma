@@ -16,7 +16,10 @@ use std::fs::File;
 use std::path::Path;
 use std::thread;
 
-const WORKER_URL: &str = "https://feedback.ccmdi.com";
+/// The feedback worker, or the one `MMA_FEEDBACK_WORKER` names.
+fn worker_url() -> String {
+    crate::env::var("MMA_FEEDBACK_WORKER").unwrap_or_else(|| "https://feedback.ccmdi.com".into())
+}
 
 /// Leading zero bits demanded of the proof-of-work hash. ~1M hashes to solve (well under a
 /// second), one hash to check. Enough to make scripted spam cost something without the user
@@ -126,7 +129,7 @@ fn fetch_challenge() -> AppResult<String> {
         challenge: String,
     }
     let resp = proxy::proxy_client()
-        .get(format!("{WORKER_URL}/challenge"))
+        .get(format!("{}/challenge", worker_url()))
         .send()?;
     if !resp.status().is_success() {
         return Err(format!("challenge request failed ({})", resp.status()).into());
@@ -187,7 +190,8 @@ pub async fn feedback_submit(
                     let nonce = solve_pow(&format!("{challenge}:label:{number}"), POW_BITS);
                     let resp = proxy::proxy_client()
                         .post(format!(
-                            "{WORKER_URL}/reports/{number}/label?challenge={challenge}&nonce={nonce}"
+                            "{}/reports/{number}/label?challenge={challenge}&nonce={nonce}",
+                            worker_url()
                         ))
                         .send()?;
                     if !resp.status().is_success() {
@@ -205,7 +209,7 @@ pub async fn feedback_submit(
         let content = util::sha256_hex(format!("{title}\0{body}").as_bytes());
         let nonce = solve_pow(&format!("{challenge}:{content}"), POW_BITS);
         let resp = proxy::proxy_client()
-            .post(format!("{WORKER_URL}/reports"))
+            .post(format!("{}/reports", worker_url()))
             .json(&serde_json::json!({
                 "title": title,
                 "body": body,
@@ -270,7 +274,8 @@ pub async fn feedback_upload_attachment(path: String, name: String) -> AppResult
             .to_string();
         let resp = proxy::proxy_client()
             .post(format!(
-                "{WORKER_URL}/uploads?name={name}&challenge={challenge}&nonce={nonce}"
+                "{}/uploads?name={name}&challenge={challenge}&nonce={nonce}",
+                worker_url()
             ))
             .header("Content-Type", "application/octet-stream")
             .body(bytes)
@@ -298,7 +303,7 @@ pub async fn feedback_thread(number: u32, token: Option<String>) -> AppResult<Is
         };
         // In a header rather than the URL, which lands in request logs along the way.
         let resp = proxy::proxy_client()
-            .get(format!("{WORKER_URL}/reports/{number}"))
+            .get(format!("{}/reports/{number}", worker_url()))
             .header("Authorization", format!("Bearer {token}"))
             .send()?;
         if !resp.status().is_success() {
@@ -326,7 +331,7 @@ pub async fn feedback_reply(
         let content = util::sha256_hex(body.as_bytes());
         let nonce = solve_pow(&format!("{challenge}:reply:{number}:{content}"), POW_BITS);
         let resp = proxy::proxy_client()
-            .post(format!("{WORKER_URL}/reports/{number}/comments"))
+            .post(format!("{}/reports/{number}/comments", worker_url()))
             .header("Authorization", format!("Bearer {token}"))
             .json(&serde_json::json!({ "body": body, "challenge": challenge, "nonce": nonce }))
             .send()?;

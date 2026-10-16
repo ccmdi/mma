@@ -31,3 +31,16 @@ namespace_id = "1001"
 #   GITHUB_APP_ID    numeric id of the GitHub App
 #   GITHUB_APP_KEY   its private key, PKCS#8 PEM
 #   WORKER_SECRET    signing key for reply tokens
+
+# A copy that files on the test repository, for trying the app's reporting end to end:
+#   wrangler r2 bucket create mma-feedback-staging   (once)
+#   wrangler secret put <NAME> --env staging         (the three secrets below; a fresh WORKER_SECRET)
+#   wrangler deploy --env staging
+# Point a dev build at it with MMA_FEEDBACK_WORKER and MMA_FEEDBACK_REPO in the checkout's .env.
+[env.staging]
+workers_dev = false
+routes = [{ pattern = "feedback-staging.ccmdi.com", custom_domain = true }]
+r2_buckets = [{ binding = "ATTACHMENTS", bucket_name = "mma-feedback-staging" }]
+vars = { GITHUB_REPO = "ccmdi/mma-reference" }
+triggers = { crons = ["17 4 * * 1"] }
+ratelimits = [{ name = "RATE", namespace_id = "1002", simple = { limit = 30, period = 60 } }]

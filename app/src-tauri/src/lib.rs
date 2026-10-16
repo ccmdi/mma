@@ -15,6 +15,7 @@ mod types;
 
 #[cfg(feature = "e2e")]
 mod e2e;
+mod env;
 mod io;
 mod net;
 mod plugins;
