@@ -434,26 +434,6 @@ fn parse_geojson(data: &str) -> AppResult<Vec<BorderFeature>> {
         .collect())
 }
 
-/// Serialize a GeoJSON border dataset into the rkyv archive bytes shipped to clients.
-/// Reproducible offline step -- see the `gen_rkyv_artifacts` test. Test-only: the app
-/// reads the prebuilt archives, it never converts at runtime.
-#[cfg(test)]
-fn convert_dataset(json: &str) -> AppResult<Vec<u8>> {
-    let features = parse_geojson(json)?
-        .into_iter()
-        .map(|f| ArchFeature {
-            name: f.name,
-            code: f.code,
-            rings: f.geometry.coordinates,
-            extra: f.geometry.extra_polygons.unwrap_or_default(),
-        })
-        .collect();
-    let dataset = ArchDataset { features };
-    let bytes = rkyv::to_bytes::<_, 1024>(&dataset)
-        .map_err(|e| format!("Failed to serialize border archive: {e:?}"))?;
-    Ok(bytes.into_vec())
-}
-
 /// Runs `$body` with `$feats` bound to the dataset's features paired with their bboxes,
 /// once per backend so every scan stays statically dispatched.
 macro_rules! with_features {

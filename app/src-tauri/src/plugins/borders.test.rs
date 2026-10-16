@@ -3,13 +3,31 @@
 
 use super::{
     arch_feature_bbox, arch_point_in_feature, arch_to_geometry, classify_points, classify_scan,
-    convert_dataset, git_blob_sha1, parse_border_shas, upstream_replacement, ArchDataset,
+    git_blob_sha1, parse_border_shas, parse_geojson, upstream_replacement, ArchDataset,
     ArchFeature, BorderFeature,
 };
 use crate::selections::{self, PolygonGeometry};
 use crate::test_util::TempDir;
+use crate::types::AppResult;
 use std::fs;
 use std::path::{Path, PathBuf};
+
+/// Serialize a GeoJSON border dataset into the rkyv archive bytes shipped to clients.
+fn convert_dataset(json: &str) -> AppResult<Vec<u8>> {
+    let features = parse_geojson(json)?
+        .into_iter()
+        .map(|f| ArchFeature {
+            name: f.name,
+            code: f.code,
+            rings: f.geometry.coordinates,
+            extra: f.geometry.extra_polygons.unwrap_or_default(),
+        })
+        .collect();
+    let dataset = ArchDataset { features };
+    let bytes = rkyv::to_bytes::<_, 1024>(&dataset)
+        .map_err(|e| format!("Failed to serialize border archive: {e:?}"))?;
+    Ok(bytes.into_vec())
+}
 
 fn sample() -> (PolygonGeometry, ArchFeature) {
     // Outer square [0,10]^2 with a hole [3,7]^2, plus a detached extra square [20,30]x[0,10].
