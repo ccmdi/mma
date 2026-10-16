@@ -58,6 +58,35 @@ export function changedSidecarInputs(repo, base, sidecar) {
 	);
 }
 
+export function releaseTags(registry) {
+	const tags = new Set();
+	for (const plugin of registry)
+		for (const entry of [plugin, ...(plugin.builds ?? [])])
+			if (entry.sidecar?.version) tags.add(`${plugin.id}-v${entry.sidecar.version}`);
+	return [...tags];
+}
+
+export function checkReleaseTags(registry, listRemoteTags, ci = !!process.env.CI) {
+	let listed;
+	try {
+		listed = listRemoteTags();
+	} catch (error) {
+		const message = `cannot list origin tags (${error.message.split("\n")[0]})`;
+		return ci ? { errors: [message], warnings: [] } : { errors: [], warnings: [message] };
+	}
+	const remote = new Set(
+		listed
+			.split("\n")
+			.map((line) => line.match(/\trefs\/tags\/(.+?)(?:\^\{\})?$/)?.[1])
+			.filter(Boolean),
+	);
+	const missing = releaseTags(registry).filter((tag) => !remote.has(tag));
+	return {
+		errors: missing.map((tag) => `registry.json names sidecar release ${tag}, missing on origin`),
+		warnings: [],
+	};
+}
+
 function main() {
 	const base = resolveBase(root);
 	console.log(`base ${base}`);
@@ -83,6 +112,20 @@ function main() {
 		if (problems.length) fail = 1;
 		console.log(problems.length ? `[${name}] FAIL: ${problems.join("; ")}` : `[${name}] ok`);
 	}
+	const registry = JSON.parse(readFileSync(join(root, "plugins", "registry.json"), "utf8"));
+	const { errors, warnings } = checkReleaseTags(registry, () =>
+		execFileSync("git", ["ls-remote", "--tags", "origin"], {
+			cwd: root,
+			encoding: "utf8",
+			stdio: ["ignore", "pipe", "pipe"],
+			timeout: 30_000,
+			env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+		}),
+	);
+	for (const warning of warnings) console.log(`[release tags] WARN: ${warning}`);
+	for (const error of errors) console.log(`[release tags] FAIL: ${error}`);
+	if (errors.length) fail = 1;
+	else if (!warnings.length) console.log("[release tags] ok");
 	process.exitCode = fail;
 }
 

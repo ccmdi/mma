@@ -24,7 +24,7 @@ check-legacy      node  -       app            node ../plugins/check-legacy.mjs
 check-unstable    node  -       app            node ../plugins/check-unstable.mjs
 check-floors      node  -       app            node ../plugins/check-floors.mjs
 check-tokens      node  -       app            node ../plugins/check-tokens.mjs
-check-sidecars    node  -       .              node plugins/check-sidecars.mjs
+check-sidecars    node  -       .              node --test plugins/check-sidecars.test.mjs && node plugins/check-sidecars.mjs
 check-rust-tests  node  -       .              node --test plugins/check-rust-test-layout.test.mjs && node plugins/check-rust-test-layout.mjs
 image-dims        node  fresh   app            fresh src/components/manual/manual-img-dims.gen.ts -- npm run gen:image-dims
 plugin-types      node  fresh   app            fresh ../plugins/types/mma.d.ts ../plugins/types/API.md -- npm run gen:plugin-types
