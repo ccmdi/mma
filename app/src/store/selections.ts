@@ -134,27 +134,29 @@ export function tagIdOf(selector: Selector): number | null {
 		: null;
 }
 
+/** A selector with its parts' keys and colors dropped and its fields in a fixed order, so two
+ *  selectors that select the same way compare equal. */
+function selectorShape(value: unknown): unknown {
+	if (Array.isArray(value)) return value.map(selectorShape);
+	if (!value || typeof value !== "object") return value;
+	return Object.fromEntries(
+		Object.entries(value)
+			.filter(([k]) => k !== "key" && k !== "color")
+			.sort(([a], [b]) => (a < b ? -1 : 1))
+			.map(([k, v]) => [k, selectorShape(v)]),
+	);
+}
+
+const PRESETS: [Selector, () => string][] = [
+	[untaggedSelector(), () => t("Untagged")],
+	[unpannedSelector(), () => t("Unpanned")],
+	[panoIdSelector(true), () => t("Pano ID locations")],
+	[panoIdSelector(false), () => t("Coordinate locations")],
+];
+
 function namedLabel(selector: Selector): string | undefined {
-	if (selector.type === "Filter") {
-		if (selector.field === "tags" && selector.test.op === "nothas") return t("Untagged");
-		if (selector.field === "heading" && selector.test.op === "eq" && selector.test.value === 0)
-			return t("Unpanned");
-	}
-	const inner = selector.type === "Invert" ? selector.selections[0]?.selector : selector;
-	if (inner?.type !== "Intersection" || inner.selections.length !== 2) return undefined;
-	const [flag, pano] = inner.selections.map((s) => s.selector);
-	if (
-		flag.type === "Filter" &&
-		flag.field === "loadAsPanoId" &&
-		flag.test.op === "eq" &&
-		flag.test.value === true &&
-		pano.type === "Filter" &&
-		pano.field === "panoId" &&
-		pano.test.op === "has"
-	) {
-		return selector.type === "Invert" ? t("Coordinate locations") : t("Pano ID locations");
-	}
-	return undefined;
+	const shape = JSON.stringify(selectorShape(selector));
+	return PRESETS.find(([preset]) => JSON.stringify(selectorShape(preset)) === shape)?.[1]();
 }
 
 /** What one selection type answers about itself; optional answers default at the lookup. */
@@ -162,7 +164,7 @@ interface SelectionDescriptor<K extends Selector["type"]> {
 	label(selector: Variant<Selector, K>, tagNames?: Record<number, string>): string;
 }
 
-/** Per-type descriptor for each selector variant: key derivation, display label, and optional color/location overrides. */
+/** The display label of each selector variant. */
 export const SELECTIONS: { [K in Selector["type"]]: SelectionDescriptor<K> } = {
 	Locations: {
 		label: (s) => s.name ?? t("Selection"),
