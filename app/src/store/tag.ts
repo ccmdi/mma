@@ -18,16 +18,16 @@ export const Tag = {
 		(values): Record<number, number> =>
 			Object.fromEntries(Object.entries(values).map(([k, v]) => [Number(k), v?.count ?? 0])),
 	),
-	/** Tag records, including unreferenced records and generated display defaults. */
+	/** Tag records, including unreferenced records. */
 	all: memoOnRefs(
 		() => [Store.get().fieldValues["tags"] ?? NO_VALUES] as const,
 		(values): Record<number, Tag> => {
 			const out: Record<number, Tag> = {};
 			for (const [k, v] of Object.entries(values)) {
-				if (!v) continue;
+				const rec = v?.record;
+				const name = rec?.name;
+				if (!v || !rec || typeof name !== "string" || !name) continue;
 				const id = Number(k);
-				const rec = v.record ?? {};
-				const name = typeof rec.name === "string" && rec.name ? rec.name : `Tag ${id}`;
 				out[id] = {
 					id,
 					name,

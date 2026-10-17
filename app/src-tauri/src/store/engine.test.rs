@@ -3804,6 +3804,20 @@ fn assigning_a_tag_reports_its_count_in_the_same_mutation() {
 }
 
 #[test]
+fn assigning_a_tag_with_no_record_leaves_the_location_without_it() {
+    let mut store = setup_store_with(&[loc(1, 10.0, 20.0)]);
+    let known = store.edit_values("tags", adds(&["Known"])).unwrap().keys[0];
+
+    work_tags(&mut store, &[known.get(), 99], &[], &[1]);
+
+    assert_eq!(
+        store.get_loc_by_id(Id::new(1)).unwrap().tags,
+        tag_ids([known.get()])
+    );
+    assert!(store.fields(["tags"])[0].get("99").is_none());
+}
+
+#[test]
 fn stripping_the_last_member_reports_a_zero_count() {
     // Count 0 is the signal the frontend derives "this tag has emptied" from, so the
     // mutation that empties a value must say so rather than dropping the entry.
@@ -3817,9 +3831,27 @@ fn stripping_the_last_member_reports_a_zero_count() {
     assert_eq!(shipped_count(&feed.last(), "tags", "7"), Some(0));
 }
 
+/// Give each of `tags` a record, since the map keeps only tags it holds a record for.
+fn seed_tag_records(store: &mut Store, tags: impl IntoIterator<Item = u32>) {
+    let mut records = tag_records(store);
+    for t in tags {
+        records.entry(Id::new(t)).or_insert_with(|| ValueRecord {
+            id: Id::new(t),
+            name: Some(format!("t{t}")),
+            ..Default::default()
+        });
+    }
+    store.records.insert("tags".into(), Tracked::new(records));
+}
+
 /// Membership write through the generic field op: `tags` is an ordinary list-valued
 /// field, so it goes through the same `ListSet` any `array` field would.
 fn set_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Mutation {
+    seed_tag_records(store, add.iter().copied());
+    work_tags(store, add, remove, ids)
+}
+
+fn work_tags(store: &mut Store, add: &[u32], remove: &[u32], ids: &[u32]) -> Mutation {
     let op = Work::Locations(LocationOp::ListSet {
         key: "tags".into(),
         add: add.iter().map(|&i| serde_json::json!(i)).collect(),
@@ -8706,6 +8738,7 @@ fn merge_arbitrary_groups_is_one_undoable_write() {
         loc(4, 80.0, 80.0),
     ];
     let mut store = setup_store_with(&rows);
+    seed_tag_records(&mut store, [10, 20]);
     let out = store
         .at(&Target::Map { id: None })
         .work(

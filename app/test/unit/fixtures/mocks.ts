@@ -108,7 +108,10 @@ export function openMapResult(
 			history: {},
 			fieldValues: {
 				tags: Object.fromEntries(
-					Object.entries(over.tagCounts ?? {}).map(([k, count]) => [k, { record: null, count }]),
+					Object.entries(over.tagCounts ?? {}).map(([k, count]) => [
+						k,
+						{ record: { name: `t${k}` }, count },
+					]),
 				),
 			},
 			fieldDefs: over.fieldDefs ?? {},

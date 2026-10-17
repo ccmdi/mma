@@ -2450,7 +2450,7 @@ getTags(): Record<number, Tag>
 
 **Deprecated in v0.12.0.** Use `MMA.Tag.all`.
 
-Tag records, including unreferenced records and generated display defaults.
+Tag records, including unreferenced records.
 
 ### getVisibleTags
 
@@ -3968,7 +3968,7 @@ Manage tag records and their assignment to locations.
 Tag.all(): Record<number, Tag>
 ```
 
-Tag records, including unreferenced records and generated display defaults.
+Tag records, including unreferenced records.
 
 #### Tag.assign
 

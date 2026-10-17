@@ -3538,7 +3538,7 @@ export type TagCreate = Pick<Tag, "name"> & Partial<Omit<Tag, "id" | "name" | "v
 declare const Tag: {
     /** Per-tag location counts, keyed by numeric id. */
     counts: () => Record<number, number>;
-    /** Tag records, including unreferenced records and generated display defaults. */
+    /** Tag records, including unreferenced records. */
     all: () => Record<number, Tag>;
     /** Tag records referenced by at least one location. */
     visible: () => Tag[];

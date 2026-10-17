@@ -302,27 +302,40 @@ impl Store {
     }
 
     /// `layer` with the incoming records its rows reference matched to the map's by name and
-    /// the references remapped to them, and what that did to the map's records.
+    /// the references remapped to them, and what that did to the map's records. A field that
+    /// brings no records keeps only the references the map holds a record for.
     fn reconcile_incoming(
         &mut self,
         mut layer: Layer<Location>,
-        incoming: IncomingRecords,
+        mut incoming: IncomingRecords,
     ) -> (Layer<Location>, RecordDeltas) {
         let mut records = RecordDeltas::new();
-        for (field, incoming) in incoming {
-            if incoming.is_empty() {
-                continue;
-            }
-            let floor = self.fields([field.as_str()])[0].floor();
-            let before = self.records(&field);
-            let mut after = before.clone();
-            let remap = reconcile_values_by_name(incoming.values(), &mut after, floor);
+        let mut fields: BTreeSet<String> = self.registry().interned().map(str::to_string).collect();
+        fields.extend(incoming.keys().cloned());
+        for field in fields {
+            let remap = match incoming.remove(&field).filter(|held| !held.is_empty()) {
+                Some(held) => {
+                    let floor = self.fields([field.as_str()])[0].floor();
+                    let before = self.records(&field);
+                    let mut after = before.clone();
+                    let remap = reconcile_values_by_name(held.values(), &mut after, floor);
+                    records.insert(
+                        field.clone(),
+                        RecordDelta::at(&before, &after, remap.values().copied()),
+                    );
+                    remap
+                }
+                None => self
+                    .records
+                    .get(&field)
+                    .map(|held| held.keys().map(|&id| (id, id)).collect())
+                    .unwrap_or_default(),
+            };
             let registry = FieldRegistry::new(&self.field_defs);
             let to = registry
                 .assign(&field)
                 .expect("declared interned fields are writable");
             layer = layer.map_edits(|edit| remap_written(edit, &to, &remap), &mut self.next_id);
-            records.insert(field, RecordDelta::at(&before, &after, remap.into_values()));
         }
         (layer, records)
     }
@@ -654,13 +667,10 @@ fn remap_written(
 ) -> Edit<Location> {
     let written = |row: &Location| {
         let ids = held_ids(&selections::RowRef::from_loc(row), to.key());
-        (!ids.is_empty()).then(|| {
-            serde_json::Value::Array(
-                ids.iter()
-                    .filter_map(|id| remap.get(id).map(|id| id.get().into()))
-                    .collect(),
-            )
-        })
+        let mapped: Vec<Id<ValueRecord>> =
+            ids.iter().filter_map(|id| remap.get(id).copied()).collect();
+        (mapped != ids)
+            .then(|| serde_json::Value::Array(mapped.iter().map(|id| id.get().into()).collect()))
     };
     let write = |patch: &mut Patch<Location>, row: &Location, ids: &serde_json::Value| {
         to.write(patch, row.flags, ids)

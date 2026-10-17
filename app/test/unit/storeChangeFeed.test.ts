@@ -135,9 +135,9 @@ describe("change feed patches", () => {
 		expect(Tag.names([9, 404])).toEqual(["Empty"]);
 	});
 
-	it("a counted value without a record shows under a derived name", () => {
+	it("a counted value without a record is not a tag", () => {
 		arrive(event([add("/fieldValues/tags/9", { record: null, count: 2 })]));
-		expect(Tag.all()[9]).toMatchObject({ id: 9, name: "Tag 9", visible: true });
+		expect(Tag.all()[9]).toBeUndefined();
 	});
 
 	// The field registry ships whole when it changed; the known-key set is its key set

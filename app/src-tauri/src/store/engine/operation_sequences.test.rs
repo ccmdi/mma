@@ -4,6 +4,7 @@ use crate::selections::tree::{SelectionInput, SelectionOp};
 #[test]
 fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_history() {
     let mut store = setup_store_with(&[]);
+    seed_tag_records(&mut store, 0..4);
     let mut model = BTreeMap::<Id<Location>, Location>::new();
     let mut selection_active = true;
     let mut undo = Vec::<(BTreeMap<Id<Location>, Location>, bool)>::new();
@@ -217,6 +218,7 @@ fn seeded_public_operation_traces_match_rows_indexes_selections_and_saved_histor
             );
             if step % 37 == 36 {
                 store = close_and_reopen(&store);
+                seed_tag_records(&mut store, 0..4);
                 set_tag_one_selection(&mut store, selection_active);
                 check(
                     &mut store,
