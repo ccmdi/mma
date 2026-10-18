@@ -707,6 +707,20 @@ label,
 summary {
 	cursor: pointer;
 }
+/* A toggle's label is as wide as its box and text, so empty space beside it does nothing. */
+:where(label:has(input[type="checkbox"], input[type="radio"], [role="switch"])) {
+	width: fit-content;
+	max-width: 100%;
+}
+/* A label wrapping a text field or select is not itself a click target, so the gap
+   between its text and its control does nothing. */
+label:has(input, select, textarea):not(:has(input[type="checkbox"], input[type="radio"])) {
+	cursor: default;
+	pointer-events: none;
+}
+label:has(input, select, textarea):not(:has(input[type="checkbox"], input[type="radio"])) > * {
+	pointer-events: auto;
+}
 .button {
 	color: var(--text-1);
 	background-color: var(--surface-3);
@@ -1360,6 +1374,9 @@ input[type="range"]:disabled {
 	justify-content: space-between;
 	align-items: center;
 	display: grid;
+}
+.edit-map-modal__name > label {
+	justify-self: start;
 }
 /* The reset button rides inside the 20rem field column, not beside it. */
 .edit-map-modal__expr {
