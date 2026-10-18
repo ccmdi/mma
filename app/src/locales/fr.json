@@ -573,7 +573,7 @@
 	"Generation complete": "Génération terminée",
 	"Generic (no map name)": "Générique (sans nom de carte)",
 	"GeoGuessr": "GeoGuessr",
-	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr réoriente automatiquement les lieux qui pointent plein nord le long de la route. Pour que vos\n\t\t\t\t\t\t\t\tlieux non orientés le restent, activez cette option.",
+	"GeoGuessr auto-pans locations that point straight north along the road. To keep your unpanned locations unpanned, enable this option.": "GeoGuessr réoriente automatiquement les lieux qui pointent plein nord le long de la route. Pour que vos lieux non orientés le restent, activez cette option.",
 	"Geocoding": "Géocodage",
 	"Get new versions early, before they are marked stable.": "Recevoir les nouvelles versions plus tôt, avant qu’elles soient marquées comme stables.",
 	"Get one at map-making.app/keys": "Obtenez-en une sur map-making.app/keys",

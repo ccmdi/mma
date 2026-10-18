@@ -539,7 +539,7 @@
 	"Generation complete": "生成完了",
 	"Generic (no map name)": "簡易（マップ名なし）",
 	"GeoGuessr": "GeoGuessr",
-	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr は道路に沿って真北を向く地点を自動でパンします。パンしていない地点をそのまま保つには、このオプションを有効にしてください。",
+	"GeoGuessr auto-pans locations that point straight north along the road. To keep your unpanned locations unpanned, enable this option.": "GeoGuessr は道路に沿って真北を向く地点を自動でパンします。パンしていない地点をそのまま保つには、このオプションを有効にしてください。",
 	"Geocoding": "ジオコーディング",
 	"Get new versions early, before they are marked stable.": "安定版になる前に、新しいバージョンをいち早く入手します。",
 	"Get one at map-making.app/keys": "map-making.app/keys で取得できます",

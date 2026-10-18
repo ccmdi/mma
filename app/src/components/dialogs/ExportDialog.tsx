@@ -147,7 +147,7 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 						>
 							{t("Save zoom levels")}
 						</Checkbox>
-						<label className="export-modal__shape">
+						<label className="export-modal__row">
 							{t("Format:")}
 							<NSelect
 								name="shape"
@@ -163,16 +163,20 @@ export function ExportDialog({ open, onOpenChange }: DialogProps) {
 							</NSelect>
 							<InfoButton text={t(SHAPE_HINTS[shape])} />
 						</label>
-						<Checkbox
-							name="unpanned"
-							checked={bypassUnpanned}
-							onChange={(e) => setBypassUnpanned(e.target.checked)}
-							hint={t(
-								"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.",
-							)}
-						>
-							{t("Bypass GeoGuessr auto-panning for locations with 0 heading")}
-						</Checkbox>
+						<div className="export-modal__row">
+							<Checkbox
+								name="unpanned"
+								checked={bypassUnpanned}
+								onChange={(e) => setBypassUnpanned(e.target.checked)}
+							>
+								{t("Bypass GeoGuessr auto-panning for locations with 0 heading")}
+							</Checkbox>
+							<InfoButton
+								text={t(
+									"GeoGuessr auto-pans locations that point straight north along the road. To keep your unpanned locations unpanned, enable this option.",
+								)}
+							/>
+						</div>
 					</div>
 				</div>
 				<div className="export-modal__formats">

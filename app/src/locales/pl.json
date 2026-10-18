@@ -590,7 +590,7 @@
 	"Generation complete": "Generowanie zakończone",
 	"Generic (no map name)": "Ogólne (bez nazwy mapy)",
 	"GeoGuessr": "GeoGuessr",
-	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr automatycznie obraca lokalizacje skierowane dokładnie na północ wzdłuż drogi. Aby\n\t\t\t\t\t\t\t\tnieobrócone lokalizacje pozostały nieobrócone, włącz tę opcję.",
+	"GeoGuessr auto-pans locations that point straight north along the road. To keep your unpanned locations unpanned, enable this option.": "GeoGuessr automatycznie obraca lokalizacje skierowane dokładnie na północ wzdłuż drogi. Aby nieobrócone lokalizacje pozostały nieobrócone, włącz tę opcję.",
 	"Geocoding": "Geokodowanie",
 	"Get new versions early, before they are marked stable.": "Otrzymuj nowe wersje wcześniej, zanim zostaną oznaczone jako stabilne.",
 	"Get one at map-making.app/keys": "Pobierz go na map-making.app/keys",

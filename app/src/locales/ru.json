@@ -590,7 +590,7 @@
 	"Generation complete": "Генерация завершена",
 	"Generic (no map name)": "Обобщённо (без названия карты)",
 	"GeoGuessr": "GeoGuessr",
-	"GeoGuessr auto-pans locations that point straight north along the road. To keep your\n\t\t\t\t\t\t\t\tunpanned locations unpanned, enable this option.": "GeoGuessr автоматически поворачивает локации, направленные строго на север вдоль дороги. Чтобы ваши неповёрнутые локации остались такими, включите эту опцию.",
+	"GeoGuessr auto-pans locations that point straight north along the road. To keep your unpanned locations unpanned, enable this option.": "GeoGuessr автоматически поворачивает локации, направленные строго на север вдоль дороги. Чтобы ваши неповёрнутые локации остались такими, включите эту опцию.",
 	"Geocoding": "Геокодирование",
 	"Get new versions early, before they are marked stable.": "Получать новые версии раньше, до того как они будут отмечены как стабильные.",
 	"Get one at map-making.app/keys": "Получить его на map-making.app/keys",

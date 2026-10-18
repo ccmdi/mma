@@ -2753,7 +2753,7 @@ input[type="range"]:disabled {
 	padding: 0.5rem;
 	display: grid;
 }
-.export-modal__shape {
+.export-modal__row {
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
