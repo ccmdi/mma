@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useRef, useEffect, useState, useCallback } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { mdiCloudDownloadOutline } from "@mdi/js";
+import { mdiCloudDownloadOutline, mdiRestore } from "@mdi/js";
 import { Tag } from "@/store/tag";
 import { cmd } from "@/lib/commands";
 import type { ValiCountryStatus, ValiLocation } from "@/bindings.gen";
@@ -173,7 +173,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 			flush
 			actions={
 				<>
-					<ConfirmButton variant="ghost" small disabled={busy === "generate"} onConfirm={reset}>
+					<ConfirmButton icon={mdiRestore} small disabled={busy === "generate"} onConfirm={reset}>
 						{t("Reset")}
 					</ConfirmButton>
 					<IconButton

@@ -101,11 +101,10 @@ describe("Vali setup per map", () => {
 		localStorage.setItem("vali-mma-tag", "Shared");
 		openMap({ pluginData: { vali: { project: { tag: "Sweden" } } } });
 		sidebar();
-		const reset = [...view.container.querySelectorAll("button")].find(
-			(b) => b.textContent === "Reset",
-		)!;
-		await act(async () => reset.click());
-		await act(async () => reset.click());
+		const button = (match: (b: HTMLButtonElement) => boolean) =>
+			[...view.container.querySelectorAll("button")].find(match)!;
+		await act(async () => button((b) => b.getAttribute("aria-label") === "Reset").click());
+		await act(async () => button((b) => b.textContent === "Are you sure?").click());
 		expect(ownProject()).toEqual({});
 		expect(toGui).toHaveBeenCalledWith({ type: "vali:load" }, "*");
 	});
