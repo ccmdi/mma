@@ -799,7 +799,7 @@ input[type="range"]:focus-visible {
 .icon-button--overlay:where(:hover:not(:disabled), [aria-pressed="true"]) {
 	color: #fff;
 }
-:not(:hover, :focus-within, .is-dragging) > [data-reveal]:not(:focus-visible) {
+:not(:hover, :has(:focus-visible), .is-dragging) > [data-reveal]:not(:focus-visible) {
 	opacity: 0;
 }
 /* Compact variant for icons inline with a setting row: no min-width padding band,
