@@ -1,0 +1,9 @@
+export const title = "Version history & reverting";
+
+**History** in the bottom bar lists the map's <ChapterLink id="commits">commits</ChapterLink>, newest first.
+
+- **Columns.** Date, a short ID, the message and changes (+added / -removed / ±modified), and how many locations the map had.
+- **See what changed.** Click a row to show that commit's changes on the map: added locations in green, removed in red, changed in amber.
+- **Revert / Restore.** The newest commit has **Revert**; older ones have **Restore**. Either one makes a new commit that puts the map back the way it was. It asks first.
+
+Restoring doesn't erase anything: the later commits stay in the list, so you can restore forward again. Uncommitted changes are dropped, though, so commit them first if you want them.

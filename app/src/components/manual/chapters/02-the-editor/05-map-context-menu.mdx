@@ -1,0 +1,22 @@
+export const title = "Map context menu";
+
+Right-click the map for this menu. Right-clicking a location adds actions for that location at the top.
+
+## On a location
+
+- **Copy Street View link.** A Google Maps link with the location's view and tags. Shortened when Google's shortener answers.
+- **Copy pano ID.**
+- **Download panorama.** Saves the full panorama image.
+- **Copy to map...** Copies the location into another map.
+- **Duplicate location.** Adds a copy at the same spot.
+- **Delete location.**
+
+## Anywhere on the map
+
+- **<ChapterLink id="scoring">Start measurement</ChapterLink> / End measurement.** Measures distance from the clicked point.
+- **Copy coordinates.** Copies the point as `lat, lng`.
+- **Select this country / Select this subdivision.** Selects everything inside that border. Subdivisions need **Subdivision data** turned on in **Settings → Map → Borders**.
+- **Delete this polygon.** Removes the polygon selection under the point.
+- **Set / Clear latitude/longitude anchors.** Lines through the point, for lining things up.
+
+Faster ways to do the border and polygon items: hold <Kbd>Q</Kbd> and click to select a country (<Kbd>Q</Kbd>+<Kbd>Shift</Kbd> for a subdivision), and hold <Kbd>E</Kbd> and click a polygon to remove it.

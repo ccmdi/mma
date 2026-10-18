@@ -1,0 +1,15 @@
+export const title = "Installing user plugins";
+
+## From the marketplace
+
+On the **Additional** tab, press install on a plugin. It downloads, turns itself on, and starts on the open map. Installed plugins update themselves when <App /> starts; the trash button uninstalls.
+
+Some plugins come with a **sidecar**: a helper program for things the app can't do itself (image models, OCR). It downloads with the plugin, with a progress bar. Sidecars are bigger than the plugin, so the first install takes a while.
+
+## By hand
+
+Plugins live in a `plugins/` folder in your <ChapterLink id="data-folder">data folder</ChapterLink>, one folder each. To install one yourself:
+
+1. Copy the plugin's folder into `plugins/`.
+2. Reopen the map.
+3. Turn it on in the marketplace.

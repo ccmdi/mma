@@ -1,0 +1,24 @@
+export const title = "Data folder & diagnostics";
+
+<App /> keeps everything in one folder: your maps, tags, version history, seen history, and plugins. You never need to touch it, but it helps to know where it is.
+
+- **Windows:** `%APPDATA%\app.map-making.local`
+- **Linux:** `~/.local/share/app.map-making.local`
+- **macOS:** `~/Library/Application Support/app.map-making.local`
+
+**Settings → Application → Data** has:
+
+- **Open data folder.** Opens it in your file browser.
+- **Change folder...** Points <App /> at a different folder (a bigger drive, or a synced one) and restarts. Your maps **aren't** moved for you, so copy them over first. **Reset to default** goes back to the normal folder.
+
+<Note>
+
+Back up before anything risky (bulk deletes, big imports, moving the data folder). The recommended backup is <ChapterLink id="bulk-backup">**Export all maps**</ChapterLink> on the home screen.
+
+</Note>
+
+## Diagnostics
+
+- **Stats for nerds** (<Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>D</Kbd>). Version, counts, storage size, and live performance numbers. The first thing to check when something feels slow.
+- **FPS counter**, **Open log file**, and **Copy diagnostics** are in **Settings → Advanced → Debug**. Grab the log when reporting a bug, or let the <ChapterLink id="feedback">feedback form</ChapterLink> attach it for you.
+- **Custom CSS** in **Settings → Advanced** restyles anything in the app.

@@ -1,0 +1,26 @@
+export const title = "Plugins";
+
+Plugins add tools and panels to <App />. A plugin can add a sidebar panel, a full-window panel, or a section in the location editor. Some just add <ChapterLink id="enrichment">enrichment fields</ChapterLink>.
+
+<Img name="plugin-marketplace.png" caption="The plugin marketplace: Core (built-in) and Additional (downloadable) tabs." />
+
+## The marketplace
+
+The puzzle-piece button in the bottom-right (<Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>P</Kbd>) has two tabs:
+
+- **<ChapterLink id="builtin-plugins">Core</ChapterLink>.** Plugins that come with <App />, each with an on/off switch.
+- **<ChapterLink id="installing-plugins">Additional</ChapterLink>.** Plugins you can download, with buttons to install, update, and uninstall.
+
+A flask marks **experimental** plugins, and a wand marks ones that only add fields. A plugin that needs a newer <App /> says so instead of installing.
+
+## Using a plugin
+
+Turned-on plugins are there whenever a map is open. Open one from its button in the Selections header, or from the **Plugins** group in the <ChapterLink id="command-palette">command palette</ChapterLink>. Plugins that add a location editor section just show up there.
+
+Plugin setups are saved with the map: a generator's regions are still there next time you open that map.
+
+<Note>
+
+A plugin can do anything <App /> can. Only install ones from people you trust.
+
+</Note>

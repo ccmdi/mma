@@ -1,0 +1,33 @@
+export const title = "Location editor & pano viewer";
+
+Click a marker to open it in the location editor: a live Street View panorama, with the location's details and tags underneath.
+
+<Img name="location-editor.png" caption="The location editor: live panorama, date picker, Save/Close/Delete, and the tag bar." />
+
+## Editing and saving
+
+Look around until you have the view you want, then press **Save** (or <Kbd>Enter</Kbd>). Save keeps the heading, pitch, zoom, panorama, coordinates, and tag changes.
+
+- **Save.** Saves and closes (or, in a <ChapterLink id="reviewing">review</ChapterLink>, moves to the next location).
+- **Close.** Closes without saving (<Kbd>Esc</Kbd>).
+- **Delete.** Deletes the location (<Kbd>Delete</Kbd>).
+
+Nothing changes until you press Save. Close throws your changes away.
+
+## Panned vs unpanned
+
+A location is **unpanned** until you've saved a view for it (its heading is still zero). The **Unpanned** <ChapterLink id="selections">selection</ChapterLink> finds them, which pairs well with a review.
+
+## Country and address
+
+Under the panorama is a flag and an address. Where the address comes from is set in **Settings → Editing → Geocoding**: **Local** (offline, city and region), **Nominatim** (street address from OpenStreetMap), or **Google** (what the panorama says about itself).
+
+## Tags and metadata
+
+The bar under the address adds and removes <ChapterLink id="tags">tags</ChapterLink>. If the map has **Enrich locations** turned on, <ChapterLink id="enrichment">metadata</ChapterLink> like camera type and capture date is filled in as you look, and saved with the location.
+
+<Note>
+
+Locations opened from the seen history or an import preview aren't on the map yet. For a seen one, Save reads **Add to map**.
+
+</Note>

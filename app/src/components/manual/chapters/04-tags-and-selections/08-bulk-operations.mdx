@@ -1,0 +1,25 @@
+export const title = "Bulk operations";
+
+Bulk operations run one action on many locations at once. They're in the **Bulk Operations** group of the command palette. Each one asks whether to run on **All locations** or the **Current selection** (the default when something is selected), and shows progress as it runs.
+
+## The operations
+
+- **<ChapterLink id="validation">Validate locations</ChapterLink>.** Checks coverage and reports problems.
+- **<ChapterLink id="enrichment">Enrich metadata fields</ChapterLink>.** Fetches metadata.
+- **Set metadata field value.** Writes one value into a field. Besides your own fields, you can set **Heading**, **Pitch**, and **Zoom** (the same view everywhere), and **Load as pano ID**. Number fields also take an <ChapterLink id="expressions">expression</ChapterLink>, like `mod(heading + 180, 360)` to turn every view around.
+- **Clear metadata fields.** Removes fields.
+- **Pan headings along road.** Points each view along the road, **forwards** or **backwards**.
+- **Pin locations to pano ID.** <ChapterLink id="loading-flags">Pins</ChapterLink> each location to a pano. You can choose which capture, and **Unpin** does the reverse.
+- **Download panoramas.** Saves an image of each: the full panorama, the view, a thumbnail, or a tile. Several come as a ZIP. Full panoramas are slow and large, so pick the scope carefully.
+
+## While it runs
+
+- Closing the dialog doesn't stop it. Running jobs show in the bottom-right, where you can open or cancel them.
+- If some locations fail, **Select failed** selects them so you can retry.
+- The whole run is one undo.
+
+<Note>
+
+An edit that changes more than 500,000 locations clears the undo history to save memory. <ChapterLink id="commits">Commit</ChapterLink> first if you might want to go back.
+
+</Note>

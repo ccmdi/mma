@@ -1,0 +1,27 @@
+export const title = "Expressions";
+
+A few places take a small formula instead of a fixed value. It's the same formula language in all of them:
+
+- **<ChapterLink id="bulk-operations">Set metadata field value</ChapterLink>** works out a value for each location.
+- **<ChapterLink id="duplicates">Duplicate preference</ChapterLink>** scores which duplicate is kept.
+- **<ChapterLink id="reviewing">Review order</ChapterLink>** scores which locations a review shows first.
+
+The last two are in **Edit map** (the pencil by the map name).
+
+## Writing one
+
+An expression reads a location's fields and does math with them.
+
+- **Fields.** Use the field's key: `heading`, `altitude`, `lat`, `tagCount`, or any of your own.
+- **Math.** `+ - * / %` and brackets.
+- **Comparisons.** `> < >= <= == !=`. True counts as 1 and false as 0, so you can add them to a score.
+- **Functions.** `mod`, `clamp`, `abs`, `round`, `floor`, `min`, `max`, `if(condition, then, else)`, and `has(field)` for whether a location has a value.
+
+## Examples
+
+- `mod(heading + 180, 360)` turns every view around.
+- `clamp(pitch, -10, 10)` keeps views close to level.
+- `tagCount + has(panoId)` prefers well-tagged, pinned locations.
+- `if(altitude > 1000, 2, 0) + tagCount` puts mountains first, then the most-tagged.
+
+The default duplicate preference is `tagCount + has(panoId) + loadAsPanoId + (heading != 0)`: a point each for every tag, having a pano, being pinned, and having a saved view.

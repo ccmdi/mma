@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Icon } from "@/components/primitives/Icon";
 import { mdiClose, mdiChevronLeft, mdiChevronRight } from "@mdi/js";
-import { CHAPTERS } from "@/components/manual/chapters";
+import { CHAPTERS, PARTS } from "@/components/manual/chapters";
 import { MANUAL_COMPONENTS, ManualNav } from "@/components/manual/components";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import "@/components/manual/manual.css";
@@ -42,18 +42,23 @@ export function Manual({
 						<IconButton icon={mdiClose} label={t("Close manual")} onClick={onClose} />
 					</div>
 					<nav className="manual__toc">
-						<ol>
-							{CHAPTERS.map((c, i) => (
-								<li key={c.id}>
-									<button
-										className={`nav-item manual__toc-link${i === index ? " nav-item--active" : ""}`}
-										onClick={() => go(i)}
-									>
-										{c.title}
-									</button>
-								</li>
-							))}
-						</ol>
+						{PARTS.map((part) => (
+							<section key={part.title} className="manual__toc-part">
+								<h2 className="manual__toc-part-title eyebrow">{part.title}</h2>
+								<ol>
+									{part.chapters.map((c) => (
+										<li key={c.id}>
+											<button
+												className={`nav-item manual__toc-link${c.id === chapter.id ? " nav-item--active" : ""}`}
+												onClick={() => onNavigate(c.id)}
+											>
+												{c.title}
+											</button>
+										</li>
+									))}
+								</ol>
+							</section>
+						))}
 					</nav>
 				</aside>
 				<main className="manual__main" ref={contentRef}>

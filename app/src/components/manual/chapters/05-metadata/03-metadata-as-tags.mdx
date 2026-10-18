@@ -1,0 +1,22 @@
+export const title = "Metadata as tags";
+
+**Apply metadata as tags** (command palette, **Tags** group) makes one tag per value of a field and puts each location in its tag. Applying **Country code**, for example, gives you a tag per country in one step. **Subdivision** does the same per state or province.
+
+## Grouping values
+
+A field with thousands of different values would make thousands of tags, so you can group them first:
+
+- **Dates** by year, year-month, day, month of year, or hour of day. Tick **Location timezone** to use each location's local time.
+- **Months** by year or by month of year.
+- **Numbers** in fixed-size ranges, e.g. altitude in 500m bands.
+- **Lists** get a tag for every item.
+
+The dialog shows how many tags and locations you'll get before you apply it, and warns past 100 tags.
+
+## Naming
+
+- **Tag name.** `{value}` is the value and `{field}` the field's name. A `/` makes a <ChapterLink id="tag-folders">folder</ChapterLink>: `Country/{value}` puts every country under one folder.
+- **No value.** Tick it to also tag locations that don't have the field.
+- **Scope.** All locations or just the selection.
+
+The <ChapterLink id="analysis-plugins">Gradient plugin</ChapterLink> groups values the same ways, for coloring instead of tagging.

@@ -1,0 +1,36 @@
+export const title = "Syncing with a remote map or file";
+
+Syncing keeps a map in step with a copy somewhere else. Importing copies once; syncing keeps going, carrying changes both ways. Three <ChapterLink id="plugin-system">plugins</ChapterLink> do it:
+
+- **map-making.app sync.** With a map on map-making.app. Needs an API key from **map-making.app/keys**.
+- **GeoGuessr.** With one of your GeoGuessr maps. You sign in through a GeoGuessr window. It only changes the map's draft; publishing is still up to you on GeoGuessr.
+- **File sync.** From a JSON or CSV file on your computer or at a URL (GitHub file links work). One way only: it reads the file and never writes to it.
+
+<Note>
+
+All three are **experimental**. Only link a map you have a <ChapterLink id="bulk-backup">backup</ChapterLink> of.
+
+</Note>
+
+<Img name="file-sync.png" caption="File sync: follow a map file or URL." />
+
+## Linking
+
+Open the plugin from its button in the sidebar with your map open. Search your maps under **Link this map** and pick one, or give File sync a path or URL and press **Link**. With map-making.app or GeoGuessr you can also **Create a new remote map from this one**.
+
+If both sides already have locations, the first sync asks what to do:
+
+- **Merge.** Keep everything from both. Nothing is deleted.
+- **Use remote.** Make your map match theirs, deleting locations only you have.
+- **Use local.** Make theirs match yours, deleting locations only they have. Not for File sync.
+
+## After that
+
+Each sync sends your changes and brings in theirs. If both sides changed the same location, or one deleted what the other edited, you pick **Keep local** or **Keep remote**.
+
+- **Live.** On by default. Syncs in the background while the map is open.
+- **Sync now.** Syncs once.
+- **History.** What each sync did.
+- **Unlink.** Stops syncing. Neither map is deleted.
+
+A sync can be undone like any other edit. Linked maps show the provider's icon on the home screen.

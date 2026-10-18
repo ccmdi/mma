@@ -1,0 +1,21 @@
+export const title = "Managing metadata fields";
+
+Every metadata field has a definition: its name, its type, and how it's compared. Enriched fields come set up already. Fields from an imported file, or ones you make yourself, might need fixing. Edit them in the **Fields** tab of the **Enrichment** dialog (the database button next to the map name).
+
+<Img name="metadata-fields.png" caption="The Fields tab: every field on the map, and the definition of the one you picked." />
+
+Pick a field on the left to edit it:
+
+- **Label.** The name shown in pickers and filters.
+- **Type.** **Text**, **Number**, **True/false**, **Date/time**, **Month (YYYY-MM)**, **Enum**, or **Array**. An enum is a fixed list of values; you can fill the list from what's already on your locations.
+- **Compare as.** How <ChapterLink id="analysis-plugins">Disambiguate</ChapterLink> compares values: **Auto**, **Numeric**, **Circular** (values that wrap around, like 360 degrees or 24 hours), or **Categorical**.
+- **Rename.** Change the field's key. Renaming to a key that already exists **merges** the two, and you choose whose values win where both have one.
+- **Delete field.** Removes the field from every location.
+
+Each field has a bar showing how many locations have a value. Changes apply right away (there's no Save button), and rename, merge, and delete can be undone.
+
+<Note>
+
+The type decides which operators a <ChapterLink id="filters">filter</ChapterLink> offers. If a filter is offering the wrong ones, the field probably has the wrong type.
+
+</Note>

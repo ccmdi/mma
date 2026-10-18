@@ -1,0 +1,29 @@
+export const title = "Introduction";
+
+<App /> is a desktop map editor for GeoGuessr. It's an alternative to [`map-making.app`](https://map-making.app) with the same editing model and mostly the same UI, but everything runs on your computer, and a lot is added on top.
+
+## What's different?
+
+- **No account, no server.** Every map lives on your computer.
+- **Built for large maps.** Maps with millions of locations open and edit smoothly.
+- **<ChapterLink id="commits">Commits</ChapterLink>.** Instead of one "save", <App /> keeps a version history you can browse and go back to.
+- **<ChapterLink id="saving">Autosave</ChapterLink>.** Uncommitted changes are kept, so you can close a map and pick up where you left off.
+- **<ChapterLink id="selection-algebra">Composable selections</ChapterLink>.** Combine selections with AND, OR, and NOT.
+- **<ChapterLink id="filters">Filters</ChapterLink>.** Select by metadata: country, image date, camera type, or any field.
+- **<ChapterLink id="bulk-operations">Bulk operations</ChapterLink>.** Apply one change to a whole selection, e.g. setting a field or pinning panos.
+- **<ChapterLink id="enrichment">Metadata enrichment</ChapterLink>.** Pull altitude, country, camera type, and capture dates onto your locations.
+- **<ChapterLink id="plugin-system">Plugins</ChapterLink>.** Extra panels and tools, including a location generator, plus a marketplace of downloadable ones.
+- **<ChapterLink id="seen">Seen history</ChapterLink>.** Every panorama you've looked at, across all maps.
+- **<ChapterLink id="syncing">Sync</ChapterLink>.** Keep a map in step with one on map-making.app or GeoGuessr, or with a map file.
+- **Power-user touches.** Rebindable hotkeys, a <ChapterLink id="command-palette">command palette</ChapterLink>, and custom CSS.
+
+## Terms
+
+- **Location.** One Street View spot on a map: coordinates, a view (heading, pitch, zoom), an optional pinned panorama, tags, and metadata.
+- **Panorama.** A single Street View image. Each location loads one pano.
+- **<ChapterLink id="tags">Tag</ChapterLink>.** A colored label you put on locations. A location either has it or doesn't.
+- **<ChapterLink id="enrichment">Metadata</ChapterLink>.** Values on a location that aren't just on/off: a country code, an altitude, a capture date.
+- **<ChapterLink id="selections">Selection</ChapterLink>.** A subset of locations, shown on the map in its own color.
+- **<ChapterLink id="commits">Commit</ChapterLink>.** A saved version of the whole map.
+
+If you're new, start with <ChapterLink id="first-run">Getting started</ChapterLink>.

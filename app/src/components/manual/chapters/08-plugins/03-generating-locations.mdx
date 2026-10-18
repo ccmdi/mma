@@ -1,0 +1,35 @@
+export const title = "Generating locations";
+
+Two built-in plugins find locations for you instead of clicking them in one by one. What they find goes on the open map.
+
+## Map generator
+
+The **Map generator** searches for Street View coverage inside areas you draw, and keeps what passes your filters. Draw a <ChapterLink id="selections">polygon selection</ChapterLink> first (or <Kbd>Q</Kbd>-click a country).
+
+<Img name="generator.png" caption="The Map generator: draw regions, set coverage filters, and generate." />
+
+- **Goal.** **Count** aims for a number of locations; **Spacing** aims for a minimum gap between them.
+- **Sampling.** With a count goal, where it looks:
+  - **Random.** Anywhere in the area.
+  - **Uniform.** Random, but spread apart.
+  - **Grid.** An even honeycomb over the whole area, in random order.
+  - **Coverage.** Along the blue lines themselves, weighted by road density, by area, or in between.
+  - **Grow.** Outward from locations already on the map.
+- **Filters.** Camera generation, dates, official or unofficial, trekker, and more specific ones (number of links, bends in the road, words in the panorama description).
+- **Output.** A tag for everything it finds, so you can find the batch later.
+
+You can change settings while it runs, and it keeps going while you do other things. **Show search coverage** draws where it's already looked.
+
+The import and export buttons at the top save the areas, settings, and output tag to one GeoJSON file, so you can reuse a setup later.
+
+## Vali
+
+**Vali** finds locations from pre-built coverage data instead of searching Street View, so it's much faster where that data exists.
+
+The data for a country downloads the first time you need it. The download button at the top can also get a country, a continent, or everything ahead of time, and it's marked when your data is out of date.
+
+<Note>
+
+What comes out is ordinary locations. <ChapterLink id="sampling">Thin them out</ChapterLink>, <ChapterLink id="reviewing">review</ChapterLink> them, and <ChapterLink id="duplicates">clean up duplicates</ChapterLink> like any others.
+
+</Note>

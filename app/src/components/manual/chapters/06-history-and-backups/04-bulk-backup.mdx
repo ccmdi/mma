@@ -1,0 +1,23 @@
+export const title = "Bulk backup & restore";
+
+The two buttons in the bottom-right of the home screen move your whole library in and out.
+
+- **Export all maps.** One ZIP of every map, named with today's date. This is the recommended backup.
+- **Import maps.** Restores from that ZIP, or imports JSON files, the same way as <ChapterLink id="importing-existing">importing from map-making.app</ChapterLink>.
+
+<Note>
+
+Make a backup before anything risky (bulk deletes, big imports, moving your data folder). Restoring is just importing the ZIP again.
+
+</Note>
+
+## What's in the ZIP
+
+Every map as it is right now, uncommitted changes included: locations, tags, and metadata. It does **not** include version history, folders, or per-map settings.
+
+## Other ways to back up
+
+- Use **Git** on your <ChapterLink id="data-folder">data folder</ChapterLink>. This keeps everything, history included.
+- Point your data folder at a network or synced drive (**Settings → Application → Data → Change folder**).
+
+<ChapterLink id="syncing">Sync</ChapterLink> can keep a map on map-making.app or GeoGuessr up to date, but that's for keeping a copy current, not a backup.

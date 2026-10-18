@@ -1,0 +1,18 @@
+export const title = "Loading mode & flags";
+
+A location loads its panorama in one of two ways:
+
+- **By coordinates.** Whatever the default coverage is at that point. This is the lighter option, and right when the default coverage is what you want.
+- **By pano ID (Load as pano ID).** Pinned to one exact panorama. Needed for a specific date, an unofficial pano, or anything the coordinates alone wouldn't load.
+
+<App /> pins a location for you when you pick a <ChapterLink id="coverage-dates">specific date</ChapterLink>, or when a click lands on a pano that isn't the default there. **Use Pano ID locations by default** in the map's <ChapterLink id="click-coverage">coverage settings</ChapterLink> pins every new location.
+
+The trade-off: a coordinate location moves on to newer coverage when Google updates the area, while a pinned one stays exactly as it is - until that pano is taken down or changed. If a pinned pano can't be found, the editor tells you and falls back to the coordinates.
+
+To pin or unpin many at once, use **Pin locations to pano ID** from <ChapterLink id="bulk-operations">bulk operations</ChapterLink>.
+
+<Note>
+
+The **Pano ID locations** and **Coordinate locations** selections find locations by how they load, which is useful for checking a map before export. <ChapterLink id="validation">Validation</ChapterLink> checks whether pinned panos still exist.
+
+</Note>

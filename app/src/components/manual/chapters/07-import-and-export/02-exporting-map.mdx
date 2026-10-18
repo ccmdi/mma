@@ -1,0 +1,27 @@
+export const title = "Exporting a map";
+
+**Export** in the bottom bar saves the map, or just the selection, to a file.
+
+<Img name="export.png" caption="The export dialog: scope, JSON format and options, then CSV and GeoJSON." />
+
+## JSON (recommended)
+
+Copy it or download it. **Format** picks how much goes in, depending on where it's going:
+
+- **GeoGuessr.** Coordinates, views, and pinned pano IDs. The smallest file, for uploading.
+- **map-making.app.** Adds tags, unpinned pano IDs, and capture months. No custom fields.
+- **Local.** Everything, including custom fields and doclinks. Use this for moving a map between <App /> installs.
+
+Options:
+
+- **Save zoom levels.** Include each location's zoom.
+- **Bypass GeoGuessr auto-panning for locations with 0 heading.** Keeps unpanned locations unpanned in the game.
+
+The format and options are remembered per map.
+
+## CSV and GeoJSON
+
+- **CSV.** Coordinates only (`lat,lng`): no views, pano IDs, tags, or metadata. For handing coordinates to another tool, not for moving a map.
+- **GeoJSON.** For other mapping tools. Each point keeps its tag names.
+
+To export every map at once, use <ChapterLink id="bulk-backup">Export all maps</ChapterLink> on the home screen.

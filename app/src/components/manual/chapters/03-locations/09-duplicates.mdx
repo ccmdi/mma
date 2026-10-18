@@ -1,0 +1,35 @@
+export const title = "Duplicates & deleting";
+
+Maps pick up duplicates: the same pano added twice, two locations a few meters apart, an import that overlaps what you had. There are tools for each.
+
+## Several locations at one spot
+
+Clicking a marker with other locations within two meters of it doesn't open the panorama. The sidebar lists everything at that spot instead, each with a thumbnail and its tags.
+
+- **Click a thumbnail** to open that location.
+- **Delete** on a row deletes just that one.
+- Tick rows, then **Keep selected** (deletes the others) or **Delete selected**.
+
+This is the way out of accidentally adding the same pano twice.
+
+## Across the whole map
+
+**Find duplicates...** selects every location with another one within a distance you choose. From there, two tools that are easy to mix up:
+
+- **Merge duplicates...** collapses each group into one location, and puts all their tags on the one that's left. Works on the whole map.
+- **Prune duplicates** (on the Duplicates selection's menu) deletes the extras instead, and only touches that selection. Under 25m it keeps the best location in each group; above that it thins them out to that spacing.
+
+Use Merge when the duplicates have tags you want to keep, and Prune when you just want them gone.
+
+Both keep whichever location scores highest on the map's **Duplicate preference** (in **Edit map**). By default that's the one with the most tags, a pinned pano, and a saved view; ties go to the oldest. You can write your own as an <ChapterLink id="expressions">expression</ChapterLink>.
+
+## Duplicating on purpose
+
+**Duplicate location** in the <ChapterLink id="map-context-menu">right-click menu</ChapterLink> adds a copy at the same spot. To add another view further down the road, use <ChapterLink id="adding-locations">Drop marker</ChapterLink> instead.
+
+## Deleting
+
+- **One.** **Delete** or <Kbd>Delete</Kbd> in the location editor.
+- **Many.** Select them, then <Kbd>Delete</Kbd> on the map, or **Delete selected locations** from the command palette or toolbar.
+
+<Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> brings deleted locations back.

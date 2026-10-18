@@ -1,0 +1,31 @@
+export const title = "Validation";
+
+Validation checks whether each location still has Street View coverage, and whether newer or better coverage exists. Coverage changes over time: panos get taken down and new ones come out. Run **Validate locations** from the command palette on the whole map or the selection.
+
+It only reports. It never changes your locations.
+
+<Img name="validation.png" caption="Choosing which findings to report before running validation." />
+
+## What it reports
+
+You choose which results you want before it runs. Each one becomes its own selection, and a location can be in more than one.
+
+The **default pano** is the one a location's coordinates load when it isn't pinned.
+
+- **Valid location.** Nothing wrong.
+- **Newer coverage available.** A pinned location, and newer official coverage exists.
+- **Coverage updated since last view.** An unpinned location, and its stored pano is older than what's there now.
+- **Not found.** No coverage at the coordinates or pano ID.
+- **Pano ID broke.** The pinned pano no longer exists.
+- **Unofficial.** User-uploaded coverage.
+- **Badcam, but good coverage available.** A bad camera, but a better one exists at that spot.
+
+Off by default:
+
+- **Newer coverage than the stored pano.** Either of the two newer-coverage results, pinned or not.
+- **Pinned away from the default pano.** Pinned to a pano that isn't the default.
+- **Default pano is not the newest.** The coordinates load an older capture, though a newer one exists at that pano.
+
+## What to do with results
+
+The results are selections like any other. For example, <ChapterLink id="reviewing">review</ChapterLink> every **Pano ID broke** location and <ChapterLink id="loading-flags">re-pin</ChapterLink> it.

@@ -1,0 +1,29 @@
+export const title = "Editor layout & the map";
+
+Opening a map shows the map on the left and the sidebar on the right. Drag the divider between them to resize (it's remembered).
+
+<Img name="editor-layout.png" caption="The editor: map on one side, sidebar with Tags and Selections." />
+
+## The sidebar
+
+The header has:
+
+- **Back arrow.** Back to the map list (<Kbd>Ctrl</Kbd>+<Kbd>Shift</Kbd>+<Kbd>W</Kbd>).
+- **Pencil.** Opens **Edit map**: name, description, labels, and a few <ChapterLink id="settings-overview">per-map settings</ChapterLink>.
+- **Database button.** Opens <ChapterLink id="enrichment">Enrichment</ChapterLink>.
+- **Document button.** Opens <ChapterLink id="doclinks">doclinks</ChapterLink>. Only there once a tag is linked to a doc.
+
+Below that are two sections:
+
+- **<ChapterLink id="tags">Tags</ChapterLink>.** Every tag on the map, with a filter box, a folder view toggle, and sort buttons.
+- **<ChapterLink id="selections">Selections</ChapterLink>.** Your active selections and their counts. The header has the plugin buttons and **Commands...**, which opens the <ChapterLink id="command-palette">command palette</ChapterLink>. Under the selections is a toolbar of shortcut buttons.
+
+Clicking a marker replaces the sidebar with the <ChapterLink id="location-editor">location editor</ChapterLink>.
+
+## Moving around the map
+
+- **Pan / zoom.** Drag and scroll, or <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd> to pan and <Kbd>Shift</Kbd>+<Kbd>W</Kbd> / <Kbd>Shift</Kbd>+<Kbd>S</Kbd> to zoom. Hold <Kbd>Alt</Kbd> to move slower. <Kbd>Shift</Kbd>+<Kbd>B</Kbd> fits all locations, <Kbd>Shift</Kbd>+<Kbd>E</Kbd> fits the selected ones, and <Kbd>Shift</Kbd>+<Kbd>0</Kbd> zooms all the way out.
+- **Place search.** Type a place name to jump there. Pasting coordinates or a Google Maps link adds that location instead.
+- **Polygon tools.** The buttons on the left draw polygon, rectangle, and freehand <ChapterLink id="selections">selections</ChapterLink>.
+
+The **Map style** button changes the <ChapterLink id="map-layers">basemap and layers</ChapterLink>, and <Kbd>Ctrl</Kbd>+<Kbd>{"\\"}</Kbd> hides the sidebar for a <ChapterLink id="fullscreen">fullscreen map</ChapterLink>.

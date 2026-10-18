@@ -1,0 +1,19 @@
+export const title = "Scoring, measurement & 5K radius";
+
+GeoGuessr scores a guess by how far it is from the location, compared to the size of the map. A map's **score bounds** set that size, which decides how harshly distance is punished. Set them in **Edit map** (the pencil by the map name), under **Scoring**.
+
+<Img name="score-bounds.png" caption="Score bounds in Edit map: automatic, world map, or fixed." />
+
+- **Automatic based on locations.** From the area your locations cover. Updates as you add or remove them.
+- **World map (ACW).** Scored like a world map.
+- **Fixed bounds.** A box you type in as south, west, north, and east.
+
+## Measuring distance
+
+Right-click the map and choose **Start measurement**. Click to add points, or drag a point to move it. Along with the distance, it shows the score that distance would get on this map. <Kbd>Esc</Kbd> or **End measurement** stops.
+
+## The 5K radius
+
+**Display 5K radius** (in the **Map settings** dropdown, on by default) draws a circle around the open location: a guess anywhere inside scores 5000. Its size comes from the score bounds (at least 25m), and it follows you as you walk away from the marker.
+
+Distances follow **Units** in **Settings → Application**.

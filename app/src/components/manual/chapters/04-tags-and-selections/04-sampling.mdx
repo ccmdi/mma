@@ -1,0 +1,21 @@
+export const title = "Sampling a selection";
+
+Three commands pick a smaller set out of the current selection: a random sample, or one that's spread out evenly. Each one replaces the selection with what it picked. Run them from the command palette or the toolbar.
+
+## Random
+
+**Pick random locations from selection** picks that many at random. Asking for more than the selection has just keeps all of it. Handy for cutting a big map down to a set you can review or export.
+
+## Thinning
+
+**Thin selection by minimum distance** keeps a spread-out part of the selection. **Count** keeps that many, as far apart as possible. **Min distance** keeps as many as possible while staying at least that far apart. The distance is only a minimum: neighbors can end up anywhere from that to more than twice as far apart.
+
+## Evenly spaced
+
+**Pick evenly spaced locations from selection** lays a honeycomb over the selection and keeps the location closest to the middle of each cell, so the picks are about the same distance apart. Set **Spacing**, or a **Count** to spread that many as widely as possible. No two picks are ever closer than half the spacing. This works best over an area; along a single road the gaps vary more.
+
+## From each selection
+
+With two or more selections active, all three can pick **from each of N selections**. The count is then per selection: with eight tags selected and a count of 25, you get up to 25 from each tag. A location in two of them is only picked once, so you might get fewer.
+
+This is how you make an evenly weighted map out of tags with very different sizes. It works with any selection, not just tags.

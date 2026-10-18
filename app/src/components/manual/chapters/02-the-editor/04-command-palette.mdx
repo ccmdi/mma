@@ -1,0 +1,23 @@
+export const title = "Command palette & toolbar";
+
+The command palette (<Kbd>Ctrl</Kbd>+<Kbd>K</Kbd>, or **Commands...** in the sidebar) lists every command. Type part of its name and press <Kbd>Enter</Kbd>.
+
+<Img name="command-palette.png" caption="The command palette: type to search every command, with its shortcut beside it." />
+
+## The palette
+
+- **Search.** Matching is loose, and some commands answer to other words too ("save" finds Commit).
+- **Groups.** **Map**, **Bulk Operations**, **Selections**, **Tags**, and **Plugins**.
+- **Shortcuts.** A command's key binding shows next to it. Any command can be given one in <ChapterLink id="controls-hotkeys">Settings → Keyboard</ChapterLink>.
+- **Greyed out.** Commands that can't run right now (Undo with nothing to undo) are greyed out, not hidden.
+- **Open map...** jumps to another map.
+
+## The toolbar
+
+The row of buttons under your selections is a toolbar of commands. It starts with some selection and review commands, and you can change it:
+
+- **Add.** Click the pin next to a command in the palette, or right-click it.
+- **Rearrange.** Drag buttons around, or right-click one to move it, add a separator, or remove it.
+- **Bulk-add tag.** The box at the end tags every selected location. Type to find a tag, or press <Kbd>Enter</Kbd> to make a new one.
+
+A few commands (find duplicates, filter by metadata, top/bottom K, and the pickers) open a small form under the toolbar instead of a dialog, so the map stays visible.

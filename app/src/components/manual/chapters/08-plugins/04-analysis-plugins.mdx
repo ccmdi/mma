@@ -1,0 +1,21 @@
+export const title = "Analysis plugins";
+
+Four built-in plugins tell you about a map instead of changing it. Most need the map <ChapterLink id="enrichment">enriched</ChapterLink> first.
+
+## Distribution
+
+A bar chart of how many locations are in each country. It works out countries from coordinates, so it works without enrichment. Switch to **Metadata** to count by the enriched country code instead.
+
+<Img name="distribution.png" caption="The Distribution plugin: locations per country as a bar chart." />
+
+## Disambiguate
+
+Ranks metadata fields by how well they tell your selections apart. Select two tags you keep mixing up, and it shows which fields actually differ between them.
+
+## Gradient
+
+Colors locations by a field: image year, altitude, time of day. It groups values the same ways as <ChapterLink id="metadata-as-tags">metadata as tags</ChapterLink>. It can color just the selection too.
+
+## Pivot Table
+
+A table of counts with one grouping down the side and another across the top, each being selections or a metadata field. Countries against camera generations, for example. <Kbd>Ctrl</Kbd>-click a value to select those locations.

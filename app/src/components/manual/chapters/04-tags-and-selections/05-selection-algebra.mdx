@@ -1,0 +1,23 @@
+export const title = "Selection algebra";
+
+Selections can be combined with AND, OR, and NOT, so you can ask for things like "tagged France, inside this polygon, and not panned yet" without writing any code.
+
+<Img name="selection-algebra.png" caption="Combining selections: intersection (AND), union (OR), and invert (NOT)." />
+
+## Operations
+
+- **Intersection (AND).** Locations in every one of them. Command: **Intersect (AND) selections**.
+- **Union (OR).** Locations in any of them. Command: **Union (OR) selections**.
+- **Invert (NOT).** Everything except a selection. On a selection's menu, or **Invert selection** in the command palette for all of them at once.
+
+The commands combine every active selection that isn't <ChapterLink id="selections">ghosted</ChapterLink>.
+
+## Drag to combine
+
+Drag one selection onto another in the sidebar: a plain drag makes an AND, and holding <Kbd>Alt</Kbd> makes an OR. The combined selection shows the others indented under it.
+
+Dropping on the top or bottom edge of a selection reorders instead. **Deselect** on a combined selection splits it back up.
+
+## Example
+
+To find locations tagged `France`, inside a polygon you drew, but not panned yet: add the Tag, Polygon, and Unpanned selections, AND the tag with the polygon, then AND that with the inverted Unpanned.

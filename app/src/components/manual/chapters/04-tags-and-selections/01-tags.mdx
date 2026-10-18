@@ -1,0 +1,39 @@
+export const title = "Tags";
+
+Tags are colored labels you put on locations. A location either has a tag or it doesn't. For values like a date or an altitude, use <ChapterLink id="enrichment">metadata</ChapterLink> instead.
+
+## Adding tags
+
+- **Tag bar.** In the location editor, type a name and pick a suggestion, or press <Kbd>Enter</Kbd> to make a new tag. The X on a tag takes it off.
+- **Quicktags.** With a location open, <Kbd>1</Kbd> through <Kbd>9</Kbd> toggle the first nine tags in the list. These keys can be rebound.
+- **Tag hotkeys.** Give a tag its own key in its edit dialog. These are <ChapterLink id="controls-hotkeys">per map</ChapterLink>.
+- **Many at once.** Select locations and type a tag into **Bulk-add tag** at the end of the toolbar. **Save as tag** on a selection's menu does the same.
+
+Click a tag in the sidebar to select every location with it, and click again to deselect. Shift-click selects a range.
+
+## Colors, order, and visibility
+
+- **Color.** Set in the tag's edit dialog. To recolor several, select them, right-click one, and choose **Recolor tags**.
+- **Order.** **default** is your own order (drag tags to change it), or sort by **name** or **amount**. Quicktags follow the same order.
+- **Filter.** The box at the top narrows the list.
+- **Visibility.** A tag only shows while some location has it.
+- **Suggestions and spacing.** How many tags the tag bar suggests, and the gap between tag pills, are in **Settings → Editing → Tags**.
+
+Tags with a `/` in the name (`Europe/France`) can be shown as <ChapterLink id="tag-folders">folders</ChapterLink>.
+
+## Tag tools
+
+Right-click a tag for:
+
+- **Remove from all.** Takes the tag off every location. If several tags are selected, it takes all of them. **Remove from selection** only touches the selected locations.
+- **Rename in selection.** Gives only the selected locations a different tag name, splitting the tag. If the name already exists, they merge into it.
+- **Recolor tags.**
+
+In the command palette (**Tags** group):
+
+- **<ChapterLink id="metadata-as-tags">Apply metadata as tags</ChapterLink>.** One tag per value of a field, e.g. a tag per country.
+- **Find and replace in tag names.**
+- **Download tag counts as CSV.**
+- **<ChapterLink id="doclinks">Assign document links</ChapterLink>.** Link tags to sections of a Google Doc.
+
+Tag changes can be undone like any other edit.

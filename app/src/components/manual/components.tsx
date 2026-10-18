@@ -41,13 +41,13 @@ function Img({ name, caption }: { name: string; caption: string }) {
 // Navigation injected by the Manual view so cross-references can jump chapters.
 export const ManualNav = createContext<(id: string) => void>(() => {});
 
-// A clickable cross-reference to another chapter. Renders that chapter's current
-// title (single source of truth, so references never drift from renamed chapters).
-function ChapterLink({ id }: { id: string }) {
+// A clickable cross-reference to another chapter, on the words it wraps, or the
+// chapter's current title when it wraps nothing.
+function ChapterLink({ id, children }: { id: string; children?: ReactNode }) {
 	const go = useContext(ManualNav);
 	return (
 		<button type="button" className="manual-xref" onClick={() => go(id)}>
-			{chapterTitle(id)}
+			{children ?? chapterTitle(id)}
 		</button>
 	);
 }

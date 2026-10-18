@@ -1,0 +1,46 @@
+export const title = "Metadata enrichment";
+
+Enrichment looks up information about each location's panorama (altitude, country, camera, capture date, and so on) and saves it on the location as metadata. Unlike tags, metadata can be a number, a date, or text, so you can <ChapterLink id="filters">filter</ChapterLink> and sort by it.
+
+## Fields
+
+Five are on by default:
+
+- **Altitude.** Height of the pano in meters.
+- **Country code.** Which country the coverage is in.
+- **Camera type.** Gen 1, Gen 2/3, Gen 4, tripod, trekker, or bad cam.
+- **Pano type.** Official, unknown, or user-uploaded.
+- **Image date.** Year and month of capture.
+
+Six more you can turn on:
+
+- **Exact date.** The exact capture time. Much slower than the rest (several requests per location). How it's shown is set in **Settings → Street View → Date picker**.
+- **Timezone.** The pano's timezone (e.g. `America/New_York`). Use it with exact date to filter by local time of day.
+- **Driving direction.** Which way the car was facing, in degrees.
+- **Uploader.** Who uploaded the panorama.
+- **Coverage dates.** Every capture date at that spot.
+- **Subdivision.** The state, province, or region. Worked out offline from border data (downloaded the first time), so it can differ slightly from other sources near borders.
+
+Some fields need others: Timezone needs Exact date, which needs Image date. Turning one on keeps the ones it needs on too. Plugins can add more fields.
+
+## The Enrichment dialog
+
+Open it with the database button next to the map name, or **Open enrichment** in the command palette. It has two tabs:
+
+- **Enrich.** The **Enrich locations** switch, and a switch per field. Each field shows how much of the map has it already.
+- **<ChapterLink id="managing-fields">Fields</ChapterLink>.** What each field is called and what type it is.
+
+These settings are per map.
+
+<Img name="enrichment.png" caption="The Enrich tab: which fields to fetch, and how much of the map already has each one." />
+
+## Running it
+
+- **As you go.** With **Enrich locations** on, each location you open is enriched, and the metadata is saved when you press Save. It's off for new maps.
+- **All at once.** Run **Enrich metadata fields** from the command palette on the whole map or the selection. Locations that already have the metadata are skipped, unless you tick **Re-enrich already enriched locations**. It's a <ChapterLink id="bulk-operations">bulk operation</ChapterLink>, so it runs in the background.
+
+## What to do with it
+
+- **<ChapterLink id="filters">Filter by it</ChapterLink>.** E.g. everything from 2023, or Gen 4 above 500m.
+- **<ChapterLink id="metadata-as-tags">Turn it into tags</ChapterLink>.** A tag per country, per year, or per 500m of altitude.
+- **<ChapterLink id="analysis-plugins">Color by it</ChapterLink>.** The Gradient plugin colors locations by any number or date field.

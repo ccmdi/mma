@@ -1,0 +1,14 @@
+export const title = "Saved selections";
+
+You can save the selections you have active and apply them to other maps. Build a useful set of filters once, and reuse it everywhere. Both are in the command palette:
+
+- **Save current selections...** Names your active selections and saves them.
+- **Apply saved selection...** Adds a saved set to the open map, next to whatever's already selected. You can delete old sets here too.
+
+## What carries over
+
+Tags are saved by name (not case-sensitive), so they work on other maps. Polygons, filters, untagged, unpanned, pano ID, uncommitted, top/bottom K, duplicates, and combined selections all carry over.
+
+Some can't be saved, because they only mean something on one map: **Manual**, **Validation**, and review progress.
+
+If part of a saved set doesn't fit the map you apply it to (like a tag that doesn't exist there), that part just matches nothing. The rest still applies.

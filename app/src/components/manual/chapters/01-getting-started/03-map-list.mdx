@@ -1,0 +1,36 @@
+export const title = "Map list/home screen";
+
+The home screen lists your maps. Click a map's name to open it in its own window.
+
+The buttons in the bottom-left open Discord, this manual, and the scratch map. The ones in the bottom-right import and export all your maps, and open plugins and settings.
+
+<Img name="map-list.png" caption="The home screen: searchable, sortable map list with folders." />
+
+## Search and create
+
+- **Search.** Type to filter by map name or label. Every word has to match, and `label:name` (or `label:"two words"`) only matches labels. Clicking a label on a row searches for it. <Kbd>Esc</Kbd> clears the search.
+- **Sort.** By **Name**, **Last opened**, **Date created**, or **Location count**.
+- **New folder.** Type a name, then press the folder button.
+- **New map.** Type a name, then press **+**.
+- **Enter.** Opens the map with that exact name, or creates and opens a new one.
+
+## Map rows
+
+- **Drag handle.** Drag a map onto a folder to move it there, or to the top to take it out.
+- **Edit.** The pencil changes the map's name, description, and **labels** (keywords shown on the row that you can search by).
+- **Duplicate.** Makes a copy, uncommitted changes included. The copy has no version history, sync links, or review sessions.
+- **Delete.** The trash icon deletes the map, after asking.
+
+Which details each row shows (location count, dates, uncommitted changes, sync status) is set in **Settings → Application → Map list**.
+
+## Folders
+
+Folders collapse and show their map and location totals. Deleting a folder moves its maps back out; it doesn't delete them. An empty folder disappears once you close the window.
+
+## What's new
+
+The panel on the right lists recent releases. Versions newer than yours are marked, so you can see what an update brings.
+
+## The scratch map
+
+The scratch map is a throwaway map for exploring locations without persisting them. It isn't in the list, has no history, and is cleared the next time <App /> starts. To keep what you made, run **Save as...** from the <ChapterLink id="command-palette">command palette</ChapterLink>.

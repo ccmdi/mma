@@ -1,0 +1,30 @@
+export const title = "Doclinks";
+
+A **doclink** ties a tag to a heading in a Google Doc. Select that tag and the relevant section of the doc appears in a panel beside the map. It's for the common case of a meta guide living in a doc while the map lives here: instead of alt-tabbing to find what `Bollards/Czechia` looks like, you select the tag and read it in place.
+
+## Assigning links
+
+Run **Assign document links...** from the command palette (Tags group) and paste the doc's link. <App /> loads every heading in the doc. Click a tag, then click headings to link or unlink it. A tag can link to several headings, and a heading can serve several tags. The tag list matches your sidebar (same folders and order), and both sides have a filter box. If the map links more than one doc, buttons under the link switch between them.
+
+**Match names** suggests links wherever a heading has the same name as a tag (ignoring case and accents). A nested tag like `Bollards/Czechia` also matches a heading called just `Czechia`, as long as no other tag ends that way (a `Poles/Czechia` tag would make it ambiguous). Dismiss any you don't want, then **Link all**.
+
+The doc has to be viewable by anyone with the link, since <App /> reads it without signing in.
+
+## Reading them
+
+Once a tag has a doclink, a document button appears above the sidebar. Open the panel and it follows your selection: select a linked tag and its section shows. The panel header has:
+
+- **Refresh.** Reloads the doc after you've edited it.
+- **Whole document.** Shows the full doc, scrolled to the heading.
+- **Pin.** Stops following your selection, so the section stays put.
+- **Open in browser.**
+
+If a tag links to more than one heading, numbered buttons switch between them. Drag the panel's edge to resize it.
+
+Google Maps links in the doc work too: clicking one selects that location if it's on the map, or adds it if it isn't.
+
+<Note>
+
+Doclinks are kept when you <ChapterLink id="exporting-map">export</ChapterLink> in the **Local** format. To switch the map to a different doc, clear the old one first with **Clear doc links**, next to the link in the assign dialog.
+
+</Note>

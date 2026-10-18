@@ -1,0 +1,28 @@
+export const title = "Saving, autosave & undo";
+
+There's no "save file" in <App />. Your work is kept in a few layers:
+
+- **Save** in the <ChapterLink id="location-editor">location editor</ChapterLink> keeps your changes to the open location. Until then you can throw them away with Close.
+- **Autosave** writes every edit to disk shortly after you stop. Nothing is lost if you close the app.
+- **Undo / Redo** step back and forward through your edits (<Kbd>Ctrl</Kbd>+<Kbd>Z</Kbd> / <Kbd>Ctrl</Kbd>+<Kbd>Y</Kbd>).
+- **<ChapterLink id="commits">Commit</ChapterLink>** saves the whole map as a version you can go back to.
+
+Use undo for "oops", use commits for milestones.
+
+## Autosave
+
+Autosave isn't a commit, it's a safety net. Reopen a map and your uncommitted changes are there exactly as you left them, undo history included, even after a crash.
+
+With **Restore open maps on startup** on (**Settings → Application → Startup**, on by default), the maps you had open come back when you start <App /> again.
+
+## Undo
+
+Each edit is one undo, however many locations it touched: a bulk operation, an import, or a merge all undo in one go. Committing clears the undo history, since the commit is now how you go back.
+
+Selections have their own <ChapterLink id="selections">separate undo</ChapterLink> (<Kbd>Ctrl</Kbd>+<Kbd>Alt</Kbd>+<Kbd>D</Kbd>), so changing what's selected never gets in the way of undoing an edit.
+
+<Note>
+
+An edit that changes more than 500,000 locations clears the undo history to save memory. Commit before anything that big.
+
+</Note>

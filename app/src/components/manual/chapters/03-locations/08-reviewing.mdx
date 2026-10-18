@@ -1,0 +1,33 @@
+export const title = "Reviewing";
+
+Review mode goes through a selection one location at a time, and keeps track of which ones you've already looked at. You can stop and pick up where you left off.
+
+## Review mode
+
+Start it with **Review selection** on a <ChapterLink id="selections">selection</ChapterLink>'s menu, or **Review selected locations** in the command palette (also on the toolbar).
+
+- **Next / Previous.** <Kbd>Ctrl</Kbd>+<Kbd>Right</Kbd> and <Kbd>Ctrl</Kbd>+<Kbd>Left</Kbd>. **Save** also moves on and marks the location reviewed.
+- **Skip.** <Kbd>Esc</Kbd> moves on without saving, and still marks it reviewed.
+- **Delete.** Deletes the location and moves on.
+- **Exit review.** The X in the review bar. Your progress is kept. The bar shows where you are (**3 / 50**) and how many you've reviewed.
+
+Clicking a marker that's in the review jumps there. Clicking one that isn't just opens it without losing your place.
+
+## Picking up where you left off
+
+Running **Review selection** on the same selection again continues the review instead of starting over. **Review sessions** lists all of them.
+
+<Img name="review-sessions.png" caption="The review sessions dialog: in-progress and completed reviews with progress bars." />
+
+- **In progress / Completed.** Two tabs.
+- **Resume.** Continue from where you stopped.
+- **Select reviewed / Select unreviewed.** The two circle buttons select the locations you have or haven't reviewed yet.
+- **Rename** by clicking the name, or **Delete**.
+
+**Select reviewed locations** in the command palette selects everything you've ever reviewed on the map, across all sessions.
+
+While reviewing, the **Reviewed** and **Unreviewed** selections show your progress on the map.
+
+## Review order
+
+By default a review goes in the order the selection lists them. To see the most important ones first, set a **Review order** in **Edit map** (the pencil by the map name). It's a small <ChapterLink id="expressions">formula</ChapterLink> that scores each location, highest first. `tagCount`, for example, puts the most-tagged locations first.

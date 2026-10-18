@@ -1,0 +1,28 @@
+export const title = "Controls & hotkeys";
+
+**Settings → Keyboard** lists every shortcut, grouped by where it works: Commands, Global, Map Navigation, Location Editor, Quicktag, and Review. Every command in the <ChapterLink id="command-palette">command palette</ChapterLink> can be given a key, not just the built-in ones. It's also the full list of default keys.
+
+## Changing a key
+
+- **Click** a shortcut, then press the new keys. <Kbd>Backspace</Kbd> or <Kbd>Delete</Kbd> clears it, and <Kbd>Esc</Kbd> cancels.
+- **Filter** the list with the search box.
+- **Reset** puts one key back; **Reset all to defaults** puts them all back.
+
+Letter keys go by position on non-Latin keyboards, so the defaults still work.
+
+## Conflicts
+
+If a key is already taken, <App /> says by what and offers **Reassign** (which takes it off the other one). Conflicting rows are marked; click the mark to jump to the other one. Some keys aren't allowed: e.g. <Kbd>Alt</Kbd> combinations can't override movement keys, because <Kbd>Alt</Kbd> is the slow-down key.
+
+## Per-map keys
+
+Some keys are set outside Settings, because they point at something that only exists on one map:
+
+- **Tag keys.** Give a <ChapterLink id="tags">tag</ChapterLink> its own key in its edit dialog. With a location open, it toggles the tag. These belong to the map.
+- **Copy-to-map keys.** **Copy location to map via hotkeys...** in the command palette gives another map a key. Pressing it copies the open location into that map. Each one can work on this map only, or everywhere.
+
+## Speeds
+
+- **Pan speed.** How fast the keyboard moves the map (**Settings → Map → Navigation**).
+- **Pano look speed.** How fast the keyboard turns the panorama (**Settings → Street View**).
+- **Alt slow-down.** How much holding <Kbd>Alt</Kbd> slows things down (**Settings → Map → Navigation**).

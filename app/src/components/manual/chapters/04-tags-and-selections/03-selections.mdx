@@ -1,0 +1,51 @@
+export const title = "Selections";
+
+A selection is a group of your locations, highlighted on the map in its own color. The Selections section lists the active ones with how many locations they match. They update as you edit.
+
+Anything that works on many locations at once (reviewing, exporting, bulk operations, deleting) works on what's selected.
+
+<Img name="selections.png" caption="The Selections section: each rule drawn in its own color, with a per-selection menu." />
+
+## Kinds of selections
+
+- **<ChapterLink id="tags">Tag</ChapterLink>** and **Untagged.** Locations with a tag, or with none. Click a tag in the sidebar to select it.
+- **Unpanned.** Locations you haven't saved a view for yet.
+- **Pano ID locations** / **Coordinate locations.** By <ChapterLink id="loading-flags">how they load</ChapterLink>.
+- **Uncommitted.** Added or changed since the last commit.
+- **Polygon.** An area you draw with the buttons on the left of the map: polygon, rectangle, or freehand. Click the first point or double-click to finish; <Kbd>Esc</Kbd> cancels. Hold <Kbd>E</Kbd> and click a polygon to remove it.
+- **Country / Subdivision.** Hold <Kbd>Q</Kbd> and click the map for a country, <Kbd>Q</Kbd>+<Kbd>Shift</Kbd> for a state or province. Subdivisions need **Subdivision data** turned on in **Settings → Map → Borders**.
+- **<ChapterLink id="duplicates">Duplicates</ChapterLink>.** Locations within a distance of each other.
+- **<ChapterLink id="validation">Validation</ChapterLink>.** Problems found by validation.
+- **<ChapterLink id="reviewing">Reviewed / Unreviewed</ChapterLink>.** The two halves of a review.
+- **<ChapterLink id="filters">Filter</ChapterLink>.** By a field's value, e.g. altitude above 500m.
+- **Top / Bottom K.** The highest or lowest K locations by a field.
+- **Manual.** Locations you <Kbd>Ctrl</Kbd>-click one by one.
+- **Everything.** <Kbd>Ctrl</Kbd>+<Kbd>A</Kbd>. <Kbd>Ctrl</Kbd>+<Kbd>D</Kbd> clears all selections.
+- **GeoJSON shapes.** **Load shapes from GeoJSON as selection** turns shapes from a `.geojson` file into polygons.
+
+Selections can be <ChapterLink id="selection-algebra">combined</ChapterLink>, narrowed to a <ChapterLink id="sampling">random or spread-out sample</ChapterLink>, and <ChapterLink id="saved-selections">saved</ChapterLink> for other maps.
+
+## The selection menu
+
+Click a selection's name to zoom to it. The dots button has:
+
+- **Invert selection.** Everything except this.
+- **Edit filter.** For filter selections.
+- **Review selection.** Go through it in a <ChapterLink id="reviewing">review</ChapterLink>.
+- **Save as tag.** Puts a new tag on everything in it.
+- **Prune duplicates.** On a duplicates selection, deletes the extras.
+- **Change color.** Tag selections use the tag's color instead.
+- **Download GeoJSON** and **Rename.** For polygons.
+- **Deselect.**
+
+To tag everything selected, type into **Bulk-add tag** at the end of the toolbar.
+
+## Ghosting
+
+The ghost button on a selection dims it on the map without removing it. <Kbd>Alt</Kbd>-click it to ghost every other selection instead, and <Kbd>Alt</Kbd>-click again to bring them back.
+
+A ghosted selection is left out of anything that acts on "the selection" (delete, bulk operations, Bulk-add tag), so you can keep it around without it getting in the way.
+
+## Undoing selection changes
+
+Selections have their own undo, separate from your edits: <Kbd>Ctrl</Kbd>+<Kbd>Alt</Kbd>+<Kbd>D</Kbd>, and add <Kbd>Shift</Kbd> to redo. It lasts while the map is open.

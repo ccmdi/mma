@@ -1,0 +1,34 @@
+export const title = "Filters";
+
+A filter selects locations by a field's value, e.g. everything above 500m altitude, or everything from 2023. Make one with **Filter by metadata...** in the command palette or toolbar. To change it later, use **Edit filter** on its menu.
+
+<Img name="filter.png" caption="The filter form: pick a field, an operator, and a value." />
+
+Filters only see metadata that's already on your locations, so <ChapterLink id="enrichment">enrich</ChapterLink> first.
+
+## Fields
+
+- **Built-in.** **Created**, **Modified**, **Pano ID**, **Load as pano ID**, **Tags**, **Tag count**, **Heading**, **Pitch**, and **Zoom**.
+- **Metadata.** Any field on the map, like **Country code**, **Camera type**, **Altitude**, **Image date**, and your own fields. What you can ask depends on the field's <ChapterLink id="managing-fields">type</ChapterLink>.
+
+## Operators
+
+- **= / !=** equals and not equals.
+- **&gt; / &lt; / &gt;= / &lt;=** for numbers and dates.
+- **between** a range. Date and month fields can tick **Any year**, e.g. June to August in any year. Exact dates can tick **Any date** to match a time of day instead.
+- **has / does not have** a value at all.
+- **contains / does not contain** for lists like tags, plus comparisons on their length.
+
+Fields with a fixed set of values (like camera type) only have the equals operators, with a list to pick from.
+
+## Dates and timezones
+
+Dates are compared in your own timezone by default. Tick **Location timezone** on an exact-date filter to use each location's local time instead, which matters when filtering by time of day across countries. Locations with no timezone are skipped, and you're told how many.
+
+Exact-date filters pick whole days, matching how dates are shown. With **Exact date format** set to **Date + time** (**Settings → Street View → Date picker**), they get a time box too.
+
+## Stepping through ranges
+
+Filter selections with a range have left/right arrows. They move the range forward or back by its own size, so you can step through dates day by day, or altitudes band by band.
+
+To ask for more than one thing at once (Gen 4 _and_ above 500m), <ChapterLink id="selection-algebra">combine filters</ChapterLink>.

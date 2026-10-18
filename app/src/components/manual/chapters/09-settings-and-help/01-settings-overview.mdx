@@ -1,0 +1,40 @@
+export const title = "App settings vs per-map settings";
+
+Some settings apply everywhere. Others belong to one map, and changing them only changes that map.
+
+<Img name="settings.png" caption="App settings, split into Street View, Map, Editing, Keyboard, Application, Integrations, Feedback, and Advanced sections." />
+
+## App settings
+
+The gear in the bottom-right (<Kbd>Ctrl</Kbd>+<Kbd>,</Kbd>). These apply to every map. The search box at the top searches every section at once, which is usually quicker than looking.
+
+- **Street View.** Moving around, what the panorama shows, which controls are on it, fullscreen, and the date picker.
+- **Map.** Defaults for new maps, pan speed, marker colors, panorama dots, borders, and fullscreen.
+- **Editing.** Tags, <ChapterLink id="seen">seen history</ChapterLink>, and where addresses come from.
+- **<ChapterLink id="controls-hotkeys">Keyboard</ChapterLink>.** Every shortcut.
+- **Application.** Language, units, reopening maps on startup, what map rows show, updates, and the <ChapterLink id="data-folder">data folder</ChapterLink>.
+- **Integrations.** Discord status, and a local API for controlling <App /> from scripts.
+- **<ChapterLink id="feedback">Feedback</ChapterLink>.** Bug reports and ideas.
+- **Advanced.** Custom CSS and debug tools.
+
+## The Map settings dropdown
+
+The **Map settings** dropdown above the map has both kinds:
+
+- **Selecting new locations** is per map. It's how a <ChapterLink id="click-coverage">click picks coverage</ChapterLink>.
+- **Map behaviour** and **Display** apply to every map: what a click does, hover previews, marker style and size, and the 5K radius. So does the **Map style** button.
+
+## Edit map
+
+The pencil next to the map name opens **Edit map**, with the rest of the per-map settings:
+
+- **Name, description, and labels.**
+- **<ChapterLink id="duplicates">Duplicate preference</ChapterLink>.** Which duplicate is kept.
+- **<ChapterLink id="reviewing">Review order</ChapterLink>.** Which locations a review shows first.
+- **<ChapterLink id="scoring">Scoring</ChapterLink>.** The score bounds.
+
+<ChapterLink id="enrichment">Enrichment</ChapterLink> settings are per map too, in their own dialog. So are plugin setups.
+
+## Defaults for new maps
+
+If you set up every new map the same way, do it once and press **Use current map** in **Settings → Map → Defaults**. New maps start from that; existing ones keep theirs. **Reset** goes back to the built-in defaults.

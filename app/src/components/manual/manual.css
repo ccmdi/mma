@@ -62,6 +62,16 @@
 
 .manual__toc {
 	padding: 0.75rem;
+	counter-reset: manual-ch;
+}
+
+.manual__toc-part + .manual__toc-part {
+	margin-top: 1rem;
+}
+
+.manual__toc-part-title {
+	margin: 0 0 0.25rem;
+	padding: 0 0.5rem;
 }
 
 .manual__toc ol {
@@ -71,7 +81,6 @@
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	counter-reset: manual-ch;
 }
 
 .manual__toc li {

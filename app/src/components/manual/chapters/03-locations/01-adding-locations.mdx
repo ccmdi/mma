@@ -1,0 +1,29 @@
+export const title = "Adding locations";
+
+Most of the time you add a location by clicking the map. You can also add one from the panorama you're in, or paste it in. Whole files go through <ChapterLink id="importing-into-map">Import file</ChapterLink>.
+
+## Click the map
+
+Click anywhere and <App /> doesn't just drop a pin there. It finds the nearest Street View coverage, puts the location on it, and opens it. Which panorama it picks follows the map's <ChapterLink id="click-coverage">coverage settings</ChapterLink>. If there's no coverage nearby, nothing is added.
+
+If you only want to look around, **Click behavior** in **Map settings** can stop clicks from adding locations (<Kbd>O</Kbd> toggles this) or make a click open the nearest location instead.
+
+## From the panorama
+
+With a location open:
+
+- **Drop marker** (<Kbd>C</Kbd>) adds a new location where you're standing, with your current view. Walk down the road, press <Kbd>C</Kbd>, keep walking.
+- **Follow road** (<Kbd>G</Kbd>) walks along the road in the direction you're facing and adds a location at each panorama.
+
+## Paste
+
+Paste anywhere in the editor (outside a text box):
+
+- **A Google Maps link or coordinates** add that location and open it. Short links (`maps.app.goo.gl`) work too.
+- **Several links, one per line**, or JSON/CSV text, open the <ChapterLink id="importing-into-map">import preview</ChapterLink> first.
+
+Pasting into the place search box works the same way.
+
+## Crosshair
+
+Hold <Kbd>Enter</Kbd> to show a crosshair in the middle of the map, then let go to click there. It only works with no location open, since <Kbd>Enter</Kbd> saves the open one. It can be a bit janky, but it's there if you want to go mouseless.

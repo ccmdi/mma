@@ -1,0 +1,14 @@
+export const title = "How a click picks coverage";
+
+When you click the map, there's often more than one panorama nearby: official and unofficial, old and new cameras, both directions of a road. The **Selecting new locations** settings in the **Map settings** dropdown decide which one you get and which way it faces. They're saved per map.
+
+<Img name="map-settings.png" caption="The Map settings dropdown: Selecting new locations at the top, then the view preferences." />
+
+- **Point view along the road by default.** New locations face along the road. **Direction** picks which way: forwards, backwards, most northern/eastern/southern/western, or random.
+- **Prefer official coverage over unofficial.**
+- **Prefer higher quality over newer images.** Take the better camera over the most recent capture.
+- **Disallow unofficial coverage.** Never pick unofficial coverage, even if it's the only thing there.
+- **Use Pano ID locations by default.** <ChapterLink id="loading-flags">Pin</ChapterLink> every new location to its exact panorama.
+- **Min search radius.** How far from your click to look for coverage, from 10m to 500m (default 50m). In dense areas, a smaller radius helps you get the exact pano you clicked on. **Show click search radius at cursor** draws it.
+
+To start new maps with the same settings, set them on one map and use **Use current map** in <ChapterLink id="settings-overview">**Settings → Map → Defaults**</ChapterLink>.
