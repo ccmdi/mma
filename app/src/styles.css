@@ -703,6 +703,9 @@ a:active,
 a:visited {
 	color: var(--text-1);
 }
+::selection {
+	background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
 label,
 summary {
 	cursor: pointer;
