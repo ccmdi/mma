@@ -23,7 +23,6 @@ import { Button } from "@/components/primitives/Button";
 import { IconButton } from "@/components/primitives/IconButton";
 import { mdiFileTreeOutline } from "@mdi/js";
 import { TextInput } from "@/components/primitives/TextInput";
-import { fmt } from "@/lib/util/format";
 import { hexToHsl, hslToHex, type HSL } from "@/lib/util/color";
 import { TagPill } from "@/components/primitives/TagPill";
 import { useSetting, setSetting } from "@/store/settings";
@@ -208,7 +207,8 @@ export function TagManager() {
 								key={tag.id}
 								small
 								color={tag.color}
-								label={`${tag.name} (${fmt.format(tagCounts[tag.id] ?? 0)})`}
+								label={tag.name}
+								count={tagCounts[tag.id] ?? 0}
 							/>
 						))}
 					</ul>
