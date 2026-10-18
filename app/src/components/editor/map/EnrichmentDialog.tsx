@@ -479,9 +479,8 @@ function FieldsTab() {
 						renamePrompt.merge ? (
 							<Trans
 								msg={{
-									one: "Merge {from} into existing field {to} across {n} location. This cannot be undone.",
-									other:
-										"Merge {from} into existing field {to} across {n} locations. This cannot be undone.",
+									one: "Merge {from} into existing field {to} across {n} location.",
+									other: "Merge {from} into existing field {to} across {n} locations.",
 								}}
 								from={<code>{renamePrompt.key}</code>}
 								to={<code>{renamePrompt.target}</code>}
@@ -490,8 +489,8 @@ function FieldsTab() {
 						) : (
 							<Trans
 								msg={{
-									one: "Rename {from} to {to} across {n} location. This cannot be undone.",
-									other: "Rename {from} to {to} across {n} locations. This cannot be undone.",
+									one: "Rename {from} to {to} across {n} location.",
+									other: "Rename {from} to {to} across {n} locations.",
 								}}
 								from={<code>{renamePrompt.key}</code>}
 								to={<code>{renamePrompt.target}</code>}
@@ -530,7 +529,7 @@ function FieldsTab() {
 					title={t("Delete field")}
 					message={
 						<Trans
-							msg="Delete {field} and clear its values from every location? This cannot be undone."
+							msg="Delete {field} and clear its values from every location?"
 							field={<code>{deleteKey}</code>}
 						/>
 					}

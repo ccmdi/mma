@@ -328,7 +328,7 @@
 	"Delete session": "删除会话",
 	"Delete style": "删除样式",
 	"Delete this polygon": "删除此多边形",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "删除 {field} 并清除所有位置上的值？此操作无法撤销。",
+	"Delete {field} and clear its values from every location?": "删除 {field} 并清除所有位置上的值？",
 	"Delete {n} polygons here": {
 		"other": "删除此处的 {n} 个多边形"
 	},
@@ -713,8 +713,8 @@
 	"Merge duplicates": "合并重复项",
 	"Merge duplicates...": "合并重复…",
 	"Merge field": "合并字段",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"other": "将 {from} 合并到现有字段 {to}，影响 {n} 个位置。此操作无法撤销。"
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"other": "将 {from} 合并到现有字段 {to}，影响 {n} 个位置。"
 	},
 	"Merge · keep everything on both sides": "合并 · 保留双方全部内容",
 	"Merged {merged} duplicates into {groups} locations": "已将 {merged} 个重复项合并为 {groups} 个位置",
@@ -1034,8 +1034,8 @@
 		"other": "在选择中重命名（{n} 个位置）"
 	},
 	"Rename tags": "重命名标签",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"other": "将 {from} 重命名为 {to}，影响 {n} 个位置。此操作无法撤销。"
+	"Rename {from} to {to} across {n} locations.": {
+		"other": "将 {from} 重命名为 {to}，影响 {n} 个位置。"
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"other": "在全部中重命名 {tags} 个标签（{n} 个位置）"
@@ -1290,7 +1290,6 @@
 	"Tag locations with no value as “{name}”": "将无数值的位置标记为“{name}”",
 	"Tag name": "标签名称",
 	"Tag name...": "标签名…",
-	"Tag renames cannot be undone.": "标签重命名无法撤销。",
 	"Tag this location": "标记此位置",
 	"Tag {id}": "标签 {id}",
 	"Tag {n} locations": "标记 {n} 个位置",

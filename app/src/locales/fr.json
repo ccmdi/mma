@@ -346,7 +346,7 @@
 	"Delete session": "Supprimer la session",
 	"Delete style": "Supprimer le style",
 	"Delete this polygon": "Supprimer ce polygone",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "Supprimer {field} et effacer ses valeurs de tous les lieux ? Cette action est irréversible.",
+	"Delete {field} and clear its values from every location?": "Supprimer {field} et effacer ses valeurs de tous les lieux ?",
 	"Delete {n} polygons here": {
 		"one": "Supprimer {n} polygone ici",
 		"many": "Supprimer {n} polygones ici",
@@ -749,10 +749,10 @@
 	"Merge duplicates": "Fusionner les doublons",
 	"Merge duplicates...": "Fusionner les doublons...",
 	"Merge field": "Fusionner le champ",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "Fusionner {from} dans le champ existant {to} sur {n} lieu. Cette action est irréversible.",
-		"many": "Fusionner {from} dans le champ existant {to} sur {n} lieux. Cette action est irréversible.",
-		"other": "Fusionner {from} dans le champ existant {to} sur {n} lieux. Cette action est irréversible."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "Fusionner {from} dans le champ existant {to} sur {n} lieu.",
+		"many": "Fusionner {from} dans le champ existant {to} sur {n} lieux.",
+		"other": "Fusionner {from} dans le champ existant {to} sur {n} lieux."
 	},
 	"Merge · keep everything on both sides": "Fusionner · tout conserver des deux côtés",
 	"Merged {merged} duplicates into {groups} locations": "{merged} doublons fusionnés en {groups} lieux",
@@ -1100,10 +1100,10 @@
 		"other": "Renommer dans la sélection ({n} lieux)"
 	},
 	"Rename tags": "Renommer les tags",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "Renommer {from} en {to} sur {n} lieu. Cette action est irréversible.",
-		"many": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible.",
-		"other": "Renommer {from} en {to} sur {n} lieux. Cette action est irréversible."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "Renommer {from} en {to} sur {n} lieu.",
+		"many": "Renommer {from} en {to} sur {n} lieux.",
+		"other": "Renommer {from} en {to} sur {n} lieux."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "Renommer {tags} tags partout ({n} lieu)",
@@ -1380,7 +1380,6 @@
 	"Tag locations with no value as “{name}”": "Étiqueter les lieux sans valeur comme « {name} »",
 	"Tag name": "Nom de l'étiquette",
 	"Tag name...": "Nom de l'étiquette...",
-	"Tag renames cannot be undone.": "Les renommages d'étiquettes sont irréversibles.",
 	"Tag this location": "Étiqueter ce lieu",
 	"Tag {id}": "Étiquette {id}",
 	"Tag {n} locations": "Étiqueter {n} lieux",

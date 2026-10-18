@@ -337,7 +337,7 @@
 	"Delete session": "Sitzung löschen",
 	"Delete style": "Stil löschen",
 	"Delete this polygon": "Dieses Polygon löschen",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "{field} löschen und seine Werte an allen Standorten entfernen? Das kann nicht rückgängig gemacht werden.",
+	"Delete {field} and clear its values from every location?": "{field} löschen und seine Werte an allen Standorten entfernen?",
 	"Delete {n} polygons here": {
 		"one": "{n} Polygon hier löschen",
 		"other": "{n} Polygone hier löschen"
@@ -731,9 +731,9 @@
 	"Merge duplicates": "Duplikate zusammenführen",
 	"Merge duplicates...": "Duplikate zusammenführen...",
 	"Merge field": "Feld zusammenführen",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "{from} in vorhandenes Feld {to} an {n} Standort zusammenführen. Das kann nicht rückgängig gemacht werden.",
-		"other": "{from} in vorhandenes Feld {to} an {n} Standorten zusammenführen. Das kann nicht rückgängig gemacht werden."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "{from} in vorhandenes Feld {to} an {n} Standort zusammenführen.",
+		"other": "{from} in vorhandenes Feld {to} an {n} Standorten zusammenführen."
 	},
 	"Merge · keep everything on both sides": "Zusammenführen · beide Seiten behalten",
 	"Merged {merged} duplicates into {groups} locations": "{merged} Duplikate zu {groups} Standorten zusammengeführt",
@@ -1067,9 +1067,9 @@
 		"other": "In Auswahl umbenennen ({n} Standorte)"
 	},
 	"Rename tags": "Tags umbenennen",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "{from} an {n} Standort in {to} umbenennen. Das kann nicht rückgängig gemacht werden.",
-		"other": "{from} an {n} Standorten in {to} umbenennen. Das kann nicht rückgängig gemacht werden."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "{from} an {n} Standort in {to} umbenennen.",
+		"other": "{from} an {n} Standorten in {to} umbenennen."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "{tags} Tags überall umbenennen ({n} Standort)",
@@ -1335,7 +1335,6 @@
 	"Tag locations with no value as “{name}”": "Orte ohne Wert mit „{name}“ taggen",
 	"Tag name": "Tag-Name",
 	"Tag name...": "Tag-Name...",
-	"Tag renames cannot be undone.": "Umbenennen von Tags kann nicht rückgängig gemacht werden.",
 	"Tag this location": "Diesen Standort taggen",
 	"Tag {id}": "Tag {id}",
 	"Tag {n} locations": "{n} Standorte taggen",

@@ -337,7 +337,7 @@
 	"Delete session": "Delete session",
 	"Delete style": "Delete style",
 	"Delete this polygon": "Delete this polygon",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "Delete {field} and clear its values from every location? This cannot be undone.",
+	"Delete {field} and clear its values from every location?": "Delete {field} and clear its values from every location?",
 	"Delete {n} polygons here": {
 		"one": "Delete {n} polygon here",
 		"other": "Delete {n} polygons here"
@@ -731,9 +731,9 @@
 	"Merge duplicates": "Merge duplicates",
 	"Merge duplicates...": "Merge duplicates...",
 	"Merge field": "Merge field",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "Merge {from} into existing field {to} across {n} location. This cannot be undone.",
-		"other": "Merge {from} into existing field {to} across {n} locations. This cannot be undone."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "Merge {from} into existing field {to} across {n} location.",
+		"other": "Merge {from} into existing field {to} across {n} locations."
 	},
 	"Merge · keep everything on both sides": "Merge · keep everything on both sides",
 	"Merged {merged} duplicates into {groups} locations": "Merged {merged} duplicates into {groups} locations",
@@ -1067,9 +1067,9 @@
 		"other": "Rename in selection ({n} locations)"
 	},
 	"Rename tags": "Rename tags",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "Rename {from} to {to} across {n} location. This cannot be undone.",
-		"other": "Rename {from} to {to} across {n} locations. This cannot be undone."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "Rename {from} to {to} across {n} location.",
+		"other": "Rename {from} to {to} across {n} locations."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "Rename {tags} tags in all ({n} location)",
@@ -1335,7 +1335,6 @@
 	"Tag locations with no value as “{name}”": "Tag locations with no value as “{name}”",
 	"Tag name": "Tag name",
 	"Tag name...": "Tag name...",
-	"Tag renames cannot be undone.": "Tag renames cannot be undone.",
 	"Tag this location": "Tag this location",
 	"Tag {id}": "Tag {id}",
 	"Tag {n} locations": "Tag {n} locations",

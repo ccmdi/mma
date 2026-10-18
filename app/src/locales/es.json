@@ -346,7 +346,7 @@
 	"Delete session": "Eliminar la sesión",
 	"Delete style": "Eliminar el estilo",
 	"Delete this polygon": "Eliminar este polígono",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "¿Eliminar {field} y borrar sus valores de todas las ubicaciones? Esta acción no se puede deshacer.",
+	"Delete {field} and clear its values from every location?": "¿Eliminar {field} y borrar sus valores de todas las ubicaciones?",
 	"Delete {n} polygons here": {
 		"one": "Eliminar {n} polígono aquí",
 		"many": "Eliminar {n} polígonos aquí",
@@ -749,10 +749,10 @@
 	"Merge duplicates": "Combinar duplicados",
 	"Merge duplicates...": "Combinar duplicados...",
 	"Merge field": "Combinar el campo",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "Combinar {from} con el campo existente {to} en {n} ubicación. Esta acción no se puede deshacer.",
-		"many": "Combinar {from} con el campo existente {to} en {n} ubicaciones. Esta acción no se puede deshacer.",
-		"other": "Combinar {from} con el campo existente {to} en {n} ubicaciones. Esta acción no se puede deshacer."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "Combinar {from} con el campo existente {to} en {n} ubicación.",
+		"many": "Combinar {from} con el campo existente {to} en {n} ubicaciones.",
+		"other": "Combinar {from} con el campo existente {to} en {n} ubicaciones."
 	},
 	"Merge · keep everything on both sides": "Combinar · conservar todo en ambos lados",
 	"Merged {merged} duplicates into {groups} locations": "Se combinaron {merged} duplicados en {groups} ubicaciones",
@@ -1100,10 +1100,10 @@
 		"other": "Renombrar en la selección ({n} ubicaciones)"
 	},
 	"Rename tags": "Renombrar etiquetas",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "Renombrar {from} como {to} en {n} ubicación. Esta acción no se puede deshacer.",
-		"many": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer.",
-		"other": "Renombrar {from} como {to} en {n} ubicaciones. Esta acción no se puede deshacer."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "Renombrar {from} como {to} en {n} ubicación.",
+		"many": "Renombrar {from} como {to} en {n} ubicaciones.",
+		"other": "Renombrar {from} como {to} en {n} ubicaciones."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "Renombrar {tags} etiquetas en todo ({n} ubicación)",
@@ -1380,7 +1380,6 @@
 	"Tag locations with no value as “{name}”": "Etiquetar las ubicaciones sin valor como «{name}»",
 	"Tag name": "Nombre de la etiqueta",
 	"Tag name...": "Nombre de la etiqueta...",
-	"Tag renames cannot be undone.": "Los cambios de nombre de etiquetas no se pueden deshacer.",
 	"Tag this location": "Etiquetar esta ubicación",
 	"Tag {id}": "Etiqueta {id}",
 	"Tag {n} locations": "Etiquetar {n} ubicaciones",

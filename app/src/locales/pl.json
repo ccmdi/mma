@@ -355,7 +355,7 @@
 	"Delete session": "Usuń sesję",
 	"Delete style": "Usuń styl",
 	"Delete this polygon": "Usuń ten wielokąt",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "Usunąć pole {field} i wyczyścić jego wartości ze wszystkich lokalizacji? Tej operacji nie można cofnąć.",
+	"Delete {field} and clear its values from every location?": "Usunąć pole {field} i wyczyścić jego wartości ze wszystkich lokalizacji?",
 	"Delete {n} polygons here": {
 		"one": "Usuń {n} wielokąt tutaj",
 		"few": "Usuń {n} wielokąty tutaj",
@@ -767,11 +767,11 @@
 	"Merge duplicates": "Scal duplikaty",
 	"Merge duplicates...": "Scal duplikaty...",
 	"Merge field": "Scal pole",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacji. Tej operacji nie można cofnąć.",
-		"few": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
-		"many": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
-		"other": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacji. Tej operacji nie można cofnąć."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacji.",
+		"few": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacjach.",
+		"many": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacjach.",
+		"other": "Scalenie pola {from} z istniejącym polem {to} w {n} lokalizacji."
 	},
 	"Merge · keep everything on both sides": "Scal · zachowaj wszystko po obu stronach",
 	"Merged {merged} duplicates into {groups} locations": "Scalono duplikaty ({merged}) w lokalizacje ({groups})",
@@ -1133,11 +1133,11 @@
 		"other": "Zmień nazwę w zaznaczeniu ({n} lokalizacji)"
 	},
 	"Rename tags": "Zmień nazwy tagów",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć.",
-		"few": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
-		"many": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach. Tej operacji nie można cofnąć.",
-		"other": "Zmiana nazwy z {from} na {to} w {n} lokalizacji. Tej operacji nie można cofnąć."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "Zmiana nazwy z {from} na {to} w {n} lokalizacji.",
+		"few": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach.",
+		"many": "Zmiana nazwy z {from} na {to} w {n} lokalizacjach.",
+		"other": "Zmiana nazwy z {from} na {to} w {n} lokalizacji."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "Zmień nazwę wszędzie (tagów: {tags}, {n} lokalizacja)",
@@ -1425,7 +1425,6 @@
 	"Tag locations with no value as “{name}”": "Oznacz lokalizacje bez wartości jako „{name}”",
 	"Tag name": "Nazwa tagu",
 	"Tag name...": "Nazwa tagu...",
-	"Tag renames cannot be undone.": "Zmian nazw tagów nie można cofnąć.",
 	"Tag this location": "Otaguj tę lokalizację",
 	"Tag {id}": "Tag {id}",
 	"Tag {n} locations": "Otaguj {n} lokalizacji",

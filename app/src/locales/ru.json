@@ -355,7 +355,7 @@
 	"Delete session": "Удалить сессию",
 	"Delete style": "Удалить стиль",
 	"Delete this polygon": "Удалить этот полигон",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "Удалить {field} и очистить его значения во всех локациях? Это нельзя отменить.",
+	"Delete {field} and clear its values from every location?": "Удалить {field} и очистить его значения во всех локациях?",
 	"Delete {n} polygons here": {
 		"one": "Удалить здесь {n} полигон",
 		"few": "Удалить здесь {n} полигона",
@@ -767,11 +767,11 @@
 	"Merge duplicates": "Объединить дубликаты",
 	"Merge duplicates...": "Объединить дубликаты...",
 	"Merge field": "Объединить поле",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "Объединить {from} с существующим полем {to} в {n} локации. Это нельзя отменить.",
-		"few": "Объединить {from} с существующим полем {to} в {n} локациях. Это нельзя отменить.",
-		"many": "Объединить {from} с существующим полем {to} в {n} локациях. Это нельзя отменить.",
-		"other": "Объединить {from} с существующим полем {to} в {n} локациях. Это нельзя отменить."
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "Объединить {from} с существующим полем {to} в {n} локации.",
+		"few": "Объединить {from} с существующим полем {to} в {n} локациях.",
+		"many": "Объединить {from} с существующим полем {to} в {n} локациях.",
+		"other": "Объединить {from} с существующим полем {to} в {n} локациях."
 	},
 	"Merge · keep everything on both sides": "Объединить · сохранить всё с обеих сторон",
 	"Merged {merged} duplicates into {groups} locations": "Объединено {merged} дубликатов в {groups} локаций",
@@ -1133,11 +1133,11 @@
 		"other": "Переименовать в выборке ({n} локации)"
 	},
 	"Rename tags": "Переименовать теги",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "Переименовать {from} в {to} в {n} локации. Это нельзя отменить.",
-		"few": "Переименовать {from} в {to} в {n} локациях. Это нельзя отменить.",
-		"many": "Переименовать {from} в {to} в {n} локациях. Это нельзя отменить.",
-		"other": "Переименовать {from} в {to} в {n} локациях. Это нельзя отменить."
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "Переименовать {from} в {to} в {n} локации.",
+		"few": "Переименовать {from} в {to} в {n} локациях.",
+		"many": "Переименовать {from} в {to} в {n} локациях.",
+		"other": "Переименовать {from} в {to} в {n} локациях."
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "Переименовать везде (тегов: {tags}, {n} локация)",
@@ -1425,7 +1425,6 @@
 	"Tag locations with no value as “{name}”": "Помечать локации без значения как «{name}»",
 	"Tag name": "Название тега",
 	"Tag name...": "Название тега...",
-	"Tag renames cannot be undone.": "Переименование тегов нельзя отменить.",
 	"Tag this location": "Тегировать эту локацию",
 	"Tag {id}": "Тег {id}",
 	"Tag {n} locations": "Тегировать {n} локаций",

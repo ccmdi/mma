@@ -337,7 +337,7 @@
 	"Delete session": "[Ðéĺéţé şéşşîöñ åéîöüå]",
 	"Delete style": "[Ðéĺéţé şţýĺé åéîöü]",
 	"Delete this polygon": "[Ðéĺéţé ţĥîş ƥöĺýǧöñ åéîöüåéî]",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "[Ðéĺéţé {field} åñð çĺéåŕ îţş ṽåĺüéş ƒŕöɱ éṽéŕý ĺöçåţîöñ? Ţĥîş çåññöţ ƀé üñðöñé. åéîöüåéîöüåéîöüåéîöüåéîöüåéîö]",
+	"Delete {field} and clear its values from every location?": "[Ðéĺéţé {field} åñð çĺéåŕ îţş ṽåĺüéş ƒŕöɱ éṽéŕý ĺöçåţîöñ? åéîöüåéîöüåéîöüåéîöü]",
 	"Delete {n} polygons here": {
 		"one": "[Ðéĺéţé {n} ƥöĺýǧöñ ĥéŕé åéîöüåéî]",
 		"other": "[Ðéĺéţé {n} ƥöĺýǧöñş ĥéŕé åéîöüåéîö]"
@@ -731,9 +731,9 @@
 	"Merge duplicates": "[Ɱéŕǧé ðüƥĺîçåţéş åéîöüåé]",
 	"Merge duplicates...": "[Ɱéŕǧé ðüƥĺîçåţéş... åéîöüåéî]",
 	"Merge field": "[Ɱéŕǧé ƒîéĺð åéîöü]",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"one": "[Ɱéŕǧé {from} îñţö éẋîşţîñǧ ƒîéĺð {to} åçŕöşş {n} ĺöçåţîöñ. Ţĥîş çåññöţ ƀé üñðöñé. åéîöüåéîöüåéîöüåéîöüåéîöüåéî]",
-		"other": "[Ɱéŕǧé {from} îñţö éẋîşţîñǧ ƒîéĺð {to} åçŕöşş {n} ĺöçåţîöñş. Ţĥîş çåññöţ ƀé üñðöñé. åéîöüåéîöüåéîöüåéîöüåéîöüåéî]"
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"one": "[Ɱéŕǧé {from} îñţö éẋîşţîñǧ ƒîéĺð {to} åçŕöşş {n} ĺöçåţîöñ. åéîöüåéîöüåéîöüåéî]",
+		"other": "[Ɱéŕǧé {from} îñţö éẋîşţîñǧ ƒîéĺð {to} åçŕöşş {n} ĺöçåţîöñş. åéîöüåéîöüåéîöüåéîö]"
 	},
 	"Merge · keep everything on both sides": "[Ɱéŕǧé · ķééƥ éṽéŕýţĥîñǧ öñ ƀöţĥ şîðéş åéîöüåéîöüåéîöü]",
 	"Merged {merged} duplicates into {groups} locations": "[Ɱéŕǧéð {merged} ðüƥĺîçåţéş îñţö {groups} ĺöçåţîöñş åéîöüåéîöüåéîö]",
@@ -1067,9 +1067,9 @@
 		"other": "[Ŕéñåɱé îñ şéĺéçţîöñ ({n} ĺöçåţîöñş) åéîöüåéîöüåéî]"
 	},
 	"Rename tags": "[Ŕéñåɱé ţåǧş åéîöü]",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"one": "[Ŕéñåɱé {from} ţö {to} åçŕöşş {n} ĺöçåţîöñ. Ţĥîş çåññöţ ƀé üñðöñé. åéîöüåéîöüåéîöüåéîöüå]",
-		"other": "[Ŕéñåɱé {from} ţö {to} åçŕöşş {n} ĺöçåţîöñş. Ţĥîş çåññöţ ƀé üñðöñé. åéîöüåéîöüåéîöüåéîöüåé]"
+	"Rename {from} to {to} across {n} locations.": {
+		"one": "[Ŕéñåɱé {from} ţö {to} åçŕöşş {n} ĺöçåţîöñ. åéîöüåéîöüåé]",
+		"other": "[Ŕéñåɱé {from} ţö {to} åçŕöşş {n} ĺöçåţîöñş. åéîöüåéîöüåé]"
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"one": "[Ŕéñåɱé {tags} ţåǧş îñ åĺĺ ({n} ĺöçåţîöñ) åéîöüåéîöüåéî]",
@@ -1335,7 +1335,6 @@
 	"Tag locations with no value as “{name}”": "[Ţåǧ ĺöçåţîöñş ŵîţĥ ñö ṽåĺüé åş “{name}” åéîöüåéîöüåéîö]",
 	"Tag name": "[Ţåǧ ñåɱé åéîö]",
 	"Tag name...": "[Ţåǧ ñåɱé... åéîöü]",
-	"Tag renames cannot be undone.": "[Ţåǧ ŕéñåɱéş çåññöţ ƀé üñðöñé. åéîöüåéîöüåé]",
 	"Tag this location": "[Ţåǧ ţĥîş ĺöçåţîöñ åéîöüåé]",
 	"Tag {id}": "[Ţåǧ {id} åé]",
 	"Tag {n} locations": "[Ţåǧ {n} ĺöçåţîöñş åéîöüå]",

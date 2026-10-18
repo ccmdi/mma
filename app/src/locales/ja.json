@@ -328,7 +328,7 @@
 	"Delete session": "セッションを削除",
 	"Delete style": "スタイルを削除",
 	"Delete this polygon": "このポリゴンを削除",
-	"Delete {field} and clear its values from every location? This cannot be undone.": "{field} を削除し、すべての地点から値を消去しますか？この操作は取り消せません。",
+	"Delete {field} and clear its values from every location?": "{field} を削除し、すべての地点から値を消去しますか？",
 	"Delete {n} polygons here": {
 		"other": "ここにある {n} 個のポリゴンを削除"
 	},
@@ -713,8 +713,8 @@
 	"Merge duplicates": "重複を統合",
 	"Merge duplicates...": "重複を統合...",
 	"Merge field": "フィールドを統合",
-	"Merge {from} into existing field {to} across {n} locations. This cannot be undone.": {
-		"other": "{n} 件の地点で {from} を既存フィールド {to} に統合します。この操作は取り消せません。"
+	"Merge {from} into existing field {to} across {n} locations.": {
+		"other": "{n} 件の地点で {from} を既存フィールド {to} に統合します。"
 	},
 	"Merge · keep everything on both sides": "統合・両方の内容をすべて保持",
 	"Merged {merged} duplicates into {groups} locations": "{merged} 件の重複を {groups} 件の地点に統合しました",
@@ -1034,8 +1034,8 @@
 		"other": "選択内で名前を変更（{n} 地点）"
 	},
 	"Rename tags": "タグの名前を変更",
-	"Rename {from} to {to} across {n} locations. This cannot be undone.": {
-		"other": "{n} 件の地点で {from} を {to} に変更します。この操作は取り消せません。"
+	"Rename {from} to {to} across {n} locations.": {
+		"other": "{n} 件の地点で {from} を {to} に変更します。"
 	},
 	"Rename {tags} tags in all ({n} locations)": {
 		"other": "{tags} 個のタグをすべてで名前変更（{n} 地点）"
@@ -1290,7 +1290,6 @@
 	"Tag locations with no value as “{name}”": "値のない地点を「{name}」としてタグ付け",
 	"Tag name": "タグ名",
 	"Tag name...": "タグ名...",
-	"Tag renames cannot be undone.": "タグ名の変更は取り消せません。",
 	"Tag this location": "この地点にタグ付け",
 	"Tag {id}": "タグ {id}",
 	"Tag {n} locations": "{n} 件の地点にタグ付け",

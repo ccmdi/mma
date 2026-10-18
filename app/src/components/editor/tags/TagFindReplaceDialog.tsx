@@ -89,7 +89,6 @@ export function TagFindReplaceDialog({ open, onOpenChange }: DialogProps) {
 							</ul>
 						</div>
 					)}
-					<Hint tone="warning">{t("Tag renames cannot be undone.")}</Hint>
 					{applied ? (
 						<DialogActions
 							start={<Notice tone="success">{t("Done!")}</Notice>}
