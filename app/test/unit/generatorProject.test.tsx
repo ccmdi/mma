@@ -84,11 +84,10 @@ describe("generator setup per map", () => {
 
 	it("resets to the factory setup, not the shared one", async () => {
 		const m = sidebar();
-		const reset = [...m.container.querySelectorAll("button")].find(
-			(b) => b.textContent === "Reset",
-		);
-		await act(async () => reset!.click());
-		await act(async () => reset!.click());
+		const button = (match: (b: HTMLButtonElement) => boolean) =>
+			[...m.container.querySelectorAll("button")].find(match)!;
+		await act(async () => button((b) => b.getAttribute("aria-label") === "Reset").click());
+		await act(async () => button((b) => b.textContent === "Are you sure?").click());
 		expect(tagInput(m).value).toBe("");
 		expect(ownProject()).toEqual({ settings: normalizeGeneratorSettings(undefined), tagName: "" });
 	});

@@ -3175,6 +3175,8 @@ ui.ConfirmButton(
     onConfirm: () => void;
     /** The label while armed. Defaults to "Are you sure?". */
     confirmLabel?: ReactNode;
+    /** An icon to show until the first click, with the button's text as its label. */
+    icon?: string;
   },
 ): react.JSX.Element
 ```

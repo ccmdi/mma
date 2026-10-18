@@ -35,6 +35,7 @@ import {
 	mdiFilterRemove,
 	mdiMapMarkerCheck,
 	mdiRadar,
+	mdiRestore,
 	mdiSpeedometer,
 } from "@mdi/js";
 import { fmt } from "@/lib/util/format";
@@ -391,7 +392,6 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 				<>
 					<IconButton
 						icon={mdiFileImport}
-						size={18}
 						label={t("Import regions and settings")}
 						tooltipSide="bottom"
 						disabled={running}
@@ -399,12 +399,11 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 					/>
 					<IconButton
 						icon={mdiFileExport}
-						size={18}
 						label={t("Export regions and settings")}
 						tooltipSide="bottom"
 						onClick={handleExport}
 					/>
-					<ConfirmButton variant="ghost" small disabled={running} onConfirm={handleReset}>
+					<ConfirmButton icon={mdiRestore} small disabled={running} onConfirm={handleReset}>
 						{t("Reset")}
 					</ConfirmButton>
 				</>

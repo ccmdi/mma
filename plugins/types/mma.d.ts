@@ -6245,10 +6245,12 @@ declare function ColorPicker({ color, onChange, ariaLabel, }: {
 
 /** A button that asks "Are you sure?" on the first click and acts on the second. Moving focus
  *  away disarms it. @unstable */
-declare function ConfirmButton({ onConfirm, confirmLabel, variant, children, onBlur, ...props }: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
+declare function ConfirmButton({ onConfirm, confirmLabel, icon, variant, children, onBlur, ...props }: Omit<ComponentPropsWithRef<typeof Button>, "onClick"> & {
     onConfirm: () => void;
     /** The label while armed. Defaults to "Are you sure?". */
     confirmLabel?: ReactNode;
+    /** An icon to show until the first click, with the button's text as its label. */
+    icon?: string;
 }): react.JSX.Element;
 
 /** Share of locations holding a value as a bar and a percentage, colored by whether every location is covered when `status` is set. */
