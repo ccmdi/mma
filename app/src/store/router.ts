@@ -72,8 +72,19 @@ export const openManual = (chapter = "") => navigate({ ...route, manual: chapter
 export const gotoManualChapter = (chapter: string) => navigate({ ...route, manual: chapter });
 export const closeManual = () => navigate({ ...route, manual: null });
 
+/** Back/forward out of the open map goes through the same exit confirmation as leaveToList;
+ *  declining puts the URL back where it was. */
+async function applyHistoryStep() {
+	const leaving = mapIdOf(route) !== null && mapIdOf(parse(location.hash)) !== mapIdOf(route);
+	if (leaving && !(await confirmMapExit("leave"))) {
+		history.pushState({}, "", build(route));
+		return;
+	}
+	applyRoute();
+}
+
 export function initRouter() {
-	window.addEventListener("popstate", applyRoute);
+	window.addEventListener("popstate", () => void applyHistoryStep());
 	window.addEventListener("hashchange", applyRoute);
 	subscribeEvent("snapshot:changed", () => syncTitle(Store.get().map?.name ?? null));
 	applyRoute();
