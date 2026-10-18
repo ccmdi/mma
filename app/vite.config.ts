@@ -2,6 +2,7 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import mdx from "@mdx-js/rollup";
 import path from "node:path";
+import fs from "node:fs";
 
 // Lazy-only packages: an eager edge to any of these is a startup regression.
 const MUST_STAY_LAZY = [
@@ -64,6 +65,22 @@ function eagerBundleGuard(): Plugin {
 	};
 }
 
+/** Serves the repo's manual screenshots in dev, so new captures show before they reach GitHub. */
+function manualImages(): Plugin {
+	const dir = path.resolve(import.meta.dirname, "../img/manual");
+	return {
+		name: "mma:manual-images",
+		apply: "serve",
+		configureServer(server) {
+			server.middlewares.use("/img/manual", (req, res, next) => {
+				const file = path.join(dir, decodeURIComponent((req.url ?? "").split("?")[0]));
+				if (!file.startsWith(dir + path.sep) || !fs.existsSync(file)) return next();
+				fs.createReadStream(file).pipe(res);
+			});
+		},
+	};
+}
+
 export default defineConfig({
 	resolve: {
 		alias: {
@@ -78,6 +95,7 @@ export default defineConfig({
 		{ ...mdx(), enforce: "pre" },
 		react({ include: /\.(jsx|js|mdx|tsx|ts)$/ }),
 		eagerBundleGuard(),
+		manualImages(),
 	],
 	server: {
 		strictPort: true,
