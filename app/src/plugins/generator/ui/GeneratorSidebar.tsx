@@ -385,7 +385,7 @@ export function GeneratorSidebar({ onClose }: { onClose: () => void }) {
 
 	return (
 		<Sidebar
-			title={t("Map Generator")}
+			title={t("Map generator")}
 			onBack={handleClose}
 			className="generator-sidebar"
 			actions={
