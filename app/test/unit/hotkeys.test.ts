@@ -177,6 +177,13 @@ describe("buildComboString", () => {
 		expect(parseHotkey("Mod+comma")).toHaveLength(1);
 	});
 
+	it('names plus with modifiers too, which a raw "+" would split as a separator', () => {
+		const ctrlEquals = mockEvent({ key: "=", code: "Equal", ctrlKey: true });
+		expect(buildComboString(ctrlEquals)).toBe("Mod+plus");
+		const [[pk]] = parseHotkey("Mod+plus");
+		expect(matchesKey(ctrlEquals, pk)).toBe(true);
+	});
+
 	it("records a plain digit as itself", () => {
 		expect(buildComboString(mockEvent({ key: "0", code: "Digit0" }))).toBe("0");
 	});

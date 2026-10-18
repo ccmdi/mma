@@ -179,6 +179,8 @@ export const DEFAULTS = {
 	units: "metric" as UnitSystem,
 	/** Reopen the maps that were open when the session last ended (main window closed). */
 	restoreSession: true,
+	/** Zoom factor of every window's UI, set by the app zoom hotkeys. */
+	appZoom: 1 as number,
 	/** Offer pre-release builds to the updater as well as full releases. */
 	prereleaseUpdates: false,
 	/** Discord Rich Presence: off, generic (no map name), or full (map name + count). */

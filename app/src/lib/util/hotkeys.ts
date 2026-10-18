@@ -75,6 +75,24 @@ const STATIC_HOTKEY_DEFS = [
 		defaultBinding: "Mod+Shift+w",
 	},
 	{
+		action: "zoomAppIn",
+		label: msg("Zoom the app in"),
+		group: msg("Global"),
+		defaultBinding: "Mod+plus",
+	},
+	{
+		action: "zoomAppOut",
+		label: msg("Zoom the app out"),
+		group: msg("Global"),
+		defaultBinding: "Mod+-",
+	},
+	{
+		action: "resetAppZoom",
+		label: msg("Reset app zoom"),
+		group: msg("Global"),
+		defaultBinding: "Mod+0",
+	},
+	{
 		action: "locationSave",
 		label: msg("Save location"),
 		group: msg("Location Editor"),

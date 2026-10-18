@@ -4983,6 +4983,8 @@ declare const DEFAULTS: {
     units: UnitSystem;
     /** Reopen the maps that were open when the session last ended (main window closed). @unstable */
     restoreSession: boolean;
+    /** Zoom factor of every window's UI, set by the app zoom hotkeys. @unstable */
+    appZoom: number;
     /** Offer pre-release builds to the updater as well as full releases. @unstable */
     prereleaseUpdates: boolean;
     /** Discord Rich Presence: off, generic (no map name), or full (map name + count). @unstable */
@@ -5115,6 +5117,8 @@ declare const APP_SETTINGS: PersistedStore<{
     units: UnitSystem;
     /** Reopen the maps that were open when the session last ended (main window closed). */
     restoreSession: boolean;
+    /** Zoom factor of every window's UI, set by the app zoom hotkeys. */
+    appZoom: number;
     /** Offer pre-release builds to the updater as well as full releases. */
     prereleaseUpdates: boolean;
     /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */

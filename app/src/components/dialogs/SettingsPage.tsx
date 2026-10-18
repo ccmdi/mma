@@ -182,8 +182,6 @@ function SettingColor({ setting, ariaLabel }: { setting: SettingOfType<RGB>; ari
 	);
 }
 
-const BLOCKED_COMBOS = new Set(["Mod++", "Mod+-"]);
-
 function getBlockedReason(e: KeyboardEvent): string | null {
 	const combo = buildComboString(e);
 	if (!combo) return null;
@@ -196,8 +194,6 @@ function getBlockedReason(e: KeyboardEvent): string | null {
 			});
 		}
 	}
-	if (BLOCKED_COMBOS.has(combo))
-		return t("Intercepted by the app window before shortcuts can reach it");
 	return null;
 }
 

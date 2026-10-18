@@ -5200,6 +5200,7 @@ APP_SETTINGS: PersistedStore<{
   language: Language;
   units: UnitSystem;
   restoreSession: boolean;
+  appZoom: number;
   prereleaseUpdates: boolean;
   discordPresence: DiscordPresenceMode;
   labelColors: Record<string, string>;
@@ -5345,6 +5346,8 @@ DEFAULTS: {
   units: "auto" | "imperial" | "metric";
   /** Reopen the maps that were open when the session last ended (main window closed). */
   restoreSession: boolean;
+  /** Zoom factor of every window's UI, set by the app zoom hotkeys. */
+  appZoom: number;
   /** Offer pre-release builds to the updater as well as full releases. */
   prereleaseUpdates: boolean;
   /** Discord Rich Presence: off, generic (no map name), or full (map name + count). */
@@ -5566,6 +5569,7 @@ PREVIEW_ASPECT_RATIOS: {
 ```ts
 PRIVATE_SETTINGS: ReadonlySet<
   | "animateTagReorder"
+  | "appZoom"
   | "borderDetail"
   | "clickToGo"
   | "customCss"

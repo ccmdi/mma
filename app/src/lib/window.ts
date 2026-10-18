@@ -99,7 +99,6 @@ const DEFAULTS = {
 	height: 900,
 	resizable: true,
 	visible: false,
-	zoomHotkeysEnabled: true,
 	backgroundColor: "#252521",
 };
 

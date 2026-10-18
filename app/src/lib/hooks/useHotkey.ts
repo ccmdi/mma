@@ -162,12 +162,8 @@ export function buildComboString(e: KeyboardEvent): string | null {
 
 	let keyName = eventKey(e);
 	if (keyName === ",") keyName = "comma";
+	else if (keyName === "+") keyName = "plus";
 	else if (keyName.length === 1) keyName = keyName.toLowerCase();
-
-	if (keyName === "+" && parts.length === 0) {
-		parts.push("plus");
-		return parts.join("+");
-	}
 
 	parts.push(keyName);
 	return parts.join("+");

@@ -18,7 +18,6 @@
 				"resizable": true,
 				"fullscreen": false,
 				"visible": false,
-				"zoomHotkeysEnabled": true,
 				"backgroundColor": "#252521"
 			}
 		],

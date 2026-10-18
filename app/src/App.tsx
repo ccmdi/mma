@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import type { ComponentType, CSSProperties } from "react";
 import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
-import { appWindow, closeAndDestroy } from "@/lib/window";
+import { appWindow, closeAndDestroy, hasWindowHost } from "@/lib/window";
 import {
 	useTargetMapId,
 	useManualChapter,
@@ -17,13 +17,14 @@ import { PluginMarketplace } from "@/components/dialogs/PluginMarketplace";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { useHotkey } from "@/lib/hooks/useHotkey";
 import { useBinding } from "@/lib/util/hotkeys";
-import { useSetting, useSettings, CSS_VAR_SETTINGS } from "@/store/settings";
+import { useSetting, useSettings, setSetting, CSS_VAR_SETTINGS } from "@/store/settings";
 import { useLocalStorage, persisted } from "@/lib/hooks/useLocalStorage";
 import { MAP_EMBED_PREFS } from "@/store/mapEmbedPrefs";
 import { applyAccentColor, resolveSvColorHex } from "@/lib/util/color";
 import { Icon, mdiDiscord } from "@/components/primitives/Icon";
 import { IconButton } from "@/components/primitives/IconButton";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { mdiCog, mdiPuzzle, mdiClose, mdiBookOpenPageVariantOutline, mdiMapOutline } from "@mdi/js";
 import { ToastContainer } from "@/components/primitives/Toast";
 import { JobTray, JobExitDialog } from "@/components/primitives/JobTray";
@@ -105,6 +106,17 @@ function EditorRoot() {
 	return <MapEditor />;
 }
 
+const ZOOM_STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2];
+
+/** The next app zoom step above (1) or below (-1) the current factor, or the factor itself at either end. */
+function zoomStep(current: number, dir: 1 | -1): number {
+	const next =
+		dir > 0
+			? ZOOM_STEPS.find((z) => z > current + 1e-6)
+			: ZOOM_STEPS.findLast((z) => z < current - 1e-6);
+	return next ?? current;
+}
+
 /** Floating UI shared by both window roles: settings/plugins gears, update pill, and the
  *  app-level dialogs. Hidden by App while a window is self-destructing. */
 function AppChrome() {
@@ -144,6 +156,14 @@ function AppChrome() {
 	useHotkey(useBinding("openManualSearch"), () => setManualSearchOpen((v) => !v));
 	useHotkey(useBinding("toggleSettings"), () => setShowSettings((v) => !v));
 	useHotkey(useBinding("togglePlugins"), () => setShowPlugins((v) => !v));
+	const appZoom = useSetting("appZoom");
+	useEffect(() => {
+		if (hasWindowHost) void getCurrentWebview().setZoom(appZoom);
+	}, [appZoom]);
+	const zoomKeys = { enableInInputs: true };
+	useHotkey(useBinding("zoomAppIn"), () => setSetting("appZoom", zoomStep(appZoom, 1)), zoomKeys);
+	useHotkey(useBinding("zoomAppOut"), () => setSetting("appZoom", zoomStep(appZoom, -1)), zoomKeys);
+	useHotkey(useBinding("resetAppZoom"), () => setSetting("appZoom", 1), zoomKeys);
 	useHotkey(useBinding("closeMap"), () => {
 		if (map) void leaveToList();
 	});
