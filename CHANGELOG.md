@@ -1,3 +1,22 @@
+## v0.12.2 - 2026-10-19
+- Re-reviewing a selection offers to add locations that newly match it
+- App zoom in, out and reset are hotkeys you can rebind
+- Browser shortcuts, the browser's right-click menu and mouse back/forward no longer reload or navigate the app
+- Rewritten user manual with new screenshots
+- Fixed saving an open location after one of its tags was renamed elsewhere creating a duplicate tag with the old name
+- Fixed merging a tag into another losing its hotkeys and aliases
+- Fixed interned plugin fields losing their value names and colors through export, import, backups and local-file sync
+- Fixed selections on a plugin field showing an id instead of the value's name
+- Fixed a pinned panorama losing its pin when looking it up failed
+- Fixed the date picker going blank when panorama dates failed to load
+- Fixed going back out of a map not asking about running jobs
+- Fixed pinned toolbar buttons not updating when they became available
+- Fixed long names making the review sessions dialog scroll sideways
+- Fixed tag and field rename dialogs saying a rename can't be undone
+- Fixed collapsed tag pills showing their count differently from the open list
+- Fixed clicking the empty space beside a label toggling it
+- Fixed row buttons staying visible after clicking them
+
 ## v0.12.1 - 2026-10-16
 - Read and answer replies on your feedback inside the app - integrated issue thread client
 - Anonymous users can reply to a feedback thread anonymously
