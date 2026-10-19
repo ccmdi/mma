@@ -39,6 +39,7 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           rust: true
+          plugins: true
           rust-targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Build Tauri app

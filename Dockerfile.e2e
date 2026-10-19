@@ -42,6 +42,8 @@ WORKDIR /repo
 # JS deps (cached layer -- only re-runs if package files change)
 COPY app/package.json app/package-lock.json ./app/
 RUN cd app && npm ci
+COPY plugins/types/package.json plugins/types/package-lock.json ./plugins/types/
+RUN cd plugins/types && npm ci
 
 # Copy source (repo root -- needed for plugins/ dir referenced by build scripts)
 COPY app/ ./app/
