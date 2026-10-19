@@ -101,59 +101,64 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 	const [query, setQuery] = useState("");
 	const [threshold, setThreshold] = useState(0.01);
 
-	const job = useJob<Outcome>(async ({ signal, report }) => {
-		const q = query.trim();
-		const cut = threshold;
-		const locs = await fetchAllLocations();
-		signal.throwIfAborted();
+	const job = useJob<Outcome, string>();
+	const search = () =>
+		job.run(async ({ signal, report }) => {
+			const q = query.trim();
+			const cut = threshold;
+			const locs = await fetchAllLocations();
+			signal.throwIfAborted();
 
-		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
-		if (panoIds.length === 0) throw new Error("No locations with pano IDs");
+			const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
+			if (panoIds.length === 0) throw new Error("No locations with pano IDs");
 
-		let embedded = 0;
-		let failed = 0;
-		const notes: string[] = [];
-		const note = (line: string) => {
-			if (!notes.includes(line)) notes.push(line);
-		};
-		const start = Date.now();
-		await embed(panoIds, {
-			signal,
-			onStatus: report,
-			onUnit: (count) => {
-				embedded += count;
-				const elapsed = (Date.now() - start) / 1000;
-				const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
-				report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
-			},
-			onFailed: () => failed++,
-			onDiagnostic: note,
+			let embedded = 0;
+			let failed = 0;
+			const notes: string[] = [];
+			const note = (line: string) => {
+				if (!notes.includes(line)) notes.push(line);
+			};
+			const start = Date.now();
+			await embed(panoIds, {
+				signal,
+				onStatus: report,
+				onUnit: (count) => {
+					embedded += count;
+					const elapsed = (Date.now() - start) / 1000;
+					const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
+					report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
+				},
+				onFailed: () => failed++,
+				onDiagnostic: note,
+			});
+			signal.throwIfAborted();
+
+			report(`Searching for "${q}"...`);
+			const results = await searchText(q, null, cut, signal, note);
+			const matchedIds = results
+				.map((r) => panoIdToLocId(locs, r.panoId))
+				.filter((id): id is number => id != null);
+
+			if (matchedIds.length > 0) {
+				await applySelectionUpdate(
+					addSelection({ type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }),
+				);
+			}
+			// When the threshold filtered everything out there is no score left to report, so
+			// ask for the single best regardless of it.
+			const top =
+				results[0]?.score ?? (await searchText(q, 1, null, signal, note))[0]?.score ?? null;
+			return {
+				selected: matchedIds.length,
+				elsewhere: results.length - matchedIds.length,
+				top,
+				cut,
+				failed,
+				notes,
+			};
 		});
-		signal.throwIfAborted();
-
-		report(`Searching for "${q}"...`);
-		const results = await searchText(q, null, cut, signal, note);
-		const matchedIds = results
-			.map((r) => panoIdToLocId(locs, r.panoId))
-			.filter((id): id is number => id != null);
-
-		if (matchedIds.length > 0) {
-			await applySelectionUpdate(
-				addSelection({ type: "Locations", locations: matchedIds, name: `Vision: "${q}"` }),
-			);
-		}
-		// When the threshold filtered everything out there is no score left to report, so
-		// ask for the single best regardless of it.
-		const top = results[0]?.score ?? (await searchText(q, 1, null, signal, note))[0]?.score ?? null;
-		return {
-			selected: matchedIds.length,
-			elsewhere: results.length - matchedIds.length,
-			top,
-			cut,
-			failed,
-			notes,
-		};
-	});
+	const running = job.status === "loading";
+	const outcome = job.ok();
 
 	return (
 		<Sidebar title="Vision" onBack={onClose}>
@@ -164,7 +169,7 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 						value={query}
 						onChange={(e) => setQuery(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" && !job.running && query.trim()) job.run();
+							if (e.key === "Enter" && !running && query.trim()) void search();
 						}}
 					/>
 				</Field>
@@ -179,8 +184,8 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 					/>
 				</Field>
 				<div className="vision-sidebar__actions">
-					{!job.running ? (
-						<Button variant="primary" disabled={!query.trim()} onClick={job.run}>
+					{!running ? (
+						<Button variant="primary" disabled={!query.trim()} onClick={search}>
 							Search
 						</Button>
 					) : (
@@ -188,9 +193,11 @@ export function VisionSidebar({ onClose }: { onClose: () => void }) {
 					)}
 				</div>
 
-				{job.progress && <div className="vision-status">{job.progress}</div>}
-				{job.error && <div className="vision-status vision-status--error">{job.error}</div>}
-				{job.result !== null && !job.running && <Result outcome={job.result} />}
+				{running && job.progress && <div className="vision-status">{job.progress}</div>}
+				{job.status === "error" && (
+					<div className="vision-status vision-status--error">{job.error.message}</div>
+				)}
+				{outcome !== null && <Result outcome={outcome} />}
 			</div>
 		</Sidebar>
 	);

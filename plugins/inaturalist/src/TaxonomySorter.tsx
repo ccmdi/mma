@@ -47,16 +47,21 @@ export function TaxonomySorter() {
 		store.set("taxo_lang", code);
 	}, [store]);
 
-	const job = useJob<SortResult, SortProgress>(async ({ signal, report }) => {
-		const opts: SortOptions = { lang, deep, commonNames };
-		const r = await sortTagsByTaxonomy(opts, report, signal);
-		toast(
-			r.sorted > 0
-				? `Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders`
-				: "No tags needed sorting",
-		);
-		return r;
-	});
+	const job = useJob<SortResult, SortProgress>();
+	const sort = () =>
+		job.run(async ({ signal, report }) => {
+			const opts: SortOptions = { lang, deep, commonNames };
+			const r = await sortTagsByTaxonomy(opts, report, signal);
+			toast(
+				r.sorted > 0
+					? `Sorted ${r.sorted} tag${r.sorted === 1 ? "" : "s"} into taxonomy folders`
+					: "No tags needed sorting",
+			);
+			return r;
+		});
+	const running = job.status === "loading";
+	const progress = running ? job.progress : null;
+	const result = job.ok();
 
 	const handleClearCache = useCallback(() => {
 		clearTaxonomyCache();
@@ -89,42 +94,42 @@ export function TaxonomySorter() {
 			</Field>
 
 			<div className="inat-sidebar__run">
-				{job.running ? (
+				{running ? (
 					<Button variant="destructive" onClick={job.cancel}>
 						Cancel
 					</Button>
 				) : (
-					<Button variant="primary" onClick={job.run}>
+					<Button variant="primary" onClick={sort}>
 						Sort Tags
 					</Button>
 				)}
 				<Button
 					onClick={handleClearCache}
-					disabled={job.running}
+					disabled={running}
 					title="Forget saved iNaturalist taxonomy results"
 				>
 					Clear Cache
 				</Button>
 			</div>
 
-			{job.progress && (
+			{progress && (
 				<ProgressRow
 					className="inat-sidebar__status"
-					label={job.progress.phase}
-					count={`${job.progress.current}/${job.progress.total}`}
-					value={job.progress.total > 0 ? job.progress.current / job.progress.total : 0}
+					label={progress.phase}
+					count={`${progress.current}/${progress.total}`}
+					value={progress.total > 0 ? progress.current / progress.total : 0}
 				>
-					{job.progress.detail && <div className="inat-sidebar__detail">{job.progress.detail}</div>}
+					{progress.detail && <div className="inat-sidebar__detail">{progress.detail}</div>}
 				</ProgressRow>
 			)}
 
-			{job.error && (
-				<div className="inat-sidebar__error">{job.error}</div>
+			{job.status === "error" && (
+				<div className="inat-sidebar__error">{job.error.message}</div>
 			)}
 
-			{job.result && !job.running && (
+			{result && (
 				<div className="inat-sidebar__status">
-					{job.result.sorted} sorted, {job.result.skipped} skipped
+					{result.sorted} sorted, {result.skipped} skipped
 				</div>
 			)}
 		</Section>

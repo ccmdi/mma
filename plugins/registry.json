@@ -114,10 +114,20 @@
 		"name": "iNaturalist",
 		"description": "Search and visualize species observations from iNaturalist on the map",
 		"icon": "M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4M12,6.5A5.5,5.5 0 0,0 6.5,12A5.5,5.5 0 0,0 12,17.5A5.5,5.5 0 0,0 17.5,12A5.5,5.5 0 0,0 12,6.5M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z",
-		"version": "1.0.13",
+		"version": "1.1.0",
 		"main": "index.js",
-		"minAppVersion": "0.12.0",
+		"minAppVersion": "0.12.2",
 		"builds": [
+			{
+				"version": "1.0.13",
+				"ref": "1c8f5ca04d6befb1f044ca165540620923622011",
+				"minAppVersion": "0.12.0"
+			},
+			{
+				"version": "1.0.13",
+				"ref": "aeef6d35bc6d71532e88b7bea72681e0b1c492dc",
+				"minAppVersion": "0.12.1"
+			},
 			{
 				"version": "1.0.9",
 				"ref": "b6ee5677ab9c83efecb16ba241c3d77cbb0df074",
@@ -195,15 +205,24 @@
 		"name": "Vision",
 		"description": "Search your locations by describing what they look like, or find ones that look alike",
 		"icon": "M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z",
-		"version": "0.3.1",
+		"version": "0.4.0",
 		"main": "index.js",
 		"experimental": true,
-		"minAppVersion": "0.11.5",
+		"minAppVersion": "0.12.2",
 		"sidecar": {
 			"name": "mma-vision",
 			"version": "0.5.0"
 		},
 		"builds": [
+			{
+				"version": "0.3.1",
+				"ref": "ea080c0bf330546d5f6776ca3b3f258cf28c1446",
+				"minAppVersion": "0.11.5",
+				"sidecar": {
+					"name": "mma-vision",
+					"version": "0.5.0"
+				}
+			},
 			{
 				"version": "0.2.12",
 				"ref": "012fdfccf23e41c17a19fe29bda730ad55710d2c",

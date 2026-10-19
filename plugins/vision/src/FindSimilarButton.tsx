@@ -15,63 +15,67 @@ export function FindSimilarButton() {
 	const active = getActiveLocation();
 	const panoId = active?.panoId;
 
-	const job = useJob<number>(async ({ signal, report }) => {
-		const locs = await fetchAllLocations();
-		signal.throwIfAborted();
-		const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
+	const job = useJob<number, string>();
+	const findSimilar = () =>
+		job.run(async ({ signal, report }) => {
+			const locs = await fetchAllLocations();
+			signal.throwIfAborted();
+			const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId!);
 
-		let embedded = 0;
-		let failed = 0;
-		const start = Date.now();
-		await embed(panoIds, {
-			signal,
-			onStatus: report,
-			onUnit: (count) => {
-				embedded += count;
-				const elapsed = (Date.now() - start) / 1000;
-				const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
-				report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
-			},
-			onFailed: () => failed++,
-		});
-		signal.throwIfAborted();
+			let embedded = 0;
+			let failed = 0;
+			const start = Date.now();
+			await embed(panoIds, {
+				signal,
+				onStatus: report,
+				onUnit: (count) => {
+					embedded += count;
+					const elapsed = (Date.now() - start) / 1000;
+					const rate = elapsed > 0.5 ? (embedded / elapsed).toFixed(1) : "--";
+					report(`Embedding: ${embedded}/${panoIds.length} (${rate} panos/s)`);
+				},
+				onFailed: () => failed++,
+			});
+			signal.throwIfAborted();
 
-		report(
-			failed > 0 ? `Comparing... (${failed} pano${failed === 1 ? "" : "s"} failed to embed)` : "Comparing...",
-		);
-		const results = await searchImage(panoId!, null, SIMILARITY_THRESHOLD);
-		const matchedIds = results
-			.map((r) => locs.find((l) => l.panoId === r.panoId)?.id)
-			.filter((id): id is number => id != null);
-
-		if (matchedIds.length > 0) {
-			await applySelectionUpdate(
-				addSelection({
-					type: "Locations",
-					locations: matchedIds,
-					name: `Similar to ${panoId!.slice(0, 8)}...`,
-				}),
+			report(
+				failed > 0
+					? `Comparing... (${failed} pano${failed === 1 ? "" : "s"} failed to embed)`
+					: "Comparing...",
 			);
-		}
-		return matchedIds.length;
-	});
+			const results = await searchImage(panoId!, null, SIMILARITY_THRESHOLD);
+			const matchedIds = results
+				.map((r) => locs.find((l) => l.panoId === r.panoId)?.id)
+				.filter((id): id is number => id != null);
+
+			if (matchedIds.length > 0) {
+				await applySelectionUpdate(
+					addSelection({
+						type: "Locations",
+						locations: matchedIds,
+						name: `Similar to ${panoId!.slice(0, 8)}...`,
+					}),
+				);
+			}
+			return matchedIds.length;
+		});
+	const running = job.status === "loading";
+	const found = job.ok();
 
 	if (!panoId) return null;
 
 	return (
 		<>
-			<Button
-				small
-				className="vision-find-similar"
-				onClick={job.running ? job.cancel : job.run}
-			>
-				{job.running ? "Cancel" : "Find similar panos"}
+			<Button small className="vision-find-similar" onClick={running ? job.cancel : findSimilar}>
+				{running ? "Cancel" : "Find similar panos"}
 			</Button>
-			{job.progress && <div className="vision-status">{job.progress}</div>}
-			{job.error && <div className="vision-status vision-status--error">{job.error}</div>}
-			{job.result !== null && !job.running && (
+			{running && job.progress && <div className="vision-status">{job.progress}</div>}
+			{job.status === "error" && (
+				<div className="vision-status vision-status--error">{job.error.message}</div>
+			)}
+			{found !== null && (
 				<div className="vision-status">
-					{job.result > 0 ? `${job.result} similar` : "No similar panos found"}
+					{found > 0 ? `${found} similar` : "No similar panos found"}
 				</div>
 			)}
 		</>

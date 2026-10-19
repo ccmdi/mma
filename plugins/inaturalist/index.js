@@ -518,7 +518,8 @@ function TaxonomySorter() {
     setLang(code);
     store.set("taxo_lang", code);
   }, [store]);
-  const job = useJob(async ({ signal, report }) => {
+  const job = useJob();
+  const sort = () => job.run(async ({ signal, report }) => {
     const opts = { lang, deep, commonNames };
     const r = await sortTagsByTaxonomy(opts, report, signal);
     toast(
@@ -526,6 +527,9 @@ function TaxonomySorter() {
     );
     return r;
   });
+  const running = job.status === "loading";
+  const progress = running ? job.progress : null;
+  const result = job.ok();
   const handleClearCache = (0, import_react.useCallback)(() => {
     clearTaxonomyCache();
     toast("Taxonomy cache cleared");
@@ -552,32 +556,32 @@ function TaxonomySorter() {
     ) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Label, { info: "Include translated common names from iNaturalist", children: "Common names" }), row: true, children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Checkbox, { checked: commonNames, onChange: (e) => setCommonNames(e.target.checked) }) }),
     /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "inat-sidebar__run", children: [
-      job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "destructive", onClick: job.cancel, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", onClick: job.run, children: "Sort Tags" }),
+      running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "destructive", onClick: job.cancel, children: "Cancel" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", onClick: sort, children: "Sort Tags" }),
       /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
         Button,
         {
           onClick: handleClearCache,
-          disabled: job.running,
+          disabled: running,
           title: "Forget saved iNaturalist taxonomy results",
           children: "Clear Cache"
         }
       )
     ] }),
-    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
+    progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       ProgressRow,
       {
         className: "inat-sidebar__status",
-        label: job.progress.phase,
-        count: `${job.progress.current}/${job.progress.total}`,
-        value: job.progress.total > 0 ? job.progress.current / job.progress.total : 0,
-        children: job.progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__detail", children: job.progress.detail })
+        label: progress.phase,
+        count: `${progress.current}/${progress.total}`,
+        value: progress.total > 0 ? progress.current / progress.total : 0,
+        children: progress.detail && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__detail", children: progress.detail })
       }
     ),
-    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__error", children: job.error }),
-    job.result && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "inat-sidebar__status", children: [
-      job.result.sorted,
+    job.status === "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "inat-sidebar__error", children: job.error.message }),
+    result && /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "inat-sidebar__status", children: [
+      result.sorted,
       " sorted, ",
-      job.result.skipped,
+      result.skipped,
       " skipped"
     ] })
   ] });

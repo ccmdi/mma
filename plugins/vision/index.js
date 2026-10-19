@@ -168,7 +168,8 @@ function Result({ outcome }) {
 function VisionSidebar({ onClose }) {
   const [query, setQuery] = (0, import_react.useState)("");
   const [threshold, setThreshold] = (0, import_react.useState)(0.01);
-  const job = useJob(async ({ signal, report }) => {
+  const job = useJob();
+  const search = () => job.run(async ({ signal, report }) => {
     const q = query.trim();
     const cut = threshold;
     const locs = await fetchAllLocations();
@@ -213,6 +214,8 @@ function VisionSidebar({ onClose }) {
       notes
     };
   });
+  const running = job.status === "loading";
+  const outcome = job.ok();
   return /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Sidebar, { title: "Vision", onBack: onClose, children: /* @__PURE__ */ (0, import_jsx_runtime.jsxs)("div", { className: "vision-sidebar__body", children: [
     /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Field, { label: "Search for", children: /* @__PURE__ */ (0, import_jsx_runtime.jsx)(
       TextInput,
@@ -221,7 +224,7 @@ function VisionSidebar({ onClose }) {
         value: query,
         onChange: (e) => setQuery(e.target.value),
         onKeyDown: (e) => {
-          if (e.key === "Enter" && !job.running && query.trim()) job.run();
+          if (e.key === "Enter" && !running && query.trim()) void search();
         }
       }
     ) }),
@@ -236,10 +239,10 @@ function VisionSidebar({ onClose }) {
         format: (v) => v.toFixed(3)
       }
     ) }),
-    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !job.running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", disabled: !query.trim(), onClick: job.run, children: "Search" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
-    job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-status", children: job.progress }),
-    job.error && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-status vision-status--error", children: job.error }),
-    job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, { outcome: job.result })
+    /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-sidebar__actions", children: !running ? /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { variant: "primary", disabled: !query.trim(), onClick: search, children: "Search" }) : /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Button, { onClick: job.cancel, children: "Cancel" }) }),
+    running && job.progress && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-status", children: job.progress }),
+    job.status === "error" && /* @__PURE__ */ (0, import_jsx_runtime.jsx)("div", { className: "vision-status vision-status--error", children: job.error.message }),
+    outcome !== null && /* @__PURE__ */ (0, import_jsx_runtime.jsx)(Result, { outcome })
   ] }) });
 }
 
@@ -257,7 +260,8 @@ var SIMILARITY_THRESHOLD = 0.85;
 function FindSimilarButton() {
   const active = getActiveLocation();
   const panoId = active?.panoId;
-  const job = useJob2(async ({ signal, report }) => {
+  const job = useJob2();
+  const findSimilar = () => job.run(async ({ signal, report }) => {
     const locs = await fetchAllLocations2();
     signal.throwIfAborted();
     const panoIds = locs.filter((l) => l.panoId).map((l) => l.panoId);
@@ -292,20 +296,14 @@ function FindSimilarButton() {
     }
     return matchedIds.length;
   });
+  const running = job.status === "loading";
+  const found = job.ok();
   if (!panoId) return null;
   return /* @__PURE__ */ (0, import_jsx_runtime2.jsxs)(import_jsx_runtime2.Fragment, { children: [
-    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(
-      Button2,
-      {
-        small: true,
-        className: "vision-find-similar",
-        onClick: job.running ? job.cancel : job.run,
-        children: job.running ? "Cancel" : "Find similar panos"
-      }
-    ),
-    job.progress && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status", children: job.progress }),
-    job.error && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status vision-status--error", children: job.error }),
-    job.result !== null && !job.running && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status", children: job.result > 0 ? `${job.result} similar` : "No similar panos found" })
+    /* @__PURE__ */ (0, import_jsx_runtime2.jsx)(Button2, { small: true, className: "vision-find-similar", onClick: running ? job.cancel : findSimilar, children: running ? "Cancel" : "Find similar panos" }),
+    running && job.progress && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status", children: job.progress }),
+    job.status === "error" && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status vision-status--error", children: job.error.message }),
+    found !== null && /* @__PURE__ */ (0, import_jsx_runtime2.jsx)("div", { className: "vision-status", children: found > 0 ? `${found} similar` : "No similar panos found" })
   ] });
 }
 
