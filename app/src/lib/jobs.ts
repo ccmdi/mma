@@ -1,5 +1,7 @@
 import { emit as emitEvent, subscribe } from "@/lib/events";
 import { toast } from "@/lib/util/toast";
+import { errText } from "@/lib/util/format";
+import { Cancelled, Err, Ok, type Settled } from "@/types/util";
 
 /** `map` jobs mutate the open map and are cancelled when it closes; `app` jobs survive. */
 export type JobScope = "map" | "app";
@@ -96,29 +98,28 @@ export interface JobRunContext {
 }
 
 /** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
- *  through the handle, and ends the job however `fn` settles. Cancelling resolves null;
- *  a real failure toasts and rethrows. */
-export function runJob<R>(
+ *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
+ *  A failure also toasts. */
+export async function runJob<R>(
 	label: string,
 	fn: (ctx: JobRunContext) => Promise<R>,
 	opts: Omit<JobOpts, "cancel"> = {},
-): Promise<R | null> {
+): Promise<Settled<R>> {
 	const ctl = new AbortController();
 	const handle = registerJob(label, { ...opts, cancel: () => ctl.abort() });
-	return fn({ signal: ctl.signal, report: (f, d) => handle.update(f, d) }).then(
-		(r) => {
+	try {
+		const result = await fn({ signal: ctl.signal, report: (f, d) => handle.update(f, d) });
+		handle.finish();
+		return ctl.signal.aborted ? new Cancelled() : new Ok(result);
+	} catch (e) {
+		if (ctl.signal.aborted) {
 			handle.finish();
-			return ctl.signal.aborted ? null : r;
-		},
-		(e) => {
-			if (ctl.signal.aborted) {
-				handle.finish();
-				return null;
-			}
-			handle.fail(e instanceof Error ? e.message : String(e));
-			throw e;
-		},
-	);
+			return new Cancelled();
+		}
+		const error = e instanceof Error ? e : new Error(String(e));
+		handle.fail(errText(error));
+		return new Err(error);
+	}
 }
 
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own

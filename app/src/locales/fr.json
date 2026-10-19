@@ -282,7 +282,6 @@
 	"Copy to min": "Copier vers le min",
 	"Core": "Intégrés",
 	"Correct: {place}. Streak: {n}": "Correct : {place}. Série : {n}",
-	"Could not add the tag": "Impossible d'ajouter l'étiquette",
 	"Could not read the report ({status}).": "Impossible de lire le signalement ({status}).",
 	"Could not save a copy: {error}": "Impossible d'enregistrer une copie : {error}",
 	"Could not save the new map defaults: {error}": "Impossible d'enregistrer les réglages par défaut des nouvelles cartes : {error}",

@@ -102,6 +102,7 @@ import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { useJob } from "@/lib/hooks/useJob";
 import {
 	useUpdateState,
 	checkForUpdate,
@@ -731,8 +732,12 @@ type BorderFile = (typeof BORDER_FILES)[number];
 function BorderDetailGroup() {
 	const s = useSettings();
 	const [downloaded, setDownloaded] = useState<ReadonlySet<BorderFile>>(new Set());
-	const [downloading, setDownloading] = useState<string | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const downloads = useJob<unknown, string>();
+	const downloading = downloads.status === "loading" ? downloads.progress : null;
+	const error =
+		downloads.status === "error"
+			? t("Download failed: {error}", { error: errText(downloads.error) })
+			: null;
 
 	const checked = useAsync(async () => {
 		const [medium, heavy, adm1] = await Promise.all(
@@ -743,45 +748,25 @@ function BorderDetailGroup() {
 	const ready = (file: BorderFile) => downloaded.has(file) || checked.ok()?.[file];
 	const adm1Ready = ready("adm1");
 
-	const handleChange = async (level: BorderDetail) => {
-		setError(null);
-		if (level === "light") {
+	const handleChange = (level: BorderDetail) =>
+		downloads.run(async ({ report }) => {
+			if (level !== "light" && !ready(level)) {
+				report(level);
+				await cmd.downloadBorderFile(level);
+				setDownloaded((files) => new Set(files).add(level));
+			}
 			setSetting("borderDetail", level);
-			return;
-		}
-		if (ready(level)) {
-			setSetting("borderDetail", level);
-			return;
-		}
-		setDownloading(level);
-		try {
-			await cmd.downloadBorderFile(level);
-			setDownloaded((files) => new Set(files).add(level));
-			setSetting("borderDetail", level);
-		} catch (e) {
-			setError(t("Download failed: {error}", { error: errText(e) }));
-		} finally {
-			setDownloading(null);
-		}
-	};
+		});
 
-	const handleSubdivisionChange = async (level: SubdivisionDetail) => {
-		setError(null);
-		if (level === "off" || adm1Ready) {
+	const handleSubdivisionChange = (level: SubdivisionDetail) =>
+		downloads.run(async ({ report }) => {
+			if (level !== "off" && !adm1Ready) {
+				report(level);
+				await cmd.downloadBorderFile(level);
+				setDownloaded((files) => new Set(files).add("adm1"));
+			}
 			setSetting("subdivisionDetail", level);
-			return;
-		}
-		setDownloading(level);
-		try {
-			await cmd.downloadBorderFile(level);
-			setDownloaded((files) => new Set(files).add("adm1"));
-			setSetting("subdivisionDetail", level);
-		} catch (e) {
-			setError(t("Download failed: {error}", { error: errText(e) }));
-		} finally {
-			setDownloading(null);
-		}
-	};
+		});
 
 	const statusLabel = (level: "medium" | "heavy") => {
 		if (downloading === level) return ` ${t("(downloading...)")}`;
@@ -1225,7 +1210,7 @@ function IntegrationsBody() {
 function DataBody() {
 	// undefined = no dialog; string = chosen folder; null = reset to default.
 	const [pending, setPending] = useState<string | null | undefined>(undefined);
-	const [busy, setBusy] = useState(false);
+	const applying = useJob();
 	const located = useAsync(() => cmd.getDataLocation(), []);
 	const loc = located.ok();
 
@@ -1234,17 +1219,16 @@ function DataBody() {
 		if (typeof picked === "string") setPending(picked);
 	}, []);
 
-	const apply = useCallback(async () => {
-		setBusy(true);
-		try {
-			await cmd.setDataLocation(pending ?? null);
-			await relaunchApp();
-		} catch (e) {
-			log.error("data folder relaunch failed", e);
-			toast(t("Couldn't relaunch automatically. Restart the app to apply."));
-			setBusy(false);
-		}
-	}, [pending]);
+	const apply = () =>
+		applying.run(async () => {
+			try {
+				await cmd.setDataLocation(pending ?? null);
+				await relaunchApp();
+			} catch (e) {
+				log.error("data folder relaunch failed", e);
+				toast(t("Couldn't relaunch automatically. Restart the app to apply."));
+			}
+		});
 
 	const target = pending ?? loc?.default_path ?? "";
 
@@ -1272,7 +1256,7 @@ function DataBody() {
 				size="md"
 				message={t("Map data will be stored in:")}
 				confirmLabel={t("Relaunch now")}
-				busy={busy}
+				busy={applying.status === "loading"}
 				onConfirm={() => void apply()}
 			>
 				<code className="code-block">{target}</code>
@@ -1349,8 +1333,8 @@ function CopyDiagnosticsButton() {
 function FeedbackBody() {
 	const [user, setUser] = useState<GhUser | null>(null);
 	const [checking, setChecking] = useState(true);
-	const [code, setCode] = useState<DeviceCodeInfo | null>(null);
-	const [error, setError] = useState<string | null>(null);
+	const signingIn = useJob<unknown, DeviceCodeInfo>();
+	const code = signingIn.status === "loading" ? signingIn.progress : null;
 	const [reports] = useReports();
 
 	useEffect(() => {
@@ -1366,19 +1350,13 @@ function FeedbackBody() {
 		void refreshStoredReports();
 	}, []);
 
-	const signIn = async () => {
-		setError(null);
-		try {
+	const signIn = () =>
+		signingIn.run(async ({ report }) => {
 			const info = await cmd.githubStartLogin();
-			setCode(info);
+			report(info);
 			await openExternal(info.verificationUri);
 			setUser(await cmd.githubPollLogin());
-		} catch (e) {
-			setError(String(e));
-		} finally {
-			setCode(null);
-		}
-	};
+		});
 
 	return (
 		<>
@@ -1417,7 +1395,7 @@ function FeedbackBody() {
 							})}
 						</p>
 					)}
-					{error && <Notice tone="error">{error}</Notice>}
+					{signingIn.status === "error" && <Notice tone="error">{errText(signingIn.error)}</Notice>}
 				</Aux>
 			</SettingsGroup>
 

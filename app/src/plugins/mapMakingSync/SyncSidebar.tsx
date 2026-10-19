@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useJob } from "@/lib/hooks/useJob";
 import { Field } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
@@ -14,30 +15,33 @@ import { Notice } from "@/components/primitives/Hint";
 export function SyncSidebar({ onClose }: { onClose: () => void }) {
 	const [keyDraft, setKeyDraft] = useState("");
 	const [user, setUser] = useState<MmUser | null>(auth.getCachedUser());
-	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const validating = useJob();
+	const [checkError, setCheckError] = useState<string | null>(null);
 	// True only while the mount-time check below is in flight. With no key there is nothing to
 	// check, so the key form shows immediately rather than flashing through a "checking" state.
 	const [checking, setChecking] = useState(() => auth.hasKey() && !auth.getCachedUser());
 
-	const validate = useCallback(async () => {
-		setBusy(true);
-		setError(null);
-		try {
-			// Validate before persisting: a typo'd key must not replace a working one.
-			const user = await auth.validate(keyDraft);
-			await auth.setKey(keyDraft);
-			setUser(user);
-		} catch (e) {
-			// Validate may have cached the identity before the store failed; a failed
-			// submit must leave nothing signed in.
-			auth.forgetAuth();
-			setError(errText(e));
-			setUser(null);
-		} finally {
-			setBusy(false);
-		}
-	}, [keyDraft]);
+	const validate = () =>
+		validating.run(async () => {
+			try {
+				// Validate before persisting: a typo'd key must not replace a working one.
+				const user = await auth.validate(keyDraft);
+				await auth.setKey(keyDraft);
+				setUser(user);
+			} catch (e) {
+				// Validate may have cached the identity before the store failed; a failed
+				// submit must leave nothing signed in.
+				auth.forgetAuth();
+				setUser(null);
+				throw e;
+			}
+		});
+	const error =
+		validating.status === "error"
+			? errText(validating.error)
+			: validating.status === "idle"
+				? checkError
+				: null;
 
 	// Check the stored key once when nothing is cached yet; cached opens are instant.
 	useEffect(() => {
@@ -45,7 +49,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 		auth
 			.me()
 			.then(setUser)
-			.catch((e: unknown) => setError(errText(e)))
+			.catch((e: unknown) => setCheckError(errText(e)))
 			.finally(() => setChecking(false));
 	}, []);
 
@@ -90,8 +94,12 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 					placeholder={t("paste API key")}
 				/>
 			</Field>
-			<Button variant="primary" type="submit" disabled={busy || !keyDraft}>
-				{busy ? t("Validating...") : t("Validate")}
+			<Button
+				variant="primary"
+				type="submit"
+				disabled={validating.status === "loading" || !keyDraft}
+			>
+				{validating.status === "loading" ? t("Validating...") : t("Validate")}
 			</Button>
 			{error && <Notice tone="error">{error}</Notice>}
 		</form>

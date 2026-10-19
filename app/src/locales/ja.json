@@ -264,7 +264,6 @@
 	"Copy to min": "最小値にコピー",
 	"Core": "コア",
 	"Correct: {place}. Streak: {n}": "正解: {place}。連続: {n}",
-	"Could not add the tag": "タグを追加できませんでした",
 	"Could not read the report ({status}).": "報告を読み込めませんでした（{status}）。",
 	"Could not save a copy: {error}": "コピーを保存できませんでした: {error}",
 	"Could not save the new map defaults: {error}": "新しいマップの既定値を保存できませんでした: {error}",

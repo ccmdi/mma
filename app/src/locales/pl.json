@@ -291,7 +291,6 @@
 	"Copy to min": "Kopiuj do min.",
 	"Core": "Podstawowe",
 	"Correct: {place}. Streak: {n}": "Poprawnie: {place}. Seria: {n}",
-	"Could not add the tag": "Nie udało się dodać tagu",
 	"Could not read the report ({status}).": "Nie można odczytać zgłoszenia ({status}).",
 	"Could not save a copy: {error}": "Nie udało się zapisać kopii: {error}",
 	"Could not save the new map defaults: {error}": "Nie udało się zapisać domyślnych ustawień nowych map: {error}",

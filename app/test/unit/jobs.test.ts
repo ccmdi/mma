@@ -107,27 +107,27 @@ describe("runJob", () => {
 			expect(getJobs()[0].fraction).toBe(0.5);
 			return 42;
 		});
-		expect(result).toBe(42);
+		expect(result.ok()).toBe(42);
 		expect(getJobs()).toHaveLength(0);
 	});
 
-	it("cancel aborts the signal and resolves null without a failure toast", async () => {
+	it("cancel aborts the signal and resolves cancelled without a failure toast", async () => {
 		const p = runJob("Working", async ({ signal }) => {
 			getJobs()[0].cancel?.();
 			expect(signal.aborted).toBe(true);
 			throw new DOMException("aborted", "AbortError");
 		});
-		await expect(p).resolves.toBeNull();
+		await expect(p).resolves.toMatchObject({ status: "cancelled" });
 		expect(getJobs()).toHaveLength(0);
 		expect(getToasts()).toHaveLength(0);
 	});
 
-	it("failure toasts the message and rethrows", async () => {
+	it("failure toasts the message and resolves the error", async () => {
 		vi.useFakeTimers();
 		const p = runJob("Working", async () => {
 			throw new Error("boom");
 		});
-		await expect(p).rejects.toThrow("boom");
+		await expect(p).resolves.toMatchObject({ status: "error", error: new Error("boom") });
 		expect(getJobs()).toHaveLength(0);
 		expect(getToasts().map((t) => t.message)).toContain("boom");
 		vi.runAllTimers();

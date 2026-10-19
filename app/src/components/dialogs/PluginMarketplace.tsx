@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { useJob } from "@/lib/hooks/useJob";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { Icon } from "@/components/primitives/Icon";
 import { Button } from "@/components/primitives/Button";
@@ -119,18 +120,11 @@ function PluginCard({
 	onUpdate,
 }: PluginCardProps) {
 	const { id, name, description, icon, core, installed, enabled, comingSoon, requiresApp } = entry;
-	const [busy, setBusy] = useState(false);
+	const action = useJob();
+	const busy = action.status === "loading";
 
-	const run = (fn: (id: string, ref: string | null) => void | Promise<void>) => () => {
-		void (async () => {
-			setBusy(true);
-			try {
-				await fn(id, entry.ref ?? null);
-			} finally {
-				setBusy(false);
-			}
-		})();
-	};
+	const run = (fn: (id: string, ref: string | null) => void | Promise<void>) => () =>
+		void action.run(async () => fn(id, entry.ref ?? null));
 
 	return (
 		<div

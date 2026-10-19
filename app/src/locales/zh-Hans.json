@@ -264,7 +264,6 @@
 	"Copy to min": "复制到最小值",
 	"Core": "核心",
 	"Correct: {place}. Streak: {n}": "正确: {place}。连续: {n}",
-	"Could not add the tag": "无法添加标签",
 	"Could not read the report ({status}).": "无法读取反馈（{status}）。",
 	"Could not save a copy: {error}": "无法保存副本：{error}",
 	"Could not save the new map defaults: {error}": "无法保存新地图的默认设置：{error}",

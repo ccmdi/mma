@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useJob } from "@/lib/hooks/useJob";
 import { Maps } from "@/store/maps";
 import { Store } from "@/store/store";
 import { PromptDialog, type DialogProps } from "@/components/primitives/Dialog";
@@ -12,20 +13,19 @@ import { t } from "@/lib/i18n";
 export function SaveAsDialog({ open, onOpenChange }: DialogProps) {
 	const map = Store.use((s) => s.map);
 	const [name, setName] = useState(() => Maps.copyName(map?.name ?? ""));
-	const [saving, setSaving] = useState(false);
+	const saving = useJob();
 
 	const save = async () => {
 		if (!map || !(await confirmMapExit("leave"))) return;
-		setSaving(true);
-		const copy = await Maps.duplicate(map.id, name.trim()).catch((e: unknown) => {
-			toast(t("Could not save a copy: {error}", { error: errText(e) }));
-			setSaving(false);
-			return null;
+		const saved = await saving.run(async () => {
+			const copy = await Maps.duplicate(map.id, name.trim());
+			onOpenChange(false);
+			await Maps.close();
+			goTo({ type: "editor", mapId: copy.id });
 		});
-		if (!copy) return;
-		onOpenChange(false);
-		await Maps.close();
-		goTo({ type: "editor", mapId: copy.id });
+		if (saved.status === "error") {
+			toast(t("Could not save a copy: {error}", { error: errText(saved.error) }));
+		}
 	};
 
 	return (
@@ -37,7 +37,7 @@ export function SaveAsDialog({ open, onOpenChange }: DialogProps) {
 			onChange={setName}
 			selectOnFocus
 			submitLabel={t("Save")}
-			canSubmit={!saving && name.trim() !== ""}
+			canSubmit={saving.status !== "loading" && name.trim() !== ""}
 			onSubmit={() => void save()}
 		/>
 	);

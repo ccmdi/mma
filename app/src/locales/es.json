@@ -282,7 +282,6 @@
 	"Copy to min": "Copiar al mínimo",
 	"Core": "Integrados",
 	"Correct: {place}. Streak: {n}": "Correcto: {place}. Racha: {n}",
-	"Could not add the tag": "No se pudo agregar la etiqueta",
 	"Could not read the report ({status}).": "No se pudo leer el informe ({status}).",
 	"Could not save a copy: {error}": "No se pudo guardar una copia: {error}",
 	"Could not save the new map defaults: {error}": "No se pudieron guardar los valores predeterminados de mapas nuevos: {error}",

@@ -1562,15 +1562,10 @@ Show a brief toast notification. Optionally scoped to a `container` element.
 `stable` · since v0.10.0
 
 ```ts
-useJob<R = void, P = string>(
-  fn: (ctx: JobContext<P>) => Promise<R>,
-): Job<R, P>
+useJob<R = unknown, P = never>(): Job<R, P>
 ```
 
-A user-triggered async job that reports progress and can be cancelled.
-Cancelling aborts the signal and stops the UI immediately; nothing the job does
-afterwards can write back. Unmounting cancels. `run` while running is a no-op,
-so a double-clicked button cannot start two.
+User-triggered async work that reports progress and can be cancelled. Unmounting cancels.
 
 ## Types
 
@@ -8015,12 +8010,12 @@ runJob<R>(
   label: string,
   fn: (ctx: JobRunContext) => Promise<R>,
   opts?: Omit<JobOpts, "cancel">,
-): Promise<R | null>
+): Promise<Settled<R>>
 ```
 
 Sugar for promise-shaped work: registers a job wired to an AbortController, reports
-through the handle, and ends the job however `fn` settles. Cancelling resolves null;
-a real failure toasts and rethrows.
+through the handle, ends the job however `fn` settles, and resolves to how it settled.
+A failure also toasts.
 
 ## Test
 

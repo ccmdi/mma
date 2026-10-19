@@ -17,6 +17,7 @@ import type { RemoteMapSummary } from "../provider";
 import type { SyncStatus } from "../scheduler";
 import { errText } from "@/lib/util/format";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { useJob } from "@/lib/hooks/useJob";
 import { t, msg } from "@/lib/i18n";
 import { matches } from "@/lib/search";
 import { dateTimeFmt } from "@/lib/util/format";
@@ -68,22 +69,13 @@ function AddressPicker({
 	onPick: (m: RemoteMapSummary) => void;
 }) {
 	const [address, setAddress] = useState("");
-	const [reading, setReading] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const reading = useJob();
 
 	const read = async (value: string) => {
 		const trimmed = value.trim();
-		if (!trimmed) return;
-		setReading(true);
-		setError(null);
-		try {
-			onPick(await source.resolve(trimmed));
-		} catch (e) {
-			setError(errText(e));
-		} finally {
-			setReading(false);
-		}
+		if (trimmed) await reading.run(async () => onPick(await source.resolve(trimmed)));
 	};
+	const locked = busy || reading.status === "loading";
 
 	const browse = async () => {
 		const picked = await source.browse();
@@ -100,22 +92,22 @@ function AddressPicker({
 					style={{ flex: 1 }}
 					value={address}
 					placeholder={source.placeholder}
-					disabled={busy || reading}
+					disabled={locked}
 					onChange={(e) => setAddress(e.target.value)}
 					onKeyDown={(e) => e.key === "Enter" && void read(address)}
 				/>
-				<Button disabled={busy || reading} onClick={() => void browse()}>
+				<Button disabled={locked} onClick={() => void browse()}>
 					{t("Browse")}
 				</Button>
 			</div>
 			<Button
 				variant="primary"
-				disabled={busy || reading || !address.trim()}
+				disabled={locked || !address.trim()}
 				onClick={() => void read(address)}
 			>
-				{reading ? t("Reading...") : t("Link")}
+				{reading.status === "loading" ? t("Reading...") : t("Link")}
 			</Button>
-			{error && <Notice tone="error">{error}</Notice>}
+			{reading.status === "error" && <Notice tone="error">{errText(reading.error)}</Notice>}
 		</Field>
 	);
 }
@@ -319,11 +311,11 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	const icon = controller.provider.icon;
 	const [filter, setFilter] = useState("");
 	const [link, setLink] = useState(controller.getLink());
-	const [busy, setBusy] = useState(false);
+	const action = useJob();
+	const busy = action.status === "loading";
 	const [status, setStatus] = useState<SyncStatus>(controller.liveStatus());
 	const [live, setLive] = useState(controller.isLive());
 	const [outcome, setOutcome] = useState<SyncOutcome | null>(null);
-	const [error, setError] = useState<string | null>(null);
 	const [pendingLink, setPendingLink] = useState<RemoteMapSummary | null>(null);
 
 	const mapId = controller.currentMapId();
@@ -352,40 +344,36 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	const remote = useAsync(() => {
 		const list = fetchMaps.current;
 		if (!list || !authed || !mapId || link) return null;
-		setError(null);
 		return list().catch((e: unknown) => {
 			throw new Error(errText(e));
 		});
 	}, [authed, mapId, link]);
 	const maps = remote.ok();
-	const shownError = error ?? (remote.status === "error" ? remote.error.message : null);
+	const shownError =
+		action.status === "error"
+			? errText(action.error)
+			: remote.status === "error"
+				? remote.error.message
+				: null;
 
 	const performLink = useCallback(
-		async (m: RemoteMapSummary, mode: FirstSyncMode) => {
-			setBusy(true);
-			setError(null);
-			try {
+		(m: RemoteMapSummary, mode: FirstSyncMode) =>
+			action.run(async () => {
 				await controller.link(m, identity?.id ?? null);
 				try {
 					setOutcome(await controller.firstSync(mode));
 				} catch (e) {
 					// Keeping the link would forget the chosen mode; retry must re-run THIS choice.
 					await controller.unlink();
-					setError(errText(e));
 					setPendingLink(m);
-					return;
+					throw e;
 				}
 				setLink(controller.getLink());
 				setPendingLink(null);
 				controller.startLive(); // live by default on link
 				setLive(true);
-			} catch (e) {
-				setError(errText(e));
-			} finally {
-				setBusy(false);
-			}
-		},
-		[controller, identity],
+			}),
+		[action, controller, identity],
 	);
 
 	// Merge vs mirror only matters when BOTH sides already have pins; otherwise just merge.
@@ -401,35 +389,29 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	const createMap = source.kind === "list" ? source.createMap : undefined;
 	const doCreate = useCallback(async () => {
 		if (!createMap) return;
-		setBusy(true);
-		setError(null);
-		const created = await createMap(window.MMA.Store.get().map?.name ?? "").catch((e: unknown) => {
-			setError(errText(e));
-			return null;
-		});
-		setBusy(false);
-		if (created) doLink(created);
-	}, [createMap, doLink]);
+		const created = await action.run(() => createMap(window.MMA.Store.get().map?.name ?? ""));
+		if (created.status === "ok") doLink(created.value);
+	}, [action, createMap, doLink]);
 
-	const doSync = useCallback(async () => {
-		setBusy(true);
-		setError(null);
-		try {
-			setOutcome(await controller.syncNow());
-			setLink(controller.getLink());
-		} catch (e) {
-			setError(errText(e));
-		} finally {
-			setBusy(false);
-		}
-	}, [controller]);
+	const doSync = useCallback(
+		() =>
+			action.run(async () => {
+				setOutcome(await controller.syncNow());
+				setLink(controller.getLink());
+			}),
+		[action, controller],
+	);
 
-	const doUnlink = useCallback(async () => {
-		await controller.unlink();
-		setLink(null);
-		setLive(false);
-		setOutcome(null);
-	}, [controller]);
+	const doUnlink = useCallback(
+		() =>
+			action.run(async () => {
+				await controller.unlink();
+				setLink(null);
+				setLive(false);
+				setOutcome(null);
+			}),
+		[action, controller],
+	);
 
 	const toggleLive = useCallback(() => {
 		if (controller.isLive()) {
@@ -442,19 +424,12 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 	}, [controller]);
 
 	const resolve = useCallback(
-		async (resolutions: { key: string; side: Side }[]) => {
-			setBusy(true);
-			setError(null);
-			try {
+		(resolutions: { key: string; side: Side }[]) =>
+			action.run(async () => {
 				setOutcome(await controller.resolveConflicts(resolutions));
 				setLink(controller.getLink());
-			} catch (e) {
-				setError(errText(e));
-			} finally {
-				setBusy(false);
-			}
-		},
-		[controller],
+			}),
+		[action, controller],
 	);
 
 	const resolveAll = useCallback(

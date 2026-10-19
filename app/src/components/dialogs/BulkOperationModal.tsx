@@ -56,7 +56,8 @@ import {
 } from "@/lib/sv/panoDownload";
 import { useAsync, useAsyncSticky } from "@/lib/hooks/useAsync";
 import { saveExportTempFile } from "@/lib/util/tauri";
-import { exprErrorText, fmt } from "@/lib/util/format";
+import { errText, exprErrorText, fmt } from "@/lib/util/format";
+import { Cancelled, Err, Ok, Running, type Settled } from "@/types/util";
 import { phaseRate, type PhaseRate } from "@/lib/util/util";
 import type { BatchOutcome, BulkOpts, ProcedurePart } from "@/lib/data/procedure";
 import { toast } from "@/lib/util/toast";
@@ -857,11 +858,9 @@ function EnrichSummary({ result }: { result: ProcedureOutcomes }) {
 // them instead of aborting; the dialog re-attaches to the run for its operation.
 // ---------------------------------------------------------------------------
 
-type BulkRunStatus = "running" | "done" | "cancelled" | "error";
-
 export interface BulkRunState {
 	operation: BulkOperation;
-	status: BulkRunStatus;
+	state: Running<never> | Settled<BulkRunResult>;
 	progress: number;
 	total: number;
 	done: number;
@@ -869,8 +868,6 @@ export interface BulkRunState {
 	elapsed: number | null;
 	parts: ProcedurePart[];
 	providerRates: ReadonlyMap<string, number | null>;
-	error: string | null;
-	result: BulkRunResult;
 	controller: AbortController;
 	job: JobHandle;
 	/** The dialog for this operation is showing the run. */
@@ -907,11 +904,12 @@ function settleRun(operation: BulkOperation) {
 		run.job.finish();
 		return;
 	}
-	if (run.status === "error") run.job.fail(t("Error: {error}", { error: run.error ?? "" }));
-	else if (run.status === "cancelled") run.job.finish();
+	const { state } = run;
+	if (state.status === "error") run.job.fail(t("Error: {error}", { error: errText(state.error) }));
+	else if (state.status !== "ok") run.job.finish();
 	else {
 		run.job.finish(
-			run.result.doneMessage ??
+			state.value.doneMessage ??
 				t(
 					{ one: "Done. {n} location processed", other: "Done. {n} locations processed" },
 					{ n: run.total },
@@ -927,14 +925,14 @@ function setRunAttached(operation: BulkOperation, attached: boolean) {
 	const run = bulkRuns.get(operation);
 	if (!run) return;
 	run.job.setHidden(attached);
-	if (!attached && run.status !== "running") dropRun(operation);
+	if (!attached && run.state.status !== "loading") dropRun(operation);
 	else patchRun(operation, { attached });
 }
 
 // The run's selector is fixed at start: a live-selection selector changes when the run
 // itself adds selections, and re-running on that would loop.
 export function startBulkRun(operation: BulkOperation, runner: BulkRunner, target: Selector): void {
-	if (bulkRuns.get(operation)?.status === "running") return;
+	if (bulkRuns.get(operation)?.state.status === "loading") return;
 	const controller = new AbortController();
 	const job = registerJob(t(TITLES[operation]), {
 		scope: "map",
@@ -944,7 +942,7 @@ export function startBulkRun(operation: BulkOperation, runner: BulkRunner, targe
 	job.setHidden(true);
 	bulkRuns = new Map(bulkRuns).set(operation, {
 		operation,
-		status: "running",
+		state: new Running(),
 		progress: 0,
 		total: 0,
 		done: 0,
@@ -952,8 +950,6 @@ export function startBulkRun(operation: BulkOperation, runner: BulkRunner, targe
 		elapsed: null,
 		parts: [],
 		providerRates: new Map(),
-		error: null,
-		result: {},
 		controller,
 		job,
 		attached: true,
@@ -989,20 +985,16 @@ export function startBulkRun(operation: BulkOperation, runner: BulkRunner, targe
 		try {
 			const r = await runner({ selector: target, signal: controller.signal, onProgress });
 			patchRun(operation, {
-				result: r,
+				state: new Ok(r),
 				progress: 1,
 				elapsed: (performance.now() - runStart) / 1000,
-				status: "done",
 			});
 		} catch (e: unknown) {
-			if (controller.signal.aborted) {
-				patchRun(operation, { status: "cancelled" });
-			} else {
-				patchRun(operation, {
-					error: e instanceof Error ? e.message : t("Operation failed"),
-					status: "error",
-				});
-			}
+			patchRun(operation, {
+				state: controller.signal.aborted
+					? new Cancelled()
+					: new Err(e instanceof Error ? e : new Error(t("Operation failed"))),
+			});
 		}
 		settleRun(operation);
 	})();
@@ -1027,13 +1019,14 @@ export function BulkProgress({
 	}, [operation]);
 
 	if (!run) return null;
-	const { status, progress, total, done, rate, elapsed, parts, providerRates, error, result } = run;
+	const { state, progress, total, done, rate, elapsed, parts, providerRates } = run;
+	const result = state.ok();
 	const pct = Math.round(progress * 100);
 
 	return (
 		<div className="modal__stack">
 			<div className="bulk-operation__status">
-				{status === "running" && parts.length > 0 && (
+				{state.status === "loading" && parts.length > 0 && (
 					<div className="bulk-operation__providers">
 						{parts.map((p) => {
 							const waiting = !p.finished && p.done === 0 && p.total === 0;
@@ -1074,7 +1067,7 @@ export function BulkProgress({
 						})}
 					</div>
 				)}
-				{status === "done" &&
+				{result &&
 					(result.doneContent ??
 						result.doneMessage ??
 						t(
@@ -1091,15 +1084,15 @@ export function BulkProgress({
 									})
 								: "") +
 							".")}
-				{status === "cancelled" &&
+				{state.status === "cancelled" &&
 					t("Cancelled at {done} / {total}.", {
 						done: fmt.format(done),
 						total: fmt.format(total),
 					})}
-				{status === "error" && t("Error: {error}", { error: error ?? "" })}
+				{state.status === "error" && t("Error: {error}", { error: errText(state.error) })}
 			</div>
 			<Bar value={progress} size="md" />
-			{status === "running" ? (
+			{state.status === "loading" ? (
 				<DialogActions
 					start={
 						<span className="bulk-operation__meter">
@@ -1115,7 +1108,7 @@ export function BulkProgress({
 			) : (
 				<DialogActions
 					start={
-						status === "done" && (
+						result && (
 							<>
 								{result.doneActions}
 								{result.outcome != null && <SelectFailedButton outcome={result.outcome} />}

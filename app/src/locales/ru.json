@@ -291,7 +291,6 @@
 	"Copy to min": "Скопировать в минимум",
 	"Core": "Основные",
 	"Correct: {place}. Streak: {n}": "Верно: {place}. Серия: {n}",
-	"Could not add the tag": "Не удалось добавить тег",
 	"Could not read the report ({status}).": "Не удалось прочитать сообщение ({status}).",
 	"Could not save a copy: {error}": "Не удалось сохранить копию: {error}",
 	"Could not save the new map defaults: {error}": "Не удалось сохранить настройки по умолчанию для новых карт: {error}",

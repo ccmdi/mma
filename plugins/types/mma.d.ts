@@ -3332,12 +3332,43 @@ declare class Ok<T> {
     /** The same state with its value transformed by `f`. */
     map<U>(f: (value: T) => U): Ok<U>;
 }
+/** The error that kept a value from being produced. */
+declare class Err<E = Error> {
+    readonly status = "error";
+    readonly error: E;
+    constructor(error: E);
+    ok(): null;
+    map(_f: (value: never) => unknown): this;
+}
+/** A value still being produced. */
+declare class Loading {
+    readonly status = "loading";
+    ok(): null;
+    map(_f: (value: never) => unknown): this;
+}
 /** Work stopped before it produced anything, by a newer run or on request. */
 declare class Cancelled {
     readonly status = "cancelled";
     ok(): null;
     map(_f: (value: never) => unknown): this;
 }
+/** Work that has not started. */
+declare class Idle {
+    readonly status = "idle";
+    ok(): null;
+    map(_f: (value: never) => unknown): this;
+}
+/** Work under way, with the last progress it reported. */
+declare class Running<P> extends Loading {
+    readonly progress: P | null;
+    constructor(progress?: P | null);
+}
+/** A value, or the error that kept it from being produced. */
+export type Result<T, E = Error> = Ok<T> | Err<E>;
+/** How a run ended: its result, or cancelled. */
+export type Settled<T, E = Error> = Result<T, E> | Cancelled;
+/** Work someone starts: not yet, under way, or how it ended. */
+export type JobState<T, P = never, E = Error> = Idle | Running<P> | Settled<T, E>;
 
 type Selector = Parameters<Cmd["storeRead"]>[1];
 
@@ -7153,9 +7184,9 @@ export interface JobRunContext {
     report: (fraction: number, detail?: string) => void;
 }
 /** Sugar for promise-shaped work: registers a job wired to an AbortController, reports
- *  through the handle, and ends the job however `fn` settles. Cancelling resolves null;
- *  a real failure toasts and rethrows. @unstable */
-declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<R | null>;
+ *  through the handle, ends the job however `fn` settles, and resolves to how it settled.
+ *  A failure also toasts. @unstable */
+declare function runJob<R>(label: string, fn: (ctx: JobRunContext) => Promise<R>, opts?: Omit<JobOpts, "cancel">): Promise<Settled<R>>;
 /** Cancel every live job of `scope` that can be cancelled. Owners observe their own
  *  abort and end their jobs; entries without a cancel are removed outright. @unstable */
 declare function cancelJobs(scope: JobScope): void;
@@ -7203,30 +7234,25 @@ declare namespace jobs {
   export type { jobs_JobEntry as JobEntry, jobs_JobHandle as JobHandle, jobs_JobOpts as JobOpts, jobs_JobRunContext as JobRunContext, jobs_JobScope as JobScope, jobs_MapExitKind as MapExitKind };
 }
 
-/** Context passed to the job function. */
+/** What a job's work is handed. */
 export interface JobContext<P> {
     signal: AbortSignal;
     /** Push a progress value to the UI. Ignored once the job is cancelled. */
     report: (progress: P) => void;
 }
-/** State and controls for a cancellable async job. */
-export interface Job<R, P> {
-    running: boolean;
-    progress: P | null;
-    result: R | null;
-    /** Message from a failed run. Cancelling is not a failure and leaves this null. */
-    error: string | null;
-    run: () => void;
+/** A job's state, with the controls that start and stop it. */
+export type Job<R, P = never> = JobState<R, P> & {
+    /** Start `work`, resolving to how it settled. While a run is under way this does nothing
+     *  and resolves cancelled, so a double-clicked button cannot start two. */
+    run: <T extends R>(work: (ctx: JobContext<P>) => Promise<T>) => Promise<Settled<T>>;
+    /** Stop the run under way; nothing it does afterwards can write back. */
     cancel: () => void;
-}
-/** A user-triggered async job that reports progress and can be cancelled.
- *  Cancelling aborts the signal and stops the UI immediately; nothing the job does
- *  afterwards can write back. Unmounting cancels. `run` while running is a no-op,
- *  so a double-clicked button cannot start two. */
-declare function useJob<R = void, P = string>(fn: (ctx: JobContext<P>) => Promise<R>): Job<R, P>;
+};
+/** User-triggered async work that reports progress and can be cancelled. Unmounting cancels. */
+declare function useJob<R = unknown, P = never>(): Job<R, P>;
 
 /** @unstable */
-export type useJob$1_Job<R, P> = Job<R, P>;
+export type useJob$1_Job<R, P = never> = Job<R, P>;
 /** @unstable */
 export type useJob$1_JobContext<P> = JobContext<P>;
 declare const useJob$1_useJob: typeof useJob;

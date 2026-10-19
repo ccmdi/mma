@@ -2,7 +2,9 @@ import { Store } from "@/store/store";
 import { SelectionList } from "@/store/selectionList";
 import { Tag } from "@/store/tag";
 import { Query } from "@/store/query";
-import { useAsync } from "@/lib/hooks/useAsync";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
+import { errText } from "@/lib/util/format";
+import { Notice } from "@/components/primitives/Hint";
 import { cmd } from "@/lib/commands";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createFieldDef } from "@/types";
@@ -346,8 +348,6 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const scope = useSelectorPick({ pick: "all" });
 	const [valueMode, setValueMode] = usePluginState<ValueMode>("pivot", "valueMode", "count");
 	const [includeNa, setIncludeNa] = usePluginState<boolean>("pivot", "includeNa", true);
-	const [data, setData] = useState<PivotData | null>(null);
-	const [loading, setLoading] = useState(false);
 
 	const allFields = useExtraFieldKeys();
 	const knownKeys = getKnownFieldKeys();
@@ -356,26 +356,16 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const rows = useMemo(() => axisOnMap(rowsRaw, fields), [rowsRaw, fields]);
 	const cols = useMemo(() => axisOnMap(colsRaw, fields), [colsRaw, fields]);
 
-	const recompute = useCallback(async () => {
-		setLoading(true);
-		try {
-			setData(
-				await computePivot(
-					rows,
-					cols,
-					scope.selector,
-					(key) => fields.find((f) => f.key === key)?.def,
-				),
-			);
-		} finally {
-			setLoading(false);
-		}
-	}, [rows, cols, scope.selector, fields]);
+	const computed = useAsync(
+		() => computePivot(rows, cols, scope.selector, (key) => fields.find((f) => f.key === key)?.def),
+		[rows, cols, scope.selector, fields],
+	);
+	const data = useSticky(computed).ok();
+	const loading = computed.status === "loading";
 
-	const debouncedRecompute = useDebouncedCallback(() => void recompute(), 150);
+	const debouncedRecompute = useDebouncedCallback(computed.rerun, 150);
 
 	useEffect(() => {
-		void recompute();
 		const unsubLoc = subscribe("store:change", (e) => {
 			if (changedLocations(e)) debouncedRecompute();
 		});
@@ -384,7 +374,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 			unsubLoc();
 			unsubSel();
 		};
-	}, [recompute, debouncedRecompute]);
+	}, [debouncedRecompute]);
 
 	const hasNa =
 		!!data &&
@@ -434,7 +424,8 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 			</div>
 
 			<div className="pivot-sidebar__body">
-				{!data && !loading && (
+				{computed.status === "error" && <Notice tone="error">{errText(computed.error)}</Notice>}
+				{!data && computed.status === "ok" && (
 					<EmptyState>
 						{rows.kind === "active" || cols.kind === "active" || scope.choice.pick === "selection"
 							? t("No active selections. Add selections to see pivot data.")

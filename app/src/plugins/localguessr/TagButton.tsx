@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
+import { useJob } from "@/lib/hooks/useJob";
+import { errText } from "@/lib/util/format";
 import { Store } from "@/store/store";
 import { Tag } from "@/store/tag";
 import { Dialog, DialogActions, DialogContent, DialogForm } from "@/components/primitives/Dialog";
@@ -14,7 +16,8 @@ import { displayTagName } from "@/lib/data/tags";
 export function TagButton({ locationIds, label }: { locationIds: number[]; label?: string }) {
 	const [open, setOpen] = useState(false);
 	const [name, setName] = useState("");
-	const [busy, setBusy] = useState(false);
+	const tagging = useJob();
+	const busy = tagging.status === "loading";
 	const tags = Store.use(Tag.visible);
 
 	const suggestions = useMemo(
@@ -25,26 +28,21 @@ export function TagButton({ locationIds, label }: { locationIds: number[]; label
 	const apply = useCallback(
 		async (tagName: string) => {
 			const trimmed = tagName.trim();
-			if (!trimmed || busy || locationIds.length === 0) return;
-			setBusy(true);
-			try {
-				await Tag.assign({ type: "Locations", locations: locationIds, name: null }, [
-					{ name: trimmed },
-				]);
-				toast(
-					locationIds.length === 1
-						? t("Tagged with {tag}", { tag: trimmed })
-						: t("Tagged {n} locations with {tag}", { n: locationIds.length, tag: trimmed }),
-				);
-				setName("");
-				setOpen(false);
-			} catch (e) {
-				toast(e instanceof Error ? e.message : t("Could not add the tag"));
-			} finally {
-				setBusy(false);
-			}
+			if (!trimmed || locationIds.length === 0) return;
+			const tagged = await tagging.run(() =>
+				Tag.assign({ type: "Locations", locations: locationIds, name: null }, [{ name: trimmed }]),
+			);
+			if (tagged.status === "error") return toast(errText(tagged.error));
+			if (tagged.status !== "ok") return;
+			toast(
+				locationIds.length === 1
+					? t("Tagged with {tag}", { tag: trimmed })
+					: t("Tagged {n} locations with {tag}", { n: locationIds.length, tag: trimmed }),
+			);
+			setName("");
+			setOpen(false);
 		},
-		[busy, locationIds],
+		[tagging, locationIds],
 	);
 
 	if (locationIds.length === 0) return null;

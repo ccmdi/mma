@@ -193,11 +193,34 @@ export class Cancelled {
 	}
 }
 
+/** Work that has not started. */
+export class Idle {
+	readonly status = "idle";
+	ok(): null {
+		return null;
+	}
+	map(_f: (value: never) => unknown): this {
+		return this;
+	}
+}
+
+/** Work under way, with the last progress it reported. */
+export class Running<P> extends Loading {
+	readonly progress: P | null;
+	constructor(progress: P | null = null) {
+		super();
+		this.progress = progress;
+	}
+}
+
 /** A value, or the error that kept it from being produced. */
 export type Result<T, E = Error> = Ok<T> | Err<E>;
 
 /** How a run ended: its result, or cancelled. */
 export type Settled<T, E = Error> = Result<T, E> | Cancelled;
+
+/** Work someone starts: not yet, under way, or how it ended. */
+export type JobState<T, P = never, E = Error> = Idle | Running<P> | Settled<T, E>;
 
 /** A value still being produced, or its result. */
 export type AsyncState<T, E = Error> = Loading | Result<T, E>;

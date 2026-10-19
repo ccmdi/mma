@@ -1,3 +1,4 @@
+import { useJob } from "@/lib/hooks/useJob";
 import { useCallback, useEffect, useState } from "react";
 import { ConnectionUser, SyncSidebar } from "@/lib/sync/ui/SyncSidebar";
 import { log } from "@/lib/util/log";
@@ -29,8 +30,7 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 	const [user, setUser] = useState<GgIdentity | null | undefined>(() =>
 		kv().get<GgIdentity | null | undefined>(CACHED_USER, undefined),
 	);
-	const [busy, setBusy] = useState(false);
-	const [error, setError] = useState<string | null>(null);
+	const signingIn = useJob();
 
 	const remember = useCallback((next: GgIdentity | null) => {
 		kv().set(CACHED_USER, next);
@@ -51,19 +51,6 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 		void refresh();
 	}, [refresh]);
 
-	const signIn = useCallback(async () => {
-		setBusy(true);
-		setError(null);
-		try {
-			await window.MMA.cmd.geoguessrLogin();
-			await refresh();
-		} catch (e) {
-			setError(errText(e));
-		} finally {
-			setBusy(false);
-		}
-	}, [refresh]);
-
 	const signOut = useCallback(async () => {
 		await window.MMA.cmd.geoguessrLogout();
 		remember(null);
@@ -81,10 +68,19 @@ export function GeoGuessrSidebar({ onClose }: { onClose: () => void }) {
 		/>
 	) : (
 		<>
-			<Button variant="primary" disabled={busy} onClick={() => void signIn()}>
-				{busy ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
+			<Button
+				variant="primary"
+				disabled={signingIn.status === "loading"}
+				onClick={() =>
+					void signingIn.run(async () => {
+						await window.MMA.cmd.geoguessrLogin();
+						await refresh();
+					})
+				}
+			>
+				{signingIn.status === "loading" ? t("Waiting for sign-in...") : t("Sign in to GeoGuessr")}
 			</Button>
-			{error && <Notice tone="error">{error}</Notice>}
+			{signingIn.status === "error" && <Notice tone="error">{errText(signingIn.error)}</Notice>}
 		</>
 	);
 

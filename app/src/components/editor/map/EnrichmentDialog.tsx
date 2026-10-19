@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAsync } from "@/lib/hooks/useAsync";
+import { useJob } from "@/lib/hooks/useJob";
+import { errText } from "@/lib/util/format";
+import { Notice } from "@/components/primitives/Hint";
 import { Store } from "@/store/store";
 import { Field } from "@/store/field";
 import { Query } from "@/store/query";
@@ -278,7 +281,9 @@ function FieldsTab() {
 	const [filter, setFilter] = useState("");
 	const [renamePrompt, setRenamePrompt] = useState<RenamePrompt | null>(null);
 	const [deleteKey, setDeleteKey] = useState<string | null>(null);
-	const [busy, setBusy] = useState(false);
+	const edits = useJob();
+	const busy = edits.status === "loading";
+	const failure = edits.status === "error" && <Notice tone="error">{errText(edits.error)}</Notice>;
 	const { coverage, recount } = useCoverage();
 
 	const shown = useMemo(() => {
@@ -330,30 +335,20 @@ function FieldsTab() {
 		});
 	};
 
-	const confirmRename = async () => {
-		if (!renamePrompt) return;
-		setBusy(true);
-		try {
-			await Field.rename(renamePrompt.key, renamePrompt.target, renamePrompt.winner);
-		} finally {
-			setBusy(false);
-		}
-		setSelected(renamePrompt.target);
-		setRenamePrompt(null);
-		refresh();
-	};
+	const confirmRename = (prompt: RenamePrompt) =>
+		edits.run(async () => {
+			await Field.rename(prompt.key, prompt.target, prompt.winner);
+			setSelected(prompt.target);
+			setRenamePrompt(null);
+			refresh();
+		});
 
-	const confirmDelete = async () => {
-		if (!deleteKey) return;
-		setBusy(true);
-		try {
-			await Field.remove(deleteKey);
-		} finally {
-			setBusy(false);
-		}
-		setDeleteKey(null);
-		refresh();
-	};
+	const confirmDelete = (key: string) =>
+		edits.run(async () => {
+			await Field.remove(key);
+			setDeleteKey(null);
+			refresh();
+		});
 
 	if (rows.length === 0) {
 		return (
@@ -501,8 +496,9 @@ function FieldsTab() {
 					}
 					confirmLabel={renamePrompt.merge ? t("Merge") : t("Rename")}
 					busy={busy}
-					onConfirm={() => void confirmRename()}
+					onConfirm={() => void confirmRename(renamePrompt)}
 				>
+					{failure}
 					{renamePrompt.merge && (
 						<fieldset className="manage-fields-action__winner">
 							<legend>{t("On conflict, keep:")}</legend>
@@ -537,8 +533,10 @@ function FieldsTab() {
 					confirmLabel={t("Delete field")}
 					tone="destructive"
 					busy={busy}
-					onConfirm={() => void confirmDelete()}
-				/>
+					onConfirm={() => void confirmDelete(deleteKey)}
+				>
+					{failure}
+				</ConfirmDialog>
 			)}
 		</>
 	);

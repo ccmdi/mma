@@ -273,7 +273,6 @@
 	"Copy to min": "In Min kopieren",
 	"Core": "Kern",
 	"Correct: {place}. Streak: {n}": "Richtig: {place}. Serie: {n}",
-	"Could not add the tag": "Tag konnte nicht hinzugefügt werden",
 	"Could not read the report ({status}).": "Die Meldung konnte nicht gelesen werden ({status}).",
 	"Could not save a copy: {error}": "Kopie konnte nicht gespeichert werden: {error}",
 	"Could not save the new map defaults: {error}": "Die Standards für neue Karten konnten nicht gespeichert werden: {error}",

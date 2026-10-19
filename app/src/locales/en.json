@@ -273,7 +273,6 @@
 	"Copy to min": "Copy to min",
 	"Core": "Core",
 	"Correct: {place}. Streak: {n}": "Correct: {place}. Streak: {n}",
-	"Could not add the tag": "Could not add the tag",
 	"Could not read the report ({status}).": "Could not read the report ({status}).",
 	"Could not save a copy: {error}": "Could not save a copy: {error}",
 	"Could not save the new map defaults: {error}": "Could not save the new map defaults: {error}",

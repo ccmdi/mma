@@ -67,7 +67,7 @@ describe("closing the dialog backgrounds the run", () => {
 		await act(async () => {});
 
 		expect(signal!.aborted).toBe(false);
-		expect(getBulkRuns().get("enrich")?.status).toBe("running");
+		expect(getBulkRuns().get("enrich")?.state.status).toBe("loading");
 		expect(getJobs().some((j) => !j.hidden)).toBe(true);
 
 		finish();
@@ -109,7 +109,7 @@ describe("cancel and duplicate starts", () => {
 		startBulkRun("headingRoad", runner, sel(1));
 		getBulkRuns().get("headingRoad")!.controller.abort();
 		await tick();
-		expect(getBulkRuns().get("headingRoad")?.status).toBe("cancelled");
+		expect(getBulkRuns().get("headingRoad")?.state.status).toBe("cancelled");
 		await drain("headingRoad");
 	});
 
