@@ -1,44 +1,52 @@
-import { useEffect, useRef, useState, type DependencyList } from "react";
+import { useLayoutEffect, useRef, useState, type DependencyList } from "react";
 import { latest } from "@/lib/util/latest";
-import { Err, Loading, Ok, type AsyncState } from "@/types/util";
+import { Err, Loading, Ok, type AsyncState, type Settled } from "@/types/util";
 
 /** An `AsyncState` whose work can be run again. */
-export type Rerunnable<T> = AsyncState<T> & { rerun: () => void };
+export type Rerunnable<T> = AsyncState<T> & {
+	/** Run the work again with the same deps, resolving to how that run settled. */
+	rerun: () => Promise<Settled<T>>;
+};
 
 /** Run `fn` whenever `deps` change, ignoring results from superseded runs (newer
  *  deps or unmount); the `signal` it is handed aborts at the same moment, so a run can
  *  cancel its own requests rather than only having its answer dropped. `fn` may return a
- *  value synchronously - then the result is applied immediately with no loading frame
- *  (so a synchronous short-circuit never flashes a spinner). A returned promise is
- *  `loading` until it settles. A value a superseded run still produces goes to `discard`,
- *  so a run can release what it built. `rerun` runs `fn` again with the same deps. */
+ *  value synchronously - then the result lands before the browser paints, with no loading
+ *  frame. A returned promise is `loading` until it settles. A value a superseded run still
+ *  produces goes to `discard`, so a run can release what it built. */
 export function useAsync<T>(
 	fn: (signal: AbortSignal) => T | Promise<T>,
 	deps: DependencyList,
 	options: { discard?: (value: T) => void } = {},
 ): Rerunnable<T> {
-	const [runs, setRuns] = useState(0);
-	const [rerun] = useState(() => () => setRuns((n) => n + 1));
-	const [state, setState] = useState<Rerunnable<T>>(() => Object.assign(new Loading(), { rerun }));
+	const work = useRef(fn);
+	work.current = fn;
 	const discard = useRef(options.discard);
 	discard.current = options.discard;
-	const settle = (next: AsyncState<T>) => setState(Object.assign(next, { rerun }));
-	const [requests] = useState(() =>
-		latest<T>({
+	const [controls] = useState(() => {
+		const requests = latest<T>({
 			discard: (value) => discard.current?.(value),
 			publish: (value) => settle(new Ok(value)),
 			failed: (error) => settle(new Err(error)),
-		}),
-	);
-	useEffect(() => {
-		void requests.replace((signal) => {
-			const result = fn(signal);
-			if (result instanceof Promise) settle(new Loading());
-			return result;
 		});
-		return () => requests.cancel();
+		const rerun = (): Promise<Settled<T>> =>
+			requests.replace((signal) => {
+				const result = work.current(signal);
+				if (result instanceof Promise) settle(new Loading());
+				return result;
+			});
+		return { requests, rerun };
+	});
+	const [state, setState] = useState<Rerunnable<T>>(() =>
+		Object.assign(new Loading(), { rerun: controls.rerun }),
+	);
+	const settle = (next: AsyncState<T>): void =>
+		setState(Object.assign(next, { rerun: controls.rerun }));
+	useLayoutEffect(() => {
+		void controls.rerun();
+		return () => controls.requests.cancel();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [...deps, runs]);
+	}, deps);
 	return state;
 }
 

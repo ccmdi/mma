@@ -137,7 +137,7 @@ export function ReportDialog({ open, onOpenChange }: DialogProps) {
 				t("Enter code {code} in your browser to finish signing in.", { code: info.userCode }),
 			);
 			await cmd.githubPollLogin();
-			account.rerun();
+			await account.rerun();
 			setError(null);
 		} catch (e) {
 			setError(errText(e));

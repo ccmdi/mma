@@ -135,7 +135,11 @@ describe("useAsync rerun", () => {
 		const m = mount(createElement(Probe));
 		await act(async () => {});
 		expect(seen?.status).toBe("error");
-		await act(async () => seen!.rerun());
+		let settled: unknown;
+		await act(async () => {
+			settled = await seen!.rerun();
+		});
+		expect(settled).toStrictEqual(new Ok("up"));
 		expect(seen?.status === "ok" && seen.value).toBe("up");
 		m.unmount();
 	});

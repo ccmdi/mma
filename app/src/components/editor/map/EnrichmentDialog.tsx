@@ -298,7 +298,7 @@ function FieldsTab() {
 		const next = buildRows();
 		setRows(next);
 		setSelected((cur) => (next.some((r) => r.key === cur) ? cur : (next[0]?.key ?? null)));
-		recount();
+		void recount();
 	};
 
 	// Live commit: field defs apply on every edit (blur for text, change for selects).

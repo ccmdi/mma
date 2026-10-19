@@ -112,7 +112,7 @@ export function DoclinkPanel({ width, onWidthChange, onClose }: DoclinkPanelProp
 	// Forced re-fetch: evict the doc's cached HTML, then load again.
 	const onRefresh = useCallback(() => {
 		if (docRef) evictDoc(docRef);
-		rerun();
+		void rerun();
 	}, [docRef, rerun]);
 	const section = loaded.ok();
 	const loading = loaded.status === "loading";

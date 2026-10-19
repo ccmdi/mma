@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { useJob } from "@/lib/hooks/useJob";
 import { Field } from "@/components/primitives/Sidebar";
 import { TextInput } from "@/components/primitives/TextInput";
 import { ConnectionUser, SyncSidebar as SharedSyncSidebar } from "@/lib/sync/ui/SyncSidebar";
-import type { MmUser } from "@/bindings.gen";
 import * as auth from "./controller";
 import { controller } from "./controller";
 import { errText } from "@/lib/util/format";
@@ -14,44 +14,32 @@ import { Notice } from "@/components/primitives/Hint";
 /** The shared sync sidebar, with map-making.app's API-key auth plugged into it. */
 export function SyncSidebar({ onClose }: { onClose: () => void }) {
 	const [keyDraft, setKeyDraft] = useState("");
-	const [user, setUser] = useState<MmUser | null>(auth.getCachedUser());
+	const identity = useAsync(() => auth.getCachedUser() ?? (auth.hasKey() ? auth.me() : null), []);
+	const [changingKey, setChangingKey] = useState(false);
+	const user = changingKey ? null : identity.ok();
 	const validating = useJob();
-	const [checkError, setCheckError] = useState<string | null>(null);
-	// True only while the mount-time check below is in flight. With no key there is nothing to
-	// check, so the key form shows immediately rather than flashing through a "checking" state.
-	const [checking, setChecking] = useState(() => auth.hasKey() && !auth.getCachedUser());
 
 	const validate = () =>
 		validating.run(async () => {
 			try {
 				// Validate before persisting: a typo'd key must not replace a working one.
-				const user = await auth.validate(keyDraft);
+				await auth.validate(keyDraft);
 				await auth.setKey(keyDraft);
-				setUser(user);
 			} catch (e) {
 				// Validate may have cached the identity before the store failed; a failed
 				// submit must leave nothing signed in.
 				auth.forgetAuth();
-				setUser(null);
 				throw e;
 			}
+			setChangingKey(false);
+			await identity.rerun();
 		});
-	const error =
+	const failure =
 		validating.status === "error"
-			? errText(validating.error)
-			: validating.status === "idle"
-				? checkError
+			? validating.error
+			: validating.status === "idle" && identity.status === "error"
+				? identity.error
 				: null;
-
-	// Check the stored key once when nothing is cached yet; cached opens are instant.
-	useEffect(() => {
-		if (!auth.hasKey() || auth.getCachedUser()) return;
-		auth
-			.me()
-			.then(setUser)
-			.catch((e: unknown) => setCheckError(errText(e)))
-			.finally(() => setChecking(false));
-	}, []);
 
 	const authUi = user ? (
 		// map-making.app's API-key surface exposes no avatar (auth is Discord-side), so the
@@ -62,7 +50,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 				<Button
 					onClick={() => {
 						auth.forgetAuth();
-						setUser(null);
+						setChangingKey(true);
 					}}
 				>
 					{t("Change key")}
@@ -101,7 +89,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			>
 				{validating.status === "loading" ? t("Validating...") : t("Validate")}
 			</Button>
-			{error && <Notice tone="error">{error}</Notice>}
+			{failure && <Notice tone="error">{errText(failure)}</Notice>}
 		</form>
 	);
 
@@ -110,7 +98,7 @@ export function SyncSidebar({ onClose }: { onClose: () => void }) {
 			onClose={onClose}
 			controller={controller}
 			auth={authUi}
-			identity={checking ? undefined : user ? { id: String(user.id) } : null}
+			identity={identity.status === "loading" ? undefined : user ? { id: String(user.id) } : null}
 			source={{ kind: "list", listMaps: auth.listMaps, createMap: auth.createMap }}
 		/>
 	);

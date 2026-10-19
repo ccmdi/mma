@@ -48,7 +48,7 @@ import { formatBytes } from "@/lib/util/format";
 import { Icon } from "@/components/primitives/Icon";
 import { Tooltip } from "@/components/primitives/Tooltip";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
-import type { DeviceCodeInfo, GhUser, MapPreferences, RGB } from "@/bindings.gen";
+import type { DeviceCodeInfo, MapPreferences, RGB } from "@/bindings.gen";
 import { collectDiagnostics } from "@/lib/diagnostics";
 import { appVersion } from "@/lib/version";
 import { refreshStoredReports } from "@/lib/feedback/submit";
@@ -101,7 +101,7 @@ import { cmd } from "@/lib/commands";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { toast } from "@/lib/util/toast";
 import { log } from "@/lib/util/log";
-import { useAsync } from "@/lib/hooks/useAsync";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { useJob } from "@/lib/hooks/useJob";
 import {
 	useUpdateState,
@@ -545,15 +545,14 @@ function StreetViewBody() {
 
 function NewMapDefaultsRow() {
 	const map = Store.use((state) => state.map);
-	const [saved, setSaved] = useState<boolean | null>(null);
-	useEffect(() => {
-		void cmd.storeGetMapDefaults().then((defaults) => setSaved(defaults !== null));
-	}, []);
+	const defaults = useAsync(() => cmd.storeGetMapDefaults(), []);
+	const saved = defaults.ok() != null;
 	const save = (preferences: MapPreferences | null) =>
-		cmd.storeSetMapDefaults(preferences).then(
-			() => setSaved(preferences !== null),
-			(e) => toast(t("Could not save the new map defaults: {error}", { error: errText(e) })),
-		);
+		cmd
+			.storeSetMapDefaults(preferences)
+			.then(defaults.rerun, (e) =>
+				toast(t("Could not save the new map defaults: {error}", { error: errText(e) })),
+			);
 	return (
 		<SettingRow
 			label={t("New maps")}
@@ -1331,19 +1330,12 @@ function CopyDiagnosticsButton() {
 }
 
 function FeedbackBody() {
-	const [user, setUser] = useState<GhUser | null>(null);
-	const [checking, setChecking] = useState(true);
+	const account = useAsync(() => cmd.githubMe(), []);
+	const known = useSticky(account);
+	const user = known.ok();
 	const signingIn = useJob<unknown, DeviceCodeInfo>();
 	const code = signingIn.status === "loading" ? signingIn.progress : null;
 	const [reports] = useReports();
-
-	useEffect(() => {
-		void cmd
-			.githubMe()
-			.then(setUser)
-			.catch(() => setUser(null))
-			.finally(() => setChecking(false));
-	}, []);
 
 	// Also refreshed at startup; opening the section re-checks for anything since.
 	useEffect(() => {
@@ -1355,7 +1347,8 @@ function FeedbackBody() {
 			const info = await cmd.githubStartLogin();
 			report(info);
 			await openExternal(info.verificationUri);
-			setUser(await cmd.githubPollLogin());
+			await cmd.githubPollLogin();
+			await account.rerun();
 		});
 
 	return (
@@ -1363,7 +1356,7 @@ function FeedbackBody() {
 			<SettingsGroup title={t("Account")}>
 				<Aux match="github sign in account anonymous">
 					<div className="feedback-account">
-						{checking ? (
+						{known.status === "loading" ? (
 							<span className="text-muted">{t("Checking sign-in...")}</span>
 						) : user ? (
 							<>
@@ -1373,7 +1366,7 @@ function FeedbackBody() {
 								<span>{user.login}</span>
 								<Button
 									onClick={() => {
-										void cmd.githubLogout().then(() => setUser(null));
+										void cmd.githubLogout().then(account.rerun);
 									}}
 								>
 									{t("Sign out")}

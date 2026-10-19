@@ -423,7 +423,7 @@ export function PluginMarketplace({ open, onOpenChange }: DialogProps) {
 							<EmptyState>
 								{t("Failed to load registry:")} {fetched.error.message}
 								<br />
-								<Button onClick={fetched.rerun} style={{ marginTop: 8 }}>
+								<Button onClick={() => void fetched.rerun()} style={{ marginTop: 8 }}>
 									{t("Retry")}
 								</Button>
 							</EmptyState>

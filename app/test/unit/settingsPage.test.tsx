@@ -283,8 +283,8 @@ describe("new map defaults", () => {
 
 	afterEach(() => {
 		openMap = null;
-		vi.mocked(cmd.storeGetMapDefaults).mockResolvedValue(null);
-		vi.mocked(cmd.storeSetMapDefaults).mockClear();
+		vi.mocked(cmd.storeGetMapDefaults).mockReset().mockResolvedValue(null);
+		vi.mocked(cmd.storeSetMapDefaults).mockReset();
 	});
 
 	const button = (label: string) =>
@@ -293,6 +293,12 @@ describe("new map defaults", () => {
 
 	it("saves the open map's settings as the defaults, then resets them", async () => {
 		openMap = { id: "m", settings: { pointAlongRoad: false } } as MapMeta;
+		let stored: MapPreferences | null = null;
+		vi.mocked(cmd.storeSetMapDefaults).mockImplementation(async (preferences) => {
+			stored = preferences;
+			return null;
+		});
+		vi.mocked(cmd.storeGetMapDefaults).mockImplementation(async () => stored);
 		await mount();
 		search("new maps");
 		expect(description()).toBe("New maps start from the factory preferences.");

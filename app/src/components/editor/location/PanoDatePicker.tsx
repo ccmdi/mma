@@ -121,7 +121,12 @@ export const PanoDatePicker = memo(function PanoDatePicker({
 						<span className="pano-value">{t("Couldn't load dates")}</span>
 					</button>
 				</NSelect>
-				<IconButton icon={mdiRefresh} size={18} label={t("Retry")} onClick={onScreen.rerun} />
+				<IconButton
+					icon={mdiRefresh}
+					size={18}
+					label={t("Retry")}
+					onClick={() => void onScreen.rerun()}
+				/>
 			</span>
 		);
 	}

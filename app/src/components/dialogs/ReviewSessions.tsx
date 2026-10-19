@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { startTransition, useOptimistic, useRef, useState } from "react";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
+import { toast } from "@/lib/util/toast";
+import { Notice } from "@/components/primitives/Hint";
 import { SelectionList } from "@/store/selectionList";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ConfirmButton } from "@/components/primitives/ConfirmButton";
@@ -11,7 +14,7 @@ import { EntryCard, EntryList } from "@/components/primitives/EntryList";
 import { Bar } from "@/components/primitives/Bar";
 import { mdiCheckCircleOutline, mdiCircleOutline, mdiPlay, mdiDelete } from "@mdi/js";
 import { Review } from "@/lib/review/review";
-import { shortDateFmt, relativeTime } from "@/lib/util/format";
+import { errText, shortDateFmt, relativeTime } from "@/lib/util/format";
 import { t } from "@/lib/i18n";
 import { dateTimeFmt } from "@/lib/util/format";
 import type { ReviewSession } from "@/bindings.gen";
@@ -21,34 +24,32 @@ import { addSelection } from "@/store/selections";
 
 export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 	const [filter, setFilter] = useState<"active" | "done">("active");
-	const [sessions, setSessions] = useState<ReviewSession[]>([]);
-	const [loading, setLoading] = useState(false);
+	const listed = useAsync(() => (open ? Review.sessions(filter) : []), [open, filter]);
+	const [sessions, applyEdit] = useOptimistic(
+		useSticky(listed, filter).ok() ?? [],
+		(current: ReviewSession[], edit: (list: ReviewSession[]) => ReviewSession[]) => edit(current),
+	);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [draft, setDraft] = useState("");
 	const skipBlur = useRef(false);
 
-	const reload = useCallback(async () => {
-		setLoading(true);
-		try {
-			setSessions(await Review.sessions(filter));
-		} finally {
-			setLoading(false);
-		}
-	}, [filter]);
-
-	useEffect(() => {
-		if (open) void reload();
-	}, [open, reload]);
+	const commit = (edit: (list: ReviewSession[]) => ReviewSession[], write: () => Promise<void>) =>
+		startTransition(async () => {
+			applyEdit(edit);
+			await write().catch((e: unknown) => toast(t("Error: {error}", { error: errText(e) })));
+			await listed.rerun();
+		});
 
 	const handleResume = (s: ReviewSession) => {
 		void Review.resume(s);
 		onOpenChange(false);
 	};
 
-	const handleDelete = async (id: string) => {
-		setSessions((prev) => prev.filter((s) => s.id !== id)); // drop in place
-		await Review.removeSession(id);
-	};
+	const handleDelete = (id: string) =>
+		commit(
+			(list) => list.filter((s) => s.id !== id),
+			() => Review.removeSession(id),
+		);
 
 	const handleSelect = (s: ReviewSession, mode: ReviewMode) => {
 		void SelectionList.update(addSelection(Review.selector(s, mode)));
@@ -61,13 +62,15 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 		setEditingId(s.id);
 	};
 
-	const saveEdit = async () => {
+	const saveEdit = () => {
 		const id = editingId;
 		const name = draft.trim();
 		setEditingId(null);
 		if (!id || !name) return;
-		setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, name } : s))); // patch in place
-		await Review.rename(id, name);
+		commit(
+			(list) => list.map((s) => (s.id === id ? { ...s, name } : s)),
+			() => Review.rename(id, name),
+		);
 	};
 
 	return (
@@ -85,8 +88,9 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 					onChange={setFilter}
 				/>
 
+				{listed.status === "error" && <Notice tone="error">{errText(listed.error)}</Notice>}
 				{sessions.length === 0 ? (
-					!loading && (
+					listed.status === "ok" && (
 						<EmptyState>
 							{filter === "active" ? t("No reviews in progress.") : t("No completed reviews.")}
 						</EmptyState>
@@ -132,7 +136,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 												variant="ghost"
 												title={t("Delete session")}
 												aria-label={t("Delete session")}
-												onConfirm={() => void handleDelete(s.id)}
+												onConfirm={() => handleDelete(s.id)}
 												data-qa="review-session-delete"
 											>
 												<Icon path={mdiDelete} size={18} />
@@ -153,7 +157,7 @@ export function ReviewSessionsModal({ open, onOpenChange }: DialogProps) {
 													setEditingId(null);
 													return;
 												}
-												void saveEdit();
+												saveEdit();
 											}}
 											onKeyDown={(e) => {
 												if (e.key === "Enter") {

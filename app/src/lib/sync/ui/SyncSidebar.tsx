@@ -583,7 +583,7 @@ export function SyncSidebar({ onClose, controller, auth, identity, source }: Syn
 					{source.kind === "address" ? (
 						<AddressPicker source={source} busy={busy} onPick={doLink} />
 					) : !maps && shownError ? (
-						<Button onClick={remote.rerun}>{t("Retry loading maps")}</Button>
+						<Button onClick={() => void remote.rerun()}>{t("Retry loading maps")}</Button>
 					) : !maps ? (
 						<div style={{ display: "flex", justifyContent: "center", padding: "0.5rem 0" }}>
 							<Spinner label={t("Loading maps")} />

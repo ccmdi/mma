@@ -363,7 +363,7 @@ export function PivotSidebar({ onClose }: { onClose: () => void }) {
 	const data = useSticky(computed).ok();
 	const loading = computed.status === "loading";
 
-	const debouncedRecompute = useDebouncedCallback(computed.rerun, 150);
+	const debouncedRecompute = useDebouncedCallback(() => void computed.rerun(), 150);
 
 	useEffect(() => {
 		const unsubLoc = subscribe("store:change", (e) => {
