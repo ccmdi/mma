@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useAsync } from "@/lib/hooks/useAsync";
 import { storage } from "@/plugins/pluginStorage";
 import { Seen } from "@/lib/seen/seen";
 import type { Game, PastGame, StreakMode } from "./game";
@@ -122,24 +122,5 @@ export async function startingThumbnails(
 
 export function useStartingThumbnails(mapId: string, rounds: RoundStart[]): (string | null)[] {
 	const key = rounds.map((r) => `${r.locationId}@${r.startedAt}`).join(",");
-	const [found, setFound] = useState<{ key: string; thumbnails: (string | null)[] }>({
-		key: "",
-		thumbnails: [],
-	});
-	useEffect(() => {
-		let cancelled = false;
-		const parsed = key
-			? key.split(",").map((pair) => {
-					const [locationId, startedAt] = pair.split("@").map(Number);
-					return { locationId, startedAt };
-				})
-			: [];
-		void startingThumbnails(mapId, parsed).then((thumbnails) => {
-			if (!cancelled) setFound({ key, thumbnails });
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [mapId, key]);
-	return found.key === key ? found.thumbnails : [];
+	return useAsync(() => startingThumbnails(mapId, rounds), [mapId, key]).ok() ?? [];
 }

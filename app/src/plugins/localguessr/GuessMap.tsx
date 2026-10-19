@@ -2,6 +2,7 @@ import { Query } from "@/store/query";
 import { selection } from "@/store/selections";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
 import type React from "react";
+import { useJob } from "@/lib/hooks/useJob";
 import { ScatterplotLayer } from "@deck.gl/layers";
 import { Icon } from "@/components/primitives/Icon";
 import {
@@ -114,7 +115,8 @@ export function GuessMap({
 	const rootRef = useRef<HTMLDivElement>(null);
 	const [scale, setScale] = usePluginState<number>("localguessr", "mapScale", 1);
 	const [showPool, setShowPool] = usePluginState<boolean>("localguessr", "showPool", false);
-	const [pool, setPool] = useState<Float32Array | null>(null);
+	const sampling = useJob<Float32Array>();
+	const pool = sampling.ok();
 	const closeDelay = useSetting("fullscreenMinimapCloseDelay");
 	const { expanded, hoverProps } = useHoverExpand(rootRef, closeDelay);
 	// Per round: the hook carries `expanded` across the result, and resetting
@@ -195,20 +197,13 @@ export function GuessMap({
 	const guessPin = useGuessPin();
 
 	useEffect(() => {
-		if (!showPool || pool) return;
-		let cancelled = false;
-		void (async () => {
-			try {
-				const positions = await fetchPool(selectorRef.current);
-				if (!cancelled) setPool(positions);
-			} catch {
-				if (!cancelled) setShowPool(false);
-			}
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [showPool, pool, setShowPool]);
+		if (!showPool || (sampling.status !== "idle" && sampling.status !== "error")) return;
+		void sampling
+			.run(() => fetchPool(selectorRef.current))
+			.then((sampled) => {
+				if (sampled.status === "error") setShowPool(false);
+			});
+	}, [showPool, sampling, setShowPool]);
 
 	useEffect(() => {
 		const overlay = overlayRef.current;

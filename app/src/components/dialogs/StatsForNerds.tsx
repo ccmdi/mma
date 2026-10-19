@@ -3,7 +3,7 @@ import type { ProcedureActivity } from "@/bindings.gen";
 import { cmd } from "@/lib/commands";
 import { Notice } from "@/components/primitives/Hint";
 import { collectDiagnostics, engineRows, type Diagnostics } from "@/lib/diagnostics";
-import { useAsync } from "@/lib/hooks/useAsync";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { fmt, formatBytes, localeFormat } from "@/lib/util/format";
 import { Dialog, DialogContent, type DialogProps } from "@/components/primitives/Dialog";
 import { ProgressRow } from "@/components/primitives/ProgressRow";
@@ -178,14 +178,15 @@ function EngineSection({ activity }: { activity: ProcedureActivity | null }) {
 
 export function StatsForNerds({ open, onOpenChange }: DialogProps) {
 	const [live, setLive] = useState<LiveStats | null>(null);
-	const [activity, setActivity] = useState<ProcedureActivity | null>(null);
+	const polled = useAsync(() => cmd.procedureActivity(), []);
+	const activity = useSticky(polled).ok();
 	const stats = useAsync(collectDiagnostics, []);
 
 	useEffect(() => {
 		startFrameMeter();
 		const tick = () => {
 			setLive({ frame: frameStats(), deck: getDeckMetrics(), scene: computeRenderStats() });
-			void cmd.procedureActivity().then(setActivity, () => setActivity(null));
+			void polled.rerun();
 		};
 		const iv = setInterval(tick, 1000);
 		tick();

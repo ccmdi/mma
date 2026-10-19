@@ -1,10 +1,11 @@
 /* eslint-disable react-refresh/only-export-components */
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { mdiCloudDownloadOutline, mdiRestore } from "@mdi/js";
 import { Tag } from "@/store/tag";
 import { cmd } from "@/lib/commands";
-import type { ValiCountryStatus, ValiLocation } from "@/bindings.gen";
+import type { ValiLocation } from "@/bindings.gen";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { createLocation } from "@/types";
 import { LocationFlag } from "@/bindings.consts";
 import { mapStorage } from "@/plugins/pluginStorage";
@@ -88,7 +89,6 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 	const iframeRef = useRef<HTMLIFrameElement>(null);
 	const [downloadOpen, setDownloadOpen] = useState(false);
 	// null = unknown: the check hasn't answered yet, or it failed. Never flag on a guess.
-	const [stale, setStale] = useState<ValiCountryStatus[] | null>(null);
 	// The ref answers the message handler synchronously; the state only drives the button.
 	const busyRef = useRef<ValiBusy>(null);
 	const runRef = useRef<number | null>(null);
@@ -146,17 +146,8 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 	}, []);
 
 	// Metadata-only, so it costs a couple of listing requests. Offline leaves it unknown.
-	const checkStale = useCallback(() => {
-		cmd
-			.valiDataStatus()
-			.then(setStale)
-			.catch((e) => {
-				log.debug("[vali] data status unavailable:", e);
-				setStale(null);
-			});
-	}, []);
-
-	useEffect(checkStale, [checkStale]);
+	const checked = useAsync(() => cmd.valiDataStatus(), []);
+	const stale = useSticky(checked).ok();
 
 	const outdated = (stale?.length ?? 0) > 0;
 
@@ -199,7 +190,7 @@ export function ValiSidebar({ onClose }: { onClose: () => void }) {
 				running={busy === "download"}
 				onRunningChange={(running) => setBusy(running ? "download" : null)}
 				stale={stale}
-				onDownloaded={checkStale}
+				onDownloaded={() => void checked.rerun()}
 			/>
 		</Sidebar>
 	);

@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { startTransition, useOptimistic } from "react";
+import { useAsync, useSticky } from "@/lib/hooks/useAsync";
 import { Store } from "@/store/store";
 import { Query } from "@/store/query";
 import { Tag } from "@/store/tag";
@@ -15,25 +16,18 @@ import { t } from "@/lib/i18n";
  */
 export function RoundTagBar({ locationId }: { locationId: number }) {
 	const tags = Store.use(Tag.visible);
-	const [names, setNames] = useState<string[]>([]);
-
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			const [loc] = await Query.read(
-				{ type: "Locations", locations: [locationId], name: null },
-				{ kind: "locations" },
-			);
-			if (!cancelled) setNames(Tag.names(loc?.tags ?? []));
-		})();
-		return () => {
-			cancelled = true;
-		};
+	const tagged = useAsync(async () => {
+		const [loc] = await Query.read(
+			{ type: "Locations", locations: [locationId], name: null },
+			{ kind: "locations" },
+		);
+		return Tag.names(loc?.tags ?? []);
 	}, [locationId]);
+	const [names, showNames] = useOptimistic(useSticky(tagged, locationId).ok() ?? []);
 
-	const change = (next: string[]) => {
-		setNames(next);
-		void (async () => {
+	const change = (next: string[]) =>
+		startTransition(async () => {
+			showNames(next);
 			try {
 				const { keys: tags } = await Edit.values(
 					"tags",
@@ -43,8 +37,8 @@ export function RoundTagBar({ locationId }: { locationId: number }) {
 			} catch (e) {
 				toast(e instanceof Error ? e.message : t("Could not update tags"));
 			}
-		})();
-	};
+			await tagged.rerun();
+		});
 
 	return <FullscreenTagBar pendingTags={names} onChangeTags={change} tags={tags} />;
 }
