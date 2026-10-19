@@ -4193,6 +4193,7 @@ input[type="range"].slider.sv-opacity-control__slider::-webkit-slider-runnable-t
 	padding: 0;
 	margin: 0;
 	display: grid;
+	grid-template-columns: minmax(0, 1fr);
 	gap: 0.5rem;
 }
 .entry-list__card {
