@@ -180,7 +180,7 @@ pub(super) fn parse_csv(text: &str) -> ParsedMap {
 /// JSON Value without parsing the entire document. Callers that already know where
 /// the coordinate array ends pass
 /// `start` (just past the last object) + `start_depth` (2, still inside the array)
-/// so we scan only the tiny tail. Shared by tag-meta and settings extraction.
+/// so we scan only the tiny tail. Shared by record and settings extraction.
 pub(super) fn find_top_level_extra(buf: &[u8], start: usize, start_depth: i32) -> Option<Value> {
     let mut out = None;
     scan_fields_from(buf, start, start_depth, |fs| {
@@ -623,8 +623,8 @@ pub(super) fn build_extra_via_map(
 /// 3. **Parallel parse** -- rayon hands each object slice to serde_json for
 ///    deserialization. Non-coordinate fields are collected into `extra`.
 ///
-/// Tag names from `extra.tags` arrays are collected and deduplicated; tag
-/// metadata (colors, order) is extracted separately from the top-level `extra`.
+/// Each interned field's names are collected and deduplicated into provisional ids; their
+/// records are read separately from the top-level `extra`.
 #[allow(
     clippy::too_many_lines,
     reason = "a sequential pipeline whose stages thread the same accumulating state"
@@ -810,7 +810,7 @@ pub(super) fn parse_single_json_mut(buf: &mut [u8]) -> ParsedMap {
 
     // Top-level "extra" sits after the coordinate array; start the scan at the
     // array's closing `]` (depth 2, the `]` drops it to 1) instead of rescanning
-    // the whole buffer. Parse it once, derive both tag meta and virtual tags.
+    // the whole buffer. Parse it once, derive the records, settings and field definitions.
     let extra_val = find_top_level_extra(buf, arr_start + arr_close, 2);
     let named = |field: &str| {
         extra_val

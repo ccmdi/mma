@@ -679,7 +679,7 @@ export type EditorImportResult = {
 
 /**  The kind of file an export writes, with what that kind needs. */
 export type ExportFormat = 
-/**  A `{name, customCoordinates}` map file with its tags and field definitions. */
+/**  A `{name, customCoordinates}` map file with its interned values' records and field definitions. */
 {
 	format: "json",
 } & JsonExport | 

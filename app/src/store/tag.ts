@@ -34,7 +34,9 @@ export const Tag = {
 					color: typeof rec.color === "string" ? rec.color : colorForName(name),
 					visible: v.count > 0,
 					order: typeof rec.order === "number" ? rec.order : null,
-					doclinks: Array.isArray(rec.doclinks) ? (rec.doclinks as string[]) : [],
+					doclinks: Array.isArray(rec.doclinks)
+						? rec.doclinks.filter((link): link is string => typeof link === "string")
+						: [],
 				};
 			}
 			return out;

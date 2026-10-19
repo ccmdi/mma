@@ -27,7 +27,7 @@ pub enum MapPart {
     PanoDate,
     /// Location flag bits beyond pinning.
     Flags,
-    /// Custom fields and their definitions, and tag doclinks.
+    /// Custom fields and their definitions, and every key on an interned value's record beyond its color and order.
     AppData,
 }
 

@@ -101,6 +101,20 @@ describe("change feed patches", () => {
 		expect(Store.get().map).toBe(mapBefore);
 	});
 
+	it("a tag's doclinks are the strings its record holds", () => {
+		arrive(
+			event([
+				add("/fieldValues/tags/3", {
+					record: { name: "pole", doclinks: ["https://a", 7, null] },
+					count: 1,
+				}),
+				add("/fieldValues/tags/4", { record: { name: "mast", doclinks: "https://b" }, count: 1 }),
+			]),
+		);
+		expect(Tag.all()[3].doclinks).toEqual(["https://a"]);
+		expect(Tag.all()[4].doclinks).toEqual([]);
+	});
+
 	it("field values move one at a time: an added one replaces itself, a removed one is gone", () => {
 		arrive(
 			event([

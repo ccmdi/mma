@@ -25,7 +25,7 @@ use zip::write::SimpleFileOptions;
     rename_all_fields = "camelCase"
 )]
 pub enum ExportFormat {
-    /// A `{name, customCoordinates}` map file with its tags and field definitions.
+    /// A `{name, customCoordinates}` map file with its interned values' records and field definitions.
     Json(JsonExport),
     /// A minimal lat/lng CSV file.
     Csv,

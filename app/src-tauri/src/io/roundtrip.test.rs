@@ -260,26 +260,22 @@ fn shaped_view(l: &Location, names: &HashMap<Id<ValueRecord>, String>, shape: Ma
     v
 }
 
-/// A tag as the export carries it: color, order and doclinks under its name. `visible` is
-/// not carried, by design.
+/// A tag as the export carries it: color and order under its name, and every other key on its
+/// record when `shape` keeps app data.
 fn tag_view(tags: &[ValueRecord], shape: MapShape) -> HashMap<String, Value> {
     if !shape.keeps(MapPart::Tags) {
         return HashMap::new();
     }
     tags.iter()
         .map(|rec| {
-            let extra = |key: &str| rec.extra.get(key);
-            (
-                rec.name.clone().unwrap_or_default(),
-                json!({
-                    "color": rec.color(),
-                    "order": rec.order,
-                    "doclinks": extra("doclinks")
-                        .filter(|_| shape.keeps(MapPart::AppData))
-                        .cloned()
-                        .unwrap_or_else(|| json!([])),
-                }),
-            )
+            let mut view = if shape.keeps(MapPart::AppData) {
+                rec.extra.clone()
+            } else {
+                serde_json::Map::new()
+            };
+            view.insert("color".into(), json!(rec.color()));
+            view.insert("order".into(), json!(rec.order));
+            (rec.name.clone().unwrap_or_default(), Value::Object(view))
         })
         .collect()
 }

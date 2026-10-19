@@ -136,14 +136,14 @@ fn record_meta_keeps_every_other_key_only_with_app_data() {
     let antenna = record(
         "antenna",
         Some(2),
-        json!({ "color": "#ff0000", "doclinks": ["https://example.com/doc"], "icon": "mast" }),
+        json!({ "color": "#ff0000", "aliases": ["pole"], "icon": "mast" }),
     );
     assert_eq!(
         record_meta(&antenna, MapShape::Local),
         json!({
             "color": [255, 0, 0],
             "order": 2,
-            "doclinks": ["https://example.com/doc"],
+            "aliases": ["pole"],
             "icon": "mast"
         })
     );
@@ -155,14 +155,10 @@ fn record_meta_keeps_every_other_key_only_with_app_data() {
 
 #[test]
 fn record_meta_keeps_a_value_without_a_color() {
-    let plain = record(
-        "plain",
-        Some(2),
-        json!({ "doclinks": ["https://example.com/doc"] }),
-    );
+    let plain = record("plain", Some(2), json!({ "icon": "dot" }));
     assert_eq!(
         record_meta(&plain, MapShape::Local),
-        json!({"order": 2, "doclinks": ["https://example.com/doc"]})
+        json!({"order": 2, "icon": "dot"})
     );
 }
 

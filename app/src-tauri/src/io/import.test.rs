@@ -230,15 +230,6 @@ fn named_in(buf: &[u8], field: &str) -> HashMap<String, ValueRecord> {
         .unwrap_or_default()
 }
 
-fn doclinks(record: &ValueRecord) -> Vec<&str> {
-    record
-        .extra
-        .get("doclinks")
-        .and_then(|d| d.as_array())
-        .map(|links| links.iter().filter_map(|l| l.as_str()).collect())
-        .unwrap_or_default()
-}
-
 #[test]
 fn named_records_read_color_and_order() {
     let json = br#"{"customCoordinates":[],"extra":{"tags":{"Roof":{"color":[255,0,0],"order":3},"Wall":{"color":[0,128,255],"order":1}}}}"#;
@@ -271,30 +262,13 @@ fn named_records_missing_color() {
 }
 
 #[test]
-fn named_records_read_doclinks_array() {
-    let json = br#"{"extra":{"tags":{"Antenna":{"color":[1,2,3],"doclinks":["https://docs.google.com/document/d/abc/edit#heading=h.x1","https://docs.google.com/document/d/def/edit#heading=h.y2"]}}}}"#;
-    assert_eq!(
-        doclinks(&named_in(json, "tags")["Antenna"]),
-        vec![
-            "https://docs.google.com/document/d/abc/edit#heading=h.x1",
-            "https://docs.google.com/document/d/def/edit#heading=h.y2"
-        ]
-    );
-}
-
-#[test]
-fn named_records_no_doclinks() {
-    let json = br#"{"extra":{"tags":{"Plain":{"order":1}}}}"#;
-    assert!(doclinks(&named_in(json, "tags")["Plain"]).is_empty());
-}
-
-#[test]
 fn named_records_keep_every_other_key() {
-    let json = br##"{"extra":{"habitat":{"Wetland":{"color":"#00ff00","icon":"reed","rank":2}}}}"##;
+    let json = br##"{"extra":{"habitat":{"Wetland":{"color":"#00ff00","icon":"reed","rank":2,"aliases":["marsh",1]}}}}"##;
     let wetland = &named_in(json, "habitat")["Wetland"];
     assert_eq!(wetland.color(), Some(Rgb([0, 255, 0])));
     assert_eq!(wetland.extra["icon"], "reed");
     assert_eq!(wetland.extra["rank"], 2);
+    assert_eq!(wetland.extra["aliases"], serde_json::json!(["marsh", 1]));
 }
 
 #[test]
