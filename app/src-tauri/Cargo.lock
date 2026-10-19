@@ -3263,6 +3263,8 @@ dependencies = [
  "vali-data",
  "vali-generate",
  "vali-geo",
+ "webview2-com",
+ "windows",
  "windows-sys 0.61.2",
  "zip 2.4.2",
 ]

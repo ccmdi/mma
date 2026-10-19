@@ -30,6 +30,7 @@ mod sync;
 #[cfg(test)]
 mod test_util;
 mod util;
+mod webview;
 
 #[cfg(feature = "web-serve")]
 pub use net::serve;
@@ -608,6 +609,7 @@ pub fn run() {
     }));
 
     let builder = builder
+        .plugin(webview::plugin())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(log_plugin())

@@ -23,7 +23,7 @@ import { isWeb } from "@/lib/util/util";
 import { getJobs, confirmMapExit } from "@/lib/jobs";
 import { checkForUpdate } from "@/lib/util/updateCheck";
 import { refreshStoredReports } from "@/lib/feedback/submit";
-import { blockBrowserAccelerators } from "@/lib/hooks/useHotkey";
+import { ownWebviewInput } from "@/lib/hooks/useHotkey";
 import "@/api";
 import "@/store/commandDefs";
 
@@ -88,14 +88,12 @@ async function boot() {
 		cmd.storeCloseMap().catch(() => {});
 	});
 
-	document.addEventListener("contextmenu", (e) => e.preventDefault());
-
 	document.addEventListener("keydown", (e) => {
 		if (e.key === "F11") {
 			void appWindow.isFullscreen().then((fs) => appWindow.setFullscreen(!fs));
 		}
 	});
-	blockBrowserAccelerators();
+	ownWebviewInput();
 
 	root.render(<App />);
 	mark("render");

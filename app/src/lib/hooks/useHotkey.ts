@@ -208,13 +208,81 @@ export function firesInEditable(pk: ParsedKey): boolean {
 	return FUNCTION_KEY.test(pk.key);
 }
 
-const BLOCKED_COMBOS = ["F5", "Mod+r", "Mod+Shift+r", "Mod+p"].map(parseCombo);
+// Modifiers on their own, an IME composing ("Process") and accent dead keys: never shortcuts.
+const NON_SHORTCUT_KEYS = new Set([
+	"Control",
+	"Alt",
+	"Shift",
+	"Meta",
+	"AltGraph",
+	"OS",
+	"Process",
+	"Dead",
+]);
+const TEXT_EDITING_KEYS = new Set([
+	"a",
+	"c",
+	"v",
+	"x",
+	"z",
+	"y",
+	"arrowleft",
+	"arrowright",
+	"arrowup",
+	"arrowdown",
+	"home",
+	"end",
+	"backspace",
+	"delete",
+	"insert",
+]);
+const OS_COMBOS = (IS_MAC ? ["Mod+q", "Mod+h", "Mod+Alt+h", "Mod+m", "Mod+w"] : ["Alt+f4"]).map(
+	parseCombo,
+);
+const DEV_COMBOS = [
+	"F12",
+	"Mod+Shift+i",
+	"Mod+Shift+j",
+	"Mod+Shift+c",
+	"F5",
+	"Mod+r",
+	"Mod+Shift+r",
+].map(parseCombo);
 
-/** Suppress reload/print accelerators no binding claimed. Install once at startup. */
-export function blockBrowserAccelerators(): void {
+/** Whether a key the app left unclaimed may still do what the webview or OS does with it:
+ *  typing and caret movement, copy and select-all, the OS's window keys, and devtools in dev. */
+function webviewKeepsKey(e: KeyboardEvent): boolean {
+	if (NON_SHORTCUT_KEYS.has(e.key)) return true;
+	if (OS_COMBOS.some((pk) => matchesKey(e, pk))) return true;
+	if (import.meta.env.DEV && DEV_COMBOS.some((pk) => matchesKey(e, pk))) return true;
+	const key = eventKey(e).toLowerCase();
+	if (FUNCTION_KEY.test(key)) return false;
+	const mod = e.ctrlKey || e.metaKey;
+	if (!mod && !e.altKey) return true;
+	if (isEditableElement(e.target)) {
+		if (!mod || e.getModifierState("AltGraph")) return true;
+		if (IS_MAC && !e.metaKey) return true;
+		return TEXT_EDITING_KEYS.has(key);
+	}
+	return mod && !e.altKey && (key === "c" || key === "a");
+}
+
+/** The app owns every shortcut, the context menu and the mouse back/forward buttons: anything
+ *  no binding claimed does nothing, whatever the webview would have done. Install once at startup. */
+export function ownWebviewInput(): void {
 	window.addEventListener("keydown", (e) => {
-		if (e.defaultPrevented) return;
-		if (BLOCKED_COMBOS.some((pk) => matchesKey(e, pk))) e.preventDefault();
+		if (!e.defaultPrevented && !webviewKeepsKey(e)) e.preventDefault();
+	});
+	document.addEventListener("contextmenu", (e) => e.preventDefault());
+	const historyStep = (e: MouseEvent) => (e.button === 3 ? -1 : e.button === 4 ? 1 : 0);
+	window.addEventListener("mousedown", (e) => {
+		if (historyStep(e)) e.preventDefault();
+	});
+	window.addEventListener("mouseup", (e) => {
+		const step = historyStep(e);
+		if (!step) return;
+		e.preventDefault();
+		history.go(step);
 	});
 }
 

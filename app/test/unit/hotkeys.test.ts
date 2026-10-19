@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import {
 	parseHotkey,
 	matchesKey,
@@ -7,7 +7,7 @@ import {
 	formatBinding,
 	firesInEditable,
 	isActivationElement,
-	blockBrowserAccelerators,
+	ownWebviewInput,
 } from "@/lib/hooks/useHotkey";
 import {
 	getAllBindings,
@@ -371,21 +371,81 @@ describe("firesInEditable", () => {
 	});
 });
 
-describe("blockBrowserAccelerators", () => {
-	function press(init: KeyboardEventInit): KeyboardEvent {
+describe("ownWebviewInput", () => {
+	ownWebviewInput();
+
+	function press(init: KeyboardEventInit, target: EventTarget = window): KeyboardEvent {
 		const e = new KeyboardEvent("keydown", { ...init, bubbles: true, cancelable: true });
-		window.dispatchEvent(e);
+		target.dispatchEvent(e);
 		return e;
 	}
+	function field(): HTMLInputElement {
+		const input = document.createElement("input");
+		document.body.append(input);
+		return input;
+	}
 
-	it("suppresses reload and print when no binding claimed them", () => {
-		blockBrowserAccelerators();
+	it("cancels browser shortcuts nothing in the app claimed", () => {
+		for (const init of [
+			{ key: "p", ctrlKey: true },
+			{ key: "j", ctrlKey: true },
+			{ key: "f", ctrlKey: true },
+			{ key: "F7" },
+			{ key: "F3" },
+			{ key: "ArrowLeft", altKey: true },
+			{ key: "s", ctrlKey: true },
+		])
+			expect(press(init).defaultPrevented, JSON.stringify(init)).toBe(true);
+	});
 
-		expect(press({ key: "F5" }).defaultPrevented).toBe(true);
-		expect(press({ key: "r", ctrlKey: true }).defaultPrevented).toBe(true);
-		expect(press({ key: "R", ctrlKey: true, shiftKey: true }).defaultPrevented).toBe(true);
-		expect(press({ key: "p", ctrlKey: true }).defaultPrevented).toBe(true);
+	it("leaves plain keys, copy and select-all, and the OS close key alone", () => {
 		expect(press({ key: "j" }).defaultPrevented).toBe(false);
+		expect(press({ key: " " }).defaultPrevented).toBe(false);
+		expect(press({ key: "Tab", shiftKey: true }).defaultPrevented).toBe(false);
+		expect(press({ key: "c", ctrlKey: true }).defaultPrevented).toBe(false);
+		expect(press({ key: "a", ctrlKey: true }).defaultPrevented).toBe(false);
+		expect(press({ key: "F4", altKey: true }).defaultPrevented).toBe(false);
+		expect(press({ key: "Control", ctrlKey: true }).defaultPrevented).toBe(false);
+	});
+
+	it("keeps text editing inside a field, by key position on any layout", () => {
+		const input = field();
+		expect(press({ key: "v", ctrlKey: true }, input).defaultPrevented).toBe(false);
+		expect(press({ key: "м", code: "KeyV", ctrlKey: true }, input).defaultPrevented).toBe(false);
+		expect(press({ key: "Backspace", ctrlKey: true }, input).defaultPrevented).toBe(false);
+		expect(press({ key: "ArrowLeft", ctrlKey: true, shiftKey: true }, input).defaultPrevented).toBe(
+			false,
+		);
+		expect(
+			press({ key: "@", ctrlKey: true, altKey: true, modifierAltGraph: true }, input)
+				.defaultPrevented,
+		).toBe(false);
+		expect(press({ key: "p", ctrlKey: true }, input).defaultPrevented).toBe(true);
+		expect(press({ key: "F7" }, input).defaultPrevented).toBe(true);
+		input.remove();
+	});
+
+	it("keeps devtools and reload in dev builds", () => {
+		expect(import.meta.env.DEV).toBe(true);
+		expect(press({ key: "F12" }).defaultPrevented).toBe(false);
+		expect(press({ key: "r", ctrlKey: true }).defaultPrevented).toBe(false);
+	});
+
+	it("cancels the context menu", () => {
+		const e = new MouseEvent("contextmenu", { bubbles: true, cancelable: true });
+		document.body.dispatchEvent(e);
+		expect(e.defaultPrevented).toBe(true);
+	});
+
+	it("turns the mouse back and forward buttons into history steps", () => {
+		const go = vi.spyOn(history, "go").mockImplementation(() => {});
+		const back = new MouseEvent("mouseup", { button: 3, bubbles: true, cancelable: true });
+		window.dispatchEvent(back);
+		window.dispatchEvent(new MouseEvent("mouseup", { button: 4, bubbles: true, cancelable: true }));
+		window.dispatchEvent(new MouseEvent("mouseup", { button: 0, bubbles: true, cancelable: true }));
+		expect(back.defaultPrevented).toBe(true);
+		expect(go.mock.calls).toEqual([[-1], [1]]);
+		go.mockRestore();
 	});
 });
 
