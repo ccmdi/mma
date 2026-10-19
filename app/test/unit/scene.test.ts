@@ -19,6 +19,7 @@ vi.mock("@/lib/events", () => ({
 		for (const fn of h.listeners.get(evt) ?? []) fn(payload);
 	},
 	useEventValue: (_evt: string, get: () => unknown) => get(),
+	track: () => {},
 	subscribe: (evt: string, fn: (payload?: unknown) => void) => {
 		let list = h.listeners.get(evt);
 		if (!list) {

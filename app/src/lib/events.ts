@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useRef, useSyncExternalStore } from "react";
 import type { ChangeEvent } from "@/bindings.gen";
 import { emit as tauriEmit, listen } from "@tauri-apps/api/event";
 import { appWindow, hasWindowHost } from "@/lib/window";
@@ -162,6 +162,46 @@ export function useEventValue<T>(evt: AnyEvent | readonly AnyEvent[], getValue: 
 	const { sub } = useEventSubscription(evt);
 	// getValue doubles as the server snapshot: the value is module state either way.
 	return useSyncExternalStore(sub, getValue, getValue);
+}
+
+let reads: Set<AnyEvent> | null = null;
+
+/** Mark state that `evt` announces as read, so a tracked read follows it. A getter of
+ *  module state calls it with the event its writes emit. @unstable */
+export function track(evt: AnyEvent): void {
+	reads?.add(evt);
+}
+
+interface Tracked<T> {
+	value: T;
+	events: AnyEvent[];
+	key: string;
+}
+
+function runTracked<T>(read: () => T): Tracked<T> {
+	const outer = reads;
+	const seen = (reads = new Set());
+	try {
+		const value = read();
+		const events = [...seen].sort();
+		return { value, events, key: events.join("|") };
+	} finally {
+		reads = outer;
+		seen.forEach((e) => outer?.add(e));
+	}
+}
+
+/** React hook: what `read` returns, re-rendering when any state it read moves. `read` follows
+ *  the `useEventValue` rule: a stable reference until that state moves. @unstable */
+export function useTracked<T>(read: () => T): T {
+	const last = useRef<Tracked<T> | null>(null);
+	const snapshot = (): Tracked<T> => {
+		const next = runTracked(read);
+		const prev = last.current;
+		if (prev && Object.is(prev.value, next.value) && prev.key === next.key) return prev;
+		return (last.current = next);
+	};
+	return useEventValue(snapshot().events, snapshot).value;
 }
 
 /** React hook: re-renders when the given event(s) fire. Returns a version counter. */

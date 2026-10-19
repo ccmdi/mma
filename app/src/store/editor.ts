@@ -5,7 +5,7 @@ import type { LatLng, MaybeLocation, WorkArea, Patch } from "@/types";
 import { locId } from "@/types";
 import { Layer } from "./layer";
 import { log } from "@/lib/util/log";
-import { subscribe, emit as emitEvent, useEventValue } from "@/lib/events";
+import { subscribe, emit as emitEvent, track, useEventValue } from "@/lib/events";
 import { trace } from "@/lib/util/debug";
 import { Import } from "./import";
 import { latest } from "@/lib/util/latest";
@@ -201,7 +201,10 @@ async function openPreview(loc: Location, origin: OpeningOrigin): Promise<Opened
 
 export const Editor = {
 	/** Imperative snapshot of the editor state. */
-	get: (): Readonly<EditorState> => state,
+	get: (): Readonly<EditorState> => {
+		track("editor:changed");
+		return state;
+	},
 	/** Reactive slice of the editor state. Select fields or memoized values, as with `Store.use`. */
 	use: <T>(selector: (s: EditorState) => T): T =>
 		useEventValue("editor:changed", () => selector(state)),

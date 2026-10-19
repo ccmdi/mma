@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import clsx from "clsx";
-import { useEventValue } from "@/lib/events";
+import { useTracked } from "@/lib/events";
 import { useSetting } from "@/store/settings";
 import {
 	getCommand,
@@ -51,7 +51,7 @@ export function PinnedToolbar({
 			setDrop(null);
 		},
 	}));
-	useEventValue(["snapshot:changed", "editor:changed"], () =>
+	useTracked(() =>
 		pinned.map((id) => (getCommand(id)?.enabled?.() === false ? "0" : "1")).join(""),
 	);
 

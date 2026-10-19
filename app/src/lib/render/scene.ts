@@ -7,7 +7,7 @@ import { DEFAULT_MARKER_COLOR } from "@/bindings.consts";
 import { log } from "@/lib/util/log";
 import { trace } from "@/lib/util/debug";
 import { mapOpen } from "@/lib/util/debug";
-import { emit as emitEvent, subscribe as subscribeEvent, useEventValue } from "@/lib/events";
+import { emit as emitEvent, subscribe as subscribeEvent, track, useEventValue } from "@/lib/events";
 import type { MarkerStyle } from "@/types";
 import { watermark } from "@/lib/util/watermark";
 import { serial } from "@/lib/util/concurrent";
@@ -148,6 +148,7 @@ export const Scene = {
 	},
 	/** The ids of the locations the listed selections select. */
 	selected: (): SelectedIds => {
+		track("scene:changed");
 		return selected;
 	},
 	/** Reactive {@link Scene.selected}. */

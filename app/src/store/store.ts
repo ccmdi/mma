@@ -1,5 +1,5 @@
 import type { Derived, PatchOp } from "@/bindings.gen";
-import { emit as emitEvent, useEventValue } from "@/lib/events";
+import { emit as emitEvent, track, useEventValue } from "@/lib/events";
 import { applyPatch } from "@/lib/util/jsonPatch";
 
 /** The full local mirror of the store's derived state, as of the map version it reflects. */
@@ -61,6 +61,7 @@ export const Store = {
 	},
 	/** Imperative snapshot of the map state. */
 	get: (): Readonly<MapState> => {
+		track("snapshot:changed");
 		return state;
 	},
 	/** Clear derived state when the map closes. @unstable */
