@@ -151,7 +151,7 @@ describe("showing a pano", () => {
 		lookup.resolvePano.mockReturnValueOnce(slow.promise).mockResolvedValueOnce(resolved("B"));
 		const first = pano.show(loc("A"));
 		const second = pano.show(loc("B"));
-		await expect(second).resolves.toEqual({ status: "shown", pano: resolved("B") });
+		await expect(second).resolves.toEqual({ status: "shown", panoId: "B" });
 		slow.resolve(resolved("A"));
 		await expect(first).resolves.toEqual({ status: "superseded" });
 		expect(live().setPano.mock.calls).toEqual([["B"]]);
@@ -182,8 +182,27 @@ describe("showing a pano", () => {
 		const { pano } = await freshPano();
 		lookup.resolvePano.mockResolvedValueOnce(null).mockResolvedValueOnce(resolved("A"));
 		await pano.show(loc("A"));
-		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", pano: resolved("A") });
+		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: "A" });
 		expect(lookup.resolvePano).toHaveBeenCalledTimes(2);
+	});
+
+	it("keeps a pinned pano on screen when its lookup fails", async () => {
+		const { pano } = await freshPano();
+		lookup.resolvePano.mockRejectedValueOnce(new Error("offline"));
+		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: "A" });
+		expect(live().setPano.mock.calls).toEqual([["A"]]);
+	});
+
+	it("fails the show when an unpinned location's lookup fails", async () => {
+		const { pano } = await freshPano();
+		lookup.resolvePano.mockRejectedValueOnce(new Error("offline"));
+		await expect(pano.show(createLocation({ lat: 1, lng: 2 }))).rejects.toThrow("offline");
+	});
+
+	it("sends the viewer to the coordinates when nothing resolves", async () => {
+		const { pano } = await freshPano();
+		lookup.resolvePano.mockResolvedValueOnce(null);
+		await expect(pano.show(loc("A"))).resolves.toEqual({ status: "shown", panoId: null });
 	});
 
 	it("swaps without hiding or fading unless asked to conceal", async () => {

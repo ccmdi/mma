@@ -39,23 +39,22 @@ function installHost(answer: Pano | null, opts: { failed?: boolean } = {}) {
 }
 
 describe("svMeta metadata query", () => {
-	it("answers the panos the host found, aligned to the request", () => {
+	it("answers the host's answer for each pano, aligned to the request", () => {
 		installHost(CAR_PANO);
 		const out = JSON.parse(
 			JSON.stringify(query({ op: "metadata", panoIds: ["a", "b"] }, NULL_CFG)),
 		);
-		expect(out).toEqual([CAR_PANO, CAR_PANO]);
+		expect(out).toEqual([
+			{ state: "found", pano: CAR_PANO },
+			{ state: "found", pano: CAR_PANO },
+		]);
 	});
 
-	it("answers null for a pano the host reached no verdict on", () => {
-		installHost(CAR_PANO);
-		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: [""] }, NULL_CFG)))).toEqual([
-			null,
-		]);
+	it("keeps a failed lookup apart from a missing pano", () => {
+		installHost(null);
+		expect(query({ op: "metadata", panoIds: ["a"] }, NULL_CFG)).toEqual([{ state: "notFound" }]);
 		installHost(CAR_PANO, { failed: true });
-		expect(JSON.parse(JSON.stringify(query({ op: "metadata", panoIds: ["a"] }, NULL_CFG)))).toEqual(
-			[null],
-		);
+		expect(query({ op: "metadata", panoIds: ["a"] }, NULL_CFG)).toEqual([{ state: "failed" }]);
 	});
 
 	it("rejects an unknown query op rather than guessing", () => {
@@ -105,7 +104,7 @@ describe("svMetadata", () => {
 
 	it("asks the svMeta procedure and hands back its answer as it stands", async () => {
 		const { svMetadata } = await import("@/lib/sv/query");
-		procedureQuery.mockResolvedValue(JSON.stringify([ANSWER]));
+		procedureQuery.mockResolvedValue(JSON.stringify([{ state: "found", pano: ANSWER }]));
 
 		const [data] = await svMetadata(["pA"]);
 		expect(procedureQuery).toHaveBeenCalledWith(
@@ -124,10 +123,20 @@ describe("svMetadata", () => {
 		expect(await svMetadata([])).toEqual([]);
 		expect(procedureQuery).not.toHaveBeenCalled();
 
-		procedureQuery.mockResolvedValue(JSON.stringify([null, ANSWER]));
+		procedureQuery.mockResolvedValue(
+			JSON.stringify([{ state: "notFound" }, { state: "found", pano: ANSWER }]),
+		);
 		const out = await svMetadata(["dead", "pA"]);
 		expect(out[0]).toBeNull();
 		expect((out[1] as any)!.location.pano).toBe("pA");
+	});
+
+	it("rejects when a lookup failed rather than answering null", async () => {
+		const { svMetadata } = await import("@/lib/sv/query");
+		procedureQuery.mockResolvedValue(
+			JSON.stringify([{ state: "found", pano: ANSWER }, { state: "failed" }]),
+		);
+		await expect(svMetadata(["pA", "pB"])).rejects.toThrow();
 	});
 
 	it("rejects an answer that is not an array", async () => {
@@ -139,7 +148,9 @@ describe("svMetadata", () => {
 	it("sends every pano in one query -- the procedure does the splitting", async () => {
 		const { svMetadata } = await import("@/lib/sv/query");
 		procedureQuery.mockImplementation((_w: string, input: string) =>
-			Promise.resolve(JSON.stringify(JSON.parse(input).panoIds.map(() => ANSWER))),
+			Promise.resolve(
+				JSON.stringify(JSON.parse(input).panoIds.map(() => ({ state: "found", pano: ANSWER }))),
+			),
 		);
 		const panoIds = Array.from({ length: 500 }, (_, i) => `p${i}`);
 		const out = await svMetadata(panoIds);

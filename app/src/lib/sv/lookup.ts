@@ -24,12 +24,6 @@ export async function resolvePano(loc: Location): Promise<Pano | null> {
 	return here;
 }
 
-/** True when the location names a pano that no longer resolves, so `resolvePano` fell back
- *  to its coordinates. */
-export function isPanoFallback(loc: Location, resolved: Pano | null): boolean {
-	return isPinned(loc) && resolved?.id !== loc.panoId;
-}
-
 /** Compute SV search radius in meters based on map zoom and latitude. */
 export function svSearchRadius(lat: number, zoom: number): number {
 	return (4 * (156543.03392 * Math.cos((lat * Math.PI) / 180))) / 2 ** zoom;
@@ -213,7 +207,8 @@ export async function lookupStreetView(
 	const official = candidates.find((c) => !isUnofficial(c));
 	if (official?.time.length) {
 		// The whole historical stack, in one request.
-		for (const p of await svMetadata(official.time.map((t) => t.panoId))) push(p);
+		const stack = await svMetadata(official.time.map((t) => t.panoId)).catch(() => []);
+		for (const p of stack) push(p);
 	}
 
 	const chosen = rankCandidates(candidates, {

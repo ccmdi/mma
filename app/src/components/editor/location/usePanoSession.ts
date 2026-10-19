@@ -1,12 +1,12 @@
 import { useEffect } from "react";
 import { getSettings } from "@/store/settings";
 import { loadOpenSV, google } from "@/lib/sv/opensv";
-import { isPanoFallback } from "@/lib/sv/lookup";
 import { sendHideCar } from "./PanoControls";
 import { resetTrail, pushTrail, clearTrail } from "@/lib/sv/svTrail";
 import { usePano } from "@/lib/hooks/usePano";
 import { applyViewportLock } from "@/lib/sv/viewportLock";
 import { Editor } from "@/store/editor";
+import { isPinned } from "@/types";
 import { t } from "@/lib/i18n";
 
 /** The pano session for the open location: resolve and show its pano, feed viewer walks
@@ -40,11 +40,11 @@ export function usePanoSession() {
 
 			const shown = await pano.show(location);
 			if (cancelled || shown.status === "superseded") return;
-			if (isPanoFallback(location, shown.pano)) {
+			if (isPinned(location) && shown.panoId !== location.panoId) {
 				pano.toast(t("Configured pano ID could not be found. Falling back to lat/lng."), 3000);
 			}
 			// From the resolve result directly: setPano() with the same id fires no status_changed.
-			void edit({ panoId: shown.pano?.id ?? location.panoId ?? null });
+			void edit({ panoId: shown.panoId ?? location.panoId ?? null });
 		});
 
 		return () => {

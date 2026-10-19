@@ -5519,10 +5519,10 @@ export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & {
     zoom?: number;
 };
-/** @unstable */
+/** `panoId` is the pano put on screen, null when the viewer was sent to coordinates. @unstable */
 export type ShowResult = {
     status: "shown";
-    pano: Pano | null;
+    panoId: string | null;
 } | {
     status: "superseded";
 };
@@ -7039,8 +7039,9 @@ export interface SearchOpts {
     sources?: PanoType[];
     preference?: RankingStrategy;
 }
-/** Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
- *  deduped and large batches are split automatically. */
+/** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+ *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+ *  Duplicates are deduped and large batches are split automatically. */
 declare function svMetadata(panoIds: string[], signal?: AbortSignal): Promise<(Pano | null)[]>;
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.
  *  `opts.sources` narrows which collections are searched and `opts.preference` picks

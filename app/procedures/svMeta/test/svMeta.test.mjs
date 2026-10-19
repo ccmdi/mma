@@ -216,7 +216,7 @@ test("query metadata answers the whole pano, as it stands", () => {
 	const answer = full({ id: CLASSIC_A });
 	const { result, asked } = queryProcedure({ op: "metadata", panoIds: [CLASSIC_A] }, () => answer);
 	assert.equal(asked.length, 1);
-	assert.deepEqual(result, [answer]);
+	assert.deepEqual(result, [{ state: "found", pano: answer }]);
 });
 
 test("query metadata keeps answers aligned to the panos it was asked for", () => {
@@ -226,15 +226,15 @@ test("query metadata keeps answers aligned to the panos it was asked for", () =>
 	);
 	assert.deepEqual(asked, [[CLASSIC_A, "", CLASSIC_A, CLASSIC_B]]);
 	assert.equal(result.length, 4);
-	assert.equal(result[0].id, CLASSIC_A);
-	assert.equal(result[1], null);
-	assert.equal(result[2].id, CLASSIC_A);
-	assert.equal(result[3].id, CLASSIC_B);
+	assert.equal(result[0].pano.id, CLASSIC_A);
+	assert.deepEqual(result[1], { state: "skipped" });
+	assert.equal(result[2].pano.id, CLASSIC_A);
+	assert.equal(result[3].pano.id, CLASSIC_B);
 });
 
-test("query metadata answers null for a failed request", () => {
+test("query metadata answers a failed request as failed, not missing", () => {
 	const { result } = queryProcedure({ op: "metadata", panoIds: [CLASSIC_A] }, () => "fail");
-	assert.deepEqual(result, [null]);
+	assert.deepEqual(result, [{ state: "failed" }]);
 });
 
 test("query rejects an unknown op", () => {

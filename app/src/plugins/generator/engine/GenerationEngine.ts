@@ -479,7 +479,9 @@ export class GenerationEngine {
 		while (queue.length > 0 && (await this.proceed(region))) {
 			region.isProcessing = true;
 			const frontier = queue.splice(0, ROUND_SIZE);
-			const results = await svMetadata(frontier, this.abort.signal);
+			const results = await svMetadata(frontier, this.abort.signal).catch(() =>
+				frontier.map(() => null),
+			);
 			const inside = await regionContains(
 				region,
 				results.map((p) => (p ? { lat: p.lat, lng: p.lng } : { lat: 0, lng: 0 })),
@@ -755,7 +757,7 @@ export class GenerationEngine {
 		if (fresh.length === 0) return;
 		for (const id of fresh) region.checkedPanos.add(id);
 
-		const panos = await svMetadata(fresh, this.abort.signal);
+		const panos = await svMetadata(fresh, this.abort.signal).catch(() => fresh.map(() => null));
 		await this.processPanos(panos, region, depth);
 	}
 

@@ -758,13 +758,15 @@ describe("Enrichment — the read-only query surface", () => {
 		)) as any[];
 
 		expect(answers).toHaveLength(2);
-		expect(answers[1]).toBe(null);
-		expect(answers[0].id).toBe(OFFICIAL_PANO);
-		expect(answers[0].lat).toBeCloseTo(OFFICIAL_COORDS.lat, 6);
-		expect(answers[0].lng).toBeCloseTo(OFFICIAL_COORDS.lng, 6);
-		expect(answers[0].countryCode).toBe("RU");
-		expect(answers[0].worldSize).toEqual({ width: 16384, height: 8192 });
-		expect(answers[0].tileSize).toEqual({ width: 512, height: 512 });
+		expect(answers[1]).toEqual({ state: "notFound" });
+		expect(answers[0].state).toBe("found");
+		const found = answers[0].pano;
+		expect(found.id).toBe(OFFICIAL_PANO);
+		expect(found.lat).toBeCloseTo(OFFICIAL_COORDS.lat, 6);
+		expect(found.lng).toBeCloseTo(OFFICIAL_COORDS.lng, 6);
+		expect(found.countryCode).toBe("RU");
+		expect(found.worldSize).toEqual({ width: 16384, height: 8192 });
+		expect(found.tileSize).toEqual({ width: 512, height: 512 });
 
 		expect(await getSummary().then((s) => s.locationCount)).toBe(before);
 	});

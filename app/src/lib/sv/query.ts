@@ -12,20 +12,25 @@ export interface SearchOpts {
 	preference?: RankingStrategy;
 }
 
-/** Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
- *  deduped and large batches are split automatically. */
+/** Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+ *  not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+ *  Duplicates are deduped and large batches are split automatically. */
 export async function svMetadata(
 	panoIds: string[],
 	signal?: AbortSignal,
 ): Promise<(Pano | null)[]> {
 	if (panoIds.length === 0) return [];
-	const answers = await Procedure.query<(Pano | null)[]>(
+	const answers = await Procedure.query<PanoAnswer[]>(
 		svMetaProvider.procedure,
 		{ op: "metadata", panoIds },
 		{ signal },
 	);
 	if (!Array.isArray(answers)) throw new Error(`svMeta query answered ${typeof answers}`);
-	return panoIds.map((_, i) => answers[i] ?? null);
+	if (answers.some((a) => a.state === "failed")) throw new Error("Street View lookup failed");
+	return panoIds.map((_, i) => {
+		const answer = answers[i];
+		return answer?.state === "found" ? answer.pano : null;
+	});
 }
 
 /** The nearest pano to each point, aligned to `points`, null where there is no coverage.

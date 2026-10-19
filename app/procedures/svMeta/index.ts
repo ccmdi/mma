@@ -21,11 +21,10 @@ const DERIVE: Record<(typeof SVMETA_FIELDS)[number], (p: Pano) => unknown> = {
 };
 
 /** Read-only entry: metadata for arbitrary panos, without a run.
- *  `{"op":"metadata","panoIds":[..]}` answers with an array aligned to `panoIds`. */
+ *  `{"op":"metadata","panoIds":[..]}` answers with each pano's answer, aligned to `panoIds`. */
 export function query(input: { op?: string; panoIds?: string[] }, _cfg: ProcedureConfig<unknown>) {
 	if (input?.op !== "metadata") return { error: "svMeta: unknown query op" };
-	const answers = mma.panos((input.panoIds ?? []).map((panoId) => ({ panoId })));
-	return answers.map((a) => (a.state === "found" ? a.pano : null));
+	return mma.panos((input.panoIds ?? []).map((panoId) => ({ panoId })));
 }
 
 export function run(rows: Location[], cfg: ProcedureConfig<unknown>): Patch<Location>[] {

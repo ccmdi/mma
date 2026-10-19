@@ -25,7 +25,8 @@ import { releaseWebglContexts } from "@/lib/render/webglContexts";
 export type Pano = bindings.Pano;
 export type PanoDestination = string | google.maps.LatLngLiteral;
 export type PanoFrame = CameraFrame & { zoom?: number };
-export type ShowResult = { status: "shown"; pano: Pano | null } | { status: "superseded" };
+/** `panoId` is the pano put on screen, null when the viewer was sent to coordinates. */
+export type ShowResult = { status: "shown"; panoId: string | null } | { status: "superseded" };
 export type PanoEvent =
 	| "pov_changed"
 	| "zoom_changed"
@@ -104,9 +105,9 @@ function applyFrame(sv: google.maps.StreetViewPanorama, frame: PanoFrame) {
 	if (frame.zoom !== undefined) sv.setZoom(frame.zoom);
 }
 
-function applyResolved(sv: google.maps.StreetViewPanorama, resolved: Pano | null, loc: Location) {
-	if (resolved?.id) sv.setPano(resolved.id);
-	else sv.setPosition({ lat: loc.lat, lng: loc.lng });
+function applyResolved(sv: google.maps.StreetViewPanorama, to: PanoDestination, loc: Location) {
+	if (typeof to === "string") sv.setPano(to);
+	else sv.setPosition(to);
 	sv.setZoom(displayZoom(loc.zoom));
 	sv.setPov({ heading: loc.heading, pitch: loc.pitch });
 	sv.setVisible(true);
@@ -223,12 +224,15 @@ export function createPano() {
 	): Promise<ShowResult> {
 		const claim = ++latestClaim;
 		if (concealUntilReady) conceal(claim);
-		let resolved: Pano | null;
+		let to: PanoDestination;
 		try {
-			resolved = await resolveCached(loc);
+			to = (await resolveCached(loc))?.id ?? { lat: loc.lat, lng: loc.lng };
 		} catch (error) {
-			if (claim === latestClaim) reveal();
-			throw error;
+			if (!isPinned(loc)) {
+				if (claim === latestClaim) reveal();
+				throw error;
+			}
+			to = loc.panoId;
 		}
 		if (claim !== latestClaim) return { status: "superseded" };
 		const sv = ensureViewer();
@@ -236,17 +240,16 @@ export function createPano() {
 			reveal();
 			return { status: "superseded" };
 		}
-		const to: PanoDestination = resolved?.id ? resolved.id : { lat: loc.lat, lng: loc.lng };
 		if (concealUntilReady && !isAt(sv, to)) revealWhenReady(sv, claim, to);
 		else reveal();
-		applyResolved(sv, resolved, loc);
+		applyResolved(sv, to, loc);
 		resize();
-		return { status: "shown", pano: resolved };
+		return { status: "shown", panoId: typeof to === "string" ? to : null };
 	}
 
 	async function preload(loc: Location): Promise<void> {
 		const claim = latestClaim;
-		const resolved = await resolveCached(loc);
+		const resolved = await resolveCached(loc).catch(() => null);
 		const sv = ensureViewer();
 		if (claim !== latestClaim || concealedFor !== null || !sv || !resolved?.id) return;
 		sv.setPano(resolved.id);

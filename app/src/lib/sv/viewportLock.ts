@@ -19,7 +19,7 @@ export function getViewportLockInfo() {
 async function getCameraFrame(panoId: string): Promise<CameraFrame | null> {
 	const cached = frameCache.get(panoId);
 	if (cached) return cached;
-	const [data] = await svMetadata([panoId]);
+	const [data] = await svMetadata([panoId]).catch(() => [null]);
 	if (!data) return null;
 	const frame = data.cameraFrame;
 	frameCache.set(panoId, frame);

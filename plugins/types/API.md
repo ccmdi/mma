@@ -1525,8 +1525,9 @@ svMetadata(
 ): Promise<(Pano | null)[]>
 ```
 
-Full pano metadata for one or more panos, aligned to `panoIds`. Duplicates are
-deduped and large batches are split automatically.
+Full pano metadata for one or more panos, aligned to `panoIds`, null where a pano does
+not exist. Rejects when a lookup fails, so a failure is never taken for a missing pano.
+Duplicates are deduped and large batches are split automatically.
 
 ## Toast
 
